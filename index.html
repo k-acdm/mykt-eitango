@@ -1,0 +1,631 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+  <title>マイ活アプリ＜英単語＞</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, Arial, sans-serif; background: #f0f4f8; min-height: 100vh; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 20px; }
+    header span { font-size: 14px; opacity: .85; }
+    .container { padding: 14px; max-width: 640px; margin: 0 auto; }
+    .btn-wide { width: 100%; margin-top: 14px; padding: 16px; font-size: 18px; font-weight: bold; background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 14px rgba(79,125,240,.4); }
+    .btn-wide:hover { opacity: .9; }
+    .msg { margin-top: 10px; font-size: 14px; display: none; }
+    .ng { color: #c00; }
+    .ok { color: #007a3d; }
+    .loading { text-align: center; padding: 60px 20px; color: #888; font-size: 16px; }
+    .error   { text-align: center; padding: 40px 20px; color: #c00; font-size: 16px; }
+    .top-card { max-width: 640px; margin: 40px auto; background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .top-card h2 { margin: 0 0 8px; color: #1a1a2e; font-size: 22px; }
+    .top-card .sub { color: #666; font-size: 16px; margin-bottom: 20px; }
+    .row { display: flex; gap: 10px; align-items: center; }
+    .row input { flex: 1; font-size: 18px; padding: 12px; border: 1px solid #ccc; border-radius: 8px; }
+    .btn-login { font-size: 17px; padding: 12px 20px; background: #2b7cff; color: #fff; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+    .btn-login:disabled { opacity: .6; cursor: default; }
+    input.full { width: 100%; font-size: 17px; padding: 12px; border: 1px solid #ccc; border-radius: 8px; margin-top: 8px; }
+    .welcome-name { font-size: 22px; font-weight: bold; color: #1a1a2e; margin-top: 8px; }
+    .welcome-msg  { font-size: 15px; color: #555; margin-top: 6px; }
+    .hp-badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #fff3cd, #ffe08a); border: 2px solid #f0c040; border-radius: 20px; padding: 8px 16px; font-size: 15px; font-weight: bold; color: #7a5c00; margin-top: 12px; }
+    .btn-link { background: none; border: none; color: #4f7df0; font-size: 13px; cursor: pointer; text-decoration: underline; margin-top: 12px; display: block; }
+    #change-area { display: none; margin-top: 12px; }
+    .set-label { text-align: center; font-size: 14px; color: #888; margin-bottom: 12px; }
+    .word-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+    .num { width: 32px; height: 32px; background: #4f7df0; border-radius: 50%; color: #fff; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .word-block { flex: 1; }
+    .word    { font-size: 20px; font-weight: bold; color: #2d3a8c; }
+    .meaning { font-size: 15px; color: #555; margin-top: 3px; }
+    .btn-speak { background: none; border: 2px solid #4f7df0; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .2s; }
+    .btn-speak:hover    { background: #e8effe; }
+    .btn-speak.speaking { background: #4f7df0; }
+    .progress-bar-wrap { background: rgba(255,255,255,.3); height: 6px; }
+    .progress-bar { height: 6px; background: #fff; transition: width .4s ease; }
+    .q-card { background: #fff; border-radius: 14px; padding: 22px 18px 18px; box-shadow: 0 2px 12px rgba(0,0,0,.09); margin-bottom: 18px; }
+    .q-label { font-size: 13px; color: #888; margin-bottom: 12px; text-align: center; }
+    .q-english { font-size: 18px; color: #1a1a2e; line-height: 1.8; margin-bottom: 12px; padding: 14px; background: #f0f4ff; border-radius: 10px; text-align: center; }
+    .q-japanese { font-size: 17px; color: #333; line-height: 2.0; padding: 14px; background: #fafafa; border-radius: 10px; text-align: center; }
+    .speak-wrap { text-align: center; margin-top: 12px; }
+    .btn-speak-en { background: none; border: 2px solid #4f7df0; border-radius: 20px; padding: 7px 20px; color: #4f7df0; font-size: 15px; font-weight: bold; cursor: pointer; transition: all .2s; }
+    .btn-speak-en:hover    { background: #f0f4ff; }
+    .btn-speak-en.done     { border-color: #2ecc71; color: #2ecc71; }
+    .btn-speak-en.speaking { background: #4f7df0; color: #fff; border-color: #4f7df0; }
+    .choices { display: grid; gap: 12px; transition: opacity .3s; }
+    .choices.locked { opacity: .35; pointer-events: none; }
+    .choice-btn { width: 100%; padding: 16px; background: #fff; border: 2px solid #d0d8ff; border-radius: 12px; font-size: 17px; color: #333; cursor: pointer; text-align: left; transition: all .15s; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    .choice-btn:hover    { border-color: #4f7df0; background: #f0f4ff; }
+    .choice-btn.correct  { background: #e6f9ee; border-color: #2ecc71; color: #1a7a45; font-weight: bold; }
+    .choice-btn.wrong    { background: #fff0f0; border-color: #e74c3c; color: #c0392b; }
+    .choice-btn.disabled { pointer-events: none; }
+    .feedback { text-align: center; font-size: 16px; font-weight: bold; margin-top: 14px; min-height: 24px; }
+    .feedback.ok { color: #2ecc71; }
+    .feedback.ng { color: #e74c3c; }
+    .result-card { background: #fff; border-radius: 18px; box-shadow: 0 4px 16px rgba(0,0,0,.1); padding: 32px 20px; text-align: center; margin-bottom: 14px; }
+    .badge { font-size: 64px; margin-bottom: 12px; animation: pop .5s ease; }
+    @keyframes pop { 0%{transform:scale(.5);opacity:0}80%{transform:scale(1.1)}100%{transform:scale(1);opacity:1} }
+    .verdict      { font-size: 26px; font-weight: bold; margin-bottom: 6px; }
+    .verdict.pass { color: #2ecc71; }
+    .score-display { font-size: 52px; font-weight: bold; color: #2d3a8c; line-height: 1; }
+    .score-sub     { font-size: 14px; color: #888; margin-top: 6px; }
+    .result-msg    { font-size: 16px; color: #555; margin-top: 12px; }
+    .hp-card { background: linear-gradient(135deg, #1a3660, #2e5fa3); border-radius: 18px; padding: 22px; color: #fff; text-align: center; margin-bottom: 14px; box-shadow: 0 4px 16px rgba(46,95,163,.4); }
+    .hp-title { font-size: 14px; opacity: .85; margin-bottom: 12px; }
+    .hp-row   { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; }
+    .hp-item  { text-align: center; }
+    .hp-item .label { font-size: 12px; opacity: .8; margin-bottom: 4px; }
+    .hp-item .value { font-size: 24px; font-weight: bold; color: #ffe08a; }
+    .hp-item .value.bonus { color: #a8f0c0; }
+    .hp-divider { font-size: 20px; opacity: .6; padding-top: 16px; }
+    .hp-total-wrap  { background: rgba(255,255,255,.15); border-radius: 12px; padding: 12px 20px; display: inline-block; min-width: 200px; }
+    .hp-total-label { font-size: 13px; opacity: .85; margin-bottom: 4px; }
+    .hp-total-value { font-size: 36px; font-weight: bold; color: #ffe08a; }
+    .hp-streak { font-size: 13px; margin-top: 10px; opacity: .9; color: #a8f0c0; }
+    .btn-wrap { display: grid; gap: 12px; margin-top: 8px; }
+    .btn-result { padding: 16px; border: none; border-radius: 12px; font-size: 17px; font-weight: bold; cursor: pointer; }
+    .btn-review { background: linear-gradient(135deg, #2ecc71, #27ae60); color: #fff; }
+    .btn-close  { background: linear-gradient(135deg, #636e72, #2d3436); color: #fff; }
+    .review-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .review-en { font-size: 16px; font-weight: bold; color: #2d3a8c; margin-bottom: 4px; }
+    .review-ja { font-size: 14px; color: #333; line-height: 1.7; }
+    .closed-card { max-width: 640px; margin: 60px auto; background: #fff; border-radius: 16px; padding: 40px 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; }
+    .closed-card .icon { font-size: 56px; margin-bottom: 14px; }
+    .closed-card h2 { color: #1a1a2e; margin-bottom: 10px; font-size: 22px; }
+    .closed-card p  { color: #666; font-size: 16px; }
+    .back-warning { position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; pointer-events: none; z-index: 9999; line-height: 1.6; }
+
+    /* スマホ用 */
+    body.is-mobile header { padding: 24px 18px; }
+    body.is-mobile header h1 { font-size: 40px; }
+    body.is-mobile header span { font-size: 28px; }
+    body.is-mobile .container { padding: 16px; max-width: 100%; }
+    body.is-mobile .btn-wide { margin-top: 20px; padding: 32px; font-size: 36px; border-radius: 18px; }
+    body.is-mobile .msg { font-size: 28px; }
+    body.is-mobile .loading { font-size: 32px; }
+    body.is-mobile .error   { font-size: 32px; }
+    body.is-mobile .top-card { margin: 20px 14px; padding: 30px 20px; max-width: 100%; }
+    body.is-mobile .top-card h2 { font-size: 42px; }
+    body.is-mobile .top-card .sub { font-size: 30px; }
+    body.is-mobile .row input { font-size: 36px; padding: 20px; }
+    body.is-mobile .btn-login { font-size: 32px; padding: 20px 24px; }
+    body.is-mobile input.full { font-size: 34px; padding: 20px; }
+    body.is-mobile .welcome-name { font-size: 44px; }
+    body.is-mobile .welcome-msg  { font-size: 32px; }
+    body.is-mobile .hp-badge { font-size: 30px; padding: 12px 24px; }
+    body.is-mobile .btn-link { font-size: 28px; margin-top: 18px; }
+    body.is-mobile .set-label { font-size: 28px; margin-bottom: 16px; }
+    body.is-mobile .word-card { padding: 24px 18px; margin-bottom: 16px; gap: 16px; }
+    body.is-mobile .num { width: 56px; height: 56px; font-size: 26px; }
+    body.is-mobile .word    { font-size: 44px; }
+    body.is-mobile .meaning { font-size: 34px; }
+    body.is-mobile .btn-speak { width: 72px; height: 72px; font-size: 32px; border-width: 3px; }
+    body.is-mobile .progress-bar-wrap { height: 10px; }
+    body.is-mobile .progress-bar { height: 10px; }
+    body.is-mobile .q-card { padding: 30px 18px 24px; margin-bottom: 22px; }
+    body.is-mobile .q-label { font-size: 28px; margin-bottom: 18px; }
+    body.is-mobile .q-english { font-size: 36px; padding: 20px; }
+    body.is-mobile .q-japanese { font-size: 34px; padding: 20px; }
+    body.is-mobile .speak-wrap { margin-top: 18px; }
+    body.is-mobile .btn-speak-en { font-size: 30px; padding: 14px 34px; border-width: 3px; }
+    body.is-mobile .choices { gap: 18px; }
+    body.is-mobile .choice-btn { padding: 28px 20px; font-size: 34px; border-radius: 16px; border-width: 3px; }
+    body.is-mobile .feedback { font-size: 34px; margin-top: 22px; min-height: 44px; }
+    body.is-mobile .result-card { padding: 44px 20px; }
+    body.is-mobile .badge { font-size: 100px; }
+    body.is-mobile .verdict { font-size: 48px; }
+    body.is-mobile .score-display { font-size: 88px; }
+    body.is-mobile .score-sub  { font-size: 28px; }
+    body.is-mobile .result-msg { font-size: 30px; }
+    body.is-mobile .hp-card { padding: 32px 18px; }
+    body.is-mobile .hp-title { font-size: 28px; }
+    body.is-mobile .hp-item .label { font-size: 24px; }
+    body.is-mobile .hp-item .value { font-size: 44px; }
+    body.is-mobile .hp-divider { font-size: 34px; }
+    body.is-mobile .hp-total-wrap { padding: 18px 28px; min-width: 260px; }
+    body.is-mobile .hp-total-label { font-size: 26px; }
+    body.is-mobile .hp-total-value { font-size: 60px; }
+    body.is-mobile .hp-streak { font-size: 26px; }
+    body.is-mobile .btn-wrap { gap: 18px; }
+    body.is-mobile .btn-result { padding: 30px; font-size: 34px; border-radius: 16px; }
+    body.is-mobile .review-card { padding: 22px 16px; margin-bottom: 14px; }
+    body.is-mobile .review-en { font-size: 32px; }
+    body.is-mobile .review-ja { font-size: 28px; }
+    body.is-mobile .closed-card { margin: 40px 14px; padding: 50px 24px; }
+    body.is-mobile .closed-card .icon { font-size: 88px; }
+    body.is-mobile .closed-card h2 { font-size: 42px; }
+    body.is-mobile .closed-card p  { font-size: 32px; }
+    body.is-mobile .back-warning { font-size: 24px; padding: 10px 14px; }
+  </style>
+</head>
+<body>
+
+<div class="back-warning">⚠️ 「戻る」ボタンは押さないでね</div>
+
+<!-- ① ログイン -->
+<div id="screen-login" class="screen active">
+  <div class="top-card">
+    <h2>マイ活アプリ＜英単語＞</h2>
+    <p class="sub">生徒IDを入力してください</p>
+    <div class="row">
+      <input id="login-id" placeholder="生徒ID" type="number"/>
+      <button class="btn-login" id="login-btn" onclick="doLogin()">ログイン</button>
+    </div>
+    <div id="login-msg" class="msg"></div>
+  </div>
+</div>
+
+<!-- ② ニックネーム登録 -->
+<div id="screen-nickname" class="screen">
+  <div class="top-card">
+    <h2>マイ活アプリ＜英単語＞</h2>
+    <p class="sub">ようこそ！ニックネームを登録してください</p>
+    <p style="color:#888;margin-bottom:16px">ランキング等はニックネームで表示されます（あとで変更できます）</p>
+    <input class="full" id="nickname-input" placeholder="例：タロウ、はなちゃん" maxlength="20"/>
+    <button class="btn-wide" onclick="doSaveNickname()">✅ 登録して学習をはじめる</button>
+    <div id="nickname-msg" class="msg"></div>
+  </div>
+</div>
+
+<!-- ③ ようこそ -->
+<div id="screen-welcome" class="screen">
+  <div class="top-card">
+    <h2>マイ活アプリ＜英単語＞</h2>
+    <div class="welcome-name" id="welcome-name"></div>
+    <div class="welcome-msg"  id="welcome-msg"></div>
+    <div class="hp-badge">⚡ 現在の春アカポイント <span id="welcome-hp">0</span> HP</div>
+    <button class="btn-link" onclick="toggleChangeArea()">ニックネームを変更する</button>
+    <div id="change-area">
+      <input class="full" id="change-input" placeholder="新しいニックネーム" maxlength="20" style="margin-top:12px"/>
+      <button class="btn-wide" onclick="doChangeNickname()">変更する</button>
+      <div id="change-msg" class="msg"></div>
+    </div>
+    <button class="btn-wide" onclick="showToday()">📚 今日の学習をはじめる</button>
+  </div>
+</div>
+
+<!-- ④ 今日の10語 -->
+<div id="screen-today" class="screen">
+  <header>
+    <h1>📚 今日の10語</h1>
+    <span id="today-student"></span>
+  </header>
+  <div class="container">
+    <div class="set-label" id="today-set-label"></div>
+    <div id="today-word-list"><div class="loading">⏳ 単語を読み込んでいます...</div></div>
+    <button class="btn-wide" id="today-btn" style="display:none">✏️ テストに挑戦する</button>
+  </div>
+</div>
+
+<!-- ⑤ テスト -->
+<div id="screen-test" class="screen">
+  <header>
+    <h1>✏️ テスト</h1>
+    <span id="test-prog-text">0 / 0</span>
+  </header>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar" id="test-prog-bar" style="width:0%"></div>
+  </div>
+  <div class="container">
+    <div id="test-q-area"></div>
+    <div class="feedback" id="test-feedback"></div>
+    <button class="btn-wide" id="test-next-btn" style="display:none" onclick="nextQuestion()">次の問題へ →</button>
+  </div>
+</div>
+
+<!-- ⑥ 結果 -->
+<div id="screen-result" class="screen">
+  <header><h1>🏁 テスト結果</h1></header>
+  <div class="container" id="result-container"></div>
+</div>
+
+<!-- ⑦ おさらい -->
+<div id="screen-review" class="screen">
+  <header>
+    <h1>📖 おさらい</h1>
+    <span id="review-set-label"></span>
+  </header>
+  <div class="container">
+    <div id="review-list"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="closeApp()">🚪 テストを終了する</button>
+  </div>
+</div>
+
+<!-- ⑧ 終了画面 -->
+<div id="screen-closed" class="screen">
+  <div class="closed-card">
+    <div class="icon">✅</div>
+    <h2>お疲れさまでした！</h2>
+    <p style="margin-top:12px">今日の学習はここまで。<br>このタブを閉じてください。</p>
+  </div>
+</div>
+
+<script>
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
+
+  // スマホ判定
+  (function() {
+    const ua = navigator.userAgent.toLowerCase();
+    const isMobile = /android|iphone|ipad|ipod|mobile/.test(ua) ||
+                     (navigator.maxTouchPoints > 1 && /macintosh/.test(ua));
+    if (isMobile) document.body.classList.add('is-mobile');
+  })();
+
+  // =============================================
+  // GAS通信（fetch版）
+  // =============================================
+  function gasCall(params) {
+    return fetch(GAS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(params)
+    }).then(() => {
+      // no-corsではレスポンスが読めないのでGETで取得
+      return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)));
+    }).then(r => r.json());
+  }
+
+  function gasGet(params) {
+    return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
+      .then(r => r.json());
+  }
+
+  // =============================================
+  // 音声システム（Web Speech API・GAS外なので動く）
+  // =============================================
+  let _voices      = [];
+  let _voicesReady = false;
+
+  function loadVoices() {
+    const v = window.speechSynthesis.getVoices();
+    if (v.length > 0) { _voices = v; _voicesReady = true; }
+  }
+  if (window.speechSynthesis) {
+    loadVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+  }
+
+  function getEnglishVoice() {
+    return _voices.find(v => v.lang === 'en-US') ||
+           _voices.find(v => v.lang === 'en-GB') ||
+           _voices.find(v => v.lang.startsWith('en')) || null;
+  }
+
+  function doSpeak(text, rate, onDone) {
+    if (!window.speechSynthesis) { onDone && onDone(); return; }
+    const execute = () => {
+      window.speechSynthesis.cancel();
+      setTimeout(() => {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-US'; u.rate = rate || 0.85; u.volume = 1;
+        const voice = getEnglishVoice();
+        if (voice) u.voice = voice;
+        u.onend   = () => { onDone && onDone(); };
+        u.onerror = () => { onDone && onDone(); };
+        window.speechSynthesis.speak(u);
+      }, 150);
+    };
+    if (!_voicesReady) {
+      let waited = 0;
+      const wait = setInterval(() => {
+        loadVoices(); waited += 100;
+        if (_voicesReady || waited >= 1000) { clearInterval(wait); execute(); }
+      }, 100);
+    } else { execute(); }
+  }
+
+  setInterval(() => {
+    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }
+  }, 10000);
+
+  function speakWord(btn, word) {
+    if (btn) btn.classList.add('speaking');
+    doSpeak(word, 0.85, () => { if (btn) btn.classList.remove('speaking'); });
+  }
+  function speakSentence(text, onDone) { doSpeak(text, 0.82, onDone); }
+
+  // =============================================
+  // 離脱確認
+  // =============================================
+  function beforeUnloadHandler(e) {
+    e.preventDefault();
+    e.returnValue = '本当にこのページを離れますか？';
+    return e.returnValue;
+  }
+  window.addEventListener('beforeunload', beforeUnloadHandler);
+
+  let _studentId = '';
+  let _questions = [];
+  let _current   = 0;
+  let _score     = 0;
+  let _setNo     = 0;
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    window.scrollTo(0, 0);
+  }
+  function showMsg(id, text, kind) {
+    const el = document.getElementById(id);
+    el.textContent = text; el.className = 'msg ' + kind; el.style.display = 'block';
+  }
+  function esc(str) {
+    return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  }
+
+  // ① ログイン
+  function doLogin() {
+    const sid = document.getElementById('login-id').value.trim();
+    if (!sid) { showMsg('login-msg', '生徒IDを入力してください。', 'ng'); return; }
+    showMsg('login-msg', '確認中…', 'ok');
+    document.getElementById('login-btn').disabled = true;
+    gasGet({ action: 'loginStudent', studentId: sid })
+      .then(res => {
+        document.getElementById('login-btn').disabled = false;
+        if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
+        _studentId = res.studentId;
+        res.isFirstLogin ? showScreen('screen-nickname') : showWelcome(res.nickname, res.totalHP, res.loginBonus);
+      })
+      .catch(err => {
+        document.getElementById('login-btn').disabled = false;
+        showMsg('login-msg', 'エラーが発生しました。もう一度お試しください。', 'ng');
+      });
+  }
+  document.getElementById('login-id').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+  // ② ニックネーム登録
+  function doSaveNickname() {
+    const nn = document.getElementById('nickname-input').value.trim();
+    if (!nn) { showMsg('nickname-msg', 'ニックネームを入力してください。', 'ng'); return; }
+    gasGet({ action: 'saveNickname', studentId: _studentId, nickname: nn })
+      .then(res => {
+        if (!res.ok) { showMsg('nickname-msg', res.message, 'ng'); return; }
+        showWelcome(res.nickname, 10, 10);
+      })
+      .catch(() => { showMsg('nickname-msg', 'エラーが発生しました。', 'ng'); });
+  }
+
+  // ③ ようこそ
+  function showWelcome(nickname, totalHP, loginBonus) {
+    document.getElementById('welcome-name').textContent = nickname + ' さん、今日も頑張ろう！';
+    document.getElementById('welcome-hp').textContent   = totalHP.toLocaleString();
+    document.getElementById('welcome-msg').textContent  = loginBonus > 0
+      ? '🎁 ログインボーナス +' + loginBonus + 'HP もらったよ！' : '今日もよろしく！';
+    showScreen('screen-welcome');
+  }
+  function toggleChangeArea() {
+    const area = document.getElementById('change-area');
+    area.style.display = area.style.display === 'none' ? 'block' : 'none';
+  }
+  function doChangeNickname() {
+    const nn = document.getElementById('change-input').value.trim();
+    if (!nn) { showMsg('change-msg', 'ニックネームを入力してください。', 'ng'); return; }
+    gasGet({ action: 'saveNickname', studentId: _studentId, nickname: nn })
+      .then(res => {
+        if (!res.ok) { showMsg('change-msg', res.message, 'ng'); return; }
+        document.getElementById('welcome-name').textContent = res.nickname + ' さん、今日も頑張ろう！';
+        document.getElementById('change-area').style.display = 'none';
+        showMsg('change-msg', '変更しました！', 'ok');
+      })
+      .catch(() => { showMsg('change-msg', 'エラーが発生しました。', 'ng'); });
+  }
+
+  // ④ 今日の10語
+  function showToday() {
+    showScreen('screen-today');
+    document.getElementById('today-student').textContent = _studentId + ' さん';
+    document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';
+    document.getElementById('today-btn').style.display = 'none';
+    gasGet({ action: 'getTodaysSet', studentId: _studentId })
+      .then(res => {
+        if (!res.ok) {
+          document.getElementById('today-word-list').innerHTML = '<div class="error">⚠️ ' + res.message + '</div>';
+          return;
+        }
+        _setNo = res.setNo; _questions = res.words;
+        document.getElementById('today-set-label').textContent = 'セット ' + res.setNo + '（' + res.words.length + '語）';
+        renderWords(res.words);
+        const btn = document.getElementById('today-btn');
+        if (res.alreadyDone) { btn.textContent = '📖 おさらいする'; btn.onclick = showReview; }
+        else                 { btn.textContent = '✏️ テストに挑戦する'; btn.onclick = showTest; }
+      })
+      .catch(() => {
+        document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>';
+      });
+  }
+  function renderWords(words) {
+    document.getElementById('today-word-list').innerHTML = words.map((w, i) => `
+      <div class="word-card">
+        <div class="num">${i + 1}</div>
+        <div class="word-block">
+          <div class="word">${w.word}</div>
+          <div class="meaning">${w.meaning}</div>
+        </div>
+        <button class="btn-speak" onclick="speakWord(this, '${esc(w.word)}')">🔊</button>
+      </div>
+    `).join('');
+    document.getElementById('today-btn').style.display = 'block';
+  }
+
+  // ⑤ テスト
+  function showTest() {
+    _current = 0; _score = 0;
+    showScreen('screen-test');
+    renderQuestion();
+  }
+  function renderQuestion() {
+    const total = _questions.length;
+    if (_current >= total) { finishTest(); return; }
+    const q = _questions[_current];
+    const pct = Math.round((_current + 1) / total * 100);
+    document.getElementById('test-prog-text').textContent  = (_current + 1) + ' / ' + total;
+    document.getElementById('test-prog-bar').style.width   = pct + '%';
+    document.getElementById('test-feedback').textContent   = '';
+    document.getElementById('test-feedback').className     = 'feedback';
+    document.getElementById('test-next-btn').style.display = 'none';
+    const labels  = ['①', '②', '③', '④'];
+    const choices = [q.choiceA, q.choiceB, q.choiceC, q.choiceD];
+    document.getElementById('test-q-area').innerHTML = `
+      <div class="q-card">
+        <div class="q-label">空欄に当てはまる語を選んでください</div>
+        <div class="q-english">${q.example || q.word}</div>
+        <div class="q-japanese">${q.blank || q.meaning}</div>
+        <div class="speak-wrap">
+          <button class="btn-speak-en" id="speak-btn" onclick="doSpeakQuestion(this)">
+            🔊 英文を聞く（先に聞いてね）
+          </button>
+        </div>
+      </div>
+      <div class="choices locked" id="choices-wrap">
+        ${choices.map((c, i) => `
+          <button class="choice-btn" onclick="answer(this, ${i}, '${esc(q.answer)}', '${esc(q.meaning)}')">
+            <span style="font-weight:bold;color:#4f7df0">${labels[i]}</span>&ensp;${c}
+          </button>
+        `).join('')}
+      </div>
+    `;
+  }
+  function doSpeakQuestion(btn) {
+    const q = _questions[_current];
+    btn.textContent = '🔊 再生中...';
+    btn.classList.add('speaking'); btn.disabled = true;
+    speakSentence(q.example || q.word, () => {
+      btn.textContent = '🔊 もう一度聞く';
+      btn.classList.remove('speaking'); btn.classList.add('done'); btn.disabled = false;
+      const wrap = document.getElementById('choices-wrap');
+      if (wrap) wrap.classList.remove('locked');
+    });
+  }
+  function answer(btn, chosenIdx, correctLabel, correctMeaning) {
+    const correctIdx = ['A','B','C','D'].indexOf(correctLabel.trim().toUpperCase());
+    const isOk = (chosenIdx === correctIdx);
+    document.querySelectorAll('.choice-btn').forEach((b, i) => {
+      b.classList.add('disabled');
+      if (i === correctIdx) b.classList.add('correct');
+    });
+    if (!isOk) btn.classList.add('wrong');
+    const fb = document.getElementById('test-feedback');
+    if (isOk) { _score++; fb.textContent = '🎉 正解！'; fb.className = 'feedback ok'; }
+    else      { fb.innerHTML = '❌ 不正解 → 正解：<strong>' + correctMeaning + '</strong>'; fb.className = 'feedback ng'; }
+    const nextBtn = document.getElementById('test-next-btn');
+    nextBtn.style.display = 'block';
+    nextBtn.textContent   = (_current + 1 >= _questions.length) ? '結果を見る 🏁' : '次の問題へ →';
+  }
+  function nextQuestion() { _current++; renderQuestion(); }
+  function finishTest() {
+    const total = _questions.length;
+    if (_score === total) {
+      gasGet({ action: 'saveAttempt', studentId: _studentId, setNo: _setNo, score: _score, total: total, passed: true })
+        .then(res => { showResult(true, res); })
+        .catch(()  => { showResult(true, null); });
+    } else {
+      const lastScore = _score;
+      _questions = _questions.sort(() => Math.random() - 0.5);
+      _current = 0; _score = 0;
+      document.getElementById('test-feedback').textContent   = '';
+      document.getElementById('test-feedback').className     = 'feedback';
+      document.getElementById('test-next-btn').style.display = 'none';
+      document.getElementById('test-prog-bar').style.width   = '0%';
+      document.getElementById('test-q-area').innerHTML = `
+        <div style="text-align:center;padding:50px 16px">
+          <div style="font-size:80px">😤</div>
+          <div style="font-size:32px;font-weight:bold;color:#e74c3c;margin:16px 0">惜しい！満点で合格だよ</div>
+          <div style="font-size:28px;color:#666">${lastScore}／${total}問正解<br>もう一度チャレンジ！</div>
+        </div>
+      `;
+      document.getElementById('test-prog-text').textContent = '再挑戦中...';
+      setTimeout(() => renderQuestion(), 2500);
+    }
+  }
+
+  // ⑥ 結果
+  function showResult(passed, saveRes) {
+    showScreen('screen-result');
+    const total   = _questions.length;
+    const totalHP = saveRes ? (saveRes.totalHP || 0) : 0;
+    const streak  = saveRes ? (saveRes.streak  || 0) : 0;
+    const clearHP = saveRes ? (saveRes.clearHP || 0) : 0;
+    const bonusHP = saveRes ? (saveRes.bonusHP || 0) : 0;
+    const msgs = ['🎉 完璧！満点合格おめでとう！', '✨ 素晴らしい！全問正解！', '🏆 やったね！満点クリア！'];
+    document.getElementById('result-container').innerHTML = `
+      <div class="result-card">
+        <div class="badge">🏆</div>
+        <div class="verdict pass">満点合格！</div>
+        <div class="score-display">${_score} / ${total}</div>
+        <div class="score-sub">セット ${_setNo}</div>
+        <div class="result-msg">${msgs[_score % 3]}</div>
+      </div>
+      <div class="hp-card">
+        <div class="hp-title">⚡ 獲得 HP</div>
+        <div class="hp-row">
+          <div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+${clearHP}</div></div>
+          ${bonusHP > 0 ? `<div class="hp-divider">＋</div><div class="hp-item"><div class="label">連続${streak}日ボーナス</div><div class="value bonus">+${bonusHP.toLocaleString()}</div></div>` : ''}
+        </div>
+        <div class="hp-total-wrap">
+          <div class="hp-total-label">現在の春アカポイント</div>
+          <div class="hp-total-value">⚡ ${totalHP.toLocaleString()} HP</div>
+        </div>
+        ${streak >= 2 ? `<div class="hp-streak">🔥 ${streak}日連続継続中！この調子で続けよう！</div>` : ''}
+      </div>
+      <div class="btn-wrap">
+        <button class="btn-result btn-review" onclick="showReview()">📖 今日の単語をおさらいする</button>
+        <button class="btn-result btn-close"  onclick="closeApp()">🚪 テストを終了する</button>
+      </div>
+    `;
+  }
+
+  // ⑦ おさらい
+  function fillBlank(blank, meaning) {
+    if (!blank) return meaning;
+    return blank.replace(/（[　\s]*）/g, '（' + meaning + '）');
+  }
+  function showReview() {
+    showScreen('screen-review');
+    document.getElementById('review-set-label').textContent = 'セット ' + _setNo;
+    document.getElementById('review-list').innerHTML = _questions.map((w, i) => `
+      <div class="review-card">
+        <div style="flex:1">
+          <div class="review-en">${i + 1}. ${w.example || w.word}</div>
+          <div class="review-ja">${fillBlank(w.blank, w.meaning)}</div>
+        </div>
+        <button class="btn-speak" onclick="speakWord(this, '${esc(w.example || w.word)}')">🔊</button>
+      </div>
+    `).join('');
+  }
+
+  // ⑧ 終了
+  function closeApp() {
+    window.speechSynthesis && window.speechSynthesis.cancel();
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    try { window.close(); } catch(e) {}
+    try { top.close(); } catch(e) {}
+    setTimeout(() => showScreen('screen-closed'), 300);
+  }
+</script>
+</body>
+</html>
