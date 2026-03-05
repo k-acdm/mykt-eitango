@@ -97,66 +97,23 @@
     .back-warning { position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; pointer-events: none; z-index: 9999; line-height: 1.6; }
 
     /* スマホ用 */
-    body.is-mobile header { padding: 24px 18px; }
-    body.is-mobile header h1 { font-size: 40px; }
-    body.is-mobile header span { font-size: 28px; }
-    body.is-mobile .container { padding: 16px; max-width: 100%; }
-    body.is-mobile .btn-wide { margin-top: 20px; padding: 32px; font-size: 36px; border-radius: 18px; }
-    body.is-mobile .msg { font-size: 28px; }
-    body.is-mobile .loading { font-size: 32px; }
-    body.is-mobile .error   { font-size: 32px; }
-    body.is-mobile .top-card { margin: 20px 14px; padding: 30px 20px; max-width: 100%; }
-    body.is-mobile .top-card h2 { font-size: 42px; }
-    body.is-mobile .top-card .sub { font-size: 30px; }
-    body.is-mobile .row input { font-size: 36px; padding: 20px; }
-    body.is-mobile .btn-login { font-size: 32px; padding: 20px 24px; }
-    body.is-mobile input.full { font-size: 34px; padding: 20px; }
-    body.is-mobile .welcome-name { font-size: 44px; }
-    body.is-mobile .welcome-msg  { font-size: 32px; }
-    body.is-mobile .hp-badge { font-size: 30px; padding: 12px 24px; }
-    body.is-mobile .btn-link { font-size: 28px; margin-top: 18px; }
-    body.is-mobile .set-label { font-size: 28px; margin-bottom: 16px; }
-    body.is-mobile .word-card { padding: 24px 18px; margin-bottom: 16px; gap: 16px; }
-    body.is-mobile .num { width: 56px; height: 56px; font-size: 26px; }
-    body.is-mobile .word    { font-size: 44px; }
-    body.is-mobile .meaning { font-size: 34px; }
-    body.is-mobile .btn-speak { width: 72px; height: 72px; font-size: 32px; border-width: 3px; }
-    body.is-mobile .progress-bar-wrap { height: 10px; }
-    body.is-mobile .progress-bar { height: 10px; }
-    body.is-mobile .q-card { padding: 30px 18px 24px; margin-bottom: 22px; }
-    body.is-mobile .q-label { font-size: 28px; margin-bottom: 18px; }
-    body.is-mobile .q-english { font-size: 36px; padding: 20px; }
-    body.is-mobile .q-japanese { font-size: 34px; padding: 20px; }
-    body.is-mobile .speak-wrap { margin-top: 18px; }
-    body.is-mobile .btn-speak-en { font-size: 30px; padding: 14px 34px; border-width: 3px; }
-    body.is-mobile .choices { gap: 18px; }
-    body.is-mobile .choice-btn { padding: 28px 20px; font-size: 34px; border-radius: 16px; border-width: 3px; }
-    body.is-mobile .feedback { font-size: 34px; margin-top: 22px; min-height: 44px; }
-    body.is-mobile .result-card { padding: 44px 20px; }
-    body.is-mobile .badge { font-size: 100px; }
-    body.is-mobile .verdict { font-size: 48px; }
-    body.is-mobile .score-display { font-size: 88px; }
-    body.is-mobile .score-sub  { font-size: 28px; }
-    body.is-mobile .result-msg { font-size: 30px; }
-    body.is-mobile .hp-card { padding: 32px 18px; }
-    body.is-mobile .hp-title { font-size: 28px; }
-    body.is-mobile .hp-item .label { font-size: 24px; }
-    body.is-mobile .hp-item .value { font-size: 44px; }
-    body.is-mobile .hp-divider { font-size: 34px; }
-    body.is-mobile .hp-total-wrap { padding: 18px 28px; min-width: 260px; }
-    body.is-mobile .hp-total-label { font-size: 26px; }
-    body.is-mobile .hp-total-value { font-size: 60px; }
-    body.is-mobile .hp-streak { font-size: 26px; }
-    body.is-mobile .btn-wrap { gap: 18px; }
-    body.is-mobile .btn-result { padding: 30px; font-size: 34px; border-radius: 16px; }
-    body.is-mobile .review-card { padding: 22px 16px; margin-bottom: 14px; }
-    body.is-mobile .review-en { font-size: 32px; }
-    body.is-mobile .review-ja { font-size: 28px; }
-    body.is-mobile .closed-card { margin: 40px 14px; padding: 50px 24px; }
-    body.is-mobile .closed-card .icon { font-size: 88px; }
-    body.is-mobile .closed-card h2 { font-size: 42px; }
-    body.is-mobile .closed-card p  { font-size: 32px; }
-    body.is-mobile .back-warning { font-size: 24px; padding: 10px 14px; }
+    @media (max-width: 480px) {
+      header h1 { font-size: 18px; }
+      header span { font-size: 12px; }
+      .top-card { margin: 16px; padding: 20px; }
+      .top-card h2 { font-size: 18px; }
+      .top-card .sub { font-size: 14px; }
+      .row input { font-size: 16px; padding: 10px; }
+      .btn-login { font-size: 15px; padding: 10px 16px; }
+      .btn-wide { font-size: 16px; padding: 14px; }
+      .word { font-size: 18px; }
+      .meaning { font-size: 14px; }
+      .q-english { font-size: 16px; }
+      .q-japanese { font-size: 15px; }
+      .choice-btn { font-size: 15px; padding: 14px; }
+      .btn-speak-en { font-size: 14px; }
+      .feedback { font-size: 15px; }
+    }
   </style>
 </head>
 <body>
@@ -264,39 +221,23 @@
 <script>
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
 
-  // スマホ判定
-  (function() {
-    const ua = navigator.userAgent.toLowerCase();
-    const isMobile = /android|iphone|ipad|ipod|mobile/.test(ua) ||
-                     (navigator.maxTouchPoints > 1 && /macintosh/.test(ua));
-    if (isMobile) document.body.classList.add('is-mobile');
-  })();
-
   // =============================================
-  // GAS通信（fetch版）
-  // =============================================
-  function gasCall(params) {
-    return fetch(GAS_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(params)
-    }).then(() => {
-      // no-corsではレスポンスが読めないのでGETで取得
-      return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)));
-    }).then(r => r.json());
-  }
-
-  function gasGet(params) {
-    return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
-      .then(r => r.json());
-  }
-
-  // =============================================
-  // 音声システム（Web Speech API・GAS外なので動く）
+  // 音声アンロック + Web Speech API
   // =============================================
   let _voices      = [];
   let _voicesReady = false;
+  let _unlocked    = false;
+
+  function unlockAudio() {
+    if (_unlocked || !window.speechSynthesis) return;
+    _unlocked = true;
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0;
+    u.lang   = 'en-US';
+    window.speechSynthesis.speak(u);
+  }
+  document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+  document.addEventListener('click',      unlockAudio, { once: true });
 
   function loadVoices() {
     const v = window.speechSynthesis.getVoices();
@@ -350,6 +291,14 @@
   function speakSentence(text, onDone) { doSpeak(text, 0.82, onDone); }
 
   // =============================================
+  // GAS通信
+  // =============================================
+  function gasGet(params) {
+    return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
+      .then(r => r.json());
+  }
+
+  // =============================================
   // 離脱確認
   // =============================================
   function beforeUnloadHandler(e) {
@@ -391,7 +340,7 @@
         _studentId = res.studentId;
         res.isFirstLogin ? showScreen('screen-nickname') : showWelcome(res.nickname, res.totalHP, res.loginBonus);
       })
-      .catch(err => {
+      .catch(() => {
         document.getElementById('login-btn').disabled = false;
         showMsg('login-msg', 'エラーが発生しました。もう一度お試しください。', 'ng');
       });
@@ -553,9 +502,9 @@
       document.getElementById('test-prog-bar').style.width   = '0%';
       document.getElementById('test-q-area').innerHTML = `
         <div style="text-align:center;padding:50px 16px">
-          <div style="font-size:80px">😤</div>
-          <div style="font-size:32px;font-weight:bold;color:#e74c3c;margin:16px 0">惜しい！満点で合格だよ</div>
-          <div style="font-size:28px;color:#666">${lastScore}／${total}問正解<br>もう一度チャレンジ！</div>
+          <div style="font-size:64px">😤</div>
+          <div style="font-size:22px;font-weight:bold;color:#e74c3c;margin:16px 0">惜しい！満点で合格だよ</div>
+          <div style="font-size:18px;color:#666">${lastScore}／${total}問正解<br>もう一度チャレンジ！</div>
         </div>
       `;
       document.getElementById('test-prog-text').textContent = '再挑戦中...';
