@@ -285,10 +285,14 @@
            _voices.find(v => v.lang.startsWith('en')) || null;
   }
 
-  // 文をフレーズ単位に分割（カンマ・ピリオド等で区切る）
+// 文を3語ずつに分割
   function splitPhrases(text) {
-    const parts = text.match(/[^,;.!?]+[,;.!?]?/g) || [text];
-    return parts.map(s => s.trim()).filter(s => s.length > 0);
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+    const chunks = [];
+    for (let i = 0; i < words.length; i += 3) {
+      chunks.push(words.slice(i, i + 3).join(' '));
+    }
+    return chunks;
   }
 
   function speakChunks(chunks, rate, onDone) {
@@ -298,8 +302,13 @@
     u.lang = 'en-US'; u.rate = rate || 0.85; u.volume = 1;
     const voice = getEnglishVoice();
     if (voice) u.voice = voice;
-    u.onend   = () => { speakChunks(chunks, rate, onDone); };
-    u.onerror = () => { speakChunks(chunks, rate, onDone); };
+
+    // onendが来なくてもタイムアウトで強制的に次へ進む保険
+    const ms = Math.max(2000, (chunk.split(' ').length / (rate * 2.5)) * 1000 + 1500);
+    const timer = setTimeout(() => { speakChunks(chunks, rate, onDone); }, ms);
+
+    u.onend   = () => { clearTimeout(timer); speakChunks(chunks, rate, onDone); };
+    u.onerror = () => { clearTimeout(timer); speakChunks(chunks, rate, onDone); };
     window.speechSynthesis.speak(u);
   }
 
