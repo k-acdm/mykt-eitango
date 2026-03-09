@@ -257,7 +257,7 @@
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
 
   // =============================================
-  // 音声システム（Android対応・setTimeout削除版）
+  // 音声システム（フレーズ分割版・Android対応）
   // =============================================
   let _voices      = [];
   let _voicesReady = false;
@@ -284,24 +284,33 @@
            _voices.find(v => v.lang === 'en-GB') ||
            _voices.find(v => v.lang.startsWith('en')) || null;
   }
+
+  // 文をフレーズ単位に分割（カンマ・ピリオド等で区切る）
+  function splitPhrases(text) {
+    const parts = text.match(/[^,;.!?]+[,;.!?]?/g) || [text];
+    return parts.map(s => s.trim()).filter(s => s.length > 0);
+  }
+
+  function speakChunks(chunks, rate, onDone) {
+    if (!chunks || chunks.length === 0) { onDone && onDone(); return; }
+    const chunk = chunks.shift();
+    const u = new SpeechSynthesisUtterance(chunk);
+    u.lang = 'en-US'; u.rate = rate || 0.85; u.volume = 1;
+    const voice = getEnglishVoice();
+    if (voice) u.voice = voice;
+    u.onend   = () => { speakChunks(chunks, rate, onDone); };
+    u.onerror = () => { speakChunks(chunks, rate, onDone); };
+    window.speechSynthesis.speak(u);
+  }
+
   function doSpeak(text, rate, onDone) {
     if (!window.speechSynthesis) { onDone && onDone(); return; }
     loadVoices();
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US'; u.rate = rate || 0.85; u.volume = 1;
-    const voice = getEnglishVoice();
-    if (voice) u.voice = voice;
-    u.onend   = () => { onDone && onDone(); };
-    u.onerror = () => { onDone && onDone(); };
-    window.speechSynthesis.speak(u);
+    const chunks = splitPhrases(text);
+    speakChunks(chunks, rate, onDone);
   }
-  setInterval(() => {
-    if (window.speechSynthesis && window.speechSynthesis.speaking) {
-      window.speechSynthesis.pause();
-      window.speechSynthesis.resume();
-    }
-  }, 1000);
+
   function speakWord(btn, word) {
     if (btn) btn.classList.add('speaking');
     doSpeak(word, 0.85, () => { if (btn) btn.classList.remove('speaking'); });
