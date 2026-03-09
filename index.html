@@ -301,7 +301,7 @@
       window.speechSynthesis.pause();
       window.speechSynthesis.resume();
     }
-  }, 10000);
+  }, 1000);
   function speakWord(btn, word) {
     if (btn) btn.classList.add('speaking');
     doSpeak(word, 0.85, () => { if (btn) btn.classList.remove('speaking'); });
