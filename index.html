@@ -33,7 +33,6 @@
     .hp-badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #fff3cd, #ffe08a); border: 2px solid #f0c040; border-radius: 20px; padding: 8px 16px; font-size: 15px; font-weight: bold; color: #7a5c00; margin-top: 12px; }
     .btn-link { background: none; border: none; color: #4f7df0; font-size: 13px; cursor: pointer; text-decoration: underline; margin-top: 12px; display: block; }
     #change-area { display: none; margin-top: 12px; }
-    /* レベル選択 */
     .level-grid { display: grid; gap: 12px; margin-top: 8px; }
     .level-btn { width: 100%; padding: 18px 16px; border: 2px solid #d0d8ff; border-radius: 14px; background: #fff; font-size: 17px; font-weight: bold; color: #2d3a8c; cursor: pointer; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: all .15s; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     .level-btn:hover { border-color: #4f7df0; background: #f0f4ff; }
@@ -258,21 +257,19 @@
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
 
   // =============================================
-  // 音声アンロック + Web Speech API
+  // 音声システム（Android対応・setTimeout削除版）
   // =============================================
   let _voices      = [];
   let _voicesReady = false;
-  let _unlocked    = false;
 
   function unlockAudio() {
-    if (_unlocked || !window.speechSynthesis) return;
-    _unlocked = true;
+    if (!window.speechSynthesis) return;
     const u = new SpeechSynthesisUtterance(' ');
     u.volume = 0; u.lang = 'en-US';
     window.speechSynthesis.speak(u);
   }
-  document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
-  document.addEventListener('click',      unlockAudio, { once: true });
+  document.addEventListener('touchstart', unlockAudio, { passive: true });
+  document.addEventListener('click', unlockAudio);
 
   function loadVoices() {
     const v = window.speechSynthesis.getVoices();
@@ -289,25 +286,15 @@
   }
   function doSpeak(text, rate, onDone) {
     if (!window.speechSynthesis) { onDone && onDone(); return; }
-    const execute = () => {
-      window.speechSynthesis.cancel();
-      setTimeout(() => {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'en-US'; u.rate = rate || 0.85; u.volume = 1;
-        const voice = getEnglishVoice();
-        if (voice) u.voice = voice;
-        u.onend   = () => { onDone && onDone(); };
-        u.onerror = () => { onDone && onDone(); };
-        window.speechSynthesis.speak(u);
-      }, 150);
-    };
-    if (!_voicesReady) {
-      let waited = 0;
-      const wait = setInterval(() => {
-        loadVoices(); waited += 100;
-        if (_voicesReady || waited >= 1000) { clearInterval(wait); execute(); }
-      }, 100);
-    } else { execute(); }
+    loadVoices();
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US'; u.rate = rate || 0.85; u.volume = 1;
+    const voice = getEnglishVoice();
+    if (voice) u.voice = voice;
+    u.onend   = () => { onDone && onDone(); };
+    u.onerror = () => { onDone && onDone(); };
+    window.speechSynthesis.speak(u);
   }
   setInterval(() => {
     if (window.speechSynthesis && window.speechSynthesis.speaking) {
