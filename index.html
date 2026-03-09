@@ -33,6 +33,13 @@
     .hp-badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #fff3cd, #ffe08a); border: 2px solid #f0c040; border-radius: 20px; padding: 8px 16px; font-size: 15px; font-weight: bold; color: #7a5c00; margin-top: 12px; }
     .btn-link { background: none; border: none; color: #4f7df0; font-size: 13px; cursor: pointer; text-decoration: underline; margin-top: 12px; display: block; }
     #change-area { display: none; margin-top: 12px; }
+    /* レベル選択 */
+    .level-grid { display: grid; gap: 12px; margin-top: 8px; }
+    .level-btn { width: 100%; padding: 18px 16px; border: 2px solid #d0d8ff; border-radius: 14px; background: #fff; font-size: 17px; font-weight: bold; color: #2d3a8c; cursor: pointer; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: all .15s; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .level-btn:hover { border-color: #4f7df0; background: #f0f4ff; }
+    .level-btn.disabled { opacity: .45; cursor: not-allowed; background: #f5f5f5; color: #999; border-color: #ddd; }
+    .level-btn .badge-coming { font-size: 12px; background: #eee; color: #999; padding: 3px 10px; border-radius: 20px; font-weight: normal; }
+    .level-btn .badge-arrow { font-size: 18px; color: #4f7df0; }
     .set-label { text-align: center; font-size: 14px; color: #888; margin-bottom: 12px; }
     .word-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
     .num { width: 32px; height: 32px; background: #4f7df0; border-radius: 50%; color: #fff; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -95,24 +102,14 @@
     .closed-card h2 { color: #1a1a2e; margin-bottom: 10px; font-size: 22px; }
     .closed-card p  { color: #666; font-size: 16px; }
     .back-warning { position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; pointer-events: none; z-index: 9999; line-height: 1.6; }
-
-    /* スマホ用 */
     @media (max-width: 480px) {
-      header h1 { font-size: 18px; }
-      header span { font-size: 12px; }
       .top-card { margin: 16px; padding: 20px; }
       .top-card h2 { font-size: 18px; }
-      .top-card .sub { font-size: 14px; }
-      .row input { font-size: 16px; padding: 10px; }
-      .btn-login { font-size: 15px; padding: 10px 16px; }
       .btn-wide { font-size: 16px; padding: 14px; }
+      .level-btn { font-size: 15px; padding: 16px 14px; }
       .word { font-size: 18px; }
       .meaning { font-size: 14px; }
-      .q-english { font-size: 16px; }
-      .q-japanese { font-size: 15px; }
       .choice-btn { font-size: 15px; padding: 14px; }
-      .btn-speak-en { font-size: 14px; }
-      .feedback { font-size: 15px; }
     }
   </style>
 </head>
@@ -158,11 +155,48 @@
       <button class="btn-wide" onclick="doChangeNickname()">変更する</button>
       <div id="change-msg" class="msg"></div>
     </div>
-    <button class="btn-wide" onclick="showToday()">📚 今日の学習をはじめる</button>
+    <button class="btn-wide" onclick="showLevelSelect()">📚 今日の学習をはじめる</button>
   </div>
 </div>
 
-<!-- ④ 今日の10語 -->
+<!-- ④ レベル選択 -->
+<div id="screen-level" class="screen">
+  <header>
+    <h1>📚 レベル選択</h1>
+    <span id="level-student"></span>
+  </header>
+  <div class="container" style="padding-top:20px">
+    <p style="text-align:center;color:#666;font-size:14px;margin-bottom:16px">学習するレベルを選んでください</p>
+    <div class="level-grid">
+      <button class="level-btn disabled" onclick="showComingSoon()">
+        <span>🌱 英検５級レベル</span>
+        <span class="badge-coming">準備中</span>
+      </button>
+      <button class="level-btn" onclick="selectLevel('4級')">
+        <span>📗 英検４級レベル</span>
+        <span class="badge-arrow">›</span>
+      </button>
+      <button class="level-btn" onclick="selectLevel('3級')">
+        <span>📘 英検３級レベル</span>
+        <span class="badge-arrow">›</span>
+      </button>
+      <button class="level-btn" onclick="selectLevel('準2級')">
+        <span>📙 英検準２級レベル</span>
+        <span class="badge-arrow">›</span>
+      </button>
+      <button class="level-btn" onclick="selectLevel('2級')">
+        <span>📕 英検２級レベル</span>
+        <span class="badge-arrow">›</span>
+      </button>
+      <button class="level-btn" onclick="selectLevel('準1級')">
+        <span>📓 英検準１級レベル</span>
+        <span class="badge-arrow">›</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ⑤ 今日の10語 -->
 <div id="screen-today" class="screen">
   <header>
     <h1>📚 今日の10語</h1>
@@ -172,10 +206,11 @@
     <div class="set-label" id="today-set-label"></div>
     <div id="today-word-list"><div class="loading">⏳ 単語を読み込んでいます...</div></div>
     <button class="btn-wide" id="today-btn" style="display:none">✏️ テストに挑戦する</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showLevelSelect()">← レベル選択に戻る</button>
   </div>
 </div>
 
-<!-- ⑤ テスト -->
+<!-- ⑥ テスト -->
 <div id="screen-test" class="screen">
   <header>
     <h1>✏️ テスト</h1>
@@ -191,13 +226,13 @@
   </div>
 </div>
 
-<!-- ⑥ 結果 -->
+<!-- ⑦ 結果 -->
 <div id="screen-result" class="screen">
   <header><h1>🏁 テスト結果</h1></header>
   <div class="container" id="result-container"></div>
 </div>
 
-<!-- ⑦ おさらい -->
+<!-- ⑧ おさらい -->
 <div id="screen-review" class="screen">
   <header>
     <h1>📖 おさらい</h1>
@@ -205,11 +240,12 @@
   </header>
   <div class="container">
     <div id="review-list"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="closeApp()">🚪 テストを終了する</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);margin-top:12px" onclick="showLevelSelect()">← レベル選択に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="closeApp()">🚪 テストを終了する</button>
   </div>
 </div>
 
-<!-- ⑧ 終了画面 -->
+<!-- ⑨ 終了画面 -->
 <div id="screen-closed" class="screen">
   <div class="closed-card">
     <div class="icon">✅</div>
@@ -232,8 +268,7 @@
     if (_unlocked || !window.speechSynthesis) return;
     _unlocked = true;
     const u = new SpeechSynthesisUtterance(' ');
-    u.volume = 0;
-    u.lang   = 'en-US';
+    u.volume = 0; u.lang = 'en-US';
     window.speechSynthesis.speak(u);
   }
   document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
@@ -247,13 +282,11 @@
     loadVoices();
     window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
   }
-
   function getEnglishVoice() {
     return _voices.find(v => v.lang === 'en-US') ||
            _voices.find(v => v.lang === 'en-GB') ||
            _voices.find(v => v.lang.startsWith('en')) || null;
   }
-
   function doSpeak(text, rate, onDone) {
     if (!window.speechSynthesis) { onDone && onDone(); return; }
     const execute = () => {
@@ -276,14 +309,12 @@
       }, 100);
     } else { execute(); }
   }
-
   setInterval(() => {
     if (window.speechSynthesis && window.speechSynthesis.speaking) {
       window.speechSynthesis.pause();
       window.speechSynthesis.resume();
     }
   }, 10000);
-
   function speakWord(btn, word) {
     if (btn) btn.classList.add('speaking');
     doSpeak(word, 0.85, () => { if (btn) btn.classList.remove('speaking'); });
@@ -309,6 +340,7 @@
   window.addEventListener('beforeunload', beforeUnloadHandler);
 
   let _studentId = '';
+  let _level     = '';
   let _questions = [];
   let _current   = 0;
   let _score     = 0;
@@ -384,20 +416,33 @@
       .catch(() => { showMsg('change-msg', 'エラーが発生しました。', 'ng'); });
   }
 
-  // ④ 今日の10語
+  // ④ レベル選択
+  function showLevelSelect() {
+    document.getElementById('level-student').textContent = _studentId + ' さん';
+    showScreen('screen-level');
+  }
+  function selectLevel(level) {
+    _level = level;
+    showToday();
+  }
+  function showComingSoon() {
+    alert('英検５級レベルは現在準備中です。もうしばらくお待ちください！');
+  }
+
+  // ⑤ 今日の10語
   function showToday() {
     showScreen('screen-today');
-    document.getElementById('today-student').textContent = _studentId + ' さん';
+    document.getElementById('today-student').textContent = _studentId + ' さん｜英検' + _level + 'レベル';
     document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';
     document.getElementById('today-btn').style.display = 'none';
-    gasGet({ action: 'getTodaysSet', studentId: _studentId })
+    gasGet({ action: 'getTodaysSet', studentId: _studentId, level: _level })
       .then(res => {
         if (!res.ok) {
           document.getElementById('today-word-list').innerHTML = '<div class="error">⚠️ ' + res.message + '</div>';
           return;
         }
         _setNo = res.setNo; _questions = res.words;
-        document.getElementById('today-set-label').textContent = 'セット ' + res.setNo + '（' + res.words.length + '語）';
+        document.getElementById('today-set-label').textContent = '英検' + _level + 'レベル｜セット ' + res.setNo + '（' + res.words.length + '語）';
         renderWords(res.words);
         const btn = document.getElementById('today-btn');
         if (res.alreadyDone) { btn.textContent = '📖 おさらいする'; btn.onclick = showReview; }
@@ -421,7 +466,7 @@
     document.getElementById('today-btn').style.display = 'block';
   }
 
-  // ⑤ テスト
+  // ⑥ テスト
   function showTest() {
     _current = 0; _score = 0;
     showScreen('screen-test');
@@ -489,7 +534,7 @@
   function finishTest() {
     const total = _questions.length;
     if (_score === total) {
-      gasGet({ action: 'saveAttempt', studentId: _studentId, setNo: _setNo, score: _score, total: total, passed: true })
+      gasGet({ action: 'saveAttempt', studentId: _studentId, setNo: _setNo, score: _score, total: total, passed: true, level: _level })
         .then(res => { showResult(true, res); })
         .catch(()  => { showResult(true, null); });
     } else {
@@ -512,7 +557,7 @@
     }
   }
 
-  // ⑥ 結果
+  // ⑦ 結果
   function showResult(passed, saveRes) {
     showScreen('screen-result');
     const total   = _questions.length;
@@ -526,7 +571,7 @@
         <div class="badge">🏆</div>
         <div class="verdict pass">満点合格！</div>
         <div class="score-display">${_score} / ${total}</div>
-        <div class="score-sub">セット ${_setNo}</div>
+        <div class="score-sub">英検${_level}レベル｜セット ${_setNo}</div>
         <div class="result-msg">${msgs[_score % 3]}</div>
       </div>
       <div class="hp-card">
@@ -543,19 +588,20 @@
       </div>
       <div class="btn-wrap">
         <button class="btn-result btn-review" onclick="showReview()">📖 今日の単語をおさらいする</button>
-        <button class="btn-result btn-close"  onclick="closeApp()">🚪 テストを終了する</button>
+        <button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button>
+        <button class="btn-result btn-close" onclick="closeApp()">🚪 テストを終了する</button>
       </div>
     `;
   }
 
-  // ⑦ おさらい
+  // ⑧ おさらい
   function fillBlank(blank, meaning) {
     if (!blank) return meaning;
     return blank.replace(/（[　\s]*）/g, '（' + meaning + '）');
   }
   function showReview() {
     showScreen('screen-review');
-    document.getElementById('review-set-label').textContent = 'セット ' + _setNo;
+    document.getElementById('review-set-label').textContent = '英検' + _level + 'レベル｜セット ' + _setNo;
     document.getElementById('review-list').innerHTML = _questions.map((w, i) => `
       <div class="review-card">
         <div style="flex:1">
@@ -567,7 +613,7 @@
     `).join('');
   }
 
-  // ⑧ 終了
+  // ⑨ 終了
   function closeApp() {
     window.speechSynthesis && window.speechSynthesis.cancel();
     window.removeEventListener('beforeunload', beforeUnloadHandler);
