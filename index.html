@@ -307,8 +307,7 @@
   }
 
 function splitPhrases(text) {
-    const parts = text.match(/[^,;.!?]+[,;.!?]?/g) || [text];
-    return parts.map(s => s.trim()).filter(s => s.length > 0);
+    return [text];
   }
 
   function speakChunks(chunks, rate, onDone) {
