@@ -306,13 +306,9 @@
            _voices.find(v => v.lang.startsWith('en')) || null;
   }
 
-  function splitPhrases(text) {
-    const words = text.split(/\s+/).filter(w => w.length > 0);
-    const chunks = [];
-    for (let i = 0; i < words.length; i += 3) {
-      chunks.push(words.slice(i, i + 3).join(' '));
-    }
-    return chunks;
+function splitPhrases(text) {
+    const parts = text.match(/[^,;.!?]+[,;.!?]?/g) || [text];
+    return parts.map(s => s.trim()).filter(s => s.length > 0);
   }
 
   function speakChunks(chunks, rate, onDone) {
