@@ -83,8 +83,6 @@
     .hp-item  { text-align: center; }
     .hp-item .label { font-size: 12px; opacity: .8; margin-bottom: 4px; }
     .hp-item .value { font-size: 24px; font-weight: bold; color: #ffe08a; }
-    .hp-item .value.bonus { color: #a8f0c0; }
-    .hp-divider { font-size: 20px; opacity: .6; padding-top: 16px; }
     .hp-total-wrap  { background: rgba(255,255,255,.15); border-radius: 12px; padding: 12px 20px; display: inline-block; min-width: 200px; }
     .hp-total-label { font-size: 13px; opacity: .85; margin-bottom: 4px; }
     .hp-total-value { font-size: 36px; font-weight: bold; color: #ffe08a; }
@@ -96,7 +94,6 @@
     .review-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
     .review-en { font-size: 16px; font-weight: bold; color: #2d3a8c; margin-bottom: 4px; }
     .review-ja { font-size: 14px; color: #333; line-height: 1.7; }
-    /* 履歴一覧 */
     .history-item { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.07); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all .15s; border-left: 4px solid transparent; }
     .history-item:hover { border-left-color: #4f7df0; background: #f0f4ff; }
     .history-date  { font-size: 13px; color: #888; min-width: 95px; }
@@ -278,7 +275,7 @@
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
 
   // =============================================
-  // 音声システム（フレーズ分割版・Android対応）
+  // 音声システム
   // =============================================
   let _voices      = [];
   let _voicesReady = false;
@@ -306,7 +303,7 @@
            _voices.find(v => v.lang.startsWith('en')) || null;
   }
 
-function splitPhrases(text) {
+  function splitPhrases(text) {
     return [text];
   }
 
@@ -376,6 +373,12 @@ function splitPhrases(text) {
   }
   function esc(str) {
     return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  }
+
+  // 正解テキストを取得
+  function getCorrectText(w) {
+    const map = { A: w.choiceA, B: w.choiceB, C: w.choiceC, D: w.choiceD };
+    return map[w.answer.trim().toUpperCase()] || w.meaning;
   }
 
   // ① ログイン
@@ -460,8 +463,6 @@ function splitPhrases(text) {
           document.getElementById('today-word-list').innerHTML = '<div class="error">⚠️ ' + res.message + '</div>';
           return;
         }
-
-        // 今日の2セット完了
         if (res.alreadyDone) {
           document.getElementById('today-set-label').textContent = '英検' + res.level + 'レベル';
           document.getElementById('today-word-list').innerHTML = `
@@ -477,18 +478,15 @@ function splitPhrases(text) {
           btn.style.display = 'block';
           return;
         }
-
-        _setNo      = res.setNo;
-        _questions  = res.words;
-        _sessionNo  = res.sessionNo;
-        _level      = res.level; // 2セット目で級が変わる場合に対応
-
+        _setNo     = res.setNo;
+        _questions = res.words;
+        _sessionNo = res.sessionNo;
+        _level     = res.level;
         const sessionLabel = res.sessionNo === 1 ? '1セット目' : '2セット目';
         document.getElementById('today-set-label').textContent =
           '英検' + res.level + 'レベル｜セット ' + res.setNo + '（' + sessionLabel + '）';
         document.getElementById('today-student').textContent =
           _studentId + ' さん｜英検' + res.level + 'レベル';
-
         renderWords(res.words);
         const btn = document.getElementById('today-btn');
         btn.textContent = '✏️ テストに挑戦する';
@@ -544,7 +542,7 @@ function splitPhrases(text) {
       </div>
       <div class="choices locked" id="choices-wrap">
         ${choices.map((c, i) => `
-          <button class="choice-btn" onclick="answer(this, ${i}, '${esc(q.answer)}', '${esc(q.meaning)}')">
+          <button class="choice-btn" onclick="answer(this, ${i}, '${esc(q.answer)}', '${esc(getCorrectText(q))}')">
             <span style="font-weight:bold;color:#4f7df0">${labels[i]}</span>&ensp;${c}
           </button>
         `).join('')}
@@ -562,7 +560,7 @@ function splitPhrases(text) {
       if (wrap) wrap.classList.remove('locked');
     });
   }
-  function answer(btn, chosenIdx, correctLabel, correctMeaning) {
+  function answer(btn, chosenIdx, correctLabel, correctText) {
     const correctIdx = ['A','B','C','D'].indexOf(correctLabel.trim().toUpperCase());
     const isOk = (chosenIdx === correctIdx);
     document.querySelectorAll('.choice-btn').forEach((b, i) => {
@@ -572,7 +570,7 @@ function splitPhrases(text) {
     if (!isOk) btn.classList.add('wrong');
     const fb = document.getElementById('test-feedback');
     if (isOk) { _score++; fb.textContent = '🎉 正解！'; fb.className = 'feedback ok'; }
-    else      { fb.innerHTML = '❌ 不正解 → 正解：<strong>' + correctMeaning + '</strong>'; fb.className = 'feedback ng'; }
+    else      { fb.innerHTML = '❌ 不正解 → 正解：<strong>' + correctText + '</strong>'; fb.className = 'feedback ng'; }
     const nextBtn = document.getElementById('test-next-btn');
     nextBtn.style.display = 'block';
     nextBtn.textContent   = (_current + 1 >= _questions.length) ? '結果を見る 🏁' : '次の問題へ →';
@@ -611,9 +609,8 @@ function splitPhrases(text) {
     const totalHP = saveRes ? (saveRes.totalHP || 0) : 0;
     const streak  = saveRes ? (saveRes.streak  || 0) : 0;
     const clearHP = saveRes ? (saveRes.clearHP || 0) : 0;
-    const bonusHP = saveRes ? (saveRes.bonusHP || 0) : 0;
-    const msgs = ['🎉 完璧！満点合格おめでとう！', '✨ 素晴らしい！全問正解！', '🏆 やったね！満点クリア！'];
     const isSession1 = (_sessionNo === 1);
+    const msgs = ['🎉 完璧！満点合格おめでとう！', '✨ 素晴らしい！全問正解！', '🏆 やったね！満点クリア！'];
     document.getElementById('result-container').innerHTML = `
       <div class="result-card">
         <div class="badge">🏆</div>
@@ -625,8 +622,7 @@ function splitPhrases(text) {
       <div class="hp-card">
         <div class="hp-title">⚡ 獲得 HP</div>
         <div class="hp-row">
-          <div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+${clearHP}</div></div>
-          ${bonusHP > 0 ? `<div class="hp-divider">＋</div><div class="hp-item"><div class="label">連続${streak}日ボーナス</div><div class="value bonus">+${bonusHP.toLocaleString()}</div></div>` : ''}
+          <div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+${clearHP.toLocaleString()}</div></div>
         </div>
         <div class="hp-total-wrap">
           <div class="hp-total-label">現在の春アカポイント</div>
@@ -643,15 +639,12 @@ function splitPhrases(text) {
     `;
   }
 
-  // 次のセッションへ
-  function goNextSession() {
-    showToday();
-  }
+  function goNextSession() { showToday(); }
 
   // ⑧ おさらい
-  function fillBlank(blank, meaning) {
-    if (!blank) return meaning;
-    return blank.replace(/（[　\s]*）/g, '（' + meaning + '）');
+  function fillBlank(blank, correctText) {
+    if (!blank) return correctText;
+    return blank.replace(/（[　\s]*）/g, '（' + correctText + '）');
   }
   function showReview() {
     showScreen('screen-review');
@@ -660,12 +653,11 @@ function splitPhrases(text) {
       <div class="review-card">
         <div style="flex:1">
           <div class="review-en">${i + 1}. ${w.example || w.word}</div>
-          <div class="review-ja">${fillBlank(w.blank, w.meaning)}</div>
+          <div class="review-ja">${fillBlank(w.blank, getCorrectText(w))}</div>
         </div>
         <button class="btn-speak" onclick="speakWord(this, '${esc(w.example || w.word)}')">🔊</button>
       </div>
     `).join('');
-    // 戻るボタンの行き先を切り替え
     const backBtn = document.getElementById('review-back-btn');
     if (_historyMode) {
       backBtn.textContent = '← おさらい一覧に戻る';
