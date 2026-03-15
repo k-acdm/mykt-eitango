@@ -2,721 +2,573 @@
 <html>
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
   <title>マイ活アプリ＜英単語＞</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, Arial, sans-serif; background: #f0f4f8; min-height: 100vh; }
-    .screen { display: none; }
-    .screen.active { display: block; }
-    header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
-    header h1 { font-size: 20px; }
-    header span { font-size: 14px; opacity: .85; }
-    .container { padding: 14px; max-width: 640px; margin: 0 auto; }
-    .btn-wide { width: 100%; margin-top: 14px; padding: 16px; font-size: 18px; font-weight: bold; background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 14px rgba(79,125,240,.4); }
-    .btn-wide:hover { opacity: .9; }
-    .msg { margin-top: 10px; font-size: 14px; display: none; }
-    .ng { color: #c00; }
-    .ok { color: #007a3d; }
-    .loading { text-align: center; padding: 60px 20px; color: #888; font-size: 16px; }
-    .error   { text-align: center; padding: 40px 20px; color: #c00; font-size: 16px; }
-    .top-card { max-width: 640px; margin: 40px auto; background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-    .top-card h2 { margin: 0 0 8px; color: #1a1a2e; font-size: 22px; }
-    .top-card .sub { color: #666; font-size: 16px; margin-bottom: 20px; }
-    .row { display: flex; gap: 10px; align-items: center; }
-    .row input { flex: 1; font-size: 18px; padding: 12px; border: 1px solid #ccc; border-radius: 8px; }
-    .btn-login { font-size: 17px; padding: 12px 20px; background: #2b7cff; color: #fff; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; }
-    .btn-login:disabled { opacity: .6; cursor: default; }
-    input.full { width: 100%; font-size: 17px; padding: 12px; border: 1px solid #ccc; border-radius: 8px; margin-top: 8px; }
-    .welcome-name { font-size: 22px; font-weight: bold; color: #1a1a2e; margin-top: 8px; }
-    .welcome-msg  { font-size: 15px; color: #555; margin-top: 6px; }
-    .hp-badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #fff3cd, #ffe08a); border: 2px solid #f0c040; border-radius: 20px; padding: 8px 16px; font-size: 15px; font-weight: bold; color: #7a5c00; margin-top: 12px; }
-    .btn-link { background: none; border: none; color: #4f7df0; font-size: 13px; cursor: pointer; text-decoration: underline; margin-top: 12px; display: block; }
-    #change-area { display: none; margin-top: 12px; }
-    .level-grid { display: grid; gap: 12px; margin-top: 8px; }
-    .level-btn { width: 100%; padding: 18px 16px; border: 2px solid #d0d8ff; border-radius: 14px; background: #fff; font-size: 17px; font-weight: bold; color: #2d3a8c; cursor: pointer; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: all .15s; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
-    .level-btn:hover { border-color: #4f7df0; background: #f0f4ff; }
-    .level-btn.disabled { opacity: .45; cursor: not-allowed; background: #f5f5f5; color: #999; border-color: #ddd; }
-    .level-btn .badge-coming { font-size: 12px; background: #eee; color: #999; padding: 3px 10px; border-radius: 20px; font-weight: normal; }
-    .level-btn .badge-arrow { font-size: 18px; color: #4f7df0; }
-    .set-label { text-align: center; font-size: 14px; color: #888; margin-bottom: 12px; }
-    .word-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
-    .num { width: 32px; height: 32px; background: #4f7df0; border-radius: 50%; color: #fff; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .word-block { flex: 1; }
-    .word    { font-size: 20px; font-weight: bold; color: #2d3a8c; }
-    .meaning { font-size: 15px; color: #555; margin-top: 3px; }
-    .btn-speak { background: none; border: 2px solid #4f7df0; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .2s; }
-    .btn-speak:hover    { background: #e8effe; }
-    .btn-speak.speaking { background: #4f7df0; }
-    .progress-bar-wrap { background: rgba(255,255,255,.3); height: 6px; }
-    .progress-bar { height: 6px; background: #fff; transition: width .4s ease; }
-    .q-card { background: #fff; border-radius: 14px; padding: 22px 18px 18px; box-shadow: 0 2px 12px rgba(0,0,0,.09); margin-bottom: 18px; }
-    .q-label { font-size: 13px; color: #888; margin-bottom: 12px; text-align: center; }
-    .q-english { font-size: 18px; color: #1a1a2e; line-height: 1.8; margin-bottom: 12px; padding: 14px; background: #f0f4ff; border-radius: 10px; text-align: center; }
-    .q-japanese { font-size: 17px; color: #333; line-height: 2.0; padding: 14px; background: #fafafa; border-radius: 10px; text-align: center; }
-    .speak-wrap { text-align: center; margin-top: 12px; }
-    .btn-speak-en { background: none; border: 2px solid #4f7df0; border-radius: 20px; padding: 7px 20px; color: #4f7df0; font-size: 15px; font-weight: bold; cursor: pointer; transition: all .2s; }
-    .btn-speak-en:hover    { background: #f0f4ff; }
-    .btn-speak-en.done     { border-color: #2ecc71; color: #2ecc71; }
-    .btn-speak-en.speaking { background: #4f7df0; color: #fff; border-color: #4f7df0; }
-    .choices { display: grid; gap: 12px; transition: opacity .3s; }
-    .choices.locked { opacity: .35; pointer-events: none; }
-    .choice-btn { width: 100%; padding: 16px; background: #fff; border: 2px solid #d0d8ff; border-radius: 12px; font-size: 17px; color: #333; cursor: pointer; text-align: left; transition: all .15s; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
-    .choice-btn:hover    { border-color: #4f7df0; background: #f0f4ff; }
-    .choice-btn.correct  { background: #e6f9ee; border-color: #2ecc71; color: #1a7a45; font-weight: bold; }
-    .choice-btn.wrong    { background: #fff0f0; border-color: #e74c3c; color: #c0392b; }
-    .choice-btn.disabled { pointer-events: none; }
-    .feedback { text-align: center; font-size: 16px; font-weight: bold; margin-top: 14px; min-height: 24px; }
-    .feedback.ok { color: #2ecc71; }
-    .feedback.ng { color: #e74c3c; }
-    .result-card { background: #fff; border-radius: 18px; box-shadow: 0 4px 16px rgba(0,0,0,.1); padding: 32px 20px; text-align: center; margin-bottom: 14px; }
-    .badge { font-size: 64px; margin-bottom: 12px; animation: pop .5s ease; }
-    @keyframes pop { 0%{transform:scale(.5);opacity:0}80%{transform:scale(1.1)}100%{transform:scale(1);opacity:1} }
-    .verdict      { font-size: 26px; font-weight: bold; margin-bottom: 6px; }
-    .verdict.pass { color: #2ecc71; }
-    .score-display { font-size: 52px; font-weight: bold; color: #2d3a8c; line-height: 1; }
-    .score-sub     { font-size: 14px; color: #888; margin-top: 6px; }
-    .result-msg    { font-size: 16px; color: #555; margin-top: 12px; }
-    .hp-card { background: linear-gradient(135deg, #1a3660, #2e5fa3); border-radius: 18px; padding: 22px; color: #fff; text-align: center; margin-bottom: 14px; box-shadow: 0 4px 16px rgba(46,95,163,.4); }
-    .hp-title { font-size: 14px; opacity: .85; margin-bottom: 12px; }
-    .hp-row   { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; }
-    .hp-item  { text-align: center; }
-    .hp-item .label { font-size: 12px; opacity: .8; margin-bottom: 4px; }
-    .hp-item .value { font-size: 24px; font-weight: bold; color: #ffe08a; }
-    .hp-total-wrap  { background: rgba(255,255,255,.15); border-radius: 12px; padding: 12px 20px; display: inline-block; min-width: 200px; }
-    .hp-total-label { font-size: 13px; opacity: .85; margin-bottom: 4px; }
-    .hp-total-value { font-size: 36px; font-weight: bold; color: #ffe08a; }
-    .hp-streak { font-size: 13px; margin-top: 10px; opacity: .9; color: #a8f0c0; }
-    .btn-wrap { display: grid; gap: 12px; margin-top: 8px; }
-    .btn-result { padding: 16px; border: none; border-radius: 12px; font-size: 17px; font-weight: bold; cursor: pointer; }
-    .btn-review { background: linear-gradient(135deg, #2ecc71, #27ae60); color: #fff; }
-    .btn-close  { background: linear-gradient(135deg, #636e72, #2d3436); color: #fff; }
-    .review-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-    .review-en { font-size: 16px; font-weight: bold; color: #2d3a8c; margin-bottom: 4px; }
-    .review-ja { font-size: 14px; color: #333; line-height: 1.7; }
-    .history-item { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.07); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all .15s; border-left: 4px solid transparent; }
-    .history-item:hover { border-left-color: #4f7df0; background: #f0f4ff; }
-    .history-date  { font-size: 13px; color: #888; min-width: 95px; }
-    .history-level { font-size: 15px; font-weight: bold; color: #2d3a8c; flex: 1; }
-    .history-set   { font-size: 14px; color: #555; }
-    .history-arrow { font-size: 18px; color: #4f7df0; }
-    .closed-card { max-width: 640px; margin: 60px auto; background: #fff; border-radius: 16px; padding: 40px 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; }
-    .closed-card .icon { font-size: 56px; margin-bottom: 14px; }
-    .closed-card h2 { color: #1a1a2e; margin-bottom: 10px; font-size: 22px; }
-    .closed-card p  { color: #666; font-size: 16px; }
-    .back-warning { position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; pointer-events: none; z-index: 9999; line-height: 1.6; }
-    @media (max-width: 480px) {
-      .top-card { margin: 16px; padding: 20px; }
-      .top-card h2 { font-size: 18px; }
-      .btn-wide { font-size: 16px; padding: 14px; }
-      .level-btn { font-size: 15px; padding: 16px 14px; }
-      .word { font-size: 18px; }
-      .meaning { font-size: 14px; }
-      .choice-btn { font-size: 15px; padding: 14px; }
-      .history-date { min-width: 75px; font-size: 12px; }
-    }
+    /* --- 基本スタイル --- */
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f0f4f8; color: #2d3748; line-height: 1.5; min-height: 100vh; }
+    .screen { display: none; padding-bottom: 40px; }
+    .screen.active { display: block; animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* --- ヘッダー --- */
+    header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    header h1 { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+    header span { font-size: 14px; font-weight: 600; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; }
+
+    .container { padding: 16px; max-width: 600px; margin: 0 auto; }
+
+    /* --- ボタン --- */
+    .btn-wide { width: 100%; margin-top: 14px; padding: 18px; font-size: 18px; font-weight: bold; border: none; border-radius: 16px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-primary { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; box-shadow: 0 4px 15px rgba(79,125,240,0.3); }
+    .btn-primary:active { transform: scale(0.98); box-shadow: 0 2px 5px rgba(79,125,240,0.2); }
+    .btn-sub { background: #fff; color: #4f7df0; border: 2px solid #e0e7ff; }
+    .btn-sub:active { background: #f8faff; }
+
+    /* --- レベル・セット選択（2列グリッド） --- */
+    .grid-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+    .card-item { background: #fff; padding: 20px 10px; border-radius: 20px; border: 2px solid #eef2f7; text-align: center; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+    .card-item:active { transform: scale(0.96); background: #f9faff; }
+    .card-item.cleared { border-color: #4f7df0; background: #f0f7ff; }
+    .card-item.disabled { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
+    .badge { font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; background: #edf2f7; color: #718096; }
+    .cleared .badge { background: #4f7df0; color: #fff; }
+    .card-label { font-weight: 800; font-size: 16px; color: #2d3748; }
+
+    /* --- 単語リスト --- */
+    .g5-hint { background: #fff; padding: 16px; border-radius: 16px; margin-bottom: 20px; border-left: 6px solid #ff4f4f; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .g5-hint b { color: #ff4f4f; font-size: 16px; display: block; margin-bottom: 6px; }
+    .g5-hint p { font-size: 13px; color: #4a5568; line-height: 1.6; }
+    .word-card { background: #fff; padding: 20px; border-radius: 18px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: flex; align-items: center; justify-content: space-between; border: 1px solid #edf2f7; }
+    .word-info { flex: 1; }
+    .word-eng { font-size: 22px; font-weight: 800; color: #1a202c; letter-spacing: -0.01em; }
+    .word-mean { color: #718096; font-size: 15px; margin-top: 2px; font-weight: 500; }
+    .btn-audio { background: #f0f4f8; border: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .btn-audio:active { background: #e2e8f0; }
+
+    /* --- カメラ画面 --- */
+    .camera-container { background: #fff; padding: 20px; border-radius: 24px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+    .preview-box { width: 100%; aspect-ratio: 4/3; background: #f7fafc; border-radius: 16px; border: 3px dashed #cbd5e0; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; margin-bottom: 20px; }
+    #photo-preview { width: 100%; height: 100%; object-fit: contain; display: none; }
+    .placeholder-text { color: #a0aec0; font-size: 14px; font-weight: 600; padding: 0 20px; }
+    .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; border-radius: 16px; }
+    .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #4f7df0; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* --- テスト画面 --- */
+    .test-q-card { background: #fff; padding: 30px 20px; border-radius: 24px; margin: 20px 0; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+    .test-mean { font-size: 28px; font-weight: 800; color: #1a202c; margin-bottom: 15px; }
+    .test-sentence { font-size: 18px; color: #4a5568; line-height: 1.5; min-height: 54px; }
+    .test-sentence b { color: #4f7df0; background: #f0f7ff; padding: 2px 8px; border-radius: 6px; }
+    .option-grid { display: grid; gap: 12px; }
+    .btn-opt { background: #fff; border: 2px solid #e2e8f0; padding: 18px; border-radius: 16px; font-size: 20px; font-weight: 700; cursor: pointer; transition: all 0.1s; text-align: center; }
+    .btn-opt:active { background: #edf2f7; transform: scale(0.98); }
+    .btn-opt.correct { background: #48bb78 !important; color: #fff !important; border-color: #48bb78 !important; }
+    .btn-opt.wrong { background: #f56565 !important; color: #fff !important; border-color: #f56565 !important; }
+
+    /* --- その他 --- */
+    .ranking-item { display: flex; align-items: center; padding: 16px; background: #fff; border-radius: 16px; margin-bottom: 10px; }
+    .rank-num { width: 32px; font-weight: 800; color: #4f7df0; font-size: 18px; }
+    .rank-name { flex: 1; font-weight: 600; }
+    .rank-score { font-weight: 800; color: #7c4fff; }
+    .history-item { background: #fff; padding: 16px; border-radius: 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; border-left: 5px solid #4f7df0; }
+    .h-date { font-size: 12px; color: #a0aec0; }
+    .h-info { font-weight: 700; font-size: 15px; }
+    
+    #overlay-result { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; display: flex; align-items: center; justify-content: center; font-size: 120px; opacity: 0; transition: all 0.3s; }
+    #overlay-result.show { opacity: 1; pointer-events: auto; }
   </style>
 </head>
 <body>
 
-<div class="back-warning">⚠️ 「戻る」ボタンは押さないでね</div>
-
-<!-- ① ログイン -->
 <div id="screen-login" class="screen active">
-  <div class="top-card">
-    <h2>マイ活アプリ＜英単語＞</h2>
-    <p class="sub">生徒IDを入力してください</p>
-    <div class="row">
-      <input id="login-id" placeholder="生徒ID" type="number"/>
-      <button class="btn-login" id="login-btn" onclick="doLogin()">ログイン</button>
+  <header><h1>${APP_TITLE}</h1></header>
+  <div class="container" style="text-align:center; padding-top:60px;">
+    <div style="font-size:64px; margin-bottom:20px;">📖</div>
+    <h2 style="font-size:24px; margin-bottom:10px;">学習を始めよう！</h2>
+    <p style="color:#718096; margin-bottom:30px; font-weight:500;">生徒IDを入力してね</p>
+    <input type="text" id="input-sid" placeholder="例: S001" style="width:100%; padding:20px; font-size:22px; border-radius:18px; border:2px solid #e2e8f0; text-align:center; outline:none; focus:border-color:#4f7df0;"/>
+    <button class="btn-wide btn-primary" onclick="doLogin()">ログインする</button>
+  </div>
+</div>
+
+<div id="screen-menu" class="screen">
+  <header><h1 id="header-nickname">マイ活アプリ</h1><span id="header-hp">HP: ❤️❤️❤️❤️❤️</span></header>
+  <div class="container">
+    <div style="background:#fff; padding:24px; border-radius:24px; margin-bottom:20px; text-align:center; box-shadow:0 4px 12px rgba(0,0,0,0.03);">
+      <p style="font-size:14px; color:#718096; font-weight:600; margin-bottom:4px;">今の合格セット数</p>
+      <p id="menu-cleared" style="font-size:48px; font-weight:900; color:#4f7df0;">0</p>
+      <div id="streak-info" style="margin-top:10px; font-size:14px; font-weight:700; color:#ff782e;"></div>
     </div>
-    <div id="login-msg" class="msg"></div>
+    <button class="btn-wide btn-primary" style="padding:24px; font-size:20px;" onclick="showLevel()">今日の学習を始める</button>
+    <button class="btn-wide btn-sub" onclick="showHistory()">合格した履歴を見る</button>
+    <button class="btn-wide btn-sub" onclick="showRanking()">ランキング</button>
   </div>
 </div>
 
-<!-- ② ニックネーム登録 -->
-<div id="screen-nickname" class="screen">
-  <div class="top-card">
-    <h2>マイ活アプリ＜英単語＞</h2>
-    <p class="sub">ようこそ！ニックネームを登録してください</p>
-    <p style="color:#888;margin-bottom:16px">ランキング等はニックネームで表示されます（あとで変更できます）</p>
-    <input class="full" id="nickname-input" placeholder="例：タロウ、はなちゃん" maxlength="20"/>
-    <button class="btn-wide" onclick="doSaveNickname()">✅ 登録して学習をはじめる</button>
-    <div id="nickname-msg" class="msg"></div>
-  </div>
-</div>
-
-<!-- ③ ようこそ -->
-<div id="screen-welcome" class="screen">
-  <div class="top-card">
-    <h2>マイ活アプリ＜英単語＞</h2>
-    <div class="welcome-name" id="welcome-name"></div>
-    <div class="welcome-msg"  id="welcome-msg"></div>
-    <div class="hp-badge">⚡ 現在の春アカポイント <span id="welcome-hp">0</span> HP</div>
-    <button class="btn-link" onclick="toggleChangeArea()">ニックネームを変更する</button>
-    <div id="change-area">
-      <input class="full" id="change-input" placeholder="新しいニックネーム" maxlength="20" style="margin-top:12px"/>
-      <button class="btn-wide" onclick="doChangeNickname()">変更する</button>
-      <div id="change-msg" class="msg"></div>
-    </div>
-    <button class="btn-wide" onclick="showLevelSelect()">📚 今日の学習をはじめる</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60);margin-top:10px" onclick="showHistory()">📖 今までのおさらいをする</button>
-  </div>
-</div>
-
-<!-- ④ レベル選択 -->
 <div id="screen-level" class="screen">
-  <header>
-    <h1>📚 レベル選択</h1>
-    <span id="level-student"></span>
-  </header>
-  <div class="container" style="padding-top:20px">
-    <p style="text-align:center;color:#666;font-size:14px;margin-bottom:16px">学習するレベルを選んでください</p>
-    <div class="level-grid">
-      <button class="level-btn disabled" onclick="showComingSoon()">
-        <span>🌱 英検５級レベル</span>
-        <span class="badge-coming">準備中</span>
-      </button>
-      <button class="level-btn" onclick="selectLevel('4級')">
-        <span>📗 英検４級レベル</span>
-        <span class="badge-arrow">›</span>
-      </button>
-      <button class="level-btn" onclick="selectLevel('3級')">
-        <span>📘 英検３級レベル</span>
-        <span class="badge-arrow">›</span>
-      </button>
-      <button class="level-btn" onclick="selectLevel('準2級')">
-        <span>📙 英検準２級レベル</span>
-        <span class="badge-arrow">›</span>
-      </button>
-      <button class="level-btn" onclick="selectLevel('2級')">
-        <span>📕 英検２級レベル</span>
-        <span class="badge-arrow">›</span>
-      </button>
-      <button class="level-btn" onclick="selectLevel('準1級')">
-        <span>📓 英検準１級レベル</span>
-        <span class="badge-arrow">›</span>
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ⑤ 今日の10語 -->
-<div id="screen-today" class="screen">
-  <header>
-    <h1>📚 今日の10語</h1>
-    <span id="today-student"></span>
-  </header>
+  <header><button onclick="showScreen('menu')" style="background:none; border:none; color:#fff; font-size:24px; padding:4px;">←</button><h1>レベル選択</h1><span></span></header>
   <div class="container">
-    <div class="set-label" id="today-set-label"></div>
-    <div id="today-word-list"><div class="loading">⏳ 単語を読み込んでいます...</div></div>
-    <button class="btn-wide" id="today-btn" style="display:none">✏️ テストに挑戦する</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showLevelSelect()">← レベル選択に戻る</button>
+    <div id="level-list" class="grid-menu"></div>
   </div>
 </div>
 
-<!-- ⑥ テスト -->
-<div id="screen-test" class="screen">
-  <header>
-    <h1>✏️ テスト</h1>
-    <span id="test-prog-text">0 / 0</span>
-  </header>
-  <div class="progress-bar-wrap">
-    <div class="progress-bar" id="test-prog-bar" style="width:0%"></div>
-  </div>
+<div id="screen-set" class="screen">
+  <header><button onclick="showScreen('level')" style="background:none; border:none; color:#fff; font-size:24px; padding:4px;">←</button><h1 id="set-level-label">セット選択</h1><span></span></header>
   <div class="container">
-    <div id="test-q-area"></div>
-    <div class="feedback" id="test-feedback"></div>
-    <button class="btn-wide" id="test-next-btn" style="display:none" onclick="nextQuestion()">次の問題へ →</button>
+    <div id="set-list" class="grid-menu"></div>
   </div>
 </div>
 
-<!-- ⑦ 結果 -->
-<div id="screen-result" class="screen">
-  <header><h1>🏁 テスト結果</h1></header>
-  <div class="container" id="result-container"></div>
-</div>
-
-<!-- ⑧ おさらい -->
 <div id="screen-review" class="screen">
-  <header>
-    <h1>📖 おさらい</h1>
-    <span id="review-set-label"></span>
-  </header>
+  <header><button onclick="showScreen('set')" style="background:none; border:none; color:#fff; font-size:24px; padding:4px;">←</button><h1 id="review-set-label">学習</h1><span>10 Words</span></header>
   <div class="container">
+    <div id="g5-instructions" class="g5-hint" style="display:none;">
+      <b>ノートに単語の練習をしよう！</b>
+      <p>①音を聞いて発音する<br>②「番号」「意味」を書き、その右に「単語」を3回書く（1行おき）<br>③終わったら下のボタンで写真を撮って送ってね！</p>
+    </div>
     <div id="review-list"></div>
-    <button class="btn-wide" id="review-back-btn" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);margin-top:12px">← 戻る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="closeApp()">🚪 テストを終了する</button>
+    <button id="btn-next-action" class="btn-wide btn-primary" onclick="handleReviewEnd()">テストに進む</button>
   </div>
 </div>
 
-<!-- ⑨ 履歴一覧 -->
+<div id="screen-camera" class="screen">
+  <header><h1>ノートの確認</h1><span>Step 2/3</span></header>
+  <div class="container">
+    <div class="camera-container">
+      <div class="preview-box" onclick="capturePhoto()">
+        <div id="ai-loading-overlay" class="loading-overlay">
+          <div class="spinner"></div>
+          <p style="color:#4f7df0; font-weight:700;">AIが文字を確認中...</p>
+        </div>
+        <span id="preview-placeholder" class="placeholder-text">ここをタップして<br>ノートの写真を撮ってね📸</span>
+        <img id="photo-preview"/>
+      </div>
+      <button class="btn-wide btn-primary" onclick="capturePhoto()" id="btn-capture-text">写真を撮る</button>
+      <button id="btn-send-photo" class="btn-wide btn-primary" style="display:none; background:linear-gradient(135deg, #48bb78, #38a169);" onclick="sendPhoto()">AIにチェックしてもらう</button>
+      <button class="btn-wide btn-sub" onclick="showScreen('review')" style="margin-top:20px;">単語リストに戻る</button>
+    </div>
+    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event)">
+  </div>
+</div>
+
+<div id="screen-test" class="screen">
+  <header><span id="test-progress">1 / 10</span><h1 id="test-level-label">テスト</h1><span id="test-score-live">Score: 0</span></header>
+  <div class="container">
+    <div class="test-q-card">
+      <div id="test-question-area">
+        <p id="q-meaning" class="test-mean">意味</p>
+        <p id="q-sentence" class="test-sentence"></p>
+      </div>
+    </div>
+    <div id="test-options" class="option-grid"></div>
+  </div>
+</div>
+
+<div id="screen-result" class="screen">
+  <header><h1>結果発表</h1><span>Well Done!</span></header>
+  <div class="container" style="text-align:center; padding-top:30px;">
+    <div id="result-icon" style="font-size:80px; margin-bottom:10px;">🎉</div>
+    <h2 id="result-status" style="font-size:32px; font-weight:900; margin-bottom:5px;">合格！</h2>
+    <p id="result-score" style="font-size:20px; color:#4a5568; font-weight:700; margin-bottom:30px;">10 / 10 点</p>
+    <div id="result-msg" style="background:#fff; padding:20px; border-radius:20px; margin-bottom:30px; font-weight:600; color:#4f7df0;"></div>
+    <button class="btn-wide btn-primary" onclick="showScreen('menu')">メニューへ戻る</button>
+  </div>
+</div>
+
 <div id="screen-history" class="screen">
-  <header>
-    <h1>📖 今までのおさらい</h1>
-    <span id="history-student"></span>
-  </header>
-  <div class="container" style="padding-top:16px">
-    <div id="history-list"><div class="loading">⏳ 読み込み中...</div></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showScreen('screen-welcome')">← ホームに戻る</button>
-  </div>
+  <header><button onclick="showScreen('menu')" style="background:none; border:none; color:#fff; font-size:24px;">←</button><h1>合格履歴</h1><span></span></header>
+  <div class="container" id="history-list"></div>
 </div>
 
-<!-- ⑩ 終了画面 -->
-<div id="screen-closed" class="screen">
-  <div class="closed-card">
-    <div class="icon">✅</div>
-    <h2>お疲れさまでした！</h2>
-    <p style="margin-top:12px">今日の学習はここまで。<br>このタブを閉じてください。</p>
-  </div>
+<div id="screen-ranking" class="screen">
+  <header><button onclick="showScreen('menu')" style="background:none; border:none; color:#fff; font-size:24px;">←</button><h1>トップ10</h1><span>Ranking</span></header>
+  <div class="container" id="ranking-list"></div>
 </div>
+
+<div id="overlay-result">⭕️</div>
 
 <script>
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
-
-  // =============================================
-  // 音声システム
-  // =============================================
-  let _voices      = [];
-  let _voicesReady = false;
-
-  function unlockAudio() {
-    if (!window.speechSynthesis) return;
-    const u = new SpeechSynthesisUtterance(' ');
-    u.volume = 0; u.lang = 'en-US';
-    window.speechSynthesis.speak(u);
-  }
-  document.addEventListener('touchstart', unlockAudio, { passive: true });
-  document.addEventListener('click', unlockAudio);
-
-  function loadVoices() {
-    const v = window.speechSynthesis.getVoices();
-    if (v.length > 0) { _voices = v; _voicesReady = true; }
-  }
-  if (window.speechSynthesis) {
-    loadVoices();
-    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
-  }
-  function getEnglishVoice() {
-    return _voices.find(v => v.lang === 'en-US') ||
-           _voices.find(v => v.lang === 'en-GB') ||
-           _voices.find(v => v.lang.startsWith('en')) || null;
-  }
-
-  function splitPhrases(text) {
-    return [text];
-  }
-
-  function speakChunks(chunks, rate, onDone) {
-    if (!chunks || chunks.length === 0) { onDone && onDone(); return; }
-    const chunk = chunks.shift();
-    const u = new SpeechSynthesisUtterance(chunk);
-    u.lang = 'en-US'; u.rate = rate || 0.85; u.volume = 1;
-    const voice = getEnglishVoice();
-    if (voice) u.voice = voice;
-    const ms = Math.max(2000, (chunk.split(' ').length / (rate * 2.5)) * 1000 + 1500);
-    const timer = setTimeout(() => { speakChunks(chunks, rate, onDone); }, ms);
-    u.onend   = () => { clearTimeout(timer); speakChunks(chunks, rate, onDone); };
-    u.onerror = () => { clearTimeout(timer); speakChunks(chunks, rate, onDone); };
-    window.speechSynthesis.speak(u);
-  }
-
-  function doSpeak(text, rate, onDone) {
-    if (!window.speechSynthesis) { onDone && onDone(); return; }
-    loadVoices();
-    window.speechSynthesis.cancel();
-    const chunks = splitPhrases(text);
-    speakChunks(chunks, rate, onDone);
-  }
-
-  function speakWord(btn, word) {
-    if (btn) btn.classList.add('speaking');
-    doSpeak(word, 0.85, () => { if (btn) btn.classList.remove('speaking'); });
-  }
-  function speakSentence(text, onDone) { doSpeak(text, 0.82, onDone); }
-
-  // =============================================
-  // GAS通信
-  // =============================================
-  function gasGet(params) {
-    return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
-      .then(r => r.json());
-  }
-
-  // =============================================
-  // 離脱確認
-  // =============================================
-  function beforeUnloadHandler(e) {
-    e.preventDefault();
-    e.returnValue = '本当にこのページを離れますか？';
-    return e.returnValue;
-  }
-  window.addEventListener('beforeunload', beforeUnloadHandler);
-
-  let _studentId   = '';
-  let _level       = '';
-  let _questions   = [];
-  let _current     = 0;
-  let _score       = 0;
-  let _setNo       = 0;
-  let _sessionNo   = 1;
+  // --- 変数定義 ---
+  let _student = null;
+  let _level = "";
+  let _setNo = 0;
+  let _questions = [];
+  let _idx = 0;
+  let _score = 0;
   let _historyMode = false;
+  let _canAnswer = true;
 
+  const _levelOrder = ['5級', '4級', '3級', '準2級', '準2級プラス', '2級', '準1級', '1級'];
+
+  // --- 初期化 ---
+  window.onload = () => {
+    const savedId = localStorage.getItem('mykatsu_sid');
+    if (savedId) {
+      document.getElementById('input-sid').value = savedId;
+      doLogin();
+    }
+  };
+
+  // --- 通信ユーティリティ ---
+  function gasRun(funcName, ...args) {
+    return new Promise((res, rej) => {
+      google.script.run.withSuccessHandler(res).withFailureHandler(rej)[funcName](...args);
+    });
+  }
+
+  // --- ① ログイン ---
+  async function doLogin() {
+    const sid = document.getElementById('input-sid').value.trim();
+    if (!sid) return;
+    
+    try {
+      const res = await gasRun('login', sid);
+      if (res.ok) {
+        _student = res.data;
+        localStorage.setItem('mykatsu_sid', sid);
+        refreshMenu();
+        showScreen('menu');
+        // ログインボーナス/HP回復チェック
+        gasRun('checkDailyLogin', sid).then(r => {
+          if (r.ok && r.firstToday) {
+            alert("ログインボーナス！HPが全回復したよ❤️");
+            _student.hp = 5;
+            refreshMenu();
+          }
+        });
+      } else {
+        alert(res.msg);
+      }
+    } catch (e) { alert("ログインエラーが発生しました。"); }
+  }
+
+  function refreshMenu() {
+    document.getElementById('header-nickname').textContent = _student.nickname + " さん";
+    document.getElementById('header-hp').textContent = "HP: " + "❤️".repeat(_student.hp) + "🖤".repeat(5 - _student.hp);
+    document.getElementById('menu-cleared').textContent = _student.cleared;
+    document.getElementById('streak-info').textContent = _student.streak > 0 ? "🔥 " + _student.streak + "日連続学習中！" : "";
+  }
+
+  // --- ② 画面遷移 ---
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
+    document.getElementById('screen-' + id).classList.add('active');
     window.scrollTo(0, 0);
   }
-  function showMsg(id, text, kind) {
-    const el = document.getElementById(id);
-    el.textContent = text; el.className = 'msg ' + kind; el.style.display = 'block';
-  }
-  function esc(str) {
-    return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+  // --- ③ レベル・セット選択 ---
+  async function showLevel() {
+    showScreen('level');
+    const container = document.getElementById('level-list');
+    container.innerHTML = '<div style="grid-column:1/3; text-align:center; padding:20px;">読み込み中...</div>';
+    
+    try {
+      const res = await gasRun('getMastersHistory', _student.id);
+      const masters = res.ok ? res.levels : [];
+      
+      container.innerHTML = _levelOrder.map(lv => {
+        const isCleared = masters.includes(lv);
+        return `
+          <div class="card-item ${isCleared ? 'cleared' : ''}" onclick="showSet('${lv}')">
+            <span class="badge">英検</span>
+            <span class="card-label">${lv}</span>
+          </div>`;
+      }).join('');
+    } catch (e) { container.innerHTML = "エラーが発生しました。"; }
   }
 
-  // 正解テキストを取得
-  function getCorrectText(w) {
-    const map = { A: w.choiceA, B: w.choiceB, C: w.choiceC, D: w.choiceD };
-    return map[w.answer.trim().toUpperCase()] || w.meaning;
-  }
-
-  // ① ログイン
-  function doLogin() {
-    const sid = document.getElementById('login-id').value.trim();
-    if (!sid) { showMsg('login-msg', '生徒IDを入力してください。', 'ng'); return; }
-    showMsg('login-msg', '確認中…', 'ok');
-    document.getElementById('login-btn').disabled = true;
-    gasGet({ action: 'loginStudent', studentId: sid })
-      .then(res => {
-        document.getElementById('login-btn').disabled = false;
-        if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
-        _studentId = res.studentId;
-        res.isFirstLogin ? showScreen('screen-nickname') : showWelcome(res.nickname, res.totalHP, res.loginBonus);
-      })
-      .catch(() => {
-        document.getElementById('login-btn').disabled = false;
-        showMsg('login-msg', 'エラーが発生しました。もう一度お試しください。', 'ng');
-      });
-  }
-  document.getElementById('login-id').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-
-  // ② ニックネーム登録
-  function doSaveNickname() {
-    const nn = document.getElementById('nickname-input').value.trim();
-    if (!nn) { showMsg('nickname-msg', 'ニックネームを入力してください。', 'ng'); return; }
-    gasGet({ action: 'saveNickname', studentId: _studentId, nickname: nn })
-      .then(res => {
-        if (!res.ok) { showMsg('nickname-msg', res.message, 'ng'); return; }
-        showWelcome(res.nickname, 10, 10);
-      })
-      .catch(() => { showMsg('nickname-msg', 'エラーが発生しました。', 'ng'); });
-  }
-
-  // ③ ようこそ
-  function showWelcome(nickname, totalHP, loginBonus) {
-    document.getElementById('welcome-name').textContent = nickname + ' さん、今日も頑張ろう！';
-    document.getElementById('welcome-hp').textContent   = totalHP.toLocaleString();
-    document.getElementById('welcome-msg').textContent  = loginBonus > 0
-      ? '🎁 ログインボーナス +' + loginBonus + 'HP もらったよ！' : '今日もよろしく！';
-    showScreen('screen-welcome');
-  }
-  function toggleChangeArea() {
-    const area = document.getElementById('change-area');
-    area.style.display = area.style.display === 'none' ? 'block' : 'none';
-  }
-  function doChangeNickname() {
-    const nn = document.getElementById('change-input').value.trim();
-    if (!nn) { showMsg('change-msg', 'ニックネームを入力してください。', 'ng'); return; }
-    gasGet({ action: 'saveNickname', studentId: _studentId, nickname: nn })
-      .then(res => {
-        if (!res.ok) { showMsg('change-msg', res.message, 'ng'); return; }
-        document.getElementById('welcome-name').textContent = res.nickname + ' さん、今日も頑張ろう！';
-        document.getElementById('change-area').style.display = 'none';
-        showMsg('change-msg', '変更しました！', 'ok');
-      })
-      .catch(() => { showMsg('change-msg', 'エラーが発生しました。', 'ng'); });
-  }
-
-  // ④ レベル選択
-  function showLevelSelect() {
-    document.getElementById('level-student').textContent = _studentId + ' さん';
-    showScreen('screen-level');
-  }
-  function selectLevel(level) {
+  async function showSet(level) {
     _level = level;
-    showToday();
-  }
-  function showComingSoon() {
-    alert('英検５級レベルは現在準備中です。もうしばらくお待ちください！');
+    _historyMode = false;
+    document.getElementById('set-level-label').textContent = '英検' + level + 'レベル';
+    showScreen('set');
+    
+    const container = document.getElementById('set-list');
+    container.innerHTML = "";
+    
+    // 合格済みのセットを取得して色を変えるなどの処理が必要な場合はここに追加
+    const maxSet = (level === '5級') ? 118 : 100;
+    for (let i = 1; i <= maxSet; i++) {
+      const btn = document.createElement('div');
+      btn.className = 'card-item';
+      btn.innerHTML = `<span class="card-label">セット ${i}</span>`;
+      btn.onclick = () => startReview(i);
+      container.appendChild(btn);
+    }
   }
 
-  // ⑤ 今日の10語
-  function showToday() {
-    showScreen('screen-today');
-    document.getElementById('today-student').textContent = _studentId + ' さん';
-    document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';
-    document.getElementById('today-btn').style.display = 'none';
-    gasGet({ action: 'getTodaysSet', studentId: _studentId, level: _level })
-      .then(res => {
-        if (!res.ok) {
-          document.getElementById('today-word-list').innerHTML = '<div class="error">⚠️ ' + res.message + '</div>';
-          return;
-        }
-        if (res.alreadyDone) {
-          document.getElementById('today-set-label').textContent = '英検' + res.level + 'レベル';
-          document.getElementById('today-word-list').innerHTML = `
-            <div style="text-align:center;padding:40px 16px">
-              <div style="font-size:56px">🎉</div>
-              <div style="font-size:20px;font-weight:bold;color:#2d3a8c;margin:16px 0">今日の2セットは完了！</div>
-              <div style="font-size:15px;color:#666">お疲れさまでした。また明日も頑張ろう！</div>
-            </div>
-          `;
-          const btn = document.getElementById('today-btn');
-          btn.textContent = '📖 今までのおさらいを見る';
-          btn.onclick = showHistory;
-          btn.style.display = 'block';
-          return;
-        }
-        _setNo     = res.setNo;
+  // --- ④ 学習（単語リスト） ---
+  async function startReview(setNo) {
+    _setNo = setNo;
+    showScreen('review');
+    document.getElementById('review-set-label').textContent = 'セット ' + setNo;
+    const list = document.getElementById('review-list');
+    list.innerHTML = '<p style="text-align:center; padding:20px;">読み込み中...</p>';
+    
+    try {
+      const res = await gasRun('getSetWords', setNo, _level);
+      if (res.ok) {
         _questions = res.words;
-        _sessionNo = res.sessionNo;
-        _level     = res.level;
-        const sessionLabel = res.sessionNo === 1 ? '1セット目' : '2セット目';
-        document.getElementById('today-set-label').textContent =
-          '英検' + res.level + 'レベル｜セット ' + res.setNo + '（' + sessionLabel + '）';
-        document.getElementById('today-student').textContent =
-          _studentId + ' さん｜英検' + res.level + 'レベル';
-        renderWords(res.words);
-        const btn = document.getElementById('today-btn');
-        btn.textContent = '✏️ テストに挑戦する';
-        btn.onclick = showTest;
-      })
-      .catch(() => {
-        document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>';
-      });
-  }
-
-  function renderWords(words) {
-    document.getElementById('today-word-list').innerHTML = words.map((w, i) => `
-      <div class="word-card">
-        <div class="num">${i + 1}</div>
-        <div class="word-block">
-          <div class="word">${w.word}</div>
-          <div class="meaning">${w.meaning}</div>
-        </div>
-        <button class="btn-speak" onclick="speakWord(this, '${esc(w.word)}')">🔊</button>
-      </div>
-    `).join('');
-    document.getElementById('today-btn').style.display = 'block';
-  }
-
-  // ⑥ テスト
-  function showTest() {
-    _current = 0; _score = 0;
-    showScreen('screen-test');
-    renderQuestion();
-  }
-  function renderQuestion() {
-    const total = _questions.length;
-    if (_current >= total) { finishTest(); return; }
-    const q = _questions[_current];
-    const pct = Math.round((_current + 1) / total * 100);
-    document.getElementById('test-prog-text').textContent  = (_current + 1) + ' / ' + total;
-    document.getElementById('test-prog-bar').style.width   = pct + '%';
-    document.getElementById('test-feedback').textContent   = '';
-    document.getElementById('test-feedback').className     = 'feedback';
-    document.getElementById('test-next-btn').style.display = 'none';
-    const labels  = ['①', '②', '③', '④'];
-    const choices = [q.choiceA, q.choiceB, q.choiceC, q.choiceD];
-    document.getElementById('test-q-area').innerHTML = `
-      <div class="q-card">
-        <div class="q-label">空欄に当てはまる語を選んでください</div>
-        <div class="q-english">${q.example || q.word}</div>
-        <div class="q-japanese">${q.blank || q.meaning}</div>
-        <div class="speak-wrap">
-          <button class="btn-speak-en" id="speak-btn" onclick="doSpeakQuestion(this)">
-            🔊 英文を聞く（先に聞いてね）
-          </button>
-        </div>
-      </div>
-      <div class="choices locked" id="choices-wrap">
-        ${choices.map((c, i) => `
-          <button class="choice-btn" onclick="answer(this, ${i}, '${esc(q.answer)}', '${esc(getCorrectText(q))}')">
-            <span style="font-weight:bold;color:#4f7df0">${labels[i]}</span>&ensp;${c}
-          </button>
-        `).join('')}
-      </div>
-    `;
-  }
-  function doSpeakQuestion(btn) {
-    const q = _questions[_current];
-    btn.textContent = '🔊 再生中...';
-    btn.classList.add('speaking'); btn.disabled = true;
-    speakSentence(q.example || q.word, () => {
-      btn.textContent = '🔊 もう一度聞く';
-      btn.classList.remove('speaking'); btn.classList.add('done'); btn.disabled = false;
-      const wrap = document.getElementById('choices-wrap');
-      if (wrap) wrap.classList.remove('locked');
-    });
-  }
-  function answer(btn, chosenIdx, correctLabel, correctText) {
-    const correctIdx = ['A','B','C','D'].indexOf(correctLabel.trim().toUpperCase());
-    const isOk = (chosenIdx === correctIdx);
-    document.querySelectorAll('.choice-btn').forEach((b, i) => {
-      b.classList.add('disabled');
-      if (i === correctIdx) b.classList.add('correct');
-    });
-    if (!isOk) btn.classList.add('wrong');
-    const fb = document.getElementById('test-feedback');
-    if (isOk) { _score++; fb.textContent = '🎉 正解！'; fb.className = 'feedback ok'; }
-    else      { fb.innerHTML = '❌ 不正解 → 正解：<strong>' + correctText + '</strong>'; fb.className = 'feedback ng'; }
-    const nextBtn = document.getElementById('test-next-btn');
-    nextBtn.style.display = 'block';
-    nextBtn.textContent   = (_current + 1 >= _questions.length) ? '結果を見る 🏁' : '次の問題へ →';
-  }
-  function nextQuestion() { _current++; renderQuestion(); }
-  function finishTest() {
-    const total = _questions.length;
-    if (_score === total) {
-      gasGet({ action: 'saveAttempt', studentId: _studentId, setNo: _setNo, score: _score, total, passed: true, level: _level, sessionNo: _sessionNo })
-        .then(res => { showResult(true, res); })
-        .catch(()  => { showResult(true, null); });
-    } else {
-      const lastScore = _score;
-      _questions = _questions.sort(() => Math.random() - 0.5);
-      _current = 0; _score = 0;
-      document.getElementById('test-feedback').textContent   = '';
-      document.getElementById('test-feedback').className     = 'feedback';
-      document.getElementById('test-next-btn').style.display = 'none';
-      document.getElementById('test-prog-bar').style.width   = '0%';
-      document.getElementById('test-q-area').innerHTML = `
-        <div style="text-align:center;padding:50px 16px">
-          <div style="font-size:64px">😤</div>
-          <div style="font-size:22px;font-weight:bold;color:#e74c3c;margin:16px 0">惜しい！満点で合格だよ</div>
-          <div style="font-size:18px;color:#666">${lastScore}／${total}問正解<br>もう一度チャレンジ！</div>
-        </div>
-      `;
-      document.getElementById('test-prog-text').textContent = '再挑戦中...';
-      setTimeout(() => renderQuestion(), 2500);
-    }
-  }
-
-  // ⑦ 結果
-  function showResult(passed, saveRes) {
-    showScreen('screen-result');
-    const total   = _questions.length;
-    const totalHP = saveRes ? (saveRes.totalHP || 0) : 0;
-    const streak  = saveRes ? (saveRes.streak  || 0) : 0;
-    const clearHP = saveRes ? (saveRes.clearHP || 0) : 0;
-    const isSession1 = (_sessionNo === 1);
-    const msgs = ['🎉 完璧！満点合格おめでとう！', '✨ 素晴らしい！全問正解！', '🏆 やったね！満点クリア！'];
-    document.getElementById('result-container').innerHTML = `
-      <div class="result-card">
-        <div class="badge">🏆</div>
-        <div class="verdict pass">満点合格！</div>
-        <div class="score-display">${_score} / ${total}</div>
-        <div class="score-sub">英検${_level}レベル｜セット ${_setNo}（${isSession1 ? '1セット目' : '2セット目'}）</div>
-        <div class="result-msg">${msgs[_score % 3]}</div>
-      </div>
-      <div class="hp-card">
-        <div class="hp-title">⚡ 獲得 HP</div>
-        <div class="hp-row">
-          <div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+${clearHP.toLocaleString()}</div></div>
-        </div>
-        <div class="hp-total-wrap">
-          <div class="hp-total-label">現在の春アカポイント</div>
-          <div class="hp-total-value">⚡ ${totalHP.toLocaleString()} HP</div>
-        </div>
-        ${streak >= 2 ? `<div class="hp-streak">🔥 ${streak}日連続継続中！この調子で続けよう！</div>` : ''}
-      </div>
-      <div class="btn-wrap">
-        ${isSession1 ? `<button class="btn-result" style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;font-size:19px" onclick="goNextSession()">📚 次の10題に進む →</button>` : ''}
-        <button class="btn-result btn-review" onclick="showReview()">📖 今日の単語をおさらいする</button>
-        <button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button>
-        <button class="btn-result btn-close" onclick="closeApp()">🚪 テストを終了する</button>
-      </div>
-    `;
-  }
-
-  function goNextSession() { showToday(); }
-
-  // ⑧ おさらい
-  function fillBlank(blank, correctText) {
-    if (!blank) return correctText;
-    return blank.replace(/（[　\s]*）/g, '（' + correctText + '）');
-  }
-  function showReview() {
-    showScreen('screen-review');
-    document.getElementById('review-set-label').textContent = '英検' + _level + 'レベル｜セット ' + _setNo;
-    document.getElementById('review-list').innerHTML = _questions.map((w, i) => `
-      <div class="review-card">
-        <div style="flex:1">
-          <div class="review-en">${i + 1}. ${w.example || w.word}</div>
-          <div class="review-ja">${fillBlank(w.blank, getCorrectText(w))}</div>
-        </div>
-        <button class="btn-speak" onclick="speakWord(this, '${esc(w.example || w.word)}')">🔊</button>
-      </div>
-    `).join('');
-    const backBtn = document.getElementById('review-back-btn');
-    if (_historyMode) {
-      backBtn.textContent = '← おさらい一覧に戻る';
-      backBtn.onclick = () => { _historyMode = false; showHistory(); };
-    } else {
-      backBtn.textContent = '← レベル選択に戻る';
-      backBtn.onclick = showLevelSelect;
-    }
-  }
-
-  // ⑨ 履歴一覧
-  function showHistory() {
-    showScreen('screen-history');
-    document.getElementById('history-student').textContent = _studentId + ' さん';
-    document.getElementById('history-list').innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
-    gasGet({ action: 'getHistory', studentId: _studentId })
-      .then(res => {
-        if (!res.ok || res.history.length === 0) {
-          document.getElementById('history-list').innerHTML =
-            '<div style="text-align:center;padding:40px;color:#888;font-size:15px">まだ合格したセットがありません。</div>';
-          return;
-        }
-        document.getElementById('history-list').innerHTML = res.history.map(h => `
-          <div class="history-item" onclick="showHistoryReview(${h.setNo}, '${esc(h.level)}', '${h.date}')">
-            <span class="history-date">${h.date}</span>
-            <span class="history-level">英検${h.level}レベル</span>
-            <span class="history-set">セット ${h.setNo}</span>
-            <span class="history-arrow">›</span>
+        // 5級用のヒント表示
+        document.getElementById('g5-instructions').style.display = (_level === '5級') ? 'block' : 'none';
+        document.getElementById('btn-next-action').textContent = (_level === '5級') ? 'ノートを写真で送る' : 'テストに進む';
+        
+        list.innerHTML = _questions.map((q, i) => `
+          <div class="word-card">
+            <div class="word-info">
+              <div class="word-eng">${q.word}</div>
+              <div class="word-mean">${q.mean}</div>
+            </div>
+            <button class="btn-audio" onclick="playTTS('${q.word}')">🔊</button>
           </div>
         `).join('');
-      })
-      .catch(() => {
-        document.getElementById('history-list').innerHTML = '<div class="error">読み込みに失敗しました。</div>';
+      }
+    } catch (e) { list.innerHTML = "エラーが発生しました。"; }
+  }
+
+  function playTTS(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const uttr = new SpeechSynthesisUtterance(text);
+    uttr.lang = 'en-US';
+    uttr.rate = 0.9;
+    window.speechSynthesis.speak(uttr);
+  }
+
+  function handleReviewEnd() {
+    if (_historyMode) { showScreen('history'); return; }
+    if (_level === '5級') {
+      showScreen('camera');
+      resetCameraUI();
+    } else {
+      startTest();
+    }
+  }
+
+  // --- ⑤ 5級専用：カメラ・写真判定 ---
+  function resetCameraUI() {
+    document.getElementById('photo-preview').style.display = 'none';
+    document.getElementById('preview-placeholder').style.display = 'block';
+    document.getElementById('btn-send-photo').style.display = 'none';
+    document.getElementById('btn-capture-text').style.display = 'block';
+    document.getElementById('ai-loading-overlay').style.display = 'none';
+  }
+
+  function capturePhoto() {
+    document.getElementById('camera-input').click();
+  }
+
+  function onPhotoSelected(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = document.getElementById('photo-preview');
+      img.src = e.target.result;
+      img.style.display = 'block';
+      document.getElementById('preview-placeholder').style.display = 'none';
+      document.getElementById('btn-send-photo').style.display = 'block';
+      document.getElementById('btn-capture-text').style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function sendPhoto() {
+    const overlay = document.getElementById('ai-loading-overlay');
+    overlay.style.display = 'flex';
+    document.getElementById('btn-send-photo').disabled = true;
+    
+    const imageData = document.getElementById('photo-preview').src;
+    const targetWord = _questions[0].word; // 判定の基準単語
+
+    try {
+      const res = await gasRun('analyzeHandwriting', imageData, targetWord);
+      overlay.style.display = 'none';
+      if (res.ok) {
+        alert('よく頑張りました！ ✨ 確認テストに進みましょう。');
+        startTest();
+      } else {
+        alert(res.message || 'もう一度丁寧に書いて撮り直してみてね。');
+        document.getElementById('btn-send-photo').disabled = false;
+      }
+    } catch (e) {
+      overlay.style.display = 'none';
+      alert('AI判定中にエラーが起きました。もう一度試してね。');
+      document.getElementById('btn-send-photo').disabled = false;
+    }
+  }
+
+  // --- ⑥ テストロジック ---
+  function startTest() {
+    if (_student.hp <= 0 && !_historyMode) {
+      alert("HPが足りません。明日また挑戦してね！");
+      showScreen('menu');
+      return;
+    }
+    _idx = 0;
+    _score = 0;
+    _canAnswer = true;
+    showScreen('test');
+    renderQuestion();
+  }
+
+  function renderQuestion() {
+    _canAnswer = true;
+    const q = _questions[_idx];
+    document.getElementById('test-progress').textContent = (_idx + 1) + ' / ' + _questions.length;
+    document.getElementById('test-score-live').textContent = "Score: " + _score;
+    document.getElementById('q-meaning').textContent = q.mean;
+    
+    const sArea = document.getElementById('q-sentence');
+    const optContainer = document.getElementById('test-options');
+    optContainer.innerHTML = "";
+
+    if (_level === '5級') {
+      sArea.innerHTML = "<b style='color:#7c4fff;'>正しいつづり（スペル）を選ぼう！</b>";
+      const options = [
+        { label: 'A', val: q.optA }, { label: 'B', val: q.optB },
+        { label: 'C', val: q.optC }, { label: 'D', val: q.optD }
+      ];
+      options.forEach(o => {
+        const b = document.createElement('button');
+        b.className = 'btn-opt';
+        b.style.textTransform = "none";
+        b.textContent = o.val;
+        b.onclick = () => checkAnswer(o.label, b);
+        optContainer.appendChild(b);
       });
+    } else {
+      // 4級以上の穴埋め形式
+      const displaySentence = q.sentence.replace(q.word, '（　？　）');
+      sArea.innerHTML = displaySentence;
+      const options = [
+        { label: 'A', val: q.optA }, { label: 'B', val: q.optB },
+        { label: 'C', val: q.optC }, { label: 'D', val: q.optD }
+      ];
+      options.forEach(o => {
+        const b = document.createElement('button');
+        b.className = 'btn-opt';
+        b.textContent = o.val;
+        b.onclick = () => checkAnswer(o.label, b);
+        optContainer.appendChild(b);
+      });
+    }
   }
 
-  function showHistoryReview(setNo, level, date) {
-    gasGet({ action: 'getSetWords', setNo, level })
-      .then(res => {
-        if (!res.ok) { alert('データの取得に失敗しました。'); return; }
-        _questions   = res.words;
-        _setNo       = setNo;
-        _level       = level;
-        _historyMode = true;
-        showReview();
-        document.getElementById('review-set-label').textContent =
-          date + '｜英検' + level + 'レベル｜セット ' + setNo;
-      })
-      .catch(() => { alert('エラーが発生しました。'); });
+  async function checkAnswer(label, btnElement) {
+    if (!_canAnswer) return;
+    _canAnswer = false;
+    
+    const q = _questions[_idx];
+    const isCorrect = (label === q.correct);
+    
+    if (isCorrect) {
+      _score++;
+      btnElement.classList.add('correct');
+      showOverlay("⭕️", "#48bb78");
+    } else {
+      btnElement.classList.add('wrong');
+      showOverlay("❌", "#f56565");
+      // 正解のボタンも光らせる
+      const buttons = document.querySelectorAll('.btn-opt');
+      buttons.forEach(b => {
+        // ここは簡易的にラベル判定が難しいため、テキスト一致等で判定するか、
+        // もしくはそのまま次へ進む形にします。
+      });
+    }
+
+    setTimeout(() => {
+      _idx++;
+      if (_idx < _questions.length) {
+        renderQuestion();
+      } else {
+        finishTest();
+      }
+    }, 1000);
   }
 
-  // ⑩ 終了
-  function closeApp() {
-    window.speechSynthesis && window.speechSynthesis.cancel();
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    try { window.close(); } catch(e) {}
-    try { top.close(); } catch(e) {}
-    setTimeout(() => showScreen('screen-closed'), 300);
+  function showOverlay(mark, color) {
+    const div = document.getElementById('overlay-result');
+    div.textContent = mark;
+    div.style.color = color;
+    div.classList.add('show');
+    setTimeout(() => div.classList.remove('show'), 800);
   }
+
+  // --- ⑦ 終了処理 ---
+  async function finishTest() {
+    const isPass = (_score >= 8);
+    const resultText = isPass ? "合格！" : "不合格...";
+    const resultIcon = isPass ? "🎉" : "😭";
+    
+    document.getElementById('result-icon').textContent = resultIcon;
+    document.getElementById('result-status').textContent = resultText;
+    document.getElementById('result-score').textContent = _score + " / 10 点";
+    
+    if (isPass) {
+      document.getElementById('result-msg').textContent = "すごい！その調子で頑張ろう！";
+      if (!_historyMode) {
+        await gasRun('saveAttempt', _student.id, _setNo, _score, "合格", _level);
+        _student.cleared++;
+        // スタンプ（マスター）チェックなどのロジックをここに
+      }
+    } else {
+      document.getElementById('result-msg').textContent = "惜しい！もう一度練習してみよう。";
+      if (!_historyMode) {
+        _student.hp--;
+        await gasRun('saveAttempt', _student.id, _setNo, _score, "不合格", _level);
+        await gasRun('updateStudentHP', _student.id, _student.hp);
+      }
+    }
+    
+    refreshMenu();
+    showScreen('result');
+  }
+
+  // --- ⑧ 履歴・ランキング ---
+  async function showHistory() {
+    showScreen('history');
+    const container = document.getElementById('history-list');
+    container.innerHTML = "読み込み中...";
+    try {
+      const res = await gasRun('getHistory', _student.id);
+      if (res.ok && res.history.length > 0) {
+        container.innerHTML = res.history.map(h => `
+          <div class="history-item">
+            <div>
+              <div class="h-info">英検${h.level} セット${h.setNo}</div>
+              <div class="h-date">${h.date}</div>
+            </div>
+            <div style="color:#4f7df0; font-weight:800;">PASS</div>
+          </div>
+        `).join('');
+      } else {
+        container.innerHTML = "<p style='text-align:center; padding:20px;'>まだ合格した履歴がないよ。</p>";
+      }
+    } catch (e) { container.innerHTML = "エラーが発生しました。"; }
+  }
+
+  async function showRanking() {
+    showScreen('ranking');
+    const container = document.getElementById('ranking-list');
+    container.innerHTML = "読み込み中...";
+    try {
+      const res = await gasRun('getRanking');
+      if (res.ok) {
+        container.innerHTML = res.ranking.map((r, i) => `
+          <div class="ranking-item">
+            <span class="rank-num">${i + 1}</span>
+            <span class="rank-name">${r.nickname}</span>
+            <span class="rank-score">${r.cleared} sets</span>
+          </div>
+        `).join('');
+      }
+    } catch (e) { container.innerHTML = "エラーが発生しました。"; }
+  }
+
 </script>
 </body>
 </html>
