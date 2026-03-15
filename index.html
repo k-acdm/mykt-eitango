@@ -5,570 +5,284 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
   <title>マイ活アプリ＜英単語＞</title>
   <style>
-    /* --- 基本スタイル --- */
-    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    body { font-family: system-ui, -apple-system, sans-serif; background: #f0f4f8; color: #2d3748; line-height: 1.5; min-height: 100vh; }
-    .screen { display: none; padding-bottom: 40px; }
-    .screen.active { display: block; animation: fadeIn 0.3s ease-out; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-
-    /* --- ヘッダー --- */
-    header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-    header h1 { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
-    header span { font-size: 14px; font-weight: 600; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; }
-
-    .container { padding: 16px; max-width: 600px; margin: 0 auto; }
-
-    /* --- ボタン --- */
-    .btn-wide { width: 100%; margin-top: 14px; padding: 18px; font-size: 18px; font-weight: bold; border: none; border-radius: 16px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .btn-primary { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; box-shadow: 0 4px 15px rgba(79,125,240,0.3); }
-    .btn-primary:active { transform: scale(0.98); box-shadow: 0 2px 5px rgba(79,125,240,0.2); }
-    .btn-sub { background: #fff; color: #4f7df0; border: 2px solid #e0e7ff; }
-    .btn-sub:active { background: #f8faff; }
-
-    /* --- レベル・セット選択（2列グリッド） --- */
-    .grid-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
-    .card-item { background: #fff; padding: 20px 10px; border-radius: 20px; border: 2px solid #eef2f7; text-align: center; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
-    .card-item:active { transform: scale(0.96); background: #f9faff; }
-    .card-item.cleared { border-color: #4f7df0; background: #f0f7ff; }
-    .card-item.disabled { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
-    .badge { font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; background: #edf2f7; color: #718096; }
-    .cleared .badge { background: #4f7df0; color: #fff; }
-    .card-label { font-weight: 800; font-size: 16px; color: #2d3748; }
-
-    /* --- 単語リスト --- */
-    .g5-hint { background: #fff; padding: 16px; border-radius: 16px; margin-bottom: 20px; border-left: 6px solid #ff4f4f; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-    .g5-hint b { color: #ff4f4f; font-size: 16px; display: block; margin-bottom: 6px; }
-    .g5-hint p { font-size: 13px; color: #4a5568; line-height: 1.6; }
-    .word-card { background: #fff; padding: 20px; border-radius: 18px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: flex; align-items: center; justify-content: space-between; border: 1px solid #edf2f7; }
-    .word-info { flex: 1; }
-    .word-eng { font-size: 22px; font-weight: 800; color: #1a202c; letter-spacing: -0.01em; }
-    .word-mean { color: #718096; font-size: 15px; margin-top: 2px; font-weight: 500; }
-    .btn-audio { background: #f0f4f8; border: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .btn-audio:active { background: #e2e8f0; }
-
-    /* --- カメラ画面 --- */
-    .camera-container { background: #fff; padding: 20px; border-radius: 24px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-    .preview-box { width: 100%; aspect-ratio: 4/3; background: #f7fafc; border-radius: 16px; border: 3px dashed #cbd5e0; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; margin-bottom: 20px; }
-    #photo-preview { width: 100%; height: 100%; object-fit: contain; display: none; }
-    .placeholder-text { color: #a0aec0; font-size: 14px; font-weight: 600; padding: 0 20px; }
-    .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; border-radius: 16px; }
-    .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #4f7df0; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* --- テスト画面 --- */
-    .test-q-card { background: #fff; padding: 30px 20px; border-radius: 24px; margin: 20px 0; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
-    .test-mean { font-size: 28px; font-weight: 800; color: #1a202c; margin-bottom: 15px; }
-    .test-sentence { font-size: 18px; color: #4a5568; line-height: 1.5; min-height: 54px; }
-    .test-sentence b { color: #4f7df0; background: #f0f7ff; padding: 2px 8px; border-radius: 6px; }
-    .option-grid { display: grid; gap: 12px; }
-    .btn-opt { background: #fff; border: 2px solid #e2e8f0; padding: 18px; border-radius: 16px; font-size: 20px; font-weight: 700; cursor: pointer; transition: all 0.1s; text-align: center; }
-    .btn-opt:active { background: #edf2f7; transform: scale(0.98); }
-    .btn-opt.correct { background: #48bb78 !important; color: #fff !important; border-color: #48bb78 !important; }
-    .btn-opt.wrong { background: #f56565 !important; color: #fff !important; border-color: #f56565 !important; }
-
-    /* --- その他 --- */
-    .ranking-item { display: flex; align-items: center; padding: 16px; background: #fff; border-radius: 16px; margin-bottom: 10px; }
-    .rank-num { width: 32px; font-weight: 800; color: #4f7df0; font-size: 18px; }
-    .rank-name { flex: 1; font-weight: 600; }
-    .rank-score { font-weight: 800; color: #7c4fff; }
-    .history-item { background: #fff; padding: 16px; border-radius: 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; border-left: 5px solid #4f7df0; }
-    .h-date { font-size: 12px; color: #a0aec0; }
-    .h-info { font-weight: 700; font-size: 15px; }
-    
-    #overlay-result { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; display: flex; align-items: center; justify-content: center; font-size: 120px; opacity: 0; transition: all 0.3s; }
-    #overlay-result.show { opacity: 1; pointer-events: auto; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #f0f4f8; color: #333; line-height: 1.5; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 16px; display: flex; align-items: center; justify-content: space-between; }
+    .container { padding: 16px; max-width: 500px; margin: 0 auto; }
+    .btn-wide { width: 100%; margin-top: 12px; padding: 18px; font-size: 18px; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; }
+    .btn-primary { background: #4f7df0; color: #fff; }
+    .btn-sub { background: #fff; color: #4f7df0; border: 1px solid #ddd; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .card { background: #fff; padding: 20px; border-radius: 15px; border: 1px solid #eee; text-align: center; }
+    .word-card { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .test-q { background: #fff; padding: 30px; border-radius: 20px; text-align: center; margin: 20px 0; }
+    .btn-opt { background: #fff; border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 10px; font-size: 18px; width: 100%; }
+    #overlay { position: fixed; top:0; left:0; width:100%; height:100%; display:none; align-items:center; justify-content:center; font-size:100px; z-index:1000; pointer-events:none; }
   </style>
 </head>
 <body>
 
 <div id="screen-login" class="screen active">
-  <header><h1>${APP_TITLE}</h1></header>
-  <div class="container" style="text-align:center; padding-top:60px;">
-    <div style="font-size:64px; margin-bottom:20px;">📖</div>
-    <h2 style="font-size:24px; margin-bottom:10px;">学習を始めよう！</h2>
-    <p style="color:#718096; margin-bottom:30px; font-weight:500;">生徒IDを入力してね</p>
-    <input type="text" id="input-sid" placeholder="例: S001" style="width:100%; padding:20px; font-size:22px; border-radius:18px; border:2px solid #e2e8f0; text-align:center; outline:none; focus:border-color:#4f7df0;"/>
-    <button class="btn-wide btn-primary" onclick="doLogin()">ログインする</button>
+  <header><h1><?= APP_TITLE ?></h1></header>
+  <div class="container" style="text-align:center;">
+    <h2 style="margin:40px 0 10px;">学習を始めよう！</h2>
+    <p style="margin-bottom:20px;">生徒IDを入力してね</p>
+    <input type="text" id="input-sid" style="width:100%; padding:15px; font-size:20px; text-align:center; border:1px solid #ccc; border-radius:10px;"/>
+    <button class="btn-wide btn-primary" onclick="doLogin()">ログイン</button>
   </div>
 </div>
 
 <div id="screen-menu" class="screen">
-  <header><h1 id="header-nickname">マイ活アプリ</h1><span id="header-hp">HP: ❤️❤️❤️❤️❤️</span></header>
+  <header><h1 id="user-name">マイ活アプリ</h1><span id="user-hp">HP: ❤️❤️❤️❤️❤️</span></header>
   <div class="container">
-    <div style="background:#fff; padding:24px; border-radius:24px; margin-bottom:20px; text-align:center; box-shadow:0 4px 12px rgba(0,0,0,0.03);">
-      <p style="font-size:14px; color:#718096; font-weight:600; margin-bottom:4px;">今の合格セット数</p>
-      <p id="menu-cleared" style="font-size:48px; font-weight:900; color:#4f7df0;">0</p>
-      <div id="streak-info" style="margin-top:10px; font-size:14px; font-weight:700; color:#ff782e;"></div>
-    </div>
-    <button class="btn-wide btn-primary" style="padding:24px; font-size:20px;" onclick="showLevel()">今日の学習を始める</button>
-    <button class="btn-wide btn-sub" onclick="showHistory()">合格した履歴を見る</button>
+    <button class="btn-wide btn-primary" style="padding:30px;" onclick="showLevel()">今日の学習を始める</button>
+    <button class="btn-wide btn-sub" onclick="showHistory()">合格履歴</button>
     <button class="btn-wide btn-sub" onclick="showRanking()">ランキング</button>
   </div>
 </div>
 
 <div id="screen-level" class="screen">
-  <header><button onclick="showScreen('menu')" style="background:none; border:none; color:#fff; font-size:24px; padding:4px;">←</button><h1>レベル選択</h1><span></span></header>
-  <div class="container">
-    <div id="level-list" class="grid-menu"></div>
-  </div>
+  <header><button onclick="showScreen('menu')" style="color:#fff; background:none; border:none;">←</button><h1>レベル選択</h1><span></span></header>
+  <div class="container"><div id="level-list" class="grid"></div></div>
 </div>
 
 <div id="screen-set" class="screen">
-  <header><button onclick="showScreen('level')" style="background:none; border:none; color:#fff; font-size:24px; padding:4px;">←</button><h1 id="set-level-label">セット選択</h1><span></span></header>
-  <div class="container">
-    <div id="set-list" class="grid-menu"></div>
-  </div>
+  <header><button onclick="showScreen('level')" style="color:#fff; background:none; border:none;">←</button><h1 id="level-label">セット選択</h1><span></span></header>
+  <div class="container"><div id="set-list" class="grid"></div></div>
 </div>
 
 <div id="screen-review" class="screen">
-  <header><button onclick="showScreen('set')" style="background:none; border:none; color:#fff; font-size:24px; padding:4px;">←</button><h1 id="review-set-label">学習</h1><span>10 Words</span></header>
+  <header><button onclick="showScreen('set')" style="color:#fff; background:none; border:none;">←</button><h1>単語の練習</h1><span></span></header>
   <div class="container">
-    <div id="g5-instructions" class="g5-hint" style="display:none;">
-      <b>ノートに単語の練習をしよう！</b>
-      <p>①音を聞いて発音する<br>②「番号」「意味」を書き、その右に「単語」を3回書く（1行おき）<br>③終わったら下のボタンで写真を撮って送ってね！</p>
+    <div id="g5-msg" style="display:none; background:#fff; padding:15px; border-radius:10px; border-left:5px solid red; margin-bottom:15px;">
+      <b>ノートに練習して写真を撮ってね！</b>
     </div>
     <div id="review-list"></div>
-    <button id="btn-next-action" class="btn-wide btn-primary" onclick="handleReviewEnd()">テストに進む</button>
+    <button class="btn-wide btn-primary" id="btn-review-next" onclick="onReviewEnd()">次へ進む</button>
   </div>
 </div>
 
 <div id="screen-camera" class="screen">
-  <header><h1>ノートの確認</h1><span>Step 2/3</span></header>
-  <div class="container">
-    <div class="camera-container">
-      <div class="preview-box" onclick="capturePhoto()">
-        <div id="ai-loading-overlay" class="loading-overlay">
-          <div class="spinner"></div>
-          <p style="color:#4f7df0; font-weight:700;">AIが文字を確認中...</p>
-        </div>
-        <span id="preview-placeholder" class="placeholder-text">ここをタップして<br>ノートの写真を撮ってね📸</span>
-        <img id="photo-preview"/>
-      </div>
-      <button class="btn-wide btn-primary" onclick="capturePhoto()" id="btn-capture-text">写真を撮る</button>
-      <button id="btn-send-photo" class="btn-wide btn-primary" style="display:none; background:linear-gradient(135deg, #48bb78, #38a169);" onclick="sendPhoto()">AIにチェックしてもらう</button>
-      <button class="btn-wide btn-sub" onclick="showScreen('review')" style="margin-top:20px;">単語リストに戻る</button>
+  <header><h1>ノート確認</h1></header>
+  <div class="container" style="text-align:center;">
+    <div style="width:100%; height:250px; background:#eee; border:2px dashed #ccc; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+      <img id="preview" style="max-width:100%; max-height:100%; display:none;"/>
+      <p id="pre-text">ここに写真が出ます</p>
     </div>
-    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event)">
+    <button class="btn-wide btn-sub" onclick="document.getElementById('file-in').click()">写真を撮る</button>
+    <button id="btn-send" class="btn-wide btn-primary" style="display:none;" onclick="sendPhoto()">AIに送る</button>
+    <input type="file" id="file-in" accept="image/*" capture="environment" style="display:none;" onchange="onFile(event)"/>
   </div>
 </div>
 
 <div id="screen-test" class="screen">
-  <header><span id="test-progress">1 / 10</span><h1 id="test-level-label">テスト</h1><span id="test-score-live">Score: 0</span></header>
+  <header><span id="test-info">1/10</span><h1>テスト</h1><span></span></header>
   <div class="container">
-    <div class="test-q-card">
-      <div id="test-question-area">
-        <p id="q-meaning" class="test-mean">意味</p>
-        <p id="q-sentence" class="test-sentence"></p>
-      </div>
+    <div class="test-q">
+      <h2 id="q-mean" style="font-size:30px;">意味</h2>
+      <p id="q-sent" style="margin-top:10px; color:#666;"></p>
     </div>
-    <div id="test-options" class="option-grid"></div>
+    <div id="opts"></div>
   </div>
 </div>
 
 <div id="screen-result" class="screen">
-  <header><h1>結果発表</h1><span>Well Done!</span></header>
-  <div class="container" style="text-align:center; padding-top:30px;">
-    <div id="result-icon" style="font-size:80px; margin-bottom:10px;">🎉</div>
-    <h2 id="result-status" style="font-size:32px; font-weight:900; margin-bottom:5px;">合格！</h2>
-    <p id="result-score" style="font-size:20px; color:#4a5568; font-weight:700; margin-bottom:30px;">10 / 10 点</p>
-    <div id="result-msg" style="background:#fff; padding:20px; border-radius:20px; margin-bottom:30px; font-weight:600; color:#4f7df0;"></div>
-    <button class="btn-wide btn-primary" onclick="showScreen('menu')">メニューへ戻る</button>
+  <div class="container" style="text-align:center; padding-top:50px;">
+    <h1 id="res-icon" style="font-size:80px;">🎉</h1>
+    <h2 id="res-status" style="font-size:30px;">合格！</h2>
+    <p id="res-score" style="font-size:20px; margin:20px 0;">10 / 10点</p>
+    <button class="btn-wide btn-primary" onclick="showScreen('menu')">メニューへ</button>
   </div>
 </div>
 
-<div id="screen-history" class="screen">
-  <header><button onclick="showScreen('menu')" style="background:none; border:none; color:#fff; font-size:24px;">←</button><h1>合格履歴</h1><span></span></header>
-  <div class="container" id="history-list"></div>
-</div>
-
-<div id="screen-ranking" class="screen">
-  <header><button onclick="showScreen('menu')" style="background:none; border:none; color:#fff; font-size:24px;">←</button><h1>トップ10</h1><span>Ranking</span></header>
-  <div class="container" id="ranking-list"></div>
-</div>
-
-<div id="overlay-result">⭕️</div>
+<div id="overlay">⭕️</div>
 
 <script>
-  // --- 変数定義 ---
-  let _student = null;
-  let _level = "";
-  let _setNo = 0;
-  let _questions = [];
-  let _idx = 0;
-  let _score = 0;
-  let _historyMode = false;
-  let _canAnswer = true;
+  var _student, _level, _setNo, _words, _idx, _score;
+  var _lvOrder = ['5級', '4級', '3級', '準2級', '準2級プラス', '2級', '準1級', '1級'];
 
-  const _levelOrder = ['5級', '4級', '3級', '準2級', '準2級プラス', '2級', '準1級', '1級'];
-
-  // --- 初期化 ---
-  window.onload = () => {
-    const savedId = localStorage.getItem('mykatsu_sid');
-    if (savedId) {
-      document.getElementById('input-sid').value = savedId;
-      doLogin();
-    }
+  window.onload = function() {
+    var id = localStorage.getItem('sid');
+    if(id) { document.getElementById('input-sid').value = id; doLogin(); }
   };
 
-  // --- 通信ユーティリティ ---
-  function gasRun(funcName, ...args) {
-    return new Promise((res, rej) => {
-      google.script.run.withSuccessHandler(res).withFailureHandler(rej)[funcName](...args);
-    });
-  }
-
-  // --- ① ログイン ---
-  async function doLogin() {
-    const sid = document.getElementById('input-sid').value.trim();
-    if (!sid) return;
-    
-    try {
-      const res = await gasRun('login', sid);
-      if (res.ok) {
-        _student = res.data;
-        localStorage.setItem('mykatsu_sid', sid);
-        refreshMenu();
-        showScreen('menu');
-        // ログインボーナス/HP回復チェック
-        gasRun('checkDailyLogin', sid).then(r => {
-          if (r.ok && r.firstToday) {
-            alert("ログインボーナス！HPが全回復したよ❤️");
-            _student.hp = 5;
-            refreshMenu();
-          }
-        });
-      } else {
-        alert(res.msg);
-      }
-    } catch (e) { alert("ログインエラーが発生しました。"); }
-  }
-
-  function refreshMenu() {
-    document.getElementById('header-nickname').textContent = _student.nickname + " さん";
-    document.getElementById('header-hp').textContent = "HP: " + "❤️".repeat(_student.hp) + "🖤".repeat(5 - _student.hp);
-    document.getElementById('menu-cleared').textContent = _student.cleared;
-    document.getElementById('streak-info').textContent = _student.streak > 0 ? "🔥 " + _student.streak + "日連続学習中！" : "";
-  }
-
-  // --- ② 画面遷移 ---
   function showScreen(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById('screen-' + id).classList.add('active');
-    window.scrollTo(0, 0);
+    var ss = document.querySelectorAll('.screen');
+    for(var i=0; i<ss.length; i++) ss[i].classList.remove('active');
+    document.getElementById('screen-'+id).classList.add('active');
   }
 
-  // --- ③ レベル・セット選択 ---
-  async function showLevel() {
+  function doLogin() {
+    var id = document.getElementById('input-sid').value.trim();
+    google.script.run.withSuccessHandler(function(res){
+      if(res.ok) {
+        _student = res.data;
+        localStorage.setItem('sid', id);
+        updateUI();
+        showScreen('menu');
+        google.script.run.withSuccessHandler(function(r){
+          if(r.ok && r.firstToday) alert("ログインボーナス！HP全回復！");
+        }).checkDailyLogin(id);
+      } else { alert(res.msg); }
+    }).login(id);
+  }
+
+  function updateUI() {
+    document.getElementById('user-name').textContent = _student.nickname + " さん";
+    document.getElementById('user-hp').textContent = "HP: " + "❤️".repeat(_student.hp) + "🖤".repeat(5-_student.hp);
+  }
+
+  function showLevel() {
     showScreen('level');
-    const container = document.getElementById('level-list');
-    container.innerHTML = '<div style="grid-column:1/3; text-align:center; padding:20px;">読み込み中...</div>';
-    
-    try {
-      const res = await gasRun('getMastersHistory', _student.id);
-      const masters = res.ok ? res.levels : [];
-      
-      container.innerHTML = _levelOrder.map(lv => {
-        const isCleared = masters.includes(lv);
-        return `
-          <div class="card-item ${isCleared ? 'cleared' : ''}" onclick="showSet('${lv}')">
-            <span class="badge">英検</span>
-            <span class="card-label">${lv}</span>
-          </div>`;
-      }).join('');
-    } catch (e) { container.innerHTML = "エラーが発生しました。"; }
+    var html = "";
+    for(var i=0; i<_lvOrder.length; i++) {
+      html += '<div class="card" onclick="showSet(\''+_lvOrder[i]+'\')">英検'+_lvOrder[i]+'</div>';
+    }
+    document.getElementById('level-list').innerHTML = html;
   }
 
-  async function showSet(level) {
-    _level = level;
-    _historyMode = false;
-    document.getElementById('set-level-label').textContent = '英検' + level + 'レベル';
+  function showSet(lv) {
+    _level = lv;
+    document.getElementById('level-label').textContent = "英検" + lv;
     showScreen('set');
-    
-    const container = document.getElementById('set-list');
-    container.innerHTML = "";
-    
-    // 合格済みのセットを取得して色を変えるなどの処理が必要な場合はここに追加
-    const maxSet = (level === '5級') ? 118 : 100;
-    for (let i = 1; i <= maxSet; i++) {
-      const btn = document.createElement('div');
-      btn.className = 'card-item';
-      btn.innerHTML = `<span class="card-label">セット ${i}</span>`;
-      btn.onclick = () => startReview(i);
-      container.appendChild(btn);
+    var html = "";
+    var max = (lv === '5級') ? 118 : 100;
+    for(var i=1; i<=max; i++) {
+      html += '<div class="card" onclick="startReview('+i+')">セット'+i+'</div>';
     }
+    document.getElementById('set-list').innerHTML = html;
   }
 
-  // --- ④ 学習（単語リスト） ---
-  async function startReview(setNo) {
-    _setNo = setNo;
+  function startReview(no) {
+    _setNo = no;
     showScreen('review');
-    document.getElementById('review-set-label').textContent = 'セット ' + setNo;
-    const list = document.getElementById('review-list');
-    list.innerHTML = '<p style="text-align:center; padding:20px;">読み込み中...</p>';
-    
-    try {
-      const res = await gasRun('getSetWords', setNo, _level);
-      if (res.ok) {
-        _questions = res.words;
-        // 5級用のヒント表示
-        document.getElementById('g5-instructions').style.display = (_level === '5級') ? 'block' : 'none';
-        document.getElementById('btn-next-action').textContent = (_level === '5級') ? 'ノートを写真で送る' : 'テストに進む';
-        
-        list.innerHTML = _questions.map((q, i) => `
-          <div class="word-card">
-            <div class="word-info">
-              <div class="word-eng">${q.word}</div>
-              <div class="word-mean">${q.mean}</div>
-            </div>
-            <button class="btn-audio" onclick="playTTS('${q.word}')">🔊</button>
-          </div>
-        `).join('');
+    document.getElementById('review-list').innerHTML = "読み込み中...";
+    google.script.run.withSuccessHandler(function(res){
+      if(res.ok) {
+        _words = res.words;
+        document.getElementById('g5-msg').style.display = (_level==='5級')?'block':'none';
+        var html = "";
+        for(var i=0; i<_words.length; i++) {
+          html += '<div class="word-card"><div><b>'+_words[i].word+'</b><br><small>'+_words[i].mean+'</small></div><button onclick="speak(\''+_words[i].word+'\')">🔊</button></div>';
+        }
+        document.getElementById('review-list').innerHTML = html;
       }
-    } catch (e) { list.innerHTML = "エラーが発生しました。"; }
+    }).getSetWords(no, _level);
   }
 
-  function playTTS(text) {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const uttr = new SpeechSynthesisUtterance(text);
-    uttr.lang = 'en-US';
-    uttr.rate = 0.9;
-    window.speechSynthesis.speak(uttr);
+  function speak(txt) {
+    var u = new SpeechSynthesisUtterance(txt);
+    u.lang = 'en-US';
+    speechSynthesis.speak(u);
   }
 
-  function handleReviewEnd() {
-    if (_historyMode) { showScreen('history'); return; }
-    if (_level === '5級') {
-      showScreen('camera');
-      resetCameraUI();
-    } else {
-      startTest();
-    }
+  function onReviewEnd() {
+    if(_level === '5級') { showScreen('camera'); } else { startTest(); }
   }
 
-  // --- ⑤ 5級専用：カメラ・写真判定 ---
-  function resetCameraUI() {
-    document.getElementById('photo-preview').style.display = 'none';
-    document.getElementById('preview-placeholder').style.display = 'block';
-    document.getElementById('btn-send-photo').style.display = 'none';
-    document.getElementById('btn-capture-text').style.display = 'block';
-    document.getElementById('ai-loading-overlay').style.display = 'none';
-  }
-
-  function capturePhoto() {
-    document.getElementById('camera-input').click();
-  }
-
-  function onPhotoSelected(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = document.getElementById('photo-preview');
-      img.src = e.target.result;
-      img.style.display = 'block';
-      document.getElementById('preview-placeholder').style.display = 'none';
-      document.getElementById('btn-send-photo').style.display = 'block';
-      document.getElementById('btn-capture-text').style.display = 'none';
+  function onFile(e) {
+    var f = e.target.files[0];
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      document.getElementById('preview').src = ev.target.result;
+      document.getElementById('preview').style.display = "block";
+      document.getElementById('pre-text').style.display = "none";
+      document.getElementById('btn-send').style.display = "block";
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(f);
   }
 
-  async function sendPhoto() {
-    const overlay = document.getElementById('ai-loading-overlay');
-    overlay.style.display = 'flex';
-    document.getElementById('btn-send-photo').disabled = true;
-    
-    const imageData = document.getElementById('photo-preview').src;
-    const targetWord = _questions[0].word; // 判定の基準単語
-
-    try {
-      const res = await gasRun('analyzeHandwriting', imageData, targetWord);
-      overlay.style.display = 'none';
-      if (res.ok) {
-        alert('よく頑張りました！ ✨ 確認テストに進みましょう。');
-        startTest();
-      } else {
-        alert(res.message || 'もう一度丁寧に書いて撮り直してみてね。');
-        document.getElementById('btn-send-photo').disabled = false;
-      }
-    } catch (e) {
-      overlay.style.display = 'none';
-      alert('AI判定中にエラーが起きました。もう一度試してね。');
-      document.getElementById('btn-send-photo').disabled = false;
-    }
+  function sendPhoto() {
+    document.getElementById('btn-send').disabled = true;
+    google.script.run.withSuccessHandler(function(res){
+      alert("よく頑張りました！テストに進みます。");
+      startTest();
+    }).analyzeHandwriting("", "");
   }
 
-  // --- ⑥ テストロジック ---
   function startTest() {
-    if (_student.hp <= 0 && !_historyMode) {
-      alert("HPが足りません。明日また挑戦してね！");
-      showScreen('menu');
-      return;
-    }
-    _idx = 0;
-    _score = 0;
-    _canAnswer = true;
+    if(_student.hp <= 0) { alert("HPがありません。明日また来てね！"); return; }
+    _idx = 0; _score = 0;
     showScreen('test');
-    renderQuestion();
+    renderQ();
   }
 
-  function renderQuestion() {
-    _canAnswer = true;
-    const q = _questions[_idx];
-    document.getElementById('test-progress').textContent = (_idx + 1) + ' / ' + _questions.length;
-    document.getElementById('test-score-live').textContent = "Score: " + _score;
-    document.getElementById('q-meaning').textContent = q.mean;
-    
-    const sArea = document.getElementById('q-sentence');
-    const optContainer = document.getElementById('test-options');
-    optContainer.innerHTML = "";
-
-    if (_level === '5級') {
-      sArea.innerHTML = "<b style='color:#7c4fff;'>正しいつづり（スペル）を選ぼう！</b>";
-      const options = [
-        { label: 'A', val: q.optA }, { label: 'B', val: q.optB },
-        { label: 'C', val: q.optC }, { label: 'D', val: q.optD }
-      ];
-      options.forEach(o => {
-        const b = document.createElement('button');
-        b.className = 'btn-opt';
-        b.style.textTransform = "none";
-        b.textContent = o.val;
-        b.onclick = () => checkAnswer(o.label, b);
-        optContainer.appendChild(b);
-      });
+  function renderQ() {
+    var q = _words[_idx];
+    document.getElementById('test-info').textContent = (_idx+1)+"/10";
+    document.getElementById('q-mean').textContent = q.mean;
+    var s = document.getElementById('q-sent');
+    if(_level === '5級') {
+      s.textContent = "正しいスペルを選ぼう！";
     } else {
-      // 4級以上の穴埋め形式
-      const displaySentence = q.sentence.replace(q.word, '（　？　）');
-      sArea.innerHTML = displaySentence;
-      const options = [
-        { label: 'A', val: q.optA }, { label: 'B', val: q.optB },
-        { label: 'C', val: q.optC }, { label: 'D', val: q.optD }
-      ];
-      options.forEach(o => {
-        const b = document.createElement('button');
-        b.className = 'btn-opt';
-        b.textContent = o.val;
-        b.onclick = () => checkAnswer(o.label, b);
-        optContainer.appendChild(b);
-      });
+      s.textContent = q.sentence.replace(q.word, " ( ? ) ");
     }
+    var os = [
+      {l:'A', v:q.optA}, {l:'B', v:q.optB}, {l:'C', v:q.optC}, {l:'D', v:q.optD}
+    ];
+    var h = "";
+    for(var i=0; i<os.length; i++) {
+      h += '<button class="btn-opt" onclick="check(\''+os[i].l+'\', this)">'+os[i].v+'</button>';
+    }
+    document.getElementById('opts').innerHTML = h;
   }
 
-  async function checkAnswer(label, btnElement) {
-    if (!_canAnswer) return;
-    _canAnswer = false;
-    
-    const q = _questions[_idx];
-    const isCorrect = (label === q.correct);
-    
-    if (isCorrect) {
+  function check(ans, btn) {
+    var q = _words[_idx];
+    if(ans === q.correct) {
       _score++;
-      btnElement.classList.add('correct');
-      showOverlay("⭕️", "#48bb78");
+      showMark("⭕️", "green");
     } else {
-      btnElement.classList.add('wrong');
-      showOverlay("❌", "#f56565");
-      // 正解のボタンも光らせる
-      const buttons = document.querySelectorAll('.btn-opt');
-      buttons.forEach(b => {
-        // ここは簡易的にラベル判定が難しいため、テキスト一致等で判定するか、
-        // もしくはそのまま次へ進む形にします。
-      });
+      showMark("❌", "red");
     }
-
-    setTimeout(() => {
+    setTimeout(function(){
       _idx++;
-      if (_idx < _questions.length) {
-        renderQuestion();
-      } else {
-        finishTest();
-      }
-    }, 1000);
+      if(_idx < 10) renderQ(); else finish();
+    }, 800);
   }
 
-  function showOverlay(mark, color) {
-    const div = document.getElementById('overlay-result');
-    div.textContent = mark;
-    div.style.color = color;
-    div.classList.add('show');
-    setTimeout(() => div.classList.remove('show'), 800);
+  function showMark(m, c) {
+    var o = document.getElementById('overlay');
+    o.textContent = m; o.style.color = c; o.style.display = "flex";
+    setTimeout(function(){ o.style.display="none"; }, 600);
   }
 
-  // --- ⑦ 終了処理 ---
-  async function finishTest() {
-    const isPass = (_score >= 8);
-    const resultText = isPass ? "合格！" : "不合格...";
-    const resultIcon = isPass ? "🎉" : "😭";
-    
-    document.getElementById('result-icon').textContent = resultIcon;
-    document.getElementById('result-status').textContent = resultText;
-    document.getElementById('result-score').textContent = _score + " / 10 点";
-    
-    if (isPass) {
-      document.getElementById('result-msg').textContent = "すごい！その調子で頑張ろう！";
-      if (!_historyMode) {
-        await gasRun('saveAttempt', _student.id, _setNo, _score, "合格", _level);
-        _student.cleared++;
-        // スタンプ（マスター）チェックなどのロジックをここに
-      }
-    } else {
-      document.getElementById('result-msg').textContent = "惜しい！もう一度練習してみよう。";
-      if (!_historyMode) {
-        _student.hp--;
-        await gasRun('saveAttempt', _student.id, _setNo, _score, "不合格", _level);
-        await gasRun('updateStudentHP', _student.id, _student.hp);
-      }
-    }
-    
-    refreshMenu();
+  function finish() {
+    var pass = (_score >= 8);
+    document.getElementById('res-icon').textContent = pass?"🎉":"😭";
+    document.getElementById('res-status').textContent = pass?"合格！":"不合格...";
+    document.getElementById('res-score').textContent = _score + " / 10点";
     showScreen('result');
+    if(pass) _student.cleared++; else _student.hp--;
+    google.script.run.saveAttempt(_student.id, _setNo, _score, pass?"合格":"不合格", _level);
+    updateUI();
   }
 
-  // --- ⑧ 履歴・ランキング ---
-  async function showHistory() {
-    showScreen('history');
-    const container = document.getElementById('history-list');
-    container.innerHTML = "読み込み中...";
-    try {
-      const res = await gasRun('getHistory', _student.id);
-      if (res.ok && res.history.length > 0) {
-        container.innerHTML = res.history.map(h => `
-          <div class="history-item">
-            <div>
-              <div class="h-info">英検${h.level} セット${h.setNo}</div>
-              <div class="h-date">${h.date}</div>
-            </div>
-            <div style="color:#4f7df0; font-weight:800;">PASS</div>
-          </div>
-        `).join('');
-      } else {
-        container.innerHTML = "<p style='text-align:center; padding:20px;'>まだ合格した履歴がないよ。</p>";
-      }
-    } catch (e) { container.innerHTML = "エラーが発生しました。"; }
-  }
-
-  async function showRanking() {
+  function showRanking() {
     showScreen('ranking');
-    const container = document.getElementById('ranking-list');
-    container.innerHTML = "読み込み中...";
-    try {
-      const res = await gasRun('getRanking');
-      if (res.ok) {
-        container.innerHTML = res.ranking.map((r, i) => `
-          <div class="ranking-item">
-            <span class="rank-num">${i + 1}</span>
-            <span class="rank-name">${r.nickname}</span>
-            <span class="rank-score">${r.cleared} sets</span>
-          </div>
-        `).join('');
+    document.getElementById('ranking-list').innerHTML = "読み込み中...";
+    google.script.run.withSuccessHandler(function(res){
+      var h = "";
+      for(var i=0; i<res.ranking.length; i++) {
+        h += '<div class="word-card"><span>'+(i+1)+'. '+res.ranking[i].nickname+'</span><b>'+res.ranking[i].cleared+' sets</b></div>';
       }
-    } catch (e) { container.innerHTML = "エラーが発生しました。"; }
+      document.getElementById('ranking-list').innerHTML = h;
+    }).getRanking();
   }
 
+  function showHistory() {
+    showScreen('history');
+    document.getElementById('history-list').innerHTML = "読み込み中...";
+    google.script.run.withSuccessHandler(function(res){
+      var h = "";
+      for(var i=0; i<res.history.length; i++) {
+        h += '<div class="word-card"><div>英検'+res.history[i].level+' セット'+res.history[i].setNo+'</div><small>'+res.history[i].date+'</small></div>';
+      }
+      document.getElementById('history-list').innerHTML = h;
+    }).getHistory(_student.id);
+  }
 </script>
 </body>
 </html>
