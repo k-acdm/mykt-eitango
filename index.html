@@ -535,16 +535,27 @@
   }
 
   // 写真選択・送信
-  function onPhotoSelected(event) {
+function onPhotoSelected(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function(e) {
-      const dataUrl = e.target.result;
       const preview = document.getElementById('photo-preview');
-      preview.src = dataUrl; preview.style.display = 'block';
-      const base64 = dataUrl.split(',')[1];
-      sendPhoto(base64);
+      preview.src = e.target.result; preview.style.display = 'block';
+      // canvas で圧縮してからbase64に変換
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const maxSize = 800;
+        let w = img.width, h = img.height;
+        if (w > h) { if (w > maxSize) { h = h * maxSize / w; w = maxSize; } }
+        else        { if (h > maxSize) { w = w * maxSize / h; h = maxSize; } }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const base64 = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+        sendPhoto(base64);
+      };
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   }
@@ -554,21 +565,17 @@
     msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...';
     msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     const wordList = _questions.map(w => w.word);
-    fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
-    })
-    .then(r => r.json())
-    .then(res => {
-      if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
-      if (res.passed) {
-        msgEl.style.display = 'none';
-        showPhotoPassedScreen();
-      } else {
-        showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng');
-      }
-    })
-    .catch(() => { showMsg('photo-msg', 'エラーが発生しました。もう一度お試しください。', 'ng'); });
+    gasGet({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
+      .then(res => {
+        if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
+        if (res.passed) {
+          msgEl.style.display = 'none';
+          showPhotoPassedScreen();
+        } else {
+          showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng');
+        }
+      })
+      .catch(() => { showMsg('photo-msg', 'エラーが発生しました。もう一度お試しください。', 'ng'); });
   }
 
   function showPhotoPassedScreen() {
