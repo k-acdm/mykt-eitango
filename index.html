@@ -375,7 +375,6 @@
     return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   }
 
-  // 正解テキストを取得
   function getCorrectText(w) {
     const map = { A: w.choiceA, B: w.choiceB, C: w.choiceC, D: w.choiceD };
     return map[w.answer.trim().toUpperCase()] || w.meaning;
