@@ -40,6 +40,20 @@
     .level-btn .badge-coming { font-size: 12px; background: #eee; color: #999; padding: 3px 10px; border-radius: 20px; font-weight: normal; }
     .level-btn .badge-arrow { font-size: 18px; color: #4f7df0; }
     .set-label { text-align: center; font-size: 14px; color: #888; margin-bottom: 12px; }
+    /* 5級書き取り指示 */
+    .dictation-notice { background: linear-gradient(135deg, #fff5f5, #ffe8e8); border: 2px solid #e74c3c; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .dictation-notice .notice-title { color: #e74c3c; font-size: 17px; font-weight: bold; margin-bottom: 10px; }
+    .dictation-notice .notice-body { font-size: 14px; color: #333; line-height: 1.9; }
+    .sample-img-wrap { text-align: center; margin: 12px 0; }
+    .sample-img-wrap img { max-width: 100%; border-radius: 8px; border: 1px solid #ddd; cursor: pointer; }
+    .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,.7); z-index: 9998; justify-content: center; align-items: center; }
+    .modal-overlay.active { display: flex; }
+    .modal-overlay img { max-width: 95vw; max-height: 90vh; border-radius: 8px; }
+    /* 写真送信 */
+    .photo-area { background: #f8f9ff; border: 2px dashed #4f7df0; border-radius: 12px; padding: 20px; text-align: center; margin-top: 16px; }
+    .photo-preview { max-width: 100%; border-radius: 8px; margin-top: 12px; display: none; }
+    .btn-camera { display: inline-block; background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; font-size: 17px; font-weight: bold; padding: 14px 28px; border-radius: 12px; cursor: pointer; border: none; margin-top: 8px; }
+    /* テスト */
     .word-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
     .num { width: 32px; height: 32px; background: #4f7df0; border-radius: 50%; color: #fff; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .word-block { flex: 1; }
@@ -119,6 +133,11 @@
 </head>
 <body>
 
+<!-- 画像モーダル -->
+<div class="modal-overlay" id="img-modal" onclick="closeModal()">
+  <img src="./eiken5_sample.jpg" alt="書き取り見本"/>
+</div>
+
 <div class="back-warning">⚠️ 「戻る」ボタンは押さないでね</div>
 
 <!-- ① ログイン -->
@@ -173,9 +192,9 @@
   <div class="container" style="padding-top:20px">
     <p style="text-align:center;color:#666;font-size:14px;margin-bottom:16px">学習するレベルを選んでください</p>
     <div class="level-grid">
-      <button class="level-btn disabled" onclick="showComingSoon()">
+      <button class="level-btn" onclick="selectLevel('5級')">
         <span>🌱 英検５級レベル</span>
-        <span class="badge-coming">準備中</span>
+        <span class="badge-arrow">›</span>
       </button>
       <button class="level-btn" onclick="selectLevel('4級')">
         <span>📗 英検４級レベル</span>
@@ -189,6 +208,10 @@
         <span>📙 英検準２級レベル</span>
         <span class="badge-arrow">›</span>
       </button>
+      <button class="level-btn disabled" onclick="showComingSoon('準2級プラス')">
+        <span>📙 英検準２級プラスレベル</span>
+        <span class="badge-coming">準備中</span>
+      </button>
       <button class="level-btn" onclick="selectLevel('2級')">
         <span>📕 英検２級レベル</span>
         <span class="badge-arrow">›</span>
@@ -197,11 +220,15 @@
         <span>📓 英検準１級レベル</span>
         <span class="badge-arrow">›</span>
       </button>
+      <button class="level-btn disabled" onclick="showComingSoon('1級')">
+        <span>📒 英検１級レベル</span>
+        <span class="badge-coming">準備中</span>
+      </button>
     </div>
   </div>
 </div>
 
-<!-- ⑤ 今日の10語 -->
+<!-- ⑤ 今日の10語（4級以上） -->
 <div id="screen-today" class="screen">
   <header>
     <h1>📚 今日の10語</h1>
@@ -212,6 +239,40 @@
     <div id="today-word-list"><div class="loading">⏳ 単語を読み込んでいます...</div></div>
     <button class="btn-wide" id="today-btn" style="display:none">✏️ テストに挑戦する</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showLevelSelect()">← レベル選択に戻る</button>
+  </div>
+</div>
+
+<!-- ⑤b 書き取り画面（5級） -->
+<div id="screen-dictation" class="screen">
+  <header>
+    <h1>✏️ 英検５級 書き取り</h1>
+    <span id="dictation-student"></span>
+  </header>
+  <div class="container">
+    <div class="dictation-notice">
+      <div class="notice-title">🔴 それぞれの単語の発音を聞いた後、ノートに単語の書き取り練習をして、写真に撮って送ってください。</div>
+      <div class="notice-body">
+        【やり方】<br>
+        ・「単語の番号」「日本語の意味」の順で書き、その右に３回ずつ英単語を書いてください。<br>
+        ・１行おきに書いてください。<br>
+        ・全て終わったら一番下の「写真に撮って送る」ボタンを押し、画面の指示に従って写真を送ってください。<br>
+        ・写真を送った後、AIが正しく書けてるかを判定します。間違いがあったり、字が雑でAIが判読できない場合は「やり直し」となります。焦らず丁寧にやりましょう。
+      </div>
+      <div class="sample-img-wrap" style="margin-top:12px">
+        <p style="font-size:13px;color:#888;margin-bottom:6px">👆 こんな感じで書いてね（タップで拡大）</p>
+        <img src="./eiken5_sample.jpg" alt="書き取り見本" onclick="openModal()" style="max-height:160px;object-fit:cover;width:100%"/>
+      </div>
+    </div>
+    <div class="set-label" id="dictation-set-label"></div>
+    <div id="dictation-word-list"></div>
+    <div class="photo-area">
+      <p style="font-size:15px;color:#555;margin-bottom:8px">📷 書き終わったらノートを撮影して送ってください</p>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected(event)"/>
+      <button class="btn-camera" onclick="document.getElementById('photo-input').click()">📷 写真に撮って送る</button>
+      <img id="photo-preview" class="photo-preview"/>
+      <div id="photo-msg" class="msg" style="margin-top:10px"></div>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showLevelSelect()">← レベル選択に戻る</button>
   </div>
 </div>
 
@@ -277,9 +338,7 @@
   // =============================================
   // 音声システム
   // =============================================
-  let _voices      = [];
-  let _voicesReady = false;
-
+  let _voices = [], _voicesReady = false;
   function unlockAudio() {
     if (!window.speechSynthesis) return;
     const u = new SpeechSynthesisUtterance(' ');
@@ -288,47 +347,32 @@
   }
   document.addEventListener('touchstart', unlockAudio, { passive: true });
   document.addEventListener('click', unlockAudio);
-
   function loadVoices() {
     const v = window.speechSynthesis.getVoices();
     if (v.length > 0) { _voices = v; _voicesReady = true; }
   }
-  if (window.speechSynthesis) {
-    loadVoices();
-    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
-  }
+  if (window.speechSynthesis) { loadVoices(); window.speechSynthesis.addEventListener('voiceschanged', loadVoices); }
   function getEnglishVoice() {
-    return _voices.find(v => v.lang === 'en-US') ||
-           _voices.find(v => v.lang === 'en-GB') ||
-           _voices.find(v => v.lang.startsWith('en')) || null;
+    return _voices.find(v => v.lang === 'en-US') || _voices.find(v => v.lang === 'en-GB') || _voices.find(v => v.lang.startsWith('en')) || null;
   }
-
-  function splitPhrases(text) {
-    return [text];
-  }
-
+  function splitPhrases(text) { return [text]; }
   function speakChunks(chunks, rate, onDone) {
     if (!chunks || chunks.length === 0) { onDone && onDone(); return; }
     const chunk = chunks.shift();
     const u = new SpeechSynthesisUtterance(chunk);
     u.lang = 'en-US'; u.rate = rate || 0.85; u.volume = 1;
-    const voice = getEnglishVoice();
-    if (voice) u.voice = voice;
+    const voice = getEnglishVoice(); if (voice) u.voice = voice;
     const ms = Math.max(2000, (chunk.split(' ').length / (rate * 2.5)) * 1000 + 1500);
     const timer = setTimeout(() => { speakChunks(chunks, rate, onDone); }, ms);
     u.onend   = () => { clearTimeout(timer); speakChunks(chunks, rate, onDone); };
     u.onerror = () => { clearTimeout(timer); speakChunks(chunks, rate, onDone); };
     window.speechSynthesis.speak(u);
   }
-
   function doSpeak(text, rate, onDone) {
     if (!window.speechSynthesis) { onDone && onDone(); return; }
-    loadVoices();
-    window.speechSynthesis.cancel();
-    const chunks = splitPhrases(text);
-    speakChunks(chunks, rate, onDone);
+    loadVoices(); window.speechSynthesis.cancel();
+    speakChunks(splitPhrases(text), rate, onDone);
   }
-
   function speakWord(btn, word) {
     if (btn) btn.classList.add('speaking');
     doSpeak(word, 0.85, () => { if (btn) btn.classList.remove('speaking'); });
@@ -339,28 +383,18 @@
   // GAS通信
   // =============================================
   function gasGet(params) {
-    return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
-      .then(r => r.json());
+    return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params))).then(r => r.json());
   }
 
   // =============================================
-  // 離脱確認
+  // 離脱確認・モーダル
   // =============================================
-  function beforeUnloadHandler(e) {
-    e.preventDefault();
-    e.returnValue = '本当にこのページを離れますか？';
-    return e.returnValue;
-  }
+  function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
   window.addEventListener('beforeunload', beforeUnloadHandler);
+  function openModal()  { document.getElementById('img-modal').classList.add('active'); }
+  function closeModal() { document.getElementById('img-modal').classList.remove('active'); }
 
-  let _studentId   = '';
-  let _level       = '';
-  let _questions   = [];
-  let _current     = 0;
-  let _score       = 0;
-  let _setNo       = 0;
-  let _sessionNo   = 1;
-  let _historyMode = false;
+  let _studentId = '', _level = '', _questions = [], _current = 0, _score = 0, _setNo = 0, _sessionNo = 1, _historyMode = false, _isRound2 = false;
 
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -371,10 +405,7 @@
     const el = document.getElementById(id);
     el.textContent = text; el.className = 'msg ' + kind; el.style.display = 'block';
   }
-  function esc(str) {
-    return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  }
-
+  function esc(str) { return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
   function getCorrectText(w) {
     const map = { A: w.choiceA, B: w.choiceB, C: w.choiceC, D: w.choiceD };
     return map[w.answer.trim().toUpperCase()] || w.meaning;
@@ -393,22 +424,16 @@
         _studentId = res.studentId;
         res.isFirstLogin ? showScreen('screen-nickname') : showWelcome(res.nickname, res.totalHP, res.loginBonus);
       })
-      .catch(() => {
-        document.getElementById('login-btn').disabled = false;
-        showMsg('login-msg', 'エラーが発生しました。もう一度お試しください。', 'ng');
-      });
+      .catch(() => { document.getElementById('login-btn').disabled = false; showMsg('login-msg', 'エラーが発生しました。', 'ng'); });
   }
   document.getElementById('login-id').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
-  // ② ニックネーム登録
+  // ② ニックネーム
   function doSaveNickname() {
     const nn = document.getElementById('nickname-input').value.trim();
     if (!nn) { showMsg('nickname-msg', 'ニックネームを入力してください。', 'ng'); return; }
     gasGet({ action: 'saveNickname', studentId: _studentId, nickname: nn })
-      .then(res => {
-        if (!res.ok) { showMsg('nickname-msg', res.message, 'ng'); return; }
-        showWelcome(res.nickname, 10, 10);
-      })
+      .then(res => { if (!res.ok) { showMsg('nickname-msg', res.message, 'ng'); return; } showWelcome(res.nickname, 10, 10); })
       .catch(() => { showMsg('nickname-msg', 'エラーが発生しました。', 'ng'); });
   }
 
@@ -416,8 +441,7 @@
   function showWelcome(nickname, totalHP, loginBonus) {
     document.getElementById('welcome-name').textContent = nickname + ' さん、今日も頑張ろう！';
     document.getElementById('welcome-hp').textContent   = totalHP.toLocaleString();
-    document.getElementById('welcome-msg').textContent  = loginBonus > 0
-      ? '🎁 ログインボーナス +' + loginBonus + 'HP もらったよ！' : '今日もよろしく！';
+    document.getElementById('welcome-msg').textContent  = loginBonus > 0 ? '🎁 ログインボーナス +' + loginBonus + 'HP もらったよ！' : '今日もよろしく！';
     showScreen('screen-welcome');
   }
   function toggleChangeArea() {
@@ -442,26 +466,18 @@
     document.getElementById('level-student').textContent = _studentId + ' さん';
     showScreen('screen-level');
   }
-  function selectLevel(level) {
-    _level = level;
-    showToday();
-  }
-  function showComingSoon() {
-    alert('英検５級レベルは現在準備中です。もうしばらくお待ちください！');
-  }
+  function selectLevel(level) { _level = level; showToday(); }
+  function showComingSoon(name) { alert('英検' + name + 'レベルは現在準備中です。もうしばらくお待ちください！'); }
 
-  // ⑤ 今日の10語
+  // ⑤ 今日の学習
   function showToday() {
-    showScreen('screen-today');
     document.getElementById('today-student').textContent = _studentId + ' さん';
     document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';
     document.getElementById('today-btn').style.display = 'none';
+    showScreen('screen-today');
     gasGet({ action: 'getTodaysSet', studentId: _studentId, level: _level })
       .then(res => {
-        if (!res.ok) {
-          document.getElementById('today-word-list').innerHTML = '<div class="error">⚠️ ' + res.message + '</div>';
-          return;
-        }
+        if (!res.ok) { document.getElementById('today-word-list').innerHTML = '<div class="error">⚠️ ' + res.message + '</div>'; return; }
         if (res.alreadyDone) {
           document.getElementById('today-set-label').textContent = '英検' + res.level + 'レベル';
           document.getElementById('today-word-list').innerHTML = `
@@ -469,45 +485,99 @@
               <div style="font-size:56px">🎉</div>
               <div style="font-size:20px;font-weight:bold;color:#2d3a8c;margin:16px 0">今日の2セットは完了！</div>
               <div style="font-size:15px;color:#666">お疲れさまでした。また明日も頑張ろう！</div>
-            </div>
-          `;
+            </div>`;
           const btn = document.getElementById('today-btn');
-          btn.textContent = '📖 今までのおさらいを見る';
-          btn.onclick = showHistory;
-          btn.style.display = 'block';
+          btn.textContent = '📖 今までのおさらいを見る'; btn.onclick = showHistory; btn.style.display = 'block';
           return;
         }
-        _setNo     = res.setNo;
-        _questions = res.words;
-        _sessionNo = res.sessionNo;
-        _level     = res.level;
+        _setNo = res.setNo; _questions = res.words; _sessionNo = res.sessionNo; _level = res.level; _isRound2 = res.isRound2 || false;
         const sessionLabel = res.sessionNo === 1 ? '1セット目' : '2セット目';
-        document.getElementById('today-set-label').textContent =
-          '英検' + res.level + 'レベル｜セット ' + res.setNo + '（' + sessionLabel + '）';
-        document.getElementById('today-student').textContent =
-          _studentId + ' さん｜英検' + res.level + 'レベル';
-        renderWords(res.words);
-        const btn = document.getElementById('today-btn');
-        btn.textContent = '✏️ テストに挑戦する';
-        btn.onclick = showTest;
+        document.getElementById('today-set-label').textContent = '英検' + res.level + 'レベル｜セット ' + res.setNo + '（' + sessionLabel + '）';
+        document.getElementById('today-student').textContent = _studentId + ' さん｜英検' + res.level + 'レベル';
+
+        if (_level === '5級' && !_isRound2) {
+          // 5級1周目：書き取り画面へ
+          showDictation(res.words, res.setNo, sessionLabel);
+        } else {
+          // 4級以上 or 5級2周目：通常の単語一覧
+          renderWords(res.words);
+          const btn = document.getElementById('today-btn');
+          btn.textContent = '✏️ テストに挑戦する'; btn.onclick = showTest; btn.style.display = 'block';
+        }
       })
-      .catch(() => {
-        document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>';
-      });
+      .catch(() => { document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
   }
 
   function renderWords(words) {
     document.getElementById('today-word-list').innerHTML = words.map((w, i) => `
       <div class="word-card">
         <div class="num">${i + 1}</div>
-        <div class="word-block">
-          <div class="word">${w.word}</div>
-          <div class="meaning">${w.meaning}</div>
-        </div>
+        <div class="word-block"><div class="word">${w.word}</div><div class="meaning">${w.meaning}</div></div>
         <button class="btn-speak" onclick="speakWord(this, '${esc(w.word)}')">🔊</button>
-      </div>
-    `).join('');
+      </div>`).join('');
     document.getElementById('today-btn').style.display = 'block';
+  }
+
+  // ⑤b 書き取り画面（5級）
+  function showDictation(words, setNo, sessionLabel) {
+    document.getElementById('dictation-student').textContent = _studentId + ' さん｜英検５級';
+    document.getElementById('dictation-set-label').textContent = 'セット ' + setNo + '（' + sessionLabel + '）';
+    document.getElementById('dictation-word-list').innerHTML = words.map((w, i) => `
+      <div class="word-card">
+        <div class="num">${i + 1}</div>
+        <div class="word-block"><div class="word">${w.word}</div><div class="meaning">${w.meaning}</div></div>
+        <button class="btn-speak" onclick="speakWord(this, '${esc(w.word)}')">🔊</button>
+      </div>`).join('');
+    document.getElementById('photo-preview').style.display = 'none';
+    document.getElementById('photo-preview').src = '';
+    document.getElementById('photo-msg').style.display = 'none';
+    document.getElementById('photo-input').value = '';
+    showScreen('screen-dictation');
+  }
+
+  // 写真選択・送信
+  function onPhotoSelected(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const dataUrl = e.target.result;
+      const preview = document.getElementById('photo-preview');
+      preview.src = dataUrl; preview.style.display = 'block';
+      const base64 = dataUrl.split(',')[1];
+      sendPhoto(base64);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function sendPhoto(base64) {
+    const msgEl = document.getElementById('photo-msg');
+    msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...';
+    msgEl.className = 'msg ok'; msgEl.style.display = 'block';
+    const wordList = _questions.map(w => w.word);
+    gasGet({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
+      .then(res => {
+        if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
+        if (res.passed) {
+          msgEl.style.display = 'none';
+          showPhotoPassedScreen();
+        } else {
+          showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng');
+        }
+      })
+      .catch(() => { showMsg('photo-msg', 'エラーが発生しました。もう一度お試しください。', 'ng'); });
+  }
+
+  function showPhotoPassedScreen() {
+    document.getElementById('today-word-list').innerHTML = `
+      <div style="text-align:center;padding:30px 16px">
+        <div style="font-size:56px">✨</div>
+        <div style="font-size:22px;font-weight:bold;color:#2d3a8c;margin:16px 0">よく頑張りました！✨</div>
+        <div style="font-size:16px;color:#555;margin-bottom:8px">確認テストに進みましょう。</div>
+      </div>`;
+    const btn = document.getElementById('today-btn');
+    btn.textContent = '✏️ 確認テストに進む'; btn.onclick = showTest; btn.style.display = 'block';
+    showScreen('screen-today');
   }
 
   // ⑥ テスト
@@ -526,35 +596,42 @@
     document.getElementById('test-feedback').textContent   = '';
     document.getElementById('test-feedback').className     = 'feedback';
     document.getElementById('test-next-btn').style.display = 'none';
-    const labels  = ['①', '②', '③', '④'];
+    const labels = ['①', '②', '③', '④'];
     const choices = [q.choiceA, q.choiceB, q.choiceC, q.choiceD];
-    document.getElementById('test-q-area').innerHTML = `
+
+    // 5級：意味→スペルを選ぶ形式（音声なし）
+    const is5 = (_level === '5級');
+    document.getElementById('test-q-area').innerHTML = is5 ? `
+      <div class="q-card">
+        <div class="q-label">以下の意味の英単語として正しいものを選びなさい</div>
+        <div class="q-english" style="font-size:26px;font-weight:bold">${q.meaning}</div>
+      </div>
+      <div class="choices" id="choices-wrap">
+        ${choices.map((c, i) => `
+          <button class="choice-btn" onclick="answer(this, ${i}, '${esc(q.answer)}', '${esc(getCorrectText(q))}')">
+            <span style="font-weight:bold;color:#4f7df0">${labels[i]}</span>&ensp;${c}
+          </button>`).join('')}
+      </div>` : `
       <div class="q-card">
         <div class="q-label">空欄に当てはまる語を選んでください</div>
         <div class="q-english">${q.example || q.word}</div>
         <div class="q-japanese">${q.blank || q.meaning}</div>
         <div class="speak-wrap">
-          <button class="btn-speak-en" id="speak-btn" onclick="doSpeakQuestion(this)">
-            🔊 英文を聞く（先に聞いてね）
-          </button>
+          <button class="btn-speak-en" id="speak-btn" onclick="doSpeakQuestion(this)">🔊 英文を聞く（先に聞いてね）</button>
         </div>
       </div>
       <div class="choices locked" id="choices-wrap">
         ${choices.map((c, i) => `
           <button class="choice-btn" onclick="answer(this, ${i}, '${esc(q.answer)}', '${esc(getCorrectText(q))}')">
             <span style="font-weight:bold;color:#4f7df0">${labels[i]}</span>&ensp;${c}
-          </button>
-        `).join('')}
-      </div>
-    `;
+          </button>`).join('')}
+      </div>`;
   }
   function doSpeakQuestion(btn) {
     const q = _questions[_current];
-    btn.textContent = '🔊 再生中...';
-    btn.classList.add('speaking'); btn.disabled = true;
+    btn.textContent = '🔊 再生中...'; btn.classList.add('speaking'); btn.disabled = true;
     speakSentence(q.example || q.word, () => {
-      btn.textContent = '🔊 もう一度聞く';
-      btn.classList.remove('speaking'); btn.classList.add('done'); btn.disabled = false;
+      btn.textContent = '🔊 もう一度聞く'; btn.classList.remove('speaking'); btn.classList.add('done'); btn.disabled = false;
       const wrap = document.getElementById('choices-wrap');
       if (wrap) wrap.classList.remove('locked');
     });
@@ -562,40 +639,35 @@
   function answer(btn, chosenIdx, correctLabel, correctText) {
     const correctIdx = ['A','B','C','D'].indexOf(correctLabel.trim().toUpperCase());
     const isOk = (chosenIdx === correctIdx);
-    document.querySelectorAll('.choice-btn').forEach((b, i) => {
-      b.classList.add('disabled');
-      if (i === correctIdx) b.classList.add('correct');
-    });
+    document.querySelectorAll('.choice-btn').forEach((b, i) => { b.classList.add('disabled'); if (i === correctIdx) b.classList.add('correct'); });
     if (!isOk) btn.classList.add('wrong');
     const fb = document.getElementById('test-feedback');
     if (isOk) { _score++; fb.textContent = '🎉 正解！'; fb.className = 'feedback ok'; }
     else      { fb.innerHTML = '❌ 不正解 → 正解：<strong>' + correctText + '</strong>'; fb.className = 'feedback ng'; }
     const nextBtn = document.getElementById('test-next-btn');
     nextBtn.style.display = 'block';
-    nextBtn.textContent   = (_current + 1 >= _questions.length) ? '結果を見る 🏁' : '次の問題へ →';
+    nextBtn.textContent = (_current + 1 >= _questions.length) ? '結果を見る 🏁' : '次の問題へ →';
   }
   function nextQuestion() { _current++; renderQuestion(); }
   function finishTest() {
     const total = _questions.length;
     if (_score === total) {
       gasGet({ action: 'saveAttempt', studentId: _studentId, setNo: _setNo, score: _score, total, passed: true, level: _level, sessionNo: _sessionNo })
-        .then(res => { showResult(true, res); })
-        .catch(()  => { showResult(true, null); });
+        .then(res => { showResult(true, res); }).catch(() => { showResult(true, null); });
     } else {
       const lastScore = _score;
       _questions = _questions.sort(() => Math.random() - 0.5);
       _current = 0; _score = 0;
-      document.getElementById('test-feedback').textContent   = '';
-      document.getElementById('test-feedback').className     = 'feedback';
+      document.getElementById('test-feedback').textContent = '';
+      document.getElementById('test-feedback').className = 'feedback';
       document.getElementById('test-next-btn').style.display = 'none';
-      document.getElementById('test-prog-bar').style.width   = '0%';
+      document.getElementById('test-prog-bar').style.width = '0%';
       document.getElementById('test-q-area').innerHTML = `
         <div style="text-align:center;padding:50px 16px">
           <div style="font-size:64px">😤</div>
           <div style="font-size:22px;font-weight:bold;color:#e74c3c;margin:16px 0">惜しい！満点で合格だよ</div>
           <div style="font-size:18px;color:#666">${lastScore}／${total}問正解<br>もう一度チャレンジ！</div>
-        </div>
-      `;
+        </div>`;
       document.getElementById('test-prog-text').textContent = '再挑戦中...';
       setTimeout(() => renderQuestion(), 2500);
     }
@@ -620,9 +692,7 @@
       </div>
       <div class="hp-card">
         <div class="hp-title">⚡ 獲得 HP</div>
-        <div class="hp-row">
-          <div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+${clearHP.toLocaleString()}</div></div>
-        </div>
+        <div class="hp-row"><div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+${clearHP.toLocaleString()}</div></div></div>
         <div class="hp-total-wrap">
           <div class="hp-total-label">現在の春アカポイント</div>
           <div class="hp-total-value">⚡ ${totalHP.toLocaleString()} HP</div>
@@ -634,10 +704,8 @@
         <button class="btn-result btn-review" onclick="showReview()">📖 今日の単語をおさらいする</button>
         <button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button>
         <button class="btn-result btn-close" onclick="closeApp()">🚪 テストを終了する</button>
-      </div>
-    `;
+      </div>`;
   }
-
   function goNextSession() { showToday(); }
 
   // ⑧ おさらい
@@ -652,19 +720,13 @@
       <div class="review-card">
         <div style="flex:1">
           <div class="review-en">${i + 1}. ${w.example || w.word}</div>
-          <div class="review-ja">${fillBlank(w.blank, getCorrectText(w))}</div>
+          <div class="review-ja">${_level === '5級' ? w.meaning : fillBlank(w.blank, getCorrectText(w))}</div>
         </div>
         <button class="btn-speak" onclick="speakWord(this, '${esc(w.example || w.word)}')">🔊</button>
-      </div>
-    `).join('');
+      </div>`).join('');
     const backBtn = document.getElementById('review-back-btn');
-    if (_historyMode) {
-      backBtn.textContent = '← おさらい一覧に戻る';
-      backBtn.onclick = () => { _historyMode = false; showHistory(); };
-    } else {
-      backBtn.textContent = '← レベル選択に戻る';
-      backBtn.onclick = showLevelSelect;
-    }
+    if (_historyMode) { backBtn.textContent = '← おさらい一覧に戻る'; backBtn.onclick = () => { _historyMode = false; showHistory(); }; }
+    else              { backBtn.textContent = '← レベル選択に戻る'; backBtn.onclick = showLevelSelect; }
   }
 
   // ⑨ 履歴一覧
@@ -675,8 +737,7 @@
     gasGet({ action: 'getHistory', studentId: _studentId })
       .then(res => {
         if (!res.ok || res.history.length === 0) {
-          document.getElementById('history-list').innerHTML =
-            '<div style="text-align:center;padding:40px;color:#888;font-size:15px">まだ合格したセットがありません。</div>';
+          document.getElementById('history-list').innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:15px">まだ合格したセットがありません。</div>';
           return;
         }
         document.getElementById('history-list').innerHTML = res.history.map(h => `
@@ -685,25 +746,17 @@
             <span class="history-level">英検${h.level}レベル</span>
             <span class="history-set">セット ${h.setNo}</span>
             <span class="history-arrow">›</span>
-          </div>
-        `).join('');
+          </div>`).join('');
       })
-      .catch(() => {
-        document.getElementById('history-list').innerHTML = '<div class="error">読み込みに失敗しました。</div>';
-      });
+      .catch(() => { document.getElementById('history-list').innerHTML = '<div class="error">読み込みに失敗しました。</div>'; });
   }
-
   function showHistoryReview(setNo, level, date) {
     gasGet({ action: 'getSetWords', setNo, level })
       .then(res => {
         if (!res.ok) { alert('データの取得に失敗しました。'); return; }
-        _questions   = res.words;
-        _setNo       = setNo;
-        _level       = level;
-        _historyMode = true;
+        _questions = res.words; _setNo = setNo; _level = level; _historyMode = true;
         showReview();
-        document.getElementById('review-set-label').textContent =
-          date + '｜英検' + level + 'レベル｜セット ' + setNo;
+        document.getElementById('review-set-label').textContent = date + '｜英検' + level + 'レベル｜セット ' + setNo;
       })
       .catch(() => { alert('エラーが発生しました。'); });
   }
