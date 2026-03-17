@@ -569,38 +569,41 @@ const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
     reader.readAsDataURL(file);
   }
 
-function sendPhoto(base64) {
+  function sendPhoto(base64) {
     const msgEl = document.getElementById('photo-msg');
     msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...';
     msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     const wordList = _questions.map(w => w.word);
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-    if (isIOS) {
-      // まずGETでリダイレクト後の実際のURLを取得してからPOST
-      fetch(GAS_URL + '?params=' + encodeURIComponent('{"action":"ping"}'))
-        .then(r => {
-          const finalUrl = r.url;
-          return fetch(finalUrl, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
-          });
-        })
-        .then(r => r.json())
-        .then(res => {
-          if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
-          if (res.passed) { msgEl.style.display = 'none'; showPhotoPassedScreen(); }
-          else { showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng'); }
-        })
-        .catch(err => { showMsg('photo-msg', 'エラー：' + String(err), 'ng'); });
-    } else {
-      gasGet({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
-        .then(res => {
-          if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
-          if (res.passed) { msgEl.style.display = 'none'; showPhotoPassedScreen(); }
-          else { showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng'); }
-        })
-        .catch(err => { showMsg('photo-msg', 'エラー：' + String(err), 'ng'); });
+    const VISION_KEY = 'AIzaSyBC3CsdE2S1LU6jWwI4P7amQyshPdbOxuI';
+    fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requests: [{
+          image: { content: base64 },
+          features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }]
+        }]
+      })
+    })
+    .then(r => r.json())
+    .then(json => {
+      const detected = json.responses && json.responses[0] && json.responses[0].fullTextAnnotation
+        ? json.responses[0].fullTextAnnotation.text.toLowerCase() : '';
+      if (!detected) { showMsg('photo-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng'); return; }
+      const failedWords = [];
+      for (const w of wordList) {
+        const regex = new RegExp(w.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        if ((detected.match(regex) || []).length < 3) failedWords.push(w);
+      }
+      if (failedWords.length === 0) {
+        gasGet({ action: 'saveAttempt', studentId: _studentId, setNo: _setNo, score: 10, total: 10, passed: true, level: _level, sessionNo: _sessionNo });
+        msgEl.style.display = 'none';
+        showPhotoPassedScreen();
+      } else {
+        showMsg('photo-msg', '❌ 以下の単語が3回書かれていないか読み取れませんでした：' + failedWords.join('、'), 'ng');
+      }
+    })
+    .catch(err => { showMsg('photo-msg', 'エラー：' + String(err), 'ng'); });
     }
   }
 
