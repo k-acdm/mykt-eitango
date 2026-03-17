@@ -557,9 +557,12 @@
           data[i] = data[i+1] = data[i+2] = gray;
         }
         ctx.putImageData(imageData, 0, 0);
-        const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-        showMsg('photo-msg', '⏳ 判定中... (サイズ:' + base64.length + ')', 'ok');
-        sendPhoto(base64);
+const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+        const msgEl2 = document.getElementById('photo-msg');
+        msgEl2.textContent = '画像サイズ：' + base64.length + '文字';
+        msgEl2.className = 'msg ok';
+        msgEl2.style.display = 'block';
+        setTimeout(() => sendPhoto(base64), 2000);
       };
       img.src = e.target.result;
     };
