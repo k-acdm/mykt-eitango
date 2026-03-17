@@ -104,7 +104,7 @@
     .btn-result { padding: 16px; border: none; border-radius: 12px; font-size: 17px; font-weight: bold; cursor: pointer; }
     .btn-review { background: linear-gradient(135deg, #2ecc71, #27ae60); color: #fff; }
     .btn-close  { background: linear-gradient(135deg, #636e72, #2d3436); color: #fff; }
-    .review-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .review-card { background: #fff; border-radius: 12px; box-sizing: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
     .review-en { font-size: 16px; font-weight: bold; color: #2d3a8c; margin-bottom: 4px; }
     .review-ja { font-size: 14px; color: #333; line-height: 1.7; }
     .history-item { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.07); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all .15s; border-left: 4px solid transparent; }
@@ -227,7 +227,7 @@
   </div>
 </div>
 
-<!-- ⑤ 今日の10語（4級以上） -->
+<!-- ⑤ 今日の10語 -->
 <div id="screen-today" class="screen">
   <header>
     <h1>📚 今日の10語</h1>
@@ -333,6 +333,7 @@
 
 <script>
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
+  const VISION_KEY = 'AIzaSyBC3CsdE2S1LU6jWwI4P7amQyshPdbOxuI';
 
   // =============================================
   // 音声システム
@@ -542,39 +543,26 @@
       const img = new Image();
       img.onload = function() {
         const canvas = document.createElement('canvas');
-        // OCRには150pxで十分・グレースケール化でさらに削減
-        const maxSize = 150;
+        const maxSize = 800;
         let w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h * maxSize / w; w = maxSize; } }
         else        { if (h > maxSize) { w = w * maxSize / h; h = maxSize; } }
         canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        const imageData = ctx.getImageData(0, 0, w, h);
-        const data = imageData.data;
-        for (let i = 0; i < data.length; i += 4) {
-          const gray = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
-          data[i] = data[i+1] = data[i+2] = gray;
-        }
-        ctx.putImageData(imageData, 0, 0);
-const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-        const msgEl2 = document.getElementById('photo-msg');
-        msgEl2.textContent = '画像サイズ：' + base64.length + '文字';
-        msgEl2.className = 'msg ok';
-        msgEl2.style.display = 'block';
-        setTimeout(() => sendPhoto(base64), 2000);
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const base64 = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+        sendPhoto(base64);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   }
 
+  // Vision APIに直接送信（iOS・Android両対応）
   function sendPhoto(base64) {
     const msgEl = document.getElementById('photo-msg');
     msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...';
     msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     const wordList = _questions.map(w => w.word);
-    const VISION_KEY = 'AIzaSyBC3CsdE2S1LU6jWwI4P7amQyshPdbOxuI';
     fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -589,14 +577,16 @@ const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
     .then(json => {
       const detected = json.responses && json.responses[0] && json.responses[0].fullTextAnnotation
         ? json.responses[0].fullTextAnnotation.text.toLowerCase() : '';
-      if (!detected) { showMsg('photo-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng'); return; }
+      if (!detected) {
+        showMsg('photo-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng');
+        return;
+      }
       const failedWords = [];
       for (const w of wordList) {
         const regex = new RegExp(w.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
         if ((detected.match(regex) || []).length < 3) failedWords.push(w);
       }
       if (failedWords.length === 0) {
-        gasGet({ action: 'saveAttempt', studentId: _studentId, setNo: _setNo, score: 10, total: 10, passed: true, level: _level, sessionNo: _sessionNo });
         msgEl.style.display = 'none';
         showPhotoPassedScreen();
       } else {
@@ -604,7 +594,6 @@ const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
       }
     })
     .catch(err => { showMsg('photo-msg', 'エラー：' + String(err), 'ng'); });
-    }
   }
 
   function showPhotoPassedScreen() {
