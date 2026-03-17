@@ -1,4 +1,4 @@
-<!--
+<!-
   マイ活アプリ＜英単語＞ - index.html
   更新：2026-03-17
 -->
@@ -543,20 +543,22 @@ function onPhotoSelected(event) {
       const img = new Image();
       img.onload = function() {
         const canvas = document.createElement('canvas');
-        const maxSize = 400;
+        const maxSize = 200;
         let w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h * maxSize / w; w = maxSize; } }
         else        { if (h > maxSize) { w = w * maxSize / h; h = maxSize; } }
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        const base64 = canvas.toDataURL('image/jpeg', 0.3).split(',')[1];
+        const base64 = canvas.toDataURL('image/jpeg', 0.2).split(',')[1];
+        console.log('base64 length:', base64.length);
+        showMsg('photo-msg', '⏳ 画像サイズ：' + base64.length + '文字', 'ok');
         sendPhoto(base64);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   }
-
+  
   function sendPhoto(base64) {
     const msgEl = document.getElementById('photo-msg');
     msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...';
