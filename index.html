@@ -1,6 +1,6 @@
-<!-
+<!--
   マイ活アプリ＜英単語＞ - index.html
-  更新：2026-03-17
+  更新：2026-03-18
 -->
 <!doctype html>
 <html>
@@ -493,7 +493,6 @@
         const sessionLabel = res.sessionNo === 1 ? '1セット目' : '2セット目';
         document.getElementById('today-set-label').textContent = '英検' + res.level + 'レベル｜セット ' + res.setNo + '（' + sessionLabel + '）';
         document.getElementById('today-student').textContent = _studentId + ' さん｜英検' + res.level + 'レベル';
-
         if (_level === '5級' && !_isRound2) {
           showDictation(res.words, res.setNo, sessionLabel);
         } else {
@@ -544,8 +543,8 @@
       img.onload = function() {
         const canvas = document.createElement('canvas');
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const maxSize = isIOS ? 250 : 800;
-        const quality = isIOS ? 0.5 : 0.5;
+        const maxSize = isIOS ? 300 : 800;
+        const quality = isIOS ? 0.4 : 0.5;
         let w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h * maxSize / w; w = maxSize; } }
         else        { if (h > maxSize) { w = w * maxSize / h; h = maxSize; } }
@@ -562,12 +561,43 @@
           ctx.putImageData(imageData, 0, 0);
         }
         const base64 = canvas.toDataURL('image/jpeg', quality).split(',')[1];
-        showMsg('photo-msg', '⏳ 判定中... (サイズ:' + base64.length + ')', 'ok');
         sendPhoto(base64);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
+  }
+
+  function sendPhoto(base64) {
+    const msgEl = document.getElementById('photo-msg');
+    msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...';
+    msgEl.className = 'msg ok'; msgEl.style.display = 'block';
+    const wordList = _questions.map(w => w.word);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) {
+      // iOS：POSTでContent-Typeを指定しない
+      fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
+      })
+      .then(r => r.text())
+      .then(text => {
+        const res = JSON.parse(text);
+        if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
+        if (res.passed) { msgEl.style.display = 'none'; showPhotoPassedScreen(); }
+        else { showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng'); }
+      })
+      .catch(err => { showMsg('photo-msg', 'エラー：' + String(err), 'ng'); });
+    } else {
+      // Android：GET
+      gasGet({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
+      .then(res => {
+        if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
+        if (res.passed) { msgEl.style.display = 'none'; showPhotoPassedScreen(); }
+        else { showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng'); }
+      })
+      .catch(err => { showMsg('photo-msg', 'エラー：' + String(err), 'ng'); });
+    }
   }
 
   function showPhotoPassedScreen() {
@@ -638,7 +668,7 @@
     const textToSpeak = is5 ? q.word : (q.example || q.word);
     btn.textContent = '🔊 再生中...'; btn.classList.add('speaking'); btn.disabled = true;
     speakSentence(textToSpeak, () => {
-      btn.textContent = is5 ? '🔊 もう一度聞く' : '🔊 もう一度聞く';
+      btn.textContent = '🔊 もう一度聞く';
       btn.classList.remove('speaking'); btn.classList.add('done'); btn.disabled = false;
       const wrap = document.getElementById('choices-wrap');
       if (wrap) wrap.classList.remove('locked');
@@ -684,10 +714,10 @@
   // ⑦ 結果
   function showResult(passed, saveRes) {
     showScreen('screen-result');
+    const total   = _questions.length;
     const totalHP = saveRes ? (saveRes.totalHP || 0) : 0;
     const streak  = saveRes ? (saveRes.streak  || 0) : 0;
     const clearHP = saveRes ? (saveRes.clearHP || 0) : 0;
-    const total   = _questions.length;
     const isSession1 = (_sessionNo === 1);
     const msgs = ['🎉 完璧！満点合格おめでとう！', '✨ 素晴らしい！全問正解！', '🏆 やったね！満点クリア！'];
     document.getElementById('result-container').innerHTML = `
