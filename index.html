@@ -533,7 +533,7 @@
   }
 
   // 写真選択・送信
-function onPhotoSelected(event) {
+  function onPhotoSelected(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -543,22 +543,20 @@ function onPhotoSelected(event) {
       const img = new Image();
       img.onload = function() {
         const canvas = document.createElement('canvas');
-        const maxSize = 200;
+        const maxSize = 800;
         let w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h * maxSize / w; w = maxSize; } }
         else        { if (h > maxSize) { w = w * maxSize / h; h = maxSize; } }
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        const base64 = canvas.toDataURL('image/jpeg', 0.2).split(',')[1];
-        console.log('base64 length:', base64.length);
-        showMsg('photo-msg', '⏳ 画像サイズ：' + base64.length + '文字', 'ok');
+        const base64 = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
         sendPhoto(base64);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   }
-  
+
   function sendPhoto(base64) {
     const msgEl = document.getElementById('photo-msg');
     msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...';
