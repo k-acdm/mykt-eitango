@@ -574,22 +574,21 @@
     msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     const wordList = _questions.map(w => w.word);
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
     if (isIOS) {
-      // iOS：POSTでContent-Typeを指定しない
-      fetch(GAS_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
-      })
-      .then(r => r.text())
-      .then(text => {
-        const res = JSON.parse(text);
-        if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
-        if (res.passed) { msgEl.style.display = 'none'; showPhotoPassedScreen(); }
-        else { showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng'); }
-      })
-      .catch(err => { showMsg('photo-msg', 'エラー：' + String(err), 'ng'); });
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', GAS_URL, true);
+      xhr.onload = function() {
+        try {
+          const res = JSON.parse(xhr.responseText);
+          if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
+          if (res.passed) { msgEl.style.display = 'none'; showPhotoPassedScreen(); }
+          else { showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng'); }
+        } catch(e) { showMsg('photo-msg', 'エラー：' + String(e), 'ng'); }
+      };
+      xhr.onerror = function() { showMsg('photo-msg', 'エラー：通信に失敗しました。', 'ng'); };
+      xhr.send(JSON.stringify({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList }));
     } else {
-      // Android：GET
       gasGet({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
       .then(res => {
         if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
