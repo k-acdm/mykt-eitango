@@ -47,8 +47,6 @@
     .dictation-notice { background: linear-gradient(135deg, #fff5f5, #ffe8e8); border: 2px solid #e74c3c; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
     .dictation-notice .notice-title { color: #e74c3c; font-size: 17px; font-weight: bold; margin-bottom: 10px; }
     .dictation-notice .notice-body { font-size: 14px; color: #333; line-height: 1.9; }
-    .sample-img-wrap { text-align: center; margin: 12px 0; }
-    .sample-img-wrap img { max-width: 100%; border-radius: 8px; border: 1px solid #ddd; cursor: pointer; }
     .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,.7); z-index: 9998; justify-content: center; align-items: center; }
     .modal-overlay.active { display: flex; }
     .modal-overlay img { max-width: 95vw; max-height: 90vh; border-radius: 8px; }
@@ -259,9 +257,9 @@
         ・全て終わったら一番下の「写真に撮って送る」ボタンを押し、画面の指示に従って写真を送ってください。<br>
         ・写真を送った後、AIが正しく書けてるかを判定します。間違いがあったり、字が雑でAIが判読できない場合は「やり直し」となります。焦らず丁寧にやりましょう。
       </div>
-      <div class="sample-img-wrap" style="margin-top:12px">
+      <div style="margin-top:12px;text-align:center">
         <p style="font-size:13px;color:#888;margin-bottom:6px">👆 こんな感じで書いてね（タップで拡大）</p>
-        <img src="./eiken5_sample.jpg" alt="書き取り見本" onclick="openModal()" style="max-height:160px;object-fit:cover;width:100%"/>
+        <img src="./eiken5_sample.jpg" alt="書き取り見本" onclick="openModal()" style="max-height:160px;object-fit:cover;width:100%;border-radius:8px;border:1px solid #ddd;cursor:pointer"/>
       </div>
     </div>
     <div class="set-label" id="dictation-set-label"></div>
@@ -535,14 +533,13 @@
   }
 
   // 写真選択・送信
-function onPhotoSelected(event) {
+  function onPhotoSelected(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function(e) {
       const preview = document.getElementById('photo-preview');
       preview.src = e.target.result; preview.style.display = 'block';
-      // canvas で圧縮してからbase64に変換
       const img = new Image();
       img.onload = function() {
         const canvas = document.createElement('canvas');
@@ -560,30 +557,24 @@ function onPhotoSelected(event) {
     reader.readAsDataURL(file);
   }
 
-function sendPhoto(base64) {
+  function sendPhoto(base64) {
     const msgEl = document.getElementById('photo-msg');
     msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...';
     msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     const wordList = _questions.map(w => w.word);
-    fetch(GAS_URL, {
-      method: 'POST',
-      redirect: 'follow',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
-    })
-    .then(r => r.json())
-    .then(res => {
-      if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
-      if (res.passed) {
-        msgEl.style.display = 'none';
-        showPhotoPassedScreen();
-      } else {
-        showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng');
-      }
-    })
-    .catch(err => { showMsg('photo-msg', 'エラー：' + String(err), 'ng'); });
+    gasGet({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
+      .then(res => {
+        if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
+        if (res.passed) {
+          msgEl.style.display = 'none';
+          showPhotoPassedScreen();
+        } else {
+          showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng');
+        }
+      })
+      .catch(() => { showMsg('photo-msg', 'エラーが発生しました。もう一度お試しください。', 'ng'); });
   }
-  
+
   function showPhotoPassedScreen() {
     document.getElementById('today-word-list').innerHTML = `
       <div style="text-align:center;padding:30px 16px">
@@ -619,8 +610,13 @@ function sendPhoto(base64) {
       <div class="q-card">
         <div class="q-label">以下の意味の英単語として正しいものを選びなさい</div>
         <div class="q-english" style="font-size:26px;font-weight:bold">${q.meaning}</div>
+        <div class="speak-wrap">
+          <button class="btn-speak-en" id="speak-btn" onclick="doSpeakQuestion(this)">
+            🔊 単語を聞く（先に聞いてね）
+          </button>
+        </div>
       </div>
-      <div class="choices" id="choices-wrap">
+      <div class="choices locked" id="choices-wrap">
         ${choices.map((c, i) => `
           <button class="choice-btn" onclick="answer(this, ${i}, '${esc(q.answer)}', '${esc(getCorrectText(q))}')">
             <span style="font-weight:bold;color:#4f7df0">${labels[i]}</span>&ensp;${c}
@@ -643,9 +639,12 @@ function sendPhoto(base64) {
   }
   function doSpeakQuestion(btn) {
     const q = _questions[_current];
+    const is5 = (_level === '5級');
+    const textToSpeak = is5 ? q.word : (q.example || q.word);
     btn.textContent = '🔊 再生中...'; btn.classList.add('speaking'); btn.disabled = true;
-    speakSentence(q.example || q.word, () => {
-      btn.textContent = '🔊 もう一度聞く'; btn.classList.remove('speaking'); btn.classList.add('done'); btn.disabled = false;
+    speakSentence(textToSpeak, () => {
+      btn.textContent = is5 ? '🔊 もう一度聞く' : '🔊 もう一度聞く';
+      btn.classList.remove('speaking'); btn.classList.add('done'); btn.disabled = false;
       const wrap = document.getElementById('choices-wrap');
       if (wrap) wrap.classList.remove('locked');
     });
@@ -690,10 +689,10 @@ function sendPhoto(base64) {
   // ⑦ 結果
   function showResult(passed, saveRes) {
     showScreen('screen-result');
-    const total   = _questions.length;
     const totalHP = saveRes ? (saveRes.totalHP || 0) : 0;
     const streak  = saveRes ? (saveRes.streak  || 0) : 0;
     const clearHP = saveRes ? (saveRes.clearHP || 0) : 0;
+    const total   = _questions.length;
     const isSession1 = (_sessionNo === 1);
     const msgs = ['🎉 完璧！満点合格おめでとう！', '✨ 素晴らしい！全問正解！', '🏆 やったね！満点クリア！'];
     document.getElementById('result-container').innerHTML = `
