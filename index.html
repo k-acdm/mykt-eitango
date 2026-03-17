@@ -104,7 +104,7 @@
     .btn-result { padding: 16px; border: none; border-radius: 12px; font-size: 17px; font-weight: bold; cursor: pointer; }
     .btn-review { background: linear-gradient(135deg, #2ecc71, #27ae60); color: #fff; }
     .btn-close  { background: linear-gradient(135deg, #636e72, #2d3436); color: #fff; }
-    .review-card { background: #fff; border-radius: 12px; box-sizing: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .review-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
     .review-en { font-size: 16px; font-weight: bold; color: #2d3a8c; margin-bottom: 4px; }
     .review-ja { font-size: 14px; color: #333; line-height: 1.7; }
     .history-item { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.07); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all .15s; border-left: 4px solid transparent; }
@@ -332,7 +332,7 @@
 </div>
 
 <script>
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
+  const GAS_URL    = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
   const VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
 
   // =============================================
@@ -557,7 +557,7 @@
     reader.readAsDataURL(file);
   }
 
-  // Vision APIに直接送信（iOS・Android両対応）
+  // Vision APIに直接送信（信頼度チェック付き）
   function sendPhoto(base64) {
     const msgEl = document.getElementById('photo-msg');
     msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...';
@@ -575,12 +575,36 @@
     })
     .then(r => r.json())
     .then(json => {
-      const detected = json.responses && json.responses[0] && json.responses[0].fullTextAnnotation
-        ? json.responses[0].fullTextAnnotation.text.toLowerCase() : '';
-      if (!detected) {
+      const response = json.responses && json.responses[0];
+      if (!response || !response.fullTextAnnotation) {
         showMsg('photo-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng');
         return;
       }
+
+      // 信頼度チェック（低信頼度＝雑な字）
+      const pages = response.fullTextAnnotation.pages || [];
+      let totalConf = 0, confCount = 0;
+      pages.forEach(page => {
+        (page.blocks || []).forEach(block => {
+          (block.paragraphs || []).forEach(para => {
+            (para.words || []).forEach(word => {
+              if (word.confidence !== undefined) {
+                totalConf += word.confidence;
+                confCount++;
+              }
+            });
+          });
+        });
+      });
+      const avgConf = confCount > 0 ? totalConf / confCount : 1;
+      const confPct = Math.round(avgConf * 100);
+
+      if (avgConf < 0.75) {
+        showMsg('photo-msg', '❌ 字が雑すぎます（丁寧さスコア：' + confPct + '%）。もっと丁寧に、はっきり書いてみよう！', 'ng');
+        return;
+      }
+
+      const detected = response.fullTextAnnotation.text.toLowerCase();
       const failedWords = [];
       for (const w of wordList) {
         const regex = new RegExp(w.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
@@ -590,7 +614,7 @@
         msgEl.style.display = 'none';
         showPhotoPassedScreen();
       } else {
-        showMsg('photo-msg', '❌ 以下の単語が3回書かれていないか読み取れませんでした：' + failedWords.join('、'), 'ng');
+        showMsg('photo-msg', '❌ 以下の単語が3回書かれていないか読み取れませんでした：' + failedWords.join('、') + '（丁寧さスコア：' + confPct + '%）', 'ng');
       }
     })
     .catch(err => { showMsg('photo-msg', 'エラー：' + String(err), 'ng'); });
