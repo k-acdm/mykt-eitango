@@ -572,7 +572,7 @@
           showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng');
         }
       })
-      .catch(() => { showMsg('photo-msg', 'エラーが発生しました。もう一度お試しください。', 'ng'); });
+.catch(err => { showMsg('photo-msg', 'エラー：' + String(err), 'ng'); });
   }
 
   function showPhotoPassedScreen() {
