@@ -542,25 +542,23 @@
       const img = new Image();
       img.onload = function() {
         const canvas = document.createElement('canvas');
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const maxSize = isIOS ? 300 : 800;
-        const quality = isIOS ? 0.4 : 0.5;
+        // OCRには150pxで十分・グレースケール化でさらに削減
+        const maxSize = 150;
         let w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h * maxSize / w; w = maxSize; } }
         else        { if (h > maxSize) { w = w * maxSize / h; h = maxSize; } }
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
-        if (isIOS) {
-          const imageData = ctx.getImageData(0, 0, w, h);
-          const data = imageData.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const gray = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
-            data[i] = data[i+1] = data[i+2] = gray;
-          }
-          ctx.putImageData(imageData, 0, 0);
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const gray = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+          data[i] = data[i+1] = data[i+2] = gray;
         }
-        const base64 = canvas.toDataURL('image/jpeg', quality).split(',')[1];
+        ctx.putImageData(imageData, 0, 0);
+        const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+        showMsg('photo-msg', '⏳ 判定中... (サイズ:' + base64.length + ')', 'ok');
         sendPhoto(base64);
       };
       img.src = e.target.result;
@@ -573,30 +571,13 @@
     msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...';
     msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     const wordList = _questions.map(w => w.word);
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-    if (isIOS) {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', GAS_URL, true);
-      xhr.onload = function() {
-        try {
-          const res = JSON.parse(xhr.responseText);
-          if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
-          if (res.passed) { msgEl.style.display = 'none'; showPhotoPassedScreen(); }
-          else { showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng'); }
-        } catch(e) { showMsg('photo-msg', 'エラー：' + String(e), 'ng'); }
-      };
-      xhr.onerror = function() { showMsg('photo-msg', 'エラー：通信に失敗しました。', 'ng'); };
-      xhr.send(JSON.stringify({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList }));
-    } else {
-      gasGet({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
+    gasGet({ action: 'submitPhoto', studentId: _studentId, setNo: _setNo, imageBase64: base64, words: wordList })
       .then(res => {
         if (!res.ok) { showMsg('photo-msg', '⚠️ ' + res.message, 'ng'); return; }
         if (res.passed) { msgEl.style.display = 'none'; showPhotoPassedScreen(); }
         else { showMsg('photo-msg', '❌ ' + (res.message || 'やり直しです。もう一度丁寧に書いてみよう！'), 'ng'); }
       })
       .catch(err => { showMsg('photo-msg', 'エラー：' + String(err), 'ng'); });
-    }
   }
 
   function showPhotoPassedScreen() {
