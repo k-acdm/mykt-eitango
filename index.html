@@ -109,9 +109,9 @@
     .review-ja { font-size: 14px; color: #333; line-height: 1.7; }
     .history-item { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.07); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all .15s; border-left: 4px solid transparent; }
     .history-item:hover { border-left-color: #4f7df0; background: #f0f4ff; }
-    .history-date  { font-size: 13px; color: #888; min-width: 95px; }
+    .history-date  { font-size: 15px; color: #666; min-width: 110px; font-weight: bold; }
     .history-level { font-size: 15px; font-weight: bold; color: #2d3a8c; flex: 1; }
-    .history-set   { font-size: 14px; color: #555; }
+    .history-set   { font-size: 15px; color: #2d3a8c; font-weight: bold; }
     .history-arrow { font-size: 18px; color: #4f7df0; }
     .closed-card { max-width: 640px; margin: 60px auto; background: #fff; border-radius: 16px; padding: 40px 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; }
     .closed-card .icon { font-size: 56px; margin-bottom: 14px; }
@@ -126,7 +126,7 @@
       .word { font-size: 18px; }
       .meaning { font-size: 14px; }
       .choice-btn { font-size: 15px; padding: 14px; }
-      .history-date { min-width: 75px; font-size: 12px; }
+      .history-date { min-width: 90px; font-size: 13px; }
     }
   </style>
 </head>
@@ -394,7 +394,7 @@
   function openModal()  { document.getElementById('img-modal').classList.add('active'); }
   function closeModal() { document.getElementById('img-modal').classList.remove('active'); }
 
-  let _studentId = '', _level = '', _questions = [], _current = 0, _score = 0, _setNo = 0, _sessionNo = 1, _historyMode = false, _isRound2 = false;
+  let _studentId = '', _level = '', _questions = [], _current = 0, _score = 0, _setNo = 0, _sessionNo = 1, _historyMode = false, _isRound2 = false, _historyScrollY = 0;
 
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -409,6 +409,15 @@
   function getCorrectText(w) {
     const map = { A: w.choiceA, B: w.choiceB, C: w.choiceC, D: w.choiceD };
     return map[w.answer.trim().toUpperCase()] || w.meaning;
+  }
+  function formatDate(dateStr) {
+    const d = new Date(dateStr);
+    const yy = String(d.getFullYear()).slice(2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const days = ['日','月','火','水','木','金','土'];
+    const dow = days[d.getDay()];
+    return yy + '/' + mm + '/' + dd + '(' + dow + ')';
   }
 
   // ① ログイン
@@ -580,30 +589,24 @@
         showMsg('photo-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng');
         return;
       }
-
-      // 信頼度チェック（低信頼度＝雑な字）
+      // 信頼度チェック
       const pages = response.fullTextAnnotation.pages || [];
       let totalConf = 0, confCount = 0;
       pages.forEach(page => {
         (page.blocks || []).forEach(block => {
           (block.paragraphs || []).forEach(para => {
             (para.words || []).forEach(word => {
-              if (word.confidence !== undefined) {
-                totalConf += word.confidence;
-                confCount++;
-              }
+              if (word.confidence !== undefined) { totalConf += word.confidence; confCount++; }
             });
           });
         });
       });
       const avgConf = confCount > 0 ? totalConf / confCount : 1;
       const confPct = Math.round(avgConf * 100);
-
       if (avgConf < 0.75) {
         showMsg('photo-msg', '❌ 字が雑すぎます（丁寧さスコア：' + confPct + '%）。もっと丁寧に、はっきり書いてみよう！', 'ng');
         return;
       }
-
       const detected = response.fullTextAnnotation.text.toLowerCase();
       const failedWords = [];
       for (const w of wordList) {
@@ -759,7 +762,7 @@
       </div>
       <div class="btn-wrap">
         ${isSession1 ? `<button class="btn-result" style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;font-size:19px" onclick="goNextSession()">📚 次の10題に進む →</button>` : ''}
-        <button class="btn-result btn-review" onclick="showReview()">📖 今日の単語をおさらいする</button>
+        <button class="btn-result btn-review" onclick="showHistory()">📖 今までの単語をおさらいする</button>
         <button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button>
         <button class="btn-result btn-close" onclick="closeApp()">🚪 テストを終了する</button>
       </div>`;
@@ -783,8 +786,13 @@
         <button class="btn-speak" onclick="speakWord(this, '${esc(w.example || w.word)}')">🔊</button>
       </div>`).join('');
     const backBtn = document.getElementById('review-back-btn');
-    if (_historyMode) { backBtn.textContent = '← おさらい一覧に戻る'; backBtn.onclick = () => { _historyMode = false; showHistory(); }; }
-    else              { backBtn.textContent = '← レベル選択に戻る'; backBtn.onclick = showLevelSelect; }
+    if (_historyMode) {
+      backBtn.textContent = '← おさらい一覧に戻る';
+      backBtn.onclick = () => { _historyMode = false; showHistory(); };
+    } else {
+      backBtn.textContent = '← レベル選択に戻る';
+      backBtn.onclick = showLevelSelect;
+    }
   }
 
   // ⑨ 履歴一覧
@@ -800,21 +808,24 @@
         }
         document.getElementById('history-list').innerHTML = res.history.map(h => `
           <div class="history-item" onclick="showHistoryReview(${h.setNo}, '${esc(h.level)}', '${h.date}')">
-            <span class="history-date">${h.date}</span>
+            <span class="history-date">${formatDate(h.date)}</span>
             <span class="history-level">英検${h.level}レベル</span>
             <span class="history-set">セット ${h.setNo}</span>
             <span class="history-arrow">›</span>
           </div>`).join('');
+        setTimeout(() => { window.scrollTo(0, _historyScrollY); }, 50);
       })
       .catch(() => { document.getElementById('history-list').innerHTML = '<div class="error">読み込みに失敗しました。</div>'; });
   }
+
   function showHistoryReview(setNo, level, date) {
+    _historyScrollY = window.scrollY;
     gasGet({ action: 'getSetWords', setNo, level })
       .then(res => {
         if (!res.ok) { alert('データの取得に失敗しました。'); return; }
         _questions = res.words; _setNo = setNo; _level = level; _historyMode = true;
         showReview();
-        document.getElementById('review-set-label').textContent = date + '｜英検' + level + 'レベル｜セット ' + setNo;
+        document.getElementById('review-set-label').textContent = formatDate(date) + '｜英検' + level + 'レベル｜セット ' + setNo;
       })
       .catch(() => { alert('エラーが発生しました。'); });
   }
