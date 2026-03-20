@@ -143,19 +143,19 @@
     .flash-title { font-size: 22px; font-weight: bold; color: #ffe08a; margin-bottom: 8px; }
     .flash-msg   { font-size: 15px; line-height: 1.7; opacity: .9; margin-bottom: 20px; }
     .flash-close { background: rgba(255,255,255,.2); border: none; color: #fff; font-size: 16px; padding: 12px 28px; border-radius: 20px; cursor: pointer; }
-    .ranking-wrap { background: linear-gradient(135deg, #b5451b, #e8793a, #f0a500); border-radius: 16px; padding: 20px 16px; margin-top: 16px; color: #fff; box-shadow: 0 4px 20px rgba(181,69,27,.4); }
-    .ranking-title  { text-align: center; font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 4px; letter-spacing: 1px; text-shadow: 0 1px 4px rgba(0,0,0,.3); }
-    .ranking-period { text-align: center; font-size: 14px; font-weight: bold; color: rgba(255,255,255,.9); margin-bottom: 14px; }
-    .ranking-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; margin-bottom: 6px; background: rgba(255,255,255,.15); }
-    .ranking-row.top1 { background: linear-gradient(135deg, rgba(255,215,0,.35), rgba(255,180,0,.25)); border: 1px solid rgba(255,255,255,.5); }
-    .ranking-row.top2 { background: linear-gradient(135deg, rgba(255,255,255,.25), rgba(255,255,255,.15)); border: 1px solid rgba(255,255,255,.4); }
-    .ranking-row.top3 { background: linear-gradient(135deg, rgba(255,200,100,.25), rgba(255,160,50,.15)); border: 1px solid rgba(255,255,255,.35); }
-    .rank-num   { font-size: 18px; font-weight: bold; min-width: 32px; text-align: center; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.3); }
-    .rank-nick  { flex: 1; font-size: 17px; font-weight: bold; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.25); }
+    .ranking-wrap { background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); border-radius: 16px; padding: 20px 16px; margin-top: 16px; color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.3); }
+    .ranking-title  { text-align: center; font-size: 17px; font-weight: bold; color: #ffe08a; margin-bottom: 4px; letter-spacing: 1px; }
+    .ranking-period { text-align: center; font-size: 12px; color: rgba(255,255,255,.6); margin-bottom: 14px; }
+    .ranking-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; margin-bottom: 6px; background: rgba(255,255,255,.07); }
+    .ranking-row.top1 { background: linear-gradient(135deg, rgba(255,215,0,.25), rgba(255,180,0,.15)); border: 1px solid rgba(255,215,0,.4); }
+    .ranking-row.top2 { background: linear-gradient(135deg, rgba(192,192,192,.2), rgba(150,150,150,.1)); border: 1px solid rgba(192,192,192,.3); }
+    .ranking-row.top3 { background: linear-gradient(135deg, rgba(205,127,50,.2), rgba(160,100,30,.1)); border: 1px solid rgba(205,127,50,.3); }
+    .rank-num   { font-size: 16px; font-weight: bold; min-width: 32px; text-align: center; color: #ffe08a; }
+    .rank-nick  { flex: 1; font-size: 15px; font-weight: bold; color: #fff; }
     .rank-hp    { text-align: right; }
-    .rank-weekly { font-size: 17px; font-weight: bold; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.25); }
-    .rank-total  { font-size: 13px; font-weight: bold; color: rgba(255,255,255,.85); margin-top: 1px; }
-    .ranking-empty   { text-align: center; color: #fff; font-size: 16px; font-weight: bold; padding: 16px 0; text-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    .rank-weekly { font-size: 15px; font-weight: bold; color: #7ef0a0; }
+    .rank-total  { font-size: 11px; color: rgba(255,255,255,.55); margin-top: 1px; }
+    .ranking-empty   { text-align: center; color: rgba(255,255,255,.5); font-size: 14px; padding: 16px 0; }
     .ranking-loading { text-align: center; color: rgba(255,255,255,.5); font-size: 13px; padding: 12px 0; }
     @media (max-width: 480px) {
       .top-card { margin: 16px; padding: 20px; }
@@ -174,7 +174,7 @@
   <div class="flash-content">
     <div class="flash-emoji" id="flash-emoji">🎉</div>
     <div class="flash-days"  id="flash-days">7</div>
-    <div class="flash-label">日連続達成！</div>
+    <div class="flash-label" id="flash-label">日連続達成！</div>
     <div class="flash-title" id="flash-title">マイカツ戦士</div>
     <div class="flash-msg"   id="flash-msg"></div>
     <button class="flash-close" onclick="closeFlash()">✓ 閉じる</button>
@@ -372,7 +372,19 @@
     2: function(s,t){ return '2日も経ったか。早く課題やって、ワシに元気をおくれ。'; },
     1: function(s,t){ return '頼む…、もう限界だ。早く何とかしてくれ～。'; }
   };
-  var MILESTONE_MSGS = { 3:'3日連続。その積み重ね、ちゃんと見てたぞ。マイカツ戦士に昇格だ。', 7:'1週間か。すごいな。本物の習慣になってきてるぞ。', 30:'30日連続…素晴らしいぞ。マイカツ勇者の称号をやろう。', 100:'100日。本当にやり切ったな。マイカツ伝説、その称号は本物だ。' };
+  function _getMilestoneMsg(info) {
+    var s = info.streak;
+    if (s >= 365 && s % 365 === 0) {
+      var y = s / 365;
+      return y + '年間連続！本物の継続力だ。お前はもうレジェンドだ。';
+    }
+    if (s % 100 === 0) return s + '日連続！ここまで来たか。お前は本物だ。';
+    if (s % 30 === 0)  return Math.floor(s/30) + 'ヶ月連続。着実に積み上げてるな。';
+    if (s === 7)  return '1週間か。すごいな。本物の習慣になってきてるぞ。';
+    if (s === 3)  return '3日連続。その積み重ね、ちゃんと見てたぞ。マイカツ足軽に昇格だ。';
+    if (info.isRankUp) return info.newTitle + 'に昇格だ！この調子で続けていけよ。';
+    return '';
+  }
   function showCharacter(stage, streak, title) {
     var s = STAGE_DEF[stage] || STAGE_DEF[4];
     var img = document.getElementById('chara-img'), anim = document.getElementById('chara-anim'), fx = document.getElementById('chara-fx');
@@ -384,9 +396,19 @@
     document.getElementById('chara-streak-label').textContent = streak + '日連続ログイン中';
     document.getElementById('chara-msg').textContent = (LOGIN_MSGS[stage] || LOGIN_MSGS[4])(streak, title);
   }
-  function showMilestoneFlash(days, title) {
-    document.getElementById('flash-days').textContent = days; document.getElementById('flash-title').textContent = title || ''; document.getElementById('flash-msg').textContent = MILESTONE_MSGS[days] || '';
-    document.getElementById('flash-emoji').textContent = days >= 100 ? '🏆' : days >= 30 ? '🌟' : days >= 7 ? '⭐' : '🎉';
+  function showMilestoneFlash(info) {
+    if (!info) return;
+    var s = info.streak;
+    var emoji = '🎉', daysText = s + '日', labelText = '日連続達成！';
+    if (s >= 365 && s % 365 === 0) { emoji = '🌟'; daysText = (s/365) + '周年'; labelText = '継続達成！'; }
+    else if (s % 100 === 0) { emoji = '🏆'; }
+    else if (s % 30 === 0)  { emoji = '⭐'; }
+    else if (info.isRankUp && !info.isMilestone) { emoji = '🎖️'; labelText = '称号昇格！'; }
+    document.getElementById('flash-emoji').textContent = emoji;
+    document.getElementById('flash-days').textContent  = daysText;
+    document.getElementById('flash-label').textContent = labelText;
+    document.getElementById('flash-title').textContent = info.newTitle || '';
+    document.getElementById('flash-msg').textContent   = _getMilestoneMsg(info);
     document.getElementById('flash-overlay').classList.add('active');
   }
   function closeFlash() { document.getElementById('flash-overlay').classList.remove('active'); }
@@ -432,7 +454,7 @@
     document.getElementById('welcome-msg').textContent  = loginBonus > 0 ? '🎁 ログインボーナス +' + loginBonus + 'HP もらったよ！' : '今日もよろしく！';
     showCharacter(stage || 4, streak || 0, title || 'マイカツ見習い');
     showScreen('screen-welcome');
-    if (milestone) setTimeout(function(){ showMilestoneFlash(milestone, title); }, 600);
+    if (milestone) setTimeout(function(){ showMilestoneFlash(milestone); }, 600);
     loadWeeklyRanking();
   }
   function toggleChangeArea() { var area = document.getElementById('change-area'); area.style.display = area.style.display === 'none' ? 'block' : 'none'; }
