@@ -239,7 +239,7 @@
     </div>
     <button class="btn-wide" onclick="showLevelSelect()">📚 今日の学習をはじめる</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60);margin-top:10px" onclick="showHistory()">📖 今までのおさらいをする</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#555f61);margin-top:10px" onclick="showScreen('screen-settings')">⚙️ 設定</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#555f61);margin-top:10px" onclick="showScreen('screen-settings')">🔊 英語音声の変更</button>
     <div class="ranking-wrap" id="ranking-wrap">
       <div class="ranking-title">🏆 先週の週間HPランキング</div>
       <div class="ranking-period" id="ranking-period">読み込み中...</div>
@@ -317,10 +317,10 @@
   </div>
 </div>
 <div id="screen-settings" class="screen">
-  <header><h1>⚙️ 設定</h1></header>
+  <header><h1>🔊 英語音声の変更</h1></header>
   <div class="container" style="padding-top:20px">
     <div class="setting-card">
-      <h3>🔊 音声の種類</h3>
+      <h3>🔊 音声の種類を選んでください</h3>
       <div class="voice-grid">
         <button class="voice-btn" id="voice-btn-0" onclick="selectVoice(0)">
           <div><div>🇬🇧 イギリス英語（女性）</div><div class="voice-sample">UK English Female</div></div>
@@ -335,7 +335,15 @@
           <span class="voice-check">✅</span>
         </button>
         <button class="voice-btn" id="voice-btn-3" onclick="selectVoice(3)">
+          <div><div>🇺🇸 アメリカ英語（男性）</div><div class="voice-sample">US English Male</div></div>
+          <span class="voice-check">✅</span>
+        </button>
+        <button class="voice-btn" id="voice-btn-4" onclick="selectVoice(4)">
           <div><div>🇦🇺 オーストラリア英語（女性）</div><div class="voice-sample">Australian Female</div></div>
+          <span class="voice-check">✅</span>
+        </button>
+        <button class="voice-btn" id="voice-btn-5" onclick="selectVoice(5)">
+          <div><div>🇦🇺 オーストラリア英語（男性）</div><div class="voice-sample">Australian Male</div></div>
           <span class="voice-check">✅</span>
         </button>
       </div>
@@ -362,33 +370,76 @@
   var GAS_URL    = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
   var VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
   // =============================================
-  // 音声システム（ResponsiveVoice）
+  // 音声システム（ResponsiveVoice + Web Speech APIフォールバック）
   // =============================================
   var VOICE_LIST = [
-    'UK English Female',
-    'UK English Male',
-    'US English Female',
-    'Australian Female'
+    { rv: 'UK English Female',  ws: 'en-GB', label: '🇬🇧 イギリス英語（女性）' },
+    { rv: 'UK English Male',    ws: 'en-GB', label: '🇬🇧 イギリス英語（男性）' },
+    { rv: 'US English Female',  ws: 'en-US', label: '🇺🇸 アメリカ英語（女性）' },
+    { rv: 'US English Male',    ws: 'en-US', label: '🇺🇸 アメリカ英語（男性）' },
+    { rv: 'Australian Female',  ws: 'en-AU', label: '🇦🇺 オーストラリア英語（女性）' },
+    { rv: 'Australian Male',    ws: 'en-AU', label: '🇦🇺 オーストラリア英語（男性）' },
   ];
   var _voiceIdx = 0;
-
-  // ローカルストレージから音声設定を読み込む
   try { _voiceIdx = parseInt(localStorage.getItem('maika_voice') || '0', 10) || 0; } catch(e) {}
 
-  function _currentVoice() { return VOICE_LIST[_voiceIdx] || VOICE_LIST[0]; }
+  // Web Speech API（PCフォールバック用）
+  var _wsVoices = [];
+  if (window.speechSynthesis) {
+    var _loadWsVoices = function() { var v = window.speechSynthesis.getVoices(); if (v.length) _wsVoices = v; };
+    _loadWsVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', _loadWsVoices);
+  }
+
+  function _rvAvailable() {
+    return typeof responsiveVoice !== 'undefined' && responsiveVoice.voiceSupport();
+  }
+
+  function _getWsVoice(lang) {
+    return _wsVoices.find(function(v){ return v.lang === lang; }) ||
+           _wsVoices.find(function(v){ return v.lang.startsWith(lang.slice(0,2)); }) || null;
+  }
+
+  function _isFemalePref() {
+    var rv = VOICE_LIST[_voiceIdx] ? VOICE_LIST[_voiceIdx].rv : '';
+    return rv.indexOf('Female') >= 0;
+  }
 
   function _stopAudio() {
     if (typeof responsiveVoice !== 'undefined') responsiveVoice.cancel();
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
   }
 
   function doSpeak(text, rate, onDone) {
     _stopAudio();
-    if (typeof responsiveVoice === 'undefined') { onDone && onDone(); return; }
-    responsiveVoice.speak(text, _currentVoice(), {
-      rate: rate || 0.9,
-      onend:  function() { onDone && onDone(); },
-      onerror: function() { onDone && onDone(); }
-    });
+    var voice = VOICE_LIST[_voiceIdx] || VOICE_LIST[0];
+
+    // ResponsiveVoice が使える場合
+    if (_rvAvailable()) {
+      responsiveVoice.speak(text, voice.rv, {
+        rate: rate || 0.9,
+        onend:  function() { onDone && onDone(); },
+        onerror: function() { _wsFallback(text, voice.ws, rate, onDone); }
+      });
+      return;
+    }
+
+    // フォールバック：Web Speech API
+    _wsFallback(text, voice.ws, rate, onDone);
+  }
+
+  function _wsFallback(text, lang, rate, onDone) {
+    if (!window.speechSynthesis) { onDone && onDone(); return; }
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = lang || 'en-GB';
+    u.rate = rate || 0.9;
+    var wsv = _getWsVoice(lang || 'en-GB');
+    if (wsv) u.voice = wsv;
+    var ms = Math.max(2000, (text.split(' ').length / (u.rate * 2.5)) * 1000 + 1500);
+    var timer = setTimeout(function(){ onDone && onDone(); }, ms);
+    u.onend  = function(){ clearTimeout(timer); onDone && onDone(); };
+    u.onerror = function(){ clearTimeout(timer); onDone && onDone(); };
+    window.speechSynthesis.speak(u);
   }
 
   function speakWord(btn, word) {
@@ -401,7 +452,6 @@
   function selectVoice(idx) {
     _voiceIdx = idx;
     try { localStorage.setItem('maika_voice', String(idx)); } catch(e) {}
-    // ボタンの選択状態を更新
     for (var i = 0; i < VOICE_LIST.length; i++) {
       var btn = document.getElementById('voice-btn-' + i);
       if (btn) btn.classList.toggle('selected', i === idx);
@@ -412,8 +462,6 @@
     doSpeak('This is a test. Hello, nice to meet you.', 0.9, null);
   }
 
-  // 設定画面を開いたときに選択状態を反映
-  var _origShowScreen = null;
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
     document.getElementById(id).classList.add('active');
