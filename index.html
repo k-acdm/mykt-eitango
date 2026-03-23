@@ -178,7 +178,6 @@
       .history-date { min-width: 90px; font-size: 13px; }
     }
   </style>
-<script src="https://code.responsivevoice.org/responsivevoice.js?key=FREE"></script>
 </head>
 <body>
 <div class="flash-overlay" id="flash-overlay">
@@ -370,76 +369,71 @@
   var GAS_URL    = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
   var VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
   // =============================================
-  // 音声システム（ResponsiveVoice + Web Speech APIフォールバック）
+  // 音声システム（Web Speech API）
   // =============================================
   var VOICE_LIST = [
-    { rv: 'UK English Female',  ws: 'en-GB', label: '🇬🇧 イギリス英語（女性）' },
-    { rv: 'UK English Male',    ws: 'en-GB', label: '🇬🇧 イギリス英語（男性）' },
-    { rv: 'US English Female',  ws: 'en-US', label: '🇺🇸 アメリカ英語（女性）' },
-    { rv: 'US English Male',    ws: 'en-US', label: '🇺🇸 アメリカ英語（男性）' },
-    { rv: 'Australian Female',  ws: 'en-AU', label: '🇦🇺 オーストラリア英語（女性）' },
-    { rv: 'Australian Male',    ws: 'en-AU', label: '🇦🇺 オーストラリア英語（男性）' },
+    { lang: 'en-GB', female: true,  label: '🇬🇧 イギリス英語（女性）',       sample: 'UK English Female' },
+    { lang: 'en-GB', female: false, label: '🇬🇧 イギリス英語（男性）',       sample: 'UK English Male' },
+    { lang: 'en-US', female: true,  label: '🇺🇸 アメリカ英語（女性）',       sample: 'US English Female' },
+    { lang: 'en-US', female: false, label: '🇺🇸 アメリカ英語（男性）',       sample: 'US English Male' },
+    { lang: 'en-AU', female: true,  label: '🇦🇺 オーストラリア英語（女性）', sample: 'Australian Female' },
+    { lang: 'en-AU', female: false, label: '🇦🇺 オーストラリア英語（男性）', sample: 'Australian Male' },
   ];
   var _voiceIdx = 0;
   try { _voiceIdx = parseInt(localStorage.getItem('maika_voice') || '0', 10) || 0; } catch(e) {}
 
-  // Web Speech API（PCフォールバック用）
   var _wsVoices = [];
+  function _loadVoices() {
+    if (!window.speechSynthesis) return;
+    var v = window.speechSynthesis.getVoices();
+    if (v && v.length > 0) _wsVoices = v;
+  }
   if (window.speechSynthesis) {
-    var _loadWsVoices = function() { var v = window.speechSynthesis.getVoices(); if (v.length) _wsVoices = v; };
-    _loadWsVoices();
-    window.speechSynthesis.addEventListener('voiceschanged', _loadWsVoices);
+    _loadVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', _loadVoices);
+    // Android対策：少し遅らせて再取得
+    setTimeout(_loadVoices, 500);
+    setTimeout(_loadVoices, 1500);
   }
 
-  function _rvAvailable() {
-    return typeof responsiveVoice !== 'undefined' && responsiveVoice.voiceSupport();
-  }
-
-  function _getWsVoice(lang) {
-    return _wsVoices.find(function(v){ return v.lang === lang; }) ||
-           _wsVoices.find(function(v){ return v.lang.startsWith(lang.slice(0,2)); }) || null;
-  }
-
-  function _isFemalePref() {
-    var rv = VOICE_LIST[_voiceIdx] ? VOICE_LIST[_voiceIdx].rv : '';
-    return rv.indexOf('Female') >= 0;
+  function _pickVoice(lang, female) {
+    if (!_wsVoices.length) return null;
+    var exact = _wsVoices.filter(function(v){ return v.lang === lang; });
+    var broad = _wsVoices.filter(function(v){ return v.lang.slice(0,2) === lang.slice(0,2); });
+    var pool  = exact.length ? exact : broad;
+    if (!pool.length) return null;
+    // 性別でフィルタ（名前にMale/Femaleが含まれる場合）
+    var gendered = pool.filter(function(v){
+      var n = v.name.toLowerCase();
+      return female ? (n.indexOf('female') >= 0 || n.indexOf('woman') >= 0 || n.indexOf('girl') >= 0)
+                    : (n.indexOf('male') >= 0 && n.indexOf('female') < 0);
+    });
+    return gendered.length ? gendered[0] : pool[0];
   }
 
   function _stopAudio() {
-    if (typeof responsiveVoice !== 'undefined') responsiveVoice.cancel();
     if (window.speechSynthesis) window.speechSynthesis.cancel();
   }
 
   function doSpeak(text, rate, onDone) {
     _stopAudio();
-    var voice = VOICE_LIST[_voiceIdx] || VOICE_LIST[0];
-
-    // ResponsiveVoice が使える場合
-    if (_rvAvailable()) {
-      responsiveVoice.speak(text, voice.rv, {
-        rate: rate || 0.9,
-        onend:  function() { onDone && onDone(); },
-        onerror: function() { _wsFallback(text, voice.ws, rate, onDone); }
-      });
-      return;
-    }
-
-    // フォールバック：Web Speech API
-    _wsFallback(text, voice.ws, rate, onDone);
-  }
-
-  function _wsFallback(text, lang, rate, onDone) {
     if (!window.speechSynthesis) { onDone && onDone(); return; }
-    var u = new SpeechSynthesisUtterance(text);
-    u.lang = lang || 'en-GB';
-    u.rate = rate || 0.9;
-    var wsv = _getWsVoice(lang || 'en-GB');
-    if (wsv) u.voice = wsv;
-    var ms = Math.max(2000, (text.split(' ').length / (u.rate * 2.5)) * 1000 + 1500);
+    _loadVoices();
+    var def  = VOICE_LIST[_voiceIdx] || VOICE_LIST[0];
+    var u    = new SpeechSynthesisUtterance(text);
+    u.lang   = def.lang;
+    u.rate   = rate || 0.9;
+    u.volume = 1;
+    var picked = _pickVoice(def.lang, def.female);
+    if (picked) u.voice = picked;
+    var wordCount = text.split(' ').length;
+    var ms = Math.max(3000, (wordCount / (u.rate * 2.5)) * 1000 + 2000);
     var timer = setTimeout(function(){ onDone && onDone(); }, ms);
     u.onend  = function(){ clearTimeout(timer); onDone && onDone(); };
     u.onerror = function(){ clearTimeout(timer); onDone && onDone(); };
-    window.speechSynthesis.speak(u);
+    // Android対策：speak前に必ずcancel
+    window.speechSynthesis.cancel();
+    setTimeout(function(){ window.speechSynthesis.speak(u); }, 100);
   }
 
   function speakWord(btn, word) {
@@ -453,13 +447,13 @@
     _voiceIdx = idx;
     try { localStorage.setItem('maika_voice', String(idx)); } catch(e) {}
     for (var i = 0; i < VOICE_LIST.length; i++) {
-      var btn = document.getElementById('voice-btn-' + i);
-      if (btn) btn.classList.toggle('selected', i === idx);
+      var b = document.getElementById('voice-btn-' + i);
+      if (b) b.classList.toggle('selected', i === idx);
     }
   }
 
   function testVoice() {
-    doSpeak('This is a test. Hello, nice to meet you.', 0.9, null);
+    doSpeak('Hello! This is a test. Nice to meet you.', 0.9, null);
   }
 
   function showScreen(id) {
@@ -467,9 +461,10 @@
     document.getElementById(id).classList.add('active');
     window.scrollTo(0, 0);
     if (id === 'screen-settings') {
+      _loadVoices();
       for (var i = 0; i < VOICE_LIST.length; i++) {
-        var btn = document.getElementById('voice-btn-' + i);
-        if (btn) btn.classList.toggle('selected', i === _voiceIdx);
+        var b = document.getElementById('voice-btn-' + i);
+        if (b) b.classList.toggle('selected', i === _voiceIdx);
       }
     }
   }
