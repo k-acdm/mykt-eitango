@@ -352,6 +352,12 @@
 <script>
   var GAS_URL    = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
   var VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
+  // GAS通信
+  function gasGet(params) {
+    return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
+      .then(function(r){ return r.json(); });
+  }
+
   // =============================================
   // 音声システム（Web Speech API・ピッチで性別を分ける）
   // =============================================
