@@ -322,27 +322,11 @@
       <h3>🔊 音声の種類を選んでください</h3>
       <div class="voice-grid">
         <button class="voice-btn" id="voice-btn-0" onclick="selectVoice(0)">
-          <div><div>🇬🇧 イギリス英語（女性）</div><div class="voice-sample">UK English Female</div></div>
+          <div><div>👩 女性の声</div><div class="voice-sample">高めのピッチ</div></div>
           <span class="voice-check">✅</span>
         </button>
         <button class="voice-btn" id="voice-btn-1" onclick="selectVoice(1)">
-          <div><div>🇬🇧 イギリス英語（男性）</div><div class="voice-sample">UK English Male</div></div>
-          <span class="voice-check">✅</span>
-        </button>
-        <button class="voice-btn" id="voice-btn-2" onclick="selectVoice(2)">
-          <div><div>🇺🇸 アメリカ英語（女性）</div><div class="voice-sample">US English Female</div></div>
-          <span class="voice-check">✅</span>
-        </button>
-        <button class="voice-btn" id="voice-btn-3" onclick="selectVoice(3)">
-          <div><div>🇺🇸 アメリカ英語（男性）</div><div class="voice-sample">US English Male</div></div>
-          <span class="voice-check">✅</span>
-        </button>
-        <button class="voice-btn" id="voice-btn-4" onclick="selectVoice(4)">
-          <div><div>🇦🇺 オーストラリア英語（女性）</div><div class="voice-sample">Australian Female</div></div>
-          <span class="voice-check">✅</span>
-        </button>
-        <button class="voice-btn" id="voice-btn-5" onclick="selectVoice(5)">
-          <div><div>🇦🇺 オーストラリア英語（男性）</div><div class="voice-sample">Australian Male</div></div>
+          <div><div>👨 男性の声</div><div class="voice-sample">低めのピッチ</div></div>
           <span class="voice-check">✅</span>
         </button>
       </div>
@@ -369,15 +353,11 @@
   var GAS_URL    = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
   var VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
   // =============================================
-  // 音声システム（Web Speech API）
+  // 音声システム（Web Speech API・ピッチで性別を分ける）
   // =============================================
   var VOICE_LIST = [
-    { lang: 'en-GB', female: true,  label: '🇬🇧 イギリス英語（女性）',       sample: 'UK English Female' },
-    { lang: 'en-GB', female: false, label: '🇬🇧 イギリス英語（男性）',       sample: 'UK English Male' },
-    { lang: 'en-US', female: true,  label: '🇺🇸 アメリカ英語（女性）',       sample: 'US English Female' },
-    { lang: 'en-US', female: false, label: '🇺🇸 アメリカ英語（男性）',       sample: 'US English Male' },
-    { lang: 'en-AU', female: true,  label: '🇦🇺 オーストラリア英語（女性）', sample: 'Australian Female' },
-    { lang: 'en-AU', female: false, label: '🇦🇺 オーストラリア英語（男性）', sample: 'Australian Male' },
+    { label: '👩 女性の声', pitch: 1.3, rate: 0.9  },
+    { label: '👨 男性の声', pitch: 0.7, rate: 0.85 },
   ];
   var _voiceIdx = 0;
   try { _voiceIdx = parseInt(localStorage.getItem('maika_voice') || '0', 10) || 0; } catch(e) {}
@@ -391,24 +371,15 @@
   if (window.speechSynthesis) {
     _loadVoices();
     window.speechSynthesis.addEventListener('voiceschanged', _loadVoices);
-    // Android対策：少し遅らせて再取得
     setTimeout(_loadVoices, 500);
     setTimeout(_loadVoices, 1500);
   }
 
-  function _pickVoice(lang, female) {
+  function _pickEnglishVoice() {
     if (!_wsVoices.length) return null;
-    var exact = _wsVoices.filter(function(v){ return v.lang === lang; });
-    var broad = _wsVoices.filter(function(v){ return v.lang.slice(0,2) === lang.slice(0,2); });
-    var pool  = exact.length ? exact : broad;
-    if (!pool.length) return null;
-    // 性別でフィルタ（名前にMale/Femaleが含まれる場合）
-    var gendered = pool.filter(function(v){
-      var n = v.name.toLowerCase();
-      return female ? (n.indexOf('female') >= 0 || n.indexOf('woman') >= 0 || n.indexOf('girl') >= 0)
-                    : (n.indexOf('male') >= 0 && n.indexOf('female') < 0);
-    });
-    return gendered.length ? gendered[0] : pool[0];
+    return _wsVoices.find(function(v){ return v.lang === 'en-US'; }) ||
+           _wsVoices.find(function(v){ return v.lang === 'en-GB'; }) ||
+           _wsVoices.find(function(v){ return v.lang.startsWith('en'); }) || null;
   }
 
   function _stopAudio() {
@@ -419,41 +390,40 @@
     _stopAudio();
     if (!window.speechSynthesis) { onDone && onDone(); return; }
     _loadVoices();
-    var def  = VOICE_LIST[_voiceIdx] || VOICE_LIST[0];
-    var u    = new SpeechSynthesisUtterance(text);
-    u.lang   = def.lang;
-    u.rate   = rate || 0.9;
+    var def = VOICE_LIST[_voiceIdx] || VOICE_LIST[0];
+    var u   = new SpeechSynthesisUtterance(text);
+    u.lang   = 'en-US';
+    u.rate   = rate || def.rate;
+    u.pitch  = def.pitch;
     u.volume = 1;
-    var picked = _pickVoice(def.lang, def.female);
+    var picked = _pickEnglishVoice();
     if (picked) u.voice = picked;
-    var wordCount = text.split(' ').length;
-    var ms = Math.max(3000, (wordCount / (u.rate * 2.5)) * 1000 + 2000);
+    var ms = Math.max(3000, (text.split(' ').length / (u.rate * 2.5)) * 1000 + 2000);
     var timer = setTimeout(function(){ onDone && onDone(); }, ms);
     u.onend  = function(){ clearTimeout(timer); onDone && onDone(); };
     u.onerror = function(){ clearTimeout(timer); onDone && onDone(); };
-    // Android対策：speak前に必ずcancel
     window.speechSynthesis.cancel();
     setTimeout(function(){ window.speechSynthesis.speak(u); }, 100);
   }
 
   function speakWord(btn, word) {
     if (btn) btn.classList.add('speaking');
-    doSpeak(word, 0.9, function(){ if (btn) btn.classList.remove('speaking'); });
+    doSpeak(word, null, function(){ if (btn) btn.classList.remove('speaking'); });
   }
 
-  function speakSentence(text, onDone) { doSpeak(text, 0.85, onDone); }
+  function speakSentence(text, onDone) { doSpeak(text, null, onDone); }
 
   function selectVoice(idx) {
     _voiceIdx = idx;
     try { localStorage.setItem('maika_voice', String(idx)); } catch(e) {}
     for (var i = 0; i < VOICE_LIST.length; i++) {
       var b = document.getElementById('voice-btn-' + i);
-      if (b) b.classList.toggle('selected', i === idx);
+      if (b) b.classList.toggle('selected', i === _voiceIdx);
     }
   }
 
   function testVoice() {
-    doSpeak('Hello! This is a test. Nice to meet you.', 0.9, null);
+    doSpeak('Hello! This is a test. Nice to meet you.', null, null);
   }
 
   function showScreen(id) {
@@ -461,19 +431,12 @@
     document.getElementById(id).classList.add('active');
     window.scrollTo(0, 0);
     if (id === 'screen-settings') {
-      _loadVoices();
       for (var i = 0; i < VOICE_LIST.length; i++) {
         var b = document.getElementById('voice-btn-' + i);
         if (b) b.classList.toggle('selected', i === _voiceIdx);
       }
     }
   }
-  function gasGet(params) { return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params))).then(function(r){ return r.json(); }); }
-  function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
-  window.addEventListener('beforeunload', beforeUnloadHandler);
-  function openModal()  { document.getElementById('img-modal').classList.add('active'); }
-  function closeModal() { document.getElementById('img-modal').classList.remove('active'); }
-  var _studentId = '', _level = '', _questions = [], _current = 0, _score = 0, _setNo = 0, _sessionNo = 1, _historyMode = false, _isRound2 = false, _historyScrollY = 0;
   // showScreen は音声システム内で定義済み
   function showMsg(id, text, kind) { var el = document.getElementById(id); el.textContent = text; el.className = 'msg ' + kind; el.style.display = 'block'; }
   function esc(str) { return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
