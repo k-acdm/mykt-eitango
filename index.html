@@ -321,28 +321,39 @@
 <script>
   var GAS_URL    = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
   var VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
-  var _voices = [], _voicesReady = false;
-  function unlockAudio() { if (!window.speechSynthesis) return; var u = new SpeechSynthesisUtterance(' '); u.volume = 0; u.lang = 'en-US'; window.speechSynthesis.speak(u); }
-  document.addEventListener('touchstart', unlockAudio, { passive: true });
-  document.addEventListener('click', unlockAudio);
-  function loadVoices() { var v = window.speechSynthesis.getVoices(); if (v.length > 0) { _voices = v; _voicesReady = true; } }
-  if (window.speechSynthesis) { loadVoices(); window.speechSynthesis.addEventListener('voiceschanged', loadVoices); }
-  function getEnglishVoice() { return _voices.find(function(v){ return v.lang === 'en-US'; }) || _voices.find(function(v){ return v.lang === 'en-GB'; }) || _voices.find(function(v){ return v.lang.startsWith('en'); }) || null; }
-  function speakChunks(chunks, rate, onDone) {
-    if (!chunks || chunks.length === 0) { onDone && onDone(); return; }
-    var chunk = chunks.shift();
-    var u = new SpeechSynthesisUtterance(chunk);
-    u.lang = 'en-US'; u.rate = rate || 0.85; u.volume = 1;
-    var voice = getEnglishVoice(); if (voice) u.voice = voice;
-    var ms = Math.max(2000, (chunk.split(' ').length / (rate * 2.5)) * 1000 + 1500);
-    var timer = setTimeout(function(){ speakChunks(chunks, rate, onDone); }, ms);
-    u.onend = function(){ clearTimeout(timer); speakChunks(chunks, rate, onDone); };
-    u.onerror = function(){ clearTimeout(timer); speakChunks(chunks, rate, onDone); };
-    window.speechSynthesis.speak(u);
+  // =============================================
+  // 音声システム（Google翻訳TTS）
+  // =============================================
+  var _currentAudio = null;
+
+  function _ttsUrl(text) {
+    return 'https://translate.google.com/translate_tts?ie=UTF-8&tl=en-US&client=tw-ob&q=' + encodeURIComponent(text);
   }
-  function doSpeak(text, rate, onDone) { if (!window.speechSynthesis) { onDone && onDone(); return; } loadVoices(); window.speechSynthesis.cancel(); speakChunks([text], rate, onDone); }
-  function speakWord(btn, word) { if (btn) btn.classList.add('speaking'); doSpeak(word, 0.85, function(){ if (btn) btn.classList.remove('speaking'); }); }
-  function speakSentence(text, onDone) { doSpeak(text, 0.82, onDone); }
+
+  function _stopAudio() {
+    if (_currentAudio) {
+      _currentAudio.pause();
+      _currentAudio.src = '';
+      _currentAudio = null;
+    }
+  }
+
+  function doSpeak(text, rate, onDone) {
+    _stopAudio();
+    var audio = new Audio(_ttsUrl(text));
+    _currentAudio = audio;
+    audio.playbackRate = rate || 0.9;
+    audio.onended  = function() { _currentAudio = null; onDone && onDone(); };
+    audio.onerror  = function() { _currentAudio = null; onDone && onDone(); };
+    audio.play().catch(function() { _currentAudio = null; onDone && onDone(); });
+  }
+
+  function speakWord(btn, word) {
+    if (btn) btn.classList.add('speaking');
+    doSpeak(word, 0.9, function(){ if (btn) btn.classList.remove('speaking'); });
+  }
+
+  function speakSentence(text, onDone) { doSpeak(text, 0.85, onDone); }
   function gasGet(params) { return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params))).then(function(r){ return r.json(); }); }
   function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
   window.addEventListener('beforeunload', beforeUnloadHandler);
@@ -616,7 +627,7 @@
     }).catch(function(){ alert('エラーが発生しました。'); });
   }
   function closeApp() {
-    window.speechSynthesis && window.speechSynthesis.cancel(); window.removeEventListener('beforeunload', beforeUnloadHandler);
+    _stopAudio(); window.removeEventListener('beforeunload', beforeUnloadHandler);
     try { window.close(); } catch(e) {} try { top.close(); } catch(e) {}
     setTimeout(function(){ showScreen('screen-closed'); }, 300);
   }
