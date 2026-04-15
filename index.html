@@ -366,6 +366,7 @@
     { label: '👨 男性の声', pitch: 0.5, rate: 0.85 },
   ];
   var _voiceIdx = 0;
+  var _finishing = false;
   try { _voiceIdx = parseInt(localStorage.getItem('maika_voice') || '0', 10) || 0; } catch(e) {}
 
   var _wsVoices = [];
@@ -632,14 +633,14 @@
     document.getElementById('today-word-list').innerHTML = '<div style="text-align:center;padding:30px 16px"><div style="font-size:56px">✨</div><div style="font-size:22px;font-weight:bold;color:#2d3a8c;margin:16px 0">よく頑張りました！✨</div><div style="font-size:16px;color:#555;margin-bottom:8px">確認テストに進みましょう。</div></div>';
     var btn = document.getElementById('today-btn'); btn.textContent = '✏️ 確認テストに進む'; btn.onclick = showTest; btn.style.display = 'block'; showScreen('screen-today');
   }
-  function showTest() { _current = 0; _score = 0; showScreen('screen-test'); renderQuestion(); }
+  function showTest() { _current = 0; _score = 0; _finishing = false; showScreen('screen-test'); renderQuestion(); }
   function renderQuestion() {
     var total = _questions.length; if (_current >= total) { finishTest(); return; }
     var q = _questions[_current], labels = ['①','②','③','④'], choices = [q.choiceA,q.choiceB,q.choiceC,q.choiceD], is5 = (_level==='5級');
     document.getElementById('test-prog-text').textContent = (_current+1)+' / '+total;
     document.getElementById('test-prog-bar').style.width  = Math.round((_current+1)/total*100)+'%';
     document.getElementById('test-feedback').textContent  = ''; document.getElementById('test-feedback').className = 'feedback';
-    document.getElementById('test-next-btn').style.display = 'none';
+    var _nb0 = document.getElementById('test-next-btn'); _nb0.style.display = 'none'; _nb0.disabled = false;
     var ch = choices.map(function(c,i){ return '<button class="choice-btn" onclick="answer(this,'+i+',\''+esc(q.answer)+'\',\''+esc(getCorrectText(q))+'\')"><span style="font-weight:bold;color:#4f7df0">'+labels[i]+'</span>&ensp;'+c+'</button>'; }).join('');
     document.getElementById('test-q-area').innerHTML = is5
       ? '<div class="q-card"><div class="q-label">以下の意味の英単語として正しいものを選びなさい</div><div class="q-english" style="font-size:26px;font-weight:bold">'+q.meaning+'</div><div class="speak-wrap"><button class="btn-speak-en" id="speak-btn" onclick="doSpeakQuestion(this)">🔊 単語を聞く（先に聞いてね）</button></div></div><div class="choices locked" id="choices-wrap">'+ch+'</div>'
@@ -659,16 +660,23 @@
     else      { fb.innerHTML = '❌ 不正解 → 正解：<strong>'+correctText+'</strong>'; fb.className = 'feedback ng'; }
     var nb = document.getElementById('test-next-btn'); nb.style.display = 'block'; nb.textContent = (_current+1>=_questions.length) ? '結果を見る 🏁' : '次の問題へ →';
   }
-  function nextQuestion() { _current++; renderQuestion(); }
+  function nextQuestion() {
+    var nb = document.getElementById('test-next-btn');
+    if (nb.disabled) return;
+    nb.disabled = true;
+    _current++; renderQuestion();
+  }
   function finishTest() {
+    if (_finishing) return;
+    _finishing = true;
     var total = _questions.length;
     if (_score === total) {
       gasGet({ action:'saveAttempt', studentId:_studentId, setNo:_setNo, score:_score, total:total, passed:true, level:_level, sessionNo:_sessionNo })
         .then(function(res){ showResult(true, res); }).catch(function(){ showResult(true, null); });
     } else {
-      var lastScore = _score; _questions = _questions.sort(function(){ return Math.random()-.5; }); _current = 0; _score = 0;
+      var lastScore = _score; _questions = _questions.sort(function(){ return Math.random()-.5; }); _current = 0; _score = 0; _finishing = false;
       document.getElementById('test-feedback').textContent = ''; document.getElementById('test-feedback').className = 'feedback';
-      document.getElementById('test-next-btn').style.display = 'none'; document.getElementById('test-prog-bar').style.width = '0%';
+      var _nb0 = document.getElementById('test-next-btn'); _nb0.style.display = 'none'; _nb0.disabled = false; document.getElementById('test-prog-bar').style.width = '0%';
       document.getElementById('test-q-area').innerHTML = '<div style="text-align:center;padding:50px 16px"><div style="font-size:64px">😤</div><div style="font-size:22px;font-weight:bold;color:#e74c3c;margin:16px 0">惜しい！満点で合格だよ</div><div style="font-size:18px;color:#666">'+lastScore+'／'+total+'問正解<br>もう一度チャレンジ！</div></div>';
       document.getElementById('test-prog-text').textContent = '再挑戦中...'; setTimeout(function(){ renderQuestion(); }, 2500);
     }
