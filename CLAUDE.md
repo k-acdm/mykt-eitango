@@ -88,13 +88,42 @@
   - ルーティング: `getQuote` / `getNotice`
   - 関数: `getQuote()`（date 列が今日なら優先、なければランダム） / `getNotice()`（最大日付 1 件を返却）
 
+#### 4. 「テストを終了する」ボタンの不具合修正（worktree: `vigilant-rubin`）
+- **事象**: テスト結果画面 / おさらい画面の「🚪 テストを終了する」を押しても画面が変わらない
+- **原因**: `closeApp()` 内の `window.close()` / `top.close()` は、JS で開いたタブ以外ではブラウザ側でサイレント失敗する。フォールバックの `setTimeout(showScreen('screen-closed'), 300)` は動くはずだが、ユーザー体験としては「閉じられない → 画面遷移もない」ように見えていた
+- **修正** ([index.html](index.html) `closeApp()`): ウィンドウクローズ試行を廃止し、`_stopAudio()` + `_historyMode = false` リセット + `showScreen('screen-welcome')` でダッシュボード復帰に変更
+- **副次効果**: `screen-closed`（「このタブを閉じてください」画面）は現在どこからも呼ばれていない。将来削除して良い
+
+#### 5. 「今日の一言」が表示されない不具合修正（worktree: `vigilant-rubin`）
+- **事象**: ダッシュボードにフォールバック文言「今日も一歩ずつ、コツコツ頑張ろう！」が常に表示され、Quote シートの内容が反映されない
+- **原因**: GAS 側 `getQuote()` の関数本体が未実装だった（`doGet` ルーティングは `else if (action === 'getQuote') result = getQuote();` で既に存在していたが、関数そのものが無いため参照エラー → fetch 側で res.ok=false 相当の扱いになりフォールバックに落ちていた）
+- **GAS 修正**: `getQuote()` / `getNotice()` の関数本体を実装（反映済み）
+  - JST タイムゾーン前提：`Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd')` で統一比較
+  - 日付セルが `Date` 型 / 文字列 / 数値のいずれでも動作
+  - ヘッダー行からインデックスを動的取得（列順変更に強い）
+  - `text` 空行は除外してランダム選択に混ざらないよう防御
+- **フロント修正** ([index.html](index.html) `loadTodayQuote()`):
+  - `_normalizeQuote()` ヘルパーを追加：`{text, author}` オブジェクト / 配列 `[date, text, author]` / フィールド名ゆらぎ（`quote` / `body` / `message` 等）を吸収
+  - GAS リクエストに `_ts: Date.now()` を付与してキャッシュバスト（スプレッドシート更新後の古い値表示を防止）
+
+#### 6. 「おさらい」ボタンの移設（worktree: `vigilant-rubin`）
+- **変更前**: ダッシュボード最下部の `sub-action-row` に「📖 おさらい」と「🔊 音声設定」の 2 ボタン並列
+- **変更後**:
+  - ダッシュボードからは「📖 おさらい」を削除（`sub-action-row.single` クラスで音声設定のみ 1 列化）
+  - レベル選択画面（`screen-level`）の最下部に以下 2 ボタンを追加：
+    1. 「📖 今までの単語をおさらいする」（緑グラデ、`showHistory()`）
+    2. 「← ダッシュボードに戻る」（グレーグラデ、`showScreen('screen-welcome')`）
+- **意図**: 英単語の学習フロー内に「おさらい」を置くことで動線を明確化。ダッシュボードをシンプルに保つ
+
 ---
 
 ## TODO（未反映の GAS 側作業）
 
 - [ ] `Code.gs` に `saveAttempt` 新 HP 計算式を反映
 - [ ] `Code.gs` に Attempts 列構成変更（氏名ルックアップ + 9 列化 + `getHistory` 列インデックス更新）を反映
-- [ ] `Code.gs` に `SHEET_QUOTE` / `SHEET_NOTICE` 定数追加 + `doGet` ルーティング追加 + `getQuote` / `getNotice` 関数追加
+- [x] `Code.gs` に `SHEET_QUOTE` / `SHEET_NOTICE` 定数追加 + `doGet` ルーティング追加 + `getQuote` / `getNotice` 関数追加（2026-04-17 完了）
 - [ ] スプレッドシート: `Attempts` シートの既存データ移行（C 列挿入 + VLOOKUP + G1 リネーム + H 列挿入）
-- [ ] スプレッドシート: `Quote` / `Notice` シート新規作成と初期データ投入
+- [x] スプレッドシート: `Quote` / `Notice` シート新規作成と初期データ投入（2026-04-17 完了）
 - [ ] `dev` ブランチの push と main への merge（未 push の `ee1e54f` あり）
+- [ ] worktree `vigilant-rubin` の内容（`closeApp` 修正 / `loadTodayQuote` 堅牢化 / おさらいボタン移設）を main に反映
+- [ ] 不要になった `screen-closed` の削除判断

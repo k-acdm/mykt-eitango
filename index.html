@@ -211,6 +211,7 @@
     .notice-empty { text-align: center; color: #a07030; font-size: 14px; padding: 6px 0; }
     .section-title { font-size: 15px; font-weight: bold; color: #2d3a8c; margin-bottom: 8px; padding-left: 4px; }
     .sub-action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+    .sub-action-row.single { grid-template-columns: 1fr; }
     .sub-action-btn { padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: bold; color: #fff; cursor: pointer; }
     .sub-action-btn.review   { background: linear-gradient(135deg,#2ecc71,#27ae60); }
     .sub-action-btn.settings { background: linear-gradient(135deg,#636e72,#555f61); }
@@ -372,9 +373,8 @@
       </div>
     </div>
 
-    <!-- サブ操作（おさらい・音声設定） -->
-    <div class="sub-action-row">
-      <button class="sub-action-btn review"   onclick="showHistory()">📖 おさらい</button>
+    <!-- サブ操作（音声設定） -->
+    <div class="sub-action-row single">
       <button class="sub-action-btn settings" onclick="showScreen('screen-settings')">🔊 音声設定</button>
     </div>
   </div>
@@ -393,6 +393,8 @@
       <button class="level-btn" onclick="selectLevel('準1級')"><span>📓 英検準１級レベル</span><span class="badge-arrow">›</span></button>
       <button class="level-btn disabled" onclick="showComingSoonLevel('1級')"><span>📒 英検１級レベル</span><span class="badge-coming">準備中</span></button>
     </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60);margin-top:20px" onclick="showHistory()">📖 今までの単語をおさらいする</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showScreen('screen-welcome')">← ダッシュボードに戻る</button>
   </div>
 </div>
 <div id="screen-today" class="screen">
@@ -640,11 +642,41 @@
     document.getElementById('flash-overlay').classList.add('active');
   }
   function closeFlash() { document.getElementById('flash-overlay').classList.remove('active'); }
+  function _normalizeQuote(q) {
+    if (!q) return null;
+    // 配列で返ってきた場合（[date, text, author] or [text, author]）
+    if (Array.isArray(q)) {
+      if (q.length >= 3) return { text: String(q[1] || '').trim(), author: String(q[2] || '').trim() };
+      if (q.length === 2) return { text: String(q[0] || '').trim(), author: String(q[1] || '').trim() };
+      if (q.length === 1) return { text: String(q[0] || '').trim(), author: '' };
+      return null;
+    }
+    // オブジェクトの場合：text/quote/body/message いずれかのフィールドから拾う
+    if (typeof q === 'object') {
+      var text   = q.text || q.quote || q.body || q.message || q.TEXT || '';
+      var author = q.author || q.by || q.name || q.AUTHOR || '';
+      text = String(text).trim(); author = String(author).trim();
+      if (!text) return null;
+      return { text: text, author: author };
+    }
+    // 文字列だけの場合
+    if (typeof q === 'string') {
+      var t = q.trim();
+      return t ? { text: t, author: '' } : null;
+    }
+    return null;
+  }
   function loadTodayQuote() {
-    gasGet({ action: 'getQuote' }).then(function(res) {
-      if (!res.ok || !res.quote) { document.getElementById('quote-text').textContent = '今日も一歩ずつ、コツコツ頑張ろう！'; document.getElementById('quote-author').textContent = ''; return; }
-      document.getElementById('quote-text').textContent   = res.quote.text || '';
-      document.getElementById('quote-author').textContent = res.quote.author ? '— ' + res.quote.author : '';
+    gasGet({ action: 'getQuote', _ts: Date.now() }).then(function(res) {
+      var raw = res && (res.quote || res.data || res.row);
+      var q   = _normalizeQuote(raw);
+      if (!res || !res.ok || !q) {
+        document.getElementById('quote-text').textContent   = '今日も一歩ずつ、コツコツ頑張ろう！';
+        document.getElementById('quote-author').textContent = '';
+        return;
+      }
+      document.getElementById('quote-text').textContent   = q.text;
+      document.getElementById('quote-author').textContent = q.author ? '— ' + q.author : '';
     }).catch(function(){ document.getElementById('quote-text').textContent = '今日も一歩ずつ、コツコツ頑張ろう！'; document.getElementById('quote-author').textContent = ''; });
   }
   function loadLatestNotice() {
@@ -870,9 +902,9 @@
     }).catch(function(){ alert('エラーが発生しました。'); });
   }
   function closeApp() {
-    _stopAudio(); window.removeEventListener('beforeunload', beforeUnloadHandler);
-    try { window.close(); } catch(e) {} try { top.close(); } catch(e) {}
-    setTimeout(function(){ showScreen('screen-closed'); }, 300);
+    _stopAudio();
+    _historyMode = false;
+    showScreen('screen-welcome');
   }
 </script>
 </body>
