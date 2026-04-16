@@ -1,13 +1,13 @@
 <!--
-  マイ活アプリ＜英単語＞ - index.html
-  更新：2026-03-18（週間HPランキング対応版）
+  マイ活アプリ - index.html
+  更新：2026-04-17（ダッシュボード化・ロゴ追加版）
 -->
 <!doctype html>
 <html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
-  <title>マイ活アプリ＜英単語＞</title>
+  <title>マイ活アプリ</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, Arial, sans-serif; background: #f0f4f8; min-height: 100vh; }
@@ -167,6 +167,53 @@
     .voice-btn .voice-check { margin-left: auto; font-size: 18px; display: none; }
     .voice-btn.selected .voice-check { display: block; }
     .voice-sample { font-size: 12px; color: #888; margin-top: 2px; }
+    /* ===== ログイン画面のヒーロー背景 ===== */
+    .login-body { background: linear-gradient(160deg, #ffd86b 0%, #ff9f7a 40%, #ff6ea0 75%, #b24bf3 100%); min-height: 100vh; display: flex; flex-direction: column; }
+    .login-body .flex-fill { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 16px 16px; }
+    .login-card { max-width: 420px; width: 100%; background: rgba(255,255,255,.96); border-radius: 24px; padding: 36px 28px 30px; box-shadow: 0 12px 40px rgba(80,30,120,.35); backdrop-filter: blur(6px); text-align: center; }
+    .login-emoji { font-size: 52px; margin-bottom: 8px; line-height: 1; }
+    .login-title { font-size: 30px; font-weight: 800; background: linear-gradient(135deg,#ff6ea0,#b24bf3,#4f7df0); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: 2px; margin-bottom: 6px; }
+    .login-subtitle { color: #666; font-size: 15px; margin-bottom: 22px; }
+    .login-card .row { margin-top: 8px; }
+    .login-card .row input { font-size: 18px; padding: 14px; border: 2px solid #f0d9ff; border-radius: 12px; }
+    .login-card .row input:focus { outline: none; border-color: #b24bf3; }
+    .login-card .btn-login { padding: 14px 22px; background: linear-gradient(135deg,#ff6ea0,#b24bf3); box-shadow: 0 6px 18px rgba(178,75,243,.4); border-radius: 12px; }
+    .login-logo-wrap { text-align: center; padding: 18px 16px 22px; }
+    .login-logo { max-width: 300px; width: 80%; height: auto; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+    /* ===== ダッシュボード各セクション ===== */
+    .dash-section { margin-top: 16px; }
+    .dash-section:first-child { margin-top: 0; }
+    .quote-card { background: linear-gradient(135deg,#a2e4ff 0%, #ffd3e8 100%); border-radius: 18px; padding: 18px 20px; color: #1a1a2e; box-shadow: 0 4px 16px rgba(162,228,255,.5); }
+    .quote-label { font-size: 13px; font-weight: bold; color: #4f7df0; letter-spacing: 1px; margin-bottom: 6px; }
+    .quote-text  { font-size: 17px; line-height: 1.7; font-weight: 600; color: #2b2b46; }
+    .quote-author { font-size: 13px; color: #6b6b8a; margin-top: 8px; text-align: right; }
+    .content-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .content-btn { position: relative; padding: 20px 10px; border: none; border-radius: 16px; font-size: 16px; font-weight: bold; color: #fff; cursor: pointer; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,.12); transition: transform .12s, box-shadow .12s; }
+    .content-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+    .content-btn .ico { display: block; font-size: 32px; margin-bottom: 6px; }
+    .content-btn.c-eitango   { background: linear-gradient(135deg,#17c3b2,#227c9d); }
+    .content-btn.c-sango     { background: linear-gradient(135deg,#ffcb77,#fe6d73); }
+    .content-btn.c-wabun1    { background: linear-gradient(135deg,#b28dff,#7c4fff); }
+    .content-btn.c-wabun2    { background: linear-gradient(135deg,#f093fb,#f5576c); }
+    .content-btn.c-listening { background: linear-gradient(135deg,#1e3c72,#2a5298); grid-column: span 2; }
+    .content-btn.c-math      { background: linear-gradient(135deg,#4fc3f7,#2979ff); }
+    .content-btn.c-kanji     { background: linear-gradient(135deg,#ff8a8a,#c92a2a); }
+    .content-btn.c-social    { background: linear-gradient(135deg,#96e072,#2ecc71); }
+    .content-btn.c-science   { background: linear-gradient(135deg,#43cea2,#185a9d); }
+    .content-btn.disabled  { opacity: .58; cursor: not-allowed; }
+    .content-btn.disabled:hover { transform: none; box-shadow: 0 4px 14px rgba(0,0,0,.12); opacity: .58; }
+    .content-btn .badge-soon { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.45); color: #fff; font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; letter-spacing: .5px; }
+    .notice-card { background: linear-gradient(135deg,#fff4d6,#ffe5b4); border-left: 6px solid #ff8a3d; border-radius: 14px; padding: 16px 18px; box-shadow: 0 3px 12px rgba(255,138,61,.18); }
+    .notice-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .notice-title { font-size: 15px; font-weight: bold; color: #c25b00; }
+    .notice-date  { font-size: 12px; color: #a07030; font-weight: bold; }
+    .notice-body  { font-size: 14px; line-height: 1.75; color: #4b3000; white-space: pre-wrap; word-wrap: break-word; }
+    .notice-empty { text-align: center; color: #a07030; font-size: 14px; padding: 6px 0; }
+    .section-title { font-size: 15px; font-weight: bold; color: #2d3a8c; margin-bottom: 8px; padding-left: 4px; }
+    .sub-action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+    .sub-action-btn { padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: bold; color: #fff; cursor: pointer; }
+    .sub-action-btn.review   { background: linear-gradient(135deg,#2ecc71,#27ae60); }
+    .sub-action-btn.settings { background: linear-gradient(135deg,#636e72,#555f61); }
     @media (max-width: 480px) {
       .top-card { margin: 16px; padding: 20px; }
       .top-card h2 { font-size: 18px; }
@@ -176,6 +223,10 @@
       .meaning { font-size: 14px; }
       .choice-btn { font-size: 15px; padding: 14px; }
       .history-date { min-width: 90px; font-size: 13px; }
+      .login-title { font-size: 26px; }
+      .login-card { padding: 28px 20px 24px; }
+      .content-btn { font-size: 14px; padding: 16px 6px; }
+      .content-btn .ico { font-size: 26px; }
     }
   </style>
 </head>
@@ -195,19 +246,27 @@
 </div>
 <div class="back-warning">⚠️ 「戻る」ボタンは押さないでね</div>
 <div id="screen-login" class="screen active">
-  <div class="top-card">
-    <h2>マイ活アプリ＜英単語＞</h2>
-    <p class="sub">生徒IDを入力してください</p>
-    <div class="row">
-      <input id="login-id" placeholder="生徒ID" type="number"/>
-      <button class="btn-login" id="login-btn" onclick="doLogin()">ログイン</button>
+  <div class="login-body">
+    <div class="flex-fill">
+      <div class="login-card">
+        <div class="login-emoji">✨</div>
+        <h1 class="login-title">マイ活アプリ</h1>
+        <p class="login-subtitle">生徒IDを入力してログイン</p>
+        <div class="row">
+          <input id="login-id" placeholder="生徒ID" type="number"/>
+          <button class="btn-login" id="login-btn" onclick="doLogin()">ログイン</button>
+        </div>
+        <div id="login-msg" class="msg"></div>
+      </div>
     </div>
-    <div id="login-msg" class="msg"></div>
+    <div class="login-logo-wrap">
+      <img class="login-logo" src="./logo.png" alt="春日部アカデミー"/>
+    </div>
   </div>
 </div>
 <div id="screen-nickname" class="screen">
   <div class="top-card">
-    <h2>マイ活アプリ＜英単語＞</h2>
+    <h2>マイ活アプリ</h2>
     <p class="sub">ようこそ！ニックネームを登録してください</p>
     <p style="color:#888;margin-bottom:16px">ランキング等はニックネームで表示されます（あとで変更できます）</p>
     <input class="full" id="nickname-input" placeholder="例：タロウ、はなちゃん" maxlength="20"/>
@@ -217,32 +276,106 @@
 </div>
 <div id="screen-welcome" class="screen">
   <div class="top-card">
-    <h2>マイ活アプリ＜英単語＞</h2>
-    <div style="text-align:center">
-      <div class="chara-title-badge"  id="chara-title-badge"></div><br>
-      <div class="chara-streak-label" id="chara-streak-label"></div>
+    <h2 style="text-align:center;background:linear-gradient(135deg,#ff6ea0,#b24bf3,#4f7df0);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px">マイ活アプリ</h2>
+
+    <!-- ① 今日の一言 -->
+    <div class="dash-section">
+      <div class="quote-card" id="quote-card">
+        <div class="quote-label">💡 今日の一言</div>
+        <div class="quote-text"  id="quote-text">読み込み中…</div>
+        <div class="quote-author" id="quote-author"></div>
+      </div>
     </div>
-    <div class="chara-wrap">
-      <div class="chara-fx" id="chara-fx"></div>
-      <div id="chara-anim"><img class="chara-img" id="chara-img" src="./character.jpg" alt="マイカツ君"></div>
+
+    <!-- ② マイカツ君エリア -->
+    <div class="dash-section">
+      <div style="text-align:center">
+        <div class="chara-title-badge"  id="chara-title-badge"></div><br>
+        <div class="chara-streak-label" id="chara-streak-label"></div>
+      </div>
+      <div class="chara-wrap">
+        <div class="chara-fx" id="chara-fx"></div>
+        <div id="chara-anim"><img class="chara-img" id="chara-img" src="./character.jpg" alt="マイカツ君"></div>
+      </div>
+      <div class="chara-msg" id="chara-msg"></div>
+      <div class="welcome-name" id="welcome-name"></div>
+      <div class="welcome-msg"  id="welcome-msg"></div>
+      <div class="hp-badge">⚡ 現在の春アカポイント <span id="welcome-hp">0</span> HP</div>
+      <button class="btn-link" onclick="toggleChangeArea()">ニックネームを変更する</button>
+      <div id="change-area">
+        <input class="full" id="change-input" placeholder="新しいニックネーム" maxlength="20" style="margin-top:12px"/>
+        <button class="btn-wide" onclick="doChangeNickname()">変更する</button>
+        <div id="change-msg" class="msg"></div>
+      </div>
     </div>
-    <div class="chara-msg" id="chara-msg"></div>
-    <div class="welcome-name" id="welcome-name"></div>
-    <div class="welcome-msg"  id="welcome-msg"></div>
-    <div class="hp-badge">⚡ 現在の春アカポイント <span id="welcome-hp">0</span> HP</div>
-    <button class="btn-link" onclick="toggleChangeArea()">ニックネームを変更する</button>
-    <div id="change-area">
-      <input class="full" id="change-input" placeholder="新しいニックネーム" maxlength="20" style="margin-top:12px"/>
-      <button class="btn-wide" onclick="doChangeNickname()">変更する</button>
-      <div id="change-msg" class="msg"></div>
+
+    <!-- ③ コンテンツ選択 -->
+    <div class="dash-section">
+      <div class="section-title">📚 コンテンツを選ぼう</div>
+      <div class="content-grid">
+        <button class="content-btn c-eitango" onclick="showLevelSelect()">
+          <span class="ico">🔤</span>英単語
+        </button>
+        <button class="content-btn c-sango disabled" onclick="showComingSoon('三語短文')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">✏️</span>三語短文
+        </button>
+        <button class="content-btn c-wabun1 disabled" onclick="showComingSoon('和文英訳①')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">📘</span>和文英訳①
+        </button>
+        <button class="content-btn c-wabun2 disabled" onclick="showComingSoon('和文英訳②')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">📗</span>和文英訳②
+        </button>
+        <button class="content-btn c-listening disabled" onclick="showComingSoon('英語長文リスニング＆音読')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">🎧</span>英語長文リスニング＆音読
+        </button>
+        <button class="content-btn c-math disabled" onclick="showComingSoon('基礎計算')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">🧮</span>基礎計算
+        </button>
+        <button class="content-btn c-kanji disabled" onclick="showComingSoon('漢字')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">🖌️</span>漢字
+        </button>
+        <button class="content-btn c-social disabled" onclick="showComingSoon('社会の重要用語')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">🌏</span>社会の重要用語
+        </button>
+        <button class="content-btn c-science disabled" onclick="showComingSoon('理科の重要用語')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">🔬</span>理科の重要用語
+        </button>
+      </div>
     </div>
-    <button class="btn-wide" onclick="showLevelSelect()">📚 今日の学習をはじめる</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60);margin-top:10px" onclick="showHistory()">📖 今までのおさらいをする</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#555f61);margin-top:10px" onclick="showScreen('screen-settings')">🔊 英語音声の変更</button>
-    <div class="ranking-wrap" id="ranking-wrap">
-      <div class="ranking-title">🏆 先週の週間HPランキング</div>
-      <div class="ranking-period" id="ranking-period">読み込み中...</div>
-      <div id="ranking-list"><div class="ranking-loading">⏳ 集計中...</div></div>
+
+    <!-- ④ 塾からの連絡事項 -->
+    <div class="dash-section">
+      <div class="section-title">📢 塾からの連絡事項</div>
+      <div class="notice-card" id="notice-card">
+        <div class="notice-header">
+          <div class="notice-title" id="notice-title">読み込み中…</div>
+          <div class="notice-date"  id="notice-date"></div>
+        </div>
+        <div class="notice-body"  id="notice-body"></div>
+      </div>
+    </div>
+
+    <!-- ⑤ 週間HPランキング -->
+    <div class="dash-section">
+      <div class="ranking-wrap" id="ranking-wrap">
+        <div class="ranking-title">🏆 先週の週間HPランキング</div>
+        <div class="ranking-period" id="ranking-period">読み込み中...</div>
+        <div id="ranking-list"><div class="ranking-loading">⏳ 集計中...</div></div>
+      </div>
+    </div>
+
+    <!-- サブ操作（おさらい・音声設定） -->
+    <div class="sub-action-row">
+      <button class="sub-action-btn review"   onclick="showHistory()">📖 おさらい</button>
+      <button class="sub-action-btn settings" onclick="showScreen('screen-settings')">🔊 音声設定</button>
     </div>
   </div>
 </div>
@@ -255,10 +388,10 @@
       <button class="level-btn" onclick="selectLevel('4級')"><span>📗 英検４級レベル</span><span class="badge-arrow">›</span></button>
       <button class="level-btn" onclick="selectLevel('3級')"><span>📘 英検３級レベル</span><span class="badge-arrow">›</span></button>
       <button class="level-btn" onclick="selectLevel('準2級')"><span>📙 英検準２級レベル</span><span class="badge-arrow">›</span></button>
-      <button class="level-btn disabled" onclick="showComingSoon('準2級プラス')"><span>📙 英検準２級プラスレベル</span><span class="badge-coming">準備中</span></button>
+      <button class="level-btn disabled" onclick="showComingSoonLevel('準2級プラス')"><span>📙 英検準２級プラスレベル</span><span class="badge-coming">準備中</span></button>
       <button class="level-btn" onclick="selectLevel('2級')"><span>📕 英検２級レベル</span><span class="badge-arrow">›</span></button>
       <button class="level-btn" onclick="selectLevel('準1級')"><span>📓 英検準１級レベル</span><span class="badge-arrow">›</span></button>
-      <button class="level-btn disabled" onclick="showComingSoon('1級')"><span>📒 英検１級レベル</span><span class="badge-coming">準備中</span></button>
+      <button class="level-btn disabled" onclick="showComingSoonLevel('1級')"><span>📒 英検１級レベル</span><span class="badge-coming">準備中</span></button>
     </div>
   </div>
 </div>
@@ -507,6 +640,22 @@
     document.getElementById('flash-overlay').classList.add('active');
   }
   function closeFlash() { document.getElementById('flash-overlay').classList.remove('active'); }
+  function loadTodayQuote() {
+    gasGet({ action: 'getQuote' }).then(function(res) {
+      if (!res.ok || !res.quote) { document.getElementById('quote-text').textContent = '今日も一歩ずつ、コツコツ頑張ろう！'; document.getElementById('quote-author').textContent = ''; return; }
+      document.getElementById('quote-text').textContent   = res.quote.text || '';
+      document.getElementById('quote-author').textContent = res.quote.author ? '— ' + res.quote.author : '';
+    }).catch(function(){ document.getElementById('quote-text').textContent = '今日も一歩ずつ、コツコツ頑張ろう！'; document.getElementById('quote-author').textContent = ''; });
+  }
+  function loadLatestNotice() {
+    gasGet({ action: 'getNotice' }).then(function(res) {
+      if (!res.ok || !res.notice) { document.getElementById('notice-title').textContent = 'お知らせ'; document.getElementById('notice-date').textContent = ''; document.getElementById('notice-body').innerHTML = '<div class="notice-empty">現在お知らせはありません。</div>'; return; }
+      var n = res.notice;
+      document.getElementById('notice-title').textContent = n.title || 'お知らせ';
+      document.getElementById('notice-date').textContent  = n.date ? formatDate(n.date) : '';
+      document.getElementById('notice-body').textContent  = n.body || '';
+    }).catch(function(){ document.getElementById('notice-title').textContent = 'お知らせ'; document.getElementById('notice-date').textContent = ''; document.getElementById('notice-body').innerHTML = '<div class="notice-empty">読み込みに失敗しました。</div>'; });
+  }
   function loadWeeklyRanking() {
     gasGet({ action: 'getWeeklyRanking' }).then(function(res) {
       if (!res.ok || !res.ranking) { document.getElementById('ranking-list').innerHTML = '<div class="ranking-empty">データがまだありません</div>'; document.getElementById('ranking-period').textContent = ''; return; }
@@ -550,6 +699,8 @@
     showCharacter(stage || 4, streak || 0, title || 'マイカツ見習い');
     showScreen('screen-welcome');
     if (milestone) setTimeout(function(){ showMilestoneFlash(milestone); }, 600);
+    loadTodayQuote();
+    loadLatestNotice();
     loadWeeklyRanking();
   }
   function toggleChangeArea() { var area = document.getElementById('change-area'); area.style.display = area.style.display === 'none' ? 'block' : 'none'; }
@@ -565,7 +716,8 @@
   }
   function showLevelSelect() { document.getElementById('level-student').textContent = _studentId + ' さん'; showScreen('screen-level'); }
   function selectLevel(level) { _level = level; showToday(); }
-  function showComingSoon(name) { alert('英検' + name + 'レベルは現在準備中です。もうしばらくお待ちください！'); }
+  function showComingSoonLevel(name) { alert('英検' + name + 'レベルは現在準備中です。もうしばらくお待ちください！'); }
+  function showComingSoon(name) { alert(name + ' は現在準備中です。もうしばらくお待ちください！'); }
   function showToday() {
     document.getElementById('today-student').textContent = _studentId + ' さん';
     document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';
