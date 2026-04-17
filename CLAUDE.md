@@ -165,7 +165,7 @@ function getNoticeHistory() {
 }
 ```
 
-- [ ] `Code.gs` の `getWeeklyRanking` 集計ロジックを変更。HPLog の `type === 'test'` ログのみを対象に、**1 件 = 50HP 固定** で集計する（連続週数ボーナスの影響を除外）。`type === 'login'` は集計対象外。集計期間は先週月曜 0:00 〜 先週日曜 23:59:59（JST）。`totalHP` は Students シートの HP 列をそのまま使用。フロント改修は不要。実装例：
+- [ ] `Code.gs` の `getWeeklyRanking` 集計ロジックを変更。HPLog の `type === 'test'` ログのみを対象に、**1 件 = 50HP 固定** で集計する（連続週数ボーナスの影響を除外）。`type === 'login'` は集計対象外。集計期間は先週月曜 0:00 〜 先週日曜 23:59:59（JST）。`totalHP` は Students シートの HP 列をそのまま使用。称号は `_getTitle(streak)` で動的算出。HPLog シートは列定数がないため直接インデックス（`0=timestamp / 1=studentId / 3=type`）で参照。フロント改修は不要。実装例：
 
 ```javascript
 function getWeeklyRanking() {
@@ -177,44 +177,38 @@ function getWeeklyRanking() {
   var lastSunday = new Date(thisMonday.getTime() - 1);
   var HP_PER_TEST = 50;
 
-  var logSh = SS.getSheetByName(SHEET_HPLOG);
-  var logVals = (logSh && logSh.getLastRow() >= 2) ? logSh.getDataRange().getValues() : [];
-  var logHdr = logVals[0] || [];
-  var iTs   = logHdr.indexOf('timestamp');
-  var iSid  = logHdr.indexOf('studentId');
-  var iType = logHdr.indexOf('type');
+  var ss = _ss();
 
+  // HPLog: 列固定順（0=timestamp, 1=studentId, 2=hpGained, 3=type）
+  var logSh = ss.getSheetByName(SHEET_HPLOG);
+  var logVals = (logSh && logSh.getLastRow() >= 2) ? logSh.getDataRange().getValues() : [];
   var countBySid = {};
   for (var i = 1; i < logVals.length; i++) {
     var row = logVals[i];
-    if (row[iType] !== 'test') continue;
-    var ts = new Date(row[iTs]);
+    if (row[3] !== 'test') continue;
+    var ts = new Date(row[0]);
     if (isNaN(ts.getTime())) continue;
     if (ts < lastMonday || ts > lastSunday) continue;
-    var sid = String(row[iSid]);
+    var sid = String(row[1]);
     countBySid[sid] = (countBySid[sid] || 0) + 1;
   }
 
-  var stSh = SS.getSheetByName(SHEET_STUDENTS);
+  // Students シート：集計ゼロのユーザーは除外、称号は _getTitle(streak) で算出
+  var stSh = ss.getSheetByName(SHEET_STUDENTS);
   var stVals = stSh.getDataRange().getValues();
-  var stHdr = stVals[0];
-  var iId    = stHdr.indexOf('ID');
-  var iNick  = stHdr.indexOf('Nickname');
-  var iHP    = stHdr.indexOf('HP');
-  var iTitle = stHdr.indexOf('Title');
-
   var ranking = [];
   for (var j = 1; j < stVals.length; j++) {
     var sRow = stVals[j];
-    var sid2 = String(sRow[iId]);
+    var sid2 = String(sRow[COL_ID]);
     var cnt = countBySid[sid2] || 0;
     if (cnt === 0) continue;
+    var streak = Number(sRow[COL_STREAK]) || 0;
     ranking.push({
       studentId: sid2,
-      nickname:  sRow[iNick] || '',
-      title:     (iTitle >= 0 ? sRow[iTitle] : '') || 'マイカツ見習い',
+      nickname:  sRow[COL_NICKNAME] || '',
+      title:     _getTitle(streak),
       weeklyHP:  cnt * HP_PER_TEST,
-      totalHP:   Number(sRow[iHP]) || 0
+      totalHP:   Number(sRow[COL_HP]) || 0
     });
   }
   ranking.sort(function(a, b){ return b.weeklyHP - a.weeklyHP; });
