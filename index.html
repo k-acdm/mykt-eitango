@@ -37,6 +37,10 @@
     .hp-badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #fff3cd, #ffe08a); border: 2px solid #f0c040; border-radius: 20px; padding: 8px 16px; font-size: 15px; font-weight: bold; color: #7a5c00; margin-top: 12px; }
     .btn-link { background: none; border: none; color: #4f7df0; font-size: 13px; cursor: pointer; text-decoration: underline; margin-top: 12px; display: block; }
     #change-area { display: none; margin-top: 12px; }
+    /* [2026-04-20 問題一新告知] 不要になったらこのブロックごと削除可 */
+    .announcement-banner { background: linear-gradient(135deg,#ff6b6b 0%,#ffd93d 50%,#ff6b6b 100%); color: #fff; text-align: center; font-size: 16px; font-weight: bold; padding: 14px 16px; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(255,107,107,.35); text-shadow: 0 1px 3px rgba(0,0,0,.25); border: 2px solid #fff; letter-spacing: .5px; animation: announcePulse 1.6s ease-in-out infinite; }
+    @keyframes announcePulse { 0%,100% { transform: scale(1); box-shadow: 0 4px 14px rgba(255,107,107,.35); } 50% { transform: scale(1.025); box-shadow: 0 6px 20px rgba(255,107,107,.55); } }
+    /* [/2026-04-20 問題一新告知] */
     .level-grid { display: grid; gap: 12px; margin-top: 8px; }
     .level-btn { width: 100%; padding: 18px 16px; border: 2px solid #d0d8ff; border-radius: 14px; background: #fff; font-size: 17px; font-weight: bold; color: #2d3a8c; cursor: pointer; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: all .15s; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     .level-btn:hover { border-color: #4f7df0; background: #f0f4ff; }
@@ -379,6 +383,9 @@
 <div id="screen-level" class="screen">
   <header><h1>📚 レベル選択</h1><span id="level-student"></span></header>
   <div class="container" style="padding-top:20px">
+    <!-- [2026-04-20 問題一新告知] 不要になったらこのブロックごと削除可 -->
+    <div id="level-announcement" class="announcement-banner" style="display:none">🎉 4月20日に問題を一新しました！</div>
+    <!-- [/2026-04-20 問題一新告知] -->
     <p style="text-align:center;color:#666;font-size:14px;margin-bottom:16px">学習するレベルを選んでください</p>
     <div class="level-grid">
       <button class="level-btn" onclick="selectLevel('5級')"><span>🌱 英検５級レベル</span><span class="badge-arrow">›</span></button>
@@ -803,7 +810,15 @@
       showMsg('change-msg','変更しました！','ok');
     }).catch(function(){ showMsg('change-msg','エラーが発生しました。','ng'); });
   }
-  function showLevelSelect() { document.getElementById('level-student').textContent = _studentId + ' さん'; showScreen('screen-level'); }
+  function showLevelSelect() { document.getElementById('level-student').textContent = _studentId + ' さん'; _applyLevelAnnouncement(); showScreen('screen-level'); }
+  // [2026-04-20 問題一新告知] 不要になったらこの関数と showLevelSelect からの呼び出しを削除可
+  function _applyLevelAnnouncement() {
+    var el = document.getElementById('level-announcement');
+    if (!el) return;
+    var threshold = new Date('2026-04-20T04:00:00+09:00').getTime();
+    el.style.display = (Date.now() >= threshold) ? 'block' : 'none';
+  }
+  // [/2026-04-20 問題一新告知]
   function selectLevel(level) { _level = level; showToday(); }
   function showComingSoonLevel(name) { alert('英検' + name + 'レベルは現在準備中です。もうしばらくお待ちください！'); }
   function showComingSoon(name) { alert(name + ' は現在準備中です。もうしばらくお待ちください！'); }
