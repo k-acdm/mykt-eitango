@@ -153,32 +153,76 @@
 - [ ] `dev` ブランチの push と main への merge（未 push の `ee1e54f` あり）
 - [ ] worktree `vigilant-rubin` の内容（`closeApp` 修正 / `loadTodayQuote` 堅牢化 / おさらいボタン移設）を main に反映
 - [ ] 不要になった `screen-closed` の削除判断
-- [ ] `Code.gs` に `getNoticeHistory` アクション追加（`doGet` ルーティング + `getNoticeHistory()` 関数）。`Notice` シート全件を日付降順で `{ok:true, notices:[{date, title, body}, ...]}` 形式で返却。フロントは `showNoticeHistory()` から呼び出し済み。実装例：
+- [ ] `Code.gs` の `getNotice` / `getNoticeHistory` を以下の通り更新（ダッシュボード表示を最新 1 件 → 3 件に変更、同日複数投稿時は**行番号の大きい方が後に追加された**という前提で新しい順に表示）：
+  - `getNotice`: 戻り値を `{ok, notice: {...}}` → `{ok, notices: [...]}` に変更。**最新 3 件**を返す
+  - `getNoticeHistory`: 同日の並び順を行番号降順でタイブレーク
+  - 並び替えロジック: `date` 降順、同日は **行番号（`idx`）降順**
+  - フロント側 `loadLatestNotice()` は新形式 `res.notices` を受け取り最大 3 件を描画（旧 `res.notice` 形式にもフォールバック実装済み）
 
-```javascript
-// doGet 内に追加
-else if (action === 'getNoticeHistory') result = getNoticeHistory();
+  ```javascript
+  // doGet 内に追加（getNoticeHistory がまだなら）
+  else if (action === 'getNoticeHistory') result = getNoticeHistory();
 
-function getNoticeHistory() {
-  var sh = SS.getSheetByName(SHEET_NOTICE);
-  if (!sh || sh.getLastRow() < 2) return { ok: true, notices: [] };
-  var values = sh.getDataRange().getValues();
-  var header = values[0];
-  var iDate  = header.indexOf('date');
-  var iTitle = header.indexOf('title');
-  var iBody  = header.indexOf('body');
-  var rows = values.slice(1).filter(function(r){ return r[iDate] || r[iTitle] || r[iBody]; });
-  rows.sort(function(a, b){ return new Date(b[iDate]) - new Date(a[iDate]); });
-  var notices = rows.map(function(r){
+  // 共通ヘルパー：日付降順 + 行番号（後に追加された方）降順
+  function _sortNoticeRows(rows, iDate) {
+    return rows.sort(function(a, b){
+      var da = new Date(a.r[iDate]).getTime() || 0;
+      var db = new Date(b.r[iDate]).getTime() || 0;
+      if (db !== da) return db - da;
+      return b.idx - a.idx; // 同日なら後に追加された行（idx 大）を先に
+    });
+  }
+
+  function _readNoticeRows() {
+    var sh = _ss().getSheetByName(SHEET_NOTICE);
+    if (!sh || sh.getLastRow() < 2) return { rows: [], iDate: -1, iTitle: -1, iBody: -1 };
+    var values = sh.getDataRange().getValues();
+    var header = values[0];
+    var iDate  = header.indexOf('date');
+    var iTitle = header.indexOf('title');
+    var iBody  = header.indexOf('body');
+    var rows = values.slice(1)
+      .map(function(r, idx){ return { r: r, idx: idx }; })
+      .filter(function(o){ return o.r[iDate] || o.r[iTitle] || o.r[iBody]; });
+    return { rows: rows, iDate: iDate, iTitle: iTitle, iBody: iBody };
+  }
+
+  function _mapNotice(o, iDate, iTitle, iBody) {
     return {
-      date:  r[iDate] ? Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd') : '',
-      title: r[iTitle] || '',
-      body:  r[iBody]  || ''
+      date:  o.r[iDate] ? Utilities.formatDate(new Date(o.r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd') : '',
+      title: o.r[iTitle] || '',
+      body:  o.r[iBody]  || ''
     };
-  });
-  return { ok: true, notices: notices };
-}
-```
+  }
+
+  // ダッシュボード用：最新 3 件
+  function getNotice() {
+    try {
+      var d = _readNoticeRows();
+      if (d.rows.length === 0) return { ok: true, notices: [] };
+      var sorted = _sortNoticeRows(d.rows, d.iDate).slice(0, 3);
+      var notices = sorted.map(function(o){ return _mapNotice(o, d.iDate, d.iTitle, d.iBody); });
+      return { ok: true, notices: notices };
+    } catch(err) {
+      console.error('[getNotice]', err);
+      return { ok: false, message: String(err) };
+    }
+  }
+
+  // 「過去の連絡事項を見る」用：全件
+  function getNoticeHistory() {
+    try {
+      var d = _readNoticeRows();
+      if (d.rows.length === 0) return { ok: true, notices: [] };
+      var sorted = _sortNoticeRows(d.rows, d.iDate);
+      var notices = sorted.map(function(o){ return _mapNotice(o, d.iDate, d.iTitle, d.iBody); });
+      return { ok: true, notices: notices };
+    } catch(err) {
+      console.error('[getNoticeHistory]', err);
+      return { ok: false, message: String(err) };
+    }
+  }
+  ```
 
 - [ ] `Code.gs` の `getWeeklyRanking` 集計ロジックを変更。HPLog の `type === 'test'` ログのみを対象に、**1 件 = 50HP 固定** で集計する（連続週数ボーナスの影響を除外）。`type === 'login'` は集計対象外。`totalHP` は Students シートの HP 列。称号は `_getTitle(streak)`。期間は `_getLastWeekRange()`。上位 10 名のみ。HPLog 列は直接インデックス（`0=timestamp / 1=studentId / 2=hpGained / 3=type`）。フロント改修は不要。実装（既存コードスタイル準拠）：
 
