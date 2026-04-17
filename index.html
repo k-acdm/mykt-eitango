@@ -353,16 +353,10 @@
       </div>
     </div>
 
-    <!-- ④ 塾からの連絡事項 -->
+    <!-- ④ 塾からの連絡事項（最新3件） -->
     <div class="dash-section">
       <div class="section-title">📢 塾からの連絡事項</div>
-      <div class="notice-card" id="notice-card">
-        <div class="notice-header">
-          <div class="notice-title" id="notice-title">読み込み中…</div>
-          <div class="notice-date"  id="notice-date"></div>
-        </div>
-        <div class="notice-body"  id="notice-body"></div>
-      </div>
+      <div id="notice-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
       <button class="btn-wide" style="background:linear-gradient(135deg,#ff8a3d,#ff6a00);margin-top:10px;font-size:14px;padding:10px" onclick="showNoticeHistory()">📜 過去の連絡事項を見る</button>
     </div>
 
@@ -727,13 +721,29 @@
     }).catch(function(){ document.getElementById('quote-text').textContent = '今日も一歩ずつ、コツコツ頑張ろう！'; document.getElementById('quote-author').textContent = ''; });
   }
   function loadLatestNotice() {
-    gasGet({ action: 'getNotice' }).then(function(res) {
-      if (!res.ok || !res.notice) { document.getElementById('notice-title').textContent = 'お知らせ'; document.getElementById('notice-date').textContent = ''; document.getElementById('notice-body').innerHTML = '<div class="notice-empty">現在お知らせはありません。</div>'; return; }
-      var n = res.notice;
-      document.getElementById('notice-title').textContent = n.title || 'お知らせ';
-      document.getElementById('notice-date').textContent  = n.date ? formatDate(n.date) : '';
-      document.getElementById('notice-body').textContent  = n.body || '';
-    }).catch(function(){ document.getElementById('notice-title').textContent = 'お知らせ'; document.getElementById('notice-date').textContent = ''; document.getElementById('notice-body').innerHTML = '<div class="notice-empty">読み込みに失敗しました。</div>'; });
+    var listEl = document.getElementById('notice-list');
+    gasGet({ action: 'getNotice', _ts: Date.now() }).then(function(res) {
+      var items = res && (res.notices || (res.notice ? [res.notice] : null));
+      if (!res || !res.ok || !items || items.length === 0) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-header"><div class="notice-title">お知らせ</div></div><div class="notice-body"><div class="notice-empty">現在お知らせはありません。</div></div></div>';
+        return;
+      }
+      var esc2 = function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+      listEl.innerHTML = items.slice(0, 3).map(function(n){
+        var title = (n && (n.title || n.subject)) || 'お知らせ';
+        var body  = (n && (n.body  || n.text || n.message)) || '';
+        var date  = (n && n.date) ? formatDate(n.date) : '';
+        return '<div class="notice-card" style="margin-bottom:10px">' +
+                 '<div class="notice-header">' +
+                   '<div class="notice-title">' + esc2(title) + '</div>' +
+                   '<div class="notice-date">'  + esc2(date)  + '</div>' +
+                 '</div>' +
+                 '<div class="notice-body">' + esc2(body) + '</div>' +
+               '</div>';
+      }).join('');
+    }).catch(function(){
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-header"><div class="notice-title">お知らせ</div></div><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+    });
   }
   function loadWeeklyRanking() {
     gasGet({ action: 'getWeeklyRanking' }).then(function(res) {
