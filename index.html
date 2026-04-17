@@ -898,16 +898,16 @@
     _finishing = true;
     var total = _questions.length;
     if (_score === total) {
-      playSfx('pass');
       gasGet({ action:'saveAttempt', studentId:_studentId, setNo:_setNo, score:_score, total:total, passed:true, level:_level, sessionNo:_sessionNo })
         .then(function(res){ showResult(true, res); }).catch(function(){ showResult(true, null); });
     } else {
-      playSfx('fail');
       var lastScore = _score; _questions = _questions.sort(function(){ return Math.random()-.5; }); _current = 0; _score = 0; _finishing = false;
       document.getElementById('test-feedback').textContent = ''; document.getElementById('test-feedback').className = 'feedback';
       var _nb0 = document.getElementById('test-next-btn'); _nb0.style.display = 'none'; _nb0.disabled = false; document.getElementById('test-prog-bar').style.width = '0%';
       document.getElementById('test-q-area').innerHTML = '<div style="text-align:center;padding:50px 16px"><div style="font-size:64px">😤</div><div style="font-size:22px;font-weight:bold;color:#e74c3c;margin:16px 0">惜しい！満点で合格だよ</div><div style="font-size:18px;color:#666">'+lastScore+'／'+total+'問正解<br>もう一度チャレンジ！</div></div>';
-      document.getElementById('test-prog-text').textContent = '再挑戦中...'; setTimeout(function(){ renderQuestion(); }, 2500);
+      document.getElementById('test-prog-text').textContent = '再挑戦中...';
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ playSfx('fail'); }); });
+      setTimeout(function(){ renderQuestion(); }, 2500);
     }
   }
   function showResult(passed, saveRes) {
@@ -918,6 +918,7 @@
       '<div class="result-card"><div class="badge">🏆</div><div class="verdict pass">満点合格！</div><div class="score-display">'+_score+' / '+total+'</div><div class="score-sub">英検'+_level+'レベル｜セット '+_setNo+'（'+(isSession1?'1セット目':'2セット目')+'）</div><div class="result-msg">'+msgs[_score%3]+'</div></div>' +
       '<div class="hp-card"><div class="hp-title">⚡ 獲得 HP</div><div class="hp-row"><div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+'+clearHP.toLocaleString()+'</div></div></div><div class="hp-total-wrap"><div class="hp-total-label">現在の春アカポイント</div><div class="hp-total-value">⚡ '+totalHP.toLocaleString()+' HP</div></div>'+(streak>=2?'<div class="hp-streak">🔥 '+streak+'日連続継続中！この調子で続けよう！</div>':'')+'</div>' +
       '<div class="btn-wrap">'+(isSession1?'<button class="btn-result" style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;font-size:19px" onclick="goNextSession()">📚 次の10題に進む →</button>':'')+'<button class="btn-result btn-review" onclick="showHistory()">📖 今までの単語をおさらいする</button><button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button><button class="btn-result btn-close" onclick="closeApp()">🚪 テストを終了する</button></div>';
+    if (passed) requestAnimationFrame(function(){ requestAnimationFrame(function(){ playSfx('pass'); }); });
   }
   function goNextSession() { showToday(); }
   function fillBlank(blank, correctText) { if (!blank) return correctText; return blank.replace(/（[　\s]*）/g, '（'+correctText+'）'); }
