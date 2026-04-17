@@ -215,6 +215,7 @@
     .sub-action-btn { padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: bold; color: #fff; cursor: pointer; }
     .sub-action-btn.review   { background: linear-gradient(135deg,#2ecc71,#27ae60); }
     .sub-action-btn.settings { background: linear-gradient(135deg,#636e72,#555f61); }
+    .sub-action-btn.logout   { background: linear-gradient(135deg,#e74c3c,#c0392b); }
     @media (max-width: 480px) {
       .top-card { margin: 16px; padding: 20px; }
       .top-card h2 { font-size: 18px; }
@@ -374,9 +375,10 @@
       </div>
     </div>
 
-    <!-- サブ操作（音声設定） -->
-    <div class="sub-action-row single">
+    <!-- サブ操作（音声設定 / ログアウト） -->
+    <div class="sub-action-row">
       <button class="sub-action-btn settings" onclick="showScreen('screen-settings')">🔊 音声設定</button>
+      <button class="sub-action-btn logout" onclick="doLogout()">🚪 ログアウト</button>
     </div>
   </div>
 </div>
@@ -405,6 +407,7 @@
     <div id="today-word-list"><div class="loading">⏳ 単語を読み込んでいます...</div></div>
     <button class="btn-wide" id="today-btn" style="display:none">✏️ テストに挑戦する</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showLevelSelect()">← レベル選択に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-dictation" class="screen">
@@ -428,6 +431,7 @@
       <div id="photo-msg" class="msg" style="margin-top:10px"></div>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showLevelSelect()">← レベル選択に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-test" class="screen">
@@ -448,7 +452,7 @@
   <div class="container">
     <div id="review-list"></div>
     <button class="btn-wide" id="review-back-btn" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);margin-top:12px">← 戻る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="closeApp()">🚪 テストを終了する</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-settings" class="screen">
@@ -917,7 +921,7 @@
     document.getElementById('result-container').innerHTML =
       '<div class="result-card"><div class="badge">🏆</div><div class="verdict pass">満点合格！</div><div class="score-display">'+_score+' / '+total+'</div><div class="score-sub">英検'+_level+'レベル｜セット '+_setNo+'（'+(isSession1?'1セット目':'2セット目')+'）</div><div class="result-msg">'+msgs[_score%3]+'</div></div>' +
       '<div class="hp-card"><div class="hp-title">⚡ 獲得 HP</div><div class="hp-row"><div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+'+clearHP.toLocaleString()+'</div></div></div><div class="hp-total-wrap"><div class="hp-total-label">現在の春アカポイント</div><div class="hp-total-value">⚡ '+totalHP.toLocaleString()+' HP</div></div>'+(streak>=2?'<div class="hp-streak">🔥 '+streak+'日連続継続中！この調子で続けよう！</div>':'')+'</div>' +
-      '<div class="btn-wrap">'+(isSession1?'<button class="btn-result" style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;font-size:19px" onclick="goNextSession()">📚 次の10題に進む →</button>':'')+'<button class="btn-result btn-review" onclick="showHistory()">📖 今までの単語をおさらいする</button><button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button><button class="btn-result btn-close" onclick="closeApp()">🚪 テストを終了する</button></div>';
+      '<div class="btn-wrap">'+(isSession1?'<button class="btn-result" style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;font-size:19px" onclick="goNextSession()">📚 次の10題に進む →</button>':'')+'<button class="btn-result btn-review" onclick="showHistory()">📖 今までの単語をおさらいする</button><button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button><button class="btn-result btn-close" onclick="goHome()">🏠 ホーム画面に戻る</button></div>';
     if (passed) requestAnimationFrame(function(){ requestAnimationFrame(function(){ playSfx('pass'); }); });
   }
   function goNextSession() { showToday(); }
@@ -947,10 +951,20 @@
       document.getElementById('review-set-label').textContent = formatDate(date)+'｜英検'+level+'レベル｜セット '+setNo;
     }).catch(function(){ alert('エラーが発生しました。'); });
   }
-  function closeApp() {
+  function goHome() {
     _stopAudio();
     _historyMode = false;
     showScreen('screen-welcome');
+  }
+  function doLogout() {
+    if (!confirm('ログアウトしますか？')) return;
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    window.removeEventListener('popstate', popstateHandler);
+    _stopAudio();
+    _studentId = null; _questions = []; _score = 0; _current = 0;
+    _historyMode = false; _finishing = false;
+    try { document.getElementById('login-id').value = ''; } catch(e){}
+    showScreen('screen-login');
   }
   function showNoticeHistory() {
     showScreen('screen-notice-history');
@@ -981,6 +995,10 @@
   }
   function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
   window.addEventListener('beforeunload', beforeUnloadHandler);
+  // 「戻る」ボタンを無効化：popstate をフックして直前のエントリに再 push し続ける
+  function popstateHandler() { try { history.pushState(null, '', location.href); } catch(e){} }
+  try { history.pushState(null, '', location.href); } catch(e){}
+  window.addEventListener('popstate', popstateHandler);
 </script>
 </body>
 </html>
