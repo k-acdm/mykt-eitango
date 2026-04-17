@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理画面 | マイ活アプリ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: block; }
+
+  /* ログイン画面 */
+  #screen-admin-login { align-items: center; justify-content: center; padding: 20px; background: linear-gradient(135deg, #4f7df0 0%, #7c4fff 100%); }
+  #screen-admin-login.active { display: flex; }
+  .login-card { background: #fff; border-radius: 16px; padding: 32px 28px; max-width: 380px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,.15); text-align: center; }
+  .login-card h1 { font-size: 22px; margin-bottom: 8px; }
+  .login-card p { color: #666; margin-bottom: 20px; font-size: 14px; }
+  .login-card input { width: 100%; padding: 12px 14px; font-size: 16px; border: 2px solid #e1e5ee; border-radius: 8px; margin-bottom: 12px; outline: none; transition: border .2s; }
+  .login-card input:focus { border-color: #4f7df0; }
+  .login-card button { width: 100%; padding: 12px; background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform .15s; }
+  .login-card button:hover:not(:disabled) { transform: translateY(-1px); }
+  .login-card button:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* メイン画面 */
+  #screen-admin-main header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  #screen-admin-main header h1 { font-size: 18px; font-weight: 600; }
+  .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
+  .logout-btn:hover { background: rgba(255,255,255,.3); }
+
+  /* タブ */
+  #admin-tabs { background: #fff; border-bottom: 1px solid #e1e5ee; padding: 0 12px; display: flex; gap: 2px; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,.03); }
+  #admin-tabs button { background: none; border: none; padding: 14px 16px; font-size: 14px; font-weight: 500; color: #666; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; transition: all .15s; font-family: inherit; }
+  #admin-tabs button:hover { color: #4f7df0; }
+  #admin-tabs button.active { color: #4f7df0; border-bottom-color: #4f7df0; font-weight: bold; }
+
+  /* コンテンツ */
+  #admin-content { max-width: 680px; margin: 0 auto; padding: 24px 16px 80px; }
+  .admin-tab { display: none; }
+  .admin-tab.active { display: block; }
+
+  .form-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,.05); }
+  .form-card h2 { font-size: 17px; margin-bottom: 18px; color: #333; }
+  .form-card label { display: block; margin-bottom: 16px; }
+  .label-text { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+  .req { color: #e74c3c; margin-left: 3px; }
+  .form-card input, .form-card textarea { width: 100%; padding: 10px 12px; font-size: 15px; border: 2px solid #e1e5ee; border-radius: 8px; outline: none; font-family: inherit; transition: border .2s; background: #fff; }
+  .form-card input:focus, .form-card textarea:focus { border-color: #4f7df0; }
+  .form-card textarea { min-height: 110px; resize: vertical; line-height: 1.6; }
+  .submit-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; transition: transform .15s; font-family: inherit; }
+  .submit-btn:hover:not(:disabled) { transform: translateY(-1px); }
+  .submit-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+  .msg { margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 13px; text-align: center; display: none; }
+  .msg.ok { display: block; background: #e8f5e9; color: #2e7d32; }
+  .msg.ng { display: block; background: #ffebee; color: #c62828; }
+
+  /* トースト */
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(120px); background: #333; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.2); transition: transform .3s ease; pointer-events: none; z-index: 1000; max-width: 90%; text-align: center; }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.success { background: #2ecc71; }
+  #toast.error { background: #e74c3c; }
+
+  @media (max-width: 480px) {
+    #screen-admin-main header h1 { font-size: 15px; }
+    #admin-content { padding: 16px 12px 80px; }
+    .form-card { padding: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ログイン画面 -->
+<div id="screen-admin-login" class="screen active">
+  <div class="login-card">
+    <h1>🔐 管理画面</h1>
+    <p>管理者パスワードを入力してください</p>
+    <input type="password" id="admin-password" placeholder="パスワード" autocomplete="current-password" />
+    <button id="admin-login-btn" onclick="doAdminLogin()">ログイン</button>
+    <div id="admin-login-msg" class="msg"></div>
+  </div>
+</div>
+
+<!-- メイン画面 -->
+<div id="screen-admin-main" class="screen">
+  <header>
+    <h1>📋 マイ活アプリ 管理画面</h1>
+    <button class="logout-btn" onclick="doAdminLogout()">🚪 ログアウト</button>
+  </header>
+  <nav id="admin-tabs"></nav>
+  <main id="admin-content"></main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  var GAS_URL = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
+
+  function gasGet(params) {
+    return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
+      .then(function(r){ return r.json(); });
+  }
+
+  // =============================================================
+  // 管理機能モジュール Registry（拡張ポイント）
+  // =============================================================
+  // 新しい管理機能を追加する場合はここに registerAdminModule(...) を呼ぶだけ。
+  // タブ表示・フォーム生成・送信処理・バリデーションは自動で組み立てられる。
+  // fields の type は 'text' / 'date' / 'number' / 'textarea' をサポート。
+  var AdminModules = [];
+  function registerAdminModule(mod) { AdminModules.push(mod); }
+
+  function _todayStr() {
+    var d = new Date();
+    var mm = String(d.getMonth() + 1).padStart(2, '0');
+    var dd = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + mm + '-' + dd;
+  }
+
+  // --- 今日の一言 ---
+  registerAdminModule({
+    id: 'quote',
+    label: '💡 今日の一言',
+    action: 'adminAddQuote',
+    successMsg: '今日の一言を追加しました',
+    fields: [
+      { name: 'date',   label: '日付',  type: 'date',     required: true,  default: _todayStr },
+      { name: 'text',   label: '本文',  type: 'textarea', required: true,  placeholder: '生徒へのメッセージ' },
+      { name: 'author', label: '作者',  type: 'text',     required: false, placeholder: '（任意）' }
+    ]
+  });
+
+  // --- 塾からの連絡 ---
+  registerAdminModule({
+    id: 'notice',
+    label: '📢 塾からの連絡',
+    action: 'adminAddNotice',
+    successMsg: '連絡事項を追加しました',
+    fields: [
+      { name: 'date',  label: '日付',     type: 'date',     required: true, default: _todayStr },
+      { name: 'title', label: 'タイトル', type: 'text',     required: true, placeholder: '例：冬期講習のお知らせ' },
+      { name: 'body',  label: '本文',     type: 'textarea', required: true, placeholder: '連絡内容' }
+    ]
+  });
+
+  // 【今後の追加例】
+  // registerAdminModule({
+  //   id: 'question',
+  //   label: '📚 問題データ追加',
+  //   action: 'adminAddQuestion',
+  //   successMsg: '問題を追加しました',
+  //   fields: [
+  //     { name: 'content', label: 'コンテンツ', type: 'text', required: true },
+  //     { name: 'setNo',   label: 'セット番号', type: 'number', required: true },
+  //     { name: 'word',    label: '単語',      type: 'text', required: true },
+  //     ...
+  //   ]
+  // });
+
+  // =============================================================
+  // UI 構築
+  // =============================================================
+  function buildAdminUI() {
+    var tabs = document.getElementById('admin-tabs');
+    var content = document.getElementById('admin-content');
+    tabs.innerHTML = '';
+    content.innerHTML = '';
+    AdminModules.forEach(function(mod, i) {
+      var btn = document.createElement('button');
+      btn.textContent = mod.label;
+      btn.dataset.tabId = mod.id;
+      btn.onclick = function(){ switchTab(mod.id); };
+      if (i === 0) btn.classList.add('active');
+      tabs.appendChild(btn);
+
+      var section = document.createElement('section');
+      section.id = 'tab-' + mod.id;
+      section.className = 'admin-tab' + (i === 0 ? ' active' : '');
+      section.innerHTML = _renderForm(mod);
+      content.appendChild(section);
+
+      _applyDefaults(mod);
+    });
+  }
+
+  function _renderForm(mod) {
+    var fields = mod.fields.map(function(f) {
+      var req = f.required ? ' required' : '';
+      var reqMark = f.required ? '<span class="req">*</span>' : '';
+      var id = mod.id + '-' + f.name;
+      var ph = f.placeholder ? (' placeholder="' + _esc(f.placeholder) + '"') : '';
+      var ctrl = (f.type === 'textarea')
+        ? '<textarea id="' + id + '"' + ph + req + '></textarea>'
+        : '<input type="' + f.type + '" id="' + id + '"' + ph + req + ' />';
+      return '<label><span class="label-text">' + _esc(f.label) + reqMark + '</span>' + ctrl + '</label>';
+    }).join('');
+    return '<div class="form-card">' +
+             '<h2>' + _esc(mod.label) + 'を追加</h2>' +
+             '<form onsubmit="return submitAdminForm(event, \'' + mod.id + '\')">' +
+               fields +
+               '<button type="submit" class="submit-btn">✅ 追加</button>' +
+             '</form>' +
+           '</div>';
+  }
+
+  function _applyDefaults(mod) {
+    mod.fields.forEach(function(f) {
+      if (!f.default) return;
+      var el = document.getElementById(mod.id + '-' + f.name);
+      if (el) el.value = (typeof f.default === 'function') ? f.default() : f.default;
+    });
+  }
+
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function switchTab(id) {
+    document.querySelectorAll('#admin-tabs button').forEach(function(b){ b.classList.toggle('active', b.dataset.tabId === id); });
+    document.querySelectorAll('.admin-tab').forEach(function(s){ s.classList.toggle('active', s.id === 'tab-' + id); });
+  }
+
+  // =============================================================
+  // フォーム送信
+  // =============================================================
+  function submitAdminForm(e, modId) {
+    e.preventDefault();
+    var mod = AdminModules.find(function(m){ return m.id === modId; });
+    if (!mod) return false;
+    var btn = e.target.querySelector('.submit-btn');
+    var params = { action: mod.action, password: sessionStorage.getItem('adminPassword') || '' };
+    for (var i = 0; i < mod.fields.length; i++) {
+      var f = mod.fields[i];
+      var el = document.getElementById(modId + '-' + f.name);
+      var val = el ? el.value.trim() : '';
+      if (f.required && !val) { showToast(f.label + 'を入力してください', 'error'); return false; }
+      params[f.name] = val;
+    }
+    btn.disabled = true;
+    gasGet(params).then(function(res) {
+      btn.disabled = false;
+      if (res && res.ok) {
+        showToast(mod.successMsg || '追加しました', 'success');
+        mod.fields.forEach(function(f) {
+          var el = document.getElementById(modId + '-' + f.name);
+          if (!el) return;
+          if (f.default) el.value = (typeof f.default === 'function') ? f.default() : f.default;
+          else el.value = '';
+        });
+      } else {
+        var msg = (res && res.message) ? res.message : 'エラーが発生しました';
+        if (/認証|パスワード/.test(msg)) {
+          showToast('セッションが切れました。再ログインしてください。', 'error');
+          doAdminLogout();
+        } else {
+          showToast(msg, 'error');
+        }
+      }
+    }).catch(function() {
+      btn.disabled = false;
+      showToast('通信エラーが発生しました', 'error');
+    });
+    return false;
+  }
+
+  // =============================================================
+  // 認証
+  // =============================================================
+  function doAdminLogin() {
+    var pw = document.getElementById('admin-password').value;
+    if (!pw) { _showLoginMsg('パスワードを入力してください', 'ng'); return; }
+    var btn = document.getElementById('admin-login-btn');
+    btn.disabled = true;
+    _showLoginMsg('確認中…', 'ok');
+    gasGet({ action: 'adminLogin', password: pw }).then(function(res) {
+      btn.disabled = false;
+      if (res && res.ok) {
+        sessionStorage.setItem('adminPassword', pw);
+        _showLoginMsg('', '');
+        document.getElementById('admin-password').value = '';
+        _showScreen('screen-admin-main');
+        buildAdminUI();
+      } else {
+        _showLoginMsg((res && res.message) || 'パスワードが違います', 'ng');
+      }
+    }).catch(function() {
+      btn.disabled = false;
+      _showLoginMsg('通信エラーが発生しました', 'ng');
+    });
+  }
+
+  function doAdminLogout() {
+    sessionStorage.removeItem('adminPassword');
+    _showScreen('screen-admin-login');
+  }
+
+  function _showLoginMsg(text, kind) {
+    var el = document.getElementById('admin-login-msg');
+    el.textContent = text;
+    el.className = 'msg ' + (kind || '');
+    if (!text) el.style.display = 'none';
+  }
+
+  function _showScreen(id) {
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+  }
+
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = (kind || '') + ' show';
+    clearTimeout(t._hideTimer);
+    t._hideTimer = setTimeout(function(){ t.classList.remove('show'); }, 2500);
+  }
+
+  // Enter キーでログイン
+  document.getElementById('admin-password').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doAdminLogin();
+  });
+
+  // セッション継続（タブ閉じで失効）
+  (function init() {
+    if (sessionStorage.getItem('adminPassword')) {
+      _showScreen('screen-admin-main');
+      buildAdminUI();
+    }
+  })();
+</script>
+</body>
+</html>

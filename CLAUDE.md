@@ -126,6 +126,21 @@
   - JS 関数 `showNoticeHistory()` を追加：`gasGet({ action:'getNoticeHistory', _ts:Date.now() })` を呼び、`res.notices` 配列を描画。フィールド名ゆらぎ（`notices/history/data`、`title/subject`、`body/text/message`）と HTML エスケープに対応
   - GAS 側に `getNoticeHistory` アクション追加が必要（TODO 参照）
 
+#### 8. 管理画面（admin.html）新規作成（worktree: `nervous-gould-01144d`, dev ブランチ）
+- **配置**: リポジトリルートに `admin.html` を新設。GitHub Pages で `/admin.html` として公開。`index.html`（生徒向け）とは独立
+- **設計方針**: モジュール Registry パターンで拡張容易化。新機能追加は `registerAdminModule({...})` を 1 つ足すだけ（タブ / フォーム / バリデーション / 送信処理は自動生成）
+- **初期搭載モジュール**:
+  - `quote`（Quote シート追加）: `date` / `text` / `body`（author）
+  - `notice`（Notice シート追加）: `date` / `title` / `body`
+- **拡張予定**: 英単語RUSH 以外のコンテンツ問題追加など（モジュール定義例をコメントで残した）
+- **UI**: ヘッダー（青紫グラデ） + タブ切替 + フォームカード + 送信トースト通知
+- **認証**: GAS Script Properties の `ADMIN_PASSWORD` とパスワード照合（`adminLogin` API）。成功時は `sessionStorage.adminPassword` に保存、全 admin API 呼び出しに同梱。タブ閉じで自動失効。認証エラー時は自動ログアウト
+- **フィールド型**: `text` / `date` / `number` / `textarea` をサポート。`default` に関数を渡すと動的デフォルト値（例：今日の日付）
+- **GAS 側に以下の追加実装が必要**（TODO 参照）:
+  - Script Properties: `ADMIN_PASSWORD`
+  - 関数: `_verifyAdmin(pw)` / `adminLogin()` / `adminAddQuote()` / `adminAddNotice()`
+  - `doGet` ルーティング追加
+
 ---
 
 ## TODO（未反映の GAS 側作業）
@@ -222,3 +237,60 @@ function getWeeklyRanking() {
   }
 }
 ```
+
+- [ ] 管理画面（`admin.html`）用の GAS API を追加。Script Properties に `ADMIN_PASSWORD` を設定後、以下の実装を `Code.gs` に追加：
+
+  1. **Script Properties** に追加：
+     - キー: `ADMIN_PASSWORD` / 値: `<管理者パスワード>`
+     - GAS エディタ → プロジェクトの設定 → スクリプト プロパティ から設定
+
+  2. **`doGet` ルーティングに追加**：
+     ```javascript
+     else if (action === 'adminLogin')      result = adminLogin(params);
+     else if (action === 'adminAddQuote')   result = adminAddQuote(params);
+     else if (action === 'adminAddNotice')  result = adminAddNotice(params);
+     ```
+
+  3. **関数本体**：
+
+     ```javascript
+     function _verifyAdmin(password) {
+       const stored = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD');
+       return !!stored && password === stored;
+     }
+
+     function adminLogin(params) {
+       if (!_verifyAdmin(params.password)) return { ok: false, message: 'パスワードが違います' };
+       return { ok: true };
+     }
+
+     function adminAddQuote(params) {
+       try {
+         if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+         if (!params.date || !params.text)   return { ok: false, message: '日付と本文は必須です' };
+         const sh = _ss().getSheetByName(SHEET_QUOTE);
+         if (!sh) return { ok: false, message: 'Quoteシートが見つかりません' };
+         sh.appendRow([params.date, params.text, params.author || '']);
+         return { ok: true };
+       } catch(err) {
+         console.error('[adminAddQuote]', err);
+         return { ok: false, message: String(err) };
+       }
+     }
+
+     function adminAddNotice(params) {
+       try {
+         if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+         if (!params.date || !params.title || !params.body) return { ok: false, message: '日付・タイトル・本文は必須です' };
+         const sh = _ss().getSheetByName(SHEET_NOTICE);
+         if (!sh) return { ok: false, message: 'Noticeシートが見つかりません' };
+         sh.appendRow([params.date, params.title, params.body]);
+         return { ok: true };
+       } catch(err) {
+         console.error('[adminAddNotice]', err);
+         return { ok: false, message: String(err) };
+       }
+     }
+     ```
+
+  4. **デプロイ後の確認**: `https://k-acdm.github.io/mykt-eitango/admin.html` にアクセス → 設定したパスワードでログイン → Quote / Notice 追加フォームが動作することを確認
