@@ -164,3 +164,62 @@ function getNoticeHistory() {
   return { ok: true, notices: notices };
 }
 ```
+
+- [ ] `Code.gs` の `getWeeklyRanking` 集計ロジックを変更。HPLog の `type === 'test'` ログのみを対象に、**1 件 = 50HP 固定** で集計する（連続週数ボーナスの影響を除外）。`type === 'login'` は集計対象外。集計期間は先週月曜 0:00 〜 先週日曜 23:59:59（JST）。`totalHP` は Students シートの HP 列をそのまま使用。フロント改修は不要。実装例：
+
+```javascript
+function getWeeklyRanking() {
+  // 先週の月曜 00:00:00 〜 日曜 23:59:59（JST）
+  var now = new Date();
+  var dow = (now.getDay() + 6) % 7; // Mon=0..Sun=6
+  var thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow, 0, 0, 0);
+  var lastMonday = new Date(thisMonday.getTime() - 7 * 24 * 60 * 60 * 1000);
+  var lastSunday = new Date(thisMonday.getTime() - 1);
+  var HP_PER_TEST = 50;
+
+  var logSh = SS.getSheetByName(SHEET_HPLOG);
+  var logVals = (logSh && logSh.getLastRow() >= 2) ? logSh.getDataRange().getValues() : [];
+  var logHdr = logVals[0] || [];
+  var iTs   = logHdr.indexOf('timestamp');
+  var iSid  = logHdr.indexOf('studentId');
+  var iType = logHdr.indexOf('type');
+
+  var countBySid = {};
+  for (var i = 1; i < logVals.length; i++) {
+    var row = logVals[i];
+    if (row[iType] !== 'test') continue;
+    var ts = new Date(row[iTs]);
+    if (isNaN(ts.getTime())) continue;
+    if (ts < lastMonday || ts > lastSunday) continue;
+    var sid = String(row[iSid]);
+    countBySid[sid] = (countBySid[sid] || 0) + 1;
+  }
+
+  var stSh = SS.getSheetByName(SHEET_STUDENTS);
+  var stVals = stSh.getDataRange().getValues();
+  var stHdr = stVals[0];
+  var iId    = stHdr.indexOf('ID');
+  var iNick  = stHdr.indexOf('Nickname');
+  var iHP    = stHdr.indexOf('HP');
+  var iTitle = stHdr.indexOf('Title');
+
+  var ranking = [];
+  for (var j = 1; j < stVals.length; j++) {
+    var sRow = stVals[j];
+    var sid2 = String(sRow[iId]);
+    var cnt = countBySid[sid2] || 0;
+    if (cnt === 0) continue;
+    ranking.push({
+      studentId: sid2,
+      nickname:  sRow[iNick] || '',
+      title:     (iTitle >= 0 ? sRow[iTitle] : '') || 'マイカツ見習い',
+      weeklyHP:  cnt * HP_PER_TEST,
+      totalHP:   Number(sRow[iHP]) || 0
+    });
+  }
+  ranking.sort(function(a, b){ return b.weeklyHP - a.weeklyHP; });
+
+  var fmt = function(d){ return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd'); };
+  return { ok: true, period: { start: fmt(lastMonday), end: fmt(lastSunday) }, ranking: ranking };
+}
+```
