@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>管理画面 | マイ活アプリ</title>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -61,10 +62,34 @@
   #toast.success { background: #2ecc71; }
   #toast.error { background: #e74c3c; }
 
+  /* 週間HPランキング（印刷/画像保存用に大きめフォント） */
+  .ranking-wrap { background: linear-gradient(135deg, #fff5f8, #fff0e0); border-radius: 16px; padding: 24px 20px; }
+  .ranking-title { text-align: center; font-size: 22px; font-weight: bold; color: #c2185b; margin-bottom: 6px; }
+  .ranking-period { text-align: center; font-size: 16px; color: #666; margin-bottom: 18px; font-weight: bold; }
+  .ranking-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: #fff; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .ranking-row.top1 { background: linear-gradient(135deg, #fff9c4, #ffe082); }
+  .ranking-row.top2 { background: linear-gradient(135deg, #eceff1, #cfd8dc); }
+  .ranking-row.top3 { background: linear-gradient(135deg, #ffe0b2, #ffcc80); }
+  .rank-num   { font-size: 28px; font-weight: bold; min-width: 56px; text-align: center; }
+  .rank-nick  { flex: 1; font-size: 20px; font-weight: bold; color: #222; line-height: 1.35; }
+  .rank-nick .title { display: block; font-size: 15px; font-weight: 600; color: #666; margin-top: 4px; }
+  .rank-hp    { text-align: right; }
+  .rank-weekly { font-size: 20px; font-weight: bold; color: #e65100; }
+  .rank-total  { font-size: 14px; color: #666; font-weight: 500; margin-top: 2px; }
+  .ranking-empty { text-align: center; color: #888; font-size: 16px; padding: 40px 0; }
+  .ranking-actions { display: flex; gap: 10px; margin-bottom: 18px; }
+  .ranking-actions .submit-btn { flex: 1; }
+  .save-img-btn { background: linear-gradient(135deg, #2ecc71, #27ae60) !important; }
+
   @media (max-width: 480px) {
     #screen-admin-main header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
     .form-card { padding: 18px; }
+    .rank-num { font-size: 22px; min-width: 44px; }
+    .rank-nick { font-size: 17px; }
+    .rank-nick .title { font-size: 13px; }
+    .rank-weekly { font-size: 17px; }
+    .rank-total { font-size: 12px; }
   }
 </style>
 </head>
@@ -143,7 +168,32 @@
     ]
   });
 
-  // 【今後の追加例】
+  // --- 週間HPランキング（表示・画像保存）---
+  registerAdminModule({
+    id: 'ranking',
+    label: '🏆 週間HPランキング',
+    type: 'custom',
+    render: function(section) {
+      section.innerHTML =
+        '<div class="form-card">' +
+          '<h2>🏆 週間HPランキング</h2>' +
+          '<div class="ranking-actions">' +
+            '<button type="button" class="submit-btn" onclick="loadAdminRanking()">🔄 最新データ取得</button>' +
+            '<button type="button" class="submit-btn save-img-btn" onclick="saveRankingImage()">📷 画像として保存</button>' +
+          '</div>' +
+          '<div id="ranking-capture" style="background:#fff;padding:20px;border-radius:14px;">' +
+            '<div class="ranking-wrap">' +
+              '<div class="ranking-title">🏆 先週の週間HPランキング</div>' +
+              '<div class="ranking-period" id="admin-ranking-period">読み込み中...</div>' +
+              '<div id="admin-ranking-list"><div class="ranking-empty">⏳ 集計中...</div></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      loadAdminRanking();
+    }
+  });
+
+  // 【今後の追加例】フォーム型モジュール
   // registerAdminModule({
   //   id: 'question',
   //   label: '📚 問題データ追加',
@@ -152,9 +202,16 @@
   //   fields: [
   //     { name: 'content', label: 'コンテンツ', type: 'text', required: true },
   //     { name: 'setNo',   label: 'セット番号', type: 'number', required: true },
-  //     { name: 'word',    label: '単語',      type: 'text', required: true },
-  //     ...
+  //     { name: 'word',    label: '単語',      type: 'text', required: true }
   //   ]
+  // });
+  //
+  // 【今後の追加例】カスタム表示型モジュール
+  // registerAdminModule({
+  //   id: 'stats',
+  //   label: '📊 統計',
+  //   type: 'custom',
+  //   render: function(section) { section.innerHTML = '...'; /* 任意のUI */ }
   // });
 
   // =============================================================
@@ -176,10 +233,14 @@
       var section = document.createElement('section');
       section.id = 'tab-' + mod.id;
       section.className = 'admin-tab' + (i === 0 ? ' active' : '');
-      section.innerHTML = _renderForm(mod);
       content.appendChild(section);
 
-      _applyDefaults(mod);
+      if (mod.type === 'custom' && typeof mod.render === 'function') {
+        mod.render(section);
+      } else {
+        section.innerHTML = _renderForm(mod);
+        _applyDefaults(mod);
+      }
     });
   }
 
@@ -312,6 +373,66 @@
     t.className = (kind || '') + ' show';
     clearTimeout(t._hideTimer);
     t._hideTimer = setTimeout(function(){ t.classList.remove('show'); }, 2500);
+  }
+
+  // =============================================================
+  // 週間HPランキング：取得・描画・画像保存
+  // =============================================================
+  function loadAdminRanking() {
+    var listEl = document.getElementById('admin-ranking-list');
+    var periodEl = document.getElementById('admin-ranking-period');
+    if (!listEl || !periodEl) return;
+    listEl.innerHTML = '<div class="ranking-empty">⏳ 集計中...</div>';
+    periodEl.textContent = '読み込み中...';
+    gasGet({ action: 'getWeeklyRanking', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok || !res.ranking) {
+        listEl.innerHTML = '<div class="ranking-empty">データがまだありません</div>';
+        periodEl.textContent = '';
+        return;
+      }
+      var p = res.period;
+      if (p && p.start && p.end) {
+        periodEl.textContent = p.start.slice(5).replace('-','/') + '（月）〜' + p.end.slice(5).replace('-','/') + '（日）';
+      } else {
+        periodEl.textContent = '';
+      }
+      if (res.ranking.length === 0) {
+        listEl.innerHTML = '<div class="ranking-empty">先週のデータがまだありません</div>';
+        return;
+      }
+      var medals = ['🥇','🥈','🥉'];
+      listEl.innerHTML = res.ranking.map(function(r, i) {
+        var cls = i===0?'ranking-row top1':i===1?'ranking-row top2':i===2?'ranking-row top3':'ranking-row';
+        var num = i < 3 ? medals[i] : (i+1)+'位';
+        return '<div class="'+cls+'"><div class="rank-num">'+num+'</div>' +
+          '<div class="rank-nick">'+_esc(r.nickname||'')+'<span class="title">（'+_esc(r.title||'')+'）</span></div>' +
+          '<div class="rank-hp"><div class="rank-weekly">+'+Number(r.weeklyHP||0).toLocaleString()+' HP</div><div class="rank-total">累積 '+Number(r.totalHP||0).toLocaleString()+' HP</div></div></div>';
+      }).join('');
+    }).catch(function() {
+      listEl.innerHTML = '<div class="ranking-empty">読み込みに失敗しました</div>';
+      periodEl.textContent = '';
+    });
+  }
+
+  function saveRankingImage() {
+    var el = document.getElementById('ranking-capture');
+    if (!el) { showToast('ランキングタブを開いてください', 'error'); return; }
+    if (typeof html2canvas === 'undefined') { showToast('画像ライブラリの読込に失敗しました', 'error'); return; }
+    showToast('画像を生成中…', 'success');
+    html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(function(canvas) {
+      var now = new Date();
+      var fname = 'ranking_' + now.getFullYear() + ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2) + '.png';
+      var link = document.createElement('a');
+      link.download = fname;
+      link.href = canvas.toDataURL('image/png');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('画像を保存しました', 'success');
+    }).catch(function(err) {
+      console.error('[saveRankingImage]', err);
+      showToast('画像の保存に失敗しました', 'error');
+    });
   }
 
   // Enter キーでログイン

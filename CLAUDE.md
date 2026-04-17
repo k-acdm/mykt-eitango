@@ -126,6 +126,23 @@
   - JS 関数 `showNoticeHistory()` を追加：`gasGet({ action:'getNoticeHistory', _ts:Date.now() })` を呼び、`res.notices` 配列を描画。フィールド名ゆらぎ（`notices/history/data`、`title/subject`、`body/text/message`）と HTML エスケープに対応
   - GAS 側に `getNoticeHistory` アクション追加が必要（TODO 参照）
 
+#### 10. 管理画面に週間HPランキングタブ + 画像保存機能を追加（2026-04-18）
+- **配置**: `admin.html` に新タブ「🏆 週間HPランキング」追加
+- **拡張**: Registry パターンを拡張し、従来のフォーム型 (`type: 'form'` 相当) に加えて **`type: 'custom'` + `render(section)` コールバック** 型モジュールをサポート。`buildAdminUI()` で分岐処理
+- **表示**: 既存 `getWeeklyRanking` を叩いてランキング表示。生徒向け `index.html` より大きめのフォントサイズ（印刷/画像保存時の視認性重視）
+  - `rank-num`: 28px（既存 20px）
+  - `rank-nick`: 20px（既存 14px）
+  - `.title`（称号）: 15px（既存 12px）
+  - `rank-weekly`: 20px（既存 14px）
+  - `rank-total`: 14px（既存 11px）
+- **操作ボタン**:
+  - `🔄 最新データ取得`: `loadAdminRanking()` 再実行
+  - `📷 画像として保存`: `saveRankingImage()` → `html2canvas` でキャプチャ → `ranking_YYYYMMDD.png` としてダウンロード
+- **html2canvas**: CDN から読込 (`https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js`)。`scale: 2` で高解像度出力
+- **GAS 変更**: 不要（既存 `getWeeklyRanking` を流用）
+
+---
+
 #### 9. 保護者向け閲覧モード（view.html）新規作成（2026-04-18）
 - **配置**: リポジトリルートに `view.html` を新設。GitHub Pages で `/view.html` として公開。`index.html`（生徒向け）/ `admin.html`（管理者向け）とは独立
 - **方針**: 生徒の学習状況・ランキング・連絡事項の **閲覧専用**。テスト / 学習 / ニックネーム変更は一切不可。beforeunload / popstate / SFX は搭載しない
