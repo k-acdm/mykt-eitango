@@ -315,7 +315,7 @@
       <div class="section-title">📚 コンテンツを選ぼう</div>
       <div class="content-grid">
         <button class="content-btn c-eitango" onclick="showLevelSelect()">
-          <span class="ico">🔤</span>英単語
+          <span class="ico">🔤</span>英単語RUSH
         </button>
         <button class="content-btn c-sango disabled" onclick="showComingSoon('三語短文')">
           <span class="badge-soon">準備中</span>
@@ -362,6 +362,7 @@
         </div>
         <div class="notice-body"  id="notice-body"></div>
       </div>
+      <button class="btn-wide" style="background:linear-gradient(135deg,#ff8a3d,#ff6a00);margin-top:10px;font-size:14px;padding:10px" onclick="showNoticeHistory()">📜 過去の連絡事項を見る</button>
     </div>
 
     <!-- ⑤ 週間HPランキング -->
@@ -394,7 +395,7 @@
       <button class="level-btn disabled" onclick="showComingSoonLevel('1級')"><span>📒 英検１級レベル</span><span class="badge-coming">準備中</span></button>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60);margin-top:20px" onclick="showHistory()">📖 今までの単語をおさらいする</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showScreen('screen-welcome')">← ダッシュボードに戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showScreen('screen-welcome')">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-today" class="screen">
@@ -467,14 +468,21 @@
       </div>
       <button class="btn-wide" style="margin-top:14px;background:linear-gradient(135deg,#2ecc71,#27ae60)" onclick="testVoice()">🔊 選択中の音声を試聴する</button>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:4px" onclick="showScreen('screen-welcome')">← ホームに戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:4px" onclick="showScreen('screen-welcome')">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-history" class="screen">
   <header><h1>📖 今までのおさらい</h1><span id="history-student"></span></header>
   <div class="container" style="padding-top:16px">
     <div id="history-list"><div class="loading">⏳ 読み込み中...</div></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showScreen('screen-welcome')">← ホームに戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showScreen('screen-welcome')">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+<div id="screen-notice-history" class="screen">
+  <header><h1>📜 過去の連絡事項</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div id="notice-history-list"><div class="loading">⏳ 読み込み中...</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showScreen('screen-welcome')">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-closed" class="screen">
@@ -491,6 +499,41 @@
   function gasGet(params) {
     return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
       .then(function(r){ return r.json(); });
+  }
+
+  // 効果音（正解 / 不正解 / 合格 / 不合格）
+  var SFX = {
+    correct: new Audio('./correct.mp3'),
+    wrong:   new Audio('./wrong.mp3'),
+    pass:    new Audio('./pass.mp3'),
+    fail:    new Audio('./fail.mp3')
+  };
+  (function(){ for (var k in SFX) { try { SFX[k].preload = 'auto'; SFX[k].volume = 0.8; } catch(e){} } })();
+  // iOS Safari 対策：初回ユーザー操作で全 Audio を muted 再生して unlock しておく
+  var _sfxUnlocked = false;
+  function _unlockSfx() {
+    if (_sfxUnlocked) return;
+    _sfxUnlocked = true;
+    Object.keys(SFX).forEach(function(k){
+      var a = SFX[k];
+      try {
+        a.muted = true;
+        var p = a.play();
+        if (p && p.then) p.then(function(){ a.pause(); a.currentTime = 0; a.muted = false; }).catch(function(){ a.muted = false; });
+        else { a.pause(); a.currentTime = 0; a.muted = false; }
+      } catch(e) { a.muted = false; }
+    });
+  }
+  ['pointerdown','touchstart','click','keydown'].forEach(function(ev){
+    document.addEventListener(ev, _unlockSfx, { once: true, passive: true, capture: true });
+  });
+  function playSfx(name) {
+    var a = SFX[name]; if (!a) return;
+    try {
+      a.pause(); a.currentTime = 0;
+      var p = a.play();
+      if (p && p.catch) p.catch(function(err){ try { console.warn('[SFX] play failed:', name, err && err.name, err && err.message); } catch(e){} });
+    } catch(e) { try { console.warn('[SFX] error:', name, e); } catch(_){} }
   }
 
   // =============================================
@@ -840,8 +883,8 @@
     document.querySelectorAll('.choice-btn').forEach(function(b,i){ b.classList.add('disabled'); if (i===correctIdx) b.classList.add('correct'); });
     if (!isOk) btn.classList.add('wrong');
     var fb = document.getElementById('test-feedback');
-    if (isOk) { _score++; fb.textContent = '🎉 正解！'; fb.className = 'feedback ok'; }
-    else      { fb.innerHTML = '❌ 不正解 → 正解：<strong>'+correctText+'</strong>'; fb.className = 'feedback ng'; }
+    if (isOk) { _score++; fb.textContent = '🎉 正解！'; fb.className = 'feedback ok'; playSfx('correct'); }
+    else      { fb.innerHTML = '❌ 不正解 → 正解：<strong>'+correctText+'</strong>'; fb.className = 'feedback ng'; playSfx('wrong'); }
     var nb = document.getElementById('test-next-btn'); nb.style.display = 'block'; nb.textContent = (_current+1>=_questions.length) ? '結果を見る 🏁' : '次の問題へ →';
   }
   function nextQuestion() {
@@ -855,9 +898,11 @@
     _finishing = true;
     var total = _questions.length;
     if (_score === total) {
+      playSfx('pass');
       gasGet({ action:'saveAttempt', studentId:_studentId, setNo:_setNo, score:_score, total:total, passed:true, level:_level, sessionNo:_sessionNo })
         .then(function(res){ showResult(true, res); }).catch(function(){ showResult(true, null); });
     } else {
+      playSfx('fail');
       var lastScore = _score; _questions = _questions.sort(function(){ return Math.random()-.5; }); _current = 0; _score = 0; _finishing = false;
       document.getElementById('test-feedback').textContent = ''; document.getElementById('test-feedback').className = 'feedback';
       var _nb0 = document.getElementById('test-next-btn'); _nb0.style.display = 'none'; _nb0.disabled = false; document.getElementById('test-prog-bar').style.width = '0%';
@@ -906,6 +951,35 @@
     _historyMode = false;
     showScreen('screen-welcome');
   }
+  function showNoticeHistory() {
+    showScreen('screen-notice-history');
+    var listEl = document.getElementById('notice-history-list');
+    listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    gasGet({ action: 'getNoticeHistory', _ts: Date.now() }).then(function(res) {
+      var items = res && (res.notices || res.history || res.data);
+      if (!res || !res.ok || !items || items.length === 0) {
+        listEl.innerHTML = '<div class="notice-empty" style="padding:40px 0;text-align:center;color:#888;font-size:15px">連絡事項はまだありません。</div>';
+        return;
+      }
+      listEl.innerHTML = items.map(function(n){
+        var title = (n && (n.title || n.subject)) || 'お知らせ';
+        var body  = (n && (n.body  || n.text || n.message)) || '';
+        var date  = (n && n.date) ? formatDate(n.date) : '';
+        var esc2  = function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+        return '<div class="notice-card" style="margin-bottom:12px">' +
+                 '<div class="notice-header">' +
+                   '<div class="notice-title">' + esc2(title) + '</div>' +
+                   '<div class="notice-date">'  + esc2(date)  + '</div>' +
+                 '</div>' +
+                 '<div class="notice-body">' + esc2(body) + '</div>' +
+               '</div>';
+      }).join('');
+    }).catch(function(){
+      listEl.innerHTML = '<div class="notice-empty" style="padding:40px 0;text-align:center;color:#c0392b;font-size:15px">読み込みに失敗しました。</div>';
+    });
+  }
+  function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
+  window.addEventListener('beforeunload', beforeUnloadHandler);
 </script>
 </body>
 </html>

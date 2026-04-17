@@ -115,6 +115,17 @@
     2. 「← ダッシュボードに戻る」（グレーグラデ、`showScreen('screen-welcome')`）
 - **意図**: 英単語の学習フロー内に「おさらい」を置くことで動線を明確化。ダッシュボードをシンプルに保つ
 
+#### 7. 英単語RUSH 改名 / beforeUnloadHandler 復活 / 過去の連絡事項ページ追加（worktree: `nervous-gould-01144d`, dev ブランチ）
+- **【1】コンテンツ名変更**: ダッシュボードの「英単語」ボタンを「英単語RUSH」に変更（[index.html:318](index.html:318)）。文中の普通名詞「英単語」（書き取り指示文・テスト設問文）は据え置き
+- **【2】beforeUnloadHandler 復活**: ページ離脱時の確認ダイアログを復活（[index.html](index.html) script 末尾）
+  - `function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }`
+  - `window.addEventListener('beforeunload', beforeUnloadHandler);`
+- **【3】過去の連絡事項ページ追加**:
+  - ダッシュボードの連絡事項カード直下に「📜 過去の連絡事項を見る」ボタンを追加（オレンジグラデ）
+  - 新画面 `screen-notice-history` を追加：タイトル「📜 過去の連絡事項」、全件を `.notice-card` で縦並び表示、最下部に「← ホームに戻る」
+  - JS 関数 `showNoticeHistory()` を追加：`gasGet({ action:'getNoticeHistory', _ts:Date.now() })` を呼び、`res.notices` 配列を描画。フィールド名ゆらぎ（`notices/history/data`、`title/subject`、`body/text/message`）と HTML エスケープに対応
+  - GAS 側に `getNoticeHistory` アクション追加が必要（TODO 参照）
+
 ---
 
 ## TODO（未反映の GAS 側作業）
@@ -127,3 +138,29 @@
 - [ ] `dev` ブランチの push と main への merge（未 push の `ee1e54f` あり）
 - [ ] worktree `vigilant-rubin` の内容（`closeApp` 修正 / `loadTodayQuote` 堅牢化 / おさらいボタン移設）を main に反映
 - [ ] 不要になった `screen-closed` の削除判断
+- [ ] `Code.gs` に `getNoticeHistory` アクション追加（`doGet` ルーティング + `getNoticeHistory()` 関数）。`Notice` シート全件を日付降順で `{ok:true, notices:[{date, title, body}, ...]}` 形式で返却。フロントは `showNoticeHistory()` から呼び出し済み。実装例：
+
+```javascript
+// doGet 内に追加
+else if (action === 'getNoticeHistory') result = getNoticeHistory();
+
+function getNoticeHistory() {
+  var sh = SS.getSheetByName(SHEET_NOTICE);
+  if (!sh || sh.getLastRow() < 2) return { ok: true, notices: [] };
+  var values = sh.getDataRange().getValues();
+  var header = values[0];
+  var iDate  = header.indexOf('date');
+  var iTitle = header.indexOf('title');
+  var iBody  = header.indexOf('body');
+  var rows = values.slice(1).filter(function(r){ return r[iDate] || r[iTitle] || r[iBody]; });
+  rows.sort(function(a, b){ return new Date(b[iDate]) - new Date(a[iDate]); });
+  var notices = rows.map(function(r){
+    return {
+      date:  r[iDate] ? Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd') : '',
+      title: r[iTitle] || '',
+      body:  r[iBody]  || ''
+    };
+  });
+  return { ok: true, notices: notices };
+}
+```
