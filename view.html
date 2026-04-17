@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>保護者閲覧 | マイ活アプリ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f7f4; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; padding-bottom: 60px; }
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: block; }
+
+  /* ログイン画面 */
+  #screen-login { align-items: center; justify-content: center; padding: 20px; background: linear-gradient(135deg, #43a047 0%, #26a69a 100%); }
+  #screen-login.active { display: flex; }
+  .login-card { background: #fff; border-radius: 16px; padding: 34px 28px; max-width: 400px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,.15); text-align: center; }
+  .login-emoji { font-size: 48px; margin-bottom: 12px; }
+  .login-card h1 { font-size: 22px; margin-bottom: 6px; color: #2e7d32; }
+  .login-card p { color: #666; margin-bottom: 20px; font-size: 14px; line-height: 1.6; }
+  .login-card input { width: 100%; padding: 12px 14px; font-size: 16px; border: 2px solid #e1e5ee; border-radius: 8px; margin-bottom: 12px; outline: none; transition: border .2s; text-align: center; }
+  .login-card input:focus { border-color: #43a047; }
+  .login-card button { width: 100%; padding: 12px; background: linear-gradient(135deg, #43a047, #26a69a); color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform .15s; }
+  .login-card button:hover:not(:disabled) { transform: translateY(-1px); }
+  .login-card button:disabled { opacity: .5; cursor: not-allowed; }
+  .login-note { margin-top: 16px; font-size: 12px; color: #888; line-height: 1.6; }
+
+  /* メイン画面 */
+  #screen-view header { background: linear-gradient(135deg, #43a047, #26a69a); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); position: sticky; top: 0; z-index: 10; }
+  #screen-view header h1 { font-size: 17px; font-weight: 600; }
+  .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
+  .logout-btn:hover { background: rgba(255,255,255,.3); }
+
+  .container { max-width: 640px; margin: 0 auto; padding: 20px 16px; }
+  .dash-section { margin-bottom: 20px; }
+  .section-title { font-size: 14px; font-weight: bold; color: #555; margin-bottom: 10px; padding-left: 4px; }
+
+  /* 我が子ステータスカード */
+  .status-card { background: #fff; border-radius: 16px; padding: 24px 20px; box-shadow: 0 3px 14px rgba(0,0,0,.06); text-align: center; }
+  .status-card .viewing-label { font-size: 13px; color: #888; margin-bottom: 4px; }
+  .status-card .student-name { font-size: 20px; font-weight: bold; color: #2e7d32; margin-bottom: 16px; }
+  .chara-title-badge { display: inline-block; padding: 5px 18px; border-radius: 14px; font-size: 13px; font-weight: bold; background: #e8f0ff; color: #2d3a8c; margin-bottom: 4px; }
+  .chara-streak-label { font-size: 13px; color: #888; margin-bottom: 6px; }
+  .chara-wrap { margin: 12px 0 8px; height: 180px; display: flex; align-items: flex-end; justify-content: center; }
+  .chara-img { width: 140px; height: 140px; object-fit: contain; transition: filter .5s, opacity .5s; }
+  .hp-badge { display: inline-block; padding: 10px 22px; border-radius: 20px; background: linear-gradient(135deg, #ffeaa7, #fdcb6e); color: #6d4c00; font-weight: bold; font-size: 17px; box-shadow: 0 3px 8px rgba(253,203,110,.4); margin-top: 10px; }
+
+  /* ランキング */
+  .ranking-wrap { background: linear-gradient(135deg, #fff5f8, #fff0e0); border-radius: 16px; padding: 18px 16px; box-shadow: 0 3px 14px rgba(0,0,0,.06); }
+  .ranking-title { text-align: center; font-size: 15px; font-weight: bold; color: #c2185b; margin-bottom: 4px; }
+  .ranking-period { text-align: center; font-size: 12px; color: #888; margin-bottom: 14px; }
+  .ranking-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #fff; border-radius: 10px; margin-bottom: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+  .ranking-row.top1 { background: linear-gradient(135deg, #fff9c4, #ffe082); }
+  .ranking-row.top2 { background: linear-gradient(135deg, #eceff1, #cfd8dc); }
+  .ranking-row.top3 { background: linear-gradient(135deg, #ffe0b2, #ffcc80); }
+  .ranking-row.mine { border: 2px solid #43a047; box-shadow: 0 2px 10px rgba(67,160,71,.2); }
+  .rank-num   { font-size: 20px; font-weight: bold; min-width: 40px; text-align: center; }
+  .rank-nick  { flex: 1; font-size: 14px; font-weight: bold; color: #333; }
+  .rank-hp    { text-align: right; }
+  .rank-weekly { font-size: 14px; font-weight: bold; color: #f57c00; }
+  .rank-total  { font-size: 11px; color: #888; }
+  .ranking-empty, .ranking-loading { text-align: center; color: #888; font-size: 14px; padding: 24px 0; }
+  .mine-hint { font-size: 11px; color: #43a047; font-weight: bold; margin-left: 4px; }
+
+  /* 連絡事項 */
+  .notice-card { background: linear-gradient(135deg,#fff4d6,#ffe5b4); border-left: 6px solid #ff8a3d; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 10px rgba(255,138,61,.15); margin-bottom: 10px; }
+  .notice-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
+  .notice-title { font-size: 14px; font-weight: bold; color: #c25b00; flex: 1; }
+  .notice-date  { font-size: 11px; color: #a07030; font-weight: bold; white-space: nowrap; }
+  .notice-body  { font-size: 13px; line-height: 1.75; color: #4b3000; white-space: pre-wrap; word-wrap: break-word; }
+  .notice-empty { text-align: center; color: #a07030; font-size: 14px; padding: 12px 0; }
+  .btn-more { width: 100%; padding: 10px; background: linear-gradient(135deg, #ff8a3d, #ff6a00); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; font-family: inherit; }
+  .btn-back { width: 100%; padding: 11px; background: linear-gradient(135deg, #636e72, #2d3436); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: bold; cursor: pointer; font-family: inherit; margin-top: 16px; }
+
+  .msg { margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 13px; text-align: center; display: none; }
+  .msg.ok { display: block; background: #e8f5e9; color: #2e7d32; }
+  .msg.ng { display: block; background: #ffebee; color: #c62828; }
+
+  /* キャラアニメ（index.html と同期） */
+  @keyframes cbob    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  @keyframes cbounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+  @keyframes bigbounce { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-14px) scale(1.04)} }
+  @keyframes cdroop  { 0%,100%{transform:translateY(2px) rotate(-1deg)} 50%{transform:translateY(6px) rotate(1deg)} }
+  @keyframes cshake  { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
+  @keyframes cheavy  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(3px) scale(0.98)} }
+</style>
+</head>
+<body>
+
+<!-- ログイン画面 -->
+<div id="screen-login" class="screen active">
+  <div class="login-card">
+    <div class="login-emoji">👨‍👩‍👦</div>
+    <h1>保護者閲覧</h1>
+    <p>お子様の生徒IDを入力してください<br>学習状況・ランキング・連絡事項を閲覧できます</p>
+    <input type="number" id="view-id" placeholder="生徒ID" inputmode="numeric" autocomplete="off" />
+    <button id="view-login-btn" onclick="doViewLogin()">閲覧する</button>
+    <div id="view-login-msg" class="msg"></div>
+    <div class="login-note">※ この画面は閲覧専用です。<br>テストや学習は生徒本人のみご利用ください。</div>
+  </div>
+</div>
+
+<!-- メイン閲覧画面 -->
+<div id="screen-view" class="screen">
+  <header>
+    <h1>👨‍👩‍👦 保護者閲覧</h1>
+    <button class="logout-btn" onclick="doViewLogout()">ログアウト</button>
+  </header>
+
+  <div class="container">
+    <!-- 我が子ステータス -->
+    <div class="dash-section">
+      <div class="section-title">📊 お子様の現在の状況</div>
+      <div class="status-card">
+        <div class="viewing-label">閲覧中</div>
+        <div class="student-name" id="student-name">—</div>
+        <div class="chara-title-badge" id="chara-title-badge">—</div><br>
+        <div class="chara-streak-label" id="chara-streak-label">—</div>
+        <div class="chara-wrap">
+          <div id="chara-anim"><img class="chara-img" id="chara-img" src="./character.jpg" alt="マイカツ君"></div>
+        </div>
+        <div class="hp-badge">⚡ 累積春アカポイント <span id="student-hp">0</span> HP</div>
+      </div>
+    </div>
+
+    <!-- 週間ランキング -->
+    <div class="dash-section">
+      <div class="section-title">🏆 先週の週間HPランキング</div>
+      <div class="ranking-wrap">
+        <div class="ranking-title">🏆 先週の週間HPランキング</div>
+        <div class="ranking-period" id="ranking-period">読み込み中...</div>
+        <div id="ranking-list"><div class="ranking-loading">⏳ 集計中...</div></div>
+      </div>
+    </div>
+
+    <!-- 連絡事項 -->
+    <div class="dash-section">
+      <div class="section-title">📢 塾からの連絡事項</div>
+      <div id="notice-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
+      <button class="btn-more" onclick="showNoticeHistory()">📜 過去の連絡事項を見る</button>
+    </div>
+  </div>
+</div>
+
+<!-- 過去の連絡事項 -->
+<div id="screen-notice-history" class="screen">
+  <header>
+    <h1>📜 過去の連絡事項</h1>
+    <button class="logout-btn" onclick="showView()">← 戻る</button>
+  </header>
+  <div class="container">
+    <div id="notice-history-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
+    <button class="btn-back" onclick="showView()">← 閲覧画面に戻る</button>
+  </div>
+</div>
+
+<script>
+  var GAS_URL = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
+
+  function gasGet(params) {
+    return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
+      .then(function(r){ return r.json(); });
+  }
+
+  // キャラクターのステージ別ビジュアル（index.html と同期、保護者向けは sparkles/sw 省略）
+  var STAGE_DEF = {
+    7: { filt:'brightness(1.25) saturate(1.4)',           op:1,   anim:'bigbounce .5s ease-in-out infinite', bg:'#fff9c4', fc:'#e65100' },
+    6: { filt:'brightness(1.1) saturate(1.2)',            op:1,   anim:'cbounce .7s ease-in-out infinite',   bg:'#e8f5e9', fc:'#2e7d32' },
+    5: { filt:'brightness(1.0) saturate(1.1)',            op:1,   anim:'cbob 1.2s ease-in-out infinite',     bg:'#f1f8e9', fc:'#558b2f' },
+    4: { filt:'brightness(1.0)',                          op:1,   anim:'none',                               bg:'#fffde7', fc:'#f57f17' },
+    3: { filt:'brightness(0.9) saturate(0.7) sepia(0.2)', op:.95, anim:'cdroop 2s ease-in-out infinite',     bg:'#fff3e0', fc:'#bf360c' },
+    2: { filt:'brightness(0.8) saturate(0.4) sepia(0.3)', op:.85, anim:'cshake .5s ease-in-out infinite',    bg:'#ffebee', fc:'#b71c1c' },
+    1: { filt:'brightness(0.65) saturate(0) sepia(0.5)',  op:.7,  anim:'cheavy .4s ease-in-out infinite',    bg:'#fce4ec', fc:'#880e4f' }
+  };
+
+  var _studentId = null;
+
+  // ============================
+  // 画面遷移
+  // ============================
+  function _showScreen(id) {
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+    window.scrollTo(0, 0);
+  }
+  function showView()           { _showScreen('screen-view'); }
+  function showNoticeHistory()  { _showScreen('screen-notice-history'); loadNoticeHistory(); }
+
+  // ============================
+  // ユーティリティ
+  // ============================
+  function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function formatDate(dateStr) {
+    if (!dateStr) return '';
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    var yy = String(d.getFullYear()).slice(2);
+    var mm = String(d.getMonth()+1).padStart(2,'0');
+    var dd = String(d.getDate()).padStart(2,'0');
+    var days = ['日','月','火','水','木','金','土'];
+    return yy+'/'+mm+'/'+dd+'('+days[d.getDay()]+')';
+  }
+  function _showLoginMsg(text, kind) {
+    var el = document.getElementById('view-login-msg');
+    el.textContent = text;
+    el.className = 'msg ' + (kind || '');
+    if (!text) el.style.display = 'none';
+  }
+
+  // ============================
+  // ログイン（読み取り専用 getStudentView）
+  // ============================
+  function doViewLogin() {
+    var sid = document.getElementById('view-id').value.trim();
+    if (!sid) { _showLoginMsg('生徒IDを入力してください', 'ng'); return; }
+    var btn = document.getElementById('view-login-btn');
+    btn.disabled = true;
+    _showLoginMsg('読み込み中…', 'ok');
+    gasGet({ action: 'getStudentView', studentId: sid, _ts: Date.now() }).then(function(res) {
+      btn.disabled = false;
+      if (!res || !res.ok) {
+        _showLoginMsg((res && res.message) || '生徒IDが見つかりません', 'ng');
+        return;
+      }
+      _studentId = String(res.studentId || sid);
+      _renderStatus(res);
+      _showLoginMsg('', '');
+      document.getElementById('view-id').value = '';
+      showView();
+      loadWeeklyRanking();
+      loadLatestNotice();
+    }).catch(function() {
+      btn.disabled = false;
+      _showLoginMsg('通信エラーが発生しました', 'ng');
+    });
+  }
+
+  function doViewLogout() {
+    _studentId = null;
+    _showScreen('screen-login');
+  }
+
+  // ============================
+  // ステータス描画
+  // ============================
+  function _renderStatus(res) {
+    var nickname = res.nickname || '—';
+    var totalHP  = Number(res.totalHP)  || 0;
+    var streak   = Number(res.streak)   || 0;
+    var stage    = Number(res.stage)    || 4;
+    var title    = res.title || 'マイカツ見習い';
+
+    document.getElementById('student-name').textContent = nickname + ' さん';
+    document.getElementById('student-hp').textContent   = totalHP.toLocaleString();
+
+    var s = STAGE_DEF[stage] || STAGE_DEF[4];
+    var img  = document.getElementById('chara-img');
+    var anim = document.getElementById('chara-anim');
+    img.style.filter  = s.filt;
+    img.style.opacity = s.op;
+    anim.style.animation = s.anim;
+
+    var badge = document.getElementById('chara-title-badge');
+    badge.textContent = title;
+    badge.style.background = s.bg;
+    badge.style.color = s.fc;
+
+    document.getElementById('chara-streak-label').textContent = streak + '日連続ログイン中';
+  }
+
+  // ============================
+  // 週間ランキング
+  // ============================
+  function loadWeeklyRanking() {
+    gasGet({ action: 'getWeeklyRanking', _ts: Date.now() }).then(function(res) {
+      var listEl = document.getElementById('ranking-list');
+      var periodEl = document.getElementById('ranking-period');
+      if (!res || !res.ok || !res.ranking) {
+        listEl.innerHTML = '<div class="ranking-empty">データがまだありません</div>';
+        periodEl.textContent = '';
+        return;
+      }
+      var p = res.period;
+      if (p && p.start && p.end) {
+        periodEl.textContent = p.start.slice(5).replace('-','/') + '（月）〜' + p.end.slice(5).replace('-','/') + '（日）';
+      } else {
+        periodEl.textContent = '';
+      }
+      if (res.ranking.length === 0) {
+        listEl.innerHTML = '<div class="ranking-empty">先週のデータがまだありません</div>';
+        return;
+      }
+      var medals = ['🥇','🥈','🥉'];
+      listEl.innerHTML = res.ranking.map(function(r, i){
+        var cls = i===0?'ranking-row top1':i===1?'ranking-row top2':i===2?'ranking-row top3':'ranking-row';
+        var isMine = (_studentId && r.studentId && String(r.studentId) === _studentId)
+                  || (_studentId && r.nickname && _myNickname && r.nickname === _myNickname);
+        if (isMine) cls += ' mine';
+        var num = i < 3 ? medals[i] : (i+1)+'位';
+        var mineHint = isMine ? '<span class="mine-hint">← あなたのお子様</span>' : '';
+        return '<div class="'+cls+'"><div class="rank-num">'+num+'</div>' +
+          '<div class="rank-nick">'+_esc(r.nickname || '')+mineHint+'<br><span style="font-size:11px;opacity:.85;font-weight:normal;">（'+_esc(r.title || '')+'）</span></div>' +
+          '<div class="rank-hp"><div class="rank-weekly">+'+Number(r.weeklyHP||0).toLocaleString()+' HP</div><div class="rank-total">（累積 '+Number(r.totalHP||0).toLocaleString()+' HP）</div></div></div>';
+      }).join('');
+    }).catch(function() {
+      document.getElementById('ranking-list').innerHTML = '<div class="ranking-empty">読み込みに失敗しました</div>';
+    });
+  }
+
+  // 「お子様」判定用：ログイン時に取得したニックネームを保持
+  var _myNickname = null;
+  var _origRender = _renderStatus;
+  _renderStatus = function(res) { _myNickname = res.nickname || null; _origRender(res); };
+
+  // ============================
+  // 連絡事項（最新3件）
+  // ============================
+  function loadLatestNotice() {
+    var listEl = document.getElementById('notice-list');
+    gasGet({ action: 'getNotice', _ts: Date.now() }).then(function(res) {
+      var items = res && (res.notices || (res.notice ? [res.notice] : null));
+      if (!res || !res.ok || !items || items.length === 0) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-header"><div class="notice-title">お知らせ</div></div><div class="notice-body"><div class="notice-empty">現在お知らせはありません。</div></div></div>';
+        return;
+      }
+      listEl.innerHTML = items.slice(0, 3).map(function(n){
+        var title = (n && (n.title || n.subject)) || 'お知らせ';
+        var body  = (n && (n.body  || n.text || n.message)) || '';
+        var date  = (n && n.date) ? formatDate(n.date) : '';
+        return '<div class="notice-card">' +
+                 '<div class="notice-header">' +
+                   '<div class="notice-title">' + _esc(title) + '</div>' +
+                   '<div class="notice-date">'  + _esc(date)  + '</div>' +
+                 '</div>' +
+                 '<div class="notice-body">' + _esc(body) + '</div>' +
+               '</div>';
+      }).join('');
+    }).catch(function() {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+    });
+  }
+
+  // ============================
+  // 過去の連絡事項（全件）
+  // ============================
+  function loadNoticeHistory() {
+    var listEl = document.getElementById('notice-history-list');
+    listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">⏳ 読み込み中…</div></div></div>';
+    gasGet({ action: 'getNoticeHistory', _ts: Date.now() }).then(function(res) {
+      var items = res && (res.notices || res.history || res.data);
+      if (!res || !res.ok || !items || items.length === 0) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">連絡事項はまだありません。</div></div></div>';
+        return;
+      }
+      listEl.innerHTML = items.map(function(n){
+        var title = (n && (n.title || n.subject)) || 'お知らせ';
+        var body  = (n && (n.body  || n.text || n.message)) || '';
+        var date  = (n && n.date) ? formatDate(n.date) : '';
+        return '<div class="notice-card">' +
+                 '<div class="notice-header">' +
+                   '<div class="notice-title">' + _esc(title) + '</div>' +
+                   '<div class="notice-date">'  + _esc(date)  + '</div>' +
+                 '</div>' +
+                 '<div class="notice-body">' + _esc(body) + '</div>' +
+               '</div>';
+      }).join('');
+    }).catch(function() {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+    });
+  }
+
+  // Enter キーでログイン
+  document.getElementById('view-id').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doViewLogin();
+  });
+</script>
+</body>
+</html>
