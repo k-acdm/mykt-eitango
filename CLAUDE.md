@@ -165,55 +165,60 @@ function getNoticeHistory() {
 }
 ```
 
-- [ ] `Code.gs` の `getWeeklyRanking` 集計ロジックを変更。HPLog の `type === 'test'` ログのみを対象に、**1 件 = 50HP 固定** で集計する（連続週数ボーナスの影響を除外）。`type === 'login'` は集計対象外。集計期間は先週月曜 0:00 〜 先週日曜 23:59:59（JST）。`totalHP` は Students シートの HP 列をそのまま使用。称号は `_getTitle(streak)` で動的算出。HPLog シートは列定数がないため直接インデックス（`0=timestamp / 1=studentId / 3=type`）で参照。フロント改修は不要。実装例：
+- [ ] `Code.gs` の `getWeeklyRanking` 集計ロジックを変更。HPLog の `type === 'test'` ログのみを対象に、**1 件 = 50HP 固定** で集計する（連続週数ボーナスの影響を除外）。`type === 'login'` は集計対象外。`totalHP` は Students シートの HP 列。称号は `_getTitle(streak)`。期間は `_getLastWeekRange()`。上位 10 名のみ。HPLog 列は直接インデックス（`0=timestamp / 1=studentId / 2=hpGained / 3=type`）。フロント改修は不要。実装（既存コードスタイル準拠）：
 
 ```javascript
 function getWeeklyRanking() {
-  // 先週の月曜 00:00:00 〜 日曜 23:59:59（JST）
-  var now = new Date();
-  var dow = (now.getDay() + 6) % 7; // Mon=0..Sun=6
-  var thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow, 0, 0, 0);
-  var lastMonday = new Date(thisMonday.getTime() - 7 * 24 * 60 * 60 * 1000);
-  var lastSunday = new Date(thisMonday.getTime() - 1);
-  var HP_PER_TEST = 50;
+  try {
+    const ss       = _ss();
+    const logSheet = ss.getSheetByName(SHEET_HPLOG);
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) return { ok: false, message: 'Studentsシートが見つかりません。' };
 
-  var ss = _ss();
+    const range = _getLastWeekRange();
+    const HP_PER_TEST = 50;
 
-  // HPLog: 列固定順（0=timestamp, 1=studentId, 2=hpGained, 3=type）
-  var logSh = ss.getSheetByName(SHEET_HPLOG);
-  var logVals = (logSh && logSh.getLastRow() >= 2) ? logSh.getDataRange().getValues() : [];
-  var countBySid = {};
-  for (var i = 1; i < logVals.length; i++) {
-    var row = logVals[i];
-    if (row[3] !== 'test') continue;
-    var ts = new Date(row[0]);
-    if (isNaN(ts.getTime())) continue;
-    if (ts < lastMonday || ts > lastSunday) continue;
-    var sid = String(row[1]);
-    countBySid[sid] = (countBySid[sid] || 0) + 1;
+    // 生徒マスタ（ニックネーム・累積HP・連続日数）
+    const stuRows = stuSheet.getDataRange().getValues();
+    const stuMap  = {};
+    for (let i = 1; i < stuRows.length; i++) {
+      const sid = String(stuRows[i][COL_ID]).trim();
+      stuMap[sid] = {
+        nickname: (String(stuRows[i][COL_NICKNAME] || '').trim()) || '名無し',
+        totalHP:  Number(stuRows[i][COL_HP])     || 0,
+        streak:   Number(stuRows[i][COL_STREAK]) || 0
+      };
+    }
+
+    // HPLogから先週分の type='test' のみ件数カウント（1件 = 50HP）
+    const countMap = {};
+    if (logSheet) {
+      const logRows = logSheet.getDataRange().getValues();
+      for (let i = 1; i < logRows.length; i++) {
+        if (logRows[i][3] !== 'test') continue;
+        const dateStr = _toDateStr(logRows[i][0]);
+        if (dateStr < range.start || dateStr > range.end) continue;
+        const sid = String(logRows[i][1]).trim();
+        countMap[sid] = (countMap[sid] || 0) + 1;
+      }
+    }
+
+    // 上位10名を選出
+    const ranking = Object.keys(countMap)
+      .filter(sid => countMap[sid] > 0 && stuMap[sid])
+      .map(sid => ({
+        nickname: stuMap[sid].nickname,
+        weeklyHP: countMap[sid] * HP_PER_TEST,
+        totalHP:  stuMap[sid].totalHP,
+        title:    _getTitle(stuMap[sid].streak)
+      }))
+      .sort((a, b) => b.weeklyHP - a.weeklyHP)
+      .slice(0, 10);
+
+    return { ok: true, ranking, period: range };
+  } catch(err) {
+    console.error('[getWeeklyRanking]', err);
+    return { ok: false, message: String(err) };
   }
-
-  // Students シート：集計ゼロのユーザーは除外、称号は _getTitle(streak) で算出
-  var stSh = ss.getSheetByName(SHEET_STUDENTS);
-  var stVals = stSh.getDataRange().getValues();
-  var ranking = [];
-  for (var j = 1; j < stVals.length; j++) {
-    var sRow = stVals[j];
-    var sid2 = String(sRow[COL_ID]);
-    var cnt = countBySid[sid2] || 0;
-    if (cnt === 0) continue;
-    var streak = Number(sRow[COL_STREAK]) || 0;
-    ranking.push({
-      studentId: sid2,
-      nickname:  sRow[COL_NICKNAME] || '',
-      title:     _getTitle(streak),
-      weeklyHP:  cnt * HP_PER_TEST,
-      totalHP:   Number(sRow[COL_HP]) || 0
-    });
-  }
-  ranking.sort(function(a, b){ return b.weeklyHP - a.weeklyHP; });
-
-  var fmt = function(d){ return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd'); };
-  return { ok: true, period: { start: fmt(lastMonday), end: fmt(lastSunday) }, ranking: ranking };
 }
 ```
