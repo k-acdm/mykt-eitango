@@ -957,7 +957,7 @@
     showScreen('screen-welcome');
   }
   function doLogout() {
-    if (!confirm('ログアウトしますか？')) return;
+    if (!confirm('今日もよく頑張りました！ログアウトしますか？')) return;
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('popstate', popstateHandler);
     _stopAudio();
