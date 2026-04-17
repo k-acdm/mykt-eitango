@@ -126,6 +126,19 @@
   - JS 関数 `showNoticeHistory()` を追加：`gasGet({ action:'getNoticeHistory', _ts:Date.now() })` を呼び、`res.notices` 配列を描画。フィールド名ゆらぎ（`notices/history/data`、`title/subject`、`body/text/message`）と HTML エスケープに対応
   - GAS 側に `getNoticeHistory` アクション追加が必要（TODO 参照）
 
+#### 9. 保護者向け閲覧モード（view.html）新規作成（2026-04-18）
+- **配置**: リポジトリルートに `view.html` を新設。GitHub Pages で `/view.html` として公開。`index.html`（生徒向け）/ `admin.html`（管理者向け）とは独立
+- **方針**: 生徒の学習状況・ランキング・連絡事項の **閲覧専用**。テスト / 学習 / ニックネーム変更は一切不可。beforeunload / popstate / SFX は搭載しない
+- **アクセス方法**: 生徒IDのみでログイン（パスワード不要）。保護者向け URL を個別配布して運用
+- **表示内容**:
+  - ① お子様のステータス（ニックネーム / 称号 / 連続日数 / キャラクター画像（stage別ビジュアル）/ 累積HP）
+  - ② 先週の週間HPランキング（既存 `getWeeklyRanking` 流用。自分の子のニックネーム行を緑枠＋「← あなたのお子様」ハイライト）
+  - ③ 塾からの連絡事項（最新3件 + 過去一覧画面への遷移ボタン、既存 `getNotice` / `getNoticeHistory` 流用）
+- **重要な制約**: `loginStudent` は副作用（ログインボーナス付与 / streak 更新 / LastLogin 書換）があるため保護者閲覧では使えない。代わりに **読み取り専用の `getStudentView` アクションを GAS 側に新設する必要がある**（TODO 参照）
+- **色テーマ**: 生徒向けアプリとの視覚的差別化のため、緑〜ティール系グラデーション（生徒向けはピンク〜紫、管理者向けは青紫）
+
+---
+
 #### 8. 管理画面（admin.html）新規作成（worktree: `nervous-gould-01144d`, dev ブランチ）
 - **配置**: リポジトリルートに `admin.html` を新設。GitHub Pages で `/admin.html` として公開。`index.html`（生徒向け）とは独立
 - **設計方針**: モジュール Registry パターンで拡張容易化。新機能追加は `registerAdminModule({...})` を 1 つ足すだけ（タブ / フォーム / バリデーション / 送信処理は自動生成）
@@ -281,6 +294,52 @@ function getWeeklyRanking() {
   }
 }
 ```
+
+- [ ] 保護者閲覧画面（`view.html`）用の **読み取り専用** GAS API `getStudentView` を追加。`loginStudent` と違ってログインボーナス付与・streak 更新・LastLogin 書換などの副作用を一切発生させない。Students シートから指定生徒の表示用データのみを返却。フロント `view.html` から `doViewLogin()` 経由で呼び出し済み。
+
+  1. **`doGet` ルーティングに追加**：
+     ```javascript
+     else if (action === 'getStudentView') result = getStudentView(params);
+     ```
+
+  2. **関数本体**：
+     ```javascript
+     function getStudentView(params) {
+       try {
+         const sid = String(params.studentId || '').trim();
+         if (!sid) return { ok: false, message: '生徒IDを入力してください' };
+         const sh = _ss().getSheetByName(SHEET_STUDENTS);
+         if (!sh) return { ok: false, message: 'Studentsシートが見つかりません' };
+         const rows = sh.getDataRange().getValues();
+         for (let i = 1; i < rows.length; i++) {
+           if (String(rows[i][COL_ID]).trim() !== sid) continue;
+           const nickname = (String(rows[i][COL_NICKNAME] || '').trim()) || '名無し';
+           const totalHP  = Number(rows[i][COL_HP])     || 0;
+           const streak   = Number(rows[i][COL_STREAK]) || 0;
+           // stage / title は既存の判定ロジックを流用
+           const stage = (typeof _getStage === 'function') ? _getStage(streak) : 4;
+           const title = _getTitle(streak);
+           return {
+             ok: true,
+             studentId: sid,
+             nickname: nickname,
+             totalHP:  totalHP,
+             streak:   streak,
+             stage:    stage,
+             title:    title
+           };
+         }
+         return { ok: false, message: '生徒IDが見つかりません' };
+       } catch(err) {
+         console.error('[getStudentView]', err);
+         return { ok: false, message: String(err) };
+       }
+     }
+     ```
+
+  3. **補足**: `_getStage(streak)` が既存コードに無ければ、`loginStudent` 内で stage を決めているロジックを抽出して共通関数化するか、このコード内にインラインで書いてください（保護者向けは stage に厳密でなくても OK なので、簡易判定で十分）
+
+  4. **動作確認**: デプロイ後、`https://k-acdm.github.io/mykt-eitango/view.html` に生徒IDでログイン → 該当生徒の情報が表示されることを確認。かつ Students シートの `LastLogin` / `Streak` / `HP` が **書き変わらない** ことを確認
 
 - [ ] 管理画面（`admin.html`）用の GAS API を追加。Script Properties に `ADMIN_PASSWORD` を設定後、以下の実装を `Code.gs` に追加：
 
