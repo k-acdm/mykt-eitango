@@ -171,6 +171,28 @@
   - 関数: `_verifyAdmin(pw)` / `adminLogin()` / `adminAddQuote()` / `adminAddNotice()`
   - `doGet` ルーティング追加
 
+#### 11. ダッシュボード連絡事項 1 件 → 3 件表示（2026-04-17 夜）
+- **フロント** ([index.html](index.html)):
+  - `screen-welcome` の連絡事項セクションを固定単一 `notice-card` → 動的リスト `notice-list` コンテナに変更
+  - `loadLatestNotice()` を書き換え、最大 3 件を縦並びにレンダリング。HTML エスケープ実装、旧 `res.notice`（単数形）レスポンスへのフォールバックも保持
+- **GAS 側更新が必要**（TODO 参照）: `getNotice` の戻り値を `{ok, notices: [...最大3件]}` に、`getNoticeHistory` を同日タイブレーク対応（`date` 降順 → 同日は行番号降順で **後から appendRow された方を先に**）
+- **意図**: 4 件目以降は「📜 過去の連絡事項を見る」で閲覧可。同日に複数投稿された場合も新しい順で正しく並ぶ
+
+#### 12. 2026-04-18 小規模対応まとめ
+- **レベル選択画面に問題一新告知バナー追加** ([index.html](index.html))
+  - 文言: 「🎉 4月20日に問題を一新しました！」
+  - 表示条件: **JST 2026-04-20 04:00 以降のみ**（`new Date('2026-04-20T04:00:00+09:00').getTime()` と `Date.now()` を比較）
+  - デザイン: 赤〜黄グラデ + 白フチ + 脈動アニメーション（`announcePulse` 1.6 秒周期）
+  - 削除容易性: HTML / CSS / JS の 3 ブロック全てを `[2026-04-20 問題一新告知]` マーカーコメントで囲み、告知不要時はブロック削除のみで完全除去可能
+  - `showLevelSelect()` から `_applyLevelAnnouncement()` を呼び出し、画面遷移ごとに再判定（日付跨ぎ時にも再読込不要）
+- **GAS ユーティリティ `resetAllProgress()` 関数をユーザーに提供**（リポジトリには含めず、GAS エディタから手動実行する想定）
+  - `PropertiesService.getScriptProperties()` から `cleared_*` / `pass1_*` / `pass2_*` プレフィックスのキーを一括削除
+  - `doGet` には登録しない（URL 経由の誤爆防止）
+  - 戻り値: `{ok: true, deleted: 件数, keys: [...]}` + `console.log` に件数出力
+- **worktree / ローカルブランチ整理**
+  - 不要 worktree `sweet-snyder` を `git worktree remove --force` で削除（残存: `main` と `nervous-gould-01144d`）
+  - `claude/*` ローカルブランチ 4 本（`distracted-turing` / `intelligent-lehmann` / `nervous-gould-01144d` / `sweet-snyder`）を全て `git branch -d` で削除。全て `main` にマージ済みの確認を取った上で実行
+
 ---
 
 ## TODO（未反映の GAS 側作業）
