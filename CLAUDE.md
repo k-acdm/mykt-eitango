@@ -436,3 +436,252 @@ function getWeeklyRanking() {
      ```
 
   4. **デプロイ後の確認**: `https://k-acdm.github.io/mykt-eitango/admin.html` にアクセス → 設定したパスワードでログイン → Quote / Notice 追加フォームが動作することを確認
+
+- [ ] 三語短文コンテンツ用の GAS 実装とシート追加（2026-04-18 フロント実装済み）。ダッシュボードの「三語短文」ボタン・3画面（お題表示 / テキスト提出 / 写真提出）・管理画面（お題追加 / 提出一覧）は実装済みで、GAS 側が未実装のため現状は動作しない。
+
+  1. **スプレッドシート新規作成**：
+     - **SangoTopicsシート** 1行目ヘッダー: `date | level | word1 | word2 | word3 | teacher_work`
+     - **SangoSubmissionsシート** 1行目ヘッダー: `timestamp | studentId | studentName | level | words | work | method`
+
+  2. **定数追加**：
+     ```javascript
+     const SHEET_SANGO_TOPICS      = 'SangoTopics';
+     const SHEET_SANGO_SUBMISSIONS = 'SangoSubmissions';
+     ```
+
+  3. **`doGet` ルーティングに追加**：
+     ```javascript
+     else if (action === 'getSangoTopic')              result = getSangoTopic();
+     else if (action === 'submitSango')                result = submitSango(params);
+     else if (action === 'adminAddSangoTopicsWeek')    result = adminAddSangoTopicsWeek(params);
+     else if (action === 'adminSetSangoTeacherWork')   result = adminSetSangoTeacherWork(params);
+     else if (action === 'adminListSangoSubmissions')  result = adminListSangoSubmissions(params);
+     ```
+
+  4. **関数本体**（表示切替は深夜3時基準 / HP加算は1日1回のみ200HP固定）：
+
+     ```javascript
+     // JST で深夜3時を日付境界とする「今日」の日付文字列（yyyy-MM-dd）
+     function _sangoToday() {
+       const now = new Date();
+       const jst = new Date(Utilities.formatDate(now, 'Asia/Tokyo', "yyyy/MM/dd HH:mm:ss"));
+       jst.setHours(jst.getHours() - 3); // 3時より前なら前日扱い
+       return Utilities.formatDate(jst, 'Asia/Tokyo', 'yyyy-MM-dd');
+     }
+     function _sangoPrevDate(dateStr) {
+       const d = new Date(dateStr + 'T12:00:00+09:00');
+       d.setDate(d.getDate() - 1);
+       return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+     }
+     function _readSangoTopicsByDate(dateStr) {
+       const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
+       if (!sh || sh.getLastRow() < 2) return [];
+       const values = sh.getDataRange().getValues();
+       const header = values[0];
+       const iDate  = header.indexOf('date');
+       const iLevel = header.indexOf('level');
+       const iW1    = header.indexOf('word1');
+       const iW2    = header.indexOf('word2');
+       const iW3    = header.indexOf('word3');
+       const iTW    = header.indexOf('teacher_work');
+       const out = [];
+       for (let i = 1; i < values.length; i++) {
+         const r = values[i];
+         if (!r[iDate]) continue;
+         const ds = Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+         if (ds !== dateStr) continue;
+         out.push({
+           level: String(r[iLevel] || '').trim(),
+           words: [r[iW1], r[iW2], r[iW3]].map(function(w){ return String(w || '').trim(); }).filter(Boolean),
+           teacher_work: String(r[iTW] || '').trim(),
+           date: ds
+         });
+       }
+       return out;
+     }
+
+     // 今日のお題（各レベル）と前日の福地作品（各レベル）を返す
+     function getSangoTopic() {
+       try {
+         const today = _sangoToday();
+         const yest  = _sangoPrevDate(today);
+         const tRows = _readSangoTopicsByDate(today);
+         const yRows = _readSangoTopicsByDate(yest);
+         const cmp = function(a,b){ return a.level < b.level ? -1 : a.level > b.level ? 1 : 0; };
+         const topics = tRows.map(function(t){ return { level: t.level, words: t.words }; }).sort(cmp);
+         const teacherWorks = yRows.map(function(t){ return { level: t.level, work: t.teacher_work, date: t.date }; }).sort(cmp);
+         return { ok: true, today: today, yesterday: yest, topics: topics, teacherWorks: teacherWorks };
+       } catch(err) {
+         console.error('[getSangoTopic]', err);
+         return { ok: false, message: String(err) };
+       }
+     }
+
+     // 提出保存＋HP加算（1日1回のみ200HP）。HPLog の type='sango' で当日分の付与有無を判定
+     function submitSango(params) {
+       try {
+         const sid    = String(params.studentId || '').trim();
+         const level  = String(params.level     || '').trim();
+         const words  = String(params.words     || '').trim();
+         const work   = String(params.work      || '').trim();
+         const method = String(params.method    || '').trim();
+         if (!sid || !level || !work) return { ok: false, message: '必要な情報が不足しています' };
+
+         const ss = _ss();
+         const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+         if (!stuSheet) return { ok: false, message: 'Studentsシートが見つかりません' };
+         const stuRows = stuSheet.getDataRange().getValues();
+         let studentName = '';
+         let stuRowIdx = -1;
+         for (let i = 1; i < stuRows.length; i++) {
+           if (String(stuRows[i][COL_ID]).trim() === sid) {
+             studentName = String(stuRows[i][COL_NICKNAME] || '').trim() || '名無し';
+             stuRowIdx = i;
+             break;
+           }
+         }
+
+         const subSheet = ss.getSheetByName(SHEET_SANGO_SUBMISSIONS);
+         if (!subSheet) return { ok: false, message: 'SangoSubmissionsシートが見つかりません' };
+         const now = new Date();
+         subSheet.appendRow([now, sid, studentName, level, words, work, method]);
+
+         // HPLog の type='sango' で当日分チェック
+         const todayStr = _sangoToday();
+         let alreadyGranted = false;
+         const logSheet = ss.getSheetByName(SHEET_HPLOG);
+         if (logSheet) {
+           const logRows = logSheet.getDataRange().getValues();
+           for (let i = 1; i < logRows.length; i++) {
+             if (String(logRows[i][1]).trim() !== sid) continue;
+             if (logRows[i][3] !== 'sango') continue;
+             const d = Utilities.formatDate(new Date(logRows[i][0]), 'Asia/Tokyo', 'yyyy-MM-dd');
+             // 3時基準で前日扱いも考慮するため _sangoToday 基準で比較
+             const todayForLog = (function(ts){
+               const t = new Date(ts); t.setHours(t.getHours() - 3);
+               return Utilities.formatDate(t, 'Asia/Tokyo', 'yyyy-MM-dd');
+             })(logRows[i][0]);
+             if (todayForLog === todayStr) { alreadyGranted = true; break; }
+           }
+         }
+         let hpGained = 0;
+         if (!alreadyGranted) {
+           hpGained = 200;
+           if (stuRowIdx >= 0) {
+             const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
+             stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(cur + hpGained);
+           }
+           if (logSheet) logSheet.appendRow([now, sid, hpGained, 'sango']);
+         }
+         return { ok: true, hpGained: hpGained };
+       } catch(err) {
+         console.error('[submitSango]', err);
+         return { ok: false, message: String(err) };
+       }
+     }
+
+     // 管理画面：三語短文のお題（週単位一括追加、Excel コピペ用）
+     // params.items = [{date, level, word1, word2, word3}, ...]
+     //   - 3語は必須。teacher_work は別途 adminSetSangoTeacherWork で登録するためここでは常に空
+     function adminAddSangoTopicsWeek(params) {
+       try {
+         if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+         const items = params.items;
+         if (!items || !items.length) return { ok: false, message: 'データがありません' };
+         for (let i = 0; i < items.length; i++) {
+           const it = items[i] || {};
+           if (!it.date || !it.level || !it.word1 || !it.word2 || !it.word3) {
+             return { ok: false, message: (i+1) + '件目に必須項目の欠けがあります' };
+           }
+         }
+         const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
+         if (!sh) return { ok: false, message: 'SangoTopicsシートが見つかりません' };
+         const rows = items.map(function(it) {
+           return [
+             it.date,
+             String(it.level || ''),
+             String(it.word1 || ''),
+             String(it.word2 || ''),
+             String(it.word3 || ''),
+             ''  // teacher_work は後から adminSetSangoTeacherWork で埋める
+           ];
+         });
+         sh.getRange(sh.getLastRow() + 1, 1, rows.length, 6).setValues(rows);
+         return { ok: true, added: rows.length };
+       } catch(err) {
+         console.error('[adminAddSangoTopicsWeek]', err);
+         return { ok: false, message: String(err) };
+       }
+     }
+
+     // 管理画面：先生の作品（個別登録）
+     // 既存の (date, level) 行を検索して teacher_work 列を上書きする
+     function adminSetSangoTeacherWork(params) {
+       try {
+         if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+         const date  = String(params.date  || '').trim();
+         const level = String(params.level || '').trim();
+         const work  = String(params.teacher_work || '').trim();
+         if (!date || !level || !work) return { ok: false, message: '必須項目を入力してください' };
+         const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
+         if (!sh || sh.getLastRow() < 2) return { ok: false, message: '該当するお題が見つかりません。先に週単位一括登録をしてください' };
+         const values = sh.getDataRange().getValues();
+         const header = values[0];
+         const iDate  = header.indexOf('date');
+         const iLevel = header.indexOf('level');
+         const iTW    = header.indexOf('teacher_work');
+         for (let i = 1; i < values.length; i++) {
+           const r = values[i];
+           if (!r[iDate]) continue;
+           const ds = Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+           const lv = String(r[iLevel] || '').trim();
+           if (ds === date && lv === level) {
+             sh.getRange(i + 1, iTW + 1).setValue(work);
+             return { ok: true };
+           }
+         }
+         return { ok: false, message: '該当する日付・レベルのお題が見つかりません。先に週単位一括登録をしてください' };
+       } catch(err) {
+         console.error('[adminSetSangoTeacherWork]', err);
+         return { ok: false, message: String(err) };
+       }
+     }
+
+     // 管理画面：三語短文の提出一覧（新しい順）
+     function adminListSangoSubmissions(params) {
+       try {
+         if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+         const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
+         if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
+         const values = sh.getDataRange().getValues();
+         const submissions = [];
+         for (let i = 1; i < values.length; i++) {
+           const r = values[i];
+           if (!r[0]) continue;
+           submissions.push({
+             timestamp:   Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
+             studentId:   String(r[1] || ''),
+             studentName: String(r[2] || ''),
+             level:       String(r[3] || ''),
+             words:       String(r[4] || ''),
+             work:        String(r[5] || ''),
+             method:      String(r[6] || '')
+           });
+         }
+         submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+         return { ok: true, submissions: submissions };
+       } catch(err) {
+         console.error('[adminListSangoSubmissions]', err);
+         return { ok: false, message: String(err) };
+       }
+     }
+     ```
+
+  5. **動作確認**:
+     - 管理画面「✏️ 三語短文のお題」で週の開始日（月曜）を選択 → Excel から14行（2レベル×7日）をコピーして貼り付け → プレビュー表に認識結果が表示される
+     - 「お題を一括登録する」→ SangoTopics シートに14行が追加される（`teacher_work` 列は空）
+     - 続けて「📝 先生の作品（個別登録）」で日付・レベルを選び作品を登録 → 既存行の `teacher_work` 列が上書きされる
+     - 生徒画面ダッシュボード「三語短文」→ お題表示画面に今日のお題と前日の福地作品が表示される
+     - テキスト提出・写真提出の両方で提出できる / HP加算は1日1回のみ200HPで、2回目は `hpGained:0` が返る
+     - 管理画面「📋 三語短文の提出」に提出が新しい順で並ぶ
+     - **注意**: items は GAS の GET クエリ `params` 内に JSON 文字列として入る。レベル2 × 7日分（=最大14件）なら URL 長は問題ないが、将来レベルを4まで増やすと URL 長が 7000 文字を超える可能性があるので、その時は `doGet` で POST 対応するか、レベル単位に分割送信する

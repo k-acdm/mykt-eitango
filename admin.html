@@ -81,6 +81,13 @@
   .ranking-actions .submit-btn { flex: 1; }
   .save-img-btn { background: linear-gradient(135deg, #2ecc71, #27ae60) !important; }
 
+  /* 三語短文：週単位一括入力 */
+  .sango-week-level-title { font-size: 16px; font-weight: bold; color: #c0392b; margin: 20px 0 10px; padding: 8px 14px; background: linear-gradient(135deg, #fff5e1, #ffd9a8); border-radius: 8px; }
+  .sango-preview-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 6px; }
+  .sango-preview-table th, .sango-preview-table td { padding: 8px 10px; border: 1px solid #e1e5ee; text-align: left; }
+  .sango-preview-table th { background: #f4f6fb; font-weight: 600; color: #555; }
+  .sango-preview-table td:first-child { white-space: nowrap; color: #666; font-weight: 600; width: 90px; }
+
   @media (max-width: 480px) {
     #screen-admin-main header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
@@ -166,6 +173,213 @@
       { name: 'title', label: 'タイトル', type: 'text',     required: true, placeholder: '例：冬期講習のお知らせ' },
       { name: 'body',  label: '本文',     type: 'textarea', required: true, placeholder: '連絡内容' }
     ]
+  });
+
+  // --- 三語短文：お題（Excel コピペ一括登録 + 先生の作品は個別登録）---
+  // 拡張するときは SANGO_LEVELS に追加するだけ
+  var SANGO_LEVELS = ['A', 'S'];
+  var SANGO_DAYS_JP = ['日','月','火','水','木','金','土'];
+  var SANGO_DAY_MAP = {
+    '月':0,'月曜':0,'月曜日':0,
+    '火':1,'火曜':1,'火曜日':1,
+    '水':2,'水曜':2,'水曜日':2,
+    '木':3,'木曜':3,'木曜日':3,
+    '金':4,'金曜':4,'金曜日':4,
+    '土':5,'土曜':5,'土曜日':5,
+    '日':6,'日曜':6,'日曜日':6
+  };
+  registerAdminModule({
+    id: 'sango-topic',
+    label: '✏️ 三語短文のお題',
+    type: 'custom',
+    render: function(section) {
+      var lvOpts = SANGO_LEVELS.map(function(l){ return '<option value="'+_esc(l)+'">'+_esc(l)+'</option>'; }).join('');
+      section.innerHTML =
+        '<div class="form-card">' +
+          '<h2>✏️ 三語短文のお題（Excelコピペで一括登録）</h2>' +
+          '<label><span class="label-text">週の開始日（月曜日）<span class="req">*</span></span>' +
+            '<input type="date" id="sango-paste-start" onchange="previewSangoPaste()" />' +
+          '</label>' +
+          '<label><span class="label-text">Excelから貼り付け（' + SANGO_LEVELS.length + 'レベル × 7日 = ' + (SANGO_LEVELS.length * 7) + '行分）<span class="req">*</span></span>' +
+            '<textarea id="sango-paste-area" oninput="previewSangoPaste()" placeholder="ここに Excel からコピーしたデータをそのまま貼り付けてください" style="min-height:200px;font-family: ui-monospace, Menlo, Consolas, monospace; font-size:13px; white-space:pre"></textarea>' +
+          '</label>' +
+          '<div style="font-size:12px;color:#666;margin:-8px 0 12px;line-height:1.7">' +
+            '形式（タブ区切り6列）：<code style="background:#f0f2f6;padding:2px 6px;border-radius:3px;font-size:12px">（レベルA）[TAB]月曜日[TAB]→[TAB]単語1[TAB]単語2[TAB]単語3</code><br>' +
+            '空行・前後の空白は無視されます。5列（→なし）でも認識します。' +
+          '</div>' +
+          '<div id="sango-paste-preview"></div>' +
+          '<button type="button" class="submit-btn" id="sango-paste-submit" onclick="submitSangoPaste()" style="margin-top:16px">✅ お題を一括登録する</button>' +
+        '</div>' +
+        '<div class="form-card" style="margin-top:20px">' +
+          '<h2>📝 先生の作品（個別登録）</h2>' +
+          '<div style="font-size:13px;color:#666;margin-bottom:12px">お題を登録した後、日付・レベルを指定して先生の作品を1件ずつ登録します。既存のお題行の <code>teacher_work</code> 列が上書きされます。</div>' +
+          '<label><span class="label-text">日付<span class="req">*</span></span>' +
+            '<input type="date" id="sango-tw-date" />' +
+          '</label>' +
+          '<label><span class="label-text">レベル<span class="req">*</span></span>' +
+            '<select id="sango-tw-level" style="width:100%;padding:10px 12px;font-size:15px;border:2px solid #e1e5ee;border-radius:8px;font-family:inherit;background:#fff">' + lvOpts + '</select>' +
+          '</label>' +
+          '<label><span class="label-text">先生の作品<span class="req">*</span></span>' +
+            '<textarea id="sango-tw-work" placeholder="福地先生の例文"></textarea>' +
+          '</label>' +
+          '<button type="button" class="submit-btn" id="sango-tw-submit" onclick="submitSangoTeacherWork()">✅ 先生の作品を登録</button>' +
+        '</div>';
+      var startEl = document.getElementById('sango-paste-start');
+      startEl.value = _nextMondayStr();
+      document.getElementById('sango-tw-date').value = _nextMondayStr();
+      previewSangoPaste();
+    }
+  });
+
+  function _nextMondayStr() {
+    var d = new Date();
+    var dow = d.getDay();
+    var daysUntilMon = (dow === 1) ? 0 : ((8 - dow) % 7);
+    d.setDate(d.getDate() + daysUntilMon);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  // Excel から貼り付けたデータをパース。各行を {date, level, word1, word2, word3} に変換
+  function parseSangoPaste(text, startStr) {
+    var result = { items: [], errors: [] };
+    if (!startStr) { result.errors.push('週の開始日を選択してください'); return result; }
+    var startDate = new Date(startStr + 'T00:00:00');
+    if (isNaN(startDate.getTime())) { result.errors.push('週の開始日が不正です'); return result; }
+    var lines = String(text || '').split(/\r?\n/).map(function(l){ return l.replace(/\s+$/,''); }).filter(function(l){ return l.trim().length > 0; });
+    if (lines.length === 0) return result;
+    var seen = {};
+    lines.forEach(function(line, idx) {
+      var cols = line.split(/\t/).map(function(c){ return c.trim(); });
+      if (cols.length < 5) { result.errors.push((idx+1)+'行目：列数が足りません（'+cols.length+'列）'); return; }
+      var lvMatch = cols[0].match(/レベル\s*([A-Za-z0-9]+)/);
+      if (!lvMatch) { result.errors.push((idx+1)+'行目：レベルが認識できません「'+cols[0]+'」'); return; }
+      var level = lvMatch[1].toUpperCase();
+      if (SANGO_LEVELS.indexOf(level) < 0) { result.errors.push((idx+1)+'行目：未定義のレベル「'+level+'」（定義：'+SANGO_LEVELS.join('/')+'）'); return; }
+      if (!SANGO_DAY_MAP.hasOwnProperty(cols[1])) { result.errors.push((idx+1)+'行目：曜日が認識できません「'+cols[1]+'」'); return; }
+      var dayOffset = SANGO_DAY_MAP[cols[1]];
+      // 6列(→あり)/5列(→なし) を判定
+      var wordStart = (cols.length >= 6 && cols[2].length <= 2) ? 3 : 2;
+      var w1 = cols[wordStart] || '', w2 = cols[wordStart+1] || '', w3 = cols[wordStart+2] || '';
+      if (!w1 || !w2 || !w3) { result.errors.push((idx+1)+'行目：単語が足りません'); return; }
+      var d = new Date(startDate); d.setDate(d.getDate() + dayOffset);
+      var dateStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      var key = level + '|' + dateStr;
+      if (seen[key]) { result.errors.push((idx+1)+'行目：重複（レベル'+level+' '+cols[1]+'）'); return; }
+      seen[key] = true;
+      result.items.push({ date: dateStr, level: level, word1: w1, word2: w2, word3: w3, dayLabel: cols[1] });
+    });
+    return result;
+  }
+
+  function previewSangoPaste() {
+    var previewEl = document.getElementById('sango-paste-preview');
+    if (!previewEl) return;
+    var startStr = document.getElementById('sango-paste-start').value;
+    var text = document.getElementById('sango-paste-area').value;
+    var startDate = startStr ? new Date(startStr + 'T00:00:00') : null;
+    var dowWarn = '';
+    if (startDate && startDate.getDay() !== 1) {
+      dowWarn = '<div style="color:#e74c3c;font-size:13px;margin-bottom:10px;padding:8px 12px;background:#ffebee;border-radius:6px">⚠️ 選択した日は月曜日ではありません（' + SANGO_DAYS_JP[startDate.getDay()] + '曜日）</div>';
+    }
+    if (!text.trim()) { previewEl.innerHTML = dowWarn + '<div style="color:#888;padding:20px;text-align:center;background:#fafbff;border-radius:8px;font-size:14px">Excelからデータを貼り付けるとここにプレビューが表示されます</div>'; return; }
+    var parsed = parseSangoPaste(text, startStr);
+    var errHtml = '';
+    if (parsed.errors.length > 0) {
+      errHtml = '<div style="color:#c62828;background:#ffebee;padding:10px 12px;border-radius:6px;margin-bottom:10px;font-size:13px;line-height:1.8">⚠️ ' + parsed.errors.map(_esc).join('<br>') + '</div>';
+    }
+    if (parsed.items.length === 0) { previewEl.innerHTML = dowWarn + errHtml; return; }
+    var grouped = {};
+    SANGO_LEVELS.forEach(function(l){ grouped[l] = []; });
+    parsed.items.forEach(function(it){ if (grouped[it.level]) grouped[it.level].push(it); });
+    var tablesHtml = SANGO_LEVELS.map(function(level) {
+      if (!grouped[level] || grouped[level].length === 0) return '';
+      var rows = grouped[level].map(function(it) {
+        var d = new Date(it.date + 'T00:00:00');
+        var label = (d.getMonth()+1) + '/' + d.getDate() + '(' + SANGO_DAYS_JP[d.getDay()] + ')';
+        return '<tr><td>' + label + '</td><td>' + _esc(it.word1) + '</td><td>' + _esc(it.word2) + '</td><td>' + _esc(it.word3) + '</td></tr>';
+      }).join('');
+      return '<div class="sango-week-level-title" style="margin-top:10px">レベル ' + _esc(level) + '（' + grouped[level].length + '件）</div>' +
+             '<table class="sango-preview-table"><thead><tr><th>日付</th><th>単語1</th><th>単語2</th><th>単語3</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }).join('');
+    previewEl.innerHTML = dowWarn + errHtml + '<div style="font-size:13px;color:#2e7d32;margin-bottom:8px">✅ ' + parsed.items.length + ' 件のお題を認識しました</div>' + tablesHtml;
+  }
+
+  function submitSangoPaste() {
+    var startStr = document.getElementById('sango-paste-start').value;
+    var text = document.getElementById('sango-paste-area').value;
+    var parsed = parseSangoPaste(text, startStr);
+    if (parsed.errors.length > 0) { showToast('エラーがあります。プレビューを確認してください', 'error'); return; }
+    if (parsed.items.length === 0) { showToast('貼り付けデータが空です', 'error'); return; }
+    var items = parsed.items.map(function(it){ return { date: it.date, level: it.level, word1: it.word1, word2: it.word2, word3: it.word3 }; });
+    var btn = document.getElementById('sango-paste-submit');
+    if (btn) btn.disabled = true;
+    gasGet({
+      action: 'adminAddSangoTopicsWeek',
+      password: sessionStorage.getItem('adminPassword') || '',
+      start: startStr,
+      items: items
+    }).then(function(res) {
+      if (btn) btn.disabled = false;
+      if (res && res.ok) {
+        showToast((res.added || items.length) + ' 件を登録しました', 'success');
+        document.getElementById('sango-paste-area').value = '';
+        previewSangoPaste();
+      } else {
+        var msg = (res && res.message) ? res.message : 'エラーが発生しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); }
+        else showToast(msg, 'error');
+      }
+    }).catch(function() {
+      if (btn) btn.disabled = false;
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  function submitSangoTeacherWork() {
+    var date = document.getElementById('sango-tw-date').value;
+    var level = document.getElementById('sango-tw-level').value;
+    var work = document.getElementById('sango-tw-work').value.trim();
+    if (!date) { showToast('日付を入力してください', 'error'); return; }
+    if (!level) { showToast('レベルを選択してください', 'error'); return; }
+    if (!work) { showToast('先生の作品を入力してください', 'error'); return; }
+    var btn = document.getElementById('sango-tw-submit');
+    if (btn) btn.disabled = true;
+    gasGet({
+      action: 'adminSetSangoTeacherWork',
+      password: sessionStorage.getItem('adminPassword') || '',
+      date: date, level: level, teacher_work: work
+    }).then(function(res) {
+      if (btn) btn.disabled = false;
+      if (res && res.ok) {
+        showToast('先生の作品を登録しました', 'success');
+        document.getElementById('sango-tw-work').value = '';
+      } else {
+        var msg = (res && res.message) ? res.message : 'エラーが発生しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); }
+        else showToast(msg, 'error');
+      }
+    }).catch(function() {
+      if (btn) btn.disabled = false;
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // --- 三語短文：提出一覧 ---
+  registerAdminModule({
+    id: 'sango-submissions',
+    label: '📋 三語短文の提出',
+    type: 'custom',
+    render: function(section) {
+      section.innerHTML =
+        '<div class="form-card">' +
+          '<h2>📋 三語短文の提出一覧</h2>' +
+          '<div class="ranking-actions">' +
+            '<button type="button" class="submit-btn" onclick="loadSangoSubmissions()">🔄 最新データ取得</button>' +
+          '</div>' +
+          '<div id="sango-sub-list"><div class="ranking-empty">⏳ 読み込み中...</div></div>' +
+        '</div>';
+      loadSangoSubmissions();
+    }
   });
 
   // --- 週間HPランキング（表示・画像保存）---
@@ -411,6 +625,37 @@
     }).catch(function() {
       listEl.innerHTML = '<div class="ranking-empty">読み込みに失敗しました</div>';
       periodEl.textContent = '';
+    });
+  }
+
+  // =============================================================
+  // 三語短文：提出一覧
+  // =============================================================
+  function loadSangoSubmissions() {
+    var listEl = document.getElementById('sango-sub-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="ranking-empty">⏳ 読み込み中...</div>';
+    gasGet({ action: 'adminListSangoSubmissions', password: sessionStorage.getItem('adminPassword') || '', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        listEl.innerHTML = '<div class="ranking-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var items = res.submissions || [];
+      if (items.length === 0) { listEl.innerHTML = '<div class="ranking-empty">まだ提出はありません</div>'; return; }
+      listEl.innerHTML = items.map(function(s) {
+        var ts = String(s.timestamp || '').replace('T', ' ').slice(0, 16);
+        var methodLabel = (s.method === 'photo') ? '📷 写真' : (s.method === 'text') ? '✏️ 直接入力' : _esc(s.method || '');
+        return '<div style="background:#fff;border-left:4px solid #fe6d73;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">' +
+                 '<div style="font-size:12px;color:#888;margin-bottom:6px">' + _esc(ts) + '｜' + methodLabel + '</div>' +
+                 '<div style="font-size:14px;font-weight:bold;color:#333;margin-bottom:4px">' + _esc(s.studentName || '') + '（' + _esc(s.studentId || '') + '）｜レベル ' + _esc(s.level || '') + '</div>' +
+                 '<div style="font-size:13px;color:#c0392b;margin-bottom:8px">📝 ' + _esc(s.words || '') + '</div>' +
+                 '<div style="font-size:14px;line-height:1.7;white-space:pre-wrap;padding:10px;background:#fafafa;border-radius:6px">' + _esc(s.work || '') + '</div>' +
+               '</div>';
+      }).join('');
+    }).catch(function() {
+      listEl.innerHTML = '<div class="ranking-empty">通信エラーが発生しました</div>';
     });
   }
 

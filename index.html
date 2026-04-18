@@ -234,6 +234,28 @@
       .content-btn { font-size: 14px; padding: 16px 6px; }
       .content-btn .ico { font-size: 26px; }
     }
+    /* 三語短文 */
+    .sango-date-label { text-align:center; color:#666; font-size:14px; margin-bottom:12px; }
+    .sango-level-card { background:#fff; border-radius:14px; padding:16px; margin-bottom:14px; box-shadow:0 2px 10px rgba(0,0,0,.08); border-left:6px solid #fe6d73; }
+    .sango-level-label { font-size:16px; font-weight:bold; color:#c0392b; margin-bottom:10px; }
+    .sango-words { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:6px; }
+    .sango-word { display:inline-block; background:linear-gradient(135deg,#fff5e1,#ffd9a8); color:#8b4513; font-size:17px; font-weight:bold; padding:8px 14px; border-radius:20px; border:2px solid #fe6d73; }
+    .sango-teacher-work { margin-top:10px; padding:10px 12px; background:#f8f9ff; border-radius:10px; }
+    .sango-teacher-label { font-size:13px; color:#4f7df0; font-weight:bold; margin-bottom:4px; }
+    .sango-teacher-body { font-size:15px; color:#333; line-height:1.7; white-space:pre-wrap; }
+    .sango-notice { background:linear-gradient(135deg,#fffde7,#fff9c4); border:2px solid #f9a825; border-radius:12px; padding:14px 16px; margin-top:16px; font-size:14px; line-height:1.9; color:#6d4c00; }
+    .sango-notice div { margin: 4px 0; }
+    .sango-level-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+    .sango-tab { padding:10px 18px; border:2px solid #fe6d73; border-radius:20px; background:#fff; color:#c0392b; font-weight:bold; cursor:pointer; font-size:15px; }
+    .sango-tab.active { background:linear-gradient(135deg,#ffcb77,#fe6d73); color:#fff; }
+    .sango-textarea { width:100%; min-height:140px; font-size:16px; padding:12px; border:2px solid #ccc; border-radius:10px; margin-top:12px; font-family: inherit; line-height:1.7; box-sizing:border-box; }
+    .sango-textarea:focus { border-color:#fe6d73; outline:none; }
+    .sango-ocr-box { display:none; margin-top:14px; padding:16px; background:#fff; border:2px solid #4f7df0; border-radius:12px; }
+    .sango-ocr-label { font-size:14px; color:#666; margin-bottom:8px; }
+    .sango-ocr-text { font-size:15px; line-height:1.7; white-space:pre-wrap; padding:12px; background:#f8f9ff; border-radius:8px; min-height:60px; }
+    .sango-ocr-confirm-label { font-size:16px; font-weight:bold; text-align:center; margin:14px 0 10px; color:#2d3a8c; }
+    .sango-ocr-actions { display:flex; gap:10px; }
+    .sango-ocr-actions .btn-wide { margin-top:0; flex:1; }
   </style>
 </head>
 <body>
@@ -322,8 +344,7 @@
         <button class="content-btn c-eitango" onclick="showLevelSelect()">
           <span class="ico">🔤</span>英単語RUSH
         </button>
-        <button class="content-btn c-sango disabled" onclick="showComingSoon('三語短文')">
-          <span class="badge-soon">準備中</span>
+        <button class="content-btn c-sango" onclick="showSangoTopic()">
           <span class="ico">✏️</span>三語短文
         </button>
         <button class="content-btn c-wabun1 disabled" onclick="showComingSoon('和文英訳①')">
@@ -488,6 +509,56 @@
   <div class="container" style="padding-top:16px">
     <div id="notice-history-list"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showScreen('screen-welcome')">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+<div id="screen-sango-topic" class="screen">
+  <header><h1>✏️ 三語短文</h1><span id="sango-student"></span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="sango-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
+    <div class="sango-notice">
+      <div>🟢文章を作る前に、３語全ての「意味と用例」を調べてから始めること！</div>
+      <div>🔵２文にする時は意味のつながりがあるものにしてください。</div>
+      <div>🔵動詞や形容詞などは語尾を活用させてもＯＫ。</div>
+      <div>🔵おうちの人と一緒にやるのもアリです！</div>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#ffcb77,#fe6d73);margin-top:14px" onclick="startSangoTextSubmit()">✏️ 作品を提出する（直接入力）</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#4fc3f7,#2979ff);margin-top:8px" onclick="startSangoPhotoSubmit()">📷 作品を提出する（写真に撮って送る）</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+<div id="screen-sango-text" class="screen">
+  <header><h1>✏️ 作品を提出（直接入力）</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div class="sango-level-tabs" id="sango-text-tabs"></div>
+    <div id="sango-text-words"></div>
+    <textarea class="sango-textarea" id="sango-text-input" placeholder="あなたの作品を書いてください" oninput="_updateSangoTextSubmitBtn()"></textarea>
+    <button class="btn-wide" id="sango-text-submit-btn" style="background:linear-gradient(135deg,#ffcb77,#fe6d73);margin-top:12px" onclick="submitSangoText()" disabled>✅ 提出する</button>
+    <div id="sango-text-msg" class="msg"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
+  </div>
+</div>
+<div id="screen-sango-photo" class="screen">
+  <header><h1>📷 作品を提出（写真）</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div class="sango-level-tabs" id="sango-photo-tabs"></div>
+    <div id="sango-photo-words"></div>
+    <div class="photo-area">
+      <p style="font-size:15px;color:#555;margin-bottom:8px">📷 作品を書いたノート等を撮影して送ってください</p>
+      <input type="file" id="sango-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onSangoPhotoSelected(event)"/>
+      <button class="btn-camera" onclick="document.getElementById('sango-photo-input').click()">📷 写真を撮る</button>
+      <img id="sango-photo-preview" class="photo-preview"/>
+      <div id="sango-photo-msg" class="msg" style="margin-top:10px"></div>
+    </div>
+    <div id="sango-ocr-confirm" class="sango-ocr-box">
+      <div class="sango-ocr-label">読み取り結果：</div>
+      <div class="sango-ocr-text" id="sango-ocr-text"></div>
+      <div class="sango-ocr-confirm-label">これでよろしいですか？</div>
+      <div class="sango-ocr-actions">
+        <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60)" onclick="confirmSangoPhoto(true)">✅ はい、提出する</button>
+        <button class="btn-wide" style="background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="confirmSangoPhoto(false)">❌ いいえ、書き直す</button>
+      </div>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
   </div>
 </div>
 <div id="screen-closed" class="screen">
@@ -991,6 +1062,165 @@
     try { document.getElementById('login-id').value = ''; } catch(e){}
     showScreen('screen-login');
   }
+  // ================= 三語短文 =================
+  var _sangoTopics = null;
+  var _sangoTeacherWorks = null;
+  var _sangoDate = '';
+  var _sangoYesterday = '';
+  var _sangoCurrentLevel = null;
+  var _sangoOcrText = '';
+  function _sangoEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function showSangoTopic() {
+    document.getElementById('sango-student').textContent = _studentId + ' さん';
+    document.getElementById('sango-topic-body').innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    showScreen('screen-sango-topic');
+    gasGet({ action:'getSangoTopic', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) { document.getElementById('sango-topic-body').innerHTML = '<div class="error">お題の取得に失敗しました。</div>'; return; }
+      _sangoTopics = res.topics || [];
+      _sangoTeacherWorks = res.teacherWorks || [];
+      _sangoDate = res.today || '';
+      _sangoYesterday = res.yesterday || '';
+      _renderSangoTopic();
+    }).catch(function(){ document.getElementById('sango-topic-body').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
+  }
+  function _renderSangoTopic() {
+    var body = document.getElementById('sango-topic-body');
+    if (!_sangoTopics || _sangoTopics.length === 0) {
+      body.innerHTML = '<div style="text-align:center;color:#888;padding:30px">本日のお題はまだ登録されていません。</div>';
+      return;
+    }
+    var wMap = {};
+    (_sangoTeacherWorks || []).forEach(function(w){ wMap[w.level] = w; });
+    var dateHtml = _sangoDate ? '<div class="sango-date-label">📅 ' + _sangoEscHtml(formatDate(_sangoDate)) + ' のお題</div>' : '';
+    var topicsHtml = _sangoTopics.map(function(t) {
+      var words = (t.words || []).map(function(w){ return '<span class="sango-word">' + _sangoEscHtml(w) + '</span>'; }).join('');
+      var tw = wMap[t.level];
+      var twHtml = (tw && tw.work)
+        ? '<div class="sango-teacher-work"><div class="sango-teacher-label">📝 福地の作品' + (tw.date ? '（' + _sangoEscHtml(formatDate(tw.date)) + '分）' : '') + '</div><div class="sango-teacher-body">' + _sangoEscHtml(tw.work) + '</div></div>'
+        : '';
+      return '<div class="sango-level-card"><div class="sango-level-label">レベル ' + _sangoEscHtml(t.level) + '</div><div class="sango-words">' + words + '</div>' + twHtml + '</div>';
+    }).join('');
+    body.innerHTML = dateHtml + topicsHtml;
+  }
+  function _renderSangoLevelTabs(tabsId, mode) {
+    document.getElementById(tabsId).innerHTML = (_sangoTopics || []).map(function(t, i) {
+      return '<button class="sango-tab' + (i===0 ? ' active' : '') + '" data-level="' + _sangoEscHtml(t.level) + '" onclick="_selectSangoLevel(\'' + mode + '\',\'' + esc(t.level) + '\')">レベル ' + _sangoEscHtml(t.level) + '</button>';
+    }).join('');
+  }
+  function _selectSangoLevel(mode, level) {
+    _sangoCurrentLevel = level;
+    var tabsId = (mode === 'text') ? 'sango-text-tabs' : 'sango-photo-tabs';
+    var wordsId = (mode === 'text') ? 'sango-text-words' : 'sango-photo-words';
+    document.querySelectorAll('#' + tabsId + ' .sango-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.level === level); });
+    var topic = (_sangoTopics || []).find(function(t){ return t.level === level; });
+    document.getElementById(wordsId).innerHTML = topic
+      ? '<div class="sango-level-card" style="margin-top:4px"><div class="sango-level-label">レベル ' + _sangoEscHtml(level) + ' のお題</div><div class="sango-words">' + (topic.words || []).map(function(w){ return '<span class="sango-word">' + _sangoEscHtml(w) + '</span>'; }).join('') + '</div></div>'
+      : '';
+    if (mode === 'text') {
+      document.getElementById('sango-text-input').value = '';
+      _updateSangoTextSubmitBtn();
+      var msg = document.getElementById('sango-text-msg'); msg.style.display = 'none';
+    } else {
+      _resetSangoPhoto();
+    }
+  }
+  function startSangoTextSubmit() {
+    if (!_sangoTopics || _sangoTopics.length === 0) { alert('まだお題が登録されていません。'); return; }
+    _renderSangoLevelTabs('sango-text-tabs', 'text');
+    _selectSangoLevel('text', _sangoTopics[0].level);
+    showScreen('screen-sango-text');
+  }
+  function _updateSangoTextSubmitBtn() {
+    var val = document.getElementById('sango-text-input').value.trim();
+    document.getElementById('sango-text-submit-btn').disabled = (val.length === 0);
+  }
+  function submitSangoText() {
+    var val = document.getElementById('sango-text-input').value.trim();
+    if (!val || !_sangoCurrentLevel) return;
+    var topic = (_sangoTopics || []).find(function(t){ return t.level === _sangoCurrentLevel; });
+    var words = topic ? (topic.words || []).join(' / ') : '';
+    var btn = document.getElementById('sango-text-submit-btn'); btn.disabled = true;
+    showMsg('sango-text-msg', '⏳ 送信中...', 'ok');
+    gasGet({ action:'submitSango', studentId:_studentId, level:_sangoCurrentLevel, words:words, work:val, method:'text' }).then(function(res) {
+      if (!res || !res.ok) { showMsg('sango-text-msg', (res && res.message) || '送信に失敗しました。', 'ng'); btn.disabled = false; return; }
+      var hp = Number(res.hpGained || 0);
+      var msg = hp > 0 ? '🎉 提出完了！+' + hp + 'HPをゲットしました！' : '✅ 提出完了！（本日のHP加算は済んでいます）';
+      showMsg('sango-text-msg', msg, 'ok');
+      document.getElementById('sango-text-input').value = '';
+      setTimeout(function(){ showScreen('screen-sango-topic'); }, 1800);
+    }).catch(function(){ showMsg('sango-text-msg', 'エラーが発生しました。', 'ng'); btn.disabled = false; });
+  }
+  function startSangoPhotoSubmit() {
+    if (!_sangoTopics || _sangoTopics.length === 0) { alert('まだお題が登録されていません。'); return; }
+    _renderSangoLevelTabs('sango-photo-tabs', 'photo');
+    _selectSangoLevel('photo', _sangoTopics[0].level);
+    showScreen('screen-sango-photo');
+  }
+  function _resetSangoPhoto() {
+    _sangoOcrText = '';
+    var prev = document.getElementById('sango-photo-preview'); prev.src = ''; prev.style.display = 'none';
+    var msg = document.getElementById('sango-photo-msg'); msg.style.display = 'none'; msg.style.color = '';
+    document.getElementById('sango-photo-input').value = '';
+    document.getElementById('sango-ocr-confirm').style.display = 'none';
+    document.getElementById('sango-ocr-text').textContent = '';
+  }
+  function onSangoPhotoSelected(event) {
+    var file = event.target.files[0]; if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var preview = document.getElementById('sango-photo-preview'); preview.src = e.target.result; preview.style.display = 'block';
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas'), maxSize = 1200, w = img.width, h = img.height;
+        if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } } else { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+        canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        sendSangoPhoto(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  function sendSangoPhoto(base64) {
+    var msgEl = document.getElementById('sango-photo-msg');
+    msgEl.textContent = '⏳ AIが文字を読み取り中です...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
+    document.getElementById('sango-ocr-confirm').style.display = 'none';
+    fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}] }] })
+    }).then(function(r){ return r.json(); }).then(function(json) {
+      var response = json.responses && json.responses[0];
+      if (!response || !response.fullTextAnnotation) {
+        showMsg('sango-photo-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng'); return;
+      }
+      _sangoOcrText = String(response.fullTextAnnotation.text || '').trim();
+      msgEl.style.display = 'none';
+      document.getElementById('sango-ocr-text').textContent = _sangoOcrText;
+      document.getElementById('sango-ocr-confirm').style.display = 'block';
+    }).catch(function(err){ showMsg('sango-photo-msg', 'エラー：' + String(err), 'ng'); });
+  }
+  function confirmSangoPhoto(ok) {
+    if (!ok) {
+      _resetSangoPhoto();
+      var msgEl = document.getElementById('sango-photo-msg');
+      msgEl.textContent = '📝 もう一度、きれいに書いて写真を撮り直してください。';
+      msgEl.className = 'msg'; msgEl.style.color = '#e67e22'; msgEl.style.display = 'block';
+      return;
+    }
+    if (!_sangoOcrText || !_sangoCurrentLevel) return;
+    var topic = (_sangoTopics || []).find(function(t){ return t.level === _sangoCurrentLevel; });
+    var words = topic ? (topic.words || []).join(' / ') : '';
+    var msgEl = document.getElementById('sango-photo-msg');
+    msgEl.textContent = '⏳ 送信中...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
+    gasGet({ action:'submitSango', studentId:_studentId, level:_sangoCurrentLevel, words:words, work:_sangoOcrText, method:'photo' }).then(function(res) {
+      if (!res || !res.ok) { showMsg('sango-photo-msg', (res && res.message) || '送信に失敗しました。', 'ng'); return; }
+      var hp = Number(res.hpGained || 0);
+      var msg = hp > 0 ? '🎉 提出完了！+' + hp + 'HPをゲットしました！' : '✅ 提出完了！（本日のHP加算は済んでいます）';
+      showMsg('sango-photo-msg', msg, 'ok');
+      document.getElementById('sango-ocr-confirm').style.display = 'none';
+      setTimeout(function(){ showScreen('screen-sango-topic'); }, 1800);
+    }).catch(function(){ showMsg('sango-photo-msg', 'エラーが発生しました。', 'ng'); });
+  }
+
   function showNoticeHistory() {
     showScreen('screen-notice-history');
     var listEl = document.getElementById('notice-history-list');
