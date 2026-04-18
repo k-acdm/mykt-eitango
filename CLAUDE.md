@@ -193,6 +193,38 @@
   - 不要 worktree `sweet-snyder` を `git worktree remove --force` で削除（残存: `main` と `nervous-gould-01144d`）
   - `claude/*` ローカルブランチ 4 本（`distracted-turing` / `intelligent-lehmann` / `nervous-gould-01144d` / `sweet-snyder`）を全て `git branch -d` で削除。全て `main` にマージ済みの確認を取った上で実行
 
+### 2026-04-19
+
+#### 13. 三語短文コンテンツ新規実装（dev `12f588b` → main `4338bbc`）
+- **ダッシュボード**: 「三語短文」ボタンを有効化（[index.html](index.html) `c-sango` / `showSangoTopic()`）。従来の「準備中」badge と `disabled` クラスを削除
+- **新3画面追加**（[index.html](index.html)）:
+  - `screen-sango-topic`: 今日のお題表示（レベル別カードで3語を chip 表示 + 前日の福地作品 + 4項目の注意書き + 提出ボタン2種）
+  - `screen-sango-text`: レベルタブ → 3語再掲 → textarea → `submitSango` action（method=`text`）で送信
+  - `screen-sango-photo`: レベルタブ → カメラ起動 → Vision API（`DOCUMENT_TEXT_DETECTION`）で OCR → 「これでよろしいですか？」確認UI → はい/いいえ。`method=photo` で送信
+- **HP 加算**: 提出成功で +200HP（1日1回のみ）。2回目以降は `hpGained:0` を返す仕様。HPLog の `type='sango'` で当日有無を判定（3時基準）
+- **拡張性**: レベルは `SANGO_LEVELS = ['A', 'S']` で配列管理。3〜4 レベルへの拡張時はこの配列に追加するだけで UI（タブ・プレビュー・パーサ）全てが追従
+- **管理画面（admin.html）**:
+  - 三語短文のお題入力を **Excel コピペ方式 + ライブプレビュー** に刷新
+    - 週の開始日（月曜）を1つ選択 + 大きな textarea に Excel 14行をそのまま貼り付け
+    - 対応フォーマット: `（レベルA）[TAB]月曜日[TAB]→[TAB]単語1[TAB]単語2[TAB]単語3`（5列（→なし）/6列 両対応、括弧省略可、曜日3表記対応「月/月曜/月曜日」）
+    - パース結果をレベル別テーブルで即時プレビュー。エラー行は赤表示、同じ (日付,レベル) の重複も検出
+  - **先生の作品は個別登録**（日付 + レベル select + 作品 textarea）。既存の (date,level) 行の `teacher_work` 列を GAS 側で `setValue` 上書き。該当行が無ければエラーメッセージで誘導
+  - **提出一覧タブ** 追加：`adminListSangoSubmissions` を叩いて新しい順にカード表示（`_esc` で XSS 防御、`📷 写真` / `✏️ 直接入力` ラベル）
+- **GAS TODO 記載**（CLAUDE.md 下部）:
+  - シート `SangoTopics` / `SangoSubmissions` の列定義
+  - 定数 `SHEET_SANGO_TOPICS` / `SHEET_SANGO_SUBMISSIONS`
+  - `doGet` ルーティング 5 行（`getSangoTopic` / `submitSango` / `adminAddSangoTopicsWeek` / `adminSetSangoTeacherWork` / `adminListSangoSubmissions`）
+  - 関数実装（ヘルパー `_sangoToday` / `_sangoPrevDate` / `_readSangoTopicsByDate` 含む）
+- **表示切替は深夜3時基準**: `_sangoToday()` で JST 3時より前は前日扱い（Quote/Notice と同じパターン）
+- **制約メモ**: `items` は GAS の GET クエリ内 JSON として送られる。レベル2×7日=14件までなら URL 長は余裕だが、レベル4に増やすと 7000 文字を超え得るため、その時は POST 対応 or レベル単位分割送信が必要
+- **未反映**: GAS 側のシート作成・関数追加は未実施（TODO 参照）
+
+#### 14. worktree とステールブランチの整理（2026-04-19）
+- `hopeful-nightingale-1e40f3` worktree を `git worktree remove` で git 登録解除（未コミット分を dev/main に commit → merge → push した後に実行）
+- ステール branch `claude/hopeful-nightingale-1e40f3` を `git branch -D` で削除
+- 残骸ディレクトリ `.claude/worktrees/intelligent-lehmann/` を `rm -rf` で削除
+- `.claude/worktrees/hopeful-nightingale-1e40f3/` のファイルシステム実体は作業中セッションが使用していたため削除不可。セッション終了後に別ターミナルから `rm -rf` 予定
+
 ---
 
 ## TODO（未反映の GAS 側作業）
