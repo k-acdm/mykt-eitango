@@ -250,6 +250,31 @@
 - **生徒画面（[index.html](index.html)）は変更不要**: レベルタブ（お題表示 / 直接入力 / 写真提出）は GAS の `getSangoTopic` が返す `topics` 配列を元に動的生成されるため、GAS 側で A/B/S/T のお題が登録されれば自動で 4 タブ表示される
 - **URL 長の懸念**: 管理画面「お題の週単位一括登録」で送る items は 4 レベル × 7 日 = 28 件になり、JSON 文字列を GET クエリに載せる構造上 **URL 長が 7000 文字を超える可能性がある**（#13 記載済みの既知リスク）。実運用で `414 URI Too Long` が出たらレベル単位の分割送信 or `doGet` → `doPost` への切替が必要
 
+#### 17. GAS `adminAddSangoTopicsWeek` 実装（2026-04-19、GAS エディタ側で直接反映 / リポジトリ変更なし）
+- **背景**: 管理画面「お題を一括登録する」ボタンが送信する action `adminAddSangoTopicsWeek` の GAS 側実装が未反映のままだった（#13 TODO の一部）
+- **事前確認（リポジトリ側の送信形状を調査）**:
+  - [admin.html:307-336](admin.html:307) `submitSangoPaste()` の送信JSON:
+    ```
+    { action: 'adminAddSangoTopicsWeek', password, start: 'YYYY-MM-DD', items: [{ date, level, word1, word2, word3 }, ...] }
+    ```
+  - `teacher_work` は一括登録では送らない（個別登録は別 action `adminSetSangoTeacherWork`）
+  - items の各要素は 5 キー固定（`date / level / word1 / word2 / word3`）
+- **GAS 側で適用した修正（ユーザーが GAS エディタで直接反映）**:
+  1. `doGet` ルーティング分岐に 1 行追加（`else if (action === 'adminAddSangoTopic')` の直下）:
+     ```javascript
+     else if (action === 'adminAddSangoTopicsWeek')   result = adminAddSangoTopicsWeek(params);
+     ```
+  2. `adminAddSangoTopic` の直下に `adminAddSangoTopicsWeek` 関数を新規追加。実装要点:
+     - `_verifyAdmin(params.password)` で認証
+     - items の必須チェック（date/level/word1-3 のいずれか空なら該当行をエラー配列に蓄積）
+     - `teacher_work` 列は空文字で 6 列目に埋める（後から `adminSetSangoTeacherWork` で上書きされる運用）
+     - `sh.getRange(startRow, 1, n, 6).setValues(rows)` で一括書き込み（appendRow ループより高速）
+     - 戻り値 `{ ok:true, added:N, errors:[] }`
+- **リポジトリ方針は従来通り**: Code.gs はリポジトリに含めず GAS エディタ側で管理（CLAUDE.md 運用メモに準拠）
+- **関連作業（このセッションの確認のみ・コード変更なし）**:
+  - [index.html:514-529](index.html:514) 三語短文お題表示画面の HTML 構造と、[index.html:1081-1112](index.html:1081) の `showSangoTopic()` / `_renderSangoTopic()` の描画ロジックを再確認（変更は加えていない）
+  - worktree 整理: 追加 worktree は作業中の `strange-hertz-693d49` (dev) のみで、削除対象なし（現状維持）
+
 ---
 
 ## TODO（未反映の GAS 側作業）
@@ -495,6 +520,7 @@ function getWeeklyRanking() {
   4. **デプロイ後の確認**: `https://k-acdm.github.io/mykt-eitango/admin.html` にアクセス → 設定したパスワードでログイン → Quote / Notice 追加フォームが動作することを確認
 
 - [ ] 三語短文コンテンツ用の GAS 実装とシート追加（2026-04-18 フロント実装済み）。ダッシュボードの「三語短文」ボタン・3画面（お題表示 / テキスト提出 / 写真提出）・管理画面（お題追加 / 提出一覧）は実装済みで、GAS 側が未実装のため現状は動作しない。
+  - **進捗（2026-04-19）**: `adminAddSangoTopicsWeek`（ルーティング + 関数）は GAS エディタ側で反映済み（作業ログ #17 参照）。残りは `getSangoTopic` / `submitSango` / `adminSetSangoTeacherWork` / `adminListSangoSubmissions` と各種シート作成・ヘルパー関数（`_sangoToday` / `_sangoPrevDate` / `_readSangoTopicsByDate`）。
 
   1. **スプレッドシート新規作成**：
      - **SangoTopicsシート** 1行目ヘッダー: `date | level | word1 | word2 | word3 | teacher_work`
