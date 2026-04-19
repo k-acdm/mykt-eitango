@@ -138,6 +138,24 @@
       <div id="notice-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
       <button class="btn-more" onclick="showNoticeHistory()">📜 過去の連絡事項を見る</button>
     </div>
+
+    <!-- 三語短文 提出作品 -->
+    <div class="dash-section">
+      <div class="section-title">✏️ 三語短文の提出作品</div>
+      <button class="btn-more" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);color:#4a2c6d" onclick="showSangoHistory()">📖 三語短文の提出作品を見る</button>
+    </div>
+  </div>
+</div>
+
+<!-- 三語短文 過去の提出作品 -->
+<div id="screen-sango-history" class="screen">
+  <header>
+    <h1>📖 三語短文の提出作品</h1>
+    <button class="logout-btn" onclick="showView()">← 戻る</button>
+  </header>
+  <div class="container">
+    <div id="sango-history-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
+    <button class="btn-back" onclick="showView()">← 閲覧画面に戻る</button>
   </div>
 </div>
 
@@ -184,6 +202,7 @@
   }
   function showView()           { _showScreen('screen-view'); }
   function showNoticeHistory()  { _showScreen('screen-notice-history'); loadNoticeHistory(); }
+  function showSangoHistory()   { _showScreen('screen-sango-history'); loadSangoHistory(); }
 
   // ============================
   // ユーティリティ
@@ -361,6 +380,41 @@
                    '<div class="notice-date">'  + _esc(date)  + '</div>' +
                  '</div>' +
                  '<div class="notice-body">' + _esc(body) + '</div>' +
+               '</div>';
+      }).join('');
+    }).catch(function() {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+    });
+  }
+
+  // ============================
+  // 三語短文 過去の提出作品
+  // ============================
+  function loadSangoHistory() {
+    var listEl = document.getElementById('sango-history-list');
+    listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">⏳ 読み込み中…</div></div></div>';
+    gasGet({ action: 'getSangoSubmissions', studentId: _studentId, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+        return;
+      }
+      var items = res.submissions || [];
+      if (items.length === 0) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">まだ提出した作品はありません。</div></div></div>';
+        return;
+      }
+      listEl.innerHTML = items.map(function(s){
+        var methodLabel = s.method === 'photo' ? '📷 写真' : '✏️ 直接入力';
+        var words = String(s.words || '').split(/\s*\/\s*/).filter(Boolean).map(function(w){
+          return '<span style="display:inline-block;background:linear-gradient(135deg,#fff5e1,#ffd9a8);color:#8b4513;font-size:14px;font-weight:bold;padding:5px 11px;border-radius:16px;border:2px solid #fe6d73;margin:2px 4px 2px 0">' + _esc(w) + '</span>';
+        }).join('');
+        return '<div class="notice-card" style="background:#fff;border-left:6px solid #fe6d73;box-shadow:0 2px 10px rgba(0,0,0,.08)">' +
+                 '<div class="notice-header">' +
+                   '<div class="notice-title" style="color:#c0392b">レベル ' + _esc(s.level || '') + '</div>' +
+                   '<div class="notice-date" style="color:#888">' + _esc(s.timestamp || '') + ' / ' + methodLabel + '</div>' +
+                 '</div>' +
+                 (words ? '<div style="margin-bottom:8px">' + words + '</div>' : '') +
+                 '<div style="background:#fff8e1;border-radius:10px;padding:10px 12px;white-space:pre-wrap;word-wrap:break-word;font-size:13px;line-height:1.75;color:#333">' + _esc(s.work || '') + '</div>' +
                '</div>';
       }).join('');
     }).catch(function() {
