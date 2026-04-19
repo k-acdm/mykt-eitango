@@ -235,6 +235,23 @@
       .content-btn .ico { font-size: 26px; }
     }
     /* 三語短文 */
+    .sango-title-banner {
+      background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+      color: #fff;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 14px;
+      box-shadow: 0 4px 12px rgba(238, 90, 111, 0.3);
+    }
+    .sango-level-desc {
+      font-size: 13px;
+      font-weight: normal;
+      color: #666;
+      margin-left: 6px;
+    }
     .sango-date-label { text-align:center; color:#666; font-size:14px; margin-bottom:12px; }
     .sango-level-card { background:#fff; border-radius:14px; padding:16px; margin-bottom:14px; box-shadow:0 2px 10px rgba(0,0,0,.08); border-left:6px solid #fe6d73; }
     .sango-level-label { font-size:16px; font-weight:bold; color:#c0392b; margin-bottom:10px; }
@@ -1071,10 +1088,17 @@
     showScreen('screen-login');
   }
   // ================= 三語短文 =================
+  const SANGO_LEVEL_DESCRIPTIONS = {
+    'A': '大学入試レベル',
+    'S': '高校入試レベル',
+    'B': '中学校の教科書レベル',
+    'T': '小学校高学年の教科書レベル'
+  };
   var _sangoTopics = null;
   var _sangoTeacherWorks = null;
   var _sangoDate = '';
   var _sangoYesterday = '';
+  var _sangoWeekNo = '';
   var _sangoCurrentLevel = null;
   var _sangoOcrText = '';
   function _sangoEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -1088,6 +1112,7 @@
       _sangoTeacherWorks = res.teacherWorks || [];
       _sangoDate = res.today || '';
       _sangoYesterday = res.yesterday || '';
+      _sangoWeekNo = res.weekNo || '';
       _renderSangoTopic();
     }).catch(function(){ document.getElementById('sango-topic-body').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
   }
@@ -1097,6 +1122,11 @@
       body.innerHTML = '<div style="text-align:center;color:#888;padding:30px">本日のお題はまだ登録されていません。</div>';
       return;
     }
+    var titleText = _sangoWeekNo
+      ? '三語短文【第' + _sangoEscHtml(_sangoWeekNo) + '週目】　本日のお題'
+      : '三語短文　本日のお題';
+    var titleHtml = '<div class="sango-title-banner">' + titleText + '</div>';
+
     var wMap = {};
     (_sangoTeacherWorks || []).forEach(function(w){ wMap[w.level] = w; });
     var dateHtml = _sangoDate ? '<div class="sango-date-label">📅 ' + _sangoEscHtml(formatDate(_sangoDate)) + ' のお題</div>' : '';
@@ -1106,9 +1136,11 @@
       var twHtml = (tw && tw.work)
         ? '<div class="sango-teacher-work"><div class="sango-teacher-label">📝 福地の作品' + (tw.date ? '（' + _sangoEscHtml(formatDate(tw.date)) + '分）' : '') + '</div><div class="sango-teacher-body">' + _sangoEscHtml(tw.work) + '</div></div>'
         : '';
-      return '<div class="sango-level-card"><div class="sango-level-label">レベル ' + _sangoEscHtml(t.level) + '</div><div class="sango-words">' + words + '</div>' + twHtml + '</div>';
+      var desc = SANGO_LEVEL_DESCRIPTIONS[t.level] || '';
+      var descHtml = desc ? '<span class="sango-level-desc">（' + _sangoEscHtml(desc) + '）</span>' : '';
+      return '<div class="sango-level-card"><div class="sango-level-label">レベル ' + _sangoEscHtml(t.level) + descHtml + '</div><div class="sango-words">' + words + '</div>' + twHtml + '</div>';
     }).join('');
-    body.innerHTML = dateHtml + topicsHtml;
+    body.innerHTML = titleHtml + dateHtml + topicsHtml;
   }
   function _renderSangoLevelTabs(tabsId, mode) {
     document.getElementById(tabsId).innerHTML = (_sangoTopics || []).map(function(t, i) {
