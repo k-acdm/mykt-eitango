@@ -394,30 +394,14 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     const clearedSets = parseInt(props.getProperty(clearKey) || '0', 10);
     if (setNo > clearedSets) props.setProperty(clearKey, String(setNo));
 
-    // テスト連続日数（PropertiesServiceで管理）
-    const testStreakKey = 'testStreak_' + sid;
-    const testLastKey   = 'testLast_'   + sid;
-    const lastTestDay   = props.getProperty(testLastKey) || '';
-    let   testStreak    = parseInt(props.getProperty(testStreakKey) || '0', 10);
-
-    if (lastTestDay === '') {
-      testStreak = 1;
-    } else {
-      const diff = Math.round((new Date(today) - new Date(lastTestDay)) / 86400000);
-      if      (diff === 1) testStreak += 1;
-      else if (diff === 0) { /* 同日は変えない */ }
-      else                 testStreak = 1;
-    }
-    props.setProperty(testStreakKey, String(testStreak));
-    props.setProperty(testLastKey,   today);
-
-    // HP計算（ポリシー「ポイント計算_26-04-15」準拠）
+    // HP計算（streak ベース：ログイン連続日数 × week²）
     //   1セットクリアにつき 50 × (連続週数)² HPを加算
     //   → 1日2セット完了で合計 100 × (連続週数)² HP
     if (studentRowIdx < 0) return { ok: false };
     const i         = studentRowIdx;
     const currentHP = Number(sRows[i][COL_HP]) || 0;
-    const week      = Math.ceil(testStreak / 7);
+    const streak    = Number(sRows[i][COL_STREAK]) || 1;  // 最低1
+    const week      = Math.ceil(streak / 7);
     const hpGained  = 50 * week * week;
     const newHP     = currentHP + hpGained;
 
@@ -430,7 +414,7 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     sSheet.getRange(i + 1, COL_UPDATED   + 1).setValue(now);
     _logHP(sid, hpGained, 'test');
 
-    return { ok: true, clearHP: hpGained, bonusHP: 0, hpGained, totalHP: newHP, streak: testStreak, week: week };
+    return { ok: true, clearHP: hpGained, bonusHP: 0, hpGained, totalHP: newHP, streak: streak, week: week };
   } catch (err) {
     console.error('[saveAttempt]', err);
     return { ok: false };
@@ -1214,7 +1198,10 @@ function submitSango(params) {
 
     let hpGained = 0;
     if (!alreadyGranted) {
-      hpGained = 200;
+      // streak ベースの週数計算で 200 × week²
+      const streak = (stuRowIdx >= 0) ? (Number(stuRows[stuRowIdx][COL_STREAK]) || 1) : 1;
+      const week = Math.ceil(streak / 7);
+      hpGained = 200 * week * week;
       if (stuRowIdx >= 0) {
         const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
         stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(cur + hpGained);
