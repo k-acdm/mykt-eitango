@@ -717,3 +717,49 @@ function getWeeklyRanking() {
      - テキスト提出・写真提出の両方で提出できる / HP加算は1日1回のみ200HPで、2回目は `hpGained:0` が返る
      - 管理画面「📋 三語短文の提出」に提出が新しい順で並ぶ
      - **注意**: items は GAS の GET クエリ `params` 内に JSON 文字列として入る。レベル2 × 7日分（=最大14件）なら URL 長は問題ないが、将来レベルを4まで増やすと URL 長が 7000 文字を超える可能性があるので、その時は `doGet` で POST 対応するか、レベル単位に分割送信する
+
+- [ ] 三語短文「過去の提出作品」画面用の GAS API `getSangoSubmissions` を追加（生徒画面 `index.html` の「📖 過去の提出作品」ボタン・保護者画面 `view.html` の「📖 三語短文の提出作品を見る」ボタンから呼び出し）。`adminListSangoSubmissions` と違い **認証なし / studentId で絞り込み** の読み取り専用。
+
+  1. **`doGet` ルーティングに追加**：
+     ```javascript
+     else if (action === 'getSangoSubmissions') result = getSangoSubmissions(params);
+     ```
+
+  2. **関数本体**：
+     ```javascript
+     function getSangoSubmissions(params) {
+       try {
+         const sid = String(params.studentId || '').trim();
+         if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+         const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
+         if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
+         const values = sh.getDataRange().getValues();
+         const submissions = [];
+         for (let i = 1; i < values.length; i++) {
+           const r = values[i];
+           if (!r[0]) continue;
+           if (String(r[1] || '').trim() !== sid) continue;
+           submissions.push({
+             timestamp:   Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
+             studentId:   String(r[1] || ''),
+             studentName: String(r[2] || ''),
+             level:       String(r[3] || ''),
+             words:       String(r[4] || ''),
+             work:        String(r[5] || ''),
+             method:      String(r[6] || '')
+           });
+         }
+         submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+         return { ok: true, submissions: submissions };
+       } catch(err) {
+         console.error('[getSangoSubmissions]', err);
+         return { ok: false, message: String(err) };
+       }
+     }
+     ```
+
+  3. **動作確認**:
+     - 生徒画面「三語短文」→ お題画面の「📖 過去の提出作品」ボタンで、**自分の提出作品のみ** が新しい順に表示される
+     - 保護者画面（`view.html`）「📖 三語短文の提出作品を見る」で、ログイン中の生徒の提出作品が同様に表示される
+     - 他の生徒IDの作品が混ざらないこと
+     - 提出ゼロの場合は「まだ提出した作品はありません。」と表示されること
