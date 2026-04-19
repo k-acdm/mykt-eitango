@@ -1126,6 +1126,7 @@ function _readSangoTopicsByDate(dateStr) {
   const iW2    = header.indexOf('word2');
   const iW3    = header.indexOf('word3');
   const iTW    = header.indexOf('teacher_work');
+  const iWN    = header.indexOf('week_no');
   const out = [];
   for (let i = 1; i < values.length; i++) {
     const r = values[i];
@@ -1136,6 +1137,7 @@ function _readSangoTopicsByDate(dateStr) {
       level: String(r[iLevel] || '').trim(),
       words: [r[iW1], r[iW2], r[iW3]].map(function(w){ return String(w || '').trim(); }).filter(Boolean),
       teacher_work: String(r[iTW] || '').trim(),
+      week_no: iWN >= 0 ? String(r[iWN] || '').trim() : '',
       date: ds
     });
   }
@@ -1152,7 +1154,13 @@ function getSangoTopic() {
     const cmp = function(a,b){ return a.level < b.level ? -1 : a.level > b.level ? 1 : 0; };
     const topics = tRows.map(function(t){ return { level: t.level, words: t.words }; }).sort(cmp);
     const teacherWorks = yRows.map(function(t){ return { level: t.level, work: t.teacher_work, date: t.date }; }).sort(cmp);
-    return { ok: true, today: today, yesterday: yest, topics: topics, teacherWorks: teacherWorks };
+    let weekNo = '';
+    if (tRows.length > 0) {
+      for (let i = 0; i < tRows.length; i++) {
+        if (tRows[i].week_no) { weekNo = tRows[i].week_no; break; }
+      }
+    }
+    return { ok: true, today: today, yesterday: yest, topics: topics, teacherWorks: teacherWorks, weekNo: weekNo };
   } catch(err) {
     console.error('[getSangoTopic]', err);
     return { ok: false, message: String(err) };
@@ -1236,9 +1244,10 @@ function adminAddSangoTopic(params) {
   }
 }
 
-// 週単位の一括登録（月〜日 × レベルA/S を一気に追加）
-// 期待する params: { password, start, items: [{date, level, word1, word2, word3}, ...] }
+// 週単位の一括登録（月〜日 × レベルA/S/B/T を一気に追加）
+// 期待する params: { password, start, weekNo, items: [{date, level, word1, word2, word3}, ...] }
 // teacher_work は送られてこない想定（後で adminSetSangoTeacherWork で個別に上書きする運用）
+// week_no は週全体で1つの番号（全itemsに同じ番号を付与）
 function adminAddSangoTopicsWeek(params) {
   try {
     if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
@@ -1246,6 +1255,7 @@ function adminAddSangoTopicsWeek(params) {
     if (!Array.isArray(items) || items.length === 0) {
       return { ok: false, message: '登録するお題がありません' };
     }
+    const weekNo = params.weekNo || '';
     const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
     if (!sh) return { ok: false, message: 'SangoTopicsシートが見つかりません' };
 
@@ -1262,7 +1272,8 @@ function adminAddSangoTopicsWeek(params) {
         item.word1,
         item.word2,
         item.word3,
-        ''
+        '',
+        weekNo
       ]);
     });
 
