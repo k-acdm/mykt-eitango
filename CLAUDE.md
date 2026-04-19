@@ -278,6 +278,60 @@
   - [index.html:514-529](index.html:514) 三語短文お題表示画面の HTML 構造と、[index.html:1081-1112](index.html:1081) の `showSangoTopic()` / `_renderSangoTopic()` の描画ロジックを再確認（変更は加えていない）
   - worktree 整理: 追加 worktree は作業中の `strange-hertz-693d49` (dev) のみで、削除対象なし（現状維持）
 
+### 2026-04-20
+
+#### 18. 三語短文 `adminAddSangoTopicsWeek` エラー修正（昨日からの継続）
+- **背景**: 2026-04-19 夜に GAS エディタ側で直接反映した `adminAddSangoTopicsWeek`（#17）が実運用時にエラーを起こしていたため、当日中に追加修正を入れて復旧済み
+- **対応**: 管理画面から週単位一括登録が正常に通ることを本番 URL で確認
+- **本セッションでの追加作業**: 後述の #19 で `gas/Code.js` 側を週番号対応に書き換えた際、同関数を丸ごと差し替える形で現行の最新ロジックへ整流
+
+#### 19. clasp 導入で GAS `Code.js` をリポジトリ管理下に（コミット `4104508`、main に直接 push）
+- **背景**: 従来は「`Code.gs` はリポジトリに含めず GAS エディタ側で管理」だったが、編集・差分レビュー・履歴追跡のために clasp で GAS とリポジトリを同期する運用に切替
+- **追加されたもの**:
+  - `.gitignore`（ルート、18 行）: ビルド成果物 / OS ゴミ / `.clasp` 認証情報など
+  - `gas/.clasp.json` / `gas/.claspignore` / `gas/appsscript.json`
+  - `gas/Code.js`（1372 行、現行 GAS の全文を clasp pull で取り込んだもの）
+  - `CLAUDE.md` 運用メモを「GAS 変更フロー: 編集 → `cd gas && clasp push` → GAS エディタでデプロイ」に更新
+- **フロー変更**:
+  - 以後、Code.js の修正は `gas/Code.js` で編集 → ユーザーが手動で `clasp push` → 新しいデプロイ更新
+  - Claude Code 側は `clasp push` を実行しない（ユーザー手動）
+- **main に直接 push した理由**: 作業効率優先の特殊対応。通常フローとは逆向きだが、後続セッションで `main → dev` のマージで dev にも取り込み整合を回復（作業ログ #20 冒頭参照）
+- **git config**: 手元で `k-acdm <k-academy@mbr.nifty.com>` を設定。以後 `-c user.name=... -c user.email=...` の都度指定は不要になったはずだが、Claude Code 側のコミットは念のため都度指定を継続
+
+#### 20. 三語短文 週番号（week_no）対応（dev `c5afb17` / `eff1131` / `0a26400` → main `4dd6e81` / `e60e6d5` / `302bb46`）
+- **背景**: お題に週番号を紐付け、生徒画面のトップに「三語短文【第○○週目】　本日のお題」バナーを出したい。併せて A/B/S/T の各レベルに意味付け（大学入試レベル等）を表示
+- **スプレッドシート**: `SangoTopics` シートに 7 列目 `week_no` を追加済（ユーザー手動）
+- **セッション冒頭の整流**:
+  - 並行作業で `elegant-driscoll-fff1f4` worktree（dev）が残っていたのを削除（未コミット無し、origin/dev より 7 コミット遅れ状態）
+  - 本 worktree `priceless-lederberg-d3ee9b` を `claude/priceless-lederberg-d3ee9b` → `dev` に切替
+  - `origin/main` の clasp 導入コミット（#19）を `dev` に merge（`206ed98`）して dev 側にも `gas/Code.js` を取り込み
+- **GAS 側 ([gas/Code.js](gas/Code.js))** コミット `c5afb17`:
+  - `adminAddSangoTopicsWeek`: `params.weekNo` を受け取り各行の 7 列目に付与。`items` バリデーション + エラー集計 + まとめて `setValues` で一括書き込み（従来版から整理）
+  - `_readSangoTopicsByDate`: `header.indexOf('week_no')` で列位置を動的取得し、返却オブジェクトに `week_no` を含める（列未存在時は空文字）
+  - `getSangoTopic`: レスポンスに `weekNo` を追加（その日のお題行の最初の `week_no` を採用）
+- **管理画面 ([admin.html:211-215](admin.html:211) / [admin.html:321-325](admin.html:321))** コミット `eff1131`:
+  - プレビュー直下に「第○○週（週番号）」の number input（id `sango-paste-week-no`）を追加（空欄可）
+  - `submitSangoPaste` が `gasGet` 送信時に `weekNo` を同梱
+- **生徒画面 ([index.html](index.html))** コミット `0a26400`:
+  - 定数 `SANGO_LEVEL_DESCRIPTIONS = { A: '大学入試レベル', S: '高校入試レベル', B: '中学校の教科書レベル', T: '小学校高学年の教科書レベル' }` を追加
+  - 変数 `_sangoWeekNo` を追加、`showSangoTopic` で `res.weekNo` を保存
+  - `_renderSangoTopic` を差し替え: 先頭に `.sango-title-banner` を描画（週番号が空なら「三語短文　本日のお題」にフォールバック）。各レベル見出しの直後に `.sango-level-desc` で説明を付記
+  - CSS: `.sango-title-banner`（赤〜ピンクのグラデ / 白文字 / 角丸） + `.sango-level-desc`（13px・グレー）を追加
+- **動作確認**: 本番 URL（GitHub Pages）で UI 反映を確認済み
+
+#### 21. HP 計算ロジックを streak ベースで統一（dev `e69e2a7` → main `ef68e95`）
+- **目的**: 今まで `saveAttempt` だけが独自の `testStreak_*` / `testLast_*`（PropertiesService）で週数管理していたのを廃止し、全コンテンツで **Students シートの `COL_STREAK`（ログイン連続日数）** を唯一のソースに統一
+- **統一後の式**:
+  - ログイン: `+10` 固定（week 倍率なし、1 日 1 回）
+  - 課題クリア: `基本HP × ceil(streak/7)²`
+    - 英単語RUSH 1 セット合格: 基本 `50`（→ 1 日 2 セットで `100 × week²`、従来通り）
+    - 三語短文 提出（1 日 1 回）: 基本 `200`（**新規: 従来の固定 200 に `week²` 倍率が追加**）
+- **[gas/Code.js](gas/Code.js) の差分** (`saveAttempt` / `submitSango` で合計 +8 / -21):
+  - `saveAttempt`: `testStreakKey` / `testLastKey` による PropertiesService 読み書きブロックを丸ごと削除し、`Number(sRows[i][COL_STREAK]) || 1` で代用。返却値の `streak` / `week` も新ロジック値を返す
+  - `submitSango`: `hpGained = 200;` → `const streak = ... COL_STREAK ... || 1; const week = Math.ceil(streak/7); hpGained = 200 * week * week;`
+- **既存の `testStreak_*` / `testLast_*` プロパティ**: 参照されなくなるが意図的に放置。将来的に必要なら `resetAllProgress` に削除ロジックを追加する方針
+- **テスト**: UI は本番確認済み。HP 加算ロジックの実データ確認は明日以降
+
 ---
 
 ## TODO（未反映の GAS 側作業）
