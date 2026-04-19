@@ -208,6 +208,11 @@
             '空行・前後の空白は無視されます。5列（→なし）でも認識します。' +
           '</div>' +
           '<div id="sango-paste-preview"></div>' +
+          '<div style="margin-top:12px">' +
+            '<label style="display:block;font-weight:bold;margin-bottom:4px">第○○週（週番号）</label>' +
+            '<input type="number" id="sango-paste-week-no" placeholder="例：100" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px" />' +
+            '<div style="font-size:12px;color:#666;margin-top:4px">※この週全体に適用される番号です。空欄のままでも登録可能です。</div>' +
+          '</div>' +
           '<button type="button" class="submit-btn" id="sango-paste-submit" onclick="submitSangoPaste()" style="margin-top:16px">✅ お題を一括登録する</button>' +
         '</div>' +
         '<div class="form-card" style="margin-top:20px">' +
@@ -313,10 +318,12 @@
     var items = parsed.items.map(function(it){ return { date: it.date, level: it.level, word1: it.word1, word2: it.word2, word3: it.word3 }; });
     var btn = document.getElementById('sango-paste-submit');
     if (btn) btn.disabled = true;
+    var weekNoStr = (document.getElementById('sango-paste-week-no') || {}).value || '';
     gasGet({
       action: 'adminAddSangoTopicsWeek',
       password: sessionStorage.getItem('adminPassword') || '',
       start: startStr,
+      weekNo: weekNoStr,
       items: items
     }).then(function(res) {
       if (btn) btn.disabled = false;
