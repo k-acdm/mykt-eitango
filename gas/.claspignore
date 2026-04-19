@@ -1,0 +1,9 @@
+﻿# Node / Git関連は同期しない
+node_modules/**
+.git/**
+.gitignore
+README.md
+
+# OS関連
+.DS_Store
+Thumbs.db

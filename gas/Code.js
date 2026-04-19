@@ -1,0 +1,1372 @@
+/**
+ * マイ活アプリ - Code.gs
+ * 更新：2026-04-17
+ */
+
+const APP_TITLE       = 'マイ活アプリ＜英単語＞';
+const SHEET_STUDENTS  = 'Students';
+const SHEET_QUESTIONS = 'Questions';
+const SHEET_ATTEMPTS  = 'Attempts';
+const SHEET_Q5        = 'Question5';
+const SHEET_HPLOG     = 'HPLog';
+const SHEET_EXCHANGES = 'Exchanges';
+const SHEET_QUOTE   = 'Quote';
+const SHEET_NOTICE  = 'Notice';
+const SHEET_SANGO_TOPICS      = 'SangoTopics';
+const SHEET_SANGO_SUBMISSIONS = 'SangoSubmissions';
+
+const COL_ID         = 0;
+const COL_NAME       = 1;
+const COL_NICKNAME   = 2;
+const COL_CLEARED    = 3;
+const COL_UPDATED    = 4;
+const COL_HP         = 5;
+const COL_STREAK     = 6;  // ログイン連続日数
+const COL_LAST_TEST  = 7;
+const COL_LAST_LOGIN = 8;
+
+const LEVEL_ORDER     = ['5級', '4級', '3級', '準2級', '2級', '準1級'];
+const EXCHANGE_RANKS  = {
+  bronze:   { label: 'ブロンズ',   hp: 30000 },
+  silver:   { label: 'シルバー',   hp: 120000 },
+  gold:     { label: 'ゴールド',   hp: 400000 },
+  platinum: { label: 'プラチナ',   hp: 1200000 },
+  diamond:  { label: 'ダイヤ',     hp: 3500000 },
+  legend:   { label: 'レジェンド', hp: 10000000 },
+};
+
+function _ss()       { return SpreadsheetApp.getActiveSpreadsheet(); }
+function _todayJST() { return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd'); }
+function _nowJST()   { return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'); }
+function _toDateStr(val) {
+  if (!val) return '';
+  try {
+    var s = String(val);
+    // _nowJST()で保存したJST文字列はそのまま先頭10文字を使う（new Date()経由にしない）
+    if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0, 10);
+    // Date型などの場合はFormatDateでJSTに変換
+    return Utilities.formatDate(new Date(val), 'Asia/Tokyo', 'yyyy-MM-dd');
+  } catch(e) { return String(val).slice(0, 10); }
+}
+function _props() { return PropertiesService.getScriptProperties(); }
+
+// =============================================
+// doGet
+// =============================================
+function doGet(e) {
+  if (e && e.parameter && e.parameter.params) {
+    try {
+      const params = JSON.parse(e.parameter.params);
+      const action = params.action;
+      let result;
+      if      (action === 'loginStudent')     result = loginStudent(params.studentId);
+      else if (action === 'saveNickname')     result = saveNickname(params.studentId, params.nickname);
+      else if (action === 'getTodaysSet')     result = getTodaysSet(params.studentId, params.level);
+      else if (action === 'saveAttempt')      result = saveAttempt(params.studentId, params.setNo, params.score, params.total, params.passed, params.level, params.sessionNo);
+      else if (action === 'getHistory')       result = getHistory(params.studentId);
+      else if (action === 'getSetWords')      result = getSetWords(params.setNo, params.level);
+      else if (action === 'submitPhoto')      result = submitPhoto(params.studentId, params.setNo, params.imageBase64, params.words);
+      else if (action === 'getWeeklyRanking') result = getWeeklyRanking();
+      else if (action === 'getQuote')         result = getQuote();
+      else if (action === 'getNotice')        result = getNotice();
+      else if (action === 'getNoticeHistory') result = getNoticeHistory();
+      else if (action === 'submitExchange')    result = submitExchange(params.studentId, params.rank);
+      else if (action === 'getExchangeStatus') result = getExchangeStatus(params.studentId);
+      else if (action === 'adminLogin')     result = adminLogin(params);
+      else if (action === 'adminAddQuote')  result = adminAddQuote(params);
+      else if (action === 'adminAddNotice') result = adminAddNotice(params);
+      else if (action === 'getStudentView') result = getStudentView(params);  
+      else if (action === 'getSangoTopic')             result = getSangoTopic();
+      else if (action === 'submitSango')               result = submitSango(params);
+      else if (action === 'adminAddSangoTopic')        result = adminAddSangoTopic(params);
+      else if (action === 'adminAddSangoTopicsWeek')   result = adminAddSangoTopicsWeek(params);
+      else if (action === 'adminListSangoSubmissions') result = adminListSangoSubmissions(params);
+      else if (action === 'adminSetSangoTeacherWork')   result = adminSetSangoTeacherWork(params);
+      else if (action === 'getSangoSubmissions') result = getSangoSubmissions(params);
+      else if (action === 'ping')             result = { ok: true };
+      else result = { ok: false, message: 'unknown action: ' + action };
+      return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      console.error('[doGet API]', err);
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, message: String(err) })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  try {
+    const tmpl = HtmlService.createTemplateFromFile('Index');
+    tmpl.appUrl = ScriptApp.getService().getUrl();
+    return tmpl.evaluate().setTitle(APP_TITLE).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch (err) {
+    return HtmlService.createHtmlOutput('<p>読み込みに失敗しました。</p>').setTitle(APP_TITLE);
+  }
+}
+
+// =============================================
+// doPost（写真判定用）
+// =============================================
+function doPost(e) {
+  try {
+    const params = JSON.parse(e.postData.contents);
+    const action = params.action;
+    let result;
+    if (action === 'submitPhoto') result = submitPhoto(params.studentId, params.setNo, params.imageBase64, params.words);
+    else result = { ok: false, message: 'unknown action: ' + action };
+    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    console.error('[doPost]', err);
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, message: String(err) })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// =============================================
+// ログイン（キャラクターステージ対応版）
+// =============================================
+function loginStudent(studentId) {
+  try {
+    const sheet = _ss().getSheetByName(SHEET_STUDENTS);
+    if (!sheet) return { ok: false, message: 'Studentsシートが見つかりません。' };
+    const rows  = sheet.getDataRange().getValues();
+    const today = _todayJST();
+    const now   = _nowJST();
+
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][COL_ID]).trim() !== String(studentId).trim()) continue;
+
+      const nickname     = String(rows[i][COL_NICKNAME] || '').trim();
+      const isFirstLogin = (nickname === '');
+      let   currentHP    = Number(rows[i][COL_HP])     || 0;
+      let   streak       = Number(rows[i][COL_STREAK]) || 0;
+      const lastLogin    = _toDateStr(rows[i][COL_LAST_LOGIN]);
+
+      // 未ログイン日数を計算
+      let missedDays = 0;
+      if (lastLogin && lastLogin !== today) {
+        const diff = (new Date(today) - new Date(lastLogin)) / (1000 * 60 * 60 * 24);
+        missedDays = Math.floor(diff);
+      }
+
+      // 今日まだログインしていない場合のみ更新
+      let loginBonus = 0;
+      if (lastLogin !== today) {
+        loginBonus = 10;
+        currentHP += loginBonus;
+
+        if (missedDays === 1) {
+          streak += 1;    // 昨日から連続
+        } else if (missedDays === 0) {
+          streak = 1;     // 初回ログイン
+        } else {
+          streak = 1;     // 2日以上空いたのでリセット
+        }
+
+        sheet.getRange(i + 1, COL_HP         + 1).setValue(currentHP);
+        sheet.getRange(i + 1, COL_STREAK     + 1).setValue(streak);
+        sheet.getRange(i + 1, COL_LAST_LOGIN + 1).setValue(today);
+        sheet.getRange(i + 1, COL_UPDATED    + 1).setValue(now);
+        _logHP(studentId, loginBonus, 'login');
+      }
+
+      // ステージ・称号・節目を計算
+      const yesterday    = _getYesterdayJST();
+      const prevDayCount = _getPrevDayCount(studentId, yesterday);
+      const stage        = _calcStage(streak, missedDays, prevDayCount);
+      const title        = _getTitle(streak);
+      // 節目・称号ランクアップ チェック
+      let milestoneInfo = null;
+      if (loginBonus > 0) {
+        const isMsDay  = _isMilestone(streak);
+        const rankUpCheck = (missedDays === 1) && (_getTitle(streak) !== _getTitle(streak - 1));
+        if (isMsDay || rankUpCheck) {
+          milestoneInfo = {
+            streak:      streak,
+            isMilestone: isMsDay,
+            isRankUp:    rankUpCheck,
+            prevTitle:   missedDays === 1 ? _getTitle(streak - 1) : '',
+            newTitle:    title
+          };
+        }
+      }
+
+      return {
+        ok:          true,
+        studentId:   String(rows[i][COL_ID]).trim(),
+        name:        String(rows[i][COL_NAME] || ''),
+        nickname,
+        isFirstLogin,
+        totalHP:     currentHP,
+        loginBonus,
+        streak,
+        stage,
+        title,
+        milestone: milestoneInfo
+      };
+    }
+    return { ok: false, message: '生徒IDが見つかりません。先生に確認してください。' };
+  } catch (err) {
+    console.error('[loginStudent]', err);
+    return { ok: false, message: '内部エラーが発生しました。' };
+  }
+}
+
+// =============================================
+// キャラクター関連ヘルパー
+// =============================================
+function _getYesterdayJST() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+function _getTitle(streak) {
+  if (streak >= 1900) return 'マイカツ神';
+  if (streak >= 1700) return 'マイカツ伝説';
+  if (streak >= 1500) return 'マイカツCEO';
+  if (streak >= 1300) return 'マイカツ会長';
+  if (streak >= 1100) return 'マイカツ仙人';
+  if (streak >= 900)  return 'マイカツ長老';
+  if (streak >= 730)  return 'マイカツ賢者';
+  if (streak >= 650)  return 'マイカツ皇帝';
+  if (streak >= 550)  return 'マイカツ王';
+  if (streak >= 450)  return 'マイカツ総理';
+  if (streak >= 365)  return 'マイカツ将軍';
+  if (streak >= 300)  return 'マイカツ大臣';
+  if (streak >= 240)  return 'マイカツ貴族';
+  if (streak >= 180)  return 'マイカツ社長';
+  if (streak >= 150)  return 'マイカツ専務';
+  if (streak >= 120)  return 'マイカツ常務';
+  if (streak >= 90)   return 'マイカツ部長';
+  if (streak >= 60)   return 'マイカツ課長';
+  if (streak >= 45)   return 'マイカツ英雄';
+  if (streak >= 30)   return 'マイカツ勇者';
+  if (streak >= 21)   return 'マイカツ騎士';
+  if (streak >= 14)   return 'マイカツ戦士';
+  if (streak >= 7)    return 'マイカツ若頭';
+  if (streak >= 3)    return 'マイカツ足軽';
+  return 'マイカツ見習い';
+}
+
+// =============================================
+// マイルストーン判定
+// =============================================
+function _isMilestone(streak) {
+  if (streak === 3 || streak === 7) return true;
+  if (streak >= 30  && streak % 30  === 0) return true;
+  if (streak >= 100 && streak % 100 === 0) return true;
+  if (streak >= 365 && streak % 365 === 0) return true;
+  return false;
+}
+
+function _getPrevDayCount(studentId, yesterday) {
+  const sh = _ss().getSheetByName(SHEET_ATTEMPTS);
+  if (!sh) return 0;
+  const data = sh.getDataRange().getValues();
+  let count  = 0;
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][1]).trim() === String(studentId).trim() &&
+        _toDateStr(data[i][0])    === yesterday) count++;
+  }
+  return count;
+}
+
+function _calcStage(streak, missedDays, prevDayCount) {
+  if (missedDays >= 3)                                       return 1;
+  if (missedDays === 2)                                      return 2;
+  if (missedDays === 1)                                      return 3;
+  if (streak >= 3 && prevDayCount >= 2)                      return 7;
+  if (missedDays === 0 && prevDayCount >= 1 && streak >= 2)  return 6;
+  if (missedDays === 0 && prevDayCount >= 1)                 return 5;
+  return 4;
+}
+
+// =============================================
+// ニックネーム保存
+// =============================================
+function saveNickname(studentId, nickname) {
+  try {
+    const sheet = _ss().getSheetByName(SHEET_STUDENTS);
+    const rows  = sheet.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][COL_ID]).trim() !== String(studentId).trim()) continue;
+      sheet.getRange(i + 1, COL_NICKNAME + 1).setValue(nickname.trim());
+      return { ok: true, nickname: nickname.trim() };
+    }
+    return { ok: false, message: '生徒IDが見つかりません。' };
+  } catch (err) {
+    return { ok: false, message: '保存に失敗しました。' };
+  }
+}
+
+// =============================================
+// 今日のセット取得（1日2セット対応）
+// =============================================
+function getTodaysSet(studentId, level) {
+  try {
+    const sid   = String(studentId).trim();
+    const lv    = String(level || '4級').trim();
+    const today = _todayJST();
+    const props = _props();
+
+    const pass1Key = 'pass1_' + sid + '_' + lv;
+    const pass2Key = 'pass2_' + sid + '_' + lv;
+    const done1 = (props.getProperty(pass1Key) || '') === today;
+    const done2 = (props.getProperty(pass2Key) || '') === today;
+
+    if (done1 && done2) {
+      return { ok: true, alreadyDone: true, sessionNo: 3, level: lv, setNo: 0, words: [] };
+    }
+
+    const sessionNo = done1 ? 2 : 1;
+    const is5       = (lv === '5級');
+    const sheetName = is5 ? SHEET_Q5 : SHEET_QUESTIONS;
+    const qRows     = _ss().getSheetByName(sheetName).getDataRange().getValues();
+
+    let targetLv  = lv;
+    let clearKey  = 'cleared_' + sid + '_' + targetLv;
+    let cleared   = parseInt(props.getProperty(clearKey) || '0', 10);
+    let targetSet = cleared + 1;
+
+    let isRound2 = false;
+    if (is5) {
+      const maxSet = _getMaxSetForLevel('5級');
+      if (cleared >= maxSet) { isRound2 = true; targetSet = (cleared - maxSet) + 1; }
+    }
+
+    if (sessionNo === 2 && !is5) {
+      const maxSet = _getMaxSetForLevel(targetLv);
+      if (maxSet > 0 && cleared >= maxSet) {
+        const nextLv = _getNextLevel(targetLv);
+        if (nextLv) {
+          targetLv  = nextLv;
+          clearKey  = 'cleared_' + sid + '_' + targetLv;
+          cleared   = parseInt(props.getProperty(clearKey) || '0', 10);
+          targetSet = cleared + 1;
+        }
+      }
+    }
+
+    const words = is5
+      ? _getWords(qRows, targetSet, '5級')
+      : _getWordsQ4(qRows, targetSet, targetLv);
+
+    if (words.length === 0) {
+      return { ok: false, message: 'セット' + targetSet + '（英検' + targetLv + 'レベル）のデータがまだありません。' };
+    }
+    return { ok: true, setNo: targetSet, words, alreadyDone: false, level: targetLv, sessionNo, isRound2: isRound2 || false };
+  } catch (err) {
+    console.error('[getTodaysSet]', err);
+    return { ok: false, message: '問題データの取得に失敗しました。' };
+  }
+}
+
+// =============================================
+// テスト結果保存
+// =============================================
+function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
+  try {
+    const aSheet = _ss().getSheetByName(SHEET_ATTEMPTS);
+    const sSheet = _ss().getSheetByName(SHEET_STUDENTS);
+    const now    = _nowJST();
+    const today  = _todayJST();
+    const sid    = String(studentId).trim();
+    const lv     = String(level || '4級').trim();
+    const sNo    = Number(sessionNo) || 1;
+
+    // Studentsシートから氏名を取得 ＋ HP計算用の行インデックスを記憶
+    const sRows = sSheet.getDataRange().getValues();
+    let studentRowIdx = -1;
+    let studentName   = '';
+    for (let i = 1; i < sRows.length; i++) {
+      if (String(sRows[i][COL_ID]).trim() === sid) {
+        studentRowIdx = i;
+        studentName   = String(sRows[i][COL_NAME] || '');
+        break;
+      }
+    }
+
+    // Attempts: 日時 / 生徒ID / 氏名 / セット番号 / 得点 / 合否 / 級 / 端末(任意) / メモ(任意)
+    aSheet.appendRow([now, sid, studentName, setNo, score, passed ? '合格' : '不合格', lv, '', '']);
+    if (!passed) return { ok: true };
+
+    const props   = _props();
+    const passKey = sNo === 1 ? 'pass1_' + sid + '_' + lv : 'pass2_' + sid + '_' + lv;
+    props.setProperty(passKey, today);
+
+    const clearKey    = 'cleared_' + sid + '_' + lv;
+    const clearedSets = parseInt(props.getProperty(clearKey) || '0', 10);
+    if (setNo > clearedSets) props.setProperty(clearKey, String(setNo));
+
+    // テスト連続日数（PropertiesServiceで管理）
+    const testStreakKey = 'testStreak_' + sid;
+    const testLastKey   = 'testLast_'   + sid;
+    const lastTestDay   = props.getProperty(testLastKey) || '';
+    let   testStreak    = parseInt(props.getProperty(testStreakKey) || '0', 10);
+
+    if (lastTestDay === '') {
+      testStreak = 1;
+    } else {
+      const diff = Math.round((new Date(today) - new Date(lastTestDay)) / 86400000);
+      if      (diff === 1) testStreak += 1;
+      else if (diff === 0) { /* 同日は変えない */ }
+      else                 testStreak = 1;
+    }
+    props.setProperty(testStreakKey, String(testStreak));
+    props.setProperty(testLastKey,   today);
+
+    // HP計算（ポリシー「ポイント計算_26-04-15」準拠）
+    //   1セットクリアにつき 50 × (連続週数)² HPを加算
+    //   → 1日2セット完了で合計 100 × (連続週数)² HP
+    if (studentRowIdx < 0) return { ok: false };
+    const i         = studentRowIdx;
+    const currentHP = Number(sRows[i][COL_HP]) || 0;
+    const week      = Math.ceil(testStreak / 7);
+    const hpGained  = 50 * week * week;
+    const newHP     = currentHP + hpGained;
+
+    const currentCleared = Number(sRows[i][COL_CLEARED]) || 0;
+    if (setNo > currentCleared) {
+      sSheet.getRange(i + 1, COL_CLEARED + 1).setValue(setNo);
+    }
+    sSheet.getRange(i + 1, COL_HP        + 1).setValue(newHP);
+    sSheet.getRange(i + 1, COL_LAST_TEST + 1).setValue(today);
+    sSheet.getRange(i + 1, COL_UPDATED   + 1).setValue(now);
+    _logHP(sid, hpGained, 'test');
+
+    return { ok: true, clearHP: hpGained, bonusHP: 0, hpGained, totalHP: newHP, streak: testStreak, week: week };
+  } catch (err) {
+    console.error('[saveAttempt]', err);
+    return { ok: false };
+  }
+}
+
+// =============================================
+// HPログ記録
+// =============================================
+function _logHP(studentId, hpGained, type) {
+  try {
+    const ss = _ss();
+    let sh   = ss.getSheetByName(SHEET_HPLOG);
+    if (!sh) {
+      sh = ss.insertSheet(SHEET_HPLOG);
+      sh.getRange(1, 1, 1, 4).setValues([['timestamp', 'studentId', 'hpGained', 'type']]);
+    }
+    sh.appendRow([_nowJST(), String(studentId).trim(), hpGained, type]);
+  } catch(e) {
+    console.error('[_logHP]', e);
+  }
+}
+
+// =============================================
+// 先週の期間を返す（月曜〜日曜）
+// =============================================
+function _getLastWeekRange() {
+  const todayStr = _todayJST();
+  const d        = new Date(todayStr);
+  const dow      = d.getDay(); // 0=日, 1=月, ...6=土
+
+  // 今週の月曜日
+  const daysFromMon = (dow === 0) ? 6 : dow - 1;
+  const thisMon = new Date(d);
+  thisMon.setDate(d.getDate() - daysFromMon);
+
+  // 先週の月曜日・日曜日
+  const lastMon = new Date(thisMon);
+  lastMon.setDate(thisMon.getDate() - 7);
+  const lastSun = new Date(thisMon);
+  lastSun.setDate(thisMon.getDate() - 1);
+
+  const fmt = date => Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy-MM-dd');
+  return { start: fmt(lastMon), end: fmt(lastSun) };
+}
+
+// =============================================
+// 週間HPランキング取得
+// =============================================
+function getWeeklyRanking() {
+  try {
+    const ss       = _ss();
+    const logSheet = ss.getSheetByName(SHEET_HPLOG);
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) return { ok: false, message: 'Studentsシートが見つかりません。' };
+
+    const range = _getLastWeekRange();
+    const HP_PER_TEST = 50;
+
+    // 生徒マスタ（ニックネーム・累積HP）
+    const stuRows = stuSheet.getDataRange().getValues();
+    const stuMap  = {};
+    for (let i = 1; i < stuRows.length; i++) {
+      const sid = String(stuRows[i][COL_ID]).trim();
+      stuMap[sid] = {
+        nickname: (String(stuRows[i][COL_NICKNAME] || '').trim()) || '名無し',
+        totalHP:  Number(stuRows[i][COL_HP])     || 0,
+        streak:   Number(stuRows[i][COL_STREAK]) || 0
+      };
+    }
+
+    // HPLogから先週分の type='test' のみ件数カウント（1件 = 50HP、連続週数ボーナス除外）
+    const countMap = {};
+    if (logSheet) {
+      const logRows = logSheet.getDataRange().getValues();
+      for (let i = 1; i < logRows.length; i++) {
+        if (logRows[i][3] !== 'test') continue;
+        const dateStr = _toDateStr(logRows[i][0]);
+        if (dateStr < range.start || dateStr > range.end) continue;
+        const sid = String(logRows[i][1]).trim();
+        countMap[sid] = (countMap[sid] || 0) + 1;
+      }
+    }
+
+    // 上位10名を選出
+    const ranking = Object.keys(countMap)
+      .filter(sid => countMap[sid] > 0 && stuMap[sid])
+      .map(sid => ({
+        nickname: stuMap[sid].nickname,
+        weeklyHP: countMap[sid] * HP_PER_TEST,
+        totalHP:  stuMap[sid].totalHP,
+        title:    _getTitle(stuMap[sid].streak)
+      }))
+      .sort((a, b) => b.weeklyHP - a.weeklyHP)
+      .slice(0, 10);
+
+    return { ok: true, ranking, period: range };
+  } catch(err) {
+    console.error('[getWeeklyRanking]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 写真判定（Vision API）
+// =============================================
+function submitPhoto(studentId, setNo, imageBase64, words) {
+  try {
+    const apiKey = _props().getProperty('VISION_API_KEY');
+    if (!apiKey) return { ok: false, message: 'APIキーが設定されていません。' };
+
+    const url  = 'https://vision.googleapis.com/v1/images:annotate?key=' + apiKey;
+    const body = {
+      requests: [{
+        image:    { content: imageBase64 },
+        features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }]
+      }]
+    };
+
+    const res  = UrlFetchApp.fetch(url, {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify(body), muteHttpExceptions: true
+    });
+
+    const json = JSON.parse(res.getContentText());
+    if (!json.responses || !json.responses[0]) {
+      return { ok: false, message: '画像の読み取りに失敗しました。' };
+    }
+
+    const detected = json.responses[0].fullTextAnnotation
+      ? json.responses[0].fullTextAnnotation.text.toLowerCase() : '';
+
+    if (!detected) {
+      return { ok: true, passed: false, message: '文字が読み取れませんでした。明るい場所でもう一度撮影してください。' };
+    }
+
+    const failedWords = [];
+    for (const w of words) {
+      const word  = w.toLowerCase();
+      const regex = new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+      const count = (detected.match(regex) || []).length;
+      if (count < 3) failedWords.push(w);
+    }
+
+    return failedWords.length === 0
+      ? { ok: true, passed: true }
+      : { ok: true, passed: false, failedWords, message: '以下の単語が3回書かれていないか、読み取れませんでした：' + failedWords.join('、') };
+  } catch (err) {
+    console.error('[submitPhoto]', err);
+    return { ok: false, message: '判定中にエラーが発生しました：' + String(err) };
+  }
+}
+
+// =============================================
+// 合格済み履歴取得
+// =============================================
+function getHistory(studentId) {
+  try {
+    const sid    = String(studentId).trim();
+    const aSheet = _ss().getSheetByName(SHEET_ATTEMPTS);
+    const rows   = aSheet.getDataRange().getValues();
+    const seen   = new Set();
+    const history = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (String(row[1]).trim() !== sid) continue;
+      if (row[5] !== '合格') continue;
+      const lv    = String(row[6]);
+      const setNo = Number(row[3]);
+      const key   = lv + '_' + setNo;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      history.push({ date: String(row[0]).slice(0, 10), setNo, level: lv });
+    }
+    history.reverse();
+    return { ok: true, history };
+  } catch (err) {
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 指定セットの単語取得
+// =============================================
+function getSetWords(setNo, level) {
+  try {
+    const lv        = String(level).trim();
+    const sheetName = lv === '5級' ? SHEET_Q5 : SHEET_QUESTIONS;
+    const qRows     = _ss().getSheetByName(sheetName).getDataRange().getValues();
+    const words     = lv === '5級'
+      ? _getWords(qRows, Number(setNo), '5級')
+      : _getWordsQ4(qRows, Number(setNo), lv);
+    if (words.length === 0) return { ok: false, message: 'データが見つかりません。' };
+    return { ok: true, words };
+  } catch (err) {
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 問題データ取得ヘルパー
+// =============================================
+function _getMaxSetForLevel(lv) {
+  const sheetName = lv === '5級' ? SHEET_Q5 : SHEET_QUESTIONS;
+  const qRows = _ss().getSheetByName(sheetName).getDataRange().getValues();
+  let max = 0;
+  for (let i = 1; i < qRows.length; i++) {
+    if (String(qRows[i][9]).trim() === lv) max = Math.max(max, Number(qRows[i][0]));
+  }
+  return max;
+}
+
+function _getNextLevel(lv) {
+  const idx = LEVEL_ORDER.indexOf(lv);
+  return (idx >= 0 && idx < LEVEL_ORDER.length - 1) ? LEVEL_ORDER[idx + 1] : null;
+}
+
+function _getWords(qRows, setNo, lv) {
+  const words = [];
+  for (let i = 1; i < qRows.length; i++) {
+    const row = qRows[i];
+    if (Number(row[0]) === setNo && String(row[9]).trim() === lv) {
+      words.push({
+        setNo: Number(row[0]), qNo: Number(row[1]),
+        word: String(row[2]), meaning: String(row[3]),
+        choiceA: String(row[4]), choiceB: String(row[5]),
+        choiceC: String(row[6]), choiceD: String(row[7]),
+        answer: String(row[8]), grade: String(row[9])
+      });
+    }
+  }
+  return words;
+}
+
+function _getWordsQ4(qRows, setNo, lv) {
+  const words = [];
+  for (let i = 1; i < qRows.length; i++) {
+    const row = qRows[i];
+    if (Number(row[0]) === setNo && String(row[11]).trim() === lv) {
+      words.push({
+        setNo: Number(row[0]), qNo: Number(row[1]),
+        word: String(row[2]), meaning: String(row[3]),
+        example: String(row[4] || ''), blank: String(row[5] || ''),
+        choiceA: String(row[6]), choiceB: String(row[7]),
+        choiceC: String(row[8]), choiceD: String(row[9]),
+        answer: String(row[10]), grade: String(row[11])
+      });
+    }
+  }
+  return words;
+}
+
+// =============================================
+// 景品交換申請
+// =============================================
+function submitExchange(studentId, rank) {
+  try {
+    const ss       = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    const exSheet  = ss.getSheetByName(SHEET_EXCHANGES);
+    if (!stuSheet || !exSheet) return { ok: false, message: 'シートが見つかりません。' };
+
+    const rankDef = EXCHANGE_RANKS[rank];
+    if (!rankDef) return { ok: false, message: '不明なランクです。' };
+
+    const sid  = String(studentId).trim();
+    const rows = stuSheet.getDataRange().getValues();
+
+    let currentHP = 0, nickname = '';
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][COL_ID]).trim() !== sid) continue;
+      currentHP = Number(rows[i][COL_HP]) || 0;
+      nickname  = String(rows[i][COL_NICKNAME] || '').trim();
+      break;
+    }
+    if (!nickname) return { ok: false, message: '生徒IDが見つかりません。' };
+
+    if (currentHP < rankDef.hp) {
+      return { ok: false, message: rankDef.label + 'の交換には ' + rankDef.hp.toLocaleString() + ' HPが必要です。現在 ' + currentHP.toLocaleString() + ' HP です。' };
+    }
+
+    const exRows = exSheet.getDataRange().getValues();
+    for (let i = 1; i < exRows.length; i++) {
+      if (String(exRows[i][1]).trim() === sid && String(exRows[i][3]) === rank) {
+        return { ok: false, message: rankDef.label + 'はすでに申請・交換済みです。' };
+      }
+    }
+
+    exSheet.appendRow([_nowJST(), sid, nickname, rank, currentHP, '申請中']);
+    return { ok: true, message: rankDef.label + 'の交換申請を受け付けました！先生に声をかけてね。' };
+  } catch(err) {
+    console.error('[submitExchange]', err);
+    return { ok: false, message: '申請に失敗しました。' };
+  }
+}
+
+function getExchangeStatus(studentId) {
+  try {
+    const sid      = String(studentId).trim();
+    const ss       = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    const exSheet  = ss.getSheetByName(SHEET_EXCHANGES);
+
+    let currentHP = 0;
+    const stuRows = stuSheet.getDataRange().getValues();
+    for (let i = 1; i < stuRows.length; i++) {
+      if (String(stuRows[i][COL_ID]).trim() === sid) {
+        currentHP = Number(stuRows[i][COL_HP]) || 0; break;
+      }
+    }
+
+    const exchanged = {};
+    if (exSheet) {
+      const exRows = exSheet.getDataRange().getValues();
+      for (let i = 1; i < exRows.length; i++) {
+        if (String(exRows[i][1]).trim() === sid) {
+          exchanged[String(exRows[i][3])] = String(exRows[i][5]);
+        }
+      }
+    }
+
+    const ranks = Object.keys(EXCHANGE_RANKS).map(key => ({
+      key,
+      label:       EXCHANGE_RANKS[key].label,
+      hp:          EXCHANGE_RANKS[key].hp,
+      canExchange: currentHP >= EXCHANGE_RANKS[key].hp && !exchanged[key],
+      status:      exchanged[key] || null
+    }));
+
+    return { ok: true, currentHP, ranks };
+  } catch(err) {
+    return { ok: false, message: String(err) };
+  }
+}
+
+function getExchangeStatus(studentId) {
+  try {
+    const sid      = String(studentId).trim();
+    const ss       = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    const exSheet  = ss.getSheetByName(SHEET_EXCHANGES);
+
+    let currentHP = 0;
+    const stuRows = stuSheet.getDataRange().getValues();
+    for (let i = 1; i < stuRows.length; i++) {
+      if (String(stuRows[i][COL_ID]).trim() === sid) {
+        currentHP = Number(stuRows[i][COL_HP]) || 0; break;
+      }
+    }
+
+    const exchanged = {};
+    if (exSheet) {
+      const exRows = exSheet.getDataRange().getValues();
+      for (let i = 1; i < exRows.length; i++) {
+        if (String(exRows[i][1]).trim() === sid) {
+          exchanged[String(exRows[i][3])] = String(exRows[i][5]);
+        }
+      }
+    }
+
+    const ranks = Object.keys(EXCHANGE_RANKS).map(key => ({
+      key,
+      label:       EXCHANGE_RANKS[key].label,
+      hp:          EXCHANGE_RANKS[key].hp,
+      canExchange: currentHP >= EXCHANGE_RANKS[key].hp && !exchanged[key],
+      status:      exchanged[key] || null
+    }));
+
+    return { ok: true, currentHP, ranks };
+  } catch(err) {
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// テスト用
+// =============================================
+function testGet5() {
+  const result = getTodaysSet('1004', '5級');
+  console.log(JSON.stringify(result));
+}
+
+function testVisionAuth() {
+  const apiKey = _props().getProperty('VISION_API_KEY');
+  const url = 'https://vision.googleapis.com/v1/images:annotate?key=' + apiKey;
+  UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json', payload: '{}', muteHttpExceptions: true });
+  console.log('権限承認OK');
+}
+
+function getDeployUrl() {
+  console.log(ScriptApp.getService().getUrl());
+}
+
+// =============================================
+// 今日の一言（Quoteシート）
+//   Quoteシートの列: date | text | author
+//   今日の日付と一致する行があれば優先、なければランダム1件
+// =============================================
+function getQuote() {
+  try {
+    const sh = _ss().getSheetByName(SHEET_QUOTE);
+    if (!sh) return { ok: false, message: 'Quoteシートが見つかりません。' };
+    const rows = sh.getDataRange().getValues();
+    if (rows.length <= 1) return { ok: false, message: 'Quoteシートにデータがありません。' };
+
+    // ヘッダー（大小無視）で列を特定
+    const header = rows[0].map(function(v){ return String(v).toLowerCase().trim(); });
+    const dateCol   = header.indexOf('date');
+    const textCol   = header.indexOf('text');
+    const authorCol = header.indexOf('author');
+    if (dateCol < 0 || textCol < 0) return { ok: false, message: 'Quoteシートのヘッダー (date / text) が見つかりません。' };
+
+    const today = _todayJST();
+    const pool  = [];
+    for (let i = 1; i < rows.length; i++) {
+      const t = String(rows[i][textCol] || '').trim();
+      if (!t) continue;
+      const d = _toDateStr(rows[i][dateCol]);
+      const a = authorCol >= 0 ? String(rows[i][authorCol] || '').trim() : '';
+      const entry = { date: d, text: t, author: a };
+      if (d === today) return { ok: true, quote: entry };   // 日付一致を最優先
+      pool.push(entry);
+    }
+    if (pool.length === 0) return { ok: false, message: 'Quoteデータなし' };
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    return { ok: true, quote: pick };
+  } catch (err) {
+    console.error('[getQuote]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// 今日の一言
+// =====================================================
+
+function getQuote() {
+  try {
+    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_QUOTE);
+    if (!sh) return { ok:false, message:'Quote シートがありません' };
+    var values = sh.getDataRange().getValues();
+    if (values.length < 2) return { ok:false, message:'データがありません' };
+
+    // ヘッダー行からインデックスを動的に取得（列順が変わっても動くように）
+    var header = values[0].map(function(h){ return String(h).trim().toLowerCase(); });
+    var iDate   = header.indexOf('date');
+    var iText   = header.indexOf('text');
+    var iAuthor = header.indexOf('author');
+    // ヘッダーが無い場合のフォールバック
+    if (iText < 0) { iDate = 0; iText = 1; iAuthor = 2; }
+
+    // text が空の行を除外
+    var rows = values.slice(1).filter(function(r){
+      return String(r[iText] || '').trim() !== '';
+    });
+    if (rows.length === 0) return { ok:false, message:'有効なデータがありません' };
+
+    // 今日の日付（JST）
+    var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+
+    // date 列が今日と一致する行を優先
+    var match = null;
+    for (var i = 0; i < rows.length; i++) {
+      var d = rows[i][iDate];
+      if (!d) continue;
+      var dStr = '';
+      if (d instanceof Date) {
+        dStr = Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+      } else {
+        var parsed = new Date(d);
+        dStr = isNaN(parsed.getTime())
+          ? String(d).trim()
+          : Utilities.formatDate(parsed, 'Asia/Tokyo', 'yyyy-MM-dd');
+      }
+      if (dStr === today) { match = rows[i]; break; }
+    }
+
+    // 一致が無ければランダム
+    var row = match || rows[Math.floor(Math.random() * rows.length)];
+    return {
+      ok: true,
+      quote: {
+        text:   String(row[iText]   || '').trim(),
+        author: iAuthor >= 0 ? String(row[iAuthor] || '').trim() : ''
+      }
+    };
+  } catch (e) {
+    return { ok:false, message: String(e) };
+  }
+}
+
+function setAdminPassword() {
+  PropertiesService.getScriptProperties().setProperty('ADMIN_PASSWORD', 'ここにパスワードを入力');
+}
+
+// =====================================================
+// 管理画面用 API
+// =====================================================
+
+function _verifyAdmin(password) {
+  const stored = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD');
+  return !!stored && password === stored;
+}
+
+function adminLogin(params) {
+  if (!_verifyAdmin(params.password)) return { ok: false, message: 'パスワードが違います' };
+  return { ok: true };
+}
+
+function adminAddQuote(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    if (!params.date || !params.text)   return { ok: false, message: '日付と本文は必須です' };
+    const sh = _ss().getSheetByName(SHEET_QUOTE);
+    if (!sh) return { ok: false, message: 'Quoteシートが見つかりません' };
+    sh.appendRow([params.date, params.text, params.author || '']);
+    return { ok: true };
+  } catch(err) {
+    console.error('[adminAddQuote]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+function adminAddNotice(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    if (!params.date || !params.title || !params.body) return { ok: false, message: '日付・タイトル・本文は必須です' };
+    const sh = _ss().getSheetByName(SHEET_NOTICE);
+    if (!sh) return { ok: false, message: 'Noticeシートが見つかりません' };
+    sh.appendRow([params.date, params.title, params.body]);
+    return { ok: true };
+  } catch(err) {
+    console.error('[adminAddNotice]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// 連絡事項（Notice）共通ヘルパー
+// =====================================================
+
+function _readNoticeRows() {
+  var sh = _ss().getSheetByName(SHEET_NOTICE);
+  if (!sh || sh.getLastRow() < 2) return { rows: [], iDate: -1, iTitle: -1, iBody: -1 };
+  var values = sh.getDataRange().getValues();
+  var header = values[0];
+  var iDate  = header.indexOf('date');
+  var iTitle = header.indexOf('title');
+  var iBody  = header.indexOf('body');
+  var rows = values.slice(1)
+    .map(function(r, idx){ return { r: r, idx: idx }; })
+    .filter(function(o){ return o.r[iDate] || o.r[iTitle] || o.r[iBody]; });
+  return { rows: rows, iDate: iDate, iTitle: iTitle, iBody: iBody };
+}
+
+function _sortNoticeRows(rows, iDate) {
+  return rows.sort(function(a, b){
+    var da = new Date(a.r[iDate]).getTime() || 0;
+    var db = new Date(b.r[iDate]).getTime() || 0;
+    if (db !== da) return db - da;
+    return b.idx - a.idx; // 同日なら後に追加された行（idx 大）を先に
+  });
+}
+
+function _mapNotice(o, iDate, iTitle, iBody) {
+  return {
+    date:  o.r[iDate] ? Utilities.formatDate(new Date(o.r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd') : '',
+    title: o.r[iTitle] || '',
+    body:  o.r[iBody]  || ''
+  };
+}
+
+// =====================================================
+// ダッシュボード用：最新 3 件
+// =====================================================
+
+function getNotice() {
+  try {
+    var d = _readNoticeRows();
+    if (d.rows.length === 0) return { ok: true, notices: [] };
+    var sorted = _sortNoticeRows(d.rows, d.iDate).slice(0, 3);
+    var notices = sorted.map(function(o){ return _mapNotice(o, d.iDate, d.iTitle, d.iBody); });
+    return { ok: true, notices: notices };
+  } catch(err) {
+    console.error('[getNotice]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// 「過去の連絡事項を見る」用：全件
+// =====================================================
+
+function getNoticeHistory() {
+  try {
+    var d = _readNoticeRows();
+    if (d.rows.length === 0) return { ok: true, notices: [] };
+    var sorted = _sortNoticeRows(d.rows, d.iDate);
+    var notices = sorted.map(function(o){ return _mapNotice(o, d.iDate, d.iTitle, d.iBody); });
+    return { ok: true, notices: notices };
+  } catch(err) {
+    console.error('[getNoticeHistory]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// 保護者閲覧モード
+// =====================================================
+
+function getStudentView(params) {
+  try {
+    const sid = String(params.studentId || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDを入力してください' };
+
+    const sh = _ss().getSheetByName(SHEET_STUDENTS);
+    if (!sh) return { ok: false, message: 'Studentsシートが見つかりません' };
+
+    const rows = sh.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][COL_ID]).trim() !== sid) continue;
+      const nickname = (String(rows[i][COL_NICKNAME] || '').trim()) || '名無し';
+      const totalHP  = Number(rows[i][COL_HP])     || 0;
+      const streak   = Number(rows[i][COL_STREAK]) || 0;
+      const stage    = _calcStage(streak, 0, 0);
+      const title    = _getTitle(streak);
+      return {
+        ok: true,
+        studentId: sid,
+        nickname:  nickname,
+        totalHP:   totalHP,
+        streak:    streak,
+        stage:     stage,
+        title:     title
+      };
+    }
+    return { ok: false, message: '生徒IDが見つかりません' };
+  } catch(err) {
+    console.error('[getStudentView]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+/**
+ * 学習進捗を一括リセット
+ * ScriptProperties の cleared_* / pass1_* / pass2_* キーを全て削除する。
+ *
+ * ⚠️ 破壊的操作につき GAS エディタから手動実行すること。
+ *    doGet ルーティングには登録しない（URL 経由で叩けないようにする）。
+ */
+function resetAllProgress() {
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  const targets = Object.keys(all).filter(function(k) {
+    return k.indexOf('cleared_') === 0
+        || k.indexOf('pass1_')   === 0
+        || k.indexOf('pass2_')   === 0;
+  });
+  targets.forEach(function(k){ props.deleteProperty(k); });
+
+  console.log('[resetAllProgress] 削除件数: ' + targets.length);
+  console.log('[resetAllProgress] 削除キー: ' + JSON.stringify(targets));
+
+  return { ok: true, deleted: targets.length, keys: targets };
+}
+
+// =====================================================
+// 三語短文
+// =====================================================
+
+// JST で深夜3時を日付境界とする「今日」の日付文字列（yyyy-MM-dd）
+function _sangoToday() {
+  const now = new Date();
+  const jst = new Date(Utilities.formatDate(now, 'Asia/Tokyo', "yyyy/MM/dd HH:mm:ss"));
+  jst.setHours(jst.getHours() - 3); // 3時より前なら前日扱い
+  return Utilities.formatDate(jst, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+function _sangoPrevDate(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00+09:00');
+  d.setDate(d.getDate() - 1);
+  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+function _readSangoTopicsByDate(dateStr) {
+  const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iDate  = header.indexOf('date');
+  const iLevel = header.indexOf('level');
+  const iW1    = header.indexOf('word1');
+  const iW2    = header.indexOf('word2');
+  const iW3    = header.indexOf('word3');
+  const iTW    = header.indexOf('teacher_work');
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    if (!r[iDate]) continue;
+    const ds = Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (ds !== dateStr) continue;
+    out.push({
+      level: String(r[iLevel] || '').trim(),
+      words: [r[iW1], r[iW2], r[iW3]].map(function(w){ return String(w || '').trim(); }).filter(Boolean),
+      teacher_work: String(r[iTW] || '').trim(),
+      date: ds
+    });
+  }
+  return out;
+}
+
+// 今日のお題（各レベル）と前日の福地作品（各レベル）を返す
+function getSangoTopic() {
+  try {
+    const today = _sangoToday();
+    const yest  = _sangoPrevDate(today);
+    const tRows = _readSangoTopicsByDate(today);
+    const yRows = _readSangoTopicsByDate(yest);
+    const cmp = function(a,b){ return a.level < b.level ? -1 : a.level > b.level ? 1 : 0; };
+    const topics = tRows.map(function(t){ return { level: t.level, words: t.words }; }).sort(cmp);
+    const teacherWorks = yRows.map(function(t){ return { level: t.level, work: t.teacher_work, date: t.date }; }).sort(cmp);
+    return { ok: true, today: today, yesterday: yest, topics: topics, teacherWorks: teacherWorks };
+  } catch(err) {
+    console.error('[getSangoTopic]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+function submitSango(params) {
+  try {
+    const sid    = String(params.studentId || '').trim();
+    const level  = String(params.level     || '').trim();
+    const words  = String(params.words     || '').trim();
+    const work   = String(params.work      || '').trim();
+    const method = String(params.method    || '').trim();
+    if (!sid || !level || !work) return { ok: false, message: '必要な情報が不足しています' };
+
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) return { ok: false, message: 'Studentsシートが見つかりません' };
+    const stuRows = stuSheet.getDataRange().getValues();
+    let studentName = '';
+    let stuRowIdx = -1;
+    for (let i = 1; i < stuRows.length; i++) {
+      if (String(stuRows[i][COL_ID]).trim() === sid) {
+        studentName = String(stuRows[i][COL_NICKNAME] || '').trim() || '名無し';
+        stuRowIdx = i;
+        break;
+      }
+    }
+
+    const subSheet = ss.getSheetByName(SHEET_SANGO_SUBMISSIONS);
+    if (!subSheet) return { ok: false, message: 'SangoSubmissionsシートが見つかりません' };
+    const now = new Date();
+    subSheet.appendRow([now, sid, studentName, level, words, work, method]);
+
+    // HPLog の type='sango' で当日分チェック（3時基準で日付判定）
+    const todayStr = _sangoToday();
+    let alreadyGranted = false;
+    const logSheet = ss.getSheetByName(SHEET_HPLOG);
+    if (logSheet) {
+      const logRows = logSheet.getDataRange().getValues();
+      for (let i = 1; i < logRows.length; i++) {
+        if (String(logRows[i][1]).trim() !== sid) continue;
+        if (logRows[i][3] !== 'sango') continue;
+        const todayForLog = (function(ts){
+          const t = new Date(ts); t.setHours(t.getHours() - 3);
+          return Utilities.formatDate(t, 'Asia/Tokyo', 'yyyy-MM-dd');
+        })(logRows[i][0]);
+        if (todayForLog === todayStr) { alreadyGranted = true; break; }
+      }
+    }
+
+    let hpGained = 0;
+    if (!alreadyGranted) {
+      hpGained = 200;
+      if (stuRowIdx >= 0) {
+        const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
+        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(cur + hpGained);
+      }
+      if (logSheet) logSheet.appendRow([now, sid, hpGained, 'sango']);
+    }
+    return { ok: true, hpGained: hpGained };
+  } catch(err) {
+    console.error('[submitSango]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+function adminAddSangoTopic(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    if (!params.date || !params.level || !params.word1 || !params.word2 || !params.word3 || !params.teacher_work) {
+      return { ok: false, message: '必須項目を入力してください' };
+    }
+    const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
+    if (!sh) return { ok: false, message: 'SangoTopicsシートが見つかりません' };
+    sh.appendRow([params.date, params.level, params.word1, params.word2, params.word3, params.teacher_work]);
+    return { ok: true };
+  } catch(err) {
+    console.error('[adminAddSangoTopic]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 週単位の一括登録（月〜日 × レベルA/S を一気に追加）
+// 期待する params: { password, start, items: [{date, level, word1, word2, word3}, ...] }
+// teacher_work は送られてこない想定（後で adminSetSangoTeacherWork で個別に上書きする運用）
+function adminAddSangoTopicsWeek(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const items = params.items || [];
+    if (!Array.isArray(items) || items.length === 0) {
+      return { ok: false, message: '登録するお題がありません' };
+    }
+    const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
+    if (!sh) return { ok: false, message: 'SangoTopicsシートが見つかりません' };
+
+    const errors = [];
+    const rowsToAppend = [];
+    items.forEach(function(item, idx){
+      if (!item.date || !item.level || !item.word1 || !item.word2 || !item.word3) {
+        errors.push((idx + 1) + '件目：date/level/word1-3 のいずれかが空です');
+        return;
+      }
+      rowsToAppend.push([
+        item.date,
+        item.level,
+        item.word1,
+        item.word2,
+        item.word3,
+        ''
+      ]);
+    });
+
+    if (rowsToAppend.length === 0) {
+      return { ok: false, message: '有効な行がありません', errors: errors };
+    }
+
+    const startRow = sh.getLastRow() + 1;
+    sh.getRange(startRow, 1, rowsToAppend.length, rowsToAppend[0].length).setValues(rowsToAppend);
+
+    return { ok: true, added: rowsToAppend.length, errors: errors };
+  } catch(err) {
+    console.error('[adminAddSangoTopicsWeek]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+function adminListSangoSubmissions(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
+    const values = sh.getDataRange().getValues();
+    const submissions = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[0]) continue;
+      submissions.push({
+        timestamp:   Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
+        studentId:   String(r[1] || ''),
+        studentName: String(r[2] || ''),
+        level:       String(r[3] || ''),
+        words:       String(r[4] || ''),
+        work:        String(r[5] || ''),
+        method:      String(r[6] || '')
+      });
+    }
+    submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+    return { ok: true, submissions: submissions };
+  } catch(err) {
+    console.error('[adminListSangoSubmissions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：先生の作品（個別登録）
+// 既存の (date, level) 行を検索して teacher_work 列を上書きする
+function adminSetSangoTeacherWork(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const date  = String(params.date  || '').trim();
+    const level = String(params.level || '').trim();
+    const work  = String(params.teacher_work || '').trim();
+    if (!date || !level || !work) return { ok: false, message: '必須項目を入力してください' };
+    const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
+    if (!sh || sh.getLastRow() < 2) return { ok: false, message: '該当するお題が見つかりません。先に週単位一括登録をしてください' };
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iDate  = header.indexOf('date');
+    const iLevel = header.indexOf('level');
+    const iTW    = header.indexOf('teacher_work');
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[iDate]) continue;
+      const ds = Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+      const lv = String(r[iLevel] || '').trim();
+      if (ds === date && lv === level) {
+        sh.getRange(i + 1, iTW + 1).setValue(work);
+        return { ok: true };
+      }
+    }
+    return { ok: false, message: '該当する日付・レベルのお題が見つかりません。先に週単位一括登録をしてください' };
+  } catch(err) {
+    console.error('[adminSetSangoTeacherWork]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+function getSangoSubmissions(params) {
+  try {
+    const sid = String(params.studentId || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
+    const values = sh.getDataRange().getValues();
+    const submissions = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[0]) continue;
+      if (String(r[1] || '').trim() !== sid) continue;
+      submissions.push({
+        timestamp:   Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
+        studentId:   String(r[1] || ''),
+        studentName: String(r[2] || ''),
+        level:       String(r[3] || ''),
+        words:       String(r[4] || ''),
+        work:        String(r[5] || ''),
+        method:      String(r[6] || '')
+      });
+    }
+    submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+    return { ok: true, submissions: submissions };
+  } catch(err) {
+    console.error('[getSangoSubmissions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
