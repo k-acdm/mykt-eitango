@@ -225,6 +225,31 @@
 - 残骸ディレクトリ `.claude/worktrees/intelligent-lehmann/` を `rm -rf` で削除
 - `.claude/worktrees/hopeful-nightingale-1e40f3/` のファイルシステム実体は作業中セッションが使用していたため削除不可。セッション終了後に別ターミナルから `rm -rf` 予定
 
+#### 15. 三語短文「過去の提出作品」機能を追加（2026-04-19、dev `2524d09` → main `797a48b`）
+- **生徒画面** ([index.html](index.html)):
+  - お題画面（`screen-sango-topic`）の「作品を提出する（写真）」ボタンと「ホーム画面に戻る」ボタンの間に「📖 過去の提出作品」ボタンを追加（紫グラデ）
+  - 新画面 `screen-sango-history` を追加：ヘッダーにログイン中の生徒ID表示、提出作品のリスト、末尾に「← お題画面に戻る」ボタン
+  - JS 関数 `showSangoHistory()` を追加：`gasGet({ action:'getSangoSubmissions', studentId:_studentId })` を呼び、自分（ログイン中の生徒ID）の提出を新しい順にカード表示
+  - カード内容: レベル / 提出日時 / 提出方法（📷 写真 or ✏️ 直接入力）/ 3語の chip / 作品本文（`white-space: pre-wrap` で改行保持）
+- **保護者画面** ([view.html](view.html)):
+  - 連絡事項セクション直下に「📖 三語短文の提出作品を見る」ボタン（紫グラデ）を追加
+  - 新画面 `screen-sango-history`（保護者版）と `loadSangoHistory()` を追加：同じ `getSangoSubmissions` を叩いてログイン中の生徒の提出を一覧表示
+- **GAS 側実装は未反映**（TODO 参照）: `getSangoSubmissions(params)` を新規追加する。`adminListSangoSubmissions` と違い **認証なし / studentId で絞り込み** の読み取り専用。レスポンス形状は `adminListSangoSubmissions` と同一の `{ok, submissions: [{timestamp, studentId, studentName, level, words, work, method}, ...]}`
+- **動作確認の前提**: GAS 側の `getSangoSubmissions` を実装してデプロイするまで、両画面でボタンを押すと「読み込みに失敗しました」が表示される
+
+#### 16. 三語短文のレベルを A/S の 2 種 → A/B/S/T の 4 種に拡張（2026-04-19、dev `a104f19` → main `797a48b`）
+- **変更箇所は 1 行のみ** ([admin.html:180](admin.html:180)):
+  ```javascript
+  var SANGO_LEVELS = ['A', 'B', 'S', 'T'];  // 旧: ['A', 'S']
+  ```
+- **自動追従する UI**:
+  - お題貼り付けエリアの案内「4レベル × 7日 = 28行分」に自動更新
+  - プレビュー表：レベル A / B / S / T の 4 表を自動生成
+  - パーサのバリデーション：未定義レベル検出メッセージも「定義：A/B/S/T」に追従
+  - 先生の作品 登録ドロップダウン：A / B / S / T の 4 択に拡張
+- **生徒画面（[index.html](index.html)）は変更不要**: レベルタブ（お題表示 / 直接入力 / 写真提出）は GAS の `getSangoTopic` が返す `topics` 配列を元に動的生成されるため、GAS 側で A/B/S/T のお題が登録されれば自動で 4 タブ表示される
+- **URL 長の懸念**: 管理画面「お題の週単位一括登録」で送る items は 4 レベル × 7 日 = 28 件になり、JSON 文字列を GET クエリに載せる構造上 **URL 長が 7000 文字を超える可能性がある**（#13 記載済みの既知リスク）。実運用で `414 URI Too Long` が出たらレベル単位の分割送信 or `doGet` → `doPost` への切替が必要
+
 ---
 
 ## TODO（未反映の GAS 側作業）
