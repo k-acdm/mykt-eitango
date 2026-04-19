@@ -7,10 +7,10 @@
 **マイ活アプリ**（春日部アカデミー 学習支援アプリ）
 
 - フロント: 単一ファイル `index.html`（GitHub Pages で配信）
-- バック: Google Apps Script (`Code.gs`) + Google Spreadsheet
+- バック: Google Apps Script + Google Spreadsheet
 - GAS_URL: `https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec`
 - リポジトリ内にある画像資産: `logo.png` / `character.jpg` / `eiken5_sample.jpg`（相対パス参照）
-- GAS コードはこのリポジトリには含まれない（GAS エディタ側で管理）
+- GASコードは `gas/Code.js` にある（claspで管理）。修正後は `gas/` フォルダで `clasp push` を実行してGAS側に同期する
 
 ### スプレッドシートのシート構成
 
@@ -32,7 +32,10 @@
 ### 運用メモ
 
 - コミット作者は `k-acdm <k-academy@mbr.nifty.com>`（リポジトリ内 git config 未設定のため `-c user.name= -c user.email=` で都度指定）
-- GAS 変更後は「デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ」で反映
+- GAS 変更フロー：
+  1. `gas/Code.js` を編集（ローカルまたはClaude Code経由）
+  2. `cd gas && clasp push` でGAS側に同期
+  3. GASエディタで「デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ」で本番反映
 
 ---
 

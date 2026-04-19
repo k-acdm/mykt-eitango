@@ -1,0 +1,18 @@
+﻿# clasp 認証情報（絶対にGit管理しない）
+.clasprc.json
+
+# Node.js
+node_modules/
+
+# Claude Code のローカル設定・worktree
+.claude/settings.local.json
+.claude/worktrees/
+
+# OS関連
+.DS_Store
+Thumbs.db
+
+# エディタ
+.vscode/
+.idea/
+*.swp
