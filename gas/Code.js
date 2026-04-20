@@ -82,6 +82,7 @@ function doGet(e) {
       else if (action === 'adminAddSangoTopicsWeek')   result = adminAddSangoTopicsWeek(params);
       else if (action === 'adminListSangoSubmissions') result = adminListSangoSubmissions(params);
       else if (action === 'adminSetSangoTeacherWork')   result = adminSetSangoTeacherWork(params);
+      else if (action === 'adminSetSangoComment')      result = adminSetSangoComment(params);
       else if (action === 'getSangoSubmissions') result = getSangoSubmissions(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
@@ -1309,7 +1310,8 @@ function adminListSangoSubmissions(params) {
         level:          String(r[3] || ''),
         words:          String(r[4] || ''),
         work:           String(r[5] || ''),
-        method:         String(r[6] || '')
+        method:         String(r[6] || ''),
+        teacher_comment: String(r[7] || '')
       });
     }
     submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
@@ -1353,6 +1355,33 @@ function adminSetSangoTeacherWork(params) {
   }
 }
 
+function adminSetSangoComment(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const ts  = String(params.timestamp || '').trim();
+    const sid = String(params.studentId || '').trim();
+    const comment = String(params.comment != null ? params.comment : '');
+    if (!ts || !sid) return { ok: false, message: 'timestamp / studentId が必要です' };
+    const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: false, message: '該当する提出が見つかりません' };
+    const values = sh.getDataRange().getValues();
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[0]) continue;
+      const rowTs  = Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      const rowSid = String(r[1] || '').trim();
+      if (rowTs === ts && rowSid === sid) {
+        sh.getRange(i + 1, 8).setValue(comment);
+        return { ok: true };
+      }
+    }
+    return { ok: false, message: '該当する提出が見つかりません' };
+  } catch(err) {
+    console.error('[adminSetSangoComment]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
 function getSangoSubmissions(params) {
   try {
     const sid = String(params.studentId || '').trim();
@@ -1366,13 +1395,14 @@ function getSangoSubmissions(params) {
       if (!r[0]) continue;
       if (String(r[1] || '').trim() !== sid) continue;
       submissions.push({
-        timestamp:   Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
-        studentId:   String(r[1] || ''),
-        studentName: String(r[2] || ''),
-        level:       String(r[3] || ''),
-        words:       String(r[4] || ''),
-        work:        String(r[5] || ''),
-        method:      String(r[6] || '')
+        timestamp:       Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
+        studentId:       String(r[1] || ''),
+        studentName:     String(r[2] || ''),
+        level:           String(r[3] || ''),
+        words:           String(r[4] || ''),
+        work:            String(r[5] || ''),
+        method:          String(r[6] || ''),
+        teacher_comment: String(r[7] || '')
       });
     }
     submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });

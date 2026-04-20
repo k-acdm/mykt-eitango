@@ -651,7 +651,8 @@
       }
       var items = res.submissions || [];
       if (items.length === 0) { listEl.innerHTML = '<div class="ranking-empty">まだ提出はありません</div>'; return; }
-      listEl.innerHTML = items.map(function(s) {
+      _sangoSubCache = items;
+      listEl.innerHTML = items.map(function(s, idx) {
         var ts = String(s.timestamp || '').replace('T', ' ').slice(0, 16);
         var methodLabel = (s.method === 'photo') ? '📷 写真' : (s.method === 'text') ? '✏️ 直接入力' : _esc(s.method || '');
         var nick = String(s.studentName || '').trim();
@@ -666,10 +667,86 @@
                  '<div style="font-size:14px;font-weight:bold;color:#333;margin-bottom:4px">' + who + '｜レベル ' + _esc(s.level || '') + '</div>' +
                  '<div style="font-size:13px;color:#c0392b;margin-bottom:8px">📝 ' + _esc(s.words || '') + '</div>' +
                  '<div style="font-size:14px;line-height:1.7;white-space:pre-wrap;padding:10px;background:#fafafa;border-radius:6px">' + _esc(s.work || '') + '</div>' +
+                 '<div id="sango-comment-' + idx + '">' + _renderSangoCommentView(idx, s.teacher_comment) + '</div>' +
                '</div>';
       }).join('');
     }).catch(function() {
       listEl.innerHTML = '<div class="ranking-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  // =============================================================
+  // 三語短文：先生コメント UI
+  // =============================================================
+  var _sangoSubCache = [];
+
+  function _renderSangoCommentView(idx, comment) {
+    var c = String(comment || '');
+    if (c.trim()) {
+      return '<div style="background:#e3f2fd;border-left:3px solid #1976d2;border-radius:8px;padding:10px 12px;margin-top:10px">' +
+               '<div style="font-size:12px;color:#1976d2;font-weight:bold;margin-bottom:4px">💬 先生のコメント</div>' +
+               '<div style="font-size:13px;color:#0d47a1;white-space:pre-wrap;word-wrap:break-word;line-height:1.7;margin-bottom:8px">' + _esc(c) + '</div>' +
+               '<button onclick="editSangoComment(' + idx + ')" style="font-size:12px;padding:4px 12px;background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer">編集</button>' +
+             '</div>';
+    }
+    return '<div style="background:#f5f5f5;border-radius:8px;padding:10px;margin-top:10px">' +
+             '<div style="font-size:12px;color:#555;font-weight:bold;margin-bottom:6px">💬 先生のコメント</div>' +
+             '<textarea id="sango-comment-input-' + idx + '" placeholder="コメントを入力..." style="width:100%;min-height:60px;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box;font-family:inherit"></textarea>' +
+             '<button onclick="saveSangoComment(' + idx + ', false)" style="font-size:12px;padding:4px 14px;margin-top:6px;background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer">送信</button>' +
+           '</div>';
+  }
+
+  function _renderSangoCommentEdit(idx, comment) {
+    return '<div style="background:#fff3e0;border-left:3px solid #ff9800;border-radius:8px;padding:10px;margin-top:10px">' +
+             '<div style="font-size:12px;color:#e65100;font-weight:bold;margin-bottom:6px">💬 先生のコメント（編集中）</div>' +
+             '<textarea id="sango-comment-input-' + idx + '" style="width:100%;min-height:60px;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box;font-family:inherit">' + _esc(comment || '') + '</textarea>' +
+             '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' +
+               '<button onclick="saveSangoComment(' + idx + ', true)" style="font-size:12px;padding:4px 14px;background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer">保存</button>' +
+               '<button onclick="cancelSangoCommentEdit(' + idx + ')" style="font-size:12px;padding:4px 14px;background:#999;color:#fff;border:none;border-radius:4px;cursor:pointer">キャンセル</button>' +
+             '</div>' +
+           '</div>';
+  }
+
+  function editSangoComment(idx) {
+    var s = _sangoSubCache[idx];
+    if (!s) return;
+    var el = document.getElementById('sango-comment-' + idx);
+    if (el) el.innerHTML = _renderSangoCommentEdit(idx, s.teacher_comment || '');
+  }
+
+  function cancelSangoCommentEdit(idx) {
+    var s = _sangoSubCache[idx];
+    if (!s) return;
+    var el = document.getElementById('sango-comment-' + idx);
+    if (el) el.innerHTML = _renderSangoCommentView(idx, s.teacher_comment || '');
+  }
+
+  function saveSangoComment(idx, isEdit) {
+    var s = _sangoSubCache[idx];
+    if (!s) return;
+    var inputEl = document.getElementById('sango-comment-input-' + idx);
+    if (!inputEl) return;
+    var comment = inputEl.value;
+    gasGet({
+      action: 'adminSetSangoComment',
+      password: sessionStorage.getItem('adminPassword') || '',
+      timestamp: s.timestamp,
+      studentId: s.studentId,
+      comment: comment,
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '保存に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        showToast(msg, 'error');
+        return;
+      }
+      s.teacher_comment = comment;
+      var el = document.getElementById('sango-comment-' + idx);
+      if (el) el.innerHTML = _renderSangoCommentView(idx, comment);
+      showToast(comment.trim() ? 'コメントを保存しました' : 'コメントを削除しました', 'success');
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
     });
   }
 
