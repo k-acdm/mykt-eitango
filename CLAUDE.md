@@ -332,6 +332,53 @@
 - **既存の `testStreak_*` / `testLast_*` プロパティ**: 参照されなくなるが意図的に放置。将来的に必要なら `resetAllProgress` に削除ロジックを追加する方針
 - **テスト**: UI は本番確認済み。HP 加算ロジックの実データ確認は明日以降
 
+### 2026-04-21
+
+#### 22. 塾PCへの clasp 導入（作業環境整備）
+- **背景**: 2026-04-20 に自宅PCで clasp 導入済み（#19）。塾PCでも `gas/Code.js` の編集→push フローを同じ手順で使えるよう環境整備
+- **手順**:
+  1. Node.js / npm インストール済みを確認
+  2. `npm install -g @google/clasp`
+  3. `clasp login` で Google アカウント認証
+  4. `git config user.name / user.email` を `k-acdm / k-academy@mbr.nifty.com` に設定
+  5. `git pull` で自宅PC 側の作業分（clasp 導入コミット含む）を取り込み
+  6. `clasp pull` / `clasp push` で双方向同期の動作確認
+- **結果**: 塾PC でも自宅PC と同一フロー（`gas/Code.js` 編集 → `cd gas && clasp push` → GAS エディタでデプロイ）で作業可能に
+
+#### 23. 管理画面「三語短文の提出一覧」に本名表示を追加（dev `1f4cfd3` → main `7963e92`）
+- **背景**: 従来「ニックネーム（ID）」表示だったが、先生視点で誰の提出か即座に判別しづらいケースがあった
+- **[gas/Code.js](gas/Code.js) `adminListSangoSubmissions`**:
+  - 冒頭で Students シートを読み、`studentId → COL_NAME` のマップを作成
+  - submission オブジェクトに `studentRealName` フィールドを追加
+- **[admin.html](admin.html) `loadSangoSubmissions`**:
+  - 表示を「ニックネーム（本名）」形式に変更
+  - 4 パターンのフォールバック（nick あり/real あり → `nick（real）` / nick のみ → `nick` / real のみ → `（real）` / 両方空 → `（不明）`）
+- フロント・GAS ともデプロイ済み、本番 URL で確認済み
+
+#### 24. 三語短文に「先生コメント」機能を追加（dev `03a4ac9` → main `229bc8e`）
+- **スプレッドシート**: `SangoSubmissions` シートに H 列 `teacher_comment` を追加（手動）
+- **[gas/Code.js](gas/Code.js)**:
+  - `adminListSangoSubmissions` / `getSangoSubmissions` のレスポンス各 submission に `teacher_comment: String(r[7] || '')` を追加（H 列 = index 7）
+  - `adminSetSangoComment(params)` を新規追加: `_verifyAdmin` → `(timestamp, studentId)` で行を特定（timestamp は `Utilities.formatDate` で JST `yyyy-MM-dd HH:mm:ss` に揃えて文字列比較）→ H 列（`getRange(i+1, 8)`）に `setValue`。空文字も許容（コメント削除用途）
+  - `doGet` ルーティングに `adminSetSangoComment` を 1 行追加
+- **[admin.html](admin.html)**: 各提出カードの末尾にコメント UI（`#sango-comment-{idx}`）を追加、3 状態遷移
+  - 🟦 表示モード（コメントあり）: 青系背景 + 「💬 先生のコメント」+ 本文 + 編集ボタン
+  - 🟧 編集モード: オレンジ系背景 + textarea + 保存/キャンセル
+  - ⚪ 未コメント: グレー背景 + textarea + 送信
+  - 空文字保存で未コメント状態に戻る（削除）
+  - `_sangoSubCache` でカード index → submission をキャッシュし、onclick 引数を index のみに（timestamp/studentId の文字列エスケープを回避）
+  - 通信/認証エラーは既存パターン（`showToast` / `doAdminLogout`）に準拠
+- **[index.html](index.html) / [view.html](view.html)**: `showSangoHistory` / `loadSangoHistory` のカード HTML 末尾に青系コメントボックスを追加。`teacher_comment` が非空のときのみ描画、空/未定義ならカード見た目は従来通り。`white-space: pre-wrap` で改行保持、`_sangoEscHtml` / `_esc` で XSS 防御
+- フロント・GAS ともデプロイ済み、本番 URL で動作確認済み
+
+#### 25. Word 形式「ClaudeCode_作業ルーティン_v2」を作成（リポジトリ外）
+- clasp 対応版の作業ルーティン資料を Word 形式で作成（ローカル資料、リポジトリには含めない）
+- 塾PC / 自宅PC 両方から clasp を使う運用に合わせた更新版
+
+#### 26. 次回作業予定（メモ）
+- **和文英訳①** の実装に着手予定。設計は本日完了、シート構造・フォーマットは合意済み（詳細は 2026-04-21 の会話履歴参照）
+- その後「英語長文リスニング＆音読」へ
+
 ---
 
 ## TODO（未反映の GAS 側作業）
