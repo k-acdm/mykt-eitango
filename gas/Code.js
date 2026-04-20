@@ -84,6 +84,8 @@ function doGet(e) {
       else if (action === 'adminSetSangoTeacherWork')   result = adminSetSangoTeacherWork(params);
       else if (action === 'adminSetSangoComment')      result = adminSetSangoComment(params);
       else if (action === 'getSangoSubmissions') result = getSangoSubmissions(params);
+      else if (action === 'getSangoPastTopicsRecent')   result = getSangoPastTopicsRecent();
+      else if (action === 'getSangoPastTopicsPaged')    result = getSangoPastTopicsPaged(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1086,6 +1088,17 @@ function resetAllProgress() {
 // 三語短文
 // =====================================================
 
+// レベル表示順：難易度順（A=大学入試 / S=高校入試 / B=中学校 / T=小学校高学年）
+const _SANGO_LEVEL_ORDER = ['A', 'S', 'B', 'T'];
+function _sangoLevelRank(l) {
+  const i = _SANGO_LEVEL_ORDER.indexOf(String(l || '').trim().toUpperCase());
+  return i < 0 ? 999 : i;
+}
+function _sangoSortByLevel(arr) {
+  return arr.sort(function(a, b){ return _sangoLevelRank(a.level) - _sangoLevelRank(b.level); });
+}
+const _SANGO_WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
+
 // JST で深夜3時を日付境界とする「今日」の日付文字列（yyyy-MM-dd）
 function _sangoToday() {
   const now = new Date();
@@ -1136,9 +1149,8 @@ function getSangoTopic() {
     const yest  = _sangoPrevDate(today);
     const tRows = _readSangoTopicsByDate(today);
     const yRows = _readSangoTopicsByDate(yest);
-    const cmp = function(a,b){ return a.level < b.level ? -1 : a.level > b.level ? 1 : 0; };
-    const topics = tRows.map(function(t){ return { level: t.level, words: t.words }; }).sort(cmp);
-    const teacherWorks = yRows.map(function(t){ return { level: t.level, work: t.teacher_work, date: t.date }; }).sort(cmp);
+    const topics = _sangoSortByLevel(tRows.map(function(t){ return { level: t.level, words: t.words }; }));
+    const teacherWorks = _sangoSortByLevel(yRows.map(function(t){ return { level: t.level, work: t.teacher_work, date: t.date }; }));
     let weekNo = '';
     if (tRows.length > 0) {
       for (let i = 0; i < tRows.length; i++) {
@@ -1409,6 +1421,113 @@ function getSangoSubmissions(params) {
     return { ok: true, submissions: submissions };
   } catch(err) {
     console.error('[getSangoSubmissions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 過去のお題（日付範囲で一括取得）→ 日付降順 × レベルA→S→B→T でまとめる
+// startStr / endStr は 'yyyy-MM-dd'。start <= end の範囲を返す
+function _readSangoTopicsByDateRange(startStr, endStr) {
+  const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iDate  = header.indexOf('date');
+  const iLevel = header.indexOf('level');
+  const iW1    = header.indexOf('word1');
+  const iW2    = header.indexOf('word2');
+  const iW3    = header.indexOf('word3');
+  const iTW    = header.indexOf('teacher_work');
+  const iWN    = header.indexOf('week_no');
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    if (!r[iDate]) continue;
+    const ds = Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (ds < startStr || ds > endStr) continue;
+    out.push({
+      date:  ds,
+      level: String(r[iLevel] || '').trim(),
+      word1: String(r[iW1] || '').trim(),
+      word2: String(r[iW2] || '').trim(),
+      word3: String(r[iW3] || '').trim(),
+      teacher_work: iTW >= 0 ? String(r[iTW] || '').trim() : '',
+      week_no:      iWN >= 0 ? String(r[iWN] || '').trim() : ''
+    });
+  }
+  return out;
+}
+
+// 日付降順 × レベルA→S→B→T にまとめたレスポンス topics 配列を生成
+function _buildSangoTopicsByDate(rows) {
+  const byDate = {};
+  rows.forEach(function(r) {
+    if (!byDate[r.date]) byDate[r.date] = [];
+    byDate[r.date].push(r);
+  });
+  const dates = Object.keys(byDate).sort(function(a, b){ return a < b ? 1 : a > b ? -1 : 0; });
+  return dates.map(function(d) {
+    const levels = _sangoSortByLevel(byDate[d].slice());
+    const wd = _SANGO_WEEKDAYS_JP[new Date(d + 'T12:00:00+09:00').getDay()];
+    return {
+      date: d,
+      weekday: wd,
+      levels: levels.map(function(r){
+        return {
+          level: r.level,
+          word1: r.word1,
+          word2: r.word2,
+          word3: r.word3,
+          teacher_work: r.teacher_work,
+          week_no: r.week_no
+        };
+      })
+    };
+  });
+}
+
+// JST 基準の「昨日」起点で N 日前の日付文字列を返す
+function _sangoDateAgo(daysAgo) {
+  const today = _sangoToday();
+  const d = new Date(today + 'T12:00:00+09:00');
+  d.setDate(d.getDate() - daysAgo);
+  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+// 直近1週間分（昨日〜7日前）のお題と福地の作品
+function getSangoPastTopicsRecent() {
+  try {
+    const endStr   = _sangoDateAgo(1); // 昨日
+    const startStr = _sangoDateAgo(7); // 7日前
+    const rows = _readSangoTopicsByDateRange(startStr, endStr);
+    return { ok: true, topics: _buildSangoTopicsByDate(rows) };
+  } catch(err) {
+    console.error('[getSangoPastTopicsRecent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 1週間単位のページング（weekOffset=1 → 14日前〜8日前 / weekOffset=2 → 21日前〜15日前 ...）
+function getSangoPastTopicsPaged(params) {
+  try {
+    const weekOffset = Math.max(1, Number((params && params.weekOffset) || 1) | 0);
+    const endStr   = _sangoDateAgo(weekOffset * 7 + 1);
+    const startStr = _sangoDateAgo(weekOffset * 7 + 7);
+    const rows = _readSangoTopicsByDateRange(startStr, endStr);
+
+    // 次ページにデータがあるかをチェック
+    const nextEnd   = _sangoDateAgo((weekOffset + 1) * 7 + 1);
+    const nextStart = _sangoDateAgo((weekOffset + 1) * 7 + 7);
+    const nextRows = _readSangoTopicsByDateRange(nextStart, nextEnd);
+
+    return {
+      ok: true,
+      weekOffset: weekOffset,
+      topics: _buildSangoTopicsByDate(rows),
+      hasMore: nextRows.length > 0
+    };
+  } catch(err) {
+    console.error('[getSangoPastTopicsPaged]', err);
     return { ok: false, message: String(err) };
   }
 }
