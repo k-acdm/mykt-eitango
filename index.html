@@ -1278,6 +1278,13 @@
           return '<span class="sango-word">' + _sangoEscHtml(w) + '</span>';
         }).join('');
         var methodLabel = s.method === 'photo' ? '📷 写真' : '✏️ 直接入力';
+        var comment = String(s.teacher_comment || '').trim();
+        var commentHtml = comment
+          ? '<div style="background:#e3f2fd;border-left:4px solid #1976d2;border-radius:10px;padding:10px 12px;margin-top:8px;white-space:pre-wrap;word-wrap:break-word;font-size:13px;line-height:1.7;color:#0d47a1">' +
+              '<div style="font-weight:bold;color:#1565c0;margin-bottom:4px">💬 先生からのコメント</div>' +
+              _sangoEscHtml(comment) +
+            '</div>'
+          : '';
         return '<div class="sango-level-card">' +
                  '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">' +
                    '<div class="sango-level-label" style="margin-bottom:0">レベル ' + _sangoEscHtml(s.level || '') + '</div>' +
@@ -1285,6 +1292,7 @@
                  '</div>' +
                  (words ? '<div class="sango-words">' + words + '</div>' : '') +
                  '<div style="background:#fff8e1;border-radius:10px;padding:10px 12px;margin-top:6px;white-space:pre-wrap;word-wrap:break-word;font-size:14px;line-height:1.7;color:#333">' + _sangoEscHtml(s.work || '') + '</div>' +
+                 commentHtml +
                '</div>';
       }).join('');
     }).catch(function(){
