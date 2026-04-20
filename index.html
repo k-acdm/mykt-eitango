@@ -273,6 +273,21 @@
     .sango-ocr-confirm-label { font-size:16px; font-weight:bold; text-align:center; margin:14px 0 10px; color:#2d3a8c; }
     .sango-ocr-actions { display:flex; gap:10px; }
     .sango-ocr-actions .btn-wide { margin-top:0; flex:1; }
+    /* 過去のお題（豪華版） */
+    .sango-past-date-header { margin:18px 0 10px; padding:10px 14px; background:linear-gradient(135deg,#ffd3a5,#fd6585); color:#fff; font-weight:bold; font-size:16px; border-radius:12px; box-shadow:0 2px 8px rgba(253,101,133,.25); }
+    .sango-past-date-header:first-child { margin-top:4px; }
+    .sango-past-empty { text-align:center; color:#888; padding:40px 0; }
+    /* さらに過去のもの（コンパクト版） */
+    .sango-archive-date-header { margin:14px 0 6px; padding:6px 12px; background:#f0f4ff; color:#2d3a8c; font-weight:bold; font-size:14px; border-radius:8px; border-left:4px solid #4f7df0; }
+    .sango-archive-date-header:first-child { margin-top:4px; }
+    .sango-archive-card { background:#fff; border-radius:10px; padding:10px 12px; margin-bottom:6px; box-shadow:0 1px 4px rgba(0,0,0,.06); border-left:4px solid #fe6d73; }
+    .sango-archive-level { font-size:13px; font-weight:bold; color:#c0392b; margin-bottom:6px; }
+    .sango-archive-words { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:4px; }
+    .sango-archive-word { display:inline-block; background:#fff5e1; color:#8b4513; font-size:13px; font-weight:bold; padding:4px 10px; border-radius:14px; border:1px solid #fe6d73; }
+    .sango-archive-tw { margin-top:6px; padding:6px 10px; background:#f8f9ff; border-radius:6px; font-size:12px; color:#4f7df0; }
+    .sango-archive-tw-body { color:#333; font-size:13px; line-height:1.6; margin-top:3px; white-space:pre-wrap; }
+    .sango-archive-pager { display:flex; gap:8px; margin-top:14px; }
+    .sango-archive-pager .btn-wide { margin-top:0; flex:1; font-size:14px; padding:12px; }
   </style>
 </head>
 <body>
@@ -540,10 +555,29 @@
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffcb77,#fe6d73);margin-top:14px" onclick="startSangoTextSubmit()">✏️ 作品を提出する（直接入力）</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#4fc3f7,#2979ff);margin-top:8px" onclick="startSangoPhotoSubmit()">📷 作品を提出する（写真に撮って送る）</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:8px;color:#6d2c4a" onclick="showSangoPast()">📚 過去のお題と福地の作品</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d" onclick="showSangoHistory()">📖 過去の提出作品</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
+<div id="screen-sango-past" class="screen">
+  <header><h1>📚 過去のお題と福地の作品</h1></header>
+  <main>
+    <div id="sango-past-body"><div class="loading">⏳ 読み込み中...</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#8e9eab,#4b6cb7);margin-top:14px" onclick="showSangoArchive(1)">📜 さらに過去のもの</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showScreen('screen-sango-topic')">🏠 本日のお題画面に戻る</button>
+  </main>
+</div>
+
+<div id="screen-sango-archive" class="screen">
+  <header><h1>📜 さらに過去のもの</h1><span id="sango-archive-label"></span></header>
+  <main>
+    <div id="sango-archive-body"><div class="loading">⏳ 読み込み中...</div></div>
+    <div class="sango-archive-pager" id="sango-archive-pager"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="showScreen('screen-sango-topic')">🏠 本日のお題画面に戻る</button>
+  </main>
+</div>
+
 <div id="screen-sango-history" class="screen">
   <header><h1>📖 過去の提出作品</h1><span id="sango-history-student"></span></header>
   <div class="container" style="padding-top:16px">
@@ -1127,18 +1161,12 @@
       : '三語短文　本日のお題';
     var titleHtml = '<div class="sango-title-banner">' + titleText + '</div>';
 
-    var wMap = {};
-    (_sangoTeacherWorks || []).forEach(function(w){ wMap[w.level] = w; });
     var dateHtml = _sangoDate ? '<div class="sango-date-label">📅 ' + _sangoEscHtml(formatDate(_sangoDate)) + ' のお題</div>' : '';
     var topicsHtml = _sangoTopics.map(function(t) {
       var words = (t.words || []).map(function(w){ return '<span class="sango-word">' + _sangoEscHtml(w) + '</span>'; }).join('');
-      var tw = wMap[t.level];
-      var twHtml = (tw && tw.work)
-        ? '<div class="sango-teacher-work"><div class="sango-teacher-label">📝 福地の作品' + (tw.date ? '（' + _sangoEscHtml(formatDate(tw.date)) + '分）' : '') + '</div><div class="sango-teacher-body">' + _sangoEscHtml(tw.work) + '</div></div>'
-        : '';
       var desc = SANGO_LEVEL_DESCRIPTIONS[t.level] || '';
       var descHtml = desc ? '<span class="sango-level-desc">（' + _sangoEscHtml(desc) + '）</span>' : '';
-      return '<div class="sango-level-card"><div class="sango-level-label">レベル ' + _sangoEscHtml(t.level) + descHtml + '</div><div class="sango-words">' + words + '</div>' + twHtml + '</div>';
+      return '<div class="sango-level-card"><div class="sango-level-label">レベル ' + _sangoEscHtml(t.level) + descHtml + '</div><div class="sango-words">' + words + '</div></div>';
     }).join('');
     body.innerHTML = titleHtml + dateHtml + topicsHtml;
   }
@@ -1259,6 +1287,80 @@
       document.getElementById('sango-ocr-confirm').style.display = 'none';
       setTimeout(function(){ showScreen('screen-sango-topic'); }, 1800);
     }).catch(function(){ showMsg('sango-photo-msg', 'エラーが発生しました。', 'ng'); });
+  }
+
+  // ----- 過去のお題と福地の作品（直近1週間） -----
+  function showSangoPast() {
+    var bodyEl = document.getElementById('sango-past-body');
+    bodyEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    showScreen('screen-sango-past');
+    gasGet({ action:'getSangoPastTopicsRecent', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) { bodyEl.innerHTML = '<div class="sango-past-empty">読み込みに失敗しました。</div>'; return; }
+      var topics = res.topics || [];
+      if (topics.length === 0) { bodyEl.innerHTML = '<div class="sango-past-empty">直近1週間の登録はまだありません。</div>'; return; }
+      bodyEl.innerHTML = topics.map(_renderSangoPastDateBlock).join('');
+    }).catch(function(){ bodyEl.innerHTML = '<div class="sango-past-empty">エラーが発生しました。</div>'; });
+  }
+  function _renderSangoPastDateBlock(t) {
+    var dateLabel = '📅 ' + _sangoEscHtml(formatDate(t.date)) + (t.weekday ? '' : '');
+    var header = '<div class="sango-past-date-header">' + dateLabel + '</div>';
+    var cards = (t.levels || []).map(function(lv) {
+      var words = ['word1','word2','word3']
+        .map(function(k){ var w = String(lv[k] || '').trim(); return w ? '<span class="sango-word">' + _sangoEscHtml(w) + '</span>' : ''; })
+        .filter(Boolean).join('');
+      var desc = SANGO_LEVEL_DESCRIPTIONS[lv.level] || '';
+      var descHtml = desc ? '<span class="sango-level-desc">（' + _sangoEscHtml(desc) + '）</span>' : '';
+      var tw = String(lv.teacher_work || '').trim();
+      var twHtml = tw
+        ? '<div class="sango-teacher-work"><div class="sango-teacher-label">📝 福地の作品</div><div class="sango-teacher-body">' + _sangoEscHtml(tw) + '</div></div>'
+        : '';
+      return '<div class="sango-level-card"><div class="sango-level-label">レベル ' + _sangoEscHtml(lv.level) + descHtml + '</div><div class="sango-words">' + words + '</div>' + twHtml + '</div>';
+    }).join('');
+    return header + cards;
+  }
+
+  // ----- さらに過去のもの（1週間ずつページング） -----
+  var _sangoArchiveWeek = 1;
+  function showSangoArchive(weekOffset) {
+    _sangoArchiveWeek = Math.max(1, Number(weekOffset) || 1);
+    var bodyEl  = document.getElementById('sango-archive-body');
+    var labelEl = document.getElementById('sango-archive-label');
+    var pagerEl = document.getElementById('sango-archive-pager');
+    labelEl.textContent = '（' + _sangoArchiveWeek + ' 週前）';
+    bodyEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    pagerEl.innerHTML = '';
+    showScreen('screen-sango-archive');
+    gasGet({ action:'getSangoPastTopicsPaged', weekOffset:_sangoArchiveWeek, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) { bodyEl.innerHTML = '<div class="sango-past-empty">読み込みに失敗しました。</div>'; return; }
+      var topics = res.topics || [];
+      if (topics.length === 0) {
+        bodyEl.innerHTML = '<div class="sango-past-empty">このページには登録がありません。</div>';
+      } else {
+        bodyEl.innerHTML = topics.map(_renderSangoArchiveDateBlock).join('');
+      }
+      var pagerHtml = '';
+      if (_sangoArchiveWeek > 1) {
+        pagerHtml += '<button class="btn-wide" style="background:linear-gradient(135deg,#81c784,#388e3c)" onclick="showSangoArchive(' + (_sangoArchiveWeek - 1) + ')">← 新しい1週間へ</button>';
+      }
+      if (res.hasMore) {
+        pagerHtml += '<button class="btn-wide" style="background:linear-gradient(135deg,#8e9eab,#4b6cb7)" onclick="showSangoArchive(' + (_sangoArchiveWeek + 1) + ')">次のページ（さらに古い1週間へ） →</button>';
+      }
+      pagerEl.innerHTML = pagerHtml;
+    }).catch(function(){ bodyEl.innerHTML = '<div class="sango-past-empty">エラーが発生しました。</div>'; });
+  }
+  function _renderSangoArchiveDateBlock(t) {
+    var header = '<div class="sango-archive-date-header">📅 ' + _sangoEscHtml(formatDate(t.date)) + '</div>';
+    var cards = (t.levels || []).map(function(lv) {
+      var words = ['word1','word2','word3']
+        .map(function(k){ var w = String(lv[k] || '').trim(); return w ? '<span class="sango-archive-word">' + _sangoEscHtml(w) + '</span>' : ''; })
+        .filter(Boolean).join('');
+      var tw = String(lv.teacher_work || '').trim();
+      var twHtml = tw
+        ? '<div class="sango-archive-tw">📝 福地の作品<div class="sango-archive-tw-body">' + _sangoEscHtml(tw) + '</div></div>'
+        : '';
+      return '<div class="sango-archive-card"><div class="sango-archive-level">レベル ' + _sangoEscHtml(lv.level) + '</div><div class="sango-archive-words">' + words + '</div>' + twHtml + '</div>';
+    }).join('');
+    return header + cards;
   }
 
   function showSangoHistory() {
