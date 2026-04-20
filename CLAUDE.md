@@ -375,9 +375,29 @@
 - clasp 対応版の作業ルーティン資料を Word 形式で作成（ローカル資料、リポジトリには含めない）
 - 塾PC / 自宅PC 両方から clasp を使う運用に合わせた更新版
 
-#### 26. 次回作業予定（メモ）
-- **和文英訳①** の実装に着手予定。設計は本日完了、シート構造・フォーマットは合意済み（詳細は 2026-04-21 の会話履歴参照）
-- その後「英語長文リスニング＆音読」へ
+#### 26. 三語短文 生徒画面「過去のお題と福地の作品」画面新設 / 全画面レベル順 A→S→B→T 統一（dev `2a3c5be` → main `dc81f1f`）
+- **背景・目的**: 本日のお題画面に表示していた「福地の作品」は**前日**のお題に対する作品例であり、同じカード内に表示される**本日の3語**とは無関係。生徒が混乱するため、先生作品を別画面に分離。併せて全画面でレベル表示順を難易度順（A=大学入試 / S=高校入試 / B=中学校の教科書 / T=小学校高学年の教科書）に統一
+- **[index.html](index.html)**:
+  - `_renderSangoTopic` から `teacher_work` 表示ブロック（`sango-teacher-work` div と `_sangoTeacherWorks` wMap 構築）を削除し、本日のお題カードは**3語のみ表示**のシンプルな状態に
+  - お題画面に「📚 過去のお題と福地の作品」ボタンを追加（「📖 過去の提出作品」の上、オレンジ〜ピンクグラデ）
+  - 新画面 `screen-sango-past`（直近1週間、昨日→7日前の新しい順、既存の豪華カード `.sango-level-card` を流用、`teacher_work` が空のレベルはカードは表示するが福地作品エリアのみ非表示）。画面下部に「📜 さらに過去のもの」「🏠 本日のお題画面に戻る」ボタン
+  - 新画面 `screen-sango-archive`（1週間以前を 1週間ずつページング、コンパクトカード `.sango-archive-card`、ページングボタン「← 新しい1週間へ」「次のページ（さらに古い1週間へ） →」、ヘッダーに「（○週前）」表示、state は `_sangoArchiveWeek`）
+  - CSS 追加: `.sango-past-date-header`（ピンク〜赤グラデの日付ヘッダー）/ `.sango-archive-date-header`（青系コンパクト）/ `.sango-archive-card` / `.sango-archive-word` / `.sango-archive-tw` / `.sango-archive-pager` など
+- **[gas/Code.js](gas/Code.js)**:
+  - レベル順ヘルパー追加: `_SANGO_LEVEL_ORDER = ['A','S','B','T']` / `_sangoLevelRank(l)` / `_sangoSortByLevel(arr)` / `_SANGO_WEEKDAYS_JP`
+  - 既存 `getSangoTopic` のソートを文字列比較（A→B→S→T）から `_sangoSortByLevel`（A→S→B→T）に変更
+  - 新規ヘルパー `_readSangoTopicsByDateRange(startStr, endStr)`（全行1回スキャン + 日付範囲フィルタ）/ `_buildSangoTopicsByDate(rows)`（日付降順 × レベル A→S→B→T で `{date, weekday, levels:[...]}` 配列を生成）/ `_sangoDateAgo(daysAgo)`（JST 3時基準の「昨日」起点で N 日前の日付文字列）
+  - 新規関数 `getSangoPastTopicsRecent()`: 昨日〜7日前の7日分
+  - 新規関数 `getSangoPastTopicsPaged(params)`: `weekOffset` 引数で1週間単位ページング（`weekOffset=1` → 8日前〜14日前、`=2` → 15日前〜21日前）、次ページ有無は `hasMore` フラグで返却
+  - `doGet` ルーティングに 2 行追加（`getSangoPastTopicsRecent` / `getSangoPastTopicsPaged`）
+- **[admin.html](admin.html)**: `SANGO_LEVELS = ['A', 'B', 'S', 'T']` → `['A', 'S', 'B', 'T']`（1行変更）。これ1行で以下が自動追従：お題貼り付けプレビュー表のレベル順 / 先生の作品（個別登録）レベルプルダウン / パーサの未定義レベルエラーメッセージ（「定義：A/S/B/T」）
+- **[view.html](view.html)**: 提出作品リストは timestamp 降順で level 順の UI は存在しないため変更なし
+- **ワークフロー**: dev `2a3c5be` → main へ `--no-ff` merge (`dc81f1f`) → `clasp push` → GAS デプロイ更新 → 本番 URL で動作確認済み（生徒画面・管理画面ともに完璧に動作）
+
+#### 27. 次回作業予定（メモ）
+- **和文英訳①** の実装に着手予定。設計は完了済み、シート構造・フォーマットは合意済み
+- **STEP 1**: `Wabun1Topics` / `Wabun1Submissions` シートの新設（ふくちさんが先に手動で作成）
+- その後「英語長文リスニング＆音読」に進む予定
 
 ---
 
