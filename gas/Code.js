@@ -1283,19 +1283,33 @@ function adminListSangoSubmissions(params) {
     if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
     const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
     if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
+
+    const nameMap = {};
+    const stuSheet = _ss().getSheetByName(SHEET_STUDENTS);
+    if (stuSheet && stuSheet.getLastRow() >= 2) {
+      const stuRows = stuSheet.getDataRange().getValues();
+      for (let i = 1; i < stuRows.length; i++) {
+        const sid = String(stuRows[i][COL_ID] || '').trim();
+        if (!sid) continue;
+        nameMap[sid] = String(stuRows[i][COL_NAME] || '').trim();
+      }
+    }
+
     const values = sh.getDataRange().getValues();
     const submissions = [];
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
       if (!r[0]) continue;
+      const sid = String(r[1] || '').trim();
       submissions.push({
-        timestamp:   Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
-        studentId:   String(r[1] || ''),
-        studentName: String(r[2] || ''),
-        level:       String(r[3] || ''),
-        words:       String(r[4] || ''),
-        work:        String(r[5] || ''),
-        method:      String(r[6] || '')
+        timestamp:      Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
+        studentId:      sid,
+        studentName:    String(r[2] || ''),
+        studentRealName: nameMap[sid] || '',
+        level:          String(r[3] || ''),
+        words:          String(r[4] || ''),
+        work:           String(r[5] || ''),
+        method:         String(r[6] || '')
       });
     }
     submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
