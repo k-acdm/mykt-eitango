@@ -70,6 +70,32 @@
   .notice-empty { text-align: center; color: #a07030; font-size: 14px; padding: 12px 0; }
   .btn-more { width: 100%; padding: 10px; background: linear-gradient(135deg, #ff8a3d, #ff6a00); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; font-family: inherit; }
 
+  /* お子様の学習履歴 */
+  .child-day-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); margin-bottom: 12px; overflow: hidden; }
+  .child-day-header { background: linear-gradient(135deg,#fff7ed,#fef3f2); color: #b45309; font-weight: bold; font-size: 14px; padding: 10px 14px; border-bottom: 1px solid #fde4cd; }
+  .child-day-body { padding: 10px 14px; }
+  .child-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px dashed #f0f0f0; }
+  .child-row:last-child { border-bottom: none; }
+  .child-row-label { font-size: 13px; font-weight: bold; color: #555; min-width: 100px; padding-top: 2px; }
+  .child-row-value { flex: 1; font-size: 14px; line-height: 1.6; }
+  .child-status-ok  { color: #10b981; font-weight: bold; }
+  .child-status-ng  { color: #b8b8b8; }
+  .child-detail     { display: block; color: #555; font-size: 12px; margin-top: 2px; }
+  .child-view-btn   { display: inline-block; margin-left: 6px; padding: 3px 10px; background: linear-gradient(135deg,#a18cd1,#fbc2eb); color: #4a2c6d; border: none; border-radius: 10px; font-size: 11px; font-weight: bold; cursor: pointer; font-family: inherit; vertical-align: middle; }
+  .child-view-btn:hover { filter: brightness(.95); }
+  .child-pager { display: flex; gap: 8px; margin-top: 12px; }
+  .child-pager button { flex: 1; padding: 10px; border: none; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; font-family: inherit; color: #fff; }
+  .child-pager .prev { background: linear-gradient(135deg, #43a047, #26a69a); }
+  .child-pager .next { background: linear-gradient(135deg, #2a5298, #1e3c72); }
+  .child-pager button:disabled { opacity: .4; cursor: not-allowed; }
+  .child-history-empty { text-align: center; color: #888; font-size: 14px; padding: 24px 0; }
+  @media (max-width: 480px) {
+    .child-row-label { min-width: 86px; font-size: 12px; }
+    .child-row-value { font-size: 13px; }
+  }
+  @keyframes childHl { 0% { box-shadow: 0 0 0 3px #a18cd1; } 100% { box-shadow: 0 2px 10px rgba(0,0,0,.04); } }
+  .notice-card.hl { animation: childHl 2.2s ease-out; }
+
   /* HP算出方法 */
   .hp-info-card { background: linear-gradient(135deg,#fff7ed,#fef3f2); border: 1px solid #fde4cd; border-radius: 14px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
   .hp-info-title { font-size: 15px; font-weight: bold; color: #b45309; margin-bottom: 8px; }
@@ -146,6 +172,11 @@
       </div>
     </div>
 
+    <!-- 学習履歴へ -->
+    <div class="dash-section">
+      <button class="btn-more" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);color:#4a2c6d" onclick="showChildHistory()">📅 お子様の学習履歴を見る</button>
+    </div>
+
     <!-- 週間ランキング -->
     <div class="dash-section">
       <div class="section-title">🏆 先週の週間HPランキング</div>
@@ -197,6 +228,35 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- お子様の学習履歴（直近7日） -->
+<div id="screen-child-history" class="screen">
+  <header>
+    <h1>📅 お子様の学習履歴</h1>
+    <button class="logout-btn" onclick="showView()">← 戻る</button>
+  </header>
+  <div class="container">
+    <div id="child-history-list"><div class="child-history-empty">読み込み中…</div></div>
+    <button id="child-history-more" class="btn-more" style="background:linear-gradient(135deg,#ff8a3d,#ff6a00);margin-top:10px;display:none" onclick="showChildHistoryArchive()">📜 さらに過去の履歴を見る</button>
+    <button class="btn-back" onclick="showView()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- お子様の学習履歴（ページング） -->
+<div id="screen-child-history-archive" class="screen">
+  <header>
+    <h1 id="child-archive-title">📅 お子様の学習履歴</h1>
+    <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
+  </header>
+  <div class="container">
+    <div id="child-archive-list"><div class="child-history-empty">読み込み中…</div></div>
+    <div class="child-pager">
+      <button type="button" class="prev" id="child-archive-prev" onclick="childHistoryPrev()">← 新しいページへ</button>
+      <button type="button" class="next" id="child-archive-next" onclick="childHistoryNext()">次のページ →</button>
+    </div>
+    <button class="btn-back" onclick="showChildHistory()">← 直近7日間に戻る</button>
   </div>
 </div>
 
@@ -256,6 +316,9 @@
   function showView()           { _showScreen('screen-view'); }
   function showNoticeHistory()  { _showScreen('screen-notice-history'); loadNoticeHistory(); }
   function showSangoHistory()   { _showScreen('screen-sango-history'); loadSangoHistory(); }
+  function showChildHistory()   { _showScreen('screen-child-history'); loadChildHistory(); }
+  function showChildHistoryArchive() { _childArchiveOffset = 1; _showScreen('screen-child-history-archive'); loadChildHistoryArchive(); }
+  function jumpToSangoSubmission(ts) { _showScreen('screen-sango-history'); loadSangoHistory(ts); }
 
   function toggleHpInfo() {
     var el = document.getElementById('hp-info-examples');
@@ -451,7 +514,7 @@
   // ============================
   // 三語短文 過去の提出作品
   // ============================
-  function loadSangoHistory() {
+  function loadSangoHistory(targetTs) {
     var listEl = document.getElementById('sango-history-list');
     listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">⏳ 読み込み中…</div></div></div>';
     gasGet({ action: 'getSangoSubmissions', studentId: _studentId, _ts: Date.now() }).then(function(res) {
@@ -476,7 +539,7 @@
               _esc(comment) +
             '</div>'
           : '';
-        return '<div class="notice-card" style="background:#fff;border-left:6px solid #fe6d73;box-shadow:0 2px 10px rgba(0,0,0,.08)">' +
+        return '<div class="notice-card" data-ts="' + _esc(s.timestamp || '') + '" style="background:#fff;border-left:6px solid #fe6d73;box-shadow:0 2px 10px rgba(0,0,0,.08)">' +
                  '<div class="notice-header">' +
                    '<div class="notice-title" style="color:#c0392b">レベル ' + _esc(s.level || '') + '</div>' +
                    '<div class="notice-date" style="color:#888">' + _esc(s.timestamp || '') + ' / ' + methodLabel + '</div>' +
@@ -486,9 +549,126 @@
                  commentHtml +
                '</div>';
       }).join('');
+      if (targetTs) {
+        var sel = '#sango-history-list [data-ts="' + String(targetTs).replace(/"/g,'\\"') + '"]';
+        var el = document.querySelector(sel);
+        if (el) {
+          setTimeout(function(){ el.scrollIntoView({ behavior:'smooth', block:'center' }); el.classList.add('hl'); }, 50);
+        }
+      }
     }).catch(function() {
       listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
     });
+  }
+
+  // ============================
+  // お子様の学習履歴
+  // ============================
+  var _childArchiveOffset = 1;
+
+  function _renderChildDays(days) {
+    if (!days || !days.length) {
+      return '<div class="child-history-empty">この期間の記録はありません。</div>';
+    }
+    return days.map(function(d){
+      var ymd = String(d.date || '');
+      var ymdDisp = ymd.length >= 10 ? ymd.slice(0,4) + '/' + ymd.slice(5,7) + '/' + ymd.slice(8,10) : ymd;
+      var header = ymdDisp + '(' + (d.weekday || '') + ')';
+
+      var loginCell = d.login
+        ? '<span class="child-status-ok">✅</span>'
+        : '<span class="child-status-ng">❌</span>';
+
+      // 英単語RUSH
+      var eiCell;
+      if (d.eitango && d.eitango.done) {
+        var byLevel = {};
+        (d.eitango.details || []).forEach(function(x){
+          var lv = String(x.level || '');
+          if (!byLevel[lv]) byLevel[lv] = [];
+          byLevel[lv].push(Number(x.set) || 0);
+        });
+        var detailLines = Object.keys(byLevel).map(function(lv){
+          var sets = byLevel[lv].slice().sort(function(a,b){ return a-b; });
+          return '<span class="child-detail">英検' + _esc(lv) + ' セット' + sets.join('・') + ' 合格</span>';
+        }).join('');
+        eiCell = '<span class="child-status-ok">✅</span>' + detailLines;
+      } else {
+        eiCell = '<span class="child-status-ng">❌</span>';
+      }
+
+      // 三語短文
+      var sgCell;
+      if (d.sango && d.sango.done) {
+        var lv = d.sango.level ? 'レベル' + _esc(d.sango.level) : '';
+        var btn = d.sango.timestamp
+          ? '<button type="button" class="child-view-btn" onclick="jumpToSangoSubmission(\'' + _esc(d.sango.timestamp).replace(/'/g,"\\'") + '\')">作品を見る</button>'
+          : '';
+        sgCell = '<span class="child-status-ok">✅</span>' + (lv ? ' <span style="color:#555;font-size:13px">' + lv + '</span>' : '') + ' ' + btn;
+      } else {
+        sgCell = '<span class="child-status-ng">❌</span>';
+      }
+
+      return '<div class="child-day-card">' +
+               '<div class="child-day-header">' + _esc(header) + '</div>' +
+               '<div class="child-day-body">' +
+                 '<div class="child-row"><div class="child-row-label">ログイン</div><div class="child-row-value">' + loginCell + '</div></div>' +
+                 '<div class="child-row"><div class="child-row-label">英単語RUSH</div><div class="child-row-value">' + eiCell + '</div></div>' +
+                 '<div class="child-row"><div class="child-row-label">三語短文</div><div class="child-row-value">' + sgCell + '</div></div>' +
+               '</div>' +
+             '</div>';
+    }).join('');
+  }
+
+  function loadChildHistory() {
+    var listEl = document.getElementById('child-history-list');
+    var moreBtn = document.getElementById('child-history-more');
+    listEl.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
+    if (moreBtn) moreBtn.style.display = 'none';
+    gasGet({ action: 'getChildActivityRecent', studentId: _studentId, offset: 0, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="child-history-empty">読み込みに失敗しました。</div>';
+        return;
+      }
+      listEl.innerHTML = _renderChildDays(res.days || []);
+      if (moreBtn) moreBtn.style.display = res.hasMore ? '' : 'none';
+    }).catch(function() {
+      listEl.innerHTML = '<div class="child-history-empty">読み込みに失敗しました。</div>';
+    });
+  }
+
+  function loadChildHistoryArchive() {
+    var listEl = document.getElementById('child-archive-list');
+    var titleEl = document.getElementById('child-archive-title');
+    var prevBtn = document.getElementById('child-archive-prev');
+    var nextBtn = document.getElementById('child-archive-next');
+    listEl.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
+    if (titleEl) titleEl.textContent = '📅 お子様の学習履歴（' + _childArchiveOffset + '週前〜）';
+    if (nextBtn) nextBtn.disabled = true;
+    gasGet({ action: 'getChildActivityRecent', studentId: _studentId, offset: _childArchiveOffset, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="child-history-empty">読み込みに失敗しました。</div>';
+        return;
+      }
+      listEl.innerHTML = _renderChildDays(res.days || []);
+      if (prevBtn) prevBtn.disabled = (_childArchiveOffset <= 1);
+      if (nextBtn) nextBtn.disabled = !res.hasMore;
+    }).catch(function() {
+      listEl.innerHTML = '<div class="child-history-empty">読み込みに失敗しました。</div>';
+    });
+  }
+
+  function childHistoryPrev() {
+    if (_childArchiveOffset <= 1) { showChildHistory(); return; }
+    _childArchiveOffset -= 1;
+    loadChildHistoryArchive();
+    window.scrollTo(0, 0);
+  }
+
+  function childHistoryNext() {
+    _childArchiveOffset += 1;
+    loadChildHistoryArchive();
+    window.scrollTo(0, 0);
   }
 
   // Enter キーでログイン
