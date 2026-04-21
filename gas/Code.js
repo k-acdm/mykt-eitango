@@ -14,6 +14,8 @@ const SHEET_QUOTE   = 'Quote';
 const SHEET_NOTICE  = 'Notice';
 const SHEET_SANGO_TOPICS      = 'SangoTopics';
 const SHEET_SANGO_SUBMISSIONS = 'SangoSubmissions';
+const SHEET_WABUN1_TOPICS      = 'Wabun1Topics';
+const SHEET_WABUN1_SUBMISSIONS = 'Wabun1Submissions';
 
 const COL_ID         = 0;
 const COL_NAME       = 1;
@@ -87,6 +89,13 @@ function doGet(e) {
       else if (action === 'getSangoPastTopicsRecent')   result = getSangoPastTopicsRecent();
       else if (action === 'getSangoPastTopicsPaged')    result = getSangoPastTopicsPaged(params);
       else if (action === 'getChildActivityRecent')    result = getChildActivityRecent(params);
+      else if (action === 'getWabun1Topic')             result = getWabun1Topic(params);
+      else if (action === 'submitWabun1')               result = submitWabun1(params);
+      else if (action === 'getWabun1Submissions')       result = getWabun1Submissions(params);
+      else if (action === 'adminAddWabun1TopicsWeek')   result = adminAddWabun1TopicsWeek(params);
+      else if (action === 'adminSetWabun1AnswerWeek')   result = adminSetWabun1AnswerWeek(params);
+      else if (action === 'adminListWabun1Submissions') result = adminListWabun1Submissions(params);
+      else if (action === 'adminSetWabun1Comment')      result = adminSetWabun1Comment(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1630,6 +1639,457 @@ function getChildActivityRecent(params) {
     return { ok: true, offset: offset, days: days, hasMore: hasMore };
   } catch(err) {
     console.error('[getChildActivityRecent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 和文英訳① 共通ヘルパー
+// =============================================
+const _WABUN1_DAY_OFFSET = { '月':0, '火':1, '水':2, '木':3, '金':4, '土':5, '日':6 };
+const _WABUN1_FW_DIGITS = { '１':'1', '２':'2', '３':'3', '４':'4' };
+
+// start(yyyy-MM-dd) から n 日後の JST 日付文字列
+function _wabun1AddDays(startStr, n) {
+  const d = new Date(startStr + 'T12:00:00+09:00');
+  d.setDate(d.getDate() + n);
+  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+// 正誤判定用: 大文字小文字を無視 + 空白を 1 スペースに畳む（ピリオド・カンマは残す）
+function _normalizeWabun1(s) {
+  return String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+// OCR テキストから番号区切りで各タスクの解答を抽出
+// 対応マーカー: "1." "1．" "１." "１．" "(1)" "（1）" "(１)" "（１）"
+function _parseWabun1Work(text) {
+  const out = { 1:'', 2:'', 3:'', 4:'' };
+  if (!text) return out;
+  const t = '\n' + String(text);
+  const re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])\s*[.．])\s*/g;
+  const markers = [];
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    const raw = m[1] || m[2];
+    const no = Number(_WABUN1_FW_DIGITS[raw] || raw);
+    if (no >= 1 && no <= 4) {
+      markers.push({ no: no, markerPos: m.index, contentStart: re.lastIndex });
+    }
+  }
+  for (let i = 0; i < markers.length; i++) {
+    const end = (i + 1 < markers.length) ? markers[i + 1].markerPos : t.length;
+    // 同じ番号が複数回出たら最後の出現を採用
+    out[markers[i].no] = t.substring(markers[i].contentStart, end).trim();
+  }
+  return out;
+}
+
+// Wabun1Topics から指定日の 1 行を読み込む（ヒットなしで null）
+function _readWabun1TopicsByDate(dateStr) {
+  const sh = _ss().getSheetByName(SHEET_WABUN1_TOPICS);
+  if (!sh || sh.getLastRow() < 2) return null;
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iDate = header.indexOf('date');
+  const iWN   = header.indexOf('week_no');
+  const iT = [1,2,3,4].map(function(n){ return header.indexOf('task'   + n); });
+  const iA = [1,2,3,4].map(function(n){ return header.indexOf('answer' + n); });
+  const iS = [1,2,3,4].map(function(n){ return header.indexOf('skip'   + n); });
+  const iWL = header.indexOf('word_list');
+
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    if (!r[iDate]) continue;
+    const ds = Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (ds !== dateStr) continue;
+
+    const rawTasks = [1,2,3,4].map(function(n, idx){
+      return {
+        no: n,
+        text: iT[idx] >= 0 ? String(r[iT[idx]] || '').trim() : '',
+        skip: iS[idx] >= 0 ? String(r[iS[idx]] || '').trim() : ''
+      };
+    });
+    const tasks = rawTasks.filter(function(t){ return !!t.text; });
+    const rawAnswers = [0,1,2,3].map(function(idx){
+      return iA[idx] >= 0 ? String(r[iA[idx]] || '').trim() : '';
+    });
+    const answers = tasks.map(function(t){ return rawAnswers[t.no - 1]; });
+    const wlRaw = iWL >= 0 ? String(r[iWL] || '').trim() : '';
+    const word_list = wlRaw ? wlRaw.split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean) : [];
+    return {
+      date: ds,
+      week_no: iWN >= 0 ? String(r[iWN] || '').trim() : '',
+      tasks: tasks,
+      answers: answers,
+      word_list: word_list
+    };
+  }
+  return null;
+}
+
+// =============================================
+// 生徒用：今日の問題と前日の正解を取得
+// today には answers を含めない（漏洩防止）
+// =============================================
+function getWabun1Topic(params) {
+  try {
+    const today = _sangoToday();
+    const yest  = _sangoPrevDate(today);
+    const t = _readWabun1TopicsByDate(today);
+    const y = _readWabun1TopicsByDate(yest);
+    const todayOut = t ? {
+      date: t.date,
+      week_no: t.week_no,
+      tasks: t.tasks,
+      word_list: t.word_list
+    } : null;
+    const yesterdayOut = y ? {
+      date: y.date,
+      tasks: y.tasks.map(function(tk){ return { no: tk.no, text: tk.text }; }),
+      answers: y.answers
+    } : null;
+    return { ok: true, today: todayOut, yesterday: yesterdayOut };
+  } catch(err) {
+    console.error('[getWabun1Topic]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 生徒用：解答提出（完全一致判定 + HP加算 + 記録）
+// params: { studentId, workText }
+// =============================================
+function submitWabun1(params) {
+  try {
+    const sid      = String((params && params.studentId) || '').trim();
+    const workText = String((params && params.workText)  || '').trim();
+    if (!sid || !workText) return { ok: false, message: '必要な情報が不足しています' };
+
+    const todayStr = _sangoToday();
+    const topic = _readWabun1TopicsByDate(todayStr);
+    if (!topic || topic.tasks.length === 0) {
+      return { ok: false, message: '今日の和文英訳①の問題が登録されていません' };
+    }
+
+    const parsed = _parseWabun1Work(workText);
+    const results = topic.tasks.map(function(t, idx){
+      const studentNorm = _normalizeWabun1(parsed[t.no]);
+      const correctNorm = _normalizeWabun1(topic.answers[idx]);
+      const correct = correctNorm !== '' && studentNorm === correctNorm;
+      return { no: t.no, correct: correct };
+    });
+    const allCorrect = results.length > 0 && results.every(function(r){ return r.correct; });
+
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) return { ok: false, message: 'Studentsシートが見つかりません' };
+    const stuRows = stuSheet.getDataRange().getValues();
+    let studentName = '';
+    let stuRowIdx = -1;
+    for (let i = 1; i < stuRows.length; i++) {
+      if (String(stuRows[i][COL_ID]).trim() === sid) {
+        studentName = String(stuRows[i][COL_NICKNAME] || '').trim() || '名無し';
+        stuRowIdx = i;
+        break;
+      }
+    }
+
+    // 提出は毎回記録（正誤問わず）
+    const subSheet = ss.getSheetByName(SHEET_WABUN1_SUBMISSIONS);
+    if (!subSheet) return { ok: false, message: 'Wabun1Submissionsシートが見つかりません' };
+    const now = new Date();
+    subSheet.appendRow([now, sid, studentName, workText, 'photo', '']);
+
+    // HPLog type='wabun1' で当日分既に付与済みか確認
+    let alreadyGranted = false;
+    const logSheet = ss.getSheetByName(SHEET_HPLOG);
+    if (logSheet) {
+      const logRows = logSheet.getDataRange().getValues();
+      for (let i = 1; i < logRows.length; i++) {
+        if (String(logRows[i][1]).trim() !== sid) continue;
+        if (logRows[i][3] !== 'wabun1') continue;
+        const todayForLog = (function(ts){
+          const dt = new Date(ts); dt.setHours(dt.getHours() - 3);
+          return Utilities.formatDate(dt, 'Asia/Tokyo', 'yyyy-MM-dd');
+        })(logRows[i][0]);
+        if (todayForLog === todayStr) { alreadyGranted = true; break; }
+      }
+    }
+
+    let hpGained = 0;
+    if (allCorrect && !alreadyGranted) {
+      const streak = (stuRowIdx >= 0) ? (Number(stuRows[stuRowIdx][COL_STREAK]) || 1) : 1;
+      const week = Math.ceil(streak / 7);
+      hpGained = 100 * week * week;
+      if (stuRowIdx >= 0) {
+        const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
+        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(cur + hpGained);
+      }
+      if (logSheet) logSheet.appendRow([now, sid, hpGained, 'wabun1']);
+    }
+
+    return {
+      ok: true,
+      allCorrect: allCorrect,
+      results: results,
+      hpGained: hpGained,
+      alreadyGranted: alreadyGranted
+    };
+  } catch(err) {
+    console.error('[submitWabun1]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 生徒用：自分の和文英訳①提出履歴（新しい順）
+// =============================================
+function getWabun1Submissions(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const sh = _ss().getSheetByName(SHEET_WABUN1_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
+    const values = sh.getDataRange().getValues();
+    const submissions = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[0]) continue;
+      if (String(r[1] || '').trim() !== sid) continue;
+      const tsStr = Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      submissions.push({
+        timestamp:       tsStr,
+        date:            tsStr.slice(0, 10),
+        studentId:       sid,
+        studentName:     String(r[2] || ''),
+        work:            String(r[3] || ''),
+        method:          String(r[4] || ''),
+        teacher_comment: String(r[5] || '')
+      });
+    }
+    submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+    return { ok: true, submissions: submissions };
+  } catch(err) {
+    console.error('[getWabun1Submissions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 管理画面：和文英訳① 週単位一括登録（縦→横変換）
+// params: { password, start, weekNo, items:[{day, kind, content}...] }
+//   kind: '問題1'..'問題4' / 'スキップ1'..'スキップ4' / '単語'
+// =============================================
+function adminAddWabun1TopicsWeek(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const start = String(params.start || '').trim();
+    const weekNo = (params.weekNo == null || params.weekNo === '') ? '' : params.weekNo;
+    const items = params.items || [];
+    if (!start) return { ok: false, message: '週開始日(start)が必要です' };
+    if (!Array.isArray(items) || items.length === 0) {
+      return { ok: false, message: '登録するデータがありません' };
+    }
+
+    // 曜日ごとにバケット
+    const byDay = {};
+    items.forEach(function(it){
+      const day  = String((it && it.day)  || '').trim();
+      const kind = String((it && it.kind) || '').trim();
+      const content = String((it && it.content) == null ? '' : it.content);
+      if (!(day in _WABUN1_DAY_OFFSET)) return;
+      if (!byDay[day]) byDay[day] = { tasks: ['','','',''], skips: ['','','',''], words: [] };
+      if      (kind === '問題1')     byDay[day].tasks[0] = content;
+      else if (kind === '問題2')     byDay[day].tasks[1] = content;
+      else if (kind === '問題3')     byDay[day].tasks[2] = content;
+      else if (kind === '問題4')     byDay[day].tasks[3] = content;
+      else if (kind === 'スキップ1') byDay[day].skips[0] = content;
+      else if (kind === 'スキップ2') byDay[day].skips[1] = content;
+      else if (kind === 'スキップ3') byDay[day].skips[2] = content;
+      else if (kind === 'スキップ4') byDay[day].skips[3] = content;
+      else if (kind === '単語' && content) byDay[day].words.push(content);
+    });
+
+    // 行組み立て（問題1 空の曜日はエラー）
+    const errors = [];
+    const rowsToAppend = [];
+    Object.keys(byDay).forEach(function(day){
+      const data = byDay[day];
+      if (!data.tasks[0]) {
+        errors.push(day + '曜日：問題1が空です');
+        return;
+      }
+      const date = _wabun1AddDays(start, _WABUN1_DAY_OFFSET[day]);
+      rowsToAppend.push([
+        date, weekNo,
+        data.tasks[0], data.tasks[1], data.tasks[2], data.tasks[3],
+        '', '', '', '',
+        data.skips[0], data.skips[1], data.skips[2], data.skips[3],
+        data.words.join('\n')
+      ]);
+    });
+
+    if (rowsToAppend.length === 0) {
+      return { ok: false, message: '有効な行がありません', errors: errors };
+    }
+
+    const sh = _ss().getSheetByName(SHEET_WABUN1_TOPICS);
+    if (!sh) return { ok: false, message: 'Wabun1Topicsシートが見つかりません' };
+    const startRow = sh.getLastRow() + 1;
+    sh.getRange(startRow, 1, rowsToAppend.length, rowsToAppend[0].length).setValues(rowsToAppend);
+    return { ok: true, added: rowsToAppend.length, errors: errors };
+  } catch(err) {
+    console.error('[adminAddWabun1TopicsWeek]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 管理画面：和文英訳① 正解の週単位一括登録
+// params: { password, start, items:[{day, kind:'正解1'..'正解4', content}] }
+// 既存の Wabun1Topics 該当行の answer1..4 を更新
+// =============================================
+function adminSetWabun1AnswerWeek(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const start = String(params.start || '').trim();
+    const items = params.items || [];
+    if (!start) return { ok: false, message: '週開始日(start)が必要です' };
+    if (!Array.isArray(items) || items.length === 0) {
+      return { ok: false, message: '登録するデータがありません' };
+    }
+
+    const byDay = {};
+    items.forEach(function(it){
+      const day  = String((it && it.day)  || '').trim();
+      const kind = String((it && it.kind) || '').trim();
+      const content = String((it && it.content) == null ? '' : it.content);
+      if (!(day in _WABUN1_DAY_OFFSET)) return;
+      if (!byDay[day]) byDay[day] = ['','','',''];
+      if      (kind === '正解1') byDay[day][0] = content;
+      else if (kind === '正解2') byDay[day][1] = content;
+      else if (kind === '正解3') byDay[day][2] = content;
+      else if (kind === '正解4') byDay[day][3] = content;
+    });
+
+    const sh = _ss().getSheetByName(SHEET_WABUN1_TOPICS);
+    if (!sh || sh.getLastRow() < 2) {
+      return { ok: false, message: 'Wabun1Topicsに登録がありません。先に週単位一括登録をしてください' };
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iDate = header.indexOf('date');
+    const iA = [1,2,3,4].map(function(n){ return header.indexOf('answer' + n); });
+
+    let updated = 0;
+    const errors = [];
+    Object.keys(byDay).forEach(function(day){
+      const date = _wabun1AddDays(start, _WABUN1_DAY_OFFSET[day]);
+      const answers = byDay[day];
+      let found = false;
+      for (let i = 1; i < values.length; i++) {
+        if (!values[i][iDate]) continue;
+        const ds = Utilities.formatDate(new Date(values[i][iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+        if (ds !== date) continue;
+        for (let k = 0; k < 4; k++) {
+          if (iA[k] >= 0) sh.getRange(i + 1, iA[k] + 1).setValue(answers[k]);
+        }
+        updated++;
+        found = true;
+        break;
+      }
+      if (!found) errors.push(day + '曜日(' + date + ')：該当する問題行が見つかりません');
+    });
+
+    return { ok: true, updated: updated, errors: errors };
+  } catch(err) {
+    console.error('[adminSetWabun1AnswerWeek]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 管理画面：和文英訳① 提出一覧（新しい順）
+// params: { password, date?, studentId? } 両方省略可
+// =============================================
+function adminListWabun1Submissions(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const filterDate = String((params && params.date) || '').trim();
+    const filterSid  = String((params && params.studentId) || '').trim();
+
+    const sh = _ss().getSheetByName(SHEET_WABUN1_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
+
+    const nameMap = {};
+    const stuSheet = _ss().getSheetByName(SHEET_STUDENTS);
+    if (stuSheet && stuSheet.getLastRow() >= 2) {
+      const stuRows = stuSheet.getDataRange().getValues();
+      for (let i = 1; i < stuRows.length; i++) {
+        const sid = String(stuRows[i][COL_ID] || '').trim();
+        if (!sid) continue;
+        nameMap[sid] = String(stuRows[i][COL_NAME] || '').trim();
+      }
+    }
+
+    const values = sh.getDataRange().getValues();
+    const submissions = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[0]) continue;
+      const sid = String(r[1] || '').trim();
+      const tsStr = Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      const ds = tsStr.slice(0, 10);
+      if (filterSid  && sid !== filterSid)  continue;
+      if (filterDate && ds  !== filterDate) continue;
+      submissions.push({
+        timestamp:       tsStr,
+        studentId:       sid,
+        studentName:     String(r[2] || ''),
+        studentRealName: nameMap[sid] || '',
+        date:            ds,
+        work:            String(r[3] || ''),
+        method:          String(r[4] || ''),
+        teacher_comment: String(r[5] || '')
+      });
+    }
+    submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+    return { ok: true, submissions: submissions };
+  } catch(err) {
+    console.error('[adminListWabun1Submissions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 管理画面：和文英訳① 先生コメント保存
+// params: { password, timestamp, studentId, comment }
+// =============================================
+function adminSetWabun1Comment(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const ts  = String(params.timestamp || '').trim();
+    const sid = String(params.studentId || '').trim();
+    const comment = String(params.comment != null ? params.comment : '');
+    if (!ts || !sid) return { ok: false, message: 'timestamp / studentId が必要です' };
+    const sh = _ss().getSheetByName(SHEET_WABUN1_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: false, message: '該当する提出が見つかりません' };
+    const values = sh.getDataRange().getValues();
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[0]) continue;
+      const rowTs  = Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      const rowSid = String(r[1] || '').trim();
+      if (rowTs === ts && rowSid === sid) {
+        sh.getRange(i + 1, 6).setValue(comment);
+        return { ok: true };
+      }
+    }
+    return { ok: false, message: '該当する提出が見つかりません' };
+  } catch(err) {
+    console.error('[adminSetWabun1Comment]', err);
     return { ok: false, message: String(err) };
   }
 }
