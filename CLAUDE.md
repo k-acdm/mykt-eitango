@@ -399,6 +399,118 @@
 - **STEP 1**: `Wabun1Topics` / `Wabun1Submissions` シートの新設（ふくちさんが先に手動で作成）
 - その後「英語長文リスニング＆音読」に進む予定
 
+### 2026-04-22
+
+本日は塾PCで作業。UI 改修 4 件 + 和文英訳① Phase 1/2（データ基盤 + 管理画面）まで実装。
+
+#### 28. 英単語RUSHレベル選択画面に副題追加（dev `aa37351` / `7d53372` → main `5154890`）
+- **背景**: 生徒が学習のゴールをイメージしやすいよう、各英検レベルに「総語数／セット数」を表示
+- **[index.html](index.html)**:
+  - `.level-btn` 左側 `<span>` を `.level-btn-main`（縦 flex）でラップし `.level-btn-name` + `.level-btn-sub` の 2 段構成に
+  - 有効 6 レベル（5/4/3/準2/2/準1）に副題を付与。準2級プラス/1級 は「準備中」バッジのまま副題なし（現状ポリシー未確定のため）
+  - 各レベルの副題（デスクトップ 15px / モバイル 13px / `#888` / `letter-spacing: .3px`）:
+    - 5級「計590語｜118セット」/ 4級「計690語｜138セット」/ 3級「計1,150語｜230セット」
+    - 準2級「計1,470語｜294セット」/ 2級「計1,700語｜340セット」/ 準1級「計1,900語｜380セット」
+- **2 段階で実施**: 初回 12px/11px で実装 → レビューで 2 回り大きく（15px/13px）に調整
+
+#### 29. HP算出方法のホーム画面表示（dev `4093949` → main `c3f0f35`）
+- **背景**: 生徒・保護者に HP の仕組みを常時可視化。ポイント稼ぎのモチベ喚起
+- **[index.html](index.html)**（コンテンツボタンに HP バッジ + HP 情報セクション）:
+  - `.content-btn .badge-hp`: 白半透明 + オレンジ文字（`#d97706`）のバッジを右上に配置（既存 `.badge-soon` と同位置）
+  - 英単語RUSH「50HP/セット」/ 三語短文「200HP/日」のみ付与（準備中コンテンツには付けない）
+  - `.hp-info-card` セクション（クリーム〜薄ピンクグラデ `#fff7ed → #fef3f2`）を「コンテンツを選ぼう」の直下・連絡事項の上に新設
+  - 常時表示: `毎日ログイン：+10HP` / `課題クリア：基本HP × 連続週数²` + `※連続週数 = 連続ログイン日数 ÷ 7 の切り上げ`
+  - 開閉式トグル `toggleHpInfo()` で計算例（例1 連続5日 合計260HP / 例2 連続15日 倍率9倍）を `max-height` スライドで展開
+- **[view.html](view.html)**: 同じ `.hp-info-card` を「三語短文の提出作品」セクションの下に配置。保護者画面にもコンテンツ理解用として同内容表示
+- モバイル（480px以下）: padding / font-size を微縮小
+
+#### 30. マイカツ君のセリフを吹き出し化（index.html のみ、dev `6446566` → main `210bdbf`）
+- **背景**: セリフを「マイカツ君が話しかけている」見た目にして親しみを強化
+- **[index.html](index.html)** のみ変更（view.html 対象外：保護者画面にはセリフ無し）:
+  - 新レイアウト: `.mate-row`（flex-row） = `.mate-avatar`（画像 150px + 固定ラベル `.chara-name` 「マイカツ君」）+ `.chara-bubble`（flex:1、右配置）
+  - 吹き出し: 白背景 / `2px solid #c8dcff` / 角丸 20px / 紺文字 `#2d3a8c` / 影 `0 3px 12px rgba(79,125,240,.15)`
+  - しっぽ: `::before`（枠色 `#c8dcff`）+ `::after`（背景 `#fff`）の二枚重ねでボーダー付き三角形を実現（左中央、マイカツ君を指す）
+  - モバイル（480px以下）: `.mate-row` を column に、しっぽを上向き三角に差し替え（枠色 bottom + 背景 bottom の二枚重ね）
+- **JS 変更は無し**: 既存 `document.getElementById('chara-msg').textContent = ...` の id を維持したため、セリフ生成ロジックはそのまま動作
+- **旧 `.chara-msg` クラス**: `.chara-bubble` に置き換え（class だけ差し替え、id は同じ）。`.chara-msg` CSS は使われなくなったが削除はしていない
+
+#### 31. 保護者閲覧に学習履歴機能を追加（dev `52a7540` / `fb887ac` → main `a1d1563` / `48551e7`）
+- **背景**: 保護者にとって最重要な「我が子の日別達成状況」を一元表示
+- **[gas/Code.js](gas/Code.js) `getChildActivityRecent(params)`**:
+  - params: `{ studentId, offset:0 }`。offset=0 → 昨日〜7日前、offset=1 → 8〜14日前...
+  - HPLog / Attempts / SangoSubmissions の 3 シートを 1 回ずつスキャンして日別集約
+  - HPLog 駆動で `login` / `eitango.done` / `sango.done` フラグ、Attempts 合格のみで `eitango.details`（級・セット番号）補完、SangoSubmissions で `sango.level` / `sango.timestamp` 補完
+  - `hasMore` 判定は HPLog の古い行検出のみで簡易化（1 パス内で副産物取得、追加 I/O なし）
+- **[view.html](view.html)**:
+  - 「📅 お子様の学習履歴を見る」ボタンをステータス直下・ランキングの上に追加（紫グラデ `#a18cd1 → #fbc2eb`）
+  - 新画面 `screen-child-history`（直近7日、offset=0 固定）/ `screen-child-history-archive`（ページング、offset≥1）
+  - カード UI: 日付ヘッダー（`#fff7ed → #fef3f2` グラデ、`#b45309` 文字）+ ログイン ✅/❌（`#10b981`/`#b8b8b8`）+ 英単語RUSH（級ごとに `セット1・2 合格` 形式）+ 三語短文（レベル + 作品を見るボタン）
+  - 注意書きバナー（`#fffbe6` 背景 + 黄左枠）「⚠️ 三語短文はアプリでの提出が4/20（月）の分からです」を両画面の上部に配置
+  - `loadSangoHistory(targetTs)` を拡張: 各カードに `data-ts` 属性付与、render 後に target を `querySelector` で検索 → `scrollIntoView` + `.hl` クラスで 2.2 秒フェードアウトハイライト
+  - `jumpToSangoSubmission(ts)` 関数: 画面遷移 + スクロールジャンプの一連フロー
+  - モバイル（480px以下）でラベル幅・フォントサイズ縮小
+
+#### 32. 和文英訳① Phase 1: データ基盤（dev `8d31e65` → main `4080ad2`）
+- **シート新設**（ふくちさんが事前に手動作成済）:
+  - `Wabun1Topics`（15列）: date / week_no / task1〜4 / answer1〜4 / skip1〜4 / word_list
+  - `Wabun1Submissions`（6列）: timestamp / studentId / studentName / work / method / teacher_comment
+- **[gas/Code.js](gas/Code.js)** に以下を追加（+460行）:
+  - **定数**: `SHEET_WABUN1_TOPICS` / `SHEET_WABUN1_SUBMISSIONS`
+  - **共通ヘルパー**:
+    - `_WABUN1_DAY_OFFSET` （月=0 ... 日=6）
+    - `_WABUN1_FW_DIGITS` （全角数字 → 半角マップ）
+    - `_wabun1AddDays(startStr, n)` （JST 日付加算）
+    - `_normalizeWabun1(s)` （case-insensitive + `\s+` 畳み、ピリオド/カンマは保持）
+    - `_parseWabun1Work(text)` （番号区切りパーサ、正規表現 `/\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])\s*[.．])\s*/g` で半角/全角数字 + 半角/全角ピリオド + カッコ `(1)`/`（1）` 対応）
+    - `_readWabun1TopicsByDate(dateStr)` （header.indexOf で列位置動的取得、task/answer/skip/word_list を構造化して返却）
+  - **生徒用 3 関数**:
+    - `getWabun1Topic(params)`: today（answers 非返却）+ yesterday（answers 含む）を返す。日付切替は朝3時境界（`_sangoToday()` / `_sangoPrevDate()` 流用）
+    - `submitWabun1(params)`: 解答パース → 完全一致照合 → 全正解かつ当日初回のみ `hpGained = 100 × week²`（COL_STREAK ベース）。Wabun1Submissions には正誤問わず毎回 appendRow、HPLog は加算時のみ `type='wabun1'`
+    - `getWabun1Submissions(params)`: 自分の提出履歴（timestamp 降順）
+  - **管理用 4 関数**:
+    - `adminAddWabun1TopicsWeek(params)`: 縦→横変換。items を `day` でバケット化し `問題1〜4` / `スキップ1〜4` / `単語` を処理。初版は answer を空文字で埋める
+    - `adminSetWabun1AnswerWeek(params)`: 正解のみの週単位更新（後からの修正用に残置）
+    - `adminListWabun1Submissions(params)`: date / studentId フィルタ、realName ルックアップ
+    - `adminSetWabun1Comment(params)`: timestamp + studentId で行特定、6列目を更新
+  - **doGet ルーティング**: 7行追加（getWabun1Topic / submitWabun1 / getWabun1Submissions / adminAddWabun1TopicsWeek / adminSetWabun1AnswerWeek / adminListWabun1Submissions / adminSetWabun1Comment）
+
+#### 33. 和文英訳① Phase 2: 管理画面（dev `bed67cf` → main `1f7cd1a`）
+- **運用方針変更（重要）**: Phase 1 の「問題登録と正解登録を別フォーム」から「問題＋正解を同時に1フォームで登録」に変更。アプリへの実装後は両方揃った状態で運用するため
+- **[gas/Code.js](gas/Code.js) `adminAddWabun1TopicsWeek` 拡張**:
+  - 曜日バケットに `answers: ['','','','']` を追加
+  - `kind === '正解1'〜'正解4'` 分岐追加、行組み立て時 answer 4 列にマッピング
+  - 正解 0〜4 件を許容（後からの追加登録対応）
+- **[admin.html](admin.html)** に 2 タブ追加（`sango-submissions` の直後、`ranking` の前）:
+  - **タブ 1「📝 和文英訳①」**:
+    - 週開始日（月曜）+ TSV textarea + 週番号（任意）+ 一括登録ボタン
+    - textarea 形式: `曜日 [TAB] 種別 [TAB] 内容` × N 行
+    - 許容種別: 問題1〜4 / 正解1〜4 / スキップ1〜4 / 単語（計 13 種）
+    - パーサ `parseWabun1Paste(text, startStr)`: `SANGO_DAY_MAP` 流用、4 列目以降はタブ再結合で内容内タブを保護、`day` は `charAt(0)` で GAS 側 `_WABUN1_DAY_OFFSET` と整合
+    - プレビュー: 6 列サマリ表（日付 / 問題数 / 正解数 / スキップ数 / 単語数 / 問題1冒頭30字）。問題1未入力曜日は赤字警告
+    - `submitWabun1Paste()` → `adminAddWabun1TopicsWeek` 呼び出し、成功時トースト + フォームクリア、認証エラー時は `doAdminLogout()`
+  - **タブ 2「📋 和文英訳① 提出」**:
+    - 日付 filter + 生徒ID filter + 絞り込み/更新ボタン
+    - 提出カード: タイムスタンプ + 📷写真 + 生徒ID / ニックネーム（本名）/ OCR テキスト全文（`white-space: pre-wrap`）
+    - 3 状態コメント UI（青=表示 / 橙=編集 / グレー=未コメント）を三語短文と完全同構造で実装（関数名 prefix を `wabun1` に変更、`_wabun1SubCache` / `editWabun1Comment` / `saveWabun1Comment` / `cancelWabun1CommentEdit`）
+    - 認証エラー時は `doAdminLogout()`
+- **動作確認**: 管理画面で TSV 貼り付け → プレビュー → 登録 → スプレッドシート反映まで確認済み
+
+#### 34. 今日の環境・ワークフローメモ
+- **塾PC で作業、これから自宅PC に移行予定**。両PCとも clasp 導入済みなので `git pull` + `clasp pull` で同期可能
+- **運用開始予定**: 和文英訳① は 4/27（月）スタート。それまでに Phase 3（生徒・保護者画面）を完成させる
+- **残タスク**:
+  - Phase 3（生徒画面 + 保護者画面）: index.html / view.html の大規模改修（詳細は下記）
+    - コンテンツカードに「小中学生用」表記 + 「中学生用」表記の追加 + HP バッジ
+    - 和文英訳①のお題表示画面（今日の問題、前日の問題＋正解、固定表示内容、YouTube動画リンク）
+    - 写真提出→ OCR（Vision API）→「これで良いですか？」確認→番号検出チェック→正解照合→結果表示（各タスク ✅/❌）→再提出ループ
+    - 「正解を表示する」ボタン（1 回目送信後のみ表示、運用でカンニング防止）
+    - モニョ記号の斜線パターンマスク化（仕様要確認）
+    - 過去の提出作品画面、過去のお題と正解画面
+    - 保護者画面に「和文英訳①の提出作品」画面、`getChildActivityRecent` に和文英訳①の項目追加（HPLog type='wabun1' で判定）
+  - 問題データの用意（ふくちさん作業、1 週間分 = 4/27〜5/3）
+  - 運用開始前の生徒・保護者への告知文作成
+  - マニュアル v4 作成（和文英訳①実装完了後）
+
 ---
 
 ## TODO（未反映の GAS 側作業）
