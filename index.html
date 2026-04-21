@@ -324,6 +324,57 @@
     .sango-archive-tw-body { color:#333; font-size:13px; line-height:1.6; margin-top:3px; white-space:pre-wrap; }
     .sango-archive-pager { display:flex; gap:8px; margin-top:14px; }
     .sango-archive-pager .btn-wide { margin-top:0; flex:1; font-size:14px; padding:12px; }
+    /* 和文英訳① */
+    .content-btn .content-btn-sub { display:block; font-size:11px; font-weight:normal; opacity:.92; margin-top:4px; letter-spacing:.3px; }
+    @media (max-width: 480px) { .content-btn .content-btn-sub { font-size:10px; } }
+    .monyo-mask { display:inline-block; background: repeating-linear-gradient(45deg, #9ca3af 0, #9ca3af 4px, #d1d5db 4px, #d1d5db 8px); color:transparent; user-select:none; border-radius:3px; width:2.6em; margin:0 2px; border:1px solid #6b7280; vertical-align:baseline; }
+    .wabun1-date-label { text-align:center; color:#666; font-size:14px; margin-bottom:12px; }
+    .wabun1-warning { background:linear-gradient(135deg,#fffde7,#fff9c4); border:2px solid #f9a825; border-radius:12px; padding:14px 16px; margin-bottom:16px; font-size:14px; line-height:1.8; color:#6d4c00; }
+    .wabun1-warning strong { color:#c25b00; }
+    .wabun1-section-title { font-size:17px; font-weight:bold; color:#5b21b6; margin:18px 0 10px; padding-left:10px; border-left:4px solid #7c4fff; }
+    .wabun1-task-list { background:#fff; border-radius:14px; padding:14px 18px; box-shadow:0 2px 10px rgba(0,0,0,.08); border-left:6px solid #7c4fff; margin-bottom:10px; }
+    .wabun1-task { font-size:16px; line-height:1.9; color:#222; margin:8px 0; display:flex; align-items:flex-start; gap:4px; }
+    .wabun1-task-no { flex:0 0 auto; font-weight:bold; color:#7c4fff; min-width:1.6em; }
+    .wabun1-task-text { flex:1; }
+    .wabun1-task-skip { color:#e63946; font-size:13px; display:block; margin-top:2px; }
+    .wabun1-wordlist { background:#f0fdf4; border-radius:12px; padding:12px 16px; border-left:4px solid #10b981; margin-bottom:10px; }
+    .wabun1-wordlist-item { font-size:14px; color:#065f46; margin:4px 0; line-height:1.7; }
+    .wabun1-submit-big { background:linear-gradient(135deg,#b28dff,#7c4fff) !important; font-size:18px !important; padding:18px !important; box-shadow:0 6px 18px rgba(124,79,255,.35); }
+    .wabun1-fixed-tip { background:linear-gradient(135deg,#fef3c7,#fde68a); border:2px solid #f59e0b; border-radius:12px; padding:14px 16px; margin-top:20px; color:#78350f; }
+    .wabun1-fixed-title { font-size:15px; font-weight:bold; margin-bottom:8px; color:#c2410c; }
+    .wabun1-fixed-body { font-size:13px; line-height:1.85; }
+    .wabun1-fixed-encourage { text-align:center; font-size:14px; line-height:1.9; color:#4b5563; background:#f9fafb; border-radius:10px; padding:12px; margin-top:12px; }
+    .wabun1-videos { margin-top:16px; }
+    .wabun1-videos-title { font-size:15px; font-weight:bold; color:#dc2626; margin-bottom:10px; text-align:center; }
+    .wabun1-video-card { display:flex; align-items:center; gap:10px; background:linear-gradient(135deg,#fff1f2,#fecaca); border:2px solid #f87171; border-radius:12px; padding:12px 14px; text-decoration:none; color:#991b1b; font-weight:bold; font-size:15px; margin-bottom:8px; box-shadow:0 2px 6px rgba(0,0,0,.08); }
+    .wabun1-video-card:hover { background:linear-gradient(135deg,#fecaca,#fca5a5); transform:translateY(-1px); }
+    .wabun1-video-icon { font-size:22px; }
+    .wabun1-video-label { flex:1; }
+    .wabun1-video-arrow { font-size:12px; opacity:.7; }
+    .wabun1-placeholder { text-align:center; color:#888; font-size:15px; padding:60px 20px; line-height:1.8; background:#f9fafb; border-radius:12px; }
+    .wabun1-result-success { position:relative; background:linear-gradient(135deg,#fef3c7,#fde68a); border:3px solid #f59e0b; border-radius:18px; padding:30px 20px; text-align:center; overflow:hidden; animation: wabun1-glow 1.8s ease-out; }
+    .wabun1-result-title { font-size:26px; font-weight:bold; color:#b45309; margin-bottom:10px; }
+    .wabun1-result-hp { font-size:20px; color:#78350f; margin-top:10px; }
+    .wabun1-result-hp-num { font-size:42px; font-weight:bold; color:#dc2626; display:inline-block; }
+    .wabun1-result-total { font-size:14px; color:#6b7280; margin-top:14px; }
+    .wabun1-result-already { font-size:14px; color:#78350f; margin-top:8px; font-style:italic; }
+    .wabun1-result-partial { background:#fff; border:3px solid #fca5a5; border-radius:18px; padding:24px 18px; text-align:center; }
+    .wabun1-result-partial-title { font-size:22px; font-weight:bold; color:#dc2626; margin-bottom:10px; }
+    .wabun1-result-partial-msg { color:#555; font-size:14px; margin-bottom:14px; line-height:1.7; }
+    .wabun1-result-list { text-align:left; background:#fef2f2; border-radius:10px; padding:12px 16px; margin:12px 0; }
+    .wabun1-result-item { font-size:16px; line-height:2; padding:2px 0; }
+    .wabun1-result-item.ok { color:#059669; }
+    .wabun1-result-item.ng { color:#dc2626; font-weight:bold; }
+    .wabun1-result-again { color:#dc2626; font-size:14px; margin-top:8px; }
+    .wabun1-confetti-wrap { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+    .wabun1-confetti { position:absolute; top:-30px; font-size:22px; animation: wabun1-confetti-fall 2.2s ease-out forwards; opacity:0; }
+    @keyframes wabun1-confetti-fall { 0% { transform: translateY(-20px) rotate(0deg); opacity: 1; } 100% { transform: translateY(260px) rotate(540deg); opacity: 0; } }
+    @keyframes wabun1-glow { 0%, 100% { box-shadow: 0 4px 14px rgba(245,158,11,.3); } 50% { box-shadow: 0 10px 32px rgba(245,158,11,.65); } }
+    .wabun1-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
+    .wabun1-overlay-card { background:#fff; border-radius:16px; padding:22px 20px; max-width:480px; width:100%; max-height:80vh; overflow-y:auto; }
+    .wabun1-overlay-title { font-size:20px; font-weight:bold; color:#b45309; margin-bottom:14px; text-align:center; }
+    .wabun1-answer-item { background:#fef3c7; border-radius:10px; padding:10px 14px; margin-bottom:8px; font-size:15px; line-height:1.7; color:#78350f; }
+    .wabun1-answer-no { font-weight:bold; color:#b45309; margin-right:6px; }
   </style>
 </head>
 <body>
@@ -422,9 +473,10 @@
           <span class="badge-hp">200HP/日</span>
           <span class="ico">✏️</span>三語短文
         </button>
-        <button class="content-btn c-wabun1 disabled" onclick="showComingSoon('和文英訳①')">
-          <span class="badge-soon">準備中</span>
+        <button class="content-btn c-wabun1" onclick="showWabun1Topic()">
+          <span class="badge-hp">100HP/日</span>
           <span class="ico">📘</span>和文英訳①
+          <span class="content-btn-sub">小中学生用</span>
         </button>
         <button class="content-btn c-wabun2 disabled" onclick="showComingSoon('和文英訳②')">
           <span class="badge-soon">準備中</span>
@@ -692,6 +744,87 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
   </div>
 </div>
+<div id="screen-wabun1-topic" class="screen">
+  <header><h1>📝 和文英訳①</h1><span id="wabun1-date-label"></span></header>
+  <div class="container" style="padding-top:16px">
+    <input type="file" id="wabun1-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onWabun1PhotoSelected(event)"/>
+    <div id="wabun1-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
+    <img id="wabun1-photo-preview" class="photo-preview" style="display:none;margin-top:10px"/>
+    <div id="wabun1-camera-msg" class="msg" style="margin-top:10px"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:14px;color:#6d2c4a" onclick="showWabun1Past()">📚 過去の問題と正解</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d" onclick="showWabun1History()">📖 過去の提出作品</button>
+    <div class="wabun1-fixed-tip">
+      <div class="wabun1-fixed-title">🔴注目！ ＜英語の名詞の使い方＞</div>
+      <div class="wabun1-fixed-body">英語では、「数えられる名詞の単数形」の前に何も付けずに使うのは、原則NGです。<br>日本語の方に特に何もついてない場合は、「a (an) を付ける」か「複数形にする」のどちらかにしてください。<br>例）「私はペンを持っている」・・ I have pen. →「×」 / I have a pen. →「○」 / I have pens. →「○」</div>
+    </div>
+    <div class="wabun1-fixed-encourage">毎日地道にコツコツと<br>これが何よりも大切なこと💍<br>ただし、「ただ作業的に」やるのは全く意味がありません💥<br>「これがこうだからこうなる」ということを頭で考え、手を動かし、日々の問題を解いていってください✨✨✨</div>
+    <div class="wabun1-videos">
+      <div class="wabun1-videos-title">🔴解説動画🔴</div>
+      <a class="wabun1-video-card" href="https://youtu.be/BNHB6NhGirc" target="_blank" rel="noopener">
+        <span class="wabun1-video-icon">📹</span>
+        <span class="wabun1-video-label">日本語の並べかえ</span>
+        <span class="wabun1-video-arrow">▶</span>
+      </a>
+      <a class="wabun1-video-card" href="https://youtu.be/1Of4V6OBv9U" target="_blank" rel="noopener">
+        <span class="wabun1-video-icon">📹</span>
+        <span class="wabun1-video-label">モニョの法則</span>
+        <span class="wabun1-video-arrow">▶</span>
+      </a>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<div id="screen-wabun1-confirm" class="screen">
+  <header><h1>📷 読み取り結果の確認</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div class="sango-ocr-box" style="display:block;border-color:#7c4fff">
+      <div class="sango-ocr-label">読み取った内容：</div>
+      <div class="sango-ocr-text" id="wabun1-ocr-text"></div>
+      <div class="sango-ocr-confirm-label">これで良いですか？</div>
+      <div class="sango-ocr-actions">
+        <button class="btn-wide" id="wabun1-confirm-submit-btn" style="background:linear-gradient(135deg,#2ecc71,#27ae60)" onclick="submitWabun1Answer()">✅ はい、これで提出</button>
+        <button class="btn-wide" style="background:linear-gradient(135deg,#f39c12,#e67e22)" onclick="retakeWabun1Photo()">📸 もう一度撮る</button>
+      </div>
+    </div>
+    <div id="wabun1-confirm-msg" class="msg" style="margin-top:10px"></div>
+    <button class="btn-wide" id="wabun1-show-answer-confirm" style="display:none;background:linear-gradient(135deg,#fbbf24,#f59e0b);margin-top:14px" onclick="showWabun1Answers()">💡 正解を表示する</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-wabun1-topic')">← お題画面に戻る</button>
+  </div>
+</div>
+
+<div id="screen-wabun1-result" class="screen">
+  <header><h1>📝 判定結果</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div id="wabun1-result-body"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-wabun1-topic')">← お題画面に戻る</button>
+  </div>
+</div>
+
+<div id="screen-wabun1-past" class="screen">
+  <header><h1>📚 過去の問題と正解</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div class="wabun1-placeholder">この画面は準備中です。<br>近日公開予定です。</div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-wabun1-topic')">← お題画面に戻る</button>
+  </div>
+</div>
+
+<div id="screen-wabun1-history" class="screen">
+  <header><h1>📖 過去の提出作品</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div class="wabun1-placeholder">この画面は準備中です。<br>近日公開予定です。</div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-wabun1-topic')">← お題画面に戻る</button>
+  </div>
+</div>
+
+<div id="wabun1-answers-overlay" class="wabun1-overlay" style="display:none" onclick="closeWabun1Answers()">
+  <div class="wabun1-overlay-card" onclick="event.stopPropagation()">
+    <div class="wabun1-overlay-title">💡 今日の正解</div>
+    <div id="wabun1-answers-body"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="closeWabun1Answers()">閉じる</button>
+  </div>
+</div>
+
 <div id="screen-closed" class="screen">
   <div class="closed-card">
     <div class="icon">✅</div>
@@ -713,9 +846,10 @@
     correct: new Audio('./correct.mp3'),
     wrong:   new Audio('./wrong.mp3'),
     pass:    new Audio('./pass.mp3'),
-    fail:    new Audio('./fail.mp3')
+    fail:    new Audio('./fail.mp3'),
+    chime:   new Audio('./chime.mp3')
   };
-  (function(){ for (var k in SFX) { try { SFX[k].preload = 'auto'; SFX[k].volume = 0.8; } catch(e){} } })();
+  (function(){ for (var k in SFX) { try { SFX[k].preload = 'auto'; SFX[k].volume = 0.8; } catch(e){} } try { SFX.chime.volume = 0.9; } catch(e){} })();
   // iOS Safari 対策：初回ユーザー操作で全 Audio を muted 再生して unlock しておく
   var _sfxUnlocked = false;
   function _unlockSfx() {
@@ -1509,6 +1643,271 @@
       listEl.innerHTML = '<div class="notice-empty" style="padding:40px 0;text-align:center;color:#c0392b;font-size:15px">読み込みに失敗しました。</div>';
     });
   }
+
+  // =============================================
+  // 和文英訳①
+  // =============================================
+  var _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false };
+  var _WABUN1_WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
+
+  function _wabun1Esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function _wabun1RenderText(raw) {
+    return _wabun1Esc(raw).replace(/\[モニョ\]/g, '<span class="monyo-mask" aria-hidden="true">　　　</span>');
+  }
+  function _wabun1FormatDate(dateStr) {
+    if (!dateStr) return '';
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+    if (!m) return dateStr;
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return m[1] + '年' + Number(m[2]) + '月' + Number(m[3]) + '日（' + _WABUN1_WEEKDAYS_JP[d.getDay()] + '）';
+  }
+  // OCR テキストからタスク番号が全て検出できるかチェック
+  var _WABUN1_FW_DIGITS = {'１':'1','２':'2','３':'3','４':'4'};
+  function _wabun1CheckNumbers(text, expectedCount) {
+    if (!text) return { ok: false, missing: [] };
+    var t = '\n' + String(text);
+    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])\s*[.．])\s*/g;
+    var found = {};
+    var m;
+    while ((m = re.exec(t)) !== null) {
+      var raw = m[1] || m[2];
+      var no = Number(_WABUN1_FW_DIGITS[raw] || raw);
+      if (no >= 1 && no <= 4) found[no] = true;
+    }
+    var missing = [];
+    for (var i = 1; i <= expectedCount; i++) { if (!found[i]) missing.push(i); }
+    return { ok: missing.length === 0, missing: missing };
+  }
+
+  function showWabun1Topic() {
+    _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false };
+    var bodyEl = document.getElementById('wabun1-topic-body');
+    bodyEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    document.getElementById('wabun1-photo-preview').style.display = 'none';
+    document.getElementById('wabun1-photo-preview').src = '';
+    document.getElementById('wabun1-camera-msg').style.display = 'none';
+    document.getElementById('wabun1-photo-input').value = '';
+    document.getElementById('wabun1-date-label').textContent = '';
+    showScreen('screen-wabun1-topic');
+    gasGet({ action:'getWabun1Topic', studentId:_studentId, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) { bodyEl.innerHTML = '<div class="error">読み込みに失敗しました。</div>'; return; }
+      _wabun1State.topic = res.today || null;
+      _wabun1State.yesterday = res.yesterday || null;
+      _renderWabun1Topic();
+    }).catch(function(){ bodyEl.innerHTML = '<div class="error">エラーが発生しました。</div>'; });
+  }
+
+  function _renderWabun1Topic() {
+    var bodyEl = document.getElementById('wabun1-topic-body');
+    var topic = _wabun1State.topic;
+    if (!topic || !topic.tasks || topic.tasks.length === 0) {
+      document.getElementById('wabun1-date-label').textContent = '';
+      bodyEl.innerHTML =
+        '<div class="wabun1-warning">本日の問題はまだ登録されていません。先生が登録するまで少々お待ちください。</div>';
+      return;
+    }
+    document.getElementById('wabun1-date-label').textContent = _wabun1FormatDate(topic.date);
+
+    var warningHtml =
+      '<div class="wabun1-warning">' +
+        '⚠️ <strong>提出する写真には必ず問題番号（1. 2. 3.）を書いてください。</strong><br>番号が書かれていないと差し戻しになります。' +
+      '</div>';
+
+    var tasksHtml = '<div class="wabun1-section-title">【今日の問題】</div>' +
+      '<div class="wabun1-task-list">' +
+        topic.tasks.map(function(t){
+          var skipHtml = t.skip ? '<span class="wabun1-task-skip">※ ' + _wabun1Esc(t.skip) + '</span>' : '';
+          return '<div class="wabun1-task"><span class="wabun1-task-no">' + t.no + '.</span><span class="wabun1-task-text">' + _wabun1RenderText(t.text) + skipHtml + '</span></div>';
+        }).join('') +
+      '</div>';
+
+    var wordListHtml = '';
+    if (topic.word_list && topic.word_list.length > 0) {
+      wordListHtml = '<div class="wabun1-section-title">【単語リスト】</div>' +
+        '<div class="wabun1-wordlist">' +
+          topic.word_list.map(function(w){ return '<div class="wabun1-wordlist-item">・' + _wabun1Esc(w) + '</div>'; }).join('') +
+        '</div>';
+    }
+
+    var submitHtml =
+      '<button class="btn-wide wabun1-submit-big" style="margin-top:18px" onclick="document.getElementById(\'wabun1-photo-input\').click()">📸 写真を撮って提出する</button>';
+
+    bodyEl.innerHTML = warningHtml + tasksHtml + wordListHtml + submitHtml;
+  }
+
+  function onWabun1PhotoSelected(event) {
+    var file = event.target.files[0]; if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var preview = document.getElementById('wabun1-photo-preview'); preview.src = e.target.result; preview.style.display = 'block';
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas'), maxSize = 1200, w = img.width, h = img.height;
+        if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } } else { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+        canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        sendWabun1Photo(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function sendWabun1Photo(base64) {
+    var msgEl = document.getElementById('wabun1-camera-msg');
+    msgEl.textContent = '⏳ AIが文字を読み取り中です...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
+    fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}] }] })
+    }).then(function(r){ return r.json(); }).then(function(json) {
+      var response = json.responses && json.responses[0];
+      if (!response || !response.fullTextAnnotation) {
+        showMsg('wabun1-camera-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng');
+        document.getElementById('wabun1-photo-input').value = '';
+        return;
+      }
+      var ocrText = String(response.fullTextAnnotation.text || '').trim();
+      var expected = (_wabun1State.topic && _wabun1State.topic.tasks) ? _wabun1State.topic.tasks.length : 0;
+      var chk = _wabun1CheckNumbers(ocrText, expected);
+      if (!chk.ok) {
+        var missingStr = chk.missing.map(function(n){ return n + '.'; }).join(' ');
+        showMsg('wabun1-camera-msg', '⚠️ 問題番号（' + missingStr + '）が見つかりませんでした。番号を書いて再度撮影してください。', 'ng');
+        document.getElementById('wabun1-photo-input').value = '';
+        return;
+      }
+      _wabun1State.ocrText = ocrText;
+      msgEl.style.display = 'none';
+      document.getElementById('wabun1-photo-input').value = '';
+      document.getElementById('wabun1-ocr-text').textContent = ocrText;
+      document.getElementById('wabun1-confirm-msg').style.display = 'none';
+      document.getElementById('wabun1-confirm-submit-btn').disabled = false;
+      document.getElementById('wabun1-show-answer-confirm').style.display = _wabun1State.hasSubmitted ? 'block' : 'none';
+      showScreen('screen-wabun1-confirm');
+    }).catch(function(err){ showMsg('wabun1-camera-msg', 'エラー：' + String(err), 'ng'); document.getElementById('wabun1-photo-input').value = ''; });
+  }
+
+  function retakeWabun1Photo() {
+    _wabun1State.ocrText = '';
+    document.getElementById('wabun1-photo-input').value = '';
+    document.getElementById('wabun1-photo-preview').style.display = 'none';
+    document.getElementById('wabun1-photo-preview').src = '';
+    document.getElementById('wabun1-camera-msg').style.display = 'none';
+    showScreen('screen-wabun1-topic');
+  }
+
+  function submitWabun1Answer() {
+    if (_wabun1State.submitting) return;
+    if (!_wabun1State.ocrText) return;
+    _wabun1State.submitting = true;
+    var btn = document.getElementById('wabun1-confirm-submit-btn'); btn.disabled = true;
+    var msgEl = document.getElementById('wabun1-confirm-msg');
+    msgEl.textContent = '⏳ 送信中...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
+    gasGet({ action:'submitWabun1', studentId:_studentId, workText:_wabun1State.ocrText }).then(function(res){
+      _wabun1State.submitting = false;
+      if (!res || !res.ok) {
+        showMsg('wabun1-confirm-msg', (res && res.message) || '送信に失敗しました。', 'ng');
+        btn.disabled = false;
+        return;
+      }
+      _wabun1State.hasSubmitted = true;
+      msgEl.style.display = 'none';
+      _showWabun1Result(res);
+    }).catch(function(){
+      _wabun1State.submitting = false;
+      showMsg('wabun1-confirm-msg', 'エラーが発生しました。', 'ng');
+      btn.disabled = false;
+    });
+  }
+
+  function _showWabun1Result(res) {
+    var bodyEl = document.getElementById('wabun1-result-body');
+    var hp = Number(res.hpGained || 0);
+    if (res.allCorrect) {
+      var confetti = '';
+      var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
+      for (var i = 0; i < 8; i++) {
+        var left = Math.floor(Math.random() * 90) + 5;
+        var delay = (Math.random() * 0.6).toFixed(2);
+        confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i] + '</span>';
+      }
+      var hpBlock;
+      if (res.alreadyGranted) {
+        hpBlock = '<div class="wabun1-result-already">（本日のHPは既に獲得済みです）</div>';
+      } else {
+        hpBlock = '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="wabun1-hp-num">0</span> HP 獲得！</div>';
+      }
+      bodyEl.innerHTML =
+        '<div class="wabun1-result-success">' +
+          '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
+          '<div style="font-size:52px">🎉</div>' +
+          '<div class="wabun1-result-title">やったね！全問正解！</div>' +
+          hpBlock +
+        '</div>' +
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);margin-top:14px" onclick="showWabun1Answers()">💡 正解を表示する</button>';
+      showScreen('screen-wabun1-result');
+      if (!res.alreadyGranted && hp > 0) {
+        var numEl = document.getElementById('wabun1-hp-num');
+        if (numEl) _wabun1AnimateHp(numEl, hp, 1000);
+      }
+      try { playSfx('chime'); } catch(e){}
+    } else {
+      var items = (res.results || []).map(function(r){
+        var mark = r.correct ? '✅ 正解' : '❌ 不正解';
+        return '<div class="wabun1-result-item ' + (r.correct ? 'ok' : 'ng') + '">' + r.no + '. ' + mark + '</div>';
+      }).join('');
+      var wrongs = (res.results || []).filter(function(r){ return !r.correct; }).map(function(r){ return 'タスク' + r.no; }).join('、');
+      var hint = wrongs ? '<div class="wabun1-result-again">' + _wabun1Esc(wrongs) + 'をもう一度考えてみよう。</div>' : '';
+      bodyEl.innerHTML =
+        '<div class="wabun1-result-partial">' +
+          '<div style="font-size:44px">💪</div>' +
+          '<div class="wabun1-result-partial-title">残念！もう一度挑戦しよう！</div>' +
+          '<div class="wabun1-result-partial-msg">正解するまで何度でも挑戦できます。</div>' +
+          '<div class="wabun1-result-list">' + items + '</div>' +
+          hint +
+        '</div>' +
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);margin-top:14px" onclick="showWabun1Answers()">💡 正解を表示する</button>' +
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#b28dff,#7c4fff);margin-top:8px" onclick="document.getElementById(\'wabun1-photo-input\').click()">📸 もう一度撮影する</button>';
+      showScreen('screen-wabun1-result');
+    }
+  }
+
+  function _wabun1AnimateHp(el, target, duration) {
+    var startTime = null;
+    function step(ts) {
+      if (!startTime) startTime = ts;
+      var p = Math.min(1, (ts - startTime) / duration);
+      var eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(target * eased).toLocaleString();
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function showWabun1Answers() {
+    var topic = _wabun1State.topic;
+    var bodyEl = document.getElementById('wabun1-answers-body');
+    var answers = topic && Array.isArray(topic.answers) ? topic.answers : null;
+    if (!topic || !topic.tasks || topic.tasks.length === 0) {
+      bodyEl.innerHTML = '<div style="text-align:center;color:#888;padding:20px">本日の問題が登録されていません。</div>';
+    } else if (answers && answers.some(function(a){ return !!a; })) {
+      bodyEl.innerHTML = topic.tasks.map(function(t, i){
+        return '<div class="wabun1-answer-item"><span class="wabun1-answer-no">' + t.no + '.</span>' + _wabun1Esc(answers[i] || '') + '</div>';
+      }).join('');
+    } else {
+      bodyEl.innerHTML =
+        '<div style="color:#78350f;font-size:14px;line-height:1.7;background:#fff8e1;padding:12px;border-radius:10px">' +
+          '現バージョンでは本日の正解の閲覧機能は準備中です。<br>（Phase 3-B で拡張予定です）' +
+        '</div>';
+    }
+    document.getElementById('wabun1-answers-overlay').style.display = 'flex';
+  }
+
+  function closeWabun1Answers() {
+    document.getElementById('wabun1-answers-overlay').style.display = 'none';
+  }
+
+  function showWabun1Past()    { showScreen('screen-wabun1-past'); }
+  function showWabun1History() { showScreen('screen-wabun1-history'); }
+
   function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
   window.addEventListener('beforeunload', beforeUnloadHandler);
   // 「戻る」ボタンを無効化：popstate をフックして直前のエントリに再 push し続ける
