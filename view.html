@@ -89,6 +89,7 @@
   .child-pager .next { background: linear-gradient(135deg, #2a5298, #1e3c72); }
   .child-pager button:disabled { opacity: .4; cursor: not-allowed; }
   .child-history-empty { text-align: center; color: #888; font-size: 14px; padding: 24px 0; }
+  .child-history-notice { background: #fffbe6; border-left: 4px solid #facc15; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; line-height: 1.7; color: #7a5b00; box-shadow: 0 1px 4px rgba(0,0,0,.03); }
   @media (max-width: 480px) {
     .child-row-label { min-width: 86px; font-size: 12px; }
     .child-row-value { font-size: 13px; }
@@ -238,6 +239,7 @@
     <button class="logout-btn" onclick="showView()">← 戻る</button>
   </header>
   <div class="container">
+    <div class="child-history-notice">⚠️ 三語短文はアプリでの提出が4/20（月）の分からです。それ以前のLINEでの提出状況は反映されていません。</div>
     <div id="child-history-list"><div class="child-history-empty">読み込み中…</div></div>
     <button id="child-history-more" class="btn-more" style="background:linear-gradient(135deg,#ff8a3d,#ff6a00);margin-top:10px;display:none" onclick="showChildHistoryArchive()">📜 さらに過去の履歴を見る</button>
     <button class="btn-back" onclick="showView()">🏠 ホーム画面に戻る</button>
@@ -251,6 +253,7 @@
     <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
   </header>
   <div class="container">
+    <div class="child-history-notice">⚠️ 三語短文はアプリでの提出が4/20（月）の分からです。それ以前のLINEでの提出状況は反映されていません。</div>
     <div id="child-archive-list"><div class="child-history-empty">読み込み中…</div></div>
     <div class="child-pager">
       <button type="button" class="prev" id="child-archive-prev" onclick="childHistoryPrev()">← 新しいページへ</button>
