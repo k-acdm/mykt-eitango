@@ -511,6 +511,65 @@
   - 運用開始前の生徒・保護者への告知文作成
   - マニュアル v4 作成（和文英訳①実装完了後）
 
+#### 35. 自宅PC へ移行 + Phase 3-A/3-B 着手
+- 塾PC で #28-34 完了後、夜に自宅PC へ移行
+- 自宅PC 側で `git pull` により塾PC 分（`ebc0b84` ログ / `bed67cf` wabun1 Phase 2 含む）を取り込み
+- worktree `quizzical-clarke-f27056` を `claude/*` ブランチから `dev` に切替、古い dev worktree `interesting-engelbart-7d1057`（未コミット無し、9 コミット遅れ）を `git worktree remove` で整理
+
+#### 36. 和文英訳① Phase 3-A：生徒画面の基本機能（dev `c1f3308` → main `6a5498d`）
+- **index.html のみ変更（+407 / -4）**、Code.js は触らず
+- **ホーム画面コンテンツカード改修**: `c-wabun1` を disabled 解除 → 「100HP/日」HP バッジ + 「小中学生用」副題（`.content-btn-sub` CSS 追加、英単語RUSH・三語短文には手を入れず wabun1 のみ）、`onclick` を `showWabun1Topic()` に差し替え
+- **お題表示画面（`screen-wabun1-topic`）新設**:
+  - 今日の日付ラベル（`yyyy年M月d日（曜）`）+ 黄色系警告バナー（問題番号を書いてね）
+  - 【今日の問題】: `.wabun1-task-list` + `.wabun1-task` 構造で task1〜4 表示、スキップ条件は赤字（`.wabun1-task-skip`）、`[モニョ]` マーカーは `_wabun1RenderText` で CSS 斜線パターン `.monyo-mask`（`repeating-linear-gradient 45deg` + 幅 2.6em + `color:transparent` + `user-select:none`）に置換
+  - 【単語リスト】: `word_list` 配列を箇条書き表示（`.wabun1-wordlist` + `.wabun1-wordlist-item`、緑系）
+  - 📸 大きな紫グラデ写真提出ボタン → 隠し `<input type="file" accept="image/*" capture="environment">` をクリック起動
+  - 「📚 過去の問題と正解」「📖 過去の提出作品」ボタン（Phase 3-A ではプレースホルダ画面に遷移するだけ）
+  - 固定表示セクション: 「🔴注目！＜英語の名詞の使い方＞」解説カード（`.wabun1-fixed-tip`、黄色系）+ 励まし文（`.wabun1-fixed-encourage`）+ 「🔴解説動画🔴」2 本（日本語の並べかえ / モニョの法則）を `.wabun1-video-card` のサムネ風リンクボタンで `target="_blank" rel="noopener"` 表示
+- **写真提出フロー**:
+  - `onWabun1PhotoSelected` → 1200px リサイズ + 0.7 JPEG（三語短文の `onSangoPhotoSelected` を流用）→ `sendWabun1Photo` で Vision API DOCUMENT_TEXT_DETECTION
+  - OCR 完了後、フロント側で番号チェック（`_wabun1CheckNumbers`）。GAS `_parseWabun1Work` と同一の正規表現 `/\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])\s*[.．])\s*/g` で半角/全角数字 1-4 + ピリオド + カッコ囲みを検出、不足番号を「⚠️ 問題番号（〇. 〇.）が見つかりませんでした」と具体表示で差し戻し
+  - 番号揃ったら `screen-wabun1-confirm` へ遷移、OCR 全文プレビュー + 「✅ はい、これで提出」「📸 もう一度撮る」
+  - 「💡 正解を表示する」ボタンは `_wabun1State.hasSubmitted` で制御（1 回目送信後から表示）、Phase 3-A ではスタブ表示（「Phase 3-B で拡張予定」）
+- **結果画面（`screen-wabun1-result`）新設**:
+  - 全問正解: `.wabun1-result-success` カード（黄金グラデ + `@keyframes wabun1-glow` 1.8 秒アニメ）+ 紙吹雪 8 絵文字（`.wabun1-confetti` + `@keyframes wabun1-confetti-fall`、位置/delay ランダム、overflow:hidden）+ HP 数字カウントアップ（`_wabun1AnimateHp`、1 秒 ease-out、`requestAnimationFrame`）+ `playSfx('chime')`。既に当日 HP 獲得済みなら「本日のHPは既に獲得済みです」の簡易版表示
+  - 部分不正解: `.wabun1-result-partial` カード + タスク別 ✅/❌ 一覧 + 不正解タスク番号の明示 + 「正解を表示」「もう一度撮影」ボタン
+- **音源（chime.mp3）**: main 側で upload 済みの `chime.mp3`（50,053 bytes）を `git merge origin/main` で dev に取り込み、`SFX` オブジェクトに登録（`chime` のみ volume 0.9、他は既存 0.8 維持）、iOS Safari unlock も既存の仕組みで自動対応
+- **Phase 3-A 時点の制約**: 「正解を表示する」は GAS 側の新 API `getWabun1AnswersAfterSubmit` 未実装のためスタブ表示（Phase 3-B で中身を差し替え、state/ボタン表示ロジックは維持）
+
+#### 37. 和文英訳① Phase 3-B：過去画面 + 正解表示 API（dev `bdbb827` → main `deb3748`）
+- **運用ポリシー**: 「一度解いた問題の正解はいつでも見られる」。submitWabun1 のレスポンスに含めるだけではリロード/再ログイン後に見られなくなるため、新 API で「提出記録があれば」いつでも取得可能な設計
+- **[gas/Code.js](gas/Code.js)**（+166 行）:
+  - 共通ヘルパー追加:
+    - `_wabun1LogDate(ts)`: JST 3 時切替基準（`submitWabun1` の `alreadyGranted` と同一ロジック、`setHours(-3)` → `yyyy-MM-dd`）で timestamp から日付文字列を抽出
+    - `_wabun1SubmittedDatesBySid(sid)`: 指定 studentId が提出した日付の Set を返す（Wabun1Submissions を 1 回スキャン）
+    - `_readWabun1TopicsByDateRange(startStr, endStr)`: Wabun1Topics を 1 回スキャン、各行を tasks/answers/word_list 構造に整形（`_readWabun1TopicsByDate` と同じロジックの範囲版）
+    - `_buildWabun1TopicsByDate(rows)`: 日付降順 + 曜日付与でレスポンス形状に整形（`_SANGO_WEEKDAYS_JP` 流用）
+  - 新 API 3 本:
+    - `getWabun1AnswersAfterSubmit(params)`: 今日の提出ログが submittedSet にあれば `_readWabun1TopicsByDate(today).answers` を返却、なければ `{ok:false, error:'まだ今日の問題を提出していないため...'}`
+    - `getWabun1PastTopicsRecent(params)`: 昨日〜7 日前、submittedSet に含まれる日付のみ返却（運用ポリシー「この生徒が提出した日のみ表示」）
+    - `getWabun1PastTopicsPaged(params)`: `weekOffset` 指定で 1 週単位ページング、次週の submittedSet 内件数で `hasMore` 判定（空ページ + 次ページあり状態も許容、三語短文と同挙動）
+  - `doGet` ルーティング 3 行追加（`getWabun1Submissions` 分岐の直後）
+- **[index.html](index.html)**（+199 / -21）:
+  - Phase 3-A プレースホルダ 2 画面を動的コンテナ化: `screen-wabun1-past`（`#wabun1-past-body` + 「📜 さらに過去のもの」ボタン）/ `screen-wabun1-history`（`#wabun1-history-list`）
+  - 新画面: `screen-wabun1-archive`（`#wabun1-archive-body` + `#wabun1-archive-pager` + `#wabun1-archive-label`、三語短文の `screen-sango-archive` と同構造）
+  - CSS 追加: `.wabun1-past-date-header`（紫グラデ、豪華版）/ `.wabun1-past-pager` / `.wabun1-answer-line`（緑左枠で正解表示）/ `.wabun1-archive-date-header`（薄紫、コンパクト版）/ `.wabun1-archive-card` / `.wabun1-archive-task*` / `.wabun1-archive-answer` / `.wabun1-archive-wordlist` / `.wabun1-sub-card` / `.wabun1-sub-*`（提出履歴カード）
+  - `showWabun1Answers()` 差し替え: スタブ → `gasGet({action:'getWabun1AnswersAfterSubmit'})` 呼び出し。成功時は `_wabun1State.topic.tasks` をベースに番号付きで `answers[]` を描画（topic が null の場合は answers 配列の順序で描画）。失敗時はモーダル内にエラー文言表示。`hasSubmitted` によるボタン表示判定は Phase 3-A のまま維持、モーダルは複数回開閉可能
+  - `showWabun1Past()`: `getWabun1PastTopicsRecent` を呼び、`_renderWabun1PastDateBlock` で日付ごとに問題一覧 + 各問題直下の「正解：〜」行 + 単語リストを豪華カードで描画。ゼロ件時は「まだ提出した問題がありません。まずは今日の問題に挑戦してみよう！」
+  - `showWabun1Archive(weekOffset)`: `_wabun1ArchiveWeek` を更新して `getWabun1PastTopicsPaged` を呼び、コンパクトカード版 `_renderWabun1ArchiveDateBlock` で描画。ページャは三語短文と同パターン（← 新しい1週間へ / 次のページ（さらに古い1週間へ） →）
+  - `showWabun1History()`: 既存 `getWabun1Submissions` 流用 → タイムスタンプ + 提出方法ラベル（📷 写真 / ✏️ 直接入力）+ OCR テキスト（`white-space:pre-wrap`）+ 先生コメント（青系ボックス、`teacher_comment` が非空時のみ）
+  - モニョマスクは Phase 3-A の `_wabun1RenderText(raw)` をそのまま再利用（問題文のみ、正解文には適用しない）
+- **clasp push 反映済み**、GAS 新バージョンデプロイ完了。UI レベルの表示確認のみ済、実機での写真撮影〜提出〜過去画面までの一連フローは明日 4/23 塾 PC で確認予定
+
+#### 38. 今日の残タスクと明日以降の予定
+- **明日 4/23 塾 PC**:
+  - Phase 3-A / 3-B の実機動作確認（写真撮影 → OCR → 番号チェック → 正解照合 → 結果表示 → HP 獲得エフェクト → chime.mp3 → 過去画面 → 「正解を表示する」ボタン）
+  - Phase 3-C 着手予定: 保護者画面の和文英訳①対応（`view.html` の提出作品画面、`getChildActivityRecent` に和文英訳①項目追加。HPLog `type='wabun1'` で判定）
+  - Phase 3-C: 三語短文の提出成功時に Phase 3-A と同じエフェクト（紙吹雪 + カウントアップ + chime.mp3）を追加
+- **4/26 土**: テスト動作確認 + バグ修正日
+- **4/27 月**: 本番運用開始
+- **その他**: 問題データの用意（ふくちさん作業、4/27〜5/3 の 1 週間分）、運用開始前の告知文、マニュアル v4 作成（TOC 付き、呼称は「マイ活アプリ（旧：マイ活アプリ＜英単語＞）」）
+
 ---
 
 ## TODO（未反映の GAS 側作業）
