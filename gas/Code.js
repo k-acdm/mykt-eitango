@@ -92,6 +92,9 @@ function doGet(e) {
       else if (action === 'getWabun1Topic')             result = getWabun1Topic(params);
       else if (action === 'submitWabun1')               result = submitWabun1(params);
       else if (action === 'getWabun1Submissions')       result = getWabun1Submissions(params);
+      else if (action === 'getWabun1AnswersAfterSubmit') result = getWabun1AnswersAfterSubmit(params);
+      else if (action === 'getWabun1PastTopicsRecent')   result = getWabun1PastTopicsRecent(params);
+      else if (action === 'getWabun1PastTopicsPaged')    result = getWabun1PastTopicsPaged(params);
       else if (action === 'adminAddWabun1TopicsWeek')   result = adminAddWabun1TopicsWeek(params);
       else if (action === 'adminSetWabun1AnswerWeek')   result = adminSetWabun1AnswerWeek(params);
       else if (action === 'adminListWabun1Submissions') result = adminListWabun1Submissions(params);
@@ -1873,6 +1876,169 @@ function getWabun1Submissions(params) {
     return { ok: true, submissions: submissions };
   } catch(err) {
     console.error('[getWabun1Submissions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 共通ヘルパー：JST 3時切替基準の日付文字列（timestamp が 3時より前なら前日扱い）
+// submitWabun1 の alreadyGranted 判定と同じロジック
+// =============================================
+function _wabun1LogDate(ts) {
+  const d = new Date(ts);
+  d.setHours(d.getHours() - 3);
+  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+// 指定 studentId が提出した日付の Set を返す（3時切替基準）
+function _wabun1SubmittedDatesBySid(sid) {
+  const set = {};
+  const sh = _ss().getSheetByName(SHEET_WABUN1_SUBMISSIONS);
+  if (!sh || sh.getLastRow() < 2) return set;
+  const values = sh.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    if (!r[0]) continue;
+    if (String(r[1] || '').trim() !== sid) continue;
+    set[_wabun1LogDate(r[0])] = true;
+  }
+  return set;
+}
+
+// Wabun1Topics から日付範囲で 1 回スキャン。各行を tasks/answers/word_list 構造に整形して返す
+function _readWabun1TopicsByDateRange(startStr, endStr) {
+  const sh = _ss().getSheetByName(SHEET_WABUN1_TOPICS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iDate = header.indexOf('date');
+  const iWN   = header.indexOf('week_no');
+  const iT = [1,2,3,4].map(function(n){ return header.indexOf('task'   + n); });
+  const iA = [1,2,3,4].map(function(n){ return header.indexOf('answer' + n); });
+  const iS = [1,2,3,4].map(function(n){ return header.indexOf('skip'   + n); });
+  const iWL = header.indexOf('word_list');
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    if (!r[iDate]) continue;
+    const ds = Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (ds < startStr || ds > endStr) continue;
+    const rawTasks = [1,2,3,4].map(function(n, idx){
+      return {
+        no: n,
+        text: iT[idx] >= 0 ? String(r[iT[idx]] || '').trim() : '',
+        skip: iS[idx] >= 0 ? String(r[iS[idx]] || '').trim() : ''
+      };
+    });
+    const tasks = rawTasks.filter(function(t){ return !!t.text; });
+    const rawAnswers = [0,1,2,3].map(function(idx){
+      return iA[idx] >= 0 ? String(r[iA[idx]] || '').trim() : '';
+    });
+    const answers = tasks.map(function(t){ return rawAnswers[t.no - 1]; });
+    const wlRaw = iWL >= 0 ? String(r[iWL] || '').trim() : '';
+    const word_list = wlRaw ? wlRaw.split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean) : [];
+    out.push({
+      date: ds,
+      week_no: iWN >= 0 ? String(r[iWN] || '').trim() : '',
+      tasks: tasks,
+      answers: answers,
+      word_list: word_list
+    });
+  }
+  return out;
+}
+
+// 日付降順 + 曜日付与してレスポンス形状に整形
+function _buildWabun1TopicsByDate(rows) {
+  const sorted = rows.slice().sort(function(a, b){ return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+  return sorted.map(function(r) {
+    const wd = _SANGO_WEEKDAYS_JP[new Date(r.date + 'T12:00:00+09:00').getDay()];
+    return {
+      date: r.date,
+      weekday: wd,
+      week_no: r.week_no,
+      tasks: r.tasks,
+      answers: r.answers,
+      word_list: r.word_list
+    };
+  });
+}
+
+// =============================================
+// 生徒用：提出済みの場合のみ今日の正解を返す（運用ポリシー：一度解いた問題はいつでも正解が見られる）
+// params: { studentId }
+// =============================================
+function getWabun1AnswersAfterSubmit(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, error: '生徒IDが指定されていません' };
+    const today = _sangoToday();
+    const submittedSet = _wabun1SubmittedDatesBySid(sid);
+    if (!submittedSet[today]) {
+      return { ok: false, error: 'まだ今日の問題を提出していないため、正解を表示できません。' };
+    }
+    const topic = _readWabun1TopicsByDate(today);
+    if (!topic || !topic.tasks || topic.tasks.length === 0) {
+      return { ok: false, error: '本日の問題が登録されていません' };
+    }
+    return { ok: true, answers: topic.answers, date: today };
+  } catch(err) {
+    console.error('[getWabun1AnswersAfterSubmit]', err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+// =============================================
+// 生徒用：過去の問題と正解（直近1週間）
+// この生徒が実際に提出した日のみ返す
+// params: { studentId }
+// =============================================
+function getWabun1PastTopicsRecent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const endStr   = _sangoDateAgo(1);
+    const startStr = _sangoDateAgo(7);
+    const submittedSet = _wabun1SubmittedDatesBySid(sid);
+    const rows = _readWabun1TopicsByDateRange(startStr, endStr).filter(function(r){
+      return !!submittedSet[r.date];
+    });
+    return { ok: true, topics: _buildWabun1TopicsByDate(rows) };
+  } catch(err) {
+    console.error('[getWabun1PastTopicsRecent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 生徒用：過去の問題と正解（1週間単位のページング）
+// weekOffset=1 → 14日前〜8日前 / weekOffset=2 → 21日前〜15日前 ...
+// params: { studentId, weekOffset }
+// =============================================
+function getWabun1PastTopicsPaged(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const weekOffset = Math.max(1, Number((params && params.weekOffset) || 1) | 0);
+    const endStr   = _sangoDateAgo(weekOffset * 7 + 1);
+    const startStr = _sangoDateAgo(weekOffset * 7 + 7);
+    const submittedSet = _wabun1SubmittedDatesBySid(sid);
+    const rows = _readWabun1TopicsByDateRange(startStr, endStr).filter(function(r){
+      return !!submittedSet[r.date];
+    });
+    const nextEnd   = _sangoDateAgo((weekOffset + 1) * 7 + 1);
+    const nextStart = _sangoDateAgo((weekOffset + 1) * 7 + 7);
+    const nextRows = _readWabun1TopicsByDateRange(nextStart, nextEnd).filter(function(r){
+      return !!submittedSet[r.date];
+    });
+    return {
+      ok: true,
+      weekOffset: weekOffset,
+      topics: _buildWabun1TopicsByDate(rows),
+      hasMore: nextRows.length > 0
+    };
+  } catch(err) {
+    console.error('[getWabun1PastTopicsPaged]', err);
     return { ok: false, message: String(err) };
   }
 }
