@@ -69,6 +69,30 @@
   .notice-body  { font-size: 13px; line-height: 1.75; color: #4b3000; white-space: pre-wrap; word-wrap: break-word; }
   .notice-empty { text-align: center; color: #a07030; font-size: 14px; padding: 12px 0; }
   .btn-more { width: 100%; padding: 10px; background: linear-gradient(135deg, #ff8a3d, #ff6a00); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; font-family: inherit; }
+
+  /* HP算出方法 */
+  .hp-info-card { background: linear-gradient(135deg,#fff7ed,#fef3f2); border: 1px solid #fde4cd; border-radius: 14px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+  .hp-info-title { font-size: 15px; font-weight: bold; color: #b45309; margin-bottom: 8px; }
+  .hp-info-line { font-size: 13px; color: #444; margin-bottom: 4px; line-height: 1.55; }
+  .hp-info-line .dot { color: #f97316; margin-right: 4px; }
+  .hp-info-line strong { color: #b45309; }
+  .hp-info-note { font-size: 11px; color: #888; margin-top: 4px; padding-left: 14px; }
+  .hp-info-toggle { margin-top: 10px; background: rgba(255,255,255,.75); border: 1px solid #fde4cd; border-radius: 8px; padding: 6px 12px; font-size: 12px; color: #b45309; cursor: pointer; font-weight: bold; font-family: inherit; transition: background .15s; }
+  .hp-info-toggle:hover { background: #fff; }
+  .hp-info-examples { overflow: hidden; max-height: 0; transition: max-height .35s ease; }
+  .hp-info-examples.open { max-height: 800px; }
+  .hp-info-examples-inner { margin-top: 10px; padding: 10px 12px; background: rgba(255,255,255,.55); border-radius: 8px; font-size: 12px; color: #444; }
+  .hp-example { margin-bottom: 10px; }
+  .hp-example:last-child { margin-bottom: 0; }
+  .hp-example-title { font-weight: bold; color: #b45309; margin-bottom: 4px; font-size: 12px; }
+  .hp-example-line { padding-left: 14px; margin-bottom: 2px; line-height: 1.55; }
+  .hp-example-total { padding-left: 14px; margin-top: 4px; font-weight: bold; color: #c2410c; }
+  @media (max-width: 480px) {
+    .hp-info-card { padding: 12px; }
+    .hp-info-title { font-size: 14px; }
+    .hp-info-line { font-size: 12px; }
+    .hp-info-examples-inner { font-size: 11px; padding: 8px 10px; }
+  }
   .btn-back { width: 100%; padding: 11px; background: linear-gradient(135deg, #636e72, #2d3436); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: bold; cursor: pointer; font-family: inherit; margin-top: 16px; }
 
   .msg { margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 13px; text-align: center; display: none; }
@@ -144,6 +168,35 @@
       <div class="section-title">✏️ 三語短文の提出作品</div>
       <button class="btn-more" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);color:#4a2c6d" onclick="showSangoHistory()">📖 三語短文の提出作品を見る</button>
     </div>
+
+    <!-- HP算出方法 -->
+    <div class="dash-section">
+      <div class="hp-info-card">
+        <div class="hp-info-title">💡 HPの算出方法</div>
+        <div class="hp-info-line"><span class="dot">●</span> 毎日ログイン：<strong>+10HP</strong></div>
+        <div class="hp-info-line"><span class="dot">●</span> 課題クリア：<strong>基本HP × 連続週数²</strong></div>
+        <div class="hp-info-note">※連続週数 = 連続ログイン日数 ÷ 7 の切り上げ</div>
+        <button type="button" class="hp-info-toggle" onclick="toggleHpInfo()"><span id="hp-info-arrow">▼</span> 計算例を見る</button>
+        <div id="hp-info-examples" class="hp-info-examples">
+          <div class="hp-info-examples-inner">
+            <div class="hp-example">
+              <div class="hp-example-title">【例1】連続5日目でログイン＋英単語RUSH 1セット＋三語短文</div>
+              <div class="hp-example-line">week = ceil(5/7) = 1</div>
+              <div class="hp-example-line">ログイン：10HP</div>
+              <div class="hp-example-line">英単語RUSH：50 × 1² = 50HP</div>
+              <div class="hp-example-line">三語短文：200 × 1² = 200HP</div>
+              <div class="hp-example-total">合計：260HP</div>
+            </div>
+            <div class="hp-example">
+              <div class="hp-example-title">【例2】連続15日目なら…</div>
+              <div class="hp-example-line">week = ceil(15/7) = 3</div>
+              <div class="hp-example-line">倍率：3² = 9倍！</div>
+              <div class="hp-example-total">三語短文だけで 200 × 9 = 1,800HP</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -203,6 +256,14 @@
   function showView()           { _showScreen('screen-view'); }
   function showNoticeHistory()  { _showScreen('screen-notice-history'); loadNoticeHistory(); }
   function showSangoHistory()   { _showScreen('screen-sango-history'); loadSangoHistory(); }
+
+  function toggleHpInfo() {
+    var el = document.getElementById('hp-info-examples');
+    var arrow = document.getElementById('hp-info-arrow');
+    if (!el) return;
+    var open = el.classList.toggle('open');
+    if (arrow) arrow.textContent = open ? '▲' : '▼';
+  }
 
   // ============================
   // ユーティリティ
