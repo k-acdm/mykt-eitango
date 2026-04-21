@@ -86,6 +86,7 @@ function doGet(e) {
       else if (action === 'getSangoSubmissions') result = getSangoSubmissions(params);
       else if (action === 'getSangoPastTopicsRecent')   result = getSangoPastTopicsRecent();
       else if (action === 'getSangoPastTopicsPaged')    result = getSangoPastTopicsPaged(params);
+      else if (action === 'getChildActivityRecent')    result = getChildActivityRecent(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1528,6 +1529,107 @@ function getSangoPastTopicsPaged(params) {
     };
   } catch(err) {
     console.error('[getSangoPastTopicsPaged]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 保護者画面：お子様の学習履歴（直近7日 + ページング）
+// params: { studentId, offset }
+//   offset=0 → 昨日〜7日前 / offset=1 → 8〜14日前 ...
+// =============================================
+function getChildActivityRecent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const offset = Math.max(0, Number((params && params.offset) || 0) | 0);
+
+    const endDaysAgo   = offset * 7 + 1;  // 新しい方（小さい値 = 直近）
+    const startDaysAgo = offset * 7 + 7;  // 古い方（大きい値）
+    const endStr   = _sangoDateAgo(endDaysAgo);
+    const startStr = _sangoDateAgo(startDaysAgo);
+
+    const byDate = {};
+    for (let i = endDaysAgo; i <= startDaysAgo; i++) {
+      const d = _sangoDateAgo(i);
+      const wd = _SANGO_WEEKDAYS_JP[new Date(d + 'T12:00:00+09:00').getDay()];
+      byDate[d] = {
+        date: d,
+        weekday: wd,
+        login: false,
+        eitango: { done: false, details: [] },
+        sango:   { done: false, level: null, timestamp: null }
+      };
+    }
+
+    const ss = _ss();
+    let hasMore = false;
+
+    // HPLog: login / test / sango フラグ + hasMore 判定
+    const hpSheet = ss.getSheetByName(SHEET_HPLOG);
+    if (hpSheet && hpSheet.getLastRow() >= 2) {
+      const rows = hpSheet.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (String(r[1] || '').trim() !== sid) continue;
+        const ds = _toDateStr(r[0]);
+        if (!ds) continue;
+        if (ds < startStr) { hasMore = true; continue; }
+        if (ds > endStr) continue;
+        if (!byDate[ds]) continue;
+        const type = String(r[3] || '').trim();
+        if      (type === 'login') byDate[ds].login = true;
+        else if (type === 'test')  byDate[ds].eitango.done = true;
+        else if (type === 'sango') byDate[ds].sango.done   = true;
+      }
+    }
+
+    // Attempts: 合格のみ details 補完
+    const atSheet = ss.getSheetByName(SHEET_ATTEMPTS);
+    if (atSheet && atSheet.getLastRow() >= 2) {
+      const rows = atSheet.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (String(r[1] || '').trim() !== sid) continue;
+        const ds = _toDateStr(r[0]);
+        if (!ds || !byDate[ds]) continue;
+        const pass = String(r[5] || '').trim();
+        if (pass !== '合格') continue;
+        byDate[ds].eitango.details.push({
+          level: String(r[6] || '').trim(),
+          set: Number(r[3]) || 0
+        });
+      }
+    }
+
+    // SangoSubmissions: level / timestamp 補完
+    const sgSheet = ss.getSheetByName(SHEET_SANGO_SUBMISSIONS);
+    if (sgSheet && sgSheet.getLastRow() >= 2) {
+      const rows = sgSheet.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r[0]) continue;
+        if (String(r[1] || '').trim() !== sid) continue;
+        const tsStr = Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+        const ds = tsStr.slice(0, 10);
+        if (!byDate[ds]) continue;
+        byDate[ds].sango.done = true;
+        if (!byDate[ds].sango.timestamp) {
+          byDate[ds].sango.level     = String(r[3] || '').trim();
+          byDate[ds].sango.timestamp = tsStr;
+        }
+      }
+    }
+
+    // 新しい順に配列化
+    const days = [];
+    for (let i = endDaysAgo; i <= startDaysAgo; i++) {
+      days.push(byDate[_sangoDateAgo(i)]);
+    }
+
+    return { ok: true, offset: offset, days: days, hasMore: hasMore };
+  } catch(err) {
+    console.error('[getChildActivityRecent]', err);
     return { ok: false, message: String(err) };
   }
 }
