@@ -210,6 +210,23 @@
     .content-btn.disabled  { opacity: .58; cursor: not-allowed; }
     .content-btn.disabled:hover { transform: none; box-shadow: 0 4px 14px rgba(0,0,0,.12); opacity: .58; }
     .content-btn .badge-soon { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.45); color: #fff; font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; letter-spacing: .5px; }
+    .content-btn .badge-hp { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,.95); color: #d97706; font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; letter-spacing: .3px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+    .hp-info-card { background: linear-gradient(135deg,#fff7ed,#fef3f2); border: 1px solid #fde4cd; border-radius: 14px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+    .hp-info-title { font-size: 15px; font-weight: bold; color: #b45309; margin-bottom: 8px; }
+    .hp-info-line { font-size: 13px; color: #444; margin-bottom: 4px; line-height: 1.55; }
+    .hp-info-line .dot { color: #f97316; margin-right: 4px; }
+    .hp-info-line strong { color: #b45309; }
+    .hp-info-note { font-size: 11px; color: #888; margin-top: 4px; padding-left: 14px; }
+    .hp-info-toggle { margin-top: 10px; background: rgba(255,255,255,.75); border: 1px solid #fde4cd; border-radius: 8px; padding: 6px 12px; font-size: 12px; color: #b45309; cursor: pointer; font-weight: bold; transition: background .15s; }
+    .hp-info-toggle:hover { background: #fff; }
+    .hp-info-examples { overflow: hidden; max-height: 0; transition: max-height .35s ease; }
+    .hp-info-examples.open { max-height: 800px; }
+    .hp-info-examples-inner { margin-top: 10px; padding: 10px 12px; background: rgba(255,255,255,.55); border-radius: 8px; font-size: 12px; color: #444; }
+    .hp-example { margin-bottom: 10px; }
+    .hp-example:last-child { margin-bottom: 0; }
+    .hp-example-title { font-weight: bold; color: #b45309; margin-bottom: 4px; font-size: 12px; }
+    .hp-example-line { padding-left: 14px; margin-bottom: 2px; line-height: 1.55; }
+    .hp-example-total { padding-left: 14px; margin-top: 4px; font-weight: bold; color: #c2410c; }
     .notice-card { background: linear-gradient(135deg,#fff4d6,#ffe5b4); border-left: 6px solid #ff8a3d; border-radius: 14px; padding: 16px 18px; box-shadow: 0 3px 12px rgba(255,138,61,.18); }
     .notice-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .notice-title { font-size: 15px; font-weight: bold; color: #c25b00; }
@@ -238,6 +255,11 @@
       .login-card { padding: 28px 20px 24px; }
       .content-btn { font-size: 14px; padding: 16px 6px; }
       .content-btn .ico { font-size: 26px; }
+      .content-btn .badge-hp { font-size: 9px; padding: 2px 6px; }
+      .hp-info-card { padding: 12px; }
+      .hp-info-title { font-size: 14px; }
+      .hp-info-line { font-size: 12px; }
+      .hp-info-examples-inner { font-size: 11px; padding: 8px 10px; }
     }
     /* 三語短文 */
     .sango-title-banner {
@@ -379,9 +401,11 @@
       <div class="section-title">📚 コンテンツを選ぼう</div>
       <div class="content-grid">
         <button class="content-btn c-eitango" onclick="showLevelSelect()">
+          <span class="badge-hp">50HP/セット</span>
           <span class="ico">🔤</span>英単語RUSH
         </button>
         <button class="content-btn c-sango" onclick="showSangoTopic()">
+          <span class="badge-hp">200HP/日</span>
           <span class="ico">✏️</span>三語短文
         </button>
         <button class="content-btn c-wabun1 disabled" onclick="showComingSoon('和文英訳①')">
@@ -412,6 +436,35 @@
           <span class="badge-soon">準備中</span>
           <span class="ico">🔬</span>理科の重要用語
         </button>
+      </div>
+    </div>
+
+    <!-- ③-2 HP算出方法 -->
+    <div class="dash-section">
+      <div class="hp-info-card">
+        <div class="hp-info-title">💡 HPの算出方法</div>
+        <div class="hp-info-line"><span class="dot">●</span> 毎日ログイン：<strong>+10HP</strong></div>
+        <div class="hp-info-line"><span class="dot">●</span> 課題クリア：<strong>基本HP × 連続週数²</strong></div>
+        <div class="hp-info-note">※連続週数 = 連続ログイン日数 ÷ 7 の切り上げ</div>
+        <button type="button" class="hp-info-toggle" onclick="toggleHpInfo()"><span id="hp-info-arrow">▼</span> 計算例を見る</button>
+        <div id="hp-info-examples" class="hp-info-examples">
+          <div class="hp-info-examples-inner">
+            <div class="hp-example">
+              <div class="hp-example-title">【例1】連続5日目でログイン＋英単語RUSH 1セット＋三語短文</div>
+              <div class="hp-example-line">week = ceil(5/7) = 1</div>
+              <div class="hp-example-line">ログイン：10HP</div>
+              <div class="hp-example-line">英単語RUSH：50 × 1² = 50HP</div>
+              <div class="hp-example-line">三語短文：200 × 1² = 200HP</div>
+              <div class="hp-example-total">合計：260HP</div>
+            </div>
+            <div class="hp-example">
+              <div class="hp-example-title">【例2】連続15日目なら…</div>
+              <div class="hp-example-line">week = ceil(15/7) = 3</div>
+              <div class="hp-example-line">倍率：3² = 9倍！</div>
+              <div class="hp-example-total">三語短文だけで 200 × 9 = 1,800HP</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -849,6 +902,14 @@
     }
     return null;
   }
+  function toggleHpInfo() {
+    var el = document.getElementById('hp-info-examples');
+    var arrow = document.getElementById('hp-info-arrow');
+    if (!el) return;
+    var open = el.classList.toggle('open');
+    if (arrow) arrow.textContent = open ? '▲' : '▼';
+  }
+
   function loadTodayQuote() {
     gasGet({ action: 'getQuote', _ts: Date.now() }).then(function(res) {
       var raw = res && (res.quote || res.data || res.row);
