@@ -47,6 +47,9 @@
     .level-btn.disabled { opacity: .45; cursor: not-allowed; background: #f5f5f5; color: #999; border-color: #ddd; }
     .level-btn .badge-coming { font-size: 12px; background: #eee; color: #999; padding: 3px 10px; border-radius: 20px; font-weight: normal; }
     .level-btn .badge-arrow { font-size: 18px; color: #4f7df0; }
+    .level-btn-main { display: flex; flex-direction: column; gap: 3px; }
+    .level-btn-name { font-size: 17px; font-weight: bold; color: inherit; }
+    .level-btn-sub { font-size: 12px; font-weight: normal; color: #888; letter-spacing: .3px; }
     .set-label { text-align: center; font-size: 14px; color: #888; margin-bottom: 12px; }
     .dictation-notice { background: linear-gradient(135deg, #fff5f5, #ffe8e8); border: 2px solid #e74c3c; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
     .dictation-notice .notice-title { color: #e74c3c; font-size: 17px; font-weight: bold; margin-bottom: 10px; }
@@ -225,6 +228,8 @@
       .top-card h2 { font-size: 18px; }
       .btn-wide { font-size: 16px; padding: 14px; }
       .level-btn { font-size: 15px; padding: 16px 14px; }
+      .level-btn-name { font-size: 15px; }
+      .level-btn-sub { font-size: 11px; }
       .word { font-size: 18px; }
       .meaning { font-size: 14px; }
       .choice-btn { font-size: 15px; padding: 14px; }
@@ -441,13 +446,13 @@
     <!-- [/2026-04-20 問題一新告知] -->
     <p style="text-align:center;color:#666;font-size:14px;margin-bottom:16px">学習するレベルを選んでください</p>
     <div class="level-grid">
-      <button class="level-btn" onclick="selectLevel('5級')"><span>🌱 英検５級レベル</span><span class="badge-arrow">›</span></button>
-      <button class="level-btn" onclick="selectLevel('4級')"><span>📗 英検４級レベル</span><span class="badge-arrow">›</span></button>
-      <button class="level-btn" onclick="selectLevel('3級')"><span>📘 英検３級レベル</span><span class="badge-arrow">›</span></button>
-      <button class="level-btn" onclick="selectLevel('準2級')"><span>📙 英検準２級レベル</span><span class="badge-arrow">›</span></button>
+      <button class="level-btn" onclick="selectLevel('5級')"><span class="level-btn-main"><span class="level-btn-name">🌱 英検５級レベル</span><span class="level-btn-sub">～ 計590語｜118セットで全クリア！ ～</span></span><span class="badge-arrow">›</span></button>
+      <button class="level-btn" onclick="selectLevel('4級')"><span class="level-btn-main"><span class="level-btn-name">📗 英検４級レベル</span><span class="level-btn-sub">～ 計690語｜138セットで全クリア！ ～</span></span><span class="badge-arrow">›</span></button>
+      <button class="level-btn" onclick="selectLevel('3級')"><span class="level-btn-main"><span class="level-btn-name">📘 英検３級レベル</span><span class="level-btn-sub">～ 計1,150語｜230セットで全クリア！ ～</span></span><span class="badge-arrow">›</span></button>
+      <button class="level-btn" onclick="selectLevel('準2級')"><span class="level-btn-main"><span class="level-btn-name">📙 英検準２級レベル</span><span class="level-btn-sub">～ 計1,470語｜294セットで全クリア！ ～</span></span><span class="badge-arrow">›</span></button>
       <button class="level-btn disabled" onclick="showComingSoonLevel('準2級プラス')"><span>📙 英検準２級プラスレベル</span><span class="badge-coming">準備中</span></button>
-      <button class="level-btn" onclick="selectLevel('2級')"><span>📕 英検２級レベル</span><span class="badge-arrow">›</span></button>
-      <button class="level-btn" onclick="selectLevel('準1級')"><span>📓 英検準１級レベル</span><span class="badge-arrow">›</span></button>
+      <button class="level-btn" onclick="selectLevel('2級')"><span class="level-btn-main"><span class="level-btn-name">📕 英検２級レベル</span><span class="level-btn-sub">～ 計1,700語｜340セットで全クリア！ ～</span></span><span class="badge-arrow">›</span></button>
+      <button class="level-btn" onclick="selectLevel('準1級')"><span class="level-btn-main"><span class="level-btn-name">📓 英検準１級レベル</span><span class="level-btn-sub">～ 計1,900語｜380セットで全クリア！ ～</span></span><span class="badge-arrow">›</span></button>
       <button class="level-btn disabled" onclick="showComingSoonLevel('1級')"><span>📒 英検１級レベル</span><span class="badge-coming">準備中</span></button>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60);margin-top:20px" onclick="showHistory()">📖 今までの単語をおさらいする</button>
