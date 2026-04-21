@@ -389,6 +389,63 @@
     }
   });
 
+  // --- 和文英訳①：問題＋正解の週単位一括登録 ---
+  registerAdminModule({
+    id: 'wabun1-topic',
+    label: '📝 和文英訳①',
+    type: 'custom',
+    render: function(section) {
+      section.innerHTML =
+        '<div class="form-card">' +
+          '<h2>📝 和文英訳① 問題・正解の一括登録（Excelコピペ）</h2>' +
+          '<label><span class="label-text">週の開始日（月曜日）<span class="req">*</span></span>' +
+            '<input type="date" id="wabun1-paste-start" onchange="previewWabun1Paste()" />' +
+          '</label>' +
+          '<label><span class="label-text">Excelから貼り付け（3列 TSV：曜日／種別／内容）<span class="req">*</span></span>' +
+            '<textarea id="wabun1-paste-area" oninput="previewWabun1Paste()" placeholder="月\t問題1\t私たちはこの台所の中で...&#10;月\t問題2\t1で作った文を...&#10;月\tスキップ2\t一般動詞の否定文を...&#10;月\t単語\t台所 = kitchen&#10;月\t正解1\tWe cut onions together...&#10;火\t問題1\t..." style="min-height:260px;font-family: ui-monospace, Menlo, Consolas, monospace; font-size:13px; white-space:pre"></textarea>' +
+          '</label>' +
+          '<div style="font-size:12px;color:#666;margin:-8px 0 12px;line-height:1.7">' +
+            '種別：<code style="background:#f0f2f6;padding:2px 6px;border-radius:3px;font-size:12px">問題1〜4 / 正解1〜4 / スキップ1〜4 / 単語</code><br>' +
+            '正解や単語は後から追加登録も可。問題1 は必須。' +
+          '</div>' +
+          '<div id="wabun1-paste-preview"></div>' +
+          '<div style="margin-top:12px">' +
+            '<label style="display:block;font-weight:bold;margin-bottom:4px">第○○週（週番号）</label>' +
+            '<input type="number" id="wabun1-paste-week-no" placeholder="例：1" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px" />' +
+            '<div style="font-size:12px;color:#666;margin-top:4px">※空欄のままでも登録可能です。</div>' +
+          '</div>' +
+          '<button type="button" class="submit-btn" id="wabun1-paste-submit" onclick="submitWabun1Paste()" style="margin-top:16px">✅ 一括登録する</button>' +
+        '</div>';
+      var startEl = document.getElementById('wabun1-paste-start');
+      startEl.value = _nextMondayStr();
+      previewWabun1Paste();
+    }
+  });
+
+  // --- 和文英訳①：提出一覧 ---
+  registerAdminModule({
+    id: 'wabun1-submissions',
+    label: '📋 和文英訳① 提出',
+    type: 'custom',
+    render: function(section) {
+      section.innerHTML =
+        '<div class="form-card">' +
+          '<h2>📋 和文英訳① 提出一覧</h2>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">' +
+            '<label style="flex:1;min-width:140px"><span class="label-text" style="font-size:12px">日付（任意）</span>' +
+              '<input type="date" id="wabun1-filter-date" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px" />' +
+            '</label>' +
+            '<label style="flex:1;min-width:140px"><span class="label-text" style="font-size:12px">生徒ID（任意）</span>' +
+              '<input type="text" id="wabun1-filter-sid" placeholder="例：26001" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px" />' +
+            '</label>' +
+            '<button type="button" class="submit-btn" style="flex:0 0 auto;padding:8px 16px" onclick="loadWabun1Submissions()">🔍 絞り込み / 更新</button>' +
+          '</div>' +
+          '<div id="wabun1-sub-list"><div class="ranking-empty">⏳ 読み込み中...</div></div>' +
+        '</div>';
+      loadWabun1Submissions();
+    }
+  });
+
   // --- 週間HPランキング（表示・画像保存）---
   registerAdminModule({
     id: 'ranking',
@@ -747,6 +804,252 @@
       showToast(comment.trim() ? 'コメントを保存しました' : 'コメントを削除しました', 'success');
     }).catch(function() {
       showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // =============================================================
+  // 和文英訳①：パース / プレビュー / 登録
+  // =============================================================
+  var WABUN1_VALID_KINDS = ['問題1','問題2','問題3','問題4','正解1','正解2','正解3','正解4','スキップ1','スキップ2','スキップ3','スキップ4','単語'];
+
+  function parseWabun1Paste(text, startStr) {
+    var result = { items: [], errors: [] };
+    if (!startStr) { result.errors.push('週の開始日を選択してください'); return result; }
+    if (!text || !text.trim()) return result;
+    var startDate = new Date(startStr + 'T00:00:00');
+    if (isNaN(startDate)) { result.errors.push('週開始日の形式が不正です'); return result; }
+    var lines = text.split(/\r?\n/);
+    lines.forEach(function(rawLine, idx) {
+      var line = rawLine.replace(/^\uFEFF/, '');
+      if (!line.trim()) return;
+      var cols = line.split(/\t/);
+      if (cols.length < 3) { result.errors.push((idx+1)+'行目：タブ区切りで3列必要です'); return; }
+      var dayRaw = cols[0].trim();
+      var kind   = cols[1].trim();
+      var content = cols.slice(2).join('\t').trim();
+      if (!SANGO_DAY_MAP.hasOwnProperty(dayRaw)) { result.errors.push((idx+1)+'行目：曜日「'+dayRaw+'」が不正'); return; }
+      if (WABUN1_VALID_KINDS.indexOf(kind) < 0) { result.errors.push((idx+1)+'行目：種別「'+kind+'」が不正（問題1-4 / 正解1-4 / スキップ1-4 / 単語）'); return; }
+      if (!content) { result.errors.push((idx+1)+'行目：内容が空'); return; }
+      var dayOffset = SANGO_DAY_MAP[dayRaw];
+      var d = new Date(startDate.getTime()); d.setDate(d.getDate() + dayOffset);
+      var dateStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      result.items.push({ day: dayRaw.charAt(0), kind: kind, content: content, date: dateStr });
+    });
+    return result;
+  }
+
+  function previewWabun1Paste() {
+    var previewEl = document.getElementById('wabun1-paste-preview');
+    if (!previewEl) return;
+    var startStr = document.getElementById('wabun1-paste-start').value;
+    var text = document.getElementById('wabun1-paste-area').value;
+    var startDate = startStr ? new Date(startStr + 'T00:00:00') : null;
+    var dowWarn = '';
+    if (startDate && startDate.getDay() !== 1) {
+      dowWarn = '<div style="color:#e74c3c;font-size:13px;margin-bottom:10px;padding:8px 12px;background:#ffebee;border-radius:6px">⚠️ 選択した日は月曜日ではありません（' + SANGO_DAYS_JP[startDate.getDay()] + '曜日）</div>';
+    }
+    if (!text.trim()) {
+      previewEl.innerHTML = dowWarn + '<div style="color:#888;padding:20px;text-align:center;background:#fafbff;border-radius:8px;font-size:14px">Excelからデータを貼り付けるとここにプレビューが表示されます</div>';
+      return;
+    }
+    var parsed = parseWabun1Paste(text, startStr);
+    var errHtml = '';
+    if (parsed.errors.length > 0) {
+      errHtml = '<div style="color:#c62828;background:#ffebee;padding:10px 12px;border-radius:6px;margin-bottom:10px;font-size:13px;line-height:1.8">⚠️ ' + parsed.errors.map(_esc).join('<br>') + '</div>';
+    }
+    if (parsed.items.length === 0) { previewEl.innerHTML = dowWarn + errHtml; return; }
+
+    // 曜日ごとに集計
+    var byDay = {};
+    parsed.items.forEach(function(it){
+      if (!byDay[it.day]) byDay[it.day] = { date: it.date, tasks:[0,0,0,0], answers:[0,0,0,0], skips:[0,0,0,0], words:0, firstTask: '' };
+      var b = byDay[it.day];
+      if      (it.kind === '問題1') { b.tasks[0]=1; b.firstTask = it.content; }
+      else if (it.kind === '問題2')   b.tasks[1]=1;
+      else if (it.kind === '問題3')   b.tasks[2]=1;
+      else if (it.kind === '問題4')   b.tasks[3]=1;
+      else if (it.kind === '正解1')   b.answers[0]=1;
+      else if (it.kind === '正解2')   b.answers[1]=1;
+      else if (it.kind === '正解3')   b.answers[2]=1;
+      else if (it.kind === '正解4')   b.answers[3]=1;
+      else if (it.kind === 'スキップ1') b.skips[0]=1;
+      else if (it.kind === 'スキップ2') b.skips[1]=1;
+      else if (it.kind === 'スキップ3') b.skips[2]=1;
+      else if (it.kind === 'スキップ4') b.skips[3]=1;
+      else if (it.kind === '単語')    b.words += 1;
+    });
+    var dayOrder = ['月','火','水','木','金','土','日'];
+    var rows = dayOrder.filter(function(d){ return byDay[d]; }).map(function(d){
+      var b = byDay[d];
+      var dobj = new Date(b.date + 'T00:00:00');
+      var label = (dobj.getMonth()+1) + '/' + dobj.getDate() + '(' + d + ')';
+      var taskCount = b.tasks.reduce(function(a,c){ return a+c; }, 0);
+      var ansCount  = b.answers.reduce(function(a,c){ return a+c; }, 0);
+      var skipCount = b.skips.reduce(function(a,c){ return a+c; }, 0);
+      var warn = '';
+      if (!b.tasks[0]) warn = ' <span style="color:#c62828">⚠ 問題1が未入力</span>';
+      var firstTaskShort = b.firstTask ? (b.firstTask.length > 30 ? b.firstTask.slice(0,30) + '…' : b.firstTask) : '';
+      return '<tr><td>' + label + warn + '</td><td style="text-align:center">' + taskCount + '</td><td style="text-align:center">' + ansCount + '</td><td style="text-align:center">' + skipCount + '</td><td style="text-align:center">' + b.words + '</td><td style="color:#555">' + _esc(firstTaskShort) + '</td></tr>';
+    }).join('');
+    var dayCount = Object.keys(byDay).length;
+    var tableHtml =
+      '<table class="sango-preview-table">' +
+        '<thead><tr><th>日付</th><th>問題</th><th>正解</th><th>スキップ</th><th>単語</th><th>問題1（冒頭30字）</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>';
+    previewEl.innerHTML = dowWarn + errHtml + '<div style="font-size:13px;color:#2e7d32;margin-bottom:8px">✅ ' + dayCount + ' 日分 / ' + parsed.items.length + ' 行を認識しました</div>' + tableHtml;
+  }
+
+  function submitWabun1Paste() {
+    var startStr = document.getElementById('wabun1-paste-start').value;
+    var text = document.getElementById('wabun1-paste-area').value;
+    var weekNoRaw = document.getElementById('wabun1-paste-week-no').value;
+    var weekNo = weekNoRaw === '' ? '' : Number(weekNoRaw);
+    var parsed = parseWabun1Paste(text, startStr);
+    if (parsed.errors.length > 0) { showToast('エラーがあります：' + parsed.errors[0], 'error'); return; }
+    if (parsed.items.length === 0) { showToast('登録する行がありません', 'error'); return; }
+    var btn = document.getElementById('wabun1-paste-submit');
+    if (btn) { btn.disabled = true; btn.textContent = '登録中…'; }
+    gasGet({
+      action: 'adminAddWabun1TopicsWeek',
+      password: sessionStorage.getItem('adminPassword') || '',
+      start: startStr,
+      weekNo: weekNo,
+      items: parsed.items,
+      _ts: Date.now()
+    }).then(function(res) {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ 一括登録する'; }
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '登録に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        showToast(msg, 'error');
+        return;
+      }
+      var added = res.added || 0;
+      var serverErrors = (res.errors && res.errors.length) ? '（' + res.errors.join(' / ') + '）' : '';
+      showToast(added + ' 日分を登録しました' + serverErrors, 'success');
+      document.getElementById('wabun1-paste-area').value = '';
+      document.getElementById('wabun1-paste-week-no').value = '';
+      previewWabun1Paste();
+    }).catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ 一括登録する'; }
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // =============================================================
+  // 和文英訳①：提出一覧 + 先生コメント UI
+  // =============================================================
+  var _wabun1SubCache = [];
+
+  function _renderWabun1CommentView(idx, comment) {
+    var c = String(comment || '');
+    if (c.trim()) {
+      return '<div style="background:#e3f2fd;border-left:3px solid #1976d2;border-radius:8px;padding:10px 12px;margin-top:10px">' +
+               '<div style="font-size:12px;color:#1976d2;font-weight:bold;margin-bottom:4px">💬 先生のコメント</div>' +
+               '<div style="font-size:13px;color:#0d47a1;white-space:pre-wrap;word-wrap:break-word;line-height:1.7;margin-bottom:8px">' + _esc(c) + '</div>' +
+               '<button onclick="editWabun1Comment(' + idx + ')" style="font-size:12px;padding:4px 12px;background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer">編集</button>' +
+             '</div>';
+    }
+    return '<div style="background:#f5f5f5;border-radius:8px;padding:10px;margin-top:10px">' +
+             '<div style="font-size:12px;color:#555;font-weight:bold;margin-bottom:6px">💬 先生のコメント</div>' +
+             '<textarea id="wabun1-comment-input-' + idx + '" placeholder="コメントを入力..." style="width:100%;min-height:60px;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box;font-family:inherit"></textarea>' +
+             '<button onclick="saveWabun1Comment(' + idx + ', false)" style="font-size:12px;padding:4px 14px;margin-top:6px;background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer">送信</button>' +
+           '</div>';
+  }
+
+  function _renderWabun1CommentEdit(idx, comment) {
+    return '<div style="background:#fff3e0;border-left:3px solid #ff9800;border-radius:8px;padding:10px;margin-top:10px">' +
+             '<div style="font-size:12px;color:#e65100;font-weight:bold;margin-bottom:6px">💬 先生のコメント（編集中）</div>' +
+             '<textarea id="wabun1-comment-input-' + idx + '" style="width:100%;min-height:60px;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box;font-family:inherit">' + _esc(comment || '') + '</textarea>' +
+             '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' +
+               '<button onclick="saveWabun1Comment(' + idx + ', true)" style="font-size:12px;padding:4px 14px;background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer">保存</button>' +
+               '<button onclick="cancelWabun1CommentEdit(' + idx + ')" style="font-size:12px;padding:4px 14px;background:#999;color:#fff;border:none;border-radius:4px;cursor:pointer">キャンセル</button>' +
+             '</div>' +
+           '</div>';
+  }
+
+  function editWabun1Comment(idx) {
+    var s = _wabun1SubCache[idx]; if (!s) return;
+    var el = document.getElementById('wabun1-comment-' + idx);
+    if (el) el.innerHTML = _renderWabun1CommentEdit(idx, s.teacher_comment || '');
+  }
+  function cancelWabun1CommentEdit(idx) {
+    var s = _wabun1SubCache[idx]; if (!s) return;
+    var el = document.getElementById('wabun1-comment-' + idx);
+    if (el) el.innerHTML = _renderWabun1CommentView(idx, s.teacher_comment || '');
+  }
+  function saveWabun1Comment(idx, isEdit) {
+    var s = _wabun1SubCache[idx]; if (!s) return;
+    var inputEl = document.getElementById('wabun1-comment-input-' + idx);
+    if (!inputEl) return;
+    var comment = inputEl.value;
+    gasGet({
+      action: 'adminSetWabun1Comment',
+      password: sessionStorage.getItem('adminPassword') || '',
+      timestamp: s.timestamp,
+      studentId: s.studentId,
+      comment: comment,
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '保存に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        showToast(msg, 'error');
+        return;
+      }
+      s.teacher_comment = comment;
+      var el = document.getElementById('wabun1-comment-' + idx);
+      if (el) el.innerHTML = _renderWabun1CommentView(idx, comment);
+      showToast(comment.trim() ? 'コメントを保存しました' : 'コメントを削除しました', 'success');
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  function loadWabun1Submissions() {
+    var listEl = document.getElementById('wabun1-sub-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="ranking-empty">⏳ 読み込み中...</div>';
+    var params = {
+      action: 'adminListWabun1Submissions',
+      password: sessionStorage.getItem('adminPassword') || '',
+      _ts: Date.now()
+    };
+    var dateFilter = document.getElementById('wabun1-filter-date');
+    var sidFilter  = document.getElementById('wabun1-filter-sid');
+    if (dateFilter && dateFilter.value) params.date = dateFilter.value;
+    if (sidFilter  && sidFilter.value.trim()) params.studentId = sidFilter.value.trim();
+    gasGet(params).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        listEl.innerHTML = '<div class="ranking-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var items = res.submissions || [];
+      if (items.length === 0) { listEl.innerHTML = '<div class="ranking-empty">該当する提出はありません</div>'; return; }
+      _wabun1SubCache = items;
+      listEl.innerHTML = items.map(function(s, idx) {
+        var ts = String(s.timestamp || '').replace('T', ' ').slice(0, 16);
+        var methodLabel = (s.method === 'photo') ? '📷 写真' : _esc(s.method || '');
+        var nick = String(s.studentName || '').trim();
+        var real = String(s.studentRealName || '').trim();
+        var who;
+        if (nick && real)      who = _esc(nick) + '（' + _esc(real) + '）';
+        else if (nick)         who = _esc(nick);
+        else if (real)         who = '（' + _esc(real) + '）';
+        else                   who = '（不明）';
+        return '<div style="background:#fff;border-left:4px solid #7c4fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">' +
+                 '<div style="font-size:12px;color:#888;margin-bottom:6px">' + _esc(ts) + '｜' + methodLabel + '｜ID: ' + _esc(s.studentId || '') + '</div>' +
+                 '<div style="font-size:14px;font-weight:bold;color:#333;margin-bottom:8px">' + who + '</div>' +
+                 '<div style="font-size:12px;color:#555;font-weight:bold;margin-bottom:4px">【提出内容】</div>' +
+                 '<div style="font-size:14px;line-height:1.7;white-space:pre-wrap;padding:10px;background:#fafafa;border-radius:6px">' + _esc(s.work || '') + '</div>' +
+                 '<div id="wabun1-comment-' + idx + '">' + _renderWabun1CommentView(idx, s.teacher_comment) + '</div>' +
+               '</div>';
+      }).join('');
+    }).catch(function() {
+      listEl.innerHTML = '<div class="ranking-empty">通信エラーが発生しました</div>';
     });
   }
 

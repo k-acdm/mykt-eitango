@@ -1900,19 +1900,23 @@ function adminAddWabun1TopicsWeek(params) {
       const kind = String((it && it.kind) || '').trim();
       const content = String((it && it.content) == null ? '' : it.content);
       if (!(day in _WABUN1_DAY_OFFSET)) return;
-      if (!byDay[day]) byDay[day] = { tasks: ['','','',''], skips: ['','','',''], words: [] };
-      if      (kind === '問題1')     byDay[day].tasks[0] = content;
-      else if (kind === '問題2')     byDay[day].tasks[1] = content;
-      else if (kind === '問題3')     byDay[day].tasks[2] = content;
-      else if (kind === '問題4')     byDay[day].tasks[3] = content;
-      else if (kind === 'スキップ1') byDay[day].skips[0] = content;
-      else if (kind === 'スキップ2') byDay[day].skips[1] = content;
-      else if (kind === 'スキップ3') byDay[day].skips[2] = content;
-      else if (kind === 'スキップ4') byDay[day].skips[3] = content;
+      if (!byDay[day]) byDay[day] = { tasks: ['','','',''], answers: ['','','',''], skips: ['','','',''], words: [] };
+      if      (kind === '問題1')     byDay[day].tasks[0]   = content;
+      else if (kind === '問題2')     byDay[day].tasks[1]   = content;
+      else if (kind === '問題3')     byDay[day].tasks[2]   = content;
+      else if (kind === '問題4')     byDay[day].tasks[3]   = content;
+      else if (kind === '正解1')     byDay[day].answers[0] = content;
+      else if (kind === '正解2')     byDay[day].answers[1] = content;
+      else if (kind === '正解3')     byDay[day].answers[2] = content;
+      else if (kind === '正解4')     byDay[day].answers[3] = content;
+      else if (kind === 'スキップ1') byDay[day].skips[0]   = content;
+      else if (kind === 'スキップ2') byDay[day].skips[1]   = content;
+      else if (kind === 'スキップ3') byDay[day].skips[2]   = content;
+      else if (kind === 'スキップ4') byDay[day].skips[3]   = content;
       else if (kind === '単語' && content) byDay[day].words.push(content);
     });
 
-    // 行組み立て（問題1 空の曜日はエラー）
+    // 行組み立て（問題1 空の曜日はエラー。正解は 0〜4 件を許容）
     const errors = [];
     const rowsToAppend = [];
     Object.keys(byDay).forEach(function(day){
@@ -1924,9 +1928,9 @@ function adminAddWabun1TopicsWeek(params) {
       const date = _wabun1AddDays(start, _WABUN1_DAY_OFFSET[day]);
       rowsToAppend.push([
         date, weekNo,
-        data.tasks[0], data.tasks[1], data.tasks[2], data.tasks[3],
-        '', '', '', '',
-        data.skips[0], data.skips[1], data.skips[2], data.skips[3],
+        data.tasks[0],   data.tasks[1],   data.tasks[2],   data.tasks[3],
+        data.answers[0], data.answers[1], data.answers[2], data.answers[3],
+        data.skips[0],   data.skips[1],   data.skips[2],   data.skips[3],
         data.words.join('\n')
       ]);
     });
