@@ -125,12 +125,17 @@
     .closed-card h2 { color: #1a1a2e; margin-bottom: 10px; font-size: 22px; }
     .closed-card p  { color: #666; font-size: 16px; }
     .back-warning { position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; pointer-events: none; z-index: 9999; line-height: 1.6; }
-    .chara-wrap { text-align: center; margin: 16px 0 8px; position: relative; height: 200px; display: flex; align-items: flex-end; justify-content: center; }
+    .chara-wrap { text-align: center; margin: 0; position: relative; height: 200px; display: flex; align-items: flex-end; justify-content: center; }
     .chara-img  { width: 150px; height: 150px; object-fit: contain; transition: filter .5s, opacity .5s; }
     .chara-fx   { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 180px; height: 180px; pointer-events: none; }
     .chara-title-badge  { display: inline-block; padding: 4px 16px; border-radius: 12px; font-size: 13px; font-weight: bold; background: #e8f0ff; color: #2d3a8c; margin-bottom: 4px; }
     .chara-streak-label { font-size: 13px; color: #888; margin-bottom: 4px; }
-    .chara-msg  { font-size: 15px; color: #444; background: #f8f9ff; border-radius: 10px; padding: 10px 14px; margin: 8px 0 12px; line-height: 1.7; text-align: left; border-left: 4px solid #4f7df0; }
+    .mate-row { display: flex; align-items: center; gap: 14px; margin: 12px 0; }
+    .mate-avatar { flex-shrink: 0; text-align: center; }
+    .chara-name { font-size: 13px; color: #666; font-weight: bold; margin-top: 4px; }
+    .chara-bubble { position: relative; flex: 1; background: #fff; border: 2px solid #c8dcff; border-radius: 20px; padding: 14px 18px; font-size: 15px; color: #2d3a8c; line-height: 1.7; box-shadow: 0 3px 12px rgba(79,125,240,.15); text-align: left; }
+    .chara-bubble::before { content: ''; position: absolute; left: -11px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: #c8dcff; }
+    .chara-bubble::after  { content: ''; position: absolute; left: -8px;  top: 50%; transform: translateY(-50%); border: 8px solid transparent; border-right-color: #fff; }
     @keyframes bigbounce { 0%,100%{transform:translateY(0) scale(1) rotate(0deg)} 30%{transform:translateY(-26px) scale(1.08) rotate(-3deg)} 60%{transform:translateY(-10px) scale(1.04) rotate(2deg)} }
     @keyframes cbounce  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-16px)} }
     @keyframes cbob     { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
@@ -256,6 +261,10 @@
       .content-btn { font-size: 14px; padding: 16px 6px; }
       .content-btn .ico { font-size: 26px; }
       .content-btn .badge-hp { font-size: 9px; padding: 2px 6px; }
+      .mate-row { flex-direction: column; gap: 6px; }
+      .chara-bubble { width: 100%; }
+      .chara-bubble::before { left: 50%; top: -11px; transform: translateX(-50%); border: 9px solid transparent; border-right-color: transparent; border-bottom-color: #c8dcff; }
+      .chara-bubble::after  { left: 50%; top: -8px;  transform: translateX(-50%); border: 8px solid transparent; border-right-color: transparent; border-bottom-color: #fff; }
       .hp-info-card { padding: 12px; }
       .hp-info-title { font-size: 14px; }
       .hp-info-line { font-size: 12px; }
@@ -380,11 +389,16 @@
         <div class="chara-title-badge"  id="chara-title-badge"></div><br>
         <div class="chara-streak-label" id="chara-streak-label"></div>
       </div>
-      <div class="chara-wrap">
-        <div class="chara-fx" id="chara-fx"></div>
-        <div id="chara-anim"><img class="chara-img" id="chara-img" src="./character.jpg" alt="マイカツ君"></div>
+      <div class="mate-row">
+        <div class="mate-avatar">
+          <div class="chara-wrap">
+            <div class="chara-fx" id="chara-fx"></div>
+            <div id="chara-anim"><img class="chara-img" id="chara-img" src="./character.jpg" alt="マイカツ君"></div>
+          </div>
+          <div class="chara-name">マイカツ君</div>
+        </div>
+        <div class="chara-bubble" id="chara-msg"></div>
       </div>
-      <div class="chara-msg" id="chara-msg"></div>
       <div class="welcome-name" id="welcome-name"></div>
       <div class="welcome-msg"  id="welcome-msg"></div>
       <div class="hp-badge">⚡ 現在の春アカポイント <span id="welcome-hp">0</span> HP</div>
