@@ -578,6 +578,62 @@
 - 現セッション worktree `elated-swartz-2ed7dc` を `git switch dev` で dev に切替、`git pull --ff-only origin dev` で 22 コミット fast-forward
 - 以降の作業はこの worktree（dev ブランチ直）で継続。塾PC 側では他に `claude/*` ローカルブランチ無し（整理済み）
 
+#### 40. iPad 再撮影バグ修正: retakeWabun1PhotoFromResult 新設（dev `a934a2b` → main `addab15`）
+- **事象**: iPad で結果画面「📸 もう一度撮影する」→ 撮影はできるが OCR 処理が走らず確認画面に進まない
+- **原因**: iOS Safari で display:none 配下の file input `click()` は camera を開くが **onchange が届かない**既知挙動。`<input id="wabun1-photo-input">` は `screen-wabun1-topic` 内に配置されており、結果画面表示時は親 screen が display:none の状態
+- **修正** ([index.html](index.html)): `retakeWabun1PhotoFromResult()` 新関数を追加。`_wabun1State.ocrText=''` / `input.value=''` / preview クリア / `showScreen('screen-wabun1-topic')` で file input を**表示中 screen に戻してから** `setTimeout 50ms` で click。結果画面のボタン onclick を差し替え
+- 既存 `retakeWabun1Photo()`（確認画面用）は触らず影響範囲最小化。`hasSubmitted` は残して「正解を表示する」ボタン表示状態を維持
+
+#### 41. 和文英訳① UI 改修 4 件（dev `fa5b7c4` → main `addab15`）
+- **番号認識 regex の寛容度拡張** ([index.html](index.html) `_wabun1CheckNumbers`): 数字の後ろに `.` `．` `,` `、` `)` `）` スペース 改行 のいずれかでも認識（lookahead）。Android OCR で全角ピリオドが欠ける / 改行が入るケースに対応
+- **「過去の提出作品」機能削除**: ボタン / `screen-wabun1-history` / `showWabun1History()` / 未使用 CSS (`.wabun1-sub-*` 6 件) を一括削除。GAS `getWabun1Submissions` は管理画面で引き続き利用するため温存（理由：和文英訳①は「正解と同じ英文」を書くコンテンツなので、自分の解答を見返す意味が薄い）
+- **「お題」→「問題」表記統一**（wabun1 のみ）: 「← お題画面に戻る」× 4 を「← 問題画面に戻る」に変更。三語短文の「お題」表記は据え置き（創作コンテンツなので「お題」が適切）
+- **重要メッセージ強調ボックス化**: `.wabun1-fixed-encourage` を暖色ボックス化（背景 `#fff5e6` / border `2px solid #fb923c` / 太字 / padding 広め / 微シャドウ）。本文に `<br><br>` で段落区切り追加
+
+#### 42. 【重大バグ修正】フロント/GAS の番号パーサ regex 完全統一（dev `9fbaf89` → main `4a36fd6`）
+- **事象**: 再撮影後、画面に表示される OCR 結果は正しく更新されているのに、送信すると「正解と同じ英文のはず」が不正解判定される
+- **真因**: #41 でフロント regex を loose 版にしたが、GAS `_parseWabun1Work` は古い厳格版（`.` または `．` または `()` 必須）のまま。フロントで番号チェックが通っても GAS 側で番号マーカーを検出できず `parsed[n] = ''` となり「空文字 vs 正解」で必ず不正解判定
+  - 典型ケース: OCR が `3\nThis is test three.` のように 3 の後に改行を入れる（Android 多発）→ GAS 側は `3.` や `3,` を要求するのでマッチせず
+- **修正 (unified regex)**:
+  ```js
+  /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?:[.．,、)）]|(?=\s)))\s*/g
+  ```
+  - `1.` `1．` `1,` `1、` `1)` `1）` → 消費型
+  - `1 ` `1\n` → `(?=\s)` 先読み + 後続 `\s*` で空白/改行を消費
+  - フロント `_wabun1CheckNumbers` ([index.html](index.html)) / GAS `_parseWabun1Work` ([gas/Code.js](gas/Code.js)) の両方に **同じ regex** を適用 → 乖離を解消
+- **副次対応**: [index.html](index.html) `submitWabun1Answer` の直前で `console.log` を追加。画面表示テキストと `_wabun1State.ocrText` の一致確認用（将来の切り分け用）
+- **教訓**: フロント/GAS で同等の regex を持たせる場合、**どちらか一方の更新時に他方も必ず同期する**。別ファイル・別言語で二重管理になっていた設計を反省
+
+#### 43. UI 追加改修 2 件（dev `9fbaf89` → main `4a36fd6`）
+- **番号差し戻しメッセージの位置変更**: `#wabun1-camera-msg` を `#wabun1-photo-preview` の**上**に配置入れ替え（従来は下で生徒が気付きにくかった）
+- **強調メッセージのフォントサイズ**: `.wabun1-fixed-encourage` の `font-size` を 16px → 18px（`.btn-wide` と統一）
+
+#### 44. 和文英訳① Phase 3-C 完了（dev `e6f5d15` → main `38aa36b`）
+- **[gas/Code.js](gas/Code.js) `getChildActivityRecent` 拡張**: `byDate` に `wabun1: { done:false, hpGained:0 }` を追加、HPLog ループに `type === 'wabun1'` 分岐を追加して `hpGained` を集計
+- **[view.html](view.html) `_renderChildDays` 拡張**: 三語短文行の直下に和文英訳①行を追加。提出日 → `✅ 全問正解（XHP獲得）`、未提出日 → `❌`（作品を見るボタンなし = #41 で過去の提出作品機能を削除した方針と整合）
+- **[index.html](index.html) 三語短文 HP エフェクト追加**:
+  - 新 `screen-sango-done`（`screen-sango-photo` 直後）
+  - 新関数 `_showSangoDone(hp, alreadyGranted)`: wabun1 の CSS（`.wabun1-result-success` / `.wabun1-confetti` / `.wabun1-result-hp-num` / `.wabun1-result-already`）と `_wabun1AnimateHp` / `playSfx('chime')` を流用
+  - `submitSangoText` / `confirmSangoPhoto(true)` の成功時 showMsg+setTimeout を `_showSangoDone(hp, hp === 0)` に置換
+  - `alreadyGranted` 判定は GAS の `hpGained === 0` 仕様を proxy として活用（GAS 側変更不要）
+  - 対象: 全レベル（A/S/B/T）× 全提出方法（text/photo）
+
+#### 45. 本日の動作確認結果と次フェーズ予定
+- **動作確認結果**（iPad / Android 両方、本番 URL）:
+  - 和文英訳①: 写真撮影 → OCR → 番号チェック → 正解照合 → 全問正解 → 紙吹雪 + HP カウントアップ + chime.mp3 / 不正解時再撮影 / 正解表示ボタン / 過去の問題と正解 / アーカイブページング — 全フロー正常
+  - 三語短文 HP 獲得エフェクト: 正常動作
+  - 保護者画面の学習履歴に和文英訳①行: 期待通り表示
+  - **和文英訳①の実装は完了**
+- **worktree / branch 整理**: ステールローカルブランチ `claude/elated-swartz-2ed7dc`（#39 で dev に切替済のため用途なし、main にマージ済でユニークコミットなし）を `git branch -d` で削除
+- **残タスク**:
+  - 問題データ用意（4/27〜5/3 の 1 週間分、ふくちさん作業）
+  - 4/26（土）全体動作確認 + 必要ならバグ修正
+  - 4/27（月）本番運用開始
+  - 生徒・保護者への告知文作成（クロと一緒に作成予定）
+  - マニュアル v4 作成（生徒 + 保護者向け、TOC 付き、「マイ活アプリ（旧：マイ活アプリ＜英単語＞）」呼称。和文英訳①完了に伴い着手可能）
+- **将来タスク（メモ）**: 週間HPランキングの 3 カテゴリ分割（小中高別） / 英単語RUSH 英検 5 級の書き取り採点詳細化（生徒要望、どこが間違いかの可視化） / アバター機能（Gemini API 連携、1-2 日規模）
+- **環境情報**: 塾PC での作業完了 → 自宅PC に移行予定
+
 ---
 
 ## TODO（未反映の GAS 側作業）
