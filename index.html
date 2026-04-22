@@ -343,7 +343,7 @@
     .wabun1-fixed-tip { background:linear-gradient(135deg,#fef3c7,#fde68a); border:2px solid #f59e0b; border-radius:12px; padding:14px 16px; margin-top:20px; color:#78350f; }
     .wabun1-fixed-title { font-size:15px; font-weight:bold; margin-bottom:8px; color:#c2410c; }
     .wabun1-fixed-body { font-size:13px; line-height:1.85; }
-    .wabun1-fixed-encourage { text-align:center; font-size:16px; line-height:1.95; font-weight:bold; color:#7c2d12; background:#fff5e6; border:2px solid #fb923c; border-radius:12px; padding:20px 22px; margin:20px 0; box-shadow:0 2px 8px rgba(251,146,60,.15); }
+    .wabun1-fixed-encourage { text-align:center; font-size:18px; line-height:1.95; font-weight:bold; color:#7c2d12; background:#fff5e6; border:2px solid #fb923c; border-radius:12px; padding:20px 22px; margin:20px 0; box-shadow:0 2px 8px rgba(251,146,60,.15); }
     .wabun1-videos { margin-top:16px; }
     .wabun1-videos-title { font-size:15px; font-weight:bold; color:#dc2626; margin-bottom:10px; text-align:center; }
     .wabun1-video-card { display:flex; align-items:center; gap:10px; background:linear-gradient(135deg,#fff1f2,#fecaca); border:2px solid #f87171; border-radius:12px; padding:12px 14px; text-decoration:none; color:#991b1b; font-weight:bold; font-size:15px; margin-bottom:8px; box-shadow:0 2px 6px rgba(0,0,0,.08); }
@@ -768,8 +768,8 @@
   <div class="container" style="padding-top:16px">
     <input type="file" id="wabun1-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onWabun1PhotoSelected(event)"/>
     <div id="wabun1-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
-    <img id="wabun1-photo-preview" class="photo-preview" style="display:none;margin-top:10px"/>
     <div id="wabun1-camera-msg" class="msg" style="margin-top:10px"></div>
+    <img id="wabun1-photo-preview" class="photo-preview" style="display:none;margin-top:10px"/>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:14px;color:#6d2c4a" onclick="showWabun1Past()">📚 過去の問題と正解</button>
     <div class="wabun1-fixed-tip">
       <div class="wabun1-fixed-title">🔴注目！ ＜英語の名詞の使い方＞</div>
@@ -1686,7 +1686,7 @@
   function _wabun1CheckNumbers(text, expectedCount) {
     if (!text) return { ok: false, missing: [] };
     var t = '\n' + String(text);
-    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?=[.．,、)）\s]))\s*/g;
+    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?:[.．,、)）]|(?=\s)))\s*/g;
     var found = {};
     var m;
     while ((m = re.exec(t)) !== null) {
@@ -1833,6 +1833,10 @@
     var btn = document.getElementById('wabun1-confirm-submit-btn'); btn.disabled = true;
     var msgEl = document.getElementById('wabun1-confirm-msg');
     msgEl.textContent = '⏳ 送信中...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
+    try {
+      var shown = (document.getElementById('wabun1-ocr-text') || {}).textContent || '';
+      console.log('[wabun1 submit] stateOcrText=', JSON.stringify(_wabun1State.ocrText), ' shownOnScreen=', JSON.stringify(shown), ' match=', shown === _wabun1State.ocrText);
+    } catch(e){}
     gasGet({ action:'submitWabun1', studentId:_studentId, workText:_wabun1State.ocrText }).then(function(res){
       _wabun1State.submitting = false;
       if (!res || !res.ok) {
