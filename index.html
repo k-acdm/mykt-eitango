@@ -343,7 +343,7 @@
     .wabun1-fixed-tip { background:linear-gradient(135deg,#fef3c7,#fde68a); border:2px solid #f59e0b; border-radius:12px; padding:14px 16px; margin-top:20px; color:#78350f; }
     .wabun1-fixed-title { font-size:15px; font-weight:bold; margin-bottom:8px; color:#c2410c; }
     .wabun1-fixed-body { font-size:13px; line-height:1.85; }
-    .wabun1-fixed-encourage { text-align:center; font-size:14px; line-height:1.9; color:#4b5563; background:#f9fafb; border-radius:10px; padding:12px; margin-top:12px; }
+    .wabun1-fixed-encourage { text-align:center; font-size:16px; line-height:1.95; font-weight:bold; color:#7c2d12; background:#fff5e6; border:2px solid #fb923c; border-radius:12px; padding:20px 22px; margin:20px 0; box-shadow:0 2px 8px rgba(251,146,60,.15); }
     .wabun1-videos { margin-top:16px; }
     .wabun1-videos-title { font-size:15px; font-weight:bold; color:#dc2626; margin-bottom:10px; text-align:center; }
     .wabun1-video-card { display:flex; align-items:center; gap:10px; background:linear-gradient(135deg,#fff1f2,#fecaca); border:2px solid #f87171; border-radius:12px; padding:12px 14px; text-decoration:none; color:#991b1b; font-weight:bold; font-size:15px; margin-bottom:8px; box-shadow:0 2px 6px rgba(0,0,0,.08); }
@@ -394,12 +394,6 @@
     .wabun1-archive-answer { margin-top:4px; padding:4px 10px; background:#ecfdf5; border-left:3px solid #10b981; border-radius:6px; font-size:13px; color:#065f46; line-height:1.6; }
     .wabun1-archive-wordlist { margin-top:6px; padding:6px 10px; background:#f0fdf4; border-radius:6px; font-size:12px; color:#065f46; }
     /* 提出作品履歴 */
-    .wabun1-sub-card { background:#fff; border-radius:12px; padding:12px 14px; margin-bottom:10px; box-shadow:0 2px 8px rgba(0,0,0,.06); border-left:4px solid #7c4fff; }
-    .wabun1-sub-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px; font-size:13px; color:#555; }
-    .wabun1-sub-ts { font-weight:bold; color:#5b21b6; }
-    .wabun1-sub-work { background:#fff8e1; border-radius:10px; padding:10px 12px; font-size:14px; line-height:1.7; color:#333; white-space:pre-wrap; word-wrap:break-word; }
-    .wabun1-sub-comment { background:#e3f2fd; border-left:4px solid #1976d2; border-radius:10px; padding:10px 12px; margin-top:8px; font-size:13px; line-height:1.7; color:#0d47a1; white-space:pre-wrap; word-wrap:break-word; }
-    .wabun1-sub-comment-label { font-weight:bold; color:#1565c0; margin-bottom:4px; }
   </style>
 </head>
 <body>
@@ -777,12 +771,11 @@
     <img id="wabun1-photo-preview" class="photo-preview" style="display:none;margin-top:10px"/>
     <div id="wabun1-camera-msg" class="msg" style="margin-top:10px"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:14px;color:#6d2c4a" onclick="showWabun1Past()">📚 過去の問題と正解</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d" onclick="showWabun1History()">📖 過去の提出作品</button>
     <div class="wabun1-fixed-tip">
       <div class="wabun1-fixed-title">🔴注目！ ＜英語の名詞の使い方＞</div>
       <div class="wabun1-fixed-body">英語では、「数えられる名詞の単数形」の前に何も付けずに使うのは、原則NGです。<br>日本語の方に特に何もついてない場合は、「a (an) を付ける」か「複数形にする」のどちらかにしてください。<br>例）「私はペンを持っている」・・ I have pen. →「×」 / I have a pen. →「○」 / I have pens. →「○」</div>
     </div>
-    <div class="wabun1-fixed-encourage">毎日地道にコツコツと<br>これが何よりも大切なこと💍<br>ただし、「ただ作業的に」やるのは全く意味がありません💥<br>「これがこうだからこうなる」ということを頭で考え、手を動かし、日々の問題を解いていってください✨✨✨</div>
+    <div class="wabun1-fixed-encourage">毎日地道にコツコツと<br>これが何よりも大切なこと💍<br><br>ただし、「ただ作業的に」やるのは<br>全く意味がありません💥<br><br>「これがこうだからこうなる」ということを<br>頭で考え、手を動かし、<br>日々の問題を解いていってください<br>✨✨✨</div>
     <div class="wabun1-videos">
       <div class="wabun1-videos-title">🔴解説動画🔴</div>
       <a class="wabun1-video-card" href="https://youtu.be/BNHB6NhGirc" target="_blank" rel="noopener">
@@ -814,7 +807,7 @@
     </div>
     <div id="wabun1-confirm-msg" class="msg" style="margin-top:10px"></div>
     <button class="btn-wide" id="wabun1-show-answer-confirm" style="display:none;background:linear-gradient(135deg,#fbbf24,#f59e0b);margin-top:14px" onclick="showWabun1Answers()">💡 正解を表示する</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-wabun1-topic')">← お題画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
   </div>
 </div>
 
@@ -822,7 +815,7 @@
   <header><h1>📝 判定結果</h1></header>
   <div class="container" style="padding-top:16px">
     <div id="wabun1-result-body"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-wabun1-topic')">← お題画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
   </div>
 </div>
 
@@ -831,7 +824,7 @@
   <div class="container" style="padding-top:16px">
     <div id="wabun1-past-body"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" id="wabun1-past-more-btn" style="display:none;background:linear-gradient(135deg,#8e9eab,#4b6cb7);margin-top:14px" onclick="showWabun1Archive(1)">📜 さらに過去のもの</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showScreen('screen-wabun1-topic')">← お題画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
   </div>
 </div>
 
@@ -840,15 +833,7 @@
   <div class="container" style="padding-top:16px">
     <div id="wabun1-archive-body"><div class="loading">⏳ 読み込み中...</div></div>
     <div class="wabun1-past-pager" id="wabun1-archive-pager"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="showScreen('screen-wabun1-topic')">← お題画面に戻る</button>
-  </div>
-</div>
-
-<div id="screen-wabun1-history" class="screen">
-  <header><h1>📖 過去の提出作品</h1><span id="wabun1-history-student"></span></header>
-  <div class="container" style="padding-top:16px">
-    <div id="wabun1-history-list"><div class="loading">⏳ 読み込み中...</div></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showScreen('screen-wabun1-topic')">← お題画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
   </div>
 </div>
 
@@ -1701,7 +1686,7 @@
   function _wabun1CheckNumbers(text, expectedCount) {
     if (!text) return { ok: false, missing: [] };
     var t = '\n' + String(text);
-    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])\s*[.．])\s*/g;
+    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?=[.．,、)）\s]))\s*/g;
     var found = {};
     var m;
     while ((m = re.exec(t)) !== null) {
@@ -2045,36 +2030,6 @@
       }
       pagerEl.innerHTML = pagerHtml;
     }).catch(function(){ bodyEl.innerHTML = '<div class="wabun1-past-empty">エラーが発生しました。</div>'; });
-  }
-
-  function showWabun1History() {
-    document.getElementById('wabun1-history-student').textContent = _studentId + ' さん';
-    var listEl = document.getElementById('wabun1-history-list');
-    listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
-    showScreen('screen-wabun1-history');
-    gasGet({ action:'getWabun1Submissions', studentId:_studentId, _ts: Date.now() }).then(function(res){
-      if (!res || !res.ok) { listEl.innerHTML = '<div class="wabun1-past-empty">読み込みに失敗しました。</div>'; return; }
-      var items = res.submissions || [];
-      if (items.length === 0) {
-        listEl.innerHTML = '<div class="wabun1-past-empty">まだ提出した作品がありません。<br>まずは今日の問題に挑戦してみよう！</div>';
-        return;
-      }
-      listEl.innerHTML = items.map(function(s){
-        var methodLabel = s.method === 'photo' ? '📷 写真' : '✏️ 直接入力';
-        var comment = String(s.teacher_comment || '').trim();
-        var commentHtml = comment
-          ? '<div class="wabun1-sub-comment"><div class="wabun1-sub-comment-label">💬 先生からのコメント</div>' + _wabun1Esc(comment) + '</div>'
-          : '';
-        return '<div class="wabun1-sub-card">' +
-                 '<div class="wabun1-sub-header">' +
-                   '<span class="wabun1-sub-ts">' + _wabun1Esc(s.timestamp || '') + '</span>' +
-                   '<span>' + methodLabel + '</span>' +
-                 '</div>' +
-                 '<div class="wabun1-sub-work">' + _wabun1Esc(s.work || '') + '</div>' +
-                 commentHtml +
-               '</div>';
-      }).join('');
-    }).catch(function(){ listEl.innerHTML = '<div class="wabun1-past-empty">エラーが発生しました。</div>'; });
   }
 
   function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
