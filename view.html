@@ -612,12 +612,23 @@
         sgCell = '<span class="child-status-ng">❌</span>';
       }
 
+      // 和文英訳①
+      var wbCell;
+      if (d.wabun1 && d.wabun1.done) {
+        var hp = Number(d.wabun1.hpGained || 0);
+        var hpLabel = hp > 0 ? ' <span style="color:#555;font-size:13px">全問正解（' + hp.toLocaleString() + 'HP獲得）</span>' : ' <span style="color:#555;font-size:13px">全問正解</span>';
+        wbCell = '<span class="child-status-ok">✅</span>' + hpLabel;
+      } else {
+        wbCell = '<span class="child-status-ng">❌</span>';
+      }
+
       return '<div class="child-day-card">' +
                '<div class="child-day-header">' + _esc(header) + '</div>' +
                '<div class="child-day-body">' +
                  '<div class="child-row"><div class="child-row-label">ログイン</div><div class="child-row-value">' + loginCell + '</div></div>' +
                  '<div class="child-row"><div class="child-row-label">英単語RUSH</div><div class="child-row-value">' + eiCell + '</div></div>' +
                  '<div class="child-row"><div class="child-row-label">三語短文</div><div class="child-row-value">' + sgCell + '</div></div>' +
+                 '<div class="child-row"><div class="child-row-label">和文英訳①</div><div class="child-row-value">' + wbCell + '</div></div>' +
                '</div>' +
              '</div>';
     }).join('');
