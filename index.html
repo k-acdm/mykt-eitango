@@ -763,6 +763,13 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
   </div>
 </div>
+<div id="screen-sango-done" class="screen">
+  <header><h1>✅ 提出完了</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div id="sango-done-body"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
+  </div>
+</div>
 <div id="screen-wabun1-topic" class="screen">
   <header><h1>📝 和文英訳①</h1><span id="wabun1-date-label"></span></header>
   <div class="container" style="padding-top:16px">
@@ -1446,10 +1453,10 @@
     gasGet({ action:'submitSango', studentId:_studentId, level:_sangoCurrentLevel, words:words, work:val, method:'text' }).then(function(res) {
       if (!res || !res.ok) { showMsg('sango-text-msg', (res && res.message) || '送信に失敗しました。', 'ng'); btn.disabled = false; return; }
       var hp = Number(res.hpGained || 0);
-      var msg = hp > 0 ? '🎉 提出完了！+' + hp + 'HPをゲットしました！' : '✅ 提出完了！（本日のHP加算は済んでいます）';
-      showMsg('sango-text-msg', msg, 'ok');
       document.getElementById('sango-text-input').value = '';
-      setTimeout(function(){ showScreen('screen-sango-topic'); }, 1800);
+      document.getElementById('sango-text-msg').style.display = 'none';
+      btn.disabled = false;
+      _showSangoDone(hp, hp === 0);
     }).catch(function(){ showMsg('sango-text-msg', 'エラーが発生しました。', 'ng'); btn.disabled = false; });
   }
   function startSangoPhotoSubmit() {
@@ -1516,11 +1523,38 @@
     gasGet({ action:'submitSango', studentId:_studentId, level:_sangoCurrentLevel, words:words, work:_sangoOcrText, method:'photo' }).then(function(res) {
       if (!res || !res.ok) { showMsg('sango-photo-msg', (res && res.message) || '送信に失敗しました。', 'ng'); return; }
       var hp = Number(res.hpGained || 0);
-      var msg = hp > 0 ? '🎉 提出完了！+' + hp + 'HPをゲットしました！' : '✅ 提出完了！（本日のHP加算は済んでいます）';
-      showMsg('sango-photo-msg', msg, 'ok');
       document.getElementById('sango-ocr-confirm').style.display = 'none';
-      setTimeout(function(){ showScreen('screen-sango-topic'); }, 1800);
+      document.getElementById('sango-photo-msg').style.display = 'none';
+      _resetSangoPhoto();
+      _showSangoDone(hp, hp === 0);
     }).catch(function(){ showMsg('sango-photo-msg', 'エラーが発生しました。', 'ng'); });
+  }
+
+  function _showSangoDone(hp, alreadyGranted) {
+    var bodyEl = document.getElementById('sango-done-body');
+    var confetti = '';
+    var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
+    for (var i = 0; i < 8; i++) {
+      var left = Math.floor(Math.random() * 90) + 5;
+      var delay = (Math.random() * 0.6).toFixed(2);
+      confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i] + '</span>';
+    }
+    var hpBlock = alreadyGranted
+      ? '<div class="wabun1-result-already">（本日のHPは既に獲得済みです）</div>'
+      : '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="sango-done-hp-num">0</span> HP 獲得！</div>';
+    bodyEl.innerHTML =
+      '<div class="wabun1-result-success">' +
+        '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
+        '<div style="font-size:52px">🎉</div>' +
+        '<div class="wabun1-result-title">提出完了！よくがんばりました！</div>' +
+        hpBlock +
+      '</div>';
+    showScreen('screen-sango-done');
+    if (!alreadyGranted && hp > 0) {
+      var numEl = document.getElementById('sango-done-hp-num');
+      if (numEl) _wabun1AnimateHp(numEl, hp, 1000);
+    }
+    try { playSfx('chime'); } catch(e){}
   }
 
   // ----- 過去のお題と福地の作品（直近1週間） -----

@@ -1570,7 +1570,8 @@ function getChildActivityRecent(params) {
         weekday: wd,
         login: false,
         eitango: { done: false, details: [] },
-        sango:   { done: false, level: null, timestamp: null }
+        sango:   { done: false, level: null, timestamp: null },
+        wabun1:  { done: false, hpGained: 0 }
       };
     }
 
@@ -1593,6 +1594,10 @@ function getChildActivityRecent(params) {
         if      (type === 'login') byDate[ds].login = true;
         else if (type === 'test')  byDate[ds].eitango.done = true;
         else if (type === 'sango') byDate[ds].sango.done   = true;
+        else if (type === 'wabun1') {
+          byDate[ds].wabun1.done = true;
+          byDate[ds].wabun1.hpGained = Number(r[2]) || 0;
+        }
       }
     }
 
