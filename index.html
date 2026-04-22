@@ -340,9 +340,17 @@
     .wabun1-wordlist { background:#f0fdf4; border-radius:12px; padding:12px 16px; border-left:4px solid #10b981; margin-bottom:10px; }
     .wabun1-wordlist-item { font-size:14px; color:#065f46; margin:4px 0; line-height:1.7; }
     .wabun1-submit-big { background:linear-gradient(135deg,#b28dff,#7c4fff) !important; font-size:18px !important; padding:18px !important; box-shadow:0 6px 18px rgba(124,79,255,.35); }
-    .wabun1-fixed-tip { background:linear-gradient(135deg,#fef3c7,#fde68a); border:2px solid #f59e0b; border-radius:12px; padding:14px 16px; margin-top:20px; color:#78350f; }
-    .wabun1-fixed-title { font-size:15px; font-weight:bold; margin-bottom:8px; color:#c2410c; }
-    .wabun1-fixed-body { font-size:13px; line-height:1.85; }
+    .wabun1-fixed-tip { background:#E3F2FD; border:2px solid #1976D2; border-radius:12px; padding:18px 20px; margin-top:20px; color:#0d2540; }
+    .wabun1-fixed-title { font-size:16px; font-weight:bold; margin-bottom:10px; color:#c2410c; }
+    .wabun1-fixed-body { font-size:14px; line-height:1.9; }
+    .wabun1-keyphrase { color:#1565C0; font-weight:bold; }
+    .wabun1-example-bad { font-family:Consolas,Menlo,"Courier New",monospace; color:#D32F2F; margin:4px 0 4px 1.2em; font-size:14px; }
+    .wabun1-example-good { font-family:Consolas,Menlo,"Courier New",monospace; color:#388E3C; margin:4px 0 4px 1.2em; font-size:14px; }
+    .wabun1-fixed-grading { background:#F3E5F5; border:2px solid #9C27B0; border-radius:12px; padding:20px 22px; margin:20px 0; color:#311b44; }
+    .wabun1-fixed-grading-title { font-size:17px; font-weight:bold; color:#6A1B9A; margin-bottom:12px; }
+    .wabun1-fixed-grading-body { font-size:14px; line-height:1.9; }
+    .wabun1-fixed-grading-body p { margin:0 0 12px; }
+    .wabun1-fixed-grading-body p:last-child { margin-bottom:0; }
     .wabun1-fixed-encourage { text-align:center; font-size:18px; line-height:1.95; font-weight:bold; color:#7c2d12; background:#fff5e6; border:2px solid #fb923c; border-radius:12px; padding:20px 22px; margin:20px 0; box-shadow:0 2px 8px rgba(251,146,60,.15); }
     .wabun1-videos { margin-top:16px; }
     .wabun1-videos-title { font-size:15px; font-weight:bold; color:#dc2626; margin-bottom:10px; text-align:center; }
@@ -779,8 +787,26 @@
     <img id="wabun1-photo-preview" class="photo-preview" style="display:none;margin-top:10px"/>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:14px;color:#6d2c4a" onclick="showWabun1Past()">📚 過去の問題と正解</button>
     <div class="wabun1-fixed-tip">
-      <div class="wabun1-fixed-title">🔴注目！ ＜英語の名詞の使い方＞</div>
-      <div class="wabun1-fixed-body">英語では、「数えられる名詞の単数形」の前に何も付けずに使うのは、原則NGです。<br>日本語の方に特に何もついてない場合は、「a (an) を付ける」か「複数形にする」のどちらかにしてください。<br>例）「私はペンを持っている」・・ I have pen. →「×」 / I have a pen. →「○」 / I have pens. →「○」</div>
+      <div class="wabun1-fixed-title">🔴 注目！ ＜英語の名詞の使い方＞</div>
+      <div class="wabun1-fixed-body">
+        英語では、<span class="wabun1-keyphrase">「数えられる名詞の単数形」</span>の前に何も付けずに使うのは、原則NGです。<br>
+        日本語の方に特に何もついてない場合は、<br>
+        ❶<span class="wabun1-keyphrase">「a (an) を付ける」</span><br>
+        ❷<span class="wabun1-keyphrase">「複数形にする」</span><br>
+        のどちらかにしてください。<br>
+        【例】「私はペンを持っている」
+        <div class="wabun1-example-bad">❌ I have pen.</div>
+        <div class="wabun1-example-good">⭕ I have a pen.</div>
+        <div class="wabun1-example-good">⭕ I have pens.</div>
+      </div>
+    </div>
+    <div class="wabun1-fixed-grading">
+      <div class="wabun1-fixed-grading-title">📝 採点について</div>
+      <div class="wabun1-fixed-grading-body">
+        <p>和文英訳①の採点は、正解と完全に一致している場合のみ⭕となります。英文では、大文字・小文字・ピリオドの有無まで。そして、日本語で答える問題も、一字一句、言葉の順序に至るまで隅々までチェックします。</p>
+        <p>あえてここまで厳しくする理由は、ここが英語の勉強の最大の「肝」となる部分だから。ここで、「いい加減」や「何となく」を一切排除することが、この先「苦労知らず」で英語を学習していけることにつながります。</p>
+        <p>何事も最初が肝心。細かいところまで正確にやれる力を、今のうちに身につけよう！</p>
+      </div>
     </div>
     <div class="wabun1-fixed-encourage">毎日地道にコツコツと<br>これが何よりも大切なこと💍<br><br>ただし、「ただ作業的に」やるのは<br>全く意味がありません💥<br><br>「これがこうだからこうなる」ということを<br>頭で考え、手を動かし、<br>日々の問題を解いていってください<br>✨✨✨</div>
     <div class="wabun1-videos">
