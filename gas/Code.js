@@ -1665,12 +1665,13 @@ function _normalizeWabun1(s) {
 }
 
 // OCR テキストから番号区切りで各タスクの解答を抽出
-// 対応マーカー: "1." "1．" "１." "１．" "(1)" "（1）" "(１)" "（１）"
+// 対応マーカー: "1." "1．" "1," "1、" "1)" "1）" "1 " "1\n" "(1)" "（1）"
+// （半角/全角数字・区切り記号を寛容に認識。フロント _wabun1CheckNumbers と regex を統一）
 function _parseWabun1Work(text) {
   const out = { 1:'', 2:'', 3:'', 4:'' };
   if (!text) return out;
   const t = '\n' + String(text);
-  const re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])\s*[.．])\s*/g;
+  const re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?:[.．,、)）]|(?=\s)))\s*/g;
   const markers = [];
   let m;
   while ((m = re.exec(t)) !== null) {
