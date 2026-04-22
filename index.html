@@ -1829,6 +1829,18 @@
     showScreen('screen-wabun1-topic');
   }
 
+  function retakeWabun1PhotoFromResult() {
+    _wabun1State.ocrText = '';
+    var input = document.getElementById('wabun1-photo-input');
+    if (input) input.value = '';
+    var preview = document.getElementById('wabun1-photo-preview');
+    if (preview) { preview.style.display = 'none'; preview.src = ''; }
+    var msg = document.getElementById('wabun1-camera-msg');
+    if (msg) msg.style.display = 'none';
+    showScreen('screen-wabun1-topic');
+    setTimeout(function(){ if (input) input.click(); }, 50);
+  }
+
   function submitWabun1Answer() {
     if (_wabun1State.submitting) return;
     if (!_wabun1State.ocrText) return;
@@ -1900,7 +1912,7 @@
           hint +
         '</div>' +
         '<button class="btn-wide" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);margin-top:14px" onclick="showWabun1Answers()">💡 正解を表示する</button>' +
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#b28dff,#7c4fff);margin-top:8px" onclick="document.getElementById(\'wabun1-photo-input\').click()">📸 もう一度撮影する</button>';
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#b28dff,#7c4fff);margin-top:8px" onclick="retakeWabun1PhotoFromResult()">📸 もう一度撮影する</button>';
       showScreen('screen-wabun1-result');
     }
   }
