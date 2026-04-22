@@ -570,6 +570,14 @@
 - **4/27 月**: 本番運用開始
 - **その他**: 問題データの用意（ふくちさん作業、4/27〜5/3 の 1 週間分）、運用開始前の告知文、マニュアル v4 作成（TOC 付き、呼称は「マイ活アプリ（旧：マイ活アプリ＜英単語＞）」）
 
+### 2026-04-23
+
+#### 39. 塾PC 移行時の worktree 整理
+- 前日（自宅PC）分が `origin/dev` に push 済み（22 コミット：#35-38）。塾PC ローカルは未取得だった
+- 旧 dev worktree `tender-payne-6a1afc`（塾PC で作成、未コミット無し / origin/dev より 22 遅れ）を `git worktree remove` で削除
+- 現セッション worktree `elated-swartz-2ed7dc` を `git switch dev` で dev に切替、`git pull --ff-only origin dev` で 22 コミット fast-forward
+- 以降の作業はこの worktree（dev ブランチ直）で継続。塾PC 側では他に `claude/*` ローカルブランチ無し（整理済み）
+
 ---
 
 ## TODO（未反映の GAS 側作業）
