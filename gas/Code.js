@@ -81,6 +81,7 @@ function _cacheLog(key, kind, extra) {
     if (kind === 'hit')             console.log('[cache HIT]  ' + key);
     else if (kind === 'miss')       console.log('[cache MISS] ' + key + (extra ? ' ' + extra : ''));
     else if (kind === 'invalidate') console.log('[cache INV]  ' + key);
+    else if (kind === 'update')     console.log('[cache UPD]  ' + key + (extra ? ' ' + extra : ''));
   } catch(e) { /* ログ失敗でリクエストは絶対に落とさない */ }
 }
 
@@ -125,6 +126,53 @@ function _invalidateCacheAll(keys) {
   } catch(e) { /* ignore */ }
 }
 
+// =============================================
+// Students シートキャッシュ（Day 2 Stage 2 / G1）
+// =============================================
+// ログイン・提出・ニックネーム変更など書き込み系のホットパスが毎回全件読みで
+// 300ms ほどかかっていたのを削減。TTL 6 時間。書き込み後は in-place で
+// キャッシュを更新するため、次回読み取りも cache hit を維持できる。
+function _getStudentsValues() {
+  return _getCachedValues('cache_students_values', 21600, function() {
+    const sh = _ss().getSheetByName(SHEET_STUDENTS);
+    if (!sh || sh.getLastRow() < 2) return [];
+    return sh.getDataRange().getValues();
+  });
+}
+
+// Students キャッシュを書き込み後に in-place 更新する
+// - rowIdx: 0-based index（ヘッダー行含む / 行番号 - 1 ではなく getValues() の添字）
+// - updates: { [colIdx]: newValue, ... }（colIdx は 0-based 列番号）
+// - キャッシュ未保持（miss 済 or 未取得）なら no-op。次回 read で fresh に取得される
+// - JSON シリアライズが 95KB を超える場合は invalidate にフォールバック
+// - 例外時は invalidate にフォールバック（データ不整合を残さない）
+function _updateStudentsCacheRow(rowIdx, updates) {
+  const KEY = 'cache_students_values';
+  try {
+    const cache = CacheService.getScriptCache();
+    const hit = cache.get(KEY);
+    if (!hit) return; // 未保持 → 次回 read で miss → 再取得でよい
+    const values = JSON.parse(hit);
+    if (!values[rowIdx]) return;
+    Object.keys(updates).forEach(function(k){
+      values[rowIdx][parseInt(k, 10)] = updates[k];
+    });
+    const ser = JSON.stringify(values);
+    if (ser.length < 95000) {
+      cache.put(KEY, ser, 21600);
+      _cacheLog(KEY, 'update', 'row=' + rowIdx);
+    } else {
+      cache.remove(KEY);
+      _cacheLog(KEY, 'invalidate', 'update skip: size=' + ser.length);
+    }
+  } catch(e) {
+    try {
+      CacheService.getScriptCache().remove(KEY);
+      _cacheLog(KEY, 'invalidate', 'update failed: ' + e);
+    } catch(_) {}
+  }
+}
+
 // 診断ログを有効化（GAS エディタから直接実行）
 // 実行後、各リクエストの Executions ログに [cache HIT/MISS/INV] が出力される
 function enableDebugCache() {
@@ -163,7 +211,8 @@ function clearAllCache() {
       'cache_wabun1_topics_values',
       'cache_quote_values',
       'cache_notice_values',
-      'cache_ranking_last_week'
+      'cache_ranking_last_week',
+      'cache_students_values'
     ];
     CacheService.getScriptCache().removeAll(keys);
     return { ok: true, cleared: keys.length };
@@ -260,9 +309,9 @@ function doPost(e) {
 // =============================================
 function loginStudent(studentId) {
   try {
-    const sheet = _ss().getSheetByName(SHEET_STUDENTS);
-    if (!sheet) return { ok: false, message: 'Studentsシートが見つかりません。' };
-    const rows  = sheet.getDataRange().getValues();
+    // G1: Students キャッシュから読む（cold miss 時のみ全件読み）
+    const rows = _getStudentsValues();
+    if (!rows || rows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません。' };
     const today = _todayJST();
     const now   = _nowJST();
 
@@ -296,10 +345,19 @@ function loginStudent(studentId) {
           streak = 1;     // 2日以上空いたのでリセット
         }
 
-        sheet.getRange(i + 1, COL_HP         + 1).setValue(currentHP);
-        sheet.getRange(i + 1, COL_STREAK     + 1).setValue(streak);
-        sheet.getRange(i + 1, COL_LAST_LOGIN + 1).setValue(today);
-        sheet.getRange(i + 1, COL_UPDATED    + 1).setValue(now);
+        // G2: UPDATED(4)〜LAST_LOGIN(8) を 5 列一括 setValues で書き込み
+        //     LAST_TEST(7) は既存値を保持する（loginStudent では更新しない列）
+        //     従来 4 回 setValue（~800ms）→ 1 回 setValues（~200ms）
+        const sheet = _ss().getSheetByName(SHEET_STUDENTS);
+        const preservedLastTest = rows[i][COL_LAST_TEST];
+        sheet.getRange(i + 1, COL_UPDATED + 1, 1, COL_LAST_LOGIN - COL_UPDATED + 1)
+             .setValues([[now, currentHP, streak, preservedLastTest, today]]);
+        const updates = {};
+        updates[COL_UPDATED]    = now;
+        updates[COL_HP]         = currentHP;
+        updates[COL_STREAK]     = streak;
+        updates[COL_LAST_LOGIN] = today;
+        _updateStudentsCacheRow(i, updates);
         _logHP(studentId, loginBonus, 'login');
       }
 
@@ -422,12 +480,18 @@ function _calcStage(streak, missedDays, prevDayCount) {
 // =============================================
 function saveNickname(studentId, nickname) {
   try {
-    const sheet = _ss().getSheetByName(SHEET_STUDENTS);
-    const rows  = sheet.getDataRange().getValues();
+    // G1: キャッシュ経由で読み、書き込み後にキャッシュを in-place 更新
+    const rows = _getStudentsValues();
+    if (!rows || rows.length < 2) return { ok: false, message: '生徒IDが見つかりません。' };
+    const trimmed = nickname.trim();
     for (let i = 1; i < rows.length; i++) {
       if (String(rows[i][COL_ID]).trim() !== String(studentId).trim()) continue;
-      sheet.getRange(i + 1, COL_NICKNAME + 1).setValue(nickname.trim());
-      return { ok: true, nickname: nickname.trim() };
+      const sheet = _ss().getSheetByName(SHEET_STUDENTS);
+      sheet.getRange(i + 1, COL_NICKNAME + 1).setValue(trimmed);
+      const updates = {};
+      updates[COL_NICKNAME] = trimmed;
+      _updateStudentsCacheRow(i, updates);
+      return { ok: true, nickname: trimmed };
     }
     return { ok: false, message: '生徒IDが見つかりません。' };
   } catch (err) {
@@ -503,15 +567,14 @@ function getTodaysSet(studentId, level) {
 function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
   try {
     const aSheet = _ss().getSheetByName(SHEET_ATTEMPTS);
-    const sSheet = _ss().getSheetByName(SHEET_STUDENTS);
     const now    = _nowJST();
     const today  = _todayJST();
     const sid    = String(studentId).trim();
     const lv     = String(level || '4級').trim();
     const sNo    = Number(sessionNo) || 1;
 
-    // Studentsシートから氏名を取得 ＋ HP計算用の行インデックスを記憶
-    const sRows = sSheet.getDataRange().getValues();
+    // G1: Studentsシートをキャッシュ経由で読む
+    const sRows = _getStudentsValues();
     let studentRowIdx = -1;
     let studentName   = '';
     for (let i = 1; i < sRows.length; i++) {
@@ -545,13 +608,21 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     const hpGained  = 50 * week * week;
     const newHP     = currentHP + hpGained;
 
+    // G2: CLEARED(3)〜LAST_TEST(7) の 5 列を一括 setValues で書き込み
+    //     STREAK(6) は既存値を保持（saveAttempt では更新しない列）
+    //     従来 最大 4 回 setValue（~800ms）→ 1 回 setValues（~200ms）
     const currentCleared = Number(sRows[i][COL_CLEARED]) || 0;
-    if (setNo > currentCleared) {
-      sSheet.getRange(i + 1, COL_CLEARED + 1).setValue(setNo);
-    }
-    sSheet.getRange(i + 1, COL_HP        + 1).setValue(newHP);
-    sSheet.getRange(i + 1, COL_LAST_TEST + 1).setValue(today);
-    sSheet.getRange(i + 1, COL_UPDATED   + 1).setValue(now);
+    const newCleared = (setNo > currentCleared) ? setNo : currentCleared;
+    const preservedStreak = sRows[i][COL_STREAK];
+    const sSheet = _ss().getSheetByName(SHEET_STUDENTS);
+    sSheet.getRange(i + 1, COL_CLEARED + 1, 1, COL_LAST_TEST - COL_CLEARED + 1)
+          .setValues([[newCleared, now, newHP, preservedStreak, today]]);
+    const updates = {};
+    updates[COL_CLEARED]   = newCleared;
+    updates[COL_UPDATED]   = now;
+    updates[COL_HP]        = newHP;
+    updates[COL_LAST_TEST] = today;
+    _updateStudentsCacheRow(i, updates);
     _logHP(sid, hpGained, 'test');
     _invalidateCache('cache_ranking_last_week');
 
@@ -615,14 +686,13 @@ function getWeeklyRanking() {
     }
     const ss       = _ss();
     const logSheet = ss.getSheetByName(SHEET_HPLOG);
-    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
-    if (!stuSheet) return { ok: false, message: 'Studentsシートが見つかりません。' };
 
     const range = _getLastWeekRange();
     const HP_PER_TEST = 50;
 
-    // 生徒マスタ（ニックネーム・累積HP）
-    const stuRows = stuSheet.getDataRange().getValues();
+    // 生徒マスタ（G1: キャッシュ経由）
+    const stuRows = _getStudentsValues();
+    if (!stuRows || stuRows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません。' };
     const stuMap  = {};
     for (let i = 1; i < stuRows.length; i++) {
       const sid = String(stuRows[i][COL_ID]).trim();
@@ -873,15 +943,16 @@ function _getWordsQ4(rowsOfLevel, setNo, lv) {
 function submitExchange(studentId, rank) {
   try {
     const ss       = _ss();
-    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
     const exSheet  = ss.getSheetByName(SHEET_EXCHANGES);
-    if (!stuSheet || !exSheet) return { ok: false, message: 'シートが見つかりません。' };
+    if (!exSheet) return { ok: false, message: 'シートが見つかりません。' };
 
     const rankDef = EXCHANGE_RANKS[rank];
     if (!rankDef) return { ok: false, message: '不明なランクです。' };
 
     const sid  = String(studentId).trim();
-    const rows = stuSheet.getDataRange().getValues();
+    // G1: Students はキャッシュ経由
+    const rows = _getStudentsValues();
+    if (!rows || rows.length < 2) return { ok: false, message: 'シートが見つかりません。' };
 
     let currentHP = 0, nickname = '';
     for (let i = 1; i < rows.length; i++) {
@@ -915,11 +986,11 @@ function getExchangeStatus(studentId) {
   try {
     const sid      = String(studentId).trim();
     const ss       = _ss();
-    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
     const exSheet  = ss.getSheetByName(SHEET_EXCHANGES);
 
+    // G1: Students はキャッシュ経由
     let currentHP = 0;
-    const stuRows = stuSheet.getDataRange().getValues();
+    const stuRows = _getStudentsValues();
     for (let i = 1; i < stuRows.length; i++) {
       if (String(stuRows[i][COL_ID]).trim() === sid) {
         currentHP = Number(stuRows[i][COL_HP]) || 0; break;
@@ -1088,9 +1159,9 @@ function adminAddNotice(params) {
 function adminListStudents(params) {
   try {
     if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
-    const sh = _ss().getSheetByName(SHEET_STUDENTS);
-    if (!sh || sh.getLastRow() < 2) return { ok: true, students: [] };
-    const values = sh.getDataRange().getValues();
+    // G1: Students はキャッシュ経由
+    const values = _getStudentsValues();
+    if (!values || values.length < 2) return { ok: true, students: [] };
     const students = [];
     for (let i = 1; i < values.length; i++) {
       const sid = String(values[i][COL_ID] || '').trim();
@@ -1194,10 +1265,9 @@ function getStudentView(params) {
     const sid = String(params.studentId || '').trim();
     if (!sid) return { ok: false, message: '生徒IDを入力してください' };
 
-    const sh = _ss().getSheetByName(SHEET_STUDENTS);
-    if (!sh) return { ok: false, message: 'Studentsシートが見つかりません' };
-
-    const rows = sh.getDataRange().getValues();
+    // G1: Students はキャッシュ経由
+    const rows = _getStudentsValues();
+    if (!rows || rows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません' };
     for (let i = 1; i < rows.length; i++) {
       if (String(rows[i][COL_ID]).trim() !== sid) continue;
       const nickname = (String(rows[i][COL_NICKNAME] || '').trim()) || '名無し';
@@ -1343,9 +1413,9 @@ function submitSango(params) {
     if (!sid || !level || !work) return { ok: false, message: '必要な情報が不足しています' };
 
     const ss = _ss();
-    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
-    if (!stuSheet) return { ok: false, message: 'Studentsシートが見つかりません' };
-    const stuRows = stuSheet.getDataRange().getValues();
+    // G1: Students はキャッシュ経由
+    const stuRows = _getStudentsValues();
+    if (!stuRows || stuRows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません' };
     let studentName = '';
     let stuRowIdx = -1;
     for (let i = 1; i < stuRows.length; i++) {
@@ -1386,7 +1456,12 @@ function submitSango(params) {
       hpGained = 200 * week * week;
       if (stuRowIdx >= 0) {
         const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
-        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(cur + hpGained);
+        const newHP = cur + hpGained;
+        const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
+        const upd = {};
+        upd[COL_HP] = newHP;
+        _updateStudentsCacheRow(stuRowIdx, upd);
       }
       if (logSheet) logSheet.appendRow([now, sid, hpGained, 'sango']);
       _invalidateCache('cache_ranking_last_week');
@@ -1469,10 +1544,10 @@ function adminListSangoSubmissions(params) {
     const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
     if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
 
+    // G1: Students はキャッシュ経由
     const nameMap = {};
-    const stuSheet = _ss().getSheetByName(SHEET_STUDENTS);
-    if (stuSheet && stuSheet.getLastRow() >= 2) {
-      const stuRows = stuSheet.getDataRange().getValues();
+    const stuRows = _getStudentsValues();
+    if (stuRows && stuRows.length >= 2) {
       for (let i = 1; i < stuRows.length; i++) {
         const sid = String(stuRows[i][COL_ID] || '').trim();
         if (!sid) continue;
@@ -1966,9 +2041,9 @@ function submitWabun1(params) {
     const allCorrect = results.length > 0 && results.every(function(r){ return r.correct; });
 
     const ss = _ss();
-    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
-    if (!stuSheet) return { ok: false, message: 'Studentsシートが見つかりません' };
-    const stuRows = stuSheet.getDataRange().getValues();
+    // G1: Students はキャッシュ経由
+    const stuRows = _getStudentsValues();
+    if (!stuRows || stuRows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません' };
     let studentName = '';
     let stuRowIdx = -1;
     for (let i = 1; i < stuRows.length; i++) {
@@ -2008,7 +2083,12 @@ function submitWabun1(params) {
       hpGained = 100 * week * week;
       if (stuRowIdx >= 0) {
         const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
-        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(cur + hpGained);
+        const newHP = cur + hpGained;
+        const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
+        const upd = {};
+        upd[COL_HP] = newHP;
+        _updateStudentsCacheRow(stuRowIdx, upd);
       }
       if (logSheet) logSheet.appendRow([now, sid, hpGained, 'wabun1']);
       _invalidateCache('cache_ranking_last_week');
@@ -2375,10 +2455,10 @@ function adminListWabun1Submissions(params) {
     const sh = _ss().getSheetByName(SHEET_WABUN1_SUBMISSIONS);
     if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
 
+    // G1: Students はキャッシュ経由
     const nameMap = {};
-    const stuSheet = _ss().getSheetByName(SHEET_STUDENTS);
-    if (stuSheet && stuSheet.getLastRow() >= 2) {
-      const stuRows = stuSheet.getDataRange().getValues();
+    const stuRows = _getStudentsValues();
+    if (stuRows && stuRows.length >= 2) {
       for (let i = 1; i < stuRows.length; i++) {
         const sid = String(stuRows[i][COL_ID] || '').trim();
         if (!sid) continue;

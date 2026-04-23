@@ -621,7 +621,7 @@
       <button class="level-btn disabled" onclick="showComingSoonLevel('1級')"><span>📒 英検１級レベル</span><span class="badge-coming">準備中</span></button>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60);margin-top:20px" onclick="showHistory()">📖 今までの単語をおさらいする</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showScreen('screen-welcome')">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-today" class="screen">
@@ -696,21 +696,21 @@
       </div>
       <button class="btn-wide" style="margin-top:14px;background:linear-gradient(135deg,#2ecc71,#27ae60)" onclick="testVoice()">🔊 選択中の音声を試聴する</button>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:4px" onclick="showScreen('screen-welcome')">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:4px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-history" class="screen">
   <header><h1>📖 今までのおさらい</h1><span id="history-student"></span></header>
   <div class="container" style="padding-top:16px">
     <div id="history-list"><div class="loading">⏳ 読み込み中...</div></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showScreen('screen-welcome')">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-notice-history" class="screen">
   <header><h1>📜 過去の連絡事項</h1></header>
   <div class="container" style="padding-top:16px">
     <div id="notice-history-list"><div class="loading">⏳ 読み込み中...</div></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showScreen('screen-welcome')">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-sango-topic" class="screen">
@@ -958,6 +958,8 @@
   ];
   var _voiceIdx = 0;
   var _finishing = false;
+  // セッション中の最新HPを保持（各HP獲得アクション後に追従更新して、ホーム画面に戻ったときに反映）
+  var _totalHP = 0;
   try { _voiceIdx = parseInt(localStorage.getItem('maika_voice') || '0', 10) || 0; } catch(e) {}
 
   var _wsVoices = [];
@@ -1192,6 +1194,7 @@
       document.getElementById('login-btn').disabled = false;
       if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
       _studentId = res.studentId;
+      _totalHP   = Number(res.totalHP) || 0;
       res.isFirstLogin ? showScreen('screen-nickname') : showWelcome(res.nickname, res.totalHP, res.loginBonus, res.stage, res.streak, res.title, res.milestone);
     }).catch(function(){ document.getElementById('login-btn').disabled = false; showMsg('login-msg','エラーが発生しました。','ng'); });
   }
@@ -1201,6 +1204,7 @@
     if (!nn) { showMsg('nickname-msg','ニックネームを入力してください。','ng'); return; }
     gasGet({ action:'saveNickname', studentId:_studentId, nickname:nn }).then(function(res){
       if (!res.ok) { showMsg('nickname-msg', res.message, 'ng'); return; }
+      _totalHP = 10;  // 初回ニックネーム保存 = 初ログインボーナス 10HP
       showWelcome(res.nickname, 10, 10, 4, 1, 'マイカツ見習い', null);
     }).catch(function(){ showMsg('nickname-msg','エラーが発生しました。','ng'); });
   }
@@ -1394,6 +1398,7 @@
   function showResult(passed, saveRes) {
     showScreen('screen-result');
     var total = _questions.length, totalHP = saveRes?(saveRes.totalHP||0):0, streak = saveRes?(saveRes.streak||0):0, clearHP = saveRes?(saveRes.clearHP||0):0, isSession1 = (_sessionNo===1);
+    if (saveRes && saveRes.totalHP) _totalHP = saveRes.totalHP;  // 次回ホーム表示のために最新HPを保持
     var msgs = ['🎉 完璧！満点合格おめでとう！','✨ 素晴らしい！全問正解！','🏆 やったね！満点クリア！'];
     document.getElementById('result-container').innerHTML =
       '<div class="result-card"><div class="badge">🏆</div><div class="verdict pass">満点合格！</div><div class="score-display">'+_score+' / '+total+'</div><div class="score-sub">英検'+_level+'レベル｜セット '+_setNo+'（'+(isSession1?'1セット目':'2セット目')+'）</div><div class="result-msg">'+msgs[_score%3]+'</div></div>' +
@@ -1431,6 +1436,9 @@
   function goHome() {
     _stopAudio();
     _historyMode = false;
+    // コンテンツ遷移で HP を獲得していればホーム画面の表示に反映
+    var hpEl = document.getElementById('welcome-hp');
+    if (hpEl && typeof _totalHP === 'number') hpEl.textContent = _totalHP.toLocaleString();
     showScreen('screen-welcome');
   }
   function doLogout() {
@@ -1439,7 +1447,7 @@
     window.removeEventListener('popstate', popstateHandler);
     _stopAudio();
     _studentId = null; _questions = []; _score = 0; _current = 0;
-    _historyMode = false; _finishing = false;
+    _historyMode = false; _finishing = false; _totalHP = 0;
     try { document.getElementById('login-id').value = ''; } catch(e){}
     showScreen('screen-login');
   }
@@ -1534,6 +1542,7 @@
     gasGet({ action:'submitSango', studentId:_studentId, level:_sangoCurrentLevel, words:words, work:val, method:'text' }).then(function(res) {
       if (!res || !res.ok) { showMsg('sango-text-msg', (res && res.message) || '送信に失敗しました。', 'ng'); btn.disabled = false; return; }
       var hp = Number(res.hpGained || 0);
+      if (hp > 0) _totalHP += hp;  // 次回ホーム表示のために最新HPを追従
       document.getElementById('sango-text-input').value = '';
       document.getElementById('sango-text-msg').style.display = 'none';
       btn.disabled = false;
@@ -1604,6 +1613,7 @@
     gasGet({ action:'submitSango', studentId:_studentId, level:_sangoCurrentLevel, words:words, work:_sangoOcrText, method:'photo' }).then(function(res) {
       if (!res || !res.ok) { showMsg('sango-photo-msg', (res && res.message) || '送信に失敗しました。', 'ng'); return; }
       var hp = Number(res.hpGained || 0);
+      if (hp > 0) _totalHP += hp;  // 次回ホーム表示のために最新HPを追従
       document.getElementById('sango-ocr-confirm').style.display = 'none';
       document.getElementById('sango-photo-msg').style.display = 'none';
       _resetSangoPhoto();
@@ -1972,6 +1982,7 @@
   function _showWabun1Result(res) {
     var bodyEl = document.getElementById('wabun1-result-body');
     var hp = Number(res.hpGained || 0);
+    if (hp > 0) _totalHP += hp;  // 次回ホーム表示のために最新HPを追従
     if (res.allCorrect) {
       var confetti = '';
       var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
