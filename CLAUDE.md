@@ -765,6 +765,102 @@
   - 管理画面の動作確認
   - 基礎計算コンテンツの企画・実装（ユーザー指示で着手予定）
 
+#### 57. 自宅PC移行時の `clasp pull` 事故と修復（朝の作業）
+- **事象**: 塾PC→自宅PC 切替時、GAS エディタでの新バージョンデプロイを忘れたまま `clasp pull` した結果、**Day 1 未デプロイの古い GAS コードがローカルに降ってきて main worktree の `gas/Code.js` が Day 1 適用前の状態に戻る事故**が発生
+- **検出**: Claude Code が `git status` で main worktree 側に「Day 1 revert 方向の大きな未コミット差分」を発見し、クラスパ pull 事故と推測
+- **修復手順**（ユーザー実施）:
+  1. main worktree で `git checkout -- gas/Code.js` で未コミット差分を破棄
+  2. dev（Stage 1 コミット + CLAUDE.md 運用ルール追記を含む）を main に `--no-ff` マージ
+  3. `git pull origin main`
+  4. `clasp push` で Day 1 + Stage 1 を一気に GAS へ反映
+  5. GAS エディタで新バージョンをデプロイ
+- **再発防止ルール追記**（CLAUDE.md 運用メモ）: **`clasp pull` は使用しない**。GAS への変更は常に `clasp push` で一方通行。手元の `gas/Code.js` を最新に保ち、それを GAS に反映する運用とする。GAS エディタで直接編集した場合は `gas/Code.js` にも同じ変更を入れてから push する
+
+#### 58. GAS パフォーマンス改善 Day 2 Stage 1: キャッシュ診断ログ（dev `4111958` / `0b3d923` → main `e1616fd`）
+- **目的**: Day 1 のキャッシュが実際に機能しているか可視化（Day 2 改善の invalidation 漏れリスク検知用）
+- **[gas/Code.js](gas/Code.js) 実装**:
+  - `_cacheLog(key, kind, extra)` ヘルパーを追加。`kind` は `'hit' / 'miss' / 'invalidate' / 'update'`
+  - `DEBUG_CACHE` プロパティが `'1'` の時のみ `console.log` 出力。本番時は near-zero cost
+  - `_debugCacheFlag` で 1 リクエストあたり PropertiesService 読み取りを 1 回に抑制
+  - `_getCachedValues` / `_invalidateCache` / `_invalidateCacheAll` を計装
+  - `getWeeklyRanking` / `_getQuestionRowsForLevel` の raw cache 呼び出しも計装
+  - `enableDebugCache()` / `disableDebugCache()` を追加（GAS エディタ関数ドロップダウンから実行してトグル可能）
+
+#### 59. Day 1 + Stage 1 動作確認（実測 + 分析）
+- **計測環境**: GAS Executions 一覧の実行時間列から分布を観察
+- **実測（バージョン77）**:
+  - 0.5〜0.9 秒で終わる処理: 6〜7 件（キャッシュヒット系の読み取り）
+  - 2〜4 秒かかる処理: 6〜7 件（書き込み系、Students 全件読み含む）
+  - 最長: 4.363 秒 / 4.232 秒（loginStudent 系と推測）
+- **体感**: ログイン 1 回目は少し速い / 2 回目は確実に速い / コンテンツ表示はほぼ変化なし
+- **分析結論**: Day 1 は読み取り系に効いたが、**書き込み系（ログイン / 提出）が Students 全件読みで 2〜4 秒残る**。事前分析「Day 1 は書き込み系を改善できていない」が実測で裏付けられた
+- **制約**: GAS エディタ UI 上で個別実行の詳細ログ（cache HIT/MISS 分布）が開けず、分布の直接確認は未達。実測時間の分布からキャッシュは部分的に効いていると判断。UI 制約の代替手段は後日検討
+
+#### 60. GAS パフォーマンス改善 Day 2 Stage 2: Students キャッシュ + setValues 一括化（dev `e6d8398` → main `ffe8624`）
+- **背景**: #59 の実測で書き込み系ボトルネック（Students 全件読み ~300ms × 毎回 + 複数回 setValue ~800ms）が確定
+- **G1: Students シート全体キャッシュ**（[gas/Code.js](gas/Code.js) +131/-51 行）
+  - `_getStudentsValues()` ヘルパーを追加（TTL 6h）
+  - `_updateStudentsCacheRow(rowIdx, updates)` で in-place 更新
+    - 書き込み後も次回読みが cache hit を維持できる（単純 invalidate 方式より高速）
+    - 例外時 / 95KB 超過時は自動で invalidate にフォールバック
+  - 対象 12 関数を `sheet.getDataRange().getValues()` → `_getStudentsValues()` に置換
+    - `loginStudent` / `saveNickname` / `saveAttempt` / `getWeeklyRanking` / `submitExchange` / `getExchangeStatus` / `adminListStudents` / `getStudentView` / `submitSango` / `adminListSangoSubmissions` / `submitWabun1` / `adminListWabun1Submissions`
+- **G2: setValues で 5 列一括書き込み**
+  - `loginStudent`: UPDATED(4)〜LAST_LOGIN(8) の 5 列を 1 回 setValues（LAST_TEST(7) は保持）→ 4 回 setValue から 1 回に
+  - `saveAttempt`: CLEARED(3)〜LAST_TEST(7) の 5 列を 1 回 setValues（STREAK(6) は保持）→ 最大 4 回 setValue から 1 回に
+  - submitSango / submitWabun1 は HP 単発書き込みのため setValue 維持、in-place cache update のみ追加
+- **診断ログ拡張**: `_cacheLog` に `'update'` kind を追加（in-place 更新を `[cache UPD]` で可視化）
+- **`clearAllCache`** のキーリストに `cache_students_values` を追加
+- **期待効果（warm 状態）**: loginStudent 1400→250-500ms、saveAttempt 1900→500-900ms、submit 系 1900→700-1100ms
+
+#### 61. Stage 2 動作確認 → ホーム画面 HP 表示バグ発見
+- **体感速度**: 劇的ではないが許容範囲。書き込み系が確実に軽くなった感触
+- **発見したバグ**: テスト合格 / 三語短文提出 / 和文英訳①提出 いずれも、結果画面では正しい新 HP を表示するが、**ホーム画面に戻ると welcome-hp がログイン時の値のまま**
+- **Claude Code 調査結果**: **Stage 2 のリグレッションではなく pre-existing のフロントエンド表示バグ**
+  - 根拠: Stage 2 の変更範囲は `gas/Code.js` のみ（`git log --oneline -5 -- index.html` で確認）
+  - `welcome-hp` 要素を更新するのは [index.html:1209](index.html:1209) の `showWelcome()` 1 箇所のみ
+  - `showWelcome()` は `doLogin` / `doSaveNickname` からしか呼ばれない
+  - `goHome()` ([index.html:1431](index.html:1431)) は `showScreen('screen-welcome')` を呼ぶだけで HP 再取得・再描画しない
+  - 結果画面の HP（サーバ返値由来）が正しい = `saveAttempt` / `submitSango` / `submitWabun1` は正しく新 HP をサーバから返している = Stage 2 のキャッシュも正常に機能している
+  - これまで「ログイン → テスト → ログアウト」の流れが多かったため気づかれていなかった長年のバグ
+
+#### 62. Option A: ホーム画面 HP 表示バグ修正（dev `387175f` → main `ffe8624`）
+- **方針**: フロントエンド最小修正。サーバコールなし、GAS コード変更なし、Stage 3 以降と非干渉
+- **[index.html](index.html) +16/-5 行**:
+  - `var _totalHP = 0;` を追加（セッション中の最新 HP を in-memory で保持）
+  - `doLogin` 成功時: `_totalHP = res.totalHP`
+  - `doSaveNickname` 成功時: `_totalHP = 10`（初ログインボーナス）
+  - `showResult`: `_totalHP = saveRes.totalHP`（saveAttempt はレスポンスに totalHP を含む）
+  - `submitSangoText` / 三語短文写真提出 / `_showWabun1Result`: `_totalHP += res.hpGained`（これらは hpGained のみ返すため加算追従）
+  - `goHome()`: `welcome-hp` を `_totalHP.toLocaleString()` で再描画
+  - `doLogout`: `_totalHP = 0` にリセット
+  - onclick 4 箇所を `showScreen('screen-welcome')` → `goHome()` に統一（HP リフレッシュを全経路で保証）
+- **動作確認は塾PC 再開時の最初のタスク**（下記 #63 参照）
+
+#### 63. 次回作業予定（塾PC 再開時）
+- **環境情報**:
+  - 自宅PC 作業終了（2026-04-24 夜）、数時間後に塾PC で再開予定
+  - 両 PC とも clasp 導入済み（`git pull` + `clasp pull` は**禁止**、`clasp push` のみで運用）
+  - `DEBUG_CACHE` は ON のまま（塾PC 再開後もログは継続して出る）
+  - GAS Executions の UI 上で詳細ログが開けない問題は**未解決**（代替手段は後日検討）
+- **最優先タスク**: **Option A の動作確認**（#62）
+  - `?v=タイムスタンプ` でキャッシュバスター付き URL を踏み、HTML を強制更新
+  - ログイン → HP 表示確認
+  - テスト合格 → 結果画面 +50HP 確認 → ホーム戻る → HP 加算反映確認
+  - 三語短文提出 → ホーム戻る → さらに +200HP 反映確認
+  - 和文英訳①提出（全問正解）→ ホーム戻る → +100HP 反映確認
+  - 連続提出時も HP が正しく追従するか確認
+- **OK なら Stage 3（F1 プリフェッチ + F2 クライアントキャッシュ）着手**
+  - 期待効果: コンテンツタップ 3000ms → ほぼ 0ms
+  - F1: ログイン後のバックグラウンドプリフェッチ（`getSangoTopic` / `getWabun1Topic` を非同期で先読み）
+  - F2: `cachedGasGet(params, ttlMs)` ラッパーでクライアントセッションキャッシュ
+- **Stage 3 後に判断**: E1（楽観UI）の実装可否
+- **その他の保留タスク**:
+  - 「タップで拡大バグ」の調査・修正
+  - 管理画面の動作確認
+  - 基礎計算コンテンツの企画・実装
+- **Day 2 Priority 3（G3/G4/G6）**: 時間が余れば実装
+
 ---
 
 ## TODO（未反映の GAS 側作業）
