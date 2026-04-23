@@ -53,6 +53,74 @@ function _toDateStr(val) {
 function _props() { return PropertiesService.getScriptProperties(); }
 
 // =============================================
+// パフォーマンス共通ヘルパー
+// =============================================
+// シートの末尾 N 行を返す（追記専用シート向け：最新の行を最小コストで読む）
+// ヘッダー行はスキップし、データ行のみ返す。N が実データ行数より大きい場合は全データ行を返す。
+function _readLastNRows(sh, n) {
+  if (!sh) return [];
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  const numRead = Math.min(last - 1, Math.max(0, n|0));
+  if (numRead <= 0) return [];
+  return sh.getRange(last - numRead + 1, 1, numRead, sh.getLastColumn()).getValues();
+}
+
+// CacheService 経由で値を取得。hit すれば JSON.parse、miss なら loader() で取得 → キャッシュ
+// value のシリアライズが 95KB を超える場合はキャッシュをスキップ（Script Cache の 100KB/key 制限対応）
+function _getCachedValues(key, ttlSec, loader) {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get(key);
+  if (hit) {
+    try { return JSON.parse(hit); } catch(e) { /* 破損キャッシュは無視 */ }
+  }
+  const val = loader();
+  try {
+    const ser = JSON.stringify(val);
+    if (ser.length < 95000) {
+      cache.put(key, ser, ttlSec || 21600);
+    } else {
+      console.warn('[cache skip >95KB]', key, 'size=' + ser.length);
+    }
+  } catch(e) {
+    console.error('[cache put error]', key, e);
+  }
+  return val;
+}
+
+// 指定キーのキャッシュを 1 件クリア
+function _invalidateCache(key) {
+  try { CacheService.getScriptCache().remove(key); } catch(e) { /* ignore */ }
+}
+
+// 指定キー群をまとめてクリア
+function _invalidateCacheAll(keys) {
+  try { CacheService.getScriptCache().removeAll(keys); } catch(e) { /* ignore */ }
+}
+
+// 手動キャッシュ全クリア用（GAS エディタから直接実行）
+// Questions シート等、管理画面経由でない更新の反映を急ぐ場合に使用
+function clearAllCache() {
+  try {
+    const keys = [
+      'cache_q5_rows',
+      'cache_q_rows_4級', 'cache_q_rows_3級', 'cache_q_rows_準2級',
+      'cache_q_rows_2級', 'cache_q_rows_準1級',
+      'cache_sango_topics_values',
+      'cache_wabun1_topics_values',
+      'cache_quote_values',
+      'cache_notice_values',
+      'cache_ranking_last_week'
+    ];
+    CacheService.getScriptCache().removeAll(keys);
+    return { ok: true, cleared: keys.length };
+  } catch(err) {
+    console.error('[clearAllCache]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
 // doGet
 // =============================================
 function doGet(e) {
@@ -275,10 +343,12 @@ function _isMilestone(streak) {
 function _getPrevDayCount(studentId, yesterday) {
   const sh = _ss().getSheetByName(SHEET_ATTEMPTS);
   if (!sh) return 0;
-  const data = sh.getDataRange().getValues();
+  // 末尾 200 行のみ走査（昨日の件数判定には十分）
+  const data = _readLastNRows(sh, 200);
   let count  = 0;
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][1]).trim() === String(studentId).trim() &&
+  const sid = String(studentId).trim();
+  for (let i = 0; i < data.length; i++) {
+    if (String(data[i][1]).trim() === sid &&
         _toDateStr(data[i][0])    === yesterday) count++;
   }
   return count;
@@ -333,8 +403,6 @@ function getTodaysSet(studentId, level) {
 
     const sessionNo = done1 ? 2 : 1;
     const is5       = (lv === '5級');
-    const sheetName = is5 ? SHEET_Q5 : SHEET_QUESTIONS;
-    const qRows     = _ss().getSheetByName(sheetName).getDataRange().getValues();
 
     let targetLv  = lv;
     let clearKey  = 'cleared_' + sid + '_' + targetLv;
@@ -360,9 +428,11 @@ function getTodaysSet(studentId, level) {
       }
     }
 
+    // レベル絞り込み済みの行だけをキャッシュ経由で取得
+    const rowsOfLevel = _getQuestionRowsForLevel(targetLv);
     const words = is5
-      ? _getWords(qRows, targetSet, '5級')
-      : _getWordsQ4(qRows, targetSet, targetLv);
+      ? _getWords(rowsOfLevel, targetSet, '5級')
+      : _getWordsQ4(rowsOfLevel, targetSet, targetLv);
 
     if (words.length === 0) {
       return { ok: false, message: 'セット' + targetSet + '（英検' + targetLv + 'レベル）のデータがまだありません。' };
@@ -430,6 +500,7 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     sSheet.getRange(i + 1, COL_LAST_TEST + 1).setValue(today);
     sSheet.getRange(i + 1, COL_UPDATED   + 1).setValue(now);
     _logHP(sid, hpGained, 'test');
+    _invalidateCache('cache_ranking_last_week');
 
     return { ok: true, clearHP: hpGained, bonusHP: 0, hpGained, totalHP: newHP, streak: streak, week: week };
   } catch (err) {
@@ -483,6 +554,11 @@ function _getLastWeekRange() {
 // =============================================
 function getWeeklyRanking() {
   try {
+    // 派生結果をキャッシュ（6h TTL、saveAttempt / submitSango / submitWabun1 でクリア）
+    const cached = CacheService.getScriptCache().get('cache_ranking_last_week');
+    if (cached) {
+      try { return JSON.parse(cached); } catch(e) { /* 破損キャッシュは無視 */ }
+    }
     const ss       = _ss();
     const logSheet = ss.getSheetByName(SHEET_HPLOG);
     const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
@@ -528,7 +604,12 @@ function getWeeklyRanking() {
       .sort((a, b) => b.weeklyHP - a.weeklyHP)
       .slice(0, 10);
 
-    return { ok: true, ranking, period: range };
+    const result = { ok: true, ranking, period: range };
+    // 派生結果をキャッシュ（6h TTL）
+    try {
+      CacheService.getScriptCache().put('cache_ranking_last_week', JSON.stringify(result), 21600);
+    } catch(e) { console.error('[ranking cache put]', e); }
+    return result;
   } catch(err) {
     console.error('[getWeeklyRanking]', err);
     return { ok: false, message: String(err) };
@@ -618,12 +699,11 @@ function getHistory(studentId) {
 // =============================================
 function getSetWords(setNo, level) {
   try {
-    const lv        = String(level).trim();
-    const sheetName = lv === '5級' ? SHEET_Q5 : SHEET_QUESTIONS;
-    const qRows     = _ss().getSheetByName(sheetName).getDataRange().getValues();
-    const words     = lv === '5級'
-      ? _getWords(qRows, Number(setNo), '5級')
-      : _getWordsQ4(qRows, Number(setNo), lv);
+    const lv    = String(level).trim();
+    const rows  = _getQuestionRowsForLevel(lv);
+    const words = lv === '5級'
+      ? _getWords(rows, Number(setNo), '5級')
+      : _getWordsQ4(rows, Number(setNo), lv);
     if (words.length === 0) return { ok: false, message: 'データが見つかりません。' };
     return { ok: true, words };
   } catch (err) {
@@ -632,14 +712,54 @@ function getSetWords(setNo, level) {
 }
 
 // =============================================
-// 問題データ取得ヘルパー
+// 問題データ取得ヘルパー（レベル別キャッシュ対応）
 // =============================================
+// 指定レベルに該当する問題行（ヘッダー除く、レベルで絞り込み済）を返す
+// - 5級: Q5 シート全体がそのまま対象（全行 5 級なのでフィルタ不要）
+// - 4級〜準1級: Questions シートをレベル列（col 11）で分割してキャッシュ
+// 初回 cache miss 時は Questions シートを 1 回読んで全レベルを一括キャッシュ
+function _getQuestionRowsForLevel(lv) {
+  if (lv === '5級') {
+    return _getCachedValues('cache_q5_rows', 21600, function() {
+      const sh = _ss().getSheetByName(SHEET_Q5);
+      if (!sh || sh.getLastRow() < 2) return [];
+      const values = sh.getDataRange().getValues();
+      return values.slice(1); // ヘッダー除外
+    });
+  }
+  const cache = CacheService.getScriptCache();
+  const key = 'cache_q_rows_' + lv;
+  const hit = cache.get(key);
+  if (hit) {
+    try { return JSON.parse(hit); } catch(e) { /* 破損キャッシュは無視 */ }
+  }
+  // cache miss: Questions シートを 1 回全件読み → レベル列で分割 → 全レベル一括保存
+  const sh = _ss().getSheetByName(SHEET_QUESTIONS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const byLevel = {};
+  for (let i = 1; i < values.length; i++) {
+    const g = String(values[i][11] || '').trim();
+    if (!g) continue;
+    if (!byLevel[g]) byLevel[g] = [];
+    byLevel[g].push(values[i]);
+  }
+  Object.keys(byLevel).forEach(function(g){
+    const k = 'cache_q_rows_' + g;
+    try {
+      const ser = JSON.stringify(byLevel[g]);
+      if (ser.length < 95000) cache.put(k, ser, 21600);
+      else console.warn('[cache skip >95KB]', k, 'size=' + ser.length);
+    } catch(e) { console.error('[cache put]', k, e); }
+  });
+  return byLevel[lv] || [];
+}
+
 function _getMaxSetForLevel(lv) {
-  const sheetName = lv === '5級' ? SHEET_Q5 : SHEET_QUESTIONS;
-  const qRows = _ss().getSheetByName(sheetName).getDataRange().getValues();
+  const rows = _getQuestionRowsForLevel(lv);
   let max = 0;
-  for (let i = 1; i < qRows.length; i++) {
-    if (String(qRows[i][9]).trim() === lv) max = Math.max(max, Number(qRows[i][0]));
+  for (let i = 0; i < rows.length; i++) {
+    max = Math.max(max, Number(rows[i][0]) || 0);
   }
   return max;
 }
@@ -649,37 +769,37 @@ function _getNextLevel(lv) {
   return (idx >= 0 && idx < LEVEL_ORDER.length - 1) ? LEVEL_ORDER[idx + 1] : null;
 }
 
-function _getWords(qRows, setNo, lv) {
+// rowsOfLevel はレベル絞り込み済（ヘッダーなし）。setNo でさらに絞り込む。5級シート形状（10列）
+function _getWords(rowsOfLevel, setNo, lv) {
   const words = [];
-  for (let i = 1; i < qRows.length; i++) {
-    const row = qRows[i];
-    if (Number(row[0]) === setNo && String(row[9]).trim() === lv) {
-      words.push({
-        setNo: Number(row[0]), qNo: Number(row[1]),
-        word: String(row[2]), meaning: String(row[3]),
-        choiceA: String(row[4]), choiceB: String(row[5]),
-        choiceC: String(row[6]), choiceD: String(row[7]),
-        answer: String(row[8]), grade: String(row[9])
-      });
-    }
+  for (let i = 0; i < rowsOfLevel.length; i++) {
+    const row = rowsOfLevel[i];
+    if (Number(row[0]) !== setNo) continue;
+    words.push({
+      setNo: Number(row[0]), qNo: Number(row[1]),
+      word: String(row[2]), meaning: String(row[3]),
+      choiceA: String(row[4]), choiceB: String(row[5]),
+      choiceC: String(row[6]), choiceD: String(row[7]),
+      answer: String(row[8]), grade: String(row[9])
+    });
   }
   return words;
 }
 
-function _getWordsQ4(qRows, setNo, lv) {
+// rowsOfLevel はレベル絞り込み済（ヘッダーなし）。4級以上シート形状（12列）
+function _getWordsQ4(rowsOfLevel, setNo, lv) {
   const words = [];
-  for (let i = 1; i < qRows.length; i++) {
-    const row = qRows[i];
-    if (Number(row[0]) === setNo && String(row[11]).trim() === lv) {
-      words.push({
-        setNo: Number(row[0]), qNo: Number(row[1]),
-        word: String(row[2]), meaning: String(row[3]),
-        example: String(row[4] || ''), blank: String(row[5] || ''),
-        choiceA: String(row[6]), choiceB: String(row[7]),
-        choiceC: String(row[8]), choiceD: String(row[9]),
-        answer: String(row[10]), grade: String(row[11])
-      });
-    }
+  for (let i = 0; i < rowsOfLevel.length; i++) {
+    const row = rowsOfLevel[i];
+    if (Number(row[0]) !== setNo) continue;
+    words.push({
+      setNo: Number(row[0]), qNo: Number(row[1]),
+      word: String(row[2]), meaning: String(row[3]),
+      example: String(row[4] || ''), blank: String(row[5] || ''),
+      choiceA: String(row[6]), choiceB: String(row[7]),
+      choiceC: String(row[8]), choiceD: String(row[9]),
+      answer: String(row[10]), grade: String(row[11])
+    });
   }
   return words;
 }
@@ -767,45 +887,6 @@ function getExchangeStatus(studentId) {
   }
 }
 
-function getExchangeStatus(studentId) {
-  try {
-    const sid      = String(studentId).trim();
-    const ss       = _ss();
-    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
-    const exSheet  = ss.getSheetByName(SHEET_EXCHANGES);
-
-    let currentHP = 0;
-    const stuRows = stuSheet.getDataRange().getValues();
-    for (let i = 1; i < stuRows.length; i++) {
-      if (String(stuRows[i][COL_ID]).trim() === sid) {
-        currentHP = Number(stuRows[i][COL_HP]) || 0; break;
-      }
-    }
-
-    const exchanged = {};
-    if (exSheet) {
-      const exRows = exSheet.getDataRange().getValues();
-      for (let i = 1; i < exRows.length; i++) {
-        if (String(exRows[i][1]).trim() === sid) {
-          exchanged[String(exRows[i][3])] = String(exRows[i][5]);
-        }
-      }
-    }
-
-    const ranks = Object.keys(EXCHANGE_RANKS).map(key => ({
-      key,
-      label:       EXCHANGE_RANKS[key].label,
-      hp:          EXCHANGE_RANKS[key].hp,
-      canExchange: currentHP >= EXCHANGE_RANKS[key].hp && !exchanged[key],
-      status:      exchanged[key] || null
-    }));
-
-    return { ok: true, currentHP, ranks };
-  } catch(err) {
-    return { ok: false, message: String(err) };
-  }
-}
-
 // =============================================
 // テスト用
 // =============================================
@@ -830,50 +911,19 @@ function getDeployUrl() {
 //   Quoteシートの列: date | text | author
 //   今日の日付と一致する行があれば優先、なければランダム1件
 // =============================================
-function getQuote() {
-  try {
-    const sh = _ss().getSheetByName(SHEET_QUOTE);
-    if (!sh) return { ok: false, message: 'Quoteシートが見つかりません。' };
-    const rows = sh.getDataRange().getValues();
-    if (rows.length <= 1) return { ok: false, message: 'Quoteシートにデータがありません。' };
-
-    // ヘッダー（大小無視）で列を特定
-    const header = rows[0].map(function(v){ return String(v).toLowerCase().trim(); });
-    const dateCol   = header.indexOf('date');
-    const textCol   = header.indexOf('text');
-    const authorCol = header.indexOf('author');
-    if (dateCol < 0 || textCol < 0) return { ok: false, message: 'Quoteシートのヘッダー (date / text) が見つかりません。' };
-
-    const today = _todayJST();
-    const pool  = [];
-    for (let i = 1; i < rows.length; i++) {
-      const t = String(rows[i][textCol] || '').trim();
-      if (!t) continue;
-      const d = _toDateStr(rows[i][dateCol]);
-      const a = authorCol >= 0 ? String(rows[i][authorCol] || '').trim() : '';
-      const entry = { date: d, text: t, author: a };
-      if (d === today) return { ok: true, quote: entry };   // 日付一致を最優先
-      pool.push(entry);
-    }
-    if (pool.length === 0) return { ok: false, message: 'Quoteデータなし' };
-    const pick = pool[Math.floor(Math.random() * pool.length)];
-    return { ok: true, quote: pick };
-  } catch (err) {
-    console.error('[getQuote]', err);
-    return { ok: false, message: String(err) };
-  }
-}
-
 // =====================================================
 // 今日の一言
 // =====================================================
 
 function getQuote() {
   try {
-    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_QUOTE);
-    if (!sh) return { ok:false, message:'Quote シートがありません' };
-    var values = sh.getDataRange().getValues();
-    if (values.length < 2) return { ok:false, message:'データがありません' };
+    // Quote シート全体をキャッシュ経由で取得（6h TTL、adminAddQuote でクリア）
+    var values = _getCachedValues('cache_quote_values', 21600, function() {
+      var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_QUOTE);
+      if (!sh) return [];
+      return sh.getDataRange().getValues();
+    });
+    if (!values || values.length < 2) return { ok:false, message:'データがありません' };
 
     // ヘッダー行からインデックスを動的に取得（列順が変わっても動くように）
     var header = values[0].map(function(h){ return String(h).trim().toLowerCase(); });
@@ -948,6 +998,7 @@ function adminAddQuote(params) {
     const sh = _ss().getSheetByName(SHEET_QUOTE);
     if (!sh) return { ok: false, message: 'Quoteシートが見つかりません' };
     sh.appendRow([params.date, params.text, params.author || '']);
+    _invalidateCache('cache_quote_values');
     return { ok: true };
   } catch(err) {
     console.error('[adminAddQuote]', err);
@@ -962,6 +1013,7 @@ function adminAddNotice(params) {
     const sh = _ss().getSheetByName(SHEET_NOTICE);
     if (!sh) return { ok: false, message: 'Noticeシートが見つかりません' };
     sh.appendRow([params.date, params.title, params.body]);
+    _invalidateCache('cache_notice_values');
     return { ok: true };
   } catch(err) {
     console.error('[adminAddNotice]', err);
@@ -997,10 +1049,18 @@ function adminListStudents(params) {
 // 連絡事項（Notice）共通ヘルパー
 // =====================================================
 
+// Notice シート全体をキャッシュ経由で取得（6h TTL、adminAddNotice でクリア）
+function _getNoticeValues() {
+  return _getCachedValues('cache_notice_values', 21600, function() {
+    var sh = _ss().getSheetByName(SHEET_NOTICE);
+    if (!sh || sh.getLastRow() < 2) return [];
+    return sh.getDataRange().getValues();
+  });
+}
+
 function _readNoticeRows() {
-  var sh = _ss().getSheetByName(SHEET_NOTICE);
-  if (!sh || sh.getLastRow() < 2) return { rows: [], iDate: -1, iTitle: -1, iBody: -1 };
-  var values = sh.getDataRange().getValues();
+  var values = _getNoticeValues();
+  if (!values || values.length < 2) return { rows: [], iDate: -1, iTitle: -1, iBody: -1 };
   var header = values[0];
   var iDate  = header.indexOf('date');
   var iTitle = header.indexOf('title');
@@ -1151,10 +1211,18 @@ function _sangoPrevDate(dateStr) {
   return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
 }
 
+// SangoTopics シート全体をキャッシュ経由で取得（6h TTL、書き込み系でクリア）
+function _getSangoTopicsValues() {
+  return _getCachedValues('cache_sango_topics_values', 21600, function() {
+    const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
+    if (!sh || sh.getLastRow() < 2) return [];
+    return sh.getDataRange().getValues();
+  });
+}
+
 function _readSangoTopicsByDate(dateStr) {
-  const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
-  if (!sh || sh.getLastRow() < 2) return [];
-  const values = sh.getDataRange().getValues();
+  const values = _getSangoTopicsValues();
+  if (values.length < 2) return [];
   const header = values[0];
   const iDate  = header.indexOf('date');
   const iLevel = header.indexOf('level');
@@ -1230,13 +1298,13 @@ function submitSango(params) {
     const now = new Date();
     subSheet.appendRow([now, sid, studentName, level, words, work, method]);
 
-    // HPLog の type='sango' で当日分チェック（3時基準で日付判定）
+    // HPLog の type='sango' で当日分チェック（末尾 200 行のみ走査、3時基準で日付判定）
     const todayStr = _sangoToday();
     let alreadyGranted = false;
     const logSheet = ss.getSheetByName(SHEET_HPLOG);
     if (logSheet) {
-      const logRows = logSheet.getDataRange().getValues();
-      for (let i = 1; i < logRows.length; i++) {
+      const logRows = _readLastNRows(logSheet, 200);
+      for (let i = 0; i < logRows.length; i++) {
         if (String(logRows[i][1]).trim() !== sid) continue;
         if (logRows[i][3] !== 'sango') continue;
         const todayForLog = (function(ts){
@@ -1258,6 +1326,7 @@ function submitSango(params) {
         stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(cur + hpGained);
       }
       if (logSheet) logSheet.appendRow([now, sid, hpGained, 'sango']);
+      _invalidateCache('cache_ranking_last_week');
     }
     return { ok: true, hpGained: hpGained };
   } catch(err) {
@@ -1275,6 +1344,7 @@ function adminAddSangoTopic(params) {
     const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
     if (!sh) return { ok: false, message: 'SangoTopicsシートが見つかりません' };
     sh.appendRow([params.date, params.level, params.word1, params.word2, params.word3, params.teacher_work]);
+    _invalidateCache('cache_sango_topics_values');
     return { ok: true };
   } catch(err) {
     console.error('[adminAddSangoTopic]', err);
@@ -1321,6 +1391,7 @@ function adminAddSangoTopicsWeek(params) {
 
     const startRow = sh.getLastRow() + 1;
     sh.getRange(startRow, 1, rowsToAppend.length, rowsToAppend[0].length).setValues(rowsToAppend);
+    _invalidateCache('cache_sango_topics_values');
 
     return { ok: true, added: rowsToAppend.length, errors: errors };
   } catch(err) {
@@ -1395,6 +1466,7 @@ function adminSetSangoTeacherWork(params) {
       const lv = String(r[iLevel] || '').trim();
       if (ds === date && lv === level) {
         sh.getRange(i + 1, iTW + 1).setValue(work);
+        _invalidateCache('cache_sango_topics_values');
         return { ok: true };
       }
     }
@@ -1466,9 +1538,8 @@ function getSangoSubmissions(params) {
 // 過去のお題（日付範囲で一括取得）→ 日付降順 × レベルA→S→B→T でまとめる
 // startStr / endStr は 'yyyy-MM-dd'。start <= end の範囲を返す
 function _readSangoTopicsByDateRange(startStr, endStr) {
-  const sh = _ss().getSheetByName(SHEET_SANGO_TOPICS);
-  if (!sh || sh.getLastRow() < 2) return [];
-  const values = sh.getDataRange().getValues();
+  const values = _getSangoTopicsValues();
+  if (values.length < 2) return [];
   const header = values[0];
   const iDate  = header.indexOf('date');
   const iLevel = header.indexOf('level');
@@ -1604,10 +1675,17 @@ function getChildActivityRecent(params) {
     let hasMore = false;
 
     // HPLog: login / test / sango フラグ + hasMore 判定
+    // 末尾 2000 行のみ読む（追記専用シートなので末尾 = 最新、約 40 日分カバー想定）
     const hpSheet = ss.getSheetByName(SHEET_HPLOG);
     if (hpSheet && hpSheet.getLastRow() >= 2) {
-      const rows = hpSheet.getDataRange().getValues();
-      for (let i = 1; i < rows.length; i++) {
+      const rows = _readLastNRows(hpSheet, 2000);
+      // 先頭行が startStr より新しければ「さらに古い行がある」→ hasMore 候補
+      if (rows.length > 0 && hpSheet.getLastRow() - 1 > rows.length) {
+        // 読んだ範囲より古い行が存在する。その古い行に該当生徒の log があるかは判定不可だが、
+        // 保守的に hasMore=true 扱い（archive ボタンの誤表示はあっても致命的でない）
+        hasMore = true;
+      }
+      for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (String(r[1] || '').trim() !== sid) continue;
         const ds = _toDateStr(r[0]);
@@ -1626,11 +1704,11 @@ function getChildActivityRecent(params) {
       }
     }
 
-    // Attempts: 合格のみ details 補完
+    // Attempts: 合格のみ details 補完（末尾 1000 行）
     const atSheet = ss.getSheetByName(SHEET_ATTEMPTS);
     if (atSheet && atSheet.getLastRow() >= 2) {
-      const rows = atSheet.getDataRange().getValues();
-      for (let i = 1; i < rows.length; i++) {
+      const rows = _readLastNRows(atSheet, 1000);
+      for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (String(r[1] || '').trim() !== sid) continue;
         const ds = _toDateStr(r[0]);
@@ -1644,11 +1722,11 @@ function getChildActivityRecent(params) {
       }
     }
 
-    // SangoSubmissions: level / timestamp 補完
+    // SangoSubmissions: level / timestamp 補完（末尾 500 行）
     const sgSheet = ss.getSheetByName(SHEET_SANGO_SUBMISSIONS);
     if (sgSheet && sgSheet.getLastRow() >= 2) {
-      const rows = sgSheet.getDataRange().getValues();
-      for (let i = 1; i < rows.length; i++) {
+      const rows = _readLastNRows(sgSheet, 500);
+      for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (!r[0]) continue;
         if (String(r[1] || '').trim() !== sid) continue;
@@ -1720,10 +1798,18 @@ function _parseWabun1Work(text) {
 }
 
 // Wabun1Topics から指定日の 1 行を読み込む（ヒットなしで null）
+// Wabun1Topics シート全体をキャッシュ経由で取得（6h TTL、書き込み系でクリア）
+function _getWabun1TopicsValues() {
+  return _getCachedValues('cache_wabun1_topics_values', 21600, function() {
+    const sh = _ss().getSheetByName(SHEET_WABUN1_TOPICS);
+    if (!sh || sh.getLastRow() < 2) return [];
+    return sh.getDataRange().getValues();
+  });
+}
+
 function _readWabun1TopicsByDate(dateStr) {
-  const sh = _ss().getSheetByName(SHEET_WABUN1_TOPICS);
-  if (!sh || sh.getLastRow() < 2) return null;
-  const values = sh.getDataRange().getValues();
+  const values = _getWabun1TopicsValues();
+  if (values.length < 2) return null;
   const header = values[0];
   const iDate = header.indexOf('date');
   const iWN   = header.indexOf('week_no');
@@ -1836,12 +1922,12 @@ function submitWabun1(params) {
     const now = new Date();
     subSheet.appendRow([now, sid, studentName, workText, 'photo', '']);
 
-    // HPLog type='wabun1' で当日分既に付与済みか確認
+    // HPLog type='wabun1' で当日分既に付与済みか確認（末尾 200 行のみ走査）
     let alreadyGranted = false;
     const logSheet = ss.getSheetByName(SHEET_HPLOG);
     if (logSheet) {
-      const logRows = logSheet.getDataRange().getValues();
-      for (let i = 1; i < logRows.length; i++) {
+      const logRows = _readLastNRows(logSheet, 200);
+      for (let i = 0; i < logRows.length; i++) {
         if (String(logRows[i][1]).trim() !== sid) continue;
         if (logRows[i][3] !== 'wabun1') continue;
         const todayForLog = (function(ts){
@@ -1862,6 +1948,7 @@ function submitWabun1(params) {
         stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(cur + hpGained);
       }
       if (logSheet) logSheet.appendRow([now, sid, hpGained, 'wabun1']);
+      _invalidateCache('cache_ranking_last_week');
     }
 
     return {
@@ -1938,9 +2025,8 @@ function _wabun1SubmittedDatesBySid(sid) {
 
 // Wabun1Topics から日付範囲で 1 回スキャン。各行を tasks/answers/word_list 構造に整形して返す
 function _readWabun1TopicsByDateRange(startStr, endStr) {
-  const sh = _ss().getSheetByName(SHEET_WABUN1_TOPICS);
-  if (!sh || sh.getLastRow() < 2) return [];
-  const values = sh.getDataRange().getValues();
+  const values = _getWabun1TopicsValues();
+  if (values.length < 2) return [];
   const header = values[0];
   const iDate = header.indexOf('date');
   const iWN   = header.indexOf('week_no');
@@ -2140,6 +2226,7 @@ function adminAddWabun1TopicsWeek(params) {
     if (!sh) return { ok: false, message: 'Wabun1Topicsシートが見つかりません' };
     const startRow = sh.getLastRow() + 1;
     sh.getRange(startRow, 1, rowsToAppend.length, rowsToAppend[0].length).setValues(rowsToAppend);
+    _invalidateCache('cache_wabun1_topics_values');
     return { ok: true, added: rowsToAppend.length, errors: errors };
   } catch(err) {
     console.error('[adminAddWabun1TopicsWeek]', err);
@@ -2204,6 +2291,7 @@ function adminSetWabun1AnswerWeek(params) {
       if (!found) errors.push(day + '曜日(' + date + ')：該当する問題行が見つかりません');
     });
 
+    if (updated > 0) _invalidateCache('cache_wabun1_topics_values');
     return { ok: true, updated: updated, errors: errors };
   } catch(err) {
     console.error('[adminSetWabun1AnswerWeek]', err);

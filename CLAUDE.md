@@ -37,6 +37,7 @@
   2. `cd gas && clasp push` でGAS側に同期
   3. GASエディタで「デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ」で本番反映
 - **バージョン表示は `document.lastModified` から自動生成のため手動更新不要**。3 ファイル（`index.html` / `view.html` / `admin.html`）の右下に表示される `vYYYY.MM.DD` は GH Pages の Last-Modified ヘッダー由来で、HTML が実際にどの時点のバージョンかを反映する。タップで `?v=timestamp` 付き強制リロード可能（iPad Safari のキャッシュ問題への診断兼対策）
+- **GAS 側 Script Cache 運用**: `gas/Code.js` は問題データ・お題・連絡・Quote・ランキングを CacheService でキャッシュしている（TTL 6 時間）。管理画面経由の書き込みは自動でキャッシュをクリアする。**Questions シートを直接スプレッドシートで編集**した場合は自動クリアされないため、即反映したいときは GAS エディタから `clearAllCache()` を手動実行するか、最大 6 時間待つ
 
 ---
 
@@ -667,6 +668,101 @@
   - ふくちさんが 4/27〜5/3 の問題データ作成（提供テンプレ使用）
   - 4/26（土）全体動作確認 + 必要ならバグ修正
   - 4/27（月）本番運用開始
+
+### 2026-04-24
+
+塾PC で作業。大規模リファクタリング 2 件（管理画面ダッシュボード化 / GAS パフォーマンス改善）+ UI 改修数件。
+
+#### 50. 塾PC 移行と環境整理（朝）
+- 塾PC に残っていた旧 worktree `tender-payne-6a1afc`（dev、22 コミット遅れ / 未コミット無し）を `git worktree remove` で削除
+- 現セッション worktree `cranky-hertz-2afec9` を dev に切替 → `git pull --ff-only origin dev` で 22 コミット fast-forward 取り込み（#46-49 分）
+- stale ローカルブランチも整理済み
+
+#### 51. 英単語RUSH 英検5級 書き取り採点の詳細フィードバック実装（dev `e88810a` → main `1c6300d`）
+- **背景**: 生徒から「どこで間違えたか分からない」要望。従来は「以下の単語が3回書かれていないか読み取れませんでした：apple、cat、dog」の一行表示のみ
+- **調査結果**: 単語ごとの正誤判定は既に `failedWords` 内に存在、**表示していないだけ** → 表示追加で済む改修（ロジック新規作成不要）
+- **[index.html](index.html) 変更点** (+52 / -3):
+  - `failedWords` を `string[]` → `{word, count}[]` オブジェクト配列化（[index.html:1297](index.html:1297)）。既存の `.length === 0` 合格判定は配列要素数比較なので影響なし
+  - 新関数 `_renderPhotoFail(failedWords, rawText, confPct)` ([index.html:1303](index.html:1303)): 失敗単語リスト（`❌ apple（認識：2/3回）` 形式の独立行）+ OCR 全文ボックス（monospace / max-height: 280px / scroll）+ ヒント文言（黄アクセント）を構造化 HTML で innerHTML 投入
+  - CSS +14 クラス（`.dictation-fail-*` / `.dictation-ocr-*` / `.dictation-hint*`）。既存パレット（`.ng=#c00`、`.ok=#007a3d`）に揃えた配色
+  - XSS 安全：OCR 全文を innerHTML に入れる前に `escH()` で HTML エスケープ
+- **影響範囲**: **単語不足エラー時の表示のみ**。合格時 / OCR失敗 / 字が雑い時 / エラー時は従来の `showMsg` のまま変更なし
+
+#### 52. iPad Safari のキャッシュ問題調査と判明（#51 動作確認中）
+- **事象**: 実機テストで改修 UI が表示されず、旧 UI（カンマ区切り 1 行）が出続ける
+- **調査結果**: コード・GitHub Pages 配信とも完全に正常（curl で新コード 8 か所ヒット確認）。**iPad Safari の disk キャッシュが古い HTML を返していた**ことが確定
+  - 決定的証拠：ユーザーが見ていた「apple、cat、dog」（読点区切り 1 行）形式は**新コードでは絶対に生成されない**（新コードは独立行のため）
+- **暫定対処**: `?v=20260423` を URL に付与して cache bust → 新 UI 表示確認 OK
+- **再発防止策**: #54 で恒久対策を実装
+
+#### 53. 管理画面の大規模リファクタリング：ダッシュボード構造化（dev `3405fd9` → main `113955e`）
+- **背景**: ログイン後に 7 タブが並ぶ構造を、先生の動線を明確にするため 3 モードに整理
+- **新構成**: ダッシュボード（3 カード）→ 各モード画面の階層構造
+  - 👥 生徒の実施状況（新規：Students 一覧 → 学習履歴ドリルダウン）
+  - 📝 問題等の入力と解答確認（既存 6 タブを包含、ランキング除外）
+  - 🏆 週間HPランキング（タブから独立画面へ）
+- **[admin.html](admin.html) +425 / -39**:
+  - 新 HTML 5 画面: `screen-admin-dashboard` / `screen-admin-students` / `screen-admin-child-history` / `screen-admin-child-archive` / `screen-admin-ranking`
+  - 既存 `screen-admin-main` → `screen-admin-tabs` に改名（タブ UI 構造は不変）
+  - 新 CSS: `.dashboard-*` 5 クラス + `.header-btns`（480px 以下でログアウトをアイコンのみに縮小）+ `.admin-page` / `.students-table-*` / `.child-*`（[view.html](view.html) から移植 13 クラス）
+  - 新 JS: `goAdminDashboard()` / `goAdminTabs()`（`_adminTabsBuilt` で 1 回だけ構築）/ `goAdminRanking()` / `goAdminStudents()` / `goAdminChildHistory()` / `goAdminChildArchive()` / `loadStudents()` / `selectStudent()` / `_renderAdminChildDays()` / `loadAdminChildHistory()` / `loadAdminChildArchive()` / `adminChildArchivePrev/Next()`
+  - ログイン成功後 → `screen-admin-dashboard` に遷移、ランキングモジュール登録削除
+  - 学習履歴タイトル：「📅 〇〇さんの学習履歴」（氏名ベース、管理画面では「作品を見る」ボタンは削除＝既存タブと重複のため）
+- **[gas/Code.js](gas/Code.js)**:
+  - `doGet` に `adminListStudents` ルーティング追加
+  - `adminListStudents(params)` 関数追加（認証必須、ID 空欄行スキップ、シート入力順で返却）
+  - `getChildActivityRecent` は既存実装を流用（認証不要、studentId 指定で動く）
+- **レスポンシブ**: 480px 以下でログアウトはアイコン（🚪）のみ、テキスト非表示
+
+#### 54. キャッシュ対策：no-cache メタタグ + 自動バージョン表示（dev `c18ee3c` / `1ad05c7` → main `451cbe4` / `8c465f0`）
+- **背景**: #52 の iPad キャッシュ問題の再発防止策
+- **実装 1（3 ファイル共通）**: no-cache 系メタタグ 3 行を `<head>` に追加
+  ```html
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  ```
+- **実装 2（3 ファイル共通）**: 右下固定のバージョンバッジ
+  - **`document.lastModified` から自動生成**（手動更新不要）。GH Pages の Last-Modified ヘッダー由来で、HTML が実際にどの時点のバージョンかを反映 → iPad で古いキャッシュが使われていれば日付が古く見える＝**キャッシュ診断としても機能**
+  - 表示形式：`vYYYY.MM.DD`、10px・`#999`・半透明白背景・角丸 4px
+  - **タップで `?v=Date.now()` 付き強制リロード**（キャッシュバイパス）
+- **実装 3（微調整）**: 当初右下配置 → 「⚠️ 戻るボタンは押さないでね」と重なるため**左下に移動**（3 ファイルとも `right:10px` → `left:10px`）
+- **CLAUDE.md**: 「バージョン表示は自動生成のため手動更新不要」を運用メモに追記
+
+#### 55. GAS パフォーマンス調査と改善 Day 1 実装（dev `24c0f6d`）
+- **背景**: 「全画面で遅い、最近特に遅くなった」の体感報告。運用で増えるシート（HPLog / Attempts / SangoSubmissions）を全件走査する関数が原因と推測
+- **静的コード解析**: 84 関数、`getDataRange()` 43 箇所、`CacheService` 使用 0、Top 5 ボトルネック特定（B1: getChildActivityRecent / B2: loginStudent→_getPrevDayCount / B3: getTodaysSet + _getMaxSetForLevel / B4: submitWabun1/submitSango / B5: getSangoTopic）
+- **推奨順 4→2→3→1 で実装**:
+  - **改善 4**: 重複関数削除（`getQuote` L833 先勝ち版 / `getExchangeStatus` L731 先勝ち版。後勝ちで死んだコードだった）
+  - **改善 2**: 末尾 N 行読みヘルパー `_readLastNRows(sh, n)` 追加 + 3 関数適用（`getChildActivityRecent`: HPLog 2000/Attempts 1000/SangoSubmissions 500 / `submitWabun1` / `submitSango`: HPLog 200）
+  - **改善 3**: `_getPrevDayCount` を末尾 200 行読みに変更（`loginStudent` ボトルネック解消）
+  - **改善 1**: `CacheService` 導入（TTL 6 時間）
+    - Questions シートを**レベル別分割キャッシュ**（`cache_q_rows_<level>`、100KB 上限対応）。初回 cache miss 時に全件読み → 全レベルを一括保存 → 以降 cache hit。95KB 超は警告ログ + フォールバック
+    - Q5 / SangoTopics / Wabun1Topics / Quote / Notice / 週間HPランキングも同様にキャッシュ化
+    - **自動 invalidation**: 管理画面書き込み系 7 関数（adminAddQuote / adminAddNotice / adminAddSangoTopic / adminAddSangoTopicsWeek / adminSetSangoTeacherWork / adminAddWabun1TopicsWeek / adminSetWabun1AnswerWeek）+ HP 付与系 3 関数（saveAttempt / submitSango / submitWabun1）で対応キャッシュをクリア
+    - 手動全クリア用 `clearAllCache()` 関数追加（Questions シート直接編集時の即反映用、GAS エディタから実行）
+  - **CLAUDE.md**: Script Cache 運用メモを追記
+- **静的指標変化**: `getDataRange()` 43 → 31、`CacheService` 使用 0 → 多数
+- **期待効果**: ログイン 3〜5s → 0.8〜1.5s、問題表示 2〜4s → 0.5〜1s、学習履歴 1.5〜3s → 0.3〜0.6s。**体感 3 倍高速化見込み**
+- **自宅PCに引継ぎ**: clasp push → GAS 新バージョンデプロイ → 実機動作確認の順
+
+#### 56. 残タスクメモ（自宅PC 以降）
+- **直近**: `cd gas && clasp push` → GAS デプロイ → 実機で各処理の速度確認
+- **Day 1 動作確認観点**:
+  - ログインの体感速度（特に 2 回目以降の cache hit 時）
+  - 各コンテンツ（英単語RUSH / 三語短文 / 和文英訳①）の問題表示速度
+  - 提出処理の速度
+  - 学習履歴の表示速度（管理画面・保護者画面とも）
+  - 管理画面で書き込み → 生徒画面で即反映（invalidation 動作確認）
+- **問題があれば対応、なければ Day 2（優先度中）の改善検討**
+  - 改善 5：`getSangoTopic` を 1 回読みに統合
+  - 改善 6：`_getMaxSetForLevel` の二重読み排除（Day 1 で改善 1c により実質解消済み）
+  - 改善 7：`appendRow → setValues` 化 + `_logHP` バッファリング
+  - 改善 8：Students 行番号マップのキャッシュ
+- **その他の保留タスク**:
+  - 「タップで拡大バグ」の調査・修正
+  - 管理画面の動作確認
+  - 基礎計算コンテンツの企画・実装（ユーザー指示で着手予定）
 
 ---
 
