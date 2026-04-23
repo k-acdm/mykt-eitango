@@ -125,6 +125,32 @@ function _invalidateCacheAll(keys) {
   } catch(e) { /* ignore */ }
 }
 
+// 診断ログを有効化（GAS エディタから直接実行）
+// 実行後、各リクエストの Executions ログに [cache HIT/MISS/INV] が出力される
+function enableDebugCache() {
+  try {
+    _props().setProperty('DEBUG_CACHE', '1');
+    console.log('[DEBUG_CACHE] enabled. 各リクエストのログに cache HIT/MISS/INV が出力されます。');
+    return { ok: true, enabled: true };
+  } catch(err) {
+    console.error('[enableDebugCache]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 診断ログを無効化（GAS エディタから直接実行）
+// 本番運用時はオフにしてログ書き込みのオーバーヘッド（~10ms/回）を削減
+function disableDebugCache() {
+  try {
+    _props().deleteProperty('DEBUG_CACHE');
+    console.log('[DEBUG_CACHE] disabled.');
+    return { ok: true, enabled: false };
+  } catch(err) {
+    console.error('[disableDebugCache]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
 // 手動キャッシュ全クリア用（GAS エディタから直接実行）
 // Questions シート等、管理画面経由でない更新の反映を急ぐ場合に使用
 function clearAllCache() {
