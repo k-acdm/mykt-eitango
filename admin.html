@@ -23,9 +23,9 @@
   .login-card button:hover:not(:disabled) { transform: translateY(-1px); }
   .login-card button:disabled { opacity: .5; cursor: not-allowed; }
 
-  /* メイン画面 */
-  #screen-admin-main header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-  #screen-admin-main header h1 { font-size: 18px; font-weight: 600; }
+  /* メイン系画面のヘッダー（ダッシュボード以外） */
+  #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1 { font-size: 18px; font-weight: 600; }
   .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
   .logout-btn:hover { background: rgba(255,255,255,.3); }
 
@@ -88,15 +88,72 @@
   .sango-preview-table th { background: #f4f6fb; font-weight: 600; color: #555; }
   .sango-preview-table td:first-child { white-space: nowrap; color: #666; font-weight: 600; width: 90px; }
 
+  /* ダッシュボード */
+  .dashboard-wrap { max-width: 680px; margin: 40px auto; padding: 0 16px; }
+  .dashboard-card { display: block; width: 100%; background: #fff; border-radius: 16px; padding: 28px 24px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(0,0,0,.08); cursor: pointer; border: none; text-align: left; font-family: inherit; transition: transform .15s, box-shadow .15s; }
+  .dashboard-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(79,125,240,.2); }
+  .dashboard-card-icon { font-size: 36px; margin-bottom: 8px; line-height: 1; }
+  .dashboard-card-title { font-size: 20px; font-weight: bold; color: #333; margin-bottom: 6px; }
+  .dashboard-card-desc { font-size: 14px; color: #666; line-height: 1.6; }
+
+  /* ヘッダー右ボタン群（ホーム + ログアウト） */
+  .header-btns { display: flex; gap: 8px; align-items: center; }
+  .header-btns .logout-btn .btn-label { display: inline; }
   @media (max-width: 480px) {
-    #screen-admin-main header h1 { font-size: 15px; }
+    .header-btns .logout-btn.logout { padding: 7px 10px; }
+    .header-btns .logout-btn.logout .btn-label { display: none; }
+  }
+
+  /* 汎用コンテンツ（ダッシュボード以外の画面用） */
+  .admin-page { max-width: 680px; margin: 0 auto; padding: 24px 16px 80px; }
+  .admin-page .page-lead { font-size: 14px; color: #555; margin-bottom: 16px; line-height: 1.7; }
+
+  /* 生徒一覧テーブル */
+  .students-table-wrap { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.05); overflow-x: auto; }
+  .students-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 420px; }
+  .students-table th, .students-table td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #eef1f7; white-space: nowrap; }
+  .students-table th { background: #f4f6fb; color: #555; font-weight: 600; font-size: 13px; }
+  .students-table tbody tr { transition: background .15s; }
+  .students-table tbody tr:hover { background: #f8faff; }
+  .students-table .name-link { color: #4f7df0; font-weight: 600; cursor: pointer; text-decoration: underline; }
+  .students-table .name-link:hover { color: #7c4fff; }
+  .students-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; }
+
+  /* 学習履歴（view.html から移植） */
+  .child-day-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); margin-bottom: 12px; overflow: hidden; }
+  .child-day-header { background: linear-gradient(135deg,#fff7ed,#fef3f2); color: #b45309; font-weight: bold; font-size: 14px; padding: 10px 14px; border-bottom: 1px solid #fde4cd; }
+  .child-day-body { padding: 10px 14px; }
+  .child-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px dashed #f0f0f0; }
+  .child-row:last-child { border-bottom: none; }
+  .child-row-label { font-size: 13px; font-weight: bold; color: #555; min-width: 100px; padding-top: 2px; }
+  .child-row-value { flex: 1; font-size: 14px; line-height: 1.6; }
+  .child-status-ok { color: #10b981; font-weight: bold; }
+  .child-status-ng { color: #b8b8b8; }
+  .child-detail { display: block; color: #555; font-size: 12px; margin-top: 2px; }
+  .child-pager { display: flex; gap: 8px; margin-top: 12px; }
+  .child-pager button { flex: 1; padding: 10px; border: none; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; font-family: inherit; color: #fff; }
+  .child-pager .prev { background: linear-gradient(135deg, #43a047, #26a69a); }
+  .child-pager .next { background: linear-gradient(135deg, #2a5298, #1e3c72); }
+  .child-pager button:disabled { opacity: .4; cursor: not-allowed; }
+  .child-history-empty { text-align: center; color: #888; font-size: 14px; padding: 24px 0; }
+  .child-history-notice { background: #fffbe6; border-left: 4px solid #facc15; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; line-height: 1.7; color: #7a5b00; box-shadow: 0 1px 4px rgba(0,0,0,.03); }
+
+  @media (max-width: 480px) {
+    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
+    .admin-page { padding: 16px 12px 80px; }
     .form-card { padding: 18px; }
     .rank-num { font-size: 22px; min-width: 44px; }
     .rank-nick { font-size: 17px; }
     .rank-nick .title { font-size: 13px; }
     .rank-weekly { font-size: 17px; }
     .rank-total { font-size: 12px; }
+    .dashboard-card { padding: 22px 18px; }
+    .dashboard-card-icon { font-size: 32px; }
+    .dashboard-card-title { font-size: 18px; }
+    .dashboard-card-desc { font-size: 13px; }
+    .child-row-label { min-width: 86px; font-size: 12px; }
+    .child-row-value { font-size: 13px; }
   }
 </style>
 </head>
@@ -113,14 +170,127 @@
   </div>
 </div>
 
-<!-- メイン画面 -->
-<div id="screen-admin-main" class="screen">
+<!-- ダッシュボード画面 -->
+<div id="screen-admin-dashboard" class="screen">
   <header>
-    <h1>📋 マイ活アプリ 管理画面</h1>
-    <button class="logout-btn" onclick="doAdminLogout()">🚪 ログアウト</button>
+    <h1>🏢 マイ活アプリ 管理画面</h1>
+    <div class="header-btns">
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="dashboard-wrap">
+    <button type="button" class="dashboard-card" onclick="goAdminStudents()">
+      <div class="dashboard-card-icon">👥</div>
+      <div class="dashboard-card-title">生徒の実施状況</div>
+      <div class="dashboard-card-desc">各生徒の学習状況を確認</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminTabs()">
+      <div class="dashboard-card-icon">📝</div>
+      <div class="dashboard-card-title">問題等の入力と解答確認</div>
+      <div class="dashboard-card-desc">各種お題・問題の入力と提出確認</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminRanking()">
+      <div class="dashboard-card-icon">🏆</div>
+      <div class="dashboard-card-title">週間HPランキング</div>
+      <div class="dashboard-card-desc">週間ランキングの確認・画像保存</div>
+    </button>
+  </div>
+</div>
+
+<!-- 生徒一覧画面 -->
+<div id="screen-admin-students" class="screen">
+  <header>
+    <h1>👥 生徒の実施状況</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <div class="page-lead">生徒名をクリックすると、その生徒の学習履歴を確認できます。</div>
+    <div id="students-list-wrap">
+      <div class="students-empty">⏳ 読み込み中...</div>
+    </div>
+  </div>
+</div>
+
+<!-- 生徒学習履歴画面（直近7日） -->
+<div id="screen-admin-child-history" class="screen">
+  <header>
+    <h1 id="child-history-title">📅 学習履歴</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminStudents()">← 生徒一覧に戻る</button>
+    <div class="child-history-notice">⚠️ 三語短文はアプリでの提出が4/20（月）の分からです。それ以前のLINEでの提出状況は反映されていません。</div>
+    <div id="admin-child-history-list"><div class="child-history-empty">読み込み中…</div></div>
+    <button id="admin-child-history-more" class="submit-btn" style="margin-top:12px;background:linear-gradient(135deg,#ff8a3d,#ff6a00);display:none" onclick="goAdminChildArchive()">📜 さらに過去の履歴を見る</button>
+  </div>
+</div>
+
+<!-- 生徒学習履歴画面（アーカイブ：ページング） -->
+<div id="screen-admin-child-archive" class="screen">
+  <header>
+    <h1 id="child-archive-title">📅 学習履歴</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminChildHistory()">← 直近7日間に戻る</button>
+    <div class="child-history-notice">⚠️ 三語短文はアプリでの提出が4/20（月）の分からです。それ以前のLINEでの提出状況は反映されていません。</div>
+    <div id="admin-child-archive-list"><div class="child-history-empty">読み込み中…</div></div>
+    <div class="child-pager">
+      <button type="button" class="prev" id="admin-child-archive-prev" onclick="adminChildArchivePrev()">← 新しいページへ</button>
+      <button type="button" class="next" id="admin-child-archive-next" onclick="adminChildArchiveNext()">次のページ →</button>
+    </div>
+  </div>
+</div>
+
+<!-- 問題等の入力と解答確認画面（既存タブUI） -->
+<div id="screen-admin-tabs" class="screen">
+  <header>
+    <h1>📝 問題等の入力と解答確認</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
   </header>
   <nav id="admin-tabs"></nav>
   <main id="admin-content"></main>
+</div>
+
+<!-- 週間HPランキング画面 -->
+<div id="screen-admin-ranking" class="screen">
+  <header>
+    <h1>🏆 週間HPランキング</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <div class="form-card">
+      <h2>🏆 週間HPランキング</h2>
+      <div class="ranking-actions">
+        <button type="button" class="submit-btn" onclick="loadAdminRanking()">🔄 最新データ取得</button>
+        <button type="button" class="submit-btn save-img-btn" onclick="saveRankingImage()">📷 画像として保存</button>
+      </div>
+      <div id="ranking-capture" style="background:#fff;padding:20px;border-radius:14px;">
+        <div class="ranking-wrap">
+          <div class="ranking-title">🏆 先週の週間HPランキング</div>
+          <div class="ranking-period" id="admin-ranking-period">読み込み中...</div>
+          <div id="admin-ranking-list"><div class="ranking-empty">⏳ 集計中...</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -446,30 +616,7 @@
     }
   });
 
-  // --- 週間HPランキング（表示・画像保存）---
-  registerAdminModule({
-    id: 'ranking',
-    label: '🏆 週間HPランキング',
-    type: 'custom',
-    render: function(section) {
-      section.innerHTML =
-        '<div class="form-card">' +
-          '<h2>🏆 週間HPランキング</h2>' +
-          '<div class="ranking-actions">' +
-            '<button type="button" class="submit-btn" onclick="loadAdminRanking()">🔄 最新データ取得</button>' +
-            '<button type="button" class="submit-btn save-img-btn" onclick="saveRankingImage()">📷 画像として保存</button>' +
-          '</div>' +
-          '<div id="ranking-capture" style="background:#fff;padding:20px;border-radius:14px;">' +
-            '<div class="ranking-wrap">' +
-              '<div class="ranking-title">🏆 先週の週間HPランキング</div>' +
-              '<div class="ranking-period" id="admin-ranking-period">読み込み中...</div>' +
-              '<div id="admin-ranking-list"><div class="ranking-empty">⏳ 集計中...</div></div>' +
-            '</div>' +
-          '</div>' +
-        '</div>';
-      loadAdminRanking();
-    }
-  });
+  // 週間HPランキングは独立画面（screen-admin-ranking）に配置したためタブ登録不要
 
   // 【今後の追加例】フォーム型モジュール
   // registerAdminModule({
@@ -617,8 +764,7 @@
         sessionStorage.setItem('adminPassword', pw);
         _showLoginMsg('', '');
         document.getElementById('admin-password').value = '';
-        _showScreen('screen-admin-main');
-        buildAdminUI();
+        goAdminDashboard();
       } else {
         _showLoginMsg((res && res.message) || 'パスワードが違います', 'ng');
       }
@@ -630,7 +776,223 @@
 
   function doAdminLogout() {
     sessionStorage.removeItem('adminPassword');
+    _adminTabsBuilt = false;
     _showScreen('screen-admin-login');
+  }
+
+  // =============================================================
+  // ダッシュボード・画面遷移
+  // =============================================================
+  var _adminTabsBuilt = false;
+  var _selectedStudentId = null;
+  var _selectedStudentName = null;
+  var _adminChildArchiveOffset = 1;
+
+  function goAdminDashboard() { _showScreen('screen-admin-dashboard'); window.scrollTo(0, 0); }
+
+  function goAdminTabs() {
+    _showScreen('screen-admin-tabs');
+    if (!_adminTabsBuilt) { buildAdminUI(); _adminTabsBuilt = true; }
+    window.scrollTo(0, 0);
+  }
+
+  function goAdminRanking() {
+    _showScreen('screen-admin-ranking');
+    window.scrollTo(0, 0);
+    loadAdminRanking();
+  }
+
+  function goAdminStudents() {
+    _showScreen('screen-admin-students');
+    window.scrollTo(0, 0);
+    loadStudents();
+  }
+
+  function goAdminChildHistory() {
+    _showScreen('screen-admin-child-history');
+    window.scrollTo(0, 0);
+    loadAdminChildHistory();
+  }
+
+  function goAdminChildArchive() {
+    _adminChildArchiveOffset = 1;
+    _showScreen('screen-admin-child-archive');
+    window.scrollTo(0, 0);
+    loadAdminChildArchive();
+  }
+
+  // =============================================================
+  // 生徒一覧
+  // =============================================================
+  function loadStudents() {
+    var wrap = document.getElementById('students-list-wrap');
+    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    gasGet({ action: 'adminListStudents', password: sessionStorage.getItem('adminPassword') || '', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var students = res.students || [];
+      if (students.length === 0) {
+        wrap.innerHTML = '<div class="students-empty">生徒データがありません</div>';
+        return;
+      }
+      var rows = students.map(function(s) {
+        var sidEsc = _esc(s.studentId);
+        var nameEsc = _esc(s.name || '');
+        var nickEsc = _esc(s.nickname || '');
+        var nameJs = String(s.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return '<tr>' +
+                 '<td>' + sidEsc + '</td>' +
+                 '<td><span class="name-link" onclick="selectStudent(\'' + sidEsc + '\', \'' + nameJs + '\')">' + (nameEsc || '（未登録）') + '</span></td>' +
+                 '<td>' + (nickEsc || '—') + '</td>' +
+               '</tr>';
+      }).join('');
+      wrap.innerHTML =
+        '<div class="students-table-wrap">' +
+          '<table class="students-table">' +
+            '<thead><tr><th>生徒ID</th><th>氏名</th><th>ニックネーム</th></tr></thead>' +
+            '<tbody>' + rows + '</tbody>' +
+          '</table>' +
+        '</div>';
+    }).catch(function() {
+      wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  function selectStudent(sid, name) {
+    _selectedStudentId = sid;
+    _selectedStudentName = name || '';
+    goAdminChildHistory();
+  }
+
+  // =============================================================
+  // 生徒学習履歴（view.html から移植）
+  // =============================================================
+  function _renderAdminChildDays(days) {
+    if (!days || !days.length) {
+      return '<div class="child-history-empty">この期間の記録はありません。</div>';
+    }
+    return days.map(function(d){
+      var ymd = String(d.date || '');
+      var ymdDisp = ymd.length >= 10 ? ymd.slice(0,4) + '/' + ymd.slice(5,7) + '/' + ymd.slice(8,10) : ymd;
+      var header = ymdDisp + '(' + (d.weekday || '') + ')';
+
+      var loginCell = d.login
+        ? '<span class="child-status-ok">✅</span>'
+        : '<span class="child-status-ng">❌</span>';
+
+      // 英単語RUSH
+      var eiCell;
+      if (d.eitango && d.eitango.done) {
+        var byLevel = {};
+        (d.eitango.details || []).forEach(function(x){
+          var lv = String(x.level || '');
+          if (!byLevel[lv]) byLevel[lv] = [];
+          byLevel[lv].push(Number(x.set) || 0);
+        });
+        var detailLines = Object.keys(byLevel).map(function(lv){
+          var sets = byLevel[lv].slice().sort(function(a,b){ return a-b; });
+          return '<span class="child-detail">英検' + _esc(lv) + ' セット' + sets.join('・') + ' 合格</span>';
+        }).join('');
+        eiCell = '<span class="child-status-ok">✅</span>' + detailLines;
+      } else {
+        eiCell = '<span class="child-status-ng">❌</span>';
+      }
+
+      // 三語短文（管理画面では「作品を見る」ボタンは不要）
+      var sgCell;
+      if (d.sango && d.sango.done) {
+        var lv = d.sango.level ? 'レベル' + _esc(d.sango.level) : '';
+        sgCell = '<span class="child-status-ok">✅</span>' + (lv ? ' <span style="color:#555;font-size:13px">' + lv + '</span>' : '');
+      } else {
+        sgCell = '<span class="child-status-ng">❌</span>';
+      }
+
+      // 和文英訳①
+      var wbCell;
+      if (d.wabun1 && d.wabun1.done) {
+        var hp = Number(d.wabun1.hpGained || 0);
+        var hpLabel = hp > 0 ? ' <span style="color:#555;font-size:13px">全問正解（' + hp.toLocaleString() + 'HP獲得）</span>' : ' <span style="color:#555;font-size:13px">全問正解</span>';
+        wbCell = '<span class="child-status-ok">✅</span>' + hpLabel;
+      } else {
+        wbCell = '<span class="child-status-ng">❌</span>';
+      }
+
+      return '<div class="child-day-card">' +
+               '<div class="child-day-header">' + _esc(header) + '</div>' +
+               '<div class="child-day-body">' +
+                 '<div class="child-row"><div class="child-row-label">ログイン</div><div class="child-row-value">' + loginCell + '</div></div>' +
+                 '<div class="child-row"><div class="child-row-label">英単語RUSH</div><div class="child-row-value">' + eiCell + '</div></div>' +
+                 '<div class="child-row"><div class="child-row-label">三語短文</div><div class="child-row-value">' + sgCell + '</div></div>' +
+                 '<div class="child-row"><div class="child-row-label">和文英訳①</div><div class="child-row-value">' + wbCell + '</div></div>' +
+               '</div>' +
+             '</div>';
+    }).join('');
+  }
+
+  function _updateAdminChildHistoryTitle(isArchive) {
+    var name = _selectedStudentName || '生徒';
+    if (isArchive) {
+      var t = document.getElementById('child-archive-title');
+      if (t) t.textContent = '📅 ' + name + 'さんの学習履歴（' + _adminChildArchiveOffset + '週前〜）';
+    } else {
+      var t2 = document.getElementById('child-history-title');
+      if (t2) t2.textContent = '📅 ' + name + 'さんの学習履歴';
+    }
+  }
+
+  function loadAdminChildHistory() {
+    _updateAdminChildHistoryTitle(false);
+    var listEl = document.getElementById('admin-child-history-list');
+    var moreBtn = document.getElementById('admin-child-history-more');
+    if (!_selectedStudentId) { listEl.innerHTML = '<div class="child-history-empty">生徒が選択されていません</div>'; return; }
+    listEl.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
+    if (moreBtn) moreBtn.style.display = 'none';
+    gasGet({ action: 'getChildActivityRecent', studentId: _selectedStudentId, offset: 0, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="child-history-empty">読み込みに失敗しました。</div>';
+        return;
+      }
+      listEl.innerHTML = _renderAdminChildDays(res.days || []);
+      if (moreBtn) moreBtn.style.display = res.hasMore ? '' : 'none';
+    }).catch(function() {
+      listEl.innerHTML = '<div class="child-history-empty">読み込みに失敗しました。</div>';
+    });
+  }
+
+  function loadAdminChildArchive() {
+    _updateAdminChildHistoryTitle(true);
+    var listEl = document.getElementById('admin-child-archive-list');
+    var prevBtn = document.getElementById('admin-child-archive-prev');
+    var nextBtn = document.getElementById('admin-child-archive-next');
+    if (!_selectedStudentId) { listEl.innerHTML = '<div class="child-history-empty">生徒が選択されていません</div>'; return; }
+    listEl.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
+    if (nextBtn) nextBtn.disabled = true;
+    gasGet({ action: 'getChildActivityRecent', studentId: _selectedStudentId, offset: _adminChildArchiveOffset, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="child-history-empty">読み込みに失敗しました。</div>';
+        return;
+      }
+      listEl.innerHTML = _renderAdminChildDays(res.days || []);
+      if (prevBtn) prevBtn.disabled = (_adminChildArchiveOffset <= 1);
+      if (nextBtn) nextBtn.disabled = !res.hasMore;
+    }).catch(function() {
+      listEl.innerHTML = '<div class="child-history-empty">読み込みに失敗しました。</div>';
+    });
+  }
+
+  function adminChildArchivePrev() {
+    if (_adminChildArchiveOffset <= 1) { goAdminChildHistory(); return; }
+    _adminChildArchiveOffset -= 1;
+    loadAdminChildArchive();
+  }
+
+  function adminChildArchiveNext() {
+    _adminChildArchiveOffset += 1;
+    loadAdminChildArchive();
   }
 
   function _showLoginMsg(text, kind) {
@@ -1082,8 +1444,7 @@
   // セッション継続（タブ閉じで失効）
   (function init() {
     if (sessionStorage.getItem('adminPassword')) {
-      _showScreen('screen-admin-main');
-      buildAdminUI();
+      goAdminDashboard();
     }
   })();
 </script>

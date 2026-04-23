@@ -74,9 +74,10 @@ function doGet(e) {
       else if (action === 'getNoticeHistory') result = getNoticeHistory();
       else if (action === 'submitExchange')    result = submitExchange(params.studentId, params.rank);
       else if (action === 'getExchangeStatus') result = getExchangeStatus(params.studentId);
-      else if (action === 'adminLogin')     result = adminLogin(params);
-      else if (action === 'adminAddQuote')  result = adminAddQuote(params);
-      else if (action === 'adminAddNotice') result = adminAddNotice(params);
+      else if (action === 'adminLogin')        result = adminLogin(params);
+      else if (action === 'adminAddQuote')     result = adminAddQuote(params);
+      else if (action === 'adminAddNotice')    result = adminAddNotice(params);
+      else if (action === 'adminListStudents') result = adminListStudents(params);
       else if (action === 'getStudentView') result = getStudentView(params);  
       else if (action === 'getSangoTopic')             result = getSangoTopic();
       else if (action === 'submitSango')               result = submitSango(params);
@@ -964,6 +965,30 @@ function adminAddNotice(params) {
     return { ok: true };
   } catch(err) {
     console.error('[adminAddNotice]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：生徒一覧（Students シートの入力順、ID 空欄行はスキップ）
+function adminListStudents(params) {
+  try {
+    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const sh = _ss().getSheetByName(SHEET_STUDENTS);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, students: [] };
+    const values = sh.getDataRange().getValues();
+    const students = [];
+    for (let i = 1; i < values.length; i++) {
+      const sid = String(values[i][COL_ID] || '').trim();
+      if (!sid) continue;
+      students.push({
+        studentId: sid,
+        name:      String(values[i][COL_NAME] || '').trim(),
+        nickname:  String(values[i][COL_NICKNAME] || '').trim()
+      });
+    }
+    return { ok: true, students: students };
+  } catch(err) {
+    console.error('[adminListStudents]', err);
     return { ok: false, message: String(err) };
   }
 }
