@@ -66,12 +66,31 @@ function _readLastNRows(sh, n) {
   return sh.getRange(last - numRead + 1, 1, numRead, sh.getLastColumn()).getValues();
 }
 
+// キャッシュヒット/ミス診断ログ（DEBUG_CACHE プロパティが '1' の時のみ出力）
+// GAS エディタから有効化: PropertiesService.getScriptProperties().setProperty('DEBUG_CACHE','1')
+// 有効化後、各リクエストの実行ログ（Executions パネル）に [cache HIT/MISS/INV] として出力される
+// 性能影響を抑えるため、PropertiesService 読み取りは 1 リクエストあたり 1 回に抑制
+// （GAS は各 doGet 呼び出しで var を再評価するので、リクエスト境界で自動リセット）
+var _debugCacheFlag = null;  // null = 未取得 / true = on / false = off
+function _cacheLog(key, kind, extra) {
+  try {
+    if (_debugCacheFlag === null) {
+      _debugCacheFlag = (_props().getProperty('DEBUG_CACHE') === '1');
+    }
+    if (!_debugCacheFlag) return;
+    if (kind === 'hit')             console.log('[cache HIT]  ' + key);
+    else if (kind === 'miss')       console.log('[cache MISS] ' + key + (extra ? ' ' + extra : ''));
+    else if (kind === 'invalidate') console.log('[cache INV]  ' + key);
+  } catch(e) { /* ログ失敗でリクエストは絶対に落とさない */ }
+}
+
 // CacheService 経由で値を取得。hit すれば JSON.parse、miss なら loader() で取得 → キャッシュ
 // value のシリアライズが 95KB を超える場合はキャッシュをスキップ（Script Cache の 100KB/key 制限対応）
 function _getCachedValues(key, ttlSec, loader) {
   const cache = CacheService.getScriptCache();
   const hit = cache.get(key);
   if (hit) {
+    _cacheLog(key, 'hit');
     try { return JSON.parse(hit); } catch(e) { /* 破損キャッシュは無視 */ }
   }
   const val = loader();
@@ -79,8 +98,10 @@ function _getCachedValues(key, ttlSec, loader) {
     const ser = JSON.stringify(val);
     if (ser.length < 95000) {
       cache.put(key, ser, ttlSec || 21600);
+      _cacheLog(key, 'miss', 'put=' + ser.length + 'B');
     } else {
       console.warn('[cache skip >95KB]', key, 'size=' + ser.length);
+      _cacheLog(key, 'miss', 'skip>95KB');
     }
   } catch(e) {
     console.error('[cache put error]', key, e);
@@ -90,12 +111,18 @@ function _getCachedValues(key, ttlSec, loader) {
 
 // 指定キーのキャッシュを 1 件クリア
 function _invalidateCache(key) {
-  try { CacheService.getScriptCache().remove(key); } catch(e) { /* ignore */ }
+  try {
+    CacheService.getScriptCache().remove(key);
+    _cacheLog(key, 'invalidate');
+  } catch(e) { /* ignore */ }
 }
 
 // 指定キー群をまとめてクリア
 function _invalidateCacheAll(keys) {
-  try { CacheService.getScriptCache().removeAll(keys); } catch(e) { /* ignore */ }
+  try {
+    CacheService.getScriptCache().removeAll(keys);
+    if (keys && keys.forEach) keys.forEach(function(k){ _cacheLog(k, 'invalidate'); });
+  } catch(e) { /* ignore */ }
 }
 
 // 手動キャッシュ全クリア用（GAS エディタから直接実行）
@@ -557,6 +584,7 @@ function getWeeklyRanking() {
     // 派生結果をキャッシュ（6h TTL、saveAttempt / submitSango / submitWabun1 でクリア）
     const cached = CacheService.getScriptCache().get('cache_ranking_last_week');
     if (cached) {
+      _cacheLog('cache_ranking_last_week', 'hit');
       try { return JSON.parse(cached); } catch(e) { /* 破損キャッシュは無視 */ }
     }
     const ss       = _ss();
@@ -607,7 +635,9 @@ function getWeeklyRanking() {
     const result = { ok: true, ranking, period: range };
     // 派生結果をキャッシュ（6h TTL）
     try {
-      CacheService.getScriptCache().put('cache_ranking_last_week', JSON.stringify(result), 21600);
+      const ser = JSON.stringify(result);
+      CacheService.getScriptCache().put('cache_ranking_last_week', ser, 21600);
+      _cacheLog('cache_ranking_last_week', 'miss', 'put=' + ser.length + 'B');
     } catch(e) { console.error('[ranking cache put]', e); }
     return result;
   } catch(err) {
@@ -731,9 +761,11 @@ function _getQuestionRowsForLevel(lv) {
   const key = 'cache_q_rows_' + lv;
   const hit = cache.get(key);
   if (hit) {
+    _cacheLog(key, 'hit');
     try { return JSON.parse(hit); } catch(e) { /* 破損キャッシュは無視 */ }
   }
   // cache miss: Questions シートを 1 回全件読み → レベル列で分割 → 全レベル一括保存
+  _cacheLog(key, 'miss', 'reading full Questions sheet');
   const sh = _ss().getSheetByName(SHEET_QUESTIONS);
   if (!sh || sh.getLastRow() < 2) return [];
   const values = sh.getDataRange().getValues();
@@ -748,8 +780,13 @@ function _getQuestionRowsForLevel(lv) {
     const k = 'cache_q_rows_' + g;
     try {
       const ser = JSON.stringify(byLevel[g]);
-      if (ser.length < 95000) cache.put(k, ser, 21600);
-      else console.warn('[cache skip >95KB]', k, 'size=' + ser.length);
+      if (ser.length < 95000) {
+        cache.put(k, ser, 21600);
+        _cacheLog(k, 'miss', 'put=' + ser.length + 'B (bulk)');
+      } else {
+        console.warn('[cache skip >95KB]', k, 'size=' + ser.length);
+        _cacheLog(k, 'miss', 'skip>95KB');
+      }
     } catch(e) { console.error('[cache put]', k, e); }
   });
   return byLevel[lv] || [];
