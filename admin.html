@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
@@ -155,6 +158,10 @@
     .child-row-label { min-width: 86px; font-size: 12px; }
     .child-row-value { font-size: 13px; }
   }
+
+  /* バージョン表示（右下固定、キャッシュ診断＆強制リロード用） */
+  .app-version { position: fixed; right: 10px; bottom: 10px; z-index: 9000; font-size: 10px; color: #999; background: rgba(255,255,255,0.8); padding: 4px 8px; border-radius: 4px; cursor: pointer; user-select: none; box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: color .15s, background .15s; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .app-version:hover { color: #555; background: rgba(255,255,255,0.95); }
 </style>
 </head>
 <body>
@@ -1446,6 +1453,20 @@
     if (sessionStorage.getItem('adminPassword')) {
       goAdminDashboard();
     }
+  })();
+</script>
+<span id="app-version" class="app-version" title="タップで最新版に更新">v----.--.--</span>
+<script>
+  (function(){
+    var el = document.getElementById('app-version');
+    if (!el) return;
+    var d = new Date(document.lastModified);
+    var pad = function(n){ return n < 10 ? '0'+n : ''+n; };
+    el.textContent = 'v' + d.getFullYear() + '.' + pad(d.getMonth()+1) + '.' + pad(d.getDate());
+    el.addEventListener('click', function(){
+      var base = window.location.origin + window.location.pathname;
+      window.location.href = base + '?v=' + Date.now();
+    });
   })();
 </script>
 </body>
