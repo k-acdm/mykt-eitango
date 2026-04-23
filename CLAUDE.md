@@ -36,6 +36,7 @@
   1. `gas/Code.js` を編集（ローカルまたはClaude Code経由）
   2. `cd gas && clasp push` でGAS側に同期
   3. GASエディタで「デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ」で本番反映
+- **`clasp pull` は使用しない**。GASへの変更は常に `clasp push` で一方通行。手元の `gas/Code.js` を最新に保ち、それをGASに反映する運用とする。過去に「デプロイ忘れ状態の GAS から `clasp pull` して手元の新実装を事故で revert」した事例があるため、`pull` は原則禁止。万が一 GAS エディタで直接編集した場合は、`gas/Code.js` にも同じ変更を手動で入れてから `clasp push` する
 - **バージョン表示は `document.lastModified` から自動生成のため手動更新不要**。3 ファイル（`index.html` / `view.html` / `admin.html`）の右下に表示される `vYYYY.MM.DD` は GH Pages の Last-Modified ヘッダー由来で、HTML が実際にどの時点のバージョンかを反映する。タップで `?v=timestamp` 付き強制リロード可能（iPad Safari のキャッシュ問題への診断兼対策）
 - **GAS 側 Script Cache 運用**: `gas/Code.js` は問題データ・お題・連絡・Quote・ランキングを CacheService でキャッシュしている（TTL 6 時間）。管理画面経由の書き込みは自動でキャッシュをクリアする。**Questions シートを直接スプレッドシートで編集**した場合は自動クリアされないため、即反映したいときは GAS エディタから `clearAllCache()` を手動実行するか、最大 6 時間待つ
 
