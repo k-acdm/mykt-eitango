@@ -421,6 +421,31 @@
     /* バージョン表示（右下固定、キャッシュ診断＆強制リロード用） */
     .app-version { position: fixed; left: 10px; bottom: 10px; z-index: 9000; font-size: 10px; color: #999; background: rgba(255,255,255,0.8); padding: 4px 8px; border-radius: 4px; cursor: pointer; user-select: none; box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: color .15s, background .15s; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
     .app-version:hover { color: #555; background: rgba(255,255,255,0.95); }
+    /* E1 楽観的UI: 送信中インジケーター（結果画面右下に小さく） */
+    .submit-pending-ind { position: fixed; right: 16px; bottom: 16px; z-index: 9100; background: rgba(255,255,255,0.96); border: 1px solid #d1d5db; border-radius: 20px; padding: 7px 14px; font-size: 13px; color: #4b5563; box-shadow: 0 2px 10px rgba(0,0,0,.12); display: flex; align-items: center; gap: 6px; }
+    .submit-pending-ind .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #d1d5db; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* マイカツ君エラー overlay */
+    .mykt-overlay { position: fixed; inset: 0; z-index: 9500; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; padding: 20px; }
+    .mykt-overlay.active { display: flex; }
+    .mykt-overlay-card { background: #fff; border-radius: 18px; padding: 22px 18px; max-width: 360px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,.25); text-align: center; }
+    .mykt-overlay-row { display: flex; align-items: flex-start; gap: 12px; text-align: left; }
+    .mykt-overlay-row .chara-img { width: 90px; height: 90px; flex-shrink: 0; }
+    .mykt-overlay-bubble { position: relative; flex: 1; padding: 12px 14px; border-radius: 14px; font-size: 14px; line-height: 1.6; }
+    .mykt-overlay-bubble.error { background: #fff7ed; border: 2px solid #fb923c; color: #9a3412; }
+    .mykt-overlay-bubble.grading { background: #eff6ff; border: 2px solid #60a5fa; color: #1e3a8a; }
+    .mykt-overlay-bubble::before { content: ''; position: absolute; left: -10px; top: 28px; border: 8px solid transparent; }
+    .mykt-overlay-bubble.error::before { border-right-color: #fb923c; }
+    .mykt-overlay-bubble.grading::before { border-right-color: #60a5fa; }
+    .mykt-overlay-bubble::after { content: ''; position: absolute; left: -7px; top: 28px; border: 8px solid transparent; }
+    .mykt-overlay-bubble.error::after { border-right-color: #fff7ed; }
+    .mykt-overlay-bubble.grading::after { border-right-color: #eff6ff; }
+    .mykt-overlay-btns { display: flex; gap: 8px; margin-top: 16px; }
+    .mykt-overlay-btns button { flex: 1; padding: 11px 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: bold; cursor: pointer; }
+    .mykt-overlay-btns .btn-retry { background: linear-gradient(135deg, #fb923c, #f97316); color: #fff; }
+    .mykt-overlay-btns .btn-cancel { background: #e5e7eb; color: #374151; }
+    /* 採点中ドット（点々増減アニメ） */
+    .grading-dots { display: inline-block; min-width: 24px; text-align: left; }
   </style>
 </head>
 <body>
@@ -904,6 +929,39 @@
     <p style="margin-top:12px">今日の学習はここまで。<br>このタブを閉じてください。</p>
   </div>
 </div>
+
+<!-- E1 楽観的UI: 送信中インジケーター（結果画面右下に小さく） -->
+<div id="submit-pending-ind" class="submit-pending-ind" style="display:none"><span class="spinner"></span><span>送信中…</span></div>
+
+<!-- 和文英訳①: マイカツ君が採点中… overlay -->
+<div id="mykt-grading-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble grading">
+        マイカツ君がキミの英文をチェック中<span id="mykt-grading-dots" class="grading-dots">...</span><br>
+        <span style="font-size:12px;color:#3b5fa5">ちょっと待っててね！</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 共通エラー overlay（マイカツ君メッセージ + リトライ） -->
+<div id="mykt-error-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble error">
+        あ、失敗したみたい！<br>もう一回押してね
+      </div>
+    </div>
+    <div class="mykt-overlay-btns">
+      <button class="btn-cancel" onclick="_dismissSubmitError()">キャンセル</button>
+      <button class="btn-retry" onclick="_retryPendingSubmit()">もう一度送信する</button>
+    </div>
+  </div>
+</div>
+
 <script>
   var GAS_URL    = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
   var VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
@@ -985,6 +1043,64 @@
   var _finishing = false;
   // セッション中の最新HPを保持（各HP獲得アクション後に追従更新して、ホーム画面に戻ったときに反映）
   var _totalHP = 0;
+  // E1: ログインの streak をセッション中保持（HP 予測に使用）
+  var _streak = 0;
+  // E1: 楽観的UI のリトライ / キャンセル用クロージャ
+  var _pendingRetry = null;
+  var _pendingDismiss = null;
+  // E1: HP 予測（base × ceil(streak/7)²）
+  function _predictHp(base) {
+    var s = Math.max(_streak || 0, 1);
+    var w = Math.ceil(s / 7);
+    return base * w * w;
+  }
+  // E1: 当日（JST 3 時切替）に該当コンテンツで HP 獲得済みかを localStorage で予測
+  function _todayKeyJST3am() {
+    var now = new Date();
+    var jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
+    jst.setHours(jst.getHours() - 3);
+    var y = jst.getFullYear(), m = jst.getMonth() + 1, d = jst.getDate();
+    return y + '-' + (m < 10 ? '0' + m : m) + '-' + (d < 10 ? '0' + d : d);
+  }
+  function _hpFlagKey(type) { return 'mykt_hp_' + (_studentId || '') + '_' + type + '_' + _todayKeyJST3am(); }
+  function _isHpGrantedToday(type) { try { return !!localStorage.getItem(_hpFlagKey(type)); } catch(e) { return false; } }
+  function _markHpGrantedToday(type)   { try { localStorage.setItem(_hpFlagKey(type), '1'); } catch(e){} }
+  function _unmarkHpGrantedToday(type) { try { localStorage.removeItem(_hpFlagKey(type)); } catch(e){} }
+  // E1: 送信中インジケーター
+  function _showSubmitPending() { var el = document.getElementById('submit-pending-ind'); if (el) el.style.display = 'flex'; }
+  function _hideSubmitPending() { var el = document.getElementById('submit-pending-ind'); if (el) el.style.display = 'none'; }
+  // E1: マイカツ君エラー overlay
+  function _showSubmitError() { var ov = document.getElementById('mykt-error-overlay'); if (ov) ov.classList.add('active'); }
+  function _hideSubmitError() { var ov = document.getElementById('mykt-error-overlay'); if (ov) ov.classList.remove('active'); }
+  function _retryPendingSubmit() {
+    _hideSubmitError();
+    var fn = _pendingRetry; _pendingRetry = null; _pendingDismiss = null;
+    if (typeof fn === 'function') fn();
+  }
+  function _dismissSubmitError() {
+    _hideSubmitError();
+    var fn = _pendingDismiss; _pendingRetry = null; _pendingDismiss = null;
+    if (typeof fn === 'function') fn();
+  }
+  // 和文英訳①: マイカツ君が採点中… overlay（点々アニメ付き）
+  var _gradingDotsTimer = null;
+  function _showWabun1Grading() {
+    var ov = document.getElementById('mykt-grading-overlay');
+    if (!ov) return;
+    ov.classList.add('active');
+    var dotsEl = document.getElementById('mykt-grading-dots');
+    var n = 3;
+    if (_gradingDotsTimer) clearInterval(_gradingDotsTimer);
+    _gradingDotsTimer = setInterval(function(){
+      n = (n % 3) + 1;
+      if (dotsEl) dotsEl.textContent = n === 1 ? '.' : (n === 2 ? '..' : '...');
+    }, 400);
+  }
+  function _hideWabun1Grading() {
+    var ov = document.getElementById('mykt-grading-overlay');
+    if (ov) ov.classList.remove('active');
+    if (_gradingDotsTimer) { clearInterval(_gradingDotsTimer); _gradingDotsTimer = null; }
+  }
   // F1: ログイン直後にコンテンツのトピックを先読みして保持（タップ時に瞬時表示）
   var _prefetched = {};
   function _prefetchTopics() {
@@ -1229,6 +1345,7 @@
       if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
       _studentId = res.studentId;
       _totalHP   = Number(res.totalHP) || 0;
+      _streak    = Number(res.streak) || 0;
       res.isFirstLogin ? showScreen('screen-nickname') : showWelcome(res.nickname, res.totalHP, res.loginBonus, res.stage, res.streak, res.title, res.milestone);
     }).catch(function(){ document.getElementById('login-btn').disabled = false; showMsg('login-msg','エラーが発生しました。','ng'); });
   }
@@ -1418,9 +1535,7 @@
     _finishing = true;
     var total = _questions.length;
     if (_score === total) {
-      gasGet({ action:'saveAttempt', studentId:_studentId, setNo:_setNo, score:_score, total:total, passed:true, level:_level, sessionNo:_sessionNo })
-        .then(function(res){ if (res && res.ok) { _invalidateCacheByAction('getHistory'); _invalidateCacheByAction('getWeeklyRanking'); } showResult(true, res); })
-        .catch(function(){ showResult(true, null); });
+      _submitAttemptOptimistic(total);
     } else {
       var lastScore = _score; _questions = _questions.sort(function(){ return Math.random()-.5; }); _current = 0; _score = 0; _finishing = false;
       document.getElementById('test-feedback').textContent = ''; document.getElementById('test-feedback').className = 'feedback';
@@ -1430,6 +1545,42 @@
       requestAnimationFrame(function(){ requestAnimationFrame(function(){ playSfx('fail'); }); });
       setTimeout(function(){ renderQuestion(); }, 2500);
     }
+  }
+  // E1: 英単語RUSH 楽観的UI（即座に結果画面表示 → 裏で saveAttempt → 差分があれば再描画）
+  function _submitAttemptOptimistic(total) {
+    var sidSnap = _studentId, setNoSnap = _setNo, scoreSnap = _score, levelSnap = _level, sessionNoSnap = _sessionNo;
+    var streakSnap = _streak;
+    var predictedHp = _predictHp(50);
+    _totalHP += predictedHp;
+    var optimisticRes = { ok: true, totalHP: _totalHP, streak: streakSnap, clearHP: predictedHp, hpGained: predictedHp };
+    showResult(true, optimisticRes);
+    _showSubmitPending();
+    _pendingRetry = function(){ _finishing = true; _submitAttemptOptimistic(total); };
+    _pendingDismiss = function(){ goHome(); };
+    gasGet({ action:'saveAttempt', studentId:sidSnap, setNo:setNoSnap, score:scoreSnap, total:total, passed:true, level:levelSnap, sessionNo:sessionNoSnap })
+      .then(function(res){
+        _hideSubmitPending();
+        if (!res || !res.ok) {
+          _totalHP -= predictedHp;
+          _showSubmitError();
+          return;
+        }
+        _pendingRetry = null; _pendingDismiss = null;
+        _invalidateCacheByAction('getHistory');
+        _invalidateCacheByAction('getWeeklyRanking');
+        if (Number(res.streak) > 0) _streak = Number(res.streak);
+        var actualHp = Number(res.clearHP || res.hpGained || 0);
+        var actualTotal = Number(res.totalHP || 0);
+        if (actualHp !== predictedHp || actualTotal !== _totalHP) {
+          _totalHP = actualTotal;
+          showResult(true, res);
+        }
+      })
+      .catch(function(){
+        _hideSubmitPending();
+        _totalHP -= predictedHp;
+        _showSubmitError();
+      });
   }
   function showResult(passed, saveRes) {
     showScreen('screen-result');
@@ -1484,6 +1635,8 @@
     _stopAudio();
     _studentId = null; _questions = []; _score = 0; _current = 0;
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
+    _streak = 0; _pendingRetry = null; _pendingDismiss = null;
+    _hideSubmitPending(); _hideSubmitError(); _hideWabun1Grading();
     try { document.getElementById('login-id').value = ''; } catch(e){}
     showScreen('screen-login');
   }
@@ -1577,17 +1730,38 @@
     var topic = (_sangoTopics || []).find(function(t){ return t.level === _sangoCurrentLevel; });
     var words = topic ? (topic.words || []).join(' / ') : '';
     var btn = document.getElementById('sango-text-submit-btn'); btn.disabled = true;
-    showMsg('sango-text-msg', '⏳ 送信中...', 'ok');
-    gasGet({ action:'submitSango', studentId:_studentId, level:_sangoCurrentLevel, words:words, work:val, method:'text' }).then(function(res) {
-      if (!res || !res.ok) { showMsg('sango-text-msg', (res && res.message) || '送信に失敗しました。', 'ng'); btn.disabled = false; return; }
+    var levelSnap = _sangoCurrentLevel, sidSnap = _studentId;
+    // E1 楽観的UI: 即座に完了画面を表示
+    var isFirst = !_isHpGrantedToday('sango');
+    var predictedHp = isFirst ? _predictHp(200) : 0;
+    if (predictedHp > 0) { _totalHP += predictedHp; _markHpGrantedToday('sango'); }
+    document.getElementById('sango-text-msg').style.display = 'none';
+    _showSangoDone(predictedHp, !isFirst);
+    _showSubmitPending();
+    _pendingRetry = function(){ submitSangoText(); };
+    _pendingDismiss = function(){ btn.disabled = false; showScreen('screen-sango-text'); };
+    gasGet({ action:'submitSango', studentId:sidSnap, level:levelSnap, words:words, work:val, method:'text' }).then(function(res) {
+      _hideSubmitPending();
+      if (!res || !res.ok) {
+        if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
+        _showSubmitError();
+        return;
+      }
+      _pendingRetry = null; _pendingDismiss = null;
       _invalidateCacheByAction('getSangoSubmissions');
-      var hp = Number(res.hpGained || 0);
-      if (hp > 0) _totalHP += hp;  // 次回ホーム表示のために最新HPを追従
+      var actualHp = Number(res.hpGained || 0);
+      if (actualHp !== predictedHp) {
+        _totalHP += (actualHp - predictedHp);
+        if (actualHp === 0) _unmarkHpGrantedToday('sango'); else _markHpGrantedToday('sango');
+        _showSangoDone(actualHp, actualHp === 0);
+      }
       document.getElementById('sango-text-input').value = '';
-      document.getElementById('sango-text-msg').style.display = 'none';
       btn.disabled = false;
-      _showSangoDone(hp, hp === 0);
-    }).catch(function(){ showMsg('sango-text-msg', 'エラーが発生しました。', 'ng'); btn.disabled = false; });
+    }).catch(function(){
+      _hideSubmitPending();
+      if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
+      _showSubmitError();
+    });
   }
   function startSangoPhotoSubmit() {
     if (!_sangoTopics || _sangoTopics.length === 0) { alert('まだお題が登録されていません。'); return; }
@@ -1648,18 +1822,38 @@
     if (!_sangoOcrText || !_sangoCurrentLevel) return;
     var topic = (_sangoTopics || []).find(function(t){ return t.level === _sangoCurrentLevel; });
     var words = topic ? (topic.words || []).join(' / ') : '';
-    var msgEl = document.getElementById('sango-photo-msg');
-    msgEl.textContent = '⏳ 送信中...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
-    gasGet({ action:'submitSango', studentId:_studentId, level:_sangoCurrentLevel, words:words, work:_sangoOcrText, method:'photo' }).then(function(res) {
-      if (!res || !res.ok) { showMsg('sango-photo-msg', (res && res.message) || '送信に失敗しました。', 'ng'); return; }
+    var levelSnap = _sangoCurrentLevel, sidSnap = _studentId, ocrSnap = _sangoOcrText;
+    document.getElementById('sango-photo-msg').style.display = 'none';
+    document.getElementById('sango-ocr-confirm').style.display = 'none';
+    // E1 楽観的UI: 即座に完了画面を表示
+    var isFirst = !_isHpGrantedToday('sango');
+    var predictedHp = isFirst ? _predictHp(200) : 0;
+    if (predictedHp > 0) { _totalHP += predictedHp; _markHpGrantedToday('sango'); }
+    _showSangoDone(predictedHp, !isFirst);
+    _showSubmitPending();
+    _pendingRetry = function(){ _sangoOcrText = ocrSnap; _sangoCurrentLevel = levelSnap; confirmSangoPhoto(true); };
+    _pendingDismiss = function(){ showScreen('screen-sango-photo'); };
+    gasGet({ action:'submitSango', studentId:sidSnap, level:levelSnap, words:words, work:ocrSnap, method:'photo' }).then(function(res) {
+      _hideSubmitPending();
+      if (!res || !res.ok) {
+        if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
+        _showSubmitError();
+        return;
+      }
+      _pendingRetry = null; _pendingDismiss = null;
       _invalidateCacheByAction('getSangoSubmissions');
-      var hp = Number(res.hpGained || 0);
-      if (hp > 0) _totalHP += hp;  // 次回ホーム表示のために最新HPを追従
-      document.getElementById('sango-ocr-confirm').style.display = 'none';
-      document.getElementById('sango-photo-msg').style.display = 'none';
+      var actualHp = Number(res.hpGained || 0);
+      if (actualHp !== predictedHp) {
+        _totalHP += (actualHp - predictedHp);
+        if (actualHp === 0) _unmarkHpGrantedToday('sango'); else _markHpGrantedToday('sango');
+        _showSangoDone(actualHp, actualHp === 0);
+      }
       _resetSangoPhoto();
-      _showSangoDone(hp, hp === 0);
-    }).catch(function(){ showMsg('sango-photo-msg', 'エラーが発生しました。', 'ng'); });
+    }).catch(function(){
+      _hideSubmitPending();
+      if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
+      _showSubmitError();
+    });
   }
 
   function _showSangoDone(hp, alreadyGranted) {
@@ -2001,26 +2195,32 @@
     _wabun1State.submitting = true;
     var btn = document.getElementById('wabun1-confirm-submit-btn'); btn.disabled = true;
     var msgEl = document.getElementById('wabun1-confirm-msg');
-    msgEl.textContent = '⏳ 送信中...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
+    msgEl.style.display = 'none';
     try {
       var shown = (document.getElementById('wabun1-ocr-text') || {}).textContent || '';
       console.log('[wabun1 submit] stateOcrText=', JSON.stringify(_wabun1State.ocrText), ' shownOnScreen=', JSON.stringify(shown), ' match=', shown === _wabun1State.ocrText);
     } catch(e){}
+    // 楽観的UI 対象外: マイカツ君が「採点中…」演出を出してから結果待ち
+    _showWabun1Grading();
+    _pendingRetry = function(){ _wabun1State.submitting = false; submitWabun1Answer(); };
+    _pendingDismiss = function(){ btn.disabled = false; };
     gasGet({ action:'submitWabun1', studentId:_studentId, workText:_wabun1State.ocrText }).then(function(res){
+      _hideWabun1Grading();
       _wabun1State.submitting = false;
       if (!res || !res.ok) {
-        showMsg('wabun1-confirm-msg', (res && res.message) || '送信に失敗しました。', 'ng');
         btn.disabled = false;
+        _showSubmitError();
         return;
       }
+      _pendingRetry = null; _pendingDismiss = null;
       _wabun1State.hasSubmitted = true;
       _invalidateCacheByAction('getWabun1AnswersAfterSubmit');
-      msgEl.style.display = 'none';
       _showWabun1Result(res);
     }).catch(function(){
+      _hideWabun1Grading();
       _wabun1State.submitting = false;
-      showMsg('wabun1-confirm-msg', 'エラーが発生しました。', 'ng');
       btn.disabled = false;
+      _showSubmitError();
     });
   }
 
