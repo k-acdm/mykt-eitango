@@ -912,6 +912,31 @@
     return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
       .then(function(r){ return r.json(); });
   }
+  // F2: クライアントサイドセッションキャッシュ（読み取り系のみ memoize）
+  // - キャッシュキー: _ts を除いた params のソート JSON
+  // - 成功レスポンス（res.ok === true）のみキャッシュ
+  // - 既定 TTL: 5 分
+  var _gasCache = {};
+  function _cacheKey(params) {
+    var clean = {};
+    Object.keys(params).sort().forEach(function(k){ if (k !== '_ts') clean[k] = params[k]; });
+    return JSON.stringify(clean);
+  }
+  function cachedGasGet(params, ttlMs) {
+    var key = _cacheKey(params);
+    var hit = _gasCache[key];
+    var now = Date.now();
+    if (hit && hit.expiry > now) return Promise.resolve(hit.res);
+    return gasGet(params).then(function(res){
+      if (res && res.ok) _gasCache[key] = { res: res, expiry: now + (ttlMs || 300000) };
+      return res;
+    });
+  }
+  function _invalidateCacheByAction(action) {
+    Object.keys(_gasCache).forEach(function(k){
+      try { if (JSON.parse(k).action === action) delete _gasCache[k]; } catch(e){}
+    });
+  }
 
   // 効果音（正解 / 不正解 / 合格 / 不合格）
   var SFX = {
@@ -1142,7 +1167,7 @@
   }
 
   function loadTodayQuote() {
-    gasGet({ action: 'getQuote', _ts: Date.now() }).then(function(res) {
+    cachedGasGet({ action: 'getQuote' }).then(function(res) {
       var raw = res && (res.quote || res.data || res.row);
       var q   = _normalizeQuote(raw);
       if (!res || !res.ok || !q) {
@@ -1156,7 +1181,7 @@
   }
   function loadLatestNotice() {
     var listEl = document.getElementById('notice-list');
-    gasGet({ action: 'getNotice', _ts: Date.now() }).then(function(res) {
+    cachedGasGet({ action: 'getNotice' }).then(function(res) {
       var items = res && (res.notices || (res.notice ? [res.notice] : null));
       if (!res || !res.ok || !items || items.length === 0) {
         listEl.innerHTML = '<div class="notice-card"><div class="notice-header"><div class="notice-title">お知らせ</div></div><div class="notice-body"><div class="notice-empty">現在お知らせはありません。</div></div></div>';
@@ -1180,7 +1205,7 @@
     });
   }
   function loadWeeklyRanking() {
-    gasGet({ action: 'getWeeklyRanking' }).then(function(res) {
+    cachedGasGet({ action: 'getWeeklyRanking' }).then(function(res) {
       if (!res.ok || !res.ranking) { document.getElementById('ranking-list').innerHTML = '<div class="ranking-empty">データがまだありません</div>'; document.getElementById('ranking-period').textContent = ''; return; }
       var p = res.period;
       document.getElementById('ranking-period').textContent = p.start.slice(5).replace('-','/') + '（月）〜' + p.end.slice(5).replace('-','/') + '（日）';
@@ -1394,7 +1419,8 @@
     var total = _questions.length;
     if (_score === total) {
       gasGet({ action:'saveAttempt', studentId:_studentId, setNo:_setNo, score:_score, total:total, passed:true, level:_level, sessionNo:_sessionNo })
-        .then(function(res){ showResult(true, res); }).catch(function(){ showResult(true, null); });
+        .then(function(res){ if (res && res.ok) { _invalidateCacheByAction('getHistory'); _invalidateCacheByAction('getWeeklyRanking'); } showResult(true, res); })
+        .catch(function(){ showResult(true, null); });
     } else {
       var lastScore = _score; _questions = _questions.sort(function(){ return Math.random()-.5; }); _current = 0; _score = 0; _finishing = false;
       document.getElementById('test-feedback').textContent = ''; document.getElementById('test-feedback').className = 'feedback';
@@ -1429,7 +1455,7 @@
   function showHistory() {
     showScreen('screen-history'); document.getElementById('history-student').textContent = _studentId + ' さん';
     document.getElementById('history-list').innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
-    gasGet({ action:'getHistory', studentId:_studentId }).then(function(res){
+    cachedGasGet({ action:'getHistory', studentId:_studentId }).then(function(res){
       if (!res.ok || res.history.length === 0) { document.getElementById('history-list').innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:15px">まだ合格したセットがありません。</div>'; return; }
       document.getElementById('history-list').innerHTML = res.history.map(function(h){ return '<div class="history-item" onclick="showHistoryReview('+h.setNo+',\''+esc(h.level)+'\',\''+h.date+'\')"><span class="history-date">'+formatDate(h.date)+'</span><span class="history-level">英検'+h.level+'レベル</span><span class="history-set">セット '+h.setNo+'</span><span class="history-arrow">›</span></div>'; }).join('');
       setTimeout(function(){ window.scrollTo(0, _historyScrollY); }, 50);
@@ -1457,7 +1483,7 @@
     window.removeEventListener('popstate', popstateHandler);
     _stopAudio();
     _studentId = null; _questions = []; _score = 0; _current = 0;
-    _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {};
+    _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     try { document.getElementById('login-id').value = ''; } catch(e){}
     showScreen('screen-login');
   }
@@ -1554,6 +1580,7 @@
     showMsg('sango-text-msg', '⏳ 送信中...', 'ok');
     gasGet({ action:'submitSango', studentId:_studentId, level:_sangoCurrentLevel, words:words, work:val, method:'text' }).then(function(res) {
       if (!res || !res.ok) { showMsg('sango-text-msg', (res && res.message) || '送信に失敗しました。', 'ng'); btn.disabled = false; return; }
+      _invalidateCacheByAction('getSangoSubmissions');
       var hp = Number(res.hpGained || 0);
       if (hp > 0) _totalHP += hp;  // 次回ホーム表示のために最新HPを追従
       document.getElementById('sango-text-input').value = '';
@@ -1625,6 +1652,7 @@
     msgEl.textContent = '⏳ 送信中...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
     gasGet({ action:'submitSango', studentId:_studentId, level:_sangoCurrentLevel, words:words, work:_sangoOcrText, method:'photo' }).then(function(res) {
       if (!res || !res.ok) { showMsg('sango-photo-msg', (res && res.message) || '送信に失敗しました。', 'ng'); return; }
+      _invalidateCacheByAction('getSangoSubmissions');
       var hp = Number(res.hpGained || 0);
       if (hp > 0) _totalHP += hp;  // 次回ホーム表示のために最新HPを追従
       document.getElementById('sango-ocr-confirm').style.display = 'none';
@@ -1740,7 +1768,7 @@
     var listEl = document.getElementById('sango-history-list');
     listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     showScreen('screen-sango-history');
-    gasGet({ action:'getSangoSubmissions', studentId:_studentId, _ts: Date.now() }).then(function(res) {
+    cachedGasGet({ action:'getSangoSubmissions', studentId:_studentId }).then(function(res) {
       if (!res || !res.ok) { listEl.innerHTML = '<div style="text-align:center;color:#c0392b;padding:30px">読み込みに失敗しました。</div>'; return; }
       var items = res.submissions || [];
       if (items.length === 0) {
@@ -1986,6 +2014,7 @@
         return;
       }
       _wabun1State.hasSubmitted = true;
+      _invalidateCacheByAction('getWabun1AnswersAfterSubmit');
       msgEl.style.display = 'none';
       _showWabun1Result(res);
     }).catch(function(){
@@ -2064,7 +2093,7 @@
     var bodyEl = document.getElementById('wabun1-answers-body');
     bodyEl.innerHTML = '<div class="loading" style="padding:30px 0">⏳ 読み込み中...</div>';
     document.getElementById('wabun1-answers-overlay').style.display = 'flex';
-    gasGet({ action:'getWabun1AnswersAfterSubmit', studentId:_studentId, _ts: Date.now() }).then(function(res){
+    cachedGasGet({ action:'getWabun1AnswersAfterSubmit', studentId:_studentId }).then(function(res){
       if (!res || !res.ok) {
         bodyEl.innerHTML =
           '<div style="color:#78350f;font-size:14px;line-height:1.7;background:#fff8e1;padding:14px;border-radius:10px;text-align:center">' +
