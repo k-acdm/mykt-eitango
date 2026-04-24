@@ -1372,6 +1372,8 @@
     _prefetchTopics();
   }
   function toggleChangeArea() { var area = document.getElementById('change-area'); area.style.display = area.style.display === 'none' ? 'block' : 'none'; }
+  function openModal()  { document.getElementById('img-modal').classList.add('active'); }
+  function closeModal() { document.getElementById('img-modal').classList.remove('active'); }
   function doChangeNickname() {
     var nn = document.getElementById('change-input').value.trim();
     if (!nn) { showMsg('change-msg','ニックネームを入力してください。','ng'); return; }
