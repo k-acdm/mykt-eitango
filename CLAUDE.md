@@ -861,6 +861,106 @@
   - 基礎計算コンテンツの企画・実装
 - **Day 2 Priority 3（G3/G4/G6）**: 時間が余れば実装
 
+### 2026-04-25
+
+本日は塾PCで作業。Stage 3 + E1 実装でパフォーマンス改善フェーズ完了、小バグ修正、企画進行、ブログ執筆。本スレは添付ファイル上限到達のため自宅PC再開時は新スレで作業。
+
+#### 64. Option A main マージ＆動作確認完了
+- Option A（ホーム画面HP表示バグ修正）は #62 で実装済み。本日朝に実機（`?v=タイムスタンプ` キャッシュバスター付き）で動作確認
+- テスト合格 / 三語短文提出 / 和文英訳①提出いずれも結果画面に正しい新HP表示、ホームに戻っても反映、連続提出でも追従 — 全経路正常
+- 速度も「まあまあ速い」との評価 → Stage 3 + E1 の実装に進む判断
+
+#### 65. GAS パフォーマンス改善 Stage 3 F1: ログイン後トピック先読み（dev `966b67f` → main `dc7a545`）
+- **設計方針**: `var _prefetched = {}` map に Promise を保持、`showWelcome()` 末尾で `_prefetchTopics()` を呼び `getSangoTopic` / `getWabun1Topic` を並列先読み。`showSangoTopic` / `showWabun1Topic` で consume（使い切り型、再タップは従来通り fetch）、`doLogout` でリセット
+- Option A の `_totalHP` には未干渉
+- [index.html](index.html) +19/-3 行
+- 期待効果: 初回コンテンツタップ 3000ms → ほぼ 0ms（prefetch hit 時）
+
+#### 66. GAS パフォーマンス改善 Stage 3 F2: クライアントサイドセッションキャッシュ（dev `f9192a0` → main `dc7a545`）
+- **設計方針**: `cachedGasGet(params, ttlMs)` 新設、既存 `gasGet` は無改修のラッパー方式
+- キャッシュキー = `_ts` を除いた params のソート JSON、成功 (`res.ok === true`) のみキャッシュ、TTL 既定 5 分（300_000ms）
+- 6 エンドポイント差し替え: `getQuote` / `getNotice` / `getWeeklyRanking` / `getHistory` / `getSangoSubmissions` / `getWabun1AnswersAfterSubmit`
+- Invalidation hook 4 箇所:
+  - `saveAttempt` 成功 → `getHistory` + `getWeeklyRanking`
+  - `submitSango` (text/photo) 成功 → `getSangoSubmissions`
+  - `submitWabun1` 成功 → `getWabun1AnswersAfterSubmit`
+- `doLogout` で `_gasCache = {}` リセット
+- Option A の `_totalHP` には未干渉
+- [index.html](index.html) +37/-8 行
+- 期待効果: 画面往復 2 回目以降 3000ms → 0ms（TTL 内なら GAS 呼び出しゼロ）
+
+#### 67. パフォーマンス改善 E1: 楽観的UI + マイカツ君エラー演出（dev `6ee8e58` → main `464020a`）
+- **HP 予測式の調査で判明**: GAS `submitSango` / `submitWabun1` は「固定値 200/100」ではなく `200 × week²` / `100 × week²`（week = `Math.ceil(streak/7)`）。ユーザーの仕様認識にズレがあり実装前に訂正
+- **楽観的UI 対象**（即座に結果画面表示 → 裏で送信 → 差分があれば再描画）:
+  - 英単語RUSH 満点合格: `50 × Math.ceil(streak/7)²` 予測、`_submitAttemptOptimistic(total)` 関数に分離
+  - 三語短文 (text/photo): `200 × Math.ceil(streak/7)²` 予測、当日 2 回目以降は 0 を予測（localStorage キー `mykt_hp_<sid>_sango_<JST3am日付>` で判定）
+- **楽観的UI 対象外（和文英訳①）**: 全問正解判定がサーバー側のため楽観表示は誤誘導リスク。代わりに「マイカツ君がキミの英文をチェック中…」中立ローディング overlay（`character.jpg` + ドット点滅アニメ 400ms 周期、青系吹き出し `#eff6ff` + `#60a5fa`）
+- **エラー演出**: 共通 overlay（`character.jpg` + 暖色吹き出し `#fff7ed` + `#fb923c`）「あ、失敗したみたい！もう一回押してね」+「もう一度送信する」/「キャンセル」の 2 ボタン
+  - `.catch()`（ネットワーク/タイムアウト）と `res.ok === false`（サーバーエラー）両方を失敗扱い
+  - ロールバック: `_totalHP -= predicted` + `_unmarkHpGrantedToday('sango')`
+  - リトライ: `_pendingRetry` クロージャで楽観的UIごと再走
+  - キャンセル: `_pendingDismiss` で画面復帰（英単語RUSH → `goHome` / 三語短文 → 入力画面 / 和文英訳① → 確認画面で送信ボタン再有効化）
+- **送信中インジケーター**: `.submit-pending-ind`（結果画面右下固定、スピナー + 「送信中…」13px グレー）、サーバー応答で非表示
+- **新規追加 state**: `_streak`（`doLogin` で保存、`doLogout` でリセット） / `_pendingRetry` / `_pendingDismiss` / `_gradingDotsTimer` / localStorage 当日フラグ群（JST 3 時切替で自動ローテート）
+- [index.html](index.html) +225/-25 行
+- 動作確認: 全経路正常、HP 誤表示なし、連続提出時も追従
+
+#### 68. パフォーマンス改善総合評価
+- Option A + Stage 2 + Stage 3 + E1 の総合評価：**「劇的ではないが実用レベル」**。書き込み系は Option A + E1 で瞬時体感、読み取り系は F1/F2 で 2 回目以降ほぼ即時
+- HP 誤表示なし、全体動作正常
+- **パフォーマンス改善フェーズは一区切り**。以降は新機能実装にリソース配分
+
+#### 69. B：タップで拡大バグ修正（dev `6535567` → main `3b75de3`）
+- **症状**: 英単語RUSH 英検 5 級 書き取り画面の見本画像「こんな感じで書いてね（タップで拡大）」をタップしても無反応
+- **真因**: [index.html:462](index.html:462) のモーダル DOM `#img-modal` と [index.html:60-62](index.html:60) の CSS `.modal-overlay.active` は完備されていたが、`onclick="openModal()"` から呼ばれる `openModal()` / `closeModal()` の **JS 関数本体が未定義**。タップ時に `ReferenceError` で何も起きていなかった
+- **修正** ([index.html:1375-1376](index.html:1375)): 2 行追加で完結
+  ```js
+  function openModal()  { document.getElementById('img-modal').classList.add('active'); }
+  function closeModal() { document.getElementById('img-modal').classList.remove('active'); }
+  ```
+- 動作確認: 5 級 書き取り画面で見本画像タップ → 拡大表示、背景タップ → 閉じる、iOS Safari / Android Chrome 両方 OK
+
+#### 70. A：管理画面動作確認（既完了と判明）
+- 4/22-23 セッション（#53 管理画面ダッシュボード化）で実装完了＆軽く動作確認済と判明
+- **詳細な動作確認は運用で検証していく方針**で終了
+
+#### 71. ブログ記事執筆（はてなブログ連動企画）
+- **タイトル形式**：「【マイ活アプリ通信＠AIクロ】…」（AI「クロ」が執筆した記事だと分かる命名）
+- **1 本目**: 「はじめまして！マイ活アプリの裏側にいるAIのクロです」**公開済み**
+- **2 本目**: 「AI目線で見る「マイ活アプリ」のここが凄い」→ **4/26 公開予定**
+- ふくちさんの文体を分析 → 親しみやすい話し言葉ベースに統一
+- **今後の構成**: クロがマイ活アプリ関連記事を執筆、ふくちさんが他テーマを執筆。コントラストを楽しむ構成
+
+#### 72. 将来タスク（記憶保存）
+- **メモリ#6**: 管理画面「生徒実施状況」のカレンダー機能（日付起点で閲覧可能に）
+- **メモリ#7**: 講師ログイン機能＋ `Teachers` シート新規作成
+- **メモリ#8**: 先生→生徒メッセージング機能（生徒からの返信は LINE へ）
+
+#### 73. D：基礎計算コンテンツ企画進行
+- **仕様書受領**（ふくちさん）: 20 級〜1 級、無学年〜中 3 レベルの 20 種類
+- **紙教材画像**: 20 枚 × 2（前半 + 後半）受領、PNG 変換済み（`/home/claude/calc_images/` と `/home/claude/calc_images_kouhan/`）
+- **技術方針確定**:
+  - **MathJax** で数式表示（紙教材と同じ見た目）
+  - **Gemini API** で問題生成
+  - **Vision API**（既存）で採点用 OCR 流用
+  - **全 20 級一気に実装**（Phase 分けしない）
+- **HP 上限**: 100/日確定（5 題 50HP × 2 or 10 題 100HP × 1）
+- **連立方程式の後半 2 枚画像は未受領**（スレ添付上限、次スレへ持ち越し）
+- **引き継ぎ書**: `/mnt/user-data/outputs/引き継ぎ書_基礎計算コンテンツ企画.md` にファイル出力済み
+- **仕様書作成は新スレで継続**
+
+#### 74. Gemini API キー状態確認
+- **Vision API key** (`VISION_API_KEY`): GAS Script Properties に既存（三語短文/和文英訳①の OCR で使用中）、流用可能
+- **Gemini API key**: [gas/Code.js](gas/Code.js) 内で `GEMINI` / `gemini` いずれの文字列もゼロヒット → **新規取得 + Script Properties に `GEMINI_API_KEY` として登録が必要**
+- **フロント側 `VISION_KEY`** ([index.html:909](index.html:909)) は GAS 側とは別のハードコード。既存の三語短文/和文英訳① OCR で直接叩いている
+- **コード参照されている既存キー一覧**: `VISION_API_KEY` / `ADMIN_PASSWORD` / `DEBUG_CACHE` / 動的キー `cleared_*` / `pass1_*` / `pass2_*`
+
+#### 75. 次回（自宅PC）作業予定
+- **環境**: 塾PC 作業終了、数時間後に自宅PCで再開。Claude Code 側は**新スレで開始**（現スレは添付ファイル上限到達）
+- **新スレ開始時の最初のルーティン**: 環境整理（`git pull` → `dev` 切替 → ステール worktree/ブランチ削除）。`clasp pull` は禁止（運用ルール通り）
+- **新スレの最初の実作業**: 基礎計算コンテンツの仕様書作成を新スレで継続（#73 引き継ぎ書参照）
+- **パフォーマンス改善フェーズ終了**のため、以降は新機能（基礎計算）の実装がメイン
+
 ---
 
 ## TODO（未反映の GAS 側作業）
