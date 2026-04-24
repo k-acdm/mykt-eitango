@@ -960,6 +960,15 @@
   var _finishing = false;
   // セッション中の最新HPを保持（各HP獲得アクション後に追従更新して、ホーム画面に戻ったときに反映）
   var _totalHP = 0;
+  // F1: ログイン直後にコンテンツのトピックを先読みして保持（タップ時に瞬時表示）
+  var _prefetched = {};
+  function _prefetchTopics() {
+    if (!_studentId) return;
+    _prefetched['sangoTopic'] = gasGet({ action:'getSangoTopic', _ts: Date.now() })
+      .catch(function(){ delete _prefetched['sangoTopic']; return null; });
+    _prefetched['wabun1Topic'] = gasGet({ action:'getWabun1Topic', studentId:_studentId, _ts: Date.now() })
+      .catch(function(){ delete _prefetched['wabun1Topic']; return null; });
+  }
   try { _voiceIdx = parseInt(localStorage.getItem('maika_voice') || '0', 10) || 0; } catch(e) {}
 
   var _wsVoices = [];
@@ -1218,6 +1227,7 @@
     loadTodayQuote();
     loadLatestNotice();
     loadWeeklyRanking();
+    _prefetchTopics();
   }
   function toggleChangeArea() { var area = document.getElementById('change-area'); area.style.display = area.style.display === 'none' ? 'block' : 'none'; }
   function doChangeNickname() {
@@ -1447,7 +1457,7 @@
     window.removeEventListener('popstate', popstateHandler);
     _stopAudio();
     _studentId = null; _questions = []; _score = 0; _current = 0;
-    _historyMode = false; _finishing = false; _totalHP = 0;
+    _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {};
     try { document.getElementById('login-id').value = ''; } catch(e){}
     showScreen('screen-login');
   }
@@ -1470,7 +1480,10 @@
     document.getElementById('sango-student').textContent = _studentId + ' さん';
     document.getElementById('sango-topic-body').innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     showScreen('screen-sango-topic');
-    gasGet({ action:'getSangoTopic', _ts: Date.now() }).then(function(res) {
+    var p = _prefetched['sangoTopic'];
+    delete _prefetched['sangoTopic'];
+    if (!p) p = gasGet({ action:'getSangoTopic', _ts: Date.now() });
+    p.then(function(res) {
       if (!res || !res.ok) { document.getElementById('sango-topic-body').innerHTML = '<div class="error">お題の取得に失敗しました。</div>'; return; }
       _sangoTopics = res.topics || [];
       _sangoTeacherWorks = res.teacherWorks || [];
@@ -1834,7 +1847,10 @@
     document.getElementById('wabun1-photo-input').value = '';
     document.getElementById('wabun1-date-label').textContent = '';
     showScreen('screen-wabun1-topic');
-    gasGet({ action:'getWabun1Topic', studentId:_studentId, _ts: Date.now() }).then(function(res){
+    var p = _prefetched['wabun1Topic'];
+    delete _prefetched['wabun1Topic'];
+    if (!p) p = gasGet({ action:'getWabun1Topic', studentId:_studentId, _ts: Date.now() });
+    p.then(function(res){
       if (!res || !res.ok) { bodyEl.innerHTML = '<div class="error">読み込みに失敗しました。</div>'; return; }
       _wabun1State.topic = res.today || null;
       _wabun1State.yesterday = res.yesterday || null;
