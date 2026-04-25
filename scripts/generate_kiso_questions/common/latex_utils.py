@@ -143,3 +143,96 @@ def power_latex(base_str: str, exp: int, base_is_signed: bool = False) -> str:
 def paren_expr_latex(s: str) -> str:
     r"""式を `\left(...\right)` で包む（17級・11級の括弧用）。"""
     return f"\\left({s}\\right)"
+
+
+# --- 多項式・式表記（5/4/3/2/1 級用） --------------------------------------
+
+def term_var_latex(coef: int, var: str, exp: int, leading: bool) -> str:
+    r"""coef * var^exp の単項式 LaTeX。
+
+    - exp=0 なら定数項
+    - exp=1 なら var のみ（exp 表記なし）
+    - coef=±1 は省略表示（例：x、-x）
+    - leading=True は符号付きそのまま、False は絶対値（呼び出し側で +/- を結合）
+    """
+    if coef == 0:
+        return ""
+    if exp == 0:
+        return f"{coef}" if leading else f"{abs(coef)}"
+    var_part = var if exp == 1 else f"{var}^{{{exp}}}"
+    if leading:
+        if coef == 1:
+            return var_part
+        if coef == -1:
+            return f"-{var_part}"
+        return f"{coef}{var_part}"
+    abs_c = abs(coef)
+    if abs_c == 1:
+        return var_part
+    return f"{abs_c}{var_part}"
+
+
+def poly_latex(coeffs: List[int], var: str = "x") -> str:
+    r"""係数リスト [a_n, a_{n-1}, ..., a_0] を多項式 LaTeX に。
+
+    最高次から並べ、ゼロ係数の項はスキップ。先頭は符号付き、以降は op(+/-) と絶対値で連結。
+    例：poly_latex([1, 5, 6]) → "x^{2} + 5x + 6"、poly_latex([-1, 0, -4]) → "-x^{2} - 4"
+    """
+    n = len(coeffs) - 1
+    parts: List[str] = []
+    for i, c in enumerate(coeffs):
+        exp = n - i
+        if c == 0:
+            continue
+        if not parts:
+            parts.append(term_var_latex(c, var, exp, leading=True))
+        else:
+            op = " + " if c > 0 else " - "
+            parts.append(op + term_var_latex(c, var, exp, leading=False))
+    return "".join(parts) if parts else "0"
+
+
+def factored_pair_latex(m: int, n: int, var: str = "x") -> str:
+    r"""因数分解 (x + m)(x + n) 形式の LaTeX。m, n は実数（負も可）。
+
+    例：factored_pair_latex(2, 3) → "(x + 2)(x + 3)"
+        factored_pair_latex(-3, 5) → "(x - 3)(x + 5)"
+        factored_pair_latex(-2, -2) → "(x - 2)(x - 2)" （平方は呼び出し側で別途整形）
+    """
+    def factor_str(k):
+        if k == 0:
+            return f"{var}"
+        if k > 0:
+            return f"{var} + {k}"
+        return f"{var} - {abs(k)}"
+
+    return f"({factor_str(m)})({factor_str(n)})"
+
+
+def square_factor_latex(a: int, var: str = "x") -> str:
+    r"""(x + a)^2 形式の LaTeX（3 級 Band C 完全平方用）。
+
+    例：square_factor_latex(3) → "(x + 3)^{2}"、square_factor_latex(-2) → "(x - 2)^{2}"
+    """
+    if a == 0:
+        return f"{var}^{{2}}"
+    inner = f"{var} + {a}" if a > 0 else f"{var} - {abs(a)}"
+    return f"({inner})^{{2}}"
+
+
+def sqrt_term_latex(coef: int, radicand: int) -> str:
+    r"""a√b 形式の LaTeX（仕様書 §6.8 決定 3：簡約形のみ）。
+
+    - coef=0 → "0"、radicand=1 → 整数のみ ("a")、coef=±1 → 符号と √ のみ
+    - 例：sqrt_term_latex(2, 3) → "2\sqrt{3}"、sqrt_term_latex(1, 5) → "\sqrt{5}"
+          sqrt_term_latex(-3, 2) → "-3\sqrt{2}"、sqrt_term_latex(5, 1) → "5"
+    """
+    if coef == 0:
+        return "0"
+    if radicand == 1:
+        return f"{coef}"
+    if coef == 1:
+        return f"\\sqrt{{{radicand}}}"
+    if coef == -1:
+        return f"-\\sqrt{{{radicand}}}"
+    return f"{coef}\\sqrt{{{radicand}}}"

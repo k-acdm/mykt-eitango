@@ -111,6 +111,53 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "B": {"count": 10, "kind": "poly_int_muldiv", "coef_max": 5, "const_max": 8, "factor_max": 6},
         "C": {"count": 10, "kind": "monomial_power", "coef_max": 5, "exp_max": 3},
     },
+    # 5級：式の計算 中3（多項式の展開）
+    5: {
+        # A: (ax+b)(cx+d) — 基本展開（a, c は ±1〜±2）
+        # B: (ax+b)(cx+d) — 一般係数（a, c, b, d は ±1〜±5）
+        # C: 3項 × 2項（trinomial × binomial）
+        "A": {"count": 10, "kind": "two_by_two_simple", "coef_max": 2, "const_max": 5},
+        "B": {"count": 10, "kind": "two_by_two_general", "coef_max": 5, "const_max": 6},
+        "C": {"count": 10, "kind": "trinomial_by_binomial", "coef_max": 3, "const_max": 5},
+    },
+    # 4級：乗法公式
+    4: {
+        # A: (x+a)(x+b)
+        # B: (x+a)^2 / (x-a)^2
+        # C: (x+a)(x-a)
+        "A": {"count": 10, "kind": "type_xab", "const_max": 9},
+        "B": {"count": 10, "kind": "type_square", "const_max": 9},
+        "C": {"count": 10, "kind": "type_diff_squares", "const_max": 9},
+    },
+    # 3級：因数分解
+    3: {
+        # A: 共通因数のみ：ax + ay = a(x + y)
+        # B: x² + bx + c → (x + m)(x + n)
+        # C: x² - a² または x² ± 2ax + a²（完全平方）
+        # TODO_PHASE3: ax² + bx + c のたすき掛けは Phase 3 の Band D 以降で導入
+        "A": {"count": 10, "kind": "common_factor", "factor_max": 9, "term_max": 6},
+        "B": {"count": 10, "kind": "trinomial_simple", "root_max": 9},
+        "C": {"count": 10, "kind": "diff_or_perfect_square", "const_max": 9},
+    },
+    # 2級：平方根
+    2: {
+        # A: 簡約のみ √n → a√b
+        # B: 簡約 + 加減 (a√b ± c√d → 同じ b に統一)
+        # C: 乗除 と 有理化
+        # TODO_PHASE3: 二重根号は Phase 3 の Band D 以降で導入
+        "A": {"count": 10, "kind": "simplify_only", "n_max": 200},
+        "B": {"count": 10, "kind": "addsub_with_simplify", "coef_max": 5, "n_max": 50},
+        "C": {"count": 10, "kind": "muldiv_rationalize", "n_max": 30},
+    },
+    # 1級：二次方程式
+    1: {
+        # A: 因数分解で解ける整数解（重解含む）
+        # B: 因数分解で解ける有理数解 or x² = c のシンプルな無理数解
+        # C: 解の公式必須の無理数解（(p ± √d)/q 形式）
+        "A": {"count": 10, "kind": "factorable_int", "max_root": 7},
+        "B": {"count": 10, "kind": "rational_or_simple_sqrt", "max_root": 5, "max_a": 3},
+        "C": {"count": 10, "kind": "irrational", "max_a": 2, "max_bc": 5},
+    },
     # 6級：連立方程式
     6: {
         # A: 簡単な整数係数（DESIGN_PRINCIPLES.md 原則 2 で coef_max=3 に縮小）

@@ -41,6 +41,11 @@ RANK_MODULES: Dict[int, str] = {
     8: "rank_08_linear_eq",
     7: "rank_07_expr_grade2",
     6: "rank_06_simultaneous",
+    5: "rank_05_expr_grade3",
+    4: "rank_04_expansion",
+    3: "rank_03_factorization",
+    2: "rank_02_sqrt",
+    1: "rank_01_quadratic",
 }
 
 

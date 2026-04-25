@@ -143,6 +143,35 @@ def assert_problem_fractions_in_lowest_terms(latex_str: str) -> None:
             )
 
 
+def simplify_sqrt(n: int) -> Tuple[int, int]:
+    """sqrt(n) を a*sqrt(b) の (a, b) に簡約。b は square-free（仕様書 §6.8 決定 3）。
+
+    例：simplify_sqrt(8) → (2, 2)（= 2√2）、simplify_sqrt(12) → (2, 3)、
+    simplify_sqrt(72) → (6, 2)、simplify_sqrt(1) → (1, 1)（= 1）。
+    """
+    if n < 0:
+        raise ValueError("simplify_sqrt: 負数は未対応")
+    if n == 0:
+        return (0, 1)
+    a = 1
+    b = n
+    i = 2
+    while i * i <= b:
+        while b % (i * i) == 0:
+            a *= i
+            b //= i * i
+        i += 1
+    return (a, b)
+
+
+def is_perfect_square(n: int) -> bool:
+    """n が完全平方数かを判定。負数や 0 は False。"""
+    if n < 0:
+        return False
+    r = int(n**0.5)
+    return any(r2 * r2 == n for r2 in (r, r + 1))
+
+
 def rational_to_decimal_str(rational: sp.Rational) -> str:
     """有限小数として表せる Rational を `0.5` のような文字列にする。"""
     r = sp.Rational(rational)
