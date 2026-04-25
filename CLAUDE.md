@@ -991,6 +991,71 @@
   - Phase 1 スコープ: 共通モジュール（SymPy ラッパー・表記正規化・出力フォーマッタ）+ 20級・16級の2級分
 - **以降の Phase 構成**: Phase 2〜7 で残り18級の問題生成 → GAS 実装（問題DB 読み取り・HP ロジック）→ フロント実装（出題画面・MathJax レンダリング・OCR 採点）→ 管理画面（進捗確認）→ 動作確認
 
+#### 79. 基礎計算 Phase 1 実装完了：問題生成スクリプトのプロトタイプ
+- **環境セットアップ**: 塾PC に Python 3.14.4 を新規インストール → `python -m pip install sympy`（pip コマンドは PATH 未設定だが `python -m pip` で動作） → SymPy 1.14.0 動作確認
+- **配置**: `scripts/generate_kiso_questions/` 新設、コードは git 管理。生成 JSON は `out/` で `.gitignore` 化（再生成可能）
+- **共通モジュール 4 本** (`scripts/generate_kiso_questions/common/`):
+  - `sympy_helpers.py`: `to_rational` / `reduce_fraction` / `improper_to_mixed` / `mixed_to_improper` / `is_finite_decimal` / `rational_to_decimal_str`（Rational から有限小数文字列への厳密変換、丸め誤差なし）
+  - `latex_utils.py`: `frac_latex`（既約表示）/ `frac_latex_raw`（**約分せずそのまま表示**、問題式用）/ `mixed_frac_latex` / `OP_LATEX` 辞書
+  - `answer_variants.py`: `variants_for_integer` / `variants_for_rational`（仮分数・帯分数・有限小数の各バリエーション + マイナス全/半角・スラッシュ全/半角・帯分数の空白半/全角を機械生成。**帯分数の空白除去は曖昧化するため除外**=`'1 1/2'` ⇔ `'11/2'` 問題回避） / `canonical_for_rational`
+  - `band_config.py`: `BAND_PLAN[20|16]["A"|"B"|"C"]` のみ Phase 1 で実装。D〜H は Phase 2 で紙教材画像参照しつつ追加
+- **20級 (rank_20_integer_mixed.py)**:
+  - A: 1桁整数 2項 +/-（結果非負）
+  - B: 1桁整数 2項 ×/÷（÷は割り切れる組のみ、商と除数を先に決めて積で被除数構築）
+  - C: 2桁整数 3項 四則混合（×÷ → +- の優先順位を SymPy で厳密実装、結果が整数で非負になる組のみリトライ採用）
+- **16級 (rank_16_fraction_addsub.py)**:
+  - A: 同分母 2項 +/-（結果非負・非ゼロ）
+  - B: 異分母 2項 +/-（分母 ≤ 12）
+  - C: 異分母 2項 +/-（分母 ≤ 15）
+  - 問題式の表示は `frac_latex_raw`（生成時の (n,d) をそのまま表示）。約分すると `(4/6) - (3/6)` が `(2/3) - (1/2)` と表示され Band A が異分母に化ける**バグを発見・修正**
+- **共通インターフェース**: 各 rank モジュールが `generate_problem(band, rng) -> dict` と `self_check(problem) -> bool` を実装
+- **main.py**: `--ranks 20,16` でカンマ区切り指定可、`--seed 42` で再現性確保（級ごとに `seed + rank` で独立 RNG）。各級ごとに `out/questions_rank_XX.json` を出力 + サマリ（生成数 / セルフチェック失敗数 / 経過秒）をコンソール表示
+- **動作確認結果**: 20級・16級 各 30 問（A/B/C × 10）、計 60 問すべてセルフチェック PASS、`answerCanonical` ∈ `answerAllowed` も全件通過、帯分数表記（例: `4/3` の allowed に `'1 1/3'` が含まれる）も確認
+- **既知の制限（Phase 2 以降で対応）**:
+  - 20級 A は問題空間が狭く（1桁+1桁の和差で結果非負 → 約45通り）10問中 1 件重複が出ることあり。重複排除は未実装
+  - D〜H バンド未実装、各バンドの count も Phase 1 用に 10 で固定
+  - スプレッドシート書き込み (`db_writer.py`) 未実装（Phase 3 で `gspread` 経由）
+- **実行例**: `cd scripts/generate_kiso_questions && python main.py` で `out/questions_rank_20.json` / `out/questions_rank_16.json` 生成
+
+---
+
+## 基礎計算 Phase 3 着手前必読
+
+Phase 3（D〜H バンド拡張・スプレッドシート投入）に着手する前に、**必ず以下を読んでから作業を開始すること**：
+
+### 1. 設計原則ドキュメント（最重要）
+
+[scripts/generate_kiso_questions/DESIGN_PRINCIPLES.md](scripts/generate_kiso_questions/DESIGN_PRINCIPLES.md)
+
+全級・全フェーズ共通で守るべき原則を集約。Phase 1・Phase 2 で発見された不具合と対策が体系化されている：
+
+- **原則 1**：問題式の分数は常に既約形（Phase 1 で確立、生成側 + 検証側の二段構え）
+- **原則 2**：Band A〜C は教育的入門として紙教材より易しめに調整（Phase 2 で確立）
+- **原則 3**：Phase 3 で必ず復活させるべき「省略済み難易度」一覧
+
+### 2. ❗️ 「省略済み難易度」の復活漏れを絶対に防ぐ
+
+DESIGN_PRINCIPLES.md §「原則 3」の表に列挙された問題タイプは、**Band D〜H 拡張時に必ず復活させる**。
+
+現時点（Phase 2 グループ②a 完了時）の対象：
+
+- 8級：解が分数の `ax = b`（割り切れない係数）→ Band D 以降
+- 8級：複雑な分数解になる比例式（22/9、108/13 など）→ Band E 以降
+- 6級：係数 ±4〜±6 の中程度連立方程式 → Band B/C 終盤 or D 以降
+
+各 rank_*.py 内の `# TODO_PHASE3:` コメントを `grep -r "TODO_PHASE3"` で検索すれば確認可能。
+
+### 3. 紙教材との整合確認
+
+Band A〜H 全体で、紙教材（春日部アカデミー「計算級別トレーニング」）と**同等の難易度カバレッジ**を確保するのが Phase 3 の最終目標。
+
+### 4. 新原則の追加について
+
+Phase 3 着手中に新たな設計原則が発見された場合：
+1. DESIGN_PRINCIPLES.md に追記（原則 N として連番）
+2. 該当する rank_*.py を修正（該当箇所に `# TODO_PHASE3:` または原則番号付きコメント）
+3. 本セクションにも記載を更新
+
 ---
 
 ## TODO（未反映の GAS 側作業）
