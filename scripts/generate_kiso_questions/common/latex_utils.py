@@ -100,3 +100,46 @@ OP_LATEX = {
     "*": "\\times",
     "/": "\\div",
 }
+
+
+def decimal_latex(value) -> str:
+    """有限小数の Rational / int / float / 文字列を LaTeX 数値文字列に。
+
+    整数なら "12"、小数なら "1.5" のように返す。`\\frac` は使わない。
+    無限小数は `ValueError`。
+    """
+    r = shp.to_rational(value)
+    if r.q == 1:
+        return str(r.p)
+    if not shp.is_finite_decimal(r):
+        raise ValueError(f"decimal_latex: {value} は有限小数ではない")
+    return shp.rational_to_decimal_str(r)
+
+
+def signed_int_latex_paren(n: int) -> str:
+    """正負の数を括弧付きで表示（13級 Band A 用）：(+9) / (-5)。"""
+    if n >= 0:
+        return f"(+{n})"
+    return f"(-{abs(n)})"
+
+
+def signed_int_latex_leading(n: int) -> str:
+    """先頭項として正負の数を括弧なしで表示：9 / -5（先頭の + は省略）。"""
+    if n >= 0:
+        return f"{n}"
+    return f"-{abs(n)}"
+
+
+def power_latex(base_str: str, exp: int, base_is_signed: bool = False) -> str:
+    """累乗の LaTeX。負数や符号付きが base のときは外側を括弧で包む。
+
+    例：power_latex("3", 2) → "3^{2}"、power_latex("-3", 2, True) → "(-3)^{2}"
+    """
+    if base_is_signed:
+        return f"({base_str})^{{{exp}}}"
+    return f"{base_str}^{{{exp}}}"
+
+
+def paren_expr_latex(s: str) -> str:
+    r"""式を `\left(...\right)` で包む（17級・11級の括弧用）。"""
+    return f"\\left({s}\\right)"

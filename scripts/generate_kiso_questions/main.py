@@ -28,7 +28,14 @@ from common.band_config import BAND_PLAN, list_bands
 # 級番号 → モジュール名
 RANK_MODULES: Dict[int, str] = {
     20: "rank_20_integer_mixed",
+    19: "rank_19_decimal_addsub",
+    18: "rank_18_decimal_muldiv",
+    17: "rank_17_decimal_mixed",
     16: "rank_16_fraction_addsub",
+    13: "rank_13_signed_addsub",
+    12: "rank_12_signed_muldiv",
+    11: "rank_11_signed_mixed",
+    9: "rank_09_expr_grade1",
 }
 
 

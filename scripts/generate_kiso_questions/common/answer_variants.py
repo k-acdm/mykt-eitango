@@ -142,3 +142,68 @@ def canonical_for_rational(value: sp.Rational) -> str:
     if r.q == 1:
         return _integer_canonical(r.p)
     return _improper_canonical(r.p, r.q)
+
+
+def canonical_decimal_for_rational(value: sp.Rational) -> str:
+    """小数文脈（19/18/17級）用の canonical：有限小数があれば優先、なければ仮分数。"""
+    r = sp.Rational(value)
+    if r.q == 1:
+        return _integer_canonical(r.p)
+    if shp.is_finite_decimal(r):
+        return shp.rational_to_decimal_str(r)
+    return _improper_canonical(r.p, r.q)
+
+
+def variants_for_decimal_answer(value: sp.Rational) -> List[str]:
+    """小数文脈の答えの許容表記。
+
+    canonical = 有限小数優先、allowed には小数 + 既約分数（仮分数 / 帯分数）の両方。
+    19/18/17 級の答えは原則すべて有限小数になる前提。
+    """
+    r = sp.Rational(value)
+    n, d = r.p, r.q
+    if d == 1:
+        return variants_for_integer(n)
+
+    seeds: Set[str] = set()
+    if shp.is_finite_decimal(r):
+        seeds.add(shp.rational_to_decimal_str(r))
+    seeds.add(_improper_canonical(n, d))
+    mixed = _mixed_canonical(n, d)
+    if mixed is not None:
+        seeds.add(mixed)
+    return _cross_expand(
+        seeds,
+        [_expand_minus_variants, _expand_slash_variants, _expand_space_variants],
+    )
+
+
+# ---- 多項式（9級）用：シンプルな variants ---------------------------------
+
+def variants_for_polynomial(canonical: str) -> List[str]:
+    """多項式の許容表記（9級用）。
+
+    canonical 例：``5x``、``2x + 6``、``-3x - 4``、``\\frac{2}{3}x``。
+    展開する variants：
+      - 演算子前後の空白あり／なし／全角空白
+      - マイナス全/半角
+    分数係数 `\\frac{a}{b}x` の場合 `a/b x` 形式の代替は OCR 揺れ対策で許容。
+    係数が分数の場合の既約性は呼び出し側で保証する前提（§6.4.0）。
+    """
+    seeds: Set[str] = set()
+    seeds.add(canonical)
+    # 演算子前後の空白なし版
+    no_sp = canonical.replace(" + ", "+").replace(" - ", "-")
+    seeds.add(no_sp)
+    # \frac{a}{b}x → a/b x の表記（分数係数）
+    import re
+
+    frac_pat = re.compile(r"\\frac\{(-?\d+)\}\{(\d+)\}")
+    for s in list(seeds):
+        if "\\frac" in s:
+            seeds.add(frac_pat.sub(r"\1/\2 ", s))
+            seeds.add(frac_pat.sub(r"\1/\2", s))
+    return _cross_expand(
+        sorted(seeds),
+        [_expand_minus_variants],
+    )

@@ -39,6 +39,27 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "C": {"count": 10, "digits": 2, "terms": 3, "ops": ["+", "-", "*", "/"], "parens": False},
         # D〜H は Phase 2 で追加
     },
+    # 19級：小数 加減
+    19: {
+        # int_max: 整数部最大、decimals: 小数桁数（A/B は同位取り、C は混在）
+        "A": {"count": 10, "int_max": 9, "decimals": 1, "terms": 2},
+        "B": {"count": 10, "int_max": 9, "decimals": 2, "terms": 2},
+        # C: 桁違い（整数 vs 小数、または 1 桁 vs 3 桁の小数）
+        "C": {"count": 10, "int_max": 9, "decimals_options": [(0, 3), (3, 0), (1, 3), (2, 1)], "terms": 2},
+    },
+    # 18級：小数 乗除
+    18: {
+        # A: 整数 × 小数 / B: 小数 × 小数（割り切れる積） / C: 桁数大きめ
+        "A": {"count": 10, "kind": "int_x_dec", "int_max": 9, "decimals": 1},
+        "B": {"count": 10, "kind": "dec_x_dec", "int_max": 5, "decimals": 1},
+        "C": {"count": 10, "kind": "dec_x_dec", "int_max": 9, "decimals": 1},
+    },
+    # 17級：小数 四則混合
+    17: {
+        "A": {"count": 10, "terms": 2, "ops": ["+", "-", "*", "/"], "parens": False, "int_max": 5, "decimals": 1},
+        "B": {"count": 10, "terms": 3, "ops": ["+", "-", "*", "/"], "parens": False, "int_max": 5, "decimals": 1},
+        "C": {"count": 10, "terms": 3, "ops": ["+", "-", "*", "/"], "parens": True,  "int_max": 5, "decimals": 1},
+    },
     # 16級：分数加減
     16: {
         # same_denom: 同分母 / mixed_denom: 異分母 / terms: 項数 / allow_mixed: 帯分数を許可
@@ -46,6 +67,34 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "B": {"count": 10, "same_denom": False, "terms": 2, "allow_mixed": False, "denom_max": 12},
         "C": {"count": 10, "same_denom": False, "terms": 2, "allow_mixed": False, "denom_max": 15},
         # D〜H で帯分数・3項・小数混在を導入予定
+    },
+    # 13級：正負の数 加減
+    13: {
+        # A: 括弧付き（+9）+（+5）/ B: 括弧付き（混合符号）/ C: 括弧なし
+        "A": {"count": 10, "kind": "paren", "max_abs": 9, "terms": 2, "same_sign_only": True},
+        "B": {"count": 10, "kind": "paren", "max_abs": 9, "terms": 2, "same_sign_only": False},
+        "C": {"count": 10, "kind": "noparen", "max_abs": 99, "terms": 2, "same_sign_only": False},
+    },
+    # 12級：正負の数 乗除
+    12: {
+        # A: 1桁 2項 ×/÷ / B: 累乗込み / C: 3項 ×/÷
+        "A": {"count": 10, "kind": "muldiv", "max_abs": 9, "terms": 2, "powers": False},
+        "B": {"count": 10, "kind": "powers", "max_abs": 5, "exp_max": 3},
+        "C": {"count": 10, "kind": "muldiv", "max_abs": 9, "terms": 3, "powers": False},
+    },
+    # 11級：正負の数 四則混合（最難関級）
+    11: {
+        # A: 2項 四則混合（括弧付き符号） / B: 累乗を含む 2 項 / C: 3項 + 括弧 + 累乗
+        "A": {"count": 10, "kind": "two_term_mixed", "max_abs": 9},
+        "B": {"count": 10, "kind": "with_power",     "max_abs": 5, "exp_max": 3},
+        "C": {"count": 10, "kind": "three_term_paren_power", "max_abs": 5, "exp_max": 2},
+    },
+    # 9級：式の計算 中1
+    9: {
+        # A: 同類項 / B: 分配法則 / C: 単項式の乗除
+        "A": {"count": 10, "kind": "like_terms", "terms": 2, "coef_max": 9},
+        "B": {"count": 10, "kind": "distribute", "coef_max": 5, "const_max": 5},
+        "C": {"count": 10, "kind": "monomial_muldiv", "coef_max": 6},
     },
 }
 
