@@ -5,6 +5,11 @@ B: 異分母 2項 +/- （分母 ≤ 12）
 C: 異分母 2項 +/- （分母 ≤ 15）
 
 D 以降の帯分数・3項・小数混在は Phase 2 以降で実装。
+
+**設計原則（紙教材準拠）**:
+問題式に登場する各分数は**常に既約形**。例：✅ `5/6 - 2/3`、❌ `4/6 - 3/6`。
+これは pick_coprime_numerator で分子を選ぶことで保証し、self_check の
+assert_problem_fractions_in_lowest_terms で二重に検証する。
 """
 
 from __future__ import annotations
@@ -17,15 +22,24 @@ import sympy as sp
 from common import answer_variants as av
 from common.latex_utils import frac_latex_raw, OP_LATEX
 from common.band_config import get_band
+from common.sympy_helpers import (
+    pick_coprime_numerator,
+    assert_problem_fractions_in_lowest_terms,
+)
 
 
 def _gen_addsub_pair_same_denom(
     rng: random.Random, denom_max: int
 ) -> Tuple[List[Tuple[int, int]], List[str]]:
-    """同分母 2項。結果非負・既約分数 or 整数になる組を選ぶ。"""
+    """同分母 2項。各分数 a/d, b/d は既約。結果非負・非ゼロ。
+
+    a と d、b と d が互いに素になるよう pick_coprime_numerator で選ぶ。
+    d=2 のとき真分数は 1/2 のみで a=b=1 となるため、引き分け（a==b）の '-' は
+    呼び出し側の値ゼロ拒否で弾かれる。
+    """
     d = rng.randint(2, denom_max)
-    a = rng.randint(1, d - 1)
-    b = rng.randint(1, d - 1)
+    a = pick_coprime_numerator(rng, d)
+    b = pick_coprime_numerator(rng, d)
     op = rng.choice(["+", "-"])
     if op == "-" and a < b:
         a, b = b, a
@@ -35,20 +49,19 @@ def _gen_addsub_pair_same_denom(
 def _gen_addsub_pair_diff_denom(
     rng: random.Random, denom_max: int
 ) -> Tuple[List[Tuple[int, int]], List[str]]:
-    """異分母 2項。"""
-    while True:
-        d1 = rng.randint(2, denom_max)
+    """異分母 2項。各分数は既約。"""
+    d1 = rng.randint(2, denom_max)
+    d2 = rng.randint(2, denom_max)
+    while d1 == d2:
         d2 = rng.randint(2, denom_max)
-        if d1 == d2:
-            continue
-        n1 = rng.randint(1, d1 - 1)
-        n2 = rng.randint(1, d2 - 1)
-        op = rng.choice(["+", "-"])
-        # 結果非負を保証
-        if op == "-" and sp.Rational(n1, d1) < sp.Rational(n2, d2):
-            n1, n2 = n2, n1
-            d1, d2 = d2, d1
-        return [(n1, d1), (n2, d2)], [op]
+    n1 = pick_coprime_numerator(rng, d1)
+    n2 = pick_coprime_numerator(rng, d2)
+    op = rng.choice(["+", "-"])
+    # 結果非負を保証
+    if op == "-" and sp.Rational(n1, d1) < sp.Rational(n2, d2):
+        n1, n2 = n2, n1
+        d1, d2 = d2, d1
+    return [(n1, d1), (n2, d2)], [op]
 
 
 def _evaluate(terms: List[Tuple[int, int]], ops: List[str]) -> sp.Rational:
@@ -120,5 +133,10 @@ def self_check(problem: Dict[str, Any]) -> bool:
     if recomputed != expected:
         return False
     if av.canonical_for_rational(expected) != problem["answerCanonical"]:
+        return False
+    # 設計原則：問題式の各分数が既約であること（紙教材準拠）
+    try:
+        assert_problem_fractions_in_lowest_terms(problem["problemLatex"])
+    except AssertionError:
         return False
     return True

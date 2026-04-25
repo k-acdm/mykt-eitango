@@ -52,6 +52,12 @@ def frac_latex_raw(num: int, den: int) -> str:
 
     問題に書かれている分数の形を保ちたい場合に使う。`frac_latex` / `frac_latex_no_sign`
     は答え側など「既約形を出したい」場合に使う。
+
+    ⚠️ **設計原則**：問題式の分数は紙教材準拠で常に既約形でなければならない
+    （band_config.py 冒頭の設計原則を参照）。本関数は与えられた (num, den) を
+    そのまま表示するだけで、既約性は呼び出し側の責任。生成側は
+    ``common.sympy_helpers.pick_coprime_numerator`` で分子を選び、検証側は
+    ``assert_problem_fractions_in_lowest_terms`` で self_check する。
     """
     if den == 1:
         return f"{num}"

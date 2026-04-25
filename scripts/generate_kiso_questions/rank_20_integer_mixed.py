@@ -17,6 +17,7 @@ import sympy as sp
 from common import answer_variants as av
 from common.latex_utils import OP_LATEX
 from common.band_config import get_band
+from common.sympy_helpers import assert_problem_fractions_in_lowest_terms
 
 
 def _digit_range(digits: int) -> Tuple[int, int]:
@@ -173,5 +174,12 @@ def self_check(problem: Dict[str, Any]) -> bool:
         return False
     canonical_value = av.canonical_for_rational(expected)
     if canonical_value != problem["answerCanonical"]:
+        return False
+    # 設計原則：問題式の各分数が既約であること（紙教材準拠）。
+    # 20 級は現状分数を含まないため no-op だが、将来 \div を \frac で出すよう
+    # 変更した場合に自動で検知できる防御線として共通検証を呼んでおく。
+    try:
+        assert_problem_fractions_in_lowest_terms(problem["problemLatex"])
+    except AssertionError:
         return False
     return True
