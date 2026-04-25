@@ -310,6 +310,18 @@
       .then(function(r){ return r.json(); });
   }
 
+  // 大量データ送信用（GAS doPost）。
+  // GAS の URL 長制限（およそ 8KB）を超えるリクエストは GET では 400 を返すため、
+  // 一括登録系は POST + body で送る。Content-Type を text/plain にしておくと
+  // CORS preflight が走らず Apps Script でも素直に受けられる。
+  function gasPost(params) {
+    return fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(params)
+    }).then(function(r){ return r.json(); });
+  }
+
   // =============================================================
   // 管理機能モジュール Registry（拡張ポイント）
   // =============================================================
@@ -1292,7 +1304,8 @@
     if (parsed.items.length === 0) { showToast('登録する行がありません', 'error'); return; }
     var btn = document.getElementById('wabun1-paste-submit');
     if (btn) { btn.disabled = true; btn.textContent = '登録中…'; }
-    gasGet({
+    // データ量が大きい（7日分で 80 行超え、URL クエリでは 400 になるため POST で送る）
+    gasPost({
       action: 'adminAddWabun1TopicsWeek',
       password: sessionStorage.getItem('adminPassword') || '',
       start: startStr,

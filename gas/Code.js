@@ -295,7 +295,9 @@ function doPost(e) {
     const params = JSON.parse(e.postData.contents);
     const action = params.action;
     let result;
-    if (action === 'submitPhoto') result = submitPhoto(params.studentId, params.setNo, params.imageBase64, params.words);
+    if      (action === 'submitPhoto')              result = submitPhoto(params.studentId, params.setNo, params.imageBase64, params.words);
+    // 管理画面の大量データ投入用（GET ではクエリ長制限を超えるため POST 経由）
+    else if (action === 'adminAddWabun1TopicsWeek') result = adminAddWabun1TopicsWeek(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
