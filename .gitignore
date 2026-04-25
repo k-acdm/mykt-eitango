@@ -16,3 +16,10 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Python
+__pycache__/
+*.pyc
+
+# 基礎計算 問題生成スクリプトの生成物（再生成可能）
+scripts/generate_kiso_questions/out/
