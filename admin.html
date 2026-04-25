@@ -579,11 +579,12 @@
             '<input type="date" id="wabun1-paste-start" onchange="previewWabun1Paste()" />' +
           '</label>' +
           '<label><span class="label-text">Excelから貼り付け（3列 TSV：曜日／種別／内容）<span class="req">*</span></span>' +
-            '<textarea id="wabun1-paste-area" oninput="previewWabun1Paste()" placeholder="月\t問題1\t私たちはこの台所の中で...&#10;月\t問題2\t1で作った文を...&#10;月\tスキップ2\t一般動詞の否定文を...&#10;月\t単語\t台所 = kitchen&#10;月\t正解1\tWe cut onions together...&#10;火\t問題1\t..." style="min-height:260px;font-family: ui-monospace, Menlo, Consolas, monospace; font-size:13px; white-space:pre"></textarea>' +
+            '<textarea id="wabun1-paste-area" oninput="previewWabun1Paste()" placeholder="月\t問題1\t以下の日本文を英文の語順に並び替えなさい。&#10;月\t日本文\t私たちは毎年冬にこの山の中で大きな熊たちを捕まえます。&#10;月\t問題2\t1で作った日本文を英語に置き換えなさい。&#10;月\tスキップ\t一般動詞の否定文を塾でまだやってない人は…&#10;月\t単語\t毎年冬に = every winter&#10;月\t正解1\t私たちは　捕まえます　大きな熊たちを…&#10;火\t問題1\t..." style="min-height:260px;font-family: ui-monospace, Menlo, Consolas, monospace; font-size:13px; white-space:pre"></textarea>' +
           '</label>' +
           '<div style="font-size:12px;color:#666;margin:-8px 0 12px;line-height:1.7">' +
-            '種別：<code style="background:#f0f2f6;padding:2px 6px;border-radius:3px;font-size:12px">問題1〜4 / 正解1〜4 / スキップ1〜4 / 単語</code><br>' +
-            '正解や単語は後から追加登録も可。問題1 は必須。' +
+            '種別：<code style="background:#f0f2f6;padding:2px 6px;border-radius:3px;font-size:12px">問題1〜4 / 日本文 / 正解1〜4 / スキップ / 単語</code><br>' +
+            '全角数字（問題１・正解１…）も認識します。スキップは番号付き（スキップ1）でも OK。<br>' +
+            '正解や単語は後から追加登録も可。問題1 は必須。同じ日付に再投入すると上書きされます。' +
           '</div>' +
           '<div id="wabun1-paste-preview"></div>' +
           '<div style="margin-top:12px">' +
@@ -1179,7 +1180,20 @@
   // =============================================================
   // 和文英訳①：パース / プレビュー / 登録
   // =============================================================
-  var WABUN1_VALID_KINDS = ['問題1','問題2','問題3','問題4','正解1','正解2','正解3','正解4','スキップ1','スキップ2','スキップ3','スキップ4','単語'];
+  // 種別：'問題1'..'問題4' / '日本文' / '正解1'..'正解4' / 'スキップ'(番号は無視) / '単語'
+  // 全角数字（１-４）も受け付ける
+  var WABUN1_FW_DIGIT_MAP = {'１':'1','２':'2','３':'3','４':'4'};
+  function _wabun1NormalizeKind(rawKind) {
+    var k = String(rawKind == null ? '' : rawKind).trim();
+    if (!k) return '';
+    k = k.replace(/[１-４]/g, function(c){ return WABUN1_FW_DIGIT_MAP[c] || c; });
+    if (/^問題[1-4]$/.test(k)) return k;
+    if (k === '日本文') return '日本文';
+    if (/^正解[1-4]$/.test(k)) return k;
+    if (/^スキップ[1-4]?$/.test(k)) return 'スキップ';
+    if (k === '単語') return '単語';
+    return '';
+  }
 
   function parseWabun1Paste(text, startStr) {
     var result = { items: [], errors: [] };
@@ -1193,11 +1207,12 @@
       if (!line.trim()) return;
       var cols = line.split(/\t/);
       if (cols.length < 3) { result.errors.push((idx+1)+'行目：タブ区切りで3列必要です'); return; }
-      var dayRaw = cols[0].trim();
-      var kind   = cols[1].trim();
+      var dayRaw  = cols[0].trim();
+      var kindRaw = cols[1].trim();
       var content = cols.slice(2).join('\t').trim();
       if (!SANGO_DAY_MAP.hasOwnProperty(dayRaw)) { result.errors.push((idx+1)+'行目：曜日「'+dayRaw+'」が不正'); return; }
-      if (WABUN1_VALID_KINDS.indexOf(kind) < 0) { result.errors.push((idx+1)+'行目：種別「'+kind+'」が不正（問題1-4 / 正解1-4 / スキップ1-4 / 単語）'); return; }
+      var kind = _wabun1NormalizeKind(kindRaw);
+      if (!kind) { result.errors.push((idx+1)+'行目：種別「'+kindRaw+'」が不正（問題1-4 / 日本文 / 正解1-4 / スキップ / 単語）'); return; }
       if (!content) { result.errors.push((idx+1)+'行目：内容が空'); return; }
       var dayOffset = SANGO_DAY_MAP[dayRaw];
       var d = new Date(startDate.getTime()); d.setDate(d.getDate() + dayOffset);
@@ -1231,20 +1246,18 @@
     // 曜日ごとに集計
     var byDay = {};
     parsed.items.forEach(function(it){
-      if (!byDay[it.day]) byDay[it.day] = { date: it.date, tasks:[0,0,0,0], answers:[0,0,0,0], skips:[0,0,0,0], words:0, firstTask: '' };
+      if (!byDay[it.day]) byDay[it.day] = { date: it.date, tasks:[0,0,0,0], japanese:0, answers:[0,0,0,0], skip:0, words:0, firstTask:'', japaneseSnippet:'' };
       var b = byDay[it.day];
       if      (it.kind === '問題1') { b.tasks[0]=1; b.firstTask = it.content; }
       else if (it.kind === '問題2')   b.tasks[1]=1;
       else if (it.kind === '問題3')   b.tasks[2]=1;
       else if (it.kind === '問題4')   b.tasks[3]=1;
+      else if (it.kind === '日本文') { b.japanese=1; b.japaneseSnippet = it.content; }
       else if (it.kind === '正解1')   b.answers[0]=1;
       else if (it.kind === '正解2')   b.answers[1]=1;
       else if (it.kind === '正解3')   b.answers[2]=1;
       else if (it.kind === '正解4')   b.answers[3]=1;
-      else if (it.kind === 'スキップ1') b.skips[0]=1;
-      else if (it.kind === 'スキップ2') b.skips[1]=1;
-      else if (it.kind === 'スキップ3') b.skips[2]=1;
-      else if (it.kind === 'スキップ4') b.skips[3]=1;
+      else if (it.kind === 'スキップ') b.skip=1;
       else if (it.kind === '単語')    b.words += 1;
     });
     var dayOrder = ['月','火','水','木','金','土','日'];
@@ -1254,16 +1267,16 @@
       var label = (dobj.getMonth()+1) + '/' + dobj.getDate() + '(' + d + ')';
       var taskCount = b.tasks.reduce(function(a,c){ return a+c; }, 0);
       var ansCount  = b.answers.reduce(function(a,c){ return a+c; }, 0);
-      var skipCount = b.skips.reduce(function(a,c){ return a+c; }, 0);
       var warn = '';
-      if (!b.tasks[0]) warn = ' <span style="color:#c62828">⚠ 問題1が未入力</span>';
-      var firstTaskShort = b.firstTask ? (b.firstTask.length > 30 ? b.firstTask.slice(0,30) + '…' : b.firstTask) : '';
-      return '<tr><td>' + label + warn + '</td><td style="text-align:center">' + taskCount + '</td><td style="text-align:center">' + ansCount + '</td><td style="text-align:center">' + skipCount + '</td><td style="text-align:center">' + b.words + '</td><td style="color:#555">' + _esc(firstTaskShort) + '</td></tr>';
+      if (!b.tasks[0])  warn += ' <span style="color:#c62828">⚠ 問題1未入力</span>';
+      if (!b.japanese)  warn += ' <span style="color:#c62828">⚠ 日本文未入力</span>';
+      var jpShort = b.japaneseSnippet ? (b.japaneseSnippet.length > 24 ? b.japaneseSnippet.slice(0,24) + '…' : b.japaneseSnippet) : '';
+      return '<tr><td>' + label + warn + '</td><td style="text-align:center">' + taskCount + '</td><td style="text-align:center">' + (b.japanese ? '○' : '－') + '</td><td style="text-align:center">' + ansCount + '</td><td style="text-align:center">' + (b.skip ? '○' : '－') + '</td><td style="text-align:center">' + b.words + '</td><td style="color:#555">' + _esc(jpShort) + '</td></tr>';
     }).join('');
     var dayCount = Object.keys(byDay).length;
     var tableHtml =
       '<table class="sango-preview-table">' +
-        '<thead><tr><th>日付</th><th>問題</th><th>正解</th><th>スキップ</th><th>単語</th><th>問題1（冒頭30字）</th></tr></thead>' +
+        '<thead><tr><th>日付</th><th>問題</th><th>日本文</th><th>正解</th><th>スキップ</th><th>単語</th><th>日本文（冒頭24字）</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>';
     previewEl.innerHTML = dowWarn + errHtml + '<div style="font-size:13px;color:#2e7d32;margin-bottom:8px">✅ ' + dayCount + ' 日分 / ' + parsed.items.length + ' 行を認識しました</div>' + tableHtml;

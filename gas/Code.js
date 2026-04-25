@@ -2005,44 +2005,73 @@ function _getWabun1TopicsValues() {
   });
 }
 
+// 13列スキーマ（v2）対応のヘッダー解決ヘルパー
+// 列名から列インデックスを引く。新仕様（japanese_text / skip_text）と
+// 旧仕様（skip1..4）の両方を扱えるように吸収する
+function _wabun1HeaderIndices(header) {
+  const iSkipText = header.indexOf('skip_text');
+  const iSkipLegacy = [1,2,3,4].map(function(n){ return header.indexOf('skip' + n); });
+  return {
+    iDate:     header.indexOf('date'),
+    iWN:       header.indexOf('week_no'),
+    iT:        [1,2,3,4].map(function(n){ return header.indexOf('task' + n); }),
+    iJP:       header.indexOf('japanese_text'),
+    iA:        [1,2,3,4].map(function(n){ return header.indexOf('answer' + n); }),
+    iSkipText: iSkipText,
+    iSkipLegacy: iSkipLegacy,
+    iWL:       header.indexOf('word_list')
+  };
+}
+
+// 1 行を構造化オブジェクトに変換
+function _wabun1RowToObj(r, h) {
+  const tasksAll = [1,2,3,4].map(function(n, idx){
+    return {
+      no: n,
+      text: h.iT[idx] >= 0 ? String(r[h.iT[idx]] || '').trim() : ''
+    };
+  });
+  const tasks = tasksAll.filter(function(t){ return !!t.text; });
+  const rawAnswers = [0,1,2,3].map(function(idx){
+    return h.iA[idx] >= 0 ? String(r[h.iA[idx]] || '').trim() : '';
+  });
+  const answers = tasks.map(function(t){ return rawAnswers[t.no - 1]; });
+
+  // skip_text は新仕様で 1 列。旧 skip1..4 が残っている場合は最初に値があるものを採用
+  let skipText = h.iSkipText >= 0 ? String(r[h.iSkipText] || '').trim() : '';
+  if (!skipText) {
+    for (let i = 0; i < 4; i++) {
+      if (h.iSkipLegacy[i] >= 0) {
+        const s = String(r[h.iSkipLegacy[i]] || '').trim();
+        if (s) { skipText = s; break; }
+      }
+    }
+  }
+
+  const wlRaw = h.iWL >= 0 ? String(r[h.iWL] || '').trim() : '';
+  const word_list = wlRaw ? wlRaw.split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean) : [];
+  const ds = Utilities.formatDate(new Date(r[h.iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+  return {
+    date: ds,
+    week_no: h.iWN >= 0 ? String(r[h.iWN] || '').trim() : '',
+    tasks: tasks,
+    answers: answers,
+    japanese_text: h.iJP >= 0 ? String(r[h.iJP] || '').trim() : '',
+    skip_text: skipText,
+    word_list: word_list
+  };
+}
+
 function _readWabun1TopicsByDate(dateStr) {
   const values = _getWabun1TopicsValues();
   if (values.length < 2) return null;
-  const header = values[0];
-  const iDate = header.indexOf('date');
-  const iWN   = header.indexOf('week_no');
-  const iT = [1,2,3,4].map(function(n){ return header.indexOf('task'   + n); });
-  const iA = [1,2,3,4].map(function(n){ return header.indexOf('answer' + n); });
-  const iS = [1,2,3,4].map(function(n){ return header.indexOf('skip'   + n); });
-  const iWL = header.indexOf('word_list');
-
+  const h = _wabun1HeaderIndices(values[0]);
   for (let i = 1; i < values.length; i++) {
     const r = values[i];
-    if (!r[iDate]) continue;
-    const ds = Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (!r[h.iDate]) continue;
+    const ds = Utilities.formatDate(new Date(r[h.iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
     if (ds !== dateStr) continue;
-
-    const rawTasks = [1,2,3,4].map(function(n, idx){
-      return {
-        no: n,
-        text: iT[idx] >= 0 ? String(r[iT[idx]] || '').trim() : '',
-        skip: iS[idx] >= 0 ? String(r[iS[idx]] || '').trim() : ''
-      };
-    });
-    const tasks = rawTasks.filter(function(t){ return !!t.text; });
-    const rawAnswers = [0,1,2,3].map(function(idx){
-      return iA[idx] >= 0 ? String(r[iA[idx]] || '').trim() : '';
-    });
-    const answers = tasks.map(function(t){ return rawAnswers[t.no - 1]; });
-    const wlRaw = iWL >= 0 ? String(r[iWL] || '').trim() : '';
-    const word_list = wlRaw ? wlRaw.split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean) : [];
-    return {
-      date: ds,
-      week_no: iWN >= 0 ? String(r[iWN] || '').trim() : '',
-      tasks: tasks,
-      answers: answers,
-      word_list: word_list
-    };
+    return _wabun1RowToObj(r, h);
   }
   return null;
 }
@@ -2061,11 +2090,15 @@ function getWabun1Topic(params) {
       date: t.date,
       week_no: t.week_no,
       tasks: t.tasks,
+      japanese_text: t.japanese_text,
+      skip_text: t.skip_text,
       word_list: t.word_list
     } : null;
     const yesterdayOut = y ? {
       date: y.date,
       tasks: y.tasks.map(function(tk){ return { no: tk.no, text: tk.text }; }),
+      japanese_text: y.japanese_text,
+      skip_text: y.skip_text,
       answers: y.answers
     } : null;
     return { ok: true, today: todayOut, yesterday: yesterdayOut };
@@ -2233,40 +2266,14 @@ function _wabun1SubmittedDatesBySid(sid) {
 function _readWabun1TopicsByDateRange(startStr, endStr) {
   const values = _getWabun1TopicsValues();
   if (values.length < 2) return [];
-  const header = values[0];
-  const iDate = header.indexOf('date');
-  const iWN   = header.indexOf('week_no');
-  const iT = [1,2,3,4].map(function(n){ return header.indexOf('task'   + n); });
-  const iA = [1,2,3,4].map(function(n){ return header.indexOf('answer' + n); });
-  const iS = [1,2,3,4].map(function(n){ return header.indexOf('skip'   + n); });
-  const iWL = header.indexOf('word_list');
+  const h = _wabun1HeaderIndices(values[0]);
   const out = [];
   for (let i = 1; i < values.length; i++) {
     const r = values[i];
-    if (!r[iDate]) continue;
-    const ds = Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (!r[h.iDate]) continue;
+    const ds = Utilities.formatDate(new Date(r[h.iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
     if (ds < startStr || ds > endStr) continue;
-    const rawTasks = [1,2,3,4].map(function(n, idx){
-      return {
-        no: n,
-        text: iT[idx] >= 0 ? String(r[iT[idx]] || '').trim() : '',
-        skip: iS[idx] >= 0 ? String(r[iS[idx]] || '').trim() : ''
-      };
-    });
-    const tasks = rawTasks.filter(function(t){ return !!t.text; });
-    const rawAnswers = [0,1,2,3].map(function(idx){
-      return iA[idx] >= 0 ? String(r[iA[idx]] || '').trim() : '';
-    });
-    const answers = tasks.map(function(t){ return rawAnswers[t.no - 1]; });
-    const wlRaw = iWL >= 0 ? String(r[iWL] || '').trim() : '';
-    const word_list = wlRaw ? wlRaw.split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean) : [];
-    out.push({
-      date: ds,
-      week_no: iWN >= 0 ? String(r[iWN] || '').trim() : '',
-      tasks: tasks,
-      answers: answers,
-      word_list: word_list
-    });
+    out.push(_wabun1RowToObj(r, h));
   }
   return out;
 }
@@ -2282,6 +2289,8 @@ function _buildWabun1TopicsByDate(rows) {
       week_no: r.week_no,
       tasks: r.tasks,
       answers: r.answers,
+      japanese_text: r.japanese_text,
+      skip_text: r.skip_text,
       word_list: r.word_list
     };
   });
@@ -2366,10 +2375,27 @@ function getWabun1PastTopicsPaged(params) {
   }
 }
 
+// kind 文字列を正規化：全角数字→半角、'スキップN' / 'スキップ' → 'スキップ'（番号は無視）
+// 戻り値は許容種別の正規形（'問題1'..'問題4' / '日本文' / '正解1'..'正解4' / 'スキップ' / '単語'）。
+// 不明な種別は空文字を返す。
+function _wabun1NormalizeKind(rawKind) {
+  let k = String(rawKind == null ? '' : rawKind).trim();
+  if (!k) return '';
+  // 全角数字を半角化
+  k = k.replace(/[１-４]/g, function(c){ return _WABUN1_FW_DIGITS[c] || c; });
+  if (/^問題[1-4]$/.test(k)) return k;
+  if (k === '日本文') return '日本文';
+  if (/^正解[1-4]$/.test(k)) return k;
+  if (/^スキップ[1-4]?$/.test(k)) return 'スキップ';
+  if (k === '単語') return '単語';
+  return '';
+}
+
 // =============================================
-// 管理画面：和文英訳① 週単位一括登録（縦→横変換）
+// 管理画面：和文英訳① 週単位一括登録（縦→横変換、新仕様 13 列）
 // params: { password, start, weekNo, items:[{day, kind, content}...] }
-//   kind: '問題1'..'問題4' / 'スキップ1'..'スキップ4' / '単語'
+//   kind の許容: '問題1'..'問題4' / '日本文' / 'スキップ'(N省略可) / '単語' / '正解1'..'正解4'
+// 同じ date の行が既にある場合は上書き、なければ末尾に追加（部分投入を許容）
 // =============================================
 function adminAddWabun1TopicsWeek(params) {
   try {
@@ -2386,54 +2412,84 @@ function adminAddWabun1TopicsWeek(params) {
     const byDay = {};
     items.forEach(function(it){
       const day  = String((it && it.day)  || '').trim();
-      const kind = String((it && it.kind) || '').trim();
+      const kind = _wabun1NormalizeKind((it && it.kind) || '');
       const content = String((it && it.content) == null ? '' : it.content);
       if (!(day in _WABUN1_DAY_OFFSET)) return;
-      if (!byDay[day]) byDay[day] = { tasks: ['','','',''], answers: ['','','',''], skips: ['','','',''], words: [] };
+      if (!kind) return; // 未知の種別は無視
+      if (!byDay[day]) byDay[day] = { tasks: ['','','',''], japanese_text: '', skip_text: '', answers: ['','','',''], words: [] };
       if      (kind === '問題1')     byDay[day].tasks[0]   = content;
       else if (kind === '問題2')     byDay[day].tasks[1]   = content;
       else if (kind === '問題3')     byDay[day].tasks[2]   = content;
       else if (kind === '問題4')     byDay[day].tasks[3]   = content;
+      else if (kind === '日本文')    byDay[day].japanese_text = content;
+      else if (kind === 'スキップ')  byDay[day].skip_text  = content;
       else if (kind === '正解1')     byDay[day].answers[0] = content;
       else if (kind === '正解2')     byDay[day].answers[1] = content;
       else if (kind === '正解3')     byDay[day].answers[2] = content;
       else if (kind === '正解4')     byDay[day].answers[3] = content;
-      else if (kind === 'スキップ1') byDay[day].skips[0]   = content;
-      else if (kind === 'スキップ2') byDay[day].skips[1]   = content;
-      else if (kind === 'スキップ3') byDay[day].skips[2]   = content;
-      else if (kind === 'スキップ4') byDay[day].skips[3]   = content;
       else if (kind === '単語' && content) byDay[day].words.push(content);
     });
 
-    // 行組み立て（問題1 空の曜日はエラー。正解は 0〜4 件を許容）
+    // 行データ組み立て（部分投入を許容するので問題1 空でもエラーにせず警告で扱う）
     const errors = [];
-    const rowsToAppend = [];
+    const rowsByDate = {};
     Object.keys(byDay).forEach(function(day){
       const data = byDay[day];
+      const date = _wabun1AddDays(start, _WABUN1_DAY_OFFSET[day]);
       if (!data.tasks[0]) {
-        errors.push(day + '曜日：問題1が空です');
+        errors.push(day + '曜日(' + date + ')：問題1が空です（書き込みスキップ）');
         return;
       }
-      const date = _wabun1AddDays(start, _WABUN1_DAY_OFFSET[day]);
-      rowsToAppend.push([
+      // 13 列：date | week_no | task1 | japanese_text | task2 | task3 | task4 | skip_text | word_list | answer1..4
+      rowsByDate[date] = [
         date, weekNo,
-        data.tasks[0],   data.tasks[1],   data.tasks[2],   data.tasks[3],
-        data.answers[0], data.answers[1], data.answers[2], data.answers[3],
-        data.skips[0],   data.skips[1],   data.skips[2],   data.skips[3],
-        data.words.join('\n')
-      ]);
+        data.tasks[0], data.japanese_text, data.tasks[1], data.tasks[2], data.tasks[3],
+        data.skip_text,
+        data.words.join('\n'),
+        data.answers[0], data.answers[1], data.answers[2], data.answers[3]
+      ];
     });
 
-    if (rowsToAppend.length === 0) {
+    const dates = Object.keys(rowsByDate);
+    if (dates.length === 0) {
       return { ok: false, message: '有効な行がありません', errors: errors };
     }
 
     const sh = _ss().getSheetByName(SHEET_WABUN1_TOPICS);
     if (!sh) return { ok: false, message: 'Wabun1Topicsシートが見つかりません' };
-    const startRow = sh.getLastRow() + 1;
-    sh.getRange(startRow, 1, rowsToAppend.length, rowsToAppend[0].length).setValues(rowsToAppend);
+
+    // 既存行を date でルックアップして同じ日付なら上書き、なければ追加
+    let updated = 0;
+    let added = 0;
+    const existingMap = {};
+    if (sh.getLastRow() >= 2) {
+      const values = sh.getDataRange().getValues();
+      const iDate = values[0].indexOf('date');
+      if (iDate >= 0) {
+        for (let i = 1; i < values.length; i++) {
+          if (!values[i][iDate]) continue;
+          const ds = Utilities.formatDate(new Date(values[i][iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
+          existingMap[ds] = i + 1; // シート上の行番号（1-indexed）
+        }
+      }
+    }
+    const appendRows = [];
+    dates.forEach(function(date){
+      const row = rowsByDate[date];
+      if (existingMap[date]) {
+        sh.getRange(existingMap[date], 1, 1, row.length).setValues([row]);
+        updated++;
+      } else {
+        appendRows.push(row);
+      }
+    });
+    if (appendRows.length > 0) {
+      const startRow = sh.getLastRow() + 1;
+      sh.getRange(startRow, 1, appendRows.length, appendRows[0].length).setValues(appendRows);
+      added = appendRows.length;
+    }
     _invalidateCache('cache_wabun1_topics_values');
-    return { ok: true, added: rowsToAppend.length, errors: errors };
+    return { ok: true, added: added, updated: updated, errors: errors };
   } catch(err) {
     console.error('[adminAddWabun1TopicsWeek]', err);
     return { ok: false, message: String(err) };

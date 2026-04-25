@@ -353,6 +353,11 @@
     .wabun1-task-no { flex:0 0 auto; font-weight:bold; color:#7c4fff; min-width:1.6em; }
     .wabun1-task-text { flex:1; }
     .wabun1-task-skip { color:#e63946; font-size:13px; display:block; margin-top:2px; }
+    .wabun1-japanese { background:#fff7ed; border:2px solid #fb923c; border-radius:10px; padding:12px 16px; margin:8px 0 10px 1.6em; font-size:16px; line-height:1.85; color:#7c2d12; font-weight:600; }
+    .wabun1-skip-banner { background:#fff1f2; border:2px solid #f87171; border-left-width:6px; border-radius:10px; padding:12px 16px; margin-bottom:14px; color:#991b1b; font-size:14px; line-height:1.85; }
+    .wabun1-skip-banner-title { font-weight:bold; margin-right:6px; }
+    .wabun1-archive-japanese { background:#fff7ed; border:1px solid #fb923c; border-radius:6px; padding:6px 10px; margin:4px 0 4px 1.5em; font-size:13px; line-height:1.7; color:#7c2d12; font-weight:600; }
+    .wabun1-archive-skip-banner { background:#fff1f2; border:1px solid #f87171; border-left-width:4px; border-radius:6px; padding:6px 10px; margin-bottom:6px; color:#991b1b; font-size:12px; line-height:1.6; }
     .wabun1-wordlist { background:#f0fdf4; border-radius:12px; padding:12px 16px; border-left:4px solid #10b981; margin-bottom:10px; }
     .wabun1-wordlist-item { font-size:14px; color:#065f46; margin:4px 0; line-height:1.7; }
     .wabun1-submit-big { background:linear-gradient(135deg,#b28dff,#7c4fff) !important; font-size:18px !important; padding:18px !important; box-shadow:0 6px 18px rgba(124,79,255,.35); }
@@ -2098,11 +2103,19 @@
         '⚠️ <strong>提出する写真には必ず問題番号（1. 2. 3.）を書いてください。</strong><br>番号が書かれていないと差し戻しになります。' +
       '</div>';
 
+    var skipBannerHtml = topic.skip_text
+      ? '<div class="wabun1-skip-banner"><span class="wabun1-skip-banner-title">⚠️ スキップの注意：</span>' + _wabun1Esc(topic.skip_text) + '</div>'
+      : '';
+
+    var japaneseText = topic.japanese_text || '';
     var tasksHtml = '<div class="wabun1-section-title">【今日の問題】</div>' +
       '<div class="wabun1-task-list">' +
+        skipBannerHtml +
         topic.tasks.map(function(t){
-          var skipHtml = t.skip ? '<span class="wabun1-task-skip">※ ' + _wabun1Esc(t.skip) + '</span>' : '';
-          return '<div class="wabun1-task"><span class="wabun1-task-no">' + t.no + '.</span><span class="wabun1-task-text">' + _wabun1RenderText(t.text) + skipHtml + '</span></div>';
+          var jpHtml = (t.no === 1 && japaneseText)
+            ? '<div class="wabun1-japanese">' + _wabun1RenderText(japaneseText) + '</div>'
+            : '';
+          return '<div class="wabun1-task"><span class="wabun1-task-no">' + t.no + '.</span><span class="wabun1-task-text">' + _wabun1RenderText(t.text) + '</span></div>' + jpHtml;
         }).join('') +
       '</div>';
 
@@ -2326,13 +2339,19 @@
   function _renderWabun1PastDateBlock(t) {
     var dateLabel = '📅 ' + _wabun1Esc(formatDate(t.date)) + (t.weekday ? '（' + _wabun1Esc(t.weekday) + '）' : '');
     var header = '<div class="wabun1-past-date-header">' + dateLabel + '</div>';
+    var skipBannerHtml = t.skip_text
+      ? '<div class="wabun1-skip-banner"><span class="wabun1-skip-banner-title">⚠️ スキップの注意：</span>' + _wabun1Esc(t.skip_text) + '</div>'
+      : '';
+    var japaneseText = t.japanese_text || '';
     var tasks = (t.tasks || []).map(function(task, idx) {
-      var skipHtml = task.skip ? '<span class="wabun1-task-skip">※ ' + _wabun1Esc(task.skip) + '</span>' : '';
       var ans = (t.answers && t.answers[idx]) ? String(t.answers[idx]).trim() : '';
       var ansHtml = ans
         ? '<div class="wabun1-answer-line"><span class="wabun1-answer-line-label">正解：</span>' + _wabun1Esc(ans) + '</div>'
         : '';
-      return '<div class="wabun1-task"><span class="wabun1-task-no">' + task.no + '.</span><span class="wabun1-task-text">' + _wabun1RenderText(task.text) + skipHtml + ansHtml + '</span></div>';
+      var jpHtml = (task.no === 1 && japaneseText)
+        ? '<div class="wabun1-japanese">' + _wabun1RenderText(japaneseText) + '</div>'
+        : '';
+      return '<div class="wabun1-task"><span class="wabun1-task-no">' + task.no + '.</span><span class="wabun1-task-text">' + _wabun1RenderText(task.text) + ansHtml + '</span></div>' + jpHtml;
     }).join('');
     var wordList = '';
     if (t.word_list && t.word_list.length > 0) {
@@ -2340,7 +2359,7 @@
         t.word_list.map(function(w){ return '<div class="wabun1-wordlist-item">・' + _wabun1Esc(w) + '</div>'; }).join('') +
       '</div>';
     }
-    return header + '<div class="wabun1-task-list">' + tasks + '</div>' + wordList;
+    return header + '<div class="wabun1-task-list">' + skipBannerHtml + tasks + '</div>' + wordList;
   }
 
   function showWabun1Past() {
@@ -2364,13 +2383,19 @@
   var _wabun1ArchiveWeek = 1;
   function _renderWabun1ArchiveDateBlock(t) {
     var header = '<div class="wabun1-archive-date-header">📅 ' + _wabun1Esc(formatDate(t.date)) + (t.weekday ? '（' + _wabun1Esc(t.weekday) + '）' : '') + '</div>';
+    var skipBannerHtml = t.skip_text
+      ? '<div class="wabun1-archive-skip-banner">⚠️ ' + _wabun1Esc(t.skip_text) + '</div>'
+      : '';
+    var japaneseText = t.japanese_text || '';
     var tasks = (t.tasks || []).map(function(task, idx) {
-      var skipHtml = task.skip ? '<span class="wabun1-archive-task-skip">※ ' + _wabun1Esc(task.skip) + '</span>' : '';
       var ans = (t.answers && t.answers[idx]) ? String(t.answers[idx]).trim() : '';
       var ansHtml = ans
         ? '<div class="wabun1-archive-answer"><strong>正解：</strong>' + _wabun1Esc(ans) + '</div>'
         : '';
-      return '<div class="wabun1-archive-task"><span class="wabun1-archive-task-no">' + task.no + '.</span><span class="wabun1-archive-task-text">' + _wabun1RenderText(task.text) + skipHtml + ansHtml + '</span></div>';
+      var jpHtml = (task.no === 1 && japaneseText)
+        ? '<div class="wabun1-archive-japanese">' + _wabun1RenderText(japaneseText) + '</div>'
+        : '';
+      return '<div class="wabun1-archive-task"><span class="wabun1-archive-task-no">' + task.no + '.</span><span class="wabun1-archive-task-text">' + _wabun1RenderText(task.text) + ansHtml + '</span></div>' + jpHtml;
     }).join('');
     var wordList = '';
     if (t.word_list && t.word_list.length > 0) {
@@ -2378,7 +2403,7 @@
         t.word_list.map(function(w){ return '・' + _wabun1Esc(w); }).join('　') +
       '</div>';
     }
-    return header + '<div class="wabun1-archive-card">' + tasks + wordList + '</div>';
+    return header + '<div class="wabun1-archive-card">' + skipBannerHtml + tasks + wordList + '</div>';
   }
 
   function showWabun1Archive(weekOffset) {
