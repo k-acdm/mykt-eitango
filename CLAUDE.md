@@ -1147,6 +1147,69 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - **完了後**: ふくちさんが Excel から問題データを管理画面に貼り付けて投入 → 4/27 月曜の実運用開始
 - **その後**: Phase 4 着手（`docs/基礎計算_Phase4_着手プロンプト集.md` の Phase 4-1 から）
 
+#### 91. 自宅PC 移行 + 和文英訳① 新仕様実装着手
+- **環境**: 自宅PC に Python 3.14.4 を新規インストール（PATH 追加済）。塾PC からの引き継ぎ作業は #90 の手順通り
+- **worktree 整理**: ステール dev worktree `cranky-shockley-6bcc54`（origin/dev より 8 コミット遅れ / 未コミット無し）を `git worktree remove`。stale branch `claude/cranky-shockley-6bcc54` も `git branch -d`
+- 現 worktree `thirsty-vaughan-7efe2d` を dev に切替、`origin/dev` から 16 コミット fast-forward で取り込み（#80-90 分）
+
+#### 92. 和文英訳① データ仕様変更 v2.0：13 列構造実装（dev `4676e28` → main `04c7018`）
+- **背景**: ふくちさんが再設計した Excel テンプレート（4列：曜日/種別/内容/補助列）を「A〜C 列だけコピペ」で投入できる運用に切替。詳細は [docs/和文英訳①_新仕様変更_v2.md](docs/和文英訳①_新仕様変更_v2.md)
+- **`Wabun1Topics` 13 列構造に再設計**:
+  - 旧 15 列（task1〜4 / answer1〜4 / skip1〜4 / word_list ほか）→ 新 13 列：`date | week_no | task1 | japanese_text | task2 | task3 | task4 | skip_text | word_list | answer1〜4`
+  - **task1 から `japanese_text` を独立列として分離**（指示文と日本文の視認性向上）
+  - **`skip1`〜`skip4` を `skip_text` に統合**（番号区別なし、1日1メッセージ）
+- **GAS 側 ([gas/Code.js](gas/Code.js))** 実装変更:
+  - `_wabun1HeaderIndices` / `_wabun1RowToObj` ヘルパーを新設し、`_readWabun1TopicsByDate` / `_readWabun1TopicsByDateRange` をヘッダー駆動に統合（DRY 化）
+  - `getWabun1Topic` / `_buildWabun1TopicsByDate` のレスポンスに `japanese_text` / `skip_text` を含める
+  - `_wabun1NormalizeKind` を新設し、`adminAddWabun1TopicsWeek` を新仕様で書き直し
+    - 種別の許容を拡張：`日本文` / `スキップ`（番号省略可、`スキップ1`〜`スキップ4` も可）+ 全角数字（`問題１`/`正解１`/`スキップ１`）の半角化
+    - **同一 `date` の行があれば setValues で上書き、なければ末尾に追加**（部分投入を許容）
+  - 旧 `skip1`〜`skip4` 列が残っているシートに対しても下位互換ロジック（最初に値があるものを skipText に採用）
+- **管理画面 ([admin.html](admin.html))**:
+  - `WABUN1_VALID_KINDS` の固定配列廃止 → フロント側にも `_wabun1NormalizeKind` を追加してパース時に正規化（GAS 側と同じ regex で同期）
+  - プレビュー表に「日本文」「スキップ」列を新設（単一カラム集計）、`日本文` 未入力曜日は赤字警告
+  - placeholder / 注意書きを 4/27 サンプルデータベースに刷新
+- **生徒画面 ([index.html](index.html))**:
+  - `_renderWabun1Topic` で task1 の指示文の直下に「日本文」を独立ボックス（暖色枠 `.wabun1-japanese`）で表示
+  - `skip_text` は問題リスト先頭に**1 箇所のバナー**（`.wabun1-skip-banner`、赤系）で統一表示。旧の per-task `t.skip` 表示を削除
+  - 過去の問題画面 (`_renderWabun1PastDateBlock`) と archive 画面 (`_renderWabun1ArchiveDateBlock`) も同設計に追従
+- **動作確認**: 仕様書 §3.3 サンプル TSV を Node.js で admin.parse → GAS.buildRows まで通し、13 列の正しい順序で出力されること、全角数字・スキップ番号有無の正規化が機能することを確認
+- **採点ロジック**: `submitWabun1` は `topic.tasks` / `topic.answers` を参照しているだけのため変更不要
+
+#### 93. 和文英訳①：一括登録の 400 Bad Request 緊急修正（dev `ee6cccb` → main `04c7018`）
+- **事象**: ふくちさんが 4/27〜5/3 の 7 日分（89 行）を貼り付けて「一括登録する」を押すと **400 Bad Request**
+- **真因**: `gasGet` は `fetch(URL?params=...)` で送るが、items 配列を含む JSON が encodeURIComponent 後に **Apps Script Web App の URL 長制限（およそ 8KB）を超過**してリクエストが拒否される
+- **修正**:
+  - **GAS 側 ([gas/Code.js](gas/Code.js))**: `doPost` のディスパッチ分岐に `adminAddWabun1TopicsWeek` を追加（既存 `submitPhoto` と同パターン、`JSON.parse(e.postData.contents)` で受ける）
+  - **管理画面 ([admin.html](admin.html))**: `gasPost(params)` ヘルパーを新設、`submitWabun1Paste` の送信を `gasGet` → `gasPost` に切替
+  - **CORS 対策**: `Content-Type: text/plain;charset=utf-8` で送ることで CORS preflight (`OPTIONS`) を発生させず simple request の範疇に収める。Apps Script は preflight に応答しないためこれが唯一の手段
+- **波及検討（今回スコープ外）**: 三語短文 `adminAddSangoTopicsWeek` も 4 レベル × 7 日 = 28 件で 7000 字超え得る既知リスク（CLAUDE.md #13 / #16）。現在は問題ない規模で運用中だが、将来 400 が再発したら同じ POST パターンで対応可能
+
+#### 94. 4/27〜5/3 の問題データ投入完了 ★クライマックス
+- ふくちさんが新仕様 13 列の `Wabun1Topics` シートを再構築（旧データ全削除 → 新ヘッダー入力）
+- `cd gas && clasp push` → GAS エディタで新バージョンデプロイ
+- 管理画面で 7 日分（月〜日）の TSV を貼り付け → POST 経由で正常投入完了。スプレッドシートに 7 行確認
+- **4/27（月）からの実運用準備完了**
+
+#### 95. 本日全体の累計成果（塾PC + 自宅PC）
+- 基礎計算 仕様書 v1.0 → v1.4
+- 基礎計算 Phase 1+2 完全完了（20級・600 問）+ DESIGN_PRINCIPLES.md 体系化
+- Phase 4 調査レポート + 着手プロンプト集
+- 英語長文リスニング&音読 仕様書 v0.7
+- HPLog rawHP カラム追加 + 既存 4 関数シグネチャ統一（本番反映済み）
+- 和文英訳① 13 列構造実装 + doPost 切替 + 本番投入完了
+
+#### 96. 次回再開時の手順
+- **PowerShell で Claude Code 起動前に以下を実行**（ふくちさんの手動操作 worktree も dev に揃え、Claude Code とのズレを防ぐ）:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- **次回主要タスク**: 基礎計算 Phase 4-1（基盤整備、所要 60〜90 分）
+- [docs/基礎計算_Phase4_着手プロンプト集.md](docs/基礎計算_Phase4_着手プロンプト集.md) の §Phase 4-1 セクションをコピーして Claude Code に投げる
+- 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
+
 ---
 
 ## TODO（未反映の GAS 側作業）
