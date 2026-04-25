@@ -32,10 +32,15 @@ RANK_MODULES: Dict[int, str] = {
     18: "rank_18_decimal_muldiv",
     17: "rank_17_decimal_mixed",
     16: "rank_16_fraction_addsub",
+    15: "rank_15_fraction_muldiv",
+    14: "rank_14_fraction_mixed",
     13: "rank_13_signed_addsub",
     12: "rank_12_signed_muldiv",
     11: "rank_11_signed_mixed",
     9: "rank_09_expr_grade1",
+    8: "rank_08_linear_eq",
+    7: "rank_07_expr_grade2",
+    6: "rank_06_simultaneous",
 }
 
 

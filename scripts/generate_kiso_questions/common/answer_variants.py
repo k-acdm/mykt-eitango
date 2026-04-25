@@ -180,6 +180,32 @@ def variants_for_decimal_answer(value: sp.Rational) -> List[str]:
 
 # ---- 多項式（9級）用：シンプルな variants ---------------------------------
 
+def variants_for_xy_solution(x_val: sp.Rational, y_val: sp.Rational) -> List[str]:
+    """6級（連立方程式）用の解の許容表記。
+
+    canonical: ``x = 3, y = 2`` の形式（既約分数 / 整数を ``canonical_for_rational`` で得る）。
+    展開：等号前後の空白あり/なし、カンマ前後の空白あり/なし、スラッシュ全/半角、マイナス全/半角。
+    """
+    x_str = canonical_for_rational(x_val)
+    y_str = canonical_for_rational(y_val)
+    canonical = f"x = {x_str}, y = {y_str}"
+    seeds: Set[str] = {canonical}
+    # 等号前後の空白除去
+    seeds.add(canonical.replace(" = ", "="))
+    # カンマ後の空白除去
+    seeds.add(canonical.replace(", ", ","))
+    seeds.add(canonical.replace(" = ", "=").replace(", ", ","))
+    return _cross_expand(
+        sorted(seeds),
+        [_expand_minus_variants, _expand_slash_variants],
+    )
+
+
+def canonical_for_xy_solution(x_val: sp.Rational, y_val: sp.Rational) -> str:
+    """連立方程式の解の標準表記："x = a, y = b"。"""
+    return f"x = {canonical_for_rational(x_val)}, y = {canonical_for_rational(y_val)}"
+
+
 def variants_for_polynomial(canonical: str) -> List[str]:
     """多項式の許容表記（9級用）。
 
