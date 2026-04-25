@@ -358,7 +358,8 @@ function loginStudent(studentId) {
         updates[COL_STREAK]     = streak;
         updates[COL_LAST_LOGIN] = today;
         _updateStudentsCacheRow(i, updates);
-        _logHP(studentId, loginBonus, 'login');
+        // 既存コンテンツは素点と倍率後HPが同値のため rawHP = hpGained
+        _logHP(studentId, loginBonus, loginBonus, 'login');
       }
 
       // ステージ・称号・節目を計算
@@ -623,7 +624,8 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     updates[COL_HP]        = newHP;
     updates[COL_LAST_TEST] = today;
     _updateStudentsCacheRow(i, updates);
-    _logHP(sid, hpGained, 'test');
+    // 既存コンテンツは素点と倍率後HPが同値のため rawHP = hpGained
+    _logHP(sid, hpGained, hpGained, 'test');
     _invalidateCache('cache_ranking_last_week');
 
     return { ok: true, clearHP: hpGained, bonusHP: 0, hpGained, totalHP: newHP, streak: streak, week: week };
@@ -636,17 +638,70 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
 // =============================================
 // HPログ記録
 // =============================================
-function _logHP(studentId, hpGained, type) {
+// シグネチャ：_logHP(studentId, rawHP, hpGained, type)
+//   - rawHP : 倍率適用前の素点（仕様書 §8.7 で確定済み）
+//   - hpGained : 倍率適用後の獲得HP（=実際の Students シートに加算される値）
+// 既存コンテンツ（英単語RUSH/三語短文/和文英訳①）は素点と倍率後HPが同値のため
+// rawHP に hpGained と同じ値を渡せば後方互換。基礎計算 Phase 4 で submitKisoAnswer
+// が rawHP（素点）を別の値（倍率前）として記録するために本シグネチャに統一する。
+function _logHP(studentId, rawHP, hpGained, type) {
   try {
     const ss = _ss();
     let sh   = ss.getSheetByName(SHEET_HPLOG);
     if (!sh) {
       sh = ss.insertSheet(SHEET_HPLOG);
-      sh.getRange(1, 1, 1, 4).setValues([['timestamp', 'studentId', 'hpGained', 'type']]);
+      sh.getRange(1, 1, 1, 5).setValues([['timestamp', 'studentId', 'rawHP', 'hpGained', 'type']]);
     }
-    sh.appendRow([_nowJST(), String(studentId).trim(), hpGained, type]);
+    sh.appendRow([_nowJST(), String(studentId).trim(), rawHP, hpGained, type]);
   } catch(e) {
     console.error('[_logHP]', e);
+  }
+}
+
+// =============================================
+// 一回限りの移行：HPLog に rawHP カラムを追加し既存レコードを埋め戻す
+// =============================================
+// 用途：既存 HPLog（4 列：timestamp/studentId/hpGained/type）に rawHP カラムを
+//       hpGained の左側に挿入し、全既存レコードに rawHP = hpGained を埋め戻す。
+// 実行：GAS エディタから手動で 1 回だけ実行（clasp push 後）。
+//       既に rawHP カラムが存在する場合は何もしない（冪等）。
+// 戻り値：{ ok, alreadyMigrated, addedRows, message }
+function migrateHpLogAddRawHp() {
+  try {
+    const ss = _ss();
+    const sh = ss.getSheetByName(SHEET_HPLOG);
+    if (!sh) {
+      return { ok: true, alreadyMigrated: false, addedRows: 0, message: 'HPLog シートが存在しません（次回 _logHP 呼び出し時に新形式で自動作成されます）' };
+    }
+    // ヘッダー走査：既に rawHP がある場合はスキップ（冪等）
+    const lastCol = sh.getLastColumn();
+    if (lastCol >= 1) {
+      const header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+      if (header.indexOf('rawHP') >= 0) {
+        return { ok: true, alreadyMigrated: true, addedRows: 0, message: '既に rawHP カラムが存在します（migration 実行済み）' };
+      }
+    }
+    // 旧形式の確認：column 3 が 'hpGained' であることを確認
+    const oldHeader = sh.getRange(1, 1, 1, Math.max(4, lastCol)).getValues()[0];
+    if (oldHeader[2] !== 'hpGained') {
+      return { ok: false, message: '旧形式の HPLog ヘッダーが想定と異なります（column 3 が "hpGained" ではない）：' + JSON.stringify(oldHeader) };
+    }
+    // 新カラムを column 3 の前に挿入（既存 hpGained は column 4 へ右シフト）
+    sh.insertColumnBefore(3);
+    // 新ヘッダー設定
+    sh.getRange(1, 3).setValue('rawHP');
+    // 既存レコードの埋め戻し：rawHP（column 3）に hpGained（column 4、シフト後）の値をコピー
+    const lastRow = sh.getLastRow();
+    let backfilled = 0;
+    if (lastRow >= 2) {
+      const hpValues = sh.getRange(2, 4, lastRow - 1, 1).getValues();
+      sh.getRange(2, 3, lastRow - 1, 1).setValues(hpValues);
+      backfilled = lastRow - 1;
+    }
+    return { ok: true, alreadyMigrated: false, addedRows: backfilled, message: `rawHP カラムを追加し、${backfilled} 件のレコードに rawHP = hpGained を埋め戻しました。` };
+  } catch (err) {
+    console.error('[migrateHpLogAddRawHp]', err);
+    return { ok: false, message: String(err) };
   }
 }
 
@@ -704,11 +759,12 @@ function getWeeklyRanking() {
     }
 
     // HPLogから先週分の type='test' のみ件数カウント（1件 = 50HP、連続週数ボーナス除外）
+    // HPLog 列構成（rawHP 追加後）：[0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type
     const countMap = {};
     if (logSheet) {
       const logRows = logSheet.getDataRange().getValues();
       for (let i = 1; i < logRows.length; i++) {
-        if (logRows[i][3] !== 'test') continue;
+        if (logRows[i][4] !== 'test') continue;
         const dateStr = _toDateStr(logRows[i][0]);
         if (dateStr < range.start || dateStr > range.end) continue;
         const sid = String(logRows[i][1]).trim();
@@ -1432,6 +1488,7 @@ function submitSango(params) {
     subSheet.appendRow([now, sid, studentName, level, words, work, method]);
 
     // HPLog の type='sango' で当日分チェック（末尾 200 行のみ走査、3時基準で日付判定）
+    // HPLog 列構成（rawHP 追加後）：[0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type
     const todayStr = _sangoToday();
     let alreadyGranted = false;
     const logSheet = ss.getSheetByName(SHEET_HPLOG);
@@ -1439,7 +1496,7 @@ function submitSango(params) {
       const logRows = _readLastNRows(logSheet, 200);
       for (let i = 0; i < logRows.length; i++) {
         if (String(logRows[i][1]).trim() !== sid) continue;
-        if (logRows[i][3] !== 'sango') continue;
+        if (logRows[i][4] !== 'sango') continue;
         const todayForLog = (function(ts){
           const t = new Date(ts); t.setHours(t.getHours() - 3);
           return Utilities.formatDate(t, 'Asia/Tokyo', 'yyyy-MM-dd');
@@ -1463,7 +1520,9 @@ function submitSango(params) {
         upd[COL_HP] = newHP;
         _updateStudentsCacheRow(stuRowIdx, upd);
       }
-      if (logSheet) logSheet.appendRow([now, sid, hpGained, 'sango']);
+      // _logHP に統一（5 列：timestamp/studentId/rawHP/hpGained/type）
+      // 三語短文は素点と倍率後HPが同値のため rawHP = hpGained
+      _logHP(sid, hpGained, hpGained, 'sango');
       _invalidateCache('cache_ranking_last_week');
     }
     return { ok: true, hpGained: hpGained };
@@ -1823,6 +1882,7 @@ function getChildActivityRecent(params) {
         // 保守的に hasMore=true 扱い（archive ボタンの誤表示はあっても致命的でない）
         hasMore = true;
       }
+      // HPLog 列構成（rawHP 追加後）：[0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (String(r[1] || '').trim() !== sid) continue;
@@ -1831,13 +1891,13 @@ function getChildActivityRecent(params) {
         if (ds < startStr) { hasMore = true; continue; }
         if (ds > endStr) continue;
         if (!byDate[ds]) continue;
-        const type = String(r[3] || '').trim();
+        const type = String(r[4] || '').trim();
         if      (type === 'login') byDate[ds].login = true;
         else if (type === 'test')  byDate[ds].eitango.done = true;
         else if (type === 'sango') byDate[ds].sango.done   = true;
         else if (type === 'wabun1') {
           byDate[ds].wabun1.done = true;
-          byDate[ds].wabun1.hpGained = Number(r[2]) || 0;
+          byDate[ds].wabun1.hpGained = Number(r[3]) || 0;
         }
       }
     }
@@ -2061,13 +2121,14 @@ function submitWabun1(params) {
     subSheet.appendRow([now, sid, studentName, workText, 'photo', '']);
 
     // HPLog type='wabun1' で当日分既に付与済みか確認（末尾 200 行のみ走査）
+    // HPLog 列構成（rawHP 追加後）：[0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type
     let alreadyGranted = false;
     const logSheet = ss.getSheetByName(SHEET_HPLOG);
     if (logSheet) {
       const logRows = _readLastNRows(logSheet, 200);
       for (let i = 0; i < logRows.length; i++) {
         if (String(logRows[i][1]).trim() !== sid) continue;
-        if (logRows[i][3] !== 'wabun1') continue;
+        if (logRows[i][4] !== 'wabun1') continue;
         const todayForLog = (function(ts){
           const dt = new Date(ts); dt.setHours(dt.getHours() - 3);
           return Utilities.formatDate(dt, 'Asia/Tokyo', 'yyyy-MM-dd');
@@ -2090,7 +2151,9 @@ function submitWabun1(params) {
         upd[COL_HP] = newHP;
         _updateStudentsCacheRow(stuRowIdx, upd);
       }
-      if (logSheet) logSheet.appendRow([now, sid, hpGained, 'wabun1']);
+      // _logHP に統一（5 列：timestamp/studentId/rawHP/hpGained/type）
+      // 和文英訳①は素点と倍率後HPが同値のため rawHP = hpGained
+      _logHP(sid, hpGained, hpGained, 'wabun1');
       _invalidateCache('cache_ranking_last_week');
     }
 
