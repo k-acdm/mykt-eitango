@@ -167,6 +167,13 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "B": {"count": 10, "kind": "general_int", "coef_max": 6, "sol_max": 8},
         "C": {"count": 10, "kind": "frac_solution", "coef_max": 5, "sol_denom_max": 4},
     },
+    # 10級：単位・比・割合（10問固定スロット構造）
+    # 各 Band で 10 問生成、スロット 1〜10 を 1 問ずつ。
+    10: {
+        "A": {"count": 10, "complexity": "easy"},
+        "B": {"count": 10, "complexity": "medium"},
+        "C": {"count": 10, "complexity": "hard"},
+    },
     # 9級：式の計算 中1
     9: {
         # A: 同類項 / B: 分配法則 / C: 単項式の乗除

@@ -37,6 +37,7 @@ RANK_MODULES: Dict[int, str] = {
     13: "rank_13_signed_addsub",
     12: "rank_12_signed_muldiv",
     11: "rank_11_signed_mixed",
+    10: "rank_10_unit_ratio",
     9: "rank_09_expr_grade1",
     8: "rank_08_linear_eq",
     7: "rank_07_expr_grade2",
@@ -78,11 +79,20 @@ def generate_for_rank(rank: int, seed: int) -> Dict[str, Any]:
     out_problems: List[Dict[str, Any]] = []
     failed_self_check = 0
     t0 = time.time()
+    # generate_problem が ``slot_index`` キーワードを受け付ける級は、その引数で
+    # 1 問目=0, 2 問目=1, ... のようにスロット位置を指定できる（10 級用）。
+    import inspect
+    sig = inspect.signature(mod.generate_problem)
+    accepts_slot = "slot_index" in sig.parameters
+
     for band in bands:
         cfg = BAND_PLAN[rank][band]
         count = cfg["count"]
-        for _ in range(count):
-            problem = mod.generate_problem(band, rng)
+        for i in range(count):
+            if accepts_slot:
+                problem = mod.generate_problem(band, rng, slot_index=i)
+            else:
+                problem = mod.generate_problem(band, rng)
             ok = mod.self_check(problem)
             if not ok:
                 failed_self_check += 1
