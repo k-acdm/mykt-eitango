@@ -844,6 +844,144 @@ function recoverAllStudentsStreak(opts) {
 }
 
 // =============================================
+// 自動バックアップ機能
+// =============================================
+// 用途: マイ活アプリのスプレッドシートを毎日 1 ファイル丸ごとコピーし、
+//       Google Drive 内の「マイ活_バックアップ」フォルダに保存する。
+//       30 日を超えた旧バックアップは自動削除。
+// 想定運用: GAS Time-based Trigger で毎日 02:00〜03:00 に runDailyBackup() を実行。
+//   - 週次切替トリガー(03:00〜04:00) と被らないようにずらしている。
+// 実装ポリシー:
+//   - バックアップフォルダはマイドライブ直下に固定名で作成（重複検索）。
+//   - ファイル名は 'mykt-eitango-backup_YYYY-MM-DD'（拡張子は makeCopy が自動）。
+//   - BackupLog シート（自動作成）に timestamp/status/fileId/message を追記。
+//   - エラー時もシートにログを残し、例外は throw しない（Trigger を停止させない）。
+
+const BACKUP_FOLDER_NAME = 'マイ活_バックアップ';
+const BACKUP_FILE_PREFIX = 'mykt-eitango-backup_';
+const BACKUP_RETAIN_DAYS = 30;
+const SHEET_BACKUP_LOG   = 'BackupLog';
+
+// マイドライブ直下にバックアップフォルダを 1 個確保（同名複数個の場合は最初の 1 個を採用）
+function _ensureBackupFolder() {
+  const it = DriveApp.getFoldersByName(BACKUP_FOLDER_NAME);
+  if (it.hasNext()) return it.next();
+  return DriveApp.createFolder(BACKUP_FOLDER_NAME);
+}
+
+// BackupLog シートを確保（未存在なら作成、ヘッダー付き）
+function _ensureBackupLogSheet() {
+  const ss = _ss();
+  let sh = ss.getSheetByName(SHEET_BACKUP_LOG);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_BACKUP_LOG);
+    sh.getRange(1, 1, 1, 4).setValues([['timestamp', 'status', 'fileId', 'message']]);
+  }
+  return sh;
+}
+
+// BackupLog にログ追記（status: 'success' | 'failure' | 'cleanup'）
+function _logBackup(status, fileId, message) {
+  try {
+    const sh = _ensureBackupLogSheet();
+    sh.appendRow([_nowJST(), status, fileId || '', message || '']);
+  } catch (e) {
+    console.error('[_logBackup]', e);
+  }
+}
+
+// 30 日超のバックアップファイルを削除（ファイル名から日付を抽出）
+function _cleanupOldBackups(folder) {
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - BACKUP_RETAIN_DAYS);
+    const cutoffMs = cutoff.getTime();
+    const files = folder.getFiles();
+    let deleted = 0;
+    while (files.hasNext()) {
+      const f = files.next();
+      const name = f.getName();
+      // mykt-eitango-backup_2026-04-26 形式から日付を抽出
+      const m = name.match(/_(\d{4}-\d{2}-\d{2})/);
+      if (!m) continue;
+      const fileDate = new Date(m[1]);
+      if (isNaN(fileDate.getTime())) continue;
+      if (fileDate.getTime() < cutoffMs) {
+        f.setTrashed(true);
+        deleted += 1;
+      }
+    }
+    if (deleted > 0) {
+      _logBackup('cleanup', '', BACKUP_RETAIN_DAYS + ' 日超のバックアップ ' + deleted + ' 件をゴミ箱へ移動');
+    }
+    return deleted;
+  } catch (err) {
+    console.error('[_cleanupOldBackups]', err);
+    _logBackup('cleanup', '', 'cleanup 失敗: ' + String(err));
+    return 0;
+  }
+}
+
+// 日次バックアップ本体（Time-based Trigger から呼ばれる）
+// 戻り値: { ok, fileId?, fileName?, deleted?, message? }
+function runDailyBackup() {
+  try {
+    const ss = _ss();
+    const ssId = ss.getId();
+    const fileName = BACKUP_FILE_PREFIX + _todayJST();
+
+    // 既に同名バックアップが今日分あればスキップ（同じ日に複数回実行された場合）
+    const folder = _ensureBackupFolder();
+    const existing = folder.getFilesByName(fileName);
+    if (existing.hasNext()) {
+      const ex = existing.next();
+      _logBackup('success', ex.getId(), '当日バックアップ既存のためスキップ: ' + fileName);
+      const deleted = _cleanupOldBackups(folder);
+      return { ok: true, fileId: ex.getId(), fileName: fileName, skipped: true, deleted: deleted };
+    }
+
+    // makeCopy: スプレッドシート全体をコピー
+    const sourceFile = DriveApp.getFileById(ssId);
+    const copy = sourceFile.makeCopy(fileName, folder);
+    const fileId = copy.getId();
+    _logBackup('success', fileId, 'バックアップ作成: ' + fileName);
+
+    // 古いバックアップを削除
+    const deleted = _cleanupOldBackups(folder);
+
+    return { ok: true, fileId: fileId, fileName: fileName, deleted: deleted };
+  } catch (err) {
+    console.error('[runDailyBackup]', err);
+    _logBackup('failure', '', String(err));
+    return { ok: false, message: String(err) };
+  }
+}
+
+// バックアップ一覧取得（管理画面/動作確認用）
+// 戻り値: { ok, files: [{name, fileId, createdAt, size}, ...] }
+function listBackups() {
+  try {
+    const folder = _ensureBackupFolder();
+    const files = folder.getFiles();
+    const list = [];
+    while (files.hasNext()) {
+      const f = files.next();
+      list.push({
+        name: f.getName(),
+        fileId: f.getId(),
+        createdAt: Utilities.formatDate(f.getDateCreated(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
+        size: f.getSize()
+      });
+    }
+    list.sort(function(a, b){ return a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0; });
+    return { ok: true, files: list, folderName: BACKUP_FOLDER_NAME };
+  } catch (err) {
+    console.error('[listBackups]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
 // 先週の期間を返す（月曜〜日曜）
 // =============================================
 function _getLastWeekRange() {
