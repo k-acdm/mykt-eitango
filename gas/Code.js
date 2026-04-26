@@ -708,6 +708,132 @@ function migrateHpLogAddRawHp() {
 }
 
 // =============================================
+// 連続日数の一括復旧（4/24 Day 2 Stage 2 バグ対策）
+// =============================================
+// 用途: HPLog の type='login' レコードから各生徒の正しい連続日数を再計算し、
+//       Students.STREAK を上書きする。
+// 引数: opts = { dryRun?: boolean, force?: boolean }
+//   - dryRun=true: シートを更新せず、旧→新の対比だけを返す（必ず最初に dryRun で確認）
+//   - force=true:  実行済みフラグ無視（このスクリプトでは未使用、apologyStreakBonus と
+//                  シグネチャを揃えるため受け入れるだけ）
+// 動作:
+//   1. Students シートを直接読む（cache 経由禁止）
+//   2. HPLog シートを直接読む（cache 経由禁止）
+//   3. 各生徒について type='login' のユニーク日付を集めて昇順ソート
+//   4. 各日付について「前日との差分が 1 日なら streak += 1、それ以外は streak = 1」
+//      （loginStudent の挙動と同じロジック）
+//   5. dryRun でなければシートに書き込み、Students キャッシュを invalidate
+// 戻り値: { ok, dryRun, totalStudents, updateCount, updates: [...] }
+//   - updates[i] = { rowIdx, sid, name, nickname, oldStreak, newStreak, loginDays, lastLoginDate }
+function recoverAllStudentsStreak(opts) {
+  try {
+    opts = opts || {};
+    const dryRun = !!opts.dryRun;
+
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    const logSheet = ss.getSheetByName(SHEET_HPLOG);
+    if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
+    if (!logSheet) return { ok: false, message: 'HPLog シートが見つかりません' };
+
+    // cache 経由禁止: 直接読み
+    const stuValues = stuSheet.getDataRange().getValues();
+    const logValues = logSheet.getDataRange().getValues();
+
+    // HPLog ヘッダーを動的に検出（rawHP 追加前後の両方に対応）
+    if (logValues.length < 2) return { ok: false, message: 'HPLog にデータがありません' };
+    const logHeader = logValues[0];
+    const cTimestamp = logHeader.indexOf('timestamp');
+    const cSid       = logHeader.indexOf('studentId');
+    const cType      = logHeader.indexOf('type');
+    if (cTimestamp < 0 || cSid < 0 || cType < 0) {
+      return { ok: false, message: 'HPLog ヘッダーが想定外: ' + JSON.stringify(logHeader) };
+    }
+
+    // 生徒ごとの login 日付（ユニーク）を集計
+    const datesByStudent = {};
+    for (let i = 1; i < logValues.length; i++) {
+      const row = logValues[i];
+      if (String(row[cType] || '').trim() !== 'login') continue;
+      const sid = String(row[cSid] || '').trim();
+      if (!sid) continue;
+      // _toDateStr の修正前後どちらでも、HPLog 直接読みは Date オブジェクトが返るので
+      // 既存の formatDate 経路で正しく JST 日付になる
+      const dateStr = _toDateStr(row[cTimestamp]);
+      if (!dateStr) continue;
+      if (!datesByStudent[sid]) datesByStudent[sid] = {};
+      datesByStudent[sid][dateStr] = true;
+    }
+
+    // 各生徒について連続日数を再計算
+    const updates = [];
+    for (let i = 1; i < stuValues.length; i++) {
+      const sid = String(stuValues[i][COL_ID] || '').trim();
+      if (!sid) continue;
+      const oldStreak = Number(stuValues[i][COL_STREAK]) || 0;
+      const dateMap = datesByStudent[sid];
+      let newStreak = 0;
+      let lastLoginDate = '';
+
+      if (dateMap) {
+        const sortedDates = Object.keys(dateMap).sort();
+        let streak = 0;
+        let prev = null;
+        for (let j = 0; j < sortedDates.length; j++) {
+          const d = sortedDates[j];
+          if (prev === null) {
+            streak = 1;
+          } else {
+            const diffMs = new Date(d) - new Date(prev);
+            const diffDays = Math.round(diffMs / 86400000);
+            if (diffDays === 1) streak += 1;
+            else if (diffDays === 0) { /* 同日は維持 */ }
+            else streak = 1;
+          }
+          prev = d;
+        }
+        newStreak = streak;
+        lastLoginDate = prev || '';
+      }
+
+      if (oldStreak !== newStreak) {
+        updates.push({
+          rowIdx: i,
+          sid: sid,
+          name: String(stuValues[i][COL_NAME] || ''),
+          nickname: String(stuValues[i][COL_NICKNAME] || ''),
+          oldStreak: oldStreak,
+          newStreak: newStreak,
+          loginDays: dateMap ? Object.keys(dateMap).length : 0,
+          lastLoginDate: lastLoginDate
+        });
+      }
+    }
+
+    // dryRun でなければシート書き込み + cache invalidate
+    if (!dryRun && updates.length > 0) {
+      for (let k = 0; k < updates.length; k++) {
+        const u = updates[k];
+        stuSheet.getRange(u.rowIdx + 1, COL_STREAK + 1).setValue(u.newStreak);
+      }
+      _invalidateCache('cache_students_values');
+      _invalidateCache('cache_ranking_last_week');
+    }
+
+    return {
+      ok: true,
+      dryRun: dryRun,
+      totalStudents: stuValues.length - 1,
+      updateCount: updates.length,
+      updates: updates
+    };
+  } catch (err) {
+    console.error('[recoverAllStudentsStreak]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
 // 先週の期間を返す（月曜〜日曜）
 // =============================================
 function _getLastWeekRange() {
