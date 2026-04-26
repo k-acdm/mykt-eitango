@@ -328,6 +328,7 @@ function doGet(e) {
       else if (action === 'adminSetWabun1Comment')      result = adminSetWabun1Comment(params);
       else if (action === 'startKisoSession')        result = startKisoSession(params.studentId, params.rank, params.count);
       else if (action === 'getKisoRetryQuestions')   result = getKisoRetryQuestions(params.sessionId);
+      else if (action === 'getKisoPhotosList')       result = getKisoPhotosList(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1925,14 +1926,303 @@ function _kisoSessionId(studentId) {
   return 'kiso_' + String(studentId).trim() + '_' + ts + '_' + rand;
 }
 
-// Phase 4-3 で本実装する Drive 写真保存のフック（Phase 4-2 では no-op stub）
-// Phase 4-3 でこの関数の中身を Drive 連携に置き換えると、submitKisoAnswer 側を変更せず
-// 写真保存が有効化される。
-// 戻り値: { ok, fileId, shareUrl } - Phase 4-2 段階では空文字列を返す
+// =============================================
+// 基礎計算 Phase 4-3：Drive 連携
+// =============================================
+// 仕様書 §3.4：
+//   - ルートフォルダ：マイ活_基礎計算_答案写真
+//   - 年月サブフォルダ：マイ活_基礎計算_答案写真/YYYY-MM/
+//   - ファイル名：{生徒ID}_{rank}_{sessionId}.jpg
+//   - 保存期間：15 日（cleanupKisoPhotos が日次トリガーで削除）
+
+const KISO_PHOTO_ROOT_FOLDER = 'マイ活_基礎計算_答案写真';
+const KISO_PHOTO_RETAIN_DAYS = 15;
+
+// マイドライブ直下にルートフォルダを 1 個確保（同名複数個の場合は最初の 1 個を採用）
+function _ensureKisoPhotoRootFolder() {
+  const it = DriveApp.getFoldersByName(KISO_PHOTO_ROOT_FOLDER);
+  if (it.hasNext()) return it.next();
+  return DriveApp.createFolder(KISO_PHOTO_ROOT_FOLDER);
+}
+
+// 年月サブフォルダ（'2026-04' 形式）を確保
+function _ensureKisoPhotoFolder(yearMonth) {
+  const root = _ensureKisoPhotoRootFolder();
+  const it = root.getFoldersByName(yearMonth);
+  if (it.hasNext()) return it.next();
+  return root.createFolder(yearMonth);
+}
+
+// 1 枚を Drive に保存し、KisoPhotos に 1 行追記する。
+// 戻り値: { ok, fileId, shareUrl, deleteAfter, fileName }
+//   - 失敗時: { ok: false, message }
+// submitKisoAnswer の初回提出経路（Phase 4-2 で組み込み済み）から呼ばれる。
 function _saveKisoPhoto(studentId, sessionId, rank, count, imageBase64) {
-  // TODO_PHASE_4_3: DriveApp で「マイ活_基礎計算_答案写真/YYYY-MM/」フォルダに保存し、
-  // KisoPhotos シートに 1 行追記する。Phase 4-2 では呼び出しのフックのみ用意。
-  return { ok: true, fileId: '', shareUrl: '', stub: true };
+  try {
+    const sid = String(studentId || '').trim();
+    if (!sid)       return { ok: false, message: '生徒IDが空です' };
+    if (!sessionId) return { ok: false, message: 'sessionId が空です' };
+    if (!imageBase64) return { ok: false, message: '画像データが空です' };
+
+    // base64 → Blob
+    const decoded = Utilities.base64Decode(String(imageBase64));
+    const blob = Utilities.newBlob(decoded, 'image/jpeg', 'tmp.jpg');
+
+    // 提出日（教育日基準でファイル分類するとフォルダ跨ぎが微妙なので、ここはカレンダー JST）
+    const submittedAt = _nowJST();
+    const submittedDate = _todayJST();              // 'yyyy-MM-dd'
+    const yearMonth = submittedDate.slice(0, 7);    // 'yyyy-MM'
+
+    // 削除予定日 = submittedDate + 15 日
+    const delAfter = new Date(submittedDate + 'T12:00:00+09:00');
+    delAfter.setDate(delAfter.getDate() + KISO_PHOTO_RETAIN_DAYS);
+    const deleteAfter = Utilities.formatDate(delAfter, 'Asia/Tokyo', 'yyyy-MM-dd');
+
+    // フォルダ確保 + ファイル作成
+    const folder = _ensureKisoPhotoFolder(yearMonth);
+    const fileName = sid + '_' + rank + '_' + sessionId + '.jpg';
+    const file = folder.createFile(blob).setName(fileName);
+    const fileId = file.getId();
+    const shareUrl = file.getUrl();
+
+    // KisoPhotos シートに記録
+    const sh = _ensureKisoPhotosSheet();
+    sh.appendRow([
+      sessionId,
+      sid,
+      Number(rank) || 0,
+      Number(count) || 0,
+      fileId,
+      shareUrl,
+      submittedAt,
+      deleteAfter
+    ]);
+
+    return {
+      ok: true,
+      fileId: fileId,
+      shareUrl: shareUrl,
+      deleteAfter: deleteAfter,
+      fileName: fileName
+    };
+  } catch (err) {
+    console.error('[_saveKisoPhoto]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// Drive 上の 1 ファイルをゴミ箱へ。既に削除されているなどのエラーは握りつぶす（best-effort）。
+// 戻り値: { ok: boolean, error?: string }
+function _deleteKisoPhoto(driveFileId) {
+  try {
+    if (!driveFileId) return { ok: true };
+    DriveApp.getFileById(String(driveFileId)).setTrashed(true);
+    return { ok: true };
+  } catch (err) {
+    console.warn('[_deleteKisoPhoto]', driveFileId, err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+// 管理画面用：保存中の答案写真を取得
+// 仕様書 §5.3 / §5.4：
+//   - studentId 指定なし → 生徒一覧サマリ（写真ありの生徒のみ、最新提出日時の降順）
+//   - studentId 指定あり → その生徒の写真を提出日時降順で全件返却
+// 認証必須（_verifyAdmin）
+function getKisoPhotosList(params) {
+  try {
+    if (!_verifyAdmin(params && params.password)) {
+      return { ok: false, message: '認証エラー' };
+    }
+    const sidFilter = String((params && params.studentId) || '').trim();
+
+    const sh = _ensureKisoPhotosSheet();
+    if (sh.getLastRow() < 2) {
+      return sidFilter
+        ? { ok: true, mode: 'detail', studentId: sidFilter, photos: [] }
+        : { ok: true, mode: 'summary', students: [] };
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSession = header.indexOf('sessionId');
+    const cSid     = header.indexOf('studentId');
+    const cRank    = header.indexOf('rank');
+    const cCount   = header.indexOf('count');
+    const cFileId  = header.indexOf('driveFileId');
+    const cShare   = header.indexOf('shareUrl');
+    const cSubmit  = header.indexOf('submittedAt');
+    const cDelete  = header.indexOf('deleteAfter');
+
+    // 生徒名マップ（Students シートから cache 経由）
+    const stuRows = _getStudentsValues();
+    const nameMap = {};
+    for (let i = 1; i < stuRows.length; i++) {
+      const id = String(stuRows[i][COL_ID] || '').trim();
+      if (!id) continue;
+      const real = String(stuRows[i][COL_NAME] || '').trim();
+      const nick = String(stuRows[i][COL_NICKNAME] || '').trim();
+      nameMap[id] = { real: real, nick: nick };
+    }
+
+    // KisoSessions も読み込んで status / attempts / rankName を引く
+    const sesSh = _ensureKisoSessionsSheet();
+    const sesMap = {};
+    if (sesSh.getLastRow() >= 2) {
+      const sv = sesSh.getDataRange().getValues();
+      const sh0 = sv[0];
+      const sCSession  = sh0.indexOf('sessionId');
+      const sCStatus   = sh0.indexOf('status');
+      const sCAttempts = sh0.indexOf('attempts');
+      const sCRank     = sh0.indexOf('rank');
+      for (let i = 1; i < sv.length; i++) {
+        const id = String(sv[i][sCSession] || '');
+        if (!id) continue;
+        sesMap[id] = {
+          status: String(sv[i][sCStatus] || ''),
+          attempts: Number(sv[i][sCAttempts]) || 0,
+          rank: Number(sv[i][sCRank]) || 0
+        };
+      }
+    }
+
+    // KisoPhotos 行を整形
+    const photos = [];
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const sid = String(row[cSid] || '').trim();
+      if (!sid) continue;
+      if (sidFilter && sid !== sidFilter) continue;
+      const fileId = String(row[cFileId] || '');
+      const sessionId = String(row[cSession] || '');
+      const submittedTs = row[cSubmit];
+      const submittedAt = (submittedTs instanceof Date)
+        ? Utilities.formatDate(submittedTs, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(submittedTs || '');
+      const deleteAfter = _toDateStr(row[cDelete]);
+      const ses = sesMap[sessionId] || {};
+      photos.push({
+        sessionId: sessionId,
+        studentId: sid,
+        studentName: (nameMap[sid] && nameMap[sid].real) || '',
+        studentNickname: (nameMap[sid] && nameMap[sid].nick) || '',
+        rank: Number(row[cRank]) || 0,
+        count: Number(row[cCount]) || 0,
+        driveFileId: fileId,
+        shareUrl: String(row[cShare] || ''),
+        thumbnailUrl: fileId ? ('https://drive.google.com/thumbnail?id=' + fileId + '&sz=w400') : '',
+        viewUrl: fileId ? ('https://drive.google.com/file/d/' + fileId + '/view') : '',
+        submittedAt: submittedAt,
+        deleteAfter: deleteAfter,
+        sessionStatus: ses.status || '',
+        sessionAttempts: ses.attempts || 0
+      });
+    }
+
+    // 提出日時降順
+    photos.sort(function(a, b){ return a.submittedAt < b.submittedAt ? 1 : a.submittedAt > b.submittedAt ? -1 : 0; });
+
+    if (sidFilter) {
+      return { ok: true, mode: 'detail', studentId: sidFilter, photos: photos };
+    }
+
+    // §5.3 サマリ：studentId ごとに集約
+    const bySid = {};
+    photos.forEach(function(p){
+      if (!bySid[p.studentId]) {
+        bySid[p.studentId] = {
+          studentId: p.studentId,
+          studentName: p.studentName,
+          studentNickname: p.studentNickname,
+          photoCount: 0,
+          latestSubmittedAt: '',
+          earliestDeleteAfter: ''
+        };
+      }
+      const e = bySid[p.studentId];
+      e.photoCount += 1;
+      if (!e.latestSubmittedAt || p.submittedAt > e.latestSubmittedAt) e.latestSubmittedAt = p.submittedAt;
+      if (!e.earliestDeleteAfter || (p.deleteAfter && p.deleteAfter < e.earliestDeleteAfter)) e.earliestDeleteAfter = p.deleteAfter;
+    });
+    const students = Object.keys(bySid).map(function(k){ return bySid[k]; });
+    students.sort(function(a, b){ return a.latestSubmittedAt < b.latestSubmittedAt ? 1 : a.latestSubmittedAt > b.latestSubmittedAt ? -1 : 0; });
+
+    return { ok: true, mode: 'summary', students: students };
+  } catch (err) {
+    console.error('[getKisoPhotosList]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 日次クリーンアップ（仕様書 §3.4）
+// - KisoPhotos を走査し、deleteAfter <= today のレコードについて：
+//   1. Drive ファイルを setTrashed
+//   2. シート行を削除
+// - GAS UI から Time-based Trigger を 03:00〜04:00 に手動設定する想定
+//   （バックアップが 02:00〜03:00、教育日切替が 04:00 のため、その合間）
+// 戻り値: { ok, processed, deleted, failed: [...], dryRun }
+function cleanupKisoPhotos(opts) {
+  try {
+    opts = opts || {};
+    const dryRun = !!opts.dryRun;
+
+    const sh = _ensureKisoPhotosSheet();
+    if (sh.getLastRow() < 2) {
+      return { ok: true, processed: 0, deleted: 0, failed: [], dryRun: dryRun };
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cFileId = header.indexOf('driveFileId');
+    const cDelete = header.indexOf('deleteAfter');
+    const cSid    = header.indexOf('studentId');
+
+    const today = _todayJST();
+    const failed = [];
+    const targetRowIdxs = [];   // 1-based 行番号（ヘッダー行は 1、データは 2 から）
+
+    for (let i = 1; i < values.length; i++) {
+      const delAfter = _toDateStr(values[i][cDelete]);
+      if (!delAfter) continue;
+      if (delAfter > today) continue;             // まだ保持期間内
+      targetRowIdxs.push({
+        rowNum: i + 1,
+        fileId: String(values[i][cFileId] || ''),
+        studentId: String(values[i][cSid] || ''),
+        deleteAfter: delAfter
+      });
+    }
+
+    let deleted = 0;
+    if (!dryRun) {
+      // Drive 削除（先に一括）
+      for (let k = 0; k < targetRowIdxs.length; k++) {
+        const t = targetRowIdxs[k];
+        const r = _deleteKisoPhoto(t.fileId);
+        if (!r.ok) failed.push({ fileId: t.fileId, error: r.error });
+      }
+      // シート行削除（末尾→先頭の順、行番号ズレ防止）
+      const sortedDesc = targetRowIdxs.slice().sort(function(a, b){ return b.rowNum - a.rowNum; });
+      for (let k = 0; k < sortedDesc.length; k++) {
+        try {
+          sh.deleteRow(sortedDesc[k].rowNum);
+          deleted += 1;
+        } catch (err) {
+          failed.push({ rowNum: sortedDesc[k].rowNum, error: String(err) });
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      processed: targetRowIdxs.length,
+      deleted: dryRun ? 0 : deleted,
+      failed: failed,
+      dryRun: dryRun,
+      targets: targetRowIdxs
+    };
+  } catch (err) {
+    console.error('[cleanupKisoPhotos]', err);
+    return { ok: false, message: String(err) };
+  }
 }
 
 // =============================================
@@ -2261,13 +2551,14 @@ function submitKisoAnswer(sessionId, imageBase64) {
       sheet.getRange(rowIdx, cHpEarned + 1).setValue(hpInfo.rawHP);
     }
 
-    // 初回提出のみ写真を Drive に保存（Phase 4-3 のフック）
+    // 初回提出のみ写真を Drive に保存（Phase 4-3 で本実装済み、_saveKisoPhoto が
+    // KisoPhotos シート追記まで完結する）
     let photoInfo = null;
     if (isFirstAttempt) {
       try {
         photoInfo = _saveKisoPhoto(studentId, sid, rank, count, imageBase64);
       } catch (e) {
-        console.error('[_saveKisoPhoto stub error]', e);
+        console.error('[_saveKisoPhoto error]', e);
         photoInfo = { ok: false, message: String(e) };
       }
     }
