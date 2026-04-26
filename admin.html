@@ -141,6 +141,27 @@
   .child-history-empty { text-align: center; color: #888; font-size: 14px; padding: 24px 0; }
   .child-history-notice { background: #fffbe6; border-left: 4px solid #facc15; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; line-height: 1.7; color: #7a5b00; box-shadow: 0 1px 4px rgba(0,0,0,.03); }
 
+  /* 基礎計算・答案写真（Phase 6） */
+  .kiso-students-table .photos-count { font-weight: bold; color: #0369a1; }
+  .kiso-students-table .photos-count.zero { color: #9ca3af; font-weight: normal; }
+  .kiso-students-table .delete-soon { color: #dc2626; font-weight: bold; }
+  .kiso-students-table .delete-far { color: #6b7280; }
+  .kiso-photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .kiso-photo-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); overflow: hidden; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+  .kiso-photo-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(14,165,233,.18); }
+  .kiso-photo-thumb { width: 100%; aspect-ratio: 4/3; background: #f1f5f9 url('https://drive.google.com/favicon.ico') center no-repeat; background-size: 32px; display: block; object-fit: cover; }
+  .kiso-photo-info { padding: 10px 12px; }
+  .kiso-photo-rank { font-size: 14px; font-weight: bold; color: #0c4a6e; margin-bottom: 4px; }
+  .kiso-photo-meta { font-size: 12px; color: #64748b; line-height: 1.7; }
+  .kiso-photo-meta .status-pass { color: #059669; font-weight: bold; }
+  .kiso-photo-meta .status-fail { color: #b45309; }
+  .kiso-photo-meta .status-progress { color: #2563eb; }
+  .kiso-photo-meta .status-other { color: #94a3b8; }
+  .kiso-photo-meta .delete-soon { color: #dc2626; font-weight: bold; }
+  .kiso-photo-actions { padding: 0 12px 12px; }
+  .kiso-photo-open-btn { width: 100%; padding: 8px; background: linear-gradient(135deg, #0ea5e9, #0369a1); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; }
+  .kiso-photo-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; background: #fff; border-radius: 12px; }
+
   @media (max-width: 480px) {
     #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
@@ -200,6 +221,11 @@
       <div class="dashboard-card-icon">🏆</div>
       <div class="dashboard-card-title">週間HPランキング</div>
       <div class="dashboard-card-desc">週間ランキングの確認・画像保存</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminKisoStudents()">
+      <div class="dashboard-card-icon">📷</div>
+      <div class="dashboard-card-title">基礎計算・答案写真</div>
+      <div class="dashboard-card-desc">生徒が提出した答案写真を確認（保存期間 15 日）</div>
     </button>
   </div>
 </div>
@@ -297,6 +323,41 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- 基礎計算・答案写真：生徒一覧（仕様書 §5.3） -->
+<div id="screen-admin-kiso-students" class="screen">
+  <header>
+    <h1>📷 基礎計算・答案写真</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <div class="page-lead">写真が保存されている生徒を一覧表示します。生徒名をクリックすると、その生徒の答案写真の詳細を確認できます。<br><span style="color:#94a3b8;font-size:13px">※ 写真の保存期間は <strong>提出日から 15 日</strong>。期限を過ぎた写真は自動削除されます。</span></div>
+    <div style="margin-bottom:12px">
+      <button type="button" class="submit-btn" style="padding:8px 14px;font-size:13px" onclick="loadKisoStudents()">🔄 最新データ取得</button>
+    </div>
+    <div id="kiso-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+  </div>
+</div>
+
+<!-- 基礎計算・答案写真：生徒別写真詳細（仕様書 §5.4） -->
+<div id="screen-admin-kiso-photos" class="screen">
+  <header>
+    <h1 id="kiso-photos-title">📷 答案写真</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKisoStudents()">← 生徒一覧に戻る</button>
+    <div class="page-lead">写真をクリックすると Google Drive で拡大表示されます。<br><span style="color:#94a3b8;font-size:13px">※ サムネが表示されない場合は Drive にログインしているブラウザで開いてください。</span></div>
+    <div id="kiso-photos-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
   </div>
 </div>
 
@@ -839,6 +900,157 @@
     _showScreen('screen-admin-child-archive');
     window.scrollTo(0, 0);
     loadAdminChildArchive();
+  }
+
+  // =============================================================
+  // 基礎計算・答案写真（Phase 6）
+  // =============================================================
+  // 仕様書 §2.1 の rank → name マップ（生徒画面 KISO_RANK_DEFS と同一）
+  var KISO_RANK_NAMES = {
+    20:'整数：四則混合',         19:'小数：足し算・引き算',     18:'小数：掛け算・割り算',
+    17:'小数：四則混合',         16:'分数：足し算・引き算',     15:'分数：掛け算・割り算',
+    14:'分数：四則混合',         13:'正負の数：足し算・引き算', 12:'正負の数：掛け算・割り算',
+    11:'正負の数：四則混合',     10:'単位・比・割合',           9:'式の計算：中1レベル',
+    8: '一次方程式・比例式',     7: '式の計算：中2レベル',       6:'連立方程式',
+    5: '式の計算：中3レベル',    4: '乗法公式',                  3:'因数分解',
+    2: '平方根',                 1: '二次方程式'
+  };
+
+  function _kisoStatusBadge(status) {
+    if (status === 'passed')        return '<span class="status-pass">⭕ 合格</span>';
+    if (status === 'failed_retry')  return '<span class="status-fail">🔁 再挑戦中</span>';
+    if (status === 'in_progress')   return '<span class="status-progress">⏳ 進行中</span>';
+    return '<span class="status-other">—</span>';
+  }
+
+  // 削除予定日を「今日からあと N 日」表記に変換（差し迫っているなら赤太字）
+  function _kisoDeleteAfterLabel(dateStr) {
+    if (!dateStr) return '<span class="delete-far">—</span>';
+    try {
+      var d = new Date(String(dateStr) + 'T12:00:00+09:00');
+      var today = new Date();
+      var diffDays = Math.round((d - today) / 86400000);
+      var cls = (diffDays <= 3) ? 'delete-soon' : 'delete-far';
+      var suffix = diffDays > 0 ? '（あと' + diffDays + '日）' : (diffDays === 0 ? '（本日削除）' : '（期限超過）');
+      return '<span class="' + cls + '">' + _esc(dateStr) + suffix + '</span>';
+    } catch (e) { return _esc(dateStr); }
+  }
+
+  function goAdminKisoStudents() {
+    _showScreen('screen-admin-kiso-students');
+    window.scrollTo(0, 0);
+    loadKisoStudents();
+  }
+
+  function goAdminKisoPhotos(studentId, studentName) {
+    document.getElementById('kiso-photos-title').textContent =
+      '📷 ' + (studentName || studentId || '') + ' さんの答案写真';
+    _showScreen('screen-admin-kiso-photos');
+    window.scrollTo(0, 0);
+    loadKisoPhotos(studentId);
+  }
+
+  // 仕様書 §5.3 サマリ：getKisoPhotosList({password}) → 生徒一覧テーブル
+  function loadKisoStudents() {
+    var wrap = document.getElementById('kiso-students-wrap');
+    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    gasGet({
+      action: 'getKisoPhotosList',
+      password: sessionStorage.getItem('adminPassword') || '',
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var students = res.students || [];
+      if (students.length === 0) {
+        wrap.innerHTML = '<div class="students-empty">保存中の答案写真はまだありません。</div>';
+        return;
+      }
+      var rows = students.map(function(s) {
+        var sidEsc  = _esc(s.studentId);
+        var realEsc = _esc(s.studentName || '');
+        var nickEsc = _esc(s.studentNickname || '');
+        var displayName;
+        if (realEsc && nickEsc) displayName = realEsc + '（' + nickEsc + '）';
+        else if (realEsc)        displayName = realEsc;
+        else if (nickEsc)        displayName = nickEsc;
+        else                     displayName = '（未登録）';
+        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var nameJs = String(s.studentName || s.studentNickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var ts = String(s.latestSubmittedAt || '').replace('T',' ').slice(0,16);
+        return '<tr>' +
+                 '<td>' + sidEsc + '</td>' +
+                 '<td><span class="name-link" onclick="goAdminKisoPhotos(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
+                 '<td><span class="photos-count">' + Number(s.photoCount || 0) + ' 枚</span></td>' +
+                 '<td>' + _esc(ts) + '</td>' +
+                 '<td>' + _kisoDeleteAfterLabel(s.earliestDeleteAfter) + '</td>' +
+               '</tr>';
+      }).join('');
+      wrap.innerHTML =
+        '<div class="students-table-wrap">' +
+          '<table class="students-table kiso-students-table">' +
+            '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>枚数</th><th>最新提出日時</th><th>最早削除予定日</th></tr></thead>' +
+            '<tbody>' + rows + '</tbody>' +
+          '</table>' +
+        '</div>';
+    }).catch(function() {
+      wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  // 仕様書 §5.4 詳細：getKisoPhotosList({password, studentId}) → 写真カードグリッド
+  function loadKisoPhotos(studentId) {
+    var wrap = document.getElementById('kiso-photos-wrap');
+    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    gasGet({
+      action: 'getKisoPhotosList',
+      password: sessionStorage.getItem('adminPassword') || '',
+      studentId: studentId,
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var photos = res.photos || [];
+      if (photos.length === 0) {
+        wrap.innerHTML = '<div class="kiso-photo-empty">この生徒の保存中の答案写真はありません。</div>';
+        return;
+      }
+      var cards = photos.map(function(p) {
+        var rank = Number(p.rank) || 0;
+        var rankName = KISO_RANK_NAMES[rank] || '';
+        var ts = String(p.submittedAt || '').replace('T', ' ').slice(0, 16);
+        var viewUrlJs = String(p.viewUrl || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var thumb = p.thumbnailUrl
+          ? '<img class="kiso-photo-thumb" src="' + _esc(p.thumbnailUrl) + '" alt="答案写真" loading="lazy" onerror="this.style.opacity=0.2"/>'
+          : '<div class="kiso-photo-thumb"></div>';
+        var attemptsLabel = (p.sessionAttempts > 0) ? '・' + p.sessionAttempts + '回目提出' : '';
+        return '<div class="kiso-photo-card" onclick="window.open(\'' + viewUrlJs + '\',\'_blank\')">' +
+                 thumb +
+                 '<div class="kiso-photo-info">' +
+                   '<div class="kiso-photo-rank">' + rank + '級' + (rankName ? '：' + _esc(rankName) : '') + '</div>' +
+                   '<div class="kiso-photo-meta">' +
+                     Number(p.count || 0) + '題 ・ ' + _kisoStatusBadge(p.sessionStatus) + attemptsLabel + '<br>' +
+                     '提出：' + _esc(ts) + '<br>' +
+                     '削除予定：' + _kisoDeleteAfterLabel(p.deleteAfter) +
+                   '</div>' +
+                 '</div>' +
+                 '<div class="kiso-photo-actions">' +
+                   '<button class="kiso-photo-open-btn" onclick="event.stopPropagation();window.open(\'' + viewUrlJs + '\',\'_blank\')">🔍 拡大表示（Drive）</button>' +
+                 '</div>' +
+               '</div>';
+      }).join('');
+      wrap.innerHTML = '<div class="kiso-photos-grid">' + cards + '</div>';
+    }).catch(function() {
+      wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
   }
 
   // =============================================================
