@@ -328,6 +328,7 @@ function doGet(e) {
       else if (action === 'adminSetWabun1Comment')      result = adminSetWabun1Comment(params);
       else if (action === 'startKisoSession')        result = startKisoSession(params.studentId, params.rank, params.count);
       else if (action === 'getKisoRetryQuestions')   result = getKisoRetryQuestions(params.sessionId);
+      else if (action === 'getKisoTodayRawHP')       result = getKisoTodayRawHP(params);
       else if (action === 'getKisoPhotosList')       result = getKisoPhotosList(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
@@ -1927,6 +1928,85 @@ function _kisoSessionId(studentId) {
 }
 
 // =============================================
+// 基礎計算 Phase 7：B-1 当日素点合計 公開 API
+// =============================================
+// 仕様書 §4.3 後半：問題数選択画面の動的 HP 上限案内に使う。
+// 1 日の素点上限は 100HP（既存コンテンツから独立、§8.3）。
+// 戻り値:
+//   {
+//     ok: true,
+//     todayRawHP: number,        // 当日（教育日基準）の kiso 素点合計
+//     remaining: number,         // あと獲得できる素点（100 - todayRawHP、下限 0）
+//     isAtLimit: boolean,        // 上限到達済（remaining === 0）
+//     cap: 100                   // 1 日の素点上限（参考値）
+//   }
+// 5 / 10 題セットの場合、残量が baseRawHP（50 / 100）未満なら
+// 残量分が部分的に加算され、残量 0 なら練習モードになる（既存仕様）。
+function getKisoTodayRawHP(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const todayRawHP = _kisoTodayRawHP(sid);
+    const cap = 100;
+    const remaining = Math.max(0, cap - todayRawHP);
+    return {
+      ok: true,
+      studentId: sid,
+      todayRawHP: todayRawHP,
+      remaining: remaining,
+      isAtLimit: remaining === 0,
+      cap: cap
+    };
+  } catch (err) {
+    console.error('[getKisoTodayRawHP]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 基礎計算 Phase 7：B-2 OCR 信頼度判定（仕様書 §7.6 ケース4）
+// =============================================
+// 閾値：実機テストで微調整するため定数化。
+// 0.6 は仕様書 §7.6 / §7.7 の暫定値。実機データに合わせて変更する場合は
+// この値だけを書き換える。
+const KISO_OCR_CONFIDENCE_THRESHOLD = 0.6;
+
+// Vision API レスポンスから symbol レベルの confidence を平均で取得。
+// fullTextAnnotation.pages[].blocks[].paragraphs[].words[].symbols[].confidence
+// 全 symbol の単純平均を返す（symbol 数 0 の場合は 1 を返して足切りを発動させない）。
+function _kisoAverageOcrConfidence(fullAnno) {
+  try {
+    if (!fullAnno || !fullAnno.pages) return 1;
+    let sum = 0, count = 0;
+    const pages = fullAnno.pages || [];
+    for (let p = 0; p < pages.length; p++) {
+      const blocks = pages[p].blocks || [];
+      for (let b = 0; b < blocks.length; b++) {
+        const paragraphs = blocks[b].paragraphs || [];
+        for (let pa = 0; pa < paragraphs.length; pa++) {
+          const words = paragraphs[pa].words || [];
+          for (let w = 0; w < words.length; w++) {
+            const symbols = words[w].symbols || [];
+            for (let s = 0; s < symbols.length; s++) {
+              const c = symbols[s].confidence;
+              if (typeof c === 'number') {
+                sum += c;
+                count += 1;
+              }
+            }
+          }
+        }
+      }
+    }
+    if (count === 0) return 1;
+    return sum / count;
+  } catch (e) {
+    console.warn('[_kisoAverageOcrConfidence]', e);
+    return 1;
+  }
+}
+
+// =============================================
 // 基礎計算 Phase 4-3：Drive 連携
 // =============================================
 // 仕様書 §3.4：
@@ -2443,6 +2523,20 @@ function submitKisoAnswer(sessionId, imageBase64) {
     const ocrText = (fullAnno && fullAnno.text) ? String(fullAnno.text) : '';
     if (!ocrText) {
       return { ok: false, retake: true, message: '文字が読み取れませんでした。明るい場所でもう一度撮影してください。' };
+    }
+
+    // B-2: OCR 信頼度チェック（仕様書 §7.6 ケース4 / §7.7）
+    // 全 symbol の confidence 平均が KISO_OCR_CONFIDENCE_THRESHOLD（0.6）未満なら再撮影を促す
+    // 採点処理はスキップし、KisoSessions も更新しない（attempts も増やさない）
+    const avgConfidence = _kisoAverageOcrConfidence(fullAnno);
+    if (avgConfidence < KISO_OCR_CONFIDENCE_THRESHOLD) {
+      return {
+        ok: false,
+        retake: true,
+        avgConfidence: avgConfidence,
+        threshold: KISO_OCR_CONFIDENCE_THRESHOLD,
+        message: '写真が読み取りにくいみたい！明るい場所で、はっきり書いた答えを撮ってもう一度送ってね。'
+      };
     }
 
     // 問題番号で分割
