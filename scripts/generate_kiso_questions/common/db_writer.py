@@ -157,9 +157,29 @@ def open_kiso_sheet(credentials_path: str, spreadsheet_id: str):
     except gspread.WorksheetNotFound:
         # フォールバック: シート未作成時は新規作成 + ヘッダー設定
         # 通常は GAS 側 ensureKisoSheets() で先に作っておくほうが安全
-        ws = sh.add_worksheet(title="KisoQuestions", rows="1", cols=str(len(KISO_QUESTIONS_HEADERS)))
+        # rows=2100 は KisoQuestions の運用上限見込み（600 問 + 拡張余地）
+        ws = sh.add_worksheet(
+            title="KisoQuestions",
+            rows="2100",
+            cols=str(len(KISO_QUESTIONS_HEADERS)),
+        )
         ws.append_row(KISO_QUESTIONS_HEADERS, value_input_option="RAW")
     return ws
+
+
+def _ensure_sheet_capacity(ws, min_rows: int, min_cols: int) -> None:
+    """シートのグリッドサイズを最低 (min_rows × min_cols) まで拡張する。
+
+    gspread の ``worksheet.update(range_str, ...)`` はシートのグリッドサイズを
+    超える range を渡すと ``Range exceeds grid limits`` で 400 を返すため、
+    bulk update の前に必ず呼ぶ。
+    """
+    cur_rows = ws.row_count
+    cur_cols = ws.col_count
+    if cur_rows < min_rows:
+        ws.add_rows(min_rows - cur_rows)
+    if cur_cols < min_cols:
+        ws.add_cols(min_cols - cur_cols)
 
 
 def write_to_sheet(ws, rows: List[List[Any]], replace_all: bool = True) -> None:
@@ -168,6 +188,12 @@ def write_to_sheet(ws, rows: List[List[Any]], replace_all: bool = True) -> None:
     replace_all=True: ヘッダーを残してデータ行を削除してから書き込み（再投入時の冪等性）
     replace_all=False: 末尾追記（同じ rank を 2 度入れるとデータ重複なので注意）
     """
+    n_cols = len(KISO_QUESTIONS_HEADERS)
+
+    # 書き込みに必要なグリッドサイズを先に確保（GAS 側 ensureKisoSheets の補強）
+    needed_rows = 1 + len(rows)  # ヘッダー + データ行
+    _ensure_sheet_capacity(ws, needed_rows, n_cols)
+
     # ヘッダーがあるか軽く確認
     header = ws.row_values(1)
     if not header or header[0] != "questionId":
@@ -178,12 +204,14 @@ def write_to_sheet(ws, rows: List[List[Any]], replace_all: bool = True) -> None:
         if last_row > 1:
             # 2 行目以降を削除（ヘッダーは残す）
             ws.delete_rows(2, last_row)
+            # delete_rows でグリッドサイズが縮むので再度拡張
+            _ensure_sheet_capacity(ws, needed_rows, n_cols)
 
     if not rows:
         return
 
     # 一括 update（A2 から len(rows) 行 × 8 列）
-    last_col_letter = chr(ord("A") + len(KISO_QUESTIONS_HEADERS) - 1)
+    last_col_letter = chr(ord("A") + n_cols - 1)
     end_row = 1 + len(rows)
     range_str = f"A2:{last_col_letter}{end_row}"
     ws.update(range_str, rows, value_input_option="RAW")

@@ -1464,11 +1464,13 @@ const KISO_PHOTOS_HEADERS = [
   'deleteAfter'         // submittedAt + 15 日
 ];
 
-// 共通ヘルパー：シート存在保証 + ヘッダー行設定
+// 共通ヘルパー：シート存在保証 + ヘッダー行設定 + 最低行数の確保
 // - シートが無ければ作成し、ヘッダーを 1 行目に設定
 // - シートはあるがヘッダーが空ならヘッダーだけ追加（既存データには触らない）
-// - シートが既にヘッダー付きで存在する場合は no-op
-function _ensureSheetWithHeaders(sheetName, headers) {
+// - シートが既にヘッダー付きで存在する場合はヘッダーは触らない
+// - minRows が指定されていて、かつ現在のシートの最大行数がそれ未満なら、insertRowsAfter で拡張
+//   （gspread からの一括 update 時に "exceeds grid limits" エラーを避けるため）
+function _ensureSheetWithHeaders(sheetName, headers, minRows) {
   const ss = _ss();
   let sh = ss.getSheetByName(sheetName);
   let created = false;
@@ -1480,17 +1482,29 @@ function _ensureSheetWithHeaders(sheetName, headers) {
     // 完全に空のシート（手動作成された直後など）
     sh.getRange(1, 1, 1, headers.length).setValues([headers]);
   }
+  // シート最大行数を最低 minRows まで拡張
+  if (minRows && sh.getMaxRows() < minRows) {
+    sh.insertRowsAfter(sh.getMaxRows(), minRows - sh.getMaxRows());
+  }
   return { sh: sh, created: created };
 }
 
+// 各シートの最低行数（書き込みボリューム + バッファ）
+// KisoQuestions: 600 問（Phase 1+2）→ 将来 ~20000 問への拡張余地として 2100 確保
+// KisoSessions:  appendRow ベース（1 行ずつ追加）なので default で十分。1100 で念のため
+// KisoPhotos:    最大 600 枚/15 日 想定なので 1100 で十分
+const KISO_MIN_ROWS_QUESTIONS = 2100;
+const KISO_MIN_ROWS_SESSIONS  = 1100;
+const KISO_MIN_ROWS_PHOTOS    = 1100;
+
 function _ensureKisoQuestionsSheet() {
-  return _ensureSheetWithHeaders(SHEET_KISO_QUESTIONS, KISO_QUESTIONS_HEADERS).sh;
+  return _ensureSheetWithHeaders(SHEET_KISO_QUESTIONS, KISO_QUESTIONS_HEADERS, KISO_MIN_ROWS_QUESTIONS).sh;
 }
 function _ensureKisoSessionsSheet() {
-  return _ensureSheetWithHeaders(SHEET_KISO_SESSIONS, KISO_SESSIONS_HEADERS).sh;
+  return _ensureSheetWithHeaders(SHEET_KISO_SESSIONS, KISO_SESSIONS_HEADERS, KISO_MIN_ROWS_SESSIONS).sh;
 }
 function _ensureKisoPhotosSheet() {
-  return _ensureSheetWithHeaders(SHEET_KISO_PHOTOS, KISO_PHOTOS_HEADERS).sh;
+  return _ensureSheetWithHeaders(SHEET_KISO_PHOTOS, KISO_PHOTOS_HEADERS, KISO_MIN_ROWS_PHOTOS).sh;
 }
 
 // 3 シートをまとめて存在保証（GAS エディタからの 1 回限りセットアップ実行用）
@@ -1499,15 +1513,20 @@ function _ensureKisoPhotosSheet() {
 // 戻り値: { ok, created: { questions, sessions, photos } } - 各 boolean は新規作成されたか
 function ensureKisoSheets() {
   try {
-    const q = _ensureSheetWithHeaders(SHEET_KISO_QUESTIONS, KISO_QUESTIONS_HEADERS);
-    const s = _ensureSheetWithHeaders(SHEET_KISO_SESSIONS,  KISO_SESSIONS_HEADERS);
-    const p = _ensureSheetWithHeaders(SHEET_KISO_PHOTOS,    KISO_PHOTOS_HEADERS);
+    const q = _ensureSheetWithHeaders(SHEET_KISO_QUESTIONS, KISO_QUESTIONS_HEADERS, KISO_MIN_ROWS_QUESTIONS);
+    const s = _ensureSheetWithHeaders(SHEET_KISO_SESSIONS,  KISO_SESSIONS_HEADERS,  KISO_MIN_ROWS_SESSIONS);
+    const p = _ensureSheetWithHeaders(SHEET_KISO_PHOTOS,    KISO_PHOTOS_HEADERS,    KISO_MIN_ROWS_PHOTOS);
     return {
       ok: true,
       created: {
         questions: q.created,
         sessions:  s.created,
         photos:    p.created
+      },
+      maxRows: {
+        questions: q.sh.getMaxRows(),
+        sessions:  s.sh.getMaxRows(),
+        photos:    p.sh.getMaxRows()
       },
       headers: {
         questions: KISO_QUESTIONS_HEADERS,
