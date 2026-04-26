@@ -268,6 +268,8 @@ function clearAllCache() {
       'cache_ranking_last_week',
       'cache_students_values'
     ];
+    // 基礎計算 KisoQuestions の rank 別キャッシュ（1〜20）
+    for (let r = 1; r <= 20; r++) keys.push('cache_kiso_q_rows_' + r);
     CacheService.getScriptCache().removeAll(keys);
     return { ok: true, cleared: keys.length };
   } catch(err) {
@@ -324,6 +326,8 @@ function doGet(e) {
       else if (action === 'adminSetWabun1AnswerWeek')   result = adminSetWabun1AnswerWeek(params);
       else if (action === 'adminListWabun1Submissions') result = adminListWabun1Submissions(params);
       else if (action === 'adminSetWabun1Comment')      result = adminSetWabun1Comment(params);
+      else if (action === 'startKisoSession')        result = startKisoSession(params.studentId, params.rank, params.count);
+      else if (action === 'getKisoRetryQuestions')   result = getKisoRetryQuestions(params.sessionId);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -352,6 +356,8 @@ function doPost(e) {
     if      (action === 'submitPhoto')              result = submitPhoto(params.studentId, params.setNo, params.imageBase64, params.words);
     // 管理画面の大量データ投入用（GET ではクエリ長制限を超えるため POST 経由）
     else if (action === 'adminAddWabun1TopicsWeek') result = adminAddWabun1TopicsWeek(params);
+    // 基礎計算：写真提出（base64 画像が大きいため POST 経由）
+    else if (action === 'submitKisoAnswer')         result = submitKisoAnswer(params.sessionId, params.imageBase64);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -1445,12 +1451,13 @@ const KISO_SESSIONS_HEADERS = [
   'studentId',
   'rank',               // 1〜20
   'count',              // 5 or 10
-  'questionIds',        // JSON 配列
+  'questionIds',        // JSON 配列（初回抽出時の全問題ID、固定）
   'status',             // in_progress / passed / failed_retry
   'attempts',           // 提出回数
   'startedAt',
   'completedAt',
-  'hpEarned'            // 素点（ボーナス前）
+  'hpEarned',           // 素点（ボーナス前）
+  'wrongIds'            // JSON 配列（前回不正解だった問題IDのサブセット、再挑戦用）
 ];
 
 const KISO_PHOTOS_HEADERS = [
@@ -1467,7 +1474,7 @@ const KISO_PHOTOS_HEADERS = [
 // 共通ヘルパー：シート存在保証 + ヘッダー行設定 + 最低行数の確保
 // - シートが無ければ作成し、ヘッダーを 1 行目に設定
 // - シートはあるがヘッダーが空ならヘッダーだけ追加（既存データには触らない）
-// - シートが既にヘッダー付きで存在する場合はヘッダーは触らない
+// - シートが既にヘッダー付きで存在し、かつ headers の末尾に追加列があれば、欠落分だけ末尾に追記
 // - minRows が指定されていて、かつ現在のシートの最大行数がそれ未満なら、insertRowsAfter で拡張
 //   （gspread からの一括 update 時に "exceeds grid limits" エラーを避けるため）
 function _ensureSheetWithHeaders(sheetName, headers, minRows) {
@@ -1481,6 +1488,14 @@ function _ensureSheetWithHeaders(sheetName, headers, minRows) {
   } else if (sh.getLastRow() === 0) {
     // 完全に空のシート（手動作成された直後など）
     sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+  } else {
+    // 既にヘッダー付きで存在 → 欠落している末尾列だけ追記（schema migration 対応）
+    const existingLastCol = Math.max(1, sh.getLastColumn());
+    const existingHeaders = sh.getRange(1, 1, 1, existingLastCol).getValues()[0];
+    if (headers.length > existingHeaders.length) {
+      const append = headers.slice(existingHeaders.length);
+      sh.getRange(1, existingHeaders.length + 1, 1, append.length).setValues([append]);
+    }
   }
   // シート最大行数を最低 minRows まで拡張
   if (minRows && sh.getMaxRows() < minRows) {
@@ -1580,6 +1595,699 @@ function sampleKisoQuestions(rank, count) {
     return { ok: true, rank: r, requested: n, found: m, sample: sample };
   } catch (err) {
     console.error('[sampleKisoQuestions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 基礎計算 Phase 4-2：採点ヘルパー
+// =============================================
+
+const _KISO_CIRCLED = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+
+// 採点用テキスト正規化（仕様書 §7.3）
+// 全角→半角、各種マイナス記号統一、√ → \sqrt{n}、空白圧縮など
+function _kisoNormalize(s) {
+  if (s === null || s === undefined) return '';
+  let t = String(s);
+  // 全角数字 → 半角
+  t = t.replace(/[０-９]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); });
+  // 全角英字 → 半角
+  t = t.replace(/[Ａ-Ｚａ-ｚ]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); });
+  // 全角スラッシュ → 半角
+  t = t.replace(/／/g, '/');
+  // 全角空白 → 半角
+  t = t.replace(/　/g, ' ');
+  // 各種マイナス記号 → '-'
+  t = t.replace(/[−‐‑‒–—―ー─]/g, '-');
+  // 全角ピリオド → 半角
+  t = t.replace(/．/g, '.');
+  // 全角カンマ → 半角
+  t = t.replace(/，/g, ',');
+  // 全角コロン → 半角
+  t = t.replace(/：/g, ':');
+  // 全角パーセント → 半角
+  t = t.replace(/％/g, '%');
+  // 全角プラス → 半角
+  t = t.replace(/＋/g, '+');
+  // 全角イコール → 半角
+  t = t.replace(/＝/g, '=');
+  // √ 系記号を \sqrt{n} に統一（OCR で V や ν と誤読される場合があるが、本処理の範囲外）
+  t = t.replace(/[√✓]\s*\{([^}]+)\}/g, '\\sqrt{$1}');     // √{15} → \sqrt{15}
+  t = t.replace(/[√✓]\s*([0-9]+)/g, '\\sqrt{$1}');         // √15 → \sqrt{15}
+  // 空白の連続を 1 つに圧縮
+  t = t.replace(/[ \t]+/g, ' ');
+  // 行末の改行は空白に統一
+  t = t.replace(/[\r\n]+/g, ' ').replace(/[ \t]+/g, ' ');
+  // 前後の空白除去
+  return t.trim();
+}
+
+function _kisoGcd(a, b) {
+  a = Math.abs(a | 0);
+  b = Math.abs(b | 0);
+  while (b !== 0) {
+    const t = a % b;
+    a = b;
+    b = t;
+  }
+  return a;
+}
+
+function _kisoIsSquareFree(n) {
+  if (n < 0) n = -n;
+  if (n <= 1) return true;
+  for (let p = 2; p * p <= n; p++) {
+    if (n % (p * p) === 0) return false;
+  }
+  return true;
+}
+
+// 厳格性チェック（仕様書 §6.8 決定2・3、§7.3 既約性・簡約性の厳格チェック）
+// 生徒答えの正規化済み文字列を受け取り、不適格な形式（非既約分数・非簡約平方根・非有理化）
+// が含まれていれば false を返す。含まれていなければ（あるいは一切判定対象が無い場合は）true。
+function _kisoCheckStrictForm(text) {
+  if (!text) return true;
+
+  // 1) 帯分数 c a/b の判定: a < b かつ gcd(a, b) = 1
+  //    OCR 取り込み後を想定し、"1 1/2" のような半角空白区切りを許容
+  const mixedRe = /(^|[^\d/])(-?)(\d+)\s+(\d+)\s*\/\s*(\d+)/g;
+  let m;
+  while ((m = mixedRe.exec(text)) !== null) {
+    const a = parseInt(m[4], 10);
+    const b = parseInt(m[5], 10);
+    if (b === 0) return false;
+    if (a >= b) return false;       // 帯分数の真分数部は a < b
+    if (_kisoGcd(a, b) !== 1) return false;
+  }
+
+  // 2) 普通の分数 a/b: gcd(a, b) = 1
+  //    帯分数として既にチェック済みの "c a/b" の "a/b" は二重に判定されるが、a < b と
+  //    gcd=1 が満たされている前提なので no-op となる
+  const fracRe = /(-?)(\d+)\s*\/\s*(\d+)/g;
+  while ((m = fracRe.exec(text)) !== null) {
+    const num = parseInt(m[2], 10);
+    const den = parseInt(m[3], 10);
+    if (den === 0) return false;
+    if (_kisoGcd(num, den) !== 1) return false;
+  }
+
+  // 3) \sqrt{n} の n は square-free
+  const sqrtRe = /\\sqrt\{(\d+)\}/g;
+  while ((m = sqrtRe.exec(text)) !== null) {
+    const n = parseInt(m[1], 10);
+    if (!_kisoIsSquareFree(n)) return false;
+  }
+
+  // 4) 有理化チェック: 分母に \sqrt が来る形は不可
+  if (/\/\s*\\sqrt\{/.test(text)) return false;            // a/\sqrt{b} 形
+  if (/\\frac\{[^{}]*\}\{[^{}]*\\sqrt[^{}]*\}/.test(text)) return false;  // \frac{a}{...\sqrt...}
+
+  return true;
+}
+
+// 1 つの問題に対する OCR 後文字列と allowedJson との照合
+// allowedJson はシート上の JSON 文字列（["3/2","1 1/2",...]）
+// 戻り値: boolean（match → true）
+function _kisoMatchAnswer(studentRaw, allowedJson) {
+  const norm = _kisoNormalize(studentRaw);
+  if (!norm) return false;
+  if (!_kisoCheckStrictForm(norm)) return false;
+  let allowed;
+  try {
+    allowed = (typeof allowedJson === 'string') ? JSON.parse(allowedJson) : allowedJson;
+  } catch (e) {
+    return false;
+  }
+  if (!Array.isArray(allowed)) return false;
+  for (let i = 0; i < allowed.length; i++) {
+    if (norm === _kisoNormalize(allowed[i])) return true;
+  }
+  return false;
+}
+
+// OCR 全文を問題番号で分割（仕様書 §7.2、§7.6 ケース2）
+// 受理する番号マーカー：①〜⑩ / (1)〜(10) / 1.〜10. / 1)〜10) / 1、〜10、 / 1: 〜
+// 戻り値: 長さ N の配列。answers[i-1] = 問題 i に対する答え文字列（trim 済み、無回答は ''）
+function _kisoSplitByQuestionNumbers(text, count) {
+  const result = new Array(count).fill('');
+  if (!text || count <= 0) return result;
+  const escapeRe = function(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
+  const markers = []; // [{num, start, end}]
+  for (let i = 0; i < count; i++) {
+    const num = i + 1;
+    const candidates = [];
+    // ①〜⑩
+    if (i < 10) {
+      const c = _KISO_CIRCLED[i];
+      const idx = text.indexOf(c);
+      if (idx >= 0) candidates.push({ start: idx, end: idx + c.length });
+    }
+    // (N) パターン
+    const parenRe = new RegExp('\\(\\s*' + num + '\\s*\\)', 'g');
+    let pm = parenRe.exec(text);
+    if (pm) candidates.push({ start: pm.index, end: pm.index + pm[0].length });
+    // N.  N)  N、  N: パターン（前が数字だと "21." を "1." として誤検出するため除外）
+    // 行頭/空白/改行直後の数字 + 終端記号
+    const dotRe = new RegExp('(^|[^0-9])' + num + '\\s*[.\\)、:]', 'g');
+    let dm = dotRe.exec(text);
+    if (dm) {
+      // m[1] が空文字列なら num の先頭は m.index、それ以外は m.index + 1
+      const numStart = dm.index + (dm[1] ? dm[1].length : 0);
+      candidates.push({ start: numStart, end: dm.index + dm[0].length });
+    }
+    if (candidates.length > 0) {
+      candidates.sort(function(a,b){ return a.start - b.start; });
+      markers.push({ num: num, start: candidates[0].start, end: candidates[0].end });
+    }
+  }
+  // start 位置でソート
+  markers.sort(function(a,b){ return a.start - b.start; });
+  // 各マーカーの直後から、次のマーカーの直前までを答えとして抽出
+  for (let i = 0; i < markers.length; i++) {
+    const segStart = markers[i].end;
+    const segEnd = (i + 1 < markers.length) ? markers[i + 1].start : text.length;
+    const ans = text.substring(segStart, segEnd).replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+    result[markers[i].num - 1] = ans;
+  }
+  return result;
+}
+
+// =============================================
+// 基礎計算 Phase 4-2：データアクセス
+// =============================================
+
+// 級別キャッシュ：各 rank に該当する KisoQuestions の行（ヘッダー除く）を返す
+// 既存の _getQuestionRowsForLevel と同じ「初回 miss で全 rank 一括キャッシュ」パターン
+function _getKisoQuestionRowsForRank(rank) {
+  const r = Number(rank);
+  const cache = CacheService.getScriptCache();
+  const key = 'cache_kiso_q_rows_' + r;
+  const hit = cache.get(key);
+  if (hit) {
+    _cacheLog(key, 'hit');
+    try { return JSON.parse(hit); } catch (e) { /* 破損キャッシュは無視 */ }
+  }
+  // miss: 全件読みして rank 別に分割キャッシュ
+  const sh = _ensureKisoQuestionsSheet();
+  if (sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const cRank = header.indexOf('rank');
+  if (cRank < 0) return [];
+  const byRank = {};
+  for (let i = 1; i < values.length; i++) {
+    const rk = Number(values[i][cRank]);
+    if (!rk) continue;
+    if (!byRank[rk]) byRank[rk] = [];
+    byRank[rk].push(values[i]);
+  }
+  Object.keys(byRank).forEach(function(rk){
+    const k = 'cache_kiso_q_rows_' + rk;
+    try {
+      const ser = JSON.stringify(byRank[rk]);
+      if (ser.length < 95000) cache.put(k, ser, 21600);
+      else console.warn('[cache skip >95KB]', k, 'size=' + ser.length);
+    } catch (e) { console.error('[kiso cache put]', k, e); }
+  });
+  return byRank[r] || [];
+}
+
+// 指定の questionId 配列に対応する問題行を返す（順序は questionIds の順）
+// rank 単位でキャッシュを呼ぶため、問題セットが同じ rank に揃っていれば 1 回の cache hit で済む
+function _getKisoQuestionsByIds(questionIds) {
+  if (!questionIds || questionIds.length === 0) return [];
+  // questionId は q_{rank:02d}_{連番:06d} 形式 → rank をパース
+  const byId = {};
+  const ranksToFetch = {};
+  for (let i = 0; i < questionIds.length; i++) {
+    const qid = String(questionIds[i]);
+    const m = qid.match(/^q_(\d+)_/);
+    if (m) ranksToFetch[Number(m[1])] = true;
+  }
+  Object.keys(ranksToFetch).forEach(function(rk){
+    const rows = _getKisoQuestionRowsForRank(Number(rk));
+    // ヘッダー位置はシート全体と同じ
+    // KisoQuestions: questionId / rank / rankName / difficultyBand / problemLatex /
+    //                answerCanonical / answerAllowed / generatedAt
+    for (let j = 0; j < rows.length; j++) {
+      const r = rows[j];
+      byId[String(r[0])] = {
+        questionId: String(r[0]),
+        rank: Number(r[1]),
+        rankName: String(r[2] || ''),
+        difficultyBand: String(r[3] || ''),
+        problemLatex: String(r[4] || ''),
+        answerCanonical: String(r[5] || ''),
+        answerAllowedJson: String(r[6] || '[]')
+      };
+    }
+  });
+  // 入力順で並べる
+  const out = [];
+  for (let i = 0; i < questionIds.length; i++) {
+    const got = byId[String(questionIds[i])];
+    if (got) out.push(got);
+  }
+  return out;
+}
+
+// KisoSessions シートを sessionId で線形検索（直近のセッションは末尾近く）
+// 戻り値: { rowIdx (1-based), sheet, header, row } | null
+function _findKisoSessionRow(sessionId) {
+  const sh = _ensureKisoSessionsSheet();
+  if (sh.getLastRow() < 2) return null;
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const cId = header.indexOf('sessionId');
+  if (cId < 0) return null;
+  // 末尾から検索（直近のセッションが対象になりやすい）
+  for (let i = values.length - 1; i >= 1; i--) {
+    if (String(values[i][cId]) === String(sessionId)) {
+      return { rowIdx: i + 1, sheet: sh, header: header, row: values[i] };
+    }
+  }
+  return null;
+}
+
+// 教育日 (4 AM 区切り) ベースで timestamp を 'yyyy-MM-dd' 文字列に変換
+// HPLog の timestamp は JST カレンダー時刻（_nowJST 由来）。HP 上限を教育日基準で
+// 集計するため、04:00 未満なら前日扱いに丸める。
+function _toEducationalDateStr(ts) {
+  if (!ts) return '';
+  let d;
+  try {
+    d = (ts instanceof Date) ? ts : new Date(ts);
+  } catch (e) { return ''; }
+  if (isNaN(d.getTime())) {
+    // 文字列の場合は単純に先頭 10 文字を返す（_toDateStr の挙動と互換）
+    const s = String(ts);
+    return s.match(/^\d{4}-\d{2}-\d{2}/) ? s.slice(0, 10) : '';
+  }
+  if (d.getTime() < EDU_DAY_CUTOVER_MS) {
+    return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+  }
+  const jstHour = parseInt(Utilities.formatDate(d, 'Asia/Tokyo', 'H'), 10);
+  if (jstHour < 4) {
+    const yesterday = new Date(d.getTime() - 86400000);
+    return Utilities.formatDate(yesterday, 'Asia/Tokyo', 'yyyy-MM-dd');
+  }
+  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+// 当日（教育日基準）の基礎計算で獲得した「素点 rawHP」を合計する
+// 仕様書 §8.3：1 日の素点上限 100HP の判定に使う
+// type が 'kiso_' で始まり、かつ '_practice' で終わらないログのみ集計
+function _kisoTodayRawHP(studentId) {
+  const sh = _ss().getSheetByName(SHEET_HPLOG);
+  if (!sh) return 0;
+  const today = _todayEducationalJST();
+  const data = _readLastNRows(sh, 200);  // 当日分の集計には十分
+  // HPLog 列: timestamp(0) / studentId(1) / rawHP(2) / hpGained(3) / type(4) / message(5)
+  let total = 0;
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    if (String(row[1]).trim() !== String(studentId).trim()) continue;
+    const type = String(row[4] || '');
+    if (type.indexOf('kiso_') !== 0) continue;
+    if (type.length >= 9 && type.lastIndexOf('_practice') === type.length - 9) continue;
+    const dateStr = _toEducationalDateStr(row[0]);
+    if (dateStr !== today) continue;
+    total += Number(row[2]) || 0;
+  }
+  return total;
+}
+
+// セッション ID 生成（kiso_{studentId}_{ts}_{random}）
+function _kisoSessionId(studentId) {
+  const ts = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMddHHmmss');
+  const rand = Math.random().toString(36).substring(2, 8);
+  return 'kiso_' + String(studentId).trim() + '_' + ts + '_' + rand;
+}
+
+// Phase 4-3 で本実装する Drive 写真保存のフック（Phase 4-2 では no-op stub）
+// Phase 4-3 でこの関数の中身を Drive 連携に置き換えると、submitKisoAnswer 側を変更せず
+// 写真保存が有効化される。
+// 戻り値: { ok, fileId, shareUrl } - Phase 4-2 段階では空文字列を返す
+function _saveKisoPhoto(studentId, sessionId, rank, count, imageBase64) {
+  // TODO_PHASE_4_3: DriveApp で「マイ活_基礎計算_答案写真/YYYY-MM/」フォルダに保存し、
+  // KisoPhotos シートに 1 行追記する。Phase 4-2 では呼び出しのフックのみ用意。
+  return { ok: true, fileId: '', shareUrl: '', stub: true };
+}
+
+// =============================================
+// 基礎計算 Phase 4-2：公開 API
+// =============================================
+
+// セッション開始（仕様書 §3.3 ステップ1）
+// - rank に該当する問題から count 件をランダム抽出
+// - KisoSessions に新行追加（status=in_progress, attempts=0, wrongIds=[]）
+// - フロントには問題文のみ返却（answerCanonical / answerAllowed は送らない）
+function startKisoSession(studentId, rank, count) {
+  try {
+    const sid = String(studentId || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const r = Number(rank);
+    if (!r || r < 1 || r > 20) return { ok: false, message: 'rank は 1〜20 を指定してください' };
+    const n = Number(count);
+    if (n !== 5 && n !== 10) return { ok: false, message: 'count は 5 または 10 のみ対応' };
+
+    // rank 該当問題を取得
+    const candidates = _getKisoQuestionRowsForRank(r);
+    if (candidates.length < n) {
+      return { ok: false, message: 'rank ' + r + ' の問題数が不足しています（必要 ' + n + ' / 在庫 ' + candidates.length + '）' };
+    }
+
+    // ランダム抽出（Fisher–Yates の途中打ち切り）
+    const taken = {};
+    const picked = [];
+    while (picked.length < n) {
+      const idx = Math.floor(Math.random() * candidates.length);
+      if (taken[idx]) continue;
+      taken[idx] = true;
+      picked.push(candidates[idx]);
+    }
+
+    // セッション保存
+    const sessionId = _kisoSessionId(sid);
+    const startedAt = _nowJST();
+    const questionIds = picked.map(function(row){ return String(row[0]); });
+    const sh = _ensureKisoSessionsSheet();
+    sh.appendRow([
+      sessionId,
+      sid,
+      r,
+      n,
+      JSON.stringify(questionIds),
+      'in_progress',
+      0,
+      startedAt,
+      '',
+      0,
+      '[]'
+    ]);
+
+    // フロントへ返す JSON（answer 系は除外）
+    // KisoQuestions 列: questionId(0)/rank(1)/rankName(2)/difficultyBand(3)/problemLatex(4)/...
+    const rankName = String(picked[0][2] || '');
+    const questions = picked.map(function(row, i){
+      return {
+        no: i + 1,
+        questionId: String(row[0]),
+        problemLatex: String(row[4] || '')
+      };
+    });
+
+    return {
+      ok: true,
+      sessionId: sessionId,
+      studentId: sid,
+      rank: r,
+      rankName: rankName,
+      count: n,
+      questions: questions,
+      createdAt: startedAt
+    };
+  } catch (err) {
+    console.error('[startKisoSession]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 再挑戦用問題取得（仕様書 §4.8 / §7.5）
+// - KisoSessions の wrongIds を読み、該当問題の問題文だけを返す
+// - 正解は返さない（紙教材の趣旨：生徒が自力で考え直す）
+function getKisoRetryQuestions(sessionId) {
+  try {
+    const sid = String(sessionId || '').trim();
+    if (!sid) return { ok: false, message: 'sessionId が必要です' };
+    const found = _findKisoSessionRow(sid);
+    if (!found) return { ok: false, message: 'セッションが見つかりません: ' + sid };
+
+    const header = found.header;
+    const row = found.row;
+    const cWrong = header.indexOf('wrongIds');
+    const cStatus = header.indexOf('status');
+    const cQids = header.indexOf('questionIds');
+    const cRank = header.indexOf('rank');
+
+    const status = String(row[cStatus] || '');
+    if (status === 'passed') {
+      return { ok: false, message: 'このセッションは既に合格済みです' };
+    }
+
+    let wrongIds = [];
+    try { wrongIds = JSON.parse(String(row[cWrong] || '[]')); } catch (e) { wrongIds = []; }
+    if (!Array.isArray(wrongIds) || wrongIds.length === 0) {
+      // 初回未提出 or wrongIds 未保存。questionIds（全件）にフォールバック
+      try {
+        const qids = JSON.parse(String(row[cQids] || '[]'));
+        if (Array.isArray(qids)) wrongIds = qids;
+      } catch (e) { /* 諦める */ }
+    }
+
+    const probs = _getKisoQuestionsByIds(wrongIds);
+    const rankNum = Number(row[cRank]);
+    const rankName = probs.length > 0 ? probs[0].rankName : '';
+    const questions = probs.map(function(p, i){
+      return {
+        no: i + 1,
+        questionId: p.questionId,
+        problemLatex: p.problemLatex
+      };
+    });
+
+    return {
+      ok: true,
+      sessionId: sid,
+      rank: rankNum,
+      rankName: rankName,
+      count: questions.length,
+      questions: questions
+    };
+  } catch (err) {
+    console.error('[getKisoRetryQuestions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 答案写真の提出（仕様書 §7 採点 + §8 HP 加算）
+// - imageBase64: 生徒のアップロード画像（base64、フロントでリサイズ済み）
+// - 初回 (attempts=0): questionIds 全件を採点。80% 合格判定。初回のみ写真を Drive に保存（Phase 4-3）
+// - 再挑戦 (attempts>=1): wrongIds のみ採点。全問正解で合格。写真は保存しない
+function submitKisoAnswer(sessionId, imageBase64) {
+  try {
+    const sid = String(sessionId || '').trim();
+    if (!sid) return { ok: false, message: 'sessionId が必要です' };
+    if (!imageBase64) return { ok: false, message: '画像が空です' };
+
+    const found = _findKisoSessionRow(sid);
+    if (!found) return { ok: false, message: 'セッションが見つかりません: ' + sid };
+    const header = found.header;
+    const row = found.row;
+    const sheet = found.sheet;
+    const rowIdx = found.rowIdx;
+
+    const cSid       = header.indexOf('studentId');
+    const cRank      = header.indexOf('rank');
+    const cCount     = header.indexOf('count');
+    const cQids      = header.indexOf('questionIds');
+    const cStatus    = header.indexOf('status');
+    const cAttempts  = header.indexOf('attempts');
+    const cCompleted = header.indexOf('completedAt');
+    const cHpEarned  = header.indexOf('hpEarned');
+    const cWrong     = header.indexOf('wrongIds');
+
+    const studentId = String(row[cSid] || '').trim();
+    const rank = Number(row[cRank]);
+    const count = Number(row[cCount]);
+    const status = String(row[cStatus] || '');
+    const prevAttempts = Number(row[cAttempts]) || 0;
+
+    if (status === 'passed') {
+      return { ok: false, message: 'このセッションは既に合格済みです' };
+    }
+
+    let allQids = [];
+    try { allQids = JSON.parse(String(row[cQids] || '[]')); } catch (e) { allQids = []; }
+    if (!Array.isArray(allQids) || allQids.length === 0) {
+      return { ok: false, message: 'セッションに問題IDが保存されていません' };
+    }
+
+    const isFirstAttempt = (prevAttempts === 0);
+
+    // 採点対象 ID リスト
+    let targetIds;
+    if (isFirstAttempt) {
+      targetIds = allQids.slice();
+    } else {
+      let prevWrong = [];
+      try { prevWrong = JSON.parse(String(row[cWrong] || '[]')); } catch (e) { prevWrong = []; }
+      targetIds = (Array.isArray(prevWrong) && prevWrong.length > 0) ? prevWrong : allQids.slice();
+    }
+
+    // Vision API で OCR
+    const apiKey = _props().getProperty('VISION_API_KEY');
+    if (!apiKey) return { ok: false, message: 'VISION_API_KEY が設定されていません' };
+    const url  = 'https://vision.googleapis.com/v1/images:annotate?key=' + apiKey;
+    const body = {
+      requests: [{
+        image: { content: imageBase64 },
+        features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }]
+      }]
+    };
+    const visionRes = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(body),
+      muteHttpExceptions: true
+    });
+    const visionJson = JSON.parse(visionRes.getContentText());
+    if (!visionJson.responses || !visionJson.responses[0]) {
+      return { ok: false, message: '画像の読み取りに失敗しました' };
+    }
+    if (visionJson.responses[0].error) {
+      return { ok: false, message: 'Vision API エラー: ' + visionJson.responses[0].error.message };
+    }
+    const fullAnno = visionJson.responses[0].fullTextAnnotation;
+    const ocrText = (fullAnno && fullAnno.text) ? String(fullAnno.text) : '';
+    if (!ocrText) {
+      return { ok: false, retake: true, message: '文字が読み取れませんでした。明るい場所でもう一度撮影してください。' };
+    }
+
+    // 問題番号で分割
+    const studentAnswers = _kisoSplitByQuestionNumbers(ocrText, targetIds.length);
+
+    // 各問題を採点
+    const probs = _getKisoQuestionsByIds(targetIds);
+    const probById = {};
+    probs.forEach(function(p){ probById[p.questionId] = p; });
+
+    const results = [];
+    let correctCount = 0;
+    const newWrongIds = [];
+    for (let i = 0; i < targetIds.length; i++) {
+      const qid = targetIds[i];
+      const p = probById[qid];
+      const studentText = studentAnswers[i] || '';
+      let correct = false;
+      if (p) correct = _kisoMatchAnswer(studentText, p.answerAllowedJson);
+      if (correct) correctCount += 1;
+      else newWrongIds.push(qid);
+      results.push({
+        no: i + 1,
+        questionId: qid,
+        problemLatex: p ? p.problemLatex : '',
+        studentAnswer: studentText,
+        correct: correct
+      });
+    }
+
+    // 合格判定
+    let passed = false;
+    if (isFirstAttempt) {
+      // 80% 以上で合格（仕様書 §7.4）
+      passed = (correctCount / targetIds.length) >= 0.80;
+    } else {
+      // 再挑戦は全問正解で合格（仕様書 §7.5）
+      passed = (newWrongIds.length === 0);
+    }
+
+    const now = _nowJST();
+    const newAttempts = prevAttempts + 1;
+
+    // セッション更新の準備
+    const newStatus = passed ? 'passed' : 'failed_retry';
+    let hpInfo = { rawHP: 0, hpGained: 0, isPractice: false, todayTotalAfter: 0, week: 1, streak: 1 };
+
+    // 合格時の HP 計算
+    if (passed) {
+      // streak は Students シートから取得
+      const stuSheet = _ss().getSheetByName(SHEET_STUDENTS);
+      let streakValue = 1;
+      let stuRowIdx = -1;
+      let currentHP = 0;
+      if (stuSheet) {
+        const stuRows = _getStudentsValues();
+        for (let i = 1; i < stuRows.length; i++) {
+          if (String(stuRows[i][COL_ID]).trim() === studentId) {
+            streakValue = Number(stuRows[i][COL_STREAK]) || 1;
+            currentHP = Number(stuRows[i][COL_HP]) || 0;
+            stuRowIdx = i;
+            break;
+          }
+        }
+      }
+      const week = Math.ceil(streakValue / 7);
+      const baseRawHP = (count === 5) ? 50 : 100;       // 仕様書 §8.1
+      const todayTotalBefore = _kisoTodayRawHP(studentId);
+      const remaining = Math.max(0, 100 - todayTotalBefore);
+      const effectiveRawHP = Math.min(baseRawHP, remaining);   // 仕様書 §8.5 ケース 2
+      const isPractice = (effectiveRawHP === 0);
+      const hpGained = effectiveRawHP * week * week;
+
+      // Students.HP 更新（in-place）
+      if (!isPractice && stuRowIdx >= 0 && hpGained > 0 && stuSheet) {
+        const newHP = currentHP + hpGained;
+        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
+        const upd = {};
+        upd[COL_HP] = newHP;
+        _updateStudentsCacheRow(stuRowIdx, upd);
+      }
+
+      // HPLog 記録（仕様書 §8.4）
+      const logType = 'kiso_' + rank + '_' + count + (isPractice ? '_practice' : '');
+      _logHP(studentId, effectiveRawHP, hpGained, logType);
+      _invalidateCache('cache_ranking_last_week');
+
+      hpInfo = {
+        rawHP: effectiveRawHP,
+        hpGained: hpGained,
+        isPractice: isPractice,
+        todayTotalAfter: todayTotalBefore + effectiveRawHP,
+        week: week,
+        streak: streakValue,
+        baseRawHP: baseRawHP,
+        sessionType: logType
+      };
+    }
+
+    // KisoSessions 行更新（status / attempts / wrongIds / completedAt / hpEarned）
+    sheet.getRange(rowIdx, cStatus + 1).setValue(newStatus);
+    sheet.getRange(rowIdx, cAttempts + 1).setValue(newAttempts);
+    sheet.getRange(rowIdx, cWrong + 1).setValue(JSON.stringify(newWrongIds));
+    if (passed) {
+      sheet.getRange(rowIdx, cCompleted + 1).setValue(now);
+      sheet.getRange(rowIdx, cHpEarned + 1).setValue(hpInfo.rawHP);
+    }
+
+    // 初回提出のみ写真を Drive に保存（Phase 4-3 のフック）
+    let photoInfo = null;
+    if (isFirstAttempt) {
+      try {
+        photoInfo = _saveKisoPhoto(studentId, sid, rank, count, imageBase64);
+      } catch (e) {
+        console.error('[_saveKisoPhoto stub error]', e);
+        photoInfo = { ok: false, message: String(e) };
+      }
+    }
+
+    return {
+      ok: true,
+      sessionId: sid,
+      attempts: newAttempts,
+      isFirstAttempt: isFirstAttempt,
+      passed: passed,
+      total: targetIds.length,
+      correctCount: correctCount,
+      results: results,
+      wrongIds: newWrongIds,
+      hpInfo: hpInfo,
+      photoInfo: photoInfo,
+      ocrPreview: ocrText.length > 600 ? ocrText.substring(0, 600) + '…' : ocrText
+    };
+  } catch (err) {
+    console.error('[submitKisoAnswer]', err);
     return { ok: false, message: String(err) };
   }
 }
