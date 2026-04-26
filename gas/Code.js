@@ -44,9 +44,15 @@ function _toDateStr(val) {
   if (!val) return '';
   try {
     var s = String(val);
-    // _nowJST()で保存したJST文字列はそのまま先頭10文字を使う（new Date()経由にしない）
-    if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0, 10);
-    // Date型などの場合はFormatDateでJSTに変換
+    // 純粋な日付文字列（_todayJST() が返す 'yyyy-MM-dd' 形式、末尾なし）
+    if (s.match(/^\d{4}-\d{2}-\d{2}$/)) return s;
+    // _nowJST() フォーマット 'yyyy-MM-dd HH:mm:ss'（タイムゾーンマーカーなし、JST 解釈で OK）
+    if (s.match(/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}$/)) return s.slice(0, 10);
+    // それ以外（Date オブジェクト・ISO 8601 タイムゾーン付き文字列など）は JST に再フォーマット
+    // ★ 4/24 Day 2 Stage 2 で導入されたキャッシュは Date を JSON.stringify するため
+    //   ISO UTC 文字列 (例 "2026-04-25T15:00:00.000Z") として戻ってくる。
+    //   旧実装は anchor 不足の正規表現で先頭 10 文字を slice しており、
+    //   JST 0:00 を UTC で表現すると 1 日前になるため off-by-one が発生していた（連続日数バグの根本原因）。
     return Utilities.formatDate(new Date(val), 'Asia/Tokyo', 'yyyy-MM-dd');
   } catch(e) { return String(val).slice(0, 10); }
 }
@@ -347,13 +353,15 @@ function loginStudent(studentId) {
           streak = 1;     // 2日以上空いたのでリセット
         }
 
-        // G2: UPDATED(4)〜LAST_LOGIN(8) を 5 列一括 setValues で書き込み
-        //     LAST_TEST(7) は既存値を保持する（loginStudent では更新しない列）
-        //     従来 4 回 setValue（~800ms）→ 1 回 setValues（~200ms）
+        // 4/26 修正: 連続日数バグ対策で LAST_TEST 列を含む 5 列 setValues を廃止
+        //   旧: setValues E-I（UPDATED, HP, STREAK, LAST_TEST=preserved, LAST_LOGIN）
+        //       → preservedLastTest が cache 経由（stale な ISO 文字列の可能性）でリスク
+        //   新: setValues E-G（UPDATED, HP, STREAK）+ setValue I（LAST_LOGIN）
+        //       LAST_TEST には触らない（saveAttempt が必要に応じて自分で書く）
         const sheet = _ss().getSheetByName(SHEET_STUDENTS);
-        const preservedLastTest = rows[i][COL_LAST_TEST];
-        sheet.getRange(i + 1, COL_UPDATED + 1, 1, COL_LAST_LOGIN - COL_UPDATED + 1)
-             .setValues([[now, currentHP, streak, preservedLastTest, today]]);
+        sheet.getRange(i + 1, COL_UPDATED + 1, 1, COL_STREAK - COL_UPDATED + 1)
+             .setValues([[now, currentHP, streak]]);
+        sheet.getRange(i + 1, COL_LAST_LOGIN + 1).setValue(today);
         const updates = {};
         updates[COL_UPDATED]    = now;
         updates[COL_HP]         = currentHP;
@@ -611,15 +619,17 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     const hpGained  = 50 * week * week;
     const newHP     = currentHP + hpGained;
 
-    // G2: CLEARED(3)〜LAST_TEST(7) の 5 列を一括 setValues で書き込み
-    //     STREAK(6) は既存値を保持（saveAttempt では更新しない列）
-    //     従来 最大 4 回 setValue（~800ms）→ 1 回 setValues（~200ms）
+    // 4/26 修正: 連続日数バグ対策で STREAK 列を含む 5 列 setValues を廃止
+    //   旧: setValues D-H（CLEARED, UPDATED, HP, STREAK=preservedStreak, LAST_TEST）
+    //       → preservedStreak が cache 経由（stale な値の可能性）→ シートの STREAK を破壊するリスク
+    //   新: setValues D-F（CLEARED, UPDATED, HP）+ setValue H（LAST_TEST）
+    //       STREAK には絶対に触らない（loginStudent のみが書き込む列）
     const currentCleared = Number(sRows[i][COL_CLEARED]) || 0;
     const newCleared = (setNo > currentCleared) ? setNo : currentCleared;
-    const preservedStreak = sRows[i][COL_STREAK];
     const sSheet = _ss().getSheetByName(SHEET_STUDENTS);
-    sSheet.getRange(i + 1, COL_CLEARED + 1, 1, COL_LAST_TEST - COL_CLEARED + 1)
-          .setValues([[newCleared, now, newHP, preservedStreak, today]]);
+    sSheet.getRange(i + 1, COL_CLEARED + 1, 1, COL_HP - COL_CLEARED + 1)
+          .setValues([[newCleared, now, newHP]]);
+    sSheet.getRange(i + 1, COL_LAST_TEST + 1).setValue(today);
     const updates = {};
     updates[COL_CLEARED]   = newCleared;
     updates[COL_UPDATED]   = now;
