@@ -40,6 +40,51 @@ const EXCHANGE_RANKS  = {
 function _ss()       { return SpreadsheetApp.getActiveSpreadsheet(); }
 function _todayJST() { return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd'); }
 function _nowJST()   { return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'); }
+
+// =============================================
+// 教育日（連続日数判定用の「1日」） — 4:00 AM JST 区切り
+// =============================================
+// 用途: 連続日数（streak）判定の "今日" を 4:00 AM JST 区切りで返す。
+//       深夜まで学習している生徒が 0:00 を跨いで再ログインしても streak が
+//       過剰加算されないようにするための仕組み。
+// 適用開始: 2026-04-27 00:00 JST 以降のみ新ロジックを適用。それ以前は
+//           既存の _todayJST() と完全に同じ挙動（4/26 中の復旧作業との互換性のため）。
+// 切替時刻: JST 04:00。0:00〜03:59 JST は前日の教育日。
+// 例:
+//   2026-04-27 03:30 JST → 教育日 '2026-04-26'（前日扱い）
+//   2026-04-27 04:00 JST → 教育日 '2026-04-27'
+//   2026-04-26 23:00 JST → 教育日 '2026-04-26'（旧ロジック、cutoff 前なので _todayJST と同じ）
+//   2026-04-27 00:00 JST → 教育日 '2026-04-26'（cutoff 後の新ロジック、hour=0 なので前日扱い）
+//   ※ 上記 23:00 と 00:00 で同じ教育日になり、跨いだ再ログインで streak が壊れない
+
+// 教育日システムの適用開始時刻（2026-04-27 00:00 JST = 2026-04-26 15:00 UTC）
+const EDU_DAY_CUTOVER_MS = Date.UTC(2026, 3, 26, 15, 0, 0);  // JS の月は 0-based: 3=April
+
+function _todayEducationalJST() {
+  const now = new Date();
+  // 適用開始前: 旧ロジック完全互換
+  if (now.getTime() < EDU_DAY_CUTOVER_MS) {
+    return _todayJST();
+  }
+  // 適用開始後: JST 04:00 区切り
+  const jstHour = parseInt(Utilities.formatDate(now, 'Asia/Tokyo', 'H'), 10);
+  if (jstHour < 4) {
+    // 前日扱い: 24h 前の JST 日付を返す
+    const yesterday = new Date(now.getTime() - 86400000);
+    return Utilities.formatDate(yesterday, 'Asia/Tokyo', 'yyyy-MM-dd');
+  }
+  return Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+// 教育日基準の昨日（教育日 today から 1 日引く）
+function _yesterdayEducationalJST() {
+  const today = _todayEducationalJST();
+  // 'yyyy-MM-dd' を JST 12:00 として解釈し、24h 引いて再フォーマット（DST 等の影響ゼロ）
+  const d = new Date(today + 'T12:00:00+09:00');
+  d.setDate(d.getDate() - 1);
+  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
 function _toDateStr(val) {
   if (!val) return '';
   try {
@@ -320,7 +365,8 @@ function loginStudent(studentId) {
     // G1: Students キャッシュから読む（cold miss 時のみ全件読み）
     const rows = _getStudentsValues();
     if (!rows || rows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません。' };
-    const today = _todayJST();
+    // 4/27 cutover 後は教育日（4:00 AM JST 区切り）。それ以前は _todayJST と同じ
+    const today = _todayEducationalJST();
     const now   = _nowJST();
 
     for (let i = 1; i < rows.length; i++) {
@@ -417,10 +463,9 @@ function loginStudent(studentId) {
 // =============================================
 // キャラクター関連ヘルパー
 // =============================================
+// 4/27 cutover 後は教育日基準の昨日を返す。それ以前は旧ロジック互換。
 function _getYesterdayJST() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+  return _yesterdayEducationalJST();
 }
 
 function _getTitle(streak) {
@@ -517,7 +562,8 @@ function getTodaysSet(studentId, level) {
   try {
     const sid   = String(studentId).trim();
     const lv    = String(level || '4級').trim();
-    const today = _todayJST();
+    // 4/27 cutover 後は教育日基準。pass1/pass2 の "今日" 判定も同基準で揃える
+    const today = _todayEducationalJST();
     const props = _props();
 
     const pass1Key = 'pass1_' + sid + '_' + lv;
@@ -579,7 +625,8 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
   try {
     const aSheet = _ss().getSheetByName(SHEET_ATTEMPTS);
     const now    = _nowJST();
-    const today  = _todayJST();
+    // 4/27 cutover 後は教育日基準。LAST_TEST と pass1/pass2 の同期がズレないよう揃える
+    const today  = _todayEducationalJST();
     const sid    = String(studentId).trim();
     const lv     = String(level || '4級').trim();
     const sNo    = Number(sessionNo) || 1;
@@ -720,21 +767,35 @@ function migrateHpLogAddRawHp() {
 // =============================================
 // 連続日数の一括復旧（4/24 Day 2 Stage 2 バグ対策）
 // =============================================
-// 用途: HPLog の type='login' レコードから各生徒の正しい連続日数を再計算し、
-//       Students.STREAK を上書きする。
+// 用途: 各生徒の "実際にログインした日" を全活動ログから推定し、Students.STREAK を再計算。
+//
+// "ログインした日" の判定 (multi-source):
+//   ふくちさんとの仕様確認: アプリは「ログインしないとテスト等の課題は出来ない」。
+//   よって以下のいずれかが存在する日は "その日ログインした" と推定できる。
+//     1. HPLog の type='login' レコード      ← 通常はこれが主信号
+//     2. HPLog の type='test'/'sango'/'wabun1' その他全 type ← 何らかの活動 = ログイン済
+//     3. Attempts シートのレコード（テスト受験）← 受験 = ログイン済
+//   _toDateStr バグ (4/24 Day 2 Stage 2 で発動) の影響で、loginStudent が
+//   稀に HPLog 'login' を書き損ねるケースが疑われる（24009 岩倉、23030 髙山）。
+//   その救済として 2 と 3 を fallback signal として使う。
+//
 // 引数: opts = { dryRun?: boolean, force?: boolean }
 //   - dryRun=true: シートを更新せず、旧→新の対比だけを返す（必ず最初に dryRun で確認）
 //   - force=true:  実行済みフラグ無視（このスクリプトでは未使用、apologyStreakBonus と
 //                  シグネチャを揃えるため受け入れるだけ）
-// 動作:
-//   1. Students シートを直接読む（cache 経由禁止）
-//   2. HPLog シートを直接読む（cache 経由禁止）
-//   3. 各生徒について type='login' のユニーク日付を集めて昇順ソート
-//   4. 各日付について「前日との差分が 1 日なら streak += 1、それ以外は streak = 1」
-//      （loginStudent の挙動と同じロジック）
-//   5. dryRun でなければシートに書き込み、Students キャッシュを invalidate
+//
+// 注: 4/26 復旧では旧 _todayJST 基準（カレンダー日）。4:00 AM 教育日への切替は
+//     loginStudent 等が 4/27 から自動適用するため、この関数は触らない。
+//
 // 戻り値: { ok, dryRun, totalStudents, updateCount, updates: [...] }
-//   - updates[i] = { rowIdx, sid, name, nickname, oldStreak, newStreak, loginDays, lastLoginDate }
+//   updates[i] = {
+//     rowIdx, sid, name, nickname,
+//     oldStreak, newStreak,
+//     activeDays,           // 全 source 統合後のユニーク活動日数
+//     lastActiveDate,       // ソート後の最終日
+//     loginDays,            // HPLog type='login' のみの日数（参考）
+//     fallbackOnlyDays,     // HPLog 'login' が無く Attempts/他 type のみで救済された日のリスト
+//   }
 function recoverAllStudentsStreak(opts) {
   try {
     opts = opts || {};
@@ -743,67 +804,104 @@ function recoverAllStudentsStreak(opts) {
     const ss = _ss();
     const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
     const logSheet = ss.getSheetByName(SHEET_HPLOG);
+    const atSheet  = ss.getSheetByName(SHEET_ATTEMPTS);
     if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
-    if (!logSheet) return { ok: false, message: 'HPLog シートが見つかりません' };
+    if (!logSheet && !atSheet) return { ok: false, message: 'HPLog/Attempts どちらも見つかりません' };
 
-    // cache 経由禁止: 直接読み
+    // cache 経由禁止: すべて直接読み
     const stuValues = stuSheet.getDataRange().getValues();
-    const logValues = logSheet.getDataRange().getValues();
+    const logValues = logSheet ? logSheet.getDataRange().getValues() : [];
+    const atValues  = atSheet  ? atSheet.getDataRange().getValues()  : [];
 
-    // HPLog ヘッダーを動的に検出（rawHP 追加前後の両方に対応）
-    if (logValues.length < 2) return { ok: false, message: 'HPLog にデータがありません' };
-    const logHeader = logValues[0];
-    const cTimestamp = logHeader.indexOf('timestamp');
-    const cSid       = logHeader.indexOf('studentId');
-    const cType      = logHeader.indexOf('type');
-    if (cTimestamp < 0 || cSid < 0 || cType < 0) {
-      return { ok: false, message: 'HPLog ヘッダーが想定外: ' + JSON.stringify(logHeader) };
+    // ---- Source 1+2: HPLog（全 type）----------------------------------
+    //   - 'login' フラグだけ別途記録して fallback 検出に使う
+    const loginDatesBySid    = {};   // {sid: {date: true}} - HPLog type='login' のみ
+    const activeDatesBySid   = {};   // {sid: {date: true}} - 全活動の集合（最終的に streak 計算に使う）
+
+    if (logValues.length >= 2) {
+      const logHeader = logValues[0];
+      const cTimestamp = logHeader.indexOf('timestamp');
+      const cSid       = logHeader.indexOf('studentId');
+      const cType      = logHeader.indexOf('type');
+      if (cTimestamp < 0 || cSid < 0 || cType < 0) {
+        return { ok: false, message: 'HPLog ヘッダーが想定外: ' + JSON.stringify(logHeader) };
+      }
+      for (let i = 1; i < logValues.length; i++) {
+        const row = logValues[i];
+        const sid = String(row[cSid] || '').trim();
+        if (!sid) continue;
+        // apology_streak_bonus はログインを意味しないので除外
+        const type = String(row[cType] || '').trim();
+        if (type === 'apology_streak_bonus') continue;
+        const dateStr = _toDateStr(row[cTimestamp]);
+        if (!dateStr) continue;
+        if (!activeDatesBySid[sid]) activeDatesBySid[sid] = {};
+        activeDatesBySid[sid][dateStr] = true;
+        if (type === 'login') {
+          if (!loginDatesBySid[sid]) loginDatesBySid[sid] = {};
+          loginDatesBySid[sid][dateStr] = true;
+        }
+      }
     }
 
-    // 生徒ごとの login 日付（ユニーク）を集計
-    const datesByStudent = {};
-    for (let i = 1; i < logValues.length; i++) {
-      const row = logValues[i];
-      if (String(row[cType] || '').trim() !== 'login') continue;
-      const sid = String(row[cSid] || '').trim();
-      if (!sid) continue;
-      // _toDateStr の修正前後どちらでも、HPLog 直接読みは Date オブジェクトが返るので
-      // 既存の formatDate 経路で正しく JST 日付になる
-      const dateStr = _toDateStr(row[cTimestamp]);
-      if (!dateStr) continue;
-      if (!datesByStudent[sid]) datesByStudent[sid] = {};
-      datesByStudent[sid][dateStr] = true;
+    // ---- Source 3: Attempts（テスト受験ログ）-----------------------------
+    //   列構成: 日時 / 生徒ID / 氏名 / セット番号 / 得点 / 合否 / 級 / 端末 / メモ
+    //   テスト受験には必ずログインが必要 → 同日は "ログインした日" と推定
+    if (atValues.length >= 2) {
+      // ヘッダー検出（古いシートでヘッダー名が異なる可能性に備える）
+      const atHeader = atValues[0];
+      let atTs  = atHeader.indexOf('日時');
+      let atSid = atHeader.indexOf('生徒ID');
+      if (atTs  < 0) atTs  = 0; // フォールバック: 列 A
+      if (atSid < 0) atSid = 1; // フォールバック: 列 B
+      for (let i = 1; i < atValues.length; i++) {
+        const row = atValues[i];
+        const sid = String(row[atSid] || '').trim();
+        if (!sid) continue;
+        const dateStr = _toDateStr(row[atTs]);
+        if (!dateStr) continue;
+        if (!activeDatesBySid[sid]) activeDatesBySid[sid] = {};
+        activeDatesBySid[sid][dateStr] = true;
+      }
     }
 
-    // 各生徒について連続日数を再計算
+    // ---- 各生徒について連続日数を再計算 ----------------------------------
     const updates = [];
     for (let i = 1; i < stuValues.length; i++) {
       const sid = String(stuValues[i][COL_ID] || '').trim();
       if (!sid) continue;
       const oldStreak = Number(stuValues[i][COL_STREAK]) || 0;
-      const dateMap = datesByStudent[sid];
-      let newStreak = 0;
-      let lastLoginDate = '';
+      const activeMap = activeDatesBySid[sid];
+      const loginMap  = loginDatesBySid[sid] || {};
 
-      if (dateMap) {
-        const sortedDates = Object.keys(dateMap).sort();
+      let newStreak = 0;
+      let lastActiveDate = '';
+      let activeDayCount = 0;
+      let loginDayCount  = 0;
+      const fallbackOnlyDays = [];   // login 信号が無く救済された日（参考用）
+
+      if (activeMap) {
+        const sortedDates = Object.keys(activeMap).sort();
+        activeDayCount = sortedDates.length;
         let streak = 0;
         let prev = null;
         for (let j = 0; j < sortedDates.length; j++) {
           const d = sortedDates[j];
+          if (!loginMap[d]) fallbackOnlyDays.push(d);
           if (prev === null) {
             streak = 1;
           } else {
             const diffMs = new Date(d) - new Date(prev);
             const diffDays = Math.round(diffMs / 86400000);
-            if (diffDays === 1) streak += 1;
+            if      (diffDays === 1) streak += 1;
             else if (diffDays === 0) { /* 同日は維持 */ }
             else streak = 1;
           }
           prev = d;
         }
         newStreak = streak;
-        lastLoginDate = prev || '';
+        lastActiveDate = prev || '';
+        loginDayCount = Object.keys(loginMap).length;
       }
 
       if (oldStreak !== newStreak) {
@@ -814,8 +912,10 @@ function recoverAllStudentsStreak(opts) {
           nickname: String(stuValues[i][COL_NICKNAME] || ''),
           oldStreak: oldStreak,
           newStreak: newStreak,
-          loginDays: dateMap ? Object.keys(dateMap).length : 0,
-          lastLoginDate: lastLoginDate
+          activeDays: activeDayCount,
+          lastActiveDate: lastActiveDate,
+          loginDays: loginDayCount,
+          fallbackOnlyDays: fallbackOnlyDays
         });
       }
     }
@@ -839,6 +939,179 @@ function recoverAllStudentsStreak(opts) {
     };
   } catch (err) {
     console.error('[recoverAllStudentsStreak]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 個別生徒の活動診断（連続日数バグ調査用）
+// =============================================
+// 用途: 特定生徒の HPLog / Attempts の生レコードを抽出して、ログイン日の歯抜けや
+//       activity との相関を可視化する。GAS エディタで個別実行する想定。
+// 例:   diagnoseStudentActivity('24009', 30) で 24009 岩倉の過去 30 日を調査。
+// 戻り値:
+//   {
+//     ok, studentId, name, nickname, currentStreak,
+//     hpLogEntries: [{date, time, type, rawHP, hpGained, message}, ...],   // 新しい順
+//     attemptsEntries: [{date, time, setNo, score, passed, level}, ...],   // 新しい順
+//     daySummary: [{date, hasLogin, hasAttempt, hasOtherHp, otherTypes:[...]}, ...]  // 古い順
+//     missingLoginDays: [...],   // attempts/他 type はあるが type='login' が無い日
+//     suspectedRecoverableStreak: N,   // multi-source で推定される連続日数
+//   }
+function diagnoseStudentActivity(studentId, days) {
+  try {
+    const sid = String(studentId || '').trim();
+    if (!sid) return { ok: false, message: 'studentId を指定してください' };
+    const lookbackDays = Number(days) || 30;
+
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    const logSheet = ss.getSheetByName(SHEET_HPLOG);
+    const atSheet  = ss.getSheetByName(SHEET_ATTEMPTS);
+    if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
+
+    // 生徒情報
+    let studentName = '', studentNick = '', currentStreak = 0;
+    const stuValues = stuSheet.getDataRange().getValues();
+    for (let i = 1; i < stuValues.length; i++) {
+      if (String(stuValues[i][COL_ID] || '').trim() === sid) {
+        studentName   = String(stuValues[i][COL_NAME] || '');
+        studentNick   = String(stuValues[i][COL_NICKNAME] || '');
+        currentStreak = Number(stuValues[i][COL_STREAK]) || 0;
+        break;
+      }
+    }
+
+    // カットオフ日付
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - lookbackDays);
+    const cutoffStr = Utilities.formatDate(cutoffDate, 'Asia/Tokyo', 'yyyy-MM-dd');
+
+    // HPLog 抽出
+    const hpLogEntries = [];
+    if (logSheet && logSheet.getLastRow() >= 2) {
+      const logValues = logSheet.getDataRange().getValues();
+      const logHeader = logValues[0];
+      const cTimestamp = logHeader.indexOf('timestamp');
+      const cSid       = logHeader.indexOf('studentId');
+      const cType      = logHeader.indexOf('type');
+      const cRawHP     = logHeader.indexOf('rawHP');
+      const cHpGained  = logHeader.indexOf('hpGained');
+      const cMessage   = logHeader.indexOf('message');
+      for (let i = 1; i < logValues.length; i++) {
+        const row = logValues[i];
+        if (String(row[cSid] || '').trim() !== sid) continue;
+        const ts = row[cTimestamp];
+        const dateStr = _toDateStr(ts);
+        if (!dateStr || dateStr < cutoffStr) continue;
+        const tStr = (ts instanceof Date) ? Utilities.formatDate(ts, 'Asia/Tokyo', 'HH:mm:ss') :
+                     (typeof ts === 'string' && ts.length >= 19) ? ts.slice(11, 19) : '';
+        hpLogEntries.push({
+          date: dateStr,
+          time: tStr,
+          type: String(row[cType] || ''),
+          rawHP: cRawHP >= 0 ? row[cRawHP] : '',
+          hpGained: cHpGained >= 0 ? row[cHpGained] : '',
+          message: cMessage >= 0 ? String(row[cMessage] || '') : ''
+        });
+      }
+    }
+    hpLogEntries.sort(function(a, b){
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return a.time < b.time ? 1 : a.time > b.time ? -1 : 0;
+    });
+
+    // Attempts 抽出
+    const attemptsEntries = [];
+    if (atSheet && atSheet.getLastRow() >= 2) {
+      const atValues = atSheet.getDataRange().getValues();
+      const atHeader = atValues[0];
+      let atTs  = atHeader.indexOf('日時');
+      let atSid = atHeader.indexOf('生徒ID');
+      if (atTs  < 0) atTs  = 0;
+      if (atSid < 0) atSid = 1;
+      for (let i = 1; i < atValues.length; i++) {
+        const row = atValues[i];
+        if (String(row[atSid] || '').trim() !== sid) continue;
+        const ts = row[atTs];
+        const dateStr = _toDateStr(ts);
+        if (!dateStr || dateStr < cutoffStr) continue;
+        const tStr = (ts instanceof Date) ? Utilities.formatDate(ts, 'Asia/Tokyo', 'HH:mm:ss') :
+                     (typeof ts === 'string' && ts.length >= 19) ? ts.slice(11, 19) : '';
+        attemptsEntries.push({
+          date: dateStr,
+          time: tStr,
+          setNo: row[3],
+          score: row[4],
+          passed: row[5],
+          level: row[6]
+        });
+      }
+    }
+    attemptsEntries.sort(function(a, b){
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return a.time < b.time ? 1 : a.time > b.time ? -1 : 0;
+    });
+
+    // 日付別サマリ
+    const daysMap = {}; // {date: {login, attempt, otherTypes}}
+    hpLogEntries.forEach(function(e){
+      if (!daysMap[e.date]) daysMap[e.date] = { login: false, attempt: false, otherTypes: [] };
+      if (e.type === 'login') daysMap[e.date].login = true;
+      else if (e.type !== 'apology_streak_bonus') {
+        if (daysMap[e.date].otherTypes.indexOf(e.type) < 0) daysMap[e.date].otherTypes.push(e.type);
+      }
+    });
+    attemptsEntries.forEach(function(e){
+      if (!daysMap[e.date]) daysMap[e.date] = { login: false, attempt: false, otherTypes: [] };
+      daysMap[e.date].attempt = true;
+    });
+    const sortedDays = Object.keys(daysMap).sort();
+    const daySummary = sortedDays.map(function(d){
+      const m = daysMap[d];
+      return {
+        date: d,
+        hasLogin: m.login,
+        hasAttempt: m.attempt,
+        hasOtherHp: m.otherTypes.length > 0,
+        otherTypes: m.otherTypes
+      };
+    });
+
+    // login が無いが activity がある日 = recovery v2 で救済される日
+    const missingLoginDays = daySummary
+      .filter(function(d){ return !d.hasLogin && (d.hasAttempt || d.hasOtherHp); })
+      .map(function(d){ return d.date; });
+
+    // multi-source streak 推定（recoverAllStudentsStreak v2 と同じロジック）
+    let suspectedStreak = 0, prev = null;
+    for (let i = 0; i < sortedDays.length; i++) {
+      const d = sortedDays[i];
+      if (prev === null) suspectedStreak = 1;
+      else {
+        const diffDays = Math.round((new Date(d) - new Date(prev)) / 86400000);
+        if      (diffDays === 1) suspectedStreak += 1;
+        else if (diffDays === 0) { /* same day */ }
+        else suspectedStreak = 1;
+      }
+      prev = d;
+    }
+
+    return {
+      ok: true,
+      studentId: sid,
+      name: studentName,
+      nickname: studentNick,
+      currentStreak: currentStreak,
+      lookbackDays: lookbackDays,
+      hpLogEntries: hpLogEntries,
+      attemptsEntries: attemptsEntries,
+      daySummary: daySummary,
+      missingLoginDays: missingLoginDays,
+      suspectedRecoverableStreak: suspectedStreak
+    };
+  } catch (err) {
+    console.error('[diagnoseStudentActivity]', err);
     return { ok: false, message: String(err) };
   }
 }
