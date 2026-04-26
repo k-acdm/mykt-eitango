@@ -423,6 +423,74 @@
     .wabun1-archive-answer { margin-top:4px; padding:4px 10px; background:#ecfdf5; border-left:3px solid #10b981; border-radius:6px; font-size:13px; color:#065f46; line-height:1.6; }
     .wabun1-archive-wordlist { margin-top:6px; padding:6px 10px; background:#f0fdf4; border-radius:6px; font-size:12px; color:#065f46; }
     /* 提出作品履歴 */
+
+    /* ===================== 基礎計算（Phase 5） ===================== */
+    .kiso-section-header { margin: 18px 0 8px; padding: 6px 14px; background: linear-gradient(135deg, #e0f2fe, #bae6fd); border-radius: 8px; color: #075985; font-weight: bold; font-size: 14px; letter-spacing: .5px; border-left: 5px solid #0284c7; }
+    .kiso-rank-btn { width:100%; margin: 6px 0; padding: 14px 16px; background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(14,165,233,.3); display: flex; align-items: center; gap: 10px; text-align: left; }
+    .kiso-rank-btn:hover { opacity: .92; }
+    .kiso-rank-btn .kiso-rank-no { flex: 0 0 auto; background: rgba(255,255,255,.22); border-radius: 8px; padding: 4px 9px; font-size: 14px; min-width: 2.4em; text-align: center; }
+    .kiso-rank-btn .kiso-rank-name { flex: 1; }
+    .kiso-rank-btn .kiso-rank-grade { flex: 0 0 auto; font-size: 13px; opacity: .9; background: rgba(255,255,255,.15); padding: 3px 8px; border-radius: 6px; }
+
+    .kiso-count-card { background: #fff; border-radius: 14px; padding: 22px; margin: 14px 0; box-shadow: 0 3px 12px rgba(0,0,0,.08); text-align: center; }
+    .kiso-count-rank-label { font-size: 18px; font-weight: bold; color: #0c4a6e; margin-bottom: 14px; }
+    .kiso-count-btn { width: 100%; margin: 10px 0; padding: 22px; font-size: 22px; font-weight: bold; color: #fff; border: none; border-radius: 14px; cursor: pointer; box-shadow: 0 4px 14px rgba(14,165,233,.4); }
+    .kiso-count-btn-5 { background: linear-gradient(135deg, #38bdf8, #0ea5e9); }
+    .kiso-count-btn-10 { background: linear-gradient(135deg, #0284c7, #0369a1); }
+    .kiso-count-hp { display: block; font-size: 14px; opacity: .9; margin-top: 6px; }
+    .kiso-count-notice { background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; color: #713f12; font-size: 13px; line-height: 1.6; margin-bottom: 12px; text-align: left; }
+
+    /* 問題表示 */
+    .kiso-problem-header { background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; padding: 14px 18px; border-radius: 12px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+    .kiso-problem-title { font-size: 18px; font-weight: bold; }
+    .kiso-problem-meta { font-size: 13px; opacity: .9; }
+    .kiso-problem-list { margin: 10px 0; }
+    .kiso-problem-item { background: #fff; border-left: 5px solid #0ea5e9; border-radius: 10px; padding: 18px 18px 18px 14px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.05); display: flex; gap: 12px; align-items: flex-start; }
+    .kiso-problem-no { flex: 0 0 auto; background: #0ea5e9; color: #fff; min-width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
+    .kiso-problem-latex { flex: 1; font-size: 1.3rem; line-height: 1.7; color: #0c4a6e; padding-top: 4px; word-break: break-word; }
+    .kiso-write-guide { background: #ecfeff; border: 2px dashed #06b6d4; border-radius: 12px; padding: 14px 16px; margin: 18px 0 12px; color: #0e7490; font-size: 14px; line-height: 1.85; }
+    .kiso-write-guide strong { color: #0369a1; }
+    .kiso-photo-btn { background: linear-gradient(135deg, #0ea5e9, #0369a1) !important; font-size: 18px !important; padding: 18px !important; box-shadow: 0 6px 18px rgba(14,165,233,.35); }
+
+    /* 撮影確認 */
+    .kiso-confirm-card { background: #fff; border-radius: 14px; padding: 18px; margin: 14px 0; box-shadow: 0 3px 10px rgba(0,0,0,.08); }
+    .kiso-confirm-preview { width: 100%; max-height: 360px; object-fit: contain; border-radius: 10px; background: #000; }
+    .kiso-confirm-msg { margin: 12px 0 8px; font-size: 14px; line-height: 1.7; color: #0c4a6e; }
+    .kiso-confirm-btns { display: flex; gap: 10px; margin-top: 10px; }
+    .kiso-confirm-btns > button { flex: 1; padding: 14px; font-size: 16px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; }
+    .kiso-confirm-submit { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+    .kiso-confirm-retake { background: #fef3c7; color: #78350f; border: 1px solid #fbbf24 !important; }
+
+    /* 結果 */
+    .kiso-result-pass-banner { background: linear-gradient(135deg, #fef3c7, #fde68a); border: 3px solid #f59e0b; border-radius: 14px; padding: 18px; text-align: center; margin-bottom: 14px; }
+    .kiso-result-pass-banner h2 { font-size: 24px; color: #b45309; margin-bottom: 6px; }
+    .kiso-result-pass-banner p { font-size: 14px; color: #78350f; }
+    .kiso-result-fail-banner { background: linear-gradient(135deg, #fee2e2, #fecaca); border: 2px solid #f87171; border-radius: 14px; padding: 18px; text-align: center; margin-bottom: 14px; }
+    .kiso-result-fail-banner h2 { font-size: 22px; color: #b91c1c; margin-bottom: 6px; }
+    .kiso-result-fail-banner p { font-size: 14px; color: #7f1d1d; }
+    .kiso-result-list { margin: 10px 0; }
+    .kiso-result-item { background: #fff; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; display: flex; align-items: flex-start; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+    .kiso-result-item.ok { border-left: 5px solid #10b981; }
+    .kiso-result-item.ng { border-left: 5px solid #ef4444; background: #fef2f2; }
+    .kiso-result-mark { flex: 0 0 auto; font-size: 22px; min-width: 1.6em; text-align: center; }
+    .kiso-result-body { flex: 1; }
+    .kiso-result-no { font-size: 13px; color: #475569; font-weight: bold; }
+    .kiso-result-latex { font-size: 1.15rem; color: #0c4a6e; margin: 4px 0; }
+    .kiso-result-student { font-size: 13px; color: #555; margin-top: 4px; word-break: break-all; }
+    .kiso-result-student .lab { color: #888; margin-right: 4px; }
+
+    /* 練習完了画面 */
+    .kiso-practice-banner { background: linear-gradient(135deg, #ddd6fe, #c4b5fd); border: 2px solid #8b5cf6; border-radius: 14px; padding: 22px; text-align: center; margin-bottom: 14px; }
+    .kiso-practice-banner h2 { font-size: 22px; color: #5b21b6; margin-bottom: 8px; }
+    .kiso-practice-banner p { font-size: 14px; color: #4c1d95; line-height: 1.85; }
+
+    /* 採点中 overlay（マイカツ君） */
+    .kiso-grading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9000; display: none; align-items: center; justify-content: center; }
+    .kiso-grading-overlay.active { display: flex; }
+    .kiso-grading-card { background: #fff; border-radius: 16px; padding: 24px; max-width: 320px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+    .kiso-grading-card img { width: 110px; height: 110px; object-fit: cover; border-radius: 50%; margin-bottom: 12px; }
+    .kiso-grading-msg { font-size: 16px; color: #0c4a6e; font-weight: bold; line-height: 1.7; }
+
     /* バージョン表示（右下固定、キャッシュ診断＆強制リロード用） */
     .app-version { position: fixed; left: 10px; bottom: 10px; z-index: 9000; font-size: 10px; color: #999; background: rgba(255,255,255,0.8); padding: 4px 8px; border-radius: 4px; cursor: pointer; user-select: none; box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: color .15s, background .15s; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
     .app-version:hover { color: #555; background: rgba(255,255,255,0.95); }
@@ -452,6 +520,16 @@
     /* 採点中ドット（点々増減アニメ） */
     .grading-dots { display: inline-block; min-width: 24px; text-align: left; }
   </style>
+
+  <!-- MathJax v3（基礎計算 §4.5 の問題表示で利用。動的描画は MathJax.typesetPromise() で再描画） -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$'],['\\[','\\]']] },
+      svg: { fontCache: 'global' },
+      startup: { typeset: false }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
 <div class="flash-overlay" id="flash-overlay">
@@ -562,9 +640,10 @@
           <span class="badge-soon">準備中</span>
           <span class="ico">🎧</span>英語長文リスニング＆音読
         </button>
-        <button class="content-btn c-math disabled" onclick="showComingSoon('基礎計算')">
-          <span class="badge-soon">準備中</span>
+        <button class="content-btn c-math" onclick="showKisoRankSelect()">
+          <span class="badge-hp">50〜100HP/セット</span>
           <span class="ico">🧮</span>基礎計算
+          <span class="content-btn-sub">小学校高学年〜中学生</span>
         </button>
         <button class="content-btn c-kanji disabled" onclick="showComingSoon('漢字')">
           <span class="badge-soon">準備中</span>
@@ -924,6 +1003,102 @@
     <div class="wabun1-overlay-title">💡 今日の正解</div>
     <div id="wabun1-answers-body"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="closeWabun1Answers()">閉じる</button>
+  </div>
+</div>
+
+<!-- ============== 基礎計算（Phase 5） ============== -->
+
+<!-- §4.2 級選択画面 -->
+<div id="screen-kiso-rank" class="screen">
+  <header><h1>🧮 基礎計算</h1><span>級を選んでね</span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="kiso-rank-list"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- §4.3 問題数選択画面 -->
+<div id="screen-kiso-count" class="screen">
+  <header><h1>🧮 問題数を選ぼう</h1><span id="kiso-count-rank-label"></span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kiso-count-card">
+      <div class="kiso-count-rank-label" id="kiso-count-rank-name"></div>
+      <div id="kiso-count-notice" class="kiso-count-notice" style="display:none"></div>
+      <button class="kiso-count-btn kiso-count-btn-5" onclick="startKisoSession(5)">
+        5題に挑戦！
+        <span class="kiso-count-hp" id="kiso-count-hp-5">+50HP</span>
+      </button>
+      <button class="kiso-count-btn kiso-count-btn-10" onclick="startKisoSession(10)">
+        10題に挑戦！
+        <span class="kiso-count-hp" id="kiso-count-hp-10">+100HP</span>
+      </button>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-kiso-rank')">← 級選択に戻る</button>
+  </div>
+</div>
+
+<!-- §4.5 問題表示画面 -->
+<div id="screen-kiso-problem" class="screen">
+  <header><h1>🧮 問題</h1><span id="kiso-problem-meta-label"></span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kiso-problem-header">
+      <span class="kiso-problem-title" id="kiso-problem-title"></span>
+      <span class="kiso-problem-meta" id="kiso-problem-attempts"></span>
+    </div>
+    <div id="kiso-problem-list" class="kiso-problem-list"></div>
+    <div class="kiso-write-guide">
+      📝 <strong>答えを紙に書いてね</strong>。問題番号（① ② ③ …）と一緒に答えを書こう。<br>
+      全部解けたら「写真を撮って提出」ボタンを押してね。<br>
+      <span style="color:#7c2d12">※ 答えはシンプルに：分数は約分、平方根は簡約形（例：<code>2√2</code>、<code>√8</code> は ×）</span>
+    </div>
+    <button class="btn-wide kiso-photo-btn" onclick="document.getElementById('kiso-photo-input').click()">📷 写真を撮って提出する</button>
+    <input type="file" id="kiso-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKisoPhotoSelected(event)"/>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- §4.6 撮影確認画面 -->
+<div id="screen-kiso-confirm" class="screen">
+  <header><h1>🧮 撮影確認</h1><span>この内容で良いですか？</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kiso-confirm-card">
+      <img id="kiso-confirm-preview" class="kiso-confirm-preview" alt="撮影画像"/>
+      <div class="kiso-confirm-msg">
+        ✅ 写真がぼやけていないか・問題番号がはっきり写っているかを確認してください。<br>
+        OK なら「送信して採点」を押してね。
+      </div>
+      <div class="kiso-confirm-btns">
+        <button class="kiso-confirm-retake" onclick="retakeKisoPhoto()">📸 撮り直す</button>
+        <button class="kiso-confirm-submit" id="kiso-confirm-submit-btn" onclick="submitKisoPhoto()">🚀 送信して採点</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- §4.7 採点結果（合格/不合格 共通レイアウト、内部で分岐表示） -->
+<div id="screen-kiso-result" class="screen">
+  <header><h1>🧮 採点結果</h1><span id="kiso-result-meta"></span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="kiso-result-banner"></div>
+    <div id="kiso-result-list" class="kiso-result-list"></div>
+    <div id="kiso-result-actions"></div>
+  </div>
+</div>
+
+<!-- §4.9 HP獲得 / 練習完了 共通画面 -->
+<div id="screen-kiso-done" class="screen">
+  <header><h1>🎉 完了！</h1><span></span></header>
+  <div class="container" style="padding-top:18px">
+    <div id="kiso-done-body"></div>
+    <button class="btn-wide" style="margin-top:18px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- 採点中オーバーレイ -->
+<div id="kiso-grading-overlay" class="kiso-grading-overlay">
+  <div class="kiso-grading-card">
+    <img src="character.jpg" alt="マイカツ君"/>
+    <div class="kiso-grading-msg">マイカツ君が答えをチェック中…<span class="grading-dots" id="kiso-grading-dots">...</span></div>
   </div>
 </div>
 
@@ -2432,6 +2607,371 @@
       }
       pagerEl.innerHTML = pagerHtml;
     }).catch(function(){ bodyEl.innerHTML = '<div class="wabun1-past-empty">エラーが発生しました。</div>'; });
+  }
+
+  // ========================================================================
+  // 基礎計算（Phase 5）
+  // ========================================================================
+  // 仕様書 §2.1 の表に対応：[No.（仕様書番号）, rank（KisoQuestions 上の rank）, 名前, 区分]
+  var KISO_RANK_DEFS = [
+    { no:1,  rank:20, name:'整数：四則混合',                section:'無学年' },
+    { no:2,  rank:19, name:'小数：足し算・引き算',          section:'無学年' },
+    { no:3,  rank:18, name:'小数：掛け算・割り算',          section:'無学年' },
+    { no:4,  rank:17, name:'小数：四則混合',                section:'無学年' },
+    { no:5,  rank:16, name:'分数：足し算・引き算',          section:'無学年' },
+    { no:6,  rank:15, name:'分数：掛け算・割り算',          section:'無学年' },
+    { no:7,  rank:14, name:'分数：四則混合',                section:'無学年' },
+    { no:8,  rank:13, name:'正負の数：足し算・引き算',      section:'中1レベル' },
+    { no:9,  rank:12, name:'正負の数：掛け算・割り算',      section:'中1レベル' },
+    { no:10, rank:11, name:'正負の数：四則混合',            section:'中1レベル' },
+    { no:11, rank:10, name:'単位・比・割合',                section:'中1レベル' },
+    { no:12, rank:9,  name:'式の計算：中1レベル',           section:'中1レベル' },
+    { no:13, rank:8,  name:'一次方程式・比例式',            section:'中1レベル' },
+    { no:14, rank:7,  name:'式の計算：中2レベル',           section:'中2レベル' },
+    { no:15, rank:6,  name:'連立方程式',                    section:'中2レベル' },
+    { no:16, rank:5,  name:'式の計算：中3レベル',           section:'中3レベル' },
+    { no:17, rank:4,  name:'乗法公式',                      section:'中3レベル' },
+    { no:18, rank:3,  name:'因数分解',                      section:'中3レベル' },
+    { no:19, rank:2,  name:'平方根',                        section:'中3レベル' },
+    { no:20, rank:1,  name:'二次方程式',                    section:'中3レベル' }
+  ];
+
+  // セッション中の状態
+  var _kisoState = {
+    selected: null,          // { no, rank, name, section }
+    sessionId: '',
+    rank: 0,
+    rankName: '',
+    count: 0,
+    questions: [],           // [{no, questionId, problemLatex}, ...]（再挑戦時は不正解問題のみ）
+    isRetry: false,          // true なら再挑戦画面（不正解問題のみ）
+    photoBase64: '',         // 撮影 → base64（送信時に submit）
+    attempts: 0
+  };
+  var _kisoGradingDotsTimer = null;
+
+  function _kisoEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  // MathJax v3 動的レンダリング
+  function _kisoTypeset(el) {
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      try { window.MathJax.typesetPromise([el]).catch(function(e){ console.warn('[MathJax]', e); }); }
+      catch (e) { console.warn('[MathJax]', e); }
+    }
+  }
+
+  // §4.2 級選択画面
+  function showKisoRankSelect() {
+    var el = document.getElementById('kiso-rank-list');
+    var html = '';
+    var lastSection = '';
+    KISO_RANK_DEFS.forEach(function(d){
+      if (d.section !== lastSection) {
+        html += '<div class="kiso-section-header">＜' + _kisoEsc(d.section) + '＞</div>';
+        lastSection = d.section;
+      }
+      html += '<button class="kiso-rank-btn" onclick="selectKisoRank(' + d.no + ')">'
+            + '<span class="kiso-rank-no">' + d.no + '</span>'
+            + '<span class="kiso-rank-name">' + _kisoEsc(d.name) + '</span>'
+            + '<span class="kiso-rank-grade">' + d.rank + '級</span>'
+            + '</button>';
+    });
+    el.innerHTML = html;
+    showScreen('screen-kiso-rank');
+  }
+
+  function selectKisoRank(no) {
+    var def = KISO_RANK_DEFS.filter(function(d){ return d.no === no; })[0];
+    if (!def) return;
+    _kisoState.selected = def;
+    document.getElementById('kiso-count-rank-label').textContent = def.rank + '級';
+    document.getElementById('kiso-count-rank-name').textContent = def.no + '. ' + def.name + '（' + def.rank + '級）';
+    // 練習モード前提の案内（実際の判定はサーバー側で行う）
+    var notice = document.getElementById('kiso-count-notice');
+    notice.innerHTML = '💡 1 日に獲得できるHPは <strong>合計 100HP</strong> までだよ！上限に達した後も練習はいつでもできるよ。';
+    notice.style.display = 'block';
+    showScreen('screen-kiso-count');
+  }
+
+  // §4.3 → §4.4 → §4.5 セッション開始（GAS で問題を抽出 → 問題表示画面へ）
+  function startKisoSession(count) {
+    if (!_kisoState.selected) return;
+    var def = _kisoState.selected;
+    // 待機演出（軽いスピナー）
+    var problemList = document.getElementById('kiso-problem-list');
+    problemList.innerHTML = '<div class="loading" style="padding:30px 0">⏳ 問題を取得中...</div>';
+    document.getElementById('kiso-problem-title').textContent = def.no + '. ' + def.name;
+    document.getElementById('kiso-problem-attempts').textContent = '';
+    document.getElementById('kiso-problem-meta-label').textContent = def.rank + '級・' + count + '題';
+    showScreen('screen-kiso-problem');
+
+    // セッション開始は毎回新規 → クライアントキャッシュは使わない
+    gasGet({
+      action: 'startKisoSession',
+      studentId: _studentId,
+      rank: def.rank,
+      count: count,
+      _ts: Date.now()
+    }).then(function(res){
+      if (!res || !res.ok) {
+        problemList.innerHTML = '<div style="text-align:center;padding:30px 0;color:#c0392b">'
+          + '⚠️ 問題の取得に失敗しました。<br>もう一度お試しください。<br>'
+          + '<small style="color:#888">' + _kisoEsc((res && res.message) || '通信エラー') + '</small></div>';
+        return;
+      }
+      _kisoState.sessionId = String(res.sessionId || '');
+      _kisoState.rank      = Number(res.rank) || def.rank;
+      _kisoState.rankName  = String(res.rankName || def.name);
+      _kisoState.count     = Number(res.count) || count;
+      _kisoState.questions = res.questions || [];
+      _kisoState.isRetry   = false;
+      _kisoState.attempts  = 0;
+      _renderKisoProblemList();
+    }).catch(function(err){
+      problemList.innerHTML = '<div style="text-align:center;padding:30px 0;color:#c0392b">⚠️ 通信エラーが発生しました。<br><small style="color:#888">' + _kisoEsc(String(err)) + '</small></div>';
+    });
+  }
+
+  // 問題リスト描画 + MathJax 再レンダリング
+  function _renderKisoProblemList() {
+    var listEl = document.getElementById('kiso-problem-list');
+    var qs = _kisoState.questions || [];
+    if (qs.length === 0) {
+      listEl.innerHTML = '<div style="text-align:center;color:#c0392b;padding:30px 0">問題が取得できませんでした。</div>';
+      return;
+    }
+    listEl.innerHTML = qs.map(function(q){
+      // problemLatex を $ で囲んで MathJax にレンダさせる
+      var tex = '\\(' + String(q.problemLatex || '') + '\\)';
+      return '<div class="kiso-problem-item">'
+           + '<span class="kiso-problem-no">' + (q.no || '') + '</span>'
+           + '<span class="kiso-problem-latex">' + tex + '</span>'
+           + '</div>';
+    }).join('');
+    document.getElementById('kiso-problem-attempts').textContent = _kisoState.isRetry
+      ? '再挑戦：' + qs.length + '問'
+      : _kisoState.count + '題';
+    _kisoTypeset(listEl);
+  }
+
+  // §4.6 写真撮影：選択 → リサイズ（長辺 1600px / JPEG 0.8）→ プレビュー → 確認画面
+  function onKisoPhotoSelected(event) {
+    var file = event.target.files[0]; if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var maxSize = 1600, w = img.width, h = img.height;
+        if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
+        else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        _kisoState.photoBase64 = dataUrl.split(',')[1];
+        document.getElementById('kiso-confirm-preview').src = dataUrl;
+        document.getElementById('kiso-confirm-submit-btn').disabled = false;
+        showScreen('screen-kiso-confirm');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function retakeKisoPhoto() {
+    _kisoState.photoBase64 = '';
+    document.getElementById('kiso-photo-input').value = '';
+    document.getElementById('kiso-confirm-preview').src = '';
+    showScreen('screen-kiso-problem');
+    // iOS Safari は表示中画面の input でないと click が onchange を発火しないことがあるため、
+    // 画面遷移後に少し遅延させて自動で再撮影をトリガー
+    setTimeout(function(){ document.getElementById('kiso-photo-input').click(); }, 80);
+  }
+
+  function _kisoShowGrading(show) {
+    var el = document.getElementById('kiso-grading-overlay');
+    if (!el) return;
+    if (show) {
+      el.classList.add('active');
+      // ドット点滅
+      var dots = document.getElementById('kiso-grading-dots');
+      var n = 0;
+      if (_kisoGradingDotsTimer) clearInterval(_kisoGradingDotsTimer);
+      _kisoGradingDotsTimer = setInterval(function(){
+        n = (n + 1) % 4;
+        dots.textContent = '.'.repeat(n);
+      }, 450);
+    } else {
+      el.classList.remove('active');
+      if (_kisoGradingDotsTimer) { clearInterval(_kisoGradingDotsTimer); _kisoGradingDotsTimer = null; }
+    }
+  }
+
+  // §4.6 → §4.7 提出 → 採点
+  function submitKisoPhoto() {
+    if (!_kisoState.sessionId || !_kisoState.photoBase64) return;
+    document.getElementById('kiso-confirm-submit-btn').disabled = true;
+    _kisoShowGrading(true);
+    gasPost({
+      action: 'submitKisoAnswer',
+      sessionId: _kisoState.sessionId,
+      imageBase64: _kisoState.photoBase64
+    }).then(function(res){
+      _kisoShowGrading(false);
+      document.getElementById('kiso-confirm-submit-btn').disabled = false;
+      if (!res || !res.ok) {
+        if (res && res.retake) {
+          alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
+          showScreen('screen-kiso-problem');
+          return;
+        }
+        alert('⚠️ 採点中にエラーが発生しました。\n' + ((res && res.message) || '通信エラー') + '\nもう一度お試しください。');
+        return;
+      }
+      _kisoState.attempts = res.attempts || (_kisoState.attempts + 1);
+      // 提出に使った base64 はもう保持しなくて OK（メモリ節約）
+      _kisoState.photoBase64 = '';
+      _renderKisoResult(res);
+    }).catch(function(err){
+      _kisoShowGrading(false);
+      document.getElementById('kiso-confirm-submit-btn').disabled = false;
+      alert('⚠️ 通信エラーが発生しました：' + String(err));
+    });
+  }
+
+  // §4.7 採点結果画面（合格/不合格 共通レイアウト）
+  function _renderKisoResult(res) {
+    var meta = document.getElementById('kiso-result-meta');
+    meta.textContent = (_kisoState.selected ? _kisoState.selected.no + '. ' : '')
+                     + (_kisoState.rankName || '')
+                     + '（' + (res.total || _kisoState.count) + '題） / ' + _kisoState.attempts + '回目';
+    var bannerEl = document.getElementById('kiso-result-banner');
+    var listEl   = document.getElementById('kiso-result-list');
+    var actionsEl = document.getElementById('kiso-result-actions');
+
+    if (res.passed) {
+      bannerEl.innerHTML =
+        '<div class="kiso-result-pass-banner">' +
+          '<h2>🎉 合格！やったね！</h2>' +
+          '<p>' + (res.correctCount || 0) + ' / ' + (res.total || _kisoState.count) + ' 問正解（' +
+              Math.round(((res.correctCount || 0) / (res.total || 1)) * 100) + '%）</p>' +
+        '</div>';
+    } else {
+      var failMsg = res.isFirstAttempt
+        ? '正答率 80% に届かなかったよ。<br>間違えたところ、もう1回考えてみよう！'
+        : '間違いがまだ残っているよ。<br>もう一度チャレンジ！';
+      bannerEl.innerHTML =
+        '<div class="kiso-result-fail-banner">' +
+          '<h2>あと少し！</h2>' +
+          '<p>' + (res.correctCount || 0) + ' / ' + (res.total || 0) + ' 問正解。<br>' + failMsg + '</p>' +
+        '</div>';
+    }
+
+    var results = res.results || [];
+    listEl.innerHTML = results.map(function(r){
+      var mark = r.correct ? '⭕' : '❌';
+      var cls  = r.correct ? 'ok' : 'ng';
+      var stu  = r.studentAnswer ? '<div class="kiso-result-student"><span class="lab">きみの答え：</span>' + _kisoEsc(r.studentAnswer) + '</div>' : '<div class="kiso-result-student"><span class="lab">きみの答え：</span>（読み取れず）</div>';
+      return '<div class="kiso-result-item ' + cls + '">'
+           + '<span class="kiso-result-mark">' + mark + '</span>'
+           + '<div class="kiso-result-body">'
+           +   '<div class="kiso-result-no">問題 ' + (r.no || '') + '</div>'
+           +   '<div class="kiso-result-latex">\\(' + String(r.problemLatex || '') + '\\)</div>'
+           +   stu
+           + '</div>'
+           + '</div>';
+    }).join('');
+
+    if (res.passed) {
+      // 完了画面に渡すデータをグローバル state に保管（onclick 内で JSON を埋め込まないことで可読性確保）
+      _kisoState.lastDone = res;
+      actionsEl.innerHTML =
+        '<button class="btn-wide kiso-photo-btn" style="margin-top:14px" onclick="_showKisoDoneFromState()">' +
+          (res.hpInfo && res.hpInfo.isPractice ? '🌟 練習完了画面へ' : '✨ HPを獲得する') +
+        '</button>';
+    } else {
+      actionsEl.innerHTML =
+        '<button class="btn-wide kiso-photo-btn" style="margin-top:14px" onclick="showKisoRetry()">📝 間違えた問題をもう一度</button>' +
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+    }
+
+    showScreen('screen-kiso-result');
+    _kisoTypeset(listEl);
+  }
+
+  // §4.8 再挑戦：getKisoRetryQuestions で不正解問題のみ取得 → 問題表示画面へ
+  function showKisoRetry() {
+    var listEl = document.getElementById('kiso-problem-list');
+    listEl.innerHTML = '<div class="loading" style="padding:30px 0">⏳ 再挑戦の問題を取得中...</div>';
+    document.getElementById('kiso-problem-attempts').textContent = '再挑戦中';
+    showScreen('screen-kiso-problem');
+    // セッション状態が submitKisoAnswer で変わるため、毎回 fresh に取得（cachedGasGet は使わない）
+    gasGet({
+      action: 'getKisoRetryQuestions',
+      sessionId: _kisoState.sessionId,
+      _ts: Date.now()
+    }).then(function(res){
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div style="text-align:center;color:#c0392b;padding:30px 0">⚠️ 再挑戦データの取得に失敗しました：<br><small>' + _kisoEsc((res && res.message) || '通信エラー') + '</small></div>';
+        return;
+      }
+      _kisoState.questions = res.questions || [];
+      _kisoState.rankName  = String(res.rankName || _kisoState.rankName);
+      _kisoState.isRetry   = true;
+      _renderKisoProblemList();
+    }).catch(function(err){
+      listEl.innerHTML = '<div style="text-align:center;color:#c0392b;padding:30px 0">⚠️ 通信エラー：<br><small>' + _kisoEsc(String(err)) + '</small></div>';
+    });
+  }
+
+  // §4.9 HP獲得 / 練習完了 共通画面
+  function _showKisoDoneFromState() {
+    var res = _kisoState.lastDone;
+    if (!res) { goHome(); return; }
+    var bodyEl = document.getElementById('kiso-done-body');
+    var info = res.hpInfo || {};
+
+    if (info.isPractice) {
+      // 練習完了
+      bodyEl.innerHTML =
+        '<div class="kiso-practice-banner">' +
+          '<h2>🌟 練習完了！</h2>' +
+          '<p>今日のHP上限は達してるけど、しっかり練習できたね！<br>この積み重ねがきっと力になるよ。</p>' +
+        '</div>';
+    } else {
+      // 通常 HP 獲得（紙吹雪 + カウントアップ）
+      var emojis = ['🎉','✨','🎊','🌟','💖','⭐','🥳','🎈'];
+      var confetti = '<div class="wabun1-confetti-wrap">';
+      for (var i = 0; i < 16; i++) {
+        var left = Math.random() * 100;
+        var delay = Math.random() * 1.0;
+        confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' +
+                    emojis[i % emojis.length] + '</span>';
+      }
+      confetti += '</div>';
+      var hpGained = Number(info.hpGained) || 0;
+      var rawHP    = Number(info.rawHP) || 0;
+      var weekStr  = info.week ? '（連続' + (info.streak || 0) + '日目・倍率 ×' + (info.week * info.week) + '）' : '';
+      bodyEl.innerHTML =
+        '<div class="wabun1-result-success">' + confetti +
+          '<div style="font-size:20px;font-weight:bold;color:#b45309;margin-bottom:8px">🎉 合格おめでとう！</div>' +
+          '<div style="font-size:14px;color:#78350f;margin-bottom:12px">素点 ' + rawHP + 'HP × 倍率 = </div>' +
+          '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="kiso-done-hp-num">0</span> HP 獲得！</div>' +
+          '<div style="font-size:13px;color:#78350f;margin-top:8px">' + weekStr + '</div>' +
+        '</div>';
+      // HP カウントアップ + chime
+      var hpEl = document.getElementById('kiso-done-hp-num');
+      if (hpEl) _wabun1AnimateHp(hpEl, hpGained, 1000);
+      try { playSfx('chime'); } catch(e){}
+      // セッション中の合計 HP に反映
+      if (typeof _totalHP === 'number') _totalHP += hpGained;
+    }
+
+    showScreen('screen-kiso-done');
   }
 
   function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
