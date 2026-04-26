@@ -1257,8 +1257,12 @@ function listBackups() {
 // =============================================
 // お詫び連続日数 +1 機能（4/26 連続日数バグの被害補償）
 // =============================================
-// 用途: 全生徒（ニックネーム空欄の未稼働ユーザを除く）の Students.STREAK を +1。
-//       併せて HPLog に type='apology_streak_bonus' のお詫び記録を残す。
+// 用途: 生徒IDを持つ全生徒の Students.STREAK を +1。併せて HPLog に
+//       type='apology_streak_bonus' のお詫び記録を残す。
+//       対象判定: 生徒ID（COL_ID）が空欄でなければ全員。ニックネームの
+//       有無は問わない（ふくちさん方針：「+1 を生かすかは生徒次第。
+//       ちゃんとやる子にとっては得、そうじゃない子にとっては意味ない。
+//       これで良い。」）
 // 想定運用: 4/27 朝、生徒のログインが始まる前に GAS エディタから 1 回だけ実行。
 //           Time-based Trigger は設定しない。
 // 引数: opts = { dryRun?: boolean, force?: boolean }
@@ -1268,6 +1272,7 @@ function listBackups() {
 //   そのため PropertiesService に APOLOGY_FLAG_KEY フラグを保存し、
 //   2回目以降は force=true でない限りエラーで止める。
 // 戻り値: { ok, dryRun, alreadyExecuted?, totalStudents, updated, skipped, updates: [...] }
+//   - skipped は生徒ID空欄の行（ヘッダー直下の空行など）のカウント
 
 const APOLOGY_FLAG_KEY = 'apology_streak_bonus_executed_2026_04_27';
 const APOLOGY_TYPE     = 'apology_streak_bonus';
@@ -1332,9 +1337,9 @@ function apologyStreakBonus(opts) {
     for (let i = 1; i < stuValues.length; i++) {
       const sid = String(stuValues[i][COL_ID] || '').trim();
       const nickname = String(stuValues[i][COL_NICKNAME] || '').trim();
+      // 生徒IDが空欄の行のみ除外（ヘッダー後の空行など）
+      // ニックネームの有無は問わない（ふくちさん方針：「+1 を生かすかは生徒次第」）
       if (!sid) { skipped += 1; continue; }
-      // ニックネーム空欄＝未稼働の登録のみの生徒は除外
-      if (nickname === '') { skipped += 1; continue; }
       const oldStreak = Number(stuValues[i][COL_STREAK]) || 0;
       const newStreak = oldStreak + 1;
       updates.push({
