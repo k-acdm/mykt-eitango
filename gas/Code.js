@@ -982,6 +982,160 @@ function listBackups() {
 }
 
 // =============================================
+// お詫び連続日数 +1 機能（4/26 連続日数バグの被害補償）
+// =============================================
+// 用途: 全生徒（ニックネーム空欄の未稼働ユーザを除く）の Students.STREAK を +1。
+//       併せて HPLog に type='apology_streak_bonus' のお詫び記録を残す。
+// 想定運用: 4/27 朝、生徒のログインが始まる前に GAS エディタから 1 回だけ実行。
+//           Time-based Trigger は設定しない。
+// 引数: opts = { dryRun?: boolean, force?: boolean }
+//   - dryRun=true: シートを更新せず、対象生徒一覧（旧→新の対比）を返す
+//   - force=true:  実行済みフラグを無視して強制実行（緊急再実行用）
+// 冪等性: なし。同じ日に2回実行すると2人分加算される。
+//   そのため PropertiesService に APOLOGY_FLAG_KEY フラグを保存し、
+//   2回目以降は force=true でない限りエラーで止める。
+// 戻り値: { ok, dryRun, alreadyExecuted?, totalStudents, updated, skipped, updates: [...] }
+
+const APOLOGY_FLAG_KEY = 'apology_streak_bonus_executed_2026_04_27';
+const APOLOGY_TYPE     = 'apology_streak_bonus';
+const APOLOGY_MESSAGE  = '連続日数+1のお詫び付与';
+
+// HPLog にメッセージ列があれば追加し、ヘッダー位置を返す
+// 戻り値: { sh, cTimestamp, cSid, cRawHP, cHpGained, cType, cMessage(=null if not present) }
+function _ensureHpLogMessageColumn() {
+  const ss = _ss();
+  let sh = ss.getSheetByName(SHEET_HPLOG);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_HPLOG);
+    sh.getRange(1, 1, 1, 6).setValues([['timestamp', 'studentId', 'rawHP', 'hpGained', 'type', 'message']]);
+  } else {
+    const lastCol = Math.max(1, sh.getLastColumn());
+    const header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    if (header.indexOf('message') < 0) {
+      sh.getRange(1, lastCol + 1).setValue('message');
+    }
+  }
+  // 再読込
+  const lastCol2 = sh.getLastColumn();
+  const header2 = sh.getRange(1, 1, 1, lastCol2).getValues()[0];
+  return {
+    sh: sh,
+    cTimestamp: header2.indexOf('timestamp'),
+    cSid:       header2.indexOf('studentId'),
+    cRawHP:     header2.indexOf('rawHP'),
+    cHpGained:  header2.indexOf('hpGained'),
+    cType:      header2.indexOf('type'),
+    cMessage:   header2.indexOf('message'),
+    lastCol:    lastCol2
+  };
+}
+
+function apologyStreakBonus(opts) {
+  try {
+    opts = opts || {};
+    const dryRun = !!opts.dryRun;
+    const force  = !!opts.force;
+
+    const props = _props();
+    const flagged = props.getProperty(APOLOGY_FLAG_KEY) === '1';
+    if (flagged && !force && !dryRun) {
+      return {
+        ok: false,
+        alreadyExecuted: true,
+        message: '既に実行済みです（' + APOLOGY_FLAG_KEY + '）。再実行する場合は apologyStreakBonus({ force: true }) を使ってください。'
+      };
+    }
+
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
+
+    // cache 経由禁止: 直接読み（ふくちさんの dryRun 確認時に最新値を見せたいため）
+    const stuValues = stuSheet.getDataRange().getValues();
+    const totalStudents = stuValues.length - 1;
+
+    const updates = [];
+    let skipped = 0;
+    for (let i = 1; i < stuValues.length; i++) {
+      const sid = String(stuValues[i][COL_ID] || '').trim();
+      const nickname = String(stuValues[i][COL_NICKNAME] || '').trim();
+      if (!sid) { skipped += 1; continue; }
+      // ニックネーム空欄＝未稼働の登録のみの生徒は除外
+      if (nickname === '') { skipped += 1; continue; }
+      const oldStreak = Number(stuValues[i][COL_STREAK]) || 0;
+      const newStreak = oldStreak + 1;
+      updates.push({
+        rowIdx: i,
+        sid: sid,
+        name: String(stuValues[i][COL_NAME] || ''),
+        nickname: nickname,
+        oldStreak: oldStreak,
+        newStreak: newStreak
+      });
+    }
+
+    if (dryRun) {
+      return {
+        ok: true,
+        dryRun: true,
+        alreadyExecuted: flagged,
+        totalStudents: totalStudents,
+        updated: updates.length,
+        skipped: skipped,
+        updates: updates
+      };
+    }
+
+    // 本番実行: STREAK 列の一括書き込み
+    if (updates.length > 0) {
+      // 連続範囲で setValues できないので 1 件ずつ setValue
+      // （生徒数 100 名程度なら数秒で終わる）
+      for (let k = 0; k < updates.length; k++) {
+        const u = updates[k];
+        stuSheet.getRange(u.rowIdx + 1, COL_STREAK + 1).setValue(u.newStreak);
+      }
+
+      // HPLog にお詫び記録を追加
+      const log = _ensureHpLogMessageColumn();
+      const now = _nowJST();
+      const rowsToAppend = updates.map(function(u){
+        const row = new Array(log.lastCol).fill('');
+        if (log.cTimestamp >= 0) row[log.cTimestamp] = now;
+        if (log.cSid       >= 0) row[log.cSid]       = u.sid;
+        if (log.cRawHP     >= 0) row[log.cRawHP]     = 0;
+        if (log.cHpGained  >= 0) row[log.cHpGained]  = 0;
+        if (log.cType      >= 0) row[log.cType]      = APOLOGY_TYPE;
+        if (log.cMessage   >= 0) row[log.cMessage]   = APOLOGY_MESSAGE;
+        return row;
+      });
+      log.sh.getRange(log.sh.getLastRow() + 1, 1, rowsToAppend.length, log.lastCol)
+            .setValues(rowsToAppend);
+
+      // cache invalidate（書き込み済みの STREAK が cache 経由で stale にならないように）
+      _invalidateCache('cache_students_values');
+      _invalidateCache('cache_ranking_last_week');
+
+      // 実行済みフラグ
+      props.setProperty(APOLOGY_FLAG_KEY, '1');
+    }
+
+    return {
+      ok: true,
+      dryRun: false,
+      alreadyExecuted: flagged,
+      forced: flagged && force,
+      totalStudents: totalStudents,
+      updated: updates.length,
+      skipped: skipped,
+      updates: updates
+    };
+  } catch (err) {
+    console.error('[apologyStreakBonus]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
 // 先週の期間を返す（月曜〜日曜）
 // =============================================
 function _getLastWeekRange() {
