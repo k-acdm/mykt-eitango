@@ -2692,11 +2692,63 @@
     _kisoState.selected = def;
     document.getElementById('kiso-count-rank-label').textContent = def.rank + '級';
     document.getElementById('kiso-count-rank-name').textContent = def.no + '. ' + def.name + '（' + def.rank + '級）';
-    // 練習モード前提の案内（実際の判定はサーバー側で行う）
+
+    // B-1（仕様書 §4.3 後半）：当日の素点獲得状況を取得して上限案内を動的差し替え
     var notice = document.getElementById('kiso-count-notice');
-    notice.innerHTML = '💡 1 日に獲得できるHPは <strong>合計 100HP</strong> までだよ！上限に達した後も練習はいつでもできるよ。';
+    notice.innerHTML = '⏳ 今日の獲得状況を確認中...';
     notice.style.display = 'block';
     showScreen('screen-kiso-count');
+
+    gasGet({ action: 'getKisoTodayRawHP', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      _renderKisoCountNotice(res);
+    }).catch(function(){
+      // 通信失敗時は静的フォールバック
+      _renderKisoCountNotice(null);
+    });
+  }
+
+  // 当日素点に応じた問題数選択画面の上限案内を描画
+  // - todayRawHP === 0:    通常案内（1日100HPまで）
+  // - 0 < remaining < 100: 残量案内（あと N HP まで獲得できます）
+  // - isAtLimit:           練習モード案内（上限到達、でも練習可能）
+  // - res が無効:           静的フォールバック（B-1 適用前と同じ）
+  function _renderKisoCountNotice(res) {
+    var el = document.getElementById('kiso-count-notice');
+    if (!el) return;
+    if (res && res.ok) {
+      var remaining = Number(res.remaining) || 0;
+      var todayRaw = Number(res.todayRawHP) || 0;
+      if (res.isAtLimit) {
+        // §4.3 後半：100HP 達成
+        el.innerHTML =
+          '🌟 <strong>今日のHPは上限に達したよ！</strong><br>' +
+          'でも練習はいつでもできるよ！合格すれば「練習完了」になるよ。';
+        el.style.background = '#f3e8ff';
+        el.style.borderColor = '#a855f7';
+        el.style.color = '#581c87';
+      } else if (todayRaw > 0 && remaining < 100) {
+        // §4.3 後半：50〜99HP 獲得済（remaining 50 など）
+        el.innerHTML =
+          '✨ 今日はあと <strong>' + remaining + 'HP</strong> まで獲得できます。<br>' +
+          'それを超えた分は練習モード（HP 加算なし）になるよ。';
+        el.style.background = '#fef3c7';
+        el.style.borderColor = '#fbbf24';
+        el.style.color = '#78350f';
+      } else {
+        // §4.3 通常表示：0〜49HP 獲得（まだ十分余裕あり）
+        el.innerHTML = '💡 1 日に獲得できるHPは <strong>合計 100HP</strong> までだよ！上限に達した後も練習はいつでもできるよ。';
+        el.style.background = '';
+        el.style.borderColor = '';
+        el.style.color = '';
+      }
+    } else {
+      // フォールバック（API 失敗時）：静的案内
+      el.innerHTML = '💡 1 日に獲得できるHPは <strong>合計 100HP</strong> までだよ！上限に達した後も練習はいつでもできるよ。';
+      el.style.background = '';
+      el.style.borderColor = '';
+      el.style.color = '';
+    }
+    el.style.display = 'block';
   }
 
   // §4.3 → §4.4 → §4.5 セッション開始（GAS で問題を抽出 → 問題表示画面へ）
