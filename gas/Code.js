@@ -16,6 +16,9 @@ const SHEET_SANGO_TOPICS      = 'SangoTopics';
 const SHEET_SANGO_SUBMISSIONS = 'SangoSubmissions';
 const SHEET_WABUN1_TOPICS      = 'Wabun1Topics';
 const SHEET_WABUN1_SUBMISSIONS = 'Wabun1Submissions';
+const SHEET_KISO_QUESTIONS = 'KisoQuestions';
+const SHEET_KISO_SESSIONS  = 'KisoSessions';
+const SHEET_KISO_PHOTOS    = 'KisoPhotos';
 
 const COL_ID         = 0;
 const COL_NAME       = 1;
@@ -1409,6 +1412,155 @@ function apologyStreakBonus(opts) {
     };
   } catch (err) {
     console.error('[apologyStreakBonus]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 基礎計算 Phase 4-1：シート整備
+// =============================================
+// 用途: KisoQuestions / KisoSessions / KisoPhotos の 3 シートを存在保証する。
+//       各シートが未作成であればヘッダー行付きで自動作成する。
+//       仕様書 §3.1 に基づく列構成。
+//
+// 読み出し時に毎回呼ばれる安価なチェックなので、_ss().getSheetByName() の
+// オーバーヘッドのみ。シート存在時は即座に return。
+//
+// 列構成は仕様書を信頼ソースとし、ここでは ensure 関数のヘッダー行と
+// 順序を仕様書と完全一致させる。
+
+const KISO_QUESTIONS_HEADERS = [
+  'questionId',         // q_{rank}_{連番6桁}
+  'rank',               // 1〜20
+  'rankName',           // 例：「分数：四則混合」
+  'difficultyBand',     // A〜H
+  'problemLatex',       // MathJax 表示用
+  'answerCanonical',    // 標準解
+  'answerAllowed',      // JSON 配列文字列
+  'generatedAt'         // 生成日時
+];
+
+const KISO_SESSIONS_HEADERS = [
+  'sessionId',          // kiso_{sid}_{ts}_{random}
+  'studentId',
+  'rank',               // 1〜20
+  'count',              // 5 or 10
+  'questionIds',        // JSON 配列
+  'status',             // in_progress / passed / failed_retry
+  'attempts',           // 提出回数
+  'startedAt',
+  'completedAt',
+  'hpEarned'            // 素点（ボーナス前）
+];
+
+const KISO_PHOTOS_HEADERS = [
+  'sessionId',
+  'studentId',
+  'rank',
+  'count',
+  'driveFileId',
+  'shareUrl',
+  'submittedAt',
+  'deleteAfter'         // submittedAt + 15 日
+];
+
+// 共通ヘルパー：シート存在保証 + ヘッダー行設定
+// - シートが無ければ作成し、ヘッダーを 1 行目に設定
+// - シートはあるがヘッダーが空ならヘッダーだけ追加（既存データには触らない）
+// - シートが既にヘッダー付きで存在する場合は no-op
+function _ensureSheetWithHeaders(sheetName, headers) {
+  const ss = _ss();
+  let sh = ss.getSheetByName(sheetName);
+  let created = false;
+  if (!sh) {
+    sh = ss.insertSheet(sheetName);
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    created = true;
+  } else if (sh.getLastRow() === 0) {
+    // 完全に空のシート（手動作成された直後など）
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+  return { sh: sh, created: created };
+}
+
+function _ensureKisoQuestionsSheet() {
+  return _ensureSheetWithHeaders(SHEET_KISO_QUESTIONS, KISO_QUESTIONS_HEADERS).sh;
+}
+function _ensureKisoSessionsSheet() {
+  return _ensureSheetWithHeaders(SHEET_KISO_SESSIONS, KISO_SESSIONS_HEADERS).sh;
+}
+function _ensureKisoPhotosSheet() {
+  return _ensureSheetWithHeaders(SHEET_KISO_PHOTOS, KISO_PHOTOS_HEADERS).sh;
+}
+
+// 3 シートをまとめて存在保証（GAS エディタからの 1 回限りセットアップ実行用）
+// db_writer.py が KisoQuestions に書き込む前に、このシートが存在し、かつ正しい
+// ヘッダーが設定されていることを保証するため、Phase 4-1 着手時に最初に実行する。
+// 戻り値: { ok, created: { questions, sessions, photos } } - 各 boolean は新規作成されたか
+function ensureKisoSheets() {
+  try {
+    const q = _ensureSheetWithHeaders(SHEET_KISO_QUESTIONS, KISO_QUESTIONS_HEADERS);
+    const s = _ensureSheetWithHeaders(SHEET_KISO_SESSIONS,  KISO_SESSIONS_HEADERS);
+    const p = _ensureSheetWithHeaders(SHEET_KISO_PHOTOS,    KISO_PHOTOS_HEADERS);
+    return {
+      ok: true,
+      created: {
+        questions: q.created,
+        sessions:  s.created,
+        photos:    p.created
+      },
+      headers: {
+        questions: KISO_QUESTIONS_HEADERS,
+        sessions:  KISO_SESSIONS_HEADERS,
+        photos:    KISO_PHOTOS_HEADERS
+      }
+    };
+  } catch (err) {
+    console.error('[ensureKisoSheets]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 動作確認用：KisoQuestions シートからランダム抽出（rank 指定、count 件）
+// 仕様書 §3.3 のセッション開始時の問題抽出ロジックを単体で叩けるようにする。
+// Phase 4-2 の startKisoSession の試金石として、Phase 4-1 段階でも動かせる。
+// 戻り値: { ok, rank, requested, found, sample: [{questionId, problemLatex, answerCanonical}, ...] }
+function sampleKisoQuestions(rank, count) {
+  try {
+    const r = Number(rank) || 0;
+    const n = Math.max(1, Math.min(20, Number(count) || 3));
+    const sh = _ensureKisoQuestionsSheet();
+    if (sh.getLastRow() < 2) return { ok: true, rank: r, requested: n, found: 0, sample: [] };
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cId    = header.indexOf('questionId');
+    const cRank  = header.indexOf('rank');
+    const cLatex = header.indexOf('problemLatex');
+    const cCan   = header.indexOf('answerCanonical');
+    const candidates = [];
+    for (let i = 1; i < values.length; i++) {
+      if (Number(values[i][cRank]) === r) {
+        candidates.push({
+          questionId: String(values[i][cId] || ''),
+          problemLatex: String(values[i][cLatex] || ''),
+          answerCanonical: String(values[i][cCan] || '')
+        });
+      }
+    }
+    // Fisher-Yates の途中で打ち切る（必要分だけシャッフル）
+    const m = candidates.length;
+    const sample = [];
+    const taken = {};
+    const k = Math.min(n, m);
+    while (sample.length < k) {
+      const idx = Math.floor(Math.random() * m);
+      if (taken[idx]) continue;
+      taken[idx] = true;
+      sample.push(candidates[idx]);
+    }
+    return { ok: true, rank: r, requested: n, found: m, sample: sample };
+  } catch (err) {
+    console.error('[sampleKisoQuestions]', err);
     return { ok: false, message: String(err) };
   }
 }

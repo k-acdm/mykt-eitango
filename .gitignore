@@ -23,3 +23,8 @@ __pycache__/
 
 # 基礎計算 問題生成スクリプトの生成物（再生成可能）
 scripts/generate_kiso_questions/out/
+
+# Google Cloud Service Account 認証情報（絶対にGit管理しない、リポジトリ外推奨だが念のため）
+*service-account*.json
+*service_account*.json
+gcp-credentials/
