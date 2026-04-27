@@ -1680,6 +1680,280 @@ function apologyWabun1Bonus(opts) {
 }
 
 // =============================================
+// お詫びHP 機能（基礎計算の写真送信不具合のお詫び）
+// =============================================
+// 背景: 4/27 本番運用開始日、基礎計算の写真送信が gasPost 未定義により
+//       「マイカツ君が照合中」のまま固まり、KisoSessions にはセッション開始の
+//       記録だけが残ったが採点・HP 付与は実行されなかった。
+//       4/27 中に修正を入れたため、過去のセッション再採点はせず、
+//       「セッションを開始した（=取り組もうとした）生徒」全員にお詫びHPを一律付与する。
+// 想定運用: GAS エディタから 1 回だけ実行。Time-based Trigger は設定しない。
+// 対象判定: KisoSessions の startedAt 日付部分（JST）が指定日と一致する生徒
+//          （重複は ID で uniq）+ additionalStudentIds に指定された生徒
+// 引数: opts = { dryRun?, force?, date?, hpAmount?, additionalStudentIds? }
+//   - date: 'yyyy-MM-dd'（既定 '2026-04-27'）。KisoSessions.startedAt は文字列
+//           'yyyy-MM-dd HH:mm:ss' 形式（_nowJST 由来）なので先頭 10 文字で日付一致判定。
+//   - hpAmount: 一律付与額（既定 100）。
+//   - additionalStudentIds: string[]（既定 []）。ログに残らない救済対象。
+//     セッション既存 ID と重複した場合はセッション側を優先（二重加算しない）。
+//     updates 内で source='manual' / manuallyAdded=true で識別可能。
+//   - dryRun: シートを更新せず対象一覧を返す
+//   - force:  実行済みフラグを無視して強制実行
+// 冪等性: PropertiesService に APOLOGY_KISO_FLAG_KEY_PREFIX + date のフラグを保存。
+//   2 回目以降は force=true でない限りエラーで止める。
+//   注意: 手動追加分の追加だけのために再実行する場合も force=true が必要。
+// 戻り値: { ok, dryRun, alreadyExecuted?, date, hpAmount, totalChallengers,
+//   additionalRequested, additionalApplied, totalTargets, updated, skipped, updates: [...] }
+//   - totalChallengers: KisoSessions 由来の対象人数
+//   - additionalRequested: 手動指定された人数
+//   - additionalApplied: 手動指定のうちセッション重複を除いて実際に追加された人数
+//   - totalTargets: セッション + 手動（重複除く）の合計
+//   - skipped: Students に存在しない studentId のカウント
+
+const APOLOGY_KISO_TYPE              = 'apology_kiso';
+const APOLOGY_KISO_MESSAGE_TEMPLATE  = '基礎計算の写真送信不具合のお詫び付与（{date}分）';
+const APOLOGY_KISO_FLAG_KEY_PREFIX   = 'apology_kiso_executed_';
+
+// 共通: 指定日（JST）に KisoSessions に startedAt のある studentId のユニーク集合を返す
+// 戻り値: Map（key=studentId, value={ sessionCount, firstAt, lastAt, ranks: [unique], counts: [unique] }）
+// startedAt は _nowJST() 由来の 'yyyy-MM-dd HH:mm:ss' 文字列前提（先頭10文字で日付判定）
+// 列順序は KISO_SESSIONS_HEADERS 参照: [0]sessionId [1]studentId [2]rank [3]count
+//   [4]questionIds [5]status [6]attempts [7]startedAt [8]completedAt [9]hpEarned [10]wrongIds
+function _kisoChallengersByDate(dateStr) {
+  const out = {};
+  const sh = _ss().getSheetByName(SHEET_KISO_SESSIONS);
+  if (!sh || sh.getLastRow() < 2) return out;
+  const values = sh.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    const sid = String(r[1] || '').trim();
+    if (!sid) continue;
+    // startedAt は文字列 or Date のどちらでも安全に扱う
+    let startedRaw = r[7];
+    if (!startedRaw) continue;
+    let startedStr;
+    if (startedRaw instanceof Date) {
+      startedStr = Utilities.formatDate(startedRaw, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+    } else {
+      startedStr = String(startedRaw);
+    }
+    const ds = startedStr.slice(0, 10);
+    if (ds !== dateStr) continue;
+    const rank = Number(r[2]) || 0;
+    const count = Number(r[3]) || 0;
+    if (!out[sid]) {
+      out[sid] = { sessionCount: 1, firstAt: startedStr, lastAt: startedStr, ranks: [], counts: [] };
+    } else {
+      out[sid].sessionCount += 1;
+      if (startedStr < out[sid].firstAt) out[sid].firstAt = startedStr;
+      if (startedStr > out[sid].lastAt)  out[sid].lastAt  = startedStr;
+    }
+    if (rank && out[sid].ranks.indexOf(rank) < 0)   out[sid].ranks.push(rank);
+    if (count && out[sid].counts.indexOf(count) < 0) out[sid].counts.push(count);
+  }
+  // ranks / counts を昇順ソート
+  Object.keys(out).forEach(function(sid){
+    out[sid].ranks.sort(function(a, b){ return a - b; });
+    out[sid].counts.sort(function(a, b){ return a - b; });
+  });
+  return out;
+}
+
+// 公開ヘルパー: 指定日の基礎計算チャレンジ生徒一覧を返す（GAS エディタから事前確認用）
+// params: { date?: 'yyyy-MM-dd' }（既定: 今日）
+// 戻り値: { ok, date, count, challengers: [{ studentId, name, nickname, sessionCount, firstAt, lastAt, ranks, counts }] }
+function getKisoChallengersByDate(params) {
+  try {
+    const date = String((params && params.date) || _todayJST());
+    const stuRows = _getStudentsValues();
+    const stuMap = {};
+    if (stuRows && stuRows.length > 1) {
+      for (let i = 1; i < stuRows.length; i++) {
+        const sid = String(stuRows[i][COL_ID] || '').trim();
+        if (!sid) continue;
+        stuMap[sid] = {
+          name:     String(stuRows[i][COL_NAME] || '').trim(),
+          nickname: String(stuRows[i][COL_NICKNAME] || '').trim()
+        };
+      }
+    }
+    const subMap = _kisoChallengersByDate(date);
+    const challengers = Object.keys(subMap).map(function(sid){
+      const s = subMap[sid];
+      const info = stuMap[sid] || { name: '', nickname: '' };
+      return {
+        studentId:    sid,
+        name:         info.name,
+        nickname:     info.nickname,
+        sessionCount: s.sessionCount,
+        firstAt:      s.firstAt,
+        lastAt:       s.lastAt,
+        ranks:        s.ranks,
+        counts:       s.counts
+      };
+    }).sort(function(a, b){ return a.studentId < b.studentId ? -1 : a.studentId > b.studentId ? 1 : 0; });
+    return { ok: true, date: date, count: challengers.length, challengers: challengers };
+  } catch (err) {
+    console.error('[getKisoChallengersByDate]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+function apologyKisoBonus(opts) {
+  try {
+    opts = opts || {};
+    const dryRun   = !!opts.dryRun;
+    const force    = !!opts.force;
+    const date     = String(opts.date || '2026-04-27');
+    const hpAmount = (opts.hpAmount != null) ? Number(opts.hpAmount) : 100;
+    if (!(hpAmount > 0)) return { ok: false, message: 'hpAmount は 1 以上の数値で指定してください' };
+
+    // 手動追加対象（apologyWabun1Bonus と同設計）
+    const additionalRaw = Array.isArray(opts.additionalStudentIds) ? opts.additionalStudentIds : [];
+    const additionalNorm = [];
+    const additionalSeen = {};
+    for (let i = 0; i < additionalRaw.length; i++) {
+      const sid = String(additionalRaw[i] == null ? '' : additionalRaw[i]).trim();
+      if (!sid) continue;
+      if (additionalSeen[sid]) continue;
+      additionalSeen[sid] = true;
+      additionalNorm.push(sid);
+    }
+
+    const flagKey = APOLOGY_KISO_FLAG_KEY_PREFIX + date;
+    const props = _props();
+    const flagged = props.getProperty(flagKey) === '1';
+    if (flagged && !force && !dryRun) {
+      return {
+        ok: false,
+        alreadyExecuted: true,
+        message: '既に実行済みです（' + flagKey + '）。再実行する場合は apologyKisoBonus({ date: \'' + date + '\', force: true }) を使ってください。'
+      };
+    }
+
+    // KisoSessions 由来のチャレンジ集計
+    const subMap = _kisoChallengersByDate(date);
+    const challengerIds = Object.keys(subMap);
+    const onlyManualIds = additionalNorm.filter(function(sid){ return !subMap[sid]; });
+    const allTargetIds = challengerIds.concat(onlyManualIds);
+
+    if (allTargetIds.length === 0) {
+      return {
+        ok: true, dryRun: dryRun, date: date, hpAmount: hpAmount,
+        totalChallengers: 0, additionalRequested: additionalNorm.length, additionalApplied: 0,
+        totalTargets: 0, updated: 0, skipped: 0, updates: []
+      };
+    }
+
+    // Students 走査（cache 経由禁止: ふくちさんに最新値を見せる）
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
+    const stuValues = stuSheet.getDataRange().getValues();
+    const sidToRow = {};
+    for (let i = 1; i < stuValues.length; i++) {
+      const sid = String(stuValues[i][COL_ID] || '').trim();
+      if (sid) sidToRow[sid] = i;
+    }
+
+    const updates = [];
+    let skipped = 0;
+    allTargetIds.forEach(function(sid){
+      const rowIdx = sidToRow[sid];
+      if (rowIdx == null) { skipped += 1; return; }
+      const fromLog = !!subMap[sid];
+      const sub = subMap[sid] || {};
+      const oldHP = Number(stuValues[rowIdx][COL_HP]) || 0;
+      const newHP = oldHP + hpAmount;
+      updates.push({
+        rowIdx: rowIdx,
+        sid: sid,
+        name:     String(stuValues[rowIdx][COL_NAME] || ''),
+        nickname: String(stuValues[rowIdx][COL_NICKNAME] || ''),
+        source: fromLog ? 'log' : 'manual',
+        manuallyAdded: !fromLog,
+        sessionCount: sub.sessionCount || 0,
+        ranks:        sub.ranks  || [],
+        counts:       sub.counts || [],
+        firstAt: sub.firstAt || '',
+        lastAt:  sub.lastAt  || '',
+        oldHP: oldHP,
+        newHP: newHP,
+        hpAdded: hpAmount
+      });
+    });
+
+    if (dryRun) {
+      return {
+        ok: true,
+        dryRun: true,
+        alreadyExecuted: flagged,
+        date: date,
+        hpAmount: hpAmount,
+        totalChallengers: challengerIds.length,
+        additionalRequested: additionalNorm.length,
+        additionalApplied: onlyManualIds.length,
+        totalTargets: allTargetIds.length,
+        updated: updates.length,
+        skipped: skipped,
+        updates: updates
+      };
+    }
+
+    if (updates.length > 0) {
+      // HP 列を 1 件ずつ書き込み
+      for (let k = 0; k < updates.length; k++) {
+        const u = updates[k];
+        stuSheet.getRange(u.rowIdx + 1, COL_HP + 1).setValue(u.newHP);
+      }
+
+      // HPLog にお詫び記録（全 updates 同じ type='apology_kiso'）
+      const log = _ensureHpLogMessageColumn();
+      const now = _nowJST();
+      const message = APOLOGY_KISO_MESSAGE_TEMPLATE.replace('{date}', date);
+      const rowsToAppend = updates.map(function(u){
+        const row = new Array(log.lastCol).fill('');
+        if (log.cTimestamp >= 0) row[log.cTimestamp] = now;
+        if (log.cSid       >= 0) row[log.cSid]       = u.sid;
+        if (log.cRawHP     >= 0) row[log.cRawHP]     = u.hpAdded;
+        if (log.cHpGained  >= 0) row[log.cHpGained]  = u.hpAdded;
+        if (log.cType      >= 0) row[log.cType]      = APOLOGY_KISO_TYPE;
+        if (log.cMessage   >= 0) row[log.cMessage]   = message;
+        return row;
+      });
+      log.sh.getRange(log.sh.getLastRow() + 1, 1, rowsToAppend.length, log.lastCol)
+            .setValues(rowsToAppend);
+
+      // cache invalidate
+      _invalidateCache('cache_students_values');
+      _invalidateCache('cache_ranking_last_week');
+
+      // 実行済みフラグ
+      props.setProperty(flagKey, '1');
+    }
+
+    return {
+      ok: true,
+      dryRun: false,
+      alreadyExecuted: flagged,
+      forced: flagged && force,
+      date: date,
+      hpAmount: hpAmount,
+      totalChallengers: challengerIds.length,
+      additionalRequested: additionalNorm.length,
+      additionalApplied: onlyManualIds.length,
+      totalTargets: allTargetIds.length,
+      updated: updates.length,
+      skipped: skipped,
+      updates: updates
+    };
+  } catch (err) {
+    console.error('[apologyKisoBonus]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
 // 基礎計算 Phase 4-1：シート整備
 // =============================================
 // 用途: KisoQuestions / KisoSessions / KisoPhotos の 3 シートを存在保証する。
