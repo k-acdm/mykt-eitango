@@ -1434,24 +1434,32 @@ function apologyStreakBonus(opts) {
 // 想定運用: GAS エディタから 1 回だけ実行。Time-based Trigger は設定しない。
 // 対象判定: Wabun1Submissions に指定日の提出記録がある生徒（重複は ID で uniq）
 //          + additionalStudentIds に指定された生徒（手動追加、ログにない救済対象）
-// 引数: opts = { dryRun?, force?, date?, hpAmount?, additionalStudentIds? }
+//          - excludeStudentIds に指定された生徒（テストアカウント等を除外）
+// 引数: opts = { dryRun?, force?, date?, hpAmount?, additionalStudentIds?, excludeStudentIds? }
 //   - date: 'yyyy-MM-dd'（既定 '2026-04-27'）。Wabun1Submissions の timestamp の
 //           日付部分（JST）が一致した行を集計。
 //   - hpAmount: 一律付与額（既定 100）。和文英訳① 1 セットの通常獲得 HP と同額。
 //   - additionalStudentIds: string[]（既定 []）。ログに残らないが本人申告等で
 //     取り組みが確認できた生徒の ID。ログ既存の ID と重複した場合はログ側を優先
 //     （二重加算しない）。updates 内で source='manual' / manuallyAdded=true で識別可能。
+//   - excludeStudentIds: string[]（既定 []）。テストアカウントや実際には取り組んで
+//     いない生徒を除外する。ログ由来 / 手動追加どちらからも除外され、updates にも
+//     含まれない（HP 加算もされない）。excludeStudentIds は additionalStudentIds より
+//     優先（同じ ID が両方にあれば除外側が勝つ）。
 //   - dryRun: シートを更新せず対象一覧を返す
 //   - force:  実行済みフラグを無視して強制実行
 // 冪等性: PropertiesService に APOLOGY_WABUN1_FLAG_KEY_PREFIX + date のフラグを
 //   保存。同じ日付に対する 2 回目以降は force=true でない限りエラーで止める。
 //   注意: 手動追加分の追加だけのために再実行する場合も force=true が必要。
 // 戻り値: { ok, dryRun, alreadyExecuted?, date, hpAmount, totalSubmitters,
-//   additionalRequested, additionalApplied, totalTargets, updated, skipped, updates: [...] }
-//   - totalSubmitters: ログ由来の対象人数
+//   additionalRequested, additionalApplied, excludeRequested, excludeApplied,
+//   totalTargets, updated, skipped, updates: [...] }
+//   - totalSubmitters: ログ由来の対象人数（除外前）
 //   - additionalRequested: 手動指定された人数
-//   - additionalApplied: 手動指定のうちログ重複を除いて実際に追加された人数
-//   - totalTargets: ログ + 手動（重複除く）の合計
+//   - additionalApplied: 手動指定のうちログ重複を除いて実際に追加された人数（除外前）
+//   - excludeRequested: 除外指定された人数
+//   - excludeApplied: 実際に除外された人数（候補に含まれていたもののみカウント）
+//   - totalTargets: 最終対象人数（ログ + 手動 - 除外、重複除く）
 //   - skipped: Students に存在しない studentId（退会・誤入力など）のカウント
 
 const APOLOGY_WABUN1_TYPE              = 'apology_wabun1';
@@ -1547,6 +1555,19 @@ function apologyWabun1Bonus(opts) {
       additionalNorm.push(sid);
     }
 
+    // 除外対象（テストアカウント / 実際には取り組んでいない生徒）
+    // ログ由来・手動追加どちらからも除外する（excludeStudentIds が最優先）
+    const excludeRaw = Array.isArray(opts.excludeStudentIds) ? opts.excludeStudentIds : [];
+    const excludeSet = {};
+    const excludeNorm = [];
+    for (let i = 0; i < excludeRaw.length; i++) {
+      const sid = String(excludeRaw[i] == null ? '' : excludeRaw[i]).trim();
+      if (!sid) continue;
+      if (excludeSet[sid]) continue;
+      excludeSet[sid] = true;
+      excludeNorm.push(sid);
+    }
+
     const flagKey = APOLOGY_WABUN1_FLAG_KEY_PREFIX + date;
     const props = _props();
     const flagged = props.getProperty(flagKey) === '1';
@@ -1563,12 +1584,18 @@ function apologyWabun1Bonus(opts) {
     const submitterIds = Object.keys(subMap);
     // 手動追加だが既にログにいる ID は二重加算しない（source='log' を優先）
     const onlyManualIds = additionalNorm.filter(function(sid){ return !subMap[sid]; });
-    const allTargetIds = submitterIds.concat(onlyManualIds);
+    // 除外前の合計（excludeApplied 算出のため保持）
+    const preExcludeIds = submitterIds.concat(onlyManualIds);
+    // 除外適用後の最終対象
+    const allTargetIds = preExcludeIds.filter(function(sid){ return !excludeSet[sid]; });
+    const excludeApplied = preExcludeIds.length - allTargetIds.length;
 
     if (allTargetIds.length === 0) {
       return {
         ok: true, dryRun: dryRun, date: date, hpAmount: hpAmount,
-        totalSubmitters: 0, additionalRequested: additionalNorm.length, additionalApplied: 0,
+        totalSubmitters: submitterIds.length,
+        additionalRequested: additionalNorm.length, additionalApplied: 0,
+        excludeRequested: excludeNorm.length, excludeApplied: excludeApplied,
         totalTargets: 0, updated: 0, skipped: 0, updates: []
       };
     }
@@ -1619,6 +1646,8 @@ function apologyWabun1Bonus(opts) {
         totalSubmitters: submitterIds.length,
         additionalRequested: additionalNorm.length,
         additionalApplied: onlyManualIds.length,
+        excludeRequested: excludeNorm.length,
+        excludeApplied: excludeApplied,
         totalTargets: allTargetIds.length,
         updated: updates.length,
         skipped: skipped,
@@ -1668,6 +1697,8 @@ function apologyWabun1Bonus(opts) {
       totalSubmitters: submitterIds.length,
       additionalRequested: additionalNorm.length,
       additionalApplied: onlyManualIds.length,
+      excludeRequested: excludeNorm.length,
+      excludeApplied: excludeApplied,
       totalTargets: allTargetIds.length,
       updated: updates.length,
       skipped: skipped,
@@ -1690,24 +1721,32 @@ function apologyWabun1Bonus(opts) {
 // 想定運用: GAS エディタから 1 回だけ実行。Time-based Trigger は設定しない。
 // 対象判定: KisoSessions の startedAt 日付部分（JST）が指定日と一致する生徒
 //          （重複は ID で uniq）+ additionalStudentIds に指定された生徒
-// 引数: opts = { dryRun?, force?, date?, hpAmount?, additionalStudentIds? }
+//          - excludeStudentIds に指定された生徒（テストアカウント等を除外）
+// 引数: opts = { dryRun?, force?, date?, hpAmount?, additionalStudentIds?, excludeStudentIds? }
 //   - date: 'yyyy-MM-dd'（既定 '2026-04-27'）。KisoSessions.startedAt は文字列
 //           'yyyy-MM-dd HH:mm:ss' 形式（_nowJST 由来）なので先頭 10 文字で日付一致判定。
 //   - hpAmount: 一律付与額（既定 100）。
 //   - additionalStudentIds: string[]（既定 []）。ログに残らない救済対象。
 //     セッション既存 ID と重複した場合はセッション側を優先（二重加算しない）。
 //     updates 内で source='manual' / manuallyAdded=true で識別可能。
+//   - excludeStudentIds: string[]（既定 []）。テストアカウントや実際には取り組んで
+//     いない生徒を除外。セッション由来 / 手動追加どちらからも除外され、updates にも
+//     含まれない（HP 加算もされない）。excludeStudentIds は additionalStudentIds より
+//     優先（同じ ID が両方にあれば除外側が勝つ）。
 //   - dryRun: シートを更新せず対象一覧を返す
 //   - force:  実行済みフラグを無視して強制実行
 // 冪等性: PropertiesService に APOLOGY_KISO_FLAG_KEY_PREFIX + date のフラグを保存。
 //   2 回目以降は force=true でない限りエラーで止める。
 //   注意: 手動追加分の追加だけのために再実行する場合も force=true が必要。
 // 戻り値: { ok, dryRun, alreadyExecuted?, date, hpAmount, totalChallengers,
-//   additionalRequested, additionalApplied, totalTargets, updated, skipped, updates: [...] }
-//   - totalChallengers: KisoSessions 由来の対象人数
+//   additionalRequested, additionalApplied, excludeRequested, excludeApplied,
+//   totalTargets, updated, skipped, updates: [...] }
+//   - totalChallengers: KisoSessions 由来の対象人数（除外前）
 //   - additionalRequested: 手動指定された人数
-//   - additionalApplied: 手動指定のうちセッション重複を除いて実際に追加された人数
-//   - totalTargets: セッション + 手動（重複除く）の合計
+//   - additionalApplied: 手動指定のうちセッション重複を除いて実際に追加された人数（除外前）
+//   - excludeRequested: 除外指定された人数
+//   - excludeApplied: 実際に除外された人数（候補に含まれていたもののみカウント）
+//   - totalTargets: 最終対象人数（セッション + 手動 - 除外、重複除く）
 //   - skipped: Students に存在しない studentId のカウント
 
 const APOLOGY_KISO_TYPE              = 'apology_kiso';
@@ -1820,6 +1859,19 @@ function apologyKisoBonus(opts) {
       additionalNorm.push(sid);
     }
 
+    // 除外対象（テストアカウント / 実際には取り組んでいない生徒）
+    // セッション由来・手動追加どちらからも除外する（excludeStudentIds が最優先）
+    const excludeRaw = Array.isArray(opts.excludeStudentIds) ? opts.excludeStudentIds : [];
+    const excludeSet = {};
+    const excludeNorm = [];
+    for (let i = 0; i < excludeRaw.length; i++) {
+      const sid = String(excludeRaw[i] == null ? '' : excludeRaw[i]).trim();
+      if (!sid) continue;
+      if (excludeSet[sid]) continue;
+      excludeSet[sid] = true;
+      excludeNorm.push(sid);
+    }
+
     const flagKey = APOLOGY_KISO_FLAG_KEY_PREFIX + date;
     const props = _props();
     const flagged = props.getProperty(flagKey) === '1';
@@ -1835,12 +1887,18 @@ function apologyKisoBonus(opts) {
     const subMap = _kisoChallengersByDate(date);
     const challengerIds = Object.keys(subMap);
     const onlyManualIds = additionalNorm.filter(function(sid){ return !subMap[sid]; });
-    const allTargetIds = challengerIds.concat(onlyManualIds);
+    // 除外前の合計（excludeApplied 算出のため保持）
+    const preExcludeIds = challengerIds.concat(onlyManualIds);
+    // 除外適用後の最終対象
+    const allTargetIds = preExcludeIds.filter(function(sid){ return !excludeSet[sid]; });
+    const excludeApplied = preExcludeIds.length - allTargetIds.length;
 
     if (allTargetIds.length === 0) {
       return {
         ok: true, dryRun: dryRun, date: date, hpAmount: hpAmount,
-        totalChallengers: 0, additionalRequested: additionalNorm.length, additionalApplied: 0,
+        totalChallengers: challengerIds.length,
+        additionalRequested: additionalNorm.length, additionalApplied: 0,
+        excludeRequested: excludeNorm.length, excludeApplied: excludeApplied,
         totalTargets: 0, updated: 0, skipped: 0, updates: []
       };
     }
@@ -1893,6 +1951,8 @@ function apologyKisoBonus(opts) {
         totalChallengers: challengerIds.length,
         additionalRequested: additionalNorm.length,
         additionalApplied: onlyManualIds.length,
+        excludeRequested: excludeNorm.length,
+        excludeApplied: excludeApplied,
         totalTargets: allTargetIds.length,
         updated: updates.length,
         skipped: skipped,
@@ -1942,6 +2002,8 @@ function apologyKisoBonus(opts) {
       totalChallengers: challengerIds.length,
       additionalRequested: additionalNorm.length,
       additionalApplied: onlyManualIds.length,
+      excludeRequested: excludeNorm.length,
+      excludeApplied: excludeApplied,
       totalTargets: allTargetIds.length,
       updated: updates.length,
       skipped: skipped,
