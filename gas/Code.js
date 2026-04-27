@@ -1433,16 +1433,26 @@ function apologyStreakBonus(opts) {
 //       「この問題に取り組んだ生徒」全員にお詫びHPを一律付与する。
 // 想定運用: GAS エディタから 1 回だけ実行。Time-based Trigger は設定しない。
 // 対象判定: Wabun1Submissions に指定日の提出記録がある生徒（重複は ID で uniq）
-// 引数: opts = { dryRun?: boolean, force?: boolean, date?: string, hpAmount?: number }
+//          + additionalStudentIds に指定された生徒（手動追加、ログにない救済対象）
+// 引数: opts = { dryRun?, force?, date?, hpAmount?, additionalStudentIds? }
 //   - date: 'yyyy-MM-dd'（既定 '2026-04-27'）。Wabun1Submissions の timestamp の
 //           日付部分（JST）が一致した行を集計。
 //   - hpAmount: 一律付与額（既定 100）。和文英訳① 1 セットの通常獲得 HP と同額。
+//   - additionalStudentIds: string[]（既定 []）。ログに残らないが本人申告等で
+//     取り組みが確認できた生徒の ID。ログ既存の ID と重複した場合はログ側を優先
+//     （二重加算しない）。updates 内で source='manual' / manuallyAdded=true で識別可能。
 //   - dryRun: シートを更新せず対象一覧を返す
 //   - force:  実行済みフラグを無視して強制実行
 // 冪等性: PropertiesService に APOLOGY_WABUN1_FLAG_KEY_PREFIX + date のフラグを
 //   保存。同じ日付に対する 2 回目以降は force=true でない限りエラーで止める。
-// 戻り値: { ok, dryRun, alreadyExecuted?, date, hpAmount, totalSubmitters, updated, skipped, updates: [...] }
-//   - skipped は Students に存在しない studentId（退会・誤入力など）のカウント
+//   注意: 手動追加分の追加だけのために再実行する場合も force=true が必要。
+// 戻り値: { ok, dryRun, alreadyExecuted?, date, hpAmount, totalSubmitters,
+//   additionalRequested, additionalApplied, totalTargets, updated, skipped, updates: [...] }
+//   - totalSubmitters: ログ由来の対象人数
+//   - additionalRequested: 手動指定された人数
+//   - additionalApplied: 手動指定のうちログ重複を除いて実際に追加された人数
+//   - totalTargets: ログ + 手動（重複除く）の合計
+//   - skipped: Students に存在しない studentId（退会・誤入力など）のカウント
 
 const APOLOGY_WABUN1_TYPE              = 'apology_wabun1';
 const APOLOGY_WABUN1_MESSAGE_TEMPLATE  = '和文英訳①の判定基準改善のお詫び付与（{date}分）';
@@ -1523,6 +1533,20 @@ function apologyWabun1Bonus(opts) {
     const hpAmount = (opts.hpAmount != null) ? Number(opts.hpAmount) : 100;
     if (!(hpAmount > 0)) return { ok: false, message: 'hpAmount は 1 以上の数値で指定してください' };
 
+    // 手動追加対象（ログに残らないが本人申告等で取り組みが確認できた生徒）
+    // - 文字列の trim、空欄/null 除去
+    // - 重複は後段で排除（ログ既存の生徒と重複した場合はログ側を優先＝source='log'）
+    const additionalRaw = Array.isArray(opts.additionalStudentIds) ? opts.additionalStudentIds : [];
+    const additionalNorm = [];
+    const additionalSeen = {};
+    for (let i = 0; i < additionalRaw.length; i++) {
+      const sid = String(additionalRaw[i] == null ? '' : additionalRaw[i]).trim();
+      if (!sid) continue;
+      if (additionalSeen[sid]) continue;
+      additionalSeen[sid] = true;
+      additionalNorm.push(sid);
+    }
+
     const flagKey = APOLOGY_WABUN1_FLAG_KEY_PREFIX + date;
     const props = _props();
     const flagged = props.getProperty(flagKey) === '1';
@@ -1534,11 +1558,19 @@ function apologyWabun1Bonus(opts) {
       };
     }
 
-    // 提出者集計
+    // 提出者集計（ログ由来）
     const subMap = _wabun1SubmittersByDate(date);
     const submitterIds = Object.keys(subMap);
-    if (submitterIds.length === 0) {
-      return { ok: true, dryRun: dryRun, date: date, hpAmount: hpAmount, totalSubmitters: 0, updated: 0, skipped: 0, updates: [] };
+    // 手動追加だが既にログにいる ID は二重加算しない（source='log' を優先）
+    const onlyManualIds = additionalNorm.filter(function(sid){ return !subMap[sid]; });
+    const allTargetIds = submitterIds.concat(onlyManualIds);
+
+    if (allTargetIds.length === 0) {
+      return {
+        ok: true, dryRun: dryRun, date: date, hpAmount: hpAmount,
+        totalSubmitters: 0, additionalRequested: additionalNorm.length, additionalApplied: 0,
+        totalTargets: 0, updated: 0, skipped: 0, updates: []
+      };
     }
 
     // Students 走査（cache 経由禁止: ふくちさんに最新値を見せる）
@@ -1554,9 +1586,11 @@ function apologyWabun1Bonus(opts) {
 
     const updates = [];
     let skipped = 0;
-    submitterIds.forEach(function(sid){
+    allTargetIds.forEach(function(sid){
       const rowIdx = sidToRow[sid];
       if (rowIdx == null) { skipped += 1; return; }
+      const fromLog = !!subMap[sid];
+      const sub = subMap[sid] || {};
       const oldHP = Number(stuValues[rowIdx][COL_HP]) || 0;
       const newHP = oldHP + hpAmount;
       updates.push({
@@ -1564,9 +1598,11 @@ function apologyWabun1Bonus(opts) {
         sid: sid,
         name:     String(stuValues[rowIdx][COL_NAME] || ''),
         nickname: String(stuValues[rowIdx][COL_NICKNAME] || ''),
-        submissionCount: subMap[sid].count,
-        firstAt: subMap[sid].firstAt,
-        lastAt:  subMap[sid].lastAt,
+        source: fromLog ? 'log' : 'manual',
+        manuallyAdded: !fromLog,
+        submissionCount: sub.count || 0,
+        firstAt: sub.firstAt || '',
+        lastAt:  sub.lastAt  || '',
         oldHP: oldHP,
         newHP: newHP,
         hpAdded: hpAmount
@@ -1581,6 +1617,9 @@ function apologyWabun1Bonus(opts) {
         date: date,
         hpAmount: hpAmount,
         totalSubmitters: submitterIds.length,
+        additionalRequested: additionalNorm.length,
+        additionalApplied: onlyManualIds.length,
+        totalTargets: allTargetIds.length,
         updated: updates.length,
         skipped: skipped,
         updates: updates
@@ -1594,7 +1633,7 @@ function apologyWabun1Bonus(opts) {
         stuSheet.getRange(u.rowIdx + 1, COL_HP + 1).setValue(u.newHP);
       }
 
-      // HPLog にお詫び記録
+      // HPLog にお詫び記録（ログ由来も手動追加も同じ type='apology_wabun1' で統一）
       const log = _ensureHpLogMessageColumn();
       const now = _nowJST();
       const message = APOLOGY_WABUN1_MESSAGE_TEMPLATE.replace('{date}', date);
@@ -1627,6 +1666,9 @@ function apologyWabun1Bonus(opts) {
       date: date,
       hpAmount: hpAmount,
       totalSubmitters: submitterIds.length,
+      additionalRequested: additionalNorm.length,
+      additionalApplied: onlyManualIds.length,
+      totalTargets: allTargetIds.length,
       updated: updates.length,
       skipped: skipped,
       updates: updates
