@@ -1354,6 +1354,132 @@ Phase 3 着手中に新たな設計原則が発見された場合：
   ```
 - 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
 
+### 2026-04-27 夕方〜2026-04-28 早朝（本番運用初日の緊急対応 + スキップ機能実装）
+
+塾PCで作業。4/27 本番運用開始日に発生した基礎計算フリーズバグの緊急修正、和文英訳① 判定基準の緩和、お詫びHP 機能の新設・拡張、和文英訳① スキップ機能の実装、基礎計算 級選択画面の文言調整。今夜だけで 7 コミット。
+
+#### 114. 緊急対応：基礎計算「マイカツ君が照合中」フリーズバグ（dev `1c3ea08` → main `d377f06`）
+- **症状**: iPad（塾Wi-Fi）で 4/27 17:00 過ぎ、20級 初回テストで写真送信後「マイカツ君が照合中」のまま数分間反応せず、画面を閉じる以外なくなる事象が発生。Drive の `マイ活_基礎計算_答案写真/2026-04/` に該当時刻の写真ファイル無し → アップロード自体が成功していないことが切り分け済
+- **真因**: [index.html](index.html) に `gasPost` 関数の **定義が存在しない**。Phase 5（コミット `5a0d5f5`）で `submitKisoPhoto` を実装した際、`admin.html` から `gasPost` をコピーするのを忘れていた
+  - `submitKisoPhoto()` は `_kisoShowGrading(true)` → `gasPost(...)` の順で呼び出すため、`gasPost` で **同期 ReferenceError** が発生 → `.then().catch()` チェーンに到達する前に例外が伝搬 → 「照合中」表示だけが残り、ボタンも disabled のまま固まる
+  - GAS にリクエストが届いていないため Drive にも記録なし（観測事実と完全一致）
+- **設計差異の発見**: wabun1 / 三語短文はフロントから直接 Vision API を叩く設計（base64 画像は GAS に送らない、テキストだけ GET）→ `gasPost` 不要。基礎計算だけは GAS 経由で OCR + 採点 + Drive 保存するため `gasPost` 必須
+- **修正** ([index.html](index.html) +51 / -21):
+  - `gasGet` 直下に `gasPost(params, timeoutMs=90000)` を新設。`AbortController` でタイムアウト時に専用エラーメッセージ（「サーバー応答がありません…」）を投げる
+  - `submitKisoPhoto()` を try/catch ラップ。同期 throw が起きても必ず `_kisoShowGrading(false)` + ボタン再有効化 + アラート表示が動く
+  - `.catch()` のエラーメッセージも `err.message` 優先表示に改善
+- 同夜のうちに main 反映 → 本番デプロイ完了
+
+#### 115. 和文英訳① 正誤判定の緩和（dev `1557978` → main `d377f06`）
+- **背景**: 4/27 本番運用初日、和文英訳①の判定が「スペース・全半角・句読点」も完全一致を要求していたため、内容は正しいのに不正解判定された生徒が多発
+- **`_normalizeWabun1` 全面書き直し** ([gas/Code.js](gas/Code.js)):
+  - **緩和（同一視）**: 全角英数 → 半角統一 / 類似句読点・記号を半角統一（「、」⇔「,」、「．」⇔「.」、ハイフン類、引用符類、括弧類）/ すべての空白文字を削除（半角/全角スペース・タブ・改行）/ 大文字小文字を無視
+  - **維持（厳格判定）**: 文末ピリオド「.」は punctuation としてそのまま残す（英文に必須）/ 文末句点「。」は punctMap に含めず別記号として保持（日本文に必須、教育的意義の維持）
+  - punctMap で 27 種類の類似記号を半角化、`[\s　]+` 正規表現で空白系をすべて削除
+- **方針**: 過去のデータ再判定はせず（A案）、当日の提出者全員にお詫びHPを一律付与する救済処置（次項参照）
+
+#### 116. お詫びHP 機能の新設（apologyWabun1Bonus、dev `1557978` / `84b2013`）
+- **目的**: #115 の判定厳しすぎ問題のお詫び。和文英訳① 1 セットの通常獲得 HP（`100 × week²` の base）と同額の **100HP** を一律付与
+- **`_wabun1SubmittersByDate(dateStr)`**: 内部ヘルパー、Wabun1Submissions の指定日提出者を `{ count, firstAt, lastAt }` で集計
+- **`getWabun1SubmittersByDate(params)`**: 公開ヘルパー、Students 突合し name/nickname も付与した一覧。GAS エディタからの事前確認用
+- **`apologyWabun1Bonus({ dryRun, force, date='2026-04-27', hpAmount=100, additionalStudentIds })`**:
+  - apologyStreakBonus と同じ構造（`PropertiesService` フラグ `apology_wabun1_executed_<date>` で冪等性ガード、HPLog `type='apology_wabun1'`、`message='和文英訳①の判定基準改善のお詫び付与（{date}分）'`）
+  - **`additionalStudentIds`**（dev `84b2013` で追加）: ログに残らないが本人申告等で取り組みが確認できた生徒の手動追加。ログ既存 ID と重複時はログ側を優先（二重加算しない）。`source='manual'` / `manuallyAdded:true` で識別
+  - 戻り値に `totalSubmitters / additionalRequested / additionalApplied / totalTargets` を追加
+- **doGet 非登録**: 個人情報リスク回避のため GAS エディタ専用
+- **本番実行結果**: **12 名に +100HP**（11 名は関数経由、川島桃子は手動追加）
+
+#### 117. 和文英訳① 部分スキップ機能の実装（dev `f29c6c5` → main `d377f06`）
+- **背景**: スキップ注意（例：「○○をまだ塾でやってない人は、3と4はやらないで〜！」）の対象者が、3 と 4 を空欄で提出すると不合格判定される設計ミスを解消
+- **新シート列**:
+  - **Wabun1Topics に `skip_questions` 列**（最右に追加）。JSON 配列で部分スキップ可能な問題番号を指定（例 `[3,4]`、`[2,3]`）。空欄なら全問必須（既存通り）
+  - **Wabun1Submissions に `skip_questions` 列**（最右、7 列目）。生徒がスキップした番号を JSON で記録。既存 6 列構造（teacher_comment まで）は完全に維持、appendRow を 7 要素に拡張
+  - `adminSetWabun1Comment` は 6 列目固定書き込みのため影響なし
+- **GAS 採点ロジック** ([gas/Code.js](gas/Code.js)):
+  - `_normalizeWabun1SkipList(raw)`: 文字列・配列・カンマ区切り（`"3,4"`）すべて受理する正規化ヘルパー。1〜4 範囲外は除外、重複排除、昇順ソート
+  - `submitWabun1` が `params.skipQuestions` を受け付け、`topic.skip_questions` と突合。**許可外の番号は無視**（採点対象に戻す＝ずる対策）
+  - スキップ済み問題は空欄でも `correct:true + skipped:true`、全体合否は「スキップ含む全問正解」で判定
+  - 戻り値に `appliedSkips` 配列を追加
+  - `_wabun1HeaderIndices` に `iSkipQuestions` 追加、`_wabun1RowToObj` のレスポンスに `skip_questions` 配列を含める
+  - `getWabun1Submissions` / `adminListWabun1Submissions` のレスポンスにも `skip_questions` を追加
+- **生徒画面** ([index.html](index.html)):
+  - `_wabun1State.skipApplied` フラグ追加
+  - 問題リスト直下に「⊘ 3・4番 をスキップする」ボタン（橙、`topic.skip_questions` が空配列の日は非表示＝既存通り）
+  - 押下で該当 task に `skipped` クラス + 「これはやらない」灰色バッジ。「スキップを解除する」グレーボタンで OFF（押し間違い対策）
+  - `_wabun1CheckNumbers` にスキップ番号を渡し、該当番号は OCR テキストに無くても差し戻されないように
+  - `submitWabun1Answer` リクエストに `skipQuestions` を JSON で同梱
+  - 結果画面で skipped 問題を「⊘ スキップ」表示、不正解ハイライトの対象から除外
+- **管理画面** ([admin.html](admin.html)):
+  - 提出一覧カードのヘッダー直下に「⊘ スキップ：3・4番」橙バッジ。ずるしてスキップしている生徒（解ける問題までスキップ）が一目で分かる
+- **本番運用**: 4/28 の問題（一般動詞の否定文）に `[3, 4]` を設定済
+
+#### 118. 基礎計算 お詫びHP 機能の新設（apologyKisoBonus、dev `a23727b` → main `d377f06`）
+- **背景**: #114 の gasPost 未定義バグにより、4/27 に基礎計算で写真送信した生徒は KisoSessions にセッション開始記録だけが残り、採点・HP 付与が一切実行されなかった。和文英訳①と同パターンで救済
+- **`_kisoChallengersByDate(dateStr)`**: 内部ヘルパー、KisoSessions の `startedAt` 日付一致で `{ sessionCount, firstAt, lastAt, ranks, counts }` を集計。`startedAt` は文字列・Date のどちらでも安全に扱う
+- **`getKisoChallengersByDate({ date? })`**: 公開ヘルパー、Students 突合した一覧。事前確認用
+- **`apologyKisoBonus({ date='2026-04-27', dryRun, force, hpAmount=100, additionalStudentIds })`**: apologyWabun1Bonus と完全に同じシグネチャ・構造
+  - 定数: `APOLOGY_KISO_TYPE = 'apology_kiso'` / `APOLOGY_KISO_MESSAGE_TEMPLATE = '基礎計算の写真送信不具合のお詫び付与（{date}分）'` / `APOLOGY_KISO_FLAG_KEY_PREFIX = 'apology_kiso_executed_'`
+- **本番実行結果**: **9 名に +100HP**（excludeStudentIds でテストアカウント等を除外、次項参照）
+- **両方取り組んだ生徒**: 和文英訳① + 基礎計算の両方で被害があった生徒は **+200HP**（妥当な救済として意図通り）
+
+#### 119. お詫びHP 関数に excludeStudentIds オプション追加（dev `8c5ea22`）
+- **背景**: テストアカウントや実際には取り組んでいない生徒（誤ってセッションを開始した等）を除外したいケースが発生
+- **両関数に `excludeStudentIds` オプション追加**（後方互換、省略可）:
+  - 配列で生徒IDを指定（trim、空欄/null 除去、自身の中での重複排除）
+  - **ログ由来 / 手動追加（additionalStudentIds）どちらからも除外**
+  - `excludeStudentIds` は `additionalStudentIds` より優先（同じ ID が両方にあれば除外側が勝つ）
+  - 除外された生徒は `updates` に含まれず、HP 加算もされない
+  - 戻り値に `excludeRequested`（指定数）/ `excludeApplied`（実際に除外された人数）を追加
+  - 実装パターンは両関数で対称（`preExcludeIds = challengerIds.concat(onlyManualIds)` → `filter` で `!excludeSet[sid]` を残す）
+
+#### 120. 基礎計算 級選択画面の追加文言（dev `075d4ca` → main `d377f06`）
+- **教育メッセージを 1 行 → 2 項目に拡張**:
+  1. 自分に必要だと思うものをやりましょう。先生がアドバイスする場合もあります。
+  2. 毎回違った問題が表示されます。「全問正解が当たり前」の状態になるまで、何度も練習しましょう。
+- **CSS 装飾**: 行頭文字「●」は HTML に直接書かず CSS の `::before` で実装（`<ul class="kiso-rank-intro">` + `<li>` 構造、`list-style:none`、`li::before { content: "●"; position:absolute; left:0; ... }`）。文字色（赤 `#dc2626`）・太字・font-size 16px は維持
+- **ヘッダーラベル変更**: `screen-kiso-rank` の `<span>` を「級を選んでね」→「**単元を選んでね**」（生徒視点では「単元」の方が直感的）
+
+#### 121. 本日のコミット履歴サマリ
+| コミット | 概要 |
+|---|---|
+| `1c3ea08` | fix(基礎計算): submitKisoPhoto のフリーズを修正（gasPost 未定義 + 同期throw対策） |
+| `1557978` | feat(和文英訳①): 判定基準緩和 + お詫びHP付与機能 |
+| `84b2013` | feat(和文英訳①お詫びHP): additionalStudentIds オプションで手動救済対象を追加可能に |
+| `f29c6c5` | feat(和文英訳①): 部分スキップ機能（生徒UI + 採点ロジック + 提出記録 + 管理画面表示） |
+| `a23727b` | feat(基礎計算お詫びHP): apologyKisoBonus + getKisoChallengersByDate を新設 |
+| `8c5ea22` | feat(お詫びHP): apologyWabun1Bonus / apologyKisoBonus に excludeStudentIds オプションを追加 |
+| `075d4ca` | feat(基礎計算): 級選択画面の教育的メッセージ2項目化 + ヘッダーラベル「単元を選んでね」 |
+
+#### 122. ふくちさん側の作業（4/28 朝）
+- **朝のお詫び告知 LINE への保護者・生徒の反応に対応**（予約送信済み）
+- **塾で生徒に基礎計算と和文英訳①を試してもらう**（実機確認）
+- 和文英訳① 4/28 の問題（一般動詞の否定文）に `skip_questions = [3, 4]` を設定済
+
+#### 123. 明日中の作業（塾PC のセットアップ、再掲）
+- JSON ファイル `mykt-eitango-writer.json` を USB 等で塾PC にコピー
+- `C:\Users\Manager\Documents\gcp-credentials\mykt-eitango-writer.json` に配置
+- Python パッケージインストール:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango\scripts\generate_kiso_questions
+  python -m pip install -r requirements.txt
+  ```
+- 環境変数の恒久設定（`KISO_GSPREAD_CREDENTIALS` / `KISO_SPREADSHEET_ID`）
+
+#### 124. 次回開発再開時の主要タスク
+- **基礎計算の実機テスト結果を踏まえた微調整**（仕様書 §9.7 のチェックリスト確認、必要なら OCR 閾値 `KISO_OCR_CONFIDENCE_THRESHOLD = 0.6` の調整）
+- **リスニング&音読コンテンツの実装着手**（仕様書 [docs/英語長文リスニング_音読_仕様書.md](docs/英語長文リスニング_音読_仕様書.md) v0.7）
+- **和文英訳② の実装着手**（実装が複雑になるため最後の予定だったが、リスニング&音読の優先度に応じて順序検討）
+- **基礎計算 Phase 3** も将来的に着手予定（D〜H 拡張、計約 1500 問。`scripts/generate_kiso_questions/DESIGN_PRINCIPLES.md` の TODO_PHASE3 復活対象を必ず網羅）
+
+#### 125. 次回再開時の手順
+- **PowerShell で Claude Code 起動前に実行**:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
+
 ---
 
 ## TODO（未反映の GAS 側作業）
