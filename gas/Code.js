@@ -4271,6 +4271,8 @@ function _getWabun1TopicsValues() {
 // 13列スキーマ（v2）対応のヘッダー解決ヘルパー
 // 列名から列インデックスを引く。新仕様（japanese_text / skip_text）と
 // 旧仕様（skip1..4）の両方を扱えるように吸収する
+// skip_questions（スキップ可能な問題番号の JSON 配列、例 [3,4]）は v2.1 で追加。
+// 既存シートに列がない場合は indexOf=-1 のまま、_wabun1RowToObj で空配列扱い。
 function _wabun1HeaderIndices(header) {
   const iSkipText = header.indexOf('skip_text');
   const iSkipLegacy = [1,2,3,4].map(function(n){ return header.indexOf('skip' + n); });
@@ -4280,10 +4282,43 @@ function _wabun1HeaderIndices(header) {
     iT:        [1,2,3,4].map(function(n){ return header.indexOf('task' + n); }),
     iJP:       header.indexOf('japanese_text'),
     iA:        [1,2,3,4].map(function(n){ return header.indexOf('answer' + n); }),
-    iSkipText: iSkipText,
-    iSkipLegacy: iSkipLegacy,
+    iSkipText:      iSkipText,
+    iSkipLegacy:    iSkipLegacy,
+    iSkipQuestions: header.indexOf('skip_questions'),
     iWL:       header.indexOf('word_list')
   };
+}
+
+// スキップ番号配列の正規化: 文字列 / 配列 / null を [1-4] の Number 配列に変換
+// - JSON 文字列の場合は parse、失敗時は空配列
+// - "3,4" 形式（カンマ区切り）も許容
+// - 1〜4 の範囲外は除外、重複排除、昇順ソート
+function _normalizeWabun1SkipList(raw) {
+  if (raw == null || raw === '') return [];
+  let arr = raw;
+  if (typeof raw === 'string') {
+    const s = String(raw).trim();
+    if (!s) return [];
+    try {
+      arr = JSON.parse(s);
+    } catch (e) {
+      // カンマ区切りフォールバック
+      arr = s.replace(/[\[\]\s]/g, '').split(',');
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  const seen = {};
+  const out = [];
+  arr.forEach(function(v){
+    const n = Number(v);
+    if (!(n >= 1 && n <= 4)) return;
+    const k = Math.floor(n);
+    if (seen[k]) return;
+    seen[k] = true;
+    out.push(k);
+  });
+  out.sort(function(a, b){ return a - b; });
+  return out;
 }
 
 // 1 行を構造化オブジェクトに変換
@@ -4313,6 +4348,9 @@ function _wabun1RowToObj(r, h) {
 
   const wlRaw = h.iWL >= 0 ? String(r[h.iWL] || '').trim() : '';
   const word_list = wlRaw ? wlRaw.split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean) : [];
+  const skipQuestions = (h.iSkipQuestions >= 0)
+    ? _normalizeWabun1SkipList(r[h.iSkipQuestions])
+    : [];
   const ds = Utilities.formatDate(new Date(r[h.iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
   return {
     date: ds,
@@ -4321,6 +4359,7 @@ function _wabun1RowToObj(r, h) {
     answers: answers,
     japanese_text: h.iJP >= 0 ? String(r[h.iJP] || '').trim() : '',
     skip_text: skipText,
+    skip_questions: skipQuestions,
     word_list: word_list
   };
 }
@@ -4355,6 +4394,7 @@ function getWabun1Topic(params) {
       tasks: t.tasks,
       japanese_text: t.japanese_text,
       skip_text: t.skip_text,
+      skip_questions: t.skip_questions || [],
       word_list: t.word_list
     } : null;
     const yesterdayOut = y ? {
@@ -4362,6 +4402,7 @@ function getWabun1Topic(params) {
       tasks: y.tasks.map(function(tk){ return { no: tk.no, text: tk.text }; }),
       japanese_text: y.japanese_text,
       skip_text: y.skip_text,
+      skip_questions: y.skip_questions || [],
       answers: y.answers
     } : null;
     return { ok: true, today: todayOut, yesterday: yesterdayOut };
@@ -4373,7 +4414,11 @@ function getWabun1Topic(params) {
 
 // =============================================
 // 生徒用：解答提出（完全一致判定 + HP加算 + 記録）
-// params: { studentId, workText }
+// params: { studentId, workText, skipQuestions? }
+//   - skipQuestions: 生徒が「スキップする」を押した問題番号配列
+//                    （JSON 文字列 / 配列 / カンマ区切り文字列を許容）
+//                    topic.skip_questions（許可リスト）と突合し、許可されたもののみ採用。
+//                    スキップ済みの問題は空欄でも自動的に正解扱い + skipped:true。
 // =============================================
 function submitWabun1(params) {
   try {
@@ -4387,8 +4432,20 @@ function submitWabun1(params) {
       return { ok: false, message: '今日の和文英訳①の問題が登録されていません' };
     }
 
+    // スキップ番号を正規化 + 許可リスト（topic.skip_questions）で絞り込み
+    // 生徒が許可外の番号を送ってきても無視して採点対象に戻す（ずる対策）
+    const requestedSkips = _normalizeWabun1SkipList(params && params.skipQuestions);
+    const allowedSet = {};
+    (topic.skip_questions || []).forEach(function(n){ allowedSet[n] = true; });
+    const appliedSkips = requestedSkips.filter(function(n){ return allowedSet[n]; });
+    const skipSet = {};
+    appliedSkips.forEach(function(n){ skipSet[n] = true; });
+
     const parsed = _parseWabun1Work(workText);
     const results = topic.tasks.map(function(t, idx){
+      if (skipSet[t.no]) {
+        return { no: t.no, correct: true, skipped: true };
+      }
       const studentNorm = _normalizeWabun1(parsed[t.no]);
       const correctNorm = _normalizeWabun1(topic.answers[idx]);
       const correct = correctNorm !== '' && studentNorm === correctNorm;
@@ -4411,10 +4468,15 @@ function submitWabun1(params) {
     }
 
     // 提出は毎回記録（正誤問わず）
+    // 列構成: timestamp(1) | studentId(2) | studentName(3) | work(4) | method(5)
+    //         | teacher_comment(6) | skip_questions(7)
+    // skip_questions 列が未作成のシートは appendRow で自動的に右側に値が追加される。
+    // ヘッダー行に列名がない既存シートでもデータとしては正しく保存される。
     const subSheet = ss.getSheetByName(SHEET_WABUN1_SUBMISSIONS);
     if (!subSheet) return { ok: false, message: 'Wabun1Submissionsシートが見つかりません' };
     const now = new Date();
-    subSheet.appendRow([now, sid, studentName, workText, 'photo', '']);
+    const skipJson = appliedSkips.length > 0 ? JSON.stringify(appliedSkips) : '';
+    subSheet.appendRow([now, sid, studentName, workText, 'photo', '', skipJson]);
 
     // HPLog type='wabun1' で当日分既に付与済みか確認（末尾 200 行のみ走査）
     // HPLog 列構成（rawHP 追加後）：[0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type
@@ -4458,7 +4520,8 @@ function submitWabun1(params) {
       allCorrect: allCorrect,
       results: results,
       hpGained: hpGained,
-      alreadyGranted: alreadyGranted
+      alreadyGranted: alreadyGranted,
+      appliedSkips: appliedSkips
     };
   } catch(err) {
     console.error('[submitWabun1]', err);
@@ -4489,7 +4552,8 @@ function getWabun1Submissions(params) {
         studentName:     String(r[2] || ''),
         work:            String(r[3] || ''),
         method:          String(r[4] || ''),
-        teacher_comment: String(r[5] || '')
+        teacher_comment: String(r[5] || ''),
+        skip_questions:  _normalizeWabun1SkipList(r[6])
       });
     }
     submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
@@ -4554,6 +4618,7 @@ function _buildWabun1TopicsByDate(rows) {
       answers: r.answers,
       japanese_text: r.japanese_text,
       skip_text: r.skip_text,
+      skip_questions: r.skip_questions || [],
       word_list: r.word_list
     };
   });
@@ -4866,7 +4931,8 @@ function adminListWabun1Submissions(params) {
         date:            ds,
         work:            String(r[3] || ''),
         method:          String(r[4] || ''),
-        teacher_comment: String(r[5] || '')
+        teacher_comment: String(r[5] || ''),
+        skip_questions:  _normalizeWabun1SkipList(r[6])
       });
     }
     submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });

@@ -356,6 +356,15 @@
     .wabun1-japanese { background:#fff7ed; border:2px solid #fb923c; border-radius:10px; padding:12px 16px; margin:8px 0 10px 1.6em; font-size:16px; line-height:1.85; color:#7c2d12; font-weight:600; }
     /* スキップ注意：問題リストの末尾（問題4 の下）に赤太字でシンプル表示。枠・背景なし */
     .wabun1-skip-note { color:#dc2626; font-weight:bold; font-size:14px; line-height:1.85; margin-top:14px; }
+    /* スキップボタン関連（部分スキップ機能用） */
+    .wabun1-skip-action { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+    .wabun1-skip-btn { background:linear-gradient(135deg,#fb923c,#ea580c); color:#fff; border:none; border-radius:10px; padding:12px 16px; font-size:14px; font-weight:bold; cursor:pointer; box-shadow:0 3px 10px rgba(234,88,12,.25); }
+    .wabun1-skip-btn:hover { filter:brightness(1.05); }
+    .wabun1-skip-btn.cancel { background:linear-gradient(135deg,#94a3b8,#475569); box-shadow:0 3px 10px rgba(71,85,105,.25); }
+    .wabun1-skip-status { color:#7c2d12; background:#fff7ed; border:1px dashed #fb923c; border-radius:8px; padding:8px 12px; font-size:13px; line-height:1.7; }
+    .wabun1-task.skipped .wabun1-task-text { color:#9ca3af; text-decoration:line-through; }
+    .wabun1-task.skipped .wabun1-task-no   { color:#9ca3af; }
+    .wabun1-task-skipped-tag { display:inline-block; margin-left:6px; background:#e5e7eb; color:#6b7280; border-radius:6px; padding:1px 8px; font-size:11px; font-weight:bold; vertical-align:middle; }
     .wabun1-archive-japanese { background:#fff7ed; border:1px solid #fb923c; border-radius:6px; padding:6px 10px; margin:4px 0 4px 1.5em; font-size:13px; line-height:1.7; color:#7c2d12; font-weight:600; }
     .wabun1-archive-skip-note { color:#dc2626; font-weight:bold; font-size:12px; line-height:1.6; margin-top:8px; }
     .wabun1-wordlist { background:#f0fdf4; border-radius:12px; padding:12px 16px; border-left:4px solid #10b981; margin-bottom:10px; }
@@ -2233,7 +2242,7 @@
   // =============================================
   // 和文英訳①
   // =============================================
-  var _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false };
+  var _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false, skipApplied: false };
   var _WABUN1_WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
 
   function _wabun1Esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -2248,8 +2257,9 @@
     return m[1] + '年' + Number(m[2]) + '月' + Number(m[3]) + '日（' + _WABUN1_WEEKDAYS_JP[d.getDay()] + '）';
   }
   // OCR テキストからタスク番号が全て検出できるかチェック
+  // skipNums: スキップ済みの番号は要求しない（写真にもOCR結果にも含まれていなくて良い）
   var _WABUN1_FW_DIGITS = {'１':'1','２':'2','３':'3','４':'4'};
-  function _wabun1CheckNumbers(text, expectedCount) {
+  function _wabun1CheckNumbers(text, expectedCount, skipNums) {
     if (!text) return { ok: false, missing: [] };
     var t = '\n' + String(text);
     var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?:[.．,、)）]|(?=\s)))\s*/g;
@@ -2260,13 +2270,15 @@
       var no = Number(_WABUN1_FW_DIGITS[raw] || raw);
       if (no >= 1 && no <= 4) found[no] = true;
     }
+    var skipSet = {};
+    (skipNums || []).forEach(function(n){ skipSet[n] = true; });
     var missing = [];
-    for (var i = 1; i <= expectedCount; i++) { if (!found[i]) missing.push(i); }
+    for (var i = 1; i <= expectedCount; i++) { if (skipSet[i]) continue; if (!found[i]) missing.push(i); }
     return { ok: missing.length === 0, missing: missing };
   }
 
   function showWabun1Topic() {
-    _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false };
+    _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false, skipApplied: false };
     var bodyEl = document.getElementById('wabun1-topic-body');
     bodyEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     document.getElementById('wabun1-photo-preview').style.display = 'none';
@@ -2306,6 +2318,29 @@
       ? '<div class="wabun1-skip-note">' + _wabun1Esc(topic.skip_text) + '</div>'
       : '';
 
+    // 部分スキップ機能: topic.skip_questions に番号があれば「スキップする」ボタンを出す
+    var skipNums = Array.isArray(topic.skip_questions) ? topic.skip_questions : [];
+    var skipApplied = !!_wabun1State.skipApplied && skipNums.length > 0;
+    var skipSet = {};
+    if (skipApplied) skipNums.forEach(function(n){ skipSet[n] = true; });
+
+    var skipActionHtml = '';
+    if (skipNums.length > 0) {
+      var nosLabel = skipNums.join('・') + '番';
+      if (!skipApplied) {
+        skipActionHtml =
+          '<div class="wabun1-skip-action">' +
+            '<button class="wabun1-skip-btn" onclick="applyWabun1Skip()">⊘ ' + _wabun1Esc(nosLabel) + ' をスキップする</button>' +
+          '</div>';
+      } else {
+        skipActionHtml =
+          '<div class="wabun1-skip-action">' +
+            '<div class="wabun1-skip-status">⊘ <strong>' + _wabun1Esc(nosLabel) + '</strong> をスキップ中。提出時はこの番号を空欄でも OK。</div>' +
+            '<button class="wabun1-skip-btn cancel" onclick="cancelWabun1Skip()">スキップを解除する</button>' +
+          '</div>';
+      }
+    }
+
     var japaneseText = topic.japanese_text || '';
     var tasksHtml = '<div class="wabun1-section-title">【今日の問題】</div>' +
       '<div class="wabun1-task-list">' +
@@ -2313,9 +2348,12 @@
           var jpHtml = (t.no === 1 && japaneseText)
             ? '<div class="wabun1-japanese">' + _wabun1RenderText(japaneseText) + '</div>'
             : '';
-          return '<div class="wabun1-task"><span class="wabun1-task-no">' + t.no + '.</span><span class="wabun1-task-text">' + _wabun1RenderText(t.text) + '</span></div>' + jpHtml;
+          var taskCls = skipSet[t.no] ? 'wabun1-task skipped' : 'wabun1-task';
+          var skipTag = skipSet[t.no] ? '<span class="wabun1-task-skipped-tag">これはやらない</span>' : '';
+          return '<div class="' + taskCls + '"><span class="wabun1-task-no">' + t.no + '.</span><span class="wabun1-task-text">' + _wabun1RenderText(t.text) + skipTag + '</span></div>' + jpHtml;
         }).join('') +
         skipNoteHtml +
+        skipActionHtml +
       '</div>';
 
     var wordListHtml = '';
@@ -2330,6 +2368,24 @@
       '<button class="btn-wide wabun1-submit-big" style="margin-top:18px" onclick="document.getElementById(\'wabun1-photo-input\').click()">📸 写真を撮って提出する</button>';
 
     bodyEl.innerHTML = warningHtml + tasksHtml + wordListHtml + submitHtml;
+  }
+
+  // 部分スキップの ON / OFF（topic.skip_questions に番号がある日のみ機能する）
+  function applyWabun1Skip() {
+    var topic = _wabun1State.topic;
+    if (!topic || !Array.isArray(topic.skip_questions) || topic.skip_questions.length === 0) return;
+    _wabun1State.skipApplied = true;
+    _renderWabun1Topic();
+  }
+  function cancelWabun1Skip() {
+    _wabun1State.skipApplied = false;
+    _renderWabun1Topic();
+  }
+  function _wabun1AppliedSkipNums() {
+    var topic = _wabun1State.topic;
+    if (!_wabun1State.skipApplied) return [];
+    if (!topic || !Array.isArray(topic.skip_questions)) return [];
+    return topic.skip_questions.slice();
   }
 
   function onWabun1PhotoSelected(event) {
@@ -2364,7 +2420,8 @@
       }
       var ocrText = String(response.fullTextAnnotation.text || '').trim();
       var expected = (_wabun1State.topic && _wabun1State.topic.tasks) ? _wabun1State.topic.tasks.length : 0;
-      var chk = _wabun1CheckNumbers(ocrText, expected);
+      var skipNumsForCheck = _wabun1AppliedSkipNums();
+      var chk = _wabun1CheckNumbers(ocrText, expected, skipNumsForCheck);
       if (!chk.ok) {
         var missingStr = chk.missing.map(function(n){ return n + '.'; }).join(' ');
         showMsg('wabun1-camera-msg', '⚠️ 問題番号（' + missingStr + '）が見つかりませんでした。番号を書いて再度撮影してください。', 'ng');
@@ -2418,7 +2475,9 @@
     _showWabun1Grading();
     _pendingRetry = function(){ _wabun1State.submitting = false; submitWabun1Answer(); };
     _pendingDismiss = function(){ btn.disabled = false; };
-    gasGet({ action:'submitWabun1', studentId:_studentId, workText:_wabun1State.ocrText }).then(function(res){
+    var skipNums = _wabun1AppliedSkipNums();
+    var skipParam = skipNums.length > 0 ? JSON.stringify(skipNums) : '';
+    gasGet({ action:'submitWabun1', studentId:_studentId, workText:_wabun1State.ocrText, skipQuestions: skipParam }).then(function(res){
       _hideWabun1Grading();
       _wabun1State.submitting = false;
       if (!res || !res.ok) {
@@ -2472,10 +2531,14 @@
       try { playSfx('chime'); } catch(e){}
     } else {
       var items = (res.results || []).map(function(r){
-        var mark = r.correct ? '✅ 正解' : '❌ 不正解';
-        return '<div class="wabun1-result-item ' + (r.correct ? 'ok' : 'ng') + '">' + r.no + '. ' + mark + '</div>';
+        var mark;
+        var cls;
+        if (r.skipped)      { mark = '⊘ スキップ'; cls = 'ok'; }
+        else if (r.correct) { mark = '✅ 正解';     cls = 'ok'; }
+        else                { mark = '❌ 不正解';   cls = 'ng'; }
+        return '<div class="wabun1-result-item ' + cls + '">' + r.no + '. ' + mark + '</div>';
       }).join('');
-      var wrongs = (res.results || []).filter(function(r){ return !r.correct; }).map(function(r){ return 'タスク' + r.no; }).join('、');
+      var wrongs = (res.results || []).filter(function(r){ return !r.correct && !r.skipped; }).map(function(r){ return 'タスク' + r.no; }).join('、');
       var hint = wrongs ? '<div class="wabun1-result-again">' + _wabun1Esc(wrongs) + 'をもう一度考えてみよう。</div>' : '';
       bodyEl.innerHTML =
         '<div class="wabun1-result-partial">' +
