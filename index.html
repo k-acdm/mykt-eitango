@@ -223,7 +223,12 @@
     .content-btn.c-sango     { background: linear-gradient(135deg,#ffcb77,#fe6d73); }
     .content-btn.c-wabun1    { background: linear-gradient(135deg,#b28dff,#7c4fff); }
     .content-btn.c-wabun2    { background: linear-gradient(135deg,#f093fb,#f5576c); }
-    .content-btn.c-listening { background: linear-gradient(135deg,#1e3c72,#2a5298); grid-column: span 2; }
+    .content-btn.c-lison     { background: linear-gradient(135deg,#1e3c72,#2a5298); }
+    .content-btn.c-himitsu   { background: linear-gradient(135deg,#5b21b6,#1e1b4b); position:relative; overflow:hidden; }
+    .content-btn.c-himitsu::before { content:"✨"; position:absolute; top:6px; left:8px; font-size:14px; opacity:.85; pointer-events:none; }
+    .content-btn.c-himitsu::after  { content:"✨"; position:absolute; bottom:6px; right:8px; font-size:14px; opacity:.85; pointer-events:none; }
+    .content-btn.c-himitsu .content-btn-sub-equal { display:block; font-size:16px; font-weight:bold; opacity:.95; margin-top:6px; letter-spacing:.3px; }
+    @media (max-width: 480px) { .content-btn.c-himitsu .content-btn-sub-equal { font-size:14px; } }
     .content-btn.c-math      { background: linear-gradient(135deg,#4fc3f7,#2979ff); }
     .content-btn.c-kanji     { background: linear-gradient(135deg,#ff8a8a,#c92a2a); }
     .content-btn.c-social    { background: linear-gradient(135deg,#96e072,#2ecc71); }
@@ -649,18 +654,15 @@
           <span class="badge-soon">準備中</span>
           <span class="ico">📗</span>和文英訳②
         </button>
-        <button class="content-btn c-listening disabled" onclick="showComingSoon('英語長文リスニング＆音読')">
-          <span class="badge-soon">準備中</span>
-          <span class="ico">🎧</span>英語長文リスニング＆音読
-        </button>
         <button class="content-btn c-math" onclick="showKisoRankSelect()">
           <span class="badge-hp">50〜100HP/セット</span>
           <span class="ico">🧮</span>基礎計算
           <span class="content-btn-sub">小学校高学年〜中学生</span>
         </button>
-        <button class="content-btn c-kanji disabled" onclick="showComingSoon('漢字')">
+        <button class="content-btn c-lison disabled" onclick="showComingSoon('英語リスオン')">
           <span class="badge-soon">準備中</span>
-          <span class="ico">🖌️</span>漢字
+          <span class="ico">🎧</span>英語リスオン
+          <span class="content-btn-sub">英語長文リスニング＆音読</span>
         </button>
         <button class="content-btn c-social disabled" onclick="showComingSoon('社会の重要用語')">
           <span class="badge-soon">準備中</span>
@@ -669,6 +671,14 @@
         <button class="content-btn c-science disabled" onclick="showComingSoon('理科の重要用語')">
           <span class="badge-soon">準備中</span>
           <span class="ico">🔬</span>理科の重要用語
+        </button>
+        <button class="content-btn c-kanji disabled" onclick="showComingSoon('漢字')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">🖌️</span>漢字
+        </button>
+        <button class="content-btn c-himitsu" onclick="showHimitsuDoor()">
+          <span class="ico">🚪</span>秘密の扉
+          <span class="content-btn-sub-equal">（近日公開、お楽しみに！）</span>
         </button>
       </div>
     </div>
@@ -1612,6 +1622,7 @@
   function selectLevel(level) { _level = level; showToday(); }
   function showComingSoonLevel(name) { alert('英検' + name + 'レベルは現在準備中です。もうしばらくお待ちください！'); }
   function showComingSoon(name) { alert(name + ' は現在準備中です。もうしばらくお待ちください！'); }
+  function showHimitsuDoor() { alert('🚪 秘密の扉はまだ閉じています…\n近日公開、お楽しみに！'); }
   function showToday() {
     document.getElementById('today-student').textContent = _studentId + ' さん';
     document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';
