@@ -224,6 +224,9 @@
     .content-btn.c-wabun1    { background: linear-gradient(135deg,#b28dff,#7c4fff); }
     .content-btn.c-wabun2    { background: linear-gradient(135deg,#f093fb,#f5576c); }
     .content-btn.c-lison     { background: linear-gradient(135deg,#1e3c72,#2a5298); }
+    .content-btn .ico-mascot { display:block; width:auto; height:48px; margin:0 auto 6px; object-fit:contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); transition: transform .2s; }
+    .content-btn:not(.disabled):hover .ico-mascot { transform: scale(1.06); }
+    @media (max-width: 480px) { .content-btn .ico-mascot { height:40px; } }
     .content-btn.c-himitsu   { background: linear-gradient(135deg,#5b21b6,#1e1b4b); position:relative; overflow:hidden; }
     .content-btn.c-himitsu::before { content:"✨"; position:absolute; top:6px; left:8px; font-size:14px; opacity:.85; pointer-events:none; }
     .content-btn.c-himitsu::after  { content:"✨"; position:absolute; bottom:6px; right:8px; font-size:14px; opacity:.85; pointer-events:none; }
@@ -661,7 +664,7 @@
         </button>
         <button class="content-btn c-lison disabled" onclick="showComingSoon('英語リスオン')">
           <span class="badge-soon">準備中</span>
-          <span class="ico">🎧</span>英語リスオン
+          <img class="ico-mascot" src="images/lison-icon.png" alt="">英語リスオン
           <span class="content-btn-sub">英語長文リスニング＆音読</span>
         </button>
         <button class="content-btn c-social disabled" onclick="showComingSoon('社会の重要用語')">
