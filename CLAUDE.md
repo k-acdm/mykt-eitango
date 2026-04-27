@@ -1147,6 +1147,213 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - **完了後**: ふくちさんが Excel から問題データを管理画面に貼り付けて投入 → 4/27 月曜の実運用開始
 - **その後**: Phase 4 着手（`docs/基礎計算_Phase4_着手プロンプト集.md` の Phase 4-1 から）
 
+#### 91. 自宅PC 移行 + 和文英訳① 新仕様実装着手
+- **環境**: 自宅PC に Python 3.14.4 を新規インストール（PATH 追加済）。塾PC からの引き継ぎ作業は #90 の手順通り
+- **worktree 整理**: ステール dev worktree `cranky-shockley-6bcc54`（origin/dev より 8 コミット遅れ / 未コミット無し）を `git worktree remove`。stale branch `claude/cranky-shockley-6bcc54` も `git branch -d`
+- 現 worktree `thirsty-vaughan-7efe2d` を dev に切替、`origin/dev` から 16 コミット fast-forward で取り込み（#80-90 分）
+
+#### 92. 和文英訳① データ仕様変更 v2.0：13 列構造実装（dev `4676e28` → main `04c7018`）
+- **背景**: ふくちさんが再設計した Excel テンプレート（4列：曜日/種別/内容/補助列）を「A〜C 列だけコピペ」で投入できる運用に切替。詳細は [docs/和文英訳①_新仕様変更_v2.md](docs/和文英訳①_新仕様変更_v2.md)
+- **`Wabun1Topics` 13 列構造に再設計**:
+  - 旧 15 列（task1〜4 / answer1〜4 / skip1〜4 / word_list ほか）→ 新 13 列：`date | week_no | task1 | japanese_text | task2 | task3 | task4 | skip_text | word_list | answer1〜4`
+  - **task1 から `japanese_text` を独立列として分離**（指示文と日本文の視認性向上）
+  - **`skip1`〜`skip4` を `skip_text` に統合**（番号区別なし、1日1メッセージ）
+- **GAS 側 ([gas/Code.js](gas/Code.js))** 実装変更:
+  - `_wabun1HeaderIndices` / `_wabun1RowToObj` ヘルパーを新設し、`_readWabun1TopicsByDate` / `_readWabun1TopicsByDateRange` をヘッダー駆動に統合（DRY 化）
+  - `getWabun1Topic` / `_buildWabun1TopicsByDate` のレスポンスに `japanese_text` / `skip_text` を含める
+  - `_wabun1NormalizeKind` を新設し、`adminAddWabun1TopicsWeek` を新仕様で書き直し
+    - 種別の許容を拡張：`日本文` / `スキップ`（番号省略可、`スキップ1`〜`スキップ4` も可）+ 全角数字（`問題１`/`正解１`/`スキップ１`）の半角化
+    - **同一 `date` の行があれば setValues で上書き、なければ末尾に追加**（部分投入を許容）
+  - 旧 `skip1`〜`skip4` 列が残っているシートに対しても下位互換ロジック（最初に値があるものを skipText に採用）
+- **管理画面 ([admin.html](admin.html))**:
+  - `WABUN1_VALID_KINDS` の固定配列廃止 → フロント側にも `_wabun1NormalizeKind` を追加してパース時に正規化（GAS 側と同じ regex で同期）
+  - プレビュー表に「日本文」「スキップ」列を新設（単一カラム集計）、`日本文` 未入力曜日は赤字警告
+  - placeholder / 注意書きを 4/27 サンプルデータベースに刷新
+- **生徒画面 ([index.html](index.html))**:
+  - `_renderWabun1Topic` で task1 の指示文の直下に「日本文」を独立ボックス（暖色枠 `.wabun1-japanese`）で表示
+  - `skip_text` は問題リスト先頭に**1 箇所のバナー**（`.wabun1-skip-banner`、赤系）で統一表示。旧の per-task `t.skip` 表示を削除
+  - 過去の問題画面 (`_renderWabun1PastDateBlock`) と archive 画面 (`_renderWabun1ArchiveDateBlock`) も同設計に追従
+- **動作確認**: 仕様書 §3.3 サンプル TSV を Node.js で admin.parse → GAS.buildRows まで通し、13 列の正しい順序で出力されること、全角数字・スキップ番号有無の正規化が機能することを確認
+- **採点ロジック**: `submitWabun1` は `topic.tasks` / `topic.answers` を参照しているだけのため変更不要
+
+#### 93. 和文英訳①：一括登録の 400 Bad Request 緊急修正（dev `ee6cccb` → main `04c7018`）
+- **事象**: ふくちさんが 4/27〜5/3 の 7 日分（89 行）を貼り付けて「一括登録する」を押すと **400 Bad Request**
+- **真因**: `gasGet` は `fetch(URL?params=...)` で送るが、items 配列を含む JSON が encodeURIComponent 後に **Apps Script Web App の URL 長制限（およそ 8KB）を超過**してリクエストが拒否される
+- **修正**:
+  - **GAS 側 ([gas/Code.js](gas/Code.js))**: `doPost` のディスパッチ分岐に `adminAddWabun1TopicsWeek` を追加（既存 `submitPhoto` と同パターン、`JSON.parse(e.postData.contents)` で受ける）
+  - **管理画面 ([admin.html](admin.html))**: `gasPost(params)` ヘルパーを新設、`submitWabun1Paste` の送信を `gasGet` → `gasPost` に切替
+  - **CORS 対策**: `Content-Type: text/plain;charset=utf-8` で送ることで CORS preflight (`OPTIONS`) を発生させず simple request の範疇に収める。Apps Script は preflight に応答しないためこれが唯一の手段
+- **波及検討（今回スコープ外）**: 三語短文 `adminAddSangoTopicsWeek` も 4 レベル × 7 日 = 28 件で 7000 字超え得る既知リスク（CLAUDE.md #13 / #16）。現在は問題ない規模で運用中だが、将来 400 が再発したら同じ POST パターンで対応可能
+
+#### 94. 4/27〜5/3 の問題データ投入完了 ★クライマックス
+- ふくちさんが新仕様 13 列の `Wabun1Topics` シートを再構築（旧データ全削除 → 新ヘッダー入力）
+- `cd gas && clasp push` → GAS エディタで新バージョンデプロイ
+- 管理画面で 7 日分（月〜日）の TSV を貼り付け → POST 経由で正常投入完了。スプレッドシートに 7 行確認
+- **4/27（月）からの実運用準備完了**
+
+#### 95. 本日全体の累計成果（塾PC + 自宅PC）
+- 基礎計算 仕様書 v1.0 → v1.4
+- 基礎計算 Phase 1+2 完全完了（20級・600 問）+ DESIGN_PRINCIPLES.md 体系化
+- Phase 4 調査レポート + 着手プロンプト集
+- 英語長文リスニング&音読 仕様書 v0.7
+- HPLog rawHP カラム追加 + 既存 4 関数シグネチャ統一（本番反映済み）
+- 和文英訳① 13 列構造実装 + doPost 切替 + 本番投入完了
+
+#### 96. 次回再開時の手順
+- **PowerShell で Claude Code 起動前に以下を実行**（ふくちさんの手動操作 worktree も dev に揃え、Claude Code とのズレを防ぐ）:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- **次回主要タスク**: 基礎計算 Phase 4-1（基盤整備、所要 60〜90 分）
+- [docs/基礎計算_Phase4_着手プロンプト集.md](docs/基礎計算_Phase4_着手プロンプト集.md) の §Phase 4-1 セクションをコピーして Claude Code に投げる
+- 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
+
+### 2026-04-26 夜〜2026-04-27 早朝（マラソンセッション：連続日数バグ復旧 + 基礎計算実装完走）
+
+朝の保護者からの問い合わせ「29日連続が1日に戻っている」を起点に、原因究明 → 復旧 → 教育日システム導入 → 自動バックアップ → お詫び付与までを終え、同夜のうちに基礎計算コンテンツの実装フルセット（Phase 4〜7 のうち事前実装可能分）を完了。コミット 10 件超・約 3000 行のコード変更。
+
+#### 97. 連続日数バグ：原因究明 + 一括復旧（dev `bc1037f` / `6118ec7` / `d4f54bf`）
+- **事象**: 朝、保護者から「29 日連続だったのが 1 日に戻っている」との問い合わせ。13 名の生徒で `Students.STREAK` が異常リセット。手動修正一切なし。保護者・生徒に一斉告知済み（本日中復旧を約束）
+- **真因（深夜特定）**: [gas/Code.js](gas/Code.js) の `_toDateStr` 正規表現 `/^\d{4}-\d{2}-\d{2}/` に末尾アンカー `$` がなく、ISO 8601 datetime 文字列にもマッチして UTC 日付の先頭 10 文字を slice していた
+- **発動経路**: 4/24 commit `e6d8398`（Day 2 Stage 2）で導入された Students キャッシュが Date を `JSON.stringify` するため、`LAST_LOGIN` セルが Date 自動フォーマットされた生徒のみ「JST 0:00 → UTC で前日 15:00」のズレが入り、cache 経由読み取り時に 1 日前の日付が返る → `missedDays = 2` 誤判定 → `streak = 1` リセット → `saveAttempt` の setValues が STREAK 列に `preservedStreak = 1` を書き戻して永続化
+- **修正コミット 3 件**:
+  1. `bc1037f` 原因分析レポート [docs/連続日数バグ_原因分析_2026-04-26.md](docs/連続日数バグ_原因分析_2026-04-26.md)
+  2. `6118ec7` `recoverAllStudentsStreak({dryRun})` 関数を新設（HPLog `type='login'` から再計算）
+  3. `d4f54bf` `_toDateStr` の正規表現修正 + `loginStudent` / `saveAttempt` の setValues 範囲を分割（STREAK / LAST_TEST 列を「保持書き込み」する経路を排除し責務分離）
+
+#### 98. 自動バックアップ機能（dev `87bb59b`）
+- **目的**: 同種の事故時に即時復旧できる体制づくり
+- **実装関数**: `runDailyBackup()` / `_ensureBackupFolder()` / `_cleanupOldBackups()` / `_ensureBackupLogSheet()` / `_logBackup()` / `listBackups()`
+- **動作**: スプレッドシート全体を Drive 「マイ活_バックアップ」フォルダに `mykt-eitango-backup_YYYY-MM-DD` でコピー、30 日超は自動ゴミ箱送り、BackupLog シートに記録
+- **Time-based Trigger**: 毎日 02:00〜03:00（手動設定済み）
+
+#### 99. recoverAllStudentsStreak v2 + 4:00 AM 教育日システム（dev `b0c88fd`）
+- **dryRun の漏れ被害者発見**: 24009 岩倉、23030 髙山が初版 recovery で漏れた → `Attempts` に記録があるのに HPLog `type='login'` が無い日があると判明
+- **仕様変更**: ふくち判断「アプリはログインしないとテストはできない」→ HPLog の他 type と Attempts も「ログイン日」シグナルとして採用する multi-source 化
+- **戻り値拡張**: `activeDays` / `lastActiveDate` / `loginDays` / `fallbackOnlyDays` を追加
+- **`diagnoseStudentActivity(studentId, days)`**: 個別生徒の HPLog/Attempts を時系列で抽出する診断ツールを新設
+- **4:00 AM 教育日システム**: `_todayEducationalJST()` / `_yesterdayEducationalJST()` を新設、**2026-04-27 00:00 JST から発動**
+  - JST 04:00 区切りで「1 日」を判定 → 深夜跨ぎの再ログインで連続日数が壊れない
+  - cutover 前は `_todayJST()` と完全互換、cutover 後のみ JST hour < 4 で前日扱い
+  - `loginStudent` / `saveAttempt` / `getTodaysSet` / `_getYesterdayJST` を切替（`_sangoToday` / `runDailyBackup` / `_getLastWeekRange` / `recoverAllStudentsStreak` は明示維持）
+- **本番復旧結果**: 13 名の連続日数を正しい値に復旧
+
+#### 100. お詫び連続日数 +1（dev `d620abd` → `2a3b620` で対象範囲修正）
+- **`apologyStreakBonus(opts)`**: HPLog に `type='apology_streak_bonus'` で 6 列レコード（`message='連続日数+1のお詫び付与'`）+ Students.STREAK +1
+- **対象判定の修正**: 旧（ニックネーム空欄を除外）→ 新（生徒IDが空欄でない全員）。ふくち方針「+1 を生かすかは生徒次第」
+- **冪等性ガード**: `apology_streak_bonus_executed_2026_04_27` フラグで 2 回目以降は `force:true` でないとブロック
+- **本番実行結果**: **65 名の STREAK が +1**（4/27 早朝、生徒ログイン前に実行）
+- **告知**: 朝 LINE で生徒・保護者に予約送信済み
+
+#### 101. 基礎計算 Phase 4-1 — 基盤整備＋600 問 DB 投入＋Drive 権限追加（dev `b2e35c4` / `f3075f3`）
+- **シート整備**: `KisoQuestions` / `KisoSessions` / `KisoPhotos` の 3 シートを `ensureKisoSheets()` で自動作成（ヘッダー + 最低行数保証）
+- **`appsscript.json`**: `oauthScopes` に `https://www.googleapis.com/auth/drive` 追加、既存 4 スコープも明示宣言
+- **600 問投入**: Phase 1+2 で生成済 20 級 × 30 問を `KisoQuestions` シートへ。`scripts/generate_kiso_questions/common/db_writer.py` を新設（gspread + Service Account JSON 認証）
+  - 認証情報: `mykt-eitango-writer.json` を `C:\Users\Manager\Documents\gcp-credentials\` に配置（自宅PC 側のみ）
+  - 環境変数 `KISO_GSPREAD_CREDENTIALS` / `KISO_SPREADSHEET_ID` で渡す（手順は [SETUP_DB_WRITER.md](scripts/generate_kiso_questions/SETUP_DB_WRITER.md)）
+- **`f3075f3`**: 一発目の投入で `Range exceeds grid limits` エラー発生 → `_ensureSheetWithHeaders` に `minRows` 引数追加 + db_writer 側にも `_ensure_sheet_capacity` 追加（defense in depth）
+
+#### 102. 基礎計算 Phase 4-2 — コア API（dev `c6ca4be`）
+- **3 公開 API**: `startKisoSession(studentId, rank, count)` / `getKisoRetryQuestions(sessionId)` / `submitKisoAnswer(sessionId, imageBase64)`
+- **採点ヘルパー**:
+  - `_kisoNormalize(s)`: 全角→半角、各種マイナス、`√n`→`\sqrt{n}` 等
+  - `_kisoCheckStrictForm(text)`: 既約分数（gcd=1）、square-free な平方根、有理化済みのみ受理
+  - `_kisoSplitByQuestionNumbers(text, count)`: ①〜⑩ / (1)〜(10) / 1. などで分割
+  - `_kisoMatchAnswer(studentRaw, allowedJson)`: 正規化 → 厳格チェック → allowed 全要素と完全一致比較
+- **データアクセス**: `_getKisoQuestionRowsForRank(rank)` 級別キャッシュ + `_kisoTodayRawHP(sid)` で 1 日の素点上限判定
+- **schema migration**: `KISO_SESSIONS_HEADERS` に `wrongIds` 列追加、`_ensureSheetWithHeaders` に「ヘッダー欠損時の末尾追記」ロジック追加
+- **Node.js で 40 件のテスト全 PASS**: 正規化 / 既約性 / 番号分割
+
+#### 103. 基礎計算 Phase 4-3 — Drive 連携完成（dev `fe5f798`）
+- **Drive 連携**:
+  - ルート: `マイ活_基礎計算_答案写真`、年月サブフォルダ: `YYYY-MM/`
+  - ファイル名: `{studentId}_{rank}_{sessionId}.jpg`
+  - `_ensureKisoPhotoFolder(yearMonth)` / `_saveKisoPhoto(...)` / `_deleteKisoPhoto(driveFileId)`
+- **`_saveKisoPhoto` を Phase 4-2 stub から本実装に置換**: `submitKisoAnswer` の初回提出経路から自動的に保存される
+- **`getKisoPhotosList(params)`**: 管理画面用、認証必須。`studentId` 指定なしで生徒一覧サマリ、ありで写真詳細リスト。サムネ・viewUrl も導出
+- **`cleanupKisoPhotos(opts)`**: 日次クリーンアップ。`deleteAfter <= today` の行を Drive 削除 + シート行削除。`dryRun` 対応
+- **Time-based Trigger**: 毎日 03:00〜04:00（手動設定済み、バックアップ 02:00-03:00 と教育日切替 04:00 の合間）
+
+#### 104. 基礎計算 Phase 5 — 生徒画面実装（dev `5a0d5f5` → `caaeb34` で文言調整）
+- **MathJax v3 CDN 読み込み**: `startup.typeset=false` で手動制御、`MathJax.typesetPromise()` で動的描画
+- **ホーム画面**: 「基礎計算」プレースホルダ → 稼働中カードに切替（バッジ「50〜100HP/セット」、サブ「小学校高学年〜中学生」）
+- **新規 6 画面**:
+  - `screen-kiso-rank` 級選択（20 級を 4 区分セクション分け）
+  - `screen-kiso-count` 問題数選択
+  - `screen-kiso-problem` 問題表示（MathJax）
+  - `screen-kiso-confirm` 撮影確認
+  - `screen-kiso-result` 採点結果（合格/不合格、⭕❌リスト）
+  - `screen-kiso-done` HP獲得 / 練習完了（紙吹雪 + カウントアップ + chime）
+- **写真処理**: 長辺 1600px / JPEG 0.8 にリサイズ → base64 → `gasPost('submitKisoAnswer', ...)`
+- **練習モード**: `hpInfo.isPractice === true` で「練習完了」演出（HP 表示なし、chime のみ）
+- **`caaeb34` で 3 修正**: 級選択画面の最上部に教育的赤太字メッセージ「自分に必要だと思うものをやりましょう。先生がアドバイスする場合もあります。」追加 + 級バッジ削除 + 注意書き文言更新
+
+#### 105. 基礎計算 Phase 6 — 管理画面（dev `d2bd073`）
+- **ダッシュボードに 4 つ目のカード追加**: 「📷 基礎計算・答案写真」
+- **新規 2 画面**:
+  - `screen-admin-kiso-students` 生徒一覧（仕様書 §5.3、表形式：生徒ID / 氏名 / 写真枚数 / 最新提出日時 / 最早削除予定日）
+  - `screen-admin-kiso-photos` 生徒別写真詳細（仕様書 §5.4、カードグリッド：サムネ / 級 / 問題数 / ステータス / 提出日時 / 削除予定日 / 拡大ボタン）
+- **削除予定日ラベル**: 残 3 日以下は赤太字、0 日「（本日削除）」、負「（期限超過）」
+- **拡大表示**: `window.open(p.viewUrl, '_blank')` で Drive UI に遷移（仕様書 §5.5）
+
+#### 106. 基礎計算 Phase 7 — 事前実装可能分（dev `1a1054a`）
+仕様書 §9.7 のチェックリスト 14 項目のうち、実機テスト前に事前実装できる 2 件を完成：
+- **B-1：問題数選択画面の動的 HP 上限案内**（仕様書 §4.3 後半）
+  - GAS 新 API `getKisoTodayRawHP(params)` 公開（`_kisoTodayRawHP` ラップ）
+  - フロント `_renderKisoCountNotice(res)` で 3 状態切替: 0-49（緑通常）/ 50-99（黄警告「あと N HP」）/ 100（紫上限到達）
+- **B-2：OCR 信頼度低時の再撮影誘導**（仕様書 §7.6 ケース 4 / §7.7）
+  - `KISO_OCR_CONFIDENCE_THRESHOLD = 0.6`（実機テスト後の微調整は **この 1 行だけ** を書き換え）
+  - `_kisoAverageOcrConfidence(fullAnno)` で symbol レベルの confidence 平均を算出
+  - `submitKisoAnswer` 内で閾値未満なら `{ ok:false, retake:true, avgConfidence, threshold, message }` を返却（採点処理スキップ、KisoSessions の attempts は増やさない）
+  - フロント側は Phase 5 で `res.retake === true` ハンドリング実装済み → 変更不要
+
+#### 107. 和文英訳① 表示修正（dev `af67613`）
+- スキップ注意の表示位置を「問題1 の上」→「問題4 の下」に移動
+- スタイルを「⚠️ ラベル + ピンク枠 + 背景色」→「シンプルな赤太字（枠なし）」に
+- 3 画面（今日の問題 / 過去の問題 / アーカイブ）で一貫修正
+- 4/27 本番運用開始の準備として実施
+
+#### 108. ブログ第4回「ある朝、お母さんから一通のメッセージが届いた」完成
+- 連続日数バグの保護者問い合わせから始まる本日の対応を物語化
+- ブログ系の作業は CLAUDE.md 管轄外（リポジトリには含めない）
+
+#### 109. 本日の累計成果
+- **コミット 10+ 件、約 3000 行のコード変更**
+- **緊急対応 3 件**: 連続日数バグ原因究明 + 復旧 + 4:00 AM 教育日 + お詫び +1（65 名）
+- **新コンテンツ完全実装**: 基礎計算（Phase 4-1〜Phase 7 B-1/B-2 まで）
+- **インフラ強化**: 自動バックアップ機能、診断ツール `diagnoseStudentActivity`、`recoverAllStudentsStreak` v2
+
+#### 110. 4/27 朝のふくちさん側の作業
+- 朝の LINE 告知（予約送信済み）への保護者・生徒の反応に対応
+- 塾で生徒に基礎計算を試してもらう（仕様書 §9.7 のチェックリスト 14 項目を実機確認）
+- 必要なら OCR 閾値（`KISO_OCR_CONFIDENCE_THRESHOLD = 0.6`）の微調整
+
+#### 111. 明日中の作業（塾PC のセットアップ）
+- JSON ファイル `mykt-eitango-writer.json` を USB 等で塾PC にコピー
+- `C:\Users\Manager\Documents\gcp-credentials\mykt-eitango-writer.json` に配置
+- Python パッケージインストール:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango\scripts\generate_kiso_questions
+  python -m pip install -r requirements.txt
+  ```
+- 環境変数の恒久設定（`KISO_GSPREAD_CREDENTIALS` / `KISO_SPREADSHEET_ID`）
+
+#### 112. 次回開発再開時の主要タスク
+- **基礎計算の実機テスト結果を踏まえた微調整**（Phase 7 残：仕様書 §9.7 のチェックリスト確認）
+- **リスニング&音読コンテンツの実装着手**（仕様書 [docs/英語長文リスニング_音読_仕様書.md](docs/英語長文リスニング_音読_仕様書.md) v0.7）
+- **基礎計算 Phase 3** も将来的に着手予定（D〜H 拡張、計約 1500 問に増量。`scripts/generate_kiso_questions/DESIGN_PRINCIPLES.md` の TODO_PHASE3 復活対象を必ず網羅）
+
+#### 113. 次回再開時の手順
+- **PowerShell で Claude Code 起動前に実行**:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
+
 ---
 
 ## TODO（未反映の GAS 側作業）

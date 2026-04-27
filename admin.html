@@ -141,6 +141,27 @@
   .child-history-empty { text-align: center; color: #888; font-size: 14px; padding: 24px 0; }
   .child-history-notice { background: #fffbe6; border-left: 4px solid #facc15; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; line-height: 1.7; color: #7a5b00; box-shadow: 0 1px 4px rgba(0,0,0,.03); }
 
+  /* 基礎計算・答案写真（Phase 6） */
+  .kiso-students-table .photos-count { font-weight: bold; color: #0369a1; }
+  .kiso-students-table .photos-count.zero { color: #9ca3af; font-weight: normal; }
+  .kiso-students-table .delete-soon { color: #dc2626; font-weight: bold; }
+  .kiso-students-table .delete-far { color: #6b7280; }
+  .kiso-photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .kiso-photo-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); overflow: hidden; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+  .kiso-photo-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(14,165,233,.18); }
+  .kiso-photo-thumb { width: 100%; aspect-ratio: 4/3; background: #f1f5f9 url('https://drive.google.com/favicon.ico') center no-repeat; background-size: 32px; display: block; object-fit: cover; }
+  .kiso-photo-info { padding: 10px 12px; }
+  .kiso-photo-rank { font-size: 14px; font-weight: bold; color: #0c4a6e; margin-bottom: 4px; }
+  .kiso-photo-meta { font-size: 12px; color: #64748b; line-height: 1.7; }
+  .kiso-photo-meta .status-pass { color: #059669; font-weight: bold; }
+  .kiso-photo-meta .status-fail { color: #b45309; }
+  .kiso-photo-meta .status-progress { color: #2563eb; }
+  .kiso-photo-meta .status-other { color: #94a3b8; }
+  .kiso-photo-meta .delete-soon { color: #dc2626; font-weight: bold; }
+  .kiso-photo-actions { padding: 0 12px 12px; }
+  .kiso-photo-open-btn { width: 100%; padding: 8px; background: linear-gradient(135deg, #0ea5e9, #0369a1); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; }
+  .kiso-photo-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; background: #fff; border-radius: 12px; }
+
   @media (max-width: 480px) {
     #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
@@ -200,6 +221,11 @@
       <div class="dashboard-card-icon">🏆</div>
       <div class="dashboard-card-title">週間HPランキング</div>
       <div class="dashboard-card-desc">週間ランキングの確認・画像保存</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminKisoStudents()">
+      <div class="dashboard-card-icon">📷</div>
+      <div class="dashboard-card-title">基礎計算・答案写真</div>
+      <div class="dashboard-card-desc">生徒が提出した答案写真を確認（保存期間 15 日）</div>
     </button>
   </div>
 </div>
@@ -300,6 +326,41 @@
   </div>
 </div>
 
+<!-- 基礎計算・答案写真：生徒一覧（仕様書 §5.3） -->
+<div id="screen-admin-kiso-students" class="screen">
+  <header>
+    <h1>📷 基礎計算・答案写真</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <div class="page-lead">写真が保存されている生徒を一覧表示します。生徒名をクリックすると、その生徒の答案写真の詳細を確認できます。<br><span style="color:#94a3b8;font-size:13px">※ 写真の保存期間は <strong>提出日から 15 日</strong>。期限を過ぎた写真は自動削除されます。</span></div>
+    <div style="margin-bottom:12px">
+      <button type="button" class="submit-btn" style="padding:8px 14px;font-size:13px" onclick="loadKisoStudents()">🔄 最新データ取得</button>
+    </div>
+    <div id="kiso-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+  </div>
+</div>
+
+<!-- 基礎計算・答案写真：生徒別写真詳細（仕様書 §5.4） -->
+<div id="screen-admin-kiso-photos" class="screen">
+  <header>
+    <h1 id="kiso-photos-title">📷 答案写真</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKisoStudents()">← 生徒一覧に戻る</button>
+    <div class="page-lead">写真をクリックすると Google Drive で拡大表示されます。<br><span style="color:#94a3b8;font-size:13px">※ サムネが表示されない場合は Drive にログインしているブラウザで開いてください。</span></div>
+    <div id="kiso-photos-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -308,6 +369,18 @@
   function gasGet(params) {
     return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
       .then(function(r){ return r.json(); });
+  }
+
+  // 大量データ送信用（GAS doPost）。
+  // GAS の URL 長制限（およそ 8KB）を超えるリクエストは GET では 400 を返すため、
+  // 一括登録系は POST + body で送る。Content-Type を text/plain にしておくと
+  // CORS preflight が走らず Apps Script でも素直に受けられる。
+  function gasPost(params) {
+    return fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(params)
+    }).then(function(r){ return r.json(); });
   }
 
   // =============================================================
@@ -579,11 +652,12 @@
             '<input type="date" id="wabun1-paste-start" onchange="previewWabun1Paste()" />' +
           '</label>' +
           '<label><span class="label-text">Excelから貼り付け（3列 TSV：曜日／種別／内容）<span class="req">*</span></span>' +
-            '<textarea id="wabun1-paste-area" oninput="previewWabun1Paste()" placeholder="月\t問題1\t私たちはこの台所の中で...&#10;月\t問題2\t1で作った文を...&#10;月\tスキップ2\t一般動詞の否定文を...&#10;月\t単語\t台所 = kitchen&#10;月\t正解1\tWe cut onions together...&#10;火\t問題1\t..." style="min-height:260px;font-family: ui-monospace, Menlo, Consolas, monospace; font-size:13px; white-space:pre"></textarea>' +
+            '<textarea id="wabun1-paste-area" oninput="previewWabun1Paste()" placeholder="月\t問題1\t以下の日本文を英文の語順に並び替えなさい。&#10;月\t日本文\t私たちは毎年冬にこの山の中で大きな熊たちを捕まえます。&#10;月\t問題2\t1で作った日本文を英語に置き換えなさい。&#10;月\tスキップ\t一般動詞の否定文を塾でまだやってない人は…&#10;月\t単語\t毎年冬に = every winter&#10;月\t正解1\t私たちは　捕まえます　大きな熊たちを…&#10;火\t問題1\t..." style="min-height:260px;font-family: ui-monospace, Menlo, Consolas, monospace; font-size:13px; white-space:pre"></textarea>' +
           '</label>' +
           '<div style="font-size:12px;color:#666;margin:-8px 0 12px;line-height:1.7">' +
-            '種別：<code style="background:#f0f2f6;padding:2px 6px;border-radius:3px;font-size:12px">問題1〜4 / 正解1〜4 / スキップ1〜4 / 単語</code><br>' +
-            '正解や単語は後から追加登録も可。問題1 は必須。' +
+            '種別：<code style="background:#f0f2f6;padding:2px 6px;border-radius:3px;font-size:12px">問題1〜4 / 日本文 / 正解1〜4 / スキップ / 単語</code><br>' +
+            '全角数字（問題１・正解１…）も認識します。スキップは番号付き（スキップ1）でも OK。<br>' +
+            '正解や単語は後から追加登録も可。問題1 は必須。同じ日付に再投入すると上書きされます。' +
           '</div>' +
           '<div id="wabun1-paste-preview"></div>' +
           '<div style="margin-top:12px">' +
@@ -826,6 +900,157 @@
     _showScreen('screen-admin-child-archive');
     window.scrollTo(0, 0);
     loadAdminChildArchive();
+  }
+
+  // =============================================================
+  // 基礎計算・答案写真（Phase 6）
+  // =============================================================
+  // 仕様書 §2.1 の rank → name マップ（生徒画面 KISO_RANK_DEFS と同一）
+  var KISO_RANK_NAMES = {
+    20:'整数：四則混合',         19:'小数：足し算・引き算',     18:'小数：掛け算・割り算',
+    17:'小数：四則混合',         16:'分数：足し算・引き算',     15:'分数：掛け算・割り算',
+    14:'分数：四則混合',         13:'正負の数：足し算・引き算', 12:'正負の数：掛け算・割り算',
+    11:'正負の数：四則混合',     10:'単位・比・割合',           9:'式の計算：中1レベル',
+    8: '一次方程式・比例式',     7: '式の計算：中2レベル',       6:'連立方程式',
+    5: '式の計算：中3レベル',    4: '乗法公式',                  3:'因数分解',
+    2: '平方根',                 1: '二次方程式'
+  };
+
+  function _kisoStatusBadge(status) {
+    if (status === 'passed')        return '<span class="status-pass">⭕ 合格</span>';
+    if (status === 'failed_retry')  return '<span class="status-fail">🔁 再挑戦中</span>';
+    if (status === 'in_progress')   return '<span class="status-progress">⏳ 進行中</span>';
+    return '<span class="status-other">—</span>';
+  }
+
+  // 削除予定日を「今日からあと N 日」表記に変換（差し迫っているなら赤太字）
+  function _kisoDeleteAfterLabel(dateStr) {
+    if (!dateStr) return '<span class="delete-far">—</span>';
+    try {
+      var d = new Date(String(dateStr) + 'T12:00:00+09:00');
+      var today = new Date();
+      var diffDays = Math.round((d - today) / 86400000);
+      var cls = (diffDays <= 3) ? 'delete-soon' : 'delete-far';
+      var suffix = diffDays > 0 ? '（あと' + diffDays + '日）' : (diffDays === 0 ? '（本日削除）' : '（期限超過）');
+      return '<span class="' + cls + '">' + _esc(dateStr) + suffix + '</span>';
+    } catch (e) { return _esc(dateStr); }
+  }
+
+  function goAdminKisoStudents() {
+    _showScreen('screen-admin-kiso-students');
+    window.scrollTo(0, 0);
+    loadKisoStudents();
+  }
+
+  function goAdminKisoPhotos(studentId, studentName) {
+    document.getElementById('kiso-photos-title').textContent =
+      '📷 ' + (studentName || studentId || '') + ' さんの答案写真';
+    _showScreen('screen-admin-kiso-photos');
+    window.scrollTo(0, 0);
+    loadKisoPhotos(studentId);
+  }
+
+  // 仕様書 §5.3 サマリ：getKisoPhotosList({password}) → 生徒一覧テーブル
+  function loadKisoStudents() {
+    var wrap = document.getElementById('kiso-students-wrap');
+    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    gasGet({
+      action: 'getKisoPhotosList',
+      password: sessionStorage.getItem('adminPassword') || '',
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var students = res.students || [];
+      if (students.length === 0) {
+        wrap.innerHTML = '<div class="students-empty">保存中の答案写真はまだありません。</div>';
+        return;
+      }
+      var rows = students.map(function(s) {
+        var sidEsc  = _esc(s.studentId);
+        var realEsc = _esc(s.studentName || '');
+        var nickEsc = _esc(s.studentNickname || '');
+        var displayName;
+        if (realEsc && nickEsc) displayName = realEsc + '（' + nickEsc + '）';
+        else if (realEsc)        displayName = realEsc;
+        else if (nickEsc)        displayName = nickEsc;
+        else                     displayName = '（未登録）';
+        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var nameJs = String(s.studentName || s.studentNickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var ts = String(s.latestSubmittedAt || '').replace('T',' ').slice(0,16);
+        return '<tr>' +
+                 '<td>' + sidEsc + '</td>' +
+                 '<td><span class="name-link" onclick="goAdminKisoPhotos(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
+                 '<td><span class="photos-count">' + Number(s.photoCount || 0) + ' 枚</span></td>' +
+                 '<td>' + _esc(ts) + '</td>' +
+                 '<td>' + _kisoDeleteAfterLabel(s.earliestDeleteAfter) + '</td>' +
+               '</tr>';
+      }).join('');
+      wrap.innerHTML =
+        '<div class="students-table-wrap">' +
+          '<table class="students-table kiso-students-table">' +
+            '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>枚数</th><th>最新提出日時</th><th>最早削除予定日</th></tr></thead>' +
+            '<tbody>' + rows + '</tbody>' +
+          '</table>' +
+        '</div>';
+    }).catch(function() {
+      wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  // 仕様書 §5.4 詳細：getKisoPhotosList({password, studentId}) → 写真カードグリッド
+  function loadKisoPhotos(studentId) {
+    var wrap = document.getElementById('kiso-photos-wrap');
+    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    gasGet({
+      action: 'getKisoPhotosList',
+      password: sessionStorage.getItem('adminPassword') || '',
+      studentId: studentId,
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var photos = res.photos || [];
+      if (photos.length === 0) {
+        wrap.innerHTML = '<div class="kiso-photo-empty">この生徒の保存中の答案写真はありません。</div>';
+        return;
+      }
+      var cards = photos.map(function(p) {
+        var rank = Number(p.rank) || 0;
+        var rankName = KISO_RANK_NAMES[rank] || '';
+        var ts = String(p.submittedAt || '').replace('T', ' ').slice(0, 16);
+        var viewUrlJs = String(p.viewUrl || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var thumb = p.thumbnailUrl
+          ? '<img class="kiso-photo-thumb" src="' + _esc(p.thumbnailUrl) + '" alt="答案写真" loading="lazy" onerror="this.style.opacity=0.2"/>'
+          : '<div class="kiso-photo-thumb"></div>';
+        var attemptsLabel = (p.sessionAttempts > 0) ? '・' + p.sessionAttempts + '回目提出' : '';
+        return '<div class="kiso-photo-card" onclick="window.open(\'' + viewUrlJs + '\',\'_blank\')">' +
+                 thumb +
+                 '<div class="kiso-photo-info">' +
+                   '<div class="kiso-photo-rank">' + rank + '級' + (rankName ? '：' + _esc(rankName) : '') + '</div>' +
+                   '<div class="kiso-photo-meta">' +
+                     Number(p.count || 0) + '題 ・ ' + _kisoStatusBadge(p.sessionStatus) + attemptsLabel + '<br>' +
+                     '提出：' + _esc(ts) + '<br>' +
+                     '削除予定：' + _kisoDeleteAfterLabel(p.deleteAfter) +
+                   '</div>' +
+                 '</div>' +
+                 '<div class="kiso-photo-actions">' +
+                   '<button class="kiso-photo-open-btn" onclick="event.stopPropagation();window.open(\'' + viewUrlJs + '\',\'_blank\')">🔍 拡大表示（Drive）</button>' +
+                 '</div>' +
+               '</div>';
+      }).join('');
+      wrap.innerHTML = '<div class="kiso-photos-grid">' + cards + '</div>';
+    }).catch(function() {
+      wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
   }
 
   // =============================================================
@@ -1179,7 +1404,20 @@
   // =============================================================
   // 和文英訳①：パース / プレビュー / 登録
   // =============================================================
-  var WABUN1_VALID_KINDS = ['問題1','問題2','問題3','問題4','正解1','正解2','正解3','正解4','スキップ1','スキップ2','スキップ3','スキップ4','単語'];
+  // 種別：'問題1'..'問題4' / '日本文' / '正解1'..'正解4' / 'スキップ'(番号は無視) / '単語'
+  // 全角数字（１-４）も受け付ける
+  var WABUN1_FW_DIGIT_MAP = {'１':'1','２':'2','３':'3','４':'4'};
+  function _wabun1NormalizeKind(rawKind) {
+    var k = String(rawKind == null ? '' : rawKind).trim();
+    if (!k) return '';
+    k = k.replace(/[１-４]/g, function(c){ return WABUN1_FW_DIGIT_MAP[c] || c; });
+    if (/^問題[1-4]$/.test(k)) return k;
+    if (k === '日本文') return '日本文';
+    if (/^正解[1-4]$/.test(k)) return k;
+    if (/^スキップ[1-4]?$/.test(k)) return 'スキップ';
+    if (k === '単語') return '単語';
+    return '';
+  }
 
   function parseWabun1Paste(text, startStr) {
     var result = { items: [], errors: [] };
@@ -1193,11 +1431,12 @@
       if (!line.trim()) return;
       var cols = line.split(/\t/);
       if (cols.length < 3) { result.errors.push((idx+1)+'行目：タブ区切りで3列必要です'); return; }
-      var dayRaw = cols[0].trim();
-      var kind   = cols[1].trim();
+      var dayRaw  = cols[0].trim();
+      var kindRaw = cols[1].trim();
       var content = cols.slice(2).join('\t').trim();
       if (!SANGO_DAY_MAP.hasOwnProperty(dayRaw)) { result.errors.push((idx+1)+'行目：曜日「'+dayRaw+'」が不正'); return; }
-      if (WABUN1_VALID_KINDS.indexOf(kind) < 0) { result.errors.push((idx+1)+'行目：種別「'+kind+'」が不正（問題1-4 / 正解1-4 / スキップ1-4 / 単語）'); return; }
+      var kind = _wabun1NormalizeKind(kindRaw);
+      if (!kind) { result.errors.push((idx+1)+'行目：種別「'+kindRaw+'」が不正（問題1-4 / 日本文 / 正解1-4 / スキップ / 単語）'); return; }
       if (!content) { result.errors.push((idx+1)+'行目：内容が空'); return; }
       var dayOffset = SANGO_DAY_MAP[dayRaw];
       var d = new Date(startDate.getTime()); d.setDate(d.getDate() + dayOffset);
@@ -1231,20 +1470,18 @@
     // 曜日ごとに集計
     var byDay = {};
     parsed.items.forEach(function(it){
-      if (!byDay[it.day]) byDay[it.day] = { date: it.date, tasks:[0,0,0,0], answers:[0,0,0,0], skips:[0,0,0,0], words:0, firstTask: '' };
+      if (!byDay[it.day]) byDay[it.day] = { date: it.date, tasks:[0,0,0,0], japanese:0, answers:[0,0,0,0], skip:0, words:0, firstTask:'', japaneseSnippet:'' };
       var b = byDay[it.day];
       if      (it.kind === '問題1') { b.tasks[0]=1; b.firstTask = it.content; }
       else if (it.kind === '問題2')   b.tasks[1]=1;
       else if (it.kind === '問題3')   b.tasks[2]=1;
       else if (it.kind === '問題4')   b.tasks[3]=1;
+      else if (it.kind === '日本文') { b.japanese=1; b.japaneseSnippet = it.content; }
       else if (it.kind === '正解1')   b.answers[0]=1;
       else if (it.kind === '正解2')   b.answers[1]=1;
       else if (it.kind === '正解3')   b.answers[2]=1;
       else if (it.kind === '正解4')   b.answers[3]=1;
-      else if (it.kind === 'スキップ1') b.skips[0]=1;
-      else if (it.kind === 'スキップ2') b.skips[1]=1;
-      else if (it.kind === 'スキップ3') b.skips[2]=1;
-      else if (it.kind === 'スキップ4') b.skips[3]=1;
+      else if (it.kind === 'スキップ') b.skip=1;
       else if (it.kind === '単語')    b.words += 1;
     });
     var dayOrder = ['月','火','水','木','金','土','日'];
@@ -1254,16 +1491,16 @@
       var label = (dobj.getMonth()+1) + '/' + dobj.getDate() + '(' + d + ')';
       var taskCount = b.tasks.reduce(function(a,c){ return a+c; }, 0);
       var ansCount  = b.answers.reduce(function(a,c){ return a+c; }, 0);
-      var skipCount = b.skips.reduce(function(a,c){ return a+c; }, 0);
       var warn = '';
-      if (!b.tasks[0]) warn = ' <span style="color:#c62828">⚠ 問題1が未入力</span>';
-      var firstTaskShort = b.firstTask ? (b.firstTask.length > 30 ? b.firstTask.slice(0,30) + '…' : b.firstTask) : '';
-      return '<tr><td>' + label + warn + '</td><td style="text-align:center">' + taskCount + '</td><td style="text-align:center">' + ansCount + '</td><td style="text-align:center">' + skipCount + '</td><td style="text-align:center">' + b.words + '</td><td style="color:#555">' + _esc(firstTaskShort) + '</td></tr>';
+      if (!b.tasks[0])  warn += ' <span style="color:#c62828">⚠ 問題1未入力</span>';
+      if (!b.japanese)  warn += ' <span style="color:#c62828">⚠ 日本文未入力</span>';
+      var jpShort = b.japaneseSnippet ? (b.japaneseSnippet.length > 24 ? b.japaneseSnippet.slice(0,24) + '…' : b.japaneseSnippet) : '';
+      return '<tr><td>' + label + warn + '</td><td style="text-align:center">' + taskCount + '</td><td style="text-align:center">' + (b.japanese ? '○' : '－') + '</td><td style="text-align:center">' + ansCount + '</td><td style="text-align:center">' + (b.skip ? '○' : '－') + '</td><td style="text-align:center">' + b.words + '</td><td style="color:#555">' + _esc(jpShort) + '</td></tr>';
     }).join('');
     var dayCount = Object.keys(byDay).length;
     var tableHtml =
       '<table class="sango-preview-table">' +
-        '<thead><tr><th>日付</th><th>問題</th><th>正解</th><th>スキップ</th><th>単語</th><th>問題1（冒頭30字）</th></tr></thead>' +
+        '<thead><tr><th>日付</th><th>問題</th><th>日本文</th><th>正解</th><th>スキップ</th><th>単語</th><th>日本文（冒頭24字）</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>';
     previewEl.innerHTML = dowWarn + errHtml + '<div style="font-size:13px;color:#2e7d32;margin-bottom:8px">✅ ' + dayCount + ' 日分 / ' + parsed.items.length + ' 行を認識しました</div>' + tableHtml;
@@ -1279,7 +1516,8 @@
     if (parsed.items.length === 0) { showToast('登録する行がありません', 'error'); return; }
     var btn = document.getElementById('wabun1-paste-submit');
     if (btn) { btn.disabled = true; btn.textContent = '登録中…'; }
-    gasGet({
+    // データ量が大きい（7日分で 80 行超え、URL クエリでは 400 になるため POST で送る）
+    gasPost({
       action: 'adminAddWabun1TopicsWeek',
       password: sessionStorage.getItem('adminPassword') || '',
       start: startStr,
