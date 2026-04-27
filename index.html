@@ -435,7 +435,10 @@
 
     /* ===================== 基礎計算（Phase 5） ===================== */
     /* 級選択画面 最上部の教育的メッセージ（赤太字、級ボタンのタイトルと同サイズ、枠なし） */
-    .kiso-rank-intro { margin: 6px 4px 14px; color: #dc2626; font-weight: bold; font-size: 16px; line-height: 1.7; }
+    .kiso-rank-intro { margin: 6px 4px 14px; color: #dc2626; font-weight: bold; font-size: 16px; line-height: 1.7; padding: 0; list-style: none; }
+    .kiso-rank-intro li { position: relative; padding-left: 1.2em; margin-bottom: 4px; }
+    .kiso-rank-intro li::before { content: "●"; position: absolute; left: 0; top: 0; color: #dc2626; font-size: 0.85em; line-height: 1.95; }
+    .kiso-rank-intro li:last-child { margin-bottom: 0; }
     .kiso-section-header { margin: 18px 0 8px; padding: 6px 14px; background: linear-gradient(135deg, #e0f2fe, #bae6fd); border-radius: 8px; color: #075985; font-weight: bold; font-size: 14px; letter-spacing: .5px; border-left: 5px solid #0284c7; }
     .kiso-rank-btn { width:100%; margin: 6px 0; padding: 14px 16px; background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(14,165,233,.3); display: flex; align-items: center; gap: 10px; text-align: left; }
     .kiso-rank-btn:hover { opacity: .92; }
@@ -1020,7 +1023,7 @@
 
 <!-- §4.2 級選択画面 -->
 <div id="screen-kiso-rank" class="screen">
-  <header><h1>🧮 基礎計算</h1><span>級を選んでね</span></header>
+  <header><h1>🧮 基礎計算</h1><span>単元を選んでね</span></header>
   <div class="container" style="padding-top:16px">
     <div id="kiso-rank-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホーム画面に戻る</button>
@@ -2756,7 +2759,10 @@
     var el = document.getElementById('kiso-rank-list');
     var html = '';
     // 教育的メッセージ（級選択画面 最上部、＜無学年＞の上）
-    html += '<div class="kiso-rank-intro">自分に必要だと思うものをやりましょう。先生がアドバイスする場合もあります。</div>';
+    html += '<ul class="kiso-rank-intro">' +
+              '<li>自分に必要だと思うものをやりましょう。先生がアドバイスする場合もあります。</li>' +
+              '<li>毎回違った問題が表示されます。「全問正解が当たり前」の状態になるまで、何度も練習しましょう。</li>' +
+            '</ul>';
     var lastSection = '';
     KISO_RANK_DEFS.forEach(function(d){
       if (d.section !== lastSection) {
