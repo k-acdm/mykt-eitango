@@ -223,7 +223,12 @@
     .content-btn.c-sango     { background: linear-gradient(135deg,#ffcb77,#fe6d73); }
     .content-btn.c-wabun1    { background: linear-gradient(135deg,#b28dff,#7c4fff); }
     .content-btn.c-wabun2    { background: linear-gradient(135deg,#f093fb,#f5576c); }
-    .content-btn.c-listening { background: linear-gradient(135deg,#1e3c72,#2a5298); grid-column: span 2; }
+    .content-btn.c-lison     { background: linear-gradient(135deg,#1e3c72,#2a5298); }
+    .content-btn.c-himitsu   { background: linear-gradient(135deg,#5b21b6,#1e1b4b); position:relative; overflow:hidden; }
+    .content-btn.c-himitsu::before { content:"✨"; position:absolute; top:6px; left:8px; font-size:14px; opacity:.85; pointer-events:none; }
+    .content-btn.c-himitsu::after  { content:"✨"; position:absolute; bottom:6px; right:8px; font-size:14px; opacity:.85; pointer-events:none; }
+    .content-btn.c-himitsu .content-btn-sub-equal { display:block; font-size:16px; font-weight:bold; opacity:.95; margin-top:6px; letter-spacing:.3px; }
+    @media (max-width: 480px) { .content-btn.c-himitsu .content-btn-sub-equal { font-size:14px; } }
     .content-btn.c-math      { background: linear-gradient(135deg,#4fc3f7,#2979ff); }
     .content-btn.c-kanji     { background: linear-gradient(135deg,#ff8a8a,#c92a2a); }
     .content-btn.c-social    { background: linear-gradient(135deg,#96e072,#2ecc71); }
@@ -356,6 +361,15 @@
     .wabun1-japanese { background:#fff7ed; border:2px solid #fb923c; border-radius:10px; padding:12px 16px; margin:8px 0 10px 1.6em; font-size:16px; line-height:1.85; color:#7c2d12; font-weight:600; }
     /* スキップ注意：問題リストの末尾（問題4 の下）に赤太字でシンプル表示。枠・背景なし */
     .wabun1-skip-note { color:#dc2626; font-weight:bold; font-size:14px; line-height:1.85; margin-top:14px; }
+    /* スキップボタン関連（部分スキップ機能用） */
+    .wabun1-skip-action { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+    .wabun1-skip-btn { background:linear-gradient(135deg,#fb923c,#ea580c); color:#fff; border:none; border-radius:10px; padding:12px 16px; font-size:14px; font-weight:bold; cursor:pointer; box-shadow:0 3px 10px rgba(234,88,12,.25); }
+    .wabun1-skip-btn:hover { filter:brightness(1.05); }
+    .wabun1-skip-btn.cancel { background:linear-gradient(135deg,#94a3b8,#475569); box-shadow:0 3px 10px rgba(71,85,105,.25); }
+    .wabun1-skip-status { color:#7c2d12; background:#fff7ed; border:1px dashed #fb923c; border-radius:8px; padding:8px 12px; font-size:13px; line-height:1.7; }
+    .wabun1-task.skipped .wabun1-task-text { color:#9ca3af; text-decoration:line-through; }
+    .wabun1-task.skipped .wabun1-task-no   { color:#9ca3af; }
+    .wabun1-task-skipped-tag { display:inline-block; margin-left:6px; background:#e5e7eb; color:#6b7280; border-radius:6px; padding:1px 8px; font-size:11px; font-weight:bold; vertical-align:middle; }
     .wabun1-archive-japanese { background:#fff7ed; border:1px solid #fb923c; border-radius:6px; padding:6px 10px; margin:4px 0 4px 1.5em; font-size:13px; line-height:1.7; color:#7c2d12; font-weight:600; }
     .wabun1-archive-skip-note { color:#dc2626; font-weight:bold; font-size:12px; line-height:1.6; margin-top:8px; }
     .wabun1-wordlist { background:#f0fdf4; border-radius:12px; padding:12px 16px; border-left:4px solid #10b981; margin-bottom:10px; }
@@ -426,7 +440,10 @@
 
     /* ===================== 基礎計算（Phase 5） ===================== */
     /* 級選択画面 最上部の教育的メッセージ（赤太字、級ボタンのタイトルと同サイズ、枠なし） */
-    .kiso-rank-intro { margin: 6px 4px 14px; color: #dc2626; font-weight: bold; font-size: 16px; line-height: 1.7; }
+    .kiso-rank-intro { margin: 6px 4px 14px; color: #dc2626; font-weight: bold; font-size: 16px; line-height: 1.7; padding: 0; list-style: none; }
+    .kiso-rank-intro li { position: relative; padding-left: 1.2em; margin-bottom: 4px; }
+    .kiso-rank-intro li::before { content: "●"; position: absolute; left: 0; top: 0; color: #dc2626; font-size: 0.85em; line-height: 1.95; }
+    .kiso-rank-intro li:last-child { margin-bottom: 0; }
     .kiso-section-header { margin: 18px 0 8px; padding: 6px 14px; background: linear-gradient(135deg, #e0f2fe, #bae6fd); border-radius: 8px; color: #075985; font-weight: bold; font-size: 14px; letter-spacing: .5px; border-left: 5px solid #0284c7; }
     .kiso-rank-btn { width:100%; margin: 6px 0; padding: 14px 16px; background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(14,165,233,.3); display: flex; align-items: center; gap: 10px; text-align: left; }
     .kiso-rank-btn:hover { opacity: .92; }
@@ -637,18 +654,15 @@
           <span class="badge-soon">準備中</span>
           <span class="ico">📗</span>和文英訳②
         </button>
-        <button class="content-btn c-listening disabled" onclick="showComingSoon('英語長文リスニング＆音読')">
-          <span class="badge-soon">準備中</span>
-          <span class="ico">🎧</span>英語長文リスニング＆音読
-        </button>
         <button class="content-btn c-math" onclick="showKisoRankSelect()">
           <span class="badge-hp">50〜100HP/セット</span>
           <span class="ico">🧮</span>基礎計算
           <span class="content-btn-sub">小学校高学年〜中学生</span>
         </button>
-        <button class="content-btn c-kanji disabled" onclick="showComingSoon('漢字')">
+        <button class="content-btn c-lison disabled" onclick="showComingSoon('英語リスオン')">
           <span class="badge-soon">準備中</span>
-          <span class="ico">🖌️</span>漢字
+          <span class="ico">🎧</span>英語リスオン
+          <span class="content-btn-sub">英語長文リスニング＆音読</span>
         </button>
         <button class="content-btn c-social disabled" onclick="showComingSoon('社会の重要用語')">
           <span class="badge-soon">準備中</span>
@@ -657,6 +671,14 @@
         <button class="content-btn c-science disabled" onclick="showComingSoon('理科の重要用語')">
           <span class="badge-soon">準備中</span>
           <span class="ico">🔬</span>理科の重要用語
+        </button>
+        <button class="content-btn c-kanji disabled" onclick="showComingSoon('漢字')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">🖌️</span>漢字
+        </button>
+        <button class="content-btn c-himitsu" onclick="showHimitsuDoor()">
+          <span class="ico">🚪</span>秘密の扉
+          <span class="content-btn-sub-equal">（近日公開、お楽しみに！）</span>
         </button>
       </div>
     </div>
@@ -1011,7 +1033,7 @@
 
 <!-- §4.2 級選択画面 -->
 <div id="screen-kiso-rank" class="screen">
-  <header><h1>🧮 基礎計算</h1><span>級を選んでね</span></header>
+  <header><h1>🧮 基礎計算</h1><span>単元を選んでね</span></header>
   <div class="container" style="padding-top:16px">
     <div id="kiso-rank-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホーム画面に戻る</button>
@@ -1150,6 +1172,29 @@
   function gasGet(params) {
     return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
       .then(function(r){ return r.json(); });
+  }
+  // 大量データ送信用（GAS doPost）。base64画像など URL 長制限を超えるリクエスト用。
+  // Content-Type: text/plain にすることで CORS preflight を回避（Apps Script は OPTIONS に応答しない）。
+  // timeoutMs: 既定 90 秒。応答が無い場合は AbortError を reject する。
+  function gasPost(params, timeoutMs) {
+    var ms = timeoutMs || 90000;
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = setTimeout(function(){ if (ctrl) ctrl.abort(); }, ms);
+    return fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(params),
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function(r){
+      clearTimeout(timer);
+      return r.json();
+    }, function(err){
+      clearTimeout(timer);
+      if (err && err.name === 'AbortError') {
+        throw new Error('サーバー応答がありません（' + Math.round(ms/1000) + '秒待機）。電波の良い場所でもう一度お試しください。');
+      }
+      throw err;
+    });
   }
   // F2: クライアントサイドセッションキャッシュ（読み取り系のみ memoize）
   // - キャッシュキー: _ts を除いた params のソート JSON
@@ -1577,6 +1622,7 @@
   function selectLevel(level) { _level = level; showToday(); }
   function showComingSoonLevel(name) { alert('英検' + name + 'レベルは現在準備中です。もうしばらくお待ちください！'); }
   function showComingSoon(name) { alert(name + ' は現在準備中です。もうしばらくお待ちください！'); }
+  function showHimitsuDoor() { alert('🚪 秘密の扉はまだ閉じています…\n近日公開、お楽しみに！'); }
   function showToday() {
     document.getElementById('today-student').textContent = _studentId + ' さん';
     document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';
@@ -2210,7 +2256,7 @@
   // =============================================
   // 和文英訳①
   // =============================================
-  var _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false };
+  var _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false, skipApplied: false };
   var _WABUN1_WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
 
   function _wabun1Esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -2225,8 +2271,9 @@
     return m[1] + '年' + Number(m[2]) + '月' + Number(m[3]) + '日（' + _WABUN1_WEEKDAYS_JP[d.getDay()] + '）';
   }
   // OCR テキストからタスク番号が全て検出できるかチェック
+  // skipNums: スキップ済みの番号は要求しない（写真にもOCR結果にも含まれていなくて良い）
   var _WABUN1_FW_DIGITS = {'１':'1','２':'2','３':'3','４':'4'};
-  function _wabun1CheckNumbers(text, expectedCount) {
+  function _wabun1CheckNumbers(text, expectedCount, skipNums) {
     if (!text) return { ok: false, missing: [] };
     var t = '\n' + String(text);
     var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?:[.．,、)）]|(?=\s)))\s*/g;
@@ -2237,13 +2284,15 @@
       var no = Number(_WABUN1_FW_DIGITS[raw] || raw);
       if (no >= 1 && no <= 4) found[no] = true;
     }
+    var skipSet = {};
+    (skipNums || []).forEach(function(n){ skipSet[n] = true; });
     var missing = [];
-    for (var i = 1; i <= expectedCount; i++) { if (!found[i]) missing.push(i); }
+    for (var i = 1; i <= expectedCount; i++) { if (skipSet[i]) continue; if (!found[i]) missing.push(i); }
     return { ok: missing.length === 0, missing: missing };
   }
 
   function showWabun1Topic() {
-    _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false };
+    _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false, skipApplied: false };
     var bodyEl = document.getElementById('wabun1-topic-body');
     bodyEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     document.getElementById('wabun1-photo-preview').style.display = 'none';
@@ -2283,6 +2332,29 @@
       ? '<div class="wabun1-skip-note">' + _wabun1Esc(topic.skip_text) + '</div>'
       : '';
 
+    // 部分スキップ機能: topic.skip_questions に番号があれば「スキップする」ボタンを出す
+    var skipNums = Array.isArray(topic.skip_questions) ? topic.skip_questions : [];
+    var skipApplied = !!_wabun1State.skipApplied && skipNums.length > 0;
+    var skipSet = {};
+    if (skipApplied) skipNums.forEach(function(n){ skipSet[n] = true; });
+
+    var skipActionHtml = '';
+    if (skipNums.length > 0) {
+      var nosLabel = skipNums.join('・') + '番';
+      if (!skipApplied) {
+        skipActionHtml =
+          '<div class="wabun1-skip-action">' +
+            '<button class="wabun1-skip-btn" onclick="applyWabun1Skip()">⊘ ' + _wabun1Esc(nosLabel) + ' をスキップする</button>' +
+          '</div>';
+      } else {
+        skipActionHtml =
+          '<div class="wabun1-skip-action">' +
+            '<div class="wabun1-skip-status">⊘ <strong>' + _wabun1Esc(nosLabel) + '</strong> をスキップ中。提出時はこの番号を空欄でも OK。</div>' +
+            '<button class="wabun1-skip-btn cancel" onclick="cancelWabun1Skip()">スキップを解除する</button>' +
+          '</div>';
+      }
+    }
+
     var japaneseText = topic.japanese_text || '';
     var tasksHtml = '<div class="wabun1-section-title">【今日の問題】</div>' +
       '<div class="wabun1-task-list">' +
@@ -2290,9 +2362,12 @@
           var jpHtml = (t.no === 1 && japaneseText)
             ? '<div class="wabun1-japanese">' + _wabun1RenderText(japaneseText) + '</div>'
             : '';
-          return '<div class="wabun1-task"><span class="wabun1-task-no">' + t.no + '.</span><span class="wabun1-task-text">' + _wabun1RenderText(t.text) + '</span></div>' + jpHtml;
+          var taskCls = skipSet[t.no] ? 'wabun1-task skipped' : 'wabun1-task';
+          var skipTag = skipSet[t.no] ? '<span class="wabun1-task-skipped-tag">これはやらない</span>' : '';
+          return '<div class="' + taskCls + '"><span class="wabun1-task-no">' + t.no + '.</span><span class="wabun1-task-text">' + _wabun1RenderText(t.text) + skipTag + '</span></div>' + jpHtml;
         }).join('') +
         skipNoteHtml +
+        skipActionHtml +
       '</div>';
 
     var wordListHtml = '';
@@ -2307,6 +2382,24 @@
       '<button class="btn-wide wabun1-submit-big" style="margin-top:18px" onclick="document.getElementById(\'wabun1-photo-input\').click()">📸 写真を撮って提出する</button>';
 
     bodyEl.innerHTML = warningHtml + tasksHtml + wordListHtml + submitHtml;
+  }
+
+  // 部分スキップの ON / OFF（topic.skip_questions に番号がある日のみ機能する）
+  function applyWabun1Skip() {
+    var topic = _wabun1State.topic;
+    if (!topic || !Array.isArray(topic.skip_questions) || topic.skip_questions.length === 0) return;
+    _wabun1State.skipApplied = true;
+    _renderWabun1Topic();
+  }
+  function cancelWabun1Skip() {
+    _wabun1State.skipApplied = false;
+    _renderWabun1Topic();
+  }
+  function _wabun1AppliedSkipNums() {
+    var topic = _wabun1State.topic;
+    if (!_wabun1State.skipApplied) return [];
+    if (!topic || !Array.isArray(topic.skip_questions)) return [];
+    return topic.skip_questions.slice();
   }
 
   function onWabun1PhotoSelected(event) {
@@ -2341,7 +2434,8 @@
       }
       var ocrText = String(response.fullTextAnnotation.text || '').trim();
       var expected = (_wabun1State.topic && _wabun1State.topic.tasks) ? _wabun1State.topic.tasks.length : 0;
-      var chk = _wabun1CheckNumbers(ocrText, expected);
+      var skipNumsForCheck = _wabun1AppliedSkipNums();
+      var chk = _wabun1CheckNumbers(ocrText, expected, skipNumsForCheck);
       if (!chk.ok) {
         var missingStr = chk.missing.map(function(n){ return n + '.'; }).join(' ');
         showMsg('wabun1-camera-msg', '⚠️ 問題番号（' + missingStr + '）が見つかりませんでした。番号を書いて再度撮影してください。', 'ng');
@@ -2395,7 +2489,9 @@
     _showWabun1Grading();
     _pendingRetry = function(){ _wabun1State.submitting = false; submitWabun1Answer(); };
     _pendingDismiss = function(){ btn.disabled = false; };
-    gasGet({ action:'submitWabun1', studentId:_studentId, workText:_wabun1State.ocrText }).then(function(res){
+    var skipNums = _wabun1AppliedSkipNums();
+    var skipParam = skipNums.length > 0 ? JSON.stringify(skipNums) : '';
+    gasGet({ action:'submitWabun1', studentId:_studentId, workText:_wabun1State.ocrText, skipQuestions: skipParam }).then(function(res){
       _hideWabun1Grading();
       _wabun1State.submitting = false;
       if (!res || !res.ok) {
@@ -2449,10 +2545,14 @@
       try { playSfx('chime'); } catch(e){}
     } else {
       var items = (res.results || []).map(function(r){
-        var mark = r.correct ? '✅ 正解' : '❌ 不正解';
-        return '<div class="wabun1-result-item ' + (r.correct ? 'ok' : 'ng') + '">' + r.no + '. ' + mark + '</div>';
+        var mark;
+        var cls;
+        if (r.skipped)      { mark = '⊘ スキップ'; cls = 'ok'; }
+        else if (r.correct) { mark = '✅ 正解';     cls = 'ok'; }
+        else                { mark = '❌ 不正解';   cls = 'ng'; }
+        return '<div class="wabun1-result-item ' + cls + '">' + r.no + '. ' + mark + '</div>';
       }).join('');
-      var wrongs = (res.results || []).filter(function(r){ return !r.correct; }).map(function(r){ return 'タスク' + r.no; }).join('、');
+      var wrongs = (res.results || []).filter(function(r){ return !r.correct && !r.skipped; }).map(function(r){ return 'タスク' + r.no; }).join('、');
       var hint = wrongs ? '<div class="wabun1-result-again">' + _wabun1Esc(wrongs) + 'をもう一度考えてみよう。</div>' : '';
       bodyEl.innerHTML =
         '<div class="wabun1-result-partial">' +
@@ -2670,7 +2770,10 @@
     var el = document.getElementById('kiso-rank-list');
     var html = '';
     // 教育的メッセージ（級選択画面 最上部、＜無学年＞の上）
-    html += '<div class="kiso-rank-intro">自分に必要だと思うものをやりましょう。先生がアドバイスする場合もあります。</div>';
+    html += '<ul class="kiso-rank-intro">' +
+              '<li>自分に必要だと思うものをやりましょう。先生がアドバイスする場合もあります。</li>' +
+              '<li>毎回違った問題が表示されます。「全問正解が当たり前」の状態になるまで、何度も練習しましょう。</li>' +
+            '</ul>';
     var lastSection = '';
     KISO_RANK_DEFS.forEach(function(d){
       if (d.section !== lastSection) {
@@ -2870,31 +2973,38 @@
     if (!_kisoState.sessionId || !_kisoState.photoBase64) return;
     document.getElementById('kiso-confirm-submit-btn').disabled = true;
     _kisoShowGrading(true);
-    gasPost({
-      action: 'submitKisoAnswer',
-      sessionId: _kisoState.sessionId,
-      imageBase64: _kisoState.photoBase64
-    }).then(function(res){
-      _kisoShowGrading(false);
-      document.getElementById('kiso-confirm-submit-btn').disabled = false;
-      if (!res || !res.ok) {
-        if (res && res.retake) {
-          alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
-          showScreen('screen-kiso-problem');
+    // 同期 throw（ReferenceError 等）でも「照合中」が固まらないよう try/catch でラップ
+    try {
+      gasPost({
+        action: 'submitKisoAnswer',
+        sessionId: _kisoState.sessionId,
+        imageBase64: _kisoState.photoBase64
+      }).then(function(res){
+        _kisoShowGrading(false);
+        document.getElementById('kiso-confirm-submit-btn').disabled = false;
+        if (!res || !res.ok) {
+          if (res && res.retake) {
+            alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
+            showScreen('screen-kiso-problem');
+            return;
+          }
+          alert('⚠️ 採点中にエラーが発生しました。\n' + ((res && res.message) || '通信エラー') + '\nもう一度お試しください。');
           return;
         }
-        alert('⚠️ 採点中にエラーが発生しました。\n' + ((res && res.message) || '通信エラー') + '\nもう一度お試しください。');
-        return;
-      }
-      _kisoState.attempts = res.attempts || (_kisoState.attempts + 1);
-      // 提出に使った base64 はもう保持しなくて OK（メモリ節約）
-      _kisoState.photoBase64 = '';
-      _renderKisoResult(res);
-    }).catch(function(err){
+        _kisoState.attempts = res.attempts || (_kisoState.attempts + 1);
+        // 提出に使った base64 はもう保持しなくて OK（メモリ節約）
+        _kisoState.photoBase64 = '';
+        _renderKisoResult(res);
+      }).catch(function(err){
+        _kisoShowGrading(false);
+        document.getElementById('kiso-confirm-submit-btn').disabled = false;
+        alert('⚠️ 通信エラーが発生しました：' + String(err && err.message ? err.message : err) + '\nもう一度お試しください。');
+      });
+    } catch (err) {
       _kisoShowGrading(false);
       document.getElementById('kiso-confirm-submit-btn').disabled = false;
-      alert('⚠️ 通信エラーが発生しました：' + String(err));
-    });
+      alert('⚠️ 送信を開始できませんでした：' + String(err && err.message ? err.message : err) + '\nアプリを再読み込みしてもう一度お試しください。');
+    }
   }
 
   // §4.7 採点結果画面（合格/不合格 共通レイアウト）
