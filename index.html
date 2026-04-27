@@ -1151,6 +1151,29 @@
     return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
       .then(function(r){ return r.json(); });
   }
+  // 大量データ送信用（GAS doPost）。base64画像など URL 長制限を超えるリクエスト用。
+  // Content-Type: text/plain にすることで CORS preflight を回避（Apps Script は OPTIONS に応答しない）。
+  // timeoutMs: 既定 90 秒。応答が無い場合は AbortError を reject する。
+  function gasPost(params, timeoutMs) {
+    var ms = timeoutMs || 90000;
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = setTimeout(function(){ if (ctrl) ctrl.abort(); }, ms);
+    return fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(params),
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function(r){
+      clearTimeout(timer);
+      return r.json();
+    }, function(err){
+      clearTimeout(timer);
+      if (err && err.name === 'AbortError') {
+        throw new Error('サーバー応答がありません（' + Math.round(ms/1000) + '秒待機）。電波の良い場所でもう一度お試しください。');
+      }
+      throw err;
+    });
+  }
   // F2: クライアントサイドセッションキャッシュ（読み取り系のみ memoize）
   // - キャッシュキー: _ts を除いた params のソート JSON
   // - 成功レスポンス（res.ok === true）のみキャッシュ
@@ -2870,31 +2893,38 @@
     if (!_kisoState.sessionId || !_kisoState.photoBase64) return;
     document.getElementById('kiso-confirm-submit-btn').disabled = true;
     _kisoShowGrading(true);
-    gasPost({
-      action: 'submitKisoAnswer',
-      sessionId: _kisoState.sessionId,
-      imageBase64: _kisoState.photoBase64
-    }).then(function(res){
-      _kisoShowGrading(false);
-      document.getElementById('kiso-confirm-submit-btn').disabled = false;
-      if (!res || !res.ok) {
-        if (res && res.retake) {
-          alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
-          showScreen('screen-kiso-problem');
+    // 同期 throw（ReferenceError 等）でも「照合中」が固まらないよう try/catch でラップ
+    try {
+      gasPost({
+        action: 'submitKisoAnswer',
+        sessionId: _kisoState.sessionId,
+        imageBase64: _kisoState.photoBase64
+      }).then(function(res){
+        _kisoShowGrading(false);
+        document.getElementById('kiso-confirm-submit-btn').disabled = false;
+        if (!res || !res.ok) {
+          if (res && res.retake) {
+            alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
+            showScreen('screen-kiso-problem');
+            return;
+          }
+          alert('⚠️ 採点中にエラーが発生しました。\n' + ((res && res.message) || '通信エラー') + '\nもう一度お試しください。');
           return;
         }
-        alert('⚠️ 採点中にエラーが発生しました。\n' + ((res && res.message) || '通信エラー') + '\nもう一度お試しください。');
-        return;
-      }
-      _kisoState.attempts = res.attempts || (_kisoState.attempts + 1);
-      // 提出に使った base64 はもう保持しなくて OK（メモリ節約）
-      _kisoState.photoBase64 = '';
-      _renderKisoResult(res);
-    }).catch(function(err){
+        _kisoState.attempts = res.attempts || (_kisoState.attempts + 1);
+        // 提出に使った base64 はもう保持しなくて OK（メモリ節約）
+        _kisoState.photoBase64 = '';
+        _renderKisoResult(res);
+      }).catch(function(err){
+        _kisoShowGrading(false);
+        document.getElementById('kiso-confirm-submit-btn').disabled = false;
+        alert('⚠️ 通信エラーが発生しました：' + String(err && err.message ? err.message : err) + '\nもう一度お試しください。');
+      });
+    } catch (err) {
       _kisoShowGrading(false);
       document.getElementById('kiso-confirm-submit-btn').disabled = false;
-      alert('⚠️ 通信エラーが発生しました：' + String(err));
-    });
+      alert('⚠️ 送信を開始できませんでした：' + String(err && err.message ? err.message : err) + '\nアプリを再読み込みしてもう一度お試しください。');
+    }
   }
 
   // §4.7 採点結果画面（合格/不合格 共通レイアウト）
