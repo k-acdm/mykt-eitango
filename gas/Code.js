@@ -2573,8 +2573,9 @@ const KISO_OCR_CONFIDENCE_THRESHOLD = 0.6;
 // - 戻り値（成功）: { ok:true, ocrText:'<JSON 文字列>', answersMap:{"1":"1/4",...}, attempts: 1|2 }
 // - 戻り値（失敗）: { ok:false, message:'...', retake?:true }
 //   retake:true は「画像問題で生徒に再撮影を促す」、retake なしは「サーバ問題」
-// モデル: gemini-2.0-flash（精度と速度のバランスが良い）
-//   モデル変更時はこの関数内の URL の models/<NAME> を書き換えるだけで OK
+// モデル: gemini-2.5-flash（安定版・OCR 精度向上、2026-04-29 切替）
+//   旧 gemini-2.0-flash は 2026-03-06 から新規ユーザー利用不可、2026-06-01 廃止予定
+//   モデル変更時はこの関数内の `const model = ...` の 1 行を書き換えるだけで OK
 //
 // 自動リトライ機構（2026-04-29 追加）：
 //   GAS UrlFetchApp の「帯域幅の上限」エラーや HTTP 429 / 5xx 等の一時的失敗で
@@ -2587,7 +2588,7 @@ const KISO_OCR_CONFIDENCE_THRESHOLD = 0.6;
 function _kisoOcrWithGemini(imageBase64, numQuestions) {
   const apiKey = _props().getProperty('GEMINI_API_KEY');
   if (!apiKey) return { ok: false, message: 'GEMINI_API_KEY が設定されていません' };
-  const model = 'gemini-2.0-flash';
+  const model = 'gemini-2.5-flash';
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
 
   const prompt =
