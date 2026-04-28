@@ -2479,7 +2479,10 @@
   function _wabun1CheckNumbers(text, expectedCount, skipNums) {
     if (!text) return { ok: false, missing: [] };
     var t = '\n' + String(text);
-    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?:[.．,、)）]|(?=\s)))\s*/g;
+    // 案D：(?=\s) 先読みを削除して明示的な区切り記号を必須化。
+    // 答え本文中の数字（例 "There are 4 apples"）が問題番号として誤検出
+    // されるのを防ぐ。生徒には「番号の後に必ず . か ) を書く」と案内する。
+    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])[.．,、)）])\s*/g;
     var found = {};
     var m;
     while ((m = re.exec(t)) !== null) {
@@ -2500,7 +2503,8 @@
     var out = { 1:'', 2:'', 3:'', 4:'' };
     if (!text) return out;
     var t = '\n' + String(text);
-    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?:[.．,、)）]|(?=\s)))\s*/g;
+    // 案D：(?=\s) 先読みを削除。_wabun1CheckNumbers と完全に同じ regex を共有。
+    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])[.．,、)）])\s*/g;
     var markers = [];
     var m;
     while ((m = re.exec(t)) !== null) {

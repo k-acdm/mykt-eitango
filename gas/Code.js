@@ -4817,13 +4817,17 @@ function _normalizeWabun1(s) {
 }
 
 // OCR テキストから番号区切りで各タスクの解答を抽出
-// 対応マーカー: "1." "1．" "1," "1、" "1)" "1）" "1 " "1\n" "(1)" "（1）"
-// （半角/全角数字・区切り記号を寛容に認識。フロント _wabun1CheckNumbers と regex を統一）
+// 対応マーカー: "1." "1．" "1," "1、" "1)" "1）" "(1)" "（1）"（半角/全角数字に対応）
+// 案D（2026-04-29）：(?=\s) 先読みを削除して明示的な区切り記号を必須化。
+//   旧仕様では "There are 4\napples" のように答え本文中の数字 1-4 が
+//   行頭・空白先読みで誤って問題番号と認識される事故があった。
+//   現仕様：番号の後に . / ． / , / 、 / ) / ） / カッコ括り のいずれかが必須。
+//   フロント _wabun1CheckNumbers / _wabun1ParseWork と regex を統一。
 function _parseWabun1Work(text) {
   const out = { 1:'', 2:'', 3:'', 4:'' };
   if (!text) return out;
   const t = '\n' + String(text);
-  const re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?:[.．,、)）]|(?=\s)))\s*/g;
+  const re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])[.．,、)）])\s*/g;
   const markers = [];
   let m;
   while ((m = re.exec(t)) !== null) {
