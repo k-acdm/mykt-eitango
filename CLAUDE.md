@@ -35,7 +35,8 @@
 - GAS 変更フロー：
   1. `gas/Code.js` を編集（ローカルまたはClaude Code経由）
   2. `cd gas && clasp push` でGAS側に同期
-  3. GASエディタで「デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ」で本番反映
+  3. **GASエディタを開きっぱなしの場合は必ず F5 でリロード**（開いているエディタには `clasp push` の差分が反映されない、過去にこれで「push したのに古いコードに見える」混乱が発生）
+  4. GASエディタで「デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ」で本番反映
 - **`clasp pull` は使用しない**。GASへの変更は常に `clasp push` で一方通行。手元の `gas/Code.js` を最新に保ち、それをGASに反映する運用とする。過去に「デプロイ忘れ状態の GAS から `clasp pull` して手元の新実装を事故で revert」した事例があるため、`pull` は原則禁止。万が一 GAS エディタで直接編集した場合は、`gas/Code.js` にも同じ変更を手動で入れてから `clasp push` する
 - **バージョン表示は `document.lastModified` から自動生成のため手動更新不要**。3 ファイル（`index.html` / `view.html` / `admin.html`）の右下に表示される `vYYYY.MM.DD` は GH Pages の Last-Modified ヘッダー由来で、HTML が実際にどの時点のバージョンかを反映する。タップで `?v=timestamp` 付き強制リロード可能（iPad Safari のキャッシュ問題への診断兼対策）
 - **GAS 側 Script Cache 運用**: `gas/Code.js` は問題データ・お題・連絡・Quote・ランキングを CacheService でキャッシュしている（TTL 6 時間）。管理画面経由の書き込みは自動でキャッシュをクリアする。**Questions シートを直接スプレッドシートで編集**した場合は自動クリアされないため、即反映したいときは GAS エディタから `clearAllCache()` を手動実行するか、最大 6 時間待つ
@@ -1556,6 +1557,108 @@ Phase 3 着手中に新たな設計原則が発見された場合：
   git pull origin dev
   ```
 - 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
+
+### 2026-04-29
+
+塾PC で作業。基礎計算 OCR の安定化（Gemini 課金 + モデル切替 + リトライ機構）と、和文英訳① の整合性バグ修正。本日のコミットは合計 7 件。
+
+#### 132. Gemini API 課金設定完了
+- ふくちさん側で Google AI Studio から Gemini API の **Tier 1 前払い ¥5,000** を設定
+- これにより `gemini-2.5-flash` 含む安定版モデルへのアクセス権を獲得
+- 従来の無料枠（Free Tier）よりレート制限が緩和、本番運用に必要な転送量を確保
+- 旧 `gemini-2.0-flash` は 2026-03-06 から新規ユーザー利用不可、2026-06-01 廃止予定のため、課金設定と並行してモデル切替が必須となった
+
+#### 133. 基礎計算 OCR を Gemini 2.0-flash → 2.5-flash に切替（dev `4c8d960`）
+- **背景**: 実機テストで「This model models/gemini-2.0-flash is no longer available to new users」エラーが発生
+- **変更**: [gas/Code.js](gas/Code.js) `_kisoOcrWithGemini` 内 `const model = 'gemini-2.0-flash'` を `'gemini-2.5-flash'` に変更（1 行）
+- **コメントも更新**：旧モデルの廃止情報をメモとして残置（将来のモデル切替時の参考用）
+- **副次効果**：2.5-flash は安定版で OCR 精度の向上が期待できる（特に分数の縦書き・手書き）
+- **影響範囲**：プロンプト・レスポンス処理ロジック・リトライ機構はすべて無変更
+- 他ファイル（CLAUDE.md / docs / index.html / admin.html）にバージョン特定参照なしを grep で確認
+
+#### 134. 基礎計算 OCR 自動リトライ機構の実装（dev `d13cf66`）
+- **背景**: 実機テストで「Gemini API 通信エラー：帯域幅の上限を超えています」が散発、手動再送で 2 回目成功するケースが多かった。GAS UrlFetchApp の一時的なバンド幅判定 / Gemini レート制限が原因
+- **実装**: `_kisoOcrWithGemini` を for ループ化、最大 2 回試行（`MAX_ATTEMPTS = 2`、`RETRY_WAIT_MS = 500`）
+- **リトライ対象**:
+  - ① fetch 段階の例外（"帯域幅の上限"等の UrlFetchApp throw）
+  - ② HTTP 429（Too Many Requests）/ HTTP 5xx（5xx 全般）
+  - ③ トップレベル error の `quota|rate|limit|exhaust|busy|unavail|帯域` 系メッセージ（日本語「帯域」もカバー）
+- **リトライ非対象**: HTTP 4xx（永続認証エラー）/ promptFeedback ブロック / SAFETY finishReason / 答え JSON 解析失敗
+- **ロギング**: 各 attempt で `console.error`、リトライ成功時 `console.log '[Gemini retry success] attempt=2 initial_error=...'` で運用観察用に記録
+- **戻り値**: `attempts: 1|2` を含めて呼出側で活用余地
+
+#### 135. 基礎計算 写真サイズ縮小 + UX 改善（dev `3d3a3f3`）
+- **写真サイズ最適化**: 1200px / JPEG 0.7 → **1000px / 0.6**（解答・途中式とも）
+  - 945KB → 約 500-600KB に縮小、UrlFetchApp 帯域への負担軽減
+  - `onKisoPhotoSelected` / `onKisoWorkPhotoSelected` 両方に適用
+- **採点中overlayの安心文言**: 「マイカツ君が答えをチェック中…」の下に「少し時間がかかる場合があります」（12px グレー）を追加。リトライで遅延しても生徒が不安にならないよう
+- **エラー文言の具体化**: 「もう一度お試しください」→「ネットワークが不安定な可能性があります。少し待ってから再送信してください」に 4 箇所変更
+- 新 CSS `.kiso-grading-sub` 追加
+
+#### 136. 和文英訳① 整合性バグ修正：フロント先行パース + 問題別表示（dev `42db4f3`）
+- **背景**: 複数生徒から「確認画面では正解通りに表示されていたのに、送信後に❌判定された」報告
+- **真因**: GAS 側 `_parseWabun1Work` の regex に `(?=\s)` 先読みが含まれ、答え本文中に行頭で「数字 1-4 + 空白」が出現すると問題番号マーカーとして誤検出。例：手書き OCR で `There are 4\napples` が `4` を #4 マーカーとして拾う → 答え 2 が "There are" だけにカット、答え 4 が "apples on the table." になる
+- **対策（案C）**: フロント側で OCR 直後にパースし、確認画面で **問題ごとに切り出された答え** を表示。提出時はパース済みデータを `parsedAnswers` JSON として GAS に同梱送信
+- **フロント [index.html](index.html)**:
+  - 新ヘルパー `_wabun1ParseWork(text)` （GAS と同一 regex）/ `_renderWabun1ParsedList(parsed)`
+  - 確認画面に「📝 採点に使う文字列（問題ごとに切り出したもの）」青系カードを追加
+  - 注意書き「⚠️ ここに表示された文字列がそのまま採点に使われます」
+  - 生 OCR は `<details>/<summary>` で折り畳み式に変更（透明性のため残置）
+  - 撮り直し時に `parsedAnswers` もリセット
+- **GAS [gas/Code.js](gas/Code.js) `submitWabun1`**:
+  - `params.parsedAnswers` を新規受入、JSON 文字列をオブジェクト化して採用
+  - 与えられた場合は `_parseWabun1Work` をスキップ → 確認画面表示と完全一致した文字列で採点
+  - parsedAnswers なし時は従来通り `_parseWabun1Work(workText)` にフォールバック（後方互換）
+  - workText（生 OCR）は引き続き `Wabun1Submissions` に保存
+- 新 CSS: `.wabun1-parsed-list` / `.wabun1-parsed-item` / `.wabun1-parsed-no` / `.wabun1-parsed-text`（empty・skipped variant）/ `.wabun1-parsed-help` / `.wabun1-ocr-raw`（折り畳み expander）
+
+#### 137. 和文英訳① regex 厳格化（dev `19adbcc`）
+- **案D**: 番号検出 regex から `(?=\s)` 先読みを削除、明示的な区切り記号を必須化
+- 旧: `([1-4１-４])(?:[.．,、)）]|(?=\s))` → 新: `([1-4１-４])[.．,、)）]`
+- → 番号の後に `.` `．` `,` `、` `)` `）` または括弧括り `(1)` が**必須**
+- 答え本文中の `There are 4 apples` の `4` は誤検出されなくなる
+- 3 箇所の regex を統一: フロント `_wabun1CheckNumbers` / `_wabun1ParseWork` / GAS `_parseWabun1Work`
+- 副次：生徒が「`1 ans`」（区切り記号なし）と書くと番号認識されなくなるが、案 C（前 commit）の確認画面で「読み取れていません」が表示されて撮り直し誘導される
+
+#### 138. 和文英訳① 大文字小文字厳格化（dev `037cea7`）
+- **背景**: 学校テストでは「文頭小文字」「文中大文字」は ✖ になる。アプリ側だけ緩く ⭕ にすると生徒が学校で失点して困る → 本来仕様（厳格）に戻す
+- **変更**: `_normalizeWabun1` から `t.toLowerCase()` を削除
+- **例**: 正解 `I have a pen.` に対して
+  - 旧: `i have a pen.` も `I Have A Pen.` も両方 ⭕（緩い判定）
+  - 新: `I have a pen.` のみ ⭕、それ以外は ❌
+- **告知**: 生徒・保護者へのアナウンスはふくちさん側で別途実施予定（朝の LINE 等で「採点ルールを学校テストの基準に合わせます」と周知）
+- 全角→半角変換（Ａ→A, ａ→a）は case を保持するため、全角入力は問題なし
+
+#### 139. CLAUDE.md 運用ルール追記
+- GAS 変更フローに **「GASエディタを開きっぱなしの場合は必ず F5 でリロード」** を追記
+- 過去に「`clasp push` したのに古いコードに見える」混乱が発生。開いているエディタには push 差分が反映されないため、リロード必須
+
+#### 140. 本日のコミット一覧
+| SHA | 内容 |
+|---|---|
+| `42db4f3` | 和文英訳① 案C：フロント先行パース + 問題別表示 + parsedAnswers JSON 送信 |
+| `19adbcc` | 和文英訳① 案D：regex から (?=\s) 先読み削除、明示的区切り記号を必須化 |
+| `037cea7` | 和文英訳① 大文字小文字厳格化（toLowerCase 削除） |
+| `d13cf66` | 基礎計算 Gemini OCR 自動リトライ機構（HTTP 429/5xx・帯域幅エラーで内部 1 回） |
+| `3d3a3f3` | 基礎計算 写真 1200/0.7 → 1000/0.6 + 採点中安心文言 + エラー文言具体化 |
+| `4c8d960` | 基礎計算 Gemini モデル 2.0-flash → 2.5-flash |
+
+#### 141. 次回（自宅PC 数時間後）の主要タスク
+- **環境**: 塾PC 作業終了、数時間後に自宅PC で再開予定
+- **新スレ開始時のルーティン**:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- **ふくちさん側の作業**（自宅PC 開始前に完了予定）:
+  - `cd gas && clasp push` → GAS エディタで F5 リロード → 新バージョンデプロイ
+  - main マージ + push
+  - 実機テスト：基礎計算 OCR（2.5-flash 切替・リトライ動作・写真サイズ縮小後の精度）/ 和文英訳①（確認画面の問題別表示・大文字小文字厳格化）
+- **次のタスク候補**:
+  - 実機テストフィードバックの反映
+  - 英語リスオン本実装（仕様書 [docs/英語長文リスニング_音読_仕様書.md](docs/英語長文リスニング_音読_仕様書.md) v0.7）
+  - 基礎計算 Phase 3（DESIGN_PRINCIPLES.md の TODO_PHASE3 復活対象）
 
 ---
 
