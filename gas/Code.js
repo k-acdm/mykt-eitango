@@ -4997,7 +4997,12 @@ function getWabun1Topic(params) {
 
 // =============================================
 // 生徒用：解答提出（完全一致判定 + HP加算 + 記録）
-// params: { studentId, workText, skipQuestions? }
+// params: { studentId, workText, parsedAnswers?, skipQuestions? }
+//   - parsedAnswers: 案C（2026-04-29 導入）。フロント側でパース済みの問題別答え
+//                    JSON 文字列 {"1":"...","2":"...","3":"...","4":"..."}
+//                    与えられたら GAS 側の _parseWabun1Work をスキップして
+//                    そのまま採点に使う（確認画面表示と判定入力を完全一致）
+//                    無ければ workText から従来通り _parseWabun1Work で抽出（後方互換）
 //   - skipQuestions: 生徒が「スキップする」を押した問題番号配列
 //                    （JSON 文字列 / 配列 / カンマ区切り文字列を許容）
 //                    topic.skip_questions（許可リスト）と突合し、許可されたもののみ採用。
@@ -5024,7 +5029,27 @@ function submitWabun1(params) {
     const skipSet = {};
     appliedSkips.forEach(function(n){ skipSet[n] = true; });
 
-    const parsed = _parseWabun1Work(workText);
+    // 案C：フロントから parsedAnswers が来ていればそれを優先採用。
+    // 無ければ従来通り workText から GAS 側で _parseWabun1Work してフォールバック。
+    let parsed = null;
+    const rawParsed = params && params.parsedAnswers;
+    if (rawParsed) {
+      try {
+        const obj = (typeof rawParsed === 'string') ? JSON.parse(rawParsed) : rawParsed;
+        if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+          parsed = {
+            1: String(obj['1'] != null ? obj['1'] : (obj[1] != null ? obj[1] : '')),
+            2: String(obj['2'] != null ? obj['2'] : (obj[2] != null ? obj[2] : '')),
+            3: String(obj['3'] != null ? obj['3'] : (obj[3] != null ? obj[3] : '')),
+            4: String(obj['4'] != null ? obj['4'] : (obj[4] != null ? obj[4] : ''))
+          };
+        }
+      } catch(e) {
+        console.warn('[submitWabun1] parsedAnswers JSON parse failed, falling back to workText parse', e);
+      }
+    }
+    if (!parsed) parsed = _parseWabun1Work(workText);
+
     const results = topic.tasks.map(function(t, idx){
       if (skipSet[t.no]) {
         return { no: t.no, correct: true, skipped: true };
