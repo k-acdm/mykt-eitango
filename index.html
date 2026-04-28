@@ -567,6 +567,7 @@
     .kiso-grading-card { background: #fff; border-radius: 16px; padding: 24px; max-width: 320px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
     .kiso-grading-card img { width: 110px; height: 110px; object-fit: cover; border-radius: 50%; margin-bottom: 12px; }
     .kiso-grading-msg { font-size: 16px; color: #0c4a6e; font-weight: bold; line-height: 1.7; }
+    .kiso-grading-sub { font-size: 12px; color: #94a3b8; margin-top: 10px; line-height: 1.6; }
 
     /* バージョン表示（右下固定、キャッシュ診断＆強制リロード用） */
     .app-version { position: fixed; left: 10px; bottom: 10px; z-index: 9000; font-size: 10px; color: #999; background: rgba(255,255,255,0.8); padding: 4px 8px; border-radius: 4px; cursor: pointer; user-select: none; box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: color .15s, background .15s; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
@@ -1325,6 +1326,7 @@
   <div class="kiso-grading-card">
     <img src="character.jpg" alt="マイカツ君"/>
     <div class="kiso-grading-msg">マイカツ君が答えをチェック中…<span class="grading-dots" id="kiso-grading-dots">...</span></div>
+    <div class="kiso-grading-sub">少し時間がかかる場合があります</div>
   </div>
 </div>
 
@@ -3182,21 +3184,22 @@
     _kisoTypeset(listEl);
   }
 
-  // §4.6 写真撮影：選択 → リサイズ（長辺 1200px / JPEG 0.7）→ プレビュー → 確認画面
-  // 既存の和文英訳①・三語短文と同じパラメータ（GAS 経由 OCR の応答失敗対策、本番運用 4/27 で発覚）
+  // §4.6 写真撮影：選択 → リサイズ（長辺 1000px / JPEG 0.6）→ プレビュー → 確認画面
+  // 2026-04-29 サイズ調整：1200/0.7 → 1000/0.6（GAS UrlFetchApp の帯域幅エラー
+  // 軽減のため転送量を削減。自動リトライ機構と併用）
   function onKisoPhotoSelected(event) {
     var file = event.target.files[0]; if (!file) return;
     var reader = new FileReader();
     reader.onload = function(e) {
       var img = new Image();
       img.onload = function() {
-        var maxSize = 1200, w = img.width, h = img.height;
+        var maxSize = 1000, w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
         else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
         var canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         _kisoState.photoBase64 = dataUrl.split(',')[1];
         document.getElementById('kiso-confirm-preview').src = dataUrl;
         document.getElementById('kiso-confirm-submit-btn').disabled = false;
@@ -3257,7 +3260,7 @@
             showScreen('screen-kiso-problem');
             return;
           }
-          alert('⚠️ 採点中にエラーが発生しました。\n' + ((res && res.message) || '通信エラー') + '\nもう一度お試しください。');
+          alert('⚠️ 採点中にエラーが発生しました。\n' + ((res && res.message) || '通信エラー') + '\n\nネットワークが不安定な可能性があります。\n少し待ってから再送信してください。');
           return;
         }
         _kisoState.attempts = res.attempts || (_kisoState.attempts + 1);
@@ -3267,7 +3270,7 @@
       }).catch(function(err){
         _kisoShowGrading(false);
         document.getElementById('kiso-confirm-submit-btn').disabled = false;
-        alert('⚠️ 通信エラーが発生しました：' + String(err && err.message ? err.message : err) + '\nもう一度お試しください。');
+        alert('⚠️ 通信エラーが発生しました：' + String(err && err.message ? err.message : err) + '\n\nネットワークが不安定な可能性があります。\n少し待ってから再送信してください。');
       });
     } catch (err) {
       _kisoShowGrading(false);
@@ -3460,20 +3463,20 @@
   function continueKisoWorkPhoto() {
     document.getElementById('kiso-work-photo-input-2').click();
   }
-  // 解答写真と同じパラメータでリサイズ（長辺 1200px / JPEG 0.7）
+  // 解答写真と同じパラメータでリサイズ（長辺 1000px / JPEG 0.6、2026-04-29 調整）
   function onKisoWorkPhotoSelected(event) {
     var file = event.target.files[0]; if (!file) return;
     var reader = new FileReader();
     reader.onload = function(e) {
       var img = new Image();
       img.onload = function() {
-        var maxSize = 1200, w = img.width, h = img.height;
+        var maxSize = 1000, w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
         else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
         var canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         _kisoState.workPhotoBase64 = dataUrl.split(',')[1];
         document.getElementById('kiso-work-confirm-preview').src = dataUrl;
         document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
@@ -3516,7 +3519,7 @@
         if (msgEl && msgOriginal) msgEl.innerHTML = msgOriginal;
         document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
         if (!res || !res.ok) {
-          alert('⚠️ 途中式写真の送信に失敗しました。\n' + ((res && res.message) || '通信エラー') + '\nもう一度お試しください。');
+          alert('⚠️ 途中式写真の送信に失敗しました。\n' + ((res && res.message) || '通信エラー') + '\n\nネットワークが不安定な可能性があります。\n少し待ってから再送信してください。');
           return;
         }
         _kisoState.workPhotoIndex = res.photoIndex || nextIdx;
@@ -3526,7 +3529,7 @@
         _kisoShowGrading(false);
         if (msgEl && msgOriginal) msgEl.innerHTML = msgOriginal;
         document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
-        alert('⚠️ 通信エラー：' + String(err && err.message ? err.message : err) + '\nもう一度お試しください。');
+        alert('⚠️ 通信エラー：' + String(err && err.message ? err.message : err) + '\n\nネットワークが不安定な可能性があります。\n少し待ってから再送信してください。');
       });
     } catch (err) {
       _kisoShowGrading(false);
