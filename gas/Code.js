@@ -333,6 +333,7 @@ function doGet(e) {
       else if (action === 'getKisoTodayRawHP')       result = getKisoTodayRawHP(params);
       else if (action === 'getKisoPhotosList')       result = getKisoPhotosList(params);
       else if (action === 'getLisonContent')         result = getLisonContent(params.level);
+      else if (action === 'submitLison')              result = submitLison(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -5740,6 +5741,207 @@ function getLisonContent(level) {
     };
   } catch(err) {
     console.error('[getLisonContent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 録音 Drive 保存（基礎計算 _saveKisoPhoto と同様のパターン）
+// =============================================
+const LISON_RECORDING_ROOT_FOLDER = 'LisonRecordings';
+
+// MIME 文字列から拡張子を判定。判定不能なら 'webm' をデフォルトに。
+function _lisonExtFromMime(mime) {
+  const m = String(mime || '').toLowerCase();
+  if (m.indexOf('webm') >= 0) return 'webm';
+  if (m.indexOf('m4a')  >= 0) return 'm4a';
+  if (m.indexOf('mp4')  >= 0) return 'mp4';
+  if (m.indexOf('mpeg') >= 0) return 'mp3';
+  if (m.indexOf('mp3')  >= 0) return 'mp3';
+  if (m.indexOf('ogg')  >= 0) return 'ogg';
+  if (m.indexOf('wav')  >= 0) return 'wav';
+  if (m.indexOf('aac')  >= 0) return 'aac';
+  return 'webm';
+}
+
+// マイドライブ直下に LisonRecordings フォルダを 1 個確保
+function _ensureLisonRecordingsFolder() {
+  const it = DriveApp.getFoldersByName(LISON_RECORDING_ROOT_FOLDER);
+  if (it.hasNext()) return it.next();
+  return DriveApp.createFolder(LISON_RECORDING_ROOT_FOLDER);
+}
+
+// 録音 1 本を Drive に保存。ファイル名: lison_<sid>_<level>_<yyyymmddHHMMSS>.<ext>
+// 戻り値: { ok, fileId, shareUrl, fileName } / 失敗時 { ok:false, message }
+function _saveLisonRecording(sid, level, base64Data, mime) {
+  try {
+    if (!sid)        return { ok: false, message: '生徒IDが空です' };
+    if (!base64Data) return { ok: false, message: '録音データが空です' };
+    const ext = _lisonExtFromMime(mime);
+    const decoded = Utilities.base64Decode(String(base64Data));
+    const blob = Utilities.newBlob(decoded, mime || ('audio/' + ext), 'tmp.' + ext);
+    const tsStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMddHHmmss');
+    const fileName = 'lison_' + sid + '_' + level + '_' + tsStr + '.' + ext;
+    const folder = _ensureLisonRecordingsFolder();
+    const file = folder.createFile(blob).setName(fileName);
+    return {
+      ok: true,
+      fileId: file.getId(),
+      shareUrl: file.getUrl(),
+      fileName: fileName
+    };
+  } catch(err) {
+    console.error('[_saveLisonRecording]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 公開API: 録音とクイズ解答を送信、HP を付与
+// =============================================
+// params:
+//   - sid             : 生徒ID
+//   - level           : '4' / '3' / 'pre2' / '2' / 'pre1'
+//   - quizAnswers     : 3 要素の配列（'T'/'F' or '○'/'✖'）。文字列 JSON でも可
+//   - recordingBase64 : data URL を含まない純粋な base64 文字列
+//   - recordingMime   : 'audio/webm' / 'audio/mp4' など
+//
+// 同日同レベル既提出（JST 3 時区切り）は alreadyGranted=true → hpGained=0。
+// 録音の Drive 保存と LisonSubmissions への記録は alreadyGranted でも実施。
+// HP 加算時のみ Students HP 更新 + _logHP + ランキングキャッシュ invalidate。
+//
+// 戻り値: { ok, hpGained, alreadyGranted, quizScore, recordingUrl }
+// =============================================
+function submitLison(params) {
+  try {
+    const sid             = String((params && params.sid)             || '').trim();
+    const level           = String((params && params.level)           || '').trim();
+    const recordingBase64 = String((params && params.recordingBase64) || '');
+    const recordingMime   = String((params && params.recordingMime)   || '');
+
+    // バリデーション
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (LISON_VALID_LEVELS.indexOf(level) < 0) {
+      return { ok: false, message: 'level が不正です（4 / 3 / pre2 / 2 / pre1 のいずれか）' };
+    }
+    if (!recordingBase64) return { ok: false, message: '録音データが必要です' };
+
+    // quizAnswers を配列化
+    let quizAnswers = (params && params.quizAnswers) || [];
+    if (typeof quizAnswers === 'string') {
+      try { quizAnswers = JSON.parse(quizAnswers); }
+      catch(e) { return { ok: false, message: 'quizAnswers の JSON パースに失敗しました' }; }
+    }
+    if (!Array.isArray(quizAnswers) || quizAnswers.length !== 3) {
+      return { ok: false, message: 'quizAnswers は 3 要素の配列である必要があります' };
+    }
+
+    // 今日（JST 3 時区切り）と今週の月曜日を取得
+    const todayStr  = _sangoToday();
+    const weekStart = _lisonGetWeekStart(todayStr);
+
+    // コンテンツ取得（採点に必要）
+    const content = _readLisonContentRow(weekStart, level);
+    if (!content) {
+      return { ok: false, message: 'このレベルの今週分のコンテンツはまだ準備中です' };
+    }
+
+    // Students 行ルックアップ（キャッシュ経由）
+    const ss = _ss();
+    const stuRows = _getStudentsValues();
+    if (!stuRows || stuRows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません' };
+    let studentName = '';
+    let stuRowIdx = -1;
+    for (let i = 1; i < stuRows.length; i++) {
+      if (String(stuRows[i][COL_ID]).trim() === sid) {
+        studentName = String(stuRows[i][COL_NICKNAME] || '').trim() || '名無し';
+        stuRowIdx = i;
+        break;
+      }
+    }
+
+    // 採点（正解数 0〜3、完全一致比較）
+    let quizScore = 0;
+    for (let i = 0; i < 3; i++) {
+      const sa = String(quizAnswers[i] != null ? quizAnswers[i] : '').trim();
+      const ca = String(content.questions[i].answer || '').trim();
+      if (sa && ca && sa === ca) quizScore++;
+    }
+
+    // alreadyGranted 判定（LisonSubmissions シートを読む。append より前に確認）
+    // 列インデックス: [0]timestamp [1]studentId [2]studentName [3]level
+    //                [4]weekStart [5]quizScore [6]recordingUrl [7]hpGained
+    let alreadyGranted = false;
+    const subSheet = ss.getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (!subSheet) return { ok: false, message: 'LisonSubmissionsシートが見つかりません' };
+    {
+      const subRows = _readLastNRows(subSheet, 200);
+      for (let i = 0; i < subRows.length; i++) {
+        if (String(subRows[i][1]).trim() !== sid) continue;
+        if (String(subRows[i][3]).trim() !== level) continue;
+        const ts = subRows[i][0];
+        if (!ts) continue;
+        // wabun1 / sango と同じ JST 3 時区切りで「今日」と同じ日かチェック
+        const dt = new Date(ts);
+        dt.setHours(dt.getHours() - 3);
+        const dStr = Utilities.formatDate(dt, 'Asia/Tokyo', 'yyyy-MM-dd');
+        if (dStr === todayStr) { alreadyGranted = true; break; }
+      }
+    }
+
+    // 録音を Drive に保存（alreadyGranted でも記録は残す）
+    const saveRes = _saveLisonRecording(sid, level, recordingBase64, recordingMime);
+    if (!saveRes.ok) {
+      return { ok: false, message: '録音保存に失敗しました：' + (saveRes.message || '') };
+    }
+
+    // HP 計算（連続週²倍率は他コンテンツと同じ）
+    let hpGained = 0;
+    if (!alreadyGranted) {
+      const streak = (stuRowIdx >= 0) ? (Number(stuRows[stuRowIdx][COL_STREAK]) || 1) : 1;
+      const week = Math.ceil(streak / 7);
+      const baseHp = _lisonBaseHpForLevel(level);
+      hpGained = baseHp * week * week;
+      // Students シート HP 加算（書き込みは setValue、in-place キャッシュ更新）
+      if (stuRowIdx >= 0) {
+        const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
+        const newHP = cur + hpGained;
+        const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
+        const upd = {};
+        upd[COL_HP] = newHP;
+        _updateStudentsCacheRow(stuRowIdx, upd);
+      }
+    }
+
+    // LisonSubmissions に追記（alreadyGranted のときも recordingUrl と quizScore は残す）
+    subSheet.appendRow([
+      _nowJST(),
+      sid,
+      studentName,
+      level,
+      weekStart,
+      quizScore,
+      saveRes.shareUrl,
+      hpGained
+    ]);
+
+    // HP 付与時のみ HPLog 記録 + ランキングキャッシュ無効化
+    // 注: rawHP と hpGained は同値（素点HP × 週²）。他コンテンツ（sango/wabun1）と同パターン。
+    if (hpGained > 0) {
+      _logHP(sid, hpGained, hpGained, 'lison');
+      _invalidateCache('cache_ranking_last_week');
+    }
+
+    return {
+      ok: true,
+      hpGained: hpGained,
+      alreadyGranted: alreadyGranted,
+      quizScore: quizScore,
+      recordingUrl: saveRes.shareUrl
+    };
+  } catch(err) {
+    console.error('[submitLison]', err);
     return { ok: false, message: String(err) };
   }
 }
