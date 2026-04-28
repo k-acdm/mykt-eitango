@@ -4780,14 +4780,16 @@ function _wabun1AddDays(startStr, n) {
 //   1. すべての空白文字を削除（半角/全角スペース・タブ・改行）
 //   2. 全角英数を半角に統一
 //   3. 類似句読点・記号を半角に統一（「、」⇔「,」、「．」⇔「.」、ハイフン類など）
-//   4. 大文字小文字を無視
 // ■ 維持（厳格に判定）
 //   - 文末ピリオド「.」は punctuation としてそのまま残る
 //   - 文末句点「。」は punctMap に含めず別記号として残す（英文 . と日本文 。 を区別）
+//   - 大文字小文字（2026-04-29 から厳格化）：学校テストの採点基準に合わせるため
+//     toLowerCase を撤廃。文頭小文字 / 文中大文字は ❌ として判定される。
+//     全角→半角変換は case を保持する（Ａ→A, ａ→a）。
 function _normalizeWabun1(s) {
   if (s == null) return '';
   let t = String(s);
-  // 1. 全角英数を半角に
+  // 1. 全角英数を半角に（case は保持）
   t = t.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(ch){
     return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
   });
@@ -4811,19 +4813,22 @@ function _normalizeWabun1(s) {
   });
   // 3. すべての空白文字を削除（半角/全角スペース・タブ・改行・その他 Unicode 空白）
   t = t.replace(/[\s　]+/g, '');
-  // 4. 小文字化
-  t = t.toLowerCase();
+  // 大文字小文字は厳格判定のため lowercasing しない（2026-04-29 仕様変更）
   return t;
 }
 
 // OCR テキストから番号区切りで各タスクの解答を抽出
-// 対応マーカー: "1." "1．" "1," "1、" "1)" "1）" "1 " "1\n" "(1)" "（1）"
-// （半角/全角数字・区切り記号を寛容に認識。フロント _wabun1CheckNumbers と regex を統一）
+// 対応マーカー: "1." "1．" "1," "1、" "1)" "1）" "(1)" "（1）"（半角/全角数字に対応）
+// 案D（2026-04-29）：(?=\s) 先読みを削除して明示的な区切り記号を必須化。
+//   旧仕様では "There are 4\napples" のように答え本文中の数字 1-4 が
+//   行頭・空白先読みで誤って問題番号と認識される事故があった。
+//   現仕様：番号の後に . / ． / , / 、 / ) / ） / カッコ括り のいずれかが必須。
+//   フロント _wabun1CheckNumbers / _wabun1ParseWork と regex を統一。
 function _parseWabun1Work(text) {
   const out = { 1:'', 2:'', 3:'', 4:'' };
   if (!text) return out;
   const t = '\n' + String(text);
-  const re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?:[.．,、)）]|(?=\s)))\s*/g;
+  const re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])[.．,、)）])\s*/g;
   const markers = [];
   let m;
   while ((m = re.exec(t)) !== null) {
@@ -4997,7 +5002,12 @@ function getWabun1Topic(params) {
 
 // =============================================
 // 生徒用：解答提出（完全一致判定 + HP加算 + 記録）
-// params: { studentId, workText, skipQuestions? }
+// params: { studentId, workText, parsedAnswers?, skipQuestions? }
+//   - parsedAnswers: 案C（2026-04-29 導入）。フロント側でパース済みの問題別答え
+//                    JSON 文字列 {"1":"...","2":"...","3":"...","4":"..."}
+//                    与えられたら GAS 側の _parseWabun1Work をスキップして
+//                    そのまま採点に使う（確認画面表示と判定入力を完全一致）
+//                    無ければ workText から従来通り _parseWabun1Work で抽出（後方互換）
 //   - skipQuestions: 生徒が「スキップする」を押した問題番号配列
 //                    （JSON 文字列 / 配列 / カンマ区切り文字列を許容）
 //                    topic.skip_questions（許可リスト）と突合し、許可されたもののみ採用。
@@ -5024,7 +5034,27 @@ function submitWabun1(params) {
     const skipSet = {};
     appliedSkips.forEach(function(n){ skipSet[n] = true; });
 
-    const parsed = _parseWabun1Work(workText);
+    // 案C：フロントから parsedAnswers が来ていればそれを優先採用。
+    // 無ければ従来通り workText から GAS 側で _parseWabun1Work してフォールバック。
+    let parsed = null;
+    const rawParsed = params && params.parsedAnswers;
+    if (rawParsed) {
+      try {
+        const obj = (typeof rawParsed === 'string') ? JSON.parse(rawParsed) : rawParsed;
+        if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+          parsed = {
+            1: String(obj['1'] != null ? obj['1'] : (obj[1] != null ? obj[1] : '')),
+            2: String(obj['2'] != null ? obj['2'] : (obj[2] != null ? obj[2] : '')),
+            3: String(obj['3'] != null ? obj['3'] : (obj[3] != null ? obj[3] : '')),
+            4: String(obj['4'] != null ? obj['4'] : (obj[4] != null ? obj[4] : ''))
+          };
+        }
+      } catch(e) {
+        console.warn('[submitWabun1] parsedAnswers JSON parse failed, falling back to workText parse', e);
+      }
+    }
+    if (!parsed) parsed = _parseWabun1Work(workText);
+
     const results = topic.tasks.map(function(t, idx){
       if (skipSet[t.no]) {
         return { no: t.no, correct: true, skipped: true };

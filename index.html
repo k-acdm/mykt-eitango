@@ -333,6 +333,21 @@
     .sango-ocr-confirm-label { font-size:16px; font-weight:bold; text-align:center; margin:14px 0 10px; color:#2d3a8c; }
     .sango-ocr-actions { display:flex; gap:10px; }
     .sango-ocr-actions .btn-wide { margin-top:0; flex:1; }
+    /* 和文英訳① 確認画面：問題ごとに切り出した「採点に使う文字列」を表示 */
+    .wabun1-parsed-list { background:#f0f9ff; border:1px solid #7dd3fc; border-radius:10px; padding:6px 12px; margin:6px 0 12px; }
+    .wabun1-parsed-item { display:flex; gap:10px; padding:8px 0; border-bottom:1px dashed #bae6fd; align-items:flex-start; }
+    .wabun1-parsed-item:last-child { border-bottom:none; }
+    .wabun1-parsed-no { flex:0 0 auto; min-width:30px; font-weight:bold; color:#0369a1; font-size:17px; }
+    .wabun1-parsed-text { flex:1; font-size:16px; color:#1e293b; line-height:1.7; word-break:break-word; white-space:pre-wrap; }
+    .wabun1-parsed-text.empty { color:#9ca3af; font-style:italic; font-size:14px; }
+    .wabun1-parsed-text.skipped { color:#d97706; font-weight:bold; }
+    .wabun1-parsed-help { font-size:12px; color:#64748b; line-height:1.6; margin:6px 0 8px; padding:0 2px; }
+    /* 折り畳み：OCR の生テキスト */
+    .wabun1-ocr-raw { margin:6px 0 4px; }
+    .wabun1-ocr-raw summary { font-size:13px; color:#475569; cursor:pointer; padding:6px 0; user-select:none; list-style:disclosure-closed; }
+    .wabun1-ocr-raw[open] summary { list-style:disclosure-open; }
+    .wabun1-ocr-raw summary:hover { color:#0c4a6e; }
+    .wabun1-ocr-raw .sango-ocr-text { margin-top:6px; font-size:13px; color:#475569; }
     /* 過去のお題（豪華版） */
     .sango-past-date-header { margin:18px 0 10px; padding:10px 14px; background:linear-gradient(135deg,#ffd3a5,#fd6585); color:#fff; font-weight:bold; font-size:16px; border-radius:12px; box-shadow:0 2px 8px rgba(253,101,133,.25); }
     .sango-past-date-header:first-child { margin-top:4px; }
@@ -1025,8 +1040,13 @@
   <header><h1>📷 読み取り結果の確認</h1></header>
   <div class="container" style="padding-top:16px">
     <div class="sango-ocr-box" style="display:block;border-color:#7c4fff">
-      <div class="sango-ocr-label">読み取った内容：</div>
-      <div class="sango-ocr-text" id="wabun1-ocr-text"></div>
+      <div class="sango-ocr-label">📝 採点に使う文字列（問題ごとに切り出したもの）：</div>
+      <div id="wabun1-parsed-list" class="wabun1-parsed-list"></div>
+      <div class="wabun1-parsed-help">⚠️ ここに表示された文字列がそのまま採点に使われます。意図と違う場合は「もう一度撮る」を押してね。</div>
+      <details class="wabun1-ocr-raw">
+        <summary>📄 OCR の生テキスト（全文）を見る</summary>
+        <div class="sango-ocr-text" id="wabun1-ocr-text"></div>
+      </details>
       <div class="sango-ocr-confirm-label">これで良いですか？</div>
       <div class="sango-ocr-actions">
         <button class="btn-wide" id="wabun1-confirm-submit-btn" style="background:linear-gradient(135deg,#2ecc71,#27ae60)" onclick="submitWabun1Answer()">✅ はい、これで提出</button>
@@ -2439,7 +2459,7 @@
   // =============================================
   // 和文英訳①
   // =============================================
-  var _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false, skipApplied: false };
+  var _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false };
   var _WABUN1_WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
 
   function _wabun1Esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -2459,7 +2479,10 @@
   function _wabun1CheckNumbers(text, expectedCount, skipNums) {
     if (!text) return { ok: false, missing: [] };
     var t = '\n' + String(text);
-    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])(?:[.．,、)）]|(?=\s)))\s*/g;
+    // 案D：(?=\s) 先読みを削除して明示的な区切り記号を必須化。
+    // 答え本文中の数字（例 "There are 4 apples"）が問題番号として誤検出
+    // されるのを防ぐ。生徒には「番号の後に必ず . か ) を書く」と案内する。
+    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])[.．,、)）])\s*/g;
     var found = {};
     var m;
     while ((m = re.exec(t)) !== null) {
@@ -2473,9 +2496,56 @@
     for (var i = 1; i <= expectedCount; i++) { if (skipSet[i]) continue; if (!found[i]) missing.push(i); }
     return { ok: missing.length === 0, missing: missing };
   }
+  // 案C：フロント側で OCR テキストを問題番号でパース。
+  // GAS の _parseWabun1Work と同じ regex を共有することで、確認画面の表示と
+  // サーバ採点の入力を完全に同一にする。
+  function _wabun1ParseWork(text) {
+    var out = { 1:'', 2:'', 3:'', 4:'' };
+    if (!text) return out;
+    var t = '\n' + String(text);
+    // 案D：(?=\s) 先読みを削除。_wabun1CheckNumbers と完全に同じ regex を共有。
+    var re = /\n\s*(?:[(（]\s*([1-4１-４])\s*[)）]|([1-4１-４])[.．,、)）])\s*/g;
+    var markers = [];
+    var m;
+    while ((m = re.exec(t)) !== null) {
+      var raw = m[1] || m[2];
+      var no = Number(_WABUN1_FW_DIGITS[raw] || raw);
+      if (no >= 1 && no <= 4) {
+        markers.push({ no: no, markerPos: m.index, contentStart: re.lastIndex });
+      }
+    }
+    for (var i = 0; i < markers.length; i++) {
+      var end = (i + 1 < markers.length) ? markers[i + 1].markerPos : t.length;
+      out[markers[i].no] = t.substring(markers[i].contentStart, end).trim();
+    }
+    return out;
+  }
+  // 確認画面：問題ごとに切り出された答えを表示
+  function _renderWabun1ParsedList(parsed) {
+    var topic = _wabun1State.topic;
+    var taskCount = (topic && topic.tasks) ? topic.tasks.length : 4;
+    var skipNums = _wabun1AppliedSkipNums();
+    var skipSet = {};
+    skipNums.forEach(function(n){ skipSet[n] = true; });
+    var html = '';
+    for (var i = 1; i <= taskCount; i++) {
+      var ans = String(parsed[i] == null ? '' : parsed[i]);
+      var isSkipped = !!skipSet[i];
+      var cls, display;
+      if (isSkipped) { cls = 'skipped'; display = '⊘ スキップ'; }
+      else if (ans.trim() === '') { cls = 'empty'; display = '（読み取れていません — 撮り直しを推奨）'; }
+      else { cls = ''; display = ans; }
+      html += '<div class="wabun1-parsed-item">' +
+                '<span class="wabun1-parsed-no">' + i + '.</span>' +
+                '<span class="wabun1-parsed-text ' + cls + '">' + _wabun1Esc(display) + '</span>' +
+              '</div>';
+    }
+    var el = document.getElementById('wabun1-parsed-list');
+    if (el) el.innerHTML = html;
+  }
 
   function showWabun1Topic() {
-    _wabun1State = { topic: null, yesterday: null, ocrText: '', hasSubmitted: false, submitting: false, skipApplied: false };
+    _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false };
     var bodyEl = document.getElementById('wabun1-topic-body');
     bodyEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     document.getElementById('wabun1-photo-preview').style.display = 'none';
@@ -2626,9 +2696,12 @@
         return;
       }
       _wabun1State.ocrText = ocrText;
+      // 案C：採点に使う「問題ごとの答え」をフロントで先行パースし、確認画面の表示と完全一致させる
+      _wabun1State.parsedAnswers = _wabun1ParseWork(ocrText);
       msgEl.style.display = 'none';
       document.getElementById('wabun1-photo-input').value = '';
       document.getElementById('wabun1-ocr-text').textContent = ocrText;
+      _renderWabun1ParsedList(_wabun1State.parsedAnswers);
       document.getElementById('wabun1-confirm-msg').style.display = 'none';
       document.getElementById('wabun1-confirm-submit-btn').disabled = false;
       document.getElementById('wabun1-show-answer-confirm').style.display = _wabun1State.hasSubmitted ? 'block' : 'none';
@@ -2638,6 +2711,7 @@
 
   function retakeWabun1Photo() {
     _wabun1State.ocrText = '';
+    _wabun1State.parsedAnswers = null;
     document.getElementById('wabun1-photo-input').value = '';
     document.getElementById('wabun1-photo-preview').style.display = 'none';
     document.getElementById('wabun1-photo-preview').src = '';
@@ -2647,6 +2721,7 @@
 
   function retakeWabun1PhotoFromResult() {
     _wabun1State.ocrText = '';
+    _wabun1State.parsedAnswers = null;
     var input = document.getElementById('wabun1-photo-input');
     if (input) input.value = '';
     var preview = document.getElementById('wabun1-photo-preview');
@@ -2666,7 +2741,7 @@
     msgEl.style.display = 'none';
     try {
       var shown = (document.getElementById('wabun1-ocr-text') || {}).textContent || '';
-      console.log('[wabun1 submit] stateOcrText=', JSON.stringify(_wabun1State.ocrText), ' shownOnScreen=', JSON.stringify(shown), ' match=', shown === _wabun1State.ocrText);
+      console.log('[wabun1 submit] stateOcrText=', JSON.stringify(_wabun1State.ocrText), ' shownOnScreen=', JSON.stringify(shown), ' match=', shown === _wabun1State.ocrText, ' parsedAnswers=', JSON.stringify(_wabun1State.parsedAnswers));
     } catch(e){}
     // 楽観的UI 対象外: マイカツ君が「採点中…」演出を出してから結果待ち
     _showWabun1Grading();
@@ -2674,7 +2749,9 @@
     _pendingDismiss = function(){ btn.disabled = false; };
     var skipNums = _wabun1AppliedSkipNums();
     var skipParam = skipNums.length > 0 ? JSON.stringify(skipNums) : '';
-    gasGet({ action:'submitWabun1', studentId:_studentId, workText:_wabun1State.ocrText, skipQuestions: skipParam }).then(function(res){
+    // 案C：フロントでパース済みの問題別答えを JSON で同梱。GAS は parsedAnswers を優先採用。
+    var parsedJson = _wabun1State.parsedAnswers ? JSON.stringify(_wabun1State.parsedAnswers) : '';
+    gasGet({ action:'submitWabun1', studentId:_studentId, workText:_wabun1State.ocrText, parsedAnswers: parsedJson, skipQuestions: skipParam }).then(function(res){
       _hideWabun1Grading();
       _wabun1State.submitting = false;
       if (!res || !res.ok) {
