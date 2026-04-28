@@ -485,6 +485,8 @@
     .kiso-paper-rules .rule-bullets { padding-left: 20px; margin: 0; }
     .kiso-paper-rules .rule-bullets li { margin: 2px 0; }
     .kiso-paper-rules code { background: #fff; padding: 1px 6px; border-radius: 4px; border: 1px solid #cffafe; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; color: #0c4a6e; }
+    .kiso-paper-rules .kiso-paper-example { background: #fff; padding: 12px 16px; border-radius: 8px; border: 1px solid #67e8f9; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 15px; line-height: 1.95; margin: 6px 0 0; color: #0c4a6e; white-space: pre; overflow-x: auto; }
+    .kiso-paper-rules .kiso-paper-bad-example { background: #fef2f2; padding: 10px 14px; border-radius: 8px; border: 1px solid #fecaca; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 14px; line-height: 1.7; margin: 6px 0 0; color: #b91c1c; white-space: pre; overflow-x: auto; text-decoration: line-through; }
     /* 撮影案内画面（途中式 / 解答 撮影直前のマイカツ君ガイド） */
     .kiso-camera-intro-card { background: #fff; border-radius: 14px; padding: 22px 18px; margin: 14px 0; box-shadow: 0 3px 10px rgba(0,0,0,.08); text-align: center; }
     .kiso-camera-intro-card .mascot-row { display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, #fff7ed, #ffedd5); border: 2px solid #fb923c; border-radius: 12px; padding: 12px 14px; margin-bottom: 18px; text-align: left; }
@@ -1113,26 +1115,33 @@
     <div class="kiso-mascot-msg">
       <img src="character.jpg" alt="マイカツ君">
       <div class="bubble">
-        問題の番号は<br>
-        <span class="hint-circ">①</span><span class="hint-circ">②</span><span class="hint-circ">③</span> …
-        の<strong>丸囲み数字</strong>で書いてね！
+        番号は <span class="hint-circ">①</span><span class="hint-circ">②</span><span class="hint-circ">③</span>… の<strong>丸囲み数字</strong>で。<br>
+        答えは<strong>1問ずつ縦に並べて</strong>書いてね！
       </div>
     </div>
     <div id="kiso-problem-list" class="kiso-problem-list"></div>
     <div class="kiso-paper-rules">
       <div class="rule-section">
-        <div class="rule-title">📝 番号</div>
+        <div class="rule-title">📝 番号と答え</div>
         <ul class="rule-bullets">
-          <li>丸囲み数字（①②③…）を使う</li>
+          <li>番号は丸囲み数字（①②③…）を使う</li>
+          <li><strong>1問につき必ず1行</strong>に書く（連立方程式など複数行になる場合のみ複数行OK）</li>
+          <li><strong>番号と答えを縦に並べる</strong>（横に複数問並べない！）</li>
+          <li>分数は必ず<strong>約分</strong>。平方根は必ず<strong>変形</strong>（<code>√8</code> ではなく <code>2√2</code>）</li>
         </ul>
       </div>
       <div class="rule-section">
-        <div class="rule-title">📝 答えの書き方</div>
-        <ul class="rule-bullets">
-          <li>番号の後に、2文字分くらいスペース</li>
-          <li>1問は基本1行（連立方程式など、複数行になってもOK）</li>
-          <li>分数は必ず<strong>約分</strong>。平方根は必ず<strong>変形</strong>（<code>√8</code> ではなく <code>2√2</code>）</li>
-        </ul>
+        <div class="rule-title">✅ 縦並びの例（こう書いてね）</div>
+<pre class="kiso-paper-example">① 1/4
+② 1
+③ 17/30
+④ 1/4
+⑤ 11/14</pre>
+      </div>
+      <div class="rule-section">
+        <div class="rule-title">❌ NG例（横並びはダメ！）</div>
+<pre class="kiso-paper-bad-example">① 1/4   ② 1
+③ 17/30  ④ 1/4   ⑤ 11/14</pre>
       </div>
       <div class="rule-section">
         <div class="rule-title">📝 途中式について</div>
@@ -1156,7 +1165,7 @@
       <div class="sub">
         途中式は<strong>別の紙</strong>に書いて、<br>
         解答の写真の前に送ることができるよ。<br>
-        （AI採点はせず、先生が後で見るためだけの記録です）
+        （AI採点はせず、<strong>リアル福地</strong>が後で確認するためだけの記録です）
       </div>
       <div class="kiso-pre-confirm-btns">
         <button class="kiso-pre-confirm-btn kiso-pre-confirm-btn-yes" onclick="chooseKisoWorkPhoto(true)">📝 途中式の写真も送る</button>
@@ -1176,7 +1185,7 @@
         <img src="character.jpg" alt="マイカツ君">
         <div class="mascot-bubble">
           まずは <strong>途中式</strong> の写真から撮ってね！<br>
-          AI採点はしないよ、安心してね。
+          AI採点はせず、<strong>リアル福地</strong>が確認するよ。
         </div>
       </div>
       <div class="ttl">✏️ まずは途中式の写真を<br>撮ってください</div>
@@ -1252,7 +1261,7 @@
       <div class="kiso-confirm-msg">
         ✅ 途中式がはっきり写っているかを確認してね。<br>
         OK なら「送信する」を押してね。<br>
-        <span style="color:#92400e;font-size:13px">※ 途中式は AI 採点はせず、先生が確認用に保存します。</span>
+        <span style="color:#92400e;font-size:13px">※ 途中式は AI 採点はせず、<strong>リアル福地</strong>が確認用に保存します。</span>
       </div>
       <div class="kiso-confirm-btns">
         <button class="kiso-confirm-retake" onclick="retakeKisoWorkPhoto()">📸 撮り直す</button>
@@ -1271,11 +1280,11 @@
       <div class="ok-msg" id="kiso-work-after-count">送信しました</div>
       <div class="submitted-list">
         途中式の写真を続けて送ることもできるよ。<br>
-        終わったら「これで終わり」を押してね。
+        終わったら「次へ進む」を押して、解答の撮影に進もう。
       </div>
       <div class="kiso-work-after-btns">
         <button class="kiso-work-after-btn-more" onclick="continueKisoWorkPhoto()">📷 もう1枚追加する</button>
-        <button class="kiso-work-after-btn-done" onclick="finishKisoWorkPhoto()">✅ これで終わり（HPを獲得）</button>
+        <button class="kiso-work-after-btn-done" onclick="finishKisoWorkPhoto()">➡️ 次へ進む（解答の撮影へ）</button>
       </div>
     </div>
     <input type="file" id="kiso-work-photo-input-2" accept="image/*" capture="environment" style="display:none" onchange="onKisoWorkPhotoSelected(event)"/>
@@ -3354,16 +3363,16 @@
     if (!titleEl || !subEl || !bubbleEl) return;
     if (_kisoState.isRetry) {
       titleEl.innerHTML = '📝 間違えた問題の解答を<br>撮ってください';
-      subEl.innerHTML = '間違えた問題だけ書き直した紙を撮影してね。<br>番号は ①②③ … を使ってね。';
-      bubbleEl.innerHTML = '間違えた問題、<strong>もう1回</strong> チャレンジ！<br>キミならできる！';
+      subEl.innerHTML = '間違えた問題だけ書き直した紙を撮影してね。<br>番号は ①②③ … を使い、<strong>1問1行・縦並び</strong>で書いてね。';
+      bubbleEl.innerHTML = '間違えた問題、<strong>もう1回</strong> チャレンジ！<br>答えは<strong>1問ずつ縦に並べて</strong>ね。';
     } else if (_kisoState.hasWorkPhoto) {
       titleEl.innerHTML = '📝 次は解答の写真を<br>撮ってください';
-      subEl.innerHTML = '<strong>答えだけを書いた紙</strong>を撮影してね。<br>AIが採点するから、丁寧にハッキリ書いてあるか確認！';
-      bubbleEl.innerHTML = 'いよいよ <strong>解答</strong> の写真だよ！<br>番号は ①②③ … を使ってね。';
+      subEl.innerHTML = '<strong>答えだけを書いた紙</strong>を撮影してね。<br>番号は ①②③ … を使い、<strong>1問1行・縦並び</strong>で書こう。';
+      bubbleEl.innerHTML = 'いよいよ <strong>解答</strong> の写真だよ！<br>答えは<strong>1問ずつ縦に並べて</strong>ね。';
     } else {
       titleEl.innerHTML = '📝 解答の写真を<br>撮ってください';
-      subEl.innerHTML = '<strong>答えだけを書いた紙</strong>を撮影してね。<br>AIが採点するから、丁寧にハッキリ書いてあるか確認！';
-      bubbleEl.innerHTML = '<strong>解答</strong> の写真を撮ってね！<br>番号は ①②③ … を使ってね。';
+      subEl.innerHTML = '<strong>答えだけを書いた紙</strong>を撮影してね。<br>番号は ①②③ … を使い、<strong>1問1行・縦並び</strong>で書こう。';
+      bubbleEl.innerHTML = '<strong>解答</strong> の写真を撮ってね！<br>答えは<strong>1問ずつ縦に並べて</strong>ね。';
     }
   }
 

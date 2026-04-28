@@ -2564,7 +2564,130 @@ function getKisoTodayRawHP(params) {
 // 閾値：実機テストで微調整するため定数化。
 // 0.6 は仕様書 §7.6 / §7.7 の暫定値。実機データに合わせて変更する場合は
 // この値だけを書き換える。
+// 注：2026-04-28 から OCR エンジンは Gemini Vision に切替済み。Gemini は
+// トークン信頼度を提供しないため、現状この閾値は呼び出されない（フォールバック
+// 復活時のために残置）。
 const KISO_OCR_CONFIDENCE_THRESHOLD = 0.6;
+
+// Gemini Vision で答案写真の OCR + 番号別答え抽出を一括実行。
+// - 戻り値（成功）: { ok:true, ocrText:'<JSON 文字列>', answersMap:{"1":"1/4",...} }
+// - 戻り値（失敗）: { ok:false, message:'...', retake?:true }
+//   retake:true は「画像問題で生徒に再撮影を促す」、retake なしは「サーバ問題」
+// モデル: gemini-2.0-flash（精度と速度のバランスが良い）
+//   モデル変更時はこの関数内の URL の models/<NAME> を書き換えるだけで OK
+function _kisoOcrWithGemini(imageBase64, numQuestions) {
+  const apiKey = _props().getProperty('GEMINI_API_KEY');
+  if (!apiKey) return { ok: false, message: 'GEMINI_API_KEY が設定されていません' };
+  const model = 'gemini-2.0-flash';
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+
+  const prompt =
+    'これは数学の解答用紙の写真です。番号（①②③④⑤⑥⑦⑧⑨⑩）の後に書かれた「答え」を抽出してください。\n' +
+    '\n' +
+    '【書式ルール】\n' +
+    '・分数は「分子/分母」の形式（例：3/4）。横線分数も縦書き分数も同じ形式に統一。\n' +
+    '・帯分数は「整数 分子/分母」の形式、半角スペース 1 個で区切る（例：1 1/2）\n' +
+    '・平方根は「√数字」「整数√数字」の形式（例：√3、2√5）\n' +
+    '・指数は「^」を使う（例：2^3、x^2）\n' +
+    '・マイナス記号は半角ハイフン「-」（例：-7、-3/4）\n' +
+    '・「x = 5, y = -2」のような連立方程式の解は文字列のまま「x=5, y=-2」と書く\n' +
+    '\n' +
+    '【出力ルール】\n' +
+    '・出力は JSON オブジェクトのみ。前後の説明文や ```json などのコードブロックは絶対に含めない\n' +
+    '・キーは番号の文字列 "1", "2", ..., "' + numQuestions + '"\n' +
+    '・値は答えの文字列（読み取れない場合は空文字 ""）\n' +
+    '・1〜' + numQuestions + ' 番までを対象とする\n' +
+    '・存在しない番号や読み取れない番号は空文字 "" を入れる（キー自体は省略しない）\n' +
+    '\n' +
+    '【出力例】\n' +
+    '{"1": "1/4", "2": "1", "3": "17/30", "4": "2√5", "5": ""}';
+
+  const body = {
+    contents: [{
+      parts: [
+        { text: prompt },
+        { inlineData: { mimeType: 'image/jpeg', data: String(imageBase64) } }
+      ]
+    }],
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: 'application/json'
+    }
+  };
+
+  let res;
+  try {
+    res = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(body),
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    console.error('[Gemini fetch error]', e);
+    return { ok: false, message: 'Gemini API 通信エラー：' + String(e) };
+  }
+
+  const code = res.getResponseCode();
+  const raw  = res.getContentText();
+  let json;
+  try {
+    json = JSON.parse(raw);
+  } catch (e) {
+    console.error('[Gemini JSON parse error]', code, e, raw.substring(0, 800));
+    return { ok: false, message: 'Gemini API: 応答 JSON が不正（HTTP ' + code + '）' };
+  }
+
+  // トップレベルエラー（請求枠 / 認証 / モデル名違反など）
+  if (json && json.error) {
+    console.error('[Gemini top-level error]', code, JSON.stringify(json.error));
+    return { ok: false, message: 'Gemini API: ' + (json.error.message || 'error') };
+  }
+  // promptFeedback のブロック判定（レアケース）
+  if (json && json.promptFeedback && json.promptFeedback.blockReason) {
+    console.error('[Gemini blocked]', JSON.stringify(json.promptFeedback));
+    return { ok: false, retake: true, message: '画像のチェックでブロックされました。別の写真でもう一度試してください。' };
+  }
+
+  const candidates = json && json.candidates;
+  if (!candidates || !candidates[0]) {
+    console.error('[Gemini no candidates]', code, raw.substring(0, 800));
+    return { ok: false, message: 'Gemini 応答に候補がありません（HTTP ' + code + '）' };
+  }
+  const cand = candidates[0];
+  // SAFETY などで finishReason が不正常な場合
+  if (cand.finishReason && cand.finishReason !== 'STOP' && cand.finishReason !== 'MAX_TOKENS') {
+    console.error('[Gemini abnormal finishReason]', cand.finishReason, JSON.stringify(cand));
+    return { ok: false, retake: true, message: '画像の解析が中断されました（' + cand.finishReason + '）。もう一度撮影してください。' };
+  }
+
+  const parts = cand.content && cand.content.parts;
+  if (!parts || !parts[0] || typeof parts[0].text !== 'string') {
+    console.error('[Gemini no text part]', JSON.stringify(cand));
+    return { ok: false, retake: true, message: '画像から文字を読み取れませんでした。明るい場所でもう一度撮影してください。' };
+  }
+
+  const ocrText = String(parts[0].text || '').trim();
+  if (!ocrText) {
+    return { ok: false, retake: true, message: '画像から文字を読み取れませんでした。明るい場所でもう一度撮影してください。' };
+  }
+
+  // responseMimeType=application/json でも稀に ```json ... ``` が混じることがある保険
+  let jsonStr = ocrText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+  let answersMap;
+  try {
+    answersMap = JSON.parse(jsonStr);
+  } catch (e) {
+    console.error('[Gemini answers JSON parse]', e, ocrText.substring(0, 400));
+    return { ok: false, retake: true, message: '答えの解析に失敗しました。もう一度撮影してください。' };
+  }
+  if (!answersMap || typeof answersMap !== 'object' || Array.isArray(answersMap)) {
+    console.error('[Gemini answers not object]', typeof answersMap, ocrText.substring(0, 400));
+    return { ok: false, retake: true, message: '答えの解析に失敗しました（不正な形式）。もう一度撮影してください。' };
+  }
+
+  return { ok: true, ocrText: ocrText, answersMap: answersMap };
+}
 
 // Vision API レスポンスから symbol レベルの confidence を平均で取得。
 // fullTextAnnotation.pages[].blocks[].paragraphs[].words[].symbols[].confidence
@@ -3163,66 +3286,30 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
       targetIds = (Array.isArray(prevWrong) && prevWrong.length > 0) ? prevWrong : allQids.slice();
     }
 
-    // Vision API で OCR
-    const apiKey = _props().getProperty('VISION_API_KEY');
-    if (!apiKey) return { ok: false, message: 'VISION_API_KEY が設定されていません' };
-    const url  = 'https://vision.googleapis.com/v1/images:annotate?key=' + apiKey;
-    const body = {
-      requests: [{
-        image: { content: imageBase64 },
-        features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }]
-      }]
-    };
-    const visionRes = UrlFetchApp.fetch(url, {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(body),
-      muteHttpExceptions: true
-    });
-    const visionRaw  = visionRes.getContentText();
-    const visionCode = visionRes.getResponseCode();
-    let visionJson;
-    try {
-      visionJson = JSON.parse(visionRaw);
-    } catch (e) {
-      console.error('[submitKisoAnswer Vision JSON parse error]', visionCode, e, visionRaw.substring(0, 800));
-      return { ok: false, message: '画像の読み取りに失敗しました（応答 JSON が不正）' };
-    }
-    // Vision API トップレベルエラー（請求枠超過 / 認証 NG / リクエスト本文不正など）
-    if (visionJson && visionJson.error) {
-      console.error('[submitKisoAnswer Vision top-level error]', visionCode, JSON.stringify(visionJson.error));
-      return { ok: false, message: 'Vision API: ' + (visionJson.error.message || 'top-level error') };
-    }
-    if (!visionJson.responses || !visionJson.responses[0]) {
-      console.error('[submitKisoAnswer unexpected response]', visionCode, visionRaw.substring(0, 800));
-      return { ok: false, message: '画像の読み取りに失敗しました（応答に responses 配列がありません）' };
-    }
-    if (visionJson.responses[0].error) {
-      console.error('[submitKisoAnswer Vision per-image error]', JSON.stringify(visionJson.responses[0].error));
-      return { ok: false, message: 'Vision API エラー: ' + visionJson.responses[0].error.message };
-    }
-    const fullAnno = visionJson.responses[0].fullTextAnnotation;
-    const ocrText = (fullAnno && fullAnno.text) ? String(fullAnno.text) : '';
-    if (!ocrText) {
-      return { ok: false, retake: true, message: '文字が読み取れませんでした。明るい場所でもう一度撮影してください。' };
+    // Gemini Vision で OCR + 番号別に答えを抽出
+    // 旧 Vision API は分数の縦書き・手書き認識精度が低く、本番運用で誤判定が頻発したため
+    // Gemini API（multimodal）に切替。Gemini は番号 → 答え の対応付けまで一括で行う。
+    const geminiRes = _kisoOcrWithGemini(imageBase64, targetIds.length);
+    if (!geminiRes.ok) return geminiRes;   // {ok:false, message, retake?} をそのまま返却
+    const ocrText = geminiRes.ocrText;     // Gemini の生 JSON 応答（管理画面ログ用にプレビューする）
+    const answersMap = geminiRes.answersMap;  // {"1":"1/4", "2":"1", ...}
+
+    // 番号 → 答え の配列を組み立て
+    const studentAnswers = [];
+    for (let i = 0; i < targetIds.length; i++) {
+      const num = i + 1;
+      const a = (answersMap[String(num)] !== undefined) ? answersMap[String(num)] : answersMap[num];
+      studentAnswers.push(String(a == null ? '' : a));
     }
 
-    // B-2: OCR 信頼度チェック（仕様書 §7.6 ケース4 / §7.7）
-    // 全 symbol の confidence 平均が KISO_OCR_CONFIDENCE_THRESHOLD（0.6）未満なら再撮影を促す
-    // 採点処理はスキップし、KisoSessions も更新しない（attempts も増やさない）
-    const avgConfidence = _kisoAverageOcrConfidence(fullAnno);
-    if (avgConfidence < KISO_OCR_CONFIDENCE_THRESHOLD) {
-      return {
-        ok: false,
-        retake: true,
-        avgConfidence: avgConfidence,
-        threshold: KISO_OCR_CONFIDENCE_THRESHOLD,
-        message: '写真が読み取りにくいみたい！明るい場所で、はっきり書いた答えを撮ってもう一度送ってね。'
-      };
+    // 全部空なら再撮影を促す（Gemini が画像を全く読めなかったケース）
+    let _nonEmptyCount = 0;
+    for (let i = 0; i < studentAnswers.length; i++) {
+      if (String(studentAnswers[i]).trim() !== '') _nonEmptyCount += 1;
     }
-
-    // 問題番号で分割
-    const studentAnswers = _kisoSplitByQuestionNumbers(ocrText, targetIds.length);
+    if (_nonEmptyCount === 0) {
+      return { ok: false, retake: true, message: '写真から答えが読み取れませんでした。明るい場所で、もう一度はっきり撮影してください。' };
+    }
 
     // 各問題を採点
     const probs = _getKisoQuestionsByIds(targetIds);
