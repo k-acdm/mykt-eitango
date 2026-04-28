@@ -2570,11 +2570,20 @@ function getKisoTodayRawHP(params) {
 const KISO_OCR_CONFIDENCE_THRESHOLD = 0.6;
 
 // Gemini Vision で答案写真の OCR + 番号別答え抽出を一括実行。
-// - 戻り値（成功）: { ok:true, ocrText:'<JSON 文字列>', answersMap:{"1":"1/4",...} }
+// - 戻り値（成功）: { ok:true, ocrText:'<JSON 文字列>', answersMap:{"1":"1/4",...}, attempts: 1|2 }
 // - 戻り値（失敗）: { ok:false, message:'...', retake?:true }
 //   retake:true は「画像問題で生徒に再撮影を促す」、retake なしは「サーバ問題」
 // モデル: gemini-2.0-flash（精度と速度のバランスが良い）
 //   モデル変更時はこの関数内の URL の models/<NAME> を書き換えるだけで OK
+//
+// 自動リトライ機構（2026-04-29 追加）：
+//   GAS UrlFetchApp の「帯域幅の上限」エラーや HTTP 429 / 5xx 等の一時的失敗で
+//   生徒に失敗を見せないため、内部で 1 回だけ自動再試行する（500ms 待機）。
+//   - リトライ対象：fetch 例外 / HTTP 429 / HTTP 5xx /
+//     トップレベル error の quota|rate|limit|exhaust|busy|unavail|帯域 メッセージ
+//   - リトライ非対象：HTTP 4xx（401/403/404 等の永続エラー） / promptFeedback ブロック /
+//     SAFETY finishReason / 答えの JSON 解析失敗
+//   - リトライ成功時は console.log で初回エラー内容を記録（運用観察用）
 function _kisoOcrWithGemini(imageBase64, numQuestions) {
   const apiKey = _props().getProperty('GEMINI_API_KEY');
   if (!apiKey) return { ok: false, message: 'GEMINI_API_KEY が設定されていません' };
@@ -2614,79 +2623,112 @@ function _kisoOcrWithGemini(imageBase64, numQuestions) {
       responseMimeType: 'application/json'
     }
   };
+  const fetchOpts = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  };
 
-  let res;
-  try {
-    res = UrlFetchApp.fetch(url, {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(body),
-      muteHttpExceptions: true
-    });
-  } catch (e) {
-    console.error('[Gemini fetch error]', e);
-    return { ok: false, message: 'Gemini API 通信エラー：' + String(e) };
+  // リトライ設定（合計で最大 2 回試行）
+  const MAX_ATTEMPTS  = 2;
+  const RETRY_WAIT_MS = 500;
+  const QUOTA_PATTERN = /quota|rate|limit|exhaust|busy|unavail|帯域/i;
+  let lastErrorSummary = '';
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res;
+    // ① fetch 段階の例外（帯域幅・ネットワーク等）
+    try {
+      res = UrlFetchApp.fetch(url, fetchOpts);
+    } catch (e) {
+      const exMsg = String(e);
+      console.error('[Gemini fetch exception attempt=' + attempt + ']', exMsg);
+      lastErrorSummary = 'fetch exception: ' + exMsg;
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, message: 'Gemini API 通信エラー：' + exMsg + '（自動リトライ後も失敗）' };
+    }
+
+    const code = res.getResponseCode();
+    const raw  = res.getContentText();
+
+    // ② HTTP 429 / 5xx は一時的失敗として自動リトライ
+    if (code === 429 || (code >= 500 && code < 600)) {
+      console.error('[Gemini retryable HTTP attempt=' + attempt + ']', code, raw.substring(0, 400));
+      lastErrorSummary = 'HTTP ' + code;
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, message: 'Gemini API が混雑しています（HTTP ' + code + '）。少し時間をおいて再送信してください。' };
+    }
+
+    let json;
+    try {
+      json = JSON.parse(raw);
+    } catch (e) {
+      console.error('[Gemini JSON parse error]', code, e, raw.substring(0, 800));
+      return { ok: false, message: 'Gemini API: 応答 JSON が不正（HTTP ' + code + '）' };
+    }
+
+    // ③ トップレベル error（請求枠 / 認証 / モデル名違反 / 帯域幅エラー等）
+    //    quota/rate/limit/exhaust/busy/unavail/帯域 系メッセージのみリトライ対象
+    if (json && json.error) {
+      const errMsg = String(json.error.message || '');
+      console.error('[Gemini top-level error attempt=' + attempt + ']', code, JSON.stringify(json.error));
+      if (QUOTA_PATTERN.test(errMsg) && attempt < MAX_ATTEMPTS) {
+        lastErrorSummary = 'top-level error: ' + errMsg;
+        Utilities.sleep(RETRY_WAIT_MS);
+        continue;
+      }
+      return { ok: false, message: 'Gemini API: ' + (errMsg || 'error') };
+    }
+
+    // ④ 以下はリトライ非対象（画像内容 or 永続的失敗）
+    if (json && json.promptFeedback && json.promptFeedback.blockReason) {
+      console.error('[Gemini blocked]', JSON.stringify(json.promptFeedback));
+      return { ok: false, retake: true, message: '画像のチェックでブロックされました。別の写真でもう一度試してください。' };
+    }
+
+    const candidates = json && json.candidates;
+    if (!candidates || !candidates[0]) {
+      console.error('[Gemini no candidates]', code, raw.substring(0, 800));
+      return { ok: false, message: 'Gemini 応答に候補がありません（HTTP ' + code + '）' };
+    }
+    const cand = candidates[0];
+    if (cand.finishReason && cand.finishReason !== 'STOP' && cand.finishReason !== 'MAX_TOKENS') {
+      console.error('[Gemini abnormal finishReason]', cand.finishReason, JSON.stringify(cand));
+      return { ok: false, retake: true, message: '画像の解析が中断されました（' + cand.finishReason + '）。もう一度撮影してください。' };
+    }
+    const parts = cand.content && cand.content.parts;
+    if (!parts || !parts[0] || typeof parts[0].text !== 'string') {
+      console.error('[Gemini no text part]', JSON.stringify(cand));
+      return { ok: false, retake: true, message: '画像から文字を読み取れませんでした。明るい場所でもう一度撮影してください。' };
+    }
+    const ocrText = String(parts[0].text || '').trim();
+    if (!ocrText) {
+      return { ok: false, retake: true, message: '画像から文字を読み取れませんでした。明るい場所でもう一度撮影してください。' };
+    }
+    // responseMimeType=application/json でも稀に ```json ... ``` が混じることがある保険
+    let jsonStr = ocrText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    let answersMap;
+    try {
+      answersMap = JSON.parse(jsonStr);
+    } catch (e) {
+      console.error('[Gemini answers JSON parse]', e, ocrText.substring(0, 400));
+      return { ok: false, retake: true, message: '答えの解析に失敗しました。もう一度撮影してください。' };
+    }
+    if (!answersMap || typeof answersMap !== 'object' || Array.isArray(answersMap)) {
+      console.error('[Gemini answers not object]', typeof answersMap, ocrText.substring(0, 400));
+      return { ok: false, retake: true, message: '答えの解析に失敗しました（不正な形式）。もう一度撮影してください。' };
+    }
+
+    // ⑤ 成功（リトライ後成功なら運用観察用にログ）
+    if (attempt > 1) {
+      console.log('[Gemini retry success] attempt=' + attempt + ' initial_error=' + lastErrorSummary);
+    }
+    return { ok: true, ocrText: ocrText, answersMap: answersMap, attempts: attempt };
   }
 
-  const code = res.getResponseCode();
-  const raw  = res.getContentText();
-  let json;
-  try {
-    json = JSON.parse(raw);
-  } catch (e) {
-    console.error('[Gemini JSON parse error]', code, e, raw.substring(0, 800));
-    return { ok: false, message: 'Gemini API: 応答 JSON が不正（HTTP ' + code + '）' };
-  }
-
-  // トップレベルエラー（請求枠 / 認証 / モデル名違反など）
-  if (json && json.error) {
-    console.error('[Gemini top-level error]', code, JSON.stringify(json.error));
-    return { ok: false, message: 'Gemini API: ' + (json.error.message || 'error') };
-  }
-  // promptFeedback のブロック判定（レアケース）
-  if (json && json.promptFeedback && json.promptFeedback.blockReason) {
-    console.error('[Gemini blocked]', JSON.stringify(json.promptFeedback));
-    return { ok: false, retake: true, message: '画像のチェックでブロックされました。別の写真でもう一度試してください。' };
-  }
-
-  const candidates = json && json.candidates;
-  if (!candidates || !candidates[0]) {
-    console.error('[Gemini no candidates]', code, raw.substring(0, 800));
-    return { ok: false, message: 'Gemini 応答に候補がありません（HTTP ' + code + '）' };
-  }
-  const cand = candidates[0];
-  // SAFETY などで finishReason が不正常な場合
-  if (cand.finishReason && cand.finishReason !== 'STOP' && cand.finishReason !== 'MAX_TOKENS') {
-    console.error('[Gemini abnormal finishReason]', cand.finishReason, JSON.stringify(cand));
-    return { ok: false, retake: true, message: '画像の解析が中断されました（' + cand.finishReason + '）。もう一度撮影してください。' };
-  }
-
-  const parts = cand.content && cand.content.parts;
-  if (!parts || !parts[0] || typeof parts[0].text !== 'string') {
-    console.error('[Gemini no text part]', JSON.stringify(cand));
-    return { ok: false, retake: true, message: '画像から文字を読み取れませんでした。明るい場所でもう一度撮影してください。' };
-  }
-
-  const ocrText = String(parts[0].text || '').trim();
-  if (!ocrText) {
-    return { ok: false, retake: true, message: '画像から文字を読み取れませんでした。明るい場所でもう一度撮影してください。' };
-  }
-
-  // responseMimeType=application/json でも稀に ```json ... ``` が混じることがある保険
-  let jsonStr = ocrText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-  let answersMap;
-  try {
-    answersMap = JSON.parse(jsonStr);
-  } catch (e) {
-    console.error('[Gemini answers JSON parse]', e, ocrText.substring(0, 400));
-    return { ok: false, retake: true, message: '答えの解析に失敗しました。もう一度撮影してください。' };
-  }
-  if (!answersMap || typeof answersMap !== 'object' || Array.isArray(answersMap)) {
-    console.error('[Gemini answers not object]', typeof answersMap, ocrText.substring(0, 400));
-    return { ok: false, retake: true, message: '答えの解析に失敗しました（不正な形式）。もう一度撮影してください。' };
-  }
-
-  return { ok: true, ocrText: ocrText, answersMap: answersMap };
+  // ループ完走（理論上は到達しない）— 防御的フォールバック
+  return { ok: false, message: 'Gemini API: 不明なエラー（リトライ完了後）：' + lastErrorSummary };
 }
 
 // Vision API レスポンスから symbol レベルの confidence を平均で取得。
