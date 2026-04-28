@@ -4780,14 +4780,16 @@ function _wabun1AddDays(startStr, n) {
 //   1. すべての空白文字を削除（半角/全角スペース・タブ・改行）
 //   2. 全角英数を半角に統一
 //   3. 類似句読点・記号を半角に統一（「、」⇔「,」、「．」⇔「.」、ハイフン類など）
-//   4. 大文字小文字を無視
 // ■ 維持（厳格に判定）
 //   - 文末ピリオド「.」は punctuation としてそのまま残る
 //   - 文末句点「。」は punctMap に含めず別記号として残す（英文 . と日本文 。 を区別）
+//   - 大文字小文字（2026-04-29 から厳格化）：学校テストの採点基準に合わせるため
+//     toLowerCase を撤廃。文頭小文字 / 文中大文字は ❌ として判定される。
+//     全角→半角変換は case を保持する（Ａ→A, ａ→a）。
 function _normalizeWabun1(s) {
   if (s == null) return '';
   let t = String(s);
-  // 1. 全角英数を半角に
+  // 1. 全角英数を半角に（case は保持）
   t = t.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(ch){
     return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
   });
@@ -4811,8 +4813,7 @@ function _normalizeWabun1(s) {
   });
   // 3. すべての空白文字を削除（半角/全角スペース・タブ・改行・その他 Unicode 空白）
   t = t.replace(/[\s　]+/g, '');
-  // 4. 小文字化
-  t = t.toLowerCase();
+  // 大文字小文字は厳格判定のため lowercasing しない（2026-04-29 仕様変更）
   return t;
 }
 
