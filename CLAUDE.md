@@ -1480,6 +1480,83 @@ Phase 3 着手中に新たな設計原則が発見された場合：
   ```
 - 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
 
+### 2026-04-28 午前
+
+自宅PCで作業。英語長文リスニング＆音読コンテンツのリブランディング（「英語リスオン」へのリネーム）+ ホーム画面のレイアウト整理 + 秘密の扉カードの伏線設置 + リスのマスコットアイコン導入。コードは `index.html` のみ、GAS 変更なし。
+
+#### 126. ホーム画面構成変更：英語リスオンへリネーム + 秘密の扉カード新設（dev `35e271f` → main `3e265f1`）
+- **背景・目的**: 「英語長文リスニング＆音読」は名称が長く 2 列ぶち抜き表示になっていた。短く覚えやすい新名称「英語リスオン」（リス + リッスン）に置き換え、半分サイズ化することで他コンテンツと同じグリッド密度に揃える。併せてホーム画面の最後の空き枠に「秘密の扉」を伏線として設置（将来「本日の運勢」ページへの遷移ボタンとして機能予定）
+- **ホーム画面の最終レイアウト**:
+  - 行 1: 英単語RUSH / 三語短文
+  - 行 2: 和文英訳① / 和文英訳②
+  - 行 3: 基礎計算 / **英語リスオン**（半分サイズ化、副題「英語長文リスニング＆音読」）
+  - 行 4: 社会の重要用語 / 理科の重要用語
+  - 行 5: 漢字 / **秘密の扉**（新規）
+- **[index.html](index.html) 変更点**:
+  - CSS: `.content-btn.c-listening { ... grid-column: span 2; }` を **`.content-btn.c-lison { ... }`** に置換（`grid-column: span 2` 撤廃）
+  - 内部識別子の lison 統一: `c-listening` → `c-lison`（CSS クラスのみが既存実装。JS 関数・変数は未実装のため対象なし）。view.html / admin.html / gas/Code.js には listening 参照ゼロを確認済
+  - 英語リスオンカード: `<span class="ico">🎧</span>` + メインラベルの構成は維持しつつ、副題 `<span class="content-btn-sub">英語長文リスニング＆音読</span>` を追加（既存の `.content-btn-sub` パターン= 11px グレー、和文英訳①・基礎計算と同じスタイル）。「準備中」バッジは継続
+  - 秘密の扉カード新設:
+    - 専用クラス `.c-himitsu`（`linear-gradient(135deg,#5b21b6,#1e1b4b)` 深紫グラデ + `position:relative; overflow:hidden`）
+    - `::before` / `::after` で角に ✨ 装飾（top-left / bottom-right）
+    - 専用副題クラス `.content-btn-sub-equal`（メインと同じ 16px / 14px、`display:block` `font-weight:bold` `opacity:.95`）— 通常の `.content-btn-sub` より大きい特殊仕様
+    - クリック時 `showHimitsuDoor()` で「🚪 秘密の扉はまだ閉じています…\n近日公開、お楽しみに！」アラート（簡易実装、将来「本日の運勢」ページに差し替え予定）
+- **コミット経緯**: 当初 `git push origin HEAD:dev` で fast-forward 成功（`7e9a8aa..35e271f`）
+
+#### 127. 英語リスオン マスコットアイコン導入：リスのイラスト配置（dev `7270829` / `8426c7f` → main `4571dd9`）
+- **背景**: 英語リスオンの「マスコット」として、ヘッドフォンを着けて英語の本を読むリスのイラストを Gemini で生成（PNG / 透過）。ふくちさんが GitHub Web UI 経由でリポジトリトップに `lison-icon.png` を先行アップロード（commit `8ae8c7b "Add files via upload"`）
+- **配置パターン: A（絵文字 🎧 をマスコット画像に差し替え）を採用**
+  - 理由: リスが既にヘッドフォン着用 → 「リスニング」のメタファーをリス自体が担うため、絵文字を残すと意味が冗長。中央上部の既存スポット（絵文字位置）にそのまま収めることで他カードとの構造的一貫性を維持しつつマスコットを最大限目立たせる。サブラベル「英語長文リスニング＆音読」とも自然な階層関係になる
+- **[images/lison-icon.png](images/lison-icon.png)**: トップレベル `lison-icon.png` を `images/` に整理（新規ディレクトリ）。重複となった top-level の `lison-icon.png` は削除
+- **CSS** ([index.html](index.html)) に `.ico-mascot` を新設（既存 `.ico` 絵文字系とは別系統）:
+  - サイズ: PC 高さ 48px / モバイル 40px
+  - `width: auto; object-fit: contain` で歪みなし
+  - `margin: 0 auto 6px` で中央揃え（`text-align: center` の親内で block 要素を中央寄せ）
+  - `filter: drop-shadow(0 2px 4px rgba(0,0,0,.25))` で深紺グラデ背景に対する立体感
+  - `transition: transform .2s` + `:not(.disabled):hover { transform: scale(1.06) }` で有効化後に hover でわずかに拡大するリアクション（準備中の現状は disabled で発動しない）
+- **HTML 変更**: 英語リスオンカードの `<span class="ico">🎧</span>` を `<img class="ico-mascot" src="images/lison-icon.png" alt="">` に置換
+- **rebase 経緯**: 初回 push が non-fast-forward で reject。原因はふくちさんが GitHub Web UI で `8ae8c7b` を先行 push していたため。`git rebase origin/dev` でその commit を取り込み、続けて top-level の重複 `lison-icon.png` を削除する commit を追加 (`8426c7f`)。最終的に origin/dev はクリーンな状態（icon は images/ に1つだけ）
+
+#### 128. マスコット背景：半透明白の角丸パッド追加（dev `6a34c57` → main `3e265f1`）
+- **背景**: 実機表示で「白の四角形が見える」フィードバック → 透過 PNG ではあるものの、深紺グラデに対してリスのシルエットが沈んで見える + デザイン的にマスコットを浮かせたい意図と判断
+- **`.ico-mascot` の差し替え**:
+  - `background: rgba(255,255,255,.18)` 薄い白パッドを追加
+  - `border-radius: 14px`（PC）/ `12px`（モバイル）でやわらかい印象
+  - `padding: 6px`（PC）/ `5px`（モバイル）でリスがパッドに張り付かない適度な余白
+  - `box-sizing: border-box` でカード内の高さ予算を維持。サイズも正方化（PC 56×56 / モバイル 48×48）→ 角丸正方形のパッドに統一感
+  - hover 時は `background: rgba(255,255,255,.26)` に強める軽いインタラクション（disabled 解除後に発動）
+
+#### 129. 本日午前のコミット履歴サマリ
+- **dev へ push 済み**:
+  - `35e271f feat(ホーム画面): 英語リスオンへリネーム + 秘密の扉カード新設 + 配置変更`
+  - `8ae8c7b Add files via upload`（ふくちさん GitHub Web UI 経由）
+  - `7270829 feat(ホーム画面): 英語リスオンカードにリスのマスコットアイコンを配置`
+  - `8426c7f chore: トップレベルの lison-icon.png を削除（images/ に集約）`
+  - `6a34c57 style(ホーム画面): 英語リスオン マスコットに半透明白の角丸パッドを追加`
+- **main マージ済み**: ふくちさん側で都度 `git merge --no-ff dev` + `git push origin main` を実行。最終 main HEAD: `3e265f1 Merge branch 'dev' (リスマスコット 半透明白パッド)`
+- **GAS 変更なし**: `gas/Code.js` 触れず → `clasp push` 不要
+
+#### 130. 次回（数時間後・塾PC）の主要タスク
+- **塾PC のセットアップ**（CLAUDE.md #111 / #123 参照、まだ未完了の場合）:
+  - USB 持参で `mykt-eitango-writer.json` を `C:\Users\Manager\Documents\gcp-credentials\` に配置
+  - Python パッケージ: `cd C:\Users\Manager\mykt-eitango\scripts\generate_kiso_questions && python -m pip install -r requirements.txt`
+  - 環境変数恒久設定: `KISO_GSPREAD_CREDENTIALS` / `KISO_SPREADSHEET_ID`
+- **英語リスオンの本実装着手**（仕様書 [docs/英語長文リスニング_音読_仕様書.md](docs/英語長文リスニング_音読_仕様書.md) v0.7 ベース）:
+  - 仕様: 週次更新、120-250 語の長文、リスニング → 訳付きリスニング → 正誤 3 問 → 音読録音送信
+  - HP: 4 級〜準2 級 = 100、2 級〜準1 級 = 200
+  - 採点なし（送信 = 完了で HP 付与）
+  - 注意: 仕様書内のシート名 `ListeningPassages` / `ListeningSessions` / `ListeningRecordingsMeta` は本実装着手時に **`Lison...` 系へリネームするか検討**（内部識別子の lison 統一方針との整合性）
+- **その他**: 状況に応じて 4/28 朝の本番運用フィードバックを反映
+
+#### 131. 次回再開時の手順
+- **PowerShell で Claude Code 起動前に実行**（塾PC でも同じ）:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
+
 ---
 
 ## TODO（未反映の GAS 側作業）
