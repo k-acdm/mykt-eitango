@@ -472,6 +472,36 @@
     .kiso-write-guide { background: #ecfeff; border: 2px dashed #06b6d4; border-radius: 12px; padding: 14px 16px; margin: 18px 0 12px; color: #0e7490; font-size: 14px; line-height: 1.85; }
     .kiso-write-guide strong { color: #0369a1; }
     .kiso-photo-btn { background: linear-gradient(135deg, #0ea5e9, #0369a1) !important; font-size: 18px !important; padding: 18px !important; box-shadow: 0 6px 18px rgba(14,165,233,.35); }
+    /* マイカツ君の注意メッセージ（問題表示画面：丸囲み数字を必ず使ってね） */
+    .kiso-mascot-msg { display: flex; gap: 12px; align-items: center; background: linear-gradient(135deg, #fff7ed, #ffedd5); border: 2px solid #fb923c; border-radius: 14px; padding: 12px 14px; margin: 14px 0 10px; box-shadow: 0 3px 10px rgba(251,146,60,.15); }
+    .kiso-mascot-msg img { width: 64px; height: 64px; border-radius: 50%; flex: 0 0 auto; object-fit: cover; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+    .kiso-mascot-msg .bubble { flex: 1; font-size: 15px; font-weight: bold; color: #9a3412; line-height: 1.6; }
+    .kiso-mascot-msg .bubble .hint-circ { display: inline-block; padding: 0 6px; background: #fff; border: 2px solid #fb923c; border-radius: 6px; color: #c2410c; font-size: 17px; margin: 0 1px; line-height: 1.3; vertical-align: middle; }
+    /* 解答用紙のルール（3 セクション：番号 / 答えの書き方 / 途中式について） */
+    .kiso-paper-rules { background: #ecfeff; border: 2px solid #06b6d4; border-radius: 12px; padding: 14px 16px; margin: 12px 0 14px; color: #0e7490; font-size: 14px; line-height: 1.7; }
+    .kiso-paper-rules .rule-section { margin: 8px 0; }
+    .kiso-paper-rules .rule-section + .rule-section { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #67e8f9; }
+    .kiso-paper-rules .rule-title { font-weight: bold; color: #0369a1; margin-bottom: 4px; }
+    .kiso-paper-rules .rule-bullets { padding-left: 20px; margin: 0; }
+    .kiso-paper-rules .rule-bullets li { margin: 2px 0; }
+    .kiso-paper-rules code { background: #fff; padding: 1px 6px; border-radius: 4px; border: 1px solid #cffafe; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; color: #0c4a6e; }
+    /* 撮影前確認画面（途中式の写真も送る？） */
+    .kiso-pre-confirm-card { background: #fff; border-radius: 14px; padding: 22px 18px; margin: 14px 0; box-shadow: 0 3px 10px rgba(0,0,0,.08); text-align: center; }
+    .kiso-pre-confirm-card .ttl { font-size: 20px; font-weight: bold; color: #0c4a6e; margin-bottom: 8px; }
+    .kiso-pre-confirm-card .sub { font-size: 13px; color: #475569; margin-bottom: 18px; line-height: 1.7; }
+    .kiso-pre-confirm-btns { display: flex; flex-direction: column; gap: 12px; }
+    .kiso-pre-confirm-btn { padding: 18px 14px; font-size: 17px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.12); transition: transform .12s; }
+    .kiso-pre-confirm-btn:active { transform: scale(.97); }
+    .kiso-pre-confirm-btn-yes { background: linear-gradient(135deg, #a78bfa, #7c3aed); color: #fff; }
+    .kiso-pre-confirm-btn-no  { background: linear-gradient(135deg, #94a3b8, #64748b); color: #fff; }
+    /* 途中式 送信後の選択画面（もう1枚 / これで終わり） */
+    .kiso-work-after-card { background: #fff; border-radius: 14px; padding: 22px 18px; margin: 14px 0; box-shadow: 0 3px 10px rgba(0,0,0,.08); text-align: center; }
+    .kiso-work-after-card .ok-icon { font-size: 38px; margin-bottom: 4px; }
+    .kiso-work-after-card .ok-msg { font-size: 17px; font-weight: bold; color: #047857; margin-bottom: 4px; }
+    .kiso-work-after-card .submitted-list { font-size: 13px; color: #475569; margin: 6px 0 16px; }
+    .kiso-work-after-btns { display: flex; flex-direction: column; gap: 10px; }
+    .kiso-work-after-btn-more { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; padding: 14px; font-size: 16px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; }
+    .kiso-work-after-btn-done { background: linear-gradient(135deg, #10b981, #059669); color: #fff; padding: 14px; font-size: 16px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; }
 
     /* 撮影確認 */
     .kiso-confirm-card { background: #fff; border-radius: 14px; padding: 18px; margin: 14px 0; box-shadow: 0 3px 10px rgba(0,0,0,.08); }
@@ -1071,15 +1101,61 @@
       <span class="kiso-problem-title" id="kiso-problem-title"></span>
       <span class="kiso-problem-meta" id="kiso-problem-attempts"></span>
     </div>
-    <div id="kiso-problem-list" class="kiso-problem-list"></div>
-    <div class="kiso-write-guide">
-      📝 <strong>答えを紙に書いてね</strong>。問題番号（① ② ③ …）と一緒に答えを書こう。<br>
-      全部解けたら「写真を撮って提出」ボタンを押してね。<br>
-      <span style="color:#7c2d12"><strong>分数は必ず約分すること。平方根は必ず変形すること（<code>√8</code> ではなく、<code>2√2</code>）</strong></span>
+    <div class="kiso-mascot-msg">
+      <img src="character.jpg" alt="マイカツ君">
+      <div class="bubble">
+        問題の番号は<br>
+        <span class="hint-circ">①</span><span class="hint-circ">②</span><span class="hint-circ">③</span> …
+        の<strong>丸囲み数字</strong>で書いてね！
+      </div>
     </div>
-    <button class="btn-wide kiso-photo-btn" onclick="document.getElementById('kiso-photo-input').click()">📷 写真を撮って提出する</button>
+    <div id="kiso-problem-list" class="kiso-problem-list"></div>
+    <div class="kiso-paper-rules">
+      <div class="rule-section">
+        <div class="rule-title">📝 番号</div>
+        <ul class="rule-bullets">
+          <li>丸囲み数字（①②③…）を使う</li>
+        </ul>
+      </div>
+      <div class="rule-section">
+        <div class="rule-title">📝 答えの書き方</div>
+        <ul class="rule-bullets">
+          <li>番号の後に、2文字分くらいスペース</li>
+          <li>1問は基本1行（連立方程式など、複数行になってもOK）</li>
+          <li>分数は必ず<strong>約分</strong>。平方根は必ず<strong>変形</strong>（<code>√8</code> ではなく <code>2√2</code>）</li>
+        </ul>
+      </div>
+      <div class="rule-section">
+        <div class="rule-title">📝 途中式について</div>
+        <ul class="rule-bullets">
+          <li>途中の計算式は<strong>別の紙</strong>に書く</li>
+          <li>解答用紙には<strong>答えのみ</strong>を書く（連立方程式の <code>x=</code>, <code>y=</code> は答えなのでOK）</li>
+        </ul>
+      </div>
+    </div>
+    <button class="btn-wide kiso-photo-btn" onclick="goKisoPreConfirm()">📷 写真を撮って提出する</button>
     <input type="file" id="kiso-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKisoPhotoSelected(event)"/>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- §4.6a 撮影前確認画面：途中式の写真も送る？（新規） -->
+<div id="screen-kiso-pre-confirm" class="screen">
+  <header><h1>🧮 写真の送信について</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kiso-pre-confirm-card">
+      <div class="ttl">途中式の写真も送る？</div>
+      <div class="sub">
+        途中式は<strong>別の紙</strong>に書いて、<br>
+        解答の写真の後で送ることができるよ。<br>
+        （AI採点はせず、先生が後で見るためだけの記録です）
+      </div>
+      <div class="kiso-pre-confirm-btns">
+        <button class="kiso-pre-confirm-btn kiso-pre-confirm-btn-yes" onclick="chooseKisoWorkPhoto(true)">📝 途中式の写真も送る</button>
+        <button class="kiso-pre-confirm-btn kiso-pre-confirm-btn-no"  onclick="chooseKisoWorkPhoto(false)">✋ 途中式は書いてません</button>
+      </div>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-kiso-problem')">← 問題画面に戻る</button>
   </div>
 </div>
 
@@ -1108,6 +1184,48 @@
     <div id="kiso-result-banner"></div>
     <div id="kiso-result-list" class="kiso-result-list"></div>
     <div id="kiso-result-actions"></div>
+    <!-- 途中式写真用の input（iOS Safari は表示中画面の input でないと click が onchange を発火しないため、
+         result 画面と work-after 画面の両方に input を配置） -->
+    <input type="file" id="kiso-work-photo-input-1" accept="image/*" capture="environment" style="display:none" onchange="onKisoWorkPhotoSelected(event)"/>
+  </div>
+</div>
+
+<!-- §4.7b 途中式 撮影確認画面（新規） -->
+<div id="screen-kiso-work-confirm" class="screen">
+  <header><h1>🧮 途中式 撮影確認</h1><span>この内容で良いですか？</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kiso-confirm-card">
+      <img id="kiso-work-confirm-preview" class="kiso-confirm-preview" alt="途中式の撮影画像"/>
+      <div class="kiso-confirm-msg">
+        ✅ 途中式がはっきり写っているかを確認してね。<br>
+        OK なら「送信する」を押してね。<br>
+        <span style="color:#92400e;font-size:13px">※ 途中式は AI 採点はせず、先生が確認用に保存します。</span>
+      </div>
+      <div class="kiso-confirm-btns">
+        <button class="kiso-confirm-retake" onclick="retakeKisoWorkPhoto()">📸 撮り直す</button>
+        <button class="kiso-confirm-submit" id="kiso-work-confirm-submit-btn" onclick="submitKisoWorkPhoto()">🚀 送信する</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- §4.7c 途中式 送信後（新規）：もう1枚 / これで終わり -->
+<div id="screen-kiso-work-after" class="screen">
+  <header><h1>🧮 途中式 送信完了</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kiso-work-after-card">
+      <div class="ok-icon">✅</div>
+      <div class="ok-msg" id="kiso-work-after-count">送信しました</div>
+      <div class="submitted-list">
+        途中式の写真を続けて送ることもできるよ。<br>
+        終わったら「これで終わり」を押してね。
+      </div>
+      <div class="kiso-work-after-btns">
+        <button class="kiso-work-after-btn-more" onclick="continueKisoWorkPhoto()">📷 もう1枚追加する</button>
+        <button class="kiso-work-after-btn-done" onclick="finishKisoWorkPhoto()">✅ これで終わり（HPを獲得）</button>
+      </div>
+    </div>
+    <input type="file" id="kiso-work-photo-input-2" accept="image/*" capture="environment" style="display:none" onchange="onKisoWorkPhotoSelected(event)"/>
   </div>
 </div>
 
@@ -2750,7 +2868,10 @@
     questions: [],           // [{no, questionId, problemLatex}, ...]（再挑戦時は不正解問題のみ）
     isRetry: false,          // true なら再挑戦画面（不正解問題のみ）
     photoBase64: '',         // 撮影 → base64（送信時に submit）
-    attempts: 0
+    attempts: 0,
+    hasWorkPhoto: false,     // 撮影前確認画面で「途中式の写真も送る」を選んだか
+    workPhotoBase64: '',     // 途中式写真の撮影バッファ
+    workPhotoIndex: 0        // 送信済み途中式写真の枚数（連番）
   };
   var _kisoGradingDotsTimer = null;
 
@@ -2890,6 +3011,10 @@
       _kisoState.questions = res.questions || [];
       _kisoState.isRetry   = false;
       _kisoState.attempts  = 0;
+      // 新フロー：途中式関連 state を初期化
+      _kisoState.hasWorkPhoto    = false;
+      _kisoState.workPhotoBase64 = '';
+      _kisoState.workPhotoIndex  = 0;
       _renderKisoProblemList();
     }).catch(function(err){
       problemList.innerHTML = '<div style="text-align:center;padding:30px 0;color:#c0392b">⚠️ 通信エラーが発生しました。<br><small style="color:#888">' + _kisoEsc(String(err)) + '</small></div>';
@@ -2918,20 +3043,21 @@
     _kisoTypeset(listEl);
   }
 
-  // §4.6 写真撮影：選択 → リサイズ（長辺 1600px / JPEG 0.8）→ プレビュー → 確認画面
+  // §4.6 写真撮影：選択 → リサイズ（長辺 1200px / JPEG 0.7）→ プレビュー → 確認画面
+  // 既存の和文英訳①・三語短文と同じパラメータ（GAS 経由 OCR の応答失敗対策、本番運用 4/27 で発覚）
   function onKisoPhotoSelected(event) {
     var file = event.target.files[0]; if (!file) return;
     var reader = new FileReader();
     reader.onload = function(e) {
       var img = new Image();
       img.onload = function() {
-        var maxSize = 1600, w = img.width, h = img.height;
+        var maxSize = 1200, w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
         else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
         var canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         _kisoState.photoBase64 = dataUrl.split(',')[1];
         document.getElementById('kiso-confirm-preview').src = dataUrl;
         document.getElementById('kiso-confirm-submit-btn').disabled = false;
@@ -2981,7 +3107,8 @@
       gasPost({
         action: 'submitKisoAnswer',
         sessionId: _kisoState.sessionId,
-        imageBase64: _kisoState.photoBase64
+        imageBase64: _kisoState.photoBase64,
+        hasWorkPhoto: !!_kisoState.hasWorkPhoto
       }).then(function(res){
         _kisoShowGrading(false);
         document.getElementById('kiso-confirm-submit-btn').disabled = false;
@@ -3056,10 +3183,18 @@
     if (res.passed) {
       // 完了画面に渡すデータをグローバル state に保管（onclick 内で JSON を埋め込まないことで可読性確保）
       _kisoState.lastDone = res;
-      actionsEl.innerHTML =
-        '<button class="btn-wide kiso-photo-btn" style="margin-top:14px" onclick="_showKisoDoneFromState()">' +
-          (res.hpInfo && res.hpInfo.isPractice ? '🌟 練習完了画面へ' : '✨ HPを獲得する') +
-        '</button>';
+      var nextLabel = (res.hpInfo && res.hpInfo.isPractice) ? '🌟 練習完了画面へ' : '✨ HPを獲得する';
+      // 「途中式の写真も送る」を選んでいた場合は途中式撮影フローへ。
+      // 撮り直すボタンも明示（送信後に「やっぱり撮り直したい」と言われたら、結果画面の状態は
+      // 送信済みなので、ここでは「答案写真を撮り直す」は提供しない＝ retake は確認画面に限定）。
+      if (_kisoState.hasWorkPhoto) {
+        actionsEl.innerHTML =
+          '<button class="btn-wide kiso-photo-btn" style="margin-top:14px" onclick="startKisoWorkPhotoFlow()">📝 途中式の写真を送る</button>' +
+          '<button class="btn-wide" style="background:linear-gradient(135deg,#94a3b8,#64748b);margin-top:10px" onclick="_showKisoDoneFromState()">' + nextLabel + '（途中式は送らない）</button>';
+      } else {
+        actionsEl.innerHTML =
+          '<button class="btn-wide kiso-photo-btn" style="margin-top:14px" onclick="_showKisoDoneFromState()">' + nextLabel + '</button>';
+      }
     } else {
       actionsEl.innerHTML =
         '<button class="btn-wide kiso-photo-btn" style="margin-top:14px" onclick="showKisoRetry()">📝 間違えた問題をもう一度</button>' +
@@ -3139,6 +3274,117 @@
     }
 
     showScreen('screen-kiso-done');
+  }
+
+  // =====================================================
+  // 撮影前確認画面（途中式の写真も送る？）
+  // =====================================================
+  function goKisoPreConfirm() {
+    showScreen('screen-kiso-pre-confirm');
+  }
+  // 2 択ボタン押下 → state に保存 → 解答写真の撮影起動
+  function chooseKisoWorkPhoto(yes) {
+    _kisoState.hasWorkPhoto = !!yes;
+    // iOS Safari は表示中画面の input でないと click が onchange を発火しないため、
+    // 問題画面に戻ってから input.click() を遅延起動
+    showScreen('screen-kiso-problem');
+    setTimeout(function(){ document.getElementById('kiso-photo-input').click(); }, 80);
+  }
+
+  // =====================================================
+  // 途中式写真フロー（AI採点なし、Drive 保存のみ）
+  // =====================================================
+  // 結果画面から起動：1 枚目の途中式写真撮影
+  function startKisoWorkPhotoFlow() {
+    document.getElementById('kiso-work-photo-input-1').click();
+  }
+  // work-after 画面から起動：2 枚目以降
+  function continueKisoWorkPhoto() {
+    document.getElementById('kiso-work-photo-input-2').click();
+  }
+  // 解答写真と同じパラメータでリサイズ（長辺 1200px / JPEG 0.7）
+  function onKisoWorkPhotoSelected(event) {
+    var file = event.target.files[0]; if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var maxSize = 1200, w = img.width, h = img.height;
+        if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
+        else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        _kisoState.workPhotoBase64 = dataUrl.split(',')[1];
+        document.getElementById('kiso-work-confirm-preview').src = dataUrl;
+        document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
+        showScreen('screen-kiso-work-confirm');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  function retakeKisoWorkPhoto() {
+    _kisoState.workPhotoBase64 = '';
+    var i1 = document.getElementById('kiso-work-photo-input-1'); if (i1) i1.value = '';
+    var i2 = document.getElementById('kiso-work-photo-input-2'); if (i2) i2.value = '';
+    document.getElementById('kiso-work-confirm-preview').src = '';
+    // 1 枚目（撮影元 = 結果画面）と 2 枚目以降（撮影元 = work-after）で起動先を切替
+    if ((_kisoState.workPhotoIndex || 0) === 0) {
+      showScreen('screen-kiso-result');
+      setTimeout(function(){ document.getElementById('kiso-work-photo-input-1').click(); }, 80);
+    } else {
+      showScreen('screen-kiso-work-after');
+      setTimeout(function(){ document.getElementById('kiso-work-photo-input-2').click(); }, 80);
+    }
+  }
+  function submitKisoWorkPhoto() {
+    if (!_kisoState.sessionId || !_kisoState.workPhotoBase64) return;
+    var nextIdx = (_kisoState.workPhotoIndex || 0) + 1;
+    document.getElementById('kiso-work-confirm-submit-btn').disabled = true;
+    _kisoShowGrading(true);
+    var msgEl = document.querySelector('#kiso-grading-overlay .kiso-grading-msg');
+    var msgOriginal = msgEl ? msgEl.innerHTML : '';
+    if (msgEl) msgEl.innerHTML = '途中式の写真を保存中…<span class="grading-dots" id="kiso-grading-dots">...</span>';
+    try {
+      gasPost({
+        action: 'submitKisoWorkPhoto',
+        sessionId: _kisoState.sessionId,
+        imageBase64: _kisoState.workPhotoBase64,
+        photoIndex: nextIdx
+      }).then(function(res){
+        _kisoShowGrading(false);
+        if (msgEl && msgOriginal) msgEl.innerHTML = msgOriginal;
+        document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
+        if (!res || !res.ok) {
+          alert('⚠️ 途中式写真の送信に失敗しました。\n' + ((res && res.message) || '通信エラー') + '\nもう一度お試しください。');
+          return;
+        }
+        _kisoState.workPhotoIndex = res.photoIndex || nextIdx;
+        _kisoState.workPhotoBase64 = '';
+        _renderKisoWorkAfter();
+      }).catch(function(err){
+        _kisoShowGrading(false);
+        if (msgEl && msgOriginal) msgEl.innerHTML = msgOriginal;
+        document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
+        alert('⚠️ 通信エラー：' + String(err && err.message ? err.message : err) + '\nもう一度お試しください。');
+      });
+    } catch (err) {
+      _kisoShowGrading(false);
+      if (msgEl && msgOriginal) msgEl.innerHTML = msgOriginal;
+      document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
+      alert('⚠️ 送信を開始できませんでした：' + String(err && err.message ? err.message : err));
+    }
+  }
+  function _renderKisoWorkAfter() {
+    var el = document.getElementById('kiso-work-after-count');
+    if (el) el.textContent = (_kisoState.workPhotoIndex || 1) + ' 枚目を送信しました';
+    showScreen('screen-kiso-work-after');
+  }
+  function finishKisoWorkPhoto() {
+    // 途中式写真の送信を終わらせて HP 獲得画面へ
+    _showKisoDoneFromState();
   }
 
   function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }

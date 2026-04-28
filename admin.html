@@ -161,6 +161,16 @@
   .kiso-photo-actions { padding: 0 12px 12px; }
   .kiso-photo-open-btn { width: 100%; padding: 8px; background: linear-gradient(135deg, #0ea5e9, #0369a1); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; }
   .kiso-photo-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; background: #fff; border-radius: 12px; }
+  /* セッションごとのグループ表示（解答写真 + 途中式写真をまとめる） */
+  .kiso-session-group { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; margin-bottom: 18px; }
+  .kiso-session-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px dashed #cbd5e1; margin-bottom: 12px; }
+  .kiso-session-head .ses-meta { font-size: 14px; color: #0c4a6e; font-weight: bold; }
+  .kiso-session-head .ses-time { font-size: 12px; color: #64748b; }
+  .kiso-session-subhead { font-size: 13px; font-weight: bold; color: #475569; margin: 12px 0 8px; padding-left: 4px; }
+  .kiso-session-subhead.work { color: #6d28d9; }
+  .kiso-session-subhead.warn-work-missing { color: #b91c1c; font-weight: bold; }
+  .kiso-session-subhead.declared-no-work { color: #b91c1c; font-weight: bold; padding: 8px 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; }
+  .kiso-photo-card.work { border: 2px solid #c4b5fd; }
 
   @media (max-width: 480px) {
     #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1 { font-size: 15px; }
@@ -1003,6 +1013,32 @@
   }
 
   // 仕様書 §5.4 詳細：getKisoPhotosList({password, studentId}) → 写真カードグリッド
+  // 新フロー対応：sessionId ごとにグループ化し、解答写真 + 途中式写真を一緒に表示。
+  // hasWorkPhoto=true（申告あり）/ false（書いてないと申告）で警告表示を分岐。
+  function _kisoRenderPhotoCard(p, isWork) {
+    var ts = String(p.submittedAt || '').replace('T', ' ').slice(0, 16);
+    var viewUrlJs = String(p.viewUrl || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var thumb = p.thumbnailUrl
+      ? '<img class="kiso-photo-thumb" src="' + _esc(p.thumbnailUrl) + '" alt="' + (isWork ? '途中式' : '答案写真') + '" loading="lazy" onerror="this.style.opacity=0.2"/>'
+      : '<div class="kiso-photo-thumb"></div>';
+    var label = isWork
+      ? '途中式 #' + (Number(p.photoIndex) || 1)
+      : '解答用紙';
+    return '<div class="kiso-photo-card' + (isWork ? ' work' : '') + '" onclick="window.open(\'' + viewUrlJs + '\',\'_blank\')">' +
+             thumb +
+             '<div class="kiso-photo-info">' +
+               '<div class="kiso-photo-rank">' + label + '</div>' +
+               '<div class="kiso-photo-meta">' +
+                 '提出：' + _esc(ts) + '<br>' +
+                 '削除予定：' + _kisoDeleteAfterLabel(p.deleteAfter) +
+               '</div>' +
+             '</div>' +
+             '<div class="kiso-photo-actions">' +
+               '<button class="kiso-photo-open-btn" onclick="event.stopPropagation();window.open(\'' + viewUrlJs + '\',\'_blank\')">🔍 拡大表示（Drive）</button>' +
+             '</div>' +
+           '</div>';
+  }
+
   function loadKisoPhotos(studentId) {
     var wrap = document.getElementById('kiso-photos-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
@@ -1023,31 +1059,80 @@
         wrap.innerHTML = '<div class="kiso-photo-empty">この生徒の保存中の答案写真はありません。</div>';
         return;
       }
-      var cards = photos.map(function(p) {
-        var rank = Number(p.rank) || 0;
-        var rankName = KISO_RANK_NAMES[rank] || '';
-        var ts = String(p.submittedAt || '').replace('T', ' ').slice(0, 16);
-        var viewUrlJs = String(p.viewUrl || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var thumb = p.thumbnailUrl
-          ? '<img class="kiso-photo-thumb" src="' + _esc(p.thumbnailUrl) + '" alt="答案写真" loading="lazy" onerror="this.style.opacity=0.2"/>'
-          : '<div class="kiso-photo-thumb"></div>';
-        var attemptsLabel = (p.sessionAttempts > 0) ? '・' + p.sessionAttempts + '回目提出' : '';
-        return '<div class="kiso-photo-card" onclick="window.open(\'' + viewUrlJs + '\',\'_blank\')">' +
-                 thumb +
-                 '<div class="kiso-photo-info">' +
-                   '<div class="kiso-photo-rank">' + rank + '級' + (rankName ? '：' + _esc(rankName) : '') + '</div>' +
-                   '<div class="kiso-photo-meta">' +
-                     Number(p.count || 0) + '題 ・ ' + _kisoStatusBadge(p.sessionStatus) + attemptsLabel + '<br>' +
-                     '提出：' + _esc(ts) + '<br>' +
-                     '削除予定：' + _kisoDeleteAfterLabel(p.deleteAfter) +
-                   '</div>' +
+
+      // セッションごとにグループ化
+      var bySession = {};      // sessionId -> { meta, answer, works[] }
+      var sessionOrder = [];   // 最新セッション順を保つ
+      photos.forEach(function(p) {
+        var sid = String(p.sessionId || '');
+        if (!sid) return;
+        if (!bySession[sid]) {
+          bySession[sid] = {
+            sessionId: sid,
+            rank: Number(p.rank) || 0,
+            count: Number(p.count) || 0,
+            status: p.sessionStatus || '',
+            attempts: Number(p.sessionAttempts) || 0,
+            hasWorkPhoto: !!p.hasWorkPhoto,
+            answer: null,
+            works: [],
+            latestSubmittedAt: ''
+          };
+          sessionOrder.push(sid);
+        }
+        var s = bySession[sid];
+        if (p.submittedAt && p.submittedAt > s.latestSubmittedAt) s.latestSubmittedAt = p.submittedAt;
+        if (String(p.photoType || 'answer') === 'work') {
+          s.works.push(p);
+        } else {
+          s.answer = p;
+        }
+      });
+      // セッションを最新提出日時の降順に
+      sessionOrder.sort(function(a, b) {
+        var sa = bySession[a].latestSubmittedAt || '';
+        var sb = bySession[b].latestSubmittedAt || '';
+        if (sa < sb) return 1;
+        if (sa > sb) return -1;
+        return 0;
+      });
+
+      var groupsHtml = sessionOrder.map(function(sid) {
+        var s = bySession[sid];
+        var rankName = KISO_RANK_NAMES[s.rank] || '';
+        var ts = String(s.latestSubmittedAt || '').replace('T', ' ').slice(0, 16);
+        var attemptsLabel = (s.attempts > 0) ? ' ・' + s.attempts + '回目提出' : '';
+        // 答案写真セクション
+        var answerHtml = s.answer
+          ? '<div class="kiso-photos-grid">' + _kisoRenderPhotoCard(s.answer, false) + '</div>'
+          : '<div class="kiso-photo-empty" style="padding:14px">⚠️ 答案写真が見つかりません</div>';
+        // 途中式セクション（仕様：申告あり/なしで色分け、申告あり 0枚は警告）
+        s.works.sort(function(a, b) { return (Number(a.photoIndex)||0) - (Number(b.photoIndex)||0); });
+        var workHtml = '';
+        if (s.hasWorkPhoto) {
+          if (s.works.length > 0) {
+            workHtml = '<div class="kiso-session-subhead work">📝 途中式：' + s.works.length + ' 枚</div>' +
+                       '<div class="kiso-photos-grid">' +
+                       s.works.map(function(w){ return _kisoRenderPhotoCard(w, true); }).join('') +
+                       '</div>';
+          } else {
+            workHtml = '<div class="kiso-session-subhead warn-work-missing">⚠️ 途中式：申告あり、しかし送信なし</div>';
+          }
+        } else {
+          workHtml = '<div class="kiso-session-subhead declared-no-work">⚠️ 途中式は書いていないと申告</div>';
+        }
+        return '<div class="kiso-session-group">' +
+                 '<div class="kiso-session-head">' +
+                   '<div class="ses-meta">' + s.rank + '級' + (rankName ? '：' + _esc(rankName) : '') + ' ・ ' +
+                       Number(s.count || 0) + '題 ・ ' + _kisoStatusBadge(s.status) + attemptsLabel + '</div>' +
+                   '<div class="ses-time">最新提出：' + _esc(ts) + '</div>' +
                  '</div>' +
-                 '<div class="kiso-photo-actions">' +
-                   '<button class="kiso-photo-open-btn" onclick="event.stopPropagation();window.open(\'' + viewUrlJs + '\',\'_blank\')">🔍 拡大表示（Drive）</button>' +
-                 '</div>' +
+                 '<div class="kiso-session-subhead">📄 解答用紙</div>' +
+                 answerHtml +
+                 workHtml +
                '</div>';
       }).join('');
-      wrap.innerHTML = '<div class="kiso-photos-grid">' + cards + '</div>';
+      wrap.innerHTML = groupsHtml;
     }).catch(function() {
       wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
     });

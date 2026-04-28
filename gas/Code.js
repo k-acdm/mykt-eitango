@@ -359,7 +359,8 @@ function doPost(e) {
     // 管理画面の大量データ投入用（GET ではクエリ長制限を超えるため POST 経由）
     else if (action === 'adminAddWabun1TopicsWeek') result = adminAddWabun1TopicsWeek(params);
     // 基礎計算：写真提出（base64 画像が大きいため POST 経由）
-    else if (action === 'submitKisoAnswer')         result = submitKisoAnswer(params.sessionId, params.imageBase64);
+    else if (action === 'submitKisoAnswer')         result = submitKisoAnswer(params.sessionId, params.imageBase64, params.hasWorkPhoto);
+    else if (action === 'submitKisoWorkPhoto')      result = submitKisoWorkPhoto(params.sessionId, params.imageBase64, params.photoIndex);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -2050,7 +2051,8 @@ const KISO_SESSIONS_HEADERS = [
   'startedAt',
   'completedAt',
   'hpEarned',           // 素点（ボーナス前）
-  'wrongIds'            // JSON 配列（前回不正解だった問題IDのサブセット、再挑戦用）
+  'wrongIds',           // JSON 配列（前回不正解だった問題IDのサブセット、再挑戦用）
+  'hasWorkPhoto'        // 撮影前確認画面で生徒が「途中式の写真も送る」を選んだか（TRUE/FALSE）
 ];
 
 const KISO_PHOTOS_HEADERS = [
@@ -2061,7 +2063,9 @@ const KISO_PHOTOS_HEADERS = [
   'driveFileId',
   'shareUrl',
   'submittedAt',
-  'deleteAfter'         // submittedAt + 15 日
+  'deleteAfter',        // submittedAt + 15 日
+  'photoType',          // 'answer'（解答用紙）/ 'work'（途中式、複数枚可）
+  'photoIndex'          // 解答は常に 1、途中式は 1, 2, 3... と増える
 ];
 
 // 共通ヘルパー：シート存在保証 + ヘッダー行設定 + 最低行数の確保
@@ -2656,7 +2660,7 @@ function _saveKisoPhoto(studentId, sessionId, rank, count, imageBase64) {
     const fileId = file.getId();
     const shareUrl = file.getUrl();
 
-    // KisoPhotos シートに記録
+    // KisoPhotos シートに記録（解答用紙: photoType='answer' / photoIndex=1）
     const sh = _ensureKisoPhotosSheet();
     sh.appendRow([
       sessionId,
@@ -2666,7 +2670,9 @@ function _saveKisoPhoto(studentId, sessionId, rank, count, imageBase64) {
       fileId,
       shareUrl,
       submittedAt,
-      deleteAfter
+      deleteAfter,
+      'answer',
+      1
     ]);
 
     return {
@@ -2678,6 +2684,64 @@ function _saveKisoPhoto(studentId, sessionId, rank, count, imageBase64) {
     };
   } catch (err) {
     console.error('[_saveKisoPhoto]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 途中式写真を Drive に保存し、KisoPhotos に photoType='work' で 1 行追記する。
+// AI 認識（Vision API）は呼ばない。Drive 保存と DB 記録のみ。
+// - sessionId は事前に startKisoSession 済みである必要がある
+// - photoIndex は呼び出し側で 1, 2, 3... と通し番号管理する
+// 戻り値: { ok, fileId, shareUrl, deleteAfter, fileName, photoIndex }
+function _saveKisoWorkPhoto(studentId, sessionId, rank, count, imageBase64, photoIndex) {
+  try {
+    const sid = String(studentId || '').trim();
+    if (!sid)         return { ok: false, message: '生徒IDが空です' };
+    if (!sessionId)   return { ok: false, message: 'sessionId が空です' };
+    if (!imageBase64) return { ok: false, message: '画像データが空です' };
+    const idx = Number(photoIndex) || 1;
+
+    const decoded = Utilities.base64Decode(String(imageBase64));
+    const blob = Utilities.newBlob(decoded, 'image/jpeg', 'tmp.jpg');
+
+    const submittedAt   = _nowJST();
+    const submittedDate = _todayJST();
+    const yearMonth     = submittedDate.slice(0, 7);
+
+    const delAfter = new Date(submittedDate + 'T12:00:00+09:00');
+    delAfter.setDate(delAfter.getDate() + KISO_PHOTO_RETAIN_DAYS);
+    const deleteAfter = Utilities.formatDate(delAfter, 'Asia/Tokyo', 'yyyy-MM-dd');
+
+    const folder = _ensureKisoPhotoFolder(yearMonth);
+    const fileName = sid + '_' + rank + '_' + sessionId + '_work' + idx + '.jpg';
+    const file = folder.createFile(blob).setName(fileName);
+    const fileId = file.getId();
+    const shareUrl = file.getUrl();
+
+    const sh = _ensureKisoPhotosSheet();
+    sh.appendRow([
+      sessionId,
+      sid,
+      Number(rank) || 0,
+      Number(count) || 0,
+      fileId,
+      shareUrl,
+      submittedAt,
+      deleteAfter,
+      'work',
+      idx
+    ]);
+
+    return {
+      ok: true,
+      fileId: fileId,
+      shareUrl: shareUrl,
+      deleteAfter: deleteAfter,
+      fileName: fileName,
+      photoIndex: idx
+    };
+  } catch (err) {
+    console.error('[_saveKisoWorkPhoto]', err);
     return { ok: false, message: String(err) };
   }
 }
@@ -2723,6 +2787,8 @@ function getKisoPhotosList(params) {
     const cShare   = header.indexOf('shareUrl');
     const cSubmit  = header.indexOf('submittedAt');
     const cDelete  = header.indexOf('deleteAfter');
+    const cPhType  = header.indexOf('photoType');     // 新列：列が無い古いシートは -1
+    const cPhIdx   = header.indexOf('photoIndex');
 
     // 生徒名マップ（Students シートから cache 経由）
     const stuRows = _getStudentsValues();
@@ -2735,7 +2801,7 @@ function getKisoPhotosList(params) {
       nameMap[id] = { real: real, nick: nick };
     }
 
-    // KisoSessions も読み込んで status / attempts / rankName を引く
+    // KisoSessions も読み込んで status / attempts / rankName / hasWorkPhoto を引く
     const sesSh = _ensureKisoSessionsSheet();
     const sesMap = {};
     if (sesSh.getLastRow() >= 2) {
@@ -2745,13 +2811,16 @@ function getKisoPhotosList(params) {
       const sCStatus   = sh0.indexOf('status');
       const sCAttempts = sh0.indexOf('attempts');
       const sCRank     = sh0.indexOf('rank');
+      const sCHasWork  = sh0.indexOf('hasWorkPhoto');
       for (let i = 1; i < sv.length; i++) {
         const id = String(sv[i][sCSession] || '');
         if (!id) continue;
+        const hwRaw = (sCHasWork >= 0) ? sv[i][sCHasWork] : '';
         sesMap[id] = {
           status: String(sv[i][sCStatus] || ''),
           attempts: Number(sv[i][sCAttempts]) || 0,
-          rank: Number(sv[i][sCRank]) || 0
+          rank: Number(sv[i][sCRank]) || 0,
+          hasWorkPhoto: (hwRaw === true || hwRaw === 'TRUE' || hwRaw === 'true' || hwRaw === 1)
         };
       }
     }
@@ -2771,6 +2840,9 @@ function getKisoPhotosList(params) {
         : String(submittedTs || '');
       const deleteAfter = _toDateStr(row[cDelete]);
       const ses = sesMap[sessionId] || {};
+      // photoType / photoIndex 列が無い古いシートでは答案写真として扱う
+      const photoType = (cPhType >= 0) ? (String(row[cPhType] || '').trim() || 'answer') : 'answer';
+      const photoIndex = (cPhIdx >= 0) ? (Number(row[cPhIdx]) || 1) : 1;
       photos.push({
         sessionId: sessionId,
         studentId: sid,
@@ -2785,7 +2857,10 @@ function getKisoPhotosList(params) {
         submittedAt: submittedAt,
         deleteAfter: deleteAfter,
         sessionStatus: ses.status || '',
-        sessionAttempts: ses.attempts || 0
+        sessionAttempts: ses.attempts || 0,
+        photoType: photoType,
+        photoIndex: photoIndex,
+        hasWorkPhoto: !!ses.hasWorkPhoto
       });
     }
 
@@ -3036,7 +3111,7 @@ function getKisoRetryQuestions(sessionId) {
 // - imageBase64: 生徒のアップロード画像（base64、フロントでリサイズ済み）
 // - 初回 (attempts=0): questionIds 全件を採点。80% 合格判定。初回のみ写真を Drive に保存（Phase 4-3）
 // - 再挑戦 (attempts>=1): wrongIds のみ採点。全問正解で合格。写真は保存しない
-function submitKisoAnswer(sessionId, imageBase64) {
+function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
   try {
     const sid = String(sessionId || '').trim();
     if (!sid) return { ok: false, message: 'sessionId が必要です' };
@@ -3058,6 +3133,7 @@ function submitKisoAnswer(sessionId, imageBase64) {
     const cCompleted = header.indexOf('completedAt');
     const cHpEarned  = header.indexOf('hpEarned');
     const cWrong     = header.indexOf('wrongIds');
+    const cHasWork   = header.indexOf('hasWorkPhoto');
 
     const studentId = String(row[cSid] || '').trim();
     const rank = Number(row[cRank]);
@@ -3103,11 +3179,26 @@ function submitKisoAnswer(sessionId, imageBase64) {
       payload: JSON.stringify(body),
       muteHttpExceptions: true
     });
-    const visionJson = JSON.parse(visionRes.getContentText());
+    const visionRaw  = visionRes.getContentText();
+    const visionCode = visionRes.getResponseCode();
+    let visionJson;
+    try {
+      visionJson = JSON.parse(visionRaw);
+    } catch (e) {
+      console.error('[submitKisoAnswer Vision JSON parse error]', visionCode, e, visionRaw.substring(0, 800));
+      return { ok: false, message: '画像の読み取りに失敗しました（応答 JSON が不正）' };
+    }
+    // Vision API トップレベルエラー（請求枠超過 / 認証 NG / リクエスト本文不正など）
+    if (visionJson && visionJson.error) {
+      console.error('[submitKisoAnswer Vision top-level error]', visionCode, JSON.stringify(visionJson.error));
+      return { ok: false, message: 'Vision API: ' + (visionJson.error.message || 'top-level error') };
+    }
     if (!visionJson.responses || !visionJson.responses[0]) {
-      return { ok: false, message: '画像の読み取りに失敗しました' };
+      console.error('[submitKisoAnswer unexpected response]', visionCode, visionRaw.substring(0, 800));
+      return { ok: false, message: '画像の読み取りに失敗しました（応答に responses 配列がありません）' };
     }
     if (visionJson.responses[0].error) {
+      console.error('[submitKisoAnswer Vision per-image error]', JSON.stringify(visionJson.responses[0].error));
       return { ok: false, message: 'Vision API エラー: ' + visionJson.responses[0].error.message };
     }
     const fullAnno = visionJson.responses[0].fullTextAnnotation;
@@ -3235,6 +3326,10 @@ function submitKisoAnswer(sessionId, imageBase64) {
       sheet.getRange(rowIdx, cCompleted + 1).setValue(now);
       sheet.getRange(rowIdx, cHpEarned + 1).setValue(hpInfo.rawHP);
     }
+    // 初回提出時のみ hasWorkPhoto を記録（再挑戦時は維持）。列が無い古いシートはスキップ
+    if (isFirstAttempt && cHasWork >= 0) {
+      sheet.getRange(rowIdx, cHasWork + 1).setValue(hasWorkPhoto === true || hasWorkPhoto === 'true');
+    }
 
     // 初回提出のみ写真を Drive に保存（Phase 4-3 で本実装済み、_saveKisoPhoto が
     // KisoPhotos シート追記まで完結する）
@@ -3264,6 +3359,71 @@ function submitKisoAnswer(sessionId, imageBase64) {
     };
   } catch (err) {
     console.error('[submitKisoAnswer]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 途中式写真の提出（AI 認識なし、Drive 保存のみ）
+// =============================================
+// - sessionId に紐づく KisoSessions 行が存在する必要がある（startKisoSession 済み前提）
+// - 送られてきた photoIndex が空・0 などの場合は、現状の最大 + 1 を採用
+//   （フロントが連番管理するが、サーバ側でも保険として上書き）
+// - KisoPhotos に photoType='work' で 1 行追加
+// - 戻り値: { ok, photoIndex, fileId, deleteAfter }
+function submitKisoWorkPhoto(sessionId, imageBase64, photoIndex) {
+  try {
+    const sid = String(sessionId || '').trim();
+    if (!sid) return { ok: false, message: 'sessionId が必要です' };
+    if (!imageBase64) return { ok: false, message: '画像が空です' };
+
+    const found = _findKisoSessionRow(sid);
+    if (!found) return { ok: false, message: 'セッションが見つかりません: ' + sid };
+    const header = found.header;
+    const row = found.row;
+    const cSid   = header.indexOf('studentId');
+    const cRank  = header.indexOf('rank');
+    const cCount = header.indexOf('count');
+    const studentId = String(row[cSid] || '').trim();
+    const rank  = Number(row[cRank]);
+    const count = Number(row[cCount]);
+
+    // 現状 KisoPhotos にある同 sessionId / photoType='work' の最大 photoIndex を取得し +1
+    const phSheet = _ensureKisoPhotosSheet();
+    let nextIndex = Number(photoIndex) || 0;
+    if (phSheet.getLastRow() >= 2) {
+      const values = phSheet.getDataRange().getValues();
+      const ph = values[0];
+      const cPhSession = ph.indexOf('sessionId');
+      const cPhType    = ph.indexOf('photoType');
+      const cPhIdx     = ph.indexOf('photoIndex');
+      if (cPhSession >= 0 && cPhType >= 0 && cPhIdx >= 0) {
+        let maxIdx = 0;
+        for (let i = 1; i < values.length; i++) {
+          if (String(values[i][cPhSession] || '') !== sid) continue;
+          if (String(values[i][cPhType]    || '') !== 'work') continue;
+          const idx = Number(values[i][cPhIdx]) || 0;
+          if (idx > maxIdx) maxIdx = idx;
+        }
+        // フロントから渡された photoIndex が現状 max 以下なら、サーバ側で max+1 に補正
+        if (nextIndex <= maxIdx) nextIndex = maxIdx + 1;
+      }
+    }
+    if (nextIndex < 1) nextIndex = 1;
+
+    const saveRes = _saveKisoWorkPhoto(studentId, sid, rank, count, imageBase64, nextIndex);
+    if (!saveRes.ok) return saveRes;
+
+    return {
+      ok: true,
+      sessionId: sid,
+      photoIndex: saveRes.photoIndex,
+      fileId: saveRes.fileId,
+      shareUrl: saveRes.shareUrl,
+      deleteAfter: saveRes.deleteAfter
+    };
+  } catch (err) {
+    console.error('[submitKisoWorkPhoto]', err);
     return { ok: false, message: String(err) };
   }
 }
