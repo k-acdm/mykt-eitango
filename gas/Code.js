@@ -5155,7 +5155,10 @@ function submitWabun1(params) {
     if (allCorrect && !alreadyGranted) {
       const streak = (stuRowIdx >= 0) ? (Number(stuRows[stuRowIdx][COL_STREAK]) || 1) : 1;
       const week = Math.ceil(streak / 7);
-      hpGained = 100 * week * week;
+      // 素点HP は 2026-04-29 以降の教育日から 100 → 200 に変更（4/29 当日含む、過去分は遡及しない）
+      // todayStr は _sangoToday() の JST 3 時区切り。問題の日替わり・alreadyGranted 判定と同じ基準で揃える
+      const baseHp = (todayStr >= '2026-04-29') ? 200 : 100;
+      hpGained = baseHp * week * week;
       if (stuRowIdx >= 0) {
         const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
         const newHP = cur + hpGained;
