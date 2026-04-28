@@ -2918,20 +2918,21 @@
     _kisoTypeset(listEl);
   }
 
-  // §4.6 写真撮影：選択 → リサイズ（長辺 1600px / JPEG 0.8）→ プレビュー → 確認画面
+  // §4.6 写真撮影：選択 → リサイズ（長辺 1200px / JPEG 0.7）→ プレビュー → 確認画面
+  // 既存の和文英訳①・三語短文と同じパラメータ（GAS 経由 OCR の応答失敗対策、本番運用 4/27 で発覚）
   function onKisoPhotoSelected(event) {
     var file = event.target.files[0]; if (!file) return;
     var reader = new FileReader();
     reader.onload = function(e) {
       var img = new Image();
       img.onload = function() {
-        var maxSize = 1600, w = img.width, h = img.height;
+        var maxSize = 1200, w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
         else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
         var canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         _kisoState.photoBase64 = dataUrl.split(',')[1];
         document.getElementById('kiso-confirm-preview').src = dataUrl;
         document.getElementById('kiso-confirm-submit-btn').disabled = false;

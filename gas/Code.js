@@ -3103,11 +3103,26 @@ function submitKisoAnswer(sessionId, imageBase64) {
       payload: JSON.stringify(body),
       muteHttpExceptions: true
     });
-    const visionJson = JSON.parse(visionRes.getContentText());
+    const visionRaw  = visionRes.getContentText();
+    const visionCode = visionRes.getResponseCode();
+    let visionJson;
+    try {
+      visionJson = JSON.parse(visionRaw);
+    } catch (e) {
+      console.error('[submitKisoAnswer Vision JSON parse error]', visionCode, e, visionRaw.substring(0, 800));
+      return { ok: false, message: '画像の読み取りに失敗しました（応答 JSON が不正）' };
+    }
+    // Vision API トップレベルエラー（請求枠超過 / 認証 NG / リクエスト本文不正など）
+    if (visionJson && visionJson.error) {
+      console.error('[submitKisoAnswer Vision top-level error]', visionCode, JSON.stringify(visionJson.error));
+      return { ok: false, message: 'Vision API: ' + (visionJson.error.message || 'top-level error') };
+    }
     if (!visionJson.responses || !visionJson.responses[0]) {
-      return { ok: false, message: '画像の読み取りに失敗しました' };
+      console.error('[submitKisoAnswer unexpected response]', visionCode, visionRaw.substring(0, 800));
+      return { ok: false, message: '画像の読み取りに失敗しました（応答に responses 配列がありません）' };
     }
     if (visionJson.responses[0].error) {
+      console.error('[submitKisoAnswer Vision per-image error]', JSON.stringify(visionJson.responses[0].error));
       return { ok: false, message: 'Vision API エラー: ' + visionJson.responses[0].error.message };
     }
     const fullAnno = visionJson.responses[0].fullTextAnnotation;
