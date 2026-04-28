@@ -19,6 +19,8 @@ const SHEET_WABUN1_SUBMISSIONS = 'Wabun1Submissions';
 const SHEET_KISO_QUESTIONS = 'KisoQuestions';
 const SHEET_KISO_SESSIONS  = 'KisoSessions';
 const SHEET_KISO_PHOTOS    = 'KisoPhotos';
+const SHEET_LISON_CONTENTS    = 'LisonContents';
+const SHEET_LISON_SUBMISSIONS = 'LisonSubmissions';
 
 const COL_ID         = 0;
 const COL_NAME       = 1;
@@ -330,6 +332,8 @@ function doGet(e) {
       else if (action === 'getKisoRetryQuestions')   result = getKisoRetryQuestions(params.sessionId);
       else if (action === 'getKisoTodayRawHP')       result = getKisoTodayRawHP(params);
       else if (action === 'getKisoPhotosList')       result = getKisoPhotosList(params);
+      else if (action === 'getLisonContent')         result = getLisonContent(params.level);
+      else if (action === 'submitLison')              result = submitLison(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -5629,6 +5633,315 @@ function adminSetWabun1Comment(params) {
     return { ok: false, message: '該当する提出が見つかりません' };
   } catch(err) {
     console.error('[adminSetWabun1Comment]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 英語リスオン (lison) — 週次配信のリスニング＆音読コンテンツ
+// =============================================
+// シート構造（ふくちさんが手動作成。シート未作成時は graceful にエラー返却）：
+//   LisonContents:    weekStart | level | englishText | japaneseText
+//                     | q1_text | q1_answer | q1_explanation
+//                     | q2_text | q2_answer | q2_explanation
+//                     | q3_text | q3_answer | q3_explanation
+//   LisonSubmissions: timestamp | studentId | studentName | level | weekStart
+//                     | quizScore | recordingUrl | hpGained
+//
+// レベル文字列: '4' / '3' / 'pre2' / '2' / 'pre1'
+// 4 級の正誤問題の answer は '○' / '✖'、他級は 'T' / 'F'（LisonContents の値で完全一致比較）
+// 週は月曜起点。weekStart は _sangoToday() を _lisonGetWeekStart で月曜化したもの。
+// HP: 4/3/pre2 = 素点 100、2/pre1 = 素点 200。連続週²倍率（streak/7 切り上げ²）は他コンテンツと同じ。
+// 1日1レベル1HP（同日同レベル提出は alreadyGranted）。録音は alreadyGranted でも保存・記録する。
+// =============================================
+
+const LISON_VALID_LEVELS = ['4', '3', 'pre2', '2', 'pre1'];
+
+// JST 3 時区切りの今日の日付から、その週の月曜日（含む）の 'yyyy-MM-dd' を返す。
+// 月曜は当日、火〜土は前日〜5 日前、日曜は 6 日前。
+function _lisonGetWeekStart(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00+09:00');
+  const dow = d.getDay(); // 0=日, 1=月, 2=火, 3=水, 4=木, 5=金, 6=土
+  const offset = (dow === 0) ? 6 : (dow - 1);
+  d.setDate(d.getDate() - offset);
+  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+// レベルごとの素点HP（連続週²倍率を掛ける前の値）
+function _lisonBaseHpForLevel(level) {
+  if (level === '2' || level === 'pre1') return 200;
+  return 100; // '4' / '3' / 'pre2'
+}
+
+// LisonContents から (weekStart, level) 一致行を 1 件取得。無ければ null。
+// シート未作成・空・ヘッダー欠損時はすべて null を返す（graceful）。
+function _readLisonContentRow(weekStart, level) {
+  const sh = _ss().getSheetByName(SHEET_LISON_CONTENTS);
+  if (!sh || sh.getLastRow() < 2) return null;
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const idx = function(name) { return header.indexOf(name); };
+  const iWS = idx('weekStart');
+  const iLV = idx('level');
+  if (iWS < 0 || iLV < 0) return null;
+  const iEng = idx('englishText');
+  const iJa  = idx('japaneseText');
+  const iQ1T = idx('q1_text'), iQ1A = idx('q1_answer'), iQ1E = idx('q1_explanation');
+  const iQ2T = idx('q2_text'), iQ2A = idx('q2_answer'), iQ2E = idx('q2_explanation');
+  const iQ3T = idx('q3_text'), iQ3A = idx('q3_answer'), iQ3E = idx('q3_explanation');
+  const get = function(row, i) { return (i >= 0) ? row[i] : ''; };
+  for (let r = 1; r < values.length; r++) {
+    const row = values[r];
+    const wsRaw = row[iWS];
+    if (!wsRaw) continue;
+    let ws;
+    if (wsRaw instanceof Date) {
+      ws = Utilities.formatDate(wsRaw, 'Asia/Tokyo', 'yyyy-MM-dd');
+    } else {
+      ws = String(wsRaw).trim();
+    }
+    if (ws !== weekStart) continue;
+    if (String(row[iLV]).trim() !== level) continue;
+    return {
+      weekStart: ws,
+      level: level,
+      englishText:  String(get(row, iEng) || ''),
+      japaneseText: String(get(row, iJa)  || ''),
+      questions: [
+        { text: String(get(row, iQ1T) || ''), answer: String(get(row, iQ1A) || '').trim(), explanation: String(get(row, iQ1E) || '') },
+        { text: String(get(row, iQ2T) || ''), answer: String(get(row, iQ2A) || '').trim(), explanation: String(get(row, iQ2E) || '') },
+        { text: String(get(row, iQ3T) || ''), answer: String(get(row, iQ3A) || '').trim(), explanation: String(get(row, iQ3E) || '') }
+      ]
+    };
+  }
+  return null;
+}
+
+// =============================================
+// 公開API: 今週分のリスオンコンテンツを取得
+// =============================================
+function getLisonContent(level) {
+  try {
+    const lv = String(level || '').trim();
+    if (LISON_VALID_LEVELS.indexOf(lv) < 0) {
+      return { ok: false, message: 'level が不正です（4 / 3 / pre2 / 2 / pre1 のいずれか）' };
+    }
+    const weekStart = _lisonGetWeekStart(_sangoToday());
+    const content = _readLisonContentRow(weekStart, lv);
+    if (!content) {
+      return { ok: false, message: 'このレベルの今週分のコンテンツはまだ準備中です' };
+    }
+    return {
+      ok: true,
+      weekStart: content.weekStart,
+      level: content.level,
+      englishText: content.englishText,
+      japaneseText: content.japaneseText,
+      questions: content.questions
+    };
+  } catch(err) {
+    console.error('[getLisonContent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 録音 Drive 保存（基礎計算 _saveKisoPhoto と同様のパターン）
+// =============================================
+const LISON_RECORDING_ROOT_FOLDER = 'LisonRecordings';
+
+// MIME 文字列から拡張子を判定。判定不能なら 'webm' をデフォルトに。
+function _lisonExtFromMime(mime) {
+  const m = String(mime || '').toLowerCase();
+  if (m.indexOf('webm') >= 0) return 'webm';
+  if (m.indexOf('m4a')  >= 0) return 'm4a';
+  if (m.indexOf('mp4')  >= 0) return 'mp4';
+  if (m.indexOf('mpeg') >= 0) return 'mp3';
+  if (m.indexOf('mp3')  >= 0) return 'mp3';
+  if (m.indexOf('ogg')  >= 0) return 'ogg';
+  if (m.indexOf('wav')  >= 0) return 'wav';
+  if (m.indexOf('aac')  >= 0) return 'aac';
+  return 'webm';
+}
+
+// マイドライブ直下に LisonRecordings フォルダを 1 個確保
+function _ensureLisonRecordingsFolder() {
+  const it = DriveApp.getFoldersByName(LISON_RECORDING_ROOT_FOLDER);
+  if (it.hasNext()) return it.next();
+  return DriveApp.createFolder(LISON_RECORDING_ROOT_FOLDER);
+}
+
+// 録音 1 本を Drive に保存。ファイル名: lison_<sid>_<level>_<yyyymmddHHMMSS>.<ext>
+// 戻り値: { ok, fileId, shareUrl, fileName } / 失敗時 { ok:false, message }
+function _saveLisonRecording(sid, level, base64Data, mime) {
+  try {
+    if (!sid)        return { ok: false, message: '生徒IDが空です' };
+    if (!base64Data) return { ok: false, message: '録音データが空です' };
+    const ext = _lisonExtFromMime(mime);
+    const decoded = Utilities.base64Decode(String(base64Data));
+    const blob = Utilities.newBlob(decoded, mime || ('audio/' + ext), 'tmp.' + ext);
+    const tsStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMddHHmmss');
+    const fileName = 'lison_' + sid + '_' + level + '_' + tsStr + '.' + ext;
+    const folder = _ensureLisonRecordingsFolder();
+    const file = folder.createFile(blob).setName(fileName);
+    return {
+      ok: true,
+      fileId: file.getId(),
+      shareUrl: file.getUrl(),
+      fileName: fileName
+    };
+  } catch(err) {
+    console.error('[_saveLisonRecording]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 公開API: 録音とクイズ解答を送信、HP を付与
+// =============================================
+// params:
+//   - sid             : 生徒ID
+//   - level           : '4' / '3' / 'pre2' / '2' / 'pre1'
+//   - quizAnswers     : 3 要素の配列（'T'/'F' or '○'/'✖'）。文字列 JSON でも可
+//   - recordingBase64 : data URL を含まない純粋な base64 文字列
+//   - recordingMime   : 'audio/webm' / 'audio/mp4' など
+//
+// 同日同レベル既提出（JST 3 時区切り）は alreadyGranted=true → hpGained=0。
+// 録音の Drive 保存と LisonSubmissions への記録は alreadyGranted でも実施。
+// HP 加算時のみ Students HP 更新 + _logHP + ランキングキャッシュ invalidate。
+//
+// 戻り値: { ok, hpGained, alreadyGranted, quizScore, recordingUrl }
+// =============================================
+function submitLison(params) {
+  try {
+    const sid             = String((params && params.sid)             || '').trim();
+    const level           = String((params && params.level)           || '').trim();
+    const recordingBase64 = String((params && params.recordingBase64) || '');
+    const recordingMime   = String((params && params.recordingMime)   || '');
+
+    // バリデーション
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (LISON_VALID_LEVELS.indexOf(level) < 0) {
+      return { ok: false, message: 'level が不正です（4 / 3 / pre2 / 2 / pre1 のいずれか）' };
+    }
+    if (!recordingBase64) return { ok: false, message: '録音データが必要です' };
+
+    // quizAnswers を配列化
+    let quizAnswers = (params && params.quizAnswers) || [];
+    if (typeof quizAnswers === 'string') {
+      try { quizAnswers = JSON.parse(quizAnswers); }
+      catch(e) { return { ok: false, message: 'quizAnswers の JSON パースに失敗しました' }; }
+    }
+    if (!Array.isArray(quizAnswers) || quizAnswers.length !== 3) {
+      return { ok: false, message: 'quizAnswers は 3 要素の配列である必要があります' };
+    }
+
+    // 今日（JST 3 時区切り）と今週の月曜日を取得
+    const todayStr  = _sangoToday();
+    const weekStart = _lisonGetWeekStart(todayStr);
+
+    // コンテンツ取得（採点に必要）
+    const content = _readLisonContentRow(weekStart, level);
+    if (!content) {
+      return { ok: false, message: 'このレベルの今週分のコンテンツはまだ準備中です' };
+    }
+
+    // Students 行ルックアップ（キャッシュ経由）
+    const ss = _ss();
+    const stuRows = _getStudentsValues();
+    if (!stuRows || stuRows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません' };
+    let studentName = '';
+    let stuRowIdx = -1;
+    for (let i = 1; i < stuRows.length; i++) {
+      if (String(stuRows[i][COL_ID]).trim() === sid) {
+        studentName = String(stuRows[i][COL_NICKNAME] || '').trim() || '名無し';
+        stuRowIdx = i;
+        break;
+      }
+    }
+
+    // 採点（正解数 0〜3、完全一致比較）
+    let quizScore = 0;
+    for (let i = 0; i < 3; i++) {
+      const sa = String(quizAnswers[i] != null ? quizAnswers[i] : '').trim();
+      const ca = String(content.questions[i].answer || '').trim();
+      if (sa && ca && sa === ca) quizScore++;
+    }
+
+    // alreadyGranted 判定（LisonSubmissions シートを読む。append より前に確認）
+    // 列インデックス: [0]timestamp [1]studentId [2]studentName [3]level
+    //                [4]weekStart [5]quizScore [6]recordingUrl [7]hpGained
+    let alreadyGranted = false;
+    const subSheet = ss.getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (!subSheet) return { ok: false, message: 'LisonSubmissionsシートが見つかりません' };
+    {
+      const subRows = _readLastNRows(subSheet, 200);
+      for (let i = 0; i < subRows.length; i++) {
+        if (String(subRows[i][1]).trim() !== sid) continue;
+        if (String(subRows[i][3]).trim() !== level) continue;
+        const ts = subRows[i][0];
+        if (!ts) continue;
+        // wabun1 / sango と同じ JST 3 時区切りで「今日」と同じ日かチェック
+        const dt = new Date(ts);
+        dt.setHours(dt.getHours() - 3);
+        const dStr = Utilities.formatDate(dt, 'Asia/Tokyo', 'yyyy-MM-dd');
+        if (dStr === todayStr) { alreadyGranted = true; break; }
+      }
+    }
+
+    // 録音を Drive に保存（alreadyGranted でも記録は残す）
+    const saveRes = _saveLisonRecording(sid, level, recordingBase64, recordingMime);
+    if (!saveRes.ok) {
+      return { ok: false, message: '録音保存に失敗しました：' + (saveRes.message || '') };
+    }
+
+    // HP 計算（連続週²倍率は他コンテンツと同じ）
+    let hpGained = 0;
+    if (!alreadyGranted) {
+      const streak = (stuRowIdx >= 0) ? (Number(stuRows[stuRowIdx][COL_STREAK]) || 1) : 1;
+      const week = Math.ceil(streak / 7);
+      const baseHp = _lisonBaseHpForLevel(level);
+      hpGained = baseHp * week * week;
+      // Students シート HP 加算（書き込みは setValue、in-place キャッシュ更新）
+      if (stuRowIdx >= 0) {
+        const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
+        const newHP = cur + hpGained;
+        const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
+        const upd = {};
+        upd[COL_HP] = newHP;
+        _updateStudentsCacheRow(stuRowIdx, upd);
+      }
+    }
+
+    // LisonSubmissions に追記（alreadyGranted のときも recordingUrl と quizScore は残す）
+    subSheet.appendRow([
+      _nowJST(),
+      sid,
+      studentName,
+      level,
+      weekStart,
+      quizScore,
+      saveRes.shareUrl,
+      hpGained
+    ]);
+
+    // HP 付与時のみ HPLog 記録 + ランキングキャッシュ無効化
+    // 注: rawHP と hpGained は同値（素点HP × 週²）。他コンテンツ（sango/wabun1）と同パターン。
+    if (hpGained > 0) {
+      _logHP(sid, hpGained, hpGained, 'lison');
+      _invalidateCache('cache_ranking_last_week');
+    }
+
+    return {
+      ok: true,
+      hpGained: hpGained,
+      alreadyGranted: alreadyGranted,
+      quizScore: quizScore,
+      recordingUrl: saveRes.shareUrl
+    };
+  } catch(err) {
+    console.error('[submitLison]', err);
     return { ok: false, message: String(err) };
   }
 }
