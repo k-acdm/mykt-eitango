@@ -4737,15 +4737,20 @@ function getChildActivityRecent(params) {
         login: false,
         eitango: { done: false, details: [] },
         sango:   { done: false, level: null, timestamp: null },
-        wabun1:  { done: false, hpGained: 0 }
+        wabun1:  { done: false, hpGained: 0 },
+        kiso:    { done: false, hpGained: 0, rawHP: 0, sessions: [] },
+        lison:   { done: false, hpGained: 0, levels: [] },
+        extras:  []  // 未知の HPLog type は自動でここに集約（将来コンテンツの自動対応）
       };
     }
 
     const ss = _ss();
     let hasMore = false;
 
-    // HPLog: login / test / sango フラグ + hasMore 判定
+    // HPLog: login / test / sango / wabun1 / kiso_* / lison のフラグ + hasMore 判定
     // 末尾 2000 行のみ読む（追記専用シートなので末尾 = 最新、約 40 日分カバー想定）
+    // apology_* 系は学習行動ではないので学習履歴には反映しない（HP は加算済み、ランキングには出る）
+    const APOLOGY_TYPES = { apology_streak_bonus: 1, apology_wabun1: 1, apology_kiso: 1 };
     const hpSheet = ss.getSheetByName(SHEET_HPLOG);
     if (hpSheet && hpSheet.getLastRow() >= 2) {
       const rows = _readLastNRows(hpSheet, 2000);
@@ -4765,12 +4770,40 @@ function getChildActivityRecent(params) {
         if (ds > endStr) continue;
         if (!byDate[ds]) continue;
         const type = String(r[4] || '').trim();
+        if (APOLOGY_TYPES[type]) continue;  // 学習履歴には反映しない
+        const hp  = Number(r[3]) || 0;
+        const raw = Number(r[2]) || 0;
         if      (type === 'login') byDate[ds].login = true;
         else if (type === 'test')  byDate[ds].eitango.done = true;
         else if (type === 'sango') byDate[ds].sango.done   = true;
         else if (type === 'wabun1') {
           byDate[ds].wabun1.done = true;
-          byDate[ds].wabun1.hpGained = Number(r[3]) || 0;
+          byDate[ds].wabun1.hpGained = hp;
+        }
+        else if (type === 'lison') {
+          byDate[ds].lison.done = true;
+          byDate[ds].lison.hpGained += hp;
+        }
+        else if (type.indexOf('kiso_') === 0) {
+          // 'kiso_<rank>_<count>' or 'kiso_<rank>_<count>_practice'
+          byDate[ds].kiso.done = true;
+          byDate[ds].kiso.hpGained += hp;
+          byDate[ds].kiso.rawHP    += raw;
+          const m = /^kiso_(\d+)_(\d+)(_practice)?$/.exec(type);
+          if (m) {
+            byDate[ds].kiso.sessions.push({
+              rank:       parseInt(m[1], 10),
+              count:      parseInt(m[2], 10),
+              isPractice: !!m[3],
+              hpGained:   hp,
+              rawHP:      raw
+            });
+          }
+        }
+        else {
+          // 未知の type は extras に集約（将来 wabun2/kanji/social/science/kobun 等が
+          // 追加されたとき HPLog に新 type を流すだけで自動表示される）
+          byDate[ds].extras.push({ type: type, hpGained: hp });
         }
       }
     }
@@ -4808,6 +4841,28 @@ function getChildActivityRecent(params) {
         if (!byDate[ds].sango.timestamp) {
           byDate[ds].sango.level     = String(r[3] || '').trim();
           byDate[ds].sango.timestamp = tsStr;
+        }
+      }
+    }
+
+    // LisonSubmissions: level 補完（末尾 500 行）
+    // 列構成: [0]timestamp [1]studentId [2]studentName [3]level [4]weekStart [5]quizScore [6]recordingUrl [7]hpGained
+    // alreadyGranted（同日 2 回目以降）でも提出記録は残るので、HPLog に lison 行が無い日でも
+    // ここで done=true になる（保護者画面で「練習はした」が見える）
+    const lsSheet = ss.getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (lsSheet && lsSheet.getLastRow() >= 2) {
+      const rows = _readLastNRows(lsSheet, 500);
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r[0]) continue;
+        if (String(r[1] || '').trim() !== sid) continue;
+        const tsStr = Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+        const ds = tsStr.slice(0, 10);
+        if (!byDate[ds]) continue;
+        byDate[ds].lison.done = true;
+        const level = String(r[3] || '').trim();
+        if (level && byDate[ds].lison.levels.indexOf(level) < 0) {
+          byDate[ds].lison.levels.push(level);
         }
       }
     }
