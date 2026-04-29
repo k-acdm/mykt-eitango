@@ -246,7 +246,7 @@
     <button class="logout-btn" onclick="showView()">← 戻る</button>
   </header>
   <div class="container">
-    <div class="child-history-notice">⚠️ 三語短文はアプリでの提出が4/20（月）の分からです。それ以前のLINEでの提出状況は反映されていません。</div>
+    <div class="child-history-notice">⚠️ アプリ実装以前のLINEでの提出状況は反映されていません。</div>
     <div id="child-history-list"><div class="child-history-empty">読み込み中…</div></div>
     <button id="child-history-more" class="btn-more" style="background:linear-gradient(135deg,#ff8a3d,#ff6a00);margin-top:10px;display:none" onclick="showChildHistoryArchive()">📜 さらに過去の履歴を見る</button>
     <button class="btn-back" onclick="showView()">🏠 ホーム画面に戻る</button>
@@ -260,7 +260,7 @@
     <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
   </header>
   <div class="container">
-    <div class="child-history-notice">⚠️ 三語短文はアプリでの提出が4/20（月）の分からです。それ以前のLINEでの提出状況は反映されていません。</div>
+    <div class="child-history-notice">⚠️ アプリ実装以前のLINEでの提出状況は反映されていません。</div>
     <div id="child-archive-list"><div class="child-history-empty">読み込み中…</div></div>
     <div class="child-pager">
       <button type="button" class="prev" id="child-archive-prev" onclick="childHistoryPrev()">← 新しいページへ</button>
@@ -576,22 +576,22 @@
   // ============================
   var _childArchiveOffset = 1;
 
-  function _renderChildDays(days) {
-    if (!days || !days.length) {
-      return '<div class="child-history-empty">この期間の記録はありません。</div>';
-    }
-    return days.map(function(d){
-      var ymd = String(d.date || '');
-      var ymdDisp = ymd.length >= 10 ? ymd.slice(0,4) + '/' + ymd.slice(5,7) + '/' + ymd.slice(8,10) : ymd;
-      var header = ymdDisp + '(' + (d.weekday || '') + ')';
+  // データドリブン render registry：行を増やすにはこの配列に 1 件足すだけ。
+  // GAS 側が新フィールドを返すようになれば、ここに追加すれば自動で表示される。
+  // 未知 type は d.extras に集約され、最後に _renderChildExtraRows で展開する。
+  var CHILD_OK = '<span class="child-status-ok">✅</span>';
+  var CHILD_NG = '<span class="child-status-ng">❌</span>';
+  var LISON_LEVEL_LABEL = { '4':'4級', '3':'3級', 'pre2':'準2級', '2':'2級', 'pre1':'準1級' };
 
-      var loginCell = d.login
-        ? '<span class="child-status-ok">✅</span>'
-        : '<span class="child-status-ng">❌</span>';
-
-      // 英単語RUSH
-      var eiCell;
-      if (d.eitango && d.eitango.done) {
+  var CHILD_HISTORY_ROWS = [
+    {
+      label: 'ログイン',
+      render: function(d) { return d.login ? CHILD_OK : CHILD_NG; }
+    },
+    {
+      label: '英単語RUSH',
+      render: function(d) {
+        if (!d.eitango || !d.eitango.done) return CHILD_NG;
         var byLevel = {};
         (d.eitango.details || []).forEach(function(x){
           var lv = String(x.level || '');
@@ -602,41 +602,105 @@
           var sets = byLevel[lv].slice().sort(function(a,b){ return a-b; });
           return '<span class="child-detail">英検' + _esc(lv) + ' セット' + sets.join('・') + ' 合格</span>';
         }).join('');
-        eiCell = '<span class="child-status-ok">✅</span>' + detailLines;
-      } else {
-        eiCell = '<span class="child-status-ng">❌</span>';
+        return CHILD_OK + detailLines;
       }
-
-      // 三語短文
-      var sgCell;
-      if (d.sango && d.sango.done) {
+    },
+    {
+      label: '三語短文',
+      render: function(d) {
+        if (!d.sango || !d.sango.done) return CHILD_NG;
         var lv = d.sango.level ? 'レベル' + _esc(d.sango.level) : '';
+        // 保護者画面独自：作品を見るボタンで該当タイムスタンプの提出にスクロール
         var btn = d.sango.timestamp
           ? '<button type="button" class="child-view-btn" onclick="jumpToSangoSubmission(\'' + _esc(d.sango.timestamp).replace(/'/g,"\\'") + '\')">作品を見る</button>'
           : '';
-        sgCell = '<span class="child-status-ok">✅</span>' + (lv ? ' <span style="color:#555;font-size:13px">' + lv + '</span>' : '') + ' ' + btn;
-      } else {
-        sgCell = '<span class="child-status-ng">❌</span>';
+        return CHILD_OK + (lv ? ' <span style="color:#555;font-size:13px">' + lv + '</span>' : '') + ' ' + btn;
       }
-
-      // 和文英訳①
-      var wbCell;
-      if (d.wabun1 && d.wabun1.done) {
+    },
+    {
+      label: '和文英訳①',
+      render: function(d) {
+        if (!d.wabun1 || !d.wabun1.done) return CHILD_NG;
         var hp = Number(d.wabun1.hpGained || 0);
-        var hpLabel = hp > 0 ? ' <span style="color:#555;font-size:13px">全問正解（' + hp.toLocaleString() + 'HP獲得）</span>' : ' <span style="color:#555;font-size:13px">全問正解</span>';
-        wbCell = '<span class="child-status-ok">✅</span>' + hpLabel;
-      } else {
-        wbCell = '<span class="child-status-ng">❌</span>';
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">全問正解（' + hp.toLocaleString() + 'HP獲得）</span>'
+          : ' <span style="color:#555;font-size:13px">全問正解</span>';
+        return CHILD_OK + hpLabel;
       }
+    },
+    {
+      label: '基礎計算',
+      render: function(d) {
+        if (!d.kiso || !d.kiso.done) return CHILD_NG;
+        var hp = Number(d.kiso.hpGained || 0);
+        var sessions = (d.kiso.sessions || []).slice().sort(function(a, b){
+          if (a.rank !== b.rank) return a.rank - b.rank;
+          return a.count - b.count;
+        });
+        var detail = sessions.map(function(s){
+          return s.rank + '級・' + s.count + '問' + (s.isPractice ? '（練習）' : '');
+        }).join(' / ');
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">' + _esc(detail) + (detail ? '：' : '') + hp.toLocaleString() + 'HP獲得</span>'
+          : (detail ? ' <span style="color:#555;font-size:13px">' + _esc(detail) + '</span>' : '');
+        return CHILD_OK + hpLabel;
+      }
+    },
+    {
+      label: '英語リスオン',
+      render: function(d) {
+        if (!d.lison || !d.lison.done) return CHILD_NG;
+        var hp = Number(d.lison.hpGained || 0);
+        var levels = (d.lison.levels || []).map(function(lv){
+          return LISON_LEVEL_LABEL[lv] || lv;
+        }).join('・');
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">' + _esc(levels) + (levels ? '：' : '') + hp.toLocaleString() + 'HP獲得</span>'
+          : (levels ? ' <span style="color:#555;font-size:13px">' + _esc(levels) + '</span>' : '');
+        return CHILD_OK + hpLabel;
+      }
+    }
+  ];
+
+  // 未知 type の汎用フォールバック（HPLog の type 文字列をそのまま label にして 1 行）
+  function _renderChildExtraRows(extras) {
+    if (!extras || !extras.length) return '';
+    var byType = {};
+    extras.forEach(function(e){
+      var t = String(e.type || '');
+      if (!t) return;
+      if (!byType[t]) byType[t] = 0;
+      byType[t] += Number(e.hpGained) || 0;
+    });
+    return Object.keys(byType).sort().map(function(type){
+      var hp = byType[type];
+      var hpLabel = hp > 0 ? ' <span style="color:#555;font-size:13px">+' + hp.toLocaleString() + 'HP</span>' : '';
+      return '<div class="child-row">' +
+               '<div class="child-row-label">' + _esc(type) + '</div>' +
+               '<div class="child-row-value">' + CHILD_OK + hpLabel + '</div>' +
+             '</div>';
+    }).join('');
+  }
+
+  function _renderChildDays(days) {
+    if (!days || !days.length) {
+      return '<div class="child-history-empty">この期間の記録はありません。</div>';
+    }
+    return days.map(function(d){
+      var ymd = String(d.date || '');
+      var ymdDisp = ymd.length >= 10 ? ymd.slice(0,4) + '/' + ymd.slice(5,7) + '/' + ymd.slice(8,10) : ymd;
+      var header = ymdDisp + '(' + (d.weekday || '') + ')';
+
+      var rowsHtml = CHILD_HISTORY_ROWS.map(function(cfg){
+        return '<div class="child-row">' +
+                 '<div class="child-row-label">' + _esc(cfg.label) + '</div>' +
+                 '<div class="child-row-value">' + cfg.render(d) + '</div>' +
+               '</div>';
+      }).join('') + _renderChildExtraRows(d.extras);
 
       return '<div class="child-day-card">' +
                '<div class="child-day-header">' + _esc(header) + '</div>' +
-               '<div class="child-day-body">' +
-                 '<div class="child-row"><div class="child-row-label">ログイン</div><div class="child-row-value">' + loginCell + '</div></div>' +
-                 '<div class="child-row"><div class="child-row-label">英単語RUSH</div><div class="child-row-value">' + eiCell + '</div></div>' +
-                 '<div class="child-row"><div class="child-row-label">三語短文</div><div class="child-row-value">' + sgCell + '</div></div>' +
-                 '<div class="child-row"><div class="child-row-label">和文英訳①</div><div class="child-row-value">' + wbCell + '</div></div>' +
-               '</div>' +
+               '<div class="child-day-body">' + rowsHtml + '</div>' +
              '</div>';
     }).join('');
   }
