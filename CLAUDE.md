@@ -1807,6 +1807,120 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - 改善案：`function handleAction(action, params) { ... }` を 1 つ用意し、`doGet` / `doPost` はパラメータ抽出だけして共通関数に委譲する。新エンドポイント追加時は handleAction に 1 行追加するだけで GET/POST 両対応になる
 - スコープ：~80 のルーティング分岐すべての書き換え + 全コンテンツの動作確認が必要なため、新コンテンツ実装が一段落したタイミングで着手する案件として保留
 
+### 2026-04-30（塾PC：リスオン Phase 1-B 完成 + 基礎計算過去セッション + 採点フィードバック多数）
+
+塾PC で長丁場の 1 日。リスオン Phase 1-B フロント全実装、複数のバグ修正と仕様改善、基礎計算の過去セッション再表示機能、採点結果画面の自動フィードバック化、和文英訳① の正規化精度向上を一気に進めた。20+ コミット。
+
+#### 146. 英語リスオン Phase 1-B：フロント全実装（dev `4d8f346` 〜 `f2c01c6`、6 コミット）
+- 級選択画面、Step 1〜5 + 完了画面 = 7 画面 + 送信オーバーレイを新設
+- Web Speech API（女性 voice / rate 0.9）で文単位連続再生、世代トークンで停止対応
+- MediaRecorder（webm/mp4/aac の優先順 isTypeSupported）でマイク録音
+- リスのマスコット演出（アイドル時 bob、再生中 listening 傾き、完了時 jump）+ シーン別セリフ
+- モバイル 480px 以下のレスポンシブ調整 17 箇所
+
+#### 147. リスオン Phase 1-B：致命的バグ + UI 修正（dev `99a629e` / `856bd65`）
+- Step 3 T/F ボタン無反応バグ修正：onclick の `JSON.stringify(v)` で `'"T"'` がダブルクォート衝突 → シングルクォート埋め込みに変更
+- 級選択「ちょうせん」→「挑戦」、Step 1 / Step 2 で「English」「日本語訳」ラベル削除 + textContent 直流し化（`white-space: pre-wrap` の literal 描画問題を解消）
+- Step 2 は仕様変更で英文表示削除、訳のみ表示（音声は引き続き英文）
+
+#### 148. リスオン submitLison ルーティング欠損修正（dev `aceb7a1` / `b6603aa` / `0b2245a`）
+- doGet 側に保護コメント追加（commit `aceb7a1`）
+- Step 5 英文表示の label 削除 + 「ロスト」表現を「最初からやり直しになるよ」に統一（commit `b6603aa`）
+- 真因確定：**doPost 側に `submitLison` のルーティング登録が無かった**ため「unknown action」エラー。doPost に追加 + 保護コメントを併設（commit `0b2245a`）
+- CLAUDE.md「将来のリファクタ案件」に doGet/doPost ルーティング共通化案を追記
+
+#### 149. 和文英訳①：判定改善 4 件
+- **確認画面の注意書きを箇条書きに拡張**（commit `71d117f` / `0794010` / `e0368aa`）：ピリオド・カンマ → スペルミス → 短縮形（don't 等）の 3 項目。文言「あえて」→「ここでは」
+- **改行正規化の防御的強化**（commit `d3857b3`）：`_normalizeWabun1` の `[\s　]+` に zero-width 文字 6 種（U+200B〜200D / U+2060 / U+FEFF）を追加。判定失敗時の診断ログを強化（codeStudent / codeCorrect / parsedRaw / canonicalRaw / workTextRaw）+ CLAUDE.md に「真因特定 6 ステップ手順」追記
+- **採点結果画面で不正解理由を可視化**（commit `89e1657`）：`_wabun1ClassifyFeedback` を新設、不正解時に diff カード（きみの答え / 正解 / 自動分類フィードバック）を表示。8 → 7 分類（Node 16/16 PASS、CLAUDE.md に分類表追記）
+- **日本語句読点（、 。）を判定対象外に修正**（commit `a43198b`）：punctMap で「、」が「,」に変換され誤分類されていたバグ。両方を削除する仕様に変更。`fullstop_missing` 分類は到達不能になったため廃止（feedbackType 7 分類に整理）
+
+#### 150. 基礎計算：数値正規化 + 上付き文字対応（dev `1cad195` / `d3595ba`）
+- `_kisoNormalize` に単項プラス除去（`+2` → `2`、`x=+5` → `x=5`）+ 純粋数値正規化（`2.0` → `2`、`0.50` → `0.5`）追加（Node 22/22 PASS）
+- 同関数に Unicode 上付き数字 → caret 形式（`x²` → `x^2`）+ LaTeX `^{n}` → `^n` のブレース除去を追加（rank_03/04/05/07 全 4 ランク救済、Node 24/24 PASS）
+
+#### 151. 管理画面・保護者画面 学習履歴に基礎計算・リスオン追加（dev `1b912d5`）
+- GAS `getChildActivityRecent` 拡張：`kiso` / `lison` / `extras` フィールド追加。HPLog の `kiso_*` / `lison` を分岐、未知 type は `extras` に集約（将来コンテンツの自動表示）
+- LisonSubmissions から level 補完
+- admin.html / view.html を data-driven 化（`CHILD_HISTORY_ROWS` 配列、新コンテンツ追加 = 1 件足すだけ）
+- 注意書き文言「⚠️ アプリ実装以前の LINE 提出状況は反映されていません。」に統一
+
+#### 152. 基礎計算 過去セッション再表示機能 Mode A/B（dev `ce40e30` / `d54a06e` / `e118fd9` / `a0c3464`、4 コミット）
+- localStorage `mykt_kiso_recent_<rank>` で当日 + 前日のセッションを保持（最大 5 件）
+- 問題画面に「📚 過去のセッションを見直す（同じ単元）」+ ボタン 2 つ（1つ前 / 2つ前、未送信=黄色 / 採点済み=緑 / 該当なし=灰色）
+- **Mode A**（未送信再開）：確認ダイアログ → 同セッション復元 + 「📂 再開バナー」+ 写真撮り直し → 通常通り採点 → HP 加算
+- **Mode B**（採点済閲覧）：新画面 `screen-kiso-review` で写真 + 問題 + AI 読み取り + 正解（MathJax）+ ⭕❌ をカード式に表示
+- GAS 基盤：`_saveKisoPhoto` に `setSharing(ANYONE_WITH_LINK, VIEW)` 追加（Drive thumbnail URL で `<img>` 表示可能に）+ submitKisoAnswer の results に `answerCanonical` を含める
+
+#### 153. 基礎計算 同一セッション内の問題重複を排除（dev `606d949`）
+- 真因：rank_04 Band C は (x+a)(x-a) の a∈[1,9] = 9 unique しかないのに count=10 → 構造的に重複
+- 方針 A（生成側、根本対策）：main.py に `seen_latex` set + 50 回 retry + WARN ログ追加。ランク全体（バンドをまたいで）で `problemLatex` のユニーク性を保証
+- 方針 B（GAS 側、保険）：startKisoSession で 2 段階 dedup（uniqueByLatex 構築 → 抽出 → unique 不足時は行ユニークでフォールバック）。既存 600 問の即時救済
+- Node 単体テスト 5/5 PASS、全 20 ランク生成テストで rank 4 のみ WARN 1 件（band_config 調整は別タスク）
+
+#### 154. 終了処理（夕方）
+- worktree 整理：goofy-poitras-31d2d2（dev、本日の作業 worktree）と main worktree のみ。stale なし
+- CLAUDE.md：feedbackType 7 分類 / 問題重複排除 / 過去セッション機能 / リスオン保護コメント などすべて反映確認
+- **基礎計算 問題プール拡充計画** を CLAUDE.md に新セクションとして追加（明日以降の作業準備、優先度 A〜C で整理）
+- 本日の全 commit を main にマージして塾PC 作業終了
+
+---
+
+## 基礎計算 問題プール拡充計画
+
+### 現状（2026-04-30 時点）
+- 各単元 約 30 題、合計約 600 題
+- 一部単元（rank_04 Band C など）は数学的に重複不可避（9 unique で count=10）
+- 同一セッション内の重複は生成側 + GAS 側の二重 dedup で解消済み（commit `606d949`）
+
+### 目標
+- フェーズ 1：全単元 50 題、合計 1000 題
+- フェーズ 2：全単元 100 題、合計 2000 題
+- 全単元で重複ゼロを保証（数学的に不可能な Band は再設計）
+
+### 進行方針
+- 1 回 1 単元ずつ、丁寧に増産
+- 各単元の Band 構成、パラメータ範囲、generator を見直し
+- 教育的バランスを保ちつつパラメータ空間を拡張
+
+### 増産優先度
+
+**優先度 A（Band 不足が確定、最優先）**
+- rank_04 乗法公式（Band C が 9 問のみ、報告バグの単元）
+- rank_02 平方根（一意空間が狭い）
+- rank_03 因数分解（square_factor_latex で限定）
+
+**優先度 B（使用頻度高）**
+- rank_05 中3 式の計算
+- rank_07 中2 式の計算
+- rank_08 一次方程式
+- rank_06 連立方程式
+
+**優先度 C（パラメータ空間が広い、余裕あり）**
+- rank_11〜rank_20（整数・小数・正負・分数の四則）
+
+### 進捗管理
+- 各単元増産時に main.py の WARN ログを確認（重複検出の有無）
+- 実機で数セッション解いて品質チェック
+- 完了した単元を ✅ で記録
+- 順序は Claude Code の判断に委任で OK
+
+### 標準的な作業フロー
+1. 既存 rank_XX_*.py の Band 構成と generator を確認
+2. 一意な問題数を計測（main.py で生成 → unique_latex を見る）
+3. 教育的判断：パラメータ拡張 / 新 Band 追加 / count 調整
+4. Python 側を修正
+5. main.py で問題生成、KisoQuestions シートに投入（db_writer.py）
+6. Node テスト相当 + main.py の WARN で重複ゼロ確認
+7. 実機で数セッション解いて目視チェック
+
+### 1 単元あたりの作業時間目安
+- 調査・設計：30 分
+- Python 修正：30 分
+- 生成・投入：15 分
+- 検証：15 分
+- 合計：約 1.5 時間
+
 ---
 
 ## TODO（未反映の GAS 側作業）
