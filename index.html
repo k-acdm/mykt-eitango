@@ -662,6 +662,21 @@
     .lison-review-row .lbl { font-weight: bold; color: #6b7280; margin-right: 6px; }
     .lison-review-explain { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; margin-top: 8px; font-size: 14px; color: #78350f; line-height: 1.7; }
     .lison-review-explain .lbl { font-weight: bold; color: #b45309; display: block; margin-bottom: 4px; font-size: 12px; letter-spacing: .5px; }
+    /* Step 5: 録音 */
+    .lison-rec-section { background: #fff; border-radius: 14px; padding: 18px 16px; margin: 12px 0; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+    .lison-rec-start-btn { background: linear-gradient(135deg,#ef4444,#dc2626) !important; color:#fff !important; padding: 18px; font-size: 18px; font-weight: bold; border-radius: 14px; box-shadow: 0 4px 14px rgba(220,38,38,.32); }
+    .lison-rec-stop-btn  { background: linear-gradient(135deg,#1f2937,#111827) !important; color:#fff !important; padding: 18px; font-size: 18px; font-weight: bold; border-radius: 14px; box-shadow: 0 4px 14px rgba(17,24,39,.32); }
+    .lison-rec-submit-btn { background: linear-gradient(135deg,#10b981,#059669) !important; color:#fff !important; padding: 16px; font-size: 17px; font-weight: bold; border-radius: 14px; box-shadow: 0 4px 12px rgba(16,185,129,.3); }
+    .lison-rec-redo-btn { background: linear-gradient(135deg,#f59e0b,#d97706) !important; color:#fff !important; padding: 14px; font-size: 15px; font-weight: bold; border-radius: 12px; margin-top: 10px; }
+    .lison-rec-recording-box { text-align: center; padding: 22px 18px; background: linear-gradient(135deg,#fef2f2,#fee2e2); border: 3px solid #ef4444; border-radius: 16px; animation: lison-rec-pulse 1.2s ease-in-out infinite; }
+    @keyframes lison-rec-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.45); } 50% { box-shadow: 0 0 0 14px rgba(239,68,68,0); } }
+    .lison-rec-indicator { font-size: 22px; font-weight: bold; color: #dc2626; letter-spacing: 1px; }
+    .lison-rec-indicator .rec-dot { display: inline-block; width: 14px; height: 14px; background: #dc2626; border-radius: 50%; margin-right: 8px; vertical-align: middle; animation: lison-rec-dot 1s ease-in-out infinite; }
+    @keyframes lison-rec-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .lison-rec-timer { font-family: 'Courier New', monospace; font-size: 36px; font-weight: bold; color: #b91c1c; margin: 10px 0 6px; letter-spacing: 2px; }
+    .lison-rec-mascot-mini { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 14px; background: rgba(255,255,255,.85); border-radius: 999px; border: 1.5px solid #34a884; color: #14532d; font-size: 13px; font-weight: bold; }
+    .lison-rec-mascot-mini img { width: 28px; height: 28px; border-radius: 50%; object-fit: contain; background: #eef9f3; padding: 2px; }
+    .lison-rec-preview { width: 100%; margin: 12px 0; }
   </style>
 
   <!-- MathJax v3（基礎計算 §4.5 の問題表示で利用。動的描画は MathJax.typesetPromise() で再描画） -->
@@ -1487,6 +1502,50 @@
     </div>
     <div id="lison-step4-list"></div>
     <button class="btn-wide lison-next-btn" onclick="goLisonStep5()">🎤 次へ進む（音読録音）</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（進捗はロストします）</button>
+  </div>
+</div>
+
+<!-- Step 5: 音読録音 -->
+<div id="screen-lison-step5" class="screen">
+  <header><h1>🐿️ 英語リスオン</h1><span>Step 5 / 5</span></header>
+  <div class="container" style="padding-top:14px">
+    <div class="lison-step-counter">Step 5 / 5</div>
+    <div class="lison-mascot-row">
+      <img class="mascot-img" src="images/lison-icon.png" alt="リス">
+      <div class="mascot-bubble">ゆっくりでOK、自分のペースで！🎤<br><small style="font-weight:normal;color:#3f6b56">英文をマイクに向かって読んでね</small></div>
+    </div>
+    <div class="lison-text-card lison-text-en">
+      <span class="lison-text-label">English</span>
+      <span id="lison-step5-en"></span>
+    </div>
+
+    <!-- 状態 1: idle (録音前) -->
+    <div id="lison-rec-idle" class="lison-rec-section" style="display:none">
+      <button class="btn-wide lison-rec-start-btn" onclick="startLisonRecording()">🎤 英文を音読して録音する</button>
+    </div>
+
+    <!-- 状態 2: 録音中 -->
+    <div id="lison-rec-recording" class="lison-rec-section" style="display:none">
+      <div class="lison-rec-recording-box">
+        <div class="lison-rec-indicator"><span class="rec-dot"></span>録音中</div>
+        <div class="lison-rec-timer" id="lison-rec-timer">00:00</div>
+        <div class="lison-rec-mascot-mini">
+          <img src="images/lison-icon.png" alt="リス">
+          <span>キミの声、聴いてるよ🎧</span>
+        </div>
+      </div>
+      <button class="btn-wide lison-rec-stop-btn" style="margin-top:14px" onclick="stopLisonRecording()">⏹ ストップ</button>
+    </div>
+
+    <!-- 状態 3: 録音済み（プレビュー + 送信 / もう一度） -->
+    <div id="lison-rec-stopped" class="lison-rec-section" style="display:none">
+      <div style="font-size:14px;color:#475569;margin-bottom:6px;font-weight:bold">🎧 録音した音声を聞いてみよう</div>
+      <audio id="lison-rec-preview" class="lison-rec-preview" controls></audio>
+      <button class="btn-wide lison-rec-submit-btn" onclick="submitLisonRecording()">✅ 今の音読を送信</button>
+      <button class="btn-wide lison-rec-redo-btn" onclick="retakeLisonRecording()">🔄 もう一度読んで録音する</button>
+    </div>
+
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（進捗はロストします）</button>
   </div>
 </div>
@@ -4059,8 +4118,158 @@
     showScreen('screen-lison-step4');
   }
   function goLisonStep5() {
-    // Step 5（録音）は次コミットで実装
-    alert('Step 5（音読録音）は次コミットで実装します。');
+    showLisonStep5();
+  }
+
+  // -----------------------------------------------------
+  // Step 5: 音読録音（MediaRecorder API）
+  // -----------------------------------------------------
+  // 状態は idle / recording / stopped の 3 つで、それぞれ専用 div を表示する。
+  // 録音 blob は _lisonState.recordingBlob に保持し、Step 6 の送信時に base64 化する。
+  function showLisonStep5() {
+    var c = _lisonState.content || {};
+    document.getElementById('lison-step5-en').textContent = c.englishText || '';
+    // Step 5 に入る時点で既に録音済みの blob があれば preview 状態で再表示
+    if (_lisonState.recordingBlob) _lisonShowRecordingStopped();
+    else                            _lisonShowRecordingIdle();
+    showScreen('screen-lison-step5');
+  }
+  function _lisonShowRecordingIdle() {
+    var i = document.getElementById('lison-rec-idle');
+    var r = document.getElementById('lison-rec-recording');
+    var s = document.getElementById('lison-rec-stopped');
+    if (i) i.style.display = 'block';
+    if (r) r.style.display = 'none';
+    if (s) s.style.display = 'none';
+  }
+  function _lisonShowRecordingStarted() {
+    var i = document.getElementById('lison-rec-idle');
+    var r = document.getElementById('lison-rec-recording');
+    var s = document.getElementById('lison-rec-stopped');
+    if (i) i.style.display = 'none';
+    if (r) r.style.display = 'block';
+    if (s) s.style.display = 'none';
+    var t = document.getElementById('lison-rec-timer');
+    if (t) t.textContent = '00:00';
+  }
+  function _lisonShowRecordingStopped() {
+    var i = document.getElementById('lison-rec-idle');
+    var r = document.getElementById('lison-rec-recording');
+    var s = document.getElementById('lison-rec-stopped');
+    if (i) i.style.display = 'none';
+    if (r) r.style.display = 'none';
+    if (s) s.style.display = 'block';
+    var audio = document.getElementById('lison-rec-preview');
+    if (audio && _lisonState.recordingBlob) {
+      try { if (audio.src) URL.revokeObjectURL(audio.src); } catch(e){}
+      try { audio.src = URL.createObjectURL(_lisonState.recordingBlob); } catch(e){}
+    }
+  }
+  function startLisonRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+      alert('このブラウザは録音に対応していません。Safari（iOS）/ Chrome（Android）の最新版でお試しください。');
+      return;
+    }
+    // SFX をマイク取得前に unlock してしまうと OS が確認ダイアログを出さないことがあるので注意
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+      _lisonState.mediaStream = stream;
+      // ブラウザが対応する MIME を優先順に試す（iOS Safari は audio/mp4、Chrome/Firefox は audio/webm が多い）
+      var preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/aac', 'audio/ogg'];
+      var chosenMime = '';
+      if (typeof MediaRecorder.isTypeSupported === 'function') {
+        for (var i = 0; i < preferred.length; i++) {
+          if (MediaRecorder.isTypeSupported(preferred[i])) { chosenMime = preferred[i]; break; }
+        }
+      }
+      var rec;
+      try {
+        rec = chosenMime ? new MediaRecorder(stream, { mimeType: chosenMime }) : new MediaRecorder(stream);
+      } catch(err) {
+        // 一部 iOS Safari は mimeType を渡すと throw するのでフォールバック
+        try { rec = new MediaRecorder(stream); } catch(e2) {
+          alert('録音の開始に失敗しました。お使いのブラウザでは録音できないかもしれません。');
+          stream.getTracks().forEach(function(t){ try { t.stop(); } catch(e){} });
+          _lisonState.mediaStream = null;
+          return;
+        }
+      }
+      _lisonState.mediaRecorder = rec;
+      _lisonState.recordedChunks = [];
+      _lisonState.recordingMime  = rec.mimeType || chosenMime || 'audio/webm';
+      rec.ondataavailable = function(ev) {
+        if (ev.data && ev.data.size > 0) _lisonState.recordedChunks.push(ev.data);
+      };
+      rec.onstop = function() {
+        try {
+          var blob = new Blob(_lisonState.recordedChunks, { type: _lisonState.recordingMime });
+          _lisonState.recordingBlob = blob;
+        } catch(e) {
+          alert('録音データの作成に失敗しました：' + e.message);
+        }
+        // ストリーム停止 + タイマー停止
+        if (_lisonState.recordingTimer) { clearInterval(_lisonState.recordingTimer); _lisonState.recordingTimer = null; }
+        if (_lisonState.mediaStream) {
+          _lisonState.mediaStream.getTracks().forEach(function(t){ try { t.stop(); } catch(e){} });
+          _lisonState.mediaStream = null;
+        }
+        _lisonShowRecordingStopped();
+      };
+      rec.start();
+      _lisonState.recordingStartMs = Date.now();
+      _lisonShowRecordingStarted();
+      _lisonState.recordingTimer = setInterval(function(){
+        var ms = Date.now() - _lisonState.recordingStartMs;
+        _lisonState.recordingDurationMs = ms;
+        var sec = Math.floor(ms / 1000);
+        var mm = String(Math.floor(sec / 60));
+        var ss = String(sec % 60);
+        if (mm.length < 2) mm = '0' + mm;
+        if (ss.length < 2) ss = '0' + ss;
+        var t = document.getElementById('lison-rec-timer');
+        if (t) t.textContent = mm + ':' + ss;
+      }, 250);
+    }).catch(function(err){
+      var name = err && err.name;
+      var msg;
+      if (name === 'NotAllowedError' || name === 'SecurityError') msg = 'マイクの使用が許可されていません。\n\nブラウザの設定でマイクを許可してから、もう一度お試しください。';
+      else if (name === 'NotFoundError' || name === 'OverconstrainedError') msg = 'マイクが見つかりませんでした。マイクが繋がっているか確認してね。';
+      else if (name === 'NotReadableError') msg = '他のアプリがマイクを使用中の可能性があります。他のアプリを閉じてから、もう一度お試しください。';
+      else msg = 'マイクの使用を許可してね（' + (name || (err && err.message) || '不明') + '）';
+      alert(msg);
+    });
+  }
+  function stopLisonRecording() {
+    try {
+      if (_lisonState.mediaRecorder && _lisonState.mediaRecorder.state !== 'inactive') {
+        _lisonState.mediaRecorder.stop(); // onstop が走って blob 化 + ストリーム停止
+        return;
+      }
+    } catch(e){}
+    // mediaRecorder が無効な場合のフォールバック（onstop が走らない経路）
+    if (_lisonState.recordingTimer) { clearInterval(_lisonState.recordingTimer); _lisonState.recordingTimer = null; }
+    if (_lisonState.mediaStream) {
+      _lisonState.mediaStream.getTracks().forEach(function(t){ try { t.stop(); } catch(e){} });
+      _lisonState.mediaStream = null;
+    }
+    _lisonShowRecordingIdle();
+  }
+  function retakeLisonRecording() {
+    // プレビュー音声 URL を解放
+    try {
+      var audio = document.getElementById('lison-rec-preview');
+      if (audio && audio.src) {
+        try { URL.revokeObjectURL(audio.src); } catch(e){}
+        audio.src = '';
+      }
+    } catch(e){}
+    _lisonState.recordingBlob = null;
+    _lisonState.recordedChunks = [];
+    _lisonState.recordingDurationMs = 0;
+    _lisonShowRecordingIdle();
+  }
+  function submitLisonRecording() {
+    // Step 6（送信）は次コミットで実装
+    alert('Step 6（送信）は次コミットで実装します。');
   }
 
   // 進捗ロストの確認
