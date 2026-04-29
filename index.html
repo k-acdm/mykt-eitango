@@ -677,6 +677,20 @@
     .lison-rec-mascot-mini { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 14px; background: rgba(255,255,255,.85); border-radius: 999px; border: 1.5px solid #34a884; color: #14532d; font-size: 13px; font-weight: bold; }
     .lison-rec-mascot-mini img { width: 28px; height: 28px; border-radius: 50%; object-fit: contain; background: #eef9f3; padding: 2px; }
     .lison-rec-preview { width: 100%; margin: 12px 0; }
+    /* 送信中オーバーレイ */
+    .lison-submit-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9100; display: none; align-items: center; justify-content: center; }
+    .lison-submit-overlay.active { display: flex; }
+    .lison-submit-card { background: #fff; border-radius: 16px; padding: 24px 22px; max-width: 320px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+    .lison-submit-card img { width: 100px; height: 100px; object-fit: contain; border-radius: 50%; background: #eef9f3; padding: 6px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+    .lison-submit-msg { font-size: 16px; color: #14532d; font-weight: bold; line-height: 1.7; }
+    .lison-submit-sub { font-size: 12px; color: #94a3b8; margin-top: 10px; }
+    /* Step 6: 完了画面（HP獲得 or 練習完了） */
+    .lison-done-mascot { display: block; margin: 0 auto 12px; width: 130px; height: 130px; object-fit: contain; border-radius: 50%; background: linear-gradient(135deg,#eef9f3,#d6f0e3); padding: 8px; box-shadow: 0 6px 20px rgba(52,168,132,.3); animation: lison-done-jump 0.9s ease-in-out 2; }
+    @keyframes lison-done-jump { 0%,100% { transform: translateY(0) rotate(0deg); } 25% { transform: translateY(-14px) rotate(-6deg); } 50% { transform: translateY(0) rotate(0deg); } 75% { transform: translateY(-9px) rotate(5deg); } }
+    .lison-done-title { text-align: center; font-size: 22px; font-weight: bold; color: #b45309; margin: 6px 0 4px; }
+    .lison-done-sub { text-align: center; font-size: 14px; color: #78350f; margin-bottom: 12px; }
+    .lison-done-mascot-quote { text-align: center; font-size: 16px; color: #14532d; font-weight: bold; margin: 14px 0 4px; padding: 10px 14px; background: linear-gradient(135deg,#eef9f3,#d6f0e3); border: 2px solid #34a884; border-radius: 12px; }
+    .lison-done-quiz-summary { text-align: center; font-size: 13px; color: #475569; margin: 6px 0 4px; }
   </style>
 
   <!-- MathJax v3（基礎計算 §4.5 の問題表示で利用。動的描画は MathJax.typesetPromise() で再描画） -->
@@ -1547,6 +1561,24 @@
     </div>
 
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（進捗はロストします）</button>
+  </div>
+</div>
+
+<!-- 完了画面（HP獲得 or 練習完了 共通レイアウト、内部で分岐表示） -->
+<div id="screen-lison-done" class="screen">
+  <header><h1>🎉 完了！</h1><span></span></header>
+  <div class="container" style="padding-top:18px">
+    <div id="lison-done-body"></div>
+    <button class="btn-wide" style="margin-top:18px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- 送信中オーバーレイ（リス版） -->
+<div id="lison-submit-overlay" class="lison-submit-overlay">
+  <div class="lison-submit-card">
+    <img src="images/lison-icon.png" alt="リス">
+    <div class="lison-submit-msg">送信中<span class="grading-dots" id="lison-submit-dots">...</span></div>
+    <div class="lison-submit-sub">録音データをアップロード中です。<br>少し時間がかかる場合があります。</div>
   </div>
 </div>
 
@@ -4267,9 +4299,128 @@
     _lisonState.recordingDurationMs = 0;
     _lisonShowRecordingIdle();
   }
+  // -----------------------------------------------------
+  // Step 6: 送信処理 + 完了画面
+  // -----------------------------------------------------
+  // blob → base64（data URL のヘッダ部 'data:audio/...;base64,' は除いた純粋な base64 を返す）
+  function _lisonBlobToBase64(blob) {
+    return new Promise(function(resolve, reject){
+      try {
+        var reader = new FileReader();
+        reader.onload = function(){
+          var s = String(reader.result || '');
+          var i = s.indexOf(',');
+          resolve(i >= 0 ? s.substring(i + 1) : s);
+        };
+        reader.onerror = function(){ reject(reader.error || new Error('FileReader error')); };
+        reader.readAsDataURL(blob);
+      } catch(e) { reject(e); }
+    });
+  }
+  var _lisonSubmitDotsTimer = null;
+  function _lisonShowSubmitOverlay(show) {
+    var el = document.getElementById('lison-submit-overlay');
+    if (!el) return;
+    if (show) {
+      el.classList.add('active');
+      var dots = document.getElementById('lison-submit-dots');
+      var n = 0;
+      if (_lisonSubmitDotsTimer) clearInterval(_lisonSubmitDotsTimer);
+      _lisonSubmitDotsTimer = setInterval(function(){
+        n = (n + 1) % 4;
+        if (dots) dots.textContent = '.'.repeat(n);
+      }, 450);
+    } else {
+      el.classList.remove('active');
+      if (_lisonSubmitDotsTimer) { clearInterval(_lisonSubmitDotsTimer); _lisonSubmitDotsTimer = null; }
+    }
+  }
   function submitLisonRecording() {
-    // Step 6（送信）は次コミットで実装
-    alert('Step 6（送信）は次コミットで実装します。');
+    if (!_lisonState.recordingBlob) {
+      alert('録音データが見つかりません。もう一度録音してください。');
+      return;
+    }
+    if (!_studentId) {
+      alert('ログイン情報が見つかりません。一度ログインし直してください。');
+      return;
+    }
+    _lisonShowSubmitOverlay(true);
+    _lisonBlobToBase64(_lisonState.recordingBlob).then(function(b64){
+      return gasPost({
+        action: 'submitLison',
+        sid: _studentId,
+        level: _lisonState.level,
+        quizAnswers: JSON.stringify(_lisonState.quizAnswers),
+        recordingBase64: b64,
+        recordingMime: _lisonState.recordingMime || 'audio/webm'
+      });
+    }).then(function(res){
+      _lisonShowSubmitOverlay(false);
+      if (!res || !res.ok) {
+        alert('送信に失敗しました：' + ((res && res.message) || '不明なエラー') + '\n\nネットワークが不安定な可能性があります。少し待ってからもう一度お試しください。');
+        return;
+      }
+      _lisonShowDone(res);
+    }).catch(function(err){
+      _lisonShowSubmitOverlay(false);
+      alert('送信に失敗しました。\nネットワークが不安定な可能性があります。少し待ってからもう一度お試しください。\n\n（' + ((err && err.message) || err) + '）');
+    });
+  }
+  function _lisonShowDone(res) {
+    var bodyEl = document.getElementById('lison-done-body');
+    var hpGained = Number(res && res.hpGained) || 0;
+    var alreadyGranted = !!(res && res.alreadyGranted);
+    var quizScore = Number(res && res.quizScore) || 0;
+    var def = _lisonState.levelDef || {};
+
+    var html = '';
+    // リスがガッツポーズ風（jump animation 2 回）
+    html += '<img class="lison-done-mascot" src="images/lison-icon.png" alt="リス">';
+    html += '<div class="lison-done-mascot-quote">ナイスリスニング＆音読！🐿️🎧✨</div>';
+    html += '<div class="lison-done-quiz-summary">クイズ正解数：<strong>' + quizScore + ' / 3</strong>';
+    if (def.label) html += '（' + _lisonEsc(def.label) + '）';
+    html += '</div>';
+
+    if (alreadyGranted) {
+      html += '<div class="wabun1-result-success" style="margin-top:14px">'
+            +   '<div style="font-size:18px;font-weight:bold;color:#b45309;margin-bottom:8px">✅ 送信完了！</div>'
+            +   '<div style="font-size:14px;color:#78350f;line-height:1.8">同じ級の <strong>2 回目以降</strong>は HP 加算なしだけど、<br>しっかり練習できたね！💪<br><small>毎日の積み重ねが大事だよ🐿️</small></div>'
+            + '</div>';
+    } else if (hpGained > 0) {
+      // 紙吹雪 + HP カウントアップ + chime（既存 wabun1 の演出を流用）
+      var emojis = ['🎉','✨','🎊','🌟','💖','⭐','🥳','🎈','🐿️','🎧'];
+      var confetti = '<div class="wabun1-confetti-wrap">';
+      for (var i = 0; i < 16; i++) {
+        var left = Math.random() * 100;
+        var delay = Math.random() * 1.0;
+        confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">'
+                  + emojis[i % emojis.length] + '</span>';
+      }
+      confetti += '</div>';
+      html += '<div class="wabun1-result-success" style="margin-top:14px">' + confetti
+            +   '<div class="lison-done-title">🎉 送信完了！</div>'
+            +   '<div class="lison-done-sub">音読データはちゃんと記録されたよ</div>'
+            +   '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="lison-done-hp-num">0</span> HP 獲得！</div>'
+            + '</div>';
+    } else {
+      // 念のためのフォールバック（GAS が hpGained=0 を非 alreadyGranted で返してきた場合）
+      html += '<div class="wabun1-result-success" style="margin-top:14px">'
+            +   '<div class="lison-done-title">✅ 送信完了！</div>'
+            +   '<div class="lison-done-sub">録音データを保存しました</div>'
+            + '</div>';
+    }
+    bodyEl.innerHTML = html;
+
+    // HP カウントアップ + chime
+    if (!alreadyGranted && hpGained > 0) {
+      var hpEl = document.getElementById('lison-done-hp-num');
+      if (hpEl) _wabun1AnimateHp(hpEl, hpGained, 1000);
+      try { playSfx('chime'); } catch(e){}
+      // セッション中の合計 HP に反映してホームに戻ったとき表示が追いつくように
+      if (typeof _totalHP === 'number') _totalHP += hpGained;
+    }
+
+    showScreen('screen-lison-done');
   }
 
   // 進捗ロストの確認
