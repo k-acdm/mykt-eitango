@@ -4940,7 +4940,12 @@ function _normalizeWabun1(s) {
     return punctMap[ch] || ch;
   });
   // 3. すべての空白文字を削除（半角/全角スペース・タブ・改行・その他 Unicode 空白）
-  t = t.replace(/[\s　]+/g, '');
+  //    生徒が紙の幅で改行して書く（"Africa is\nfor my\nfamily"）→ OCR が改行込みで
+  //    返してくるケースを救済するため、改行（\n / \r\n / \r）も含めてすべて吸収する。
+  //    \s は \f\n\r\t\v + 通常空白 + 多くの Unicode 空白（U+00A0 NBSP 含む）にマッチ。
+  //    防御的に、OCR が稀に挟む zero-width 系の不可視文字（U+200B〜200D / U+FEFF /
+  //    U+2060 word-joiner）も併せて削除（\s ではマッチしないため明示）。
+  t = t.replace(/[\s　​‌‍⁠﻿]+/g, '');
   // 大文字小文字は厳格判定のため lowercasing しない（2026-04-29 仕様変更）
   return t;
 }
@@ -5190,6 +5195,19 @@ function submitWabun1(params) {
       const studentNorm = _normalizeWabun1(parsed[t.no]);
       const correctNorm = _normalizeWabun1(topic.answers[idx]);
       const correct = correctNorm !== '' && studentNorm === correctNorm;
+      // 診断ログ：判定失敗時に正規化後文字列を Apps Script ログに残す。
+      // 「改行のはずなのに ❌」「ピリオド見落としで ❌」など真因切り分けに使う。
+      if (!correct && correctNorm !== '') {
+        let divergeAt = 0;
+        while (divergeAt < studentNorm.length && divergeAt < correctNorm.length
+               && studentNorm.charCodeAt(divergeAt) === correctNorm.charCodeAt(divergeAt)) divergeAt++;
+        console.log('[submitWabun1 ❌]'
+          + ' sid=' + sid
+          + ' no=' + t.no
+          + ' divergeAt=' + divergeAt
+          + ' student=' + JSON.stringify(studentNorm)
+          + ' correct=' + JSON.stringify(correctNorm));
+      }
       return { no: t.no, correct: correct };
     });
     const allCorrect = results.length > 0 && results.every(function(r){ return r.correct; });
