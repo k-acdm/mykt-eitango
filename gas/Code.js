@@ -2579,6 +2579,11 @@ function diagnoseRank4InProgress() {
   return diagnoseKisoInProgressByRank(4);
 }
 
+// ショートカット: rank=3 の診断（rank_03 50題化前の pre-flight 用）
+function diagnoseRank3InProgress() {
+  return diagnoseKisoInProgressByRank(3);
+}
+
 // 指定 rank の in_progress セッションを 'abandoned' に書き換える管理関数
 // （GAS エディタ実行専用、doGet 未登録）。
 //
@@ -2695,6 +2700,11 @@ function abandonKisoInProgressByRank(rank, opts) {
 // ショートカット: rank=4 の一括 abandoned 化（rank_04 50題化前の pre-flight 用）
 function abandonRank4InProgress(opts) {
   return abandonKisoInProgressByRank(4, opts);
+}
+
+// ショートカット: rank=3 の一括 abandoned 化（rank_03 50題化前の pre-flight 用）
+function abandonRank3InProgress(opts) {
+  return abandonKisoInProgressByRank(3, opts);
 }
 
 // KisoSessions シートを sessionId で線形検索（直近のセッションは末尾近く）
