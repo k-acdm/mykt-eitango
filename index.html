@@ -4103,8 +4103,10 @@
       var btnsHtml = '';
       for (var j = 0; j < opts.length; j++) {
         var v = opts[j];
-        // onclick で文字列値を渡すためエスケープ。○/✖/T/F は安全な ASCII / BMP 文字。
-        btnsHtml += '<button class="lison-quiz-btn" id="lison-q' + qNo + '-' + j + '" onclick="selectLisonAnswer(' + i + ', ' + JSON.stringify(v) + ')">' + _lisonEsc(v) + '</button>';
+        // onclick の値は double-quoted attribute なので、引数の文字列はシングルクォートで囲む。
+        // ○/✖/T/F は安全な ASCII / BMP 文字でクォート文字を含まないため、エスケープ不要で直接埋め込み可能。
+        // （旧実装の JSON.stringify(v) は '"T"' を返し、属性内のダブルクォートが衝突して onclick 全体が無効化されていた）
+        btnsHtml += '<button class="lison-quiz-btn" id="lison-q' + qNo + '-' + j + '" onclick="selectLisonAnswer(' + i + ', \'' + v + '\')">' + _lisonEsc(v) + '</button>';
       }
       html += '<div class="lison-quiz-card" id="lison-q' + qNo + '-card">'
             +   '<span class="lison-quiz-no">Q' + qNo + '</span>'
