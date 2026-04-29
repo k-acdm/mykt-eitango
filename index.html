@@ -3425,7 +3425,7 @@
                     + '<span class="kiso-past-btn-badge">' + (graded ? '採点済み' : '未送信') + '</span>';
     });
   }
-  // ボタン押下時のディスパッチ（Mode A / Mode B は次コミットで実装）
+  // ボタン押下時のディスパッチ
   function onKisoPastBtnClick(pos) {
     var rank = _kisoState.rank;
     if (!rank) return;
@@ -3438,9 +3438,51 @@
       // Mode B（次コミットで実装）
       alert('Mode B（採点済みセッション閲覧）は次コミットで実装します。');
     } else {
-      // Mode A（次コミットで実装）
-      alert('Mode A（未送信セッション再開）は次コミットで実装します。');
+      _resumeKisoSession(entry);
     }
+  }
+
+  // -----------------------------------------------------
+  // Mode A：未送信セッションの再開
+  // -----------------------------------------------------
+  // localStorage に保存された問題セットをそのまま復元し、新規写真撮影 → submit のフローを再実行。
+  // 写真は再撮影必須（前回撮影分は端末側にもサーバ側にも保持していないため、技術的に必然）。
+  // 同じ sessionId を再利用するため、GAS 側 KisoSessions の attempts=0 状態の行に対して
+  // 通常の submitKisoAnswer 経路（初回提出扱い）が走る。
+  function _resumeKisoSession(entry) {
+    if (!entry || !entry.sessionId) return;
+    var ok = confirm(
+      '未送信のセッションを再開しますか？\n\n' +
+      '・問題セットは前回と同じものを表示します\n' +
+      '・写真は最初から撮影し直しになります\n' +
+      '・通常の提出と同じく合否判定 + HP 獲得があります'
+    );
+    if (!ok) return;
+    // _kisoState を localStorage から復元
+    _kisoState.sessionId       = entry.sessionId;
+    _kisoState.rank            = Number(entry.rank) || _kisoState.rank;
+    _kisoState.rankName        = String(entry.rankName || '');
+    _kisoState.count           = Number(entry.count) || (entry.questions ? entry.questions.length : 0);
+    _kisoState.questions       = entry.questions || [];
+    _kisoState.isRetry         = false;
+    _kisoState.attempts        = 0;
+    _kisoState.isResumed       = true;
+    _kisoState.photoBase64     = '';
+    _kisoState.hasWorkPhoto    = false;
+    _kisoState.workPhotoBase64 = '';
+    _kisoState.workPhotoIndex  = 0;
+    // selected も復元（_renderKisoResult のメタ表示で使う）
+    var def = null;
+    for (var i = 0; i < KISO_RANK_DEFS.length; i++) {
+      if (Number(KISO_RANK_DEFS[i].rank) === Number(_kisoState.rank)) { def = KISO_RANK_DEFS[i]; break; }
+    }
+    _kisoState.selected = def;
+    // ヘッダー再描画
+    document.getElementById('kiso-problem-title').textContent = (def ? def.no + '. ' + def.name : (_kisoState.rankName || ''));
+    document.getElementById('kiso-problem-attempts').textContent = '';
+    document.getElementById('kiso-problem-meta-label').textContent = _kisoState.rank + '級・' + _kisoState.count + '題';
+    _renderKisoProblemList();
+    showScreen('screen-kiso-problem');
   }
 
   function _kisoEsc(s) {
