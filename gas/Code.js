@@ -2240,6 +2240,22 @@ function _kisoNormalize(s) {
   t = t.replace(/[ \t]+/g, ' ');
   // 行末の改行は空白に統一
   t = t.replace(/[\r\n]+/g, ' ').replace(/[ \t]+/g, ' ');
+
+  // 単項プラス記号の除去（"+2" → "2"、"x=+5" → "x=5"）
+  // 数値・分数・平方根（\sqrt）の前に来る + のみ対象。binary plus（"1+2"）は変えない。
+  // パターン1: 文字列先頭の "+" + 数字/小数点/バックスラッシュ
+  t = t.replace(/^(\s*)\+(\s*)(?=[\d.\\])/, '$1$2');
+  // パターン2: "=" の直後の "+" + 数字/小数点/バックスラッシュ（連立方程式の "x=+5" 対応）
+  t = t.replace(/=\s*\+\s*(?=[\d.\\])/g, '=');
+
+  // 純粋な数値（整数 / 小数）の正規化（"2.0" → "2"、"0.50" → "0.5"、"03" → "3"）
+  // 分数 "1/2"・帯分数・平方根・連立方程式 "x=5, y=-2" 等は対象外（パターン非一致）
+  const trimmedForNum = t.trim();
+  if (/^-?\d+(\.\d+)?$/.test(trimmedForNum)) {
+    const n = parseFloat(trimmedForNum);
+    if (isFinite(n)) t = String(n);
+  }
+
   // 前後の空白除去
   return t.trim();
 }
