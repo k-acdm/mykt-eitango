@@ -331,6 +331,9 @@
     .sango-ocr-label { font-size:14px; color:#666; margin-bottom:8px; }
     .sango-ocr-text { font-size:15px; line-height:1.7; white-space:pre-wrap; padding:12px; background:#f8f9ff; border-radius:8px; min-height:60px; }
     .sango-ocr-confirm-label { font-size:16px; font-weight:bold; text-align:center; margin:14px 0 10px; color:#2d3a8c; }
+    /* 確認画面の注意書き（ピリオド・カンマの OCR 漏れチェック誘導） */
+    /* 「これで良いですか？」(16px) より一段大きく、赤太字で目立たせる */
+    .wabun1-period-warn { font-size: 18px; font-weight: bold; color: #dc2626; text-align: center; line-height: 1.55; margin: 4px 6px 14px; padding: 10px 12px; background: #fef2f2; border: 2px solid #fecaca; border-radius: 10px; }
     .sango-ocr-actions { display:flex; gap:10px; }
     .sango-ocr-actions .btn-wide { margin-top:0; flex:1; }
     /* 和文英訳① 確認画面：問題ごとに切り出した「採点に使う文字列」を表示 */
@@ -1170,6 +1173,7 @@
         <div class="sango-ocr-text" id="wabun1-ocr-text"></div>
       </details>
       <div class="sango-ocr-confirm-label">これで良いですか？</div>
+      <div class="wabun1-period-warn">⚠️ ピリオド（．）やカンマ（，）がちゃんと認識されてるか、よ～く確認してください</div>
       <div class="sango-ocr-actions">
         <button class="btn-wide" id="wabun1-confirm-submit-btn" style="background:linear-gradient(135deg,#2ecc71,#27ae60)" onclick="submitWabun1Answer()">✅ はい、これで提出</button>
         <button class="btn-wide" style="background:linear-gradient(135deg,#f39c12,#e67e22)" onclick="retakeWabun1Photo()">📸 もう一度撮る</button>
