@@ -1864,6 +1864,37 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - **基礎計算 問題プール拡充計画** を CLAUDE.md に新セクションとして追加（明日以降の作業準備、優先度 A〜C で整理）
 - 本日の全 commit を main にマージして塾PC 作業終了
 
+#### 155. 基礎計算 rank_04 を 30題 → 50題 に拡充（Phase 1 完了、dev `e10d745` / `0a64f01` / `6ce217d` / `b3b3d77`）
+- **背景**: 拡充計画 #154 の優先度 A、最初の対象。Band C「(x+a)(x-a)」が a∈{1..9} で unique=9、count=10 で構造的に重複が発生する根本バグの解消も兼ねる
+- **設計判断**（事前合意）:
+  - const_max を全 Band で 9 → 12（中3 乗法公式の典型範囲、紙教材準拠）
+  - count 配分 A=23 / B=17 / C=10（合計 50、比率 45% / 35% / 20%）
+  - Band A は `(x+a)(x+b)` で `min(a,b)` を先頭に並べ替え（数学的に同一の問題 (x+3)(x+5) と (x+5)(x+3) を一つの LaTeX に統一）
+  - 併せて `a+b==0`（差の平方型）を Band A から除外し Band C と cross-band 重複を防止
+- **コード変更** ([rank_04_expansion.py](scripts/generate_kiso_questions/rank_04_expansion.py) / [band_config.py](scripts/generate_kiso_questions/common/band_config.py)):
+  - `_gen_type_xab` で `if a > b: a, b = b, a` の正規化 + `a + b == 0` 除外
+  - `factored_pair_latex` 本体は無改修（rank_03 が canonical answer 生成で流用しているため副作用回避）
+  - `band_config.BAND_PLAN[4]` を新仕様に更新、コメントで Phase 2 の 100 題化方針を明記
+- **検証結果**:
+  - `python main.py` で全 20 rank 生成 → 620 / 620 unique / 0 failed / 0 dedup_warn
+  - Node 検証スクリプト（`out/_verify_phase1.mjs`、gitignore 配下）で 184 PASS / 0 FAIL
+    - T1 全 rank 重複ゼロ / T2 Band A 順序統一 / T3 上付き文字判定（rank 3/4/5/7 計 140 問）/ T4 rank_04 サマリ
+- **Phase 4 投入手順（in_progress セッション影響評価込み）**:
+  1. `diagnoseRank4InProgress()` 関数を新設（dev `6ce217d`）→ 8 件の in_progress 検出
+     - 内訳: テストアカウント 5 件（sid=1004 4セッション、sid=1002 1セッション）+ 実在生徒の放置セッション 3 件（sid=22029 ウミネコ）
+     - ウミネコさんは乗法公式バグ報告者で、これらは動作確認時の放置分
+  2. `abandonRank4InProgress(opts)` 関数を新設（dev `b3b3d77`）→ 8 件すべて 'abandoned' に書き換え
+     - 安全策：書き換え前ログ出力 + dryRun サポート + 書き換え後の再読み込み検証
+     - 実行結果: targets=8 / updated=8 / verified={ ok: 8, ng: 0 } @ 2026-04-30 05:01:46
+  3. `python -m common.db_writer` で 620 行を一括投入（dry-run → 本番）
+  4. gspread で post-verification（`out/_verify_phase4_post.py`、gitignore 配下）:
+     - 全 rank 行数一致（rank=4 が 50、他 19 rank が 30）/ 合計 620 行
+     - questionId 重複 0 件 / 全 rank で problemLatex 重複 0 件
+     - rank_04 サンプル: q_04_000001 `(x - 11)(x - 10) = x^2 - 21x + 110` 〜 q_04_000050 `(x + 11)(x - 11) = x^2 - 121`
+- **将来タスク追記**: 「KisoSessions に problemLatex 保存」防衛策を「基礎計算 問題プール拡充計画」セクションに記載（dev `6ce217d`）。Phase 2 100題化の前に着手予定（所要 1〜1.5 時間）
+- **既知の minor 警告**: db_writer.py の `ws.update(range_str, rows, ...)` で gspread の DeprecationWarning。動作には影響なく、近い将来 `ws.update(values=rows, range_name=range_str)` に直す
+- **次回**: 拡充計画 優先度 A の残り（rank_02 平方根 / rank_03 因数分解）
+
 ---
 
 ## 基礎計算 問題プール拡充計画
