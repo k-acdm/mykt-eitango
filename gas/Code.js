@@ -2246,6 +2246,24 @@ function _kisoNormalize(s) {
   // √ 系記号を \sqrt{n} に統一（OCR で V や ν と誤読される場合があるが、本処理の範囲外）
   t = t.replace(/[√✓]\s*\{([^}]+)\}/g, '\\sqrt{$1}');     // √{15} → \sqrt{15}
   t = t.replace(/[√✓]\s*([0-9]+)/g, '\\sqrt{$1}');         // √15 → \sqrt{15}
+
+  // 指数表記の統一（rank3/4/5/7 の x^{n} canonical と Gemini OCR の x^n を一致させる）
+  // ① Unicode 上付き数字を caret 形式へ：x² → x^2、x¹⁰ → x^10
+  //   生徒が紙に書いた x² を OCR が ² のまま返してくるケースを救済。
+  //   _kisoNormalize 共通の規則として、入る前の表記揺れをすべて x^N に揃える。
+  t = t.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, function(seq) {
+    const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+    let out = '';
+    for (let i = 0; i < seq.length; i++) {
+      const idx = SUP.indexOf(seq[i]);
+      out += (idx >= 0) ? String(idx) : seq[i];
+    }
+    return '^' + out;
+  });
+  // ② LaTeX 形式 x^{n} → x^n（poly_latex / square_factor_latex の生成形を caret に統一）
+  //   例：x^{2} → x^2、(x + 3)^{2} → (x + 3)^2、x^{10} → x^10、x^{-2} → x^-2
+  //   Gemini OCR は「指数は ^ を使う」プロンプトで x^2 を返すため、両者の形を揃える。
+  t = t.replace(/\^\{(-?\d+)\}/g, '^$1');
   // 空白の連続を 1 つに圧縮
   t = t.replace(/[ \t]+/g, ' ');
   // 行末の改行は空白に統一
