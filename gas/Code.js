@@ -3215,14 +3215,49 @@ function startKisoSession(studentId, rank, count) {
       return { ok: false, message: 'rank ' + r + ' の問題数が不足しています（必要 ' + n + ' / 在庫 ' + candidates.length + '）' };
     }
 
-    // ランダム抽出（Fisher–Yates の途中打ち切り）
+    // ランダム抽出（Fisher–Yates の途中打ち切り）+ problemLatex 重複排除
+    // 生成側 main.py で seen_latex で重複は防いでいるが、過去デプロイ分の救済 +
+    // 二重対策として、サーバ側でも problemLatex のユニーク性を保証する。
+    // KisoQuestions の列構成：questionId(0) / rank(1) / rankName(2) /
+    //                         difficultyBand(3) / problemLatex(4) / ...
+    //
+    // 2 段階方式：
+    //   ① candidates から problemLatex でユニーク化したサブセット uniqueByLatex を作る
+    //   ② uniqueByLatex から n 個ランダム抽出
+    //   ③ unique 不足のときは元 candidates から行ユニークで充足（rank_04 Band C 等の救済）
+    const uniqueByLatex = [];
+    {
+      const seenLatex = {};
+      for (let i = 0; i < candidates.length; i++) {
+        const plx = String(candidates[i][4] || '');
+        if (plx && seenLatex[plx]) continue;  // 既に同 latex を採用済み → スキップ
+        seenLatex[plx] = true;
+        uniqueByLatex.push(candidates[i]);
+      }
+    }
     const taken = {};
     const picked = [];
-    while (picked.length < n) {
-      const idx = Math.floor(Math.random() * candidates.length);
+    let safetyMax = uniqueByLatex.length * 3 + 10;  // ほぼ無限ループ回避用（unique=0 時の +10）
+    while (picked.length < n && picked.length < uniqueByLatex.length && safetyMax-- > 0) {
+      const idx = Math.floor(Math.random() * uniqueByLatex.length);
       if (taken[idx]) continue;
       taken[idx] = true;
-      picked.push(candidates[idx]);
+      picked.push(uniqueByLatex[idx]);
+    }
+    // フォールバック：unique latex 数 < n のときは元 candidates から行ユニークで充足
+    // （rank_04 Band C のような count > unique 上限ケースの最後の砦）
+    if (picked.length < n) {
+      console.warn('[startKisoSession] dedup unique 不足: rank=' + r
+        + ' candidates=' + candidates.length + ' uniqueLatex=' + uniqueByLatex.length
+        + ' n=' + n + ' picked=' + picked.length + ' → 行ユニークで充足');
+      const pickedIds = {};
+      picked.forEach(function(row){ pickedIds[String(row[0] || '')] = true; });
+      for (let i = 0; i < candidates.length && picked.length < n; i++) {
+        const qid = String(candidates[i][0] || '');
+        if (pickedIds[qid]) continue;  // 既に採用済みの行はスキップ
+        pickedIds[qid] = true;
+        picked.push(candidates[i]);
+      }
     }
 
     // セッション保存
