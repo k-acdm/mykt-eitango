@@ -369,6 +369,12 @@ function doPost(e) {
     // 基礎計算：写真提出（base64 画像が大きいため POST 経由）
     else if (action === 'submitKisoAnswer')         result = submitKisoAnswer(params.sessionId, params.imageBase64, params.hasWorkPhoto);
     else if (action === 'submitKisoWorkPhoto')      result = submitKisoWorkPhoto(params.sessionId, params.imageBase64, params.photoIndex);
+    // ※ ここにリスオン関連（submitLison）のルーティングを必ず残す。
+    //   クライアント側（index.html submitLisonRecording）は録音 base64 を gasPost で送るため、
+    //   doGet だけでなく doPost にも必須。Phase 1-A 実装時に doPost への登録漏れがあり、
+    //   本番デプロイ後の初回テストで「unknown action: submitLison」エラーを起こした実績あり
+    //   （2026-04-29）。getLisonContent は GET（cachedGasGet）なので doGet のみで OK。
+    else if (action === 'submitLison')              result = submitLison(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
