@@ -635,6 +635,33 @@
     .lison-next-btn:disabled { background: #cbd5e1 !important; color:#6b7280 !important; box-shadow:none; cursor:default; }
     /* Step 進行表示 (header の左肩) */
     .lison-step-counter { font-size: 13px; color: #6b7280; margin: 0 0 6px; text-align: right; }
+    /* 参照用 英文（折り畳み可） */
+    .lison-ref-passage { background: #f8fafc; border: 1px dashed #94a3b8; border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
+    .lison-ref-passage summary { cursor: pointer; font-size: 13px; color: #475569; font-weight: bold; padding: 4px 0; }
+    .lison-ref-passage summary::marker { color: #64748b; }
+    .lison-ref-passage .ref-body { margin-top: 8px; font-family: Georgia, 'Times New Roman', serif; font-size: 14px; color: #1f2937; line-height: 1.75; white-space: pre-wrap; }
+    /* クイズ問題カード */
+    .lison-quiz-list { display: flex; flex-direction: column; gap: 12px; margin: 12px 0; }
+    .lison-quiz-card { background: #fff; border: 2px solid #e2e8f0; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+    .lison-quiz-card.answered { border-color: #60a5fa; background: #eff6ff; }
+    .lison-quiz-no { display: inline-block; background: #1e3c72; color: #fff; border-radius: 999px; width: 28px; height: 28px; line-height: 28px; text-align: center; font-weight: bold; margin-right: 8px; font-size: 14px; }
+    .lison-quiz-text { display: inline; font-size: 15px; color: #1f2937; line-height: 1.7; vertical-align: middle; }
+    .lison-quiz-btns { display: flex; gap: 10px; margin-top: 12px; }
+    .lison-quiz-btn { flex: 1; padding: 14px 0; border: 2px solid #93c5fd; background: #fff; color: #1d4ed8; border-radius: 12px; font-size: 22px; font-weight: bold; cursor: pointer; transition: all .15s; }
+    .lison-quiz-btn:hover { background: #eff6ff; }
+    .lison-quiz-btn.selected { background: linear-gradient(135deg,#3b82f6,#1d4ed8); color: #fff; border-color: #1d4ed8; box-shadow: 0 3px 10px rgba(59,130,246,.4); }
+    /* Step 4: 解答・解説カード */
+    .lison-review-card { background: #fff; border-radius: 14px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 2px 8px rgba(0,0,0,.06); border-left: 6px solid #cbd5e1; }
+    .lison-review-card.correct { border-left-color: #10b981; background: #f0fdf4; }
+    .lison-review-card.wrong   { border-left-color: #ef4444; background: #fef2f2; }
+    .lison-review-q-line { font-size: 15px; line-height: 1.65; margin-bottom: 8px; }
+    .lison-review-judge { font-size: 22px; font-weight: bold; margin-right: 6px; vertical-align: middle; }
+    .lison-review-judge.ok { color: #059669; }
+    .lison-review-judge.ng { color: #dc2626; }
+    .lison-review-row { font-size: 14px; color: #374151; margin: 4px 0; }
+    .lison-review-row .lbl { font-weight: bold; color: #6b7280; margin-right: 6px; }
+    .lison-review-explain { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; margin-top: 8px; font-size: 14px; color: #78350f; line-height: 1.7; }
+    .lison-review-explain .lbl { font-weight: bold; color: #b45309; display: block; margin-bottom: 4px; font-size: 12px; letter-spacing: .5px; }
   </style>
 
   <!-- MathJax v3（基礎計算 §4.5 の問題表示で利用。動的描画は MathJax.typesetPromise() で再描画） -->
@@ -1426,6 +1453,40 @@
     <button id="lison-step2-play" class="btn-wide lison-play-btn" onclick="playLisonStep2()">🎧 日本語を見ながら聴いてみよう</button>
     <button id="lison-step2-stop" class="btn-wide lison-stop-btn" onclick="stopLisonStep2Audio()" style="display:none">⏹ 停止</button>
     <button id="lison-step2-next" class="btn-wide lison-next-btn" onclick="goLisonStep3()" disabled>次へ進む →</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（進捗はロストします）</button>
+  </div>
+</div>
+
+<!-- Step 3: 正誤問題 -->
+<div id="screen-lison-step3" class="screen">
+  <header><h1>🐿️ 英語リスオン</h1><span>Step 3 / 5</span></header>
+  <div class="container" style="padding-top:14px">
+    <div class="lison-step-counter">Step 3 / 5</div>
+    <div class="lison-mascot-row">
+      <img class="mascot-img" src="images/lison-icon.png" alt="リス">
+      <div class="mascot-bubble">内容をしっかり読み取れたかな？🤔<br><small style="font-weight:normal;color:#3f6b56">3問とも答えてから「解答と解説を確認」を押してね</small></div>
+    </div>
+    <details class="lison-ref-passage">
+      <summary>📖 英文をもう一度見る</summary>
+      <div class="ref-body" id="lison-step3-en"></div>
+    </details>
+    <div id="lison-step3-quiz" class="lison-quiz-list"></div>
+    <button id="lison-step3-next" class="btn-wide lison-next-btn" onclick="goLisonStep4()" disabled>📖 解答と解説を確認</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（進捗はロストします）</button>
+  </div>
+</div>
+
+<!-- Step 4: 解答・解説 -->
+<div id="screen-lison-step4" class="screen">
+  <header><h1>🐿️ 英語リスオン</h1><span>Step 4 / 5</span></header>
+  <div class="container" style="padding-top:14px">
+    <div class="lison-step-counter">Step 4 / 5</div>
+    <div class="lison-mascot-row">
+      <img class="mascot-img" src="images/lison-icon.png" alt="リス">
+      <div class="mascot-bubble" id="lison-step4-mascot">解答を見ていこう！</div>
+    </div>
+    <div id="lison-step4-list"></div>
+    <button class="btn-wide lison-next-btn" onclick="goLisonStep5()">🎤 次へ進む（音読録音）</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（進捗はロストします）</button>
   </div>
 </div>
@@ -3890,8 +3951,116 @@
   }
   function goLisonStep3() {
     _lisonStopSpeakingAll();
-    // Step 3 は次コミットで実装
-    alert('Step 3（クイズ）は次コミットで実装します。');
+    showLisonStep3();
+  }
+
+  // -----------------------------------------------------
+  // Step 3: 正誤問題（3問）
+  // -----------------------------------------------------
+  // 4 級は ○/✖、その他は T/F（GAS の LisonContents の値と一致）
+  function _lisonAnswerOptions() {
+    var def = _lisonState.levelDef || {};
+    return def.useTF ? ['T', 'F'] : ['○', '✖'];
+  }
+  function showLisonStep3() {
+    var c = _lisonState.content || {};
+    document.getElementById('lison-step3-en').textContent = c.englishText || '';
+    var opts = _lisonAnswerOptions();
+    var qs = c.questions || [];
+    var html = '';
+    for (var i = 0; i < 3; i++) {
+      var q = qs[i] || { text: '' };
+      var qNo = i + 1;
+      var btnsHtml = '';
+      for (var j = 0; j < opts.length; j++) {
+        var v = opts[j];
+        // onclick で文字列値を渡すためエスケープ。○/✖/T/F は安全な ASCII / BMP 文字。
+        btnsHtml += '<button class="lison-quiz-btn" id="lison-q' + qNo + '-' + j + '" onclick="selectLisonAnswer(' + i + ', ' + JSON.stringify(v) + ')">' + _lisonEsc(v) + '</button>';
+      }
+      html += '<div class="lison-quiz-card" id="lison-q' + qNo + '-card">'
+            +   '<span class="lison-quiz-no">Q' + qNo + '</span>'
+            +   '<span class="lison-quiz-text">' + _lisonEsc(q.text || '') + '</span>'
+            +   '<div class="lison-quiz-btns">' + btnsHtml + '</div>'
+            + '</div>';
+    }
+    document.getElementById('lison-step3-quiz').innerHTML = html;
+    // 戻ってきた場合の選択状態を復元
+    for (var k = 0; k < 3; k++) _lisonRefreshQuizCard(k);
+    _lisonRefreshStep3NextBtn();
+    showScreen('screen-lison-step3');
+  }
+  function selectLisonAnswer(qIdx, value) {
+    if (_lisonState.quizAnswers[qIdx] === value) {
+      _lisonState.quizAnswers[qIdx] = null; // 再タップで取り消し
+    } else {
+      _lisonState.quizAnswers[qIdx] = value;
+    }
+    _lisonRefreshQuizCard(qIdx);
+    _lisonRefreshStep3NextBtn();
+  }
+  function _lisonRefreshQuizCard(qIdx) {
+    var qNo = qIdx + 1;
+    var card = document.getElementById('lison-q' + qNo + '-card');
+    var opts = _lisonAnswerOptions();
+    var sel  = _lisonState.quizAnswers[qIdx];
+    if (card) card.classList.toggle('answered', sel != null);
+    for (var j = 0; j < opts.length; j++) {
+      var btn = document.getElementById('lison-q' + qNo + '-' + j);
+      if (btn) btn.classList.toggle('selected', sel === opts[j]);
+    }
+  }
+  function _lisonRefreshStep3NextBtn() {
+    var allDone = _lisonState.quizAnswers.every(function(a){ return a != null; });
+    var btn = document.getElementById('lison-step3-next');
+    if (btn) btn.disabled = !allDone;
+  }
+  function goLisonStep4() {
+    showLisonStep4();
+  }
+
+  // -----------------------------------------------------
+  // Step 4: 解答・解説
+  // -----------------------------------------------------
+  function showLisonStep4() {
+    var c = _lisonState.content || {};
+    var qs = c.questions || [];
+    var listEl = document.getElementById('lison-step4-list');
+    var score = 0;
+    var html = '';
+    for (var i = 0; i < 3; i++) {
+      var q = qs[i] || { text:'', answer:'', explanation:'' };
+      var sa = _lisonState.quizAnswers[i];
+      var ca = String(q.answer || '').trim();
+      var ok = (sa != null && sa === ca);
+      if (ok) score++;
+      html += '<div class="lison-review-card ' + (ok ? 'correct' : 'wrong') + '">'
+            +   '<div class="lison-review-q-line">'
+            +     '<span class="lison-quiz-no">Q' + (i+1) + '</span>'
+            +     '<span class="lison-review-judge ' + (ok ? 'ok' : 'ng') + '">' + (ok ? '⭕' : '❌') + '</span>'
+            +     _lisonEsc(q.text || '')
+            +   '</div>'
+            +   '<div class="lison-review-row"><span class="lbl">あなたの答え：</span>' + _lisonEsc(sa == null ? '（未回答）' : sa) + '</div>'
+            +   '<div class="lison-review-row"><span class="lbl">正解：</span><strong>' + _lisonEsc(ca) + '</strong></div>'
+            +   (q.explanation
+                  ? '<div class="lison-review-explain"><span class="lbl">解説</span>' + _lisonEsc(q.explanation) + '</div>'
+                  : '')
+            + '</div>';
+    }
+    listEl.innerHTML = html;
+    // マスコットのセリフ（点数に応じて分岐）
+    var mascot = document.getElementById('lison-step4-mascot');
+    if (mascot) {
+      var msg;
+      if (score === 3)      msg = 'すごい！カンペキだね🎉<br><small style="font-weight:normal;color:#3f6b56">この調子で音読も頑張ろう！</small>';
+      else if (score >= 1)  msg = 'もう一歩！次はもっと聴き取れるよ✨<br><small style="font-weight:normal;color:#3f6b56">解説をしっかり読んでみよう</small>';
+      else                  msg = 'だいじょうぶ、つぎはきっと聴けるよ💪<br><small style="font-weight:normal;color:#3f6b56">解説を読んで内容を確認しよう！</small>';
+      mascot.innerHTML = msg;
+    }
+    showScreen('screen-lison-step4');
+  }
+  function goLisonStep5() {
+    // Step 5（録音）は次コミットで実装
+    alert('Step 5（音読録音）は次コミットで実装します。');
   }
 
   // 進捗ロストの確認
