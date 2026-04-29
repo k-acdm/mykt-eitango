@@ -1752,7 +1752,34 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - 厳格性チェック（既約分数 / square-free 平方根 / 有理化済み）は別関数 `_kisoCheckStrictForm`
 
 **判定失敗時の診断ログ**
-`submitWabun1` には判定失敗時に正規化後の student / correct 文字列と divergeAt（最初に違う位置のインデックス）を `console.log` で残す診断機能あり。Apps Script の実行ログから「改行のはずなのに ❌」「ピリオド見落としで ❌」など真因切り分けが可能。新コンテンツでも同様の診断ログを必ず仕込むこと。
+`submitWabun1` には判定失敗時に診断情報を `console.log` で残す機能あり。新コンテンツでも同様の診断ログを必ず仕込むこと。出力フィールド：
+
+| フィールド | 内容 |
+|---|---|
+| `sid` | 生徒ID |
+| `no` | 問題番号（1-4） |
+| `divergeAt` | 正規化後文字列の最初に違う位置のインデックス |
+| `codeStudent` / `codeCorrect` | divergeAt 位置の char code（U+XXXX 16進）。不可視文字や全角半角の差分を可視化 |
+| `studentNorm` / `correctNorm` | `_normalizeWabun1` 適用後の文字列 |
+| `parsedRaw` | フロント `_wabun1ParseWork` がその問題用に切り出した原文（≤200 文字） |
+| `canonicalRaw` | スプレッドシートの `Wabun1Topics.answer<N>` 原文（≤200 文字） |
+| `workTextRaw` | OCR テキスト全文（≤300 文字） |
+
+**生徒から「正解のはずなのに ❌」と相談を受けたときの真因特定手順**
+1. GAS エディタを開く → 左サイドバーの「実行数」（Executions）アイコン
+2. フィルタで関数 `doPost` または `doGet` を選択、生徒の提出時刻でログを絞り込む
+3. 該当行をクリック → 詳細ログを表示
+4. `[submitWabun1 ❌]` で始まる行を探す
+5. 真因の判定：
+   - **`divergeAt` の位置**：序盤なら大文字小文字 / 全角半角ミス、末尾なら句読点抜け
+   - **`codeStudent` / `codeCorrect`**：U+0020（半角スペース）/ U+3000（全角）/ U+200B〜200D（zero-width）等が出てきたら不可視文字混入。`(end)` 表示なら片方が短い（句読点抜け等）
+   - **`studentNorm` vs `correctNorm`**：正規化後でも違う = 真の意味の違い。同じ = 正規化バグ
+   - **`parsedRaw` vs `workTextRaw`**：パース時に問題番号で切り出された範囲が正しいか確認。番号誤検出があれば regex の問題
+6. 真因が判明したら：
+   - 正規化漏れ → `_normalizeWabun1` を強化
+   - パース誤検出 → `_parseWabun1Work` の regex 調整
+   - canonical のシート入力ミス → ふくちさんが Wabun1Topics を修正
+   - OCR の見落とし（小さい点を拾えない）→ 確認画面の赤太字注意書きで生徒に再撮影を促す（commit 71d117f）
 
 #### 将来のリファクタ案件: doGet / doPost のルーティング共通化
 - 現状 `gas/Code.js` の `doGet` / `doPost` で個別に `if (action === '...')` 分岐を書いている。POST が必要なエンドポイント（写真・録音など base64 が大きい系）は両方に登録漏れがないか手動確認が必要で、Phase 1-A submitLison のようにデプロイ後に「unknown action」が出る事故が複数回発生している

@@ -5214,17 +5214,35 @@ function submitWabun1(params) {
       const correctNorm = _normalizeWabun1(topic.answers[idx]);
       const correct = correctNorm !== '' && studentNorm === correctNorm;
       // 診断ログ：判定失敗時に正規化後文字列を Apps Script ログに残す。
-      // 「改行のはずなのに ❌」「ピリオド見落としで ❌」など真因切り分けに使う。
+      // 「改行のはずなのに ❌」「ピリオド見落としで ❌」「不可視文字混入で ❌」など真因切り分け用。
+      // 同じ症状が再発したら GAS Executions → 該当 submitWabun1 実行 → このログを読めば
+      // 「どこで」「どう」違うかが即わかる。CLAUDE.md「採点正規化関数の仕様」セクション参照。
       if (!correct && correctNorm !== '') {
         let divergeAt = 0;
         while (divergeAt < studentNorm.length && divergeAt < correctNorm.length
                && studentNorm.charCodeAt(divergeAt) === correctNorm.charCodeAt(divergeAt)) divergeAt++;
+        // divergeAt 周辺の char code を 16 進で取得（不可視文字や全角半角の差分を検出）
+        const codeAtStudent = (divergeAt < studentNorm.length)
+          ? 'U+' + studentNorm.charCodeAt(divergeAt).toString(16).toUpperCase().padStart(4, '0')
+          : '(end)';
+        const codeAtCorrect = (divergeAt < correctNorm.length)
+          ? 'U+' + correctNorm.charCodeAt(divergeAt).toString(16).toUpperCase().padStart(4, '0')
+          : '(end)';
+        const trunc = function(s, n) {
+          const str = String(s == null ? '' : s);
+          return str.length <= n ? str : str.substring(0, n) + '...(' + str.length + ')';
+        };
         console.log('[submitWabun1 ❌]'
           + ' sid=' + sid
           + ' no=' + t.no
           + ' divergeAt=' + divergeAt
-          + ' student=' + JSON.stringify(studentNorm)
-          + ' correct=' + JSON.stringify(correctNorm));
+          + ' codeStudent=' + codeAtStudent
+          + ' codeCorrect=' + codeAtCorrect
+          + ' studentNorm=' + JSON.stringify(studentNorm)
+          + ' correctNorm=' + JSON.stringify(correctNorm)
+          + ' parsedRaw='   + JSON.stringify(trunc(parsed[t.no], 200))
+          + ' canonicalRaw=' + JSON.stringify(trunc(topic.answers[idx], 200))
+          + ' workTextRaw=' + JSON.stringify(trunc(workText, 300)));
       }
       return { no: t.no, correct: correct };
     });
