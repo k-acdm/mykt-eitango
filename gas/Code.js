@@ -5043,6 +5043,62 @@ function _parseWabun1Work(text) {
   return out;
 }
 
+// =============================================
+// 不正解理由の自動分類（採点結果画面で生徒に表示）
+// =============================================
+// 戻り値: { type: 'no_answer'|'contraction'|'period_missing'|'fullstop_missing'
+//          |'comma_missing'|'case_mismatch'|'spelling'|'other',
+//          message: 生徒向け自然言語 }
+//
+// 優先順は CLAUDE.md「採点正規化関数の仕様 / feedbackType 8 分類」を参照。
+// 上から判定して最初に該当したものを返す。
+function _wabun1ClassifyFeedback(studentRaw, studentNorm, correctRaw, correctNorm, divergeAt) {
+  // 1. no_answer: 生徒の答えが空（OCR で読み取れず or パースで取れず）
+  if (!studentNorm || studentNorm.length === 0) {
+    return { type: 'no_answer', message: '答えが読み取れませんでした。OCR の認識を確認してください' };
+  }
+  // 2. contraction: studentRaw に短縮形パターン（' or ’ + 1〜3 文字英字）あり
+  //    かつ correctRaw には無い（正解側に "John's" 等がある場合は対象外）
+  const contractionRe = /['’][a-z]{1,3}\b/i;
+  if (contractionRe.test(String(studentRaw || '')) && !contractionRe.test(String(correctRaw || ''))) {
+    return { type: 'contraction', message: '短縮形（don\'t や isn\'t など）はここでは使えません' };
+  }
+  // 3. period_missing: 末尾の半角ピリオドが抜けている
+  if (studentNorm + '.' === correctNorm) {
+    return { type: 'period_missing', message: '末尾のピリオド「.」が抜けています' };
+  }
+  // 4. fullstop_missing: 末尾の全角句点が抜けている
+  if (studentNorm + '。' === correctNorm) {
+    return { type: 'fullstop_missing', message: '末尾の句点「。」が抜けています' };
+  }
+  // 5. comma_missing: カンマ全削除で一致 + 正解側のほうがカンマが多い
+  const stripComma = function(s){ return String(s || '').replace(/,/g, ''); };
+  const studentCommaCount = (studentNorm.match(/,/g) || []).length;
+  const correctCommaCount = (correctNorm.match(/,/g) || []).length;
+  if (correctCommaCount > studentCommaCount && stripComma(studentNorm) === stripComma(correctNorm)) {
+    return { type: 'comma_missing', message: 'カンマ「,」が抜けています' };
+  }
+  // 6. case_mismatch: 大文字小文字を無視すれば一致
+  if (studentNorm.length === correctNorm.length
+      && studentNorm.toLowerCase() === correctNorm.toLowerCase()
+      && studentNorm !== correctNorm) {
+    return { type: 'case_mismatch', message: '大文字・小文字が違います' };
+  }
+  // 7. spelling: divergeAt > 1 かつ長さの差が 5 以下（おおむね同じ長さで部分的に違う）
+  //    位置は「文の前半 / 中ほど / 後半」の大まか表現で示す
+  const lenDiff = Math.abs(studentNorm.length - correctNorm.length);
+  if (divergeAt > 1 && lenDiff <= 5) {
+    const cn = correctNorm.length || 1;
+    let pos;
+    if      (divergeAt < cn / 3)         pos = '文の前半';
+    else if (divergeAt < (cn * 2) / 3)   pos = '文の中ほど';
+    else                                  pos = '文の後半';
+    return { type: 'spelling', message: pos + 'にスペルミスの可能性があります' };
+  }
+  // 8. other: 上記いずれにも当てはまらない
+  return { type: 'other', message: '正解と違う部分があります。もう一度確認してください' };
+}
+
 // Wabun1Topics から指定日の 1 行を読み込む（ヒットなしで null）
 // Wabun1Topics シート全体をキャッシュ経由で取得（6h TTL、書き込み系でクリア）
 function _getWabun1TopicsValues() {
@@ -5256,18 +5312,22 @@ function submitWabun1(params) {
       if (skipSet[t.no]) {
         return { no: t.no, correct: true, skipped: true };
       }
-      const studentNorm = _normalizeWabun1(parsed[t.no]);
-      const correctNorm = _normalizeWabun1(topic.answers[idx]);
+      const studentRaw = String(parsed[t.no] != null ? parsed[t.no] : '');
+      const correctRaw = String(topic.answers[idx] != null ? topic.answers[idx] : '');
+      const studentNorm = _normalizeWabun1(studentRaw);
+      const correctNorm = _normalizeWabun1(correctRaw);
       const correct = correctNorm !== '' && studentNorm === correctNorm;
+      if (correct) return { no: t.no, correct: true };
+
+      // 不正解時：divergeAt を計算 → 診断ログ → 教育的フィードバック
+      let divergeAt = 0;
+      while (divergeAt < studentNorm.length && divergeAt < correctNorm.length
+             && studentNorm.charCodeAt(divergeAt) === correctNorm.charCodeAt(divergeAt)) divergeAt++;
+
       // 診断ログ：判定失敗時に正規化後文字列を Apps Script ログに残す。
       // 「改行のはずなのに ❌」「ピリオド見落としで ❌」「不可視文字混入で ❌」など真因切り分け用。
-      // 同じ症状が再発したら GAS Executions → 該当 submitWabun1 実行 → このログを読めば
-      // 「どこで」「どう」違うかが即わかる。CLAUDE.md「採点正規化関数の仕様」セクション参照。
-      if (!correct && correctNorm !== '') {
-        let divergeAt = 0;
-        while (divergeAt < studentNorm.length && divergeAt < correctNorm.length
-               && studentNorm.charCodeAt(divergeAt) === correctNorm.charCodeAt(divergeAt)) divergeAt++;
-        // divergeAt 周辺の char code を 16 進で取得（不可視文字や全角半角の差分を検出）
+      // CLAUDE.md「採点正規化関数の仕様」セクション参照。
+      if (correctNorm !== '') {
         const codeAtStudent = (divergeAt < studentNorm.length)
           ? 'U+' + studentNorm.charCodeAt(divergeAt).toString(16).toUpperCase().padStart(4, '0')
           : '(end)';
@@ -5286,11 +5346,23 @@ function submitWabun1(params) {
           + ' codeCorrect=' + codeAtCorrect
           + ' studentNorm=' + JSON.stringify(studentNorm)
           + ' correctNorm=' + JSON.stringify(correctNorm)
-          + ' parsedRaw='   + JSON.stringify(trunc(parsed[t.no], 200))
-          + ' canonicalRaw=' + JSON.stringify(trunc(topic.answers[idx], 200))
+          + ' parsedRaw='   + JSON.stringify(trunc(studentRaw, 200))
+          + ' canonicalRaw=' + JSON.stringify(trunc(correctRaw, 200))
           + ' workTextRaw=' + JSON.stringify(trunc(workText, 300)));
       }
-      return { no: t.no, correct: correct };
+      // フィードバック分類（正解と違う部分の自動解析）
+      const fb = _wabun1ClassifyFeedback(studentRaw, studentNorm, correctRaw, correctNorm, divergeAt);
+      return {
+        no:              t.no,
+        correct:         false,
+        studentRaw:      studentRaw,
+        correctRaw:      correctRaw,
+        studentNorm:     studentNorm,
+        correctNorm:     correctNorm,
+        divergeAt:       divergeAt,
+        feedbackType:    fb.type,
+        feedbackMessage: fb.message
+      };
     });
     const allCorrect = results.length > 0 && results.every(function(r){ return r.correct; });
 

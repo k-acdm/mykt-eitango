@@ -431,6 +431,17 @@
     .wabun1-result-partial-title { font-size:22px; font-weight:bold; color:#dc2626; margin-bottom:10px; }
     .wabun1-result-partial-msg { color:#555; font-size:14px; margin-bottom:14px; line-height:1.7; }
     .wabun1-result-list { text-align:left; background:#fef2f2; border-radius:10px; padding:12px 16px; margin:12px 0; }
+    /* 採点結果画面：不正解の diff カード（feedbackMessage 表示用） */
+    .wabun1-fail-card { background: #fff; border: 2px solid #fca5a5; border-radius: 12px; padding: 12px 14px; margin: 10px 0; box-shadow: 0 2px 6px rgba(0,0,0,.05); text-align: left; }
+    .wabun1-fail-header { font-size: 16px; font-weight: bold; color: #dc2626; margin-bottom: 10px; }
+    .wabun1-fail-row { margin: 8px 0; }
+    .wabun1-fail-label { display: block; font-size: 12px; font-weight: bold; color: #6b7280; margin-bottom: 3px; letter-spacing: .3px; }
+    .wabun1-fail-text { padding: 8px 10px; border-radius: 6px; font-size: 14px; line-height: 1.55; word-break: break-word; white-space: pre-wrap; }
+    .wabun1-fail-text-student { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-family: 'Courier New', monospace; }
+    .wabun1-fail-text-correct { background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; font-family: 'Courier New', monospace; }
+    .wabun1-fail-text em { color: #94a3b8; font-style: normal; }
+    .wabun1-fail-feedback { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 10px 12px; margin-top: 10px; font-size: 14px; color: #78350f; font-weight: bold; line-height: 1.55; border-radius: 0 6px 6px 0; }
+    /* 正解 / スキップは既存の単行 .wabun1-result-item を維持 */
     .wabun1-result-item { font-size:16px; line-height:2; padding:2px 0; }
     .wabun1-result-item.ok { color:#059669; }
     .wabun1-result-item.ng { color:#dc2626; font-weight:bold; }
@@ -3163,24 +3174,44 @@
       }
       try { playSfx('chime'); } catch(e){}
     } else {
-      var items = (res.results || []).map(function(r){
-        var mark;
-        var cls;
-        if (r.skipped)      { mark = '⊘ スキップ'; cls = 'ok'; }
-        else if (r.correct) { mark = '✅ 正解';     cls = 'ok'; }
-        else                { mark = '❌ 不正解';   cls = 'ng'; }
-        return '<div class="wabun1-result-item ' + cls + '">' + r.no + '. ' + mark + '</div>';
+      // 正解・スキップは単行サマリ、不正解は diff カードで詳細表示
+      var summaryItems = (res.results || []).map(function(r){
+        if (r.skipped) return '<div class="wabun1-result-item ok">' + r.no + '. ⊘ スキップ</div>';
+        if (r.correct) return '<div class="wabun1-result-item ok">' + r.no + '. ✅ 正解</div>';
+        return '<div class="wabun1-result-item ng">' + r.no + '. ❌ 不正解（下に詳細）</div>';
       }).join('');
-      var wrongs = (res.results || []).filter(function(r){ return !r.correct && !r.skipped; }).map(function(r){ return 'タスク' + r.no; }).join('、');
-      var hint = wrongs ? '<div class="wabun1-result-again">' + _wabun1Esc(wrongs) + 'をもう一度考えてみよう。</div>' : '';
+      // 不正解問題ごとの diff カード（生 raw 文字列 + feedbackMessage）
+      var failCards = (res.results || []).filter(function(r){
+        return !r.correct && !r.skipped;
+      }).map(function(r){
+        var stuText = (r.studentRaw && String(r.studentRaw).trim() !== '')
+          ? _wabun1Esc(r.studentRaw)
+          : '<em>（読み取れず）</em>';
+        var corText = _wabun1Esc(r.correctRaw || '');
+        var fbBlock = r.feedbackMessage
+          ? '<div class="wabun1-fail-feedback">💡 ' + _wabun1Esc(r.feedbackMessage) + '</div>'
+          : '';
+        return '<div class="wabun1-fail-card">' +
+                 '<div class="wabun1-fail-header">' + r.no + '. ❌ 不正解</div>' +
+                 '<div class="wabun1-fail-row">' +
+                   '<span class="wabun1-fail-label">きみの答え</span>' +
+                   '<div class="wabun1-fail-text wabun1-fail-text-student">' + stuText + '</div>' +
+                 '</div>' +
+                 '<div class="wabun1-fail-row">' +
+                   '<span class="wabun1-fail-label">正解</span>' +
+                   '<div class="wabun1-fail-text wabun1-fail-text-correct">' + corText + '</div>' +
+                 '</div>' +
+                 fbBlock +
+               '</div>';
+      }).join('');
       bodyEl.innerHTML =
         '<div class="wabun1-result-partial">' +
           '<div style="font-size:44px">💪</div>' +
           '<div class="wabun1-result-partial-title">残念！もう一度挑戦しよう！</div>' +
           '<div class="wabun1-result-partial-msg">正解するまで何度でも挑戦できます。</div>' +
-          '<div class="wabun1-result-list">' + items + '</div>' +
-          hint +
+          '<div class="wabun1-result-list">' + summaryItems + '</div>' +
         '</div>' +
+        failCards +
         '<button class="btn-wide" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);margin-top:14px" onclick="showWabun1Answers()">💡 正解を表示する</button>' +
         '<button class="btn-wide" style="background:linear-gradient(135deg,#b28dff,#7c4fff);margin-top:8px" onclick="retakeWabun1PhotoFromResult()">📸 もう一度撮影する</button>';
       showScreen('screen-wabun1-result');

@@ -1765,6 +1765,22 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 | `canonicalRaw` | スプレッドシートの `Wabun1Topics.answer<N>` 原文（≤200 文字） |
 | `workTextRaw` | OCR テキスト全文（≤300 文字） |
 
+**feedbackType 8 分類（採点結果画面の不正解理由を生徒に表示）**
+`submitWabun1` は不正解時に `_wabun1ClassifyFeedback` で違いを自動分類し、結果画面の各 ❌ 問題の下に diff カード（きみの答え / 正解 / feedbackMessage）を表示する。判定優先順は上から。
+
+| 優先 | type | 判定条件 | message 例 |
+|---|---|---|---|
+| 1 | `no_answer` | studentNorm が空 | `答えが読み取れませんでした。OCR の認識を確認してください` |
+| 2 | `contraction` | studentRaw に `/['’][a-z]{1,3}\b/i` 検出 + correctRaw には無い | `短縮形（don't や isn't など）はここでは使えません` |
+| 3 | `period_missing` | studentNorm + `.` === correctNorm | `末尾のピリオド「.」が抜けています` |
+| 4 | `fullstop_missing` | studentNorm + `。` === correctNorm | `末尾の句点「。」が抜けています` |
+| 5 | `comma_missing` | カンマ全削除で一致 + 正解側のほうがカンマ多い | `カンマ「,」が抜けています` |
+| 6 | `case_mismatch` | 大文字小文字を無視すれば一致（同じ長さ） | `大文字・小文字が違います` |
+| 7 | `spelling` | divergeAt > 1 かつ長さの差 ≤ 5 | `文の{前半／中ほど／後半}にスペルミスの可能性があります` |
+| 8 | `other` | 上記いずれにも該当せず | `正解と違う部分があります。もう一度確認してください` |
+
+新コンテンツに同様の自動 feedback を入れる場合、上記をテンプレートとして参考に。実装は [`gas/Code.js`](gas/Code.js) `_wabun1ClassifyFeedback` を参照。
+
 **生徒から「正解のはずなのに ❌」と相談を受けたときの真因特定手順**
 1. GAS エディタを開く → 左サイドバーの「実行数」（Executions）アイコン
 2. フィルタで関数 `doPost` または `doGet` を選択、生徒の提出時刻でログを絞り込む
