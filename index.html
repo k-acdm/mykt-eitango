@@ -1461,7 +1461,7 @@
     <div style="text-align:center"><span class="lison-total-badge">100〜200HP/日</span></div>
     <div class="lison-mascot-row">
       <img class="mascot-img" src="images/lison-icon.png" alt="リス">
-      <div class="mascot-bubble">どの級にちょうせんする？<br><small style="font-weight:normal;color:#3f6b56">毎週月曜日に新しい英文に切り替わるよ🐿️</small></div>
+      <div class="mascot-bubble">どの級に挑戦する？<br><small style="font-weight:normal;color:#3f6b56">毎週月曜日に新しい英文に切り替わるよ🐿️</small></div>
     </div>
     <div id="lison-level-list" class="lison-level-list"></div>
     <div id="lison-rank-msg" class="msg" style="display:none"></div>
@@ -1478,10 +1478,7 @@
       <img class="mascot-img" src="images/lison-icon.png" alt="リス">
       <div class="mascot-bubble">耳でしっかりキャッチしよう！🎧<br><small style="font-weight:normal;color:#3f6b56">いっしょに聴こう！</small></div>
     </div>
-    <div class="lison-text-card lison-text-en">
-      <span class="lison-text-label">English</span>
-      <span id="lison-step1-en"></span>
-    </div>
+    <div class="lison-text-card lison-text-en" id="lison-step1-en"></div>
     <button id="lison-step1-play" class="btn-wide lison-play-btn" onclick="playLisonStep1()">🎧 最初に1回聴いてみよう</button>
     <button id="lison-step1-stop" class="btn-wide lison-stop-btn" onclick="stopLisonStep1Audio()" style="display:none">⏹ 停止</button>
     <button id="lison-step1-next" class="btn-wide lison-next-btn" onclick="goLisonStep2()" disabled>次へ進む →</button>
@@ -1498,14 +1495,8 @@
       <img class="mascot-img" src="images/lison-icon.png" alt="リス">
       <div class="mascot-bubble">意味を確認しながら聴いてみよう！📖<br><small style="font-weight:normal;color:#3f6b56">英文と訳を見比べてね</small></div>
     </div>
-    <div class="lison-text-card lison-text-en">
-      <span class="lison-text-label">English</span>
-      <span id="lison-step2-en"></span>
-    </div>
-    <div class="lison-text-card lison-text-ja">
-      <span class="lison-text-label">日本語訳</span>
-      <span id="lison-step2-ja"></span>
-    </div>
+    <!-- 仕様：日本語訳のみ表示。音声再生は引き続き englishText（playLisonStep2 内で参照） -->
+    <div class="lison-text-card lison-text-ja" id="lison-step2-ja"></div>
     <button id="lison-step2-play" class="btn-wide lison-play-btn" onclick="playLisonStep2()">🎧 日本語を見ながら聴いてみよう</button>
     <button id="lison-step2-stop" class="btn-wide lison-stop-btn" onclick="stopLisonStep2Audio()" style="display:none">⏹ 停止</button>
     <button id="lison-step2-next" class="btn-wide lison-next-btn" onclick="goLisonStep3()" disabled>次へ進む →</button>
@@ -4055,7 +4046,7 @@
   // -----------------------------------------------------
   function showLisonStep2() {
     var c = _lisonState.content || {};
-    document.getElementById('lison-step2-en').textContent = c.englishText  || '';
+    // 仕様：Step 2 は日本語訳のみ表示（英文 DOM は削除済み）。音声は playLisonStep2 で englishText を読み上げる
     document.getElementById('lison-step2-ja').textContent = c.japaneseText || '';
     document.getElementById('lison-step2-next').disabled = !_lisonState.step2Played;
     showScreen('screen-lison-step2');
