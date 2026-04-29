@@ -2872,6 +2872,10 @@ function _saveKisoPhoto(studentId, sessionId, rank, count, imageBase64) {
     const fileName = sid + '_' + rank + '_' + sessionId + '.jpg';
     const file = folder.createFile(blob).setName(fileName);
     const fileId = file.getId();
+    // 過去セッション閲覧（Mode B）でフロント側 <img> から表示できるよう ANYONE_WITH_LINK で公開。
+    // URL を知る本人のみが閲覧可能（fileId はランダム + 15 日で自動削除のためリスク許容）。
+    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
+    catch (e) { console.warn('[_saveKisoPhoto setSharing failed]', e); }
     const shareUrl = file.getUrl();
 
     // KisoPhotos シートに記録（解答用紙: photoType='answer' / photoIndex=1）
@@ -2930,6 +2934,9 @@ function _saveKisoWorkPhoto(studentId, sessionId, rank, count, imageBase64, phot
     const fileName = sid + '_' + rank + '_' + sessionId + '_work' + idx + '.jpg';
     const file = folder.createFile(blob).setName(fileName);
     const fileId = file.getId();
+    // _saveKisoPhoto と揃えて ANYONE_WITH_LINK で公開（Mode B 閲覧用）
+    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
+    catch (e) { console.warn('[_saveKisoWorkPhoto setSharing failed]', e); }
     const shareUrl = file.getUrl();
 
     const sh = _ensureKisoPhotosSheet();
@@ -3422,6 +3429,10 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
         no: i + 1,
         questionId: qid,
         problemLatex: p ? p.problemLatex : '',
+        // answerCanonical を含める（Mode B 過去セッション閲覧で使用）。
+        // startKisoSession のレスポンスには載せない（未提出時に正解漏洩を避けるため）が、
+        // 提出後は採点結果と一緒に返してフロントで localStorage 保存 → Mode B で表示。
+        answerCanonical: p ? p.answerCanonical : '',
         studentAnswer: studentText,
         correct: correct
       });
