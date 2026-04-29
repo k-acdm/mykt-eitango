@@ -691,6 +691,33 @@
     .lison-done-sub { text-align: center; font-size: 14px; color: #78350f; margin-bottom: 12px; }
     .lison-done-mascot-quote { text-align: center; font-size: 16px; color: #14532d; font-weight: bold; margin: 14px 0 4px; padding: 10px 14px; background: linear-gradient(135deg,#eef9f3,#d6f0e3); border: 2px solid #34a884; border-radius: 12px; }
     .lison-done-quiz-summary { text-align: center; font-size: 13px; color: #475569; margin: 6px 0 4px; }
+    /* リスのアイドル時のかすかな揺れ（級選択画面と各 Step のマスコット） */
+    .lison-mascot-row .mascot-img { animation: lison-mascot-bob 3.2s ease-in-out infinite; }
+    @keyframes lison-mascot-bob { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-3px) rotate(2deg); } }
+    /* 再生中（speaking）はリスが「聴いている」ようにわずかに右へ傾ける */
+    .lison-mascot-row.listening .mascot-img { animation: lison-mascot-listen 0.9s ease-in-out infinite; }
+    @keyframes lison-mascot-listen { 0%,100% { transform: rotate(8deg) translateY(0); } 50% { transform: rotate(8deg) translateY(-2px); } }
+    /* モバイル調整 (480px 以下) */
+    @media (max-width: 480px) {
+      .lison-mascot-row { padding: 10px 12px; gap: 10px; }
+      .lison-mascot-row .mascot-img { width: 52px; height: 52px; }
+      .lison-mascot-row .mascot-bubble { font-size: 14px; line-height: 1.5; }
+      .lison-level-btn { padding: 14px 14px; font-size: 16px; }
+      .lison-level-btn .lv-name { font-size: 16px; }
+      .lison-text-card { padding: 14px 14px; font-size: 15px; line-height: 1.75; }
+      .lison-text-card.lison-text-en { font-size: 16px; }
+      .lison-text-card.lison-text-ja { font-size: 14px; }
+      .lison-quiz-btn { font-size: 20px; padding: 12px 0; }
+      .lison-rec-timer { font-size: 30px; }
+      .lison-rec-recording-box { padding: 18px 14px; }
+      .lison-rec-mascot-mini { font-size: 12px; padding: 6px 10px; }
+      .lison-rec-mascot-mini img { width: 24px; height: 24px; }
+      .lison-done-mascot { width: 110px; height: 110px; }
+      .lison-done-title { font-size: 19px; }
+      .lison-done-mascot-quote { font-size: 14px; padding: 9px 12px; }
+      .lison-submit-card { padding: 20px 16px; max-width: 90vw; }
+      .lison-submit-card img { width: 80px; height: 80px; }
+    }
   </style>
 
   <!-- MathJax v3（基礎計算 §4.5 の問題表示で利用。動的描画は MathJax.typesetPromise() で再描画） -->
@@ -3948,9 +3975,15 @@
   function _lisonStopSpeakingAll() {
     _lisonSpeakingId++;
     _stopAudio();
+    // listening クラスを全マスコット行から外す（画面遷移途中で残らないように）
+    try {
+      var rows = document.querySelectorAll('.lison-mascot-row.listening');
+      for (var i = 0; i < rows.length; i++) rows[i].classList.remove('listening');
+    } catch(e){}
   }
   // 文ごとに連続再生。各 utterance の onend で次へ。途中で _lisonStopSpeakingAll を呼べば即座にチェーンが止まる。
   // btnId / stopBtnId が指定されたら再生中の表示切替を自動で行う。
+  // 再生中はアクティブな .lison-mascot-row に .listening クラスを付け、リスが「聴いてる」風の傾きアニメに
   function _lisonSpeakPassage(text, btnId, stopBtnId, onAllDone) {
     var sentences = _lisonSplitSentences(text);
     if (!sentences.length) { if (onAllDone) onAllDone(); return; }
@@ -3958,12 +3991,17 @@
     var myId = ++_lisonSpeakingId;
     var btn  = btnId     ? document.getElementById(btnId)     : null;
     var stop = stopBtnId ? document.getElementById(stopBtnId) : null;
+    // アクティブ画面のマスコット行を取得して listening クラスをトグル
+    var activeScreen = document.querySelector('.screen.active');
+    var mascotRow = activeScreen ? activeScreen.querySelector('.lison-mascot-row') : null;
     if (btn)  { btn.disabled = true; btn.classList.add('speaking'); var prevTxt = btn.textContent; btn.dataset.prevText = prevTxt; btn.textContent = '🔊 再生中...'; }
     if (stop) { stop.style.display = 'block'; }
+    if (mascotRow) mascotRow.classList.add('listening');
     var idx = 0;
     function done(canceled) {
       if (btn)  { btn.disabled = false; btn.classList.remove('speaking'); if (btn.dataset.prevText) btn.textContent = btn.dataset.prevText; }
       if (stop) { stop.style.display = 'none'; }
+      if (mascotRow) mascotRow.classList.remove('listening');
       if (!canceled && onAllDone) onAllDone();
     }
     function next() {
