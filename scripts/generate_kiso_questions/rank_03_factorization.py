@@ -96,33 +96,60 @@ def _gen_trinomial_simple(rng, root_max):
         }
 
 
-def _gen_diff_or_perfect_square(rng, const_max):
-    """Band C: x² − a²（差の平方）または x² ± 2ax + a²（完全平方）をランダム選択。"""
-    pattern = rng.choice(["diff", "perfect_pos", "perfect_neg"])
-    a = rng.randint(1, const_max)  # 正の整数
-    if pattern == "diff":
-        # x² − a² = (x + a)(x − a)
-        problem_latex = poly_latex([1, 0, -a * a])
-        canonical = factored_pair_latex(a, -a)
-        return problem_latex, canonical, {
-            "kind": "diff_squares", "a": a,
-        }
-    if pattern == "perfect_pos":
-        # x² + 2ax + a² = (x + a)²
-        problem_latex = poly_latex([1, 2 * a, a * a])
-        canonical = square_factor_latex(a)
-        return problem_latex, canonical, {
-            "kind": "perfect_square_pos", "a": a,
-        }
-    # perfect_neg: x² − 2ax + a² = (x − a)²
+def _gen_diff_squares(rng, const_max):
+    """Band C diff: x² − a² = (x + a)(x − a)。"""
+    a = rng.randint(1, const_max)
+    problem_latex = poly_latex([1, 0, -a * a])
+    canonical = factored_pair_latex(a, -a)
+    return problem_latex, canonical, {"kind": "diff_squares", "a": a}
+
+
+def _gen_perfect_square_pos(rng, const_max):
+    """Band C perfect_pos: x² + 2ax + a² = (x + a)²。"""
+    a = rng.randint(1, const_max)
+    problem_latex = poly_latex([1, 2 * a, a * a])
+    canonical = square_factor_latex(a)
+    return problem_latex, canonical, {"kind": "perfect_square_pos", "a": a}
+
+
+def _gen_perfect_square_neg(rng, const_max):
+    """Band C perfect_neg: x² − 2ax + a² = (x − a)²。"""
+    a = rng.randint(1, const_max)
     problem_latex = poly_latex([1, -2 * a, a * a])
     canonical = square_factor_latex(-a)
-    return problem_latex, canonical, {
-        "kind": "perfect_square_neg", "a": a,
-    }
+    return problem_latex, canonical, {"kind": "perfect_square_neg", "a": a}
 
 
-def generate_problem(band: str, rng: random.Random) -> Dict[str, Any]:
+# Band C サブパターンの登録順（dispatcher が boundary を組み立てる順序）
+_BAND_C_PATTERN_ORDER = ["diff", "perfect_pos", "perfect_neg"]
+_BAND_C_GENERATORS = {
+    "diff":         _gen_diff_squares,
+    "perfect_pos":  _gen_perfect_square_pos,
+    "perfect_neg":  _gen_perfect_square_neg,
+}
+
+
+def _resolve_band_c_subkind(slot_index: int, subcounts: Dict[str, int]) -> str:
+    """slot_index (0-based) と subcounts dict から生成すべきサブパターンを決定。
+
+    例: subcounts={"diff": 6, "perfect_pos": 11, "perfect_neg": 11}
+        slot 0-5  → "diff"、slot 6-16 → "perfect_pos"、slot 17-27 → "perfect_neg"
+
+    比率を rng の偶然に依存させず**決定論的**に固定する目的。同じ slot_index を
+    指定すれば dedup_retry 時も同じサブパターンが選ばれる（`main.py` 仕様）。
+    """
+    boundary = 0
+    for kind in _BAND_C_PATTERN_ORDER:
+        boundary += int(subcounts.get(kind, 0))
+        if slot_index < boundary:
+            return kind
+    raise ValueError(
+        f"slot_index {slot_index} が subcounts {subcounts} の範囲外。"
+        f"band_config の count と subcounts の総和が一致しているか確認"
+    )
+
+
+def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict[str, Any]:
     cfg = get_band(3, band)
     kind = cfg["kind"]
 
@@ -132,7 +159,9 @@ def generate_problem(band: str, rng: random.Random) -> Dict[str, Any]:
         elif kind == "trinomial_simple":
             built = _gen_trinomial_simple(rng, cfg["root_max"])
         elif kind == "diff_or_perfect_square":
-            built = _gen_diff_or_perfect_square(rng, cfg["const_max"])
+            # Band C: subcounts と slot_index でサブパターンを決定論的に dispatch
+            subkind = _resolve_band_c_subkind(slot_index, cfg["subcounts"])
+            built = _BAND_C_GENERATORS[subkind](rng, cfg["const_max"])
         else:
             raise NotImplementedError(kind)
         problem_latex, canonical, info = built

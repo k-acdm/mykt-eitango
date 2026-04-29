@@ -332,6 +332,10 @@ function doGet(e) {
       else if (action === 'getKisoRetryQuestions')   result = getKisoRetryQuestions(params.sessionId);
       else if (action === 'getKisoTodayRawHP')       result = getKisoTodayRawHP(params);
       else if (action === 'getKisoPhotosList')       result = getKisoPhotosList(params);
+      // ※ ここにリスオン関連（getLisonContent, submitLison）のルーティングを必ず残す。
+      //   Phase 1-A コミット 71b8c93 で追加。過去に管理画面リファクタ作業で巻き込まれて
+      //   消えかけ、ふくちさん側の clasp push が古いまま実機テストで「録音送信が失敗する」
+      //   症状を起こした実績あり（2026-04-29）。両ルーティングはセットで保持すること。
       else if (action === 'getLisonContent')         result = getLisonContent(params.level);
       else if (action === 'submitLison')              result = submitLison(params);
       else if (action === 'ping')             result = { ok: true };
@@ -365,6 +369,12 @@ function doPost(e) {
     // 基礎計算：写真提出（base64 画像が大きいため POST 経由）
     else if (action === 'submitKisoAnswer')         result = submitKisoAnswer(params.sessionId, params.imageBase64, params.hasWorkPhoto);
     else if (action === 'submitKisoWorkPhoto')      result = submitKisoWorkPhoto(params.sessionId, params.imageBase64, params.photoIndex);
+    // ※ ここにリスオン関連（submitLison）のルーティングを必ず残す。
+    //   クライアント側（index.html submitLisonRecording）は録音 base64 を gasPost で送るため、
+    //   doGet だけでなく doPost にも必須。Phase 1-A 実装時に doPost への登録漏れがあり、
+    //   本番デプロイ後の初回テストで「unknown action: submitLison」エラーを起こした実績あり
+    //   （2026-04-29）。getLisonContent は GET（cachedGasGet）なので doGet のみで OK。
+    else if (action === 'submitLison')              result = submitLison(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -2236,10 +2246,44 @@ function _kisoNormalize(s) {
   // √ 系記号を \sqrt{n} に統一（OCR で V や ν と誤読される場合があるが、本処理の範囲外）
   t = t.replace(/[√✓]\s*\{([^}]+)\}/g, '\\sqrt{$1}');     // √{15} → \sqrt{15}
   t = t.replace(/[√✓]\s*([0-9]+)/g, '\\sqrt{$1}');         // √15 → \sqrt{15}
+
+  // 指数表記の統一（rank3/4/5/7 の x^{n} canonical と Gemini OCR の x^n を一致させる）
+  // ① Unicode 上付き数字を caret 形式へ：x² → x^2、x¹⁰ → x^10
+  //   生徒が紙に書いた x² を OCR が ² のまま返してくるケースを救済。
+  //   _kisoNormalize 共通の規則として、入る前の表記揺れをすべて x^N に揃える。
+  t = t.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, function(seq) {
+    const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+    let out = '';
+    for (let i = 0; i < seq.length; i++) {
+      const idx = SUP.indexOf(seq[i]);
+      out += (idx >= 0) ? String(idx) : seq[i];
+    }
+    return '^' + out;
+  });
+  // ② LaTeX 形式 x^{n} → x^n（poly_latex / square_factor_latex の生成形を caret に統一）
+  //   例：x^{2} → x^2、(x + 3)^{2} → (x + 3)^2、x^{10} → x^10、x^{-2} → x^-2
+  //   Gemini OCR は「指数は ^ を使う」プロンプトで x^2 を返すため、両者の形を揃える。
+  t = t.replace(/\^\{(-?\d+)\}/g, '^$1');
   // 空白の連続を 1 つに圧縮
   t = t.replace(/[ \t]+/g, ' ');
   // 行末の改行は空白に統一
   t = t.replace(/[\r\n]+/g, ' ').replace(/[ \t]+/g, ' ');
+
+  // 単項プラス記号の除去（"+2" → "2"、"x=+5" → "x=5"）
+  // 数値・分数・平方根（\sqrt）の前に来る + のみ対象。binary plus（"1+2"）は変えない。
+  // パターン1: 文字列先頭の "+" + 数字/小数点/バックスラッシュ
+  t = t.replace(/^(\s*)\+(\s*)(?=[\d.\\])/, '$1$2');
+  // パターン2: "=" の直後の "+" + 数字/小数点/バックスラッシュ（連立方程式の "x=+5" 対応）
+  t = t.replace(/=\s*\+\s*(?=[\d.\\])/g, '=');
+
+  // 純粋な数値（整数 / 小数）の正規化（"2.0" → "2"、"0.50" → "0.5"、"03" → "3"）
+  // 分数 "1/2"・帯分数・平方根・連立方程式 "x=5, y=-2" 等は対象外（パターン非一致）
+  const trimmedForNum = t.trim();
+  if (/^-?\d+(\.\d+)?$/.test(trimmedForNum)) {
+    const n = parseFloat(trimmedForNum);
+    if (isFinite(n)) t = String(n);
+  }
+
   // 前後の空白除去
   return t.trim();
 }
@@ -2451,6 +2495,216 @@ function _getKisoQuestionsByIds(questionIds) {
     if (got) out.push(got);
   }
   return out;
+}
+
+// 指定 rank の in_progress セッションを列挙する診断ツール（GAS エディタ実行専用）。
+//
+// 用途：問題プール変更（rank_04 50題化など）の前に、影響を受ける可能性がある
+// 進行中セッションを把握するための pre-flight 診断。読み取りのみで副作用なし。
+//
+// 使い方：GAS エディタの関数ドロップダウンから diagnoseRank4InProgress または
+// diagnoseKisoInProgressByRank(rank) を選択して実行。実行ログに一覧が出る。
+//
+// 戻り値: { ok, rank, count, sessions: [{ sessionId, studentId, studentName,
+//          studentNickname, startedAt, questionIdsPreview }] }
+function diagnoseKisoInProgressByRank(rank) {
+  try {
+    const r = Number(rank);
+    if (!r || r < 1 || r > 20) return { ok: false, message: 'rank は 1〜20 を指定してください' };
+
+    const sh = _ss().getSheetByName(SHEET_KISO_SESSIONS);
+    if (!sh) return { ok: false, message: 'KisoSessions シートが見つかりません' };
+    if (sh.getLastRow() < 2) return { ok: true, rank: r, count: 0, sessions: [] };
+
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSession = header.indexOf('sessionId');
+    const cSid     = header.indexOf('studentId');
+    const cRank    = header.indexOf('rank');
+    const cStatus  = header.indexOf('status');
+    const cStarted = header.indexOf('startedAt');
+    const cQids    = header.indexOf('questionIds');
+
+    // Students から氏名/ニックネームをルックアップ（追跡しやすくするため）
+    const stuValues = _getStudentsValues();
+    const sidToStu = {};
+    for (let i = 1; i < stuValues.length; i++) {
+      const sid = String(stuValues[i][COL_ID] || '').trim();
+      if (!sid) continue;
+      sidToStu[sid] = {
+        nickname: String(stuValues[i][COL_NICKNAME] || ''),
+        name:     String(stuValues[i][COL_NAME] || '')
+      };
+    }
+
+    const sessions = [];
+    for (let i = 1; i < values.length; i++) {
+      if (Number(values[i][cRank]) !== r) continue;
+      if (String(values[i][cStatus]) !== 'in_progress') continue;
+      const ts = values[i][cStarted];
+      const startedStr = (ts instanceof Date)
+        ? Utilities.formatDate(ts, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(ts || '');
+      const sid = String(values[i][cSid] || '');
+      const stu = sidToStu[sid] || { nickname: '', name: '' };
+      sessions.push({
+        sessionId: String(values[i][cSession] || ''),
+        studentId: sid,
+        studentName:     stu.name,
+        studentNickname: stu.nickname,
+        startedAt: startedStr,
+        questionIdsPreview: String(values[i][cQids] || '').slice(0, 120)
+      });
+    }
+    // 新しい順
+    sessions.sort(function(a, b){ return a.startedAt < b.startedAt ? 1 : a.startedAt > b.startedAt ? -1 : 0; });
+
+    console.log('[diagnoseKisoInProgressByRank] rank=' + r + ' in_progress count=' + sessions.length);
+    sessions.forEach(function(s, i){
+      console.log('  ' + (i + 1) + '. sid=' + s.studentId
+        + ' (' + (s.studentNickname || s.studentName || '?') + ')'
+        + ' startedAt=' + s.startedAt
+        + ' sessionId=' + s.sessionId);
+    });
+
+    return { ok: true, rank: r, count: sessions.length, sessions: sessions };
+  } catch (err) {
+    console.error('[diagnoseKisoInProgressByRank]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// ショートカット: rank=4 の診断（rank_04 50題化前の pre-flight 用）
+function diagnoseRank4InProgress() {
+  return diagnoseKisoInProgressByRank(4);
+}
+
+// ショートカット: rank=3 の診断（rank_03 50題化前の pre-flight 用）
+function diagnoseRank3InProgress() {
+  return diagnoseKisoInProgressByRank(3);
+}
+
+// 指定 rank の in_progress セッションを 'abandoned' に書き換える管理関数
+// （GAS エディタ実行専用、doGet 未登録）。
+//
+// 用途：問題プール差し替え（rank_04 50題化など）の前に、進行中セッションを
+// 強制終了して questionId 解決の不整合を防ぐ。次回タップで新セッションが
+// 自然に作られるため生徒側は実害なし。
+//
+// 安全策:
+//   1. 書き換え前に対象セッションを必ず console.log + 構造化データで返却
+//   2. opts.dryRun === true なら書き換えずログ + 戻り値のみ
+//   3. 既に 'abandoned' / 'passed' / 'failed_retry' の行はスキップ（冪等）
+//   4. completedAt にも abandonment 時刻を記録（履歴追跡用）
+//
+// 使い方（GAS エディタ）:
+//   abandonRank4InProgress({ dryRun: true })   // まず diagnostic
+//   abandonRank4InProgress()                   // 確認後に実行
+function abandonKisoInProgressByRank(rank, opts) {
+  try {
+    opts = opts || {};
+    const dryRun = !!opts.dryRun;
+
+    const r = Number(rank);
+    if (!r || r < 1 || r > 20) return { ok: false, message: 'rank は 1〜20 を指定してください' };
+
+    const sh = _ss().getSheetByName(SHEET_KISO_SESSIONS);
+    if (!sh) return { ok: false, message: 'KisoSessions シートが見つかりません' };
+    if (sh.getLastRow() < 2) return { ok: true, rank: r, dryRun: dryRun, targets: [], updated: 0 };
+
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSession    = header.indexOf('sessionId');
+    const cSid        = header.indexOf('studentId');
+    const cRank       = header.indexOf('rank');
+    const cStatus     = header.indexOf('status');
+    const cStarted    = header.indexOf('startedAt');
+    const cCompleted  = header.indexOf('completedAt');
+
+    if (cStatus < 0)    return { ok: false, message: 'status 列が見つかりません' };
+    if (cCompleted < 0) return { ok: false, message: 'completedAt 列が見つかりません' };
+
+    // 1. 対象抽出（書き換え前に列挙してログ出力）
+    const targets = [];  // { rowIdx (1-based), sessionId, studentId, startedAt }
+    for (let i = 1; i < values.length; i++) {
+      if (Number(values[i][cRank]) !== r) continue;
+      if (String(values[i][cStatus]) !== 'in_progress') continue;
+      const ts = values[i][cStarted];
+      const startedStr = (ts instanceof Date)
+        ? Utilities.formatDate(ts, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(ts || '');
+      targets.push({
+        rowIdx: i + 1,  // 1-based シート行番号
+        sessionId: String(values[i][cSession] || ''),
+        studentId: String(values[i][cSid] || ''),
+        startedAt: startedStr
+      });
+    }
+
+    console.log('[abandonKisoInProgressByRank] rank=' + r
+      + ' targets=' + targets.length
+      + (dryRun ? ' (DRY RUN)' : ''));
+    targets.forEach(function(t, i){
+      console.log('  ' + (i + 1) + '. row=' + t.rowIdx
+        + ' sid=' + t.studentId
+        + ' startedAt=' + t.startedAt
+        + ' sessionId=' + t.sessionId);
+    });
+
+    if (dryRun || targets.length === 0) {
+      return { ok: true, rank: r, dryRun: dryRun, targets: targets, updated: 0 };
+    }
+
+    // 2. 一括書き換え（status='abandoned' + completedAt=now）
+    const nowStr = _nowJST();
+    let updated = 0;
+    for (let k = 0; k < targets.length; k++) {
+      const t = targets[k];
+      sh.getRange(t.rowIdx, cStatus + 1).setValue('abandoned');
+      sh.getRange(t.rowIdx, cCompleted + 1).setValue(nowStr);
+      updated++;
+    }
+    console.log('[abandonKisoInProgressByRank] updated=' + updated + ' at ' + nowStr);
+
+    // 3. 検証：再読み込みして status が反映されていることを確認
+    const verifyValues = sh.getDataRange().getValues();
+    let verifiedOk = 0;
+    let verifiedNg = 0;
+    for (let k = 0; k < targets.length; k++) {
+      const t = targets[k];
+      const newStatus = String(verifyValues[t.rowIdx - 1][cStatus]);
+      if (newStatus === 'abandoned') verifiedOk++;
+      else {
+        verifiedNg++;
+        console.error('[abandonKisoInProgressByRank] verify NG: row=' + t.rowIdx
+          + ' expected=abandoned actual=' + newStatus);
+      }
+    }
+    console.log('[abandonKisoInProgressByRank] verified: ok=' + verifiedOk + ' ng=' + verifiedNg);
+
+    return {
+      ok: verifiedNg === 0,
+      rank: r,
+      dryRun: false,
+      targets: targets,
+      updated: updated,
+      verified: { ok: verifiedOk, ng: verifiedNg },
+      completedAt: nowStr
+    };
+  } catch (err) {
+    console.error('[abandonKisoInProgressByRank]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// ショートカット: rank=4 の一括 abandoned 化（rank_04 50題化前の pre-flight 用）
+function abandonRank4InProgress(opts) {
+  return abandonKisoInProgressByRank(4, opts);
+}
+
+// ショートカット: rank=3 の一括 abandoned 化（rank_03 50題化前の pre-flight 用）
+function abandonRank3InProgress(opts) {
+  return abandonKisoInProgressByRank(3, opts);
 }
 
 // KisoSessions シートを sessionId で線形検索（直近のセッションは末尾近く）
@@ -2828,6 +3082,10 @@ function _saveKisoPhoto(studentId, sessionId, rank, count, imageBase64) {
     const fileName = sid + '_' + rank + '_' + sessionId + '.jpg';
     const file = folder.createFile(blob).setName(fileName);
     const fileId = file.getId();
+    // 過去セッション閲覧（Mode B）でフロント側 <img> から表示できるよう ANYONE_WITH_LINK で公開。
+    // URL を知る本人のみが閲覧可能（fileId はランダム + 15 日で自動削除のためリスク許容）。
+    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
+    catch (e) { console.warn('[_saveKisoPhoto setSharing failed]', e); }
     const shareUrl = file.getUrl();
 
     // KisoPhotos シートに記録（解答用紙: photoType='answer' / photoIndex=1）
@@ -2886,6 +3144,9 @@ function _saveKisoWorkPhoto(studentId, sessionId, rank, count, imageBase64, phot
     const fileName = sid + '_' + rank + '_' + sessionId + '_work' + idx + '.jpg';
     const file = folder.createFile(blob).setName(fileName);
     const fileId = file.getId();
+    // _saveKisoPhoto と揃えて ANYONE_WITH_LINK で公開（Mode B 閲覧用）
+    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
+    catch (e) { console.warn('[_saveKisoWorkPhoto setSharing failed]', e); }
     const shareUrl = file.getUrl();
 
     const sh = _ensureKisoPhotosSheet();
@@ -3164,14 +3425,49 @@ function startKisoSession(studentId, rank, count) {
       return { ok: false, message: 'rank ' + r + ' の問題数が不足しています（必要 ' + n + ' / 在庫 ' + candidates.length + '）' };
     }
 
-    // ランダム抽出（Fisher–Yates の途中打ち切り）
+    // ランダム抽出（Fisher–Yates の途中打ち切り）+ problemLatex 重複排除
+    // 生成側 main.py で seen_latex で重複は防いでいるが、過去デプロイ分の救済 +
+    // 二重対策として、サーバ側でも problemLatex のユニーク性を保証する。
+    // KisoQuestions の列構成：questionId(0) / rank(1) / rankName(2) /
+    //                         difficultyBand(3) / problemLatex(4) / ...
+    //
+    // 2 段階方式：
+    //   ① candidates から problemLatex でユニーク化したサブセット uniqueByLatex を作る
+    //   ② uniqueByLatex から n 個ランダム抽出
+    //   ③ unique 不足のときは元 candidates から行ユニークで充足（rank_04 Band C 等の救済）
+    const uniqueByLatex = [];
+    {
+      const seenLatex = {};
+      for (let i = 0; i < candidates.length; i++) {
+        const plx = String(candidates[i][4] || '');
+        if (plx && seenLatex[plx]) continue;  // 既に同 latex を採用済み → スキップ
+        seenLatex[plx] = true;
+        uniqueByLatex.push(candidates[i]);
+      }
+    }
     const taken = {};
     const picked = [];
-    while (picked.length < n) {
-      const idx = Math.floor(Math.random() * candidates.length);
+    let safetyMax = uniqueByLatex.length * 3 + 10;  // ほぼ無限ループ回避用（unique=0 時の +10）
+    while (picked.length < n && picked.length < uniqueByLatex.length && safetyMax-- > 0) {
+      const idx = Math.floor(Math.random() * uniqueByLatex.length);
       if (taken[idx]) continue;
       taken[idx] = true;
-      picked.push(candidates[idx]);
+      picked.push(uniqueByLatex[idx]);
+    }
+    // フォールバック：unique latex 数 < n のときは元 candidates から行ユニークで充足
+    // （rank_04 Band C のような count > unique 上限ケースの最後の砦）
+    if (picked.length < n) {
+      console.warn('[startKisoSession] dedup unique 不足: rank=' + r
+        + ' candidates=' + candidates.length + ' uniqueLatex=' + uniqueByLatex.length
+        + ' n=' + n + ' picked=' + picked.length + ' → 行ユニークで充足');
+      const pickedIds = {};
+      picked.forEach(function(row){ pickedIds[String(row[0] || '')] = true; });
+      for (let i = 0; i < candidates.length && picked.length < n; i++) {
+        const qid = String(candidates[i][0] || '');
+        if (pickedIds[qid]) continue;  // 既に採用済みの行はスキップ
+        pickedIds[qid] = true;
+        picked.push(candidates[i]);
+      }
     }
 
     // セッション保存
@@ -3378,6 +3674,10 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
         no: i + 1,
         questionId: qid,
         problemLatex: p ? p.problemLatex : '',
+        // answerCanonical を含める（Mode B 過去セッション閲覧で使用）。
+        // startKisoSession のレスポンスには載せない（未提出時に正解漏洩を避けるため）が、
+        // 提出後は採点結果と一緒に返してフロントで localStorage 保存 → Mode B で表示。
+        answerCanonical: p ? p.answerCanonical : '',
         studentAnswer: studentText,
         correct: correct
       });
@@ -4721,15 +5021,20 @@ function getChildActivityRecent(params) {
         login: false,
         eitango: { done: false, details: [] },
         sango:   { done: false, level: null, timestamp: null },
-        wabun1:  { done: false, hpGained: 0 }
+        wabun1:  { done: false, hpGained: 0 },
+        kiso:    { done: false, hpGained: 0, rawHP: 0, sessions: [] },
+        lison:   { done: false, hpGained: 0, levels: [] },
+        extras:  []  // 未知の HPLog type は自動でここに集約（将来コンテンツの自動対応）
       };
     }
 
     const ss = _ss();
     let hasMore = false;
 
-    // HPLog: login / test / sango フラグ + hasMore 判定
+    // HPLog: login / test / sango / wabun1 / kiso_* / lison のフラグ + hasMore 判定
     // 末尾 2000 行のみ読む（追記専用シートなので末尾 = 最新、約 40 日分カバー想定）
+    // apology_* 系は学習行動ではないので学習履歴には反映しない（HP は加算済み、ランキングには出る）
+    const APOLOGY_TYPES = { apology_streak_bonus: 1, apology_wabun1: 1, apology_kiso: 1 };
     const hpSheet = ss.getSheetByName(SHEET_HPLOG);
     if (hpSheet && hpSheet.getLastRow() >= 2) {
       const rows = _readLastNRows(hpSheet, 2000);
@@ -4749,12 +5054,40 @@ function getChildActivityRecent(params) {
         if (ds > endStr) continue;
         if (!byDate[ds]) continue;
         const type = String(r[4] || '').trim();
+        if (APOLOGY_TYPES[type]) continue;  // 学習履歴には反映しない
+        const hp  = Number(r[3]) || 0;
+        const raw = Number(r[2]) || 0;
         if      (type === 'login') byDate[ds].login = true;
         else if (type === 'test')  byDate[ds].eitango.done = true;
         else if (type === 'sango') byDate[ds].sango.done   = true;
         else if (type === 'wabun1') {
           byDate[ds].wabun1.done = true;
-          byDate[ds].wabun1.hpGained = Number(r[3]) || 0;
+          byDate[ds].wabun1.hpGained = hp;
+        }
+        else if (type === 'lison') {
+          byDate[ds].lison.done = true;
+          byDate[ds].lison.hpGained += hp;
+        }
+        else if (type.indexOf('kiso_') === 0) {
+          // 'kiso_<rank>_<count>' or 'kiso_<rank>_<count>_practice'
+          byDate[ds].kiso.done = true;
+          byDate[ds].kiso.hpGained += hp;
+          byDate[ds].kiso.rawHP    += raw;
+          const m = /^kiso_(\d+)_(\d+)(_practice)?$/.exec(type);
+          if (m) {
+            byDate[ds].kiso.sessions.push({
+              rank:       parseInt(m[1], 10),
+              count:      parseInt(m[2], 10),
+              isPractice: !!m[3],
+              hpGained:   hp,
+              rawHP:      raw
+            });
+          }
+        }
+        else {
+          // 未知の type は extras に集約（将来 wabun2/kanji/social/science/kobun 等が
+          // 追加されたとき HPLog に新 type を流すだけで自動表示される）
+          byDate[ds].extras.push({ type: type, hpGained: hp });
         }
       }
     }
@@ -4792,6 +5125,28 @@ function getChildActivityRecent(params) {
         if (!byDate[ds].sango.timestamp) {
           byDate[ds].sango.level     = String(r[3] || '').trim();
           byDate[ds].sango.timestamp = tsStr;
+        }
+      }
+    }
+
+    // LisonSubmissions: level 補完（末尾 500 行）
+    // 列構成: [0]timestamp [1]studentId [2]studentName [3]level [4]weekStart [5]quizScore [6]recordingUrl [7]hpGained
+    // alreadyGranted（同日 2 回目以降）でも提出記録は残るので、HPLog に lison 行が無い日でも
+    // ここで done=true になる（保護者画面で「練習はした」が見える）
+    const lsSheet = ss.getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (lsSheet && lsSheet.getLastRow() >= 2) {
+      const rows = _readLastNRows(lsSheet, 500);
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r[0]) continue;
+        if (String(r[1] || '').trim() !== sid) continue;
+        const tsStr = Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+        const ds = tsStr.slice(0, 10);
+        if (!byDate[ds]) continue;
+        byDate[ds].lison.done = true;
+        const level = String(r[3] || '').trim();
+        if (level && byDate[ds].lison.levels.indexOf(level) < 0) {
+          byDate[ds].lison.levels.push(level);
         }
       }
     }
@@ -4840,10 +5195,16 @@ function _normalizeWabun1(s) {
   t = t.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(ch){
     return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
   });
-  // 2. 類似句読点・記号を半角に統一
-  //    注意: 全角句点「。」は punctMap に含めない（日本文末記号として保持）
+  // 2. 日本語の句読点（、 。）を削除（仕様：装飾的要素として判定対象外）
+  //    「、」(U+3001) と「。」(U+3002) は日本語問題で必須でないため、有無を判定に
+  //    影響させない。英語の「,」(U+002C) と「.」(U+002E) は引き続き厳格判定。
+  //    全角コンマ「，」(U+FF0C) と全角ピリオド「．」(U+FF0E) は次の punctMap で
+  //    半角化（日本語 IME での全角混入を英語句読点として救済）。
+  t = t.replace(/[、。]/g, '');
+  // 3. 類似句読点・記号を半角に統一
+  //    （「、」「。」は前段で削除済みなので punctMap には含めない）
   const punctMap = {
-    '，': ',', '、': ',',
+    '，': ',',
     '．': '.',
     '？': '?', '！': '!',
     '：': ':', '；': ';',
@@ -4855,11 +5216,16 @@ function _normalizeWabun1(s) {
     '‘': "'", '’': "'",  // ‘ ’
     'ー': '-', '−': '-', '－': '-', '‐': '-', '‑': '-', '–': '-', '—': '-'
   };
-  t = t.replace(/[，、．？！：；（）［］｛｝「」『』“”‘’ー−－‐‑–—]/g, function(ch){
+  t = t.replace(/[，．？！：；（）［］｛｝「」『』“”‘’ー−－‐‑–—]/g, function(ch){
     return punctMap[ch] || ch;
   });
   // 3. すべての空白文字を削除（半角/全角スペース・タブ・改行・その他 Unicode 空白）
-  t = t.replace(/[\s　]+/g, '');
+  //    生徒が紙の幅で改行して書く（"Africa is\nfor my\nfamily"）→ OCR が改行込みで
+  //    返してくるケースを救済するため、改行（\n / \r\n / \r）も含めてすべて吸収する。
+  //    \s は \f\n\r\t\v + 通常空白 + 多くの Unicode 空白（U+00A0 NBSP 含む）にマッチ。
+  //    防御的に、OCR が稀に挟む zero-width 系の不可視文字（U+200B〜200D / U+FEFF /
+  //    U+2060 word-joiner）も併せて削除（\s ではマッチしないため明示）。
+  t = t.replace(/[\s　​‌‍⁠﻿]+/g, '');
   // 大文字小文字は厳格判定のため lowercasing しない（2026-04-29 仕様変更）
   return t;
 }
@@ -4891,6 +5257,63 @@ function _parseWabun1Work(text) {
     out[markers[i].no] = t.substring(markers[i].contentStart, end).trim();
   }
   return out;
+}
+
+// =============================================
+// 不正解理由の自動分類（採点結果画面で生徒に表示）
+// =============================================
+// 戻り値: { type: 'no_answer'|'contraction'|'period_missing'
+//          |'comma_missing'|'case_mismatch'|'spelling'|'other',
+//          message: 生徒向け自然言語 }
+//
+// 優先順は CLAUDE.md「採点正規化関数の仕様 / feedbackType 7 分類」を参照。
+// 上から判定して最初に該当したものを返す。
+// 注: 旧 fullstop_missing は _normalizeWabun1 で「。」を削除する仕様変更
+//     （日本語句読点を判定対象外にする 2026-04-30 修正）に伴い廃止。
+//     「。」が両方の文字列から削除されるため、末尾「。」抜けは correct 扱いに。
+function _wabun1ClassifyFeedback(studentRaw, studentNorm, correctRaw, correctNorm, divergeAt) {
+  // 1. no_answer: 生徒の答えが空（OCR で読み取れず or パースで取れず）
+  if (!studentNorm || studentNorm.length === 0) {
+    return { type: 'no_answer', message: '答えが読み取れませんでした。OCR の認識を確認してください' };
+  }
+  // 2. contraction: studentRaw に短縮形パターン（' or ’ + 1〜3 文字英字）あり
+  //    かつ correctRaw には無い（正解側に "John's" 等がある場合は対象外）
+  const contractionRe = /['’][a-z]{1,3}\b/i;
+  if (contractionRe.test(String(studentRaw || '')) && !contractionRe.test(String(correctRaw || ''))) {
+    return { type: 'contraction', message: '短縮形（don\'t や isn\'t など）はここでは使えません' };
+  }
+  // 3. period_missing: 末尾の半角ピリオドが抜けている（英語問題のみ。日本語の「。」は
+  //    _normalizeWabun1 で両方から削除されるためここに到達しない）
+  if (studentNorm + '.' === correctNorm) {
+    return { type: 'period_missing', message: '末尾のピリオド「.」が抜けています' };
+  }
+  // 4. comma_missing: カンマ全削除で一致 + 正解側のほうがカンマが多い（英語問題のみ。
+  //    日本語の「、」は _normalizeWabun1 で両方から削除されるため誤分類されない）
+  const stripComma = function(s){ return String(s || '').replace(/,/g, ''); };
+  const studentCommaCount = (studentNorm.match(/,/g) || []).length;
+  const correctCommaCount = (correctNorm.match(/,/g) || []).length;
+  if (correctCommaCount > studentCommaCount && stripComma(studentNorm) === stripComma(correctNorm)) {
+    return { type: 'comma_missing', message: 'カンマ「,」が抜けています' };
+  }
+  // 5. case_mismatch: 大文字小文字を無視すれば一致
+  if (studentNorm.length === correctNorm.length
+      && studentNorm.toLowerCase() === correctNorm.toLowerCase()
+      && studentNorm !== correctNorm) {
+    return { type: 'case_mismatch', message: '大文字・小文字が違います' };
+  }
+  // 6. spelling: divergeAt > 1 かつ長さの差が 5 以下（おおむね同じ長さで部分的に違う）
+  //    位置は「文の前半 / 中ほど / 後半」の大まか表現で示す
+  const lenDiff = Math.abs(studentNorm.length - correctNorm.length);
+  if (divergeAt > 1 && lenDiff <= 5) {
+    const cn = correctNorm.length || 1;
+    let pos;
+    if      (divergeAt < cn / 3)         pos = '文の前半';
+    else if (divergeAt < (cn * 2) / 3)   pos = '文の中ほど';
+    else                                  pos = '文の後半';
+    return { type: 'spelling', message: pos + 'にスペルミスの可能性があります' };
+  }
+  // 7. other: 上記いずれにも当てはまらない
+  return { type: 'other', message: '正解と違う部分があります。もう一度確認してください' };
 }
 
 // Wabun1Topics から指定日の 1 行を読み込む（ヒットなしで null）
@@ -5106,10 +5529,57 @@ function submitWabun1(params) {
       if (skipSet[t.no]) {
         return { no: t.no, correct: true, skipped: true };
       }
-      const studentNorm = _normalizeWabun1(parsed[t.no]);
-      const correctNorm = _normalizeWabun1(topic.answers[idx]);
+      const studentRaw = String(parsed[t.no] != null ? parsed[t.no] : '');
+      const correctRaw = String(topic.answers[idx] != null ? topic.answers[idx] : '');
+      const studentNorm = _normalizeWabun1(studentRaw);
+      const correctNorm = _normalizeWabun1(correctRaw);
       const correct = correctNorm !== '' && studentNorm === correctNorm;
-      return { no: t.no, correct: correct };
+      if (correct) return { no: t.no, correct: true };
+
+      // 不正解時：divergeAt を計算 → 診断ログ → 教育的フィードバック
+      let divergeAt = 0;
+      while (divergeAt < studentNorm.length && divergeAt < correctNorm.length
+             && studentNorm.charCodeAt(divergeAt) === correctNorm.charCodeAt(divergeAt)) divergeAt++;
+
+      // 診断ログ：判定失敗時に正規化後文字列を Apps Script ログに残す。
+      // 「改行のはずなのに ❌」「ピリオド見落としで ❌」「不可視文字混入で ❌」など真因切り分け用。
+      // CLAUDE.md「採点正規化関数の仕様」セクション参照。
+      if (correctNorm !== '') {
+        const codeAtStudent = (divergeAt < studentNorm.length)
+          ? 'U+' + studentNorm.charCodeAt(divergeAt).toString(16).toUpperCase().padStart(4, '0')
+          : '(end)';
+        const codeAtCorrect = (divergeAt < correctNorm.length)
+          ? 'U+' + correctNorm.charCodeAt(divergeAt).toString(16).toUpperCase().padStart(4, '0')
+          : '(end)';
+        const trunc = function(s, n) {
+          const str = String(s == null ? '' : s);
+          return str.length <= n ? str : str.substring(0, n) + '...(' + str.length + ')';
+        };
+        console.log('[submitWabun1 ❌]'
+          + ' sid=' + sid
+          + ' no=' + t.no
+          + ' divergeAt=' + divergeAt
+          + ' codeStudent=' + codeAtStudent
+          + ' codeCorrect=' + codeAtCorrect
+          + ' studentNorm=' + JSON.stringify(studentNorm)
+          + ' correctNorm=' + JSON.stringify(correctNorm)
+          + ' parsedRaw='   + JSON.stringify(trunc(studentRaw, 200))
+          + ' canonicalRaw=' + JSON.stringify(trunc(correctRaw, 200))
+          + ' workTextRaw=' + JSON.stringify(trunc(workText, 300)));
+      }
+      // フィードバック分類（正解と違う部分の自動解析）
+      const fb = _wabun1ClassifyFeedback(studentRaw, studentNorm, correctRaw, correctNorm, divergeAt);
+      return {
+        no:              t.no,
+        correct:         false,
+        studentRaw:      studentRaw,
+        correctRaw:      correctRaw,
+        studentNorm:     studentNorm,
+        correctNorm:     correctNorm,
+        divergeAt:       divergeAt,
+        feedbackType:    fb.type,
+        feedbackMessage: fb.message
+      };
     });
     const allCorrect = results.length > 0 && results.every(function(r){ return r.correct; });
 

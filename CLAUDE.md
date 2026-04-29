@@ -32,11 +32,19 @@
 ### 運用メモ
 
 - コミット作者は `k-acdm <k-academy@mbr.nifty.com>`（リポジトリ内 git config 未設定のため `-c user.name= -c user.email=` で都度指定）
+- **★ Claude Code → ふくちさん間の同期ルール（鉄則）**：Claude Code が dev に push したら、ふくちさんは `clasp push` する前に必ず以下を実行する：
+  1. `cd C:\Users\Manager\mykt-eitango`
+  2. `git checkout dev`
+  3. `git pull origin dev` ← **必須**
+  4. `git log --oneline -3` で Claude Code の最新コミットがローカルにあるか確認
+  5. その後 `cd gas && clasp push`
+
+  これを怠ると「ローカルが古いまま GAS に古いコードを上げてしまう」事故が起きる（2026-04-28 / 2026-04-29 に複数回発生）。Claude Code の dev push と clasp push の間は順序依存。
 - GAS 変更フロー：
   1. `gas/Code.js` を編集（ローカルまたはClaude Code経由）
   2. `cd gas && clasp push` でGAS側に同期
-  3. **GASエディタを開きっぱなしの場合は必ず F5 でリロード**（開いているエディタには `clasp push` の差分が反映されない、過去にこれで「push したのに古いコードに見える」混乱が発生）
-  4. GASエディタで「デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ」で本番反映
+  3. **★ GAS エディタは必ず F5 で強制リロードしてから確認・デプロイ**。開きっぱなしの状態では `clasp push` の差分が画面に反映されておらず、古いコードがデプロイされる事故につながる（2026-04-29 早朝に発生）。「push したのに古いコードに見える」と感じたら 100% F5 し忘れ
+  4. GAS エディタで「デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ」で本番反映
 - **`clasp pull` は使用しない**。GASへの変更は常に `clasp push` で一方通行。手元の `gas/Code.js` を最新に保ち、それをGASに反映する運用とする。過去に「デプロイ忘れ状態の GAS から `clasp pull` して手元の新実装を事故で revert」した事例があるため、`pull` は原則禁止。万が一 GAS エディタで直接編集した場合は、`gas/Code.js` にも同じ変更を手動で入れてから `clasp push` する
 - **バージョン表示は `document.lastModified` から自動生成のため手動更新不要**。3 ファイル（`index.html` / `view.html` / `admin.html`）の右下に表示される `vYYYY.MM.DD` は GH Pages の Last-Modified ヘッダー由来で、HTML が実際にどの時点のバージョンかを反映する。タップで `?v=timestamp` 付き強制リロード可能（iPad Safari のキャッシュ問題への診断兼対策）
 - **GAS 側 Script Cache 運用**: `gas/Code.js` は問題データ・お題・連絡・Quote・ランキングを CacheService でキャッシュしている（TTL 6 時間）。管理画面経由の書き込みは自動でキャッシュをクリアする。**Questions シートを直接スプレッドシートで編集**した場合は自動クリアされないため、即反映したいときは GAS エディタから `clearAllCache()` を手動実行するか、最大 6 時間待つ
@@ -1659,6 +1667,341 @@ Phase 3 着手中に新たな設計原則が発見された場合：
   - 実機テストフィードバックの反映
   - 英語リスオン本実装（仕様書 [docs/英語長文リスニング_音読_仕様書.md](docs/英語長文リスニング_音読_仕様書.md) v0.7）
   - 基礎計算 Phase 3（DESIGN_PRINCIPLES.md の TODO_PHASE3 復活対象）
+
+### 2026-04-29 早朝（自宅PC再開：和文英訳① HP増額 + 緊急 +100HP 付与 + リスオン Phase 1-A）
+
+#### 142. 和文英訳① 素点HP 100→200（2026-04-29 以降の教育日から、dev `7203bfc`）
+- **背景**: 4/27 本番運用後の運用評価で、和文英訳①（base 100HP）が三語短文（base 200HP）と比べて取り組みコストの割に HP が低いとの判断。base を倍増して 200HP に揃える
+- **方針**: 日付分岐方式。**過去のクリア記録は遡及しない**（既存の HPLog はそのまま）。連続週²倍率のロジックは据え置き（`base × week²`、week = `ceil(streak/7)`）
+- **適用境界**: 2026-04-29 以降の教育日（4/29 当日含む）。日付基準は wabun1 既存の `_sangoToday()`（JST 3 時区切り）を流用 — 「今日の問題」「alreadyGranted 判定」「base HP の切替」がすべて同じ瞬間に揃う
+- **GAS 修正** ([gas/Code.js:5158](gas/Code.js:5158) `submitWabun1`):
+  ```javascript
+  const baseHp = (todayStr >= '2026-04-29') ? 200 : 100;
+  hpGained = baseHp * week * week;
+  ```
+- **フロント修正** ([index.html](index.html)): ホーム画面 和文英訳①カードの HP バッジ `100HP/日` を date-aware に
+  - バッジに `id="badge-wabun1-hp"` を付与
+  - `_wabun1BaseHp()` / `_applyWabun1HpBadge()` を新設（既存 `_todayKeyJST3am()` 流用＝GAS と同じ JST 3 時区切り）
+  - `showWelcome` から `_applyWabun1HpBadge()` 呼び出し → 4/29 以降は「200HP/日」表示
+- **動的表示は自動追従**: view.html / admin.html の学習履歴カード（`d.wabun1.hpGained` をサーバ値そのまま表示）/ 結果画面の HP animate 表示はサーバ値由来のため変更不要
+
+#### 143. LINE 提出組への +100HP 緊急付与（手動加算、Students F列 + HPLog 9 行）
+- **背景**: 和文英訳① が判定厳しすぎ（後の v2 緩和で対応済 #115）+ 基礎計算 gasPost 未定義事故（#114）等で、4/27〜28 にアプリ提出が成立せず LINE で代替提出した生徒組への補填
+- **対象 7 名**: 古内伶奈、清水未唄、川島杏子、中綾音、松本凌玖、加藤煌生、早川康佑
+- **付与額**:
+  - 5 名（古内伶奈、川島杏子、中綾音、松本凌玖、早川康佑）: +100HP（基礎計算分）
+  - 2 名（清水未唄、加藤煌生）: +200HP（基礎計算分 +100 + 和文英訳①分 +100）
+  - 合計 +900HP
+- **作業内容**: ふくちさんが GAS エディタからではなくスプレッドシート上で手動編集
+  - **Students シート F 列（HP）**: 7 名分の HP に手動加算
+  - **HPLog 9 行追加**: 5 行が `type='apology_kiso'`、2 名 × 2 行が `type='apology_kiso'` + `type='apology_wabun1'`
+  - HPLog の type は #116 / #118 で導入済の `apology_kiso` / `apology_wabun1` を流用（新設ではなく再利用）
+- **`apology_kiso` / `apology_wabun1` 関数経由ではない理由**: 関数経由は CLAUDE.md #100 / #116 / #118 で導入済だが、対象が「LINE 提出」かつ少人数のため、関数で対象抽出するより目視で確実に手動加算する方が速い・確実と判断
+
+#### 144. 英語リスオン Phase 1-A: GAS 基盤実装（dev `8dcb101` / `71b8c93`）
+- **スコープ**: GAS の基盤構造のみ。フロント画面（級選択・Step 1-6・MediaRecorder UI）・Web Speech API 連携は次フェーズ（Phase 1-B）
+- **シート構造**（ふくちさん手動作成予定、未作成時は graceful にエラー返却）:
+  - `LisonContents`（13 列）: weekStart / level / englishText / japaneseText / q1_text / q1_answer / q1_explanation / q2_* / q3_*
+  - `LisonSubmissions`（8 列）: timestamp / studentId / studentName / level / weekStart / quizScore / recordingUrl / hpGained
+  - レベル文字列: `'4'` / `'3'` / `'pre2'` / `'2'` / `'pre1'`
+  - 4 級の正誤問題の answer は `'○'` / `'✖'`、他級は `'T'` / `'F'`（LisonContents の値で完全一致比較）
+- **HP 仕様**:
+  - 4/3/pre2 = 素点 100、2/pre1 = 素点 200
+  - 連続週²倍率（`streak/7` 切り上げ²）は他コンテンツと同じ
+  - 1 日 1 レベル 1 回まで（`{sid, level, JST 3 時区切り今日}` 一致で alreadyGranted、hpGained = 0）
+  - 録音は alreadyGranted でも Drive 保存・LisonSubmissions 記録を実施
+- **新規追加**:
+  - 定数: `SHEET_LISON_CONTENTS` / `SHEET_LISON_SUBMISSIONS` / `LISON_VALID_LEVELS` / `LISON_RECORDING_ROOT_FOLDER`
+  - ヘルパー: `_lisonGetWeekStart(dateStr)`（JST 3 時区切りの今日からその週の月曜日）/ `_lisonBaseHpForLevel(level)` / `_readLisonContentRow(weekStart, level)`（ヘッダー駆動の 1 行読み）/ `_lisonExtFromMime(mime)`（webm/mp4/m4a/mp3/ogg/wav/aac 判定、不明時 webm デフォルト）/ `_ensureLisonRecordingsFolder()` / `_saveLisonRecording(sid, level, base64, mime)`（ファイル名 `lison_<sid>_<level>_<yyyymmddHHMMSS>.<ext>`）
+  - 公開 API: `getLisonContent(level)`（戻り値 weekStart / level / englishText / japaneseText / questions[3]）/ `submitLison({ sid, level, quizAnswers, recordingBase64, recordingMime })`（戻り値 ok / hpGained / alreadyGranted / quizScore / recordingUrl）
+  - doGet ルーティング: `getLisonContent` / `submitLison` を ping の直前に追加
+- **既存パターン流用**: `_sangoToday()`（JST 3 時区切り）/ `_logHP()`（rawHP=hpGained、wabun1/sango と同パターン）/ `_readLastNRows()` / `_getStudentsValues()` / `_updateStudentsCacheRow()` / `_saveKisoPhoto` の Drive 保存パターン
+- **動作確認**: 構文チェック（`node -c gas/Code.js`）まで。LisonContents / LisonSubmissions シートはまだ未作成のため、実機での完全動作確認は Phase 1-B 完了後
+
+#### 145. 次回作業候補（メモ）
+- 塾PC で Python セットアップ（USB 持参の JSON 鍵を `C:\Users\Manager\Documents\gcp-credentials\` に配置 → `pip install -r requirements.txt` → 環境変数 `KISO_GSPREAD_CREDENTIALS` / `KISO_SPREADSHEET_ID` 恒久設定）
+- リスオン Phase 1-B: フロント実装（級選択画面・Step 1-6・音声再生・録音 UI・送信中・完了画面）
+- 当面のタスク順: 漢字 → 社会・理科の重要語句 → 和文英訳② → **古文単語**（高校生向け、新設）→ 秘密の扉（本日の運勢）→ ログイン画面の生徒/保護者一本化 → 管理画面の中身修正 → セキュリティ対策
+- 1 ヵ月以内: **紙の宿題連動機能**（教材を写真撮影 → AI 採点 + オリジナル問題生成）
+- 中長期: アプリ単科展開（法的整理、Firebase 移行検討）
+
+#### 採点正規化関数の仕様（新コンテンツ追加時の参考）
+
+各コンテンツの採点で「生徒の答え」と「正解」を比較する際の正規化方針をここに集約する。
+新しい採点系コンテンツを実装するときは、以下を**最低ライン**として揃えること。
+
+**全コンテンツ共通の必須要件**
+- 改行（`\n` / `\r\n` / `\r`）は空白と等価とみなして吸収する。
+  生徒が紙の幅で改行して書く → OCR がそのまま改行込みで返してくるケースを救済するため。
+- 全角英数 → 半角に変換する。OCR の揺れを吸収。
+- 類似句読点を半角統一（全角コンマ・ピリオドなど）。但し日本語文末「。」は保持。
+- 連続空白は単一空白に圧縮するか、全空白を削除するか、コンテンツの性質で選択。
+- **不可視文字対策**：`\s` は U+200B〜200D（zero-width 系）/ U+2060（word joiner）/ U+FEFF（BOM）を**マッチしない**。OCR が稀に挟むためこれらも明示的に除去対象に含める。
+
+**和文英訳① (`_normalizeWabun1` @ gas/Code.js)**
+1. 全角英数 → 半角（case 保持）
+2. **日本語の句読点（「、」U+3001 / 「。」U+3002）を削除**（装飾要素として判定対象外、2026-04-30〜）
+   - 「、」「。」は有っても無くても ⭕（日本語問題で生徒が省略しても正解扱い）
+   - 英語の「,」「.」は引き続き厳格判定（必須）
+3. 類似句読点を半角統一（`，→,` `．→.` 等。日本語 IME での全角英記号混入を救済）
+4. **すべての空白文字を削除**（`/[\s　​‌‍⁠﻿]+/g` — `\s` + 全角スペース + 6 種の zero-width 文字）
+5. 大文字小文字は厳格判定（`toLowerCase` しない、2026-04-29〜）
+6. 文末英文ピリオド「.」の有無は厳格判定（OCR が小さい点を見落とす対策として、確認画面に赤太字の注意書きを表示）
+
+**基礎計算 (`_kisoNormalize` @ gas/Code.js)**
+- 全角→半角、各種マイナス記号統一、`√n` → `\sqrt{n}` 統一
+- 単項プラス除去（`+2` → `2`、`x=+5` → `x=5`）
+- 純粋数値正規化（`2.0` → `2`、`0.50` → `0.5`、`010` → `10`）
+- 厳格性チェック（既約分数 / square-free 平方根 / 有理化済み）は別関数 `_kisoCheckStrictForm`
+
+**判定失敗時の診断ログ**
+`submitWabun1` には判定失敗時に診断情報を `console.log` で残す機能あり。新コンテンツでも同様の診断ログを必ず仕込むこと。出力フィールド：
+
+| フィールド | 内容 |
+|---|---|
+| `sid` | 生徒ID |
+| `no` | 問題番号（1-4） |
+| `divergeAt` | 正規化後文字列の最初に違う位置のインデックス |
+| `codeStudent` / `codeCorrect` | divergeAt 位置の char code（U+XXXX 16進）。不可視文字や全角半角の差分を可視化 |
+| `studentNorm` / `correctNorm` | `_normalizeWabun1` 適用後の文字列 |
+| `parsedRaw` | フロント `_wabun1ParseWork` がその問題用に切り出した原文（≤200 文字） |
+| `canonicalRaw` | スプレッドシートの `Wabun1Topics.answer<N>` 原文（≤200 文字） |
+| `workTextRaw` | OCR テキスト全文（≤300 文字） |
+
+**feedbackType 7 分類（採点結果画面の不正解理由を生徒に表示）**
+`submitWabun1` は不正解時に `_wabun1ClassifyFeedback` で違いを自動分類し、結果画面の各 ❌ 問題の下に diff カード（きみの答え / 正解 / feedbackMessage）を表示する。判定優先順は上から。
+
+| 優先 | type | 判定条件 | message 例 |
+|---|---|---|---|
+| 1 | `no_answer` | studentNorm が空 | `答えが読み取れませんでした。OCR の認識を確認してください` |
+| 2 | `contraction` | studentRaw に `/['’][a-z]{1,3}\b/i` 検出 + correctRaw には無い | `短縮形（don't や isn't など）はここでは使えません` |
+| 3 | `period_missing` | studentNorm + `.` === correctNorm | `末尾のピリオド「.」が抜けています` |
+| 4 | `comma_missing` | カンマ全削除で一致 + 正解側のほうがカンマ多い | `カンマ「,」が抜けています` |
+| 5 | `case_mismatch` | 大文字小文字を無視すれば一致（同じ長さ） | `大文字・小文字が違います` |
+| 6 | `spelling` | divergeAt > 1 かつ長さの差 ≤ 5 | `文の{前半／中ほど／後半}にスペルミスの可能性があります` |
+| 7 | `other` | 上記いずれにも該当せず | `正解と違う部分があります。もう一度確認してください` |
+
+旧 `fullstop_missing`（末尾「。」抜け）は 2026-04-30 の仕様変更で廃止。
+`_normalizeWabun1` が「。」を両方から削除するため、末尾「。」抜けは correct 扱いとなり分類自体が発生しない。
+
+新コンテンツに同様の自動 feedback を入れる場合、上記をテンプレートとして参考に。実装は [`gas/Code.js`](gas/Code.js) `_wabun1ClassifyFeedback` を参照。
+
+**生徒から「正解のはずなのに ❌」と相談を受けたときの真因特定手順**
+1. GAS エディタを開く → 左サイドバーの「実行数」（Executions）アイコン
+2. フィルタで関数 `doPost` または `doGet` を選択、生徒の提出時刻でログを絞り込む
+3. 該当行をクリック → 詳細ログを表示
+4. `[submitWabun1 ❌]` で始まる行を探す
+5. 真因の判定：
+   - **`divergeAt` の位置**：序盤なら大文字小文字 / 全角半角ミス、末尾なら句読点抜け
+   - **`codeStudent` / `codeCorrect`**：U+0020（半角スペース）/ U+3000（全角）/ U+200B〜200D（zero-width）等が出てきたら不可視文字混入。`(end)` 表示なら片方が短い（句読点抜け等）
+   - **`studentNorm` vs `correctNorm`**：正規化後でも違う = 真の意味の違い。同じ = 正規化バグ
+   - **`parsedRaw` vs `workTextRaw`**：パース時に問題番号で切り出された範囲が正しいか確認。番号誤検出があれば regex の問題
+6. 真因が判明したら：
+   - 正規化漏れ → `_normalizeWabun1` を強化
+   - パース誤検出 → `_parseWabun1Work` の regex 調整
+   - canonical のシート入力ミス → ふくちさんが Wabun1Topics を修正
+   - OCR の見落とし（小さい点を拾えない）→ 確認画面の赤太字注意書きで生徒に再撮影を促す（commit 71d117f）
+
+#### 将来のリファクタ案件: doGet / doPost のルーティング共通化
+- 現状 `gas/Code.js` の `doGet` / `doPost` で個別に `if (action === '...')` 分岐を書いている。POST が必要なエンドポイント（写真・録音など base64 が大きい系）は両方に登録漏れがないか手動確認が必要で、Phase 1-A submitLison のようにデプロイ後に「unknown action」が出る事故が複数回発生している
+- 改善案：`function handleAction(action, params) { ... }` を 1 つ用意し、`doGet` / `doPost` はパラメータ抽出だけして共通関数に委譲する。新エンドポイント追加時は handleAction に 1 行追加するだけで GET/POST 両対応になる
+- スコープ：~80 のルーティング分岐すべての書き換え + 全コンテンツの動作確認が必要なため、新コンテンツ実装が一段落したタイミングで着手する案件として保留
+
+### 2026-04-30（塾PC：リスオン Phase 1-B 完成 + 基礎計算過去セッション + 採点フィードバック多数）
+
+塾PC で長丁場の 1 日。リスオン Phase 1-B フロント全実装、複数のバグ修正と仕様改善、基礎計算の過去セッション再表示機能、採点結果画面の自動フィードバック化、和文英訳① の正規化精度向上を一気に進めた。20+ コミット。
+
+#### 146. 英語リスオン Phase 1-B：フロント全実装（dev `4d8f346` 〜 `f2c01c6`、6 コミット）
+- 級選択画面、Step 1〜5 + 完了画面 = 7 画面 + 送信オーバーレイを新設
+- Web Speech API（女性 voice / rate 0.9）で文単位連続再生、世代トークンで停止対応
+- MediaRecorder（webm/mp4/aac の優先順 isTypeSupported）でマイク録音
+- リスのマスコット演出（アイドル時 bob、再生中 listening 傾き、完了時 jump）+ シーン別セリフ
+- モバイル 480px 以下のレスポンシブ調整 17 箇所
+
+#### 147. リスオン Phase 1-B：致命的バグ + UI 修正（dev `99a629e` / `856bd65`）
+- Step 3 T/F ボタン無反応バグ修正：onclick の `JSON.stringify(v)` で `'"T"'` がダブルクォート衝突 → シングルクォート埋め込みに変更
+- 級選択「ちょうせん」→「挑戦」、Step 1 / Step 2 で「English」「日本語訳」ラベル削除 + textContent 直流し化（`white-space: pre-wrap` の literal 描画問題を解消）
+- Step 2 は仕様変更で英文表示削除、訳のみ表示（音声は引き続き英文）
+
+#### 148. リスオン submitLison ルーティング欠損修正（dev `aceb7a1` / `b6603aa` / `0b2245a`）
+- doGet 側に保護コメント追加（commit `aceb7a1`）
+- Step 5 英文表示の label 削除 + 「ロスト」表現を「最初からやり直しになるよ」に統一（commit `b6603aa`）
+- 真因確定：**doPost 側に `submitLison` のルーティング登録が無かった**ため「unknown action」エラー。doPost に追加 + 保護コメントを併設（commit `0b2245a`）
+- CLAUDE.md「将来のリファクタ案件」に doGet/doPost ルーティング共通化案を追記
+
+#### 149. 和文英訳①：判定改善 4 件
+- **確認画面の注意書きを箇条書きに拡張**（commit `71d117f` / `0794010` / `e0368aa`）：ピリオド・カンマ → スペルミス → 短縮形（don't 等）の 3 項目。文言「あえて」→「ここでは」
+- **改行正規化の防御的強化**（commit `d3857b3`）：`_normalizeWabun1` の `[\s　]+` に zero-width 文字 6 種（U+200B〜200D / U+2060 / U+FEFF）を追加。判定失敗時の診断ログを強化（codeStudent / codeCorrect / parsedRaw / canonicalRaw / workTextRaw）+ CLAUDE.md に「真因特定 6 ステップ手順」追記
+- **採点結果画面で不正解理由を可視化**（commit `89e1657`）：`_wabun1ClassifyFeedback` を新設、不正解時に diff カード（きみの答え / 正解 / 自動分類フィードバック）を表示。8 → 7 分類（Node 16/16 PASS、CLAUDE.md に分類表追記）
+- **日本語句読点（、 。）を判定対象外に修正**（commit `a43198b`）：punctMap で「、」が「,」に変換され誤分類されていたバグ。両方を削除する仕様に変更。`fullstop_missing` 分類は到達不能になったため廃止（feedbackType 7 分類に整理）
+
+#### 150. 基礎計算：数値正規化 + 上付き文字対応（dev `1cad195` / `d3595ba`）
+- `_kisoNormalize` に単項プラス除去（`+2` → `2`、`x=+5` → `x=5`）+ 純粋数値正規化（`2.0` → `2`、`0.50` → `0.5`）追加（Node 22/22 PASS）
+- 同関数に Unicode 上付き数字 → caret 形式（`x²` → `x^2`）+ LaTeX `^{n}` → `^n` のブレース除去を追加（rank_03/04/05/07 全 4 ランク救済、Node 24/24 PASS）
+
+#### 151. 管理画面・保護者画面 学習履歴に基礎計算・リスオン追加（dev `1b912d5`）
+- GAS `getChildActivityRecent` 拡張：`kiso` / `lison` / `extras` フィールド追加。HPLog の `kiso_*` / `lison` を分岐、未知 type は `extras` に集約（将来コンテンツの自動表示）
+- LisonSubmissions から level 補完
+- admin.html / view.html を data-driven 化（`CHILD_HISTORY_ROWS` 配列、新コンテンツ追加 = 1 件足すだけ）
+- 注意書き文言「⚠️ アプリ実装以前の LINE 提出状況は反映されていません。」に統一
+
+#### 152. 基礎計算 過去セッション再表示機能 Mode A/B（dev `ce40e30` / `d54a06e` / `e118fd9` / `a0c3464`、4 コミット）
+- localStorage `mykt_kiso_recent_<rank>` で当日 + 前日のセッションを保持（最大 5 件）
+- 問題画面に「📚 過去のセッションを見直す（同じ単元）」+ ボタン 2 つ（1つ前 / 2つ前、未送信=黄色 / 採点済み=緑 / 該当なし=灰色）
+- **Mode A**（未送信再開）：確認ダイアログ → 同セッション復元 + 「📂 再開バナー」+ 写真撮り直し → 通常通り採点 → HP 加算
+- **Mode B**（採点済閲覧）：新画面 `screen-kiso-review` で写真 + 問題 + AI 読み取り + 正解（MathJax）+ ⭕❌ をカード式に表示
+- GAS 基盤：`_saveKisoPhoto` に `setSharing(ANYONE_WITH_LINK, VIEW)` 追加（Drive thumbnail URL で `<img>` 表示可能に）+ submitKisoAnswer の results に `answerCanonical` を含める
+
+#### 153. 基礎計算 同一セッション内の問題重複を排除（dev `606d949`）
+- 真因：rank_04 Band C は (x+a)(x-a) の a∈[1,9] = 9 unique しかないのに count=10 → 構造的に重複
+- 方針 A（生成側、根本対策）：main.py に `seen_latex` set + 50 回 retry + WARN ログ追加。ランク全体（バンドをまたいで）で `problemLatex` のユニーク性を保証
+- 方針 B（GAS 側、保険）：startKisoSession で 2 段階 dedup（uniqueByLatex 構築 → 抽出 → unique 不足時は行ユニークでフォールバック）。既存 600 問の即時救済
+- Node 単体テスト 5/5 PASS、全 20 ランク生成テストで rank 4 のみ WARN 1 件（band_config 調整は別タスク）
+
+#### 154. 終了処理（夕方）
+- worktree 整理：goofy-poitras-31d2d2（dev、本日の作業 worktree）と main worktree のみ。stale なし
+- CLAUDE.md：feedbackType 7 分類 / 問題重複排除 / 過去セッション機能 / リスオン保護コメント などすべて反映確認
+- **基礎計算 問題プール拡充計画** を CLAUDE.md に新セクションとして追加（明日以降の作業準備、優先度 A〜C で整理）
+- 本日の全 commit を main にマージして塾PC 作業終了
+
+#### 155. 基礎計算 rank_04 を 30題 → 50題 に拡充（Phase 1 完了、dev `e10d745` / `0a64f01` / `6ce217d` / `b3b3d77`）
+- **背景**: 拡充計画 #154 の優先度 A、最初の対象。Band C「(x+a)(x-a)」が a∈{1..9} で unique=9、count=10 で構造的に重複が発生する根本バグの解消も兼ねる
+- **設計判断**（事前合意）:
+  - const_max を全 Band で 9 → 12（中3 乗法公式の典型範囲、紙教材準拠）
+  - count 配分 A=23 / B=17 / C=10（合計 50、比率 45% / 35% / 20%）
+  - Band A は `(x+a)(x+b)` で `min(a,b)` を先頭に並べ替え（数学的に同一の問題 (x+3)(x+5) と (x+5)(x+3) を一つの LaTeX に統一）
+  - 併せて `a+b==0`（差の平方型）を Band A から除外し Band C と cross-band 重複を防止
+- **コード変更** ([rank_04_expansion.py](scripts/generate_kiso_questions/rank_04_expansion.py) / [band_config.py](scripts/generate_kiso_questions/common/band_config.py)):
+  - `_gen_type_xab` で `if a > b: a, b = b, a` の正規化 + `a + b == 0` 除外
+  - `factored_pair_latex` 本体は無改修（rank_03 が canonical answer 生成で流用しているため副作用回避）
+  - `band_config.BAND_PLAN[4]` を新仕様に更新、コメントで Phase 2 の 100 題化方針を明記
+- **検証結果**:
+  - `python main.py` で全 20 rank 生成 → 620 / 620 unique / 0 failed / 0 dedup_warn
+  - Node 検証スクリプト（`out/_verify_phase1.mjs`、gitignore 配下）で 184 PASS / 0 FAIL
+    - T1 全 rank 重複ゼロ / T2 Band A 順序統一 / T3 上付き文字判定（rank 3/4/5/7 計 140 問）/ T4 rank_04 サマリ
+- **Phase 4 投入手順（in_progress セッション影響評価込み）**:
+  1. `diagnoseRank4InProgress()` 関数を新設（dev `6ce217d`）→ 8 件の in_progress 検出
+     - 内訳: テストアカウント 5 件（sid=1004 4セッション、sid=1002 1セッション）+ 実在生徒の放置セッション 3 件（sid=22029 ウミネコ）
+     - ウミネコさんは乗法公式バグ報告者で、これらは動作確認時の放置分
+  2. `abandonRank4InProgress(opts)` 関数を新設（dev `b3b3d77`）→ 8 件すべて 'abandoned' に書き換え
+     - 安全策：書き換え前ログ出力 + dryRun サポート + 書き換え後の再読み込み検証
+     - 実行結果: targets=8 / updated=8 / verified={ ok: 8, ng: 0 } @ 2026-04-30 05:01:46
+  3. `python -m common.db_writer` で 620 行を一括投入（dry-run → 本番）
+  4. gspread で post-verification（`out/_verify_phase4_post.py`、gitignore 配下）:
+     - 全 rank 行数一致（rank=4 が 50、他 19 rank が 30）/ 合計 620 行
+     - questionId 重複 0 件 / 全 rank で problemLatex 重複 0 件
+     - rank_04 サンプル: q_04_000001 `(x - 11)(x - 10) = x^2 - 21x + 110` 〜 q_04_000050 `(x + 11)(x - 11) = x^2 - 121`
+- **将来タスク追記**: 「KisoSessions に problemLatex 保存」防衛策を「基礎計算 問題プール拡充計画」セクションに記載（dev `6ce217d`）。Phase 2 100題化の前に着手予定（所要 1〜1.5 時間）
+- **既知の minor 警告**: db_writer.py の `ws.update(range_str, rows, ...)` で gspread の DeprecationWarning。動作には影響なく、近い将来 `ws.update(values=rows, range_name=range_str)` に直す
+- **次回**: 拡充計画 優先度 A の残り（rank_02 平方根 / rank_03 因数分解）
+
+#### 156. 基礎計算 rank_03 を 30題 → 50題 に拡充（Phase 1 完了、dev `d938a90` / `6fe2fb3` / `<merge>`）
+- **背景**: 拡充計画 優先度 A の 2 つ目。rank_04 と異なり構造的バグはなく既存 30 問はクリーン。ふくちさんの教育的判断で「差の平方は思考量少なめ」を反映した **Band C サブパターンの内訳重み付け** が今回の特徴
+- **設計判断**（事前合意）:
+  - Band A: count 10 → 11（共通因数）/ Band B: 10 → 11（三項式）— 中3 因数分解の核心、ほぼ均等
+  - Band C: 10 → 28（差の平方/完全平方）— 内訳 **diff=6 / perfect_pos=11 / perfect_neg=11**
+  - const_max を全 Band で 9 → 12（紙教材準拠、rank_04 と整合）
+- **コード変更** ([rank_03_factorization.py](scripts/generate_kiso_questions/rank_03_factorization.py) / [band_config.py](scripts/generate_kiso_questions/common/band_config.py)):
+  - 旧 `_gen_diff_or_perfect_square`（3 パターンランダム選択）を廃止
+  - 3 つの独立 generator を新設: `_gen_diff_squares` / `_gen_perfect_square_pos` / `_gen_perfect_square_neg`
+  - サブパターン dispatcher `_resolve_band_c_subkind(slot_index, subcounts)` を新設。**比率を rng の偶然に依存させず slot_index で決定論的に固定**
+  - `generate_problem(band, rng, slot_index=0)` 化（既存 main.py の slot_index 機構を流用、rank_10 と同じパターン）
+  - band_config rank=3 に `subcounts={"diff":6, "perfect_pos":11, "perfect_neg":11}` を追加
+- **検証結果**:
+  - `python main.py` で rank_03: 50/50 unique / 0 failed / 0 dedup_warn
+  - 全 20 rank で 640/640 unique（rank 3, 4 が 50、他 18 rank が 30）
+  - Node 検証スクリプト（`out/_verify_phase1.mjs`）に T5（rank_03 サマリ + Band C 内訳）と T6（Band A 共通因数の最簡化 gcd(b,c)=1, |a|≥2）を追加 → **216 PASS / 0 FAIL**
+- **Phase 4 投入手順**:
+  1. `diagnoseRank3InProgress` / `abandonRank3InProgress` ショートカット 2 関数を追加（dev `6fe2fb3`、汎用関数は無修正の薄いラッパー）
+  2. diagnose で 3 件の in_progress を検出: sid=24027 (BP) 1件、sid=24009 (サソリ) 2件、すべて 4/27〜28 の放置セッション
+  3. `abandonRank3InProgress()` で 3 件すべて 'abandoned' に書き換え、verified={ ok: 3, ng: 0 } @ 2026-04-30 05:42:35
+  4. `python -m common.db_writer` で 640 行を一括投入（dry-run → 本番、全置換モード）
+  5. gspread post-verification（`out/_verify_phase4_post.py` を rank_03 対応に拡張）:
+     - 全 rank 行数一致（rank 3 = 50、rank 4 = 50、他 18 rank = 30）/ 合計 640 行
+     - questionId / problemLatex とも重複ゼロ
+     - Band C サブパターン内訳: diff=6 / perfect_pos=11 / perfect_neg=11 / ? = 0 ✓
+     - rank_03 サンプル: q_03_000001 `-30x - 12y = -6(5x + 2y)` 〜 q_03_000050（Band 別に並ぶ）
+- **既存挙動の温存**:
+  - `factored_pair_latex` 本体は無修正（rank_03 既存ロジックは `sorted([m,n])` で正規化済）
+  - Band A の符号正規化（leading 項を正に）は既存通り
+  - `self_check` は既に 3 サブパターン kind を処理済みで無修正
+- **次回**: 拡充計画 優先度 A の残り（rank_02 平方根）/ あるいは優先度 B（rank_05〜08）
+
+---
+
+## 基礎計算 問題プール拡充計画
+
+### 現状（2026-04-30 時点）
+- 各単元 約 30 題、合計約 600 題
+- 一部単元（rank_04 Band C など）は数学的に重複不可避（9 unique で count=10）
+- 同一セッション内の重複は生成側 + GAS 側の二重 dedup で解消済み（commit `606d949`）
+
+### 目標
+- フェーズ 1：全単元 50 題、合計 1000 題
+- フェーズ 2：全単元 100 題、合計 2000 題
+- 全単元で重複ゼロを保証（数学的に不可能な Band は再設計）
+
+### 進行方針
+- 1 回 1 単元ずつ、丁寧に増産
+- 各単元の Band 構成、パラメータ範囲、generator を見直し
+- 教育的バランスを保ちつつパラメータ空間を拡張
+
+### 増産優先度
+
+**優先度 A（Band 不足が確定、最優先）**
+- rank_04 乗法公式（Band C が 9 問のみ、報告バグの単元）
+- rank_02 平方根（一意空間が狭い）
+- rank_03 因数分解（square_factor_latex で限定）
+
+**優先度 B（使用頻度高）**
+- rank_05 中3 式の計算
+- rank_07 中2 式の計算
+- rank_08 一次方程式
+- rank_06 連立方程式
+
+**優先度 C（パラメータ空間が広い、余裕あり）**
+- rank_11〜rank_20（整数・小数・正負・分数の四則）
+
+### 進捗管理
+- 各単元増産時に main.py の WARN ログを確認（重複検出の有無）
+- 実機で数セッション解いて品質チェック
+- 完了した単元を ✅ で記録
+- 順序は Claude Code の判断に委任で OK
+
+### 標準的な作業フロー
+1. 既存 rank_XX_*.py の Band 構成と generator を確認
+2. 一意な問題数を計測（main.py で生成 → unique_latex を見る）
+3. 教育的判断：パラメータ拡張 / 新 Band 追加 / count 調整
+4. Python 側を修正
+5. main.py で問題生成、KisoQuestions シートに投入（db_writer.py）
+6. Node テスト相当 + main.py の WARN で重複ゼロ確認
+7. 実機で数セッション解いて目視チェック
+
+### 1 単元あたりの作業時間目安
+- 調査・設計：30 分
+- Python 修正：30 分
+- 生成・投入：15 分
+- 検証：15 分
+- 合計：約 1.5 時間
+
+### 将来タスク：KisoSessions に problemLatex を保存する防衛策（Phase 2 100題化の前に着手）
+
+**背景**: 現在の `KisoSessions.questionIds` は質問IDのみを保存し、採点・再挑戦時は `_getKisoQuestionsByIds` で `KisoQuestions` シートから都度ルックアップする設計。問題プールを差し替えると、既存の進行中セッションの questionId が新しい問題に解決されてしまい、生徒が見ていた旧問題と採点対象がずれる事故が発生し得る（rank_04 50題化時に診断＋投入順序で対処、CLAUDE.md #155 参照）。
+
+**改善案**: `startKisoSession` でセッション作成時に `questionIds` と並んで `problemLatexes`（JSON 配列）も保存。採点・再挑戦時は KisoSessions の保存値を優先参照し、KisoQuestions ルックアップはフォールバック扱いにする。
+
+**期待効果**:
+- 問題プール変更時もセッションが破綻しない
+- KisoQuestions シートが整合性を失っても採点が継続できる（耐障害性）
+- 過去セッション再表示（CLAUDE.md #152）の表示も保存値優先になり安定する
+
+**スコープ・所要見込み**:
+- KISO_SESSIONS_HEADERS に列追加（既存セッションへの後方互換: 列が無ければ従来動作にフォールバック）
+- `startKisoSession` 1 行追加 + appendRow 1 値追加
+- `_getKisoQuestionsByIds` を呼んでいる 3 箇所（採点 / 再挑戦 / 過去セッション再表示）の参照優先順を変更
+- 約 1〜1.5 時間
+
+**着手タイミング**: 全単元 100題化（Phase 2）に進む前。50題化（Phase 1）の段階で全単元を一通り回した後に実施するのが自然。
 
 ---
 

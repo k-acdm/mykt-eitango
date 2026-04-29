@@ -85,14 +85,41 @@ def generate_for_rank(rank: int, seed: int) -> Dict[str, Any]:
     sig = inspect.signature(mod.generate_problem)
     accepts_slot = "slot_index" in sig.parameters
 
+    # 重複排除（仕様書 §6.4.5）：同一ランク内（バンドをまたいで）で同じ problemLatex は
+    # 採用しない。GAS startKisoSession でセッション抽出するときに同問題が並ぶ事故を
+    # 根絶するため。最大 DEDUP_RETRY_MAX 回まで再生成、それでも見つからなければ
+    # WARN ログを出して許容する（band_config の count > unique 上限を可視化）。
+    DEDUP_RETRY_MAX = 50
+    seen_latex: set = set()
+    dedup_warn_count = 0
+
     for band in bands:
         cfg = BAND_PLAN[rank][band]
         count = cfg["count"]
         for i in range(count):
-            if accepts_slot:
-                problem = mod.generate_problem(band, rng, slot_index=i)
+            problem = None
+            for attempt in range(DEDUP_RETRY_MAX + 1):
+                if accepts_slot:
+                    candidate = mod.generate_problem(band, rng, slot_index=i)
+                else:
+                    candidate = mod.generate_problem(band, rng)
+                latex = candidate["problemLatex"]
+                if latex not in seen_latex:
+                    problem = candidate
+                    seen_latex.add(latex)
+                    break
             else:
-                problem = mod.generate_problem(band, rng)
+                # for-else: 全 retry 重複だったら最後の候補を許容（band_config 調整必須サイン）
+                problem = candidate
+                seen_latex.add(candidate["problemLatex"])
+                dedup_warn_count += 1
+                print(
+                    f"[WARN] rank {rank} band {band} q{i + 1}: "
+                    f"重複排除 {DEDUP_RETRY_MAX} 回 retry 失敗 → 重複を許容して採用 "
+                    f"(latex={candidate['problemLatex']!r})。"
+                    f"band_config の count > unique 上限の可能性。",
+                    file=sys.stderr,
+                )
             ok = mod.self_check(problem)
             if not ok:
                 failed_self_check += 1
@@ -110,6 +137,8 @@ def generate_for_rank(rank: int, seed: int) -> Dict[str, Any]:
         "rank": rank,
         "bands": bands,
         "count": len(out_problems),
+        "unique_latex": len(seen_latex),
+        "dedup_warn_count": dedup_warn_count,
         "failed_self_check": failed_self_check,
         "elapsed_sec": round(elapsed, 3),
         "problems": out_problems,
@@ -129,6 +158,9 @@ def print_summary(payload: Dict[str, Any]) -> None:
     print(f"=== rank {rank} ===")
     print(f"  bands           : {payload['bands']}")
     print(f"  total problems  : {payload['count']}")
+    print(f"  unique latex    : {payload.get('unique_latex', '?')}")
+    if payload.get("dedup_warn_count", 0) > 0:
+        print(f"  dedup WARNs     : {payload['dedup_warn_count']} (band_config の count を見直し推奨)")
     print(f"  failed selfcheck: {payload['failed_self_check']}")
     print(f"  elapsed         : {payload['elapsed_sec']} sec")
     # サンプル 3 問だけ表示
