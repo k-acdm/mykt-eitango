@@ -1895,6 +1895,38 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - **既知の minor 警告**: db_writer.py の `ws.update(range_str, rows, ...)` で gspread の DeprecationWarning。動作には影響なく、近い将来 `ws.update(values=rows, range_name=range_str)` に直す
 - **次回**: 拡充計画 優先度 A の残り（rank_02 平方根 / rank_03 因数分解）
 
+#### 156. 基礎計算 rank_03 を 30題 → 50題 に拡充（Phase 1 完了、dev `d938a90` / `6fe2fb3` / `<merge>`）
+- **背景**: 拡充計画 優先度 A の 2 つ目。rank_04 と異なり構造的バグはなく既存 30 問はクリーン。ふくちさんの教育的判断で「差の平方は思考量少なめ」を反映した **Band C サブパターンの内訳重み付け** が今回の特徴
+- **設計判断**（事前合意）:
+  - Band A: count 10 → 11（共通因数）/ Band B: 10 → 11（三項式）— 中3 因数分解の核心、ほぼ均等
+  - Band C: 10 → 28（差の平方/完全平方）— 内訳 **diff=6 / perfect_pos=11 / perfect_neg=11**
+  - const_max を全 Band で 9 → 12（紙教材準拠、rank_04 と整合）
+- **コード変更** ([rank_03_factorization.py](scripts/generate_kiso_questions/rank_03_factorization.py) / [band_config.py](scripts/generate_kiso_questions/common/band_config.py)):
+  - 旧 `_gen_diff_or_perfect_square`（3 パターンランダム選択）を廃止
+  - 3 つの独立 generator を新設: `_gen_diff_squares` / `_gen_perfect_square_pos` / `_gen_perfect_square_neg`
+  - サブパターン dispatcher `_resolve_band_c_subkind(slot_index, subcounts)` を新設。**比率を rng の偶然に依存させず slot_index で決定論的に固定**
+  - `generate_problem(band, rng, slot_index=0)` 化（既存 main.py の slot_index 機構を流用、rank_10 と同じパターン）
+  - band_config rank=3 に `subcounts={"diff":6, "perfect_pos":11, "perfect_neg":11}` を追加
+- **検証結果**:
+  - `python main.py` で rank_03: 50/50 unique / 0 failed / 0 dedup_warn
+  - 全 20 rank で 640/640 unique（rank 3, 4 が 50、他 18 rank が 30）
+  - Node 検証スクリプト（`out/_verify_phase1.mjs`）に T5（rank_03 サマリ + Band C 内訳）と T6（Band A 共通因数の最簡化 gcd(b,c)=1, |a|≥2）を追加 → **216 PASS / 0 FAIL**
+- **Phase 4 投入手順**:
+  1. `diagnoseRank3InProgress` / `abandonRank3InProgress` ショートカット 2 関数を追加（dev `6fe2fb3`、汎用関数は無修正の薄いラッパー）
+  2. diagnose で 3 件の in_progress を検出: sid=24027 (BP) 1件、sid=24009 (サソリ) 2件、すべて 4/27〜28 の放置セッション
+  3. `abandonRank3InProgress()` で 3 件すべて 'abandoned' に書き換え、verified={ ok: 3, ng: 0 } @ 2026-04-30 05:42:35
+  4. `python -m common.db_writer` で 640 行を一括投入（dry-run → 本番、全置換モード）
+  5. gspread post-verification（`out/_verify_phase4_post.py` を rank_03 対応に拡張）:
+     - 全 rank 行数一致（rank 3 = 50、rank 4 = 50、他 18 rank = 30）/ 合計 640 行
+     - questionId / problemLatex とも重複ゼロ
+     - Band C サブパターン内訳: diff=6 / perfect_pos=11 / perfect_neg=11 / ? = 0 ✓
+     - rank_03 サンプル: q_03_000001 `-30x - 12y = -6(5x + 2y)` 〜 q_03_000050（Band 別に並ぶ）
+- **既存挙動の温存**:
+  - `factored_pair_latex` 本体は無修正（rank_03 既存ロジックは `sorted([m,n])` で正規化済）
+  - Band A の符号正規化（leading 項を正に）は既存通り
+  - `self_check` は既に 3 サブパターン kind を処理済みで無修正
+- **次回**: 拡充計画 優先度 A の残り（rank_02 平方根）/ あるいは優先度 B（rank_05〜08）
+
 ---
 
 ## 基礎計算 問題プール拡充計画
