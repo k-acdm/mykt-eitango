@@ -597,6 +597,27 @@
     .mykt-overlay-btns .btn-cancel { background: #e5e7eb; color: #374151; }
     /* 採点中ドット（点々増減アニメ） */
     .grading-dots { display: inline-block; min-width: 24px; text-align: left; }
+
+    /* ============================================== */
+    /* 英語リスオン（lison）                           */
+    /* ============================================== */
+    /* リスのマスコット吹き出し（共通） — 既存 .kiso-mascot-msg を踏襲しつつリスオン専用に色味を調整 */
+    .lison-mascot-row { display: flex; gap: 12px; align-items: center; background: linear-gradient(135deg, #eef9f3, #d6f0e3); border: 2px solid #34a884; border-radius: 14px; padding: 12px 14px; margin: 12px 0; box-shadow: 0 3px 10px rgba(52,168,132,.18); }
+    .lison-mascot-row .mascot-img { width: 64px; height: 64px; border-radius: 50%; flex: 0 0 auto; object-fit: contain; background: rgba(255,255,255,.65); padding: 4px; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+    .lison-mascot-row .mascot-bubble { flex: 1; font-size: 15px; font-weight: bold; color: #14532d; line-height: 1.55; }
+    /* 級選択画面 */
+    .lison-level-list { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 14px; }
+    .lison-level-btn { width: 100%; padding: 16px 18px; background: linear-gradient(135deg,#1e3c72,#2a5298); color: #fff; border: none; border-radius: 14px; font-size: 17px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(30,60,114,.28); display: flex; align-items: center; gap: 12px; text-align: left; transition: transform .12s; }
+    .lison-level-btn:hover:not(:disabled) { opacity: .94; transform: translateY(-1px); }
+    .lison-level-btn:disabled { opacity: .55; cursor: default; }
+    .lison-level-btn .lv-name { flex: 1; font-size: 18px; }
+    .lison-level-btn .lv-hp { background: rgba(255,255,255,.22); border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: bold; }
+    .lison-level-btn.lv-4    { background: linear-gradient(135deg,#10b981,#059669); }
+    .lison-level-btn.lv-3    { background: linear-gradient(135deg,#3b82f6,#2563eb); }
+    .lison-level-btn.lv-pre2 { background: linear-gradient(135deg,#8b5cf6,#7c3aed); }
+    .lison-level-btn.lv-2    { background: linear-gradient(135deg,#f59e0b,#d97706); }
+    .lison-level-btn.lv-pre1 { background: linear-gradient(135deg,#ef4444,#dc2626); }
+    .lison-total-badge { display: inline-block; background: linear-gradient(135deg,#fef3c7,#fde68a); color: #92400e; border: 2px solid #f59e0b; border-radius: 999px; padding: 5px 14px; font-size: 13px; font-weight: bold; margin: 0 0 10px; box-shadow: 0 2px 6px rgba(245,158,11,.2); }
   </style>
 
   <!-- MathJax v3（基礎計算 §4.5 の問題表示で利用。動的描画は MathJax.typesetPromise() で再描画） -->
@@ -719,8 +740,8 @@
           <span class="ico">🧮</span>基礎計算
           <span class="content-btn-sub">小学校高学年〜中学生</span>
         </button>
-        <button class="content-btn c-lison disabled" onclick="showComingSoon('英語リスオン')">
-          <span class="badge-soon">準備中</span>
+        <button class="content-btn c-lison" onclick="showLisonRankSelect()">
+          <span class="badge-hp">100〜200HP/日</span>
           <img class="ico-mascot" src="images/lison-icon.png" alt="">英語リスオン
           <span class="content-btn-sub">英語長文リスニング＆音読</span>
         </button>
@@ -1327,6 +1348,24 @@
     <img src="character.jpg" alt="マイカツ君"/>
     <div class="kiso-grading-msg">マイカツ君が答えをチェック中…<span class="grading-dots" id="kiso-grading-dots">...</span></div>
     <div class="kiso-grading-sub">少し時間がかかる場合があります</div>
+  </div>
+</div>
+
+<!-- ============================================== -->
+<!-- 英語リスオン（lison）                           -->
+<!-- ============================================== -->
+<!-- 級選択画面 -->
+<div id="screen-lison-rank" class="screen">
+  <header><h1><img src="images/lison-icon.png" alt="" style="height:32px;vertical-align:middle;background:rgba(255,255,255,.18);border-radius:8px;padding:3px;margin-right:6px"> 英語リスオン</h1><span>級を選んでね</span></header>
+  <div class="container" style="padding-top:16px">
+    <div style="text-align:center"><span class="lison-total-badge">100〜200HP/日</span></div>
+    <div class="lison-mascot-row">
+      <img class="mascot-img" src="images/lison-icon.png" alt="リス">
+      <div class="mascot-bubble">どの級にちょうせんする？<br><small style="font-weight:normal;color:#3f6b56">毎週月曜日に新しい英文に切り替わるよ🐿️</small></div>
+    </div>
+    <div id="lison-level-list" class="lison-level-list"></div>
+    <div id="lison-rank-msg" class="msg" style="display:none"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">← ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -2078,6 +2117,7 @@
     _studentId = null; _questions = []; _score = 0; _current = 0;
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
+    try { _lisonResetState(); } catch(e){}
     _hideSubmitPending(); _hideSubmitError(); _hideWabun1Grading();
     try { document.getElementById('login-id').value = ''; } catch(e){}
     showScreen('screen-login');
@@ -3555,6 +3595,116 @@
     // 途中式写真の送信を終わらせて、解答の撮影案内画面へ
     _renderKisoAnswerIntro();
     showScreen('screen-kiso-answer-intro');
+  }
+
+  // =====================================================
+  // 英語リスオン（lison）
+  // =====================================================
+  // セッション中の状態。各 Step を進めるたびに更新。
+  // doLogout でリセットする（後続コミットで対応）。
+  var _lisonState = {
+    level: null,                // '4' / '3' / 'pre2' / '2' / 'pre1'
+    levelDef: null,             // LISON_LEVEL_DEFS の該当エントリ
+    content: null,              // { weekStart, level, englishText, japaneseText, questions:[3] }
+    step1Played: false,
+    step2Played: false,
+    quizAnswers: [null, null, null],
+    recordingBlob: null,
+    recordingMime: '',
+    recordingDurationMs: 0,
+    mediaRecorder: null,
+    mediaStream: null,
+    recordedChunks: [],
+    recordingStartMs: 0,
+    recordingTimer: null
+  };
+  // レベル定義。useTF=false は ○/✖（4 級）、true は T/F（3 級以上）
+  var LISON_LEVEL_DEFS = [
+    { code: '4',    label: '4級',   baseHp: 100, useTF: false, cls: 'lv-4'    },
+    { code: '3',    label: '3級',   baseHp: 100, useTF: true,  cls: 'lv-3'    },
+    { code: 'pre2', label: '準2級', baseHp: 100, useTF: true,  cls: 'lv-pre2' },
+    { code: '2',    label: '2級',   baseHp: 200, useTF: true,  cls: 'lv-2'    },
+    { code: 'pre1', label: '準1級', baseHp: 200, useTF: true,  cls: 'lv-pre1' }
+  ];
+  function _lisonLevelDef(code) {
+    for (var i = 0; i < LISON_LEVEL_DEFS.length; i++) if (LISON_LEVEL_DEFS[i].code === code) return LISON_LEVEL_DEFS[i];
+    return null;
+  }
+  function _lisonEsc(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function _lisonResetState() {
+    _lisonStopRecordingHard();
+    _lisonState.level = null;
+    _lisonState.levelDef = null;
+    _lisonState.content = null;
+    _lisonState.step1Played = false;
+    _lisonState.step2Played = false;
+    _lisonState.quizAnswers = [null, null, null];
+    _lisonState.recordingBlob = null;
+    _lisonState.recordingMime = '';
+    _lisonState.recordingDurationMs = 0;
+    _lisonState.recordedChunks = [];
+  }
+  // 録音ストリームを完全停止。次コミットで使うが先に定義して安全に呼べるようにする。
+  function _lisonStopRecordingHard() {
+    try { if (_lisonState.recordingTimer) { clearInterval(_lisonState.recordingTimer); _lisonState.recordingTimer = null; } } catch(e){}
+    try { if (_lisonState.mediaRecorder && _lisonState.mediaRecorder.state !== 'inactive') _lisonState.mediaRecorder.stop(); } catch(e){}
+    try {
+      if (_lisonState.mediaStream) {
+        _lisonState.mediaStream.getTracks().forEach(function(t){ try { t.stop(); } catch(e){} });
+      }
+    } catch(e){}
+    _lisonState.mediaRecorder = null;
+    _lisonState.mediaStream = null;
+  }
+
+  // -----------------------------------------------------
+  // 級選択画面
+  // -----------------------------------------------------
+  function showLisonRankSelect() {
+    _lisonResetState();
+    var listEl = document.getElementById('lison-level-list');
+    var msgEl  = document.getElementById('lison-rank-msg');
+    if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
+    var html = '';
+    LISON_LEVEL_DEFS.forEach(function(d){
+      html += '<button class="lison-level-btn ' + d.cls + '" onclick="selectLisonLevel(\'' + d.code + '\')">'
+            +   '<span class="lv-name">' + _lisonEsc(d.label) + '</span>'
+            +   '<span class="lv-hp">' + d.baseHp + 'HP</span>'
+            + '</button>';
+    });
+    listEl.innerHTML = html;
+    showScreen('screen-lison-rank');
+  }
+
+  function selectLisonLevel(code) {
+    var def = _lisonLevelDef(code);
+    if (!def) return;
+    _lisonState.level = code;
+    _lisonState.levelDef = def;
+    var msgEl = document.getElementById('lison-rank-msg');
+    msgEl.textContent = '⏳ 今週のコンテンツを読み込み中...';
+    msgEl.className = 'msg info';
+    msgEl.style.display = 'block';
+    // 級選択は読み取り系なので cachedGasGet で 5 分キャッシュに乗せる（ふくちさんが LisonContents を更新したら、生徒側は最大 5 分のラグ）
+    cachedGasGet({ action:'getLisonContent', level: code }).then(function(res){
+      if (!res || !res.ok) {
+        msgEl.textContent = (res && res.message) || 'このレベルの今週分はまだ準備中だよ。先生に聞いてみてね！';
+        msgEl.className = 'msg ng';
+        return;
+      }
+      _lisonState.content = res;
+      msgEl.style.display = 'none';
+      // Phase 1-B Step 1〜6 は後続コミットで実装
+      // 一旦は取得結果を簡易表示してホームに戻る
+      var qCount = (res.questions && res.questions.length) || 0;
+      alert('✅ コンテンツ取得成功（' + def.label + '）\n週: ' + (res.weekStart || '?') + '\n英文 ' + (res.englishText || '').length + ' 文字 / 設問 ' + qCount + ' 問\n\n※ Step 1〜6（聴く→クイズ→録音→送信）の画面は次コミットで実装します。');
+    }).catch(function(err){
+      msgEl.textContent = '通信エラー：ネットワークが不安定な可能性があります。少し待ってからもう一度お試しください。';
+      msgEl.className = 'msg ng';
+      try { console.warn('[lison] getLisonContent error', err); } catch(e){}
+    });
   }
 
   function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
