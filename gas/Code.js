@@ -4985,10 +4985,16 @@ function _normalizeWabun1(s) {
   t = t.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(ch){
     return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
   });
-  // 2. 類似句読点・記号を半角に統一
-  //    注意: 全角句点「。」は punctMap に含めない（日本文末記号として保持）
+  // 2. 日本語の句読点（、 。）を削除（仕様：装飾的要素として判定対象外）
+  //    「、」(U+3001) と「。」(U+3002) は日本語問題で必須でないため、有無を判定に
+  //    影響させない。英語の「,」(U+002C) と「.」(U+002E) は引き続き厳格判定。
+  //    全角コンマ「，」(U+FF0C) と全角ピリオド「．」(U+FF0E) は次の punctMap で
+  //    半角化（日本語 IME での全角混入を英語句読点として救済）。
+  t = t.replace(/[、。]/g, '');
+  // 3. 類似句読点・記号を半角に統一
+  //    （「、」「。」は前段で削除済みなので punctMap には含めない）
   const punctMap = {
-    '，': ',', '、': ',',
+    '，': ',',
     '．': '.',
     '？': '?', '！': '!',
     '：': ':', '；': ';',
@@ -5000,7 +5006,7 @@ function _normalizeWabun1(s) {
     '‘': "'", '’': "'",  // ‘ ’
     'ー': '-', '−': '-', '－': '-', '‐': '-', '‑': '-', '–': '-', '—': '-'
   };
-  t = t.replace(/[，、．？！：；（）［］｛｝「」『』“”‘’ー−－‐‑–—]/g, function(ch){
+  t = t.replace(/[，．？！：；（）［］｛｝「」『』“”‘’ー−－‐‑–—]/g, function(ch){
     return punctMap[ch] || ch;
   });
   // 3. すべての空白文字を削除（半角/全角スペース・タブ・改行・その他 Unicode 空白）
@@ -5046,12 +5052,15 @@ function _parseWabun1Work(text) {
 // =============================================
 // 不正解理由の自動分類（採点結果画面で生徒に表示）
 // =============================================
-// 戻り値: { type: 'no_answer'|'contraction'|'period_missing'|'fullstop_missing'
+// 戻り値: { type: 'no_answer'|'contraction'|'period_missing'
 //          |'comma_missing'|'case_mismatch'|'spelling'|'other',
 //          message: 生徒向け自然言語 }
 //
-// 優先順は CLAUDE.md「採点正規化関数の仕様 / feedbackType 8 分類」を参照。
+// 優先順は CLAUDE.md「採点正規化関数の仕様 / feedbackType 7 分類」を参照。
 // 上から判定して最初に該当したものを返す。
+// 注: 旧 fullstop_missing は _normalizeWabun1 で「。」を削除する仕様変更
+//     （日本語句読点を判定対象外にする 2026-04-30 修正）に伴い廃止。
+//     「。」が両方の文字列から削除されるため、末尾「。」抜けは correct 扱いに。
 function _wabun1ClassifyFeedback(studentRaw, studentNorm, correctRaw, correctNorm, divergeAt) {
   // 1. no_answer: 生徒の答えが空（OCR で読み取れず or パースで取れず）
   if (!studentNorm || studentNorm.length === 0) {
@@ -5063,28 +5072,26 @@ function _wabun1ClassifyFeedback(studentRaw, studentNorm, correctRaw, correctNor
   if (contractionRe.test(String(studentRaw || '')) && !contractionRe.test(String(correctRaw || ''))) {
     return { type: 'contraction', message: '短縮形（don\'t や isn\'t など）はここでは使えません' };
   }
-  // 3. period_missing: 末尾の半角ピリオドが抜けている
+  // 3. period_missing: 末尾の半角ピリオドが抜けている（英語問題のみ。日本語の「。」は
+  //    _normalizeWabun1 で両方から削除されるためここに到達しない）
   if (studentNorm + '.' === correctNorm) {
     return { type: 'period_missing', message: '末尾のピリオド「.」が抜けています' };
   }
-  // 4. fullstop_missing: 末尾の全角句点が抜けている
-  if (studentNorm + '。' === correctNorm) {
-    return { type: 'fullstop_missing', message: '末尾の句点「。」が抜けています' };
-  }
-  // 5. comma_missing: カンマ全削除で一致 + 正解側のほうがカンマが多い
+  // 4. comma_missing: カンマ全削除で一致 + 正解側のほうがカンマが多い（英語問題のみ。
+  //    日本語の「、」は _normalizeWabun1 で両方から削除されるため誤分類されない）
   const stripComma = function(s){ return String(s || '').replace(/,/g, ''); };
   const studentCommaCount = (studentNorm.match(/,/g) || []).length;
   const correctCommaCount = (correctNorm.match(/,/g) || []).length;
   if (correctCommaCount > studentCommaCount && stripComma(studentNorm) === stripComma(correctNorm)) {
     return { type: 'comma_missing', message: 'カンマ「,」が抜けています' };
   }
-  // 6. case_mismatch: 大文字小文字を無視すれば一致
+  // 5. case_mismatch: 大文字小文字を無視すれば一致
   if (studentNorm.length === correctNorm.length
       && studentNorm.toLowerCase() === correctNorm.toLowerCase()
       && studentNorm !== correctNorm) {
     return { type: 'case_mismatch', message: '大文字・小文字が違います' };
   }
-  // 7. spelling: divergeAt > 1 かつ長さの差が 5 以下（おおむね同じ長さで部分的に違う）
+  // 6. spelling: divergeAt > 1 かつ長さの差が 5 以下（おおむね同じ長さで部分的に違う）
   //    位置は「文の前半 / 中ほど / 後半」の大まか表現で示す
   const lenDiff = Math.abs(studentNorm.length - correctNorm.length);
   if (divergeAt > 1 && lenDiff <= 5) {
@@ -5095,7 +5102,7 @@ function _wabun1ClassifyFeedback(studentRaw, studentNorm, correctRaw, correctNor
     else                                  pos = '文の後半';
     return { type: 'spelling', message: pos + 'にスペルミスの可能性があります' };
   }
-  // 8. other: 上記いずれにも当てはまらない
+  // 7. other: 上記いずれにも当てはまらない
   return { type: 'other', message: '正解と違う部分があります。もう一度確認してください' };
 }
 
