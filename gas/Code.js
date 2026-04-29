@@ -332,6 +332,10 @@ function doGet(e) {
       else if (action === 'getKisoRetryQuestions')   result = getKisoRetryQuestions(params.sessionId);
       else if (action === 'getKisoTodayRawHP')       result = getKisoTodayRawHP(params);
       else if (action === 'getKisoPhotosList')       result = getKisoPhotosList(params);
+      // ※ ここにリスオン関連（getLisonContent, submitLison）のルーティングを必ず残す。
+      //   Phase 1-A コミット 71b8c93 で追加。過去に管理画面リファクタ作業で巻き込まれて
+      //   消えかけ、ふくちさん側の clasp push が古いまま実機テストで「録音送信が失敗する」
+      //   症状を起こした実績あり（2026-04-29）。両ルーティングはセットで保持すること。
       else if (action === 'getLisonContent')         result = getLisonContent(params.level);
       else if (action === 'submitLison')              result = submitLison(params);
       else if (action === 'ping')             result = { ok: true };
