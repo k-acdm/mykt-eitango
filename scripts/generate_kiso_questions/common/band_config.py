@@ -120,14 +120,18 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "B": {"count": 10, "kind": "two_by_two_general", "coef_max": 5, "const_max": 6},
         "C": {"count": 10, "kind": "trinomial_by_binomial", "coef_max": 3, "const_max": 5},
     },
-    # 4級：乗法公式
+    # 4級：乗法公式（フェーズ1: 50題化、2026-04-30）
+    # A: (x+a)(x+b) — Band A の (a,b) は数値昇順に正規化済（rank_04_expansion._gen_type_xab）
+    # B: (x+a)^2 / (x-a)^2
+    # C: (x+a)(x-a)
+    # const_max=12 は中3 乗法公式の典型範囲（紙教材準拠）。
+    # unique pool: A 全 24*23/2=276（順序統一後）、B 24、C 12。
+    # 配分は紙教材の難易度比率に沿って A=45% / B=35% / C=20%。
+    # TODO_PHASE2: 100題化。const_max=15 や Band D 新設で対応。
     4: {
-        # A: (x+a)(x+b)
-        # B: (x+a)^2 / (x-a)^2
-        # C: (x+a)(x-a)
-        "A": {"count": 10, "kind": "type_xab", "const_max": 9},
-        "B": {"count": 10, "kind": "type_square", "const_max": 9},
-        "C": {"count": 10, "kind": "type_diff_squares", "const_max": 9},
+        "A": {"count": 23, "kind": "type_xab", "const_max": 12},
+        "B": {"count": 17, "kind": "type_square", "const_max": 12},
+        "C": {"count": 10, "kind": "type_diff_squares", "const_max": 12},
     },
     # 3級：因数分解
     3: {
