@@ -2246,6 +2246,24 @@ function _kisoNormalize(s) {
   // √ 系記号を \sqrt{n} に統一（OCR で V や ν と誤読される場合があるが、本処理の範囲外）
   t = t.replace(/[√✓]\s*\{([^}]+)\}/g, '\\sqrt{$1}');     // √{15} → \sqrt{15}
   t = t.replace(/[√✓]\s*([0-9]+)/g, '\\sqrt{$1}');         // √15 → \sqrt{15}
+
+  // 指数表記の統一（rank3/4/5/7 の x^{n} canonical と Gemini OCR の x^n を一致させる）
+  // ① Unicode 上付き数字を caret 形式へ：x² → x^2、x¹⁰ → x^10
+  //   生徒が紙に書いた x² を OCR が ² のまま返してくるケースを救済。
+  //   _kisoNormalize 共通の規則として、入る前の表記揺れをすべて x^N に揃える。
+  t = t.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, function(seq) {
+    const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+    let out = '';
+    for (let i = 0; i < seq.length; i++) {
+      const idx = SUP.indexOf(seq[i]);
+      out += (idx >= 0) ? String(idx) : seq[i];
+    }
+    return '^' + out;
+  });
+  // ② LaTeX 形式 x^{n} → x^n（poly_latex / square_factor_latex の生成形を caret に統一）
+  //   例：x^{2} → x^2、(x + 3)^{2} → (x + 3)^2、x^{10} → x^10、x^{-2} → x^-2
+  //   Gemini OCR は「指数は ^ を使う」プロンプトで x^2 を返すため、両者の形を揃える。
+  t = t.replace(/\^\{(-?\d+)\}/g, '^$1');
   // 空白の連続を 1 つに圧縮
   t = t.replace(/[ \t]+/g, ' ');
   // 行末の改行は空白に統一
@@ -2854,6 +2872,10 @@ function _saveKisoPhoto(studentId, sessionId, rank, count, imageBase64) {
     const fileName = sid + '_' + rank + '_' + sessionId + '.jpg';
     const file = folder.createFile(blob).setName(fileName);
     const fileId = file.getId();
+    // 過去セッション閲覧（Mode B）でフロント側 <img> から表示できるよう ANYONE_WITH_LINK で公開。
+    // URL を知る本人のみが閲覧可能（fileId はランダム + 15 日で自動削除のためリスク許容）。
+    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
+    catch (e) { console.warn('[_saveKisoPhoto setSharing failed]', e); }
     const shareUrl = file.getUrl();
 
     // KisoPhotos シートに記録（解答用紙: photoType='answer' / photoIndex=1）
@@ -2912,6 +2934,9 @@ function _saveKisoWorkPhoto(studentId, sessionId, rank, count, imageBase64, phot
     const fileName = sid + '_' + rank + '_' + sessionId + '_work' + idx + '.jpg';
     const file = folder.createFile(blob).setName(fileName);
     const fileId = file.getId();
+    // _saveKisoPhoto と揃えて ANYONE_WITH_LINK で公開（Mode B 閲覧用）
+    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
+    catch (e) { console.warn('[_saveKisoWorkPhoto setSharing failed]', e); }
     const shareUrl = file.getUrl();
 
     const sh = _ensureKisoPhotosSheet();
@@ -3404,6 +3429,10 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
         no: i + 1,
         questionId: qid,
         problemLatex: p ? p.problemLatex : '',
+        // answerCanonical を含める（Mode B 過去セッション閲覧で使用）。
+        // startKisoSession のレスポンスには載せない（未提出時に正解漏洩を避けるため）が、
+        // 提出後は採点結果と一緒に返してフロントで localStorage 保存 → Mode B で表示。
+        answerCanonical: p ? p.answerCanonical : '',
         studentAnswer: studentText,
         correct: correct
       });
@@ -5196,17 +5225,35 @@ function submitWabun1(params) {
       const correctNorm = _normalizeWabun1(topic.answers[idx]);
       const correct = correctNorm !== '' && studentNorm === correctNorm;
       // 診断ログ：判定失敗時に正規化後文字列を Apps Script ログに残す。
-      // 「改行のはずなのに ❌」「ピリオド見落としで ❌」など真因切り分けに使う。
+      // 「改行のはずなのに ❌」「ピリオド見落としで ❌」「不可視文字混入で ❌」など真因切り分け用。
+      // 同じ症状が再発したら GAS Executions → 該当 submitWabun1 実行 → このログを読めば
+      // 「どこで」「どう」違うかが即わかる。CLAUDE.md「採点正規化関数の仕様」セクション参照。
       if (!correct && correctNorm !== '') {
         let divergeAt = 0;
         while (divergeAt < studentNorm.length && divergeAt < correctNorm.length
                && studentNorm.charCodeAt(divergeAt) === correctNorm.charCodeAt(divergeAt)) divergeAt++;
+        // divergeAt 周辺の char code を 16 進で取得（不可視文字や全角半角の差分を検出）
+        const codeAtStudent = (divergeAt < studentNorm.length)
+          ? 'U+' + studentNorm.charCodeAt(divergeAt).toString(16).toUpperCase().padStart(4, '0')
+          : '(end)';
+        const codeAtCorrect = (divergeAt < correctNorm.length)
+          ? 'U+' + correctNorm.charCodeAt(divergeAt).toString(16).toUpperCase().padStart(4, '0')
+          : '(end)';
+        const trunc = function(s, n) {
+          const str = String(s == null ? '' : s);
+          return str.length <= n ? str : str.substring(0, n) + '...(' + str.length + ')';
+        };
         console.log('[submitWabun1 ❌]'
           + ' sid=' + sid
           + ' no=' + t.no
           + ' divergeAt=' + divergeAt
-          + ' student=' + JSON.stringify(studentNorm)
-          + ' correct=' + JSON.stringify(correctNorm));
+          + ' codeStudent=' + codeAtStudent
+          + ' codeCorrect=' + codeAtCorrect
+          + ' studentNorm=' + JSON.stringify(studentNorm)
+          + ' correctNorm=' + JSON.stringify(correctNorm)
+          + ' parsedRaw='   + JSON.stringify(trunc(parsed[t.no], 200))
+          + ' canonicalRaw=' + JSON.stringify(trunc(topic.answers[idx], 200))
+          + ' workTextRaw=' + JSON.stringify(trunc(workText, 300)));
       }
       return { no: t.no, correct: correct };
     });

@@ -565,6 +565,42 @@
     .kiso-practice-banner p { font-size: 14px; color: #4c1d95; line-height: 1.85; }
 
     /* 採点中 overlay（マイカツ君） */
+    /* 基礎計算：過去セッション再表示 */
+    .kiso-past-section { background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 12px; padding: 12px 14px; margin: 16px 0 14px; }
+    .kiso-past-title { font-size: 13px; font-weight: bold; color: #475569; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .kiso-past-btns { display: flex; gap: 10px; }
+    .kiso-past-btn { flex: 1; padding: 12px 8px; border: 2px solid; border-radius: 10px; background: #fff; cursor: pointer; font-weight: bold; text-align: center; transition: transform .12s; line-height: 1.4; }
+    .kiso-past-btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .kiso-past-btn:disabled { cursor: default; }
+    .kiso-past-btn-label { display: block; font-size: 14px; }
+    .kiso-past-btn-badge { display: inline-block; font-size: 11px; margin-top: 5px; padding: 2px 8px; border-radius: 999px; font-weight: bold; }
+    .kiso-past-btn.unsent { color: #92400e; border-color: #f59e0b; background: #fffbeb; }
+    .kiso-past-btn.unsent .kiso-past-btn-badge { background: #f59e0b; color: #fff; }
+    .kiso-past-btn.graded { color: #047857; border-color: #10b981; background: #ecfdf5; }
+    .kiso-past-btn.graded .kiso-past-btn-badge { background: #10b981; color: #fff; }
+    .kiso-past-btn.empty { color: #9ca3af; border-color: #d1d5db; background: #f3f4f6; cursor: default; }
+    .kiso-past-btn.empty .kiso-past-btn-badge { background: #9ca3af; color: #fff; }
+    /* Mode A 再開バッジ（問題画面の上部） */
+    .kiso-resume-banner { background: linear-gradient(135deg,#fef3c7,#fde68a); border: 2px solid #f59e0b; border-radius: 10px; padding: 10px 14px; margin: 0 0 12px; color: #92400e; font-weight: bold; font-size: 14px; text-align: center; line-height: 1.5; }
+    /* Mode B 閲覧画面 */
+    .kiso-review-summary { background: linear-gradient(135deg,#ecfdf5,#d1fae5); border: 2px solid #10b981; border-radius: 12px; padding: 12px 14px; margin: 4px 0 14px; text-align: center; color: #047857; font-weight: bold; }
+    .kiso-review-summary.failed { background: linear-gradient(135deg,#fef2f2,#fee2e2); border-color: #ef4444; color: #b91c1c; }
+    .kiso-review-summary .kiso-review-title { font-size: 16px; margin-bottom: 4px; }
+    .kiso-review-summary .kiso-review-stats { font-size: 13px; font-weight: normal; color: #475569; }
+    .kiso-review-card { background: #fff; border-radius: 12px; padding: 14px 14px; margin: 10px 0; box-shadow: 0 2px 8px rgba(0,0,0,.06); border-left: 6px solid #cbd5e1; }
+    .kiso-review-card.correct { border-left-color: #10b981; background: #f0fdf4; }
+    .kiso-review-card.wrong { border-left-color: #ef4444; background: #fef2f2; }
+    .kiso-review-card .kiso-rev-no { display:inline-block; background:#1e3c72; color:#fff; border-radius:999px; width:26px; height:26px; line-height:26px; text-align:center; font-weight:bold; font-size:13px; margin-right:6px; }
+    .kiso-review-card .kiso-rev-mark { font-size:20px; vertical-align:middle; margin-left:6px; }
+    .kiso-rev-section { margin: 10px 0; }
+    .kiso-rev-label { display: block; font-size: 11px; font-weight: bold; color: #6b7280; letter-spacing: .5px; margin-bottom: 4px; }
+    .kiso-rev-problem { font-size: 16px; color: #1f2937; margin: 6px 0 10px; padding: 10px 12px; background: #f8fafc; border-radius: 8px; }
+    .kiso-rev-canonical { font-size: 16px; color: #047857; padding: 10px 12px; background: #ecfdf5; border-radius: 8px; border: 1px solid #a7f3d0; }
+    .kiso-rev-student-text { padding: 8px 12px; background: #fff; border: 1px dashed #cbd5e1; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 14px; color: #1f2937; }
+    .kiso-rev-photo-wrap { text-align: center; margin: 6px 0; }
+    .kiso-rev-photo-wrap img { max-width: 100%; max-height: 480px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.15); cursor: zoom-in; }
+    .kiso-rev-photo-fallback { padding: 16px; background: #f3f4f6; border: 1px dashed #d1d5db; border-radius: 8px; color: #9ca3af; font-size: 12px; text-align: center; }
+
     .kiso-grading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9000; display: none; align-items: center; justify-content: center; }
     .kiso-grading-overlay.active { display: flex; }
     .kiso-grading-card { background: #fff; border-radius: 16px; padding: 24px; max-width: 320px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
@@ -1254,6 +1290,7 @@
 <div id="screen-kiso-problem" class="screen">
   <header><h1>🧮 問題</h1><span id="kiso-problem-meta-label"></span></header>
   <div class="container" style="padding-top:16px">
+    <div id="kiso-resume-banner" class="kiso-resume-banner" style="display:none">📂 未送信のセッションを再開しています。<br>もう一度写真を撮影して提出してね。</div>
     <div class="kiso-problem-header">
       <span class="kiso-problem-title" id="kiso-problem-title"></span>
       <span class="kiso-problem-meta" id="kiso-problem-attempts"></span>
@@ -1295,6 +1332,13 @@
           <li>途中の計算式は<strong>別の紙</strong>に書く</li>
           <li>解答用紙には<strong>答えのみ</strong>を書く（連立方程式の <code>x=</code>, <code>y=</code> は答えなのでOK）</li>
         </ul>
+      </div>
+    </div>
+    <div id="kiso-past-section" class="kiso-past-section" style="display:none">
+      <div class="kiso-past-title">📚 過去のセッションを見直す（同じ単元）</div>
+      <div class="kiso-past-btns">
+        <button id="kiso-past-btn-1" class="kiso-past-btn" onclick="onKisoPastBtnClick(1)"></button>
+        <button id="kiso-past-btn-2" class="kiso-past-btn" onclick="onKisoPastBtnClick(2)"></button>
       </div>
     </div>
     <button class="btn-wide kiso-photo-btn" onclick="goKisoPreConfirm()">📷 写真を撮って提出する</button>
@@ -1443,6 +1487,16 @@
   <div class="container" style="padding-top:18px">
     <div id="kiso-done-body"></div>
     <button class="btn-wide" style="margin-top:18px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- 過去セッション閲覧画面（Mode B） -->
+<div id="screen-kiso-review" class="screen">
+  <header><h1>📚 採点済みセッション</h1><span id="kiso-review-meta"></span></header>
+  <div class="container" style="padding-top:14px">
+    <div id="kiso-review-summary"></div>
+    <div id="kiso-review-list"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="closeKisoReview()">← 戻る</button>
   </div>
 </div>
 
@@ -1765,6 +1819,15 @@
     return y + '-' + (m < 10 ? '0' + m : m) + '-' + (d < 10 ? '0' + d : d);
   }
   function _hpFlagKey(type) { return 'mykt_hp_' + (_studentId || '') + '_' + type + '_' + _todayKeyJST3am(); }
+  // 昨日の日付キー（_todayKeyJST3am と同じ JST 3 時境界）。基礎計算 過去セッション再表示で使う
+  function _yesterdayKeyJST3am() {
+    var now = new Date();
+    var jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
+    jst.setHours(jst.getHours() - 3);
+    jst.setDate(jst.getDate() - 1);
+    var y = jst.getFullYear(), m = jst.getMonth() + 1, d = jst.getDate();
+    return y + '-' + (m < 10 ? '0' + m : m) + '-' + (d < 10 ? '0' + d : d);
+  }
   // 和文英訳① 素点HP の日付分岐：2026-04-29 以降の教育日（JST 3 時区切り、4/29 当日含む）から 200、それ以前は 100
   // GAS submitWabun1 と同じ基準で揃える。
   function _wabun1BaseHp() { return (_todayKeyJST3am() >= '2026-04-29') ? 200 : 100; }
@@ -3296,6 +3359,255 @@
   };
   var _kisoGradingDotsTimer = null;
 
+  // =====================================================
+  // 過去セッション再表示（仕様書 Task 2、当日 + 前日のみ）
+  // =====================================================
+  // 単元 (rank) ごとに直近セッションを localStorage に保存。
+  // - mykt_kiso_recent_<rank> = [ { sessionId, rank, rankName, count, seenAt, seenDateKey,
+  //                                  questions:[...], submission:null|{...} } ]
+  // - 新しい順で arr[0] = 「現在進行中のセッション」、arr[1] = 「1つ前」、arr[2] = 「2つ前」
+  // - 当日 + 前日のエントリのみ残す（古いものは破棄）。上限 5 件で安全側
+  // - submission === null → Mode A（再開）、submission !== null → Mode B（閲覧）
+  var KISO_RECENT_MAX = 5;
+  function _kisoRecentKey(rank) { return 'mykt_kiso_recent_' + Number(rank || 0); }
+  function _kisoLoadRecentSessions(rank) {
+    if (!rank) return [];
+    try {
+      var raw = localStorage.getItem(_kisoRecentKey(rank));
+      var arr = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(arr)) return [];
+      // 当日 + 前日のみ残す
+      var today = _todayKeyJST3am();
+      var yest  = _yesterdayKeyJST3am();
+      arr = arr.filter(function(e){ return e && (e.seenDateKey === today || e.seenDateKey === yest); });
+      // 上限超過分を破棄
+      if (arr.length > KISO_RECENT_MAX) arr = arr.slice(0, KISO_RECENT_MAX);
+      return arr;
+    } catch(e) { return []; }
+  }
+  function _kisoSaveRecentSessions(rank, arr) {
+    try { localStorage.setItem(_kisoRecentKey(rank), JSON.stringify(arr || [])); } catch(e){}
+  }
+  // セッション開始直後に呼ぶ：localStorage の先頭に 1 件追加（submission は null）
+  // questions は startKisoSession のレスポンス (no, questionId, problemLatex)
+  function _kisoSaveSessionStart(sessionMeta) {
+    if (!sessionMeta || !sessionMeta.rank || !sessionMeta.sessionId) return;
+    var arr = _kisoLoadRecentSessions(sessionMeta.rank);
+    // 同じ sessionId が既にあれば差し替え（同じ問題セットを 2 度保存しないため）
+    arr = arr.filter(function(e){ return e.sessionId !== sessionMeta.sessionId; });
+    arr.unshift({
+      sessionId:    sessionMeta.sessionId,
+      rank:         sessionMeta.rank,
+      rankName:     sessionMeta.rankName || '',
+      count:        sessionMeta.count || 0,
+      seenAt:       Date.now(),
+      seenDateKey:  _todayKeyJST3am(),
+      questions:    sessionMeta.questions || [],
+      submission:   null
+    });
+    if (arr.length > KISO_RECENT_MAX) arr = arr.slice(0, KISO_RECENT_MAX);
+    _kisoSaveRecentSessions(sessionMeta.rank, arr);
+  }
+  // submitKisoAnswer 成功時に呼ぶ：該当 sessionId の submission を更新
+  function _kisoUpdateSessionSubmission(rank, sessionId, submissionData) {
+    if (!rank || !sessionId) return;
+    var arr = _kisoLoadRecentSessions(rank);
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i].sessionId === sessionId) {
+        arr[i].submission = submissionData;
+        break;
+      }
+    }
+    _kisoSaveRecentSessions(rank, arr);
+  }
+  // 問題画面で過去セッションボタン群を描画。現セッション (arr[0]) を除いて 1〜2 つ前を表示
+  function _kisoRenderPastButtons() {
+    var section = document.getElementById('kiso-past-section');
+    if (!section) return;
+    var rank = _kisoState.rank;
+    if (!rank) { section.style.display = 'none'; return; }
+    var arr = _kisoLoadRecentSessions(rank);
+    // 現セッションは arr[0] と仮定（_kisoSaveSessionStart で必ず先頭に挿入される）。
+    // 万一一致しない場合（古いセッションを再開した場合など）は sessionId で除外
+    var current = _kisoState.sessionId;
+    var past = arr.filter(function(e){ return e.sessionId !== current; });
+    var hasAny = past.length > 0;
+    section.style.display = hasAny ? 'block' : 'none';
+    if (!hasAny) return;
+    [1, 2].forEach(function(pos){
+      var btn = document.getElementById('kiso-past-btn-' + pos);
+      if (!btn) return;
+      var entry = past[pos - 1] || null;
+      btn.classList.remove('unsent', 'graded', 'empty');
+      btn.disabled = false;
+      if (!entry) {
+        btn.classList.add('empty');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="kiso-past-btn-label">' + pos + 'つ前</span>'
+                      + '<span class="kiso-past-btn-badge">該当なし</span>';
+        return;
+      }
+      var graded = !!entry.submission;
+      btn.classList.add(graded ? 'graded' : 'unsent');
+      btn.innerHTML = '<span class="kiso-past-btn-label">' + pos + 'つ前</span>'
+                    + '<span class="kiso-past-btn-badge">' + (graded ? '採点済み' : '未送信') + '</span>';
+    });
+  }
+  // ボタン押下時のディスパッチ
+  function onKisoPastBtnClick(pos) {
+    var rank = _kisoState.rank;
+    if (!rank) return;
+    var arr = _kisoLoadRecentSessions(rank);
+    var current = _kisoState.sessionId;
+    var past = arr.filter(function(e){ return e.sessionId !== current; });
+    var entry = past[pos - 1];
+    if (!entry) return;
+    if (entry.submission) {
+      _showKisoReview(entry, pos);
+    } else {
+      _resumeKisoSession(entry);
+    }
+  }
+
+  // -----------------------------------------------------
+  // Mode B：採点済みセッションの閲覧
+  // -----------------------------------------------------
+  // 戻る先を覚えておく（過去セッションボタンを押したのは screen-kiso-problem からなので、
+  // 戻るときは screen-kiso-problem に戻すのが自然）
+  var _kisoReviewReturnScreen = 'screen-kiso-problem';
+  function closeKisoReview() {
+    showScreen(_kisoReviewReturnScreen || 'screen-kiso-problem');
+  }
+  // Drive ファイルID から <img> で表示できる thumbnail URL を生成。
+  // ANYONE_WITH_LINK で公開された写真のみ表示可能（_saveKisoPhoto 改修以降）。
+  function _kisoDriveThumbnailUrl(fileId, sz) {
+    if (!fileId) return '';
+    var size = sz || 'w1200';
+    return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=' + size;
+  }
+  function _showKisoReview(entry, pos) {
+    if (!entry || !entry.submission) return;
+    _kisoReviewReturnScreen = 'screen-kiso-problem';
+    var sub = entry.submission;
+    var passed = !!sub.passed;
+    var total = Number(sub.total) || (sub.results ? sub.results.length : 0);
+    var correct = Number(sub.correctCount) || 0;
+    // メタ
+    var metaEl = document.getElementById('kiso-review-meta');
+    if (metaEl) metaEl.textContent = (entry.rankName || '') + '・' + entry.count + '題（' + pos + 'つ前）';
+    // サマリ
+    var summaryEl = document.getElementById('kiso-review-summary');
+    var pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+    var titleHtml = passed ? '🎉 合格したセッション' : '📝 不合格だったセッション';
+    var statsHtml = correct + ' / ' + total + ' 問正解（' + pct + '%）';
+    if (sub.hpInfo && sub.hpInfo.hpGained > 0) {
+      statsHtml += ' / +' + Number(sub.hpInfo.hpGained).toLocaleString() + 'HP 獲得';
+    } else if (sub.hpInfo && sub.hpInfo.isPractice) {
+      statsHtml += ' / 練習モード（HP上限到達）';
+    }
+    summaryEl.className = 'kiso-review-summary' + (passed ? '' : ' failed');
+    summaryEl.innerHTML = '<div class="kiso-review-title">' + titleHtml + '</div>'
+                       + '<div class="kiso-review-stats">' + _kisoEsc(statsHtml) + '</div>';
+    // 各問題のカード
+    var listEl = document.getElementById('kiso-review-list');
+    var photoFileId  = sub.photoFileId  || '';
+    var photoBlock = '';
+    if (photoFileId) {
+      var imgUrl = _kisoDriveThumbnailUrl(photoFileId, 'w1200');
+      var fallbackHtml = '<div class="kiso-rev-photo-fallback">📷 写真は表示できません<br>'
+                       + '<small>古いセッションの場合、リンク共有が設定されていない可能性があります</small></div>';
+      photoBlock = '<div class="kiso-rev-section">'
+                 +   '<span class="kiso-rev-label">📷 撮影した解答用紙</span>'
+                 +   '<div class="kiso-rev-photo-wrap">'
+                 +     '<img src="' + _kisoEsc(imgUrl) + '" alt="解答写真" '
+                 +     'onclick="window.open(this.src,\'_blank\')" '
+                 +     'onerror="this.outerHTML=' + JSON.stringify(fallbackHtml) + '">'
+                 +   '</div>'
+                 + '</div>';
+    } else {
+      photoBlock = '<div class="kiso-rev-section">'
+                 +   '<span class="kiso-rev-label">📷 撮影した解答用紙</span>'
+                 +   '<div class="kiso-rev-photo-fallback">📷 この提出には写真情報が残っていません</div>'
+                 + '</div>';
+    }
+    var results = sub.results || [];
+    var cardsHtml = results.map(function(r){
+      var ok = !!r.correct;
+      var mark = ok ? '⭕' : '❌';
+      var stu = r.studentAnswer != null && String(r.studentAnswer).trim() !== ''
+        ? _kisoEsc(r.studentAnswer)
+        : '<span style="color:#94a3b8">（読み取れず）</span>';
+      var problemTex   = '\\(' + String(r.problemLatex || '') + '\\)';
+      var canonicalTex = r.answerCanonical
+        ? '\\(' + String(r.answerCanonical) + '\\)'
+        : '<span style="color:#94a3b8">（正解情報なし）</span>';
+      return '<div class="kiso-review-card ' + (ok ? 'correct' : 'wrong') + '">'
+           +   '<div>'
+           +     '<span class="kiso-rev-no">' + (r.no || '') + '</span>'
+           +     '<span class="kiso-rev-mark">' + mark + '</span>'
+           +   '</div>'
+           +   '<div class="kiso-rev-section">'
+           +     '<span class="kiso-rev-label">問題</span>'
+           +     '<div class="kiso-rev-problem">' + problemTex + '</div>'
+           +   '</div>'
+           +   '<div class="kiso-rev-section">'
+           +     '<span class="kiso-rev-label">きみの答え（AI 読み取り）</span>'
+           +     '<div class="kiso-rev-student-text">' + stu + '</div>'
+           +   '</div>'
+           +   '<div class="kiso-rev-section">'
+           +     '<span class="kiso-rev-label">正解</span>'
+           +     '<div class="kiso-rev-canonical">' + canonicalTex + '</div>'
+           +   '</div>'
+           + '</div>';
+    }).join('');
+    listEl.innerHTML = photoBlock + cardsHtml;
+    showScreen('screen-kiso-review');
+    _kisoTypeset(listEl);
+  }
+
+  // -----------------------------------------------------
+  // Mode A：未送信セッションの再開
+  // -----------------------------------------------------
+  // localStorage に保存された問題セットをそのまま復元し、新規写真撮影 → submit のフローを再実行。
+  // 写真は再撮影必須（前回撮影分は端末側にもサーバ側にも保持していないため、技術的に必然）。
+  // 同じ sessionId を再利用するため、GAS 側 KisoSessions の attempts=0 状態の行に対して
+  // 通常の submitKisoAnswer 経路（初回提出扱い）が走る。
+  function _resumeKisoSession(entry) {
+    if (!entry || !entry.sessionId) return;
+    var ok = confirm(
+      '未送信のセッションを再開しますか？\n\n' +
+      '・問題セットは前回と同じものを表示します\n' +
+      '・写真は最初から撮影し直しになります\n' +
+      '・通常の提出と同じく合否判定 + HP 獲得があります'
+    );
+    if (!ok) return;
+    // _kisoState を localStorage から復元
+    _kisoState.sessionId       = entry.sessionId;
+    _kisoState.rank            = Number(entry.rank) || _kisoState.rank;
+    _kisoState.rankName        = String(entry.rankName || '');
+    _kisoState.count           = Number(entry.count) || (entry.questions ? entry.questions.length : 0);
+    _kisoState.questions       = entry.questions || [];
+    _kisoState.isRetry         = false;
+    _kisoState.attempts        = 0;
+    _kisoState.isResumed       = true;
+    _kisoState.photoBase64     = '';
+    _kisoState.hasWorkPhoto    = false;
+    _kisoState.workPhotoBase64 = '';
+    _kisoState.workPhotoIndex  = 0;
+    // selected も復元（_renderKisoResult のメタ表示で使う）
+    var def = null;
+    for (var i = 0; i < KISO_RANK_DEFS.length; i++) {
+      if (Number(KISO_RANK_DEFS[i].rank) === Number(_kisoState.rank)) { def = KISO_RANK_DEFS[i]; break; }
+    }
+    _kisoState.selected = def;
+    // ヘッダー再描画
+    document.getElementById('kiso-problem-title').textContent = (def ? def.no + '. ' + def.name : (_kisoState.rankName || ''));
+    document.getElementById('kiso-problem-attempts').textContent = '';
+    document.getElementById('kiso-problem-meta-label').textContent = _kisoState.rank + '級・' + _kisoState.count + '題';
+    _renderKisoProblemList();
+    showScreen('screen-kiso-problem');
+  }
+
   function _kisoEsc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -3432,10 +3744,19 @@
       _kisoState.questions = res.questions || [];
       _kisoState.isRetry   = false;
       _kisoState.attempts  = 0;
+      _kisoState.isResumed = false;  // 通常開始（Mode A 再開ではない）
       // 新フロー：途中式関連 state を初期化
       _kisoState.hasWorkPhoto    = false;
       _kisoState.workPhotoBase64 = '';
       _kisoState.workPhotoIndex  = 0;
+      // 過去セッション再表示用に localStorage に保存（submission は null）
+      _kisoSaveSessionStart({
+        sessionId: _kisoState.sessionId,
+        rank:      _kisoState.rank,
+        rankName:  _kisoState.rankName,
+        count:     _kisoState.count,
+        questions: _kisoState.questions
+      });
       _renderKisoProblemList();
     }).catch(function(err){
       problemList.innerHTML = '<div style="text-align:center;padding:30px 0;color:#c0392b">⚠️ 通信エラーが発生しました。<br><small style="color:#888">' + _kisoEsc(String(err)) + '</small></div>';
@@ -3461,6 +3782,15 @@
     document.getElementById('kiso-problem-attempts').textContent = _kisoState.isRetry
       ? '再挑戦：' + qs.length + '問'
       : _kisoState.count + '題';
+    // Mode A 再開時のバナー表示（通常開始時は隠す）
+    var banner = document.getElementById('kiso-resume-banner');
+    if (banner) banner.style.display = _kisoState.isResumed ? 'block' : 'none';
+    // 過去セッションボタン（再挑戦中は隠す）
+    var pastSection = document.getElementById('kiso-past-section');
+    if (pastSection) {
+      if (_kisoState.isRetry) pastSection.style.display = 'none';
+      else _kisoRenderPastButtons();
+    }
     _kisoTypeset(listEl);
   }
 
@@ -3546,6 +3876,23 @@
         _kisoState.attempts = res.attempts || (_kisoState.attempts + 1);
         // 提出に使った base64 はもう保持しなくて OK（メモリ節約）
         _kisoState.photoBase64 = '';
+        // 過去セッション再表示用に submission を localStorage に保存
+        // （初回提出のみ photoInfo に shareUrl/fileId が入る。再挑戦時は前回の写真を維持するため上書きしない）
+        if (res.isFirstAttempt) {
+          _kisoUpdateSessionSubmission(_kisoState.rank, _kisoState.sessionId, {
+            submittedAt:    Date.now(),
+            attempts:       res.attempts,
+            isFirstAttempt: !!res.isFirstAttempt,
+            passed:         !!res.passed,
+            total:          res.total || 0,
+            correctCount:   res.correctCount || 0,
+            results:        res.results || [],   // [{no, questionId, problemLatex, answerCanonical, studentAnswer, correct}]
+            hpInfo:         res.hpInfo || null,
+            photoFileId:    (res.photoInfo && res.photoInfo.ok) ? res.photoInfo.fileId  : '',
+            photoShareUrl:  (res.photoInfo && res.photoInfo.ok) ? res.photoInfo.shareUrl : '',
+            ocrPreview:     String(res.ocrPreview || '').slice(0, 600)
+          });
+        }
         _renderKisoResult(res);
       }).catch(function(err){
         _kisoShowGrading(false);
