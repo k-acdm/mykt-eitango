@@ -706,7 +706,7 @@
           <span class="ico">✏️</span>三語短文
         </button>
         <button class="content-btn c-wabun1" onclick="showWabun1Topic()">
-          <span class="badge-hp">100HP/日</span>
+          <span class="badge-hp" id="badge-wabun1-hp">100HP/日</span>
           <span class="ico">📘</span>和文英訳①
           <span class="content-btn-sub">小中学生用</span>
         </button>
@@ -1494,6 +1494,13 @@
     return y + '-' + (m < 10 ? '0' + m : m) + '-' + (d < 10 ? '0' + d : d);
   }
   function _hpFlagKey(type) { return 'mykt_hp_' + (_studentId || '') + '_' + type + '_' + _todayKeyJST3am(); }
+  // 和文英訳① 素点HP の日付分岐：2026-04-29 以降の教育日（JST 3 時区切り、4/29 当日含む）から 200、それ以前は 100
+  // GAS submitWabun1 と同じ基準で揃える。
+  function _wabun1BaseHp() { return (_todayKeyJST3am() >= '2026-04-29') ? 200 : 100; }
+  function _applyWabun1HpBadge() {
+    var el = document.getElementById('badge-wabun1-hp');
+    if (el) el.textContent = _wabun1BaseHp() + 'HP/日';
+  }
   function _isHpGrantedToday(type) { try { return !!localStorage.getItem(_hpFlagKey(type)); } catch(e) { return false; } }
   function _markHpGrantedToday(type)   { try { localStorage.setItem(_hpFlagKey(type), '1'); } catch(e){} }
   function _unmarkHpGrantedToday(type) { try { localStorage.removeItem(_hpFlagKey(type)); } catch(e){} }
@@ -1795,6 +1802,7 @@
     document.getElementById('welcome-hp').textContent   = totalHP.toLocaleString();
     document.getElementById('welcome-msg').textContent  = loginBonus > 0 ? '🎁 ログインボーナス +' + loginBonus + 'HP もらったよ！' : '今日もよろしく！';
     showCharacter(stage || 4, streak || 0, title || 'マイカツ見習い');
+    _applyWabun1HpBadge();
     showScreen('screen-welcome');
     if (milestone) setTimeout(function(){ showMilestoneFlash(milestone); }, 600);
     loadTodayQuote();

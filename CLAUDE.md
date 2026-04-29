@@ -32,11 +32,19 @@
 ### 運用メモ
 
 - コミット作者は `k-acdm <k-academy@mbr.nifty.com>`（リポジトリ内 git config 未設定のため `-c user.name= -c user.email=` で都度指定）
+- **★ Claude Code → ふくちさん間の同期ルール（鉄則）**：Claude Code が dev に push したら、ふくちさんは `clasp push` する前に必ず以下を実行する：
+  1. `cd C:\Users\Manager\mykt-eitango`
+  2. `git checkout dev`
+  3. `git pull origin dev` ← **必須**
+  4. `git log --oneline -3` で Claude Code の最新コミットがローカルにあるか確認
+  5. その後 `cd gas && clasp push`
+
+  これを怠ると「ローカルが古いまま GAS に古いコードを上げてしまう」事故が起きる（2026-04-28 / 2026-04-29 に複数回発生）。Claude Code の dev push と clasp push の間は順序依存。
 - GAS 変更フロー：
   1. `gas/Code.js` を編集（ローカルまたはClaude Code経由）
   2. `cd gas && clasp push` でGAS側に同期
-  3. **GASエディタを開きっぱなしの場合は必ず F5 でリロード**（開いているエディタには `clasp push` の差分が反映されない、過去にこれで「push したのに古いコードに見える」混乱が発生）
-  4. GASエディタで「デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ」で本番反映
+  3. **★ GAS エディタは必ず F5 で強制リロードしてから確認・デプロイ**。開きっぱなしの状態では `clasp push` の差分が画面に反映されておらず、古いコードがデプロイされる事故につながる（2026-04-29 早朝に発生）。「push したのに古いコードに見える」と感じたら 100% F5 し忘れ
+  4. GAS エディタで「デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ」で本番反映
 - **`clasp pull` は使用しない**。GASへの変更は常に `clasp push` で一方通行。手元の `gas/Code.js` を最新に保ち、それをGASに反映する運用とする。過去に「デプロイ忘れ状態の GAS から `clasp pull` して手元の新実装を事故で revert」した事例があるため、`pull` は原則禁止。万が一 GAS エディタで直接編集した場合は、`gas/Code.js` にも同じ変更を手動で入れてから `clasp push` する
 - **バージョン表示は `document.lastModified` から自動生成のため手動更新不要**。3 ファイル（`index.html` / `view.html` / `admin.html`）の右下に表示される `vYYYY.MM.DD` は GH Pages の Last-Modified ヘッダー由来で、HTML が実際にどの時点のバージョンかを反映する。タップで `?v=timestamp` 付き強制リロード可能（iPad Safari のキャッシュ問題への診断兼対策）
 - **GAS 側 Script Cache 運用**: `gas/Code.js` は問題データ・お題・連絡・Quote・ランキングを CacheService でキャッシュしている（TTL 6 時間）。管理画面経由の書き込みは自動でキャッシュをクリアする。**Questions シートを直接スプレッドシートで編集**した場合は自動クリアされないため、即反映したいときは GAS エディタから `clearAllCache()` を手動実行するか、最大 6 時間待つ
@@ -1659,6 +1667,63 @@ Phase 3 着手中に新たな設計原則が発見された場合：
   - 実機テストフィードバックの反映
   - 英語リスオン本実装（仕様書 [docs/英語長文リスニング_音読_仕様書.md](docs/英語長文リスニング_音読_仕様書.md) v0.7）
   - 基礎計算 Phase 3（DESIGN_PRINCIPLES.md の TODO_PHASE3 復活対象）
+
+### 2026-04-29 早朝（自宅PC再開：和文英訳① HP増額 + 緊急 +100HP 付与 + リスオン Phase 1-A）
+
+#### 142. 和文英訳① 素点HP 100→200（2026-04-29 以降の教育日から、dev `7203bfc`）
+- **背景**: 4/27 本番運用後の運用評価で、和文英訳①（base 100HP）が三語短文（base 200HP）と比べて取り組みコストの割に HP が低いとの判断。base を倍増して 200HP に揃える
+- **方針**: 日付分岐方式。**過去のクリア記録は遡及しない**（既存の HPLog はそのまま）。連続週²倍率のロジックは据え置き（`base × week²`、week = `ceil(streak/7)`）
+- **適用境界**: 2026-04-29 以降の教育日（4/29 当日含む）。日付基準は wabun1 既存の `_sangoToday()`（JST 3 時区切り）を流用 — 「今日の問題」「alreadyGranted 判定」「base HP の切替」がすべて同じ瞬間に揃う
+- **GAS 修正** ([gas/Code.js:5158](gas/Code.js:5158) `submitWabun1`):
+  ```javascript
+  const baseHp = (todayStr >= '2026-04-29') ? 200 : 100;
+  hpGained = baseHp * week * week;
+  ```
+- **フロント修正** ([index.html](index.html)): ホーム画面 和文英訳①カードの HP バッジ `100HP/日` を date-aware に
+  - バッジに `id="badge-wabun1-hp"` を付与
+  - `_wabun1BaseHp()` / `_applyWabun1HpBadge()` を新設（既存 `_todayKeyJST3am()` 流用＝GAS と同じ JST 3 時区切り）
+  - `showWelcome` から `_applyWabun1HpBadge()` 呼び出し → 4/29 以降は「200HP/日」表示
+- **動的表示は自動追従**: view.html / admin.html の学習履歴カード（`d.wabun1.hpGained` をサーバ値そのまま表示）/ 結果画面の HP animate 表示はサーバ値由来のため変更不要
+
+#### 143. LINE 提出組への +100HP 緊急付与（手動加算、Students F列 + HPLog 9 行）
+- **背景**: 和文英訳① が判定厳しすぎ（後の v2 緩和で対応済 #115）+ 基礎計算 gasPost 未定義事故（#114）等で、4/27〜28 にアプリ提出が成立せず LINE で代替提出した生徒組への補填
+- **対象 7 名**: 古内伶奈、清水未唄、川島杏子、中綾音、松本凌玖、加藤煌生、早川康佑
+- **付与額**:
+  - 5 名（古内伶奈、川島杏子、中綾音、松本凌玖、早川康佑）: +100HP（基礎計算分）
+  - 2 名（清水未唄、加藤煌生）: +200HP（基礎計算分 +100 + 和文英訳①分 +100）
+  - 合計 +900HP
+- **作業内容**: ふくちさんが GAS エディタからではなくスプレッドシート上で手動編集
+  - **Students シート F 列（HP）**: 7 名分の HP に手動加算
+  - **HPLog 9 行追加**: 5 行が `type='apology_kiso'`、2 名 × 2 行が `type='apology_kiso'` + `type='apology_wabun1'`
+  - HPLog の type は #116 / #118 で導入済の `apology_kiso` / `apology_wabun1` を流用（新設ではなく再利用）
+- **`apology_kiso` / `apology_wabun1` 関数経由ではない理由**: 関数経由は CLAUDE.md #100 / #116 / #118 で導入済だが、対象が「LINE 提出」かつ少人数のため、関数で対象抽出するより目視で確実に手動加算する方が速い・確実と判断
+
+#### 144. 英語リスオン Phase 1-A: GAS 基盤実装（dev `8dcb101` / `71b8c93`）
+- **スコープ**: GAS の基盤構造のみ。フロント画面（級選択・Step 1-6・MediaRecorder UI）・Web Speech API 連携は次フェーズ（Phase 1-B）
+- **シート構造**（ふくちさん手動作成予定、未作成時は graceful にエラー返却）:
+  - `LisonContents`（13 列）: weekStart / level / englishText / japaneseText / q1_text / q1_answer / q1_explanation / q2_* / q3_*
+  - `LisonSubmissions`（8 列）: timestamp / studentId / studentName / level / weekStart / quizScore / recordingUrl / hpGained
+  - レベル文字列: `'4'` / `'3'` / `'pre2'` / `'2'` / `'pre1'`
+  - 4 級の正誤問題の answer は `'○'` / `'✖'`、他級は `'T'` / `'F'`（LisonContents の値で完全一致比較）
+- **HP 仕様**:
+  - 4/3/pre2 = 素点 100、2/pre1 = 素点 200
+  - 連続週²倍率（`streak/7` 切り上げ²）は他コンテンツと同じ
+  - 1 日 1 レベル 1 回まで（`{sid, level, JST 3 時区切り今日}` 一致で alreadyGranted、hpGained = 0）
+  - 録音は alreadyGranted でも Drive 保存・LisonSubmissions 記録を実施
+- **新規追加**:
+  - 定数: `SHEET_LISON_CONTENTS` / `SHEET_LISON_SUBMISSIONS` / `LISON_VALID_LEVELS` / `LISON_RECORDING_ROOT_FOLDER`
+  - ヘルパー: `_lisonGetWeekStart(dateStr)`（JST 3 時区切りの今日からその週の月曜日）/ `_lisonBaseHpForLevel(level)` / `_readLisonContentRow(weekStart, level)`（ヘッダー駆動の 1 行読み）/ `_lisonExtFromMime(mime)`（webm/mp4/m4a/mp3/ogg/wav/aac 判定、不明時 webm デフォルト）/ `_ensureLisonRecordingsFolder()` / `_saveLisonRecording(sid, level, base64, mime)`（ファイル名 `lison_<sid>_<level>_<yyyymmddHHMMSS>.<ext>`）
+  - 公開 API: `getLisonContent(level)`（戻り値 weekStart / level / englishText / japaneseText / questions[3]）/ `submitLison({ sid, level, quizAnswers, recordingBase64, recordingMime })`（戻り値 ok / hpGained / alreadyGranted / quizScore / recordingUrl）
+  - doGet ルーティング: `getLisonContent` / `submitLison` を ping の直前に追加
+- **既存パターン流用**: `_sangoToday()`（JST 3 時区切り）/ `_logHP()`（rawHP=hpGained、wabun1/sango と同パターン）/ `_readLastNRows()` / `_getStudentsValues()` / `_updateStudentsCacheRow()` / `_saveKisoPhoto` の Drive 保存パターン
+- **動作確認**: 構文チェック（`node -c gas/Code.js`）まで。LisonContents / LisonSubmissions シートはまだ未作成のため、実機での完全動作確認は Phase 1-B 完了後
+
+#### 145. 次回作業候補（メモ）
+- 塾PC で Python セットアップ（USB 持参の JSON 鍵を `C:\Users\Manager\Documents\gcp-credentials\` に配置 → `pip install -r requirements.txt` → 環境変数 `KISO_GSPREAD_CREDENTIALS` / `KISO_SPREADSHEET_ID` 恒久設定）
+- リスオン Phase 1-B: フロント実装（級選択画面・Step 1-6・音声再生・録音 UI・送信中・完了画面）
+- 当面のタスク順: 漢字 → 社会・理科の重要語句 → 和文英訳② → **古文単語**（高校生向け、新設）→ 秘密の扉（本日の運勢）→ ログイン画面の生徒/保護者一本化 → 管理画面の中身修正 → セキュリティ対策
+- 1 ヵ月以内: **紙の宿題連動機能**（教材を写真撮影 → AI 採点 + オリジナル問題生成）
+- 中長期: アプリ単科展開（法的整理、Firebase 移行検討）
 
 ---
 
