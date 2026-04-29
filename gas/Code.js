@@ -2497,6 +2497,88 @@ function _getKisoQuestionsByIds(questionIds) {
   return out;
 }
 
+// 指定 rank の in_progress セッションを列挙する診断ツール（GAS エディタ実行専用）。
+//
+// 用途：問題プール変更（rank_04 50題化など）の前に、影響を受ける可能性がある
+// 進行中セッションを把握するための pre-flight 診断。読み取りのみで副作用なし。
+//
+// 使い方：GAS エディタの関数ドロップダウンから diagnoseRank4InProgress または
+// diagnoseKisoInProgressByRank(rank) を選択して実行。実行ログに一覧が出る。
+//
+// 戻り値: { ok, rank, count, sessions: [{ sessionId, studentId, studentName,
+//          studentNickname, startedAt, questionIdsPreview }] }
+function diagnoseKisoInProgressByRank(rank) {
+  try {
+    const r = Number(rank);
+    if (!r || r < 1 || r > 20) return { ok: false, message: 'rank は 1〜20 を指定してください' };
+
+    const sh = _ss().getSheetByName(SHEET_KISO_SESSIONS);
+    if (!sh) return { ok: false, message: 'KisoSessions シートが見つかりません' };
+    if (sh.getLastRow() < 2) return { ok: true, rank: r, count: 0, sessions: [] };
+
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSession = header.indexOf('sessionId');
+    const cSid     = header.indexOf('studentId');
+    const cRank    = header.indexOf('rank');
+    const cStatus  = header.indexOf('status');
+    const cStarted = header.indexOf('startedAt');
+    const cQids    = header.indexOf('questionIds');
+
+    // Students から氏名/ニックネームをルックアップ（追跡しやすくするため）
+    const stuValues = _getStudentsValues();
+    const sidToStu = {};
+    for (let i = 1; i < stuValues.length; i++) {
+      const sid = String(stuValues[i][COL_ID] || '').trim();
+      if (!sid) continue;
+      sidToStu[sid] = {
+        nickname: String(stuValues[i][COL_NICKNAME] || ''),
+        name:     String(stuValues[i][COL_NAME] || '')
+      };
+    }
+
+    const sessions = [];
+    for (let i = 1; i < values.length; i++) {
+      if (Number(values[i][cRank]) !== r) continue;
+      if (String(values[i][cStatus]) !== 'in_progress') continue;
+      const ts = values[i][cStarted];
+      const startedStr = (ts instanceof Date)
+        ? Utilities.formatDate(ts, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(ts || '');
+      const sid = String(values[i][cSid] || '');
+      const stu = sidToStu[sid] || { nickname: '', name: '' };
+      sessions.push({
+        sessionId: String(values[i][cSession] || ''),
+        studentId: sid,
+        studentName:     stu.name,
+        studentNickname: stu.nickname,
+        startedAt: startedStr,
+        questionIdsPreview: String(values[i][cQids] || '').slice(0, 120)
+      });
+    }
+    // 新しい順
+    sessions.sort(function(a, b){ return a.startedAt < b.startedAt ? 1 : a.startedAt > b.startedAt ? -1 : 0; });
+
+    console.log('[diagnoseKisoInProgressByRank] rank=' + r + ' in_progress count=' + sessions.length);
+    sessions.forEach(function(s, i){
+      console.log('  ' + (i + 1) + '. sid=' + s.studentId
+        + ' (' + (s.studentNickname || s.studentName || '?') + ')'
+        + ' startedAt=' + s.startedAt
+        + ' sessionId=' + s.sessionId);
+    });
+
+    return { ok: true, rank: r, count: sessions.length, sessions: sessions };
+  } catch (err) {
+    console.error('[diagnoseKisoInProgressByRank]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// ショートカット: rank=4 の診断（rank_04 50題化前の pre-flight 用）
+function diagnoseRank4InProgress() {
+  return diagnoseKisoInProgressByRank(4);
+}
+
 // KisoSessions シートを sessionId で線形検索（直近のセッションは末尾近く）
 // 戻り値: { rowIdx (1-based), sheet, header, row } | null
 function _findKisoSessionRow(sessionId) {

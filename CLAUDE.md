@@ -1921,6 +1921,25 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - 検証：15 分
 - 合計：約 1.5 時間
 
+### 将来タスク：KisoSessions に problemLatex を保存する防衛策（Phase 2 100題化の前に着手）
+
+**背景**: 現在の `KisoSessions.questionIds` は質問IDのみを保存し、採点・再挑戦時は `_getKisoQuestionsByIds` で `KisoQuestions` シートから都度ルックアップする設計。問題プールを差し替えると、既存の進行中セッションの questionId が新しい問題に解決されてしまい、生徒が見ていた旧問題と採点対象がずれる事故が発生し得る（rank_04 50題化時に診断＋投入順序で対処、CLAUDE.md #155 参照）。
+
+**改善案**: `startKisoSession` でセッション作成時に `questionIds` と並んで `problemLatexes`（JSON 配列）も保存。採点・再挑戦時は KisoSessions の保存値を優先参照し、KisoQuestions ルックアップはフォールバック扱いにする。
+
+**期待効果**:
+- 問題プール変更時もセッションが破綻しない
+- KisoQuestions シートが整合性を失っても採点が継続できる（耐障害性）
+- 過去セッション再表示（CLAUDE.md #152）の表示も保存値優先になり安定する
+
+**スコープ・所要見込み**:
+- KISO_SESSIONS_HEADERS に列追加（既存セッションへの後方互換: 列が無ければ従来動作にフォールバック）
+- `startKisoSession` 1 行追加 + appendRow 1 値追加
+- `_getKisoQuestionsByIds` を呼んでいる 3 箇所（採点 / 再挑戦 / 過去セッション再表示）の参照優先順を変更
+- 約 1〜1.5 時間
+
+**着手タイミング**: 全単元 100題化（Phase 2）に進む前。50題化（Phase 1）の段階で全単元を一通り回した後に実施するのが自然。
+
 ---
 
 ## TODO（未反映の GAS 側作業）
