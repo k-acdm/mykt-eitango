@@ -1927,6 +1927,38 @@ Phase 3 着手中に新たな設計原則が発見された場合：
   - `self_check` は既に 3 サブパターン kind を処理済みで無修正
 - **次回**: 拡充計画 優先度 A の残り（rank_02 平方根）/ あるいは優先度 B（rank_05〜08）
 
+#### 157. 自宅PC セッション終了処理（2026-04-30 早朝、dev `<this commit>`）
+- **今夜の主な成果**:
+  - rank_04 拡充完了（30→50題、Phase 1〜4、CLAUDE.md #155）
+  - rank_03 拡充完了（30→50題、Phase 1〜4、Band C 3 サブパターン分離方式、CLAUDE.md #156）
+  - **既存セッション保護機構の確立**：`diagnoseKisoInProgressByRank(rank)` / `abandonKisoInProgressByRank(rank, opts)` を汎用化、rank=N ショートカット 2 関数（diagnose / abandon）×2 ランク = 計 4 関数で在庫増。今後の単元拡充時は 1 行のショートカット追加で再利用可
+- **このセッションで得た教訓（再発防止メモ）**:
+  - 1. 拡充作業の「pre-flight 診断 → abandoned 化 → 投入 → 後検証」フローは安定。**今後どの単元拡充でも同パターンで進められる**
+  - 2. **`diagnose / abandon の汎用関数化**：`rank` を引数にした単一実装で全ランク対応。ふくちさんからは `diagnoseRank<N>InProgress()` のような薄いショートカットで GAS エディタの関数ドロップダウンから引数なし実行可能
+  - 3. **複数サブパターンの比率保証は `slot_index` 駆動の決定論的 dispatcher が有効**（rank_03 Band C で初採用、rank_10 と同じパターン）。rng の偶然に依存させない設計で、ふくちさんが指定した教育的比率 6/11/11 が**確実**に守られる
+  - 4. **教育的判断は数値ベース判断より重要**：rank_03 Band C の内訳「差の平方は思考量少なめだから 6 問だけ」「完全平方プラス/マイナスはそれぞれ 11 問」というふくちさんの 36 年の塾長経験ベースの判断は、unique pool の数学的余裕（27 / 36）を見るだけでは出てこない。今後も配分は ふくちさんの教育的判断を起点に
+  - 5. **既存挙動の温存原則**：今回 `factored_pair_latex` 本体は無修正のまま rank_04 / rank_03 の意図する正規化を達成（rank_04 は呼び出し側で a≤b ソート、rank_03 は元から sorted 済）。共有関数を触らない方が副作用が小さい
+- **環境状態（次回再開時用）**:
+  - dev = origin/dev = origin/main（同期済、ふくちさん側で main マージ・push 完了）
+  - working tree clean
+  - rank_04, rank_03 の問題は本番投入済（KisoQuestions シート 640 行）
+  - GAS 側に診断/abandoned 関数あり（rank_03 / rank_04 ショートカット含む）
+  - Python 環境（自宅PC）：3.14.4、gspread / google-auth / sympy インストール済
+  - 環境変数：`KISO_GSPREAD_CREDENTIALS` / `KISO_SPREADSHEET_ID` 設定済
+- **次回タスク候補**（優先順）:
+  - a. **rank_02 平方根の拡充**（優先度 A 最後、所要 1.5 時間目安）
+  - b. **漢字コンテンツの実装着手**（仕様書完成後）
+  - c. **リスオンコンテンツの作成支援**（3〜準1級）
+  - d. **商標表記のフッター追加**（軽め）
+- **新スレ開始時のルーティン**:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+  `clasp pull` は禁止のまま運用継続。`gas/Code.js` への変更は常に `clasp push` で一方通行
+- **次回の Phase 4 簡略化**: 既存の `diagnoseKisoInProgressByRank(rank)` / `abandonKisoInProgressByRank(rank, opts)` 汎用関数は既にあるため、新ショートカットは `diagnoseRank2InProgress()` / `abandonRank2InProgress(opts)` の 2 行追加で済む（rank_03 では `feat(GAS): rank_03 投入前診断・abandoned 化のショートカット関数` で 10 行のコミットだった）
+
 ---
 
 ## 基礎計算 問題プール拡充計画
@@ -1946,21 +1978,23 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - 各単元の Band 構成、パラメータ範囲、generator を見直し
 - 教育的バランスを保ちつつパラメータ空間を拡張
 
-### 増産優先度
+### 増産優先度（進捗 2026-04-30 更新）
 
 **優先度 A（Band 不足が確定、最優先）**
-- rank_04 乗法公式（Band C が 9 問のみ、報告バグの単元）
-- rank_02 平方根（一意空間が狭い）
-- rank_03 因数分解（square_factor_latex で限定）
+- ✅ **rank_04 乗法公式**（Band C が 9 問のみ、報告バグの単元）— 完了 2026-04-30、CLAUDE.md #155
+- ⏳ **rank_02 平方根**（一意空間が狭い）— **次回最優先**
+- ✅ **rank_03 因数分解**（square_factor_latex で限定）— 完了 2026-04-30、CLAUDE.md #156
 
 **優先度 B（使用頻度高）**
-- rank_05 中3 式の計算
-- rank_07 中2 式の計算
-- rank_08 一次方程式
-- rank_06 連立方程式
+- ⏳ rank_05 中3 式の計算
+- ⏳ rank_07 中2 式の計算
+- ⏳ rank_08 一次方程式
+- ⏳ rank_06 連立方程式
 
 **優先度 C（パラメータ空間が広い、余裕あり）**
-- rank_11〜rank_20（整数・小数・正負・分数の四則）
+- ⏳ rank_11〜rank_20（整数・小数・正負・分数の四則）
+
+**Phase 1 全体進捗**: 2 / 20 単元完了（100 / 1000 題、10%）
 
 ### 進捗管理
 - 各単元増産時に main.py の WARN ログを確認（重複検出の有無）
