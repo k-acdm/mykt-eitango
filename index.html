@@ -1482,7 +1482,7 @@
     <button id="lison-step1-play" class="btn-wide lison-play-btn" onclick="playLisonStep1()">🎧 最初に1回聴いてみよう</button>
     <button id="lison-step1-stop" class="btn-wide lison-stop-btn" onclick="stopLisonStep1Audio()" style="display:none">⏹ 停止</button>
     <button id="lison-step1-next" class="btn-wide lison-next-btn" onclick="goLisonStep2()" disabled>次へ進む →</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（進捗はロストします）</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（最初からやり直しになるよ）</button>
   </div>
 </div>
 
@@ -1500,7 +1500,7 @@
     <button id="lison-step2-play" class="btn-wide lison-play-btn" onclick="playLisonStep2()">🎧 日本語を見ながら聴いてみよう</button>
     <button id="lison-step2-stop" class="btn-wide lison-stop-btn" onclick="stopLisonStep2Audio()" style="display:none">⏹ 停止</button>
     <button id="lison-step2-next" class="btn-wide lison-next-btn" onclick="goLisonStep3()" disabled>次へ進む →</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（進捗はロストします）</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（最初からやり直しになるよ）</button>
   </div>
 </div>
 
@@ -1519,7 +1519,7 @@
     </details>
     <div id="lison-step3-quiz" class="lison-quiz-list"></div>
     <button id="lison-step3-next" class="btn-wide lison-next-btn" onclick="goLisonStep4()" disabled>📖 解答と解説を確認</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（進捗はロストします）</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（最初からやり直しになるよ）</button>
   </div>
 </div>
 
@@ -1534,7 +1534,7 @@
     </div>
     <div id="lison-step4-list"></div>
     <button class="btn-wide lison-next-btn" onclick="goLisonStep5()">🎤 次へ進む（音読録音）</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（進捗はロストします）</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（最初からやり直しになるよ）</button>
   </div>
 </div>
 
@@ -1547,10 +1547,7 @@
       <img class="mascot-img" src="images/lison-icon.png" alt="リス">
       <div class="mascot-bubble">ゆっくりでOK、自分のペースで！🎤<br><small style="font-weight:normal;color:#3f6b56">英文をマイクに向かって読んでね</small></div>
     </div>
-    <div class="lison-text-card lison-text-en">
-      <span class="lison-text-label">English</span>
-      <span id="lison-step5-en"></span>
-    </div>
+    <div class="lison-text-card lison-text-en" id="lison-step5-en"></div>
 
     <!-- 状態 1: idle (録音前) -->
     <div id="lison-rec-idle" class="lison-rec-section" style="display:none">
@@ -1578,7 +1575,7 @@
       <button class="btn-wide lison-rec-redo-btn" onclick="retakeLisonRecording()">🔄 もう一度読んで録音する</button>
     </div>
 
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（進捗はロストします）</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（最初からやり直しになるよ）</button>
   </div>
 </div>
 
@@ -4454,9 +4451,9 @@
     showScreen('screen-lison-done');
   }
 
-  // 進捗ロストの確認
+  // 戻る確認（途中で抜けると最初からやり直しになる）
   function confirmLisonExit() {
-    if (!confirm('進捗が失われます。本当にホームに戻りますか？')) return;
+    if (!confirm('最初からやり直しになるよ。本当にホームに戻る？')) return;
     _lisonStopSpeakingAll();
     _lisonResetState();
     goHome();
