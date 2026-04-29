@@ -582,6 +582,24 @@
     .kiso-past-btn.empty .kiso-past-btn-badge { background: #9ca3af; color: #fff; }
     /* Mode A 再開バッジ（問題画面の上部） */
     .kiso-resume-banner { background: linear-gradient(135deg,#fef3c7,#fde68a); border: 2px solid #f59e0b; border-radius: 10px; padding: 10px 14px; margin: 0 0 12px; color: #92400e; font-weight: bold; font-size: 14px; text-align: center; line-height: 1.5; }
+    /* Mode B 閲覧画面 */
+    .kiso-review-summary { background: linear-gradient(135deg,#ecfdf5,#d1fae5); border: 2px solid #10b981; border-radius: 12px; padding: 12px 14px; margin: 4px 0 14px; text-align: center; color: #047857; font-weight: bold; }
+    .kiso-review-summary.failed { background: linear-gradient(135deg,#fef2f2,#fee2e2); border-color: #ef4444; color: #b91c1c; }
+    .kiso-review-summary .kiso-review-title { font-size: 16px; margin-bottom: 4px; }
+    .kiso-review-summary .kiso-review-stats { font-size: 13px; font-weight: normal; color: #475569; }
+    .kiso-review-card { background: #fff; border-radius: 12px; padding: 14px 14px; margin: 10px 0; box-shadow: 0 2px 8px rgba(0,0,0,.06); border-left: 6px solid #cbd5e1; }
+    .kiso-review-card.correct { border-left-color: #10b981; background: #f0fdf4; }
+    .kiso-review-card.wrong { border-left-color: #ef4444; background: #fef2f2; }
+    .kiso-review-card .kiso-rev-no { display:inline-block; background:#1e3c72; color:#fff; border-radius:999px; width:26px; height:26px; line-height:26px; text-align:center; font-weight:bold; font-size:13px; margin-right:6px; }
+    .kiso-review-card .kiso-rev-mark { font-size:20px; vertical-align:middle; margin-left:6px; }
+    .kiso-rev-section { margin: 10px 0; }
+    .kiso-rev-label { display: block; font-size: 11px; font-weight: bold; color: #6b7280; letter-spacing: .5px; margin-bottom: 4px; }
+    .kiso-rev-problem { font-size: 16px; color: #1f2937; margin: 6px 0 10px; padding: 10px 12px; background: #f8fafc; border-radius: 8px; }
+    .kiso-rev-canonical { font-size: 16px; color: #047857; padding: 10px 12px; background: #ecfdf5; border-radius: 8px; border: 1px solid #a7f3d0; }
+    .kiso-rev-student-text { padding: 8px 12px; background: #fff; border: 1px dashed #cbd5e1; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 14px; color: #1f2937; }
+    .kiso-rev-photo-wrap { text-align: center; margin: 6px 0; }
+    .kiso-rev-photo-wrap img { max-width: 100%; max-height: 480px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.15); cursor: zoom-in; }
+    .kiso-rev-photo-fallback { padding: 16px; background: #f3f4f6; border: 1px dashed #d1d5db; border-radius: 8px; color: #9ca3af; font-size: 12px; text-align: center; }
 
     .kiso-grading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9000; display: none; align-items: center; justify-content: center; }
     .kiso-grading-overlay.active { display: flex; }
@@ -1469,6 +1487,16 @@
   <div class="container" style="padding-top:18px">
     <div id="kiso-done-body"></div>
     <button class="btn-wide" style="margin-top:18px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- 過去セッション閲覧画面（Mode B） -->
+<div id="screen-kiso-review" class="screen">
+  <header><h1>📚 採点済みセッション</h1><span id="kiso-review-meta"></span></header>
+  <div class="container" style="padding-top:14px">
+    <div id="kiso-review-summary"></div>
+    <div id="kiso-review-list"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="closeKisoReview()">← 戻る</button>
   </div>
 </div>
 
@@ -3435,11 +3463,106 @@
     var entry = past[pos - 1];
     if (!entry) return;
     if (entry.submission) {
-      // Mode B（次コミットで実装）
-      alert('Mode B（採点済みセッション閲覧）は次コミットで実装します。');
+      _showKisoReview(entry, pos);
     } else {
       _resumeKisoSession(entry);
     }
+  }
+
+  // -----------------------------------------------------
+  // Mode B：採点済みセッションの閲覧
+  // -----------------------------------------------------
+  // 戻る先を覚えておく（過去セッションボタンを押したのは screen-kiso-problem からなので、
+  // 戻るときは screen-kiso-problem に戻すのが自然）
+  var _kisoReviewReturnScreen = 'screen-kiso-problem';
+  function closeKisoReview() {
+    showScreen(_kisoReviewReturnScreen || 'screen-kiso-problem');
+  }
+  // Drive ファイルID から <img> で表示できる thumbnail URL を生成。
+  // ANYONE_WITH_LINK で公開された写真のみ表示可能（_saveKisoPhoto 改修以降）。
+  function _kisoDriveThumbnailUrl(fileId, sz) {
+    if (!fileId) return '';
+    var size = sz || 'w1200';
+    return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=' + size;
+  }
+  function _showKisoReview(entry, pos) {
+    if (!entry || !entry.submission) return;
+    _kisoReviewReturnScreen = 'screen-kiso-problem';
+    var sub = entry.submission;
+    var passed = !!sub.passed;
+    var total = Number(sub.total) || (sub.results ? sub.results.length : 0);
+    var correct = Number(sub.correctCount) || 0;
+    // メタ
+    var metaEl = document.getElementById('kiso-review-meta');
+    if (metaEl) metaEl.textContent = (entry.rankName || '') + '・' + entry.count + '題（' + pos + 'つ前）';
+    // サマリ
+    var summaryEl = document.getElementById('kiso-review-summary');
+    var pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+    var titleHtml = passed ? '🎉 合格したセッション' : '📝 不合格だったセッション';
+    var statsHtml = correct + ' / ' + total + ' 問正解（' + pct + '%）';
+    if (sub.hpInfo && sub.hpInfo.hpGained > 0) {
+      statsHtml += ' / +' + Number(sub.hpInfo.hpGained).toLocaleString() + 'HP 獲得';
+    } else if (sub.hpInfo && sub.hpInfo.isPractice) {
+      statsHtml += ' / 練習モード（HP上限到達）';
+    }
+    summaryEl.className = 'kiso-review-summary' + (passed ? '' : ' failed');
+    summaryEl.innerHTML = '<div class="kiso-review-title">' + titleHtml + '</div>'
+                       + '<div class="kiso-review-stats">' + _kisoEsc(statsHtml) + '</div>';
+    // 各問題のカード
+    var listEl = document.getElementById('kiso-review-list');
+    var photoFileId  = sub.photoFileId  || '';
+    var photoBlock = '';
+    if (photoFileId) {
+      var imgUrl = _kisoDriveThumbnailUrl(photoFileId, 'w1200');
+      var fallbackHtml = '<div class="kiso-rev-photo-fallback">📷 写真は表示できません<br>'
+                       + '<small>古いセッションの場合、リンク共有が設定されていない可能性があります</small></div>';
+      photoBlock = '<div class="kiso-rev-section">'
+                 +   '<span class="kiso-rev-label">📷 撮影した解答用紙</span>'
+                 +   '<div class="kiso-rev-photo-wrap">'
+                 +     '<img src="' + _kisoEsc(imgUrl) + '" alt="解答写真" '
+                 +     'onclick="window.open(this.src,\'_blank\')" '
+                 +     'onerror="this.outerHTML=' + JSON.stringify(fallbackHtml) + '">'
+                 +   '</div>'
+                 + '</div>';
+    } else {
+      photoBlock = '<div class="kiso-rev-section">'
+                 +   '<span class="kiso-rev-label">📷 撮影した解答用紙</span>'
+                 +   '<div class="kiso-rev-photo-fallback">📷 この提出には写真情報が残っていません</div>'
+                 + '</div>';
+    }
+    var results = sub.results || [];
+    var cardsHtml = results.map(function(r){
+      var ok = !!r.correct;
+      var mark = ok ? '⭕' : '❌';
+      var stu = r.studentAnswer != null && String(r.studentAnswer).trim() !== ''
+        ? _kisoEsc(r.studentAnswer)
+        : '<span style="color:#94a3b8">（読み取れず）</span>';
+      var problemTex   = '\\(' + String(r.problemLatex || '') + '\\)';
+      var canonicalTex = r.answerCanonical
+        ? '\\(' + String(r.answerCanonical) + '\\)'
+        : '<span style="color:#94a3b8">（正解情報なし）</span>';
+      return '<div class="kiso-review-card ' + (ok ? 'correct' : 'wrong') + '">'
+           +   '<div>'
+           +     '<span class="kiso-rev-no">' + (r.no || '') + '</span>'
+           +     '<span class="kiso-rev-mark">' + mark + '</span>'
+           +   '</div>'
+           +   '<div class="kiso-rev-section">'
+           +     '<span class="kiso-rev-label">問題</span>'
+           +     '<div class="kiso-rev-problem">' + problemTex + '</div>'
+           +   '</div>'
+           +   '<div class="kiso-rev-section">'
+           +     '<span class="kiso-rev-label">きみの答え（AI 読み取り）</span>'
+           +     '<div class="kiso-rev-student-text">' + stu + '</div>'
+           +   '</div>'
+           +   '<div class="kiso-rev-section">'
+           +     '<span class="kiso-rev-label">正解</span>'
+           +     '<div class="kiso-rev-canonical">' + canonicalTex + '</div>'
+           +   '</div>'
+           + '</div>';
+    }).join('');
+    listEl.innerHTML = photoBlock + cardsHtml;
+    showScreen('screen-kiso-review');
+    _kisoTypeset(listEl);
   }
 
   // -----------------------------------------------------
