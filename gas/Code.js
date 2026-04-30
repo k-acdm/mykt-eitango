@@ -2497,6 +2497,216 @@ function _getKisoQuestionsByIds(questionIds) {
   return out;
 }
 
+// 指定 rank の in_progress セッションを列挙する診断ツール（GAS エディタ実行専用）。
+//
+// 用途：問題プール変更（rank_04 50題化など）の前に、影響を受ける可能性がある
+// 進行中セッションを把握するための pre-flight 診断。読み取りのみで副作用なし。
+//
+// 使い方：GAS エディタの関数ドロップダウンから diagnoseRank4InProgress または
+// diagnoseKisoInProgressByRank(rank) を選択して実行。実行ログに一覧が出る。
+//
+// 戻り値: { ok, rank, count, sessions: [{ sessionId, studentId, studentName,
+//          studentNickname, startedAt, questionIdsPreview }] }
+function diagnoseKisoInProgressByRank(rank) {
+  try {
+    const r = Number(rank);
+    if (!r || r < 1 || r > 20) return { ok: false, message: 'rank は 1〜20 を指定してください' };
+
+    const sh = _ss().getSheetByName(SHEET_KISO_SESSIONS);
+    if (!sh) return { ok: false, message: 'KisoSessions シートが見つかりません' };
+    if (sh.getLastRow() < 2) return { ok: true, rank: r, count: 0, sessions: [] };
+
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSession = header.indexOf('sessionId');
+    const cSid     = header.indexOf('studentId');
+    const cRank    = header.indexOf('rank');
+    const cStatus  = header.indexOf('status');
+    const cStarted = header.indexOf('startedAt');
+    const cQids    = header.indexOf('questionIds');
+
+    // Students から氏名/ニックネームをルックアップ（追跡しやすくするため）
+    const stuValues = _getStudentsValues();
+    const sidToStu = {};
+    for (let i = 1; i < stuValues.length; i++) {
+      const sid = String(stuValues[i][COL_ID] || '').trim();
+      if (!sid) continue;
+      sidToStu[sid] = {
+        nickname: String(stuValues[i][COL_NICKNAME] || ''),
+        name:     String(stuValues[i][COL_NAME] || '')
+      };
+    }
+
+    const sessions = [];
+    for (let i = 1; i < values.length; i++) {
+      if (Number(values[i][cRank]) !== r) continue;
+      if (String(values[i][cStatus]) !== 'in_progress') continue;
+      const ts = values[i][cStarted];
+      const startedStr = (ts instanceof Date)
+        ? Utilities.formatDate(ts, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(ts || '');
+      const sid = String(values[i][cSid] || '');
+      const stu = sidToStu[sid] || { nickname: '', name: '' };
+      sessions.push({
+        sessionId: String(values[i][cSession] || ''),
+        studentId: sid,
+        studentName:     stu.name,
+        studentNickname: stu.nickname,
+        startedAt: startedStr,
+        questionIdsPreview: String(values[i][cQids] || '').slice(0, 120)
+      });
+    }
+    // 新しい順
+    sessions.sort(function(a, b){ return a.startedAt < b.startedAt ? 1 : a.startedAt > b.startedAt ? -1 : 0; });
+
+    console.log('[diagnoseKisoInProgressByRank] rank=' + r + ' in_progress count=' + sessions.length);
+    sessions.forEach(function(s, i){
+      console.log('  ' + (i + 1) + '. sid=' + s.studentId
+        + ' (' + (s.studentNickname || s.studentName || '?') + ')'
+        + ' startedAt=' + s.startedAt
+        + ' sessionId=' + s.sessionId);
+    });
+
+    return { ok: true, rank: r, count: sessions.length, sessions: sessions };
+  } catch (err) {
+    console.error('[diagnoseKisoInProgressByRank]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// ショートカット: rank=4 の診断（rank_04 50題化前の pre-flight 用）
+function diagnoseRank4InProgress() {
+  return diagnoseKisoInProgressByRank(4);
+}
+
+// ショートカット: rank=3 の診断（rank_03 50題化前の pre-flight 用）
+function diagnoseRank3InProgress() {
+  return diagnoseKisoInProgressByRank(3);
+}
+
+// 指定 rank の in_progress セッションを 'abandoned' に書き換える管理関数
+// （GAS エディタ実行専用、doGet 未登録）。
+//
+// 用途：問題プール差し替え（rank_04 50題化など）の前に、進行中セッションを
+// 強制終了して questionId 解決の不整合を防ぐ。次回タップで新セッションが
+// 自然に作られるため生徒側は実害なし。
+//
+// 安全策:
+//   1. 書き換え前に対象セッションを必ず console.log + 構造化データで返却
+//   2. opts.dryRun === true なら書き換えずログ + 戻り値のみ
+//   3. 既に 'abandoned' / 'passed' / 'failed_retry' の行はスキップ（冪等）
+//   4. completedAt にも abandonment 時刻を記録（履歴追跡用）
+//
+// 使い方（GAS エディタ）:
+//   abandonRank4InProgress({ dryRun: true })   // まず diagnostic
+//   abandonRank4InProgress()                   // 確認後に実行
+function abandonKisoInProgressByRank(rank, opts) {
+  try {
+    opts = opts || {};
+    const dryRun = !!opts.dryRun;
+
+    const r = Number(rank);
+    if (!r || r < 1 || r > 20) return { ok: false, message: 'rank は 1〜20 を指定してください' };
+
+    const sh = _ss().getSheetByName(SHEET_KISO_SESSIONS);
+    if (!sh) return { ok: false, message: 'KisoSessions シートが見つかりません' };
+    if (sh.getLastRow() < 2) return { ok: true, rank: r, dryRun: dryRun, targets: [], updated: 0 };
+
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSession    = header.indexOf('sessionId');
+    const cSid        = header.indexOf('studentId');
+    const cRank       = header.indexOf('rank');
+    const cStatus     = header.indexOf('status');
+    const cStarted    = header.indexOf('startedAt');
+    const cCompleted  = header.indexOf('completedAt');
+
+    if (cStatus < 0)    return { ok: false, message: 'status 列が見つかりません' };
+    if (cCompleted < 0) return { ok: false, message: 'completedAt 列が見つかりません' };
+
+    // 1. 対象抽出（書き換え前に列挙してログ出力）
+    const targets = [];  // { rowIdx (1-based), sessionId, studentId, startedAt }
+    for (let i = 1; i < values.length; i++) {
+      if (Number(values[i][cRank]) !== r) continue;
+      if (String(values[i][cStatus]) !== 'in_progress') continue;
+      const ts = values[i][cStarted];
+      const startedStr = (ts instanceof Date)
+        ? Utilities.formatDate(ts, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(ts || '');
+      targets.push({
+        rowIdx: i + 1,  // 1-based シート行番号
+        sessionId: String(values[i][cSession] || ''),
+        studentId: String(values[i][cSid] || ''),
+        startedAt: startedStr
+      });
+    }
+
+    console.log('[abandonKisoInProgressByRank] rank=' + r
+      + ' targets=' + targets.length
+      + (dryRun ? ' (DRY RUN)' : ''));
+    targets.forEach(function(t, i){
+      console.log('  ' + (i + 1) + '. row=' + t.rowIdx
+        + ' sid=' + t.studentId
+        + ' startedAt=' + t.startedAt
+        + ' sessionId=' + t.sessionId);
+    });
+
+    if (dryRun || targets.length === 0) {
+      return { ok: true, rank: r, dryRun: dryRun, targets: targets, updated: 0 };
+    }
+
+    // 2. 一括書き換え（status='abandoned' + completedAt=now）
+    const nowStr = _nowJST();
+    let updated = 0;
+    for (let k = 0; k < targets.length; k++) {
+      const t = targets[k];
+      sh.getRange(t.rowIdx, cStatus + 1).setValue('abandoned');
+      sh.getRange(t.rowIdx, cCompleted + 1).setValue(nowStr);
+      updated++;
+    }
+    console.log('[abandonKisoInProgressByRank] updated=' + updated + ' at ' + nowStr);
+
+    // 3. 検証：再読み込みして status が反映されていることを確認
+    const verifyValues = sh.getDataRange().getValues();
+    let verifiedOk = 0;
+    let verifiedNg = 0;
+    for (let k = 0; k < targets.length; k++) {
+      const t = targets[k];
+      const newStatus = String(verifyValues[t.rowIdx - 1][cStatus]);
+      if (newStatus === 'abandoned') verifiedOk++;
+      else {
+        verifiedNg++;
+        console.error('[abandonKisoInProgressByRank] verify NG: row=' + t.rowIdx
+          + ' expected=abandoned actual=' + newStatus);
+      }
+    }
+    console.log('[abandonKisoInProgressByRank] verified: ok=' + verifiedOk + ' ng=' + verifiedNg);
+
+    return {
+      ok: verifiedNg === 0,
+      rank: r,
+      dryRun: false,
+      targets: targets,
+      updated: updated,
+      verified: { ok: verifiedOk, ng: verifiedNg },
+      completedAt: nowStr
+    };
+  } catch (err) {
+    console.error('[abandonKisoInProgressByRank]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// ショートカット: rank=4 の一括 abandoned 化（rank_04 50題化前の pre-flight 用）
+function abandonRank4InProgress(opts) {
+  return abandonKisoInProgressByRank(4, opts);
+}
+
+// ショートカット: rank=3 の一括 abandoned 化（rank_03 50題化前の pre-flight 用）
+function abandonRank3InProgress(opts) {
+  return abandonKisoInProgressByRank(3, opts);
+}
+
 // KisoSessions シートを sessionId で線形検索（直近のセッションは末尾近く）
 // 戻り値: { rowIdx (1-based), sheet, header, row } | null
 function _findKisoSessionRow(sessionId) {

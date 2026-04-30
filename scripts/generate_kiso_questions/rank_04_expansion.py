@@ -37,12 +37,24 @@ def _expand_xab(a: int, b: int) -> Tuple[int, int, int]:
 
 
 def _gen_type_xab(rng, const_max):
-    """Band A: (x+a)(x+b)。a, b は同符号でも異符号でも OK。a == b は除外（Band B 相当）。"""
+    """Band A: (x+a)(x+b)。a, b は同符号でも異符号でも OK。
+
+    除外条件:
+    - a == b: 平方（Band B 相当）
+    - a + b == 0: 差の平方 (x-c)(x+c) = x^2 - c^2（Band C 相当、cross-band 重複防止）
+
+    数学的に同一の問題 (x+a)(x+b) と (x+b)(x+a) を統一するため、数値順で a <= b に
+    並べ替える（unique pool の二重計上 / 同一セッション内の実質重複を防ぐ）。
+    """
     while True:
         a = _signed(rng, const_max)
         b = _signed(rng, const_max)
         if a == b:
             continue  # 平方は Band B
+        if a + b == 0:
+            continue  # 差の平方は Band C
+        if a > b:
+            a, b = b, a
         c2, c1, c0 = _expand_xab(a, b)
         problem_latex = factored_pair_latex(a, b)
         canonical = poly_latex([c2, c1, c0])

@@ -120,24 +120,42 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "B": {"count": 10, "kind": "two_by_two_general", "coef_max": 5, "const_max": 6},
         "C": {"count": 10, "kind": "trinomial_by_binomial", "coef_max": 3, "const_max": 5},
     },
-    # 4級：乗法公式
+    # 4級：乗法公式（フェーズ1: 50題化、2026-04-30）
+    # A: (x+a)(x+b) — Band A の (a,b) は数値昇順に正規化済（rank_04_expansion._gen_type_xab）
+    # B: (x+a)^2 / (x-a)^2
+    # C: (x+a)(x-a)
+    # const_max=12 は中3 乗法公式の典型範囲（紙教材準拠）。
+    # unique pool: A 全 24*23/2=276（順序統一後）、B 24、C 12。
+    # 配分は紙教材の難易度比率に沿って A=45% / B=35% / C=20%。
+    # TODO_PHASE2: 100題化。const_max=15 や Band D 新設で対応。
     4: {
-        # A: (x+a)(x+b)
-        # B: (x+a)^2 / (x-a)^2
-        # C: (x+a)(x-a)
-        "A": {"count": 10, "kind": "type_xab", "const_max": 9},
-        "B": {"count": 10, "kind": "type_square", "const_max": 9},
-        "C": {"count": 10, "kind": "type_diff_squares", "const_max": 9},
+        "A": {"count": 23, "kind": "type_xab", "const_max": 12},
+        "B": {"count": 17, "kind": "type_square", "const_max": 12},
+        "C": {"count": 10, "kind": "type_diff_squares", "const_max": 12},
     },
-    # 3級：因数分解
+    # 3級：因数分解（フェーズ1: 50題化、2026-04-30）
+    # A: 共通因数のみ：ax + ay = a(x + y)
+    # B: x² + bx + c → (x + m)(x + n)
+    # C: x² - a² または x² ± 2ax + a²（完全平方、3 サブパターン）
+    # TODO_PHASE3: ax² + bx + c のたすき掛けは Phase 3 の Band D 以降で導入
+    # const_max=12 は中3 因数分解の典型範囲（紙教材準拠、rank_04 と整合）。
+    # Band C の subcounts: ふくちさんの教育的判断「差の平方は見分けが簡単で
+    # 思考量が少ない」を反映し diff を少なめ。perfect_pos/neg はそれなりに
+    # 思考が必要なため均等。
+    # unique pool（const_max=12 のとき）:
+    #   A common_factor: 数百〜千単位（factor/term 組合せ豊富）
+    #   B trinomial_simple: C(24,2) = 276
+    #   C diff: 12 / perfect_pos: 12 / perfect_neg: 12（合計 36）
+    # TODO_PHASE2: 100題化。const_max=15 や Band D（たすき掛け）追加で対応。
     3: {
-        # A: 共通因数のみ：ax + ay = a(x + y)
-        # B: x² + bx + c → (x + m)(x + n)
-        # C: x² - a² または x² ± 2ax + a²（完全平方）
-        # TODO_PHASE3: ax² + bx + c のたすき掛けは Phase 3 の Band D 以降で導入
-        "A": {"count": 10, "kind": "common_factor", "factor_max": 9, "term_max": 6},
-        "B": {"count": 10, "kind": "trinomial_simple", "root_max": 9},
-        "C": {"count": 10, "kind": "diff_or_perfect_square", "const_max": 9},
+        "A": {"count": 11, "kind": "common_factor", "factor_max": 9, "term_max": 6},
+        "B": {"count": 11, "kind": "trinomial_simple", "root_max": 9},
+        "C": {
+            "count": 28,
+            "kind": "diff_or_perfect_square",
+            "const_max": 12,
+            "subcounts": {"diff": 6, "perfect_pos": 11, "perfect_neg": 11},
+        },
     },
     # 2級：平方根
     2: {

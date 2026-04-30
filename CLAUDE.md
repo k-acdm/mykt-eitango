@@ -1864,6 +1864,101 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - **基礎計算 問題プール拡充計画** を CLAUDE.md に新セクションとして追加（明日以降の作業準備、優先度 A〜C で整理）
 - 本日の全 commit を main にマージして塾PC 作業終了
 
+#### 155. 基礎計算 rank_04 を 30題 → 50題 に拡充（Phase 1 完了、dev `e10d745` / `0a64f01` / `6ce217d` / `b3b3d77`）
+- **背景**: 拡充計画 #154 の優先度 A、最初の対象。Band C「(x+a)(x-a)」が a∈{1..9} で unique=9、count=10 で構造的に重複が発生する根本バグの解消も兼ねる
+- **設計判断**（事前合意）:
+  - const_max を全 Band で 9 → 12（中3 乗法公式の典型範囲、紙教材準拠）
+  - count 配分 A=23 / B=17 / C=10（合計 50、比率 45% / 35% / 20%）
+  - Band A は `(x+a)(x+b)` で `min(a,b)` を先頭に並べ替え（数学的に同一の問題 (x+3)(x+5) と (x+5)(x+3) を一つの LaTeX に統一）
+  - 併せて `a+b==0`（差の平方型）を Band A から除外し Band C と cross-band 重複を防止
+- **コード変更** ([rank_04_expansion.py](scripts/generate_kiso_questions/rank_04_expansion.py) / [band_config.py](scripts/generate_kiso_questions/common/band_config.py)):
+  - `_gen_type_xab` で `if a > b: a, b = b, a` の正規化 + `a + b == 0` 除外
+  - `factored_pair_latex` 本体は無改修（rank_03 が canonical answer 生成で流用しているため副作用回避）
+  - `band_config.BAND_PLAN[4]` を新仕様に更新、コメントで Phase 2 の 100 題化方針を明記
+- **検証結果**:
+  - `python main.py` で全 20 rank 生成 → 620 / 620 unique / 0 failed / 0 dedup_warn
+  - Node 検証スクリプト（`out/_verify_phase1.mjs`、gitignore 配下）で 184 PASS / 0 FAIL
+    - T1 全 rank 重複ゼロ / T2 Band A 順序統一 / T3 上付き文字判定（rank 3/4/5/7 計 140 問）/ T4 rank_04 サマリ
+- **Phase 4 投入手順（in_progress セッション影響評価込み）**:
+  1. `diagnoseRank4InProgress()` 関数を新設（dev `6ce217d`）→ 8 件の in_progress 検出
+     - 内訳: テストアカウント 5 件（sid=1004 4セッション、sid=1002 1セッション）+ 実在生徒の放置セッション 3 件（sid=22029 ウミネコ）
+     - ウミネコさんは乗法公式バグ報告者で、これらは動作確認時の放置分
+  2. `abandonRank4InProgress(opts)` 関数を新設（dev `b3b3d77`）→ 8 件すべて 'abandoned' に書き換え
+     - 安全策：書き換え前ログ出力 + dryRun サポート + 書き換え後の再読み込み検証
+     - 実行結果: targets=8 / updated=8 / verified={ ok: 8, ng: 0 } @ 2026-04-30 05:01:46
+  3. `python -m common.db_writer` で 620 行を一括投入（dry-run → 本番）
+  4. gspread で post-verification（`out/_verify_phase4_post.py`、gitignore 配下）:
+     - 全 rank 行数一致（rank=4 が 50、他 19 rank が 30）/ 合計 620 行
+     - questionId 重複 0 件 / 全 rank で problemLatex 重複 0 件
+     - rank_04 サンプル: q_04_000001 `(x - 11)(x - 10) = x^2 - 21x + 110` 〜 q_04_000050 `(x + 11)(x - 11) = x^2 - 121`
+- **将来タスク追記**: 「KisoSessions に problemLatex 保存」防衛策を「基礎計算 問題プール拡充計画」セクションに記載（dev `6ce217d`）。Phase 2 100題化の前に着手予定（所要 1〜1.5 時間）
+- **既知の minor 警告**: db_writer.py の `ws.update(range_str, rows, ...)` で gspread の DeprecationWarning。動作には影響なく、近い将来 `ws.update(values=rows, range_name=range_str)` に直す
+- **次回**: 拡充計画 優先度 A の残り（rank_02 平方根 / rank_03 因数分解）
+
+#### 156. 基礎計算 rank_03 を 30題 → 50題 に拡充（Phase 1 完了、dev `d938a90` / `6fe2fb3` / `<merge>`）
+- **背景**: 拡充計画 優先度 A の 2 つ目。rank_04 と異なり構造的バグはなく既存 30 問はクリーン。ふくちさんの教育的判断で「差の平方は思考量少なめ」を反映した **Band C サブパターンの内訳重み付け** が今回の特徴
+- **設計判断**（事前合意）:
+  - Band A: count 10 → 11（共通因数）/ Band B: 10 → 11（三項式）— 中3 因数分解の核心、ほぼ均等
+  - Band C: 10 → 28（差の平方/完全平方）— 内訳 **diff=6 / perfect_pos=11 / perfect_neg=11**
+  - const_max を全 Band で 9 → 12（紙教材準拠、rank_04 と整合）
+- **コード変更** ([rank_03_factorization.py](scripts/generate_kiso_questions/rank_03_factorization.py) / [band_config.py](scripts/generate_kiso_questions/common/band_config.py)):
+  - 旧 `_gen_diff_or_perfect_square`（3 パターンランダム選択）を廃止
+  - 3 つの独立 generator を新設: `_gen_diff_squares` / `_gen_perfect_square_pos` / `_gen_perfect_square_neg`
+  - サブパターン dispatcher `_resolve_band_c_subkind(slot_index, subcounts)` を新設。**比率を rng の偶然に依存させず slot_index で決定論的に固定**
+  - `generate_problem(band, rng, slot_index=0)` 化（既存 main.py の slot_index 機構を流用、rank_10 と同じパターン）
+  - band_config rank=3 に `subcounts={"diff":6, "perfect_pos":11, "perfect_neg":11}` を追加
+- **検証結果**:
+  - `python main.py` で rank_03: 50/50 unique / 0 failed / 0 dedup_warn
+  - 全 20 rank で 640/640 unique（rank 3, 4 が 50、他 18 rank が 30）
+  - Node 検証スクリプト（`out/_verify_phase1.mjs`）に T5（rank_03 サマリ + Band C 内訳）と T6（Band A 共通因数の最簡化 gcd(b,c)=1, |a|≥2）を追加 → **216 PASS / 0 FAIL**
+- **Phase 4 投入手順**:
+  1. `diagnoseRank3InProgress` / `abandonRank3InProgress` ショートカット 2 関数を追加（dev `6fe2fb3`、汎用関数は無修正の薄いラッパー）
+  2. diagnose で 3 件の in_progress を検出: sid=24027 (BP) 1件、sid=24009 (サソリ) 2件、すべて 4/27〜28 の放置セッション
+  3. `abandonRank3InProgress()` で 3 件すべて 'abandoned' に書き換え、verified={ ok: 3, ng: 0 } @ 2026-04-30 05:42:35
+  4. `python -m common.db_writer` で 640 行を一括投入（dry-run → 本番、全置換モード）
+  5. gspread post-verification（`out/_verify_phase4_post.py` を rank_03 対応に拡張）:
+     - 全 rank 行数一致（rank 3 = 50、rank 4 = 50、他 18 rank = 30）/ 合計 640 行
+     - questionId / problemLatex とも重複ゼロ
+     - Band C サブパターン内訳: diff=6 / perfect_pos=11 / perfect_neg=11 / ? = 0 ✓
+     - rank_03 サンプル: q_03_000001 `-30x - 12y = -6(5x + 2y)` 〜 q_03_000050（Band 別に並ぶ）
+- **既存挙動の温存**:
+  - `factored_pair_latex` 本体は無修正（rank_03 既存ロジックは `sorted([m,n])` で正規化済）
+  - Band A の符号正規化（leading 項を正に）は既存通り
+  - `self_check` は既に 3 サブパターン kind を処理済みで無修正
+- **次回**: 拡充計画 優先度 A の残り（rank_02 平方根）/ あるいは優先度 B（rank_05〜08）
+
+#### 157. 自宅PC セッション終了処理（2026-04-30 早朝、dev `<this commit>`）
+- **今夜の主な成果**:
+  - rank_04 拡充完了（30→50題、Phase 1〜4、CLAUDE.md #155）
+  - rank_03 拡充完了（30→50題、Phase 1〜4、Band C 3 サブパターン分離方式、CLAUDE.md #156）
+  - **既存セッション保護機構の確立**：`diagnoseKisoInProgressByRank(rank)` / `abandonKisoInProgressByRank(rank, opts)` を汎用化、rank=N ショートカット 2 関数（diagnose / abandon）×2 ランク = 計 4 関数で在庫増。今後の単元拡充時は 1 行のショートカット追加で再利用可
+- **このセッションで得た教訓（再発防止メモ）**:
+  - 1. 拡充作業の「pre-flight 診断 → abandoned 化 → 投入 → 後検証」フローは安定。**今後どの単元拡充でも同パターンで進められる**
+  - 2. **`diagnose / abandon の汎用関数化**：`rank` を引数にした単一実装で全ランク対応。ふくちさんからは `diagnoseRank<N>InProgress()` のような薄いショートカットで GAS エディタの関数ドロップダウンから引数なし実行可能
+  - 3. **複数サブパターンの比率保証は `slot_index` 駆動の決定論的 dispatcher が有効**（rank_03 Band C で初採用、rank_10 と同じパターン）。rng の偶然に依存させない設計で、ふくちさんが指定した教育的比率 6/11/11 が**確実**に守られる
+  - 4. **教育的判断は数値ベース判断より重要**：rank_03 Band C の内訳「差の平方は思考量少なめだから 6 問だけ」「完全平方プラス/マイナスはそれぞれ 11 問」というふくちさんの 36 年の塾長経験ベースの判断は、unique pool の数学的余裕（27 / 36）を見るだけでは出てこない。今後も配分は ふくちさんの教育的判断を起点に
+  - 5. **既存挙動の温存原則**：今回 `factored_pair_latex` 本体は無修正のまま rank_04 / rank_03 の意図する正規化を達成（rank_04 は呼び出し側で a≤b ソート、rank_03 は元から sorted 済）。共有関数を触らない方が副作用が小さい
+- **環境状態（次回再開時用）**:
+  - dev = origin/dev = origin/main（同期済、ふくちさん側で main マージ・push 完了）
+  - working tree clean
+  - rank_04, rank_03 の問題は本番投入済（KisoQuestions シート 640 行）
+  - GAS 側に診断/abandoned 関数あり（rank_03 / rank_04 ショートカット含む）
+  - Python 環境（自宅PC）：3.14.4、gspread / google-auth / sympy インストール済
+  - 環境変数：`KISO_GSPREAD_CREDENTIALS` / `KISO_SPREADSHEET_ID` 設定済
+- **次回タスク候補**（優先順）:
+  - a. **rank_02 平方根の拡充**（優先度 A 最後、所要 1.5 時間目安）
+  - b. **漢字コンテンツの実装着手**（仕様書完成後）
+  - c. **リスオンコンテンツの作成支援**（3〜準1級）
+  - d. **商標表記のフッター追加**（軽め）
+- **新スレ開始時のルーティン**:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+  `clasp pull` は禁止のまま運用継続。`gas/Code.js` への変更は常に `clasp push` で一方通行
+- **次回の Phase 4 簡略化**: 既存の `diagnoseKisoInProgressByRank(rank)` / `abandonKisoInProgressByRank(rank, opts)` 汎用関数は既にあるため、新ショートカットは `diagnoseRank2InProgress()` / `abandonRank2InProgress(opts)` の 2 行追加で済む（rank_03 では `feat(GAS): rank_03 投入前診断・abandoned 化のショートカット関数` で 10 行のコミットだった）
+
 ---
 
 ## 基礎計算 問題プール拡充計画
@@ -1883,21 +1978,23 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - 各単元の Band 構成、パラメータ範囲、generator を見直し
 - 教育的バランスを保ちつつパラメータ空間を拡張
 
-### 増産優先度
+### 増産優先度（進捗 2026-04-30 更新）
 
 **優先度 A（Band 不足が確定、最優先）**
-- rank_04 乗法公式（Band C が 9 問のみ、報告バグの単元）
-- rank_02 平方根（一意空間が狭い）
-- rank_03 因数分解（square_factor_latex で限定）
+- ✅ **rank_04 乗法公式**（Band C が 9 問のみ、報告バグの単元）— 完了 2026-04-30、CLAUDE.md #155
+- ⏳ **rank_02 平方根**（一意空間が狭い）— **次回最優先**
+- ✅ **rank_03 因数分解**（square_factor_latex で限定）— 完了 2026-04-30、CLAUDE.md #156
 
 **優先度 B（使用頻度高）**
-- rank_05 中3 式の計算
-- rank_07 中2 式の計算
-- rank_08 一次方程式
-- rank_06 連立方程式
+- ⏳ rank_05 中3 式の計算
+- ⏳ rank_07 中2 式の計算
+- ⏳ rank_08 一次方程式
+- ⏳ rank_06 連立方程式
 
 **優先度 C（パラメータ空間が広い、余裕あり）**
-- rank_11〜rank_20（整数・小数・正負・分数の四則）
+- ⏳ rank_11〜rank_20（整数・小数・正負・分数の四則）
+
+**Phase 1 全体進捗**: 2 / 20 単元完了（100 / 1000 題、10%）
 
 ### 進捗管理
 - 各単元増産時に main.py の WARN ログを確認（重複検出の有無）
@@ -1920,6 +2017,25 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - 生成・投入：15 分
 - 検証：15 分
 - 合計：約 1.5 時間
+
+### 将来タスク：KisoSessions に problemLatex を保存する防衛策（Phase 2 100題化の前に着手）
+
+**背景**: 現在の `KisoSessions.questionIds` は質問IDのみを保存し、採点・再挑戦時は `_getKisoQuestionsByIds` で `KisoQuestions` シートから都度ルックアップする設計。問題プールを差し替えると、既存の進行中セッションの questionId が新しい問題に解決されてしまい、生徒が見ていた旧問題と採点対象がずれる事故が発生し得る（rank_04 50題化時に診断＋投入順序で対処、CLAUDE.md #155 参照）。
+
+**改善案**: `startKisoSession` でセッション作成時に `questionIds` と並んで `problemLatexes`（JSON 配列）も保存。採点・再挑戦時は KisoSessions の保存値を優先参照し、KisoQuestions ルックアップはフォールバック扱いにする。
+
+**期待効果**:
+- 問題プール変更時もセッションが破綻しない
+- KisoQuestions シートが整合性を失っても採点が継続できる（耐障害性）
+- 過去セッション再表示（CLAUDE.md #152）の表示も保存値優先になり安定する
+
+**スコープ・所要見込み**:
+- KISO_SESSIONS_HEADERS に列追加（既存セッションへの後方互換: 列が無ければ従来動作にフォールバック）
+- `startKisoSession` 1 行追加 + appendRow 1 値追加
+- `_getKisoQuestionsByIds` を呼んでいる 3 箇所（採点 / 再挑戦 / 過去セッション再表示）の参照優先順を変更
+- 約 1〜1.5 時間
+
+**着手タイミング**: 全単元 100題化（Phase 2）に進む前。50題化（Phase 1）の段階で全単元を一通り回した後に実施するのが自然。
 
 ---
 
