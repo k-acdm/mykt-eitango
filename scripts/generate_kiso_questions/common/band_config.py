@@ -104,12 +104,24 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     },
     # 7級：式の計算 中2
     7: {
+        # Phase 1（2026-04-30）: 30→50題化、Band C を 3 サブパターン分離
         # A: 多項式の加減
         # B: 多項式 × 整数 or 多項式 ÷ 整数
-        # C: 単項式の累乗
-        "A": {"count": 10, "kind": "poly_addsub", "coef_max": 6, "const_max": 8},
-        "B": {"count": 10, "kind": "poly_int_muldiv", "coef_max": 5, "const_max": 8, "factor_max": 6},
-        "C": {"count": 10, "kind": "monomial_power", "coef_max": 5, "exp_max": 3},
+        # C: 単項式の乗除と累乗（slot_index 駆動の決定論的サブパターン分離）
+        #    subcounts={"power":5, "mono_mul":6, "mono_div":5}（ふくちさん教育的判断、
+        #    mono_mul を 1 問多めに）
+        #      - power     : 既存の (coef·var)^exp 単項式の累乗
+        #      - mono_mul  : 単項式×単項式（同変数 / 異変数 両対応）
+        #      - mono_div  : 単項式÷単項式（整数結果と分数結果両方）
+        # 教育的拡充: 旧構成では中2 文字式の核「単項式の乗除」が抜けていたため Phase 1 で網羅。
+        "A": {"count": 17, "kind": "poly_addsub", "coef_max": 6, "const_max": 8},
+        "B": {"count": 17, "kind": "poly_int_muldiv", "coef_max": 5, "const_max": 8, "factor_max": 6},
+        "C": {
+            "count": 16,
+            "kind": "mono_mixed",
+            "coef_max": 5, "exp_max": 3,  # power サブパターン用に保持
+            "subcounts": {"power": 5, "mono_mul": 6, "mono_div": 5},
+        },
     },
     # 5級：式の計算 中3（多項式の展開）
     5: {

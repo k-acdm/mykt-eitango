@@ -2598,6 +2598,11 @@ function diagnoseRank2InProgress() {
   return diagnoseKisoInProgressByRank(2);
 }
 
+// ショートカット: rank=7 の診断（rank_07 50題化前の pre-flight 用）
+function diagnoseRank7InProgress() {
+  return diagnoseKisoInProgressByRank(7);
+}
+
 // 指定 rank の in_progress セッションを 'abandoned' に書き換える管理関数
 // （GAS エディタ実行専用、doGet 未登録）。
 //
@@ -2724,6 +2729,11 @@ function abandonRank3InProgress(opts) {
 // ショートカット: rank=2 の一括 abandoned 化（rank_02 50題化前の pre-flight 用）
 function abandonRank2InProgress(opts) {
   return abandonKisoInProgressByRank(2, opts);
+}
+
+// ショートカット: rank=7 の一括 abandoned 化（rank_07 50題化前の pre-flight 用）
+function abandonRank7InProgress(opts) {
+  return abandonKisoInProgressByRank(7, opts);
 }
 
 // KisoSessions シートを sessionId で線形検索（直近のセッションは末尾近く）
@@ -5354,10 +5364,13 @@ function _wabun1AddDays(startStr, n) {
 // ■ 緩和（同一視する）
 //   1. すべての空白文字を削除（半角/全角スペース・タブ・改行）
 //   2. 全角英数を半角に統一
-//   3. 類似句読点・記号を半角に統一（「、」⇔「,」、「．」⇔「.」、ハイフン類など）
+//   3. 日本語の装飾句読点「、」「。」「，」は削除（有無を判定対象外、英文 . , は厳格）
+//      - 「，」(U+FF0C) は「、」と同等扱い（2026-04-30）。日本語 IME で全角コンマを
+//        使う書き方も「、」と同じく装飾的とみなして判定対象外にする。
+//   4. 類似句読点・記号を半角に統一（「．」⇔「.」、ハイフン類など）
 // ■ 維持（厳格に判定）
-//   - 文末ピリオド「.」は punctuation としてそのまま残る
-//   - 文末句点「。」は punctMap に含めず別記号として残す（英文 . と日本文 。 を区別）
+//   - 文末ピリオド「.」(U+002E) は厳格判定（英文に必須）
+//   - 半角コンマ「,」(U+002C) は厳格判定（英文に必須）
 //   - 大文字小文字（2026-04-29 から厳格化）：学校テストの採点基準に合わせるため
 //     toLowerCase を撤廃。文頭小文字 / 文中大文字は ❌ として判定される。
 //     全角→半角変換は case を保持する（Ａ→A, ａ→a）。
@@ -5368,16 +5381,17 @@ function _normalizeWabun1(s) {
   t = t.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(ch){
     return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
   });
-  // 2. 日本語の句読点（、 。）を削除（仕様：装飾的要素として判定対象外）
+  // 2. 日本語の句読点（、 。 ，）を削除（仕様：装飾的要素として判定対象外）
   //    「、」(U+3001) と「。」(U+3002) は日本語問題で必須でないため、有無を判定に
   //    影響させない。英語の「,」(U+002C) と「.」(U+002E) は引き続き厳格判定。
-  //    全角コンマ「，」(U+FF0C) と全角ピリオド「．」(U+FF0E) は次の punctMap で
-  //    半角化（日本語 IME での全角混入を英語句読点として救済）。
-  t = t.replace(/[、。]/g, '');
+  //    全角コンマ「，」(U+FF0C) は「、」と同等扱い（2026-04-30 修正）。日本語 IME で
+  //    全角コンマを使う書き方も「、」と同じく装飾的とみなし削除する。
+  //    全角ピリオド「．」(U+FF0E) は次の punctMap で半角「.」に統一（英語ピリオド
+  //    として扱う、日本語 IME の混入を英語句読点として救済）。
+  t = t.replace(/[、。，]/g, '');
   // 3. 類似句読点・記号を半角に統一
-  //    （「、」「。」は前段で削除済みなので punctMap には含めない）
+  //    （「、」「。」「，」は前段で削除済みなので punctMap には含めない）
   const punctMap = {
-    '，': ',',
     '．': '.',
     '？': '?', '！': '!',
     '：': ':', '；': ';',
@@ -5389,7 +5403,7 @@ function _normalizeWabun1(s) {
     '‘': "'", '’': "'",  // ‘ ’
     'ー': '-', '−': '-', '－': '-', '‐': '-', '‑': '-', '–': '-', '—': '-'
   };
-  t = t.replace(/[，．？！：；（）［］｛｝「」『』“”‘’ー−－‐‑–—]/g, function(ch){
+  t = t.replace(/[．？！：；（）［］｛｝「」『』“”‘’ー−－‐‑–—]/g, function(ch){
     return punctMap[ch] || ch;
   });
   // 3. すべての空白文字を削除（半角/全角スペース・タブ・改行・その他 Unicode 空白）
@@ -5461,7 +5475,7 @@ function _wabun1ClassifyFeedback(studentRaw, studentNorm, correctRaw, correctNor
     return { type: 'period_missing', message: '末尾のピリオド「.」が抜けています' };
   }
   // 4. comma_missing: カンマ全削除で一致 + 正解側のほうがカンマが多い（英語問題のみ。
-  //    日本語の「、」は _normalizeWabun1 で両方から削除されるため誤分類されない）
+  //    日本語の「、」「，」は _normalizeWabun1 で両方から削除されるため誤分類されない）
   const stripComma = function(s){ return String(s || '').replace(/,/g, ''); };
   const studentCommaCount = (studentNorm.match(/,/g) || []).length;
   const correctCommaCount = (correctNorm.match(/,/g) || []).length;
