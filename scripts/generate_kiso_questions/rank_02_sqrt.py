@@ -4,11 +4,19 @@
 # ============================================================
 """2級：平方根（仕様書 §6.5、§6.8 決定3）。
 
-A: 簡約のみ — √n → a√b（b は square-free）
-B: 簡約 + 加減 — c√n + d√m → 同じ b に簡約後、係数を加減
-C: 乗除 と 有理化 — 1/√n → √n/n、a/√b → a√b/b 等
+Phase 1（2026-04-30）: 30→50 題に拡充、Band C を 3 サブパターンに分離。
 
-TODO_PHASE3: 二重根号、有理化が複雑な分子分母（例: 1/(√3+1)）は Phase 3 の Band D 以降で導入。
+A: 簡約のみ — √n → a√b（b は square-free） / count=17
+B: 簡約 + 加減 — c√n + d√m → 同じ b に簡約後、係数を加減 / count=17
+C: 乗除 と 有理化（slot_index 駆動の決定論的サブパターン分離、count=16）
+   subcounts={"mul":6, "rationalize":5, "div":5}（ふくちさん教育的判断、ほぼ均等）
+   - mul         : √a × √b → c√d。subslot 0〜4 は a,b ∈ [2,15]、subslot 5 のみ
+                   [16,30] で中堅レベルの刺激を残す（生徒上位層への刺激として）
+   - rationalize : a / √b → a√b / b。b ∈ {2,3,5,6,7,10}、a ∈ [1,12]（教科書頻出）
+   - div         : √a / √b → 簡約 or (c√d)/e。最終 denom ≤ 12 で極端な分母を排除
+
+TODO_PHASE3: 二重根号、有理化が複雑な分子分母（例: 1/(√3+1)）、Band C-mul の
+extended range をさらに広げる、rationalize の b を拡張する等は Phase 3 の Band D 以降で導入。
 
 §6.8 決定3 を厳守：
   - 答えはすべて簡約形（√8 などは NG、必ず 2√2）
@@ -174,80 +182,151 @@ def _gen_addsub_with_simplify(rng, coef_max, n_max):
 
 
 # --- Band C: 乗除 と 有理化 -------------------------------------------------
+#
+# 旧 _gen_muldiv_rationalize（P1/P2/P3 を rng でランダム選択）は廃止。
+# rank_03 で確立した「slot_index 駆動の決定論的サブパターン分離」方式に移行。
+# 比率を rng の偶然に依存させず subcounts={"mul":6, "rationalize":5, "div":5} で固定。
+#
+# 教育的引き締め（ふくちさん 36 年の塾長経験ベース）:
+#   - mul:        a,b ∈ [2,15] が基本。subslot=5（6 問中の最終 1 問）のみ [16,30] で
+#                 中堅レベルの刺激を残す（√13×√11 = √143 のような問題）
+#   - rationalize: b ∈ {2,3,5,6,7,10}（square-free） / a ∈ [1,12]
+#                  教科書頻出の典型問題（1/√2 = √2/2、3/√5 = 3√5/5 等）に集中
+#   - div:        答えの denom ≤ 12 を制約。極端な分母（22 等）の問題を排除
 
-def _gen_muldiv_rationalize(rng, n_max):
-    """3 パターンをランダム選択：
-      P1: √a × √b → 簡約形（c√d）
-      P2: a / √b → a√b / b（有理化）
-      P3: √a / √b → 簡約形 or 既約の (c√d)/e
+# Band C-mul：通常範囲（subslot 0〜4 の 5 問）と刺激枠（subslot 5 の 1 問）
+_MUL_RATIONAL_RANGE = (2, 15)
+_MUL_STIMULATING_RANGE = (16, 30)
+
+
+def _gen_mul(rng, subslot):
+    """√a × √b → c√d（簡約形、d は square-free、整数化しない）。
+
+    subslot=5（mul 6 問中の最後の 1 問）のときだけ a,b ∈ [16,30] の中堅レベル。
+    それ以外は a,b ∈ [2,15] の教科書典型範囲。
+    a ≤ b に正規化（数学的に同一の問題 √3×√2 と √2×√3 を統一、rank_04 Band A と同方針）。
+
+    教育的引き締め（ふくちさん指針）:
+      - subslot=5 で result_radicand ≤ 200 を制約に追加。
+      - これにより √13×√11=√143 は許容、√29×√30=√870 は除外される。
+      - 通常範囲 [2,15] は積最大 15*15=225 で自然に収まるため制約不要。
     """
-    pattern = rng.choice(["P1", "P2", "P3"])
-    if pattern == "P1":
-        a = rng.randint(2, n_max)
-        b = rng.randint(2, n_max)
+    if subslot == 5:
+        lo, hi = _MUL_STIMULATING_RANGE
+        radicand_cap = 200
+    else:
+        lo, hi = _MUL_RATIONAL_RANGE
+        radicand_cap = None
+    while True:
+        a = rng.randint(lo, hi)
+        b = rng.randint(lo, hi)
+        if a > b:
+            a, b = b, a
         n_result = a * b
         if is_perfect_square(n_result):
-            return None  # 整数になると Band C 入門としては微妙
+            continue
         c, d = simplify_sqrt(n_result)
         if d == 1:
-            return None
+            continue
+        if radicand_cap is not None and d > radicand_cap:
+            continue
         problem_latex = f"\\sqrt{{{a}}} \\times \\sqrt{{{b}}}"
         canonical = _sqrt_plain(c, d)
         return problem_latex, canonical, {
             "kind": "muldiv_P1", "a": a, "b": b,
             "result_coef": c, "result_radicand": d,
         }
-    if pattern == "P2":
-        a = rng.randint(2, n_max)
-        b = rng.randint(2, n_max)
-        # 【入門難易度配慮】b は square-free に限定（√12 のような未簡約表示を避ける）
-        # TODO_PHASE3: b に平方因子がある（√12 → 2√3 を経由してから有理化）ケースは
-        # Phase 3 の Band D 以降で導入
-        if simplify_sqrt(b) != (1, b):
-            return None
-        # a / √b = a√b / b （簡約：分子の係数 a と分母 b は既約に）
-        from math import gcd
+
+
+# Band C-rationalize：a / √b → a√b / b の典型有理化
+_RATIONALIZE_DENOM_CANDIDATES = (2, 3, 5, 6, 7, 10)
+
+
+def _gen_rationalize(rng):
+    """a / √b → a√b / b（既約化済み）。
+
+    b ∈ {2,3,5,6,7,10}（square-free、教科書頻出）、a ∈ [1,12]。
+    分子の係数 num_coef と分母 denom は gcd で既約化する。
+    """
+    from math import gcd
+    while True:
+        b = rng.choice(_RATIONALIZE_DENOM_CANDIDATES)
+        a = rng.randint(1, 12)
         g = gcd(a, b)
         num_coef = a // g
         denom = b // g
         if denom == 1:
-            return None  # 整数化（P1 と被る）
+            continue  # 整数化（√b が消える）は除外
         problem_latex = f"\\frac{{{a}}}{{\\sqrt{{{b}}}}}"
         canonical = f"{_sqrt_plain(num_coef, b)}/{denom}"
         return problem_latex, canonical, {
             "kind": "muldiv_P2", "a": a, "b": b,
             "num_coef": num_coef, "denom": denom,
         }
-    # P3: √a / √b
-    a = rng.randint(2, n_max)
-    b = rng.randint(2, n_max)
-    if is_perfect_square(b):
-        return None
-    # √a / √b = √(a/b)。a/b が整数なら √(a/b) → 簡約。
-    # 一般には √(a/b) = √(ab) / b（有理化）
-    n_under = a * b
-    if is_perfect_square(n_under):
-        return None
-    c, d = simplify_sqrt(n_under)
-    # (c√d)/b → 既約化：gcd(c, b) で約分
+
+
+# Band C-div：√a / √b → 簡約 or 有理化済みの (c√d)/e
+def _gen_div(rng, n_max):
+    """√a / √b → 既約化済みの (num_coef √num_radicand)/denom 形式。
+
+    教育的引き締め: 最終 denom ≤ 12 を制約に追加し、極端な分母（22, 17 等）を排除。
+    """
     from math import gcd
-    g = gcd(c, b)
-    num_coef = c // g
-    denom = b // g
-    if denom == 1 and d == 1:
-        return None  # 整数化
-    problem_latex = f"\\frac{{\\sqrt{{{a}}}}}{{\\sqrt{{{b}}}}}"
-    if denom == 1:
-        canonical = _sqrt_plain(num_coef, d)
-    else:
-        canonical = f"{_sqrt_plain(num_coef, d)}/{denom}"
-    return problem_latex, canonical, {
-        "kind": "muldiv_P3", "a": a, "b": b,
-        "num_coef": num_coef, "num_radicand": d, "denom": denom,
-    }
+    while True:
+        a = rng.randint(2, n_max)
+        b = rng.randint(2, n_max)
+        if is_perfect_square(b):
+            continue
+        n_under = a * b
+        if is_perfect_square(n_under):
+            continue
+        c, d = simplify_sqrt(n_under)
+        g = gcd(c, b)
+        num_coef = c // g
+        denom = b // g
+        if denom == 1 and d == 1:
+            continue  # 整数化
+        if denom > 12:
+            continue  # ★ 教育的引き締め：denom ≤ 12 のみ採用
+        problem_latex = f"\\frac{{\\sqrt{{{a}}}}}{{\\sqrt{{{b}}}}}"
+        if denom == 1:
+            canonical = _sqrt_plain(num_coef, d)
+        else:
+            canonical = f"{_sqrt_plain(num_coef, d)}/{denom}"
+        return problem_latex, canonical, {
+            "kind": "muldiv_P3", "a": a, "b": b,
+            "num_coef": num_coef, "num_radicand": d, "denom": denom,
+        }
 
 
-def generate_problem(band: str, rng: random.Random) -> Dict[str, Any]:
+# slot_index 駆動の決定論的 Band C dispatcher（rank_03 と同パターン）
+_BAND_C_PATTERN_ORDER = ["mul", "rationalize", "div"]
+
+
+def _resolve_band_c_subkind(slot_index: int, subcounts: Dict[str, int]) -> Tuple[str, int]:
+    """slot_index → (subkind, subslot)。subslot は subkind 内での 0-based 位置。
+
+    例: subcounts={"mul": 6, "rationalize": 5, "div": 5}
+        slot 0-5  → ("mul", 0..5)
+        slot 6-10 → ("rationalize", 0..4)
+        slot 11-15→ ("div", 0..4)
+
+    比率を rng の偶然に依存させず**決定論的**に固定する目的。同じ slot_index を
+    指定すれば dedup_retry 時も同じサブパターンが選ばれる（main.py 仕様）。
+    """
+    prev_boundary = 0
+    for kind in _BAND_C_PATTERN_ORDER:
+        cnt = int(subcounts.get(kind, 0))
+        if slot_index < prev_boundary + cnt:
+            return kind, slot_index - prev_boundary
+        prev_boundary += cnt
+    raise ValueError(
+        f"slot_index {slot_index} が subcounts {subcounts} の範囲外。"
+        f"band_config の count と subcounts の総和が一致しているか確認"
+    )
+
+
+def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict[str, Any]:
     cfg = get_band(2, band)
     kind = cfg["kind"]
 
@@ -257,7 +336,14 @@ def generate_problem(band: str, rng: random.Random) -> Dict[str, Any]:
         elif kind == "addsub_with_simplify":
             built = _gen_addsub_with_simplify(rng, cfg["coef_max"], cfg["n_max"])
         elif kind == "muldiv_rationalize":
-            built = _gen_muldiv_rationalize(rng, cfg["n_max"])
+            # Band C: subcounts と slot_index で (subkind, subslot) を決定論的に dispatch
+            subkind, subslot = _resolve_band_c_subkind(slot_index, cfg["subcounts"])
+            if subkind == "mul":
+                built = _gen_mul(rng, subslot)
+            elif subkind == "rationalize":
+                built = _gen_rationalize(rng)
+            else:  # "div"
+                built = _gen_div(rng, cfg["n_max"])
         else:
             raise NotImplementedError(kind)
         if built is None:
