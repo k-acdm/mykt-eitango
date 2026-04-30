@@ -2048,6 +2048,44 @@ Phase 3 着手中に新たな設計原則が発見された場合：
   - rank_02 / rank_03 / rank_04 への影響なし（regression テストで確認済）
 - **次回タスク候補**: 拡充計画 優先度 B 残り（rank_05 / rank_06 / rank_08）
 
+#### 160. 基礎計算 rank_05 を 30題 → 50題 に拡充（Phase 1 完了、dev `27e7e24` / `6e3c0b9` / `<this commit>`）
+- **背景**: 拡充計画 優先度 B の 2 つ目。事前調査では Band A=1,600 / Band B=14,400 / Band C=39,600 unique と pool 余裕大、構造的バグなし。中3「展開」のカリキュラムは既存 3 Band（基本展開 / 一般展開 / 3項×2項）で網羅済だったが、ふくちさん教育的判断で **(ax+b)² の直接展開練習を量で確保** するため Band D を新設する案 D を採用
+- **設計判断**（事前合意）:
+  - count 配分 A=13 / B=13 / C=12 / D=12（合計 50、均等割）
+  - rank_05 は唯一の **4 Band 構成**（他のランクは 3 Band）
+  - Band D = 新規 (ax+b)² 直接展開（kind="square_with_coef"）
+  - Band A に (a,b) ≤ (c,d) 辞書順正規化を追加（rank_04 Band A と同方針）
+- **教育的拡充の動機**（ふくちさん 36 年の塾長経験）:
+  - (ax+b)² は中3生がミスしやすい典型パターン:
+    - (2x)² を 2x² と書く誤り（正しくは 4x²、係数の二乗忘れ）
+    - 中央項の係数倍を忘れる（2·2x·3 = 12x の処理）
+    - 末項 b² の符号見落とし
+  - rank_04 (x+a)² は「公式記憶」アプローチ、Band D は a ≥ 2 で差別化し「直接展開で公式を導く」量の確保を目的
+- **コード変更**:
+  - [common/band_config.py](scripts/generate_kiso_questions/common/band_config.py): rank=5 を 4 Band 構造（A/B/C/D = 13/13/12/12）に拡張
+  - [rank_05_expr_grade3.py](scripts/generate_kiso_questions/rank_05_expr_grade3.py) +74/-14:
+    - 新 generator `_gen_square_with_coef`: a ∈ [2, coef_max]（a ≥ 2 強制で rank_04 と差別化）/ b ∈ ±1〜±const_max（非零）/ canonical = poly_latex([a², 2ab, b²])
+    - `_gen_two_by_two` に `normalize` パラメータ追加（Band A のみ True、Band B は False）
+    - `generate_problem` の dispatch に square_with_coef を追加
+    - `self_check` を square_with_coef 対応に拡張: a ≥ 2 / b != 0 ガード + 数学的展開検証
+  - 既存 Band A/B/C のロジックは無修正（Band A は normalize=True パスを通すだけ）
+- **検証結果**:
+  - `python main.py` で rank_05: 50/50 unique / 0 failed selfcheck / 0 dedup_warn
+  - 全 20 rank で 700/700 unique（rank 1, 6, 8-20 が 30、rank 2/3/4/5/7 が 50）
+  - Node 検証スクリプト [_verify_rank05.mjs](scripts/generate_kiso_questions/out/_verify_rank05.mjs)（gitignore 配下）で **15 PASS / 0 FAIL**
+    - T1 rank_05 50/50 unique / T2 Band 数 13/13/12/12 / T3 Band A の (a,b) ≤ (c,d) 辞書順正規化 / T4 Band B coef ≤ ±5 / T5 Band C trinomial × binomial / T6 Band D の a ≥ 2 ガード（rank_04 差別化） / T7 Band D 答えの数学的展開一致（a²x² + 2abx + b²） / T8 rank_02/03/04/07 の 50/50 unique 維持（regression なし）/ T9 全 20 rank 700 問 横断重複ゼロ
+- **Phase 4 投入手順**:
+  1. `diagnoseRank5InProgress` / `abandonRank5InProgress` ショートカット 2 関数を追加（dev `6e3c0b9`、汎用関数は無修正の薄いラッパー）
+  2. ふくちさんが GAS エディタから `abandonRank5InProgress()` を実行 → 5 件の in_progress を検出・abandoned 化、verified={ ok: 5, ng: 0 } @ 2026-04-30 21:42:55
+  3. `python -m common.db_writer --dry-run` で 700 行 / rank=5 が 50 行を確認
+  4. `python -m common.db_writer` で本番投入（全置換モード、700 行）
+  5. gspread post-verification: rank ごとの行数（rank 1, 6, 8-20 が 30、rank 2/3/4/5/7 が 50、合計 700 ✓）/ rank=5 Band 数（A=13, B=13, C=12, D=12 ✓）/ questionId 重複 0 / problemLatex 重複 0
+  6. rank_05 Band D サンプル: q_05_000039〜q_05_000050 が Band D（12 問）。a ∈ {2,3,4,5}、b ∈ {±1, ±2, ±3, ±5, ±6} の多様な組み合わせ
+- **既存挙動の温存**:
+  - Band A/B/C の generator は `normalize` パラメータ追加以外無修正
+  - 他ランク（rank_02/03/04/07）への影響なし（regression テストで確認済）
+- **次回タスク候補**: 拡充計画 優先度 B 残り（rank_06 連立方程式 / rank_08 一次方程式・比例式）
+
 ---
 
 ## 基礎計算 問題プール拡充計画
@@ -2076,14 +2114,14 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 
 **優先度 B（使用頻度高）→ 進行中**
 - ✅ **rank_07 中2 式の計算**（単項式の乗除を新規追加で教科書範囲を網羅）— 完了 2026-04-30、CLAUDE.md #159
-- ⏳ rank_05 中3 式の計算
+- ✅ **rank_05 中3 式の計算**（Band D 新設で (ax+b)² 直接展開を量で確保）— 完了 2026-04-30、CLAUDE.md #160
 - ⏳ rank_08 一次方程式
 - ⏳ rank_06 連立方程式
 
 **優先度 C（パラメータ空間が広い、余裕あり）**
 - ⏳ rank_11〜rank_20（整数・小数・正負・分数の四則）
 
-**Phase 1 全体進捗**: 4 / 20 単元完了（200 / 1000 題、20%）
+**Phase 1 全体進捗**: 5 / 20 単元完了（250 / 1000 題、25%）
 
 ### 進捗管理
 - 各単元増産時に main.py の WARN ログを確認（重複検出の有無）
