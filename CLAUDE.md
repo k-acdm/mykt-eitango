@@ -1959,6 +1959,47 @@ Phase 3 着手中に新たな設計原則が発見された場合：
   `clasp pull` は禁止のまま運用継続。`gas/Code.js` への変更は常に `clasp push` で一方通行
 - **次回の Phase 4 簡略化**: 既存の `diagnoseKisoInProgressByRank(rank)` / `abandonKisoInProgressByRank(rank, opts)` 汎用関数は既にあるため、新ショートカットは `diagnoseRank2InProgress()` / `abandonRank2InProgress(opts)` の 2 行追加で済む（rank_03 では `feat(GAS): rank_03 投入前診断・abandoned 化のショートカット関数` で 10 行のコミットだった）
 
+### 2026-04-30 夕方（塾PC：和文英訳① 注意書き整理 + 基礎計算 rank_02 拡充）
+
+#### 158. 基礎計算 rank_02 を 30題 → 50題 に拡充（Phase 1 完了、dev `5c80b48` / `0440827` / `<this commit>`）
+- **背景**: 拡充計画 優先度 A の最後の単元。事前調査では「一意空間が狭い」と評価されていたが、実測では Band A=65 unique（n_max=200）、Band B=5642 unique、Band C=1927 unique と十分な余裕があり、構造的バグはなかった。むしろ既存 Band C には教育的に不自然な答え（√29×√30=√870、√19/√22=√418/22 等）が混入していたため、count 拡大と並行して教育的引き締めを実施
+- **設計判断**（事前合意）:
+  - count 配分 A=17 / B=17 / C=16（合計 50、ふくちさん教育的判断「ほぼ均等」）
+  - Band C を rank_03 で確立した slot_index 駆動の決定論的サブパターン分離方式に移行
+  - subcounts={"mul":6, "rationalize":5, "div":5}（ふくちさん指針「ほぼ均等」）
+- **教育的引き締め**（ふくちさん 36 年の塾長経験ベース）:
+  - **mul** 通常 a,b ∈ [2,15] / subslot 5（6 問中の最後の 1 問）のみ [16,30] かつ result_radicand ≤ 200
+    - 実例: subslot 5 で `√22×√30 = 2√165` を生成（中堅レベル刺激として残す）
+    - `√29×√30 = √870` 等の極端な radicand は 200 上限で除外
+    - ふくちさん指針「中堅は OK / 極端なものは NG / 1〜2問が目安」を完全に満たす
+  - **rationalize** b ∈ {2,3,5,6,7,10}（square-free）/ a ∈ [1,12]
+    - 実例: 1/√2=√2/2、3/√5=3√5/5、12/√10=6√10/5 等の教科書頻出に集中
+  - **div** 答えの denom ≤ 12 を制約
+    - 実例: √27/√30=3√10/10、√10/√24=√15/6、√29/√24=√174/12 等
+    - 旧 `√19/√22=√418/22` のような極端な分母は denom=22 で除外
+  - mul に a≤b 正規化を追加（rank_04 Band A と同方針、`√3×√2` と `√2×√3` の数学的同一問題を統一）
+- **コード変更**:
+  - [common/band_config.py](scripts/generate_kiso_questions/common/band_config.py): rank_02 を新 count + subcounts 構造に
+  - [rank_02_sqrt.py](scripts/generate_kiso_questions/rank_02_sqrt.py): 旧 `_gen_muldiv_rationalize`（rng ランダム選択）を廃止、`_gen_mul` / `_gen_rationalize` / `_gen_div` の 3 つに分離。`_resolve_band_c_subkind(slot_index, subcounts) -> (subkind, subslot)` で決定論的 dispatch（subslot 情報を mul に渡して subslot=5 のみ刺激範囲）。`generate_problem(band, rng, slot_index=0)` 化（main.py の slot_index 機構を流用）
+  - 既存挙動の温存: Band A は無修正（n_max=200、`_gen_simplify_only`）、Band B も無修正
+- **検証結果**:
+  - `python main.py` で全 20 rank 生成: 660/660 unique / 0 failed selfcheck / 0 dedup_warn
+  - Node 検証スクリプト [_verify_rank02.mjs](scripts/generate_kiso_questions/out/_verify_rank02.mjs)（gitignore 配下）で **13 PASS / 0 FAIL**
+    - T1 rank_02 50/50 unique / T2 Band 数 17/17/16 / T3 Band A は c√d (c≥2 + square-free) / T4 Band B 非ゼロ単項 / T5 Band C-mul 6 問 a≤b + radicand≤200 / T6 Band C-rationalize 5 問 b ∈ {2,3,5,6,7,10} + 既約 / T7 Band C-div 5 問 denom≤12 / T8 rank_03/04 regression なし / T9 全 20 rank 660 問 横断重複ゼロ
+- **Phase 4 投入手順（in_progress セッション影響評価込み）**:
+  1. `diagnoseRank2InProgress()` / `abandonRank2InProgress(opts)` ショートカット 2 関数を追加（dev `0440827`、汎用関数は無修正の薄いラッパー）
+  2. ふくちさんが GAS エディタから `abandonRank2InProgress()` を実行 → 2 件の in_progress を検出（両方とも 4 号ちゃんのテストアカウント、verified={ ok: 2, ng: 0 } @ 2026-04-30 18:22:56）
+  3. `python -m common.db_writer --dry-run` で 660 行 / rank=2 が 50 行を確認
+  4. `python -m common.db_writer` で本番投入（全置換モード、660 行）
+  5. gspread post-verification: rank ごとの行数（rank 1 = 30、rank 2/3/4 = 50、他 16 rank = 30、合計 660 ✓）/ rank=2 Band 数（A=17, B=17, C=16 ✓）/ questionId 重複 0 / problemLatex 重複 0 / Band C サンプル目視で mul=6 / rationalize=5 / div=5 確認
+  6. rank_02 サンプル: q_02_000035〜000040 が mul（最後 q_02_000040 が `√22×√30 = 2√165` 刺激枠）/ q_02_000041〜000045 が rationalize / q_02_000046〜000050 が div
+- **既存挙動の温存**:
+  - Band A `_gen_simplify_only` は無修正
+  - Band B `_gen_addsub_with_simplify` は無修正
+  - `_variants_for_sqrt` / `_variants_for_rationalized` は無修正（許容表記の生成ロジックは流用）
+  - `self_check` は元々 muldiv_P1/P2/P3 を分岐処理しており新ロジックでも無修正で動作
+- **次回タスク候補**: 拡充計画 優先度 B（rank_05〜08）または優先度 C（rank_11〜20）
+
 ---
 
 ## 基礎計算 問題プール拡充計画
@@ -1980,12 +2021,12 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 
 ### 増産優先度（進捗 2026-04-30 更新）
 
-**優先度 A（Band 不足が確定、最優先）**
+**優先度 A（Band 不足が確定、最優先）→ 2026-04-30 完了**
 - ✅ **rank_04 乗法公式**（Band C が 9 問のみ、報告バグの単元）— 完了 2026-04-30、CLAUDE.md #155
-- ⏳ **rank_02 平方根**（一意空間が狭い）— **次回最優先**
+- ✅ **rank_02 平方根**（Band C 構造の整理 + 教育的引き締め）— 完了 2026-04-30、CLAUDE.md #158
 - ✅ **rank_03 因数分解**（square_factor_latex で限定）— 完了 2026-04-30、CLAUDE.md #156
 
-**優先度 B（使用頻度高）**
+**優先度 B（使用頻度高）→ 次回最優先**
 - ⏳ rank_05 中3 式の計算
 - ⏳ rank_07 中2 式の計算
 - ⏳ rank_08 一次方程式
@@ -1994,7 +2035,7 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 **優先度 C（パラメータ空間が広い、余裕あり）**
 - ⏳ rank_11〜rank_20（整数・小数・正負・分数の四則）
 
-**Phase 1 全体進捗**: 2 / 20 単元完了（100 / 1000 題、10%）
+**Phase 1 全体進捗**: 3 / 20 単元完了（150 / 1000 題、15%）
 
 ### 進捗管理
 - 各単元増産時に main.py の WARN ログを確認（重複検出の有無）
