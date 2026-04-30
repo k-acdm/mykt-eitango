@@ -320,6 +320,11 @@ function doGet(e) {
       else if (action === 'getChildActivityRecent')    result = getChildActivityRecent(params);
       else if (action === 'getWabun1Topic')             result = getWabun1Topic(params);
       else if (action === 'submitWabun1')               result = submitWabun1(params);
+      // ※ wabun1 の OCR（ocrWabun1Photo）は base64 画像を送るため実体は doPost 経由。
+      //   ただし submitLison 事故（CLAUDE.md #148、2026-04-29）の再発防止として
+      //   doGet にも登録しておく（GET でクエリ長超過しても unknown action は出さない）。
+      //   doPost のルーティングと必ずセットで保持すること。
+      else if (action === 'ocrWabun1Photo')             result = ocrWabun1Photo(params);
       else if (action === 'getWabun1Submissions')       result = getWabun1Submissions(params);
       else if (action === 'getWabun1AnswersAfterSubmit') result = getWabun1AnswersAfterSubmit(params);
       else if (action === 'getWabun1PastTopicsRecent')   result = getWabun1PastTopicsRecent(params);
@@ -369,6 +374,10 @@ function doPost(e) {
     // 基礎計算：写真提出（base64 画像が大きいため POST 経由）
     else if (action === 'submitKisoAnswer')         result = submitKisoAnswer(params.sessionId, params.imageBase64, params.hasWorkPhoto);
     else if (action === 'submitKisoWorkPhoto')      result = submitKisoWorkPhoto(params.sessionId, params.imageBase64, params.photoIndex);
+    // ※ 和文英訳① の OCR（ocrWabun1Photo）は base64 画像を送るため doPost 経由必須。
+    //   2026-04-30 に Cloud Vision → Gemini Vision 切替時に追加（CLAUDE.md 参照）。
+    //   doGet にも保護として登録済み。両ルーティングはセットで保持すること。
+    else if (action === 'ocrWabun1Photo')           result = ocrWabun1Photo(params);
     // ※ ここにリスオン関連（submitLison）のルーティングを必ず残す。
     //   クライアント側（index.html submitLisonRecording）は録音 base64 を gasPost で送るため、
     //   doGet だけでなく doPost にも必須。Phase 1-A 実装時に doPost への登録漏れがあり、
@@ -2998,6 +3007,160 @@ function _kisoOcrWithGemini(imageBase64, numQuestions) {
 
   // ループ完走（理論上は到達しない）— 防御的フォールバック
   return { ok: false, message: 'Gemini API: 不明なエラー（リトライ完了後）：' + lastErrorSummary };
+}
+
+// =============================================
+// 和文英訳① 用 Gemini Vision OCR（2026-04-30 切替）
+// =============================================
+// 旧 Cloud Vision DOCUMENT_TEXT_DETECTION では「は↔12」「f↔t」「c↔e」のような
+// 形似文字の手書き誤認識が頻発（ウミネコさんの実例で複数発生）。languageHints を
+// 入れただけでは効果不十分だったため、文脈プロンプトを渡せる Gemini Vision に切替。
+//
+// 戻り値（成功）: { ok:true, ocrText:'<plain text、行頭問題番号付き>', attempts: 1|2 }
+// 戻り値（失敗）: { ok:false, message:'...', retake?:true }
+//   retake:true は「画像問題で生徒に再撮影を促す」、retake なしは「サーバ問題」
+//
+// モデル・リトライ機構は _kisoOcrWithGemini と完全同一。
+//   - HTTP 429 / 5xx / 帯域幅エラーで内部 1 回自動リトライ（500ms wait）
+//   - HTTP 4xx / promptFeedback ブロック / SAFETY finishReason はリトライ対象外
+function _wabun1OcrWithGemini(imageBase64) {
+  const apiKey = _props().getProperty('GEMINI_API_KEY');
+  if (!apiKey) return { ok: false, message: 'GEMINI_API_KEY が設定されていません' };
+  const model = 'gemini-2.5-flash';
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+
+  // 教育的文脈プロンプト（ふくちさん指示の 5 項目を統合）。
+  // 形似文字の誤認識（「は↔12」「f↔t」「c↔e」等）を文脈に基づき補正させる目的。
+  const prompt =
+    'これは中学生の手書きの英訳答案です。日本語の指示文に対して英語で回答した答案を写真に撮ったものです。\n' +
+    '\n' +
+    '【書式の前提】\n' +
+    '・答案には日本語と英語が混在しています。\n' +
+    '・問題番号（1〜4 のいずれか）は行頭にのみ現れます（例：「1.」「2.」「3.」「4.」）。\n' +
+    '・問題番号以外の位置（本文の中）に数字は含まれません。\n' +
+    '・したがって本文の中に数字に見える文字があれば、それは形が似たひらがな・カタカナ・英字の誤認識の可能性が高いです。文脈から最も妥当な文字に補正してください。\n' +
+    '\n' +
+    '【特に注意してほしい類似文字】\n' +
+    '・f と t（縦棒の有無や横棒の位置で混同しやすい）\n' +
+    '・c と e（左半分の閉じ方で混同しやすい）\n' +
+    '・「は」と「12」（縦棒 2 本の見た目で混同しやすい）\n' +
+    '・1（数字）と l（小文字 L）と I（大文字アイ）\n' +
+    '・0（数字）と o（小文字オー）と O（大文字オー）\n' +
+    '\n' +
+    '【出力ルール】\n' +
+    '・答案の文字を原文のままテキストで出力してください。\n' +
+    '・行頭の問題番号は半角の「1.」「2.」「3.」「4.」の形式に揃えてください（書式が違っても揃える）。\n' +
+    '・改行は生徒の答案どおりに保ってください（行頭に問題番号がくるように）。\n' +
+    '・出力はテキストのみ。前置き・説明・コードブロック（```）は絶対に含めないでください。\n' +
+    '・綴りミスや文法ミスを「修正」しないでください。生徒が書いた文字をそのまま読み取るのが原則です。例外は上記の「数字↔文字」の混同のみで、これは文脈に基づき補正してください。';
+
+  const body = {
+    contents: [{
+      parts: [
+        { text: prompt },
+        { inlineData: { mimeType: 'image/jpeg', data: String(imageBase64) } }
+      ]
+    }],
+    generationConfig: {
+      temperature: 0
+    }
+  };
+  const fetchOpts = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  };
+
+  const MAX_ATTEMPTS  = 2;
+  const RETRY_WAIT_MS = 500;
+  const QUOTA_PATTERN = /quota|rate|limit|exhaust|busy|unavail|帯域/i;
+  let lastErrorSummary = '';
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res;
+    try {
+      res = UrlFetchApp.fetch(url, fetchOpts);
+    } catch (e) {
+      const exMsg = String(e);
+      console.error('[Gemini wabun1 fetch exception attempt=' + attempt + ']', exMsg);
+      lastErrorSummary = 'fetch exception: ' + exMsg;
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, message: 'Gemini API 通信エラー：' + exMsg + '（自動リトライ後も失敗）' };
+    }
+
+    const code = res.getResponseCode();
+    const raw  = res.getContentText();
+
+    if (code === 429 || (code >= 500 && code < 600)) {
+      console.error('[Gemini wabun1 retryable HTTP attempt=' + attempt + ']', code, raw.substring(0, 400));
+      lastErrorSummary = 'HTTP ' + code;
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, message: 'Gemini API が混雑しています（HTTP ' + code + '）。少し時間をおいて再送信してください。' };
+    }
+
+    let json;
+    try {
+      json = JSON.parse(raw);
+    } catch (e) {
+      console.error('[Gemini wabun1 JSON parse error]', code, e, raw.substring(0, 800));
+      return { ok: false, message: 'Gemini API: 応答 JSON が不正（HTTP ' + code + '）' };
+    }
+
+    if (json && json.error) {
+      const errMsg = String(json.error.message || '');
+      console.error('[Gemini wabun1 top-level error attempt=' + attempt + ']', code, JSON.stringify(json.error));
+      if (QUOTA_PATTERN.test(errMsg) && attempt < MAX_ATTEMPTS) {
+        lastErrorSummary = 'top-level error: ' + errMsg;
+        Utilities.sleep(RETRY_WAIT_MS);
+        continue;
+      }
+      return { ok: false, message: 'Gemini API: ' + (errMsg || 'error') };
+    }
+
+    if (json && json.promptFeedback && json.promptFeedback.blockReason) {
+      console.error('[Gemini wabun1 blocked]', JSON.stringify(json.promptFeedback));
+      return { ok: false, retake: true, message: '画像のチェックでブロックされました。別の写真でもう一度試してください。' };
+    }
+
+    const candidates = json && json.candidates;
+    if (!candidates || !candidates[0]) {
+      console.error('[Gemini wabun1 no candidates]', code, raw.substring(0, 800));
+      return { ok: false, message: 'Gemini 応答に候補がありません（HTTP ' + code + '）' };
+    }
+    const cand = candidates[0];
+    if (cand.finishReason && cand.finishReason !== 'STOP' && cand.finishReason !== 'MAX_TOKENS') {
+      console.error('[Gemini wabun1 abnormal finishReason]', cand.finishReason, JSON.stringify(cand));
+      return { ok: false, retake: true, message: '画像の解析が中断されました（' + cand.finishReason + '）。もう一度撮影してください。' };
+    }
+    const parts = cand.content && cand.content.parts;
+    if (!parts || !parts[0] || typeof parts[0].text !== 'string') {
+      console.error('[Gemini wabun1 no text part]', JSON.stringify(cand));
+      return { ok: false, retake: true, message: '画像から文字を読み取れませんでした。明るい場所でもう一度撮影してください。' };
+    }
+    let ocrText = String(parts[0].text || '').trim();
+    // 念のため：稀に ```...``` コードブロックで返してくる場合の保険
+    ocrText = ocrText.replace(/^```(?:[a-zA-Z]+)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    if (!ocrText) {
+      return { ok: false, retake: true, message: '画像から文字を読み取れませんでした。明るい場所でもう一度撮影してください。' };
+    }
+
+    if (attempt > 1) {
+      console.log('[Gemini wabun1 retry success] attempt=' + attempt + ' initial_error=' + lastErrorSummary);
+    }
+    return { ok: true, ocrText: ocrText, attempts: attempt };
+  }
+
+  return { ok: false, message: 'Gemini API: 不明なエラー（リトライ完了後）：' + lastErrorSummary };
+}
+
+// 和文英訳① OCR エンドポイント（doPost 経由、frontend `sendWabun1Photo` から呼ばれる）。
+// params: { action:'ocrWabun1Photo', imageBase64:'...' }
+// 戻り値: _wabun1OcrWithGemini と同形（ok / ocrText / attempts / message / retake）
+function ocrWabun1Photo(params) {
+  const imageBase64 = String((params && params.imageBase64) || '');
+  if (!imageBase64) return { ok: false, message: '画像データが見つかりません' };
+  return _wabun1OcrWithGemini(imageBase64);
 }
 
 // Vision API レスポンスから symbol レベルの confidence を平均で取得。
