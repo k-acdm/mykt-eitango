@@ -2241,7 +2241,7 @@
   function sendPhoto(base64) {
     var msgEl = document.getElementById('photo-msg'); msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...'; msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     var wordList = _questions.map(function(w){ return w.word; });
-    fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}] }] }) })
+    fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}], imageContext:{languageHints:['ja','en']} }] }) })
     .then(function(r){ return r.json(); }).then(function(json) {
       var response = json.responses && json.responses[0];
       if (!response || !response.fullTextAnnotation) { showMsg('photo-msg','❌ 文字が読み取れませんでした。明るい場所で撮り直してください。','ng'); return; }
@@ -3044,7 +3044,7 @@
     msgEl.textContent = '⏳ AIが文字を読み取り中です...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
     fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}] }] })
+      body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}], imageContext:{languageHints:['ja','en']} }] })
     }).then(function(r){ return r.json(); }).then(function(json) {
       var response = json.responses && json.responses[0];
       if (!response || !response.fullTextAnnotation) {
