@@ -125,12 +125,21 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     },
     # 5級：式の計算 中3（多項式の展開）
     5: {
-        # A: (ax+b)(cx+d) — 基本展開（a, c は ±1〜±2）
+        # Phase 1（2026-04-30）: 30→50題化、Band D を新設して 4 Band 構成に
+        # A: (ax+b)(cx+d) — 基本展開（a, c は ±1〜±2）。Band A のみ (a,b)<=(c,d) 辞書順正規化
         # B: (ax+b)(cx+d) — 一般係数（a, c, b, d は ±1〜±5）
         # C: 3項 × 2項（trinomial × binomial）
-        "A": {"count": 10, "kind": "two_by_two_simple", "coef_max": 2, "const_max": 5},
-        "B": {"count": 10, "kind": "two_by_two_general", "coef_max": 5, "const_max": 6},
-        "C": {"count": 10, "kind": "trinomial_by_binomial", "coef_max": 3, "const_max": 5},
+        # D: (ax+b)² — 係数付き平方公式の直接展開（a >= 2 で rank_04 (x+a)² と差別化）
+        # 教育的根拠（ふくちさん 36 年の塾長経験）：
+        #   (ax+b)² は中3生がミスしやすい典型パターン
+        #   - (2x)² を 2x² と書く（正しくは 4x²）
+        #   - 中央項の係数倍を忘れる（2·2x·3 = 12x）
+        #   - 係数の二乗処理を忘れる
+        #   公式記憶の rank_04 (x+a)² と差別化し、直接展開で量を確保する単元
+        "A": {"count": 13, "kind": "two_by_two_simple", "coef_max": 2, "const_max": 5},
+        "B": {"count": 13, "kind": "two_by_two_general", "coef_max": 5, "const_max": 6},
+        "C": {"count": 12, "kind": "trinomial_by_binomial", "coef_max": 3, "const_max": 5},
+        "D": {"count": 12, "kind": "square_with_coef", "coef_max": 5, "const_max": 6},
     },
     # 4級：乗法公式（フェーズ1: 50題化、2026-04-30）
     # A: (x+a)(x+b) — Band A の (a,b) は数値昇順に正規化済（rank_04_expansion._gen_type_xab）
