@@ -2001,6 +2001,53 @@ Phase 3 着手中に新たな設計原則が発見された場合：
   - `self_check` は元々 muldiv_P1/P2/P3 を分岐処理しており新ロジックでも無修正で動作
 - **次回タスク候補**: 拡充計画 優先度 B（rank_05〜08）または優先度 C（rank_11〜20）
 
+#### 159. 基礎計算 rank_07 を 30題 → 50題 に拡充（Phase 1 完了、dev `bf29784` / `0d610af` / `<this commit>`）
+- **背景**: 拡充計画 優先度 B の最初。事前調査で Band A (73,728 unique) / Band B (2,720 unique) は余裕、Band C (64 unique) もタイトだが構造的バグなしと確認。むしろ**中2 文字式の標準カリキュラムから「単項式の乗除（2x×3y=6xy、8xy÷2x=4y 等）」が抜けている**点が教育的な課題として浮上したため、count 拡大と同時に Band C のサブパターン分離で網羅させる方針に
+- **設計判断**（事前合意）:
+  - count 配分 A=17 / B=17 / C=16（合計 50、ふくちさん教育的判断）
+  - Band C を rank_03 / rank_02 で確立した slot_index 駆動の決定論的サブパターン分離方式
+  - subcounts={"power":5, "mono_mul":6, "mono_div":5}（mono_mul を 1 問多めに：生徒が最初に学ぶ基本パターンのため）
+  - **異変数対応**: 2x × 3y = 6xy、3b × (-4a³) = -12a³b など
+  - **分数結果対応**: 7xy ÷ 2x = 7y/2 など、既約分数係数の単項式
+- **教育的拡充の動機**: 中2 文字式の標準カリキュラムは「多項式の加減 / 多項式と数の乗除 / 単項式の乗除・累乗」だが、旧 rank_07 は最後の「単項式の乗除」が抜けていた。Phase 1 でこれを補完
+- **コード変更**:
+  - [common/band_config.py](scripts/generate_kiso_questions/common/band_config.py): rank_07 を新 count + subcounts 構造に。kind を `monomial_power` → `mono_mixed` に変更（Band C の dispatcher 名）
+  - [rank_07_expr_grade2.py](scripts/generate_kiso_questions/rank_07_expr_grade2.py) +324/-13:
+    - 新ヘルパー: `_build_mono_part` / `_mono_term_latex` / `_mono_canonical_int` / `_mono_canonical_frac` / `_mono_variants`
+    - 新 generator: `_gen_mono_mul`（同変数 / 異変数両対応、第2因子が負なら括弧で囲む）/ `_gen_mono_div`（整数結果と分数結果両方、結果 trivial "1"/"-1" は除外）
+    - `_resolve_band_c_subkind`: rank_03 / rank_02 と同じ slot_index dispatcher
+    - `generate_problem(band, rng, slot_index=0)` 化（main.py の slot_index 機構を流用）
+    - `self_check` 拡張: SymPy で mul/div 結果を検証 + mono_div の既約性ガード
+  - 旧 `_gen_monomial_power` は無修正（power サブパターンとして再利用）
+- **`_mono_variants` の許容表記網羅**（中2 で生徒が書く全形式をカバー）:
+  - 整数結果: `variants_for_polynomial` に委譲（caret 形式 `4x^2` / brace 形式 `4x^{2}` 両方）
+  - 分数結果（係数分数 + 変数あり）: 5 形式 × brace/caret × マイナス 3 形（-, −, ー）
+    - `\frac{N}{D}{vars}`（canonical）
+    - `N/D{vars}`（前置スペースなし）
+    - `N/D {vars}`（前置スペースあり、variants_for_polynomial が生成）
+    - `N{vars}/D`（後置）
+    - `\frac{N{vars}}{D}`（変数を分子内に）
+    - 例: `-\frac{4}{3}x` から 15 variants 生成
+  - 純粋分数（vars すべて約分）: `variants_for_rational` で小数形（3.5 等）も追加
+- **検証結果**:
+  - `python main.py` で rank_07: 50/50 unique / 0 failed selfcheck / 0 dedup_warn
+  - 全 20 rank で 680/680 unique（rank 1, 5-6, 8-20 が 30、rank 2/3/4/7 が 50）
+  - Node 検証スクリプト [_verify_rank07.mjs](scripts/generate_kiso_questions/out/_verify_rank07.mjs)（gitignore 配下）で **13 PASS / 0 FAIL**
+    - T1 rank_07 50/50 unique / T2 Band 数 17/17/16 / T3-T4 Band A/B 線形多項式 / T5 power 5 問 / T6 mono_mul 6 問 整数係数 / T7 mono_div 5 問 既約分数 + trivial 除外 / T8 rank_02/03/04 regression なし / T9 全 20 rank 680 問 横断重複ゼロ
+- **Phase 4 投入手順**:
+  1. `diagnoseRank7InProgress` / `abandonRank7InProgress` ショートカット 2 関数を追加（dev `0d610af`、汎用関数は無修正の薄いラッパー）
+  2. ふくちさんが GAS エディタから `abandonRank7InProgress()` を実行 → 12 件の in_progress を検出・abandoned 化、verified={ ok: 12, ng: 0 } @ 2026-04-30 20:36:47
+  3. `python -m common.db_writer --dry-run` で 680 行 / rank=7 が 50 行を確認
+  4. `python -m common.db_writer` で本番投入（全置換モード、680 行）
+  5. gspread post-verification: rank ごとの行数（rank 1, 5-6, 8-20 が 30、rank 2/3/4/7 が 50、合計 680 ✓）/ rank=7 Band 数（A=17, B=17, C=16 ✓）/ questionId 重複 0 / problemLatex 重複 0
+  6. rank_07 サンプル: q_07_000035〜000039 が power / q_07_000040〜000045 が mono_mul（最後 q_07_000045 が `2b × (-3y³) = -6by³`）/ q_07_000046〜000050 が mono_div（最後 q_07_000050 が `-5bx³ ÷ 3x³ = -5/3 b`）
+- **既存挙動の温存**:
+  - Band A `_gen_poly_addsub` は無修正
+  - Band B `_gen_poly_int_muldiv` は無修正
+  - Band C-power（旧 monomial_power）の生成ロジックは無修正、kind 名のみ "power" に変わる
+  - rank_02 / rank_03 / rank_04 への影響なし（regression テストで確認済）
+- **次回タスク候補**: 拡充計画 優先度 B 残り（rank_05 / rank_06 / rank_08）
+
 ---
 
 ## 基礎計算 問題プール拡充計画
@@ -2027,16 +2074,16 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - ✅ **rank_02 平方根**（Band C 構造の整理 + 教育的引き締め）— 完了 2026-04-30、CLAUDE.md #158
 - ✅ **rank_03 因数分解**（square_factor_latex で限定）— 完了 2026-04-30、CLAUDE.md #156
 
-**優先度 B（使用頻度高）→ 次回最優先**
+**優先度 B（使用頻度高）→ 進行中**
+- ✅ **rank_07 中2 式の計算**（単項式の乗除を新規追加で教科書範囲を網羅）— 完了 2026-04-30、CLAUDE.md #159
 - ⏳ rank_05 中3 式の計算
-- ⏳ rank_07 中2 式の計算
 - ⏳ rank_08 一次方程式
 - ⏳ rank_06 連立方程式
 
 **優先度 C（パラメータ空間が広い、余裕あり）**
 - ⏳ rank_11〜rank_20（整数・小数・正負・分数の四則）
 
-**Phase 1 全体進捗**: 3 / 20 単元完了（150 / 1000 題、15%）
+**Phase 1 全体進捗**: 4 / 20 単元完了（200 / 1000 題、20%）
 
 ### 進捗管理
 - 各単元増産時に main.py の WARN ログを確認（重複検出の有無）
