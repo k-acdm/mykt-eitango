@@ -157,15 +157,25 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
             "subcounts": {"diff": 6, "perfect_pos": 11, "perfect_neg": 11},
         },
     },
-    # 2級：平方根
+    # 2級：平方根（Phase 1: 30→50題化、2026-04-30）
     2: {
         # A: 簡約のみ √n → a√b
         # B: 簡約 + 加減 (a√b ± c√d → 同じ b に統一)
-        # C: 乗除 と 有理化
-        # TODO_PHASE3: 二重根号は Phase 3 の Band D 以降で導入
-        "A": {"count": 10, "kind": "simplify_only", "n_max": 200},
-        "B": {"count": 10, "kind": "addsub_with_simplify", "coef_max": 5, "n_max": 50},
-        "C": {"count": 10, "kind": "muldiv_rationalize", "n_max": 30},
+        # C: 乗除 と 有理化（rank_03 と同じ slot_index 駆動の 3 サブパターン分離）
+        #    subcounts={"mul": 6, "rationalize": 5, "div": 5}（ふくちさん教育的判断、ほぼ均等）
+        #    教育的引き締めは rank_02_sqrt.py 内の各 generator に実装：
+        #      - mul: 5 問は a,b ∈ [2,15] / 1 問だけ [16,30] で中堅レベルの刺激を残す
+        #      - rationalize: b ∈ {2,3,5,6,7,10}（square-free）/ a ∈ [1,12]
+        #      - div: 答えの denom ≤ 12 を制約、極端な radicand を排除
+        # TODO_PHASE3: 二重根号、複雑な分子分母（1/(√3+1) 等）は Phase 3 の Band D 以降で導入
+        "A": {"count": 17, "kind": "simplify_only", "n_max": 200},
+        "B": {"count": 17, "kind": "addsub_with_simplify", "coef_max": 5, "n_max": 50},
+        "C": {
+            "count": 16,
+            "kind": "muldiv_rationalize",
+            "n_max": 30,
+            "subcounts": {"mul": 6, "rationalize": 5, "div": 5},
+        },
     },
     # 1級：二次方程式
     1: {
