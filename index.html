@@ -3040,19 +3040,26 @@
   }
 
   function sendWabun1Photo(base64) {
+    // 2026-04-30: Cloud Vision → Gemini Vision に切替（ふくちさん指示）。
+    // 旧 Vision の languageHints だけでは「は↔12」「f↔t」「c↔e」の手書き形似文字
+    // 誤認識を解消できなかったため、教育的文脈プロンプトを渡せる Gemini Vision に
+    // 移行。GAS 経由（doPost）で呼ぶ。レイテンシは 2〜4 秒に増える。
+    // 旧 Cloud Vision 実装は関数末尾にコメントアウトで保持（ロールバック用）。
     var msgEl = document.getElementById('wabun1-camera-msg');
-    msgEl.textContent = '⏳ AIが文字を読み取り中です...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
-    fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}], imageContext:{languageHints:['ja','en']} }] })
-    }).then(function(r){ return r.json(); }).then(function(json) {
-      var response = json.responses && json.responses[0];
-      if (!response || !response.fullTextAnnotation) {
+    msgEl.textContent = '⏳ AIが文字を読み取り中です（数秒かかります）...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
+    gasPost({ action: 'ocrWabun1Photo', imageBase64: base64 }, 90000).then(function(res){
+      if (!res || !res.ok) {
+        var msg = (res && res.message) || '通信に失敗しました。';
+        showMsg('wabun1-camera-msg', '❌ ' + msg, 'ng');
+        document.getElementById('wabun1-photo-input').value = '';
+        return;
+      }
+      var ocrText = String(res.ocrText || '').trim();
+      if (!ocrText) {
         showMsg('wabun1-camera-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng');
         document.getElementById('wabun1-photo-input').value = '';
         return;
       }
-      var ocrText = String(response.fullTextAnnotation.text || '').trim();
       var expected = (_wabun1State.topic && _wabun1State.topic.tasks) ? _wabun1State.topic.tasks.length : 0;
       var skipNumsForCheck = _wabun1AppliedSkipNums();
       var chk = _wabun1CheckNumbers(ocrText, expected, skipNumsForCheck);
@@ -3073,7 +3080,30 @@
       document.getElementById('wabun1-confirm-submit-btn').disabled = false;
       document.getElementById('wabun1-show-answer-confirm').style.display = _wabun1State.hasSubmitted ? 'block' : 'none';
       showScreen('screen-wabun1-confirm');
-    }).catch(function(err){ showMsg('wabun1-camera-msg', 'エラー：' + String(err), 'ng'); document.getElementById('wabun1-photo-input').value = ''; });
+    }).catch(function(err){
+      var emsg = (err && err.message) ? err.message : String(err);
+      showMsg('wabun1-camera-msg', 'エラー：' + emsg, 'ng');
+      document.getElementById('wabun1-photo-input').value = '';
+    });
+
+    /* ===== 旧実装（Cloud Vision DOCUMENT_TEXT_DETECTION）—— 2026-04-30 にコメントアウト =====
+       効果不十分（「は↔12」「f↔t」誤認識が継続発生）のため Gemini Vision に切替。
+       万一の問題発生時のロールバック用にここに保持する。CLAUDE.md 参照。
+
+    fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}], imageContext:{languageHints:['ja','en']} }] })
+    }).then(function(r){ return r.json(); }).then(function(json) {
+      var response = json.responses && json.responses[0];
+      if (!response || !response.fullTextAnnotation) {
+        showMsg('wabun1-camera-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng');
+        document.getElementById('wabun1-photo-input').value = '';
+        return;
+      }
+      var ocrText = String(response.fullTextAnnotation.text || '').trim();
+      // ... 以下、上記 .then 内の処理と同じ（番号チェック → state 更新 → 確認画面へ）
+    }).catch(function(err){ ... });
+    ===================================================================================== */
   }
 
   function retakeWabun1Photo() {
