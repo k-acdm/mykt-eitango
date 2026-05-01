@@ -84,6 +84,46 @@
     .btn-crop-apply { background: linear-gradient(135deg, #2ecc71, #27ae60); color: #fff; box-shadow: 0 3px 10px rgba(39,174,96,.3); }
     .btn-crop-cancel { background: #e5e7eb; color: #333; }
     .btn-crop-open { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+    /* カンジー（漢字）コンテンツ（2026-05-02 追加） */
+    .kanji-emphasis { color: #d32f2f; font-weight: bold; }
+    .kanjii-mate-row { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; }
+    .kanjii-mate-row .kanjii-img { width: 88px; height: 88px; object-fit: contain; flex-shrink: 0; background: rgba(255,255,255,.18); border-radius: 16px; padding: 6px; }
+    .kanjii-bubble { position: relative; flex: 1; background: #fff; border: 2px solid #fcd34d; border-radius: 18px; padding: 12px 16px; font-size: 15px; color: #78350f; line-height: 1.6; box-shadow: 0 3px 10px rgba(252,211,77,.25); }
+    .kanjii-bubble::before { content: ''; position: absolute; left: -11px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: #fcd34d; }
+    .kanjii-bubble::after  { content: ''; position: absolute; left: -8px;  top: 50%; transform: translateY(-50%); border: 8px solid transparent; border-right-color: #fff; }
+    @media (max-width: 480px) {
+      .kanjii-mate-row { flex-direction: column; gap: 8px; }
+      .kanjii-bubble { width: 100%; }
+      .kanjii-bubble::before { left: 50%; top: -11px; transform: translateX(-50%); border: 9px solid transparent; border-right-color: transparent; border-bottom-color: #fcd34d; }
+      .kanjii-bubble::after  { left: 50%; top: -8px;  transform: translateX(-50%); border: 8px solid transparent; border-right-color: transparent; border-bottom-color: #fff; }
+    }
+    .kanji-level-grid, .kanji-count-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 8px; }
+    .kanji-level-btn, .kanji-count-btn { padding: 16px 12px; font-size: 17px; font-weight: bold; color: #fff; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.15); background: linear-gradient(135deg, #f97316, #c2410c); }
+    .kanji-level-btn small, .kanji-count-btn small { display: block; font-size: 12px; font-weight: normal; opacity: .9; margin-top: 4px; }
+    .kanji-count-btn.disabled { background: #d4d4d4; color: #666; cursor: not-allowed; box-shadow: none; }
+    .kanji-yomi-q-card { background: #fff; border: 2px solid #fcd34d; border-radius: 14px; padding: 18px 16px; margin: 10px 0; box-shadow: 0 3px 10px rgba(0,0,0,.06); font-size: 18px; line-height: 1.8; color: #1f2937; }
+    .kanji-yomi-q-num { display: inline-block; background: #f97316; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
+    .kanji-yomi-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .kanji-yomi-choice { padding: 14px 16px; font-size: 16px; background: #fff; border: 2px solid #d4d4d4; border-radius: 10px; cursor: pointer; text-align: left; transition: transform .1s; }
+    .kanji-yomi-choice:hover { transform: translateY(-1px); border-color: #f97316; }
+    .kanji-yomi-choice.disabled { pointer-events: none; }
+    .kanji-yomi-choice.correct { background: #dcfce7; border-color: #16a34a; color: #14532d; font-weight: bold; }
+    .kanji-yomi-choice.wrong   { background: #fee2e2; border-color: #dc2626; color: #7f1d1d; }
+    .kanji-yomi-feedback { margin-top: 10px; min-height: 1.5em; font-size: 16px; font-weight: bold; }
+    .kanji-yomi-feedback.ok { color: #16a34a; }
+    .kanji-yomi-feedback.ng { color: #dc2626; }
+    .kanji-prog-text { font-size: 13px; color: #666; text-align: center; margin: 6px 0; }
+    .kanji-kaki-list { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 16px; }
+    .kanji-kaki-item { background: #fff; border: 2px solid #fde68a; border-radius: 10px; padding: 12px 14px; font-size: 16px; line-height: 1.7; color: #1f2937; }
+    .kanji-kaki-item .num { display: inline-block; background: #f59e0b; color: #fff; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: bold; margin-right: 8px; }
+    .kanji-result-success { background: linear-gradient(135deg, #fef3c7, #fcd34d); border: 3px solid #f59e0b; border-radius: 14px; padding: 22px 16px; text-align: center; margin: 14px 0; box-shadow: 0 6px 20px rgba(245,158,11,.3); }
+    .kanji-result-fail    { background: linear-gradient(135deg, #fff7ed, #fef3c7); border: 2px solid #fb923c; border-radius: 14px; padding: 18px 16px; text-align: center; margin: 14px 0; }
+    .kanji-result-title { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+    .kanji-result-success .kanji-result-title { color: #92400e; }
+    .kanji-result-fail    .kanji-result-title { color: #9a3412; }
+    .kanji-result-score { font-size: 18px; color: #4b5563; margin: 6px 0; }
+    .kanji-fail-list { background: #fff; border-radius: 8px; padding: 12px 14px; margin: 10px 0; text-align: left; font-size: 14px; line-height: 1.7; color: #555; }
+    .kanji-fail-list .ng { color: #dc2626; font-weight: bold; }
     .btn-camera { display: inline-block; background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; font-size: 17px; font-weight: bold; padding: 14px 28px; border-radius: 12px; cursor: pointer; border: none; margin-top: 8px; }
     .word-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
     .num { width: 32px; height: 32px; background: #4f7df0; border-radius: 50%; color: #fff; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -919,7 +959,7 @@
           <span class="badge-soon">準備中</span>
           <span class="ico">🔬</span>理科の重要用語
         </button>
-        <button class="content-btn c-kanji disabled" onclick="showComingSoon('漢字')">
+        <button class="content-btn c-kanji disabled" onclick="showKanjiLevelSelect()">
           <span class="badge-soon">準備中</span>
           <span class="ico">🖌️</span>漢字
         </button>
@@ -1692,6 +1732,127 @@
   <div class="container" style="padding-top:18px">
     <div id="lison-done-body"></div>
     <button class="btn-wide" style="margin-top:18px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     カンジー（漢字）コンテンツ画面群（2026-05-02 追加、8 画面）
+     ============================================================ -->
+<div id="screen-kanji-level" class="screen">
+  <header><h1>🖌️ カンジー</h1><span>級を選んでね</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kanjii-mate-row">
+      <img class="kanjii-img" id="kanjii-img-level" src="images/kanjii-default.png" alt="カンジー">
+      <div class="kanjii-bubble" id="kanjii-bubble-level">どの級にちょうせんする？</div>
+    </div>
+    <div class="kanji-level-grid">
+      <button class="kanji-level-btn" onclick="showKanjiCountSelect('5')">漢検 5級<small>小学校 5〜6年生</small></button>
+      <button class="kanji-level-btn" onclick="showKanjiCountSelect('4')">漢検 4級<small>中学校 在学程度</small></button>
+      <button class="kanji-level-btn" onclick="showKanjiCountSelect('3')">漢検 3級<small>中学校 卒業程度</small></button>
+      <button class="kanji-level-btn" onclick="showKanjiCountSelect('準2')">漢検 準2級<small>高校 在学程度</small></button>
+      <button class="kanji-level-btn" onclick="showKanjiCountSelect('2')">漢検 2級<small>高校 卒業程度</small></button>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<div id="screen-kanji-count" class="screen">
+  <header><h1>🖌️ カンジー</h1><span id="kanji-count-header">問題数を選んでね</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kanjii-mate-row">
+      <img class="kanjii-img" src="images/kanjii-thinking.png" alt="カンジー">
+      <div class="kanjii-bubble">何問にちょうせんする？</div>
+    </div>
+    <div id="kanji-count-notice" class="msg" style="display:block;margin:0 0 12px;background:#eff6ff;border-left:4px solid #60a5fa;padding:10px 14px;border-radius:6px;color:#1e3a8a;font-size:13px;line-height:1.6;"></div>
+    <div class="kanji-count-grid">
+      <button class="kanji-count-btn" id="kanji-count-btn-10" onclick="startKanjiSession(5)">10問<small>(読み5問+書き5問)<br>50HP</small></button>
+      <button class="kanji-count-btn" id="kanji-count-btn-20" onclick="startKanjiSession(10)">20問<small>(読み10問+書き10問)<br>100HP</small></button>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showKanjiLevelSelect()">← 級選択に戻る</button>
+  </div>
+</div>
+
+<div id="screen-kanji-yomi" class="screen">
+  <header><h1>🖌️ 読み問題</h1><span id="kanji-yomi-prog">0 / 0</span></header>
+  <div class="container" style="padding-top:14px">
+    <div class="kanjii-mate-row">
+      <img class="kanjii-img" id="kanjii-img-yomi" src="images/kanjii-thinking.png" alt="カンジー">
+      <div class="kanjii-bubble" id="kanjii-bubble-yomi">まずは読み方をテストしよう！</div>
+    </div>
+    <div id="kanji-yomi-q-area"></div>
+    <div id="kanji-yomi-feedback" class="kanji-yomi-feedback"></div>
+    <button class="btn-wide" id="kanji-yomi-next-btn" style="display:none" onclick="kanjiYomiNext()">次の問題へ →</button>
+  </div>
+</div>
+
+<div id="screen-kanji-yomi-result" class="screen">
+  <header><h1>🖌️ 読み 結果</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kanjii-mate-row">
+      <img class="kanjii-img" id="kanjii-img-yomi-result" src="images/kanjii-default.png" alt="カンジー">
+      <div class="kanjii-bubble" id="kanjii-bubble-yomi-result">結果はどうかな？</div>
+    </div>
+    <div id="kanji-yomi-result-banner"></div>
+    <div id="kanji-yomi-result-actions"></div>
+  </div>
+</div>
+
+<div id="screen-kanji-kaki" class="screen">
+  <header><h1>🖌️ 書き問題</h1><span id="kanji-kaki-meta"></span></header>
+  <div class="container" style="padding-top:14px">
+    <div class="kanjii-mate-row">
+      <img class="kanjii-img" id="kanjii-img-kaki" src="images/kanjii-default.png" alt="カンジー">
+      <div class="kanjii-bubble" id="kanjii-bubble-kaki">ノートに書いてキミの字、見せて〜！</div>
+    </div>
+    <div id="kanji-kaki-list" class="kanji-kaki-list"></div>
+    <input type="file" id="kanji-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKanjiPhotoSelected(event)">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを撮って送る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<div id="screen-kanji-kaki-confirm" class="screen">
+  <header><h1>🖌️ 撮影確認</h1><span>この内容で良いですか？</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kiso-confirm-card">
+      <img id="kanji-kaki-preview" class="kiso-confirm-preview" alt="撮影画像">
+      <div class="kiso-confirm-msg">
+        ✅ 写真がぼやけていないか・問題番号がはっきり写っているかを確認してください。<br>
+        OK なら「送信して採点」を押してね。
+      </div>
+      <div class="wabun1-period-warn">
+        <span class="warn-title">⚠️ 提出前に必ず確認してね！</span>
+        <ul>
+          <li>AIが誤って読み取ることがあるよ。違う場合は「もう一度撮る」を押してね（同じ写真でも結果が変わることがあるよ）</li>
+        </ul>
+      </div>
+      <div class="kiso-confirm-btns">
+        <button class="kiso-confirm-retake" onclick="retakeKanjiPhoto()">📸 撮り直す</button>
+        <button class="kiso-confirm-submit" id="kanji-kaki-submit-btn" onclick="submitKanjiKakiPhoto()">🚀 送信して採点</button>
+      </div>
+      <button class="btn-wide btn-crop-open" style="margin-top:10px" onclick="cropKanjiPhoto()">✂️ 切り抜いて再判定</button>
+    </div>
+    <div id="kanji-kaki-msg" class="msg" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<div id="screen-kanji-kaki-result" class="screen">
+  <header><h1>🖌️ 書き 結果</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kanjii-mate-row">
+      <img class="kanjii-img" id="kanjii-img-kaki-result" src="images/kanjii-default.png" alt="カンジー">
+      <div class="kanjii-bubble" id="kanjii-bubble-kaki-result"></div>
+    </div>
+    <div id="kanji-kaki-result-banner"></div>
+    <div id="kanji-kaki-result-actions"></div>
+  </div>
+</div>
+
+<div id="screen-kanji-done" class="screen">
+  <header><h1>✅ 提出完了</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="kanji-done-body"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -5102,6 +5263,441 @@
     _lisonStopSpeakingAll();
     _lisonResetState();
     goHome();
+  }
+
+  // ============================================================
+  // カンジー（漢字）コンテンツ（2026-05-02 追加）
+  // ============================================================
+  var _kanjiState = {
+    level: '',
+    count: 0,             // 5 or 10（読み・書きそれぞれの問題数）
+    sessionId: '',
+    questions: [],        // [{kanjiId, kanji, yomi:{question,choices,correct}, kaki:{question,answer}}]
+    yomiCurrent: 0,
+    yomiAnswers: [],      // [{kanjiId, chosen}]
+    yomiScore: 0,
+    yomiPassed: false,
+    kakiPhotoDataUrl: '',
+    kakiPhotoBase64: '',
+    kakiResults: [],
+    kakiPassed: false,
+    isKakiRetry: false,
+    retryAnswers: []      // 再挑戦時に渡す対象のみ [{kanjiId, no, answer}]
+  };
+  function _kanjiResetState() {
+    _kanjiState = {
+      level: '', count: 0, sessionId: '', questions: [],
+      yomiCurrent: 0, yomiAnswers: [], yomiScore: 0, yomiPassed: false,
+      kakiPhotoDataUrl: '', kakiPhotoBase64: '', kakiResults: [], kakiPassed: false,
+      isKakiRetry: false, retryAnswers: []
+    };
+  }
+  // 問題文の {xxx} を <span class="kanji-emphasis">xxx</span> に変換
+  function _kanjiRenderEmphasis(text) {
+    var s = String(text == null ? '' : text);
+    s = s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    return s.replace(/\{([^}]+)\}/g, '<span class="kanji-emphasis">$1</span>');
+  }
+  function _kanjiSetMascot(imgId, mood, bubbleId, bubbleText) {
+    var moodMap = { default: 'kanjii-default.png', thinking: 'kanjii-thinking.png', celebrate: 'kanjii-celebrate.png', encourage: 'kanjii-encourage.png' };
+    var img = document.getElementById(imgId);
+    if (img) img.src = 'images/' + (moodMap[mood] || moodMap.default);
+    if (bubbleId && bubbleText != null) {
+      var b = document.getElementById(bubbleId);
+      if (b) b.textContent = bubbleText;
+    }
+  }
+  // ----- レベル選択 -----
+  function showKanjiLevelSelect() {
+    _kanjiResetState();
+    _kanjiSetMascot('kanjii-img-level', 'default', 'kanjii-bubble-level', 'どの級にちょうせんする？');
+    showScreen('screen-kanji-level');
+  }
+  // ----- 問題数選択 -----
+  function showKanjiCountSelect(level) {
+    _kanjiState.level = level;
+    document.getElementById('kanji-count-header').textContent = '漢検 ' + level + '級｜問題数を選んでね';
+    var notice = document.getElementById('kanji-count-notice');
+    notice.textContent = '⏳ 残りHPを確認中...';
+    document.getElementById('kanji-count-btn-10').classList.remove('disabled');
+    document.getElementById('kanji-count-btn-20').classList.remove('disabled');
+    showScreen('screen-kanji-count');
+    gasGet({ action:'getKanjiTodayRawHP', studentId:_studentId, _ts: Date.now() }).then(function(res){
+      if (res && res.ok) {
+        var rem = Number(res.remaining || 0);
+        if (rem === 0) {
+          notice.innerHTML = '🎯 本日の素点上限（' + (res.cap || 100) + 'HP）に到達しています。<br>このまま挑戦すると<strong>練習モード</strong>になり、HP は付与されません。';
+          document.getElementById('kanji-count-btn-10').classList.add('disabled');
+          document.getElementById('kanji-count-btn-20').classList.add('disabled');
+        } else if (rem < 100) {
+          notice.innerHTML = '💡 本日あと <strong>' + rem + 'HP</strong> 獲得できます（素点）。<br>20問セット (100HP) を選んでも、上限を超えた分は付与されません。';
+        } else {
+          notice.innerHTML = '💡 まだ本日の上限まで余裕があります。さあ挑戦しよう！';
+        }
+      } else {
+        notice.style.display = 'none';
+      }
+    }).catch(function(){ notice.style.display = 'none'; });
+  }
+  // ----- セッション開始（getKanjiSet 呼び出し） -----
+  function startKanjiSession(count) {
+    var btn10 = document.getElementById('kanji-count-btn-10');
+    var btn20 = document.getElementById('kanji-count-btn-20');
+    if ((count === 5 && btn10.classList.contains('disabled')) || (count === 10 && btn20.classList.contains('disabled'))) {
+      // 練習モードでも進める運用にしてあるので、ここでは無効化スタイルだが実際にはクリックを許可
+      // ただし誤タップ抑止のため一度確認
+      if (!confirm('本日の素点上限に達しています。練習モードで進めますか？（HPは付与されません）')) return;
+    }
+    _kanjiState.count = count;
+    var bodyEl = document.getElementById('kanji-count-notice');
+    if (bodyEl) bodyEl.textContent = '⏳ 問題を読み込み中...';
+    gasGet({ action:'getKanjiSet', studentId:_studentId, level:_kanjiState.level, count:count, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) {
+        alert((res && res.message) || 'このレベルの問題はまだ準備中だよ。もう少し待っててね！');
+        showKanjiLevelSelect();
+        return;
+      }
+      _kanjiState.sessionId = res.sessionId;
+      _kanjiState.questions = res.questions || [];
+      _kanjiState.count = res.count;
+      _kanjiState.yomiCurrent = 0;
+      _kanjiState.yomiAnswers = [];
+      _kanjiState.yomiScore = 0;
+      _renderKanjiYomiQuestion();
+      showScreen('screen-kanji-yomi');
+    }).catch(function(){
+      alert('通信に失敗しました。もう一度お試しください。');
+    });
+  }
+  // ----- 読み問題：1 問ずつ表示 -----
+  function _renderKanjiYomiQuestion() {
+    var total = _kanjiState.questions.length;
+    var idx = _kanjiState.yomiCurrent;
+    if (idx >= total) { _finishKanjiYomi(); return; }
+    var q = _kanjiState.questions[idx].yomi;
+    document.getElementById('kanji-yomi-prog').textContent = (idx + 1) + ' / ' + total;
+    _kanjiSetMascot('kanjii-img-yomi', 'thinking', 'kanjii-bubble-yomi', 'まずは読み方をテストしよう！');
+    var qHtml = '<div class="kanji-yomi-q-card">' +
+      '<div class="kanji-yomi-q-num">問 ' + (idx + 1) + '</div>' +
+      '<div>' + _kanjiRenderEmphasis(q.question) + '</div>' +
+      '<div style="margin-top:8px;font-size:14px;color:#666">↑ <span class="kanji-emphasis">赤い太字</span>の読み方を選んでね</div>' +
+      '</div>' +
+      '<div class="kanji-yomi-choices" id="kanji-yomi-choices">' +
+        ['A','B','C','D'].map(function(k){
+          return '<button class="kanji-yomi-choice" data-choice="' + k + '" onclick="kanjiYomiAnswer(this,\'' + k + '\')">' +
+            '<strong style="color:#f97316">' + k + '</strong>&ensp;' + _kanjiRenderEmphasis(q.choices[k]) +
+            '</button>';
+        }).join('') +
+      '</div>';
+    document.getElementById('kanji-yomi-q-area').innerHTML = qHtml;
+    document.getElementById('kanji-yomi-feedback').textContent = '';
+    document.getElementById('kanji-yomi-feedback').className = 'kanji-yomi-feedback';
+    var nb = document.getElementById('kanji-yomi-next-btn');
+    nb.style.display = 'none'; nb.disabled = false;
+    nb.textContent = (idx + 1 >= total) ? '結果を見る 🏁' : '次の問題へ →';
+  }
+  function kanjiYomiAnswer(btn, chosen) {
+    var idx = _kanjiState.yomiCurrent;
+    var q = _kanjiState.questions[idx];
+    var correct = (q.yomi.correct || '').toUpperCase();
+    var isOk = (chosen === correct);
+    var choices = document.querySelectorAll('#kanji-yomi-choices .kanji-yomi-choice');
+    choices.forEach(function(c){
+      c.classList.add('disabled');
+      if (c.getAttribute('data-choice') === correct) c.classList.add('correct');
+    });
+    if (!isOk) btn.classList.add('wrong');
+    var fb = document.getElementById('kanji-yomi-feedback');
+    if (isOk) {
+      fb.textContent = '🎉 正解！'; fb.className = 'kanji-yomi-feedback ok';
+      _kanjiState.yomiScore += 1;
+      try { playSfx('correct'); } catch(e){}
+    } else {
+      fb.innerHTML = '❌ 不正解 → 正解：<strong>' + (q.yomi.choices[correct] || '') + '</strong>';
+      fb.className = 'kanji-yomi-feedback ng';
+      try { playSfx('wrong'); } catch(e){}
+    }
+    _kanjiState.yomiAnswers.push({ kanjiId: q.kanjiId, chosen: chosen });
+    var nb = document.getElementById('kanji-yomi-next-btn');
+    nb.style.display = 'block';
+  }
+  function kanjiYomiNext() {
+    var nb = document.getElementById('kanji-yomi-next-btn');
+    if (nb.disabled) return; nb.disabled = true;
+    _kanjiState.yomiCurrent += 1;
+    _renderKanjiYomiQuestion();
+  }
+  // ----- 読み 終了判定（GAS で再採点して結果画面へ） -----
+  function _finishKanjiYomi() {
+    gasGet({
+      action: 'submitKanjiYomi',
+      studentId: _studentId,
+      level: _kanjiState.level,
+      sessionId: _kanjiState.sessionId,
+      answers: JSON.stringify(_kanjiState.yomiAnswers)
+    }).then(function(res){
+      var passed = !!(res && res.ok && res.passed);
+      _kanjiState.yomiPassed = passed;
+      var correctCount = (res && res.correctCount) || _kanjiState.yomiScore;
+      var total = (res && res.total) || _kanjiState.questions.length;
+      _showKanjiYomiResult(passed, correctCount, total);
+    }).catch(function(){
+      // 通信失敗時はクライアント側のスコアでフォールバック判定
+      var total = _kanjiState.questions.length;
+      var passed = total > 0 && (_kanjiState.yomiScore / total) >= 0.8;
+      _kanjiState.yomiPassed = passed;
+      _showKanjiYomiResult(passed, _kanjiState.yomiScore, total);
+    });
+  }
+  function _showKanjiYomiResult(passed, correctCount, total) {
+    var banner = document.getElementById('kanji-yomi-result-banner');
+    var actions = document.getElementById('kanji-yomi-result-actions');
+    if (passed) {
+      _kanjiSetMascot('kanjii-img-yomi-result', 'celebrate', 'kanjii-bubble-yomi-result', '合格おめでとう！次は書きだよ！');
+      banner.innerHTML =
+        '<div class="kanji-result-success">' +
+          '<div style="font-size:48px">🎉</div>' +
+          '<div class="kanji-result-title">読み 合格！</div>' +
+          '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
+        '</div>';
+      actions.innerHTML =
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="startKanjiKaki()">✏️ 次は書きにちょうせん！</button>';
+      try { playSfx('chime'); } catch(e){}
+    } else {
+      _kanjiSetMascot('kanjii-img-yomi-result', 'encourage', 'kanjii-bubble-yomi-result', 'あと一歩！次はきっとできるよ！');
+      banner.innerHTML =
+        '<div class="kanji-result-fail">' +
+          '<div style="font-size:48px">😤</div>' +
+          '<div class="kanji-result-title">惜しい！合格ライン（8割）まで届かず…</div>' +
+          '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
+          '<div style="font-size:13px;color:#666;margin-top:6px">順序を変えて全問やり直しだよ</div>' +
+        '</div>';
+      actions.innerHTML =
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKanjiYomi()">🔄 もう一度ちょうせんする</button>' +
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+      try { playSfx('fail'); } catch(e){}
+    }
+    showScreen('screen-kanji-yomi-result');
+  }
+  function _retryKanjiYomi() {
+    // 順序シャッフル + state リセット
+    var arr = _kanjiState.questions.slice();
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    _kanjiState.questions = arr;
+    _kanjiState.yomiCurrent = 0;
+    _kanjiState.yomiAnswers = [];
+    _kanjiState.yomiScore = 0;
+    _renderKanjiYomiQuestion();
+    showScreen('screen-kanji-yomi');
+  }
+  // ----- 書き問題 -----
+  function startKanjiKaki() {
+    _kanjiState.isKakiRetry = false;
+    _kanjiState.retryAnswers = [];
+    _kanjiSetMascot('kanjii-img-kaki', 'thinking', 'kanjii-bubble-kaki', 'ノートに書いてキミの字、見せて〜！');
+    document.getElementById('kanji-kaki-meta').textContent = '漢検 ' + _kanjiState.level + '級｜書き ' + _kanjiState.questions.length + '問';
+    _renderKanjiKakiList(_kanjiState.questions);
+    var input = document.getElementById('kanji-photo-input');
+    if (input) input.value = '';
+    document.getElementById('kanji-kaki-msg').style.display = 'none';
+    showScreen('screen-kanji-kaki');
+  }
+  function _renderKanjiKakiList(questions) {
+    var html = questions.map(function(q, i){
+      return '<div class="kanji-kaki-item"><span class="num">問 ' + (i + 1) + '</span>' + _kanjiRenderEmphasis(q.kaki.question) + '</div>';
+    }).join('');
+    var note = '<div style="font-size:13px;color:#666;margin:6px 0 12px;line-height:1.7">📝 ノートに「番号 漢字」の形で書いて、写真に撮って送ってね。<br><span class="kanji-emphasis">赤い太字</span>のカタカナを漢字に直すよ。</div>';
+    document.getElementById('kanji-kaki-list').innerHTML = note + html;
+  }
+  function onKanjiPhotoSelected(event) {
+    var file = event.target.files[0]; if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var maxSize = 1200, w = img.width, h = img.height;
+        if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } } else { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        _kanjiState.kakiPhotoDataUrl = dataUrl;
+        _kanjiState.kakiPhotoBase64 = dataUrl.split(',')[1];
+        document.getElementById('kanji-kaki-preview').src = dataUrl;
+        document.getElementById('kanji-kaki-submit-btn').disabled = false;
+        document.getElementById('kanji-kaki-msg').style.display = 'none';
+        showScreen('screen-kanji-kaki-confirm');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  function retakeKanjiPhoto() {
+    _kanjiState.kakiPhotoDataUrl = '';
+    _kanjiState.kakiPhotoBase64 = '';
+    var input = document.getElementById('kanji-photo-input');
+    if (input) input.value = '';
+    document.getElementById('kanji-kaki-preview').src = '';
+    showScreen('screen-kanji-kaki');
+    setTimeout(function(){ if (input) input.click(); }, 80);
+  }
+  // 切り抜き起動：カンジー書き 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
+  function cropKanjiPhoto() {
+    if (!_kanjiState.kakiPhotoDataUrl) return;
+    openCropForReOcr({
+      sourceDataUrl: _kanjiState.kakiPhotoDataUrl,
+      returnScreen:  'screen-kanji-kaki-confirm',
+      onCropped: function(croppedDataUrl) {
+        _kanjiState.kakiPhotoDataUrl = croppedDataUrl;
+        _kanjiState.kakiPhotoBase64 = croppedDataUrl.split(',')[1];
+        var preview = document.getElementById('kanji-kaki-preview');
+        if (preview) preview.src = croppedDataUrl;
+        showScreen('screen-kanji-kaki-confirm');
+      }
+    });
+  }
+  function submitKanjiKakiPhoto() {
+    if (!_kanjiState.kakiPhotoBase64) return;
+    var submitBtn = document.getElementById('kanji-kaki-submit-btn');
+    submitBtn.disabled = true;
+    var msgEl = document.getElementById('kanji-kaki-msg');
+    msgEl.textContent = '⏳ AIが文字を読み取り中（数秒〜十数秒）...';
+    msgEl.className = 'msg ok'; msgEl.style.display = 'block';
+    // 期待解答リスト：通常時は全問、再挑戦時は不正解だった問題のみ
+    var expected;
+    if (_kanjiState.isKakiRetry && _kanjiState.retryAnswers.length > 0) {
+      expected = _kanjiState.retryAnswers;
+    } else {
+      expected = _kanjiState.questions.map(function(q, i){
+        return { kanjiId: q.kanjiId, no: i + 1, answer: q.kaki.answer };
+      });
+    }
+    gasPost({
+      action: 'submitKanjiKaki',
+      studentId: _studentId,
+      level: _kanjiState.level,
+      sessionId: _kanjiState.sessionId,
+      photoBase64: _kanjiState.kakiPhotoBase64,
+      count: _kanjiState.count,
+      expectedAnswers: expected,
+      isRetry: _kanjiState.isKakiRetry
+    }, 90000).then(function(res){
+      submitBtn.disabled = false;
+      if (!res || !res.ok) {
+        if (res && res.retake) {
+          alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
+          showScreen('screen-kanji-kaki');
+          return;
+        }
+        alert('⚠️ 採点中にエラーが発生しました。\n' + ((res && res.message) || '通信エラー') + '\n\nネットワークが不安定な可能性があります。\n少し待ってから再送信してください。');
+        msgEl.style.display = 'none';
+        return;
+      }
+      msgEl.style.display = 'none';
+      _kanjiState.kakiResults = res.results || [];
+      _kanjiState.kakiPassed = !!res.passed;
+      _showKanjiKakiResult(res);
+    }).catch(function(err){
+      submitBtn.disabled = false;
+      msgEl.style.display = 'none';
+      alert('⚠️ 通信エラーが発生しました：' + String(err && err.message ? err.message : err) + '\n\nネットワークが不安定な可能性があります。\n少し待ってから再送信してください。');
+    });
+  }
+  function _showKanjiKakiResult(res) {
+    var passed = !!res.passed;
+    var correctCount = res.correctCount || 0;
+    var total = res.total || 0;
+    var banner = document.getElementById('kanji-kaki-result-banner');
+    var actions = document.getElementById('kanji-kaki-result-actions');
+    if (passed) {
+      _kanjiSetMascot('kanjii-img-kaki-result', 'celebrate', 'kanjii-bubble-kaki-result', 'ナイス漢字パワー！');
+      // HP獲得演出（三語短文・和文英訳①と同じ既存演出を流用）
+      _showKanjiDone(res.hpInfo || {});
+      return;
+    }
+    _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', 'あと一歩！間違えた問題だけ、もう一度撮ってみよう！');
+    var failed = (res.results || []).filter(function(r){ return !r.isCorrect; });
+    var failedHtml = failed.map(function(r){
+      return '<div>問 ' + r.no + '：<span class="ng">' + (r.expected || '') + '</span></div>';
+    }).join('');
+    banner.innerHTML =
+      '<div class="kanji-result-fail">' +
+        '<div style="font-size:48px">😤</div>' +
+        '<div class="kanji-result-title">惜しい！合格ライン（8割）まで届かず…</div>' +
+        '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
+        '<div class="kanji-fail-list"><div style="font-weight:bold;margin-bottom:6px">読み取れなかった漢字：</div>' + (failedHtml || '（なし）') + '</div>' +
+      '</div>';
+    actions.innerHTML =
+      '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKanjiKaki()">📸 間違えた問題だけ もう一度</button>' +
+      '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+    try { playSfx('fail'); } catch(e){}
+    showScreen('screen-kanji-kaki-result');
+  }
+  function _retryKanjiKaki() {
+    // 不正解のみを再挑戦対象に
+    _kanjiState.isKakiRetry = true;
+    _kanjiState.retryAnswers = (_kanjiState.kakiResults || [])
+      .filter(function(r){ return !r.isCorrect; })
+      .map(function(r){ return { kanjiId: r.kanjiId, no: r.no, answer: r.expected }; });
+    if (_kanjiState.retryAnswers.length === 0) {
+      // 念のため：再挑戦対象が無いなら通常モードに戻す
+      _kanjiState.isKakiRetry = false;
+    }
+    // 再挑戦用の問題リストを描画（不正解のみを抜粋）
+    var retryQuestions;
+    if (_kanjiState.isKakiRetry) {
+      var idSet = {};
+      _kanjiState.retryAnswers.forEach(function(a){ idSet[a.kanjiId] = true; });
+      retryQuestions = _kanjiState.questions.filter(function(q){ return idSet[q.kanjiId]; });
+    } else {
+      retryQuestions = _kanjiState.questions;
+    }
+    _kanjiSetMascot('kanjii-img-kaki', 'thinking', 'kanjii-bubble-kaki', '間違えた問題だけ、もう一度がんばろう！');
+    document.getElementById('kanji-kaki-meta').textContent = '漢検 ' + _kanjiState.level + '級｜再挑戦 ' + retryQuestions.length + '問';
+    _renderKanjiKakiList(retryQuestions);
+    document.getElementById('kanji-kaki-msg').style.display = 'none';
+    var input = document.getElementById('kanji-photo-input');
+    if (input) input.value = '';
+    showScreen('screen-kanji-kaki');
+  }
+  // ----- HP獲得演出（三語短文・和文英訳①と同じ既存スタイルを流用） -----
+  function _showKanjiDone(hpInfo) {
+    var bodyEl = document.getElementById('kanji-done-body');
+    var hp = Number((hpInfo && hpInfo.hpGained) || 0);
+    var alreadyAtCap = !!(hpInfo && hpInfo.alreadyAtCap);
+    var isPractice   = !!(hpInfo && hpInfo.isPractice);
+    var confetti = '';
+    var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
+    for (var i = 0; i < 8; i++) {
+      var left = Math.floor(Math.random() * 90) + 5;
+      var delay = (Math.random() * 0.6).toFixed(2);
+      confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i] + '</span>';
+    }
+    var hpBlock;
+    if (isPractice || alreadyAtCap) {
+      hpBlock = '<div class="wabun1-result-already">（本日の素点上限に達しているためHPは付与されません）</div>';
+    } else if (hp > 0) {
+      hpBlock = '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="kanji-done-hp-num">0</span> HP 獲得！</div>';
+    } else {
+      hpBlock = '<div class="wabun1-result-already">（本日のHPは既に獲得済みです）</div>';
+    }
+    bodyEl.innerHTML =
+      '<div class="wabun1-result-success">' +
+        '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
+        '<div style="font-size:52px">🖌️</div>' +
+        '<div class="wabun1-result-title">提出完了！漢字マスター！</div>' +
+        hpBlock +
+      '</div>';
+    showScreen('screen-kanji-done');
+    if (hp > 0 && !isPractice && !alreadyAtCap) {
+      var numEl = document.getElementById('kanji-done-hp-num');
+      if (numEl) _wabun1AnimateHp(numEl, hp, 1000);
+      _totalHP += hp;
+    }
+    try { playSfx('chime'); } catch(e){}
   }
 
   function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
