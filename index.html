@@ -75,6 +75,15 @@
     .dictation-hint-title { font-weight: bold; margin-bottom: 6px; color: #e65100; }
     .dictation-hint ul { margin: 4px 0 0; padding-left: 20px; }
     .dictation-hint li { margin: 4px 0; }
+    /* 切り抜きモーダル（OCR 救済機能、2026-05-02 追加） */
+    .crop-help { background: #eff6ff; border-left: 4px solid #60a5fa; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; font-size: 14px; line-height: 1.7; color: #1e3a8a; }
+    .crop-canvas-wrap { background: #000; border-radius: 10px; overflow: hidden; max-height: 70vh; }
+    .crop-canvas-wrap img { display: block; max-width: 100%; max-height: 70vh; }
+    .crop-actions { display: flex; gap: 10px; margin-top: 12px; }
+    .crop-actions > button { flex: 1; padding: 14px; font-size: 16px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; }
+    .btn-crop-apply { background: linear-gradient(135deg, #2ecc71, #27ae60); color: #fff; box-shadow: 0 3px 10px rgba(39,174,96,.3); }
+    .btn-crop-cancel { background: #e5e7eb; color: #333; }
+    .btn-crop-open { background: linear-gradient(135deg, #06b6d4, #0891b2); }
     .btn-camera { display: inline-block; background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; font-size: 17px; font-weight: bold; padding: 14px 28px; border-radius: 12px; cursor: pointer; border: none; margin-top: 8px; }
     .word-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
     .num { width: 32px; height: 32px; background: #4f7df0; border-radius: 50%; color: #fff; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -783,6 +792,9 @@
     };
   </script>
   <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 </head>
 <body>
 <div class="flash-overlay" id="flash-overlay">
@@ -1158,6 +1170,7 @@
       <div class="sango-ocr-actions">
         <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60)" onclick="confirmSangoPhoto(true)">✅ はい、提出する</button>
         <button class="btn-wide" style="background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="confirmSangoPhoto(false)">❌ いいえ、書き直す</button>
+        <button class="btn-wide btn-crop-open" onclick="cropSangoPhoto()">✂️ 切り抜いて再判定</button>
       </div>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
@@ -1241,6 +1254,7 @@
       <div class="sango-ocr-actions">
         <button class="btn-wide" id="wabun1-confirm-submit-btn" style="background:linear-gradient(135deg,#2ecc71,#27ae60)" onclick="submitWabun1Answer()">✅ はい、これで提出</button>
         <button class="btn-wide" style="background:linear-gradient(135deg,#f39c12,#e67e22)" onclick="retakeWabun1Photo()">📸 もう一度撮る</button>
+        <button class="btn-wide btn-crop-open" onclick="cropWabun1Photo()">✂️ 切り抜いて再判定</button>
       </div>
     </div>
     <div id="wabun1-confirm-msg" class="msg" style="margin-top:10px"></div>
@@ -1462,6 +1476,7 @@
         <button class="kiso-confirm-retake" onclick="retakeKisoPhoto()">📸 撮り直す</button>
         <button class="kiso-confirm-submit" id="kiso-confirm-submit-btn" onclick="submitKisoPhoto()">🚀 送信して採点</button>
       </div>
+      <button class="btn-wide btn-crop-open" style="margin-top:10px" onclick="cropKisoPhoto()">✂️ 切り抜いて再判定</button>
     </div>
   </div>
 </div>
@@ -1729,6 +1744,26 @@
   </div>
 </div>
 
+<!-- 切り抜きモーダル：4 コンテンツ共通の OCR 救済画面（2026-05-02 追加）
+     openCropForReOcr({ sourceDataUrl, returnScreen, onCropped }) で呼び出す。 -->
+<div id="screen-crop-modal" class="screen">
+  <header><h1>✂️ 切り抜き</h1><span>OCRが読み取れない部分を切り抜こう</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="crop-help">
+      📐 写真の中で「AIに読み取ってほしい部分」だけを<strong>ドラッグ</strong>で選んでね。<br>
+      範囲を狭くするほど認識精度が上がりやすいよ。
+    </div>
+    <div class="crop-canvas-wrap">
+      <img id="crop-image" alt="切り抜き対象">
+    </div>
+    <div class="crop-actions">
+      <button class="btn-crop-cancel" onclick="cancelCropForReOcr()">← キャンセル</button>
+      <button class="btn-crop-apply" onclick="applyCropForReOcr()">✂️ 切り抜いて再判定</button>
+    </div>
+    <div id="crop-msg" class="msg" style="margin-top:10px"></div>
+  </div>
+</div>
+
 <script>
   var GAS_URL    = 'https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec';
   var VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
@@ -1960,6 +1995,98 @@
     u.onerror = function(){ clearTimeout(timer); onDone && onDone(); };
     window.speechSynthesis.cancel();
     setTimeout(function(){ window.speechSynthesis.speak(u); }, 100);
+  }
+
+  // ============================================================
+  // 切り抜き機能（4 コンテンツ共通、2026-05-02 追加）
+  // 写真提出系コンテンツの OCR 救済オプション。デフォルトの体験は無変更。
+  // ============================================================
+  // openCropForReOcr({ sourceDataUrl, returnScreen, onCropped })
+  //   - sourceDataUrl : 切り抜き対象の data URL
+  //   - returnScreen  : キャンセル時に戻る画面 ID
+  //   - onCropped     : function(croppedDataUrl) - 切り抜き後に呼ばれる。
+  //                     再OCR等は呼び出し側でこの中で行う。画面遷移も自由。
+  // 切り抜き後の dataUrl は image/jpeg, quality 0.8。長辺 1600px 上限。
+  var _cropper = null;
+  var _cropContext = null;
+  function _ensureCropperReady(callback) {
+    // Cropper.js は <script defer> で非同期読み込みのため、未ロード時は待機
+    if (typeof Cropper !== 'undefined') { callback(); return; }
+    var attempts = 0;
+    var iv = setInterval(function(){
+      if (typeof Cropper !== 'undefined') {
+        clearInterval(iv); callback();
+      } else if (++attempts > 40) {
+        clearInterval(iv);
+        alert('切り抜きライブラリの読み込みに時間がかかっています。ネット接続を確認して、もう一度お試しください。');
+      }
+    }, 100);
+  }
+  function openCropForReOcr(opts) {
+    if (!opts || !opts.sourceDataUrl) return;
+    _cropContext = {
+      sourceDataUrl: opts.sourceDataUrl,
+      returnScreen:  opts.returnScreen || '',
+      onCropped:     (typeof opts.onCropped === 'function') ? opts.onCropped : null
+    };
+    _ensureCropperReady(function(){
+      var img = document.getElementById('crop-image');
+      // 既存インスタンスを破棄
+      if (_cropper) { try { _cropper.destroy(); } catch(e){} _cropper = null; }
+      // src 設定 → load 後に Cropper 初期化
+      img.onload = function() {
+        if (_cropper) { try { _cropper.destroy(); } catch(e){} }
+        _cropper = new Cropper(img, {
+          viewMode: 1,         // 切り抜き枠を画像内に制限
+          autoCropArea: 0.85,  // 初期範囲は中央 85%
+          movable: true,
+          zoomable: false,     // ピンチズーム無効（範囲指定操作と干渉するため）
+          rotatable: false,
+          scalable: false,
+          background: true,
+          responsive: true,
+          modal: true,
+          guides: true,
+          center: true
+        });
+        var msg = document.getElementById('crop-msg');
+        if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+      };
+      img.src = opts.sourceDataUrl;
+      showScreen('screen-crop-modal');
+    });
+  }
+  function cancelCropForReOcr() {
+    var ctx = _cropContext;
+    if (_cropper) { try { _cropper.destroy(); } catch(e){} _cropper = null; }
+    _cropContext = null;
+    if (ctx && ctx.returnScreen) showScreen(ctx.returnScreen);
+  }
+  function applyCropForReOcr() {
+    if (!_cropper || !_cropContext) return;
+    var msgEl = document.getElementById('crop-msg');
+    if (msgEl) { msgEl.textContent = '⏳ 切り抜き中...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block'; }
+    try {
+      var canvas = _cropper.getCroppedCanvas({
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+      });
+      if (!canvas) {
+        if (msgEl) { msgEl.textContent = '❌ 範囲が選択されていません。画像内をドラッグして範囲を選んでね。'; msgEl.className = 'msg ng'; msgEl.style.color = '#c00'; }
+        return;
+      }
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      var ctx = _cropContext;
+      try { _cropper.destroy(); } catch(e){}
+      _cropper = null;
+      _cropContext = null;
+      if (msgEl) { msgEl.style.display = 'none'; }
+      if (ctx.onCropped) ctx.onCropped(dataUrl);
+    } catch(err) {
+      if (msgEl) { msgEl.textContent = '❌ 切り抜きに失敗しました：' + String(err); msgEl.className = 'msg ng'; msgEl.style.color = '#c00'; }
+    }
   }
 
   function speakWord(btn, word) {
@@ -2236,6 +2363,8 @@
     document.getElementById('photo-msg').style.display = 'none'; document.getElementById('photo-input').value = '';
     showScreen('screen-dictation');
   }
+  // 切り抜き救済機能用：直近に撮影した（or 切り抜いた）画像の dataUrl を保持
+  var _eikenLastSourceDataUrl = '';
   function onPhotoSelected(event) {
     var file = event.target.files[0]; if (!file) return;
     var reader = new FileReader();
@@ -2246,9 +2375,25 @@
         var canvas = document.createElement('canvas'), maxSize = 800, w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } } else { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
         canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        sendPhoto(canvas.toDataURL('image/jpeg', 0.5).split(',')[1]);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+        _eikenLastSourceDataUrl = dataUrl;
+        sendPhoto(dataUrl.split(',')[1]);
       }; img.src = e.target.result;
     }; reader.readAsDataURL(file);
+  }
+  // 切り抜き起動：英検5級 失敗フィードバック画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
+  function cropEikenPhoto() {
+    if (!_eikenLastSourceDataUrl) return;
+    openCropForReOcr({
+      sourceDataUrl: _eikenLastSourceDataUrl,
+      returnScreen:  'screen-dictation',
+      onCropped: function(croppedDataUrl) {
+        _eikenLastSourceDataUrl = croppedDataUrl;
+        var preview = document.getElementById('photo-preview');
+        if (preview) { preview.src = croppedDataUrl; preview.style.display = 'block'; }
+        sendPhoto(croppedDataUrl.split(',')[1]);
+      }
+    });
   }
   function sendPhoto(base64) {
     var msgEl = document.getElementById('photo-msg'); msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...'; msgEl.className = 'msg ok'; msgEl.style.display = 'block';
@@ -2298,6 +2443,7 @@
             '<li>AIが誤って読み取ることがあるよ。違う場合は「もう一度撮る」を押してね（同じ写真でも結果が変わることがあるよ）</li>' +
           '</ul>' +
         '</div>' +
+        '<button class="btn-wide btn-crop-open" style="margin-top:14px" onclick="cropEikenPhoto()">✂️ 切り抜いて再判定</button>' +
       '</div>';
     var msgEl = document.getElementById('photo-msg');
     msgEl.className = 'dictation-fail-wrap';
@@ -2466,6 +2612,7 @@
   var _sangoWeekNo = '';
   var _sangoCurrentLevel = null;
   var _sangoOcrText = '';
+  var _sangoLastSourceDataUrl = '';   // 切り抜き救済用：直近に撮影した（or 切り抜いた）画像
   function _sangoEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function showSangoTopic() {
     document.getElementById('sango-student').textContent = _studentId + ' さん';
@@ -2583,6 +2730,7 @@
   }
   function _resetSangoPhoto() {
     _sangoOcrText = '';
+    _sangoLastSourceDataUrl = '';
     var prev = document.getElementById('sango-photo-preview'); prev.src = ''; prev.style.display = 'none';
     var msg = document.getElementById('sango-photo-msg'); msg.style.display = 'none'; msg.style.color = '';
     document.getElementById('sango-photo-input').value = '';
@@ -2599,11 +2747,27 @@
         var canvas = document.createElement('canvas'), maxSize = 1200, w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } } else { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
         canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        sendSangoPhoto(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        _sangoLastSourceDataUrl = dataUrl;
+        sendSangoPhoto(dataUrl.split(',')[1]);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
+  }
+  // 切り抜き起動：三語短文 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
+  function cropSangoPhoto() {
+    if (!_sangoLastSourceDataUrl) return;
+    openCropForReOcr({
+      sourceDataUrl: _sangoLastSourceDataUrl,
+      returnScreen:  'screen-sango-photo',
+      onCropped: function(croppedDataUrl) {
+        _sangoLastSourceDataUrl = croppedDataUrl;
+        var preview = document.getElementById('sango-photo-preview');
+        if (preview) { preview.src = croppedDataUrl; preview.style.display = 'block'; }
+        sendSangoPhoto(croppedDataUrl.split(',')[1]);
+      }
+    });
   }
   function sendSangoPhoto(base64) {
     var msgEl = document.getElementById('sango-photo-msg');
@@ -2839,7 +3003,7 @@
   // =============================================
   // 和文英訳①
   // =============================================
-  var _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false };
+  var _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false, lastSourceDataUrl: '' };
   var _WABUN1_WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
 
   function _wabun1Esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -2927,7 +3091,7 @@
   }
 
   function showWabun1Topic() {
-    _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false };
+    _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false, lastSourceDataUrl: '' };
     var bodyEl = document.getElementById('wabun1-topic-body');
     bodyEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     document.getElementById('wabun1-photo-preview').style.display = 'none';
@@ -3047,11 +3211,31 @@
         var canvas = document.createElement('canvas'), maxSize = 1200, w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } } else { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
         canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        sendWabun1Photo(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
+        // 切り抜き救済機能用にリサイズ後の dataUrl を保持（base64 と同じ画像）
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        _wabun1State.lastSourceDataUrl = dataUrl;
+        sendWabun1Photo(dataUrl.split(',')[1]);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
+  }
+  // 切り抜き起動：和文英訳① 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
+  function cropWabun1Photo() {
+    if (!_wabun1State.lastSourceDataUrl) return;
+    openCropForReOcr({
+      sourceDataUrl: _wabun1State.lastSourceDataUrl,
+      returnScreen:  'screen-wabun1-confirm',
+      onCropped: function(croppedDataUrl) {
+        // 切り抜き後画像でソースを更新（再切り抜きで累積トリミング可）
+        _wabun1State.lastSourceDataUrl = croppedDataUrl;
+        // プレビュー更新
+        var preview = document.getElementById('wabun1-photo-preview');
+        if (preview) { preview.src = croppedDataUrl; preview.style.display = 'block'; }
+        // 既存の OCR 関数を再実行（base64 部分のみ抽出）
+        sendWabun1Photo(croppedDataUrl.split(',')[1]);
+      }
+    });
   }
 
   function sendWabun1Photo(base64) {
@@ -3124,6 +3308,7 @@
   function retakeWabun1Photo() {
     _wabun1State.ocrText = '';
     _wabun1State.parsedAnswers = null;
+    _wabun1State.lastSourceDataUrl = '';
     document.getElementById('wabun1-photo-input').value = '';
     document.getElementById('wabun1-photo-preview').style.display = 'none';
     document.getElementById('wabun1-photo-preview').src = '';
@@ -3134,6 +3319,7 @@
   function retakeWabun1PhotoFromResult() {
     _wabun1State.ocrText = '';
     _wabun1State.parsedAnswers = null;
+    _wabun1State.lastSourceDataUrl = '';
     var input = document.getElementById('wabun1-photo-input');
     if (input) input.value = '';
     var preview = document.getElementById('wabun1-photo-preview');
@@ -3439,6 +3625,7 @@
     questions: [],           // [{no, questionId, problemLatex}, ...]（再挑戦時は不正解問題のみ）
     isRetry: false,          // true なら再挑戦画面（不正解問題のみ）
     photoBase64: '',         // 撮影 → base64（送信時に submit）
+    photoDataUrl: '',        // 切り抜き救済機能用：撮影 → リサイズ後のフル dataUrl
     attempts: 0,
     hasWorkPhoto: false,     // 撮影前確認画面で「途中式の写真も送る」を選んだか
     workPhotoBase64: '',     // 途中式写真の撮影バッファ
@@ -3898,6 +4085,7 @@
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         _kisoState.photoBase64 = dataUrl.split(',')[1];
+        _kisoState.photoDataUrl = dataUrl;  // 切り抜き救済用にフル dataUrl も保持
         document.getElementById('kiso-confirm-preview').src = dataUrl;
         document.getElementById('kiso-confirm-submit-btn').disabled = false;
         showScreen('screen-kiso-confirm');
@@ -3906,9 +4094,27 @@
     };
     reader.readAsDataURL(file);
   }
+  // 切り抜き起動：基礎計算 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
+  // 注：基礎計算は OCR が GAS 側で送信時に走るため、ここでは画像差し替えのみ
+  // （実際の「再判定」は「🚀 送信して採点」ボタン押下時に新しい画像で実行される）
+  function cropKisoPhoto() {
+    if (!_kisoState.photoDataUrl) return;
+    openCropForReOcr({
+      sourceDataUrl: _kisoState.photoDataUrl,
+      returnScreen:  'screen-kiso-confirm',
+      onCropped: function(croppedDataUrl) {
+        _kisoState.photoDataUrl = croppedDataUrl;
+        _kisoState.photoBase64  = croppedDataUrl.split(',')[1];
+        var preview = document.getElementById('kiso-confirm-preview');
+        if (preview) preview.src = croppedDataUrl;
+        showScreen('screen-kiso-confirm');
+      }
+    });
+  }
 
   function retakeKisoPhoto() {
     _kisoState.photoBase64 = '';
+    _kisoState.photoDataUrl = '';
     document.getElementById('kiso-photo-input').value = '';
     document.getElementById('kiso-confirm-preview').src = '';
     // 解答撮影案内画面に戻ってから input.click()（iOS Safari の onchange 不発対策）
@@ -3963,6 +4169,7 @@
         _kisoState.attempts = res.attempts || (_kisoState.attempts + 1);
         // 提出に使った base64 はもう保持しなくて OK（メモリ節約）
         _kisoState.photoBase64 = '';
+        _kisoState.photoDataUrl = '';
         // 過去セッション再表示用に submission を localStorage に保存
         // （初回提出のみ photoInfo に shareUrl/fileId が入る。再挑戦時は前回の写真を維持するため上書きしない）
         if (res.isFirstAttempt) {
