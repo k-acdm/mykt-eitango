@@ -1149,6 +1149,12 @@
       <div class="sango-ocr-label">読み取り結果：</div>
       <div class="sango-ocr-text" id="sango-ocr-text"></div>
       <div class="sango-ocr-confirm-label">これでよろしいですか？</div>
+      <div class="wabun1-period-warn">
+        <span class="warn-title">⚠️ 提出前に必ず確認してね！</span>
+        <ul>
+          <li>AIが誤って読み取ることがあるよ。違う場合は「もう一度撮る」を押してね（同じ写真でも結果が変わることがあるよ）</li>
+        </ul>
+      </div>
       <div class="sango-ocr-actions">
         <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60)" onclick="confirmSangoPhoto(true)">✅ はい、提出する</button>
         <button class="btn-wide" style="background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="confirmSangoPhoto(false)">❌ いいえ、書き直す</button>
@@ -1229,7 +1235,7 @@
         <ul>
           <li>ピリオド（．）やカンマ（，）がちゃんと認識されてるか</li>
           <li>スペルミスが無いか</li>
-          <li>AI が誤って読み取ることがあるよ。違う場合は<strong>「もう一度撮る」</strong>を押してね（同じ写真でも結果が変わることがあるよ）</li>
+          <li>AIが誤って読み取ることがあるよ。違う場合は「もう一度撮る」を押してね（同じ写真でも結果が変わることがあるよ）</li>
         </ul>
       </div>
       <div class="sango-ocr-actions">
@@ -1445,6 +1451,12 @@
       <div class="kiso-confirm-msg">
         ✅ 写真がぼやけていないか・問題番号がはっきり写っているかを確認してください。<br>
         OK なら「送信して採点」を押してね。
+      </div>
+      <div class="wabun1-period-warn">
+        <span class="warn-title">⚠️ 提出前に必ず確認してね！</span>
+        <ul>
+          <li>AIが誤って読み取ることがあるよ。違う場合は「もう一度撮る」を押してね（同じ写真でも結果が変わることがあるよ）</li>
+        </ul>
       </div>
       <div class="kiso-confirm-btns">
         <button class="kiso-confirm-retake" onclick="retakeKisoPhoto()">📸 撮り直す</button>
@@ -2283,6 +2295,7 @@
           '<ul>' +
             '<li>読み取り結果があなたが書いた文字と違う？<br>→ 字をもっと丁寧に書いてみよう！</li>' +
             '<li>スペルが間違っている？<br>→ 単語リストをもう一度見て確認してみよう！</li>' +
+            '<li>AIが誤って読み取ることがあるよ。違う場合は「もう一度撮る」を押してね（同じ写真でも結果が変わることがあるよ）</li>' +
           '</ul>' +
         '</div>' +
       '</div>';
