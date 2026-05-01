@@ -374,7 +374,6 @@
     /* 和文英訳① */
     .content-btn .content-btn-sub { display:block; font-size:11px; font-weight:normal; opacity:.92; margin-top:4px; letter-spacing:.3px; }
     @media (max-width: 480px) { .content-btn .content-btn-sub { font-size:10px; } }
-    .monyo-mask { display:inline-block; background: repeating-linear-gradient(45deg, #9ca3af 0, #9ca3af 4px, #d1d5db 4px, #d1d5db 8px); color:transparent; user-select:none; border-radius:3px; width:2.6em; margin:0 2px; border:1px solid #6b7280; vertical-align:baseline; }
     .wabun1-date-label { text-align:center; color:#666; font-size:14px; margin-bottom:12px; }
     .wabun1-warning { background:linear-gradient(135deg,#fffde7,#fff9c4); border:2px solid #f9a825; border-radius:12px; padding:14px 16px; margin-bottom:16px; font-size:14px; line-height:1.8; color:#6d4c00; }
     .wabun1-warning strong { color:#c25b00; }
@@ -2832,7 +2831,9 @@
 
   function _wabun1Esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
   function _wabun1RenderText(raw) {
-    return _wabun1Esc(raw).replace(/\[モニョ\]/g, '<span class="monyo-mask" aria-hidden="true">　　　</span>');
+    // モニョ表記は問題テキストにそのまま「モニョ」（カギカッコ付き）で書く運用に変更（2026-05-02）
+    // 旧 [モニョ] → CSSマスク方式は廃止。OCR誤認識（ニ→ノ等）救済は採点側 _normalizeWabun1 で吸収。
+    return _wabun1Esc(raw);
   }
   function _wabun1FormatDate(dateStr) {
     if (!dateStr) return '';

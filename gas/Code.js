@@ -5387,6 +5387,14 @@ function _wabun1AddDays(startStr, n) {
 function _normalizeWabun1(s) {
   if (s == null) return '';
   let t = String(s);
+  // 0. モニョ表記の正規化（2026-05-02 追加）
+  //    「モニョ」「モノョ」「モ二ョ」（ニ U+30CB / ノ U+30CE / 二 U+4E8C）を「モニョ」に統一。
+  //    OCR の誤認識（ニ→ノ、ニ→二）を吸収するための救済処理。
+  //    前後のカッコは「」『』""''""''（）()[] のいずれも有無を問わず吸収する。
+  //    spec の `""` `''` は smart quotes（U+201C/D, U+2018/9）。straight quotes
+  //    `"` (U+0022) と `'` (U+0027) も含めて test case 3「半角ダブルクオート」に対応。
+  //    この後 punctMap で「→" 」→" に変換されるため、最終正規化形は `"モニョ"`。
+  t = t.replace(/[「『""''"'(（\[]?\s*モ[ニノ二]ョ\s*[」』""''"')）\]]?/g, '「モニョ」');
   // 1. 全角英数を半角に（case は保持）
   t = t.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(ch){
     return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
@@ -5459,32 +5467,42 @@ function _parseWabun1Work(text) {
 // =============================================
 // 不正解理由の自動分類（採点結果画面で生徒に表示）
 // =============================================
-// 戻り値: { type: 'no_answer'|'contraction'|'period_missing'
+// 戻り値: { type: 'no_answer'|'monyo_missing'|'contraction'|'period_missing'
 //          |'comma_missing'|'case_mismatch'|'spelling'|'other',
 //          message: 生徒向け自然言語 }
 //
-// 優先順は CLAUDE.md「採点正規化関数の仕様 / feedbackType 7 分類」を参照。
+// 優先順は CLAUDE.md「採点正規化関数の仕様 / feedbackType 8 分類」を参照。
 // 上から判定して最初に該当したものを返す。
 // 注: 旧 fullstop_missing は _normalizeWabun1 で「。」を削除する仕様変更
 //     （日本語句読点を判定対象外にする 2026-04-30 修正）に伴い廃止。
 //     「。」が両方の文字列から削除されるため、末尾「。」抜けは correct 扱いに。
+// 追記: monyo_missing は 2026-05-02 追加。正解にモニョ表記があるのに生徒の答案に
+//       ない場合、ピリオド/カンマ系より優先して通知する。
 function _wabun1ClassifyFeedback(studentRaw, studentNorm, correctRaw, correctNorm, divergeAt) {
   // 1. no_answer: 生徒の答えが空（OCR で読み取れず or パースで取れず）
   if (!studentNorm || studentNorm.length === 0) {
     return { type: 'no_answer', message: '答えが読み取れませんでした。OCR の認識を確認してください' };
   }
-  // 2. contraction: studentRaw に短縮形パターン（' or ’ + 1〜3 文字英字）あり
+  // 2. monyo_missing: 正解にモニョ表記があるのに生徒の答案には無い（2026-05-02 追加）
+  //    _normalizeWabun1 でモニョ変種は「モニョ」→ punctMap で `"モニョ"` に統一されている。
+  //    また raw 文字列上で「モ + (ニ|ノ|二) + ョ」を検出することで、未正規化段階での
+  //    モニョ有無もカバーする（カッコ無しで書いた場合等を含む）。
+  const monyoCoreRe = /モ[ニノ二]ョ/;
+  if (monyoCoreRe.test(String(correctRaw || '')) && !monyoCoreRe.test(String(studentRaw || ''))) {
+    return { type: 'monyo_missing', message: '「モニョ」と書く部分が抜けています' };
+  }
+  // 3. contraction: studentRaw に短縮形パターン（' or ’ + 1〜3 文字英字）あり
   //    かつ correctRaw には無い（正解側に "John's" 等がある場合は対象外）
   const contractionRe = /['’][a-z]{1,3}\b/i;
   if (contractionRe.test(String(studentRaw || '')) && !contractionRe.test(String(correctRaw || ''))) {
     return { type: 'contraction', message: '短縮形（don\'t や isn\'t など）はここでは使えません' };
   }
-  // 3. period_missing: 末尾の半角ピリオドが抜けている（英語問題のみ。日本語の「。」は
+  // 4. period_missing: 末尾の半角ピリオドが抜けている（英語問題のみ。日本語の「。」は
   //    _normalizeWabun1 で両方から削除されるためここに到達しない）
   if (studentNorm + '.' === correctNorm) {
     return { type: 'period_missing', message: '末尾のピリオド「.」が抜けています' };
   }
-  // 4. comma_missing: カンマ全削除で一致 + 正解側のほうがカンマが多い（英語問題のみ。
+  // 5. comma_missing: カンマ全削除で一致 + 正解側のほうがカンマが多い（英語問題のみ。
   //    日本語の「、」「，」は _normalizeWabun1 で両方から削除されるため誤分類されない）
   const stripComma = function(s){ return String(s || '').replace(/,/g, ''); };
   const studentCommaCount = (studentNorm.match(/,/g) || []).length;
@@ -5492,13 +5510,13 @@ function _wabun1ClassifyFeedback(studentRaw, studentNorm, correctRaw, correctNor
   if (correctCommaCount > studentCommaCount && stripComma(studentNorm) === stripComma(correctNorm)) {
     return { type: 'comma_missing', message: 'カンマ「,」が抜けています' };
   }
-  // 5. case_mismatch: 大文字小文字を無視すれば一致
+  // 6. case_mismatch: 大文字小文字を無視すれば一致
   if (studentNorm.length === correctNorm.length
       && studentNorm.toLowerCase() === correctNorm.toLowerCase()
       && studentNorm !== correctNorm) {
     return { type: 'case_mismatch', message: '大文字・小文字が違います' };
   }
-  // 6. spelling: divergeAt > 1 かつ長さの差が 5 以下（おおむね同じ長さで部分的に違う）
+  // 7. spelling: divergeAt > 1 かつ長さの差が 5 以下（おおむね同じ長さで部分的に違う）
   //    位置は「文の前半 / 中ほど / 後半」の大まか表現で示す
   const lenDiff = Math.abs(studentNorm.length - correctNorm.length);
   if (divergeAt > 1 && lenDiff <= 5) {
@@ -5509,7 +5527,7 @@ function _wabun1ClassifyFeedback(studentRaw, studentNorm, correctRaw, correctNor
     else                                  pos = '文の後半';
     return { type: 'spelling', message: pos + 'にスペルミスの可能性があります' };
   }
-  // 7. other: 上記いずれにも当てはまらない
+  // 8. other: 上記いずれにも当てはまらない
   return { type: 'other', message: '正解と違う部分があります。もう一度確認してください' };
 }
 
