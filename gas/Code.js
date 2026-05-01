@@ -343,6 +343,11 @@ function doGet(e) {
       //   症状を起こした実績あり（2026-04-29）。両ルーティングはセットで保持すること。
       else if (action === 'getLisonContent')         result = getLisonContent(params.level);
       else if (action === 'submitLison')              result = submitLison(params);
+      // ※ ここにカンジー関連（getKanjiSet, submitKanjiYomi）のルーティングを必ず残す。
+      //   2026-05-02 新規追加。submitKanjiKaki は base64 画像があるため doPost 側のみ。
+      else if (action === 'getKanjiSet')              result = getKanjiSet(params);
+      else if (action === 'submitKanjiYomi')          result = submitKanjiYomi(params);
+      else if (action === 'getKanjiTodayRawHP')       result = getKanjiTodayRawHP(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -384,6 +389,8 @@ function doPost(e) {
     //   本番デプロイ後の初回テストで「unknown action: submitLison」エラーを起こした実績あり
     //   （2026-04-29）。getLisonContent は GET（cachedGasGet）なので doGet のみで OK。
     else if (action === 'submitLison')              result = submitLison(params);
+    // カンジー：書き提出（写真 base64 が大きいため POST 経由）
+    else if (action === 'submitKanjiKaki')          result = submitKanjiKaki(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -6790,4 +6797,471 @@ function apologyWabun1MonyoBug_20260502() {
     console.error('[apologyWabun1MonyoBug_20260502]', err);
     return { ok: false, message: String(err), summary: summary };
   }
+}
+
+// ============================================================
+// カンジー（漢字）コンテンツ（2026-05-02 新規）
+// ============================================================
+// シート構成:
+//   KanjiYomi (11 列): セット番号 | 問番号 | 漢字ID | 漢字 | 問題 | 選A | 選B | 選C | 選D | 正解 | 級
+//   KanjiKaki ( 7 列): セット番号 | 問番号 | 漢字ID | 漢字 | 問題 | 書き正解 | 級
+// 級表記: '5' / '4' / '3' / '準2' / '2'（漢検 5級〜2級）
+// 強調マーカー: 問題文中の {xxx} は出題ターゲット部分、フロントで色付き表示
+// HP: rawHP = 50（10問セット）/ 100（20問セット）。1日 100HP 上限（kanji 内独立）。
+//     上限到達後は練習モード（HP 加算なし）。連続週²ボーナスは他コンテンツと同じ。
+//     合格判定は読み 8割 → 書き 8割の二段階で、両方クリアして初めて HP 加算。
+// HPLog type: 'kanji_<level>_<count>' or 'kanji_<level>_<count>_practice'
+//   level は '5' / '4' / '3' / '準2' / '2'（'準' を含むため _ で区切ると 'kanji_準2_10' になる点に注意）
+const SHEET_KANJI_YOMI = 'KanjiYomi';
+const SHEET_KANJI_KAKI = 'KanjiKaki';
+const KANJI_VALID_LEVELS = ['5', '4', '3', '準2', '2'];
+const KANJI_DAILY_RAWHP_CAP = 100;
+const KANJI_PASS_RATIO = 0.8;
+const KANJI_YOMI_HEADERS = ['セット番号', '問番号', '漢字ID', '漢字', '問題', '選A', '選B', '選C', '選D', '正解', '級'];
+const KANJI_KAKI_HEADERS = ['セット番号', '問番号', '漢字ID', '漢字', '問題', '書き正解', '級'];
+
+// シート初期化（GAS エディタから手動 1 回実行する想定、冪等）
+function ensureKanjiSheets() {
+  const ss = _ss();
+  let ySheet = ss.getSheetByName(SHEET_KANJI_YOMI);
+  if (!ySheet) {
+    ySheet = ss.insertSheet(SHEET_KANJI_YOMI);
+    ySheet.getRange(1, 1, 1, KANJI_YOMI_HEADERS.length).setValues([KANJI_YOMI_HEADERS]);
+    ySheet.setFrozenRows(1);
+    Logger.log('[ensureKanjiSheets] KanjiYomi シートを新規作成しました');
+  } else {
+    Logger.log('[ensureKanjiSheets] KanjiYomi シートは既に存在します');
+  }
+  let kSheet = ss.getSheetByName(SHEET_KANJI_KAKI);
+  if (!kSheet) {
+    kSheet = ss.insertSheet(SHEET_KANJI_KAKI);
+    kSheet.getRange(1, 1, 1, KANJI_KAKI_HEADERS.length).setValues([KANJI_KAKI_HEADERS]);
+    kSheet.setFrozenRows(1);
+    Logger.log('[ensureKanjiSheets] KanjiKaki シートを新規作成しました');
+  } else {
+    Logger.log('[ensureKanjiSheets] KanjiKaki シートは既に存在します');
+  }
+  return { ok: true, message: 'カンジー用シートを確認/作成しました（KanjiYomi / KanjiKaki）' };
+}
+
+// セッション ID 生成（kanji_{studentId}_{ts}_{random}）
+function _kanjiSessionId(studentId) {
+  const ts = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMddHHmmss');
+  const rand = Math.random().toString(36).substring(2, 8);
+  return 'kanji_' + String(studentId).trim() + '_' + ts + '_' + rand;
+}
+
+// 当日（教育日基準）の kanji rawHP 合計（_practice 接尾は除外）
+function _kanjiTodayRawHP(studentId) {
+  const sh = _ss().getSheetByName(SHEET_HPLOG);
+  if (!sh) return 0;
+  const today = _todayEducationalJST();
+  const data = _readLastNRows(sh, 200);
+  // HPLog 列: timestamp(0) / studentId(1) / rawHP(2) / hpGained(3) / type(4) / message(5)
+  let total = 0;
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    if (String(row[1]).trim() !== String(studentId).trim()) continue;
+    const type = String(row[4] || '');
+    if (type.indexOf('kanji_') !== 0) continue;
+    if (type.length >= 9 && type.lastIndexOf('_practice') === type.length - 9) continue;
+    const dateStr = _toEducationalDateStr(row[0]);
+    if (dateStr !== today) continue;
+    total += Number(row[2]) || 0;
+  }
+  return total;
+}
+
+// 当日素点の公開 API（フロントの問題数選択画面で「あと N HP」表示用）
+function getKanjiTodayRawHP(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const todayRawHP = _kanjiTodayRawHP(sid);
+    const cap = KANJI_DAILY_RAWHP_CAP;
+    const remaining = Math.max(0, cap - todayRawHP);
+    return {
+      ok: true,
+      studentId: sid,
+      todayRawHP: todayRawHP,
+      remaining: remaining,
+      isAtLimit: remaining === 0,
+      cap: cap
+    };
+  } catch (err) {
+    console.error('[getKanjiTodayRawHP]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// KanjiYomi / KanjiKaki シートを読み、指定級の漢字IDで揃えた問題セットを返す
+// params: { studentId, level, count }
+//   - level: '5' / '4' / '3' / '準2' / '2'
+//   - count: 5 or 10（読みの問題数。書きも同数）
+// 戻り値:
+//   - 成功: { ok:true, sessionId, level, count, questions:[{kanjiId, kanji, yomi:{question, choices, correct}, kaki:{question, answer}}] }
+//   - データなし: { ok:false, message:'このレベルの問題はまだ準備中だよ。もう少し待っててね！' }
+function getKanjiSet(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    const level = String((params && params.level) || '').trim();
+    const count = Math.max(1, Math.min(20, parseInt((params && params.count) || 0, 10) || 0));
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (KANJI_VALID_LEVELS.indexOf(level) < 0) return { ok: false, message: 'レベル指定が不正です' };
+    if (count !== 5 && count !== 10) return { ok: false, message: '問題数は 5 または 10 を指定してください' };
+
+    const ss = _ss();
+    const ySheet = ss.getSheetByName(SHEET_KANJI_YOMI);
+    const kSheet = ss.getSheetByName(SHEET_KANJI_KAKI);
+    if (!ySheet || !kSheet || ySheet.getLastRow() < 2 || kSheet.getLastRow() < 2) {
+      return { ok: false, message: 'このレベルの問題はまだ準備中だよ。もう少し待っててね！' };
+    }
+    const yRows = ySheet.getDataRange().getValues();
+    const kRows = kSheet.getDataRange().getValues();
+    // ヘッダーは固定（仕様）。列インデックスは 0 始まりで定数化
+    // KanjiYomi: 0=セット 1=問 2=ID 3=漢字 4=問題 5=A 6=B 7=C 8=D 9=正解 10=級
+    // KanjiKaki: 0=セット 1=問 2=ID 3=漢字 4=問題 5=書き正解 6=級
+
+    const yomiByLevel = {};
+    for (let i = 1; i < yRows.length; i++) {
+      const r = yRows[i];
+      const lv = String(r[10] || '').trim();
+      if (lv !== level) continue;
+      const kid = String(r[2] || '').trim();
+      if (!kid) continue;
+      yomiByLevel[kid] = {
+        kanjiId: kid,
+        kanji:   String(r[3] || '').trim(),
+        question: String(r[4] || ''),
+        choices: {
+          A: String(r[5] || ''),
+          B: String(r[6] || ''),
+          C: String(r[7] || ''),
+          D: String(r[8] || '')
+        },
+        correct: String(r[9] || '').trim().toUpperCase()  // 'A'/'B'/'C'/'D'
+      };
+    }
+
+    const kakiByLevel = {};
+    for (let i = 1; i < kRows.length; i++) {
+      const r = kRows[i];
+      const lv = String(r[6] || '').trim();
+      if (lv !== level) continue;
+      const kid = String(r[2] || '').trim();
+      if (!kid) continue;
+      kakiByLevel[kid] = {
+        kanjiId: kid,
+        kanji:   String(r[3] || '').trim(),
+        question: String(r[4] || ''),
+        answer:  String(r[5] || '').trim()
+      };
+    }
+
+    // 両シートに存在する漢字IDだけを使用
+    const pairedIds = Object.keys(yomiByLevel).filter(function(id){ return !!kakiByLevel[id]; });
+    if (pairedIds.length === 0) {
+      return { ok: false, message: 'このレベルの問題はまだ準備中だよ。もう少し待っててね！' };
+    }
+    if (pairedIds.length < count) {
+      // データはあるが count に満たない場合は使える分だけで返す（運用初期の救済）
+      Logger.log('[getKanjiSet] level=' + level + ' available=' + pairedIds.length + ' count=' + count + ' → 使用可能分で実施');
+    }
+
+    // シャッフル + 先頭 count 件
+    const shuffled = pairedIds.slice();
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = t;
+    }
+    const pickIds = shuffled.slice(0, Math.min(count, shuffled.length));
+
+    const questions = pickIds.map(function(id){
+      const y = yomiByLevel[id];
+      const k = kakiByLevel[id];
+      return {
+        kanjiId: id,
+        kanji: y.kanji || k.kanji,
+        yomi: { question: y.question, choices: y.choices, correct: y.correct },
+        kaki: { question: k.question, answer: k.answer }
+      };
+    });
+
+    const sessionId = _kanjiSessionId(sid);
+    return {
+      ok: true,
+      sessionId: sessionId,
+      level: level,
+      count: questions.length,
+      requestedCount: count,
+      questions: questions
+    };
+  } catch (err) {
+    console.error('[getKanjiSet]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 読み問題の採点（HP は加算しない）
+// params: { studentId, level, sessionId, answers:[{kanjiId, chosen}] }
+//   - chosen: 'A' / 'B' / 'C' / 'D'
+// 戻り値: { ok, passed, correctCount, total, results:[{kanjiId, chosen, correct, isCorrect}] }
+function submitKanjiYomi(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    const level = String((params && params.level) || '').trim();
+    const rawAnswers = (params && params.answers) || [];
+    let answers = rawAnswers;
+    if (typeof rawAnswers === 'string') {
+      try { answers = JSON.parse(rawAnswers); } catch(e) { answers = []; }
+    }
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (KANJI_VALID_LEVELS.indexOf(level) < 0) return { ok: false, message: 'レベル指定が不正です' };
+    if (!Array.isArray(answers) || answers.length === 0) return { ok: false, message: '解答データがありません' };
+
+    // サーバー側で正解を再ルックアップ（クライアント信頼を避ける）
+    const ySheet = _ss().getSheetByName(SHEET_KANJI_YOMI);
+    if (!ySheet || ySheet.getLastRow() < 2) return { ok: false, message: 'KanjiYomi シートが見つかりません' };
+    const yRows = ySheet.getDataRange().getValues();
+    const correctMap = {};
+    for (let i = 1; i < yRows.length; i++) {
+      const r = yRows[i];
+      const lv = String(r[10] || '').trim();
+      if (lv !== level) continue;
+      const kid = String(r[2] || '').trim();
+      if (!kid) continue;
+      correctMap[kid] = String(r[9] || '').trim().toUpperCase();
+    }
+
+    let correctCount = 0;
+    const results = answers.map(function(a){
+      const kid = String((a && a.kanjiId) || '').trim();
+      const chosen = String((a && a.chosen) || '').trim().toUpperCase();
+      const expected = correctMap[kid] || '';
+      const isCorrect = !!expected && chosen === expected;
+      if (isCorrect) correctCount += 1;
+      return { kanjiId: kid, chosen: chosen, correct: expected, isCorrect: isCorrect };
+    });
+    const total = results.length;
+    const passed = total > 0 && (correctCount / total) >= KANJI_PASS_RATIO;
+    return { ok: true, passed: passed, correctCount: correctCount, total: total, results: results };
+  } catch (err) {
+    console.error('[submitKanjiYomi]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// カンジー書き問題：Gemini Vision で OCR + 正解照合 + HP 加算
+// params: { studentId, level, sessionId, photoBase64, count, expectedAnswers, isRetry }
+//   - count: 全体セットの問題数（5 or 10、HP 計算用。再挑戦時も元の count を渡す）
+//   - expectedAnswers: [{kanjiId, no, answer}] 各問の正解（再挑戦時は不正解のみ）
+//   - isRetry: true なら再挑戦（HP 上限判定はパス済みで合格時は付与）
+// 戻り値: { ok, passed, correctCount, total, results, hpInfo, ocrText }
+function submitKanjiKaki(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    const level = String((params && params.level) || '').trim();
+    const sessionId = String((params && params.sessionId) || '').trim();
+    const photoBase64 = String((params && params.photoBase64) || '');
+    const count = parseInt((params && params.count) || 0, 10) || 0;
+    const isRetry = !!(params && params.isRetry);
+    const rawExpected = (params && params.expectedAnswers) || [];
+    let expectedAnswers = rawExpected;
+    if (typeof rawExpected === 'string') {
+      try { expectedAnswers = JSON.parse(rawExpected); } catch(e) { expectedAnswers = []; }
+    }
+    if (!sid)   return { ok: false, message: '生徒IDが必要です' };
+    if (KANJI_VALID_LEVELS.indexOf(level) < 0) return { ok: false, message: 'レベル指定が不正です' };
+    if (!photoBase64) return { ok: false, message: '画像データがありません' };
+    if (!Array.isArray(expectedAnswers) || expectedAnswers.length === 0) {
+      return { ok: false, message: '正解データがありません' };
+    }
+    if (count !== 5 && count !== 10) return { ok: false, message: '問題数は 5 または 10 を指定してください' };
+
+    // Gemini Vision で OCR
+    const ocrRes = _kanjiOcrWithGemini(photoBase64);
+    if (!ocrRes || !ocrRes.ok) return ocrRes || { ok: false, message: 'OCR に失敗しました' };
+    const ocrText = String(ocrRes.ocrText || '');
+
+    // 各問の正解を OCR テキストから照合
+    // OCR テキストにはおおよそ「番号 漢字」の並びで生徒の答えが書かれている前提だが、
+    // 「指定の漢字が OCR テキスト全体に含まれていれば正解」というシンプルな照合とする。
+    // （番号順の厳密照合は手書き OCR の番号誤認識リスクが高いため避ける）
+    const ocrNorm = _kanjiNormalizeText(ocrText);
+    let correctCount = 0;
+    const results = expectedAnswers.map(function(e){
+      const ans = String((e && e.answer) || '').trim();
+      const ansNorm = _kanjiNormalizeText(ans);
+      const found = !!ansNorm && ocrNorm.indexOf(ansNorm) >= 0;
+      if (found) correctCount += 1;
+      return {
+        kanjiId: String((e && e.kanjiId) || ''),
+        no:      Number((e && e.no) || 0),
+        expected: ans,
+        isCorrect: found
+      };
+    });
+    const total = results.length;
+    const passed = total > 0 && (correctCount / total) >= KANJI_PASS_RATIO;
+
+    // HP 加算判定（合格時のみ）
+    const ss = _ss();
+    const stuRows = _getStudentsValues();
+    let stuRowIdx = -1;
+    for (let i = 1; stuRows && i < stuRows.length; i++) {
+      if (String(stuRows[i][COL_ID]).trim() === sid) { stuRowIdx = i; break; }
+    }
+
+    let hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: false, alreadyAtCap: false };
+    if (passed) {
+      const baseRawHP = (count === 10) ? 100 : 50;
+      const todayRawHP = _kanjiTodayRawHP(sid);
+      const remaining = Math.max(0, KANJI_DAILY_RAWHP_CAP - todayRawHP);
+      const grantedRawHP = Math.min(baseRawHP, remaining);
+      const isPractice = (remaining === 0);
+      const alreadyAtCap = (remaining === 0);
+
+      if (grantedRawHP > 0 && stuRowIdx >= 0) {
+        const streak = Number(stuRows[stuRowIdx][COL_STREAK]) || 1;
+        const week = Math.ceil(streak / 7);
+        const hpGained = grantedRawHP * week * week;
+        const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
+        const newHP = cur + hpGained;
+        const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
+        const upd = {}; upd[COL_HP] = newHP;
+        _updateStudentsCacheRow(stuRowIdx, upd);
+        // HPLog: type='kanji_<level>_<count>'（'準2' レベルもそのまま使う）
+        _logHP(sid, grantedRawHP, hpGained, 'kanji_' + level + '_' + count);
+        _invalidateCache('cache_ranking_last_week');
+        hpInfo = { rawHP: grantedRawHP, hpGained: hpGained, granted: true, isPractice: false, alreadyAtCap: false, streak: streak, week: week };
+      } else if (isPractice) {
+        // 練習モード（既に上限到達）：HPLog にも記録するが _practice 接尾で除外可能に
+        _logHP(sid, 0, 0, 'kanji_' + level + '_' + count + '_practice');
+        hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: true, alreadyAtCap: true };
+      }
+    }
+
+    return {
+      ok: true,
+      passed: passed,
+      correctCount: correctCount,
+      total: total,
+      results: results,
+      hpInfo: hpInfo,
+      ocrText: ocrText,
+      isRetry: isRetry,
+      attempts: ocrRes.attempts || 1
+    };
+  } catch (err) {
+    console.error('[submitKanjiKaki]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// OCR 照合用の軽い正規化（kanji 比較が中心なので、空白・全半角の揺れだけ吸収）
+function _kanjiNormalizeText(s) {
+  if (s == null) return '';
+  let t = String(s);
+  // 全角英数 → 半角（かな・漢字は保持）
+  t = t.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(ch){
+    return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
+  });
+  // 空白系すべて削除（半角/全角スペース/タブ/改行/zero-width）
+  t = t.replace(/[\s　​‌‍⁠﻿]+/g, '');
+  return t;
+}
+
+// Gemini Vision で手書き漢字答案を OCR
+// 戻り値: { ok, ocrText, attempts } | { ok:false, message, retake? }
+function _kanjiOcrWithGemini(imageBase64) {
+  const apiKey = _props().getProperty('GEMINI_API_KEY');
+  if (!apiKey) return { ok: false, message: 'GEMINI_API_KEY が設定されていません' };
+  const model = 'gemini-2.5-flash';
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+
+  const prompt =
+    'これは小中高生の手書きの漢字答案です。問題ごとに番号と漢字（ときどき送り仮名つき）が書かれています。\n' +
+    '\n' +
+    '【書式の前提】\n' +
+    '・1 行に「番号 漢字」または「番号. 漢字」の形式で書かれていることが多い。\n' +
+    '・漢字には送り仮名（ひらがな）が含まれる場合がある。\n' +
+    '・楷書・行書が混在する可能性がある。トメ・ハネ・ハライの判断は厳しめではなく、字形が概ね正しければその漢字と読み取る。\n' +
+    '\n' +
+    '【出力ルール】\n' +
+    '・答案の文字を原文のままテキストで出力してください。\n' +
+    '・改行は生徒の答案どおりに保ってください。\n' +
+    '・行頭の番号は半角数字 + ピリオド「1.」「2.」… の形式に揃える。\n' +
+    '・出力はテキストのみ。前置き・説明・コードブロック（```）は絶対に含めないでください。\n' +
+    '・誤字に見えても「修正」しないでください。生徒が書いた字形をそのまま読み取るのが原則です。';
+
+  const body = {
+    contents: [{ parts: [ { text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: String(imageBase64) } } ] }],
+    generationConfig: { temperature: 0 }
+  };
+  const fetchOpts = { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true };
+  const MAX_ATTEMPTS = 2;
+  const RETRY_WAIT_MS = 500;
+  const QUOTA_PATTERN = /quota|rate|limit|exhaust|busy|unavail|帯域/i;
+  let lastErrorSummary = '';
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res;
+    try { res = UrlFetchApp.fetch(url, fetchOpts); }
+    catch (e) {
+      const exMsg = String(e);
+      console.error('[Gemini kanji fetch exception attempt=' + attempt + ']', exMsg);
+      lastErrorSummary = 'fetch exception: ' + exMsg;
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, message: 'Gemini API 通信エラー：' + exMsg };
+    }
+    const code = res.getResponseCode();
+    const raw = res.getContentText();
+    if (code === 429 || (code >= 500 && code < 600)) {
+      console.error('[Gemini kanji retryable HTTP attempt=' + attempt + ']', code, raw.substring(0, 400));
+      lastErrorSummary = 'HTTP ' + code;
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, message: 'Gemini API が混雑しています（HTTP ' + code + '）。少し時間をおいて再送信してください。' };
+    }
+    let json;
+    try { json = JSON.parse(raw); }
+    catch (e) {
+      console.error('[Gemini kanji JSON parse error]', code, e, raw.substring(0, 800));
+      return { ok: false, message: 'Gemini API: 応答 JSON が不正（HTTP ' + code + '）' };
+    }
+    if (json && json.error) {
+      const errMsg = String(json.error.message || '');
+      console.error('[Gemini kanji top-level error attempt=' + attempt + ']', code, JSON.stringify(json.error));
+      if (QUOTA_PATTERN.test(errMsg) && attempt < MAX_ATTEMPTS) {
+        lastErrorSummary = 'top-level error: ' + errMsg;
+        Utilities.sleep(RETRY_WAIT_MS); continue;
+      }
+      return { ok: false, message: 'Gemini API: ' + (errMsg || 'error') };
+    }
+    if (json && json.promptFeedback && json.promptFeedback.blockReason) {
+      console.error('[Gemini kanji blocked]', JSON.stringify(json.promptFeedback));
+      return { ok: false, retake: true, message: '画像のチェックでブロックされました。別の写真でもう一度試してください。' };
+    }
+    const candidates = json && json.candidates;
+    if (!candidates || !candidates[0]) return { ok: false, message: 'Gemini 応答に候補がありません（HTTP ' + code + '）' };
+    const cand = candidates[0];
+    if (cand.finishReason && cand.finishReason !== 'STOP' && cand.finishReason !== 'MAX_TOKENS') {
+      console.error('[Gemini kanji abnormal finishReason]', cand.finishReason);
+      return { ok: false, retake: true, message: '画像の解析が中断されました。もう一度撮影してください。' };
+    }
+    const parts = cand.content && cand.content.parts;
+    if (!parts || !parts[0] || typeof parts[0].text !== 'string') {
+      return { ok: false, retake: true, message: '画像から文字を読み取れませんでした。明るい場所でもう一度撮影してください。' };
+    }
+    let ocrText = String(parts[0].text || '').trim();
+    ocrText = ocrText.replace(/^```(?:[a-zA-Z]+)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    if (!ocrText) {
+      return { ok: false, retake: true, message: '画像から文字を読み取れませんでした。明るい場所でもう一度撮影してください。' };
+    }
+    if (attempt > 1) {
+      console.log('[Gemini kanji retry success] attempt=' + attempt + ' initial_error=' + lastErrorSummary);
+    }
+    return { ok: true, ocrText: ocrText, attempts: attempt };
+  }
+  return { ok: false, message: 'Gemini API: 不明なエラー（リトライ完了後）：' + lastErrorSummary };
 }
