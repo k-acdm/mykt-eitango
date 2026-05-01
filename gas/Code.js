@@ -6630,3 +6630,164 @@ function submitLison(params) {
     return { ok: false, message: String(err) };
   }
 }
+
+// =============================================
+// 和文英訳① モニョ判定バグのお詫びHP付与（2026-05-02 分）
+// =============================================
+// 背景: 2026-05-02 に発覚した [モニョ] 表記の判定バグ（OCR の ニ→ノ 誤認識を
+//       吸収する正規化が未実装で、影響を受けた生徒の答案が ❌ 判定されていた）
+//       への対応として、被害を受けた生徒 5 名に
+//         (1) 連続週数²ボーナス込みの本来 HP（生徒ごとに異なる）
+//         (2) バグ報告協力のお礼 1,000HP（一律）
+//       の 2 種類を付与する。
+//
+// 想定運用: GAS エディタから 1 回だけ実行。Time-based Trigger は設定しない。
+// 二重実行防止: 各生徒について HPLog に
+//               type='apology_wabun1' AND message に '2026-05-02' を含む
+//               レコードが既にあればスキップ（生徒単位で個別判定）。
+//
+// HPLog 列構成（_ensureHpLogMessageColumn 経由で 6 列を保証）:
+//   timestamp | studentId | rawHP | hpGained | type | message
+// =============================================
+function apologyWabun1MonyoBug_20260502() {
+  const TARGET_DATE = '2026-05-02';
+  const APOLOGY_TYPE = 'apology_wabun1';
+  const THANKS_TYPE  = 'apology_wabun1_thanks';
+  const APOLOGY_MESSAGE = '和文英訳①モニョ判定バグのお詫び付与（' + TARGET_DATE + '分・連続週数²ボーナス込み）';
+  const THANKS_MESSAGE  = '和文英訳①バグ報告協力のお礼（' + TARGET_DATE + '分）';
+  const THANKS_HP = 1000;
+
+  // 対象生徒 5 名（studentId / 名前 / 素点HP（連続週数²込み））
+  const TARGETS = [
+    { sid: '24003', name: '古内伶奈', baseHp: 7200 },
+    { sid: '24040', name: '川島桃子', baseHp:  200 },
+    { sid: '22029', name: '中綾音',   baseHp: 7200 },
+    { sid: '24017', name: '加藤煌生', baseHp: 1800 },
+    { sid: '24039', name: '川島杏子', baseHp:  200 }
+  ];
+
+  const summary = { processed: 0, skipped: 0, errors: 0, totalHpAdded: 0, results: [] };
+
+  try {
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) {
+      Logger.log('[apologyWabun1MonyoBug_20260502] ERROR: Students シートが見つかりません');
+      return { ok: false, message: 'Students シートが見つかりません' };
+    }
+
+    // HPLog を 6 列構造で確保 + ヘッダーインデックス取得
+    const log = _ensureHpLogMessageColumn();
+
+    // Students シートを直接読み（cache 経由禁止：最新 HP を反映するため）
+    const stuValues = stuSheet.getDataRange().getValues();
+    const sidToRow = {};
+    for (let i = 1; i < stuValues.length; i++) {
+      const sid = String(stuValues[i][COL_ID] || '').trim();
+      if (sid) sidToRow[sid] = i;
+    }
+
+    // HPLog を全件読み（二重実行チェック用）。今回は最大数千行想定で全件で問題なし
+    const logValues = (log.sh.getLastRow() >= 2)
+      ? log.sh.getRange(2, 1, log.sh.getLastRow() - 1, log.lastCol).getValues()
+      : [];
+
+    Logger.log('=== apologyWabun1MonyoBug_20260502 開始 ===');
+    Logger.log('対象 ' + TARGETS.length + ' 名 / HPLog 既存 ' + logValues.length + ' 件');
+
+    const newLogRows = [];
+    const stuUpdates = [];   // [{ rowIdx, newHP }]
+    const now = _nowJST();
+
+    for (let t = 0; t < TARGETS.length; t++) {
+      const target = TARGETS[t];
+      const sid = target.sid;
+      const label = sid + ' ' + target.name;
+
+      // 二重実行チェック: type='apology_wabun1' かつ message に TARGET_DATE を含む既存記録
+      let alreadyDone = false;
+      for (let r = 0; r < logValues.length; r++) {
+        const row = logValues[r];
+        const rSid  = String(row[log.cSid]  != null ? row[log.cSid]  : '').trim();
+        const rType = String(row[log.cType] != null ? row[log.cType] : '').trim();
+        const rMsg  = String(row[log.cMessage] != null ? row[log.cMessage] : '');
+        if (rSid === sid && rType === APOLOGY_TYPE && rMsg.indexOf(TARGET_DATE) >= 0) {
+          alreadyDone = true;
+          break;
+        }
+      }
+      if (alreadyDone) {
+        Logger.log('[SKIP] ' + label + ' : 既に ' + TARGET_DATE + ' 分のお詫び付与記録あり');
+        summary.skipped += 1;
+        summary.results.push({ sid: sid, name: target.name, status: 'skipped', reason: 'already_processed' });
+        continue;
+      }
+
+      // Students シートに該当行があるか
+      const rowIdx = sidToRow[sid];
+      if (rowIdx == null) {
+        Logger.log('[ERROR] ' + label + ' : Students シートに該当 ID なし');
+        summary.errors += 1;
+        summary.results.push({ sid: sid, name: target.name, status: 'error', reason: 'student_not_found' });
+        continue;
+      }
+
+      const totalAdd = target.baseHp + THANKS_HP;
+      const oldHP = Number(stuValues[rowIdx][COL_HP]) || 0;
+      const newHP = oldHP + totalAdd;
+
+      // HPLog 行 1: お詫び付与（素点HP × 連続週数²）
+      const apologyRow = new Array(log.lastCol).fill('');
+      if (log.cTimestamp >= 0) apologyRow[log.cTimestamp] = now;
+      if (log.cSid       >= 0) apologyRow[log.cSid]       = sid;
+      if (log.cRawHP     >= 0) apologyRow[log.cRawHP]     = target.baseHp;
+      if (log.cHpGained  >= 0) apologyRow[log.cHpGained]  = target.baseHp;
+      if (log.cType      >= 0) apologyRow[log.cType]      = APOLOGY_TYPE;
+      if (log.cMessage   >= 0) apologyRow[log.cMessage]   = APOLOGY_MESSAGE;
+      newLogRows.push(apologyRow);
+
+      // HPLog 行 2: バグ報告協力のお礼（一律 1,000HP）
+      const thanksRow = new Array(log.lastCol).fill('');
+      if (log.cTimestamp >= 0) thanksRow[log.cTimestamp] = now;
+      if (log.cSid       >= 0) thanksRow[log.cSid]       = sid;
+      if (log.cRawHP     >= 0) thanksRow[log.cRawHP]     = THANKS_HP;
+      if (log.cHpGained  >= 0) thanksRow[log.cHpGained]  = THANKS_HP;
+      if (log.cType      >= 0) thanksRow[log.cType]      = THANKS_TYPE;
+      if (log.cMessage   >= 0) thanksRow[log.cMessage]   = THANKS_MESSAGE;
+      newLogRows.push(thanksRow);
+
+      stuUpdates.push({ rowIdx: rowIdx, oldHP: oldHP, newHP: newHP, totalAdd: totalAdd });
+      summary.processed += 1;
+      summary.totalHpAdded += totalAdd;
+      summary.results.push({
+        sid: sid, name: target.name, status: 'ok',
+        baseHp: target.baseHp, thanksHp: THANKS_HP, totalAdd: totalAdd,
+        oldHP: oldHP, newHP: newHP
+      });
+      Logger.log('[OK] ' + label + ' : +' + totalAdd + 'HP (素点' + target.baseHp + ' + お礼' + THANKS_HP + ') / HP ' + oldHP + ' → ' + newHP);
+    }
+
+    // 一括書き込み（HPLog → Students の順、片方失敗時の整合性は最低限維持）
+    if (newLogRows.length > 0) {
+      const startRow = log.sh.getLastRow() + 1;
+      log.sh.getRange(startRow, 1, newLogRows.length, log.lastCol).setValues(newLogRows);
+      Logger.log('[HPLog] ' + newLogRows.length + ' 行追記 (row ' + startRow + ' から)');
+    }
+    for (let u = 0; u < stuUpdates.length; u++) {
+      const upd = stuUpdates[u];
+      stuSheet.getRange(upd.rowIdx + 1, COL_HP + 1).setValue(upd.newHP);
+    }
+    if (stuUpdates.length > 0) {
+      _invalidateCache('cache_students_values');
+      _invalidateCache('cache_ranking_last_week');
+      Logger.log('[Students] ' + stuUpdates.length + ' 名の HP を更新 / cache invalidate 完了');
+    }
+
+    Logger.log('=== 完了: 処理 ' + summary.processed + ' / スキップ ' + summary.skipped + ' / エラー ' + summary.errors + ' / 合計 +' + summary.totalHpAdded + 'HP ===');
+    return { ok: true, summary: summary };
+  } catch (err) {
+    Logger.log('[apologyWabun1MonyoBug_20260502] FATAL: ' + err);
+    console.error('[apologyWabun1MonyoBug_20260502]', err);
+    return { ok: false, message: String(err), summary: summary };
+  }
+}
