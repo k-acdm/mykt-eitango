@@ -2115,6 +2115,30 @@ Phase 3 着手中に新たな設計原則が発見された場合：
   - **ホーム画面のボタン**: onclick のみ更新（`showComingSoon('漢字')` → `showKanjiLevelSelect()`）。準備中バッジ・disabled クラス・「漢字」ラベルは据え置き（最終ステップで一括差し替え予定）。
 - **残タスク（次回以降）**: キャラクター画像（kanjii-*.png）のリポジトリ追加 / ホーム画面「漢字」→「カンジー」+ サブタイトル追加 / ホーム「準備中」バッジ → HP バッジ差し替え / 学習履歴への kanji 専用ブランチ追加（必要に応じて、現状は extras フィールドで自動表示）/ 問題データ投入（5級から順次、別スレで作成中）。
 
+### 2026-05-03（カンジー仕上げ準備：ボタン表示変更 + キャラ画像配置 + 他コンテンツ用キャラ生成）
+
+自宅PC で短時間セッション。カンジー本体の中身完成までの周辺整備を進めた。
+
+- **ホーム画面「漢字」ボタンの表示変更**（dev `2debb74` → main `39ea959`）: 英語リスオンと同構造に揃えて「カンジー」+ サブタイトル「漢字の読み書き」+ マスコット画像（`images/kanjii-default.png`）を配置。`<img class="ico-mascot">` + ベタ書きラベル + `<span class="content-btn-sub">` の3要素構成（リスオンの実構造に合わせており、`content-btn-main` クラスは新設しない）。「準備中」バッジ・`disabled` クラスは据え置き（中身完成時の最終ステップで一括差し替え）。[index.html:962-966](index.html:962)
+- **キャラクター画像 4 種を `images/` に配置**（dev `7537bc3` → `21064f5` → main 同期済）: `kanjii-default.png` / `kanjii-celebrate.png` / `kanjii-encourage.png` / `kanjii-thinking.png` をリポジトリに追加
+  - **GitHub Web 画面でのアップロード事故とリカバリ手順**: ふくちさんが GitHub Web UI から画像をアップロードした際、リポジトリの**ルート直下**に置いてしまった（commit `7537bc3 Add files via upload`、4 ファイルすべてルートに配置）。`index.html` 側は `images/kanjii-*.png` 参照のため画像が表示されず、修正が必要に
+  - **リカバリ**: ローカルで `git pull origin dev` → `git mv kanjii-default.png images/kanjii-default.png`（4 ファイル分） → `git commit -m "fix(カンジー): キャラクター画像をimages/フォルダに移動"` → push（commit `21064f5`）。git mv は履歴を保持しつつ移動するため、画像のバイナリ重複なくクリーンに修正可
+  - **再発防止メモ**: GitHub Web UI でアップロードする際は、対象フォルダ（`images/` 等）に**先に入ってから**「Add file → Upload files」する。ルート直下の場合は事故になりやすい
+- **他コンテンツ用キャラクター生成進捗（明日以降の作業準備）**: Gemini で 3 体のメインキャラを生成完了
+  - **RUSH君**（英単語RUSH 用）: 生成済み、4 表情分割（default / celebrate / encourage / thinking）は次回
+  - **サンゴタン**（三語短文 用）: 生成済み、4 表情分割は次回
+  - **ニチエイ**（和文英訳① 用）: 生成済み、4 表情分割は次回
+  - **キソ"K"さん**（基礎計算 用）: 既存だが `encourage` のみ追加生成が必要 + `default` のラベル付き画像差し替えも保留中
+  - **リスオン**（英語リスオン 用）: 既存 `lison-icon.png` に加えて celebrate / encourage / thinking の 3 パターン追加が必要
+- **未解決の事象（参考メモ）**: 5/2 のカンジー実装後、Wabun1Topics シート編集 → 当日問題画面で反映されない事象あり。「過去の問題」では正しく表示されるため、`index.html` / `gas/Code.js` の修正自体は本番反映済み。GAS の `getWabun1Topic` キャッシュ（CacheService）またはブラウザ側キャッシュが原因と推測されたが、時間切れで深追いせず。来週の運用で正常動作するか観察する方針
+
+#### 次回以降の残タスク
+- **キャラクター画像系**: RUSH君/サンゴタン/ニチエイの 4 表情分割と `images/` 投入 / リスオン追加 3 パターン（celebrate/encourage/thinking）の Gemini 依頼と投入 / キソ"K"さん encourage の追加生成 + default のラベル付き画像差し替え
+- **コンテンツ機能**: リスオンの問題データを管理画面（`admin.html`）から入力できるようにする機能の実装
+- **基礎計算 Phase 1 残り**: rank_06 連立方程式 / rank_08 一次方程式 / rank_11〜20（計 15 単元、Phase 1 進捗 5/20 = 25%）
+- **カンジー**: 問題データ投入（5 級から順次、別スレで作成中）
+- **最終仕上げ**: ホーム画面「カンジー」の「準備中」バッジ → HP バッジ「50〜100HP/日」差し替え（中身完成時）
+
 ---
 
 ## 基礎計算 問題プール拡充計画
