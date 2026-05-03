@@ -6005,19 +6005,14 @@ function getWabun1AnswersAfterSubmit(params) {
 
 // =============================================
 // 生徒用：過去の問題と正解（直近1週間）
-// この生徒が実際に提出した日のみ返す
-// params: { studentId }
+// 提出有無に関わらず Wabun1Topics の全データを返す（三語短文と挙動を統一）
+// params: なし（studentId は受け取るが利用しない＝後方互換）
 // =============================================
 function getWabun1PastTopicsRecent(params) {
   try {
-    const sid = String((params && params.studentId) || '').trim();
-    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
     const endStr   = _sangoDateAgo(1);
     const startStr = _sangoDateAgo(7);
-    const submittedSet = _wabun1SubmittedDatesBySid(sid);
-    const rows = _readWabun1TopicsByDateRange(startStr, endStr).filter(function(r){
-      return !!submittedSet[r.date];
-    });
+    const rows = _readWabun1TopicsByDateRange(startStr, endStr);
     return { ok: true, topics: _buildWabun1TopicsByDate(rows) };
   } catch(err) {
     console.error('[getWabun1PastTopicsRecent]', err);
@@ -6028,24 +6023,18 @@ function getWabun1PastTopicsRecent(params) {
 // =============================================
 // 生徒用：過去の問題と正解（1週間単位のページング）
 // weekOffset=1 → 14日前〜8日前 / weekOffset=2 → 21日前〜15日前 ...
-// params: { studentId, weekOffset }
+// 提出有無に関わらず Wabun1Topics の全データを返す（三語短文と挙動を統一）
+// params: { weekOffset }（studentId は受け取るが利用しない＝後方互換）
 // =============================================
 function getWabun1PastTopicsPaged(params) {
   try {
-    const sid = String((params && params.studentId) || '').trim();
-    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
     const weekOffset = Math.max(1, Number((params && params.weekOffset) || 1) | 0);
     const endStr   = _sangoDateAgo(weekOffset * 7 + 1);
     const startStr = _sangoDateAgo(weekOffset * 7 + 7);
-    const submittedSet = _wabun1SubmittedDatesBySid(sid);
-    const rows = _readWabun1TopicsByDateRange(startStr, endStr).filter(function(r){
-      return !!submittedSet[r.date];
-    });
+    const rows = _readWabun1TopicsByDateRange(startStr, endStr);
     const nextEnd   = _sangoDateAgo((weekOffset + 1) * 7 + 1);
     const nextStart = _sangoDateAgo((weekOffset + 1) * 7 + 7);
-    const nextRows = _readWabun1TopicsByDateRange(nextStart, nextEnd).filter(function(r){
-      return !!submittedSet[r.date];
-    });
+    const nextRows = _readWabun1TopicsByDateRange(nextStart, nextEnd);
     return {
       ok: true,
       weekOffset: weekOffset,

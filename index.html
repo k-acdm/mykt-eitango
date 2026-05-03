@@ -3688,7 +3688,7 @@
       if (!res || !res.ok) { bodyEl.innerHTML = '<div class="wabun1-past-empty">読み込みに失敗しました。</div>'; return; }
       var topics = res.topics || [];
       if (topics.length === 0) {
-        bodyEl.innerHTML = '<div class="wabun1-past-empty">まだ提出した問題がありません。<br>まずは今日の問題に挑戦してみよう！</div>';
+        bodyEl.innerHTML = '<div class="wabun1-past-empty">直近1週間の登録はまだありません。</div>';
       } else {
         bodyEl.innerHTML = topics.map(_renderWabun1PastDateBlock).join('');
       }
