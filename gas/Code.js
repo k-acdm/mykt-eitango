@@ -306,6 +306,7 @@ function doGet(e) {
       else if (action === 'adminAddQuote')     result = adminAddQuote(params);
       else if (action === 'adminAddNotice')    result = adminAddNotice(params);
       else if (action === 'adminListStudents') result = adminListStudents(params);
+      else if (action === 'getStudentsListForGrant') result = getStudentsListForGrant(params);
       else if (action === 'getStudentView') result = getStudentView(params);  
       else if (action === 'getSangoTopic')             result = getSangoTopic();
       else if (action === 'submitSango')               result = submitSango(params);
@@ -391,6 +392,8 @@ function doPost(e) {
     else if (action === 'submitLison')              result = submitLison(params);
     // カンジー：書き提出（写真 base64 が大きいため POST 経由）
     else if (action === 'submitKanjiKaki')          result = submitKanjiKaki(params);
+    // 管理画面：HP 手動付与（誤実行防止のため POST 強制、Students.HP と HPLog を直接書き換える）
+    else if (action === 'executeManualHpGrant')     result = executeManualHpGrant(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -4588,6 +4591,172 @@ function adminListStudents(params) {
     return { ok: true, students: students };
   } catch(err) {
     console.error('[adminListStudents]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// HP 手動付与（管理画面）
+// =====================================================
+// Students シート全件を返す。確認画面でのボーナス計算に必要なため
+// streak（連続日数）も含む。adminListStudents と異なり streak を含む。
+// 認証必須。生徒ID 空欄行はスキップ。
+function getStudentsListForGrant(params) {
+  try {
+    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const values = _getStudentsValues();
+    if (!values || values.length < 2) return { ok: true, students: [] };
+    const students = [];
+    for (let i = 1; i < values.length; i++) {
+      const sid = String(values[i][COL_ID] || '').trim();
+      if (!sid) continue;
+      students.push({
+        studentId: sid,
+        name:      String(values[i][COL_NAME]     || '').trim(),
+        nickname:  String(values[i][COL_NICKNAME] || '').trim(),
+        streak:    Number(values[i][COL_STREAK])   || 0
+      });
+    }
+    return { ok: true, students: students };
+  } catch(err) {
+    console.error('[getStudentsListForGrant]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// HP 手動付与の実行。管理者認証必須。doPost 経由のみ（誤実行防止）。
+// params: {
+//   password:    管理者パスワード
+//   studentIds:  対象生徒ID配列（必須、1件以上）
+//   rawHp:       素点HP（必須、1以上の整数）
+//   reason:      付与理由（必須、HPLog の message に保存）
+//   applyBonus:  true なら streak から week² 倍率を算出して加算
+// }
+// 各生徒について：
+//   week = Math.ceil(streak / 7)（streak<1 のときは streak=1 扱いで week=1）
+//   multiplier = applyBonus ? week*week : 1
+//   hpGained = rawHp * multiplier
+//   Students の HP 列に hpGained を加算（直接 setValue + cache invalidate）
+//   HPLog に 1 行 type='manual_grant' / message=reason で記録
+// 二重実行防止なし（管理者判断に任せる仕様）。
+function executeManualHpGrant(params) {
+  try {
+    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+
+    const studentIds = (params && Array.isArray(params.studentIds)) ? params.studentIds : [];
+    const rawHpRaw   = Number(params && params.rawHp);
+    const reason     = String((params && params.reason) || '').trim();
+    const applyBonus = !!(params && params.applyBonus);
+
+    if (studentIds.length === 0) return { ok: false, message: '対象生徒が指定されていません' };
+    if (!Number.isFinite(rawHpRaw) || rawHpRaw < 1 || Math.floor(rawHpRaw) !== rawHpRaw) {
+      return { ok: false, message: '素点HPは1以上の整数を指定してください' };
+    }
+    if (!reason) return { ok: false, message: '付与理由は必須です' };
+
+    const rawHp = Math.floor(rawHpRaw);
+
+    // 重複・空文字を除去した正規化済みID集合
+    const idSet = {};
+    const normIds = [];
+    studentIds.forEach(function(s){
+      const v = String(s || '').trim();
+      if (v && !idSet[v]) { idSet[v] = true; normIds.push(v); }
+    });
+    if (normIds.length === 0) return { ok: false, message: '対象生徒が指定されていません' };
+
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
+
+    // cache 経由禁止：ここは最新値を直接読む（管理画面実行直前の HP を正確に加算するため）
+    const stuValues = stuSheet.getDataRange().getValues();
+
+    // sid → rowIdx マップ
+    const rowBySid = {};
+    for (let i = 1; i < stuValues.length; i++) {
+      const sid = String(stuValues[i][COL_ID] || '').trim();
+      if (sid) rowBySid[sid] = i;
+    }
+
+    const updates = [];
+    const notFound = [];
+    normIds.forEach(function(sid) {
+      if (!(sid in rowBySid)) { notFound.push(sid); return; }
+      const i      = rowBySid[sid];
+      const name   = String(stuValues[i][COL_NAME]     || '').trim();
+      const streak = Math.max(1, Number(stuValues[i][COL_STREAK]) || 1);
+      const week   = Math.ceil(streak / 7);
+      const mult   = applyBonus ? (week * week) : 1;
+      const hpGained = rawHp * mult;
+      const curHP    = Number(stuValues[i][COL_HP]) || 0;
+      updates.push({
+        sid:       sid,
+        name:      name,
+        rowIdx:    i,
+        streak:    streak,
+        week:      week,
+        multiplier: mult,
+        rawHp:     rawHp,
+        hpGained:  hpGained,
+        newHP:     curHP + hpGained
+      });
+    });
+
+    if (updates.length === 0) {
+      return { ok: false, message: '指定された生徒が見つかりません: ' + notFound.join(', ') };
+    }
+
+    // Students.HP 列を 1 件ずつ書き込み
+    for (let k = 0; k < updates.length; k++) {
+      const u = updates[k];
+      stuSheet.getRange(u.rowIdx + 1, COL_HP + 1).setValue(u.newHP);
+    }
+
+    // HPLog に 1 行ずつ記録（既存の 6 列構造を _ensureHpLogMessageColumn 経由で保証）
+    const log = _ensureHpLogMessageColumn();
+    const now = _nowJST();
+    const rowsToAppend = updates.map(function(u){
+      const row = new Array(log.lastCol).fill('');
+      if (log.cTimestamp >= 0) row[log.cTimestamp] = now;
+      if (log.cSid       >= 0) row[log.cSid]       = u.sid;
+      if (log.cRawHP     >= 0) row[log.cRawHP]     = u.rawHp;
+      if (log.cHpGained  >= 0) row[log.cHpGained]  = u.hpGained;
+      if (log.cType      >= 0) row[log.cType]      = 'manual_grant';
+      if (log.cMessage   >= 0) row[log.cMessage]   = reason;
+      return row;
+    });
+    log.sh.getRange(log.sh.getLastRow() + 1, 1, rowsToAppend.length, log.lastCol)
+          .setValues(rowsToAppend);
+
+    // cache invalidate（Students の HP が変わったのでランキングと一覧キャッシュを破棄）
+    _invalidateCache('cache_students_values');
+    _invalidateCache('cache_ranking_last_week');
+
+    let totalHp = 0;
+    const results = updates.map(function(u){
+      totalHp += u.hpGained;
+      return {
+        studentId:  u.sid,
+        name:       u.name,
+        streak:     u.streak,
+        week:       u.week,
+        multiplier: u.multiplier,
+        rawHp:      u.rawHp,
+        hpGained:   u.hpGained
+      };
+    });
+
+    return {
+      ok: true,
+      results:  results,
+      totalHp:  totalHp,
+      notFound: notFound,
+      reason:   reason,
+      applyBonus: applyBonus
+    };
+  } catch(err) {
+    console.error('[executeManualHpGrant]', err);
     return { ok: false, message: String(err) };
   }
 }

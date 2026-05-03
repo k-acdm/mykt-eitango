@@ -122,6 +122,40 @@
   .students-table .name-link:hover { color: #7c4fff; }
   .students-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; }
 
+  /* HP 手動付与 */
+  .form-label { display: block; font-size: 14px; font-weight: 600; color: #333; margin-bottom: 6px; }
+  .form-required { display: inline-block; font-size: 11px; color: #fff; background: #e74c3c; padding: 2px 6px; border-radius: 4px; margin-left: 6px; vertical-align: middle; font-weight: 600; }
+  .form-hint { display: block; font-size: 12px; color: #888; margin-top: 4px; }
+  .hp-grant-checkbox-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; padding: 10px; background: #fff7ed; border: 2px solid #fb923c; border-radius: 8px; margin-bottom: 6px; }
+  .hp-grant-checkbox-row input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; cursor: pointer; }
+  .hp-grant-checkbox-row span { font-size: 14px; color: #6b3a17; line-height: 1.5; }
+  .hp-grant-bonus-note { font-size: 12px; color: #888; padding-left: 10px; }
+  .hp-grant-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .btn-mini { padding: 6px 12px; font-size: 12px; background: #f4f6fb; color: #4f7df0; border: 2px solid #d8e0ee; border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: 600; transition: all .15s; }
+  .btn-mini:hover { background: #4f7df0; color: #fff; border-color: #4f7df0; }
+  .hp-grant-count { margin-left: auto; font-size: 13px; color: #555; font-weight: 600; }
+  .hp-grant-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 420px; }
+  .hp-grant-table th, .hp-grant-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eef1f7; white-space: nowrap; }
+  .hp-grant-table th { background: #f4f6fb; color: #555; font-weight: 600; font-size: 12px; }
+  .hp-grant-table tbody tr { cursor: pointer; transition: background .12s; }
+  .hp-grant-table tbody tr:hover { background: #eef4ff; }
+  .hp-grant-table tbody tr.selected { background: #e0ecff; }
+  .hp-grant-table tbody tr.selected:hover { background: #d4e3ff; }
+  .hp-grant-table input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+  .hp-grant-table .col-streak { text-align: right; color: #777; font-size: 12px; }
+  .hp-grant-summary { font-size: 14px; line-height: 1.9; color: #333; }
+  .hp-grant-summary strong { color: #4f7df0; }
+  .hp-grant-detail { padding: 12px 14px; border-bottom: 1px solid #eef1f7; font-size: 13px; line-height: 1.7; }
+  .hp-grant-detail:last-child { border-bottom: none; }
+  .hp-grant-detail .name { font-weight: 600; color: #333; font-size: 14px; margin-bottom: 4px; }
+  .hp-grant-detail .calc { color: #555; }
+  .hp-grant-detail .grant { color: #16a34a; font-weight: 600; }
+  .hp-grant-total { margin-top: 14px; padding: 12px 16px; background: linear-gradient(135deg,#fff7ed,#fef3f2); border-radius: 8px; font-size: 16px; font-weight: 700; color: #b45309; text-align: center; }
+  .hp-grant-result-summary { font-size: 14px; line-height: 1.9; color: #333; }
+  .hp-grant-result-list-row { padding: 10px 12px; border-bottom: 1px solid #eef1f7; font-size: 13px; display: flex; justify-content: space-between; gap: 10px; }
+  .hp-grant-result-list-row:last-child { border-bottom: none; }
+  .hp-grant-result-list-row .grant-amt { color: #16a34a; font-weight: 600; }
+
   /* 学習履歴（view.html から移植） */
   .child-day-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); margin-bottom: 12px; overflow: hidden; }
   .child-day-header { background: linear-gradient(135deg,#fff7ed,#fef3f2); color: #b45309; font-weight: bold; font-size: 14px; padding: 10px 14px; border-bottom: 1px solid #fde4cd; }
@@ -236,6 +270,11 @@
       <div class="dashboard-card-icon">📷</div>
       <div class="dashboard-card-title">基礎計算・答案写真</div>
       <div class="dashboard-card-desc">生徒が提出した答案写真を確認（保存期間 15 日）</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminHpGrant()">
+      <div class="dashboard-card-icon">💎</div>
+      <div class="dashboard-card-title">HP手動付与</div>
+      <div class="dashboard-card-desc">指定した生徒に素点HPを付与（連続週数ボーナスの加算可）</div>
     </button>
   </div>
 </div>
@@ -368,6 +407,95 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKisoStudents()">← 生徒一覧に戻る</button>
     <div class="page-lead">写真をクリックすると Google Drive で拡大表示されます。<br><span style="color:#94a3b8;font-size:13px">※ サムネが表示されない場合は Drive にログインしているブラウザで開いてください。</span></div>
     <div id="kiso-photos-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+  </div>
+</div>
+
+<!-- HP 手動付与：入力画面 -->
+<div id="screen-admin-hp-grant" class="screen">
+  <header>
+    <h1>💎 HP手動付与</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <div class="form-card">
+      <h2>付与内容</h2>
+      <label>
+        <span class="form-label">素点HP <span class="form-required">必須</span></span>
+        <input type="number" id="hp-grant-raw" min="1" step="1" placeholder="例：200" />
+        <span class="form-hint">1以上の整数で指定してください。</span>
+      </label>
+      <label>
+        <span class="form-label">付与理由 <span class="form-required">必須</span></span>
+        <textarea id="hp-grant-reason" placeholder="例：和文英訳①の判定基準改善のお詫び付与"></textarea>
+        <span class="form-hint">HPLog の message 列に保存されます。</span>
+      </label>
+      <label class="hp-grant-checkbox-row">
+        <input type="checkbox" id="hp-grant-bonus" />
+        <span>連続実施週次ボーナスを加算する（素点HP × 連続週数の二乗）</span>
+      </label>
+      <div class="hp-grant-bonus-note">チェックOFF：素点HPをそのまま付与します。</div>
+    </div>
+
+    <div class="form-card" style="margin-top:16px">
+      <h2>対象生徒（複数選択可）</h2>
+      <div class="hp-grant-actions">
+        <button type="button" class="btn-mini" onclick="hpGrantSelectAll()">全選択</button>
+        <button type="button" class="btn-mini" onclick="hpGrantSelectNone()">全解除</button>
+        <button type="button" class="btn-mini" onclick="loadHpGrantStudents()">🔄 再読み込み</button>
+        <span id="hp-grant-count" class="hp-grant-count">0 名選択中</span>
+      </div>
+      <div id="hp-grant-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    </div>
+
+    <button class="submit-btn" style="margin-top:18px" onclick="confirmHpGrant()">確認する</button>
+  </div>
+</div>
+
+<!-- HP 手動付与：確認画面 -->
+<div id="screen-admin-hp-grant-confirm" class="screen">
+  <header>
+    <h1>💎 HP手動付与（内容確認）</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <div class="form-card">
+      <h2>付与内容のサマリ</h2>
+      <div id="hp-grant-summary" class="hp-grant-summary"></div>
+    </div>
+    <div class="form-card" style="margin-top:16px">
+      <h2>各生徒の付与額</h2>
+      <div id="hp-grant-detail-list"></div>
+      <div id="hp-grant-total" class="hp-grant-total"></div>
+    </div>
+    <button class="submit-btn" id="hp-grant-execute-btn" style="margin-top:18px;background:linear-gradient(135deg,#22c55e,#16a34a)" onclick="executeHpGrant()">✅ はい、付与する</button>
+    <button class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminHpGrant(true)">❌ 戻る</button>
+  </div>
+</div>
+
+<!-- HP 手動付与：完了画面 -->
+<div id="screen-admin-hp-grant-result" class="screen">
+  <header>
+    <h1>💎 HP手動付与（完了）</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <div class="form-card">
+      <h2>✅ 付与完了</h2>
+      <div id="hp-grant-result-summary" class="hp-grant-result-summary"></div>
+      <div id="hp-grant-result-list" style="margin-top:14px"></div>
+    </div>
+    <button class="submit-btn" style="margin-top:18px" onclick="goAdminDashboard()">ダッシュボードに戻る</button>
+    <button class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#7c4fff,#4f7df0)" onclick="goAdminHpGrant(true)">続けて別の付与を行う</button>
   </div>
 </div>
 
@@ -1183,6 +1311,246 @@
     _selectedStudentId = sid;
     _selectedStudentName = name || '';
     goAdminChildHistory();
+  }
+
+  // =============================================================
+  // HP 手動付与
+  // =============================================================
+  // _hpGrantStudents: 全生徒（streak 含む）。getStudentsListForGrant で取得した生のリスト
+  // _hpGrantSelected: 選択中の studentId 集合（オブジェクトを set として使用）
+  // _hpGrantConfirm:  確認画面に渡すスナップショット { rawHp, reason, applyBonus, students:[{sid,name,nickname,streak}] }
+  var _hpGrantStudents = [];
+  var _hpGrantSelected = {};
+  var _hpGrantConfirm = null;
+
+  // preserveInput=true なら入力欄と選択状態を保持して入力画面に戻る（確認画面の「戻る」用）
+  function goAdminHpGrant(preserveInput) {
+    _showScreen('screen-admin-hp-grant');
+    window.scrollTo(0, 0);
+    if (!preserveInput) {
+      var rawEl = document.getElementById('hp-grant-raw');
+      var reasonEl = document.getElementById('hp-grant-reason');
+      var bonusEl = document.getElementById('hp-grant-bonus');
+      if (rawEl)    rawEl.value    = '';
+      if (reasonEl) reasonEl.value = '';
+      if (bonusEl)  bonusEl.checked = false;
+      _hpGrantSelected = {};
+    }
+    loadHpGrantStudents();
+  }
+
+  function loadHpGrantStudents() {
+    var wrap = document.getElementById('hp-grant-students-wrap');
+    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    gasGet({
+      action: 'getStudentsListForGrant',
+      password: sessionStorage.getItem('adminPassword') || '',
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      _hpGrantStudents = res.students || [];
+      _renderHpGrantStudentsTable();
+    }).catch(function() {
+      wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  function _renderHpGrantStudentsTable() {
+    var wrap = document.getElementById('hp-grant-students-wrap');
+    if (_hpGrantStudents.length === 0) {
+      wrap.innerHTML = '<div class="students-empty">生徒データがありません</div>';
+      _updateHpGrantCount();
+      return;
+    }
+    var rows = _hpGrantStudents.map(function(s) {
+      var sidEsc  = _esc(s.studentId);
+      var nameEsc = _esc(s.name || '');
+      var nickEsc = _esc(s.nickname || '');
+      var checked = _hpGrantSelected[s.studentId] ? 'checked' : '';
+      var rowCls  = _hpGrantSelected[s.studentId] ? ' class="selected"' : '';
+      return '<tr' + rowCls + ' data-sid="' + sidEsc + '" onclick="hpGrantToggleRow(\'' + sidEsc + '\')">' +
+               '<td><input type="checkbox" ' + checked + ' onclick="event.stopPropagation();hpGrantToggleRow(\'' + sidEsc + '\')" /></td>' +
+               '<td>' + sidEsc + '</td>' +
+               '<td>' + (nameEsc || '（未登録）') + '</td>' +
+               '<td>' + (nickEsc || '—') + '</td>' +
+               '<td class="col-streak">' + Number(s.streak || 0) + '日</td>' +
+             '</tr>';
+    }).join('');
+    wrap.innerHTML =
+      '<div class="students-table-wrap">' +
+        '<table class="hp-grant-table">' +
+          '<thead><tr><th>選択</th><th>生徒ID</th><th>氏名</th><th>ニックネーム</th><th class="col-streak">連続日数</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>' +
+      '</div>';
+    _updateHpGrantCount();
+  }
+
+  function hpGrantToggleRow(sid) {
+    if (_hpGrantSelected[sid]) delete _hpGrantSelected[sid];
+    else _hpGrantSelected[sid] = true;
+    // 該当行のみ再描画（チェックボックスとクラスを更新）
+    var tr = document.querySelector('#hp-grant-students-wrap tr[data-sid="' + sid + '"]');
+    if (tr) {
+      var sel = !!_hpGrantSelected[sid];
+      tr.classList.toggle('selected', sel);
+      var cb = tr.querySelector('input[type=checkbox]');
+      if (cb) cb.checked = sel;
+    }
+    _updateHpGrantCount();
+  }
+
+  function hpGrantSelectAll() {
+    _hpGrantStudents.forEach(function(s){ _hpGrantSelected[s.studentId] = true; });
+    _renderHpGrantStudentsTable();
+  }
+  function hpGrantSelectNone() {
+    _hpGrantSelected = {};
+    _renderHpGrantStudentsTable();
+  }
+
+  function _updateHpGrantCount() {
+    var n = Object.keys(_hpGrantSelected).length;
+    var el = document.getElementById('hp-grant-count');
+    if (el) el.textContent = n + ' 名選択中';
+  }
+
+  function _formatNum(n) {
+    return Number(n || 0).toLocaleString('en-US');
+  }
+
+  function confirmHpGrant() {
+    var rawStr  = (document.getElementById('hp-grant-raw').value || '').trim();
+    var reason  = (document.getElementById('hp-grant-reason').value || '').trim();
+    var applyBonus = !!document.getElementById('hp-grant-bonus').checked;
+
+    var rawHp = Number(rawStr);
+    if (!rawStr || !Number.isFinite(rawHp) || rawHp < 1 || Math.floor(rawHp) !== rawHp) {
+      showToast('素点HPは1以上の整数を入力してください', 'error');
+      return;
+    }
+    if (!reason) {
+      showToast('付与理由を入力してください', 'error');
+      return;
+    }
+    var selectedIds = Object.keys(_hpGrantSelected);
+    if (selectedIds.length === 0) {
+      showToast('対象生徒を1人以上選択してください', 'error');
+      return;
+    }
+
+    // 選択中の生徒を全リストから抽出（streak 等を含むスナップショット）
+    var snap = _hpGrantStudents.filter(function(s){ return !!_hpGrantSelected[s.studentId]; });
+    _hpGrantConfirm = {
+      rawHp:      Math.floor(rawHp),
+      reason:     reason,
+      applyBonus: applyBonus,
+      students:   snap
+    };
+
+    _renderHpGrantConfirm();
+    _showScreen('screen-admin-hp-grant-confirm');
+    window.scrollTo(0, 0);
+  }
+
+  function _renderHpGrantConfirm() {
+    var c = _hpGrantConfirm;
+    if (!c) return;
+
+    // サマリ
+    var summaryHtml =
+      '<div>素点HP：<strong>' + _formatNum(c.rawHp) + ' HP</strong></div>' +
+      '<div>付与理由：<strong>' + _esc(c.reason) + '</strong></div>' +
+      '<div>連続実施週次ボーナス：<strong>' + (c.applyBonus ? '加算する' : '加算しない') + '</strong></div>' +
+      '<div>対象人数：<strong>' + c.students.length + ' 名</strong></div>';
+    document.getElementById('hp-grant-summary').innerHTML = summaryHtml;
+
+    // 各生徒の計算詳細
+    var total = 0;
+    var listHtml = c.students.map(function(s) {
+      var streak = Math.max(1, Number(s.streak || 0) || 1);
+      var week   = Math.ceil(streak / 7);
+      var mult   = c.applyBonus ? (week * week) : 1;
+      var grant  = c.rawHp * mult;
+      total += grant;
+      var nameLabel = (s.name || '（未登録）') + 'さん（' + _esc(s.studentId) + '）';
+      var calc;
+      if (c.applyBonus) {
+        calc = '<div class="calc">連続日数：' + streak + '日 → 週数：' + week + '週目 → ボーナス倍率：' + mult + '倍</div>' +
+               '<div class="grant">素点 ' + _formatNum(c.rawHp) + 'HP × ' + mult + ' = ' + _formatNum(grant) + 'HP</div>';
+      } else {
+        calc = '<div class="grant">付与額：' + _formatNum(grant) + 'HP（素点そのまま）</div>';
+      }
+      return '<div class="hp-grant-detail">' +
+               '<div class="name">' + _esc(nameLabel) + '</div>' +
+               calc +
+             '</div>';
+    }).join('');
+    document.getElementById('hp-grant-detail-list').innerHTML = listHtml;
+    document.getElementById('hp-grant-total').textContent = '合計付与HP：' + _formatNum(total) + ' HP';
+  }
+
+  function executeHpGrant() {
+    if (!_hpGrantConfirm) {
+      showToast('入力内容が失われました。やり直してください', 'error');
+      goAdminHpGrant(false);
+      return;
+    }
+    var c = _hpGrantConfirm;
+    var btn = document.getElementById('hp-grant-execute-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 付与中...'; }
+
+    gasPost({
+      action:     'executeManualHpGrant',
+      password:   sessionStorage.getItem('adminPassword') || '',
+      studentIds: c.students.map(function(s){ return s.studentId; }),
+      rawHp:      c.rawHp,
+      reason:     c.reason,
+      applyBonus: c.applyBonus
+    }).then(function(res) {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ はい、付与する'; }
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : 'エラーが発生しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        showToast(msg, 'error');
+        return;
+      }
+      _renderHpGrantResult(res);
+      _showScreen('screen-admin-hp-grant-result');
+      window.scrollTo(0, 0);
+      // 完了したのでスナップショット破棄
+      _hpGrantConfirm = null;
+    }).catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ はい、付与する'; }
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  function _renderHpGrantResult(res) {
+    var results = res.results || [];
+    var summaryHtml =
+      '<div>成功した生徒数：<strong>' + results.length + ' 名</strong></div>' +
+      '<div>合計加算HP：<strong>' + _formatNum(res.totalHp || 0) + ' HP</strong></div>' +
+      '<div>付与理由：<strong>' + _esc(res.reason || '') + '</strong></div>' +
+      '<div>連続実施週次ボーナス：<strong>' + (res.applyBonus ? '加算した' : '加算しない') + '</strong></div>';
+    if (res.notFound && res.notFound.length > 0) {
+      summaryHtml += '<div style="color:#e74c3c;margin-top:6px">⚠️ 見つからなかった生徒ID：' + _esc(res.notFound.join(', ')) + '</div>';
+    }
+    document.getElementById('hp-grant-result-summary').innerHTML = summaryHtml;
+
+    var listHtml = results.map(function(r) {
+      var nameLabel = (r.name || '（未登録）') + 'さん（' + _esc(r.studentId) + '）';
+      return '<div class="hp-grant-result-list-row">' +
+               '<span>' + _esc(nameLabel) + '</span>' +
+               '<span class="grant-amt">+' + _formatNum(r.hpGained) + 'HP</span>' +
+             '</div>';
+    }).join('');
+    document.getElementById('hp-grant-result-list').innerHTML = listHtml;
   }
 
   // =============================================================
