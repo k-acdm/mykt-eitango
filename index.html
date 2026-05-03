@@ -1793,7 +1793,7 @@
   <div class="container" style="padding-top:16px">
     <div class="kanjii-mate-row">
       <img class="kanjii-img" id="kanjii-img-level" src="images/kanjii-default.png" alt="カンジー">
-      <div class="kanjii-bubble" id="kanjii-bubble-level">どの級にちょうせんする？</div>
+      <div class="kanjii-bubble" id="kanjii-bubble-level">どの級に挑戦する？</div>
     </div>
     <div class="kanji-level-grid">
       <button class="kanji-level-btn" onclick="showKanjiCountSelect('5')">漢検 5級<small>小学校 5〜6年生</small></button>
@@ -1811,7 +1811,7 @@
   <div class="container" style="padding-top:16px">
     <div class="kanjii-mate-row">
       <img class="kanjii-img" src="images/kanjii-thinking.png" alt="カンジー">
-      <div class="kanjii-bubble">何問にちょうせんする？</div>
+      <div class="kanjii-bubble">何問に挑戦する？</div>
     </div>
     <div id="kanji-count-notice" class="msg" style="display:block;margin:0 0 12px;background:#eff6ff;border-left:4px solid #60a5fa;padding:10px 14px;border-radius:6px;color:#1e3a8a;font-size:13px;line-height:1.6;"></div>
     <div class="kanji-count-grid">
@@ -5389,7 +5389,7 @@
   // ----- レベル選択 -----
   function showKanjiLevelSelect() {
     _kanjiResetState();
-    _kanjiSetMascot('kanjii-img-level', 'default', 'kanjii-bubble-level', 'どの級にちょうせんする？');
+    _kanjiSetMascot('kanjii-img-level', 'default', 'kanjii-bubble-level', 'どの級に挑戦する？');
     showScreen('screen-kanji-level');
   }
   // ----- 問題数選択 -----
@@ -5540,7 +5540,7 @@
           '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
         '</div>';
       actions.innerHTML =
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="startKanjiKaki()">✏️ 次は書きにちょうせん！</button>';
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="startKanjiKaki()">✏️ 次は書きに挑戦！</button>';
       try { playSfx('chime'); } catch(e){}
     } else {
       _kanjiSetMascot('kanjii-img-yomi-result', 'encourage', 'kanjii-bubble-yomi-result', 'あと一歩！次はきっとできるよ！');
@@ -5552,7 +5552,7 @@
           '<div style="font-size:13px;color:#666;margin-top:6px">順序を変えて全問やり直しだよ</div>' +
         '</div>';
       actions.innerHTML =
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKanjiYomi()">🔄 もう一度ちょうせんする</button>' +
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKanjiYomi()">🔄 もう一度挑戦する</button>' +
         '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
       try { playSfx('fail'); } catch(e){}
     }
