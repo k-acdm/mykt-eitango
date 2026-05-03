@@ -307,6 +307,8 @@ function doGet(e) {
       else if (action === 'adminAddNotice')    result = adminAddNotice(params);
       else if (action === 'adminListStudents') result = adminListStudents(params);
       else if (action === 'getStudentsListForGrant') result = getStudentsListForGrant(params);
+      else if (action === 'getCalendarMonthSummary') result = getCalendarMonthSummary(params);
+      else if (action === 'getCalendarDayDetail')    result = getCalendarDayDetail(params);
       else if (action === 'getStudentView') result = getStudentView(params);  
       else if (action === 'getSangoTopic')             result = getSangoTopic();
       else if (action === 'submitSango')               result = submitSango(params);
@@ -4757,6 +4759,151 @@ function executeManualHpGrant(params) {
     };
   } catch(err) {
     console.error('[executeManualHpGrant]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// カレンダー（管理画面：日付起点で生徒の活動を見る）
+// =====================================================
+// HPLog の type 文字列をコンテンツ名（日本語）に変換。
+// login は「活動」とみなさず除外する想定（呼び出し側で skip してから使う）。
+function _calendarContentName(type) {
+  if (!type) return 'その他';
+  const t = String(type).trim();
+  if (t === 'test')   return '英単語RUSH';
+  // 将来 eitan / eitango 表記に切り替わった場合の互換も用意（現行 saveAttempt は 'test'）
+  if (t === 'eitan' || t === 'eitango') return '英単語RUSH';
+  if (t === 'sango')  return '三語短文';
+  if (t === 'wabun1') return '和文英訳①';
+  if (t === 'lison')  return '英語リスオン';
+  if (t === 'manual_grant') return '手動付与';
+  if (t.indexOf('kiso_')  === 0) return '基礎計算';
+  if (t.indexOf('kanji_') === 0) return 'カンジー';
+  if (t.indexOf('apology_') === 0) return 'お詫びHP';
+  return 'その他（' + t + '）';
+}
+
+// 「activity」とみなす type フィルタ（login は除外）
+function _calendarIsActivity(type) {
+  return !!type && String(type).trim() !== 'login';
+}
+
+// 指定月の各日付の活動生徒数を返す。
+// params: { yearMonth: 'YYYY-MM' }
+// 戻り値: { ok, yearMonth, days: [{ date: 'YYYY-MM-DD', studentCount }] }
+// キャッシュ: cache_calendar_<yearMonth>（15分 TTL）
+function getCalendarMonthSummary(params) {
+  try {
+    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const ym = String((params && params.yearMonth) || '').trim();
+    if (!/^\d{4}-\d{2}$/.test(ym)) return { ok: false, message: 'yearMonth は YYYY-MM 形式で指定してください' };
+
+    const cacheKey = 'cache_calendar_' + ym;
+    const result = _getCachedValues(cacheKey, 900, function() {
+      const ss = _ss();
+      const sh = ss.getSheetByName(SHEET_HPLOG);
+      const days = {};
+      // 月初〜月末の枠を空 set で初期化
+      const year  = parseInt(ym.slice(0, 4), 10);
+      const month = parseInt(ym.slice(5, 7), 10); // 1〜12
+      const lastDay = new Date(year, month, 0).getDate(); // 翌月 0 日 = 当月末日
+      for (let d = 1; d <= lastDay; d++) {
+        const ds = ym + '-' + (d < 10 ? '0' + d : String(d));
+        days[ds] = {};  // sid set として使用
+      }
+      if (sh && sh.getLastRow() >= 2) {
+        const rows = sh.getDataRange().getValues();
+        // [0]ts [1]sid [2]rawHP [3]hpGained [4]type [5]message
+        for (let i = 1; i < rows.length; i++) {
+          const r = rows[i];
+          const ds = _toDateStr(r[0]);
+          if (!ds || !days[ds]) continue;
+          const sid = String(r[1] || '').trim();
+          if (!sid) continue;
+          const type = String(r[4] || '').trim();
+          if (!_calendarIsActivity(type)) continue;
+          days[ds][sid] = true;
+        }
+      }
+      const list = [];
+      Object.keys(days).sort().forEach(function(ds){
+        list.push({ date: ds, studentCount: Object.keys(days[ds]).length });
+      });
+      return { yearMonth: ym, days: list };
+    });
+    return { ok: true, yearMonth: result.yearMonth, days: result.days };
+  } catch(err) {
+    console.error('[getCalendarMonthSummary]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 指定日の活動生徒一覧と生徒別 HP 内訳を返す（リアルタイム反映、キャッシュなし）。
+// params: { date: 'YYYY-MM-DD' }
+// 戻り値: { ok, date, students: [{ studentId, name, nickname, totalHp,
+//                                  breakdown: [{ content, hp }] }] }
+function getCalendarDayDetail(params) {
+  try {
+    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const date = String((params && params.date) || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, message: 'date は YYYY-MM-DD 形式で指定してください' };
+
+    const ss = _ss();
+    const sh = ss.getSheetByName(SHEET_HPLOG);
+
+    // sid → 氏名・ニックネーム
+    const stuValues = _getStudentsValues();
+    const stuMap = {};
+    if (stuValues && stuValues.length >= 2) {
+      for (let i = 1; i < stuValues.length; i++) {
+        const sid = String(stuValues[i][COL_ID] || '').trim();
+        if (!sid) continue;
+        stuMap[sid] = {
+          name:     String(stuValues[i][COL_NAME]     || '').trim(),
+          nickname: String(stuValues[i][COL_NICKNAME] || '').trim()
+        };
+      }
+    }
+
+    // sid → { totalHp, byContent: { [contentName]: hp } }
+    const acc = {};
+    if (sh && sh.getLastRow() >= 2) {
+      const rows = sh.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const ds = _toDateStr(r[0]);
+        if (ds !== date) continue;
+        const sid = String(r[1] || '').trim();
+        if (!sid) continue;
+        const type = String(r[4] || '').trim();
+        if (!_calendarIsActivity(type)) continue;
+        const hp = Number(r[3]) || 0;
+        const cname = _calendarContentName(type);
+        if (!acc[sid]) acc[sid] = { totalHp: 0, byContent: {} };
+        acc[sid].totalHp += hp;
+        acc[sid].byContent[cname] = (acc[sid].byContent[cname] || 0) + hp;
+      }
+    }
+
+    const students = Object.keys(acc).sort().map(function(sid){
+      const a = acc[sid];
+      const info = stuMap[sid] || { name: '', nickname: '' };
+      const breakdown = Object.keys(a.byContent).sort().map(function(c){
+        return { content: c, hp: a.byContent[c] };
+      });
+      return {
+        studentId: sid,
+        name:      info.name,
+        nickname:  info.nickname,
+        totalHp:   a.totalHp,
+        breakdown: breakdown
+      };
+    });
+    // 表示順：ID 昇順（呼び出し側で再ソートしやすい安定順）
+    return { ok: true, date: date, students: students };
+  } catch(err) {
+    console.error('[getCalendarDayDetail]', err);
     return { ok: false, message: String(err) };
   }
 }

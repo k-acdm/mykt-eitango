@@ -156,6 +156,60 @@
   .hp-grant-result-list-row:last-child { border-bottom: none; }
   .hp-grant-result-list-row .grant-amt { color: #16a34a; font-weight: 600; }
 
+  /* カレンダー（生徒の実施状況） */
+  .cal-month-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .cal-month-label { font-size: 18px; font-weight: 700; color: #333; flex: 1; text-align: center; }
+  .cal-page-lead { font-size: 13px; color: #666; margin-bottom: 12px; line-height: 1.6; }
+  .cal-loading { text-align: center; color: #888; font-size: 14px; padding: 60px 20px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-head { background: #f4f6fb; color: #555; font-size: 12px; font-weight: 700; text-align: center; padding: 8px 0; border-radius: 4px; }
+  .cal-head.sun { color: #e74c3c; }
+  .cal-head.sat { color: #4f7df0; }
+  .cal-cell { aspect-ratio: 1 / 1; background: #fff; border: 2px solid #e1e5ee; border-radius: 6px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; font-family: inherit; cursor: pointer; transition: all .12s; gap: 4px; min-height: 56px; }
+  .cal-cell:hover:not(.disabled):not(.other-month) { background: #eef4ff; border-color: #4f7df0; transform: translateY(-1px); }
+  .cal-cell .cal-date { font-size: 16px; font-weight: 700; color: #333; line-height: 1; }
+  .cal-cell .cal-count { font-size: 11px; color: #4f7df0; font-weight: 600; line-height: 1; }
+  .cal-cell .cal-count.zero { color: #b0b0b0; font-weight: 400; }
+  .cal-cell.sun .cal-date { color: #e74c3c; }
+  .cal-cell.sat .cal-date { color: #4f7df0; }
+  .cal-cell.today { border-color: #f59e0b; border-width: 3px; background: #fffbeb; box-shadow: 0 0 0 2px rgba(245,158,11,.15); }
+  .cal-cell.has-data { background: #f0f9ff; border-color: #93c5fd; }
+  .cal-cell.has-data:hover { background: #dbeafe; }
+  .cal-cell.future { background: #f4f5f7; border-color: #e1e5ee; cursor: not-allowed; opacity: .55; }
+  .cal-cell.future .cal-date { color: #b0b0b0; }
+  .cal-cell.other-month { background: #fafbfc; border-color: transparent; cursor: default; }
+  .cal-cell.other-month .cal-date { color: #cbd2dc; font-weight: 400; }
+  .cal-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 16px; padding-top: 12px; border-top: 1px solid #eef1f7; font-size: 11px; color: #666; justify-content: center; }
+  .cal-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+  .cal-legend-dot { width: 14px; height: 14px; border-radius: 3px; border: 2px solid #e1e5ee; background: #fff; }
+  .cal-legend-dot.today { border-color: #f59e0b; background: #fffbeb; border-width: 2px; }
+  .cal-legend-dot.has-data { background: #f0f9ff; border-color: #93c5fd; }
+  .cal-legend-dot.no-data { background: #fff; border-color: #e1e5ee; }
+  .cal-legend-dot.future { background: #f4f5f7; opacity: .55; }
+
+  /* 日付別生徒一覧カード */
+  .cal-day-card { background: #fff; border: 2px solid #e1e5ee; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; cursor: pointer; transition: all .12s; }
+  .cal-day-card:hover { border-color: #4f7df0; box-shadow: 0 4px 14px rgba(79,125,240,.15); transform: translateY(-1px); }
+  .cal-day-card .name-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .cal-day-card .name { font-size: 15px; font-weight: 700; color: #333; }
+  .cal-day-card .nick { color: #888; font-size: 12px; font-weight: 400; margin-left: 6px; }
+  .cal-day-card .total-hp { color: #b45309; font-weight: 700; font-size: 14px; background: #fff7ed; padding: 3px 10px; border-radius: 12px; white-space: nowrap; }
+  .cal-day-card .breakdown { font-size: 12px; color: #666; line-height: 1.7; }
+  .cal-day-card .breakdown .b-content { color: #4f7df0; font-weight: 600; }
+  .cal-day-card .breakdown .b-hp { color: #16a34a; font-weight: 600; }
+  .cal-day-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; background: #fff; border-radius: 8px; border: 2px dashed #e1e5ee; }
+
+  @media (max-width: 480px) {
+    .cal-cell { min-height: 48px; padding: 4px 2px; gap: 2px; }
+    .cal-cell .cal-date { font-size: 13px; }
+    .cal-cell .cal-count { font-size: 10px; }
+    .cal-head { font-size: 11px; padding: 6px 0; }
+    .cal-month-label { font-size: 16px; }
+    .cal-day-card .name-row { gap: 6px; }
+    .cal-day-card .name { font-size: 14px; }
+    .cal-day-card .total-hp { font-size: 13px; }
+  }
+
   /* 学習履歴（view.html から移植） */
   .child-day-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); margin-bottom: 12px; overflow: hidden; }
   .child-day-header { background: linear-gradient(135deg,#fff7ed,#fef3f2); color: #b45309; font-weight: bold; font-size: 14px; padding: 10px 14px; border-bottom: 1px solid #fde4cd; }
@@ -251,10 +305,10 @@
     </div>
   </header>
   <div class="dashboard-wrap">
-    <button type="button" class="dashboard-card" onclick="goAdminStudents()">
+    <button type="button" class="dashboard-card" onclick="goAdminActivitySelect()">
       <div class="dashboard-card-icon">👥</div>
       <div class="dashboard-card-title">生徒の実施状況</div>
-      <div class="dashboard-card-desc">各生徒の学習状況を確認</div>
+      <div class="dashboard-card-desc">各生徒の学習状況を確認（生徒一覧 / カレンダーから選択）</div>
     </button>
     <button type="button" class="dashboard-card" onclick="goAdminTabs()">
       <div class="dashboard-card-icon">📝</div>
@@ -407,6 +461,74 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKisoStudents()">← 生徒一覧に戻る</button>
     <div class="page-lead">写真をクリックすると Google Drive で拡大表示されます。<br><span style="color:#94a3b8;font-size:13px">※ サムネが表示されない場合は Drive にログインしているブラウザで開いてください。</span></div>
     <div id="kiso-photos-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+  </div>
+</div>
+
+<!-- 生徒の実施状況：選択画面（生徒一覧 or カレンダー） -->
+<div id="screen-admin-activity-select" class="screen">
+  <header>
+    <h1>👥 生徒の実施状況</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="dashboard-wrap">
+    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <button type="button" class="dashboard-card" onclick="goAdminStudents()">
+      <div class="dashboard-card-icon">📋</div>
+      <div class="dashboard-card-title">生徒一覧から選ぶ</div>
+      <div class="dashboard-card-desc">生徒名から学習履歴を確認</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminActivityCalendar()">
+      <div class="dashboard-card-icon">📅</div>
+      <div class="dashboard-card-title">カレンダーから選ぶ</div>
+      <div class="dashboard-card-desc">日付から、その日に学習した生徒を確認</div>
+    </button>
+  </div>
+</div>
+
+<!-- 生徒の実施状況：カレンダー画面 -->
+<div id="screen-admin-activity-calendar" class="screen">
+  <header>
+    <h1>📅 学習カレンダー</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminActivitySelect()">← 選択画面に戻る</button>
+    <div class="form-card">
+      <div class="cal-month-nav">
+        <button type="button" class="btn-mini" onclick="adminActivityMonthPrev()">← 前月</button>
+        <div class="cal-month-label" id="cal-month-label">読み込み中…</div>
+        <button type="button" class="btn-mini" onclick="adminActivityMonthNext()">次月 →</button>
+      </div>
+      <div class="cal-page-lead">日付をクリックすると、その日に学習した生徒の一覧を表示します。</div>
+      <div id="cal-grid-wrap"><div class="cal-loading">⏳ 読み込み中...</div></div>
+      <div class="cal-legend">
+        <span class="cal-legend-item"><span class="cal-legend-dot today"></span>今日</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot has-data"></span>活動あり</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot no-data"></span>活動なし</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot future"></span>未来</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 生徒の実施状況：日付別生徒一覧画面 -->
+<div id="screen-admin-activity-day" class="screen">
+  <header>
+    <h1 id="cal-day-title">📅 学習活動</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminActivityCalendar()">← カレンダーに戻る</button>
+    <div id="cal-day-list-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
   </div>
 </div>
 
@@ -1551,6 +1673,221 @@
              '</div>';
     }).join('');
     document.getElementById('hp-grant-result-list').innerHTML = listHtml;
+  }
+
+  // =============================================================
+  // 生徒の実施状況：選択画面 / カレンダー / 日付別生徒一覧
+  // =============================================================
+  // _activityCalendarMonth: 'YYYY-MM' 現在表示中の年月
+  // _activityCalendarData:  { yearMonth, daysMap: { 'YYYY-MM-DD': studentCount } } のキャッシュ
+  var _activityCalendarMonth = null;
+  var _activityCalendarData  = null;
+  var _activityDayStr        = null;  // 直近に開いた日付
+
+  function goAdminActivitySelect() {
+    _showScreen('screen-admin-activity-select');
+    window.scrollTo(0, 0);
+  }
+
+  function _todayJSTStr() {
+    // 端末タイムゾーンに依存しないよう、Asia/Tokyo の今日を組み立てる
+    try {
+      var f = new Intl.DateTimeFormat('ja-JP', { timeZone:'Asia/Tokyo', year:'numeric', month:'2-digit', day:'2-digit' });
+      var parts = f.formatToParts(new Date());
+      var y = '', m = '', d = '';
+      parts.forEach(function(p){ if (p.type==='year') y=p.value; if (p.type==='month') m=p.value; if (p.type==='day') d=p.value; });
+      return y + '-' + m + '-' + d;
+    } catch(e) {
+      var dt = new Date();
+      var mm = String(dt.getMonth()+1).padStart(2,'0');
+      var dd = String(dt.getDate()).padStart(2,'0');
+      return dt.getFullYear() + '-' + mm + '-' + dd;
+    }
+  }
+
+  function _ymOf(dateStr) { return String(dateStr).slice(0, 7); }
+
+  function goAdminActivityCalendar() {
+    // 仕様：選択画面から開いたら毎回「今月」にリセットする
+    _activityCalendarMonth = _ymOf(_todayJSTStr());
+    _showScreen('screen-admin-activity-calendar');
+    window.scrollTo(0, 0);
+    loadActivityCalendar();
+  }
+
+  function adminActivityMonthPrev() {
+    _activityCalendarMonth = _shiftMonth(_activityCalendarMonth, -1);
+    loadActivityCalendar();
+  }
+  function adminActivityMonthNext() {
+    _activityCalendarMonth = _shiftMonth(_activityCalendarMonth, +1);
+    loadActivityCalendar();
+  }
+  function _shiftMonth(ym, delta) {
+    var y = Number(ym.slice(0, 4));
+    var m = Number(ym.slice(5, 7)) + delta;
+    while (m < 1)  { m += 12; y -= 1; }
+    while (m > 12) { m -= 12; y += 1; }
+    return y + '-' + (m < 10 ? '0' + m : String(m));
+  }
+
+  function loadActivityCalendar() {
+    var ym = _activityCalendarMonth;
+    var labelEl = document.getElementById('cal-month-label');
+    var wrapEl  = document.getElementById('cal-grid-wrap');
+    var year  = Number(ym.slice(0, 4));
+    var month = Number(ym.slice(5, 7));
+    if (labelEl) labelEl.textContent = year + '年' + month + '月';
+    if (wrapEl)  wrapEl.innerHTML = '<div class="cal-loading">⏳ 読み込み中...</div>';
+
+    gasGet({
+      action: 'getCalendarMonthSummary',
+      yearMonth: ym,
+      password: sessionStorage.getItem('adminPassword') || '',
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        if (wrapEl) wrapEl.innerHTML = '<div class="cal-loading">' + _esc(msg) + '</div>';
+        return;
+      }
+      // sanity: response の月が古い navigation で上書きされていないか
+      if (res.yearMonth !== _activityCalendarMonth) return;
+      var daysMap = {};
+      (res.days || []).forEach(function(d){ daysMap[d.date] = d.studentCount || 0; });
+      _activityCalendarData = { yearMonth: ym, daysMap: daysMap };
+      _renderActivityCalendar();
+    }).catch(function() {
+      if (wrapEl) wrapEl.innerHTML = '<div class="cal-loading">通信エラーが発生しました</div>';
+    });
+  }
+
+  function _renderActivityCalendar() {
+    var wrapEl = document.getElementById('cal-grid-wrap');
+    if (!wrapEl) return;
+    var data  = _activityCalendarData;
+    if (!data) return;
+    var ym    = data.yearMonth;
+    var year  = Number(ym.slice(0, 4));
+    var month = Number(ym.slice(5, 7));
+    var firstDow = new Date(year, month - 1, 1).getDay();      // 0=日 .. 6=土
+    var lastDay  = new Date(year, month, 0).getDate();
+    var prevLast = new Date(year, month - 1, 0).getDate();
+    var todayStr = _todayJSTStr();
+
+    var WEEKDAYS = ['日','月','火','水','木','金','土'];
+    var html = '<div class="cal-grid">';
+    WEEKDAYS.forEach(function(w, i){
+      var cls = 'cal-head' + (i === 0 ? ' sun' : (i === 6 ? ' sat' : ''));
+      html += '<div class="' + cls + '">' + w + '</div>';
+    });
+
+    // 6 週分 (42 セル) 必ず描画
+    for (var idx = 0; idx < 42; idx++) {
+      var dayNum, ds, isOther = false;
+      if (idx < firstDow) {
+        dayNum = prevLast - (firstDow - 1 - idx);
+        isOther = true;
+      } else if (idx >= firstDow + lastDay) {
+        dayNum = idx - (firstDow + lastDay) + 1;
+        isOther = true;
+      } else {
+        dayNum = idx - firstDow + 1;
+        ds = ym + '-' + (dayNum < 10 ? '0' + dayNum : String(dayNum));
+      }
+      var dow = idx % 7;
+      var classes = ['cal-cell'];
+      if (dow === 0) classes.push('sun');
+      if (dow === 6) classes.push('sat');
+      if (isOther) {
+        classes.push('other-month', 'disabled');
+        html += '<button type="button" class="' + classes.join(' ') + '" tabindex="-1" disabled>' +
+                  '<span class="cal-date">' + dayNum + '</span>' +
+                '</button>';
+      } else {
+        var isFuture = (ds > todayStr);
+        var isToday  = (ds === todayStr);
+        var count    = Number(data.daysMap[ds] || 0);
+        if (isFuture) classes.push('future', 'disabled');
+        if (isToday)  classes.push('today');
+        if (!isFuture && count > 0) classes.push('has-data');
+        var countHtml = isFuture
+          ? ''
+          : '<span class="cal-count' + (count === 0 ? ' zero' : '') + '">(' + count + '名)</span>';
+        var disabled = isFuture ? ' disabled' : '';
+        var onclick  = isFuture ? '' : ' onclick="goAdminActivityDay(\'' + ds + '\')"';
+        html += '<button type="button" class="' + classes.join(' ') + '"' + onclick + disabled + '>' +
+                  '<span class="cal-date">' + dayNum + '</span>' +
+                  countHtml +
+                '</button>';
+      }
+    }
+    html += '</div>';
+    wrapEl.innerHTML = html;
+  }
+
+  function _formatDayLabel(ds) {
+    var WEEKDAYS = ['日','月','火','水','木','金','土'];
+    var y = Number(ds.slice(0, 4));
+    var m = Number(ds.slice(5, 7));
+    var d = Number(ds.slice(8, 10));
+    var w = WEEKDAYS[new Date(y, m - 1, d).getDay()];
+    return y + '年' + m + '月' + d + '日（' + w + '）';
+  }
+
+  function goAdminActivityDay(ds) {
+    _activityDayStr = ds;
+    var titleEl = document.getElementById('cal-day-title');
+    if (titleEl) titleEl.textContent = '📅 ' + _formatDayLabel(ds) + 'の学習活動';
+    _showScreen('screen-admin-activity-day');
+    window.scrollTo(0, 0);
+    loadActivityDay(ds);
+  }
+
+  function loadActivityDay(ds) {
+    var wrapEl = document.getElementById('cal-day-list-wrap');
+    wrapEl.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    gasGet({
+      action: 'getCalendarDayDetail',
+      date: ds,
+      password: sessionStorage.getItem('adminPassword') || '',
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrapEl.innerHTML = '<div class="cal-day-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var students = res.students || [];
+      if (students.length === 0) {
+        wrapEl.innerHTML = '<div class="cal-day-empty">この日は活動した生徒がいません。</div>';
+        return;
+      }
+      var rows = students.map(function(s) {
+        var sidEsc = _esc(s.studentId);
+        var nameEsc = _esc(s.name || '（未登録）');
+        var nickEsc = _esc(s.nickname || '');
+        var nameJs  = String(s.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var totalStr = '+' + (Number(s.totalHp) || 0).toLocaleString('en-US') + ' HP';
+        var bdHtml = (s.breakdown || []).map(function(b){
+          return '<span class="b-content">' + _esc(b.content) + '</span> ' +
+                 '<span class="b-hp">' + (Number(b.hp) || 0).toLocaleString('en-US') + 'HP</span>';
+        }).join(' / ');
+        if (!bdHtml) bdHtml = '<span style="color:#bbb">内訳なし</span>';
+        return '<button type="button" class="cal-day-card" onclick="selectStudent(\'' + sidEsc + '\', \'' + nameJs + '\')" style="display:block;width:100%;text-align:left;font-family:inherit;border-style:solid;">' +
+                 '<div class="name-row">' +
+                   '<div class="name">' + nameEsc + (nickEsc ? '<span class="nick">（' + nickEsc + '）</span>' : '') + '</div>' +
+                   '<div class="total-hp">' + totalStr + '</div>' +
+                 '</div>' +
+                 '<div class="breakdown">' + bdHtml + '</div>' +
+               '</button>';
+      }).join('');
+      wrapEl.innerHTML = rows;
+    }).catch(function() {
+      wrapEl.innerHTML = '<div class="cal-day-empty">通信エラーが発生しました</div>';
+    });
   }
 
   // =============================================================
