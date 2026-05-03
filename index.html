@@ -97,6 +97,19 @@
       .kanjii-bubble::before { left: 50%; top: -11px; transform: translateX(-50%); border: 9px solid transparent; border-right-color: transparent; border-bottom-color: #fcd34d; }
       .kanjii-bubble::after  { left: 50%; top: -8px;  transform: translateX(-50%); border: 8px solid transparent; border-right-color: transparent; border-bottom-color: #fff; }
     }
+    /* 共通マスコット（英単語RUSH/三語短文/和文英訳①/基礎計算 で共有、2026-05-04 追加） */
+    .mate-row { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; }
+    .mate-row .mate-img { width: 88px; height: 88px; object-fit: contain; flex-shrink: 0; background: rgba(255,255,255,.18); border-radius: 16px; padding: 6px; }
+    .mate-row .mate-bubble { position: relative; flex: 1; background: #fff; border: 2px solid #fcd34d; border-radius: 18px; padding: 12px 16px; font-size: 15px; color: #78350f; line-height: 1.6; box-shadow: 0 3px 10px rgba(252,211,77,.25); }
+    .mate-row .mate-bubble::before { content: ''; position: absolute; left: -11px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: #fcd34d; }
+    .mate-row .mate-bubble::after  { content: ''; position: absolute; left: -8px;  top: 50%; transform: translateY(-50%); border: 8px solid transparent; border-right-color: #fff; }
+    @media (max-width: 480px) {
+      .mate-row { flex-direction: column; gap: 8px; }
+      .mate-row .mate-img { width: 72px; height: 72px; }
+      .mate-row .mate-bubble { width: 100%; }
+      .mate-row .mate-bubble::before { left: 50%; top: -11px; transform: translateX(-50%); border: 9px solid transparent; border-right-color: transparent; border-bottom-color: #fcd34d; }
+      .mate-row .mate-bubble::after  { left: 50%; top: -8px;  transform: translateX(-50%); border: 8px solid transparent; border-right-color: transparent; border-bottom-color: #fff; }
+    }
     .kanji-level-grid, .kanji-count-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 8px; }
     .kanji-level-btn, .kanji-count-btn { padding: 16px 12px; font-size: 17px; font-weight: bold; color: #fff; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.15); background: linear-gradient(135deg, #f97316, #c2410c); }
     .kanji-level-btn small, .kanji-count-btn small { display: block; font-size: 12px; font-weight: normal; opacity: .9; margin-top: 4px; }
@@ -926,15 +939,15 @@
       <div class="content-grid">
         <button class="content-btn c-eitango" onclick="showLevelSelect()">
           <span class="badge-hp">50HP/セット</span>
-          <span class="ico">🔤</span>英単語RUSH
+          <img class="ico-mascot" src="images/rushkun-default.png" alt="">英単語RUSH
         </button>
         <button class="content-btn c-sango" onclick="showSangoTopic()">
           <span class="badge-hp">200HP/日</span>
-          <span class="ico">✏️</span>三語短文
+          <img class="ico-mascot" src="images/sangotan-default.png" alt="">三語短文
         </button>
         <button class="content-btn c-wabun1" onclick="showWabun1Topic()">
           <span class="badge-hp" id="badge-wabun1-hp">100HP/日</span>
-          <span class="ico">📘</span>和文英訳①
+          <img class="ico-mascot" src="images/nichiei-default.png" alt="">和文英訳①
           <span class="content-btn-sub">対象：小学校高学年〜中学生</span>
         </button>
         <button class="content-btn c-wabun2 disabled" onclick="showComingSoon('和文英訳②')">
@@ -943,12 +956,12 @@
         </button>
         <button class="content-btn c-math" onclick="showKisoRankSelect()">
           <span class="badge-hp">50〜100HP/セット</span>
-          <span class="ico">🧮</span>基礎計算
+          <img class="ico-mascot" src="images/kisoK-default.png" alt="">基礎計算
           <span class="content-btn-sub">対象：小学校高学年〜中学生</span>
         </button>
         <button class="content-btn c-lison" onclick="showLisonRankSelect()">
           <span class="badge-hp">100〜200HP/日</span>
-          <img class="ico-mascot" src="images/lison-icon.png" alt="">英語リスオン
+          <img class="ico-mascot" src="images/lison-default.png" alt="">英語リスオン
           <span class="content-btn-sub">英語長文リスニング＆音読</span>
         </button>
         <button class="content-btn c-social disabled" onclick="showComingSoon('社会の重要用語')">
@@ -1029,6 +1042,10 @@
     <!-- [2026-04-20 問題一新告知] 不要になったらこのブロックごと削除可 -->
     <div id="level-announcement" class="announcement-banner" style="display:none">🎉 4月20日に問題を一新しました！</div>
     <!-- [/2026-04-20 問題一新告知] -->
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-eitan-level" src="images/rushkun-default.png" alt="RUSH君">
+      <div class="mate-bubble" id="mate-bubble-eitan-level">どの級にちょうせんする？</div>
+    </div>
     <p style="text-align:center;color:#666;font-size:14px;margin-bottom:16px">学習するレベルを選んでください</p>
     <div class="level-grid">
       <button class="level-btn" onclick="selectLevel('5級')"><span class="level-btn-main"><span class="level-btn-name">🌱 英検５級レベル</span><span class="level-btn-sub">～ 計590語｜118セットで全クリア！ ～</span></span><span class="badge-arrow">›</span></button>
@@ -1082,6 +1099,10 @@
   <header><h1>✏️ テスト</h1><span id="test-prog-text">0 / 0</span></header>
   <div class="progress-bar-wrap"><div class="progress-bar" id="test-prog-bar" style="width:0%"></div></div>
   <div class="container">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-eitan-test" src="images/rushkun-thinking.png" alt="RUSH君">
+      <div class="mate-bubble" id="mate-bubble-eitan-test">集中して！</div>
+    </div>
     <div id="test-q-area"></div>
     <div class="feedback" id="test-feedback"></div>
     <button class="btn-wide" id="test-next-btn" style="display:none" onclick="nextQuestion()">次の問題へ →</button>
@@ -1136,6 +1157,10 @@
 <div id="screen-sango-topic" class="screen">
   <header><h1>✏️ 三語短文</h1><span id="sango-student"></span></header>
   <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-sango-topic" src="images/sangotan-default.png" alt="サンゴタン">
+      <div class="mate-bubble" id="mate-bubble-sango-topic">今日のお題はこれだよ〜</div>
+    </div>
     <div id="sango-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
     <div class="sango-notice">
       <div>🟢文章を作る前に、３語全ての「意味と用例」を調べてから始めること！</div>
@@ -1178,6 +1203,10 @@
 <div id="screen-sango-text" class="screen">
   <header><h1>✏️ 作品を提出（直接入力）</h1></header>
   <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" src="images/sangotan-default.png" alt="サンゴタン">
+      <div class="mate-bubble">じっくり考えて書いてね〜</div>
+    </div>
     <div class="sango-level-tabs" id="sango-text-tabs"></div>
     <div id="sango-text-words"></div>
     <textarea class="sango-textarea" id="sango-text-input" placeholder="あなたの作品を書いてください" oninput="_updateSangoTextSubmitBtn()"></textarea>
@@ -1189,6 +1218,10 @@
 <div id="screen-sango-photo" class="screen">
   <header><h1>📷 作品を提出（写真）</h1></header>
   <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-sango-photo" src="images/sangotan-thinking.png" alt="サンゴタン">
+      <div class="mate-bubble" id="mate-bubble-sango-photo">ちゃんと読み取れるかな〜</div>
+    </div>
     <div class="sango-level-tabs" id="sango-photo-tabs"></div>
     <div id="sango-photo-words"></div>
     <div class="photo-area">
@@ -1228,6 +1261,10 @@
   <header><h1>📝 和文英訳①</h1><span id="wabun1-date-label"></span></header>
   <div class="container" style="padding-top:16px">
     <input type="file" id="wabun1-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onWabun1PhotoSelected(event)"/>
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-wabun1-topic" src="images/nichiei-default.png" alt="ニチエイ">
+      <div class="mate-bubble" id="mate-bubble-wabun1-topic">今日の英訳問題だよ！</div>
+    </div>
     <div id="wabun1-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
     <div id="wabun1-camera-msg" class="msg" style="margin-top:10px"></div>
     <img id="wabun1-photo-preview" class="photo-preview" style="display:none;margin-top:10px"/>
@@ -1275,6 +1312,10 @@
 <div id="screen-wabun1-confirm" class="screen">
   <header><h1>📷 読み取り結果の確認</h1></header>
   <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" src="images/nichiei-thinking.png" alt="ニチエイ">
+      <div class="mate-bubble">ちゃんと書けてるかな？</div>
+    </div>
     <div class="sango-ocr-box" style="display:block;border-color:#7c4fff">
       <div class="sango-ocr-label">📝 採点に使う文字列（問題ごとに切り出したもの）：</div>
       <div id="wabun1-parsed-list" class="wabun1-parsed-list"></div>
@@ -1344,6 +1385,10 @@
 <div id="screen-kiso-rank" class="screen">
   <header><h1>🧮 基礎計算</h1><span>単元を選んでね</span></header>
   <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" src="images/kisoK-default.png" alt="キソKさん">
+      <div class="mate-bubble">どの単元をやる？</div>
+    </div>
     <div id="kiso-rank-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホーム画面に戻る</button>
   </div>
@@ -1379,7 +1424,7 @@
       <span class="kiso-problem-meta" id="kiso-problem-attempts"></span>
     </div>
     <div class="kiso-mascot-msg">
-      <img src="character.jpg" alt="マイカツ君">
+      <img src="images/kisoK-thinking.png" alt="キソKさん">
       <div class="bubble">
         番号は <span class="hint-circ">①</span><span class="hint-circ">②</span><span class="hint-circ">③</span>… の<strong>丸囲み数字</strong>で。<br>
         答えは<strong>1問ずつ縦に並べて</strong>書いてね！
@@ -1455,7 +1500,7 @@
   <div class="container" style="padding-top:16px">
     <div class="kiso-camera-intro-card">
       <div class="mascot-row">
-        <img src="character.jpg" alt="マイカツ君">
+        <img src="images/kisoK-thinking.png" alt="キソKさん">
         <div class="mascot-bubble">
           まずは <strong>途中式</strong> の写真から撮ってね！<br>
           AI採点はせず、<strong>リアル福地</strong>が確認するよ。
@@ -1479,7 +1524,7 @@
   <div class="container" style="padding-top:16px">
     <div class="kiso-camera-intro-card">
       <div class="mascot-row">
-        <img src="character.jpg" alt="マイカツ君">
+        <img src="images/kisoK-thinking.png" alt="キソKさん">
         <div class="mascot-bubble" id="kiso-answer-intro-mascot">
           いよいよ <strong>解答</strong> の写真だよ！<br>
           番号は ①②③ … を使ってね。
@@ -1501,6 +1546,10 @@
 <div id="screen-kiso-confirm" class="screen">
   <header><h1>🧮 撮影確認</h1><span>この内容で良いですか？</span></header>
   <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" src="images/kisoK-thinking.png" alt="キソKさん">
+      <div class="mate-bubble">答え合わせ、いくよ</div>
+    </div>
     <div class="kiso-confirm-card">
       <img id="kiso-confirm-preview" class="kiso-confirm-preview" alt="撮影画像"/>
       <div class="kiso-confirm-msg">
@@ -1608,8 +1657,8 @@
   <div class="container" style="padding-top:16px">
     <div style="text-align:center"><span class="lison-total-badge">100〜200HP/日</span></div>
     <div class="lison-mascot-row">
-      <img class="mascot-img" src="images/lison-icon.png" alt="リス">
-      <div class="mascot-bubble">どの級に挑戦する？<br><small style="font-weight:normal;color:#3f6b56">毎週月曜日に新しい英文に切り替わるよ🐿️</small></div>
+      <img class="mascot-img" src="images/lison-default.png" alt="リス">
+      <div class="mascot-bubble">どの級にチャレンジする？<br><small style="font-weight:normal;color:#3f6b56">毎週月曜日に新しい英文に切り替わるよ🐿️</small></div>
     </div>
     <div id="lison-level-list" class="lison-level-list"></div>
     <div id="lison-rank-msg" class="msg" style="display:none"></div>
@@ -2480,7 +2529,12 @@
       showMsg('change-msg','変更しました！','ok');
     }).catch(function(){ showMsg('change-msg','エラーが発生しました。','ng'); });
   }
-  function showLevelSelect() { document.getElementById('level-student').textContent = _studentId + ' さん'; _applyLevelAnnouncement(); showScreen('screen-level'); }
+  function showLevelSelect() {
+    document.getElementById('level-student').textContent = _studentId + ' さん';
+    _applyLevelAnnouncement();
+    _setContentMascot('mate-img-eitan-level', 'default', 'mate-bubble-eitan-level', 'どの級にちょうせんする？', 'rushkun');
+    showScreen('screen-level');
+  }
   // [2026-04-20 問題一新告知] 不要になったらこの関数と showLevelSelect からの呼び出しを削除可
   function _applyLevelAnnouncement() {
     var el = document.getElementById('level-announcement');
@@ -2661,8 +2715,12 @@
       var _nb0 = document.getElementById('test-next-btn'); _nb0.style.display = 'none'; _nb0.disabled = false; document.getElementById('test-prog-bar').style.width = '0%';
       document.getElementById('test-q-area').innerHTML = '<div style="text-align:center;padding:50px 16px"><div style="font-size:64px">😤</div><div style="font-size:22px;font-weight:bold;color:#e74c3c;margin:16px 0">惜しい！満点で合格だよ</div><div style="font-size:18px;color:#666">'+lastScore+'／'+total+'問正解<br>もう一度チャレンジ！</div></div>';
       document.getElementById('test-prog-text').textContent = '再挑戦中...';
+      _setContentMascot('mate-img-eitan-test', 'encourage', 'mate-bubble-eitan-test', 'もう一回チャレンジしよう！', 'rushkun');
       requestAnimationFrame(function(){ requestAnimationFrame(function(){ playSfx('fail'); }); });
-      setTimeout(function(){ renderQuestion(); }, 2500);
+      setTimeout(function(){
+        _setContentMascot('mate-img-eitan-test', 'thinking', 'mate-bubble-eitan-test', '集中して！', 'rushkun');
+        renderQuestion();
+      }, 2500);
     }
   }
   // E1: 英単語RUSH 楽観的UI（即座に結果画面表示 → 裏で saveAttempt → 差分があれば再描画）
@@ -2707,6 +2765,7 @@
     if (saveRes && saveRes.totalHP) _totalHP = saveRes.totalHP;  // 次回ホーム表示のために最新HPを保持
     var msgs = ['🎉 完璧！満点合格おめでとう！','✨ 素晴らしい！全問正解！','🏆 やったね！満点クリア！'];
     document.getElementById('result-container').innerHTML =
+      '<div class="mate-row"><img class="mate-img" src="images/rushkun-celebrate.png" alt="RUSH君"><div class="mate-bubble">やったね！おめでとう！</div></div>' +
       '<div class="result-card"><div class="badge">🏆</div><div class="verdict pass">満点合格！</div><div class="score-display">'+_score+' / '+total+'</div><div class="score-sub">英検'+_level+'レベル｜セット '+_setNo+'（'+(isSession1?'1セット目':'2セット目')+'）</div><div class="result-msg">'+msgs[_score%3]+'</div></div>' +
       '<div class="hp-card"><div class="hp-title">⚡ 獲得 HP</div><div class="hp-row"><div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+'+clearHP.toLocaleString()+'</div></div></div><div class="hp-total-wrap"><div class="hp-total-label">現在の春アカポイント</div><div class="hp-total-value">⚡ '+totalHP.toLocaleString()+' HP</div></div>'+(streak>=2?'<div class="hp-streak">🔥 '+streak+'日連続継続中！この調子で続けよう！</div>':'')+'</div>' +
       '<div class="btn-wrap">'+(isSession1?'<button class="btn-result" style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;font-size:19px" onclick="goNextSession()">📚 次の10題に進む →</button>':'')+'<button class="btn-result btn-review" onclick="showHistory()">📖 今までの単語をおさらいする</button><button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button><button class="btn-result btn-close" onclick="goHome()">🏠 ホーム画面に戻る</button></div>';
@@ -3007,6 +3066,7 @@
       ? '<div class="wabun1-result-already">（本日のHPは既に獲得済みです）</div>'
       : '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="sango-done-hp-num">0</span> HP 獲得！</div>';
     bodyEl.innerHTML =
+      '<div class="mate-row"><img class="mate-img" src="images/sangotan-celebrate.png" alt="サンゴタン"><div class="mate-bubble">すごい！合格だ〜！</div></div>' +
       '<div class="wabun1-result-success">' +
         '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
         '<div style="font-size:52px">🎉</div>' +
@@ -3550,6 +3610,7 @@
         hpBlock = '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="wabun1-hp-num">0</span> HP 獲得！</div>';
       }
       bodyEl.innerHTML =
+        '<div class="mate-row"><img class="mate-img" src="images/nichiei-celebrate.png" alt="ニチエイ"><div class="mate-bubble">完璧！ナイス英訳！</div></div>' +
         '<div class="wabun1-result-success">' +
           '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
           '<div style="font-size:52px">🎉</div>' +
@@ -3595,6 +3656,7 @@
                '</div>';
       }).join('');
       bodyEl.innerHTML =
+        '<div class="mate-row"><img class="mate-img" src="images/nichiei-encourage.png" alt="ニチエイ"><div class="mate-bubble">あと少し！もう一回チェックしてみよう</div></div>' +
         '<div class="wabun1-result-partial">' +
           '<div style="font-size:44px">💪</div>' +
           '<div class="wabun1-result-partial-title">残念！もう一度挑戦しよう！</div>' +
@@ -4374,6 +4436,7 @@
 
     if (res.passed) {
       bannerEl.innerHTML =
+        '<div class="mate-row"><img class="mate-img" src="images/kisoK-celebrate.png" alt="キソKさん"><div class="mate-bubble">やったね、合格！</div></div>' +
         '<div class="kiso-result-pass-banner">' +
           '<h2>🎉 合格！やったね！</h2>' +
           '<p>' + (res.correctCount || 0) + ' / ' + (res.total || _kisoState.count) + ' 問正解（' +
@@ -4384,6 +4447,7 @@
         ? '正答率 80% に届かなかったよ。<br>間違えたところ、もう1回考えてみよう！'
         : '間違いがまだ残っているよ。<br>もう一度チャレンジ！';
       bannerEl.innerHTML =
+        '<div class="mate-row"><img class="mate-img" src="images/kisoK-encourage.png" alt="キソKさん"><div class="mate-bubble">ファイト！もう一回！</div></div>' +
         '<div class="kiso-result-fail-banner">' +
           '<h2>あと少し！</h2>' +
           '<p>' + (res.correctCount || 0) + ' / ' + (res.total || 0) + ' 問正解。<br>' + failMsg + '</p>' +
@@ -4457,6 +4521,7 @@
     if (info.isPractice) {
       // 練習完了
       bodyEl.innerHTML =
+        '<div class="mate-row"><img class="mate-img" src="images/kisoK-celebrate.png" alt="キソKさん"><div class="mate-bubble">よくがんばったね！</div></div>' +
         '<div class="kiso-practice-banner">' +
           '<h2>🌟 練習完了！</h2>' +
           '<p>今日のHP上限は達してるけど、しっかり練習できたね！<br>この積み重ねがきっと力になるよ。</p>' +
@@ -4476,6 +4541,7 @@
       var rawHP    = Number(info.rawHP) || 0;
       var weekStr  = info.week ? '（連続' + (info.streak || 0) + '日目・倍率 ×' + (info.week * info.week) + '）' : '';
       bodyEl.innerHTML =
+        '<div class="mate-row"><img class="mate-img" src="images/kisoK-celebrate.png" alt="キソKさん"><div class="mate-bubble">やったね、合格！</div></div>' +
         '<div class="wabun1-result-success">' + confetti +
           '<div style="font-size:20px;font-weight:bold;color:#b45309;margin-bottom:8px">🎉 合格おめでとう！</div>' +
           '<div style="font-size:14px;color:#78350f;margin-bottom:12px">素点 ' + rawHP + 'HP × 倍率 = </div>' +
@@ -5210,8 +5276,8 @@
 
     var html = '';
     // リスがガッツポーズ風（jump animation 2 回）
-    html += '<img class="lison-done-mascot" src="images/lison-icon.png" alt="リス">';
-    html += '<div class="lison-done-mascot-quote">ナイスリスニング＆音読！🐿️🎧✨</div>';
+    html += '<img class="lison-done-mascot" src="images/lison-celebrate.png" alt="リス">';
+    html += '<div class="lison-done-mascot-quote">ナイスリスニング！🐿️🎧✨</div>';
     html += '<div class="lison-done-quiz-summary">クイズ正解数：<strong>' + quizScore + ' / 3</strong>';
     if (def.label) html += '（' + _lisonEsc(def.label) + '）';
     html += '</div>';
@@ -5306,6 +5372,18 @@
     if (bubbleId && bubbleText != null) {
       var b = document.getElementById(bubbleId);
       if (b) b.textContent = bubbleText;
+    }
+  }
+  // 共通マスコット切替（英単語RUSH/三語短文/和文英訳①/基礎計算/英語リスオン で共有）
+  // prefix: 'rushkun' / 'sangotan' / 'nichiei' / 'kisoK' / 'lison'
+  // mood:   'default' / 'thinking' / 'celebrate' / 'encourage'
+  function _setContentMascot(imgId, mood, bubbleId, text, prefix) {
+    var moods = { default: '-default.png', thinking: '-thinking.png', celebrate: '-celebrate.png', encourage: '-encourage.png' };
+    var img = document.getElementById(imgId);
+    if (img) img.src = 'images/' + prefix + (moods[mood] || moods.default);
+    if (bubbleId && text != null) {
+      var b = document.getElementById(bubbleId);
+      if (b) b.textContent = text;
     }
   }
   // ----- レベル選択 -----
