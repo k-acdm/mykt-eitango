@@ -48,6 +48,10 @@
 - **`clasp pull` は使用しない**。GASへの変更は常に `clasp push` で一方通行。手元の `gas/Code.js` を最新に保ち、それをGASに反映する運用とする。過去に「デプロイ忘れ状態の GAS から `clasp pull` して手元の新実装を事故で revert」した事例があるため、`pull` は原則禁止。万が一 GAS エディタで直接編集した場合は、`gas/Code.js` にも同じ変更を手動で入れてから `clasp push` する
 - **バージョン表示は `document.lastModified` から自動生成のため手動更新不要**。3 ファイル（`index.html` / `view.html` / `admin.html`）の右下に表示される `vYYYY.MM.DD` は GH Pages の Last-Modified ヘッダー由来で、HTML が実際にどの時点のバージョンかを反映する。タップで `?v=timestamp` 付き強制リロード可能（iPad Safari のキャッシュ問題への診断兼対策）
 - **GAS 側 Script Cache 運用**: `gas/Code.js` は問題データ・お題・連絡・Quote・ランキングを CacheService でキャッシュしている（TTL 6 時間）。管理画面経由の書き込みは自動でキャッシュをクリアする。**Questions シートを直接スプレッドシートで編集**した場合は自動クリアされないため、即反映したいときは GAS エディタから `clearAllCache()` を手動実行するか、最大 6 時間待つ
+- **★ admin.html 新規画面追加時は必ずヘッダーセレクタリストに追加**（2026-05-04 確立）: 新画面（`screen-admin-...`）を追加するとき、[admin.html](admin.html) 先頭の `#screen-admin-... header { ... }` および `#screen-admin-... header h1 { ... }` セレクタリスト（通常版 + `@media (max-width: 480px)` レスポンシブ版の計 3 行）に新画面 ID を**末尾追記必須**。リストに含まれていないと `display:flex` / 青紫グラデ背景 / 白文字 / padding が未適用となり、`header-btns` 内の絵文字（🏠🚪）が改行されてヘッダー直下に表示崩れする。カレンダー追加時に発覚し過去 5 画面（kiso-students / kiso-photos / hp-grant 系）も同根バグだったことが判明（2026-05-04 #167/#168 で全画面修正済）
+- **GAS 変更時の必須 4 ステップ**（2026-05-04 改めて整理）: ① `git pull origin dev` ② `git checkout main && git merge dev && git push origin main` ③ `cd gas && clasp push` ④ Apps Script エディタで F5 リロード → デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ
+- **フロントのみ変更時の 2 ステップ**: ① `git pull origin dev` ② `git checkout main && git merge dev && git push origin main` ③ ブラウザで `Ctrl + F5`（Mac は `Cmd + Shift + R`）で強制リロード。GAS 系の ③④ は不要
+- **GitHub Web UI からのファイルアップロード時の事故防止**（2026-05-03 確立）: 画像等を Web UI からアップロードする際は、**先に対象フォルダ（`images/` 等）の中に入ってから**「Add file → Upload files」をクリックする。リポジトリのルートに居るままアップロードするとルート直下に置かれ、`index.html` 側の `images/...` 参照と不整合になる。事故が起きた場合は `git mv` で履歴保持しながら正しい場所に移動して再 push（過去事例：2026-05-03 のカンジー画像 4 ファイル / `git mv` で復旧）。**ブランチも `dev` に切り替えてからアップロード**すること（main 直 push を避けるため）
 
 ---
 
@@ -2138,6 +2142,122 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - **基礎計算 Phase 1 残り**: rank_06 連立方程式 / rank_08 一次方程式 / rank_11〜20（計 15 単元、Phase 1 進捗 5/20 = 25%）
 - **カンジー**: 問題データ投入（5 級から順次、別スレで作成中）
 - **最終仕上げ**: ホーム画面「カンジー」の「準備中」バッジ → HP バッジ「50〜100HP/日」差し替え（中身完成時）
+
+### 2026-05-04（自宅PC、深夜マラソンセッション：UI 大幅刷新 + バグ修正多数 + rank_06 50題化）
+
+自宅PC で長丁場の 1 日。和文英訳① 過去画面の閲覧制限撤廃から始まり、HP手動付与の新設、リアルタイム反映バグの真因究明と修正、5 コンテンツへのキャラクター画像横展開、管理画面のカレンダー方式 UI 追加、最後に基礎計算 rank_06 の Phase 1 完了まで。コミット 12 件 +ふくちさん画像 1 件。
+
+#### 161. 和文英訳① 過去画面の閲覧制限撤廃（dev `1876990`）
+- **背景**: 旧仕様「自分が提出した日の問題のみ閲覧可能」を撤廃し、提出有無に関わらず全 Topics を表示できるようにする。教育的意図は「未提出の予習」「他の生徒が解いた良問の閲覧」+ 三語短文との挙動統一
+- **GAS 修正**: `getWabun1PastTopicsRecent` / `getWabun1PastTopicsPaged` から `_wabun1SubmittedDatesBySid` 呼び出し + filter を削除。`studentId` 引数は後方互換のため受け取るが利用しない
+- **フロント修正**: [index.html](index.html) `showWabun1Past()` の空メッセージを「まだ提出した問題が〜」から「直近1週間の登録はまだありません」に変更（三語短文 [index.html:3032](index.html:3032) と完全一致）
+
+#### 162. 管理画面：HP手動付与機能の新設（dev `78603d2`）
+- **背景**: 過去のお詫び付与は GAS 関数を都度作成して GAS エディタから実行していた（apologyWabun1MonyoBug_20260502 等）。これを管理画面から汎用的に実行できる機能に標準化
+- **GAS 側**: `getStudentsListForGrant`（streak 含む生徒一覧）/ `executeManualHpGrant`（doPost 強制、誤実行防止）。Students.HP に直接加算 + HPLog 6 列構造（type=`'manual_grant'` / message=入力理由）で記録。`_ensureHpLogMessageColumn()` 経由で apology 系と同パターン。`cache_students_values` + `cache_ranking_last_week` を invalidate。**二重実行防止なし**（管理者判断）
+- **管理画面**: ダッシュボードに「💎 HP手動付与」カード追加 → 入力画面（素点HP / 付与理由 / ボーナス加算チェック / 生徒一覧テーブルのインライン複数選択 + 全選択/全解除）→ 確認画面（各生徒について「連続日数：N日 → 週数：N週目 → ボーナス倍率：N倍 / 素点 NHP × N = NHP」を完全日本語表記）→ 完了画面（成功人数 / 合計HP / 各生徒の付与額）
+- 想定実行例: 素点 200HP / ボーナス ON / streak=42 → week=6 → 倍率 36 → **+7,200 HP**
+
+#### 163. リアルタイム反映バグ修正：getChildActivityRecent の取得期間（dev `5f7133a`）
+- **症状**: 朝のふくちさん報告「HPLog には記録されているのに、管理画面・保護者画面の学習履歴に本日分が表示されない。F5 リロードでも更新されない」
+- **真因**: `getChildActivityRecent` の取得期間が `endDaysAgo = offset * 7 + 1`（offset=0 で「昨日〜7日前」）と固定されており、**本日（教育日基準の今日）が構造的に除外**されていた。HPLog の本日行は `if (!byDate[ds]) continue;` で破棄。翌日 JST 4:00（`_sangoToday()` の教育日切替）まで本日分が一切表示されないバグ
+- **設計意図の推測**: 元々は保護者画面の「お子様の昨日までの様子を見守る」UX 想定だったが、管理画面（先生は今すぐ何やったか見たい）に流用された際に要件が落ちた
+- **修正（案 B 採用）**: `endDaysAgo = offset * 7` / `startDaysAgo = offset * 7 + 6` に変更（本日含める、保護者画面・管理画面とも対象）。コード変更は 2 行のみ + コメント刷新
+- **キャッシュ・フィルタ・期間ロジックの全棄却分析を [docs/学習履歴_リアルタイム反映バグ調査メモ] に集約**（CLAUDE.md 内のこの作業ログ自体が記録）
+
+#### 164. 和文英訳① モニョ表記変更：コード修正不要を確認（コード変更なし）
+- **データ側変更**: ふくちさんが Wabun1Topics シートで「`「モニョ」`（カギカッコ）」→「`（モニョ）`（全角丸カッコ）」に全面切替（過去・今日・未来の問題すべて）
+- **コード側調査結果**: **修正不要**。`_normalizeWabun1` Step 0 の正規表現 `[「『""''"'(（\[]?\s*モ[ニノ二]ョ\s*[」』""''"')）\]]?` の character class に既に `（` (U+FF08) と `）` (U+FF09) が含まれており、`（モニョ）` も全自動で `「モニョ」` → `"モニョ"` に正規化される
+- **検証**: Node 実機テスト 6 パターン（半角カッコ / カギカッコ / カッコ無し / OCR 誤認 ニ→ノ / OCR 誤認 ニ→二 / 全角カッコ）全てが同一の正規形 `Tomis"モニョ"myfriend.` に収束することを確認
+- `_wabun1ClassifyFeedback` の `monyo_missing` 判定（regex `/モ[ニノ二]ョ/`）はカッコ文字種に依存しないので影響なし
+- `_wabun1RenderText` は単純エスケープのみで HTML 表示はデータそのまま
+- **CLAUDE.md 運用ルール記述の更新は任意**（機能影響なし）
+
+#### 165. キャラクター画像 20 ファイル投入（ふくちさん dev `d32e2fe`）
+- ふくちさんが Gemini 生成画像 20 ファイルを GitHub Web UI から `images/` 配下にアップロード
+- 内訳: rushkun / sangotan / nichiei / lison / kisoK の各 default / celebrate / encourage / thinking 4 表情 = 5 × 4 = 20 ファイル
+- 既存 `lison-icon.png` を新版 `lison-default.png` に差替（ファイル名変更）
+
+#### 166. 管理画面「生徒の実施状況」カレンダー方式 UI 追加（dev `5211842`）
+- **背景**: 旧 UI は「生徒一覧から生徒を選ぶ」のみ。日付起点で「今日誰がやった？」を確認できる導線を追加
+- **遷移フロー**: ダッシュボード → 選択画面（新規）→ 生徒一覧 OR カレンダー画面（新規）→ 日付クリック → 日付別生徒一覧（新規）→ 生徒名クリックで既存の詳細画面へ
+- **GAS 側**:
+  - `getCalendarMonthSummary(yearMonth)`: 指定月の各日付の活動生徒数を sid set で集計。`login` type は活動から除外。**CacheService 15 分 TTL**（`cache_calendar_<yearMonth>`）
+  - `getCalendarDayDetail(date)`: 指定日の活動生徒一覧 + コンテンツ別 HP 内訳。**キャッシュなし**（リアルタイム反映優先）
+  - `_calendarContentName(type)`: HPLog type → コンテンツ日本語名（test/eitan/eitango → 英単語RUSH、kiso_*→基礎計算、kanji_*→カンジー、apology_*→お詫びHP、manual_grant→手動付与、それ以外→「その他（type）」）
+- **管理画面**: 3 画面新規（screen-admin-activity-select / -calendar / -day）+ 7×6 グリッド + 月ナビ + 凡例 + 今日/未来/月またぎ視覚区別 + 生徒カードクリックで既存 selectStudent() 経由
+
+#### 167. カレンダー画面ヘッダー表示崩れ修正 + 生徒詳細に「カレンダーに戻る」追加（dev `4f96052`）
+- **症状**: カレンダー画面（screen-admin-activity-calendar）の「学習カレンダー」見出し直下に意図しない絵文字（🏠🚪）が表示
+- **真因**: 新規 3 画面（screen-admin-activity-*）が既存の `#screen-admin-... header` セレクタリストに含まれず、`display:flex` / 青紫グラデ背景 / 白文字 / padding がすべて未適用 → header-btns 内ボタン絵文字が改行されて巨大な h1 直下に並んでいた
+- **修正**: 通常版とレスポンシブ版の 2 つのセレクタリストに新規 3 画面 ID を末尾追記
+- **副次対応**: 生徒詳細画面（screen-admin-child-history）に「📅 カレンダーに戻る」ボタンを「← 生徒一覧に戻る」直下に追加（青紫グラデ、案 A 常時表示方式）
+
+#### 168. HP手動付与・基礎計算写真画面のヘッダー表示崩れ修正（dev `c0f6f0f`）
+- カレンダー画面 3 つと同根のセレクタ未追加バグが他 5 画面（screen-admin-hp-grant / -hp-grant-confirm / -hp-grant-result / -kiso-students / -kiso-photos）でも発生していたことを発見・修正
+- 通常版 + レスポンシブ版の 2 つのセレクタリストに 5 画面 ID を末尾追記
+
+#### 169. 5 コンテンツへのキャラクター画像横展開（dev `ba13c24`）
+- **ホーム画面ボタン**: 絵文字（🔤/✏️/📘/🧮）→ default 画像（rushkun/sangotan/nichiei/kisoK）に差替、英語リスオンも `lison-icon.png` → `lison-default.png` に差替
+- **共通インフラ**: CSS `.mate-row` / `.mate-img` / `.mate-bubble`（カンジー風黄色系テーマで全コンテンツ統一感、レスポンシブ対応）+ JS ヘルパー `_setContentMascot(imgId, mood, bubbleId, text, prefix)`（prefix で 5 キャラクター切替、mood で 4 表情切替）
+- **各コンテンツの実装**:
+  - 英単語RUSH: screen-level（default）/ screen-test（thinking、不合格時 encourage に切替→2.5秒後 thinking 復帰）/ showResult 内（celebrate）
+  - 三語短文: screen-sango-topic（default）/ -text（default）/ -photo（thinking）/ _showSangoDone（celebrate）
+  - 和文英訳①: screen-wabun1-topic（default）/ -confirm（thinking）/ _showWabun1Result 全問正解（celebrate）/ 部分不正解（encourage）
+  - 基礎計算: screen-kiso-rank（default）/ -problem（既存 character.jpg → kisoK-thinking.png 差替、指示文バブル温存）/ -work-intro / -answer-intro 同様 / -confirm（thinking）/ _renderKisoResult（合格 celebrate / 不合格 encourage）/ _showKisoDoneFromState（celebrate）
+  - 英語リスオン: screen-lison-rank（lison-default.png に差替）/ Step 1〜5 既存アニメ（bob/listening/jump）温存 / -done（lison-celebrate.png）
+
+#### 170. 文言修正：「ちょうせん」→「挑戦」統一 + 和文英訳①「英訳問題」→「問題」（dev `431b5f7` + `488ef5b`）
+- **第 1 段階** (`431b5f7`): 英単語RUSH の RUSH君 セリフ「どの級にちょうせんする？」→「挑戦」（HTML + JS の 2 箇所）+ 和文英訳① ニチエイ の「今日の英訳問題だよ！」→「今日の問題だよ！」（コンテンツ名で和文英訳①と分かるため英訳が冗長）
+- **第 2 段階** (`488ef5b`): カンジー側の「ちょうせん」5 箇所も「挑戦」に replace_all で統一（漢検 5 級でも「挑戦」は読めるとの教育的判断）
+- **据え置き**: カタカナ「チャレンジ」5 箇所（リスオン 1 / 英単語RUSH 2 / 基礎計算 2）は「生徒への親しみやすさを優先」で温存。`grep ちょうせん index.html` 結果は 0 件（完全消滅）
+
+#### 171. 基礎計算 rank_06 連立方程式の50題化（Phase 1 完了、dev `419dfec`）
+- **背景**: 中2 連立方程式の核心「加減法 vs 代入法 を選び分ける訓練」が旧構成（加減法のみ）で完全に欠落していたため、Band D 代入法新設で解消（rank_05 で Band D 新設したのと同パターン）
+- **新 Band 構成（合計 50問）**: A=5 シンプル整数解（coef_max 3→4）/ B=20 標準整数解（既存ロジック踏襲、単元の主役）/ C=10 分数解（sol_denom_max 4→5、1/5・2/5 追加）/ D=15 代入法向き（新設）
+- **新 generator** `_gen_substitution_form_eqs`: 50% で `y = m x + n` 形、50% で `x = m y + n` 形。解 `(x_sol, y_sol)` を整数で先に決め、傾き `m` から定数項 `n` を逆算。判別式 ≠ 0 で eq2 との独立性保証。退屈な解（x=0 or y=0）除外
+- **新ヘルパー** `_build_substitution_lhs(target_var, m, n)`: 「y = m x + n」表記を整形
+- **dispatch 拡張**: `kind=='substitution_form'` を追加。`explicit_latex` フィールドで Band D の y=... 形 LaTeX を保持（他 Band は従来通り）
+- **既存 generator は無修正**（regression なし）
+- **GAS ショートカット**: `diagnoseRank6InProgress()` / `abandonRank6InProgress(opts)` を追加（既存 `diagnoseKisoInProgressByRank` / `abandonKisoInProgressByRank` の薄いラッパー）
+- **TODO_PHASE3 整理**（Q6 判断）: 既存の「係数 ±4〜±6 を Phase 3 で本格的に扱う」コメントは Band B で既にカバー済みかつ実体不明だったため削除
+- **検証**: python main.py で rank_06 50/50 unique / 0 failed selfcheck / 0 dedup_warn。全 20 rank で 720/720 unique（regression なし）。Node 検証スクリプト `out/_verify_rank06.mjs` で **15 PASS / 0 FAIL**
+- **Phase 4 投入は未実施**（次回ふくちさん側で実施、手順は完了報告に記載）
+
+#### 172. 終了処理（深夜）
+- worktree 整理: ステール `kind-raman-a83f9a`（dev より 10 コミット遅れ、未コミット無し）を `git worktree remove` + branch 削除
+- 不要 stray ファイル整理: 投入時 cwd ミスで生成された root-level `out/` 削除
+- 本日の成果サマリ: コミット 12 件 + ふくちさん画像 1 件 = 13 件、約 1500 行のコード変更
+
+#### 173. 教訓・運用ルール（再発防止のため [CLAUDE.md](http://CLAUDE.md) 運用メモに昇格）
+本日のセッションで学んだルール 4 件を「## 運用メモ」セクションに追記済み:
+1. **新規画面追加時は admin.html のヘッダーセレクタリストに必ず追加**（カレンダー画面で `#screen-admin-... header` リスト未追加が原因の表示崩れバグが発生 → #167/#168）
+2. **GAS 変更時の必須 4 ステップ**（git pull → main マージ → clasp push → 新バージョンデプロイ）
+3. **フロントのみ変更時の 2 ステップ**（git pull → main マージ）+ Ctrl+F5 でブラウザキャッシュクリア
+4. **GitHub Web UI アップロード時は images/ フォルダを開いてから「Add file → Upload files」**（過去にルート直下にアップロードしてしまった事故あり、5/3 のキャラ画像で再発防止策が確立済み）
+
+#### 174. 次回再開時の手順（数時間後・塾PC）
+- **PowerShell で Claude Code 起動前に実行**:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- **最優先タスク**: **rank_06 Phase 4 本番投入**
+  1. clasp push + 新バージョンデプロイ
+  2. GAS エディタから `diagnoseRank6InProgress()` → `abandonRank6InProgress()` 実行
+  3. db_writer で 720 行を一括投入
+  4. gspread post-verification（rank=6 Band 数 5/20/10/15、Band D の y=/x= 形両方含有確認）
+- **次のタスク候補**:
+  - 基礎計算 rank_08 一次方程式の 50 題化（設計合意済、Band A=5/B=25/C=10/D=10、Band D 新設）
+  - データ投入後ホーム画面「カンジー」の「準備中」バッジ → HP バッジ「50〜100HP/日」差替
+  - 英語リスオン問題データの管理画面入力機能
+  - 講師ログイン機能 / Teachers シート / 生徒ホーム画面の先生メッセージ機能
+  - 和文英訳② / 社会の重要用語 / 理科の重要用語のキャラクター作成
+  - 週間HPランキングの 3 カテゴリ分割（小学生/中学生/高校生）
+  - アバター機能（Gemini API、1-2 日規模）
+  - 紙の宿題連動機能（中〜大規模）
+  - 基礎計算 rank_11〜20 拡充（優先度C、10 単元）
 
 ---
 
