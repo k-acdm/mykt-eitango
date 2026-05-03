@@ -1044,7 +1044,7 @@
     <!-- [/2026-04-20 問題一新告知] -->
     <div class="mate-row">
       <img class="mate-img" id="mate-img-eitan-level" src="images/rushkun-default.png" alt="RUSH君">
-      <div class="mate-bubble" id="mate-bubble-eitan-level">どの級にちょうせんする？</div>
+      <div class="mate-bubble" id="mate-bubble-eitan-level">どの級に挑戦する？</div>
     </div>
     <p style="text-align:center;color:#666;font-size:14px;margin-bottom:16px">学習するレベルを選んでください</p>
     <div class="level-grid">
@@ -1263,7 +1263,7 @@
     <input type="file" id="wabun1-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onWabun1PhotoSelected(event)"/>
     <div class="mate-row">
       <img class="mate-img" id="mate-img-wabun1-topic" src="images/nichiei-default.png" alt="ニチエイ">
-      <div class="mate-bubble" id="mate-bubble-wabun1-topic">今日の英訳問題だよ！</div>
+      <div class="mate-bubble" id="mate-bubble-wabun1-topic">今日の問題だよ！</div>
     </div>
     <div id="wabun1-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
     <div id="wabun1-camera-msg" class="msg" style="margin-top:10px"></div>
@@ -2532,7 +2532,7 @@
   function showLevelSelect() {
     document.getElementById('level-student').textContent = _studentId + ' さん';
     _applyLevelAnnouncement();
-    _setContentMascot('mate-img-eitan-level', 'default', 'mate-bubble-eitan-level', 'どの級にちょうせんする？', 'rushkun');
+    _setContentMascot('mate-img-eitan-level', 'default', 'mate-bubble-eitan-level', 'どの級に挑戦する？', 'rushkun');
     showScreen('screen-level');
   }
   // [2026-04-20 問題一新告知] 不要になったらこの関数と showLevelSelect からの呼び出しを削除可
