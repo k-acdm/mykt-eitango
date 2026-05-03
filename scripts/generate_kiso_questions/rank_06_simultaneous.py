@@ -4,9 +4,17 @@
 # ============================================================
 """6級：連立方程式（仕様書 §6.5）。
 
-A: 簡単な整数係数（解も整数）
-B: 中程度（係数大きめ、解は整数）
-C: 解が分数になるケースを許容
+Phase 1（2026-05-04）: 30→50 題に拡充、Band D を新設して 4 Band 構成に。
+
+A: シンプル整数解（x+y型、coef_max=4）/ count=5
+B: 標準整数解（加減法メイン、coef_max=6）/ count=20
+C: 分数解（sol_denom_max=5、1/5・2/5 を追加）/ count=10
+D: 代入法向き（新設、一方の式が y=ax+b または x=ay+b 形）/ count=15
+
+中2 連立方程式の核心は「加減法 vs 代入法 を選び分ける訓練」だが、
+旧構成では一律 ax+by=c 形式のみで代入法が一切練習できなかった。
+Band D を新設して代入法即解できる形を Phase 1 から提供する
+（rank_05 で Band D 新設したのと同パターン）。
 
 加減法・代入法どちらでも解ける形式（特に方法を限定しない）。
 SymPy の solve() で解の整合性を厳密検証。
@@ -86,11 +94,8 @@ def _gen_int_solution_eqs(rng, coef_max, sol_max):
     判別式 a1*b2 - a2*b1 ≠ 0（一意解を持つ条件）。
 
     DESIGN_PRINCIPLES.md 原則 2 に基づく入門難易度調整：
-      - Band A は band_config.py で coef_max=3 にしてシンプルな係数に限定
+      - Band A は band_config.py で coef_max=4 にして比較的シンプルな係数に限定
       - Band B/C で順次中程度の係数を許可
-
-    TODO_PHASE3: 係数 ±4〜±6 を含む中程度の連立方程式は Band B/C 終盤 or
-    Phase 3 の Band D 以降で本格的に扱う。
     """
     while True:
         x_sol = _signed_int(rng, sol_max)
@@ -105,6 +110,81 @@ def _gen_int_solution_eqs(rng, coef_max, sol_max):
         c1 = a1 * x_sol + b1 * y_sol
         c2 = a2 * x_sol + b2 * y_sol
         return (a1, b1, c1), (a2, b2, c2), sp.Rational(x_sol), sp.Rational(y_sol)
+
+
+def _gen_substitution_form_eqs(rng, coef_max, sol_max):
+    """Band D：代入法向き連立方程式（一方の式が y=ax+b または x=ay+b 形）。
+
+    Phase 1（2026-05-04）新設。中2 連立方程式で「代入法を選ぶ」訓練のために、
+    片方の式を y= 形 or x= 形にして直接代入できる問題を生成する。
+
+    実装：先に解 (x_sol, y_sol) を整数で決め、
+      - eq1（代入法向き）: y = m * x + n  または  x = m * y + n
+        - 解の整合性: y_sol = m * x_sol + n  →  n = y_sol - m * x_sol
+      - eq2（標準形）: a * x + b * y = c  （c = a*x_sol + b*y_sol）
+
+    退屈な eq1（m=0 で y=定数 など）は除外。x_sol=0 / y_sol=0 も除外（呼び出し側）。
+    判別式（独立性）チェック：eq1 を ax+by=c 形に書き直して eq2 と比較。
+    """
+    while True:
+        x_sol = _signed_int(rng, sol_max)
+        y_sol = _signed_int(rng, sol_max)
+        if x_sol == 0 or y_sol == 0:
+            continue
+
+        # 50% で y=ax+b 形、50% で x=ay+b 形
+        var_solved_for = rng.choice(["y", "x"])
+        m = _signed_int(rng, coef_max, min_abs=1)  # 傾き（非ゼロ）
+
+        if var_solved_for == "y":
+            # y = m x + n  →  n = y_sol - m * x_sol
+            n = y_sol - m * x_sol
+            # eq1 を ax+by=c 形に正規化: -m x + y = n  → (a1, b1, c1) = (-m, 1, n)
+            eq1 = (-m, 1, n)
+        else:
+            # x = m y + n  →  n = x_sol - m * y_sol
+            n = x_sol - m * y_sol
+            # eq1: x - m y = n  → (a1, b1, c1) = (1, -m, n)
+            eq1 = (1, -m, n)
+
+        # eq2: 標準形 ax+by=c（独立性確保のため eq1 と平行でない係数を選ぶ）
+        a2 = _signed_int(rng, coef_max, min_abs=1)
+        b2 = _signed_int(rng, coef_max, min_abs=1)
+        # 判別式チェック：eq1=(-m, 1) または (1, -m), eq2=(a2, b2)
+        det = eq1[0] * b2 - a2 * eq1[1]
+        if det == 0:
+            continue
+        c2 = a2 * x_sol + b2 * y_sol
+        eq2 = (a2, b2, c2)
+
+        # 代入法向き形式の LaTeX 構築（片方の式は y=... or x=... のまま見せる）
+        if var_solved_for == "y":
+            eq1_latex = _build_substitution_lhs("y", m, n)
+        else:
+            eq1_latex = _build_substitution_lhs("x", m, n)
+        eq2_latex = _build_eq_latex(a2, b2, c2)
+        latex = (
+            "\\begin{cases} "
+            + eq1_latex
+            + " \\\\ "
+            + eq2_latex
+            + " \\end{cases}"
+        )
+        return eq1, eq2, sp.Rational(x_sol), sp.Rational(y_sol), latex
+
+
+def _build_substitution_lhs(target_var: str, m: int, n: int) -> str:
+    """代入法向き表記：``y = m x + n`` または ``x = m y + n`` の形を構築。
+
+    target_var: 'y' なら y = m x + n、'x' なら x = m y + n を生成。
+    m: 非ゼロ整数（係数）、n: 整数（定数項、ゼロ可）。
+    """
+    other = "x" if target_var == "y" else "y"
+    rhs = _format_term_xy_latex(m, other, leading=True)
+    if n != 0:
+        op = " + " if n > 0 else " - "
+        rhs += op + str(abs(n))
+    return f"{target_var} = {rhs}"
 
 
 def _gen_frac_solution_eqs(rng, coef_max, sol_denom_max):
@@ -144,10 +224,15 @@ def generate_problem(band: str, rng: random.Random) -> Dict[str, Any]:
     kind = cfg["kind"]
 
     for _ in range(500):
+        explicit_latex = None  # Band D は eq1 を「y=...」形のまま見せるため固有 LaTeX を保持
         if kind in ("simple_int", "general_int"):
             eq1, eq2, x_sol, y_sol = _gen_int_solution_eqs(rng, cfg["coef_max"], cfg["sol_max"])
         elif kind == "frac_solution":
             eq1, eq2, x_sol, y_sol = _gen_frac_solution_eqs(rng, cfg["coef_max"], cfg["sol_denom_max"])
+        elif kind == "substitution_form":
+            eq1, eq2, x_sol, y_sol, explicit_latex = _gen_substitution_form_eqs(
+                rng, cfg["coef_max"], cfg["sol_max"]
+            )
         else:
             raise NotImplementedError(kind)
 
@@ -176,7 +261,7 @@ def generate_problem(band: str, rng: random.Random) -> Dict[str, Any]:
         if x_check != x_sol or y_check != y_sol:
             continue
 
-        latex = _build_simultaneous_latex(eq1, eq2)
+        latex = explicit_latex if explicit_latex else _build_simultaneous_latex(eq1, eq2)
         canonical = av.canonical_for_xy_solution(x_sol, y_sol)
         allowed = av.variants_for_xy_solution(x_sol, y_sol)
         return {

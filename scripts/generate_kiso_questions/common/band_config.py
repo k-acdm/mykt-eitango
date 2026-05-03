@@ -209,12 +209,19 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     },
     # 6級：連立方程式
     6: {
-        # A: 簡単な整数係数（DESIGN_PRINCIPLES.md 原則 2 で coef_max=3 に縮小）
-        # B: 中程度（係数大きめ、整数解）
-        # C: 解が分数になるケースを許容
-        "A": {"count": 10, "kind": "simple_int", "coef_max": 3, "sol_max": 5},
-        "B": {"count": 10, "kind": "general_int", "coef_max": 6, "sol_max": 8},
-        "C": {"count": 10, "kind": "frac_solution", "coef_max": 5, "sol_denom_max": 4},
+        # Phase 1（2026-05-04）: 30→50題化、Band D を新設して 4 Band 構成に。
+        # ふくちさん教育的判断（36年塾長経験）:
+        #   - A: 最易レベル導入 5 問（rank_08 と同思想）coef_max を 3→4 に拡張、整数解
+        #   - B: 標準加減法 20 問（単元の主役、既存ロジック踏襲）
+        #   - C: 分数解 10 問（sol_denom_max 4→5 で 1/5, 2/5 を追加）
+        #   - D: 代入法向け 15 問（新設、単元の山場の半分）
+        # 中2連立方程式の核心は「加減法 vs 代入法 を選び分ける訓練」。
+        # 旧構成は加減法しか練習できなかったため Phase 1 で代入法 Band D を新設し、
+        # 教育的ギャップを解消する（rank_05 で Band D 新設したのと同パターン）。
+        "A": {"count": 5,  "kind": "simple_int",     "coef_max": 4, "sol_max": 5},
+        "B": {"count": 20, "kind": "general_int",    "coef_max": 6, "sol_max": 8},
+        "C": {"count": 10, "kind": "frac_solution",  "coef_max": 5, "sol_denom_max": 5},
+        "D": {"count": 15, "kind": "substitution_form", "coef_max": 5, "sol_max": 6},
     },
     # 10級：単位・比・割合（10問固定スロット構造）
     # 各 Band で 10 問生成、スロット 1〜10 を 1 問ずつ。
