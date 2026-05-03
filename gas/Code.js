@@ -5365,9 +5365,12 @@ function getSangoPastTopicsPaged(params) {
 }
 
 // =============================================
-// 保護者画面：お子様の学習履歴（直近7日 + ページング）
+// 保護者画面・管理画面：お子様（生徒）の学習履歴（直近7日 + ページング）
 // params: { studentId, offset }
-//   offset=0 → 昨日〜7日前 / offset=1 → 8〜14日前 ...
+//   offset=0 → 本日〜6日前 / offset=1 → 7〜13日前 / offset=2 → 14〜20日前 ...
+//   ※ 旧仕様（〜2026-05-04）は「昨日〜7日前」で本日が範囲外だったため、
+//     本日学習した生徒の活動が翌日 JST 4:00（教育日切替）まで表示されない
+//     リアルタイム反映バグがあった。本日を含めるよう修正済み。
 // =============================================
 function getChildActivityRecent(params) {
   try {
@@ -5375,8 +5378,8 @@ function getChildActivityRecent(params) {
     if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
     const offset = Math.max(0, Number((params && params.offset) || 0) | 0);
 
-    const endDaysAgo   = offset * 7 + 1;  // 新しい方（小さい値 = 直近）
-    const startDaysAgo = offset * 7 + 7;  // 古い方（大きい値）
+    const endDaysAgo   = offset * 7;      // 新しい方（offset=0 → 本日）
+    const startDaysAgo = offset * 7 + 6;  // 古い方（本日 + 過去6日 = 7日分）
     const endStr   = _sangoDateAgo(endDaysAgo);
     const startStr = _sangoDateAgo(startDaysAgo);
 
