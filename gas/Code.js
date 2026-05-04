@@ -351,6 +351,9 @@ function doGet(e) {
       else if (action === 'getKanjiSet')              result = getKanjiSet(params);
       else if (action === 'submitKanjiYomi')          result = submitKanjiYomi(params);
       else if (action === 'getKanjiTodayRawHP')       result = getKanjiTodayRawHP(params);
+      // 管理画面: リスオン録音メタ一覧 + 既存録音の一括公開化バッチ（後者は GAS エディタ実行用）
+      else if (action === 'getLisonSubmissionsList')         result = getLisonSubmissionsList(params);
+      else if (action === 'migrateLisonRecordingsToShared')  result = migrateLisonRecordingsToShared(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -6794,6 +6797,9 @@ function _saveLisonRecording(sid, level, base64Data, mime) {
     const fileName = 'lison_' + sid + '_' + level + '_' + tsStr + '.' + ext;
     const folder = _ensureLisonRecordingsFolder();
     const file = folder.createFile(blob).setName(fileName);
+    // 管理画面の <audio> から再生できるよう ANYONE_WITH_LINK で公開（基礎計算 _saveKisoPhoto と同パターン）
+    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
+    catch (e) { console.warn('[_saveLisonRecording setSharing failed]', e); }
     return {
       ok: true,
       fileId: file.getId(),
@@ -6802,6 +6808,172 @@ function _saveLisonRecording(sid, level, base64Data, mime) {
     };
   } catch(err) {
     console.error('[_saveLisonRecording]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 共通ヘルパー: Drive URL から fileId を抽出
+// =============================================
+function _lisonExtractFileId(url) {
+  if (!url) return '';
+  const m = String(url).match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : '';
+}
+
+// =============================================
+// 既存 LisonRecordings の一括公開化バッチ（1 回限り手動実行）
+// =============================================
+// LisonSubmissions シートの全 recordingUrl から fileId を抽出して
+// DriveApp.getFileById(fileId).setSharing(ANYONE_WITH_LINK, VIEW) を実行する。
+// すでに公開済みのファイルでも setSharing は冪等なので二重実行してもエラーにならない。
+//
+// 想定運用: GAS エディタの関数ドロップダウンから 1 回だけ実行。
+//          以降の新規録音は _saveLisonRecording 内で自動公開されるため再実行不要。
+//
+// 戻り値: { ok, total, succeeded, failed, errors:[{fileId,reason}], elapsedSec }
+//
+// 削除済みファイル等で getFileById が throw したら個別にスキップして次へ。
+function migrateLisonRecordingsToShared(params) {
+  const t0 = Date.now();
+  const result = {
+    ok: true,
+    total: 0,
+    succeeded: 0,
+    failed: 0,
+    errors: [],
+    elapsedSec: 0
+  };
+  try {
+    const sh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) {
+      console.log('[migrateLisonRecordingsToShared] LisonSubmissions が空です');
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      return result;
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iUrl = header.indexOf('recordingUrl');
+    if (iUrl < 0) {
+      // 後方互換: 列名が無い古いシート構造の場合は固定インデックス 6 を使用
+      console.warn('[migrateLisonRecordingsToShared] header に recordingUrl 列がありません。インデックス 6 にフォールバック');
+    }
+    const urlIdx = (iUrl >= 0) ? iUrl : 6;
+
+    // fileId 単位で deduplicate（同じ fileId が複数行に出ることはほぼ無いが安全側）
+    const seen = {};
+    const targets = [];
+    for (let i = 1; i < values.length; i++) {
+      const url = String(values[i][urlIdx] || '').trim();
+      if (!url) continue;
+      const fid = _lisonExtractFileId(url);
+      if (!fid) continue;
+      if (seen[fid]) continue;
+      seen[fid] = true;
+      targets.push(fid);
+    }
+    result.total = targets.length;
+    console.log('[migrateLisonRecordingsToShared] 対象 ' + result.total + ' 件の公開化を開始');
+
+    for (let k = 0; k < targets.length; k++) {
+      const fid = targets[k];
+      try {
+        const file = DriveApp.getFileById(fid);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        result.succeeded += 1;
+      } catch (err) {
+        result.failed += 1;
+        result.errors.push({ fileId: fid, reason: String(err && err.message || err) });
+      }
+      // 100 件ごとに進捗をログ
+      if ((k + 1) % 100 === 0) {
+        console.log('[migrateLisonRecordingsToShared] 進捗 ' + (k + 1) + '/' + result.total
+                    + ' (succeeded=' + result.succeeded + ', failed=' + result.failed + ')');
+      }
+    }
+    result.elapsedSec = (Date.now() - t0) / 1000;
+    console.log('[migrateLisonRecordingsToShared] 完了: total=' + result.total
+                + ', succeeded=' + result.succeeded
+                + ', failed=' + result.failed
+                + ', elapsedSec=' + result.elapsedSec.toFixed(2));
+    return result;
+  } catch (err) {
+    console.error('[migrateLisonRecordingsToShared]', err);
+    result.ok = false;
+    result.errors.push({ fileId: '', reason: String(err) });
+    result.elapsedSec = (Date.now() - t0) / 1000;
+    return result;
+  }
+}
+
+// =============================================
+// 管理画面: リスオン録音メタ一覧（直近 30 日）
+// =============================================
+// params:
+//   - password   : 管理者パスワード（必須）
+//   - studentId? : 指定時は該当生徒のみ。未指定なら全生徒
+// 戻り値: { ok, submissions: [{
+//   timestamp, studentId, studentName, studentRealName, level,
+//   weekStart, quizScore, recordingUrl, fileId, hpGained
+// }, ...] }
+// timestamp 降順。30 日より古い行は除外。
+function getLisonSubmissionsList(params) {
+  try {
+    if (!_verifyAdmin((params && params.password) || '')) {
+      return { ok: false, message: '認証エラー' };
+    }
+    const filterSid = String((params && params.studentId) || '').trim();
+
+    const sh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
+
+    // Students 突合用（real name 補完）
+    const stuRows = _getStudentsValues();
+    const realNameMap = {};
+    if (stuRows && stuRows.length >= 2) {
+      for (let i = 1; i < stuRows.length; i++) {
+        const sid = String(stuRows[i][COL_ID] || '').trim();
+        if (!sid) continue;
+        realNameMap[sid] = String(stuRows[i][COL_NAME] || '').trim();
+      }
+    }
+
+    const values = sh.getDataRange().getValues();
+    // 列構成: [0]timestamp [1]studentId [2]studentName [3]level
+    //         [4]weekStart [5]quizScore [6]recordingUrl [7]hpGained
+    // 30 日より前の行は除外
+    const cutoffMs = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const submissions = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[0]) continue;
+      const ts = new Date(r[0]);
+      if (isNaN(ts.getTime())) continue;
+      if (ts.getTime() < cutoffMs) continue;
+      const sid = String(r[1] || '').trim();
+      if (filterSid && sid !== filterSid) continue;
+      const url = String(r[6] || '').trim();
+      submissions.push({
+        timestamp: Utilities.formatDate(ts, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
+        studentId: sid,
+        studentName: String(r[2] || ''),
+        studentRealName: realNameMap[sid] || '',
+        level: String(r[3] || '').trim(),
+        weekStart: r[4] instanceof Date
+          ? Utilities.formatDate(r[4], 'Asia/Tokyo', 'yyyy-MM-dd')
+          : String(r[4] || '').trim(),
+        quizScore: Number(r[5]) || 0,
+        recordingUrl: url,
+        fileId: _lisonExtractFileId(url),
+        hpGained: Number(r[7]) || 0
+      });
+    }
+    submissions.sort(function(a, b){
+      return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
+    });
+    return { ok: true, submissions: submissions };
+  } catch (err) {
+    console.error('[getLisonSubmissionsList]', err);
     return { ok: false, message: String(err) };
   }
 }

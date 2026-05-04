@@ -27,8 +27,8 @@
   .login-card button:disabled { opacity: .5; cursor: not-allowed; }
 
   /* メイン系画面のヘッダー（ダッシュボード以外） */
-  #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-  #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1 { font-size: 18px; font-weight: 600; }
+  #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1 { font-size: 18px; font-weight: 600; }
   .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
   .logout-btn:hover { background: rgba(255,255,255,.3); }
 
@@ -260,8 +260,34 @@
   .kiso-session-subhead.declared-no-work { color: #b91c1c; font-weight: bold; padding: 8px 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; }
   .kiso-photo-card.work { border: 2px solid #c4b5fd; }
 
+  /* リスオン録音一覧 */
+  .lison-rec-list { display: flex; flex-direction: column; gap: 10px; }
+  .lison-rec-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .lison-rec-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .lison-rec-ts { color: #475569; font-size: 13px; min-width: 152px; font-variant-numeric: tabular-nums; }
+  .lison-rec-level { display: inline-block; padding: 3px 9px; background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .lison-rec-score { color: #0f766e; font-size: 13px; font-weight: 600; }
+  .lison-rec-hp { color: #b45309; font-size: 13px; font-weight: 600; }
+  .lison-rec-hp.zero { color: #94a3b8; font-weight: 500; }
+  .lison-rec-actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  .lison-rec-play-btn { padding: 6px 14px; background: linear-gradient(135deg,#10b981,#059669); color: #fff; border: 0; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .lison-rec-play-btn:hover { filter: brightness(1.05); }
+  .lison-rec-dl-link { padding: 6px 12px; background: #f1f5f9; color: #475569; text-decoration: none; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; }
+  .lison-rec-dl-link:hover { background: #e2e8f0; }
+  .lison-rec-player { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e5e7eb; display: none; }
+  .lison-rec-player.active { display: block; }
+  .lison-rec-player audio { width: 100%; max-width: 100%; }
+  .lison-rec-fallback { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+  .lison-students-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  .lison-students-table th, .lison-students-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; text-align: left; font-size: 14px; }
+  .lison-students-table th { background: #f8fafc; color: #475569; font-weight: 600; font-size: 13px; }
+  .lison-students-table tr:last-child td { border-bottom: 0; }
+  .lison-students-table .name-link { color: #4338ca; cursor: pointer; font-weight: 600; }
+  .lison-students-table .name-link:hover { text-decoration: underline; }
+  .lison-students-empty { padding: 24px; text-align: center; color: #94a3b8; background: #fff; border-radius: 10px; }
+
   @media (max-width: 480px) {
-    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1 { font-size: 15px; }
+    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
     .admin-page { padding: 16px 12px 80px; }
     .form-card { padding: 18px; }
@@ -324,6 +350,11 @@
       <div class="dashboard-card-icon">📷</div>
       <div class="dashboard-card-title">基礎計算・答案写真</div>
       <div class="dashboard-card-desc">生徒が提出した答案写真を確認（保存期間 15 日）</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminLisonRecordings()">
+      <div class="dashboard-card-icon">🎤</div>
+      <div class="dashboard-card-title">リスオン録音データ</div>
+      <div class="dashboard-card-desc">生徒の音読録音を確認（保存期間 30 日）</div>
     </button>
     <button type="button" class="dashboard-card" onclick="goAdminHpGrant()">
       <div class="dashboard-card-icon">💎</div>
@@ -462,6 +493,38 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKisoStudents()">← 生徒一覧に戻る</button>
     <div class="page-lead">写真をクリックすると Google Drive で拡大表示されます。<br><span style="color:#94a3b8;font-size:13px">※ サムネが表示されない場合は Drive にログインしているブラウザで開いてください。</span></div>
     <div id="kiso-photos-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+  </div>
+</div>
+
+<!-- リスオン録音：生徒一覧（直近30日に録音した生徒） -->
+<div id="screen-admin-lison-students" class="screen">
+  <header>
+    <h1>🎤 リスオン録音 - 生徒一覧</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <div class="page-lead">直近 30 日に音読を録音した生徒の一覧です。生徒名をクリックすると録音一覧を表示します。</div>
+    <div id="lison-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+  </div>
+</div>
+
+<!-- リスオン録音：生徒別 録音一覧 -->
+<div id="screen-admin-lison-list" class="screen">
+  <header>
+    <h1 id="lison-list-title">🎤 リスオン録音</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLisonRecordings()">← 生徒一覧に戻る</button>
+    <div class="page-lead">▶️ 再生ボタンで音声プレイヤーを表示します。<br><span style="color:#94a3b8;font-size:13px">※ iPad Safari で再生できない場合は「ダウンロードして再生」をご利用ください（webm 形式は Safari 非対応）。</span></div>
+    <div id="lison-list-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
   </div>
 </div>
 
@@ -1387,6 +1450,190 @@
     }).catch(function() {
       wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
     });
+  }
+
+  // =============================================================
+  // リスオン録音データ閲覧（管理画面）
+  // =============================================================
+  // 状態:
+  //   _lisonRecCurrentSid    現在表示中の生徒ID（list 画面で使用）
+  //   _lisonRecCurrentName   現在表示中の生徒名（タイトル表示用）
+  //   _lisonRecListCache     直近に読んだ録音一覧（{sid: submissions[]}）。再描画用
+  var _lisonRecCurrentSid  = '';
+  var _lisonRecCurrentName = '';
+  var _lisonRecListCache   = {};
+
+  // レベル文字列 → 表示ラベル
+  var LISON_LEVEL_LABELS = { '4':'4級', '3':'3級', 'pre2':'準2級', '2':'2級', 'pre1':'準1級' };
+  function _lisonLevelLabel(lv) { return LISON_LEVEL_LABELS[String(lv || '').trim()] || (String(lv || '') + '級'); }
+
+  // ダッシュボードから生徒一覧画面へ
+  function goAdminLisonRecordings() {
+    _showScreen('screen-admin-lison-students');
+    window.scrollTo(0, 0);
+    loadLisonRecordingStudents();
+  }
+
+  // 生徒一覧画面 → 録音一覧画面
+  function goAdminLisonList(studentId, studentName) {
+    _lisonRecCurrentSid  = String(studentId || '');
+    _lisonRecCurrentName = String(studentName || studentId || '');
+    document.getElementById('lison-list-title').textContent =
+      '🎤 ' + _lisonRecCurrentName + ' さんのリスオン録音';
+    _showScreen('screen-admin-lison-list');
+    window.scrollTo(0, 0);
+    loadLisonRecordingsForStudent(_lisonRecCurrentSid);
+  }
+
+  // 直近30日に録音した生徒の一覧（getLisonSubmissionsList を全件取得 → クライアント側で集約）
+  function loadLisonRecordingStudents() {
+    var wrap = document.getElementById('lison-students-wrap');
+    wrap.innerHTML = '<div class="lison-students-empty">⏳ 読み込み中...</div>';
+    gasGet({
+      action: 'getLisonSubmissionsList',
+      password: sessionStorage.getItem('adminPassword') || '',
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="lison-students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var subs = res.submissions || [];
+      if (subs.length === 0) {
+        wrap.innerHTML = '<div class="lison-students-empty">直近 30 日のリスオン録音はまだありません。</div>';
+        return;
+      }
+      // sid 単位に集約。最新 timestamp と件数を保持
+      var bySid = {};
+      var order = [];
+      subs.forEach(function(s) {
+        var sid = String(s.studentId || '').trim();
+        if (!sid) return;
+        if (!bySid[sid]) {
+          bySid[sid] = {
+            studentId: sid,
+            studentName: s.studentName || '',
+            studentRealName: s.studentRealName || '',
+            count: 0,
+            latestTs: ''
+          };
+          order.push(sid);
+        }
+        bySid[sid].count += 1;
+        if (!bySid[sid].latestTs || s.timestamp > bySid[sid].latestTs) {
+          bySid[sid].latestTs = s.timestamp;
+        }
+      });
+      // 最新提出降順でソート
+      order.sort(function(a, b) {
+        var ta = bySid[a].latestTs || '';
+        var tb = bySid[b].latestTs || '';
+        if (ta < tb) return 1;
+        if (ta > tb) return -1;
+        return 0;
+      });
+      var rows = order.map(function(sid) {
+        var s = bySid[sid];
+        var sidEsc  = _esc(sid);
+        var realEsc = _esc(s.studentRealName);
+        var nickEsc = _esc(s.studentName);
+        var displayName;
+        if (realEsc && nickEsc)      displayName = realEsc + '（' + nickEsc + '）';
+        else if (realEsc)            displayName = realEsc;
+        else if (nickEsc)            displayName = nickEsc;
+        else                         displayName = '（未登録）';
+        var sidJs  = sid.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var nameJs = String(s.studentRealName || s.studentName || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var ts = String(s.latestTs || '').slice(0, 16);
+        return '<tr>' +
+                 '<td>' + sidEsc + '</td>' +
+                 '<td><span class="name-link" onclick="goAdminLisonList(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
+                 '<td>' + s.count + ' 件</td>' +
+                 '<td>' + _esc(ts) + '</td>' +
+               '</tr>';
+      }).join('');
+      wrap.innerHTML =
+        '<table class="lison-students-table">' +
+          '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>録音件数</th><th>最終録音日時</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>';
+    }).catch(function() {
+      wrap.innerHTML = '<div class="lison-students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  // 指定生徒の録音一覧
+  function loadLisonRecordingsForStudent(sid) {
+    var wrap = document.getElementById('lison-list-wrap');
+    wrap.innerHTML = '<div class="lison-students-empty">⏳ 読み込み中...</div>';
+    gasGet({
+      action: 'getLisonSubmissionsList',
+      password: sessionStorage.getItem('adminPassword') || '',
+      studentId: sid,
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="lison-students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var subs = res.submissions || [];
+      _lisonRecListCache[sid] = subs;
+      if (subs.length === 0) {
+        wrap.innerHTML = '<div class="lison-students-empty">この生徒の直近 30 日のリスオン録音はありません。</div>';
+        return;
+      }
+      // 各録音をカードで描画
+      var cards = subs.map(function(s, idx) {
+        var ts = String(s.timestamp || '').slice(0, 16);
+        var lvLabel = _lisonLevelLabel(s.level);
+        var hpClass = (Number(s.hpGained) > 0) ? '' : ' zero';
+        var hpLabel = (Number(s.hpGained) > 0) ? ('+' + Number(s.hpGained) + 'HP') : '本日2回目以降';
+        var fid = String(s.fileId || '').trim();
+        var hasFile = !!fid;
+        // Drive の uc?export=download で直接 audio src として読ませる
+        var streamUrl = hasFile ? ('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(fid)) : '';
+        var dlUrl     = hasFile ? streamUrl : '';
+        var viewUrl   = hasFile ? ('https://drive.google.com/file/d/' + encodeURIComponent(fid) + '/view') : '';
+        var actions = '';
+        if (hasFile) {
+          actions =
+            '<button type="button" class="lison-rec-play-btn" onclick="toggleLisonRecPlayer(' + idx + ')">▶️ 再生</button>' +
+            '<a class="lison-rec-dl-link" href="' + _esc(dlUrl) + '" target="_blank" rel="noopener" download>⬇️ ダウンロード</a>' +
+            '<a class="lison-rec-dl-link" href="' + _esc(viewUrl) + '" target="_blank" rel="noopener">🔗 Drive</a>';
+        } else {
+          actions = '<span style="color:#94a3b8;font-size:12px">⚠ ファイルID取得不可</span>';
+        }
+        return '<div class="lison-rec-card">' +
+                 '<div class="lison-rec-row">' +
+                   '<span class="lison-rec-ts">' + _esc(ts) + '</span>' +
+                   '<span class="lison-rec-level">' + _esc(lvLabel) + '</span>' +
+                   '<span class="lison-rec-score">クイズ ' + Number(s.quizScore || 0) + '/3</span>' +
+                   '<span class="lison-rec-hp' + hpClass + '">' + _esc(hpLabel) + '</span>' +
+                   '<span class="lison-rec-actions">' + actions + '</span>' +
+                 '</div>' +
+                 (hasFile ? (
+                   '<div class="lison-rec-player" id="lison-rec-player-' + idx + '">' +
+                     '<audio controls preload="none" src="' + _esc(streamUrl) + '"></audio>' +
+                     '<div class="lison-rec-fallback">※ 再生できない場合は「⬇️ ダウンロード」または「🔗 Drive」から開いてください（iPad Safari は webm 非対応）。</div>' +
+                   '</div>'
+                 ) : '') +
+               '</div>';
+      }).join('');
+      wrap.innerHTML = '<div class="lison-rec-list">' + cards + '</div>';
+    }).catch(function() {
+      wrap.innerHTML = '<div class="lison-students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  // 再生ボタンで <audio> プレイヤーを表示／隠す
+  function toggleLisonRecPlayer(idx) {
+    var el = document.getElementById('lison-rec-player-' + idx);
+    if (!el) return;
+    el.classList.toggle('active');
   }
 
   // =============================================================
