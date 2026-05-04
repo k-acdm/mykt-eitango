@@ -2659,6 +2659,11 @@
       // → view.html 側が ?sid=xxx を読んで自動的に getStudentView を呼ぶ
       var btn = document.getElementById('login-btn');
       if (btn) btn.disabled = true;
+      // ★ 外部ページ遷移なので beforeunload / popstate ハンドラを先に外す。
+      //   付けたままだと「このサイトを離れますか？」確認ダイアログが出てしまう
+      //   （生徒経路は内部画面遷移なので発火しない / doLogout と同じクリーンアップ）。
+      try { window.removeEventListener('beforeunload', beforeUnloadHandler); } catch(e){}
+      try { window.removeEventListener('popstate', popstateHandler); } catch(e){}
       window.location.href = './view.html?sid=' + encodeURIComponent(sid);
       return;
     }
@@ -2990,6 +2995,9 @@
     _hideSubmitPending(); _hideSubmitError(); _hideWabun1Grading();
     try { document.getElementById('login-id').value = ''; } catch(e){}
     showScreen('screen-login');
+    // ログイン画面の内部ステート（Step 2 = 生徒/保護者用 ID 入力）を Step 1（役割選択）に戻す。
+    // ここを呼ばないとログイン直前の Step 2 のままで再表示されてしまう。
+    try { backToRoleSelect(); } catch(e){}
   }
   // ================= 三語短文 =================
   const SANGO_LEVEL_DESCRIPTIONS = {
