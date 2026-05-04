@@ -1,0 +1,254 @@
+"""KisoQuestions シート Phase 4 投入後検証（rank_06 対応版）。
+
+過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_07 投入後検証
+（CLAUDE.md #155-160）と同じパターンで gspread からシートを直接読み出し、
+rank_06 50題化（CLAUDE.md #171）の投入結果を検証する。
+
+検証項目:
+  T1 全 rank 行数 = 720
+  T2 rank 別行数（rank 1, 8-20 が 30、rank 2/3/4/5/6/7 が 50）
+  T3 rank=6 Band 配分（A=5, B=20, C=10, D=15）
+  T4 questionId 重複ゼロ（720 件全てユニーク）
+  T5 problemLatex 重複ゼロ（rank 内で全てユニーク）
+  T6 rank=6 Band D に y=... 形と x=... 形の両方が含まれる
+  T7 既存 rank の行数 regression なし
+
+実行:
+  cd scripts/generate_kiso_questions
+  python _verify_phase4_post.py
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+from collections import Counter
+
+# 遅延 import: gspread が無い環境で import エラーを避けるためここで import
+import gspread
+from google.oauth2.service_account import Credentials
+
+
+# 期待値（CLAUDE.md #171 の Phase 4 投入仕様）
+EXPECTED_TOTAL = 720
+RANKS_30 = [1, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+RANKS_50 = [2, 3, 4, 5, 6, 7]
+EXPECTED_RANK_06_BANDS = {"A": 5, "B": 20, "C": 10, "D": 15}
+
+
+def _ensure_utf8_console() -> None:
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is not None and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8")
+            except Exception:
+                pass
+
+
+def open_kiso_sheet():
+    creds_path = os.environ.get("KISO_GSPREAD_CREDENTIALS")
+    sheet_id = os.environ.get("KISO_SPREADSHEET_ID")
+    if not creds_path:
+        sys.exit("[ERROR] KISO_GSPREAD_CREDENTIALS が未設定です")
+    if not sheet_id:
+        sys.exit("[ERROR] KISO_SPREADSHEET_ID が未設定です")
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
+    client = gspread.authorize(creds)
+    sh = client.open_by_key(sheet_id)
+    return sh.worksheet("KisoQuestions")
+
+
+def main() -> int:
+    _ensure_utf8_console()
+    print("KisoQuestions シートに接続中...")
+    ws = open_kiso_sheet()
+
+    # 全データ取得（ヘッダー込み）
+    values = ws.get_all_values()
+    if len(values) < 2:
+        sys.exit("[ERROR] データ行がありません")
+    header = values[0]
+    rows = values[1:]
+    print(f"取得完了: ヘッダー {len(header)} 列 / データ {len(rows)} 行\n")
+
+    # 列インデックスを動的取得（列順変更に強い）
+    try:
+        i_qid = header.index("questionId")
+        i_rank = header.index("rank")
+        i_band = header.index("difficultyBand")
+        i_latex = header.index("problemLatex")
+    except ValueError as e:
+        sys.exit(f"[ERROR] 必須列が見つかりません: {e}")
+
+    pass_count = 0
+    fail_count = 0
+
+    def check(label: str, ok: bool, detail: str = "") -> None:
+        nonlocal pass_count, fail_count
+        mark = "PASS" if ok else "FAIL"
+        if ok:
+            pass_count += 1
+        else:
+            fail_count += 1
+        msg = f"[{mark}] {label}"
+        if detail:
+            msg += f" — {detail}"
+        print(msg)
+
+    # ============================================================
+    # T1: 全 rank 行数 = 720
+    # ============================================================
+    check(
+        f"T1 全 rank 行数 == {EXPECTED_TOTAL}",
+        len(rows) == EXPECTED_TOTAL,
+        f"actual={len(rows)}",
+    )
+
+    # ============================================================
+    # T2: rank 別行数
+    # ============================================================
+    rank_counts: Counter = Counter()
+    for r in rows:
+        try:
+            rank_counts[int(r[i_rank])] += 1
+        except (ValueError, IndexError):
+            pass
+
+    for rk in sorted(set(RANKS_30 + RANKS_50)):
+        expected = 30 if rk in RANKS_30 else 50
+        actual = rank_counts.get(rk, 0)
+        check(
+            f"T2 rank {rk:2d} 行数 == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # ============================================================
+    # T3: rank=6 Band 配分（A=5, B=20, C=10, D=15）
+    # ============================================================
+    band_counts_06: Counter = Counter()
+    for r in rows:
+        try:
+            if int(r[i_rank]) == 6:
+                band_counts_06[r[i_band]] += 1
+        except (ValueError, IndexError):
+            pass
+
+    for band, expected in EXPECTED_RANK_06_BANDS.items():
+        actual = band_counts_06.get(band, 0)
+        check(
+            f"T3 rank=6 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # ============================================================
+    # T4: questionId 重複ゼロ（720 件全てユニーク）
+    # ============================================================
+    qids = [r[i_qid] for r in rows if len(r) > i_qid]
+    qid_counter = Counter(qids)
+    qid_dupes = [(q, c) for q, c in qid_counter.items() if c > 1]
+    check(
+        f"T4 questionId ユニーク（{len(qids)} 件）",
+        not qid_dupes,
+        f"重複 {len(qid_dupes)} 件" if qid_dupes else f"unique={len(set(qids))}",
+    )
+    if qid_dupes:
+        for q, c in qid_dupes[:5]:
+            print(f"      重複: {q} × {c}")
+
+    # ============================================================
+    # T5: problemLatex 重複ゼロ（rank 単位）
+    # ============================================================
+    latex_dupes_total = 0
+    for rk in sorted(set(RANKS_30 + RANKS_50)):
+        latexes = [
+            r[i_latex] for r in rows
+            if len(r) > i_latex
+            and r[i_rank].strip().isdigit()
+            and int(r[i_rank]) == rk
+        ]
+        c = Counter(latexes)
+        dupes = [(l, n) for l, n in c.items() if n > 1]
+        if dupes:
+            latex_dupes_total += len(dupes)
+            print(f"      [WARN] rank {rk}: problemLatex 重複 {len(dupes)} 件")
+            for l, n in dupes[:3]:
+                print(f"        {l[:80]} × {n}")
+    check(
+        "T5 全 rank で problemLatex ユニーク",
+        latex_dupes_total == 0,
+        "重複ゼロ" if latex_dupes_total == 0 else f"合計重複 {latex_dupes_total} 件",
+    )
+
+    # ============================================================
+    # T6: rank=6 Band D に y=... 形と x=... 形の両方が含まれる
+    # ============================================================
+    band_d_latexes = [
+        r[i_latex] for r in rows
+        if len(r) > i_latex
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 6
+        and r[i_band] == "D"
+    ]
+    # _build_substitution_lhs の出力は "y = ..." または "x = ..."
+    # eq1（先頭の式）が y= or x= 形なので "\\begin{cases} y = " / "\\begin{cases} x = " で限定
+    Y_PREFIX = "\\begin{cases} y = "
+    X_PREFIX = "\\begin{cases} x = "
+    has_y_form = sum(1 for l in band_d_latexes if l.startswith(Y_PREFIX))
+    has_x_form = sum(1 for l in band_d_latexes if l.startswith(X_PREFIX))
+    # 全 Band D の eq1 が y= or x= 形のはずなので両方非ゼロ + 合計 == Band D 件数
+    check(
+        f"T6 rank=6 Band D に y=... 形が含まれる",
+        has_y_form > 0,
+        f"y=... 形 {has_y_form} 問 / Band D 全 {len(band_d_latexes)} 問",
+    )
+    check(
+        f"T6 rank=6 Band D に x=... 形が含まれる",
+        has_x_form > 0,
+        f"x=... 形 {has_x_form} 問 / Band D 全 {len(band_d_latexes)} 問",
+    )
+    check(
+        "T6 rank=6 Band D y=... 形 + x=... 形 == Band D 全件",
+        has_y_form + has_x_form == len(band_d_latexes),
+        f"y={has_y_form} + x={has_x_form} = {has_y_form + has_x_form} / 全 {len(band_d_latexes)} 問",
+    )
+
+    # ============================================================
+    # T7: 既存 rank の行数 regression なし（T2 で既に網羅、サマリ表示のみ）
+    # ============================================================
+    print("\n--- rank 別行数サマリ ---")
+    for rk in sorted(rank_counts.keys()):
+        expected = 50 if rk in RANKS_50 else 30
+        mark = "OK" if rank_counts[rk] == expected else "NG"
+        print(f"  rank {rk:2d}: {rank_counts[rk]:3d} 行（期待 {expected:3d}）{mark}")
+
+    # ============================================================
+    # rank=6 Band D サンプル表示（実機目視用）
+    # ============================================================
+    print("\n--- rank=6 Band D サンプル（最初の 5 問の eq1 部分） ---")
+    for i, l in enumerate(band_d_latexes[:5]):
+        # \begin{cases} <eq1> \\ <eq2> \end{cases}
+        # eq1 を抽出
+        try:
+            head = l.split("\\begin{cases}", 1)[1].split("\\\\", 1)[0].strip()
+        except IndexError:
+            head = l[:80]
+        print(f"  D[{i+1}] eq1: {head[:80]}")
+
+    # ============================================================
+    # 結果サマリ
+    # ============================================================
+    print("\n" + "=" * 50)
+    print(f"検証結果: {pass_count} PASS / {fail_count} FAIL")
+    print("=" * 50)
+    return 0 if fail_count == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
