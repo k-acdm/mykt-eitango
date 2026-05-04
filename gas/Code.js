@@ -20,6 +20,9 @@ const SHEET_KISO_SESSIONS  = 'KisoSessions';
 const SHEET_KISO_PHOTOS    = 'KisoPhotos';
 const SHEET_LISON_CONTENTS    = 'LisonContents';
 const SHEET_LISON_SUBMISSIONS = 'LisonSubmissions';
+const SHEET_TEACHERS          = 'Teachers';
+const SHEET_TEACHER_MESSAGES  = 'TeacherMessages';
+const SHEET_MESSAGE_READS     = 'MessageReads';
 
 const COL_ID         = 0;
 const COL_NAME       = 1;
@@ -350,6 +353,12 @@ function doGet(e) {
       else if (action === 'getKanjiSet')              result = getKanjiSet(params);
       else if (action === 'submitKanjiYomi')          result = submitKanjiYomi(params);
       else if (action === 'getKanjiTodayRawHP')       result = getKanjiTodayRawHP(params);
+      // 先生からのメッセージ（生徒画面：メッセージ一覧 + 未読件数）
+      // ※ 管理画面の送信系（sendTeacherMessage）と既読化（markMessageAsRead）は doPost 側に登録。
+      //   ensureTeachersSheet / ensureTeacherMessagesSheets は GAS エディタからの 1 回限り
+      //   セットアップ用で、ここには登録しない（CLAUDE.md の運用ルール準拠）。
+      else if (action === 'getMessagesForStudent')   result = getMessagesForStudent(params);
+      else if (action === 'getUnreadMessageCount')   result = getUnreadMessageCount(params);
       // 管理画面: リスオン録音メタ一覧 + 既存録音の一括公開化バッチ（後者は GAS エディタ実行用）
       else if (action === 'getLisonSubmissionsList')         result = getLisonSubmissionsList(params);
       else if (action === 'migrateLisonRecordingsToShared')  result = migrateLisonRecordingsToShared(params);
@@ -401,6 +410,12 @@ function doPost(e) {
     else if (action === 'submitKanjiKaki')          result = submitKanjiKaki(params);
     // 管理画面：HP 手動付与（誤実行防止のため POST 強制、Students.HP と HPLog を直接書き換える）
     else if (action === 'executeManualHpGrant')     result = executeManualHpGrant(params);
+    // 先生からのメッセージ（管理画面：送信 / 生徒画面：既読化）
+    // ※ 管理者認証必須の sendTeacherMessage は POST 強制（誤送信防止）。
+    //   markMessageAsRead は誤書き込みリスクが極小だが POST に統一（doGet にも登録すると
+    //   キャッシュに乗って既読化のレスポンスが古くなり得るため、書き込み系は POST のみ）。
+    else if (action === 'sendTeacherMessage')       result = sendTeacherMessage(params);
+    else if (action === 'markMessageAsRead')        result = markMessageAsRead(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -4774,6 +4789,334 @@ function executeManualHpGrant(params) {
     };
   } catch(err) {
     console.error('[executeManualHpGrant]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// 先生からのメッセージ
+// =====================================================
+// 設計概要（CLAUDE.md 該当セクション参照）：
+//   - 先生 → 生徒 への一方向メッセージ。生徒からの返信は LINE に一本化（このアプリでは不可）。
+//   - Teachers シートは「将来の講師ログイン」用に枠だけ作るが、今回の機能では送信者
+//     ニックネーム（例：「ふく先生」）の表示にのみ使用。送信時に最新の表示用ニックネームを
+//     スナップショットして TeacherMessages.senderNickname に保存し、後から Teachers の表記
+//     を変更しても過去メッセージはそのまま残る運用とする。
+//   - 既読は MessageReads シート（studentId × messageId）の追加で表現。冪等：既存ならスキップ。
+//   - targetType は 'individual' / 'all' のみ受理。'group' は将来用にデータ層では許容するが
+//     書き込み API では弾く（フロント側もボタンで弾く運用）。
+//
+// シート構造：
+//   Teachers          : teacherId / teacherName / password / role / displayNickname / active
+//   TeacherMessages   : timestamp / messageId / senderId / senderNickname / targetType / targetIds / content / createdAt
+//   MessageReads      : studentId / messageId / readAt
+const TEACHERS_HEADERS         = ['teacherId','teacherName','password','role','displayNickname','active'];
+const TEACHER_MESSAGES_HEADERS = ['timestamp','messageId','senderId','senderNickname','targetType','targetIds','content','createdAt'];
+const MESSAGE_READS_HEADERS    = ['studentId','messageId','readAt'];
+const TEACHER_MESSAGE_MAX_LEN  = 500;
+const TEACHER_INITIAL_PASSWORD = 'TEMP_PASSWORD_CHANGE_ME';
+
+// GAS エディタから 1 回だけ実行するセットアップ関数。冪等：既存ならスキップ。
+// ふくちさん用の T001 行を初期投入（パスワードは仮値、後でふくちさんが手動で書き換える）。
+// 戻り値: { ok, sheetCreated, initialRowAdded, password }
+function ensureTeachersSheet() {
+  try {
+    const r = _ensureSheetWithHeaders(SHEET_TEACHERS, TEACHERS_HEADERS);
+    const sh = r.sh;
+    let initialRowAdded = false;
+    // 既存行があるか調べる（ヘッダー行 1 行のみなら未投入とみなす）
+    const lastRow = sh.getLastRow();
+    let hasT001 = false;
+    if (lastRow >= 2) {
+      const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (let i = 0; i < ids.length; i++) {
+        if (String(ids[i][0] || '').trim() === 'T001') { hasT001 = true; break; }
+      }
+    }
+    if (!hasT001) {
+      sh.appendRow(['T001', '福地', TEACHER_INITIAL_PASSWORD, 'admin', 'ふく先生', true]);
+      initialRowAdded = true;
+    }
+    return {
+      ok: true,
+      sheetCreated:    r.created,
+      initialRowAdded: initialRowAdded,
+      password:        TEACHER_INITIAL_PASSWORD,
+      note: '⚠️ T001 のパスワードを Teachers シート上で安全な値に書き換えてください'
+    };
+  } catch (err) {
+    console.error('[ensureTeachersSheet]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// GAS エディタから 1 回だけ実行するセットアップ関数。冪等：既存ならスキップ。
+// TeacherMessages / MessageReads の 2 シートをまとめて初期化。
+// 戻り値: { ok, created: { messages, reads } }
+function ensureTeacherMessagesSheets() {
+  try {
+    const m = _ensureSheetWithHeaders(SHEET_TEACHER_MESSAGES, TEACHER_MESSAGES_HEADERS);
+    const r = _ensureSheetWithHeaders(SHEET_MESSAGE_READS,    MESSAGE_READS_HEADERS);
+    return { ok: true, created: { messages: m.created, reads: r.created } };
+  } catch (err) {
+    console.error('[ensureTeacherMessagesSheets]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// Teachers シートから指定講師ID の表示用ニックネームを取得。見つからなければ '先生'。
+function _lookupTeacherDisplayNickname(senderId) {
+  try {
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh || sh.getLastRow() < 2) return '先生';
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iId   = header.indexOf('teacherId');
+    const iNick = header.indexOf('displayNickname');
+    if (iId < 0 || iNick < 0) return '先生';
+    const target = String(senderId || '').trim();
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][iId] || '').trim() === target) {
+        return String(values[i][iNick] || '').trim() || '先生';
+      }
+    }
+    return '先生';
+  } catch (e) {
+    return '先生';
+  }
+}
+
+// targetIds 文字列から個別生徒ID配列を生成（個別送信時のみ）。カンマ区切り想定。
+function _parseIndividualTargetIds(targetIdsStr) {
+  if (!targetIdsStr) return [];
+  return String(targetIdsStr).split(',')
+    .map(function(s){ return s.trim(); })
+    .filter(function(s){ return !!s; });
+}
+
+// 管理画面：メッセージ送信。認証必須・doPost 経由のみ。
+// params: { password, senderId?, targetType, targetIds, content }
+//   senderId: 省略時は 'T001'（ふくちさん固定運用、将来 Teachers ログインで決定）
+//   targetType: 'individual' | 'all' （'group' は今回エラー）
+//   targetIds:  individual 時は studentId 配列 or カンマ区切り文字列。all 時は無視
+//   content:    メッセージ本文（500 文字まで）
+// 戻り値: { ok, messageId } または { ok:false, message }
+function sendTeacherMessage(params) {
+  try {
+    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+
+    const senderId   = String((params && params.senderId) || 'T001').trim();
+    const targetType = String((params && params.targetType) || '').trim();
+    const content    = String((params && params.content) || '').trim();
+
+    if (targetType === 'group') {
+      return { ok: false, message: 'グループ送信は準備中です' };
+    }
+    if (targetType !== 'individual' && targetType !== 'all') {
+      return { ok: false, message: '送信先タイプが不正です' };
+    }
+    if (!content) return { ok: false, message: 'メッセージ本文を入力してください' };
+    if (content.length > TEACHER_MESSAGE_MAX_LEN) {
+      return { ok: false, message: 'メッセージは ' + TEACHER_MESSAGE_MAX_LEN + ' 文字以内で入力してください' };
+    }
+
+    let targetIdsCsv = '';
+    let recipientCount = 0;
+    if (targetType === 'individual') {
+      // params.targetIds は配列 or カンマ区切り文字列のどちらでも受け付ける
+      let arr = [];
+      if (Array.isArray(params.targetIds)) arr = params.targetIds.slice();
+      else if (params.targetIds) arr = _parseIndividualTargetIds(params.targetIds);
+      // 重複除去 + 空除去
+      const seen = {};
+      const uniq = [];
+      arr.forEach(function(s){
+        const v = String(s || '').trim();
+        if (v && !seen[v]) { seen[v] = true; uniq.push(v); }
+      });
+      if (uniq.length === 0) return { ok: false, message: '宛先生徒を 1 人以上選択してください' };
+      targetIdsCsv = uniq.join(',');
+      recipientCount = uniq.length;
+    } else {
+      // 'all'
+      targetIdsCsv = 'ALL';
+      // 件数表示用に Students シートの ID 数を集計（cache 経由）
+      try {
+        const stuValues = _getStudentsValues();
+        if (stuValues && stuValues.length >= 2) {
+          let n = 0;
+          for (let i = 1; i < stuValues.length; i++) {
+            if (String(stuValues[i][COL_ID] || '').trim()) n++;
+          }
+          recipientCount = n;
+        }
+      } catch (e) { recipientCount = 0; }
+    }
+
+    // 表示用ニックネームを送信時点でスナップショット
+    const senderNickname = _lookupTeacherDisplayNickname(senderId);
+
+    // messageId を生成（GAS の Utilities.getUuid()）
+    const messageId = 'M_' + Utilities.getUuid();
+    const now = _nowJST();
+
+    const sh = _ss().getSheetByName(SHEET_TEACHER_MESSAGES);
+    if (!sh) return { ok: false, message: 'TeacherMessages シートが見つかりません。先に ensureTeacherMessagesSheets() を実行してください' };
+    sh.appendRow([now, messageId, senderId, senderNickname, targetType, targetIdsCsv, content, now]);
+
+    return {
+      ok: true,
+      messageId:      messageId,
+      senderNickname: senderNickname,
+      recipientCount: recipientCount,
+      targetType:     targetType
+    };
+  } catch (err) {
+    console.error('[sendTeacherMessage]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 内部ヘルパー：指定生徒の既読 messageId Set を返す
+function _readMessageIdsForStudent(studentId) {
+  const set = {};
+  const sh = _ss().getSheetByName(SHEET_MESSAGE_READS);
+  if (!sh || sh.getLastRow() < 2) return set;
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iSid = header.indexOf('studentId');
+  const iMid = header.indexOf('messageId');
+  if (iSid < 0 || iMid < 0) return set;
+  const target = String(studentId || '').trim();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][iSid] || '').trim() !== target) continue;
+    const mid = String(values[i][iMid] || '').trim();
+    if (mid) set[mid] = true;
+  }
+  return set;
+}
+
+// 内部ヘルパー：指定生徒宛のメッセージ行を抽出（targetType=all + individual 該当のみ）。
+// timestamp 降順で返す。各 row はオブジェクト。
+function _readMessagesForStudent(studentId) {
+  const out = [];
+  const sh = _ss().getSheetByName(SHEET_TEACHER_MESSAGES);
+  if (!sh || sh.getLastRow() < 2) return out;
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iTs   = header.indexOf('timestamp');
+  const iMid  = header.indexOf('messageId');
+  const iSid  = header.indexOf('senderId');
+  const iNick = header.indexOf('senderNickname');
+  const iType = header.indexOf('targetType');
+  const iTids = header.indexOf('targetIds');
+  const iCont = header.indexOf('content');
+  const iCre  = header.indexOf('createdAt');
+  if (iMid < 0) return out;
+
+  const target = String(studentId || '').trim();
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    const mid = String(r[iMid] || '').trim();
+    if (!mid) continue;
+    const tType = String(r[iType] || '').trim();
+    const tIds  = String(r[iTids] || '').trim();
+    let matched = false;
+    if (tType === 'all') {
+      matched = true;
+    } else if (tType === 'individual') {
+      if (tIds) {
+        const arr = _parseIndividualTargetIds(tIds);
+        for (let k = 0; k < arr.length; k++) {
+          if (arr[k] === target) { matched = true; break; }
+        }
+      }
+    }
+    // 'group' その他は今回の生徒画面では表示しない（将来用）
+    if (!matched) continue;
+    out.push({
+      timestamp:      r[iTs]  ? Utilities.formatDate(new Date(r[iTs]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : '',
+      messageId:      mid,
+      senderId:       String(r[iSid] || '').trim(),
+      senderNickname: String(r[iNick] || '').trim() || '先生',
+      targetType:     tType,
+      content:        String(r[iCont] || ''),
+      createdAt:      r[iCre] ? Utilities.formatDate(new Date(r[iCre]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : ''
+    });
+  }
+  // timestamp 降順
+  out.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+  return out;
+}
+
+// 生徒画面：自分宛メッセージ一覧（既読フラグ付き、新しい順）
+// params: { studentId }
+function getMessagesForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const messages = _readMessagesForStudent(sid);
+    if (messages.length === 0) return { ok: true, messages: [] };
+    const readSet = _readMessageIdsForStudent(sid);
+    messages.forEach(function(m){ m.isRead = !!readSet[m.messageId]; });
+    return { ok: true, messages: messages };
+  } catch (err) {
+    console.error('[getMessagesForStudent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 生徒画面：未読件数のみ取得（ホーム画面の赤バッジ用、軽量）
+// params: { studentId }
+function getUnreadMessageCount(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const messages = _readMessagesForStudent(sid);
+    if (messages.length === 0) return { ok: true, count: 0 };
+    const readSet = _readMessageIdsForStudent(sid);
+    let count = 0;
+    for (let i = 0; i < messages.length; i++) {
+      if (!readSet[messages[i].messageId]) count++;
+    }
+    return { ok: true, count: count };
+  } catch (err) {
+    console.error('[getUnreadMessageCount]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 生徒画面：メッセージを既読化（冪等：既存ならスキップ）。doPost 経由のみ。
+// params: { studentId, messageId }
+function markMessageAsRead(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    const mid = String((params && params.messageId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    if (!mid) return { ok: false, message: 'messageId が指定されていません' };
+
+    const sh = _ss().getSheetByName(SHEET_MESSAGE_READS);
+    if (!sh) return { ok: false, message: 'MessageReads シートが見つかりません。先に ensureTeacherMessagesSheets() を実行してください' };
+
+    // 冪等チェック（既に読まれているか）
+    if (sh.getLastRow() >= 2) {
+      const values = sh.getDataRange().getValues();
+      const header = values[0];
+      const iSid = header.indexOf('studentId');
+      const iMid = header.indexOf('messageId');
+      if (iSid >= 0 && iMid >= 0) {
+        for (let i = 1; i < values.length; i++) {
+          if (String(values[i][iSid] || '').trim() === sid &&
+              String(values[i][iMid] || '').trim() === mid) {
+            return { ok: true, alreadyRead: true };
+          }
+        }
+      }
+    }
+    sh.appendRow([sid, mid, _nowJST()]);
+    return { ok: true, alreadyRead: false };
+  } catch (err) {
+    console.error('[markMessageAsRead]', err);
     return { ok: false, message: String(err) };
   }
 }

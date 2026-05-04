@@ -27,8 +27,8 @@
   .login-card button:disabled { opacity: .5; cursor: not-allowed; }
 
   /* メイン系画面のヘッダー（ダッシュボード以外） */
-  #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-  #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1 { font-size: 18px; font-weight: 600; }
+  #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1 { font-size: 18px; font-weight: 600; }
   .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
   .logout-btn:hover { background: rgba(255,255,255,.3); }
 
@@ -287,8 +287,28 @@
   .lison-students-table .name-link:hover { text-decoration: underline; }
   .lison-students-empty { padding: 24px; text-align: center; color: #94a3b8; background: #fff; border-radius: 10px; }
 
+  /* 先生からのメッセージ */
+  .tm-radio-group { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; }
+  .tm-radio-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 2px solid #e1e5ee; border-radius: 8px; cursor: pointer; transition: all .15s; background: #fff; }
+  .tm-radio-row:hover { border-color: #7c4fff; background: #f7f5ff; }
+  .tm-radio-row input[type=radio] { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; accent-color: #7c4fff; }
+  .tm-radio-row.selected { border-color: #7c4fff; background: #f0eaff; }
+  .tm-radio-row.disabled { opacity: .55; cursor: not-allowed; background: #f7f7f7; }
+  .tm-radio-row.disabled:hover { border-color: #e1e5ee; background: #f7f7f7; }
+  .tm-radio-label { font-size: 14px; color: #333; font-weight: 600; }
+  .tm-radio-note  { font-size: 12px; color: #888; margin-left: 6px; }
+  .tm-content-counter { display: block; text-align: right; font-size: 12px; color: #888; margin-top: 4px; }
+  .tm-content-counter.over { color: #e74c3c; font-weight: 700; }
+  .tm-summary { font-size: 14px; line-height: 1.9; color: #333; }
+  .tm-summary strong { color: #4f7df0; }
+  .tm-content-preview { margin-top: 10px; padding: 14px; background: #fffbe6; border-left: 4px solid #f59e0b; border-radius: 6px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; color: #444; }
+  .tm-recipient-list { margin-top: 8px; max-height: 200px; overflow-y: auto; padding: 10px 12px; background: #f4f6fb; border-radius: 6px; font-size: 13px; line-height: 1.7; color: #555; }
+  .tm-recipient-empty { color: #888; font-style: italic; }
+  .tm-result-summary { font-size: 14px; line-height: 1.9; color: #333; }
+  .tm-result-summary strong { color: #16a34a; }
+
   @media (max-width: 480px) {
-    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1 { font-size: 15px; }
+    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
     .admin-page { padding: 16px 12px 80px; }
     .form-card { padding: 18px; }
@@ -361,6 +381,11 @@
       <div class="dashboard-card-icon">💎</div>
       <div class="dashboard-card-title">HP手動付与</div>
       <div class="dashboard-card-desc">指定した生徒に素点HPを付与（連続週数ボーナスの加算可）</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminTeacherMessages()">
+      <div class="dashboard-card-icon">📩</div>
+      <div class="dashboard-card-title">先生からのメッセージ</div>
+      <div class="dashboard-card-desc">生徒へのメッセージを作成・送信（個別 / 全員）</div>
     </button>
   </div>
 </div>
@@ -683,6 +708,106 @@
     </div>
     <button class="submit-btn" style="margin-top:18px" onclick="goAdminDashboard()">ダッシュボードに戻る</button>
     <button class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#7c4fff,#4f7df0)" onclick="goAdminHpGrant(true)">続けて別の付与を行う</button>
+  </div>
+</div>
+
+<!-- 先生からのメッセージ：作成画面 -->
+<div id="screen-admin-teacher-messages" class="screen">
+  <header>
+    <h1>📩 先生からのメッセージ</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <div class="form-card">
+      <h2>送信先</h2>
+      <div class="tm-radio-group">
+        <label class="tm-radio-row" id="tm-radio-individual" onclick="setTmTarget('individual')">
+          <input type="radio" name="tm-target" value="individual" checked />
+          <span class="tm-radio-label">⚪ 個別生徒</span>
+          <span class="tm-radio-note">下の一覧から複数選択可</span>
+        </label>
+        <label class="tm-radio-row" id="tm-radio-all" onclick="setTmTarget('all')">
+          <input type="radio" name="tm-target" value="all" />
+          <span class="tm-radio-label">⚪ 全員</span>
+          <span class="tm-radio-note">全生徒に一斉送信</span>
+        </label>
+        <label class="tm-radio-row disabled" onclick="onTmGroupClick(event)">
+          <input type="radio" name="tm-target" value="group" disabled />
+          <span class="tm-radio-label">⚪ グループ</span>
+          <span class="tm-radio-note">準備中</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="form-card" style="margin-top:16px" id="tm-students-card">
+      <h2>対象生徒（複数選択可）</h2>
+      <div class="hp-grant-actions">
+        <button type="button" class="btn-mini" onclick="tmStudentsSelectAll()">全選択</button>
+        <button type="button" class="btn-mini" onclick="tmStudentsSelectNone()">全解除</button>
+        <button type="button" class="btn-mini" onclick="loadTmStudents()">🔄 再読み込み</button>
+        <span id="tm-count" class="hp-grant-count">0 名選択中</span>
+      </div>
+      <div id="tm-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    </div>
+
+    <div class="form-card" style="margin-top:16px">
+      <h2>メッセージ本文</h2>
+      <label>
+        <span class="form-label">本文 <span class="form-required">必須</span></span>
+        <textarea id="tm-content" maxlength="500" placeholder="生徒へのメッセージを入力してください（最大500文字）" oninput="updateTmCounter()"></textarea>
+        <span class="form-hint">送信後の編集はできません。文面をよく確認してから送信してください。</span>
+        <span id="tm-content-counter" class="tm-content-counter">0 / 500</span>
+      </label>
+    </div>
+
+    <button class="submit-btn" style="margin-top:18px" onclick="confirmTmSend()">確認する</button>
+  </div>
+</div>
+
+<!-- 先生からのメッセージ：確認画面 -->
+<div id="screen-admin-teacher-messages-confirm" class="screen">
+  <header>
+    <h1>📩 先生からのメッセージ（内容確認）</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <div class="form-card">
+      <h2>送信内容のサマリ</h2>
+      <div id="tm-confirm-summary" class="tm-summary"></div>
+      <div id="tm-confirm-recipients"></div>
+    </div>
+    <div class="form-card" style="margin-top:16px">
+      <h2>本文プレビュー</h2>
+      <div id="tm-confirm-content" class="tm-content-preview"></div>
+    </div>
+    <button class="submit-btn" id="tm-execute-btn" style="margin-top:18px;background:linear-gradient(135deg,#22c55e,#16a34a)" onclick="executeTmSend()">✅ 送信する</button>
+    <button class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminTeacherMessages(true)">❌ 戻る</button>
+  </div>
+</div>
+
+<!-- 先生からのメッセージ：完了画面 -->
+<div id="screen-admin-teacher-messages-result" class="screen">
+  <header>
+    <h1>📩 先生からのメッセージ（完了）</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <div class="form-card">
+      <h2>✅ 送信完了</h2>
+      <div id="tm-result-summary" class="tm-result-summary"></div>
+    </div>
+    <button class="submit-btn" style="margin-top:18px" onclick="goAdminDashboard()">ダッシュボードに戻る</button>
+    <button class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#7c4fff,#4f7df0)" onclick="goAdminTeacherMessages(false)">続けて別のメッセージを送る</button>
   </div>
 </div>
 
@@ -1947,6 +2072,238 @@
              '</div>';
     }).join('');
     document.getElementById('hp-grant-result-list').innerHTML = listHtml;
+  }
+
+  // =============================================================
+  // 先生からのメッセージ
+  // =============================================================
+  // 設計：HP 手動付与と同じ 3 画面フロー（作成 → 確認 → 完了）。
+  //   - targetType: 'individual' | 'all' （'group' は今回エラー）
+  //   - 個別選択時のみ生徒一覧テーブルから複数選択可
+  //   - 本文 500 文字まで（GAS 側でも再チェック）
+  //   - 送信は doPost 経由（誤送信防止 + クエリ長対策）
+  var _tmStudents = [];
+  var _tmSelected = {};
+  var _tmTargetType = 'individual';
+  var _tmConfirm = null;
+
+  function goAdminTeacherMessages(preserveInput) {
+    _showScreen('screen-admin-teacher-messages');
+    window.scrollTo(0, 0);
+    if (!preserveInput) {
+      var ta = document.getElementById('tm-content');
+      if (ta) ta.value = '';
+      _tmSelected = {};
+      _tmTargetType = 'individual';
+      // ラジオを初期状態に戻す
+      var radioInd = document.querySelector('input[name="tm-target"][value="individual"]');
+      if (radioInd) radioInd.checked = true;
+      setTmTarget('individual');
+    }
+    updateTmCounter();
+    loadTmStudents();
+  }
+
+  function setTmTarget(t) {
+    _tmTargetType = t;
+    // ラジオ選択の見た目を反映
+    var radios = document.querySelectorAll('input[name="tm-target"]');
+    radios.forEach(function(r){
+      var row = r.closest('.tm-radio-row');
+      if (row) row.classList.toggle('selected', r.value === t && !r.disabled);
+      if (r.value === t && !r.disabled) r.checked = true;
+    });
+    // 個別生徒カードの表示切替
+    var card = document.getElementById('tm-students-card');
+    if (card) card.style.display = (t === 'individual') ? '' : 'none';
+  }
+
+  function onTmGroupClick(ev) {
+    if (ev) ev.preventDefault();
+    showToast('グループ送信は準備中です', 'error');
+  }
+
+  function loadTmStudents() {
+    var wrap = document.getElementById('tm-students-wrap');
+    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    gasGet({
+      action: 'getStudentsListForGrant',
+      password: sessionStorage.getItem('adminPassword') || '',
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      _tmStudents = res.students || [];
+      _renderTmStudentsTable();
+    }).catch(function() {
+      wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  function _renderTmStudentsTable() {
+    var wrap = document.getElementById('tm-students-wrap');
+    if (_tmStudents.length === 0) {
+      wrap.innerHTML = '<div class="students-empty">生徒データがありません</div>';
+      _updateTmCount();
+      return;
+    }
+    var rows = _tmStudents.map(function(s) {
+      var sidEsc  = _esc(s.studentId);
+      var nameEsc = _esc(s.name || '');
+      var nickEsc = _esc(s.nickname || '');
+      var checked = _tmSelected[s.studentId] ? 'checked' : '';
+      var rowCls  = _tmSelected[s.studentId] ? ' class="selected"' : '';
+      return '<tr' + rowCls + ' data-sid="' + sidEsc + '" onclick="tmStudentsToggleRow(\'' + sidEsc + '\')">' +
+               '<td><input type="checkbox" ' + checked + ' onclick="event.stopPropagation();tmStudentsToggleRow(\'' + sidEsc + '\')" /></td>' +
+               '<td>' + sidEsc + '</td>' +
+               '<td>' + (nameEsc || '（未登録）') + '</td>' +
+               '<td>' + (nickEsc || '—') + '</td>' +
+             '</tr>';
+    }).join('');
+    wrap.innerHTML =
+      '<div class="students-table-wrap">' +
+        '<table class="hp-grant-table">' +
+          '<thead><tr><th>選択</th><th>生徒ID</th><th>氏名</th><th>ニックネーム</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>' +
+      '</div>';
+    _updateTmCount();
+  }
+
+  function tmStudentsToggleRow(sid) {
+    if (_tmSelected[sid]) delete _tmSelected[sid];
+    else _tmSelected[sid] = true;
+    var tr = document.querySelector('#tm-students-wrap tr[data-sid="' + sid + '"]');
+    if (tr) {
+      var sel = !!_tmSelected[sid];
+      tr.classList.toggle('selected', sel);
+      var cb = tr.querySelector('input[type=checkbox]');
+      if (cb) cb.checked = sel;
+    }
+    _updateTmCount();
+  }
+  function tmStudentsSelectAll() {
+    _tmStudents.forEach(function(s){ _tmSelected[s.studentId] = true; });
+    _renderTmStudentsTable();
+  }
+  function tmStudentsSelectNone() {
+    _tmSelected = {};
+    _renderTmStudentsTable();
+  }
+  function _updateTmCount() {
+    var n = Object.keys(_tmSelected).length;
+    var el = document.getElementById('tm-count');
+    if (el) el.textContent = n + ' 名選択中';
+  }
+
+  function updateTmCounter() {
+    var ta = document.getElementById('tm-content');
+    var counter = document.getElementById('tm-content-counter');
+    if (!ta || !counter) return;
+    var len = ta.value.length;
+    counter.textContent = len + ' / 500';
+    counter.classList.toggle('over', len > 500);
+  }
+
+  function confirmTmSend() {
+    var content = (document.getElementById('tm-content').value || '').trim();
+    if (!content) { showToast('メッセージ本文を入力してください', 'error'); return; }
+    if (content.length > 500) { showToast('メッセージは 500 文字以内で入力してください', 'error'); return; }
+    if (_tmTargetType === 'group') { showToast('グループ送信は準備中です', 'error'); return; }
+    if (_tmTargetType !== 'individual' && _tmTargetType !== 'all') { showToast('送信先を選んでください', 'error'); return; }
+
+    var snap = [];
+    if (_tmTargetType === 'individual') {
+      snap = _tmStudents.filter(function(s){ return !!_tmSelected[s.studentId]; });
+      if (snap.length === 0) { showToast('宛先生徒を 1 人以上選択してください', 'error'); return; }
+    }
+    _tmConfirm = {
+      targetType: _tmTargetType,
+      content:    content,
+      students:   snap,        // individual のときの宛先スナップショット
+      allCount:   _tmStudents.length  // 全員送信のときの推定件数（参考表示用）
+    };
+    _renderTmConfirm();
+    _showScreen('screen-admin-teacher-messages-confirm');
+    window.scrollTo(0, 0);
+  }
+
+  function _renderTmConfirm() {
+    var c = _tmConfirm;
+    if (!c) return;
+    var summaryHtml;
+    var recipientHtml = '';
+    if (c.targetType === 'all') {
+      summaryHtml =
+        '<div>送信先：<strong>全員</strong></div>' +
+        '<div>宛先生徒数（推定）：<strong>' + (c.allCount || 0) + ' 名</strong></div>';
+      recipientHtml = '<div class="tm-recipient-list">⚠️ 全生徒に一斉送信されます。</div>';
+    } else {
+      summaryHtml =
+        '<div>送信先：<strong>個別生徒</strong></div>' +
+        '<div>宛先生徒数：<strong>' + c.students.length + ' 名</strong></div>';
+      var rows = c.students.map(function(s) {
+        var nm = _esc(s.name || '（未登録）') + 'さん（' + _esc(s.studentId) + '）';
+        return '<div>・ ' + nm + '</div>';
+      }).join('');
+      recipientHtml = '<div class="tm-recipient-list">' + (rows || '<span class="tm-recipient-empty">（宛先なし）</span>') + '</div>';
+    }
+    document.getElementById('tm-confirm-summary').innerHTML = summaryHtml;
+    document.getElementById('tm-confirm-recipients').innerHTML = recipientHtml;
+    document.getElementById('tm-confirm-content').textContent = c.content;
+  }
+
+  function executeTmSend() {
+    if (!_tmConfirm) {
+      showToast('入力内容が失われました。やり直してください', 'error');
+      goAdminTeacherMessages(false);
+      return;
+    }
+    var c = _tmConfirm;
+    var btn = document.getElementById('tm-execute-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 送信中...'; }
+
+    var params = {
+      action:     'sendTeacherMessage',
+      password:   sessionStorage.getItem('adminPassword') || '',
+      targetType: c.targetType,
+      content:    c.content
+    };
+    if (c.targetType === 'individual') {
+      params.targetIds = c.students.map(function(s){ return s.studentId; }).join(',');
+    }
+
+    gasPost(params).then(function(res) {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ 送信する'; }
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : 'エラーが発生しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        showToast(msg, 'error');
+        return;
+      }
+      _renderTmResult(res, c);
+      _showScreen('screen-admin-teacher-messages-result');
+      window.scrollTo(0, 0);
+      _tmConfirm = null;
+    }).catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ 送信する'; }
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  function _renderTmResult(res, c) {
+    var label = (c.targetType === 'all') ? '全員' : '個別生徒';
+    var html =
+      '<div>送信完了：<strong>✅ 成功</strong></div>' +
+      '<div>送信先：<strong>' + label + '</strong></div>' +
+      '<div>宛先生徒数：<strong>' + (res.recipientCount || 0) + ' 名</strong></div>' +
+      '<div>送信者：<strong>' + _esc(res.senderNickname || '先生') + '</strong></div>' +
+      '<div style="font-size:12px;color:#888;margin-top:8px">messageId: ' + _esc(res.messageId || '') + '</div>';
+    document.getElementById('tm-result-summary').innerHTML = html;
   }
 
   // =============================================================

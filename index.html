@@ -391,6 +391,26 @@
     .notice-date  { font-size: 12px; color: #a07030; font-weight: bold; }
     .notice-body  { font-size: 14px; line-height: 1.75; color: #4b3000; white-space: pre-wrap; word-wrap: break-word; }
     .notice-empty { text-align: center; color: #a07030; font-size: 14px; padding: 6px 0; }
+    /* 先生からのメッセージ：ホーム画面ボタン + 一覧画面 */
+    .msg-home-btn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#fff4d6,#ffe5b4); border: 2px solid #ff8a3d; border-radius: 14px; box-shadow: 0 3px 12px rgba(255,138,61,.2); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; }
+    .msg-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(255,138,61,.28); }
+    .msg-home-btn-label { font-size: 16px; font-weight: bold; color: #c25b00; }
+    .msg-home-badge { display: none; background: linear-gradient(135deg,#ef4444,#dc2626); color: #fff; font-size: 13px; font-weight: bold; padding: 4px 12px; border-radius: 999px; box-shadow: 0 2px 6px rgba(220,38,38,.4); animation: msgBadgePulse 1.6s ease-in-out infinite; }
+    .msg-home-badge.show { display: inline-block; }
+    @keyframes msgBadgePulse {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.08); }
+    }
+    .msg-list { display: flex; flex-direction: column; gap: 12px; }
+    .msg-card { background: #fff; border: 2px solid #e6e8f0; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(0,0,0,.05); cursor: pointer; transition: transform .12s, box-shadow .12s, background .15s; }
+    .msg-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+    .msg-card.unread { background: linear-gradient(135deg,#fff9c4,#fffacd); border-color: #f59e0b; box-shadow: 0 3px 10px rgba(245,158,11,.18); }
+    .msg-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .msg-card-sender { font-size: 14px; font-weight: bold; color: #2d3a8c; }
+    .msg-card-sender .new-tag { display: inline-block; margin-left: 8px; font-size: 11px; font-weight: bold; color: #fff; background: #ef4444; padding: 2px 8px; border-radius: 999px; vertical-align: middle; }
+    .msg-card-date { font-size: 12px; color: #888; font-weight: 600; }
+    .msg-card-body { font-size: 14px; line-height: 1.75; color: #333; white-space: pre-wrap; word-wrap: break-word; }
+    .msg-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 16px; background: #fafbff; border-radius: 12px; }
     .section-title { font-size: 15px; font-weight: bold; color: #2d3a8c; margin-bottom: 8px; padding-left: 4px; }
     .sub-action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
     .sub-action-row.single { grid-template-columns: 1fr; }
@@ -1041,6 +1061,14 @@
       </div>
     </div>
 
+    <!-- ②-2 先生からのメッセージ -->
+    <div class="dash-section">
+      <button type="button" class="msg-home-btn" onclick="showStudentMessages()">
+        <span class="msg-home-btn-label">📩 先生からのメッセージ</span>
+        <span class="msg-home-badge" id="msg-home-badge">⚠️ 0件</span>
+      </button>
+    </div>
+
     <!-- ③ コンテンツ選択 -->
     <div class="dash-section">
       <div class="section-title">📚 コンテンツを選ぼう</div>
@@ -1142,6 +1170,16 @@
       <button class="sub-action-btn settings" onclick="showScreen('screen-settings')">🔊 音声設定</button>
       <button class="sub-action-btn logout" onclick="doLogout()">🚪 ログアウト</button>
     </div>
+  </div>
+</div>
+<div id="screen-student-messages" class="screen">
+  <header><h1>📩 先生からのメッセージ</h1><span id="student-messages-sid"></span></header>
+  <div class="container" style="padding-top:20px">
+    <p style="text-align:center;color:#666;font-size:13px;margin-bottom:14px">タップすると既読になります</p>
+    <div id="student-messages-list" class="msg-list">
+      <div class="msg-empty">⏳ 読み込み中...</div>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホームに戻る</button>
   </div>
 </div>
 <div id="screen-level" class="screen">
@@ -2691,6 +2729,7 @@
     loadTodayQuote();
     loadLatestNotice();
     loadWeeklyRanking();
+    loadUnreadMessageCount();
     _prefetchTopics();
   }
   function toggleChangeArea() { var area = document.getElementById('change-area'); area.style.display = area.style.display === 'none' ? 'block' : 'none'; }
@@ -2982,6 +3021,8 @@
     var hpEl = document.getElementById('welcome-hp');
     if (hpEl && typeof _totalHP === 'number') hpEl.textContent = _totalHP.toLocaleString();
     showScreen('screen-welcome');
+    // メッセージ画面から戻ったときに未読バッジを最新化（既読化が反映される）
+    loadUnreadMessageCount();
   }
   function doLogout() {
     if (!confirm('今日もよく頑張りました！ログアウトしますか？')) return;
@@ -2999,6 +3040,76 @@
     // ここを呼ばないとログイン直前の Step 2 のままで再表示されてしまう。
     try { backToRoleSelect(); } catch(e){}
   }
+  // ================= 先生からのメッセージ =================
+  // ホーム画面の未読バッジ更新（getUnreadMessageCount）。失敗時は黙ってバッジ非表示。
+  function loadUnreadMessageCount() {
+    var badge = document.getElementById('msg-home-badge');
+    if (!badge || !_studentId) return;
+    gasGet({ action:'getUnreadMessageCount', studentId:_studentId, _ts:Date.now() }).then(function(res){
+      if (res && res.ok && Number(res.count) > 0) {
+        badge.textContent = '⚠️ ' + Number(res.count) + '件';
+        badge.classList.add('show');
+      } else {
+        badge.classList.remove('show');
+      }
+    }).catch(function(){
+      badge.classList.remove('show');
+    });
+  }
+  function _msgEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function _formatMsgDate(ts) {
+    if (!ts) return '';
+    // GAS から 'yyyy-MM-dd HH:mm:ss' で来る想定。秒以下を落として表示
+    var s = String(ts);
+    if (s.length >= 16) return s.substring(0, 16);
+    return s;
+  }
+  function showStudentMessages() {
+    if (!_studentId) return;
+    document.getElementById('student-messages-sid').textContent = _studentId + ' さん';
+    document.getElementById('student-messages-list').innerHTML = '<div class="msg-empty">⏳ 読み込み中...</div>';
+    showScreen('screen-student-messages');
+    gasGet({ action:'getMessagesForStudent', studentId:_studentId, _ts:Date.now() }).then(function(res){
+      var list = document.getElementById('student-messages-list');
+      if (!res || !res.ok) {
+        list.innerHTML = '<div class="msg-empty">⚠️ メッセージの読み込みに失敗しました</div>';
+        return;
+      }
+      var msgs = res.messages || [];
+      if (msgs.length === 0) {
+        list.innerHTML = '<div class="msg-empty">📭 まだメッセージはありません</div>';
+        return;
+      }
+      list.innerHTML = msgs.map(function(m){
+        var unreadCls = m.isRead ? '' : ' unread';
+        var newTag = m.isRead ? '' : '<span class="new-tag">NEW</span>';
+        var midEsc = esc(m.messageId);  // JS 文字列としてエスケープ（onclick の引数）
+        return '<div class="msg-card' + unreadCls + '" data-mid="' + _msgEscHtml(m.messageId) + '" onclick="markMessageRead(\'' + midEsc + '\')">' +
+                 '<div class="msg-card-head">' +
+                   '<div class="msg-card-sender">' + _msgEscHtml(m.senderNickname) + newTag + '</div>' +
+                   '<div class="msg-card-date">' + _msgEscHtml(_formatMsgDate(m.timestamp)) + '</div>' +
+                 '</div>' +
+                 '<div class="msg-card-body">' + _msgEscHtml(m.content) + '</div>' +
+               '</div>';
+      }).join('');
+    }).catch(function(){
+      document.getElementById('student-messages-list').innerHTML = '<div class="msg-empty">⚠️ 通信エラーが発生しました</div>';
+    });
+  }
+  function markMessageRead(messageId) {
+    if (!messageId || !_studentId) return;
+    // 即時 UI 反映：unread クラスと NEW タグを取り除く
+    var card = document.querySelector('#student-messages-list .msg-card[data-mid="' + messageId + '"]');
+    if (card) {
+      if (!card.classList.contains('unread')) return;  // 既に既読なら何もしない（冪等）
+      card.classList.remove('unread');
+      var tag = card.querySelector('.new-tag');
+      if (tag) tag.remove();
+    }
+    // サーバーに記録（失敗しても UI はそのまま：再ログインで真の状態に同期される）
+    gasPost({ action:'markMessageAsRead', studentId:_studentId, messageId:messageId }).catch(function(){});
+  }
+
   // ================= 三語短文 =================
   const SANGO_LEVEL_DESCRIPTIONS = {
     'A': '大学入試レベル',
