@@ -1,6 +1,9 @@
 /**
  * マイ活アプリ - Code.gs
- * 更新：2026-04-17
+ *
+ * 最終更新日時はソース内コメントではなく Apps Script ファイル自体の
+ * 最終更新日時（DriveApp.getLastUpdated）を真値とする。
+ * 管理画面 admin.html の左下バッジで確認可能（getServerInfo API 経由）。
  */
 
 const APP_TITLE       = 'マイ活アプリ＜英単語＞';
@@ -357,6 +360,8 @@ function doGet(e) {
       // リスオン保守バッチ（いずれも GAS エディタ実行用、Time-based Trigger でも可）
       else if (action === 'migrateLisonSubmissionsAddFileId') result = migrateLisonSubmissionsAddFileId(params);
       else if (action === 'cleanupLisonOldRecordings')        result = cleanupLisonOldRecordings(params);
+      // 管理画面のバージョンバッジ用：認証不要の軽量メタ情報（Code.js 最終更新日時）
+      else if (action === 'getServerInfo')    result = getServerInfo(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -7407,6 +7412,31 @@ function submitLison(params) {
   } catch(err) {
     console.error('[submitLison]', err);
     return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 公開API: サーバ情報（Code.js 最終更新日時）
+// =============================================
+// 管理画面のバージョンバッジ用。認証不要（軽量メタ情報のみ返却）。
+// DriveApp で Apps Script ファイルを取得し getLastUpdated() を読む。
+// `clasp push` や Apps Script エディタでの直接保存を含めて、最後に Code.js が
+// 書き換わった JST 日時が分かる → 「いつ最終デプロイされたか」の目安になる。
+//
+// 戻り値: { ok, lastUpdated:'yyyy-MM-dd HH:mm', lastUpdatedRaw: ISO8601 }
+//        失敗時: { ok:false, error }
+function getServerInfo(params) {
+  try {
+    const file = DriveApp.getFileById(ScriptApp.getScriptId());
+    const lastUpdated = file.getLastUpdated();
+    return {
+      ok: true,
+      lastUpdated: Utilities.formatDate(lastUpdated, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+      lastUpdatedRaw: lastUpdated.toISOString()
+    };
+  } catch (err) {
+    console.error('[getServerInfo]', err);
+    return { ok: false, error: String(err) };
   }
 }
 

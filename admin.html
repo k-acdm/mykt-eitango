@@ -2829,9 +2829,16 @@
 </script>
 <span id="app-version" class="app-version" title="タップで最新版に更新">v----.--.--</span>
 <script>
+  // バージョンバッジ：管理者の運用診断用。
+  // ・初期値は admin.html の document.lastModified（GitHub Pages 由来、フロント側の最終更新日）
+  // ・その後 GAS getServerInfo を非同期で呼び出し、Code.js の最終更新日時で上書き
+  //   → ふくちさんが「いつ最終デプロイされたか」を一目で確認できる
+  // ・GAS 取得失敗時はフロント側日付のまま残るので「動かない」状態にはならない
+  // ・タップで ?v=Date.now() 付き強制リロード（iPad Safari のキャッシュ対策、従来通り）
   (function(){
     var el = document.getElementById('app-version');
     if (!el) return;
+    // ① まず即時にフロント側日付を表示（フォールバック兼ローディング中の見た目）
     var d = new Date(document.lastModified);
     var pad = function(n){ return n < 10 ? '0'+n : ''+n; };
     el.textContent = 'v' + d.getFullYear() + '.' + pad(d.getMonth()+1) + '.' + pad(d.getDate());
@@ -2839,6 +2846,17 @@
       var base = window.location.origin + window.location.pathname;
       window.location.href = base + '?v=' + Date.now();
     });
+    // ② 非同期で GAS 最終更新日時を取得して上書き（gasGet は script #1 でグローバル定義済み）
+    try {
+      gasGet({ action: 'getServerInfo', _ts: Date.now() })
+        .then(function(res){
+          if (res && res.ok && res.lastUpdated) {
+            el.textContent = 'v ' + res.lastUpdated;
+            el.title = 'GAS 最終更新: ' + res.lastUpdated + '（タップで最新版に更新）';
+          }
+        })
+        .catch(function(err){ console.warn('[versionBadge] getServerInfo failed:', err); });
+    } catch (e) { console.warn('[versionBadge] gasGet 未定義:', e); }
   })();
 </script>
 </body>
