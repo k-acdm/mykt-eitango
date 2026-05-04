@@ -1621,8 +1621,10 @@
                  '</div>' +
                  (hasFile ? (
                    '<div class="lison-rec-player" id="lison-rec-player-' + idx + '" data-src="' + _esc(previewUrl) + '">' +
-                     // iframe は再生ボタン押下時に初めて src を入れる（オンデマンドロード、N 個同時ロード回避）
-                     '<iframe class="lison-rec-iframe" id="lison-rec-iframe-' + idx + '" src="" allow="autoplay" loading="lazy"></iframe>' +
+                     // iframe は再生ボタン押下時に初めて src を入れる（オンデマンドロード、N 個同時ロード回避）。
+                     // ★ 初期 src は about:blank（空文字 "" は「現在のドキュメント URL」に解決され
+                     //    admin.html 自身を再帰ロードしてしまうため厳禁）
+                     '<iframe class="lison-rec-iframe" id="lison-rec-iframe-' + idx + '" src="about:blank" allow="autoplay" loading="lazy"></iframe>' +
                      '<div class="lison-rec-fallback">※ Google ドライブのプレイヤーで再生されます。再生できない場合は「⬇️ ダウンロード」をご利用ください。</div>' +
                    '</div>'
                  ) : '') +
@@ -1636,7 +1638,10 @@
 
   // 再生ボタンで Drive iframe プレイヤーを表示／隠す。
   // 初回表示時に data-src を iframe.src へコピー（オンデマンドロード）。
-  // 再度押すと iframe.src を空にして停止 + 折りたたみ。
+  // 再度押すと iframe.src を about:blank に戻して停止 + 折りたたみ。
+  // ★ iframe.src への代入は無条件（前回ガード `!iframe.src` は about:blank も
+  //   ドキュメント URL も truthy となるため常に false で機能しなかった）。
+  // ★ リセット時の代入は about:blank（空文字 "" は admin.html 自身を再ロードする）。
   function toggleLisonRecPlayer(idx) {
     var el = document.getElementById('lison-rec-player-' + idx);
     if (!el) return;
@@ -1645,13 +1650,13 @@
     var willActivate = !el.classList.contains('active');
     if (willActivate) {
       var src = el.getAttribute('data-src') || '';
-      if (iframe && src && !iframe.src) iframe.src = src;
+      if (iframe && src) iframe.src = src;
       el.classList.add('active');
       if (btn) btn.textContent = '⏹ 閉じる';
     } else {
       el.classList.remove('active');
       // 再生停止のため iframe をリセット（次回 active 化時に再ロード）
-      if (iframe) iframe.src = '';
+      if (iframe) iframe.src = 'about:blank';
       if (btn) btn.textContent = '▶️ 再生';
     }
   }
