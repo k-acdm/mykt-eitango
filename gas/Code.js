@@ -354,6 +354,9 @@ function doGet(e) {
       // 管理画面: リスオン録音メタ一覧 + 既存録音の一括公開化バッチ（後者は GAS エディタ実行用）
       else if (action === 'getLisonSubmissionsList')         result = getLisonSubmissionsList(params);
       else if (action === 'migrateLisonRecordingsToShared')  result = migrateLisonRecordingsToShared(params);
+      // リスオン保守バッチ（いずれも GAS エディタ実行用、Time-based Trigger でも可）
+      else if (action === 'migrateLisonSubmissionsAddFileId') result = migrateLisonSubmissionsAddFileId(params);
+      else if (action === 'cleanupLisonOldRecordings')        result = cleanupLisonOldRecordings(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -6659,16 +6662,25 @@ function adminSetWabun1Comment(params) {
 //                     | q2_text | q2_answer | q2_explanation
 //                     | q3_text | q3_answer | q3_explanation
 //   LisonSubmissions: timestamp | studentId | studentName | level | weekStart
-//                     | quizScore | recordingUrl | hpGained
+//                     | quizScore | recordingUrl | hpGained | fileId
+//                     ※ fileId 列は 2026-05-04 追加（migrateLisonSubmissionsAddFileId
+//                       で既存行も埋める運用）。古いシート（8 列）にも graceful 対応。
 //
 // レベル文字列: '4' / '3' / 'pre2' / '2' / 'pre1'
 // 4 級の正誤問題の answer は '○' / '✖'、他級は 'T' / 'F'（LisonContents の値で完全一致比較）
 // 週は月曜起点。weekStart は _sangoToday() を _lisonGetWeekStart で月曜化したもの。
 // HP: 4/3/pre2 = 素点 100、2/pre1 = 素点 200。連続週²倍率（streak/7 切り上げ²）は他コンテンツと同じ。
 // 1日1レベル1HP（同日同レベル提出は alreadyGranted）。録音は alreadyGranted でも保存・記録する。
+//
+// 録音保存期間: LISON_RETENTION_DAYS 日（2026-05-04 時点では 15 日）。
+// cleanupLisonOldRecordings() を Time-based Trigger で日次実行する想定。
 // =============================================
 
 const LISON_VALID_LEVELS = ['4', '3', 'pre2', '2', 'pre1'];
+
+// 録音の保存期間（日数）。Drive ファイルとシート行を両方削除する基準。
+// 値を変更したい場合（20 日 / 30 日など）はここ 1 箇所のみ。
+const LISON_RETENTION_DAYS = 15;
 
 // JST 3 時区切りの今日の日付から、その週の月曜日（含む）の 'yyyy-MM-dd' を返す。
 // 月曜は当日、火〜土は前日〜5 日前、日曜は 6 日前。
@@ -6939,10 +6951,15 @@ function getLisonSubmissionsList(params) {
     }
 
     const values = sh.getDataRange().getValues();
-    // 列構成: [0]timestamp [1]studentId [2]studentName [3]level
-    //         [4]weekStart [5]quizScore [6]recordingUrl [7]hpGained
-    // 30 日より前の行は除外
-    const cutoffMs = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    // 列構成（9 列、2026-05-04 以降）:
+    //   [0]timestamp [1]studentId [2]studentName [3]level [4]weekStart
+    //   [5]quizScore [6]recordingUrl [7]hpGained [8]fileId
+    // 旧シート（8 列、fileId なし）でも fileId は recordingUrl から regex 抽出してフォールバック。
+    const header = values[0] || [];
+    const iFileId = header.indexOf('fileId'); // 列が無ければ -1（後方互換）
+    // LISON_RETENTION_DAYS より前の行は除外（cleanup で削除されるはずだが
+    // 念のため UI 側でもフィルタする）
+    const cutoffMs = Date.now() - LISON_RETENTION_DAYS * 24 * 60 * 60 * 1000;
     const submissions = [];
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
@@ -6953,6 +6970,10 @@ function getLisonSubmissionsList(params) {
       const sid = String(r[1] || '').trim();
       if (filterSid && sid !== filterSid) continue;
       const url = String(r[6] || '').trim();
+      // fileId は専用列を優先、無ければ URL から regex 抽出（後方互換）
+      const fid = (iFileId >= 0)
+        ? (String(r[iFileId] || '').trim() || _lisonExtractFileId(url))
+        : _lisonExtractFileId(url);
       submissions.push({
         timestamp: Utilities.formatDate(ts, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
         studentId: sid,
@@ -6964,7 +6985,7 @@ function getLisonSubmissionsList(params) {
           : String(r[4] || '').trim(),
         quizScore: Number(r[5]) || 0,
         recordingUrl: url,
-        fileId: _lisonExtractFileId(url),
+        fileId: fid,
         hpGained: Number(r[7]) || 0
       });
     }
@@ -6975,6 +6996,261 @@ function getLisonSubmissionsList(params) {
   } catch (err) {
     console.error('[getLisonSubmissionsList]', err);
     return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// LisonSubmissions に fileId 列を追加するマイグレーション（1 回限り手動実行）
+// =============================================
+// 1) シートのヘッダー行に "fileId" 列が無ければ末尾に追加
+// 2) 全データ行を走査し、fileId 列が空なら recordingUrl から regex で抽出して埋める
+// 3) 既に fileId が入っている行はスキップ（冪等。再実行しても害なし）
+//
+// 想定運用: GAS エディタの関数ドロップダウンから 1 回だけ実行。
+// 戻り値: { ok, total, succeeded, failed, errors:[{row,reason}], elapsedSec }
+function migrateLisonSubmissionsAddFileId(params) {
+  const t0 = Date.now();
+  const result = {
+    ok: true,
+    total: 0,
+    succeeded: 0,
+    failed: 0,
+    errors: [],
+    elapsedSec: 0
+  };
+  try {
+    const sh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (!sh) {
+      console.log('[migrateLisonSubmissionsAddFileId] LisonSubmissions シートが見つかりません');
+      result.ok = false;
+      result.errors.push({ row: 0, reason: 'LisonSubmissions シートなし' });
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      return result;
+    }
+    if (sh.getLastRow() < 1) {
+      console.log('[migrateLisonSubmissionsAddFileId] 空シート');
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      return result;
+    }
+
+    // ヘッダーを取得（1 列目から最終列まで）
+    const lastCol = sh.getLastColumn();
+    const headerRange = sh.getRange(1, 1, 1, lastCol);
+    let header = headerRange.getValues()[0];
+    let iFileId = header.indexOf('fileId');
+
+    // ヘッダーに fileId 列が無ければ末尾に追加
+    if (iFileId < 0) {
+      const newCol = lastCol + 1;
+      sh.getRange(1, newCol).setValue('fileId');
+      iFileId = newCol - 1; // 0-indexed
+      console.log('[migrateLisonSubmissionsAddFileId] ヘッダー行に fileId 列を追加（列 ' + newCol + '）');
+      header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    }
+
+    if (sh.getLastRow() < 2) {
+      console.log('[migrateLisonSubmissionsAddFileId] データ行なし、ヘッダーのみ追加して終了');
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      return result;
+    }
+
+    // 全データ行を取得（ヘッダー追加後の最新の列幅で）
+    const dataRange = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn());
+    const values = dataRange.getValues();
+    result.total = values.length;
+    console.log('[migrateLisonSubmissionsAddFileId] 対象 ' + result.total + ' 行を走査開始');
+
+    const iUrl = header.indexOf('recordingUrl');
+    if (iUrl < 0) {
+      console.warn('[migrateLisonSubmissionsAddFileId] header に recordingUrl 列がありません。インデックス 6 にフォールバック');
+    }
+    const urlIdx = (iUrl >= 0) ? iUrl : 6;
+
+    for (let i = 0; i < values.length; i++) {
+      const rowNum = i + 2; // 1-based シート行番号
+      try {
+        const existing = String(values[i][iFileId] || '').trim();
+        if (existing) continue; // 既に値あり → スキップ（冪等）
+        const url = String(values[i][urlIdx] || '').trim();
+        if (!url) continue; // URL も無い → 何もしない（古い空行など）
+        const fid = _lisonExtractFileId(url);
+        if (!fid) {
+          result.failed += 1;
+          result.errors.push({ row: rowNum, reason: 'fileId 抽出不可: ' + url });
+          continue;
+        }
+        // シートに直接書き込み（バッチで setValues しないのは fileId 列のみで小規模なため）
+        sh.getRange(rowNum, iFileId + 1).setValue(fid);
+        result.succeeded += 1;
+      } catch (err) {
+        result.failed += 1;
+        result.errors.push({ row: rowNum, reason: String(err && err.message || err) });
+      }
+      if ((i + 1) % 100 === 0) {
+        console.log('[migrateLisonSubmissionsAddFileId] 進捗 ' + (i + 1) + '/' + result.total
+                    + ' (succeeded=' + result.succeeded + ', failed=' + result.failed + ')');
+      }
+    }
+    result.elapsedSec = (Date.now() - t0) / 1000;
+    console.log('[migrateLisonSubmissionsAddFileId] 完了: total=' + result.total
+                + ', succeeded=' + result.succeeded
+                + ', failed=' + result.failed
+                + ', elapsedSec=' + result.elapsedSec.toFixed(2));
+    return result;
+  } catch (err) {
+    console.error('[migrateLisonSubmissionsAddFileId]', err);
+    result.ok = false;
+    result.errors.push({ row: 0, reason: String(err) });
+    result.elapsedSec = (Date.now() - t0) / 1000;
+    return result;
+  }
+}
+
+// =============================================
+// 古いリスオン録音の自動削除（Time-based Trigger で日次実行）
+// =============================================
+// LisonSubmissions シートを走査し、timestamp が LISON_RETENTION_DAYS 日以上前の
+// レコードについて：
+//   1. Drive ファイル（fileId）を setTrashed(true)
+//   2. シート行を削除
+// を実行する。
+//
+// params:
+//   - dryRun?: true なら削除せず対象一覧をログ表示するだけ
+//
+// 戻り値: {
+//   ok, totalChecked, deleted, alreadyMissing, errors:[{row,fileId,reason}],
+//   dryRun, elapsedSec, targets:[{row,fileId,timestamp}]  // dryRun のみ詳細
+// }
+//
+// エラー方針:
+//   - DriveApp.getFileById で例外（File not found 等）→ alreadyMissing として
+//     カウント。シート行は削除する（孤児行を残さない）
+//   - その他の例外 → errors に追加し、シート行は削除しない（次回再試行対象に残す）
+//
+// 想定運用: Apps Script エディタの「時計アイコン」→「トリガーを追加」
+//   → 関数: cleanupLisonOldRecordings / イベント: 時間主導 / 日タイマー / 午前 4-5 時
+function cleanupLisonOldRecordings(params) {
+  const t0 = Date.now();
+  const dryRun = !!(params && params.dryRun);
+  const result = {
+    ok: true,
+    totalChecked: 0,
+    deleted: 0,
+    alreadyMissing: 0,
+    errors: [],
+    dryRun: dryRun,
+    elapsedSec: 0,
+    targets: []
+  };
+  try {
+    const sh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) {
+      console.log('[cleanupLisonOldRecordings] LisonSubmissions が空 or 未作成');
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      return result;
+    }
+
+    const values = sh.getDataRange().getValues();
+    const header = values[0] || [];
+    const iFileId = header.indexOf('fileId');
+    const iUrl = header.indexOf('recordingUrl');
+    const urlIdx = (iUrl >= 0) ? iUrl : 6;
+
+    const cutoffMs = Date.now() - LISON_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+    // 削除対象を収集（行番号は 1-based）
+    const targets = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[0]) continue;
+      const ts = new Date(r[0]);
+      if (isNaN(ts.getTime())) continue;
+      result.totalChecked += 1;
+      if (ts.getTime() >= cutoffMs) continue; // まだ保持期間内
+      const url = String(r[urlIdx] || '').trim();
+      const fid = (iFileId >= 0)
+        ? (String(r[iFileId] || '').trim() || _lisonExtractFileId(url))
+        : _lisonExtractFileId(url);
+      targets.push({
+        row: i + 1, // 1-based
+        fileId: fid,
+        timestamp: Utilities.formatDate(ts, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+      });
+    }
+
+    console.log('[cleanupLisonOldRecordings] 対象 ' + targets.length + ' 件 / 全行 '
+                + result.totalChecked + ' 件 / 保持期間 ' + LISON_RETENTION_DAYS + ' 日'
+                + (dryRun ? ' [dry-run]' : ''));
+
+    if (dryRun) {
+      result.targets = targets;
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      // dry-run でも対象が多い場合は最初の数件のみログ
+      const sample = targets.slice(0, 10);
+      sample.forEach(function(t) {
+        console.log('  [would delete] row=' + t.row + ', fileId=' + t.fileId + ', ts=' + t.timestamp);
+      });
+      if (targets.length > 10) console.log('  ... and ' + (targets.length - 10) + ' more');
+      return result;
+    }
+
+    // 本番削除：Drive 削除 → 行削除（行は末尾→先頭の順で削除して行番号ズレ回避）
+    const successRows = [];   // Drive 削除 OK or alreadyMissing → シート行も消す
+    for (let k = 0; k < targets.length; k++) {
+      const t = targets[k];
+      if (!t.fileId) {
+        // fileId 取れない孤児行は警告ログを出してシートからは削除する
+        console.warn('[cleanupLisonOldRecordings] row=' + t.row + ' fileId 取得不可、シート行のみ削除');
+        successRows.push(t.row);
+        continue;
+      }
+      try {
+        const file = DriveApp.getFileById(t.fileId);
+        file.setTrashed(true);
+        result.deleted += 1;
+        successRows.push(t.row);
+      } catch (err) {
+        const msg = String(err && err.message || err);
+        // ファイル既削除済み（Not Found 系）は alreadyMissing にカウント、行も削除
+        if (/not\s*found|見つかりません|無効な ID/i.test(msg)) {
+          result.alreadyMissing += 1;
+          successRows.push(t.row);
+        } else {
+          // その他のエラー（権限・通信など）はシート行を残して再試行対象に
+          result.errors.push({ row: t.row, fileId: t.fileId, reason: msg });
+        }
+      }
+      if ((k + 1) % 100 === 0) {
+        console.log('[cleanupLisonOldRecordings] 進捗 ' + (k + 1) + '/' + targets.length
+                    + ' (deleted=' + result.deleted + ', alreadyMissing=' + result.alreadyMissing
+                    + ', errors=' + result.errors.length + ')');
+      }
+    }
+
+    // シート行削除（末尾→先頭の順）
+    successRows.sort(function(a, b){ return b - a; });
+    for (let k = 0; k < successRows.length; k++) {
+      try {
+        sh.deleteRow(successRows[k]);
+      } catch (err) {
+        result.errors.push({ row: successRows[k], fileId: '', reason: 'deleteRow 失敗: ' + String(err) });
+      }
+    }
+
+    result.elapsedSec = (Date.now() - t0) / 1000;
+    console.log('[cleanupLisonOldRecordings] 完了: totalChecked=' + result.totalChecked
+                + ', deleted=' + result.deleted
+                + ', alreadyMissing=' + result.alreadyMissing
+                + ', errors=' + result.errors.length
+                + ', elapsedSec=' + result.elapsedSec.toFixed(2));
+    return result;
+  } catch (err) {
+    console.error('[cleanupLisonOldRecordings]', err);
+    result.ok = false;
+    result.errors.push({ row: 0, fileId: '', reason: String(err) });
+    result.elapsedSec = (Date.now() - t0) / 1000;
+    return result;
   }
 }
 
@@ -7097,6 +7373,11 @@ function submitLison(params) {
     }
 
     // LisonSubmissions に追記（alreadyGranted のときも recordingUrl と quizScore は残す）
+    // 列構成（9 列）: timestamp / studentId / studentName / level / weekStart /
+    //                quizScore / recordingUrl / hpGained / fileId
+    // fileId は 2026-05-04 追加。古いシート（8 列）でも appendRow は 9 要素を許容
+    // するが、保守上は migrateLisonSubmissionsAddFileId() を 1 回実行して
+    // ヘッダー行と既存データに fileId 列を埋めること。
     subSheet.appendRow([
       _nowJST(),
       sid,
@@ -7105,7 +7386,8 @@ function submitLison(params) {
       weekStart,
       quizScore,
       saveRes.shareUrl,
-      hpGained
+      hpGained,
+      saveRes.fileId || ''
     ]);
 
     // HP 付与時のみ HPLog 記録 + ランキングキャッシュ無効化

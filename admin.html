@@ -355,7 +355,7 @@
     <button type="button" class="dashboard-card" onclick="goAdminLisonRecordings()">
       <div class="dashboard-card-icon">🎤</div>
       <div class="dashboard-card-title">リスオン録音データ</div>
-      <div class="dashboard-card-desc">生徒の音読録音を確認（保存期間 30 日）</div>
+      <div class="dashboard-card-desc">生徒の音読録音を確認（保存期間 15 日）</div>
     </button>
     <button type="button" class="dashboard-card" onclick="goAdminHpGrant()">
       <div class="dashboard-card-icon">💎</div>
@@ -497,7 +497,7 @@
   </div>
 </div>
 
-<!-- リスオン録音：生徒一覧（直近30日に録音した生徒） -->
+<!-- リスオン録音：生徒一覧（直近 LISON_RETENTION_DAYS 日に録音した生徒、現状 15 日） -->
 <div id="screen-admin-lison-students" class="screen">
   <header>
     <h1>🎤 リスオン録音 - 生徒一覧</h1>
@@ -508,7 +508,7 @@
   </header>
   <div class="admin-page">
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
-    <div class="page-lead">直近 30 日に音読を録音した生徒の一覧です。生徒名をクリックすると録音一覧を表示します。</div>
+    <div class="page-lead">直近 15 日に音読を録音した生徒の一覧です。生徒名をクリックすると録音一覧を表示します。</div>
     <div id="lison-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
   </div>
 </div>
@@ -1486,7 +1486,8 @@
     loadLisonRecordingsForStudent(_lisonRecCurrentSid);
   }
 
-  // 直近30日に録音した生徒の一覧（getLisonSubmissionsList を全件取得 → クライアント側で集約）
+  // 直近 LISON_RETENTION_DAYS 日（現状 15 日）に録音した生徒の一覧
+  // getLisonSubmissionsList を全件取得 → クライアント側で集約
   function loadLisonRecordingStudents() {
     var wrap = document.getElementById('lison-students-wrap');
     wrap.innerHTML = '<div class="lison-students-empty">⏳ 読み込み中...</div>';
@@ -1503,7 +1504,7 @@
       }
       var subs = res.submissions || [];
       if (subs.length === 0) {
-        wrap.innerHTML = '<div class="lison-students-empty">直近 30 日のリスオン録音はまだありません。</div>';
+        wrap.innerHTML = '<div class="lison-students-empty">直近 15 日のリスオン録音はまだありません。</div>';
         return;
       }
       // sid 単位に集約。最新 timestamp と件数を保持
@@ -1584,7 +1585,7 @@
       var subs = res.submissions || [];
       _lisonRecListCache[sid] = subs;
       if (subs.length === 0) {
-        wrap.innerHTML = '<div class="lison-students-empty">この生徒の直近 30 日のリスオン録音はありません。</div>';
+        wrap.innerHTML = '<div class="lison-students-empty">この生徒の直近 15 日のリスオン録音はありません。</div>';
         return;
       }
       // 各録音をカードで描画
