@@ -390,6 +390,10 @@
   function doViewLogout() {
     _studentId = null;
     _showScreen('screen-login');
+    // ログアウト後は統合ログイン画面（index.html）に戻す。
+    // 直接 view.html?sid=xxx で来た保護者・統合画面から来た保護者・手動入力した保護者、
+    // どの経路でも一律で「賑やかな入口」に戻す UX 統一（コミット 4fc788c の続き）。
+    window.location.href = './';
   }
 
   // ============================
