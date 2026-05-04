@@ -2359,6 +2359,130 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
 - 本日のセッション終了時点: `dev = main = origin/dev = origin/main` で完全同期、stale branch（`claude/pedantic-yalow-b54051`）削除済
 
+### 2026-05-05 早朝（自宅PC、夜跨ぎセッション：先生メッセージ + rank_08 + キャラクター紹介 + rank_01 事前調査）
+
+夜跨ぎで 4 件を完遂。GAS 変更を含む新機能 1 件、基礎計算 rank_08 の Phase 1〜4 完走、純粋フロント機能追加 1 件、次フェーズ用の事前調査 1 件。
+
+#### 187. 先生メッセージ機能の新設（dev `2be9824`、main も同 SHA）
+- **背景**: 講師→生徒の一方向メッセージ。生徒からの返信は LINE に一本化（このアプリでは不可）。Teachers シートは将来の講師ログイン機能の枠を兼ねて先行設置
+- **シート 3 つ新設**:
+  - `Teachers` (6列): teacherId / teacherName / password / role / displayNickname / active
+  - `TeacherMessages` (8列): timestamp / messageId / senderId / senderNickname / targetType / targetIds / content / createdAt
+  - `MessageReads` (3列): studentId / messageId / readAt
+- **GAS 6 関数**:
+  - `ensureTeachersSheet()` / `ensureTeacherMessagesSheets()` — GAS エディタから 1 回限り実行、冪等。T001（ふくちさん用、表示名「ふく先生」、初期パスワード `TEMP_PASSWORD_CHANGE_ME`）を自動投入
+  - `sendTeacherMessage(params)` — 認証必須・doPost 強制、`'group'` は弾く、本文 500 文字制限
+  - `getMessagesForStudent(params)` / `getUnreadMessageCount(params)` — 生徒画面の一覧 + 未読バッジ用
+  - `markMessageAsRead(params)` — 冪等：既存ならスキップ
+- **管理画面**: ダッシュボードに「📩 先生からのメッセージ」カード追加 + 新規 3 画面（作成 / 確認 / 完了）。個別生徒（複数選択）/ 全員 / グループ（準備中表示）の 3 ラジオ。500 文字カウンタ + 本文プレビュー。新規 3 画面 ID をヘッダーセレクタリスト（通常版 + レスポンシブ版）に必ず追加（[CLAUDE.md](CLAUDE.md) #167/#168 運用ルール準拠）
+- **生徒画面**: ホーム画面マイカツ君直下に「📩 先生からのメッセージ」ボタン + 未読件数の脈動アニメ赤バッジ。新規画面 `screen-student-messages`（一覧、未読は薄黄色背景 + NEW タグ）。**楽観的UI**：タップ即座に既読化、サーバーには非同期送信。`showWelcome` / `goHome` に `loadUnreadMessageCount` を hook
+- **送信時のスナップショット**: `senderNickname` は送信時点で Teachers シートからスナップショット → 後から表示名を変えても過去メッセージは元のまま
+- **ふくちさん側で必須の手順**: `clasp push` → デプロイ → GAS エディタで `ensureTeachersSheet()` + `ensureTeacherMessagesSheets()` を 1 回実行 → Teachers シート T001 のパスワードを安全な値に手動で書き換え
+- **教訓**：初回試行で「完了報告は出たが実体は commit 未反映」事故が発生。ファイル変更は実行されていたが commit/push 抜けていた。再実行で commit `2be9824` で完成 → CLAUDE.md 運用ルールに「Claude Code の完了報告レビュー時は必ずコミット SHA 行の有無を確認、無ければ実装は反映されていない可能性ありとして再実行を即指摘」を追加（#191 で運用ルール昇格）
+
+#### 188. 基礎計算 rank_08 一次方程式 Phase 1 完走（dev `1b13363` / `90bc0cf`、main も同 SHA）
+- **背景**: 拡充計画 優先度 B の続き。rank_06 と同思想（Band D 新設）で rank_08 も 30→50 題化
+- **設計判断（ふくちさん 36 年塾長経験ベース）**:
+  - A=5 / B=25 / C=10 / D=10（合計 50）
+  - 中1 一次方程式の核心「移項」と「カッコの展開」のうち、旧構成は ax+b=cx+d 形しかなく、**カッコ付き問題（中1 単元の山場）が完全に欠落**していた → Band D 新設で解消
+  - B が脱落ポイントなのでダントツで多く（25 問、単元の主役）、A は単純すぎるので少なく（5 問）
+- **コード変更**:
+  - [band_config.py](scripts/generate_kiso_questions/common/band_config.py): rank=8 を 4 Band 構造に拡張（A: coef_max 9→10, x_max 9→12 / B: 既存パラメータ無修正で 10→25 増量 / C: value_max 12→15 / D: 新設 paren_form, subcounts={"light":2,"standard":6,"heavy":2}）
+  - [rank_08_linear_eq.py](scripts/generate_kiso_questions/rank_08_linear_eq.py) +185/-7:
+    - 新ヘルパー `_build_paren_term(a, b)` / `_build_paren_minus_paren(a, b, c, d)`
+    - 新 generator `_gen_paren_form_light` / `_standard` / `_heavy`
+    - 新 dispatcher `_resolve_band_d_subkind(slot_index, subcounts)`（rank_03 / rank_02 / rank_07 と同パターン）
+    - `generate_problem(band, rng, slot_index=0)` 化、self_check / `_verify_solution` を Band D 対応に拡張
+    - 既存 A/B/C のロジック本体は完全無修正（regression なし）
+  - GAS shortcut: `diagnoseRank8InProgress` / `abandonRank8InProgress`（汎用関数の薄いラッパー）
+- **Band D の 3 サブパターン**（slot_index 駆動の決定論的分離、教育的配分を確実に保証）:
+  - light（slot 0,1）: `a(x+b) = c`（右辺定数、導入レベル）
+  - standard（slot 2..7）: `a(x+b) = c(x+d)`（両辺カッコ、単元の主役）
+  - heavy（slot 8,9）: `a(x+b) - c(x+d) = e`（カッコ複数 + 移項、応用）
+- **検証結果**:
+  - python main.py: rank_08 50/50 unique, 0 failed selfcheck, 0 dedup_warn
+  - 全 20 rank で 740/740 unique (rank 1, 9-20 = 13×30 + rank 2-8 = 7×50)
+  - Node 検証 `out/_verify_rank08.mjs`（gitignore 配下）: **14 PASS / 0 FAIL**
+- **Phase 4 本番投入** (`90bc0cf`):
+  - ふくちさん側で `diagnoseRank8InProgress()` → `abandonRank8InProgress()` 実行 → db_writer で 740 行を全置換投入
+  - `_verify_phase4_post.py` を rank_08 対応に拡張（+133 / -13 行）: EXPECTED_TOTAL 720→740、RANKS_50 に rank=8 追加、`classify_band_d_subkind` ヘルパー、T7-T9 を新規追加（既存 T7 → T10 に番号繰り下げ）
+  - 本番 KisoQuestions シート検証: **41 PASS / 0 FAIL**（rank=8 Band 配分 5/25/10/10 ✓、Band D サブパターン配分 light=2 / standard=6 / heavy=2 ✓、形式チェック light/standard/heavy 全 OK）
+- **Band D 本番投入サンプル**:
+  ```
+  [light]    -2(x + 1) = 0          → x = -1
+  [standard] -3(x - 2) = -6(x + 3)  → x = -8
+  [standard] -5(x + 4) = 5(x + 6)   → x = -5
+  [heavy]    4(x - 8) - 3(x + 7) = -52  → x = 1
+  [heavy]    6(x + 8) - 4(x + 4) = 40   → x = 4
+  ```
+
+#### 189. 生徒画面「マイ活アプリのキャラクター紹介」新設（dev `56cef15`、main も同 SHA）
+- **背景**: 7 キャラ（マイカツ君 + 6 コンテンツキャラ）の存在を生徒に認知させる紹介ページを新設
+- **配置**: ホーム画面の連絡事項 ④ と週間HPランキング ⑤ の間に紫グラデの「🎭 マイ活アプリのキャラクター紹介」ボタン
+- **新画面** `screen-character-intro`: タイトル「マイ活アプリのキャラクターたち」（虹色グラデ文字）+ 2 列グリッド（モバイル 1 列）+ 7 カード
+- **各カード**: 画像（高さ 220px、薄紫グラデ背景）+ コンテンツ名（18px 太字、紺）+ キャラ名（15px 紫）+ 副キャプション空枠（min-height 36px、white-space pre-wrap）
+- **データ定数 `CHARACTER_INTRO_DATA`**（[index.html:3082-3090](index.html:3082)）: 7 件配列、順序固定（マイカツ君 → RUSH君 → サンゴタン → ニチエイ → キソ"K"さん → リスオン → カンジー）。**caption フィールドは空欄、ふくちさんが将来「性格説明」を入れるとカード下部に表示される**（改行は `\n` で書ける）
+- **画像パスの仕様差異**: 仕様書では `images/character.jpg` だったが実ファイルは repo ルートの `./character.jpg` のため実パスを採用。コメントに「将来 images/ に移動した場合は CHARACTER_INTRO_DATA[0].image を更新」と明記
+- **CSS**: `.char-intro-home-btn` / `.char-intro-title` / `.char-intro-grid` / `.char-intro-card` / `.char-intro-img-wrap` / `.char-intro-img` / `.char-intro-content-name` / `.char-intro-name` / `.char-intro-caption` + `@media (max-width:480px)` で 1 列 + 画像 200px に縮小
+- GAS 変更なし、純粋フロント追加（+65 行）
+
+#### 190. 基礎計算 rank_01 二次方程式 Phase 1 拡充の事前調査と設計合意（実装は次回・塾PCで）
+- **調査内容**: 現状把握 + パラメータ空間実測（各 Band 1000 回生成）+ 教育的観点 + 構造的リスク確認 + 4 案の設計提案 + ふくちさんへの確認事項を網羅した事前調査レポート作成
+- **調査スクリプト**: `scripts/generate_kiso_questions/out/_explore_rank01.py`（gitignore 配下）。各 Band の unique 数 / サブパターン分布 / 特徴量を測定
+- **判明した事実**:
+  - **構造的なバグや危険な重複リスクはない**（Band C が 105 unique でやや狭め、Band B-x²=c が 30 unique で偏ると枯渇リスクあり）
+  - **教育的に最も重要な未カバーパターン**: `(x-p)²=q` 形（平方根法 / 平方完成）。中3 教科書では解の公式の前段階として必ず登場するが、現状の rank_01 は完全にスキップしている
+  - 構造的なリスク: Band B が `rng.choice` の非決定的 50/50 分岐になっており、rank_03/02/07/08 と同じ「slot_index 駆動の決定論的サブパターン分離」未適用
+  - TODO_PHASE3 マーカーは rank_01 には存在しない → 一度も拡充作業の対象になっていない原型のまま
+- **★ 設計合意（2026-05-05、ふくちさん 36 年塾長経験ベース）**:
+  - **4 Band 構成 A=15 / B=5 / C=15 / D=15（合計 50）**
+  - **Band A**: 因数分解で解ける整数解（x² + bx + c = 0）15 問、現状の `_gen_factorable_int` 踏襲。`max_root` 拡張で unique 増（要パラメータ判断）
+  - **Band B**: x² = c 形のみ 5 問。**現状の P_rational（たすき掛け系 ax²+bx+c=0、例 `2x²+7x+6=0`）は完全削除**（中学範囲外のため Phase 3 でも復活させない、永久温存ルールは #191 参照）。`x² - 22 = 0` のような最もシンプルな平方根法だけを 5 問
+  - **Band C**: 解の公式必須の無理数解 15 問。**係数付き解 k>1（例 `2√3`、`3√5`）を必ず増量**。現状は k>1 が 3.2% しかなく不足。パラメータ調整で k>1 比率を引き上げる
+  - **Band D 新設**: 平方根法の発展 15 問
+    - **(x-p)² = q 形 7 問**（中3 教科書で解の公式の前段階として必ず登場する重要パターン、現状未カバー）
+    - **ax² = c 形（a≠1）8 問**（`2x² = 18` 系、Band B の x²=c の発展）
+    - slot_index 駆動の決定論的サブパターン分離方式（rank_03 / rank_02 / rank_07 / rank_08 と同パターン）
+- **教育的根拠**:
+  - 中3 二次方程式単元の標準解法 4 つ（① 因数分解 / ② 平方根法 x²=c / ③ 平方完成 (x-p)²=q / ④ 解の公式）を全てカバー
+  - **たすき掛け因数分解 (ax²+bx+c=0、a≠1) は中学範囲外** → rank_01 の Band B 旧 P_rational パターンは Phase 3 でも復活させない（永久温存）
+  - Band B = 5 問で控えめにし、平方根法の主役を Band D の (x-p)²=q + ax²=c に移す構成
+- **次回タスク**: 塾PC で Phase 1 実装（Band B 旧 P_rational generator 削除 + Band D 新規 generator 2 つ + Band C のパラメータ調整で k>1 増量）
+
+#### 191. 教訓・運用ルール（再発防止のため [CLAUDE.md](CLAUDE.md) 運用メモに昇格）
+
+本セッションで学んだルール 3 件を CLAUDE.md 上部の運用メモに昇格させる:
+
+1. **Claude Code 完了報告レビュー時は必ずコミット SHA 行の有無を確認**：報告に SHA 行が無ければ「実装は反映されていない可能性あり、再実行を」と即指摘する。今回 #187 先生メッセージ機能の初回試行で「完了報告は出たが commit/push 抜けていた」事故が発生（ファイル変更自体は完了していたが commit のステップが漏れた）。再実行で `2be9824` 完成
+2. **既存運用中の機能（バージョンバッジ等）に手を出す時は必ず事前ユーザー確認**：自動生成 / 手動更新不要の自動仕組み（`document.lastModified` 由来のバージョンバッジ等）を Claude Code 側で勝手に変更すると運用ルール違反。CLAUDE.md 運用メモの「自動追従系」リストに該当する機能は事前確認必須
+3. **たすき掛け因数分解は中学範囲外なので基礎計算では永久温存**：rank_01 の旧 Band B P_rational パターン（`(2x-p)(x-r)=0` 系の `2x²+7x+6=0` 等）は中学指導要領に含まれない高校内容のため、Phase 3 でも復活させない。Phase 1 で完全削除、TODO_PHASE3 にも記載しない
+
+#### 192. 次回再開時の手順（数時間後・塾PC）
+- **PowerShell で Claude Code 起動前に実行**:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
+- **次回（塾PC）の最優先タスク**: rank_01 二次方程式 Phase 1 実装（#190 設計合意済、Band B 旧 P_rational 削除 + Band D 新設 + Band C パラメータ調整で k>1 増量 → Phase 4 本番投入まで完走）
+- **その後の優先順位**:
+  - 基礎計算 rank_11〜13 正負の数 3 単元 Phase 1（中1 基礎、躓きポイント）
+  - 基礎計算 rank_09 式の計算・中1 Phase 1
+  - 基礎計算 rank_10 単位・比・割合 Phase 1
+  - 基礎計算 rank_14〜20 無学年 7 単元 Phase 1
+  - 全単元 Phase 1 完了後：全単元 100 題化（Phase 2）
+- **将来タスク**:
+  - リスオン default 画像の格子模様（透過部分）修正
+  - キャラクター紹介の副キャプション追加（[index.html:3082-3090](index.html:3082) `CHARACTER_INTRO_DATA[0-6].caption` 編集だけ）
+  - 講師ログイン機能（Teachers シート利用、T001 のパスワードベース）
+  - 英語リスオン問題データを管理画面から入力できる機能
+  - 和文英訳② / 社会の重要用語 / 理科の重要用語のキャラクター作成
+  - 週間HPランキング小学生 / 中学生 / 高校生 3 カテゴリ分割
+  - アバター機能（Gemini API、1〜2 日規模）
+  - 紙の宿題連動機能（中〜大規模）
+- **本日のセッション終了時点**: `dev = main = origin/dev = origin/main` で完全同期、stale worktree なし
+
 ---
 
 ## 基礎計算 問題プール拡充計画
@@ -2378,23 +2502,29 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - 各単元の Band 構成、パラメータ範囲、generator を見直し
 - 教育的バランスを保ちつつパラメータ空間を拡張
 
-### 増産優先度（進捗 2026-04-30 更新）
+### 増産優先度（進捗 2026-05-05 更新）
 
 **優先度 A（Band 不足が確定、最優先）→ 2026-04-30 完了**
 - ✅ **rank_04 乗法公式**（Band C が 9 問のみ、報告バグの単元）— 完了 2026-04-30、CLAUDE.md #155
 - ✅ **rank_02 平方根**（Band C 構造の整理 + 教育的引き締め）— 完了 2026-04-30、CLAUDE.md #158
 - ✅ **rank_03 因数分解**（square_factor_latex で限定）— 完了 2026-04-30、CLAUDE.md #156
 
-**優先度 B（使用頻度高）→ 進行中**
+**優先度 B（使用頻度高）→ 完了**
 - ✅ **rank_07 中2 式の計算**（単項式の乗除を新規追加で教科書範囲を網羅）— 完了 2026-04-30、CLAUDE.md #159
 - ✅ **rank_05 中3 式の計算**（Band D 新設で (ax+b)² 直接展開を量で確保）— 完了 2026-04-30、CLAUDE.md #160
-- ⏳ rank_08 一次方程式
-- ⏳ rank_06 連立方程式
+- ✅ **rank_06 連立方程式**（Band D 新設で代入法向き形式を量で確保）— 完了 2026-05-04、CLAUDE.md #171
+- ✅ **rank_08 一次方程式**（Band D 新設でカッコ付き方程式を量で確保、light/standard/heavy）— 完了 2026-05-05、CLAUDE.md #188
+
+**優先度 B+（中3 二次方程式、設計合意済 → 次回実装）**
+- 📝 **rank_01 二次方程式**（4 Band 構成 A=15/B=5/C=15/D=15、たすき掛け永久削除、Band D で (x-p)²=q 7問 + ax²=c 8問 新設、Band C で k>1 増量）— 設計合意 2026-05-05、CLAUDE.md #190、実装次回（塾PC）
 
 **優先度 C（パラメータ空間が広い、余裕あり）**
-- ⏳ rank_11〜rank_20（整数・小数・正負・分数の四則）
+- ⏳ rank_09 式の計算・中1
+- ⏳ rank_10 単位・比・割合
+- ⏳ rank_11〜rank_13 正負の数 3 単元（中1 基礎、躓きポイント）
+- ⏳ rank_14〜rank_20 無学年 7 単元（小学校範囲）
 
-**Phase 1 全体進捗**: 5 / 20 単元完了（250 / 1000 題、25%）
+**Phase 1 全体進捗**: 7 / 20 単元完了（350 / 1000 題、35%）— rank_01 実装完了で 8 / 20、合計 400 / 1000 題（40%）に到達予定
 
 ### 進捗管理
 - 各単元増産時に main.py の WARN ログを確認（重複検出の有無）
