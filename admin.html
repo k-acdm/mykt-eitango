@@ -276,7 +276,8 @@
   .lison-rec-dl-link:hover { background: #e2e8f0; }
   .lison-rec-player { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e5e7eb; display: none; }
   .lison-rec-player.active { display: block; }
-  .lison-rec-player audio { width: 100%; max-width: 100%; }
+  .lison-rec-iframe { width: 100%; height: 80px; border: 0; border-radius: 6px; background: #f8fafc; }
+  @media (max-width: 480px) { .lison-rec-iframe { height: 70px; } }
   .lison-rec-fallback { font-size: 12px; color: #94a3b8; margin-top: 6px; }
   .lison-students-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
   .lison-students-table th, .lison-students-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; text-align: left; font-size: 14px; }
@@ -1594,14 +1595,17 @@
         var hpLabel = (Number(s.hpGained) > 0) ? ('+' + Number(s.hpGained) + 'HP') : '本日2回目以降';
         var fid = String(s.fileId || '').trim();
         var hasFile = !!fid;
-        // Drive の uc?export=download で直接 audio src として読ませる
-        var streamUrl = hasFile ? ('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(fid)) : '';
-        var dlUrl     = hasFile ? streamUrl : '';
-        var viewUrl   = hasFile ? ('https://drive.google.com/file/d/' + encodeURIComponent(fid) + '/view') : '';
+        // Drive 公式埋め込みプレイヤー（iframe）。<audio src="uc?export=download"> は
+        // Content-Disposition: attachment が付くため audio として読み込めない。
+        // /preview は Drive 側でブラウザ対応形式に再エンコードして配信するため、
+        // iPad Safari でも webm 録音が再生できる副次効果あり。
+        var previewUrl = hasFile ? ('https://drive.google.com/file/d/' + encodeURIComponent(fid) + '/preview') : '';
+        var dlUrl      = hasFile ? ('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(fid)) : '';
+        var viewUrl    = hasFile ? ('https://drive.google.com/file/d/' + encodeURIComponent(fid) + '/view') : '';
         var actions = '';
         if (hasFile) {
           actions =
-            '<button type="button" class="lison-rec-play-btn" onclick="toggleLisonRecPlayer(' + idx + ')">▶️ 再生</button>' +
+            '<button type="button" class="lison-rec-play-btn" id="lison-rec-btn-' + idx + '" onclick="toggleLisonRecPlayer(' + idx + ')">▶️ 再生</button>' +
             '<a class="lison-rec-dl-link" href="' + _esc(dlUrl) + '" target="_blank" rel="noopener" download>⬇️ ダウンロード</a>' +
             '<a class="lison-rec-dl-link" href="' + _esc(viewUrl) + '" target="_blank" rel="noopener">🔗 Drive</a>';
         } else {
@@ -1616,9 +1620,10 @@
                    '<span class="lison-rec-actions">' + actions + '</span>' +
                  '</div>' +
                  (hasFile ? (
-                   '<div class="lison-rec-player" id="lison-rec-player-' + idx + '">' +
-                     '<audio controls preload="none" src="' + _esc(streamUrl) + '"></audio>' +
-                     '<div class="lison-rec-fallback">※ 再生できない場合は「⬇️ ダウンロード」または「🔗 Drive」から開いてください（iPad Safari は webm 非対応）。</div>' +
+                   '<div class="lison-rec-player" id="lison-rec-player-' + idx + '" data-src="' + _esc(previewUrl) + '">' +
+                     // iframe は再生ボタン押下時に初めて src を入れる（オンデマンドロード、N 個同時ロード回避）
+                     '<iframe class="lison-rec-iframe" id="lison-rec-iframe-' + idx + '" src="" allow="autoplay" loading="lazy"></iframe>' +
+                     '<div class="lison-rec-fallback">※ Google ドライブのプレイヤーで再生されます。再生できない場合は「⬇️ ダウンロード」をご利用ください。</div>' +
                    '</div>'
                  ) : '') +
                '</div>';
@@ -1629,11 +1634,26 @@
     });
   }
 
-  // 再生ボタンで <audio> プレイヤーを表示／隠す
+  // 再生ボタンで Drive iframe プレイヤーを表示／隠す。
+  // 初回表示時に data-src を iframe.src へコピー（オンデマンドロード）。
+  // 再度押すと iframe.src を空にして停止 + 折りたたみ。
   function toggleLisonRecPlayer(idx) {
     var el = document.getElementById('lison-rec-player-' + idx);
     if (!el) return;
-    el.classList.toggle('active');
+    var iframe = document.getElementById('lison-rec-iframe-' + idx);
+    var btn = document.getElementById('lison-rec-btn-' + idx);
+    var willActivate = !el.classList.contains('active');
+    if (willActivate) {
+      var src = el.getAttribute('data-src') || '';
+      if (iframe && src && !iframe.src) iframe.src = src;
+      el.classList.add('active');
+      if (btn) btn.textContent = '⏹ 閉じる';
+    } else {
+      el.classList.remove('active');
+      // 再生停止のため iframe をリセット（次回 active 化時に再ロード）
+      if (iframe) iframe.src = '';
+      if (btn) btn.textContent = '▶️ 再生';
+    }
   }
 
   // =============================================================
