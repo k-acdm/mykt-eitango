@@ -52,6 +52,10 @@
 - **GAS 変更時の必須 4 ステップ**（2026-05-04 改めて整理）: ① `git pull origin dev` ② `git checkout main && git merge dev && git push origin main` ③ `cd gas && clasp push` ④ Apps Script エディタで F5 リロード → デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ
 - **フロントのみ変更時の 2 ステップ**: ① `git pull origin dev` ② `git checkout main && git merge dev && git push origin main` ③ ブラウザで `Ctrl + F5`（Mac は `Cmd + Shift + R`）で強制リロード。GAS 系の ③④ は不要
 - **GitHub Web UI からのファイルアップロード時の事故防止**（2026-05-03 確立）: 画像等を Web UI からアップロードする際は、**先に対象フォルダ（`images/` 等）の中に入ってから**「Add file → Upload files」をクリックする。リポジトリのルートに居るままアップロードするとルート直下に置かれ、`index.html` 側の `images/...` 参照と不整合になる。事故が起きた場合は `git mv` で履歴保持しながら正しい場所に移動して再 push（過去事例：2026-05-03 のカンジー画像 4 ファイル / `git mv` で復旧）。**ブランチも `dev` に切り替えてからアップロード**すること（main 直 push を避けるため）
+- **★ iframe の初期 `src=""` は罠**（2026-05-04 夕方確立）: HTML 仕様で空文字 src は「現在のドキュメント URL」に解決される。`<iframe src="">` を作ると iframe が**親ページ自身を再帰ロード**してしまう。さらに JS 側で `if (!iframe.src)` のような空文字判定ガードを置くと、`iframe.src` は親ページの絶対 URL（truthy）になっているため**条件が常に false で代入が走らない**という二重バグになる。使うべき初期値は **`src="about:blank"`**。リセット時も `iframe.src = ''` ではなく `iframe.src = 'about:blank'` を使う。リスオン録音再生（コミット d9c08c8）で実機まで気付けなかった
+- **★ `window.location.href` で外部 URL 遷移する処理の前に beforeunload を解除**（2026-05-04 夜確立）: `index.html` には [index.html:5955](index.html:5955) で `beforeUnloadHandler` がページロード時にグローバル登録されている。内部画面遷移（`showScreen`）は問題ないが、`window.location.href = '...'` 等で外部 URL に飛ぶ前に `removeEventListener('beforeunload', beforeUnloadHandler)` をしないと「このサイトを離れますか？」確認ダイアログが出る。`doLogout` は元々これを呼んでいたが、新規追加した遷移処理（保護者ログイン経路）で漏れた実績あり（コミット 0e7e0a3 で修正、CLAUDE.md 内 #176 相当）
+- **★ 画面状態をリセットする処理は内部 Step 状態もリセット**（2026-05-04 夜確立）: `doLogout` で `showScreen('screen-login')` するだけでは、ログイン画面内部の Step 1 / Step 2 display 状態が残る（生徒ログアウトすると次回 Step 2 = ID 入力欄のまま見える）。`backToRoleSelect()` 等の既存リセット関数を末尾で必ず呼ぶこと
+- **★ 既存運用中の機能に手を出す時は事前確認**（2026-05-04 夜確立）: バージョンバッジ等、既に動いている機能を「改善のため」と置き換える時は、ユーザーに事前確認する。「あれば嬉しいが難しいなら諦める」と言われた時、技術的に難しいなら**素直に「諦める」と返す**べきで、代替案を勝手に既存機能に組み込まない。意図と異なる場合 revert で元に戻すコストが発生する（コミット 677b7c8 → 14476c9 + 8269ad3 で revert + 部分再実装）
 
 ---
 
@@ -2258,6 +2262,102 @@ Phase 3 着手中に新たな設計原則が発見された場合：
   - アバター機能（Gemini API、1-2 日規模）
   - 紙の宿題連動機能（中〜大規模）
   - 基礎計算 rank_11〜20 拡充（優先度C、10 単元）
+
+### 2026-05-04 夕方〜夜（塾PC：rank_06 本番投入 + リスオン管理画面 + ログイン統合 + バグ修正）
+
+塾PC 夕方〜夜セッション。基礎計算 rank_06 の本番投入から始まり、管理画面リスオン録音閲覧の新設・iframe 周辺の罠修正、保守バッチ追加、ログイン画面統合（生徒/保護者）まで一気に進めた。コミット 12 件超。
+
+#### 175. 基礎計算 rank_06 連立方程式 Phase 4 本番投入完了
+- 塾PC で `clasp push` → デプロイ → `diagnoseRank6InProgress()` → `abandonRank6InProgress()` → `python -m common.db_writer` で **720 行を本番投入** → gspread post-verification で **30 PASS / 0 FAIL**
+- `_verify_phase4_post.py` を rank_06 対応に拡張し、これまで `out/` 配下（gitignore 内）に置いていた検証スクリプトを **`scripts/generate_kiso_questions/_verify_phase4_post.py`（gitignore 外）に移動**して git 管理対象に。今後は `git pull` で配布可
+- Band D の y=... 形 4 問 + x=... 形 11 問 = 15 問（Band D 全件一致）を確認
+- Phase 1 進捗: **6 / 20 単元（300 / 1000 題、30%）**
+- コミット: `10ef67a chore(基礎計算): _verify_phase4_post.py を rank_06 対応に拡張 + gitignore 外へ移動`
+
+#### 176. 管理画面：リスオン音読録音データ閲覧・再生機能
+- 事前調査で「Drive ファイルが `setSharing` されておらず管理画面 audio から再生不可」「fileId 列が無い regex 抽出依存」などの障害を特定
+- **GAS 側**: `_saveLisonRecording` に `setSharing(ANYONE_WITH_LINK, VIEW)` 追加 / `migrateLisonRecordingsToShared()` で既存全録音を一括公開化（**18/18 件成功**）/ `getLisonSubmissionsList(params)` で管理画面用 API 新設（認証必須、studentId 任意、直近 30→15 日メタを timestamp 降順）/ `_lisonExtractFileId(url)` 共通ヘルパー
+- **管理画面**: ダッシュボードに「🎤 リスオン録音データ」カード + 新規 2 画面（`screen-admin-lison-students` / `-list`）。生徒一覧 → 録音一覧 → ▶️ 再生で iframe 展開 + ⬇️ ダウンロード / 🔗 Drive リンク併設。CLAUDE.md #167/#168 のヘッダーセレクタリスト 3 行（通常版 background / 通常版 h1 / レスポンシブ h1）に新画面 ID を追加
+- コミット: `a15a9d7 feat(管理画面): リスオン音読録音データの閲覧・再生機能を追加`
+
+#### 177. リスオン録音再生バグ修正：`<audio>` → iframe + Drive preview
+- 真因: `<audio src="https://drive.google.com/uc?export=download&id=...">` は Drive が `Content-Disposition: attachment` ヘッダー付きで返すため、ブラウザは「ダウンロードファイル」として扱い media stream として読み込まない（`<a download>` リンクや手動ナビゲーションでは動くが `<audio src>` 経由では失敗）
+- **採用案 C**: Drive 公式埋め込みプレイヤー（iframe + `/preview` URL）に切替。Content-Disposition / CORS の問題が一切発生しない + iPad Safari でも webm 録音が再生できる副次効果（Drive 側でブラウザ対応形式に変換配信）
+- オンデマンドロード: iframe は再生ボタン押下時に初めて src を流し込む（`data-src` 経由）、ボタン文言「▶️ 再生 ⇄ ⏹ 閉じる」で状態切替、再押下で `iframe.src = 'about:blank'` で再生停止
+- コミット: `4c8ac0b fix(管理画面リスオン): <audio> から Drive iframe preview に切替で再生不可を解消`
+
+#### 178. リスオン iframe `src=""` 暴走バグ修正（HTML 仕様の罠）
+- 真因（2 重バグ）: ① `<iframe src="">` は HTML 仕様で「現在のドキュメント URL」に解決され、admin.html 自身を再帰ロード ② JS の代入ガード `if (... && !iframe.src) iframe.src = src;` が、バグ① の結果 `iframe.src` が親ページ絶対 URL（truthy）になっているため**常に false で代入が走らない** ③ 折りたたみ時のリセット `iframe.src = ''` も同様に admin.html を再ロード
+- DevTools の Elements タブで `iframe[0] src: https://k-acdm.github.io/mykt-eitango/admin.html?v=...` が決定的証拠
+- 修正: 初期 `src="about:blank"` / toggle 関数の代入ガード撤去（無条件代入）/ 折りたたみ時も `'about:blank'` にリセット / コードコメントに罠の理由を残す
+- 教訓を **「★ iframe の初期 `src=""` は罠」** として CLAUDE.md 運用メモに昇格
+- コミット: `d9c08c8 fix(管理画面リスオン): iframe src 空文字バグで preview URL に切替不可を解消`
+
+#### 179. リスオン: fileId 列マイグレーション + 15 日自動削除機構
+- **A. fileId 列追加（保守性向上）**: LisonSubmissions シート 8 列 → 9 列（末尾に fileId）。`submitLison` の appendRow に `saveRes.fileId` を含める / `getLisonSubmissionsList` を fileId 列優先 + recordingUrl regex 後方互換に / `migrateLisonSubmissionsAddFileId()` を新設（既存行を一括埋め戻し、冪等）
+- **B. 15 日自動削除（運用効率化）**: `LISON_RETENTION_DAYS = 15` をファイル先頭に定義（変更はここ 1 箇所のみ）。`cleanupLisonOldRecordings(params)` で全行スキャン → cutoff より古い行を Drive `setTrashed(true)` + シート行削除 / dryRun 対応 / Not Found は `alreadyMissing` カウント
+- 管理画面の「保存期間 30 日」表示を「15 日」に統一（ダッシュボードカード + page-lead × 3 箇所 + コメント）
+- ふくちさん側で **Time-based Trigger を毎日 04:00-05:00 に設定済**（バックアップ 02:00-03:00 / 基礎計算写真削除 03:00-04:00 と被らない時間帯）
+- コミット: `1570c9c feat(リスオン): fileId 列追加マイグレーション + 15 日自動削除機構`
+
+#### 180. Code.gs 冒頭コメントから「更新：YYYY-MM-DD」行削除
+- 当初「管理画面バージョンバッジを GAS 最終更新日時の動的表示に変更」する大きめのコミット (`677b7c8`) を入れたが、ふくちさんの意図と異なる実装だったため **`git revert` で完全ロールバック** (`14476c9`)
+- その上で「更新：YYYY-MM-DD 行のみ削除」という最小修正を再実装 (`8269ad3`)。最終的な diff は **gas/Code.js から 1 行削除のみ**
+- 教訓を **「★ 既存運用中の機能に手を出す時は事前確認」** として CLAUDE.md 運用メモに昇格
+- コミット: `677b7c8` → `14476c9` (Revert) → `8269ad3 chore(GAS): Code.js 冒頭コメントから「更新：YYYY-MM-DD」行を削除`
+
+#### 181. 生徒・保護者ログイン画面の統合（案 B+C 採用）
+- 事前調査で 4 画面（index.html / view.html / gas/Code.js / images/）を網羅分析、**案 B+C（役割選択 UI → 生徒は内部処理 / 保護者は view.html?sid=xxx へ遷移）** を推奨
+- index.html: screen-login を **2 段階フロー**（Step 1 役割選択 / Step 2 ID 入力 + 戻る）に改修。`selectLoginRole(role)` / `backToRoleSelect()` / `doRoleLogin()` 新設、既存 `doLogin` は無修正
+- **ジャグラー風キャラ装飾 12 体**（6 キャラ × default + celebrate）を `<img class="login-mascot">` で散りばめ、PC は四隅 + カード周囲に絶対配置（64px / 56px）+ 個別の rotate(-15°〜+13°) + アニメ遅延、モバイル（≤480px）は上下リボン状（30〜36px）
+- `@keyframes loginBob` で **`translate` プロパティ**（CSS Properties Level 4）を使い、`transform: rotate(...)` を破壊せずに揺らす実装。`@media (prefers-reduced-motion: reduce)` で揺れ停止
+- view.html: `URLSearchParams` で `?sid=xxx` 自動ログイン IIFE 追加。既存ブックマーク互換 + 手動入力フローも維持
+- **副作用ガード厳守**: 保護者経路では絶対に `loginStudent` を呼ばない（getStudentView のみ使用）
+- コミット: `4fc788c feat(ログイン): 生徒・保護者ログインを統一（役割選択UI + キャラ装飾）`
+
+#### 182. view.html ログアウト時の遷移先を統合ログイン画面に統一
+- `doViewLogout` 末尾に `window.location.href = './'` を 1 行追加。どの経路（URL クエリ / 手動入力 / 統合画面経由）でログインしてもログアウト後は一律で index.html（賑やかな統合ログイン画面）に戻る UX 統一
+- コミット: `815b822 fix(view.html): ログアウト後は統合ログイン画面に戻す`
+
+#### 183. ログイン統合の 2 バグ修正
+- **バグ①** 保護者ログインで beforeunload 確認ダイアログが出る
+  - 真因: `beforeUnloadHandler` がページロード時にグローバル登録（[index.html:5955](index.html:5955)）。生徒経路は内部画面遷移なので発火しないが、保護者経路は `window.location.href` で外部 URL 遷移するため発火。`doLogout` では `removeEventListener` していたが `doRoleLogin` の保護者経路では除外し忘れ
+  - 修正: `doRoleLogin` 保護者経路で `window.location.href` の直前に `beforeUnloadHandler` / `popstateHandler` の `removeEventListener` を追加
+- **バグ②** 生徒ログアウト時の戻り先が Step 2（ID 入力画面）になる
+  - 真因: `doLogout` で `showScreen('screen-login')` するだけで内部の Step 1/Step 2 display 状態をリセットしていない
+  - 修正: `doLogout` 末尾に `try { backToRoleSelect(); } catch(e){}` 追加（既存リセット関数を流用）
+- 教訓 2 件（「★ window.location.href 前に beforeunload 解除」「★ 画面リセットは内部 Step 状態も含める」）を CLAUDE.md 運用メモに昇格
+- コミット: `0e7e0a3 fix(ログイン統合): 保護者経路の確認ダイアログ + 生徒ログアウトの Step 残留`
+
+#### 184. 教訓・運用ルールの昇格（4 件）
+冒頭「## 運用メモ」に以下 4 件を追加（再発防止）:
+- **★ iframe の初期 `src=""` は罠** — `about:blank` を使う / 代入ガードを置かない
+- **★ `window.location.href` で外部 URL 遷移する処理の前に `beforeUnloadHandler` を `removeEventListener`**
+- **★ 画面状態をリセットする処理は内部 Step 状態もリセット**（`backToRoleSelect()` 等を末尾で呼ぶ）
+- **★ 既存運用中の機能に手を出す時は事前確認** — 「あれば嬉しいが難しいなら諦める」と言われたら素直に諦める
+
+#### 185. 残タスク（次回スレ用）
+- 生徒ホーム画面の先生メッセージ機能（Teachers シート設計含む）
+- 基礎計算 rank_08 一次方程式 Phase 1（設計合意済、Band A=5/B=25/C=10/D=10、Band D 新設）
+- カンジー問題作成自動化アプリ（別スレで進行中）
+- データ投入後：ホーム画面「カンジー」の「準備中」バッジ → HP バッジ「50〜100HP/日」差し替え
+- 英語リスオン問題データを管理画面（admin.html）から入力できる機能の実装
+- 講師ログイン機能 / Teachers シート / 講師の権限管理
+- 和文英訳② / 社会の重要用語 / 理科の重要用語のキャラクター作成
+- 週間HPランキングを小学生/中学生/高校生の 3 カテゴリ分割
+- アバター機能（Gemini API、1-2 日規模）
+- 紙の宿題連動機能（中〜大規模）
+- 基礎計算 rank_11〜20 拡充（優先度 C、10 単元）
+
+#### 186. 次回再開時の手順
+- **PowerShell で Claude Code 起動前に実行**:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
+- 本日のセッション終了時点: `dev = main = origin/dev = origin/main` で完全同期、stale branch（`claude/pedantic-yalow-b54051`）削除済
 
 ---
 
