@@ -411,6 +411,18 @@
     .msg-card-date { font-size: 12px; color: #888; font-weight: 600; }
     .msg-card-body { font-size: 14px; line-height: 1.75; color: #333; white-space: pre-wrap; word-wrap: break-word; }
     .msg-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 16px; background: #fafbff; border-radius: 12px; }
+    /* キャラクター紹介ページ */
+    .char-intro-home-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#fff0f5,#f3e5ff); border: 2px solid #b24bf3; border-radius: 14px; box-shadow: 0 3px 12px rgba(178,75,243,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; font-size: 16px; font-weight: bold; color: #6a1b9a; }
+    .char-intro-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(178,75,243,.26); }
+    .char-intro-title { text-align: center; font-size: 22px; font-weight: bold; background: linear-gradient(135deg,#ff6ea0,#b24bf3,#4f7df0); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: 1px; margin: 8px 0 18px; }
+    .char-intro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .char-intro-card { display: flex; flex-direction: column; align-items: center; background: #fff; border: 2px solid #f0e6ff; border-radius: 16px; padding: 18px 14px 16px; box-shadow: 0 3px 12px rgba(0,0,0,.06); transition: transform .15s, box-shadow .15s; }
+    .char-intro-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(178,75,243,.18); }
+    .char-intro-img-wrap { width: 100%; height: 220px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#fafbff,#f4ecff); border-radius: 12px; margin-bottom: 12px; padding: 8px; }
+    .char-intro-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .char-intro-content-name { font-size: 18px; font-weight: bold; color: #2d3a8c; text-align: center; margin-bottom: 4px; line-height: 1.3; }
+    .char-intro-name { font-size: 15px; color: #6a1b9a; font-weight: 600; text-align: center; margin-bottom: 8px; line-height: 1.3; }
+    .char-intro-caption { font-size: 13px; color: #555; text-align: center; min-height: 36px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; }
     .section-title { font-size: 15px; font-weight: bold; color: #2d3a8c; margin-bottom: 8px; padding-left: 4px; }
     .sub-action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
     .sub-action-row.single { grid-template-columns: 1fr; }
@@ -421,6 +433,11 @@
     @media (max-width: 480px) {
       .top-card { margin: 16px; padding: 20px; }
       .top-card h2 { font-size: 18px; }
+      .char-intro-grid { grid-template-columns: 1fr; gap: 14px; }
+      .char-intro-img-wrap { height: 200px; }
+      .char-intro-content-name { font-size: 17px; }
+      .char-intro-name { font-size: 14px; }
+      .char-intro-title { font-size: 19px; }
       .btn-wide { font-size: 16px; padding: 14px; }
       .level-btn { font-size: 15px; padding: 16px 14px; }
       .level-btn-name { font-size: 15px; }
@@ -1156,6 +1173,13 @@
       <button class="btn-wide" style="background:linear-gradient(135deg,#ff8a3d,#ff6a00);margin-top:10px;font-size:14px;padding:10px" onclick="showNoticeHistory()">📜 過去の連絡事項を見る</button>
     </div>
 
+    <!-- ④-2 キャラクター紹介 -->
+    <div class="dash-section">
+      <button type="button" class="char-intro-home-btn" onclick="showCharacterIntro()">
+        🎭 マイ活アプリのキャラクター紹介
+      </button>
+    </div>
+
     <!-- ⑤ 週間HPランキング -->
     <div class="dash-section">
       <div class="ranking-wrap" id="ranking-wrap">
@@ -1179,6 +1203,14 @@
     <div id="student-messages-list" class="msg-list">
       <div class="msg-empty">⏳ 読み込み中...</div>
     </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホームに戻る</button>
+  </div>
+</div>
+<div id="screen-character-intro" class="screen">
+  <header><h1>🎭 キャラクター紹介</h1></header>
+  <div class="container" style="padding-top:20px">
+    <div class="char-intro-title">マイ活アプリのキャラクターたち</div>
+    <div id="char-intro-grid" class="char-intro-grid"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホームに戻る</button>
   </div>
 </div>
@@ -3040,6 +3072,39 @@
     // ここを呼ばないとログイン直前の Step 2 のままで再表示されてしまう。
     try { backToRoleSelect(); } catch(e){}
   }
+  // ================= マイ活アプリ キャラクター紹介 =================
+  // 副キャプション（caption フィールド）は今は空欄。ふくちさんが各キャラの
+  // 性格説明を入れるとカード下部に表示される。空のままなら枠だけ確保される。
+  // インデックス: 0=マイカツ君 / 1=RUSH君 / 2=サンゴタン / 3=ニチエイ /
+  //              4=キソ"K"さん / 5=リスオン / 6=カンジー
+  // 注：character.jpg はリポジトリルートに存在（他のキャラ画像のように images/
+  // 配下ではない）。ふくちさんが将来 images/ に移動した場合は image パスを更新。
+  var CHARACTER_INTRO_DATA = [
+    { name: 'マイカツ君',     content: 'マイ活アプリの親分', image: './character.jpg',              caption: '' },
+    { name: 'RUSH君',         content: '英単語RUSH',         image: 'images/rushkun-default.png',   caption: '' },
+    { name: 'サンゴタン',     content: '三語短文',           image: 'images/sangotan-default.png',  caption: '' },
+    { name: 'ニチエイ',       content: '和文英訳①',          image: 'images/nichiei-default.png',   caption: '' },
+    { name: 'キソ"K"さん',    content: '基礎計算',           image: 'images/kisoK-default.png',     caption: '' },
+    { name: 'リスオン',       content: '英語リスオン',       image: 'images/lison-default.png',     caption: '' },
+    { name: 'カンジー',       content: 'カンジー',           image: 'images/kanjii-default.png',    caption: '' },
+  ];
+  function _charIntroEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function showCharacterIntro() {
+    var grid = document.getElementById('char-intro-grid');
+    if (grid) {
+      grid.innerHTML = CHARACTER_INTRO_DATA.map(function(c){
+        return '<div class="char-intro-card">' +
+                 '<div class="char-intro-img-wrap"><img class="char-intro-img" src="' + _charIntroEscHtml(c.image) + '" alt="' + _charIntroEscHtml(c.name) + '"></div>' +
+                 '<div class="char-intro-content-name">' + _charIntroEscHtml(c.content) + '</div>' +
+                 '<div class="char-intro-name">' + _charIntroEscHtml(c.name) + '</div>' +
+                 '<div class="char-intro-caption">' + _charIntroEscHtml(c.caption) + '</div>' +
+               '</div>';
+      }).join('');
+    }
+    showScreen('screen-character-intro');
+    window.scrollTo(0, 0);
+  }
+
   // ================= 先生からのメッセージ =================
   // ホーム画面の未読バッジ更新（getUnreadMessageCount）。失敗時は黙ってバッジ非表示。
   function loadUnreadMessageCount() {
