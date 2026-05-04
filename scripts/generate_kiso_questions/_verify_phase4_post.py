@@ -1,17 +1,20 @@
-"""KisoQuestions シート Phase 4 投入後検証（rank_06 対応版）。
+"""KisoQuestions シート Phase 4 投入後検証（rank_08 対応版）。
 
-過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_07 投入後検証
-（CLAUDE.md #155-160）と同じパターンで gspread からシートを直接読み出し、
-rank_06 50題化（CLAUDE.md #171）の投入結果を検証する。
+過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 投入後検証
+（CLAUDE.md #155-160 / #171）と同じパターンで gspread からシートを直接読み出し、
+rank_08 50題化 + Band D 新設の投入結果を検証する。
 
 検証項目:
-  T1 全 rank 行数 = 720
-  T2 rank 別行数（rank 1, 8-20 が 30、rank 2/3/4/5/6/7 が 50）
+  T1 全 rank 行数 = 740
+  T2 rank 別行数（rank 1, 9-20 が 30、rank 2/3/4/5/6/7/8 が 50）
   T3 rank=6 Band 配分（A=5, B=20, C=10, D=15）
-  T4 questionId 重複ゼロ（720 件全てユニーク）
+  T4 questionId 重複ゼロ（740 件全てユニーク）
   T5 problemLatex 重複ゼロ（rank 内で全てユニーク）
   T6 rank=6 Band D に y=... 形と x=... 形の両方が含まれる
-  T7 既存 rank の行数 regression なし
+  T7 rank=8 Band 配分（A=5, B=25, C=10, D=10）
+  T8 rank=8 Band D サブパターン配分（light=2, standard=6, heavy=2）
+  T9 rank=8 Band D 形式チェック（light: 右辺定数 / standard: 両辺カッコ / heavy: カッコ複数+移項）
+  T10 既存 rank の行数 regression なし
 
 実行:
   cd scripts/generate_kiso_questions
@@ -29,11 +32,38 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# 期待値（CLAUDE.md #171 の Phase 4 投入仕様）
-EXPECTED_TOTAL = 720
-RANKS_30 = [1, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-RANKS_50 = [2, 3, 4, 5, 6, 7]
+# 期待値（CLAUDE.md #171 + rank_08 Phase 1 拡充の Phase 4 投入仕様）
+EXPECTED_TOTAL = 740
+RANKS_30 = [1, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+RANKS_50 = [2, 3, 4, 5, 6, 7, 8]
 EXPECTED_RANK_06_BANDS = {"A": 5, "B": 20, "C": 10, "D": 15}
+EXPECTED_RANK_08_BANDS = {"A": 5, "B": 25, "C": 10, "D": 10}
+# Band D の slot_index 駆動サブパターン配分（_resolve_band_d_subkind 由来）
+EXPECTED_RANK_08_BAND_D_SUBPATTERNS = {"light": 2, "standard": 6, "heavy": 2}
+
+
+def classify_band_d_subkind(latex: str) -> str:
+    """rank=8 Band D の latex を light / standard / heavy のいずれかに分類。
+
+    _verify_rank08.mjs の classifyDLatex と同じ判定ロジック。
+      heavy   : 左辺に "(" が 2 つ以上 + 左辺に " - " を含む（最優先）
+      standard: 右辺に "(" を含む（両辺カッコ）
+      light   : 上記以外（左辺カッコ 1 つ、右辺は定数）
+    """
+    parts = latex.split(" = ", 1)
+    if len(parts) != 2:
+        return "unknown"
+    lhs, rhs = parts
+    lhs_opens = lhs.count("(")
+    rhs_has_paren = "(" in rhs
+    # heavy を最優先で判定（右辺定数だが左辺にカッコ 2 つあるパターン）
+    if lhs_opens >= 2 and " - " in lhs:
+        return "heavy"
+    if rhs_has_paren:
+        return "standard"
+    if lhs_opens == 1:
+        return "light"
+    return "unknown"
 
 
 def _ensure_utf8_console() -> None:
@@ -220,7 +250,89 @@ def main() -> int:
     )
 
     # ============================================================
-    # T7: 既存 rank の行数 regression なし（T2 で既に網羅、サマリ表示のみ）
+    # T7: rank=8 Band 配分（A=5, B=25, C=10, D=10）
+    # ============================================================
+    band_counts_08: Counter = Counter()
+    for r in rows:
+        try:
+            if int(r[i_rank]) == 8:
+                band_counts_08[r[i_band]] += 1
+        except (ValueError, IndexError):
+            pass
+
+    for band, expected in EXPECTED_RANK_08_BANDS.items():
+        actual = band_counts_08.get(band, 0)
+        check(
+            f"T7 rank=8 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # ============================================================
+    # T8: rank=8 Band D サブパターン配分（light=2, standard=6, heavy=2）
+    # ============================================================
+    band_d_latexes_08 = [
+        r[i_latex] for r in rows
+        if len(r) > i_latex
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 8
+        and r[i_band] == "D"
+    ]
+    sub_counts_08: Counter = Counter()
+    for l in band_d_latexes_08:
+        sub_counts_08[classify_band_d_subkind(l)] += 1
+
+    for sub, expected in EXPECTED_RANK_08_BAND_D_SUBPATTERNS.items():
+        actual = sub_counts_08.get(sub, 0)
+        check(
+            f"T8 rank=8 Band D {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+    # 'unknown' が 0 件であることも確認
+    unknown_count = sub_counts_08.get("unknown", 0)
+    check(
+        f"T8 rank=8 Band D 未分類問題ゼロ",
+        unknown_count == 0,
+        f"unknown={unknown_count}",
+    )
+
+    # ============================================================
+    # T9: rank=8 Band D 形式チェック
+    #   light:    右辺が定数（カッコを含まない）
+    #   standard: 両辺カッコ（"(" がちょうど 2 個）
+    #   heavy:    左辺に "(" 2 個以上 + " - " 区切り
+    # ============================================================
+    light_latexes    = [l for l in band_d_latexes_08 if classify_band_d_subkind(l) == "light"]
+    standard_latexes = [l for l in band_d_latexes_08 if classify_band_d_subkind(l) == "standard"]
+    heavy_latexes    = [l for l in band_d_latexes_08 if classify_band_d_subkind(l) == "heavy"]
+
+    light_ok = all("(" not in l.split(" = ", 1)[1] for l in light_latexes)
+    check(
+        "T9 light 形式: 右辺は定数（カッコなし）",
+        light_ok,
+        f"light {len(light_latexes)} 問すべて OK" if light_ok else "違反あり",
+    )
+
+    standard_ok = all(l.count("(") == 2 for l in standard_latexes)
+    check(
+        "T9 standard 形式: \"(\" がちょうど 2 個",
+        standard_ok,
+        f"standard {len(standard_latexes)} 問すべて OK" if standard_ok else "違反あり",
+    )
+
+    heavy_ok = all(
+        l.split(" = ", 1)[0].count("(") >= 2 and " - " in l.split(" = ", 1)[0]
+        for l in heavy_latexes
+    )
+    check(
+        "T9 heavy 形式: 左辺に \"(\" 2 個以上 + \" - \" 区切り",
+        heavy_ok,
+        f"heavy {len(heavy_latexes)} 問すべて OK" if heavy_ok else "違反あり",
+    )
+
+    # ============================================================
+    # T10: 既存 rank の行数 regression なし（T2 で既に網羅、サマリ表示のみ）
     # ============================================================
     print("\n--- rank 別行数サマリ ---")
     for rk in sorted(rank_counts.keys()):
@@ -240,6 +352,14 @@ def main() -> int:
         except IndexError:
             head = l[:80]
         print(f"  D[{i+1}] eq1: {head[:80]}")
+
+    # ============================================================
+    # rank=8 Band D サンプル表示（実機目視用、light/standard/heavy 各 2 問）
+    # ============================================================
+    print("\n--- rank=8 Band D サンプル（slot_index 順、light/standard/heavy） ---")
+    for i, l in enumerate(band_d_latexes_08):
+        sub = classify_band_d_subkind(l)
+        print(f"  D[{i+1:2d}] ({sub:8s}): {l[:90]}")
 
     # ============================================================
     # 結果サマリ
