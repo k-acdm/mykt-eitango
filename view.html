@@ -760,6 +760,29 @@
   document.getElementById('view-id').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') doViewLogin();
   });
+
+  // =====================================================================
+  // URL クエリ ?sid=xxx 自動ログイン
+  //   - index.html から「保護者用」で遷移すると ?sid=<生徒ID> 付きで来る
+  //   - 既存ブックマーク（?sid=xxx を含む URL）もここで自動ログイン
+  //   - クエリなしのアクセスは従来通り手動入力画面のまま
+  // =====================================================================
+  (function autoLoginFromQuery(){
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var sid = (params.get('sid') || '').trim();
+      if (!sid) return;
+      // 数値以外（記号など）は弾く（doViewLogin に渡しても弾かれるが事前にケア）
+      if (!/^\d+$/.test(sid)) return;
+      var input = document.getElementById('view-id');
+      if (!input) return;
+      input.value = sid;
+      // 微小遅延でレンダリング完了後に呼び出し（Safari の input 値反映タイミング差を吸収）
+      setTimeout(function(){
+        try { doViewLogin(); } catch (e) { console.warn('[view auto-login]', e); }
+      }, 0);
+    } catch (e) { console.warn('[view auto-login init]', e); }
+  })();
 </script>
 <span id="app-version" class="app-version" title="タップで最新版に更新">v----.--.--</span>
 <script>
