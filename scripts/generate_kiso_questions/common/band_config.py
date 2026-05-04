@@ -94,13 +94,28 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "C": {"count": 10, "kind": "three_term_paren_power", "max_abs": 5, "exp_max": 2},
     },
     # 8級：一次方程式・比例式
+    # Phase 1（2026-05-05）: 30→50 題に拡充、Band D を新設して 4 Band 構成に。
+    # ふくちさん教育的判断（36年塾長経験）:
+    #   - A: ax=b の最易レベル 5 問（x_max を 9→12 に拡張、coef_max=10）
+    #   - B: ax+b=cx+d の標準（移項の脱落ポイント）20→25 問に増量。パラメータ無修正
+    #   - C: 比例式 10 問（value_max を 12→15 に拡張）
+    #   - D: カッコ付き 10 問（新設、軽め2 / 標準6 / 重め2 を slot_index 駆動で決定論的分離）
+    # 中1 一次方程式の核心は「移項」と「カッコの展開」。旧構成は B のパターンしかなく、
+    # カッコ付きの問題（中1 単元の山場）が一切なかったため Phase 1 で Band D を新設し、
+    # 教育的ギャップを解消する（rank_05 / rank_06 で Band D 新設したのと同パターン）。
+    # Band D の subcounts: 軽め (a(x+b)=c) は導入用に少量、標準 (a(x+b)=c(x+d)) は単元の主役、
+    # 重め (a(x+b)-c(x+d)=e) は応用として少量という塾長判断。
+    # TODO_PHASE3: 小数係数・分数係数の方程式は Phase 3 の Band E 以降で導入。
     8: {
-        # A: ax = b（DESIGN_PRINCIPLES.md 原則 2 により整数解のみ。x_max が解の絶対値上限）
-        # B: ax + b = c または ax + b = cx + d
-        # C: 比例式 a:b = c:x（DESIGN_PRINCIPLES.md 原則 2 により x が整数になる組のみ）
-        "A": {"count": 10, "kind": "ax_eq_b", "coef_max": 9, "x_max": 9},
-        "B": {"count": 10, "kind": "ax_b_eq_cx_d", "coef_max": 6, "const_max": 12},
-        "C": {"count": 10, "kind": "proportion", "value_max": 12},
+        "A": {"count": 5,  "kind": "ax_eq_b", "coef_max": 10, "x_max": 12},
+        "B": {"count": 25, "kind": "ax_b_eq_cx_d", "coef_max": 6, "const_max": 12},
+        "C": {"count": 10, "kind": "proportion", "value_max": 15},
+        "D": {
+            "count": 10,
+            "kind": "paren_form",
+            "coef_max": 6, "const_max": 8, "x_max": 8,
+            "subcounts": {"light": 2, "standard": 6, "heavy": 2},
+        },
     },
     # 7級：式の計算 中2
     7: {
