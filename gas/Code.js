@@ -2692,6 +2692,11 @@ function diagnoseRank14InProgress() {
   return diagnoseKisoInProgressByRank(14);
 }
 
+// ショートカット: rank=15 の診断（rank_15 50題化 + Band D 整数答え muldiv 新設前の pre-flight 用）
+function diagnoseRank15InProgress() {
+  return diagnoseKisoInProgressByRank(15);
+}
+
 // 指定 rank の in_progress セッションを 'abandoned' に書き換える管理関数
 // （GAS エディタ実行専用、doGet 未登録）。
 //
@@ -2877,6 +2882,12 @@ function abandonRank10InProgress(opts) {
 // 30→50 題化で問題プールが入れ替わるため、進行中セッションは abandoned 化推奨。
 function abandonRank14InProgress(opts) {
   return abandonKisoInProgressByRank(14, opts);
+}
+
+// ショートカット: rank=15 の一括 abandoned 化（rank_15 50題化 + Band D 整数答え muldiv 新設前の pre-flight 用）
+// 30→50 題化で問題プールが入れ替わるため、進行中セッションは abandoned 化推奨。
+function abandonRank15InProgress(opts) {
+  return abandonKisoInProgressByRank(15, opts);
 }
 
 // KisoSessions シートを sessionId で線形検索（直近のセッションは末尾近く）

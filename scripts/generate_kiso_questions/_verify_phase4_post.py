@@ -1,13 +1,13 @@
-"""KisoQuestions シート Phase 4 投入後検証（rank_14 対応版）。
+"""KisoQuestions シート Phase 4 投入後検証（rank_15 対応版）。
 
 過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 / rank_08 / rank_01 /
-rank_11 / rank_12 / rank_13 / rank_09 / rank_10 投入後検証（CLAUDE.md #155-160 / #171）
-と同じパターンで gspread からシートを直接読み出し、rank_14 50題化（Band D 整数を含む
-混合 新設、3 サブパターン slot_index 駆動）の投入結果を検証する。
+rank_11 / rank_12 / rank_13 / rank_09 / rank_10 / rank_14 投入後検証（CLAUDE.md #155-160 / #171）
+と同じパターンで gspread からシートを直接読み出し、rank_15 50題化（4 Band 全て slot_index
+駆動 + Band D 答えが整数になる muldiv 新設）の投入結果を検証する。
 
 検証項目:
-  T1  全 rank 行数 = 880
-  T2  rank 別行数（rank 15-20 が 30、rank 1-14 が 50）
+  T1  全 rank 行数 = 900
+  T2  rank 別行数（rank 16-20 が 30、rank 1-15 が 50）
   T3  rank=6 Band 配分（A=5, B=20, C=10, D=15）
   T4  questionId 重複ゼロ（880 件全てユニーク）
   T5  problemLatex 重複ゼロ（rank 内で全てユニーク）
@@ -34,6 +34,13 @@ rank_11 / rank_12 / rank_13 / rank_09 / rank_10 投入後検証（CLAUDE.md #155
        + Band D サブパターン配分（int_addsub=4, int_mul=4, int_div=4）
        + Band D 全 12 問に整数項 + 分数項の両方が含まれる
        + Band D 配置順 slot 0-3=addsub, 4-7=mul, 8-11=div（決定論的）
+  T21 rank=15 Band 配分（A=12, B=18, C=12, D=8）
+       + Band A 演算子配分（mul=6, div=6）
+       + Band B 演算子配分（mul=9, div=9）
+       + Band C ops_pattern 配分（mm=3, md=3, dm=3, dd=3）
+       + Band D サブパターン配分（mul_int_ans=4, div_int_ans=4）
+       + Band D 全 8 問の答えが整数
+       + Band A/B 約分強制（A は各演算子 ≥3、B は各演算子 ≥5）
 
 実行:
   cd scripts/generate_kiso_questions
@@ -51,11 +58,11 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# 期待値（CLAUDE.md #171 + rank_01/08/09/11/12/13 + rank_10 + rank_14 Phase 1 拡充の Phase 4 投入仕様）
-# 中 1 数学 5 単元 + rank_14（無学年・分数四則混合）拡充が全完了した時点の合計 880 問。
-EXPECTED_TOTAL = 880
-RANKS_30 = [15, 16, 17, 18, 19, 20]
-RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+# 期待値（CLAUDE.md #171 + rank_01/08/09/11/12/13 + rank_10 + rank_14/15 Phase 1 拡充の Phase 4 投入仕様）
+# 中 1 数学 5 単元 + rank_14/15（無学年・分数四則混合 + 分数乗除）拡充が全完了した時点の合計 900 問。
+EXPECTED_TOTAL = 900
+RANKS_30 = [16, 17, 18, 19, 20]
+RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 EXPECTED_RANK_06_BANDS = {"A": 5, "B": 20, "C": 10, "D": 15}
 EXPECTED_RANK_08_BANDS = {"A": 5, "B": 25, "C": 10, "D": 10}
 # Band D の slot_index 駆動サブパターン配分（_resolve_band_d_subkind 由来）
@@ -83,6 +90,16 @@ EXPECTED_RANK_10_SLOT7_C_VALUES = {60, 120, 180, 240, 300, 360, 420, 480, 540, 6
 EXPECTED_RANK_14_BANDS = {"A": 12, "B": 14, "C": 12, "D": 12}
 # rank_14 Band D の slot_index 駆動 3 サブパターン（_resolve_band_d_subkind 由来、cumulative dispatch）
 EXPECTED_RANK_14_BAND_D_SUBPATTERNS = {"int_addsub": 4, "int_mul": 4, "int_div": 4}
+# 分数乗除 無学年（Phase 1、2026-05-07 拡充、4 Band 全て slot_index 駆動 + Band D 整数答え muldiv 新設）
+EXPECTED_RANK_15_BANDS = {"A": 12, "B": 18, "C": 12, "D": 8}
+# rank_15 各 Band の slot_index 駆動 サブパターン（cumulative dispatch）
+EXPECTED_RANK_15_BAND_A_SUBPATTERNS = {"mul": 6, "div": 6}
+EXPECTED_RANK_15_BAND_B_SUBPATTERNS = {"mul": 9, "div": 9}
+EXPECTED_RANK_15_BAND_C_SUBPATTERNS = {"mm": 3, "md": 3, "dm": 3, "dd": 3}
+EXPECTED_RANK_15_BAND_D_SUBPATTERNS = {"mul_int_ans": 4, "div_int_ans": 4}
+# rank_15 約分強制：Band A は各演算子 3 問以上、Band B は各演算子 5 問以上が「約分が活きる組」
+EXPECTED_RANK_15_BAND_A_FORCE_CANCEL_MIN_PER_OP = 3
+EXPECTED_RANK_15_BAND_B_FORCE_CANCEL_MIN_PER_OP = 5
 
 
 def classify_rank12_band_b_subkind(latex: str) -> str:
@@ -223,6 +240,59 @@ def classify_rank14_band_d_subkind(latex: str) -> str:
     if "\\div" in latex:
         return "int_div"
     return "int_addsub"
+
+
+def classify_rank15_band_c_ops_pattern(latex: str) -> str:
+    """rank=15 Band C の 3 項 ×/÷ 組み合わせを分類。
+
+    出現順に 'm' (=×) / 'd' (=÷) を取って 'mm' / 'md' / 'dm' / 'dd' を返す。
+    """
+    import re as _re
+    ops_in_order = []
+    for tok in _re.finditer(r"\\times|\\div", latex):
+        ops_in_order.append("m" if tok.group(0) == "\\times" else "d")
+    return "".join(ops_in_order)
+
+
+def rank15_band_a_cancel_active(latex: str) -> bool:
+    """rank=15 Band A 「分数 op 整数」で約分が活きるか判定。
+
+    n ⊥ d 前提：
+      mul: gcd(k, d) > 1
+      div: gcd(n, k) > 1
+    """
+    import re as _re
+    from math import gcd as _gcd
+    m = _re.match(r"^\\frac\{(\d+)\}\{(\d+)\}\s+(\\times|\\div)\s+(\d+)$", latex)
+    if not m:
+        return False
+    n, d = int(m.group(1)), int(m.group(2))
+    is_mul = m.group(3) == "\\times"
+    k = int(m.group(4))
+    return _gcd(k, d) > 1 if is_mul else _gcd(n, k) > 1
+
+
+def rank15_band_b_cancel_active(latex: str) -> bool:
+    """rank=15 Band B 「分数 op 分数」で約分が活きるか判定。
+
+    n1 ⊥ d1, n2 ⊥ d2 前提：
+      mul: gcd(n1*n2, d1*d2) > 1
+      div: gcd(n1*d2, d1*n2) > 1
+    """
+    import re as _re
+    from math import gcd as _gcd
+    m = _re.match(
+        r"^\\frac\{(\d+)\}\{(\d+)\}\s+(\\times|\\div)\s+\\frac\{(\d+)\}\{(\d+)\}$",
+        latex,
+    )
+    if not m:
+        return False
+    n1, d1 = int(m.group(1)), int(m.group(2))
+    is_mul = m.group(3) == "\\times"
+    n2, d2 = int(m.group(4)), int(m.group(5))
+    if is_mul:
+        return _gcd(n1 * n2, d1 * d2) > 1
+    return _gcd(n1 * d2, d1 * n2) > 1
 
 
 def _ensure_utf8_console() -> None:
@@ -962,6 +1032,149 @@ def main() -> int:
     for i, r in enumerate(band_d_rows_14):
         sub = classify_rank14_band_d_subkind(r[i_latex])
         print(f"  D[{i+1:2d}] ({sub:10s}): {r[i_latex]:42s}  =>  {r[i_canonical]}")
+
+    # ============================================================
+    # T21: rank=15 Band 配分 + Band A/B 演算子配分 + Band C ops_pattern 配分
+    #      + Band D サブパターン配分 + Band D 全問の答えが整数
+    #      + Band A/B の約分強制（最低半数）
+    # ============================================================
+    band_counts_15: Counter = Counter()
+    rank15_rows = [
+        r for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 15
+    ]
+    for r in rank15_rows:
+        band_counts_15[r[i_band]] += 1
+
+    for band, expected in EXPECTED_RANK_15_BANDS.items():
+        actual = band_counts_15.get(band, 0)
+        check(
+            f"T21 rank=15 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=15 Band A 演算子配分
+    band_a_rows_15 = [r for r in rank15_rows if r[i_band] == "A"]
+    a_op_counts: Counter = Counter()
+    for r in band_a_rows_15:
+        if "\\times" in r[i_latex]:
+            a_op_counts["mul"] += 1
+        elif "\\div" in r[i_latex]:
+            a_op_counts["div"] += 1
+    for sub, expected in EXPECTED_RANK_15_BAND_A_SUBPATTERNS.items():
+        actual = a_op_counts.get(sub, 0)
+        check(
+            f"T21 rank=15 Band A {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=15 Band B 演算子配分
+    band_b_rows_15 = [r for r in rank15_rows if r[i_band] == "B"]
+    b_op_counts: Counter = Counter()
+    for r in band_b_rows_15:
+        if "\\times" in r[i_latex]:
+            b_op_counts["mul"] += 1
+        elif "\\div" in r[i_latex]:
+            b_op_counts["div"] += 1
+    for sub, expected in EXPECTED_RANK_15_BAND_B_SUBPATTERNS.items():
+        actual = b_op_counts.get(sub, 0)
+        check(
+            f"T21 rank=15 Band B {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=15 Band C ops_pattern 配分（mm / md / dm / dd 各 3）
+    band_c_rows_15 = [r for r in rank15_rows if r[i_band] == "C"]
+    c_pattern_counts: Counter = Counter()
+    for r in band_c_rows_15:
+        c_pattern_counts[classify_rank15_band_c_ops_pattern(r[i_latex])] += 1
+    for sub, expected in EXPECTED_RANK_15_BAND_C_SUBPATTERNS.items():
+        actual = c_pattern_counts.get(sub, 0)
+        check(
+            f"T21 rank=15 Band C {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=15 Band D サブパターン配分（mul_int_ans / div_int_ans 各 4）
+    band_d_rows_15 = [r for r in rank15_rows if r[i_band] == "D"]
+    d_sub_counts: Counter = Counter()
+    for r in band_d_rows_15:
+        if "\\times" in r[i_latex]:
+            d_sub_counts["mul_int_ans"] += 1
+        elif "\\div" in r[i_latex]:
+            d_sub_counts["div_int_ans"] += 1
+    for sub, expected in EXPECTED_RANK_15_BAND_D_SUBPATTERNS.items():
+        actual = d_sub_counts.get(sub, 0)
+        check(
+            f"T21 rank=15 Band D {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=15 Band D 全問の答えが整数（既約分数の分母 = 1）
+    import re as _re_d_int
+    d_int_answers = sum(
+        1 for r in band_d_rows_15
+        if _re_d_int.match(r"^\d+$", r[i_canonical])
+    )
+    check(
+        "T21 rank=15 Band D 全 8 問の答えが整数",
+        d_int_answers == 8,
+        f"actual={d_int_answers}/8",
+    )
+
+    # rank=15 Band A/B 約分強制（最低半数：A は各演算子 3 問以上、B は各演算子 5 問以上）
+    a_mul_cancel = sum(
+        1 for r in band_a_rows_15
+        if "\\times" in r[i_latex] and rank15_band_a_cancel_active(r[i_latex])
+    )
+    a_div_cancel = sum(
+        1 for r in band_a_rows_15
+        if "\\div" in r[i_latex] and rank15_band_a_cancel_active(r[i_latex])
+    )
+    check(
+        f"T21 rank=15 Band A mul で約分が活きる ≥ {EXPECTED_RANK_15_BAND_A_FORCE_CANCEL_MIN_PER_OP}",
+        a_mul_cancel >= EXPECTED_RANK_15_BAND_A_FORCE_CANCEL_MIN_PER_OP,
+        f"actual={a_mul_cancel}",
+    )
+    check(
+        f"T21 rank=15 Band A div で約分が活きる ≥ {EXPECTED_RANK_15_BAND_A_FORCE_CANCEL_MIN_PER_OP}",
+        a_div_cancel >= EXPECTED_RANK_15_BAND_A_FORCE_CANCEL_MIN_PER_OP,
+        f"actual={a_div_cancel}",
+    )
+
+    b_mul_cancel = sum(
+        1 for r in band_b_rows_15
+        if "\\times" in r[i_latex] and rank15_band_b_cancel_active(r[i_latex])
+    )
+    b_div_cancel = sum(
+        1 for r in band_b_rows_15
+        if "\\div" in r[i_latex] and rank15_band_b_cancel_active(r[i_latex])
+    )
+    check(
+        f"T21 rank=15 Band B mul で約分が活きる ≥ {EXPECTED_RANK_15_BAND_B_FORCE_CANCEL_MIN_PER_OP}",
+        b_mul_cancel >= EXPECTED_RANK_15_BAND_B_FORCE_CANCEL_MIN_PER_OP,
+        f"actual={b_mul_cancel}",
+    )
+    check(
+        f"T21 rank=15 Band B div で約分が活きる ≥ {EXPECTED_RANK_15_BAND_B_FORCE_CANCEL_MIN_PER_OP}",
+        b_div_cancel >= EXPECTED_RANK_15_BAND_B_FORCE_CANCEL_MIN_PER_OP,
+        f"actual={b_div_cancel}",
+    )
+
+    # ============================================================
+    # rank=15 Band D サンプル表示（実機目視用）
+    # ============================================================
+    print("\n--- rank=15 Band D サンプル（slot_index 順、mul_int_ans/div_int_ans 各 4 問、答えは全て整数） ---")
+    for i, r in enumerate(band_d_rows_15):
+        sub = "mul_int_ans" if "\\times" in r[i_latex] else "div_int_ans"
+        print(f"  D[{i+1:2d}] ({sub:11s}): {r[i_latex]:36s}  =>  {r[i_canonical]}")
 
     # ============================================================
     # rank=6 Band D サンプル表示（実機目視用）

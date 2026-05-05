@@ -47,13 +47,47 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "C": {"count": 10, "terms": 3, "ops": ["+", "-", "*", "/"], "parens": True,  "int_max": 5, "decimals": 1},
     },
     # 15級：分数 乗除
+    # Phase 1（2026-05-07）: 30→50題化、Band D を新設して 4 Band 構成に。
+    # ふくちさん教育的判断（36年塾長経験）:
+    #   - A: 分数 op 整数 12 問（既存ロジック踏襲、slot_index 駆動で × 6 / ÷ 6 均等保証）
+    #   - B: 分数 op 分数 18 問（単元の主役、slot_index 駆動で × 9 / ÷ 9 均等保証）
+    #   - C: 3 項乗除 12 問（slot_index 駆動で 4 通り組み合わせ均等：×× / ×÷ / ÷× / ÷÷ 各 3 問）
+    #   - D: 答えが整数になる muldiv 8 問（新設、subcounts 4/4）
+    # 「演算子配分の偶然依存を解消、約分の感覚を意図的に体験させる」設計。
+    # rank_14 Band D との部分重複（末尾整数 muldiv）は Phase 1 では許容、
+    # Phase 3 の 100 題化時に位置で完全分離する方針。
     15: {
-        # A: 分数 × 整数 / 分数 ÷ 整数
-        # B: 分数 × 分数 / 分数 ÷ 分数
-        # C: 3項 乗除（混合）
-        "A": {"count": 10, "kind": "frac_int", "denom_max": 10, "int_max": 10},
-        "B": {"count": 10, "kind": "frac_frac", "denom_max": 10},
-        "C": {"count": 10, "kind": "three_term", "denom_max": 8},
+        "A": {
+            "count": 12, "kind": "frac_int",
+            "denom_max": 10, "int_max": 12,
+            "subcounts": {"mul": 6, "div": 6},
+            # 「約分が活きる組」を最低半数（mul/div 各 3 問以上）強制：
+            # mul は 分子と整数の gcd > 1、div は 同左 で判定
+            "force_cancel_min_per_op": 3,
+        },
+        "B": {
+            "count": 18, "kind": "frac_frac",
+            "denom_max": 10,
+            "subcounts": {"mul": 9, "div": 9},
+            # 「約分が活きる組」を最低半数（mul/div 各 5 問以上）強制：
+            # mul は 分子分母の積の gcd > 1、div は 分子分母クロス積の gcd > 1
+            "force_cancel_min_per_op": 5,
+        },
+        "C": {
+            "count": 12, "kind": "three_term",
+            "denom_max": 8,
+            # 3 項演算子組み合わせ均等：mm=×× / md=×÷ / dm=÷× / dd=÷÷ 各 3 問
+            "subcounts": {"mm": 3, "md": 3, "dm": 3, "dd": 3},
+        },
+        # Band D: 答えが整数になる muldiv 8 問（新設）。
+        #   mul_int_ans: 整数 × 分数 = 整数 形（位置：先頭/末尾を均等）
+        #   div_int_ans: 整数 ÷ 分数 = 整数 形（位置：先頭/末尾を均等）
+        # 整数値範囲 2..12（rank_14 Band D と整合）。
+        "D": {
+            "count": 8, "kind": "int_ans_muldiv",
+            "denom_max": 8, "int_max": 12,
+            "subcounts": {"mul_int_ans": 4, "div_int_ans": 4},
+        },
     },
     # 14級：分数 四則混合
     # Phase 1（2026-05-07）: 30→50題化、Band D を新設して 4 Band 構成に。
