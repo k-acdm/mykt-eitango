@@ -2,11 +2,11 @@
 # 重要：このスクリプトを編集する前に必ず読んでください
 # scripts/generate_kiso_questions/DESIGN_PRINCIPLES.md
 # ============================================================
-"""10級：単位・比・割合（仕様書 §6.5、Phase 2 グループ③）。
+"""10級：単位・比・割合（仕様書 §6.5、Phase 2 グループ③ + Phase 1 拡充 2026-05-06）。
 
-**他級と異なる構造**：10 問固定スロット制。Band A/B/C で 10 問生成する際、
+**他級と異なる構造**：10 問固定スロット制。Band A/B/C で問題を生成する際、
 スロット 1〜10 を順に 1 問ずつ出題する。`generate_problem(band, rng, slot_index=i)`
-で i (0..9) → スロット (1..10) にマッピング。
+で i (0..N-1) → スロット ((i % 10) + 1) にマッピング（slot rotation）。
 
 スロット定義：
   1: 長さ単位換算（m, cm, mm, km）
@@ -14,15 +14,25 @@
   3: 面積単位換算 #2（同上、別パターン）
   4: 容積単位換算（L, mL, dL, ㎤）
   5: 重さ単位換算（kg, g, mg, t）
-  6: 時間換算（時間, 分, 秒）
-  7: 速さ換算（時速, 分速, 秒速）
+  6: 時間換算（時間, 分, 秒、+ 時刻表記「X 時間 Y 分 = N 分」）  ← Phase 1 で時刻表記追加
+  7: 速さ換算（時速, 分速, 秒速）                          ← Phase 1 で cases 拡張（時速 240km まで）
   8: 比（a:b = c:? の空欄埋め）
   9: 割合相互変換（小数 ↔ % ↔ 割分厘）
   10: 割合応用（X の Y% は何 ？）
 
+Phase 1（2026-05-06）で 30 → 50 題に拡充（count=17/17/16、合計 50）。
+slot rotation で count=17 なら slot 1..7 が 2 問ずつ、count=16 なら slot 1..6 が 2 問ずつ。
+
 §6.4.0 既約性原則：スロット 8（比）は最簡比に統一（generate 時に gcd で約分）。
 答え側は `canonical_decimal_for_rational` または `canonical_for_rational` 経由で
 既約・有限小数優先を保証。
+
+# TODO_PHASE3: 以下は Phase 3 で Band D 新設として導入する候補（rank_10）
+#   1. 比例配分（12 を 3:1 に分ける、100 を 2:3:5 に比例配分）
+#   2. 増減率（200 円の 10% 増しで何円？、200 円の 20% 引きで何円？）
+#   3. 連続単位換算（k㎡ → ㎡ → ㎠ のような 3 段階以上の変換）
+#   4. 速さの応用（道のり = 速さ × 時間、時間 = 道のり / 速さ）
+# Phase 1 では既存 10 slot の量的拡充とパラメータ強化に専念。
 """
 
 from __future__ import annotations
@@ -338,28 +348,65 @@ def _gen_slot_5_weight(band, rng):
 # ===========================================================================
 
 def _gen_slot_6_time(band, rng):
-    """時間 ↔ 分 ↔ 秒。1 時間 = 60 分、1 分 = 60 秒。"""
+    """時間 ↔ 分 ↔ 秒。1 時間 = 60 分、1 分 = 60 秒。
+
+    Phase 1（2026-05-06）拡張：時刻表記「X 時間 Y 分 = ? 分」を新規追加（hm_to_min）。
+    各 Band で h_to_m / m_to_s / m_to_h / s_to_m に加えて hm_to_min を選択肢に含める。
+    """
+    # ---- 時刻表記「X 時間 Y 分 = ? 分」の生成 ---------------------------------
+    # 既存の「(src, factor) で表現」と異なる形式のため early return で組み立てる。
+    # meta に is_hm_to_min フラグを立てて self_check 側で分岐できるようにする。
+    def _build_hm_to_min(h: int, m: int):
+        answer = _R(h * 60 + m)
+        problem_latex = f"{h}\\,\\text{{時間}}{m}\\,\\text{{分}} = \\square\\,\\text{{分}}"
+        canonical = av.canonical_for_rational(answer)
+        allowed = av.variants_for_rational(answer)
+        return problem_latex, canonical, allowed, {
+            "slot": 6, "is_hm_to_min": True, "h": h, "m": m,
+            "answer_p": int(answer.p), "answer_q": int(answer.q),
+        }
+
     if band == "A":
-        # 整数の易しい変換：5 時間 → 何分、4 分 → 何秒、120 秒 → 何分
-        cases = [
-            ("時間", "分", _R(60), rng.randint(2, 9)),  # h→m
-            ("分", "秒", _R(60), rng.randint(2, 9)),    # m→s
-        ]
-        from_u, to_u, factor, src_int = rng.choice(cases)
+        # 整数の易しい変換 + 時刻表記（綺麗な分の値 15/30/45）
+        ck = rng.choice(["h_to_m", "m_to_s", "hm_to_min"])
+        if ck == "hm_to_min":
+            h = rng.randint(1, 3)
+            m = rng.choice([15, 30, 45])
+            return _build_hm_to_min(h, m)
+        if ck == "h_to_m":
+            from_u, to_u, factor, src_int = "時間", "分", _R(60), rng.randint(2, 9)
+        else:  # m_to_s
+            from_u, to_u, factor, src_int = "分", "秒", _R(60), rng.randint(2, 9)
         src = _R(src_int)
     elif band == "B":
-        # 小数や分数：3.2 時間 → 192 分、2.5 分 → 150 秒
-        cases = [
-            ("時間", "分", _R(60), _R(rng.randint(15, 50), 10)),
-            ("分", "秒", _R(60), _R(rng.randint(15, 50), 10)),
-        ]
-        from_u, to_u, factor, src = rng.choice(cases)
-    else:  # C：逆方向（分→時間で分数解、秒→分）
-        cases = [
-            ("分", "時間", _R(1, 60), _R(rng.choice([90, 120, 150, 180, 200]))),
-            ("秒", "分", _R(1, 60), _R(rng.choice([120, 150, 180, 240, 300]))),
-        ]
-        from_u, to_u, factor, src = rng.choice(cases)
+        # 小数 1 桁 + 時刻表記（中堅レベル、分は 5/10/.. 等の刻み）
+        ck = rng.choice(["h_to_m", "m_to_s", "hm_to_min"])
+        if ck == "hm_to_min":
+            h = rng.randint(1, 4)
+            m = rng.choice([10, 15, 20, 25, 35, 40, 50, 55])
+            return _build_hm_to_min(h, m)
+        if ck == "h_to_m":
+            from_u, to_u, factor, src = "時間", "分", _R(60), _R(rng.randint(15, 50), 10)
+        else:  # m_to_s
+            from_u, to_u, factor, src = "分", "秒", _R(60), _R(rng.randint(15, 50), 10)
+    else:  # C：逆方向（分→時間で分数解、秒→分）+ 時刻表記の応用
+        ck = rng.choice(["m_to_h", "s_to_m", "hm_to_min"])
+        if ck == "hm_to_min":
+            h = rng.randint(2, 5)
+            m = rng.choice([5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55])
+            return _build_hm_to_min(h, m)
+        if ck == "m_to_h":
+            # 拡張：90 / 120 / 150 / 180 / 200 / 240 / 300 / 360 / 420 / 480
+            from_u, to_u, factor, src = (
+                "分", "時間", _R(1, 60),
+                _R(rng.choice([90, 120, 150, 180, 200, 240, 300, 360, 420, 480]))
+            )
+        else:  # s_to_m
+            # 拡張：60 / 90 / 120 / 150 / 180 / 240 / 300 / 360 / 420 / 600
+            from_u, to_u, factor, src = (
+                "秒", "分", _R(1, 60),
+                _R(rng.choice([60, 90, 120, 150, 180, 240, 300, 360, 420, 600]))
+            )
     answer = src * factor
     problem_latex = _build_unit_problem(src, from_u, to_u)
     # 答えは整数 / 有限小数 / 既約分数
@@ -387,8 +434,14 @@ def _gen_slot_7_speed(band, rng):
     """時速・分速・秒速の換算。1 時速 km = 1000/60 分速 m など。
 
     Band A: 時速 60km → 分速 1km、時速 120km → 分速 2km（綺麗な値）
-    Band B: 時速 72km → 分速 1.2km
-    Band C: 分速 → 秒速、複合変換
+    Band B: 時速 X km → 分速 何 m（時速 240km まで含めて新幹線レベルの教材性）
+    Band C: 分速 X m → 秒速 何 m（拡張で unique pool 10 確保、構造的バグ修正）
+
+    Phase 1（2026-05-06）拡張：
+      - Band B の時速 km cases を [72, 120, 180]（unique 3）→
+        [60, 72, 90, 120, 144, 150, 180, 240]（unique 8、構造的バグ解消）
+      - Band C の分速 m cases を [60, 90, 120, 180]（unique 4）→
+        [60, 120, 180, 240, 300, 360, 420, 480, 540, 600]（unique 10、整数答え化）
     """
     if band == "A":
         # 時速 X km → 分速 X/60 km、X が 60 の倍数。
@@ -403,16 +456,25 @@ def _gen_slot_7_speed(band, rng):
         problem_latex = f"{a}{src_int}\\,\\text{{{ua}}} = {b}\\square\\,\\text{{{ub}}}"
     elif band == "B":
         # 時速 X km → 分速 何 m（× 1000/60）
+        # Phase 1 拡張：cases [72, 120, 180] → [60, 72, 90, 120, 144, 150, 180, 240]。
+        # 全て 1000/60 倍で整数答え（60→1000m、72→1200m、144→2400m、240→4000m）。
+        # 240km は新幹線レベル、教育的に幅広く学べる範囲（ふくちさん指定）。
         cases = [
-            ("時速", "分速", "km", "m", _R(1000, 60), rng.choice([72, 120, 180])),
+            ("時速", "分速", "km", "m", _R(1000, 60),
+             rng.choice([60, 72, 90, 120, 144, 150, 180, 240])),
         ]
         a, b, ua, ub, factor, src_int = rng.choice(cases)
         src = _R(src_int)
         problem_latex = f"{a}{src_int}\\,\\text{{{ua}}} = {b}\\square\\,\\text{{{ub}}}"
     else:  # C
         # 分速 X m → 秒速 ? m
+        # Phase 1 拡張：cases [60, 90, 120, 180]（unique 4、構造的バグ）→
+        # 60 の倍数 [60, 120, 180, 240, 300, 360, 420, 480, 540, 600]（unique 10、整数答え）。
+        # 仕様の「整数答えに収まるように」を満たすため、60 の倍数のみに絞る
+        # （90/150/210 等は秒速 1.5 / 2.5 / 3.5 m と小数になるため除外）。
         cases = [
-            ("分速", "秒速", "m", "m", _R(1, 60), rng.choice([60, 90, 120, 180])),
+            ("分速", "秒速", "m", "m", _R(1, 60),
+             rng.choice([60, 120, 180, 240, 300, 360, 420, 480, 540, 600])),
         ]
         a, b, ua, ub, factor, src_int = rng.choice(cases)
         src = _R(src_int)
@@ -660,15 +722,24 @@ def self_check(problem: Dict[str, Any]) -> bool:
         if av.canonical_decimal_for_rational(recom) != canonical:
             return False
     elif slot == 6 or slot == 7:
-        src = sp.Rational(meta["src_p"], meta["src_q"])
-        factor = sp.Rational(meta["factor_p"], meta["factor_q"])
-        recom = src * factor
-        if recom.q == 1 or not is_finite_decimal(recom):
+        # Phase 1（2026-05-06）：slot 6 に時刻表記「X 時間 Y 分 = ? 分」を追加。
+        # is_hm_to_min が立っている場合は、(h, m) から答え (h*60+m) を再計算して照合。
+        if meta.get("is_hm_to_min"):
+            h = int(meta.get("h", 0))
+            m = int(meta.get("m", 0))
+            recom = sp.Rational(h * 60 + m)
             if av.canonical_for_rational(recom) != canonical:
                 return False
         else:
-            if av.canonical_decimal_for_rational(recom) != canonical:
-                return False
+            src = sp.Rational(meta["src_p"], meta["src_q"])
+            factor = sp.Rational(meta["factor_p"], meta["factor_q"])
+            recom = src * factor
+            if recom.q == 1 or not is_finite_decimal(recom):
+                if av.canonical_for_rational(recom) != canonical:
+                    return False
+            else:
+                if av.canonical_decimal_for_rational(recom) != canonical:
+                    return False
     elif slot == 8:
         a, b, c = meta["a"], meta["b"], meta["c"]
         # a:b = c:? → ? = b*c/a

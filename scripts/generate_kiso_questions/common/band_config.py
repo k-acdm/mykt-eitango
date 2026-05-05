@@ -302,12 +302,21 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "C": {"count": 10, "kind": "frac_solution",  "coef_max": 5, "sol_denom_max": 5},
         "D": {"count": 15, "kind": "substitution_form", "coef_max": 5, "sol_max": 6},
     },
-    # 10級：単位・比・割合（10問固定スロット構造）
-    # 各 Band で 10 問生成、スロット 1〜10 を 1 問ずつ。
+    # 10級：単位・比・割合（10 問固定スロット構造）
+    # Phase 1（2026-05-06）: 30 → 50 題に拡充（10 スロット維持 + count 増加 + 弱 slot 補強）。
+    # ふくちさん教育的判断（36 年塾長経験）+ 事前調査で確定（案 A 採用）:
+    #   - 10 スロット固定構造は Phase 2 グループ③で確立した教育設計（slot 順 = 教科書順）
+    #   - count=17/17/16 で main.py の slot rotation により以下のように展開:
+    #       count=17 → slot 1..10, 1..7（slot 1..7 が 2 問、slot 8..10 が 1 問）
+    #       count=16 → slot 1..10, 1..6（slot 1..6 が 2 問、slot 7..10 が 1 問）
+    #   - slot 6 (時間) は Band C で時刻表記「1 時間 30 分 = 90 分」を新規追加（unique 16+）
+    #   - slot 7 (速さ) は Band B/C の cases リスト拡張で構造的バグ修正
+    #     （旧 unique=3, 4 → 拡張後 unique 10+、教育的に時速 240km まで含める）
+    # 既存生徒側機能への影響なし（generator のロジック本体は無修正、cases リストの拡張のみ）。
     10: {
-        "A": {"count": 10, "complexity": "easy"},
-        "B": {"count": 10, "complexity": "medium"},
-        "C": {"count": 10, "complexity": "hard"},
+        "A": {"count": 17, "complexity": "easy"},
+        "B": {"count": 17, "complexity": "medium"},
+        "C": {"count": 16, "complexity": "hard"},
     },
     # 9級：式の計算 中1
     # 9級：式の計算 中1

@@ -2682,6 +2682,11 @@ function diagnoseRank9InProgress() {
   return diagnoseKisoInProgressByRank(9);
 }
 
+// ショートカット: rank=10 の診断（rank_10 50題化 + 10 スロット維持 + count 増加 + 弱 slot 補強前の pre-flight 用）
+function diagnoseRank10InProgress() {
+  return diagnoseKisoInProgressByRank(10);
+}
+
 // 指定 rank の in_progress セッションを 'abandoned' に書き換える管理関数
 // （GAS エディタ実行専用、doGet 未登録）。
 //
@@ -2854,6 +2859,13 @@ function abandonRank11InProgress(opts) {
 // ショートカット: rank=9 の一括 abandoned 化（rank_09 50題化 + Band D 新設前の pre-flight 用）
 function abandonRank9InProgress(opts) {
   return abandonKisoInProgressByRank(9, opts);
+}
+
+// ショートカット: rank=10 の一括 abandoned 化（rank_10 50題化前の pre-flight 用）
+// slot 7 の構造的バグ（unique=3, 4）解消で問題プールが置換されるため、進行中セッションは
+// abandoned 化推奨。
+function abandonRank10InProgress(opts) {
+  return abandonKisoInProgressByRank(10, opts);
 }
 
 // KisoSessions シートを sessionId で線形検索（直近のセッションは末尾近く）

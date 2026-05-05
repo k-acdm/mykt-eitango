@@ -1,13 +1,14 @@
-"""KisoQuestions シート Phase 4 投入後検証（rank_09 対応版）。
+"""KisoQuestions シート Phase 4 投入後検証（rank_10 対応版）。
 
 過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 / rank_08 / rank_01 /
-rank_11 / rank_12 / rank_13 投入後検証（CLAUDE.md #155-160 / #171）と同じパターンで
-gspread からシートを直接読み出し、rank_09 50題化（Band D 新設 + Band A slot_index
-化）の投入結果を検証する。
+rank_11 / rank_12 / rank_13 / rank_09 投入後検証（CLAUDE.md #155-160 / #171）と同じ
+パターンで gspread からシートを直接読み出し、rank_10 50題化（10 スロット維持 + count
+増加 + slot 6 時刻表記追加 + slot 7 構造的バグ修正）の投入結果を検証する。
+これで中 1 数学 5 単元（rank_09/10/11/12/13）の Phase 1 拡充が全完了。
 
 検証項目:
-  T1  全 rank 行数 = 840
-  T2  rank 別行数（rank 10/14-20 が 30、rank 1-9 + 11-13 が 50）
+  T1  全 rank 行数 = 860
+  T2  rank 別行数（rank 14-20 が 30、rank 1-13 が 50）
   T3  rank=6 Band 配分（A=5, B=20, C=10, D=15）
   T4  questionId 重複ゼロ（820 件全てユニーク）
   T5  problemLatex 重複ゼロ（rank 内で全てユニーク）
@@ -27,6 +28,9 @@ gspread からシートを直接読み出し、rank_09 50題化（Band D 新設 
   T18 rank=9  Band 配分（A=13, B=13, C=11, D=13）
        + Band A サブ配分（two_term=7, three_term=3, with_const=3）
        + Band D 全問が "(...) ± (...)" 形 + -(...) 符号反転が過半数
+  T19 rank=10 Band 配分（A=17, B=17, C=16）
+       + slot 6 に時刻表記「X 時間 Y 分 = N 分」が含まれる
+       + slot 7 Band B/C の cases 拡張済み（時速 240km まで）
 
 実行:
   cd scripts/generate_kiso_questions
@@ -44,10 +48,11 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# 期待値（CLAUDE.md #171 + rank_08 + rank_01 + rank_11/12/13 + rank_09 Phase 1 拡充の Phase 4 投入仕様）
-EXPECTED_TOTAL = 840
-RANKS_30 = [10, 14, 15, 16, 17, 18, 19, 20]
-RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13]
+# 期待値（CLAUDE.md #171 + rank_01/08/09/11/12/13 + rank_10 Phase 1 拡充の Phase 4 投入仕様）
+# 中 1 数学 5 単元（rank_09/10/11/12/13）の Phase 1 拡充が全完了した時点の合計 860 問。
+EXPECTED_TOTAL = 860
+RANKS_30 = [14, 15, 16, 17, 18, 19, 20]
+RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
 EXPECTED_RANK_06_BANDS = {"A": 5, "B": 20, "C": 10, "D": 15}
 EXPECTED_RANK_08_BANDS = {"A": 5, "B": 25, "C": 10, "D": 10}
 # Band D の slot_index 駆動サブパターン配分（_resolve_band_d_subkind 由来）
@@ -66,6 +71,11 @@ EXPECTED_RANK_13_BANDS = {"A": 12, "B": 12, "C": 11, "D": 15}
 EXPECTED_RANK_09_BANDS = {"A": 13, "B": 13, "C": 11, "D": 13}
 # rank_09 Band A の slot_index 駆動 3 サブパターン（_resolve_band_a_subkind 由来）
 EXPECTED_RANK_09_BAND_A_SUBPATTERNS = {"two_term": 7, "three_term": 3, "with_const": 3}
+# 単位・比・割合 中1（Phase 1、2026-05-06 拡充、10 スロット維持 + count 増加）
+EXPECTED_RANK_10_BANDS = {"A": 17, "B": 17, "C": 16}
+# slot 7 Band B/C cases 拡張（構造的バグ修正の証拠、ふくちさん指定の時速 240km まで）
+EXPECTED_RANK_10_SLOT7_B_VALUES = {60, 72, 90, 120, 144, 150, 180, 240}     # 時速 km
+EXPECTED_RANK_10_SLOT7_C_VALUES = {60, 120, 180, 240, 300, 360, 420, 480, 540, 600}  # 分速 m
 
 
 def classify_rank12_band_b_subkind(latex: str) -> str:
@@ -779,6 +789,82 @@ def main() -> int:
     )
 
     # ============================================================
+    # T19: rank=10 Band 配分 + slot 6 時刻表記 + slot 7 拡張
+    # ============================================================
+    band_counts_10: Counter = Counter()
+    for r in rows:
+        try:
+            if int(r[i_rank]) == 10:
+                band_counts_10[r[i_band]] += 1
+        except (ValueError, IndexError):
+            pass
+
+    for band, expected in EXPECTED_RANK_10_BANDS.items():
+        actual = band_counts_10.get(band, 0)
+        check(
+            f"T19 rank=10 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=10 全 latex（Band 横断、slot rotation で出題されるため）
+    rank10_latexes = [
+        r[i_latex] for r in rows
+        if len(r) > i_latex
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 10
+    ]
+
+    # slot 6 に時刻表記「X 時間 Y 分 = ? 分」が含まれる
+    hm_pattern = _re.compile(r"\d+\\,\\text\{時間\}\d+\\,\\text\{分\}\s*=\s*\\square\\,\\text\{分\}")
+    hm_count = sum(1 for l in rank10_latexes if hm_pattern.search(l))
+    check(
+        "T19 rank=10 slot 6 時刻表記「X 時間 Y 分 = N 分」が含まれる",
+        hm_count > 0,
+        f"hm_to_min count={hm_count}",
+    )
+
+    # slot 7 Band B（時速 km → 分速 m）の値が拡張範囲内
+    rank10_b_latexes = [
+        r[i_latex] for r in rows
+        if len(r) > i_latex
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 10
+        and r[i_band] == "B"
+    ]
+    slot7_b_values_seen = set()
+    for l in rank10_b_latexes:
+        m = _re.match(r"^時速(\d+)\\,\\text\{km\}\s*=\s*分速", l)
+        if m:
+            slot7_b_values_seen.add(int(m.group(1)))
+    invalid_b = slot7_b_values_seen - EXPECTED_RANK_10_SLOT7_B_VALUES
+    check(
+        "T19 rank=10 slot 7 Band B の値が拡張範囲内（時速 km）",
+        not invalid_b and len(slot7_b_values_seen) > 0,
+        f"観測値={sorted(slot7_b_values_seen)}, 拡張範囲外={sorted(invalid_b)}",
+    )
+
+    # slot 7 Band C（分速 m → 秒速 m）の値が拡張範囲内
+    rank10_c_latexes = [
+        r[i_latex] for r in rows
+        if len(r) > i_latex
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 10
+        and r[i_band] == "C"
+    ]
+    slot7_c_values_seen = set()
+    for l in rank10_c_latexes:
+        m = _re.match(r"^分速(\d+)\\,\\text\{m\}\s*=\s*秒速", l)
+        if m:
+            slot7_c_values_seen.add(int(m.group(1)))
+    invalid_c = slot7_c_values_seen - EXPECTED_RANK_10_SLOT7_C_VALUES
+    check(
+        "T19 rank=10 slot 7 Band C の値が拡張範囲内（分速 m）",
+        not invalid_c and len(slot7_c_values_seen) > 0,
+        f"観測値={sorted(slot7_c_values_seen)}, 拡張範囲外={sorted(invalid_c)}",
+    )
+
+    # ============================================================
     # rank=6 Band D サンプル表示（実機目視用）
     # ============================================================
     print("\n--- rank=6 Band D サンプル（最初の 5 問の eq1 部分） ---")
@@ -871,6 +957,26 @@ def main() -> int:
     minus_rows = [r for r in rank09_d_rows if _re_d.search(r"\)\s+-\s+\(", r[i_latex])]
     for r in minus_rows[:6]:
         print(f"  D[-]: {r[i_latex]:42s}  =>  {r[i_canonical]}")
+
+    # ============================================================
+    # rank=10 サンプル表示（slot 6 時刻表記 + slot 7 速さ拡張）
+    # ============================================================
+    rank10_rows_all = [
+        r for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 10
+    ]
+    print("\n--- rank=10 slot 6 時刻表記サンプル（Phase 1 新規） ---")
+    for r in rank10_rows_all:
+        if hm_pattern.search(r[i_latex]):
+            print(f"  [{r[i_band]}] {r[i_latex]:55s}  =>  {r[i_canonical]}")
+
+    print("\n--- rank=10 slot 7 速さサンプル（Phase 1 拡張、時速 240km まで） ---")
+    speed_pattern = _re.compile(r"(時速|分速|秒速)")
+    for r in rank10_rows_all:
+        if speed_pattern.search(r[i_latex]):
+            print(f"  [{r[i_band]}] {r[i_latex]:55s}  =>  {r[i_canonical]}")
 
     # ============================================================
     # 結果サマリ
