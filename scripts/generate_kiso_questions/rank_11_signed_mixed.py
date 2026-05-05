@@ -4,12 +4,18 @@
 # ============================================================
 """11級：正負の数 四則混合（仕様書 §6.5）— 最難関級。
 
-A: 2項 四則混合（括弧付き符号）
-B: 累乗を含む 2 項 ×/÷
-C: 3項 + 括弧 + 累乗
+Phase 1（2026-05-05）: 30→50 題に拡充、Band C を slot_index 駆動化。
 
-Phase 2 では小数・分数の混在は扱わない（D 以降で導入予定）。
-答えは整数になる組のみ採用（11 級 Phase 2 はまず整数演算で安定させる）。
+A: 2項 四則混合 15 問（括弧付き符号、両正排除で 11 級らしさ維持）
+B: 累乗を含む 2 項 15 問（×/÷ + 累乗）
+C: 3項 + 括弧 + 累乗 20 問（**slot_index 駆動の 2 サブパターン分離**）
+   - subcounts={"inner_paren_x_power":10, "power_op_term_op_term":10}
+   - 既存の P1（内側カッコ × 累乗）と P2（累乗 + 項 × 項）を slot_index で
+     決定論分離（rng.choice の偶然依存を解消）
+
+Phase 1 では小数・分数の混在は扱わない（D 以降で導入予定）。
+答えは整数になる組のみ採用（11 級 Phase 1 はまず整数演算で安定させる）。
+TODO_PHASE3: 4 項以上、分数係数、二重括弧は Phase 3 で導入。
 """
 
 from __future__ import annotations
@@ -121,14 +127,19 @@ def _gen_with_power(rng, max_abs, exp_max):
     }
 
 
-def _gen_three_term_paren_power(rng, max_abs, exp_max):
+def _gen_three_term_paren_power(rng, max_abs, exp_max, pattern=None):
     """3 項 + 括弧 + 累乗：例 (2 - 5) \\times (-3)^2、(-3)^2 - 4 \\times 2 など。
 
     パターン：
-      P1: (a op1 b) op2 power
-      P2: power op1 a op2 b   （op2 は ×/÷ で優先順位を発揮）
+      P1: (a op1 b) op2 power           （内側カッコ展開 → 累乗倍率）
+      P2: power op1 a op2 b             （累乗結果 → 項の演算、op2 は × で優先順位発揮）
+
+    pattern: None なら rng.choice（既存挙動、後方互換）。"P1" / "P2" で強制指定可。
+    Phase 1（2026-05-05）から Band C は generate_problem 側で slot_index 駆動の
+    決定論的サブパターン分離を行う（_resolve_band_c_subkind 経由）。
     """
-    pattern = rng.choice(["P1", "P2"])
+    if pattern is None:
+        pattern = rng.choice(["P1", "P2"])
     base_abs = rng.randint(2, max_abs)
     exp = 2
     sign = rng.choice([-1, 1])
@@ -167,10 +178,49 @@ def _gen_three_term_paren_power(rng, max_abs, exp_max):
     }
 
 
-def generate_problem(band: str, rng: random.Random) -> Dict[str, Any]:
+def _resolve_band_c_subkind(slot_index: int, subcounts: Dict[str, int]) -> str:
+    """slot_index → "inner_paren_x_power" (P1) / "power_op_term_op_term" (P2)。
+
+    cumulative dispatch 方式：subcounts の順序通りに dispatch する。
+    例: subcounts={"inner_paren_x_power":10, "power_op_term_op_term":10}, count=20
+        slot 0..9   → "inner_paren_x_power" (P1)
+        slot 10..19 → "power_op_term_op_term" (P2)
+
+    rank_03/02/07/08/01 で確立した方式と同一。rng.choice の偶然依存を解消し、
+    教育的配分を**確実**に守る。
+    """
+    cumulative = 0
+    for subkind in ("inner_paren_x_power", "power_op_term_op_term"):
+        n = int(subcounts.get(subkind, 0))
+        if slot_index < cumulative + n:
+            return subkind
+        cumulative += n
+    return "inner_paren_x_power"  # フォールバック
+
+
+# サブパターン名 → _gen_three_term_paren_power の pattern 引数へのマッピング
+_BAND_C_SUBKIND_TO_PATTERN = {
+    "inner_paren_x_power":  "P1",
+    "power_op_term_op_term": "P2",
+}
+
+
+def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict[str, Any]:
+    """generate_problem は ``slot_index`` キーワードを受け取る（main.py の inspect 機構）。
+
+    Band C（three_term_paren_power）のみ slot_index 駆動で 2 サブパターン
+    （inner_paren_x_power / power_op_term_op_term）を決定論的に dispatch する。
+    A/B は slot_index を無視（既存挙動を温存）。
+    """
     cfg = get_band(11, band)
     kind = cfg["kind"]
     max_abs = cfg["max_abs"]
+
+    # Band C：slot_index で P1/P2 を強制指定
+    forced_pattern = None
+    if kind == "three_term_paren_power":
+        sub = _resolve_band_c_subkind(slot_index, cfg.get("subcounts", {}))
+        forced_pattern = _BAND_C_SUBKIND_TO_PATTERN.get(sub)
 
     for _ in range(500):
         if kind == "two_term_mixed":
@@ -181,7 +231,9 @@ def generate_problem(band: str, rng: random.Random) -> Dict[str, Any]:
         elif kind == "with_power":
             latex, result, info = _gen_with_power(rng, max_abs, cfg["exp_max"])
         elif kind == "three_term_paren_power":
-            latex, result, info = _gen_three_term_paren_power(rng, max_abs, cfg["exp_max"])
+            latex, result, info = _gen_three_term_paren_power(
+                rng, max_abs, cfg["exp_max"], pattern=forced_pattern
+            )
         else:
             raise NotImplementedError(kind)
         if result == 0:

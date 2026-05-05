@@ -73,25 +73,59 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         # D〜H で帯分数・3項・小数混在を導入予定
     },
     # 13級：正負の数 加減
+    # Phase 1（2026-05-05）: 30→50 題に拡充、Band D を新設して 4 Band 構成に。
+    # ふくちさん教育的判断（36 年塾長経験、中1 1学期前半の最入門単元）:
+    #   - A: 括弧付き同符号 12 問（既存ロジック踏襲）
+    #   - B: 括弧付き混合符号 12 問（既存ロジック踏襲、躓きポイント）
+    #   - C: 括弧なし 11 問（既存ロジック踏襲、max_abs=99 で 2 桁同士の暗算）
+    #   - D: 3 項加減（新設、紙教材で扱う中1 加減の最終形）15 問
+    # 中1 加減の山場「3 項計算」が旧構成では完全に欠落していたため Phase 1 で
+    # Band D を新設（rank_05/06/08/01 と同じ Band D 新設パターン）。
+    # TODO_PHASE3: 小数・分数の混合、カッコ + カッコなし混在は Phase 3 で導入。
     13: {
-        # A: 括弧付き（+9）+（+5）/ B: 括弧付き（混合符号）/ C: 括弧なし
-        "A": {"count": 10, "kind": "paren", "max_abs": 9, "terms": 2, "same_sign_only": True},
-        "B": {"count": 10, "kind": "paren", "max_abs": 9, "terms": 2, "same_sign_only": False},
-        "C": {"count": 10, "kind": "noparen", "max_abs": 99, "terms": 2, "same_sign_only": False},
+        "A": {"count": 12, "kind": "paren",   "max_abs": 9,  "terms": 2, "same_sign_only": True},
+        "B": {"count": 12, "kind": "paren",   "max_abs": 9,  "terms": 2, "same_sign_only": False},
+        "C": {"count": 11, "kind": "noparen", "max_abs": 99, "terms": 2, "same_sign_only": False},
+        "D": {"count": 15, "kind": "three_term_addsub", "max_abs": 9},
     },
     # 12級：正負の数 乗除
+    # Phase 1（2026-05-05）: 30→50 題に拡充、Band B を構造改革（unique pool 24→48）。
+    # ふくちさん教育的判断（36 年塾長経験）:
+    #   - A: 1 桁 2 項 ×/÷ 15 問（既存ロジック踏襲）
+    #   - B: 累乗 15 問（**構造改革必須**、slot_index 駆動の 3 サブパターン分離）
+    #     - subcounts={"paren_neg":5, "leading_minus":5, "positive":5}
+    #     - 教育的並び: slot 0/1/2 で (-3)²/-3²/3² が並ぶ interleave 方式で違いを認識させる
+    #     - max_abs=5→9、exp_max=3 維持、結果ガード |result|≤1000
+    #     - unique pool: 3 sub × 8 base × 2 exp = 48（旧 24 から倍増）
+    #   - C: 3 項 ×/÷ 20 問（既存ロジック踏襲、count のみ +10）
+    # 中1 乗除の山場「(-3)² と -3² の違い」を slot 駆動で意識的に並べることで
+    # 教育効果を最大化する（生徒の 8 割が間違える典型ミス）。
+    # TODO_PHASE3: 累乗と乗除の混合（(-3)²×4）、4 項以上、分数乗除は Phase 3 で導入。
     12: {
-        # A: 1桁 2項 ×/÷ / B: 累乗込み / C: 3項 ×/÷
-        "A": {"count": 10, "kind": "muldiv", "max_abs": 9, "terms": 2, "powers": False},
-        "B": {"count": 10, "kind": "powers", "max_abs": 5, "exp_max": 3},
-        "C": {"count": 10, "kind": "muldiv", "max_abs": 9, "terms": 3, "powers": False},
+        "A": {"count": 15, "kind": "muldiv", "max_abs": 9, "terms": 2, "powers": False},
+        "B": {
+            "count": 15, "kind": "powers", "max_abs": 9, "exp_max": 3, "max_result_abs": 1000,
+            "subcounts": {"paren_neg": 5, "leading_minus": 5, "positive": 5},
+        },
+        "C": {"count": 20, "kind": "muldiv", "max_abs": 9, "terms": 3, "powers": False},
     },
     # 11級：正負の数 四則混合（最難関級）
+    # Phase 1（2026-05-05）: 30→50 題に拡充、Band C を slot_index 駆動化。
+    # ふくちさん教育的判断（36 年塾長経験）:
+    #   - A: 2 項四則混合 15 問（既存ロジック踏襲、両正排除で 11 級らしさ維持）
+    #   - B: 累乗を含む 2 項 15 問（既存ロジック踏襲）
+    #   - C: 3 項 + 括弧 + 累乗 20 問（**slot_index 駆動の 2 サブパターン分離**）
+    #     - subcounts={"inner_paren_x_power":10, "power_op_term_op_term":10}
+    #     - 既存 P1/P2 を slot_index で決定論分離（rng.choice の偶然依存を解消）
+    # 中1 1 学期後半の集大成、3 単元の最難関。
+    # TODO_PHASE3: 4 項以上、分数係数、二重括弧は Phase 3 で導入。
     11: {
-        # A: 2項 四則混合（括弧付き符号） / B: 累乗を含む 2 項 / C: 3項 + 括弧 + 累乗
-        "A": {"count": 10, "kind": "two_term_mixed", "max_abs": 9},
-        "B": {"count": 10, "kind": "with_power",     "max_abs": 5, "exp_max": 3},
-        "C": {"count": 10, "kind": "three_term_paren_power", "max_abs": 5, "exp_max": 2},
+        "A": {"count": 15, "kind": "two_term_mixed",        "max_abs": 9},
+        "B": {"count": 15, "kind": "with_power",            "max_abs": 5, "exp_max": 3},
+        "C": {
+            "count": 20, "kind": "three_term_paren_power", "max_abs": 5, "exp_max": 2,
+            "subcounts": {"inner_paren_x_power": 10, "power_op_term_op_term": 10},
+        },
     },
     # 8級：一次方程式・比例式
     # Phase 1（2026-05-05）: 30→50 題に拡充、Band D を新設して 4 Band 構成に。

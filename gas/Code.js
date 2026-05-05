@@ -2655,6 +2655,21 @@ function diagnoseRank1InProgress() {
   return diagnoseKisoInProgressByRank(1);
 }
 
+// ショートカット: rank=13 の診断（rank_13 50題化 + Band D 新設前の pre-flight 用）
+function diagnoseRank13InProgress() {
+  return diagnoseKisoInProgressByRank(13);
+}
+
+// ショートカット: rank=12 の診断（rank_12 50題化 + Band B 構造改革前の pre-flight 用、特に重要）
+function diagnoseRank12InProgress() {
+  return diagnoseKisoInProgressByRank(12);
+}
+
+// ショートカット: rank=11 の診断（rank_11 50題化 + Band C slot_index 駆動化前の pre-flight 用）
+function diagnoseRank11InProgress() {
+  return diagnoseKisoInProgressByRank(11);
+}
+
 // 指定 rank の in_progress セッションを 'abandoned' に書き換える管理関数
 // （GAS エディタ実行専用、doGet 未登録）。
 //
@@ -2806,6 +2821,22 @@ function abandonRank8InProgress(opts) {
 // ショートカット: rank=1 の一括 abandoned 化（rank_01 50題化 + Band B 純化 + Band D 新設前の pre-flight 用）
 function abandonRank1InProgress(opts) {
   return abandonKisoInProgressByRank(1, opts);
+}
+
+// ショートカット: rank=13 の一括 abandoned 化（rank_13 50題化 + Band D 新設前の pre-flight 用）
+function abandonRank13InProgress(opts) {
+  return abandonKisoInProgressByRank(13, opts);
+}
+
+// ショートカット: rank=12 の一括 abandoned 化（rank_12 50題化 + Band B 構造改革前の pre-flight 用、特に重要）
+// 構造改革により既存問題プールが全置換されるため、進行中セッションは必ず abandoned 化すること。
+function abandonRank12InProgress(opts) {
+  return abandonKisoInProgressByRank(12, opts);
+}
+
+// ショートカット: rank=11 の一括 abandoned 化（rank_11 50題化 + Band C slot_index 駆動化前の pre-flight 用）
+function abandonRank11InProgress(opts) {
+  return abandonKisoInProgressByRank(11, opts);
 }
 
 // KisoSessions シートを sessionId で線形検索（直近のセッションは末尾近く）
