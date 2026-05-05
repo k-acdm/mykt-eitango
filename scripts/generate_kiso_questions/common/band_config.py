@@ -214,13 +214,43 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         },
     },
     # 1級：二次方程式
+    # Phase 1（2026-05-05）: 30→50 題に拡充、Band D を新設して 4 Band 構成に。
+    # ふくちさん教育的判断（36年塾長経験）:
+    #   - A: 因数分解で解ける整数解 15 問。重解と 0 含みは控えめに（slot_index 駆動で
+    #        double_root=1 / with_zero=1 / normal=13 に決定論分離）
+    #   - B: x²=c 形のみ 5 問（旧 P_rational ＝たすき掛けは中学範囲外なので完全排除）
+    #   - C: 解の公式（無理数解）15 問。k>1 系（x=-1±2√3 等）を slot_index 駆動で
+    #        必ず 5 問確保（k_eq_1=10 / k_gt_1=5）
+    #   - D: 平方根法（新設）15 問。(x-p)²=q 形と ax²=c 形を slot_index 駆動で
+    #        with_p=7 / ax2_eq_c=8 に決定論分離
+    # 中3 二次方程式の核心は「因数分解 → 平方根法 → 解の公式の使い分け」だが、
+    # 旧構成は B にたすき掛け（中学範囲外）が混入していた上、平方根法（(x-p)²=q
+    # と ax²=c）が一切練習できなかった。Phase 1 で Band B 純化 + Band D 新設し、
+    # 教育的ギャップを解消する（rank_05 / rank_06 / rank_08 と同じ Band D 新設パターン）。
+    # Band C の max_bc_kgt1=12 は教育的拡張：max_bc=5 では k>1 が組合せ的にほぼ
+    # 出ないため、k>1 専用にパラメータを拡張して中堅レベルの問題を確保する
+    # （k=1 部分は max_bc=5 のまま「易しめ」を維持、DESIGN_PRINCIPLES.md 原則 2）。
+    # TODO_PHASE3: 解の公式 a >= 3 の問題、(x-p)²=q で q が square-free（無理数解）、
+    # ax²+bx+c=0 のたすき掛けは Phase 3 の Band E 以降で導入。
     1: {
-        # A: 因数分解で解ける整数解（重解含む）
-        # B: 因数分解で解ける有理数解 or x² = c のシンプルな無理数解
-        # C: 解の公式必須の無理数解（(p ± √d)/q 形式）
-        "A": {"count": 10, "kind": "factorable_int", "max_root": 7},
-        "B": {"count": 10, "kind": "rational_or_simple_sqrt", "max_root": 5, "max_a": 3},
-        "C": {"count": 10, "kind": "irrational", "max_a": 2, "max_bc": 5},
+        "A": {
+            "count": 15,
+            "kind": "factorable_int",
+            "max_root": 7,
+            "subcounts": {"double_root": 1, "with_zero": 1, "normal": 13},
+        },
+        "B": {"count": 5, "kind": "x2_eq_c"},
+        "C": {
+            "count": 15,
+            "kind": "irrational",
+            "max_a": 2, "max_bc": 5, "max_bc_kgt1": 12,
+            "subcounts": {"k_eq_1": 10, "k_gt_1": 5},
+        },
+        "D": {
+            "count": 15,
+            "kind": "sqrt_method",
+            "subcounts": {"with_p": 7, "ax2_eq_c": 8},
+        },
     },
     # 6級：連立方程式
     6: {

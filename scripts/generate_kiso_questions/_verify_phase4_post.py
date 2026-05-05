@@ -1,20 +1,24 @@
-"""KisoQuestions シート Phase 4 投入後検証（rank_08 対応版）。
+"""KisoQuestions シート Phase 4 投入後検証（rank_01 対応版）。
 
-過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 投入後検証
+過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 / rank_08 投入後検証
 （CLAUDE.md #155-160 / #171）と同じパターンで gspread からシートを直接読み出し、
-rank_08 50題化 + Band D 新設の投入結果を検証する。
+rank_01 50題化 + Band B 純化 + Band D 新設の投入結果を検証する。
 
 検証項目:
-  T1 全 rank 行数 = 740
-  T2 rank 別行数（rank 1, 9-20 が 30、rank 2/3/4/5/6/7/8 が 50）
+  T1 全 rank 行数 = 760
+  T2 rank 別行数（rank 9-20 が 30、rank 1/2/3/4/5/6/7/8 が 50）
   T3 rank=6 Band 配分（A=5, B=20, C=10, D=15）
-  T4 questionId 重複ゼロ（740 件全てユニーク）
+  T4 questionId 重複ゼロ（760 件全てユニーク）
   T5 problemLatex 重複ゼロ（rank 内で全てユニーク）
   T6 rank=6 Band D に y=... 形と x=... 形の両方が含まれる
   T7 rank=8 Band 配分（A=5, B=25, C=10, D=10）
   T8 rank=8 Band D サブパターン配分（light=2, standard=6, heavy=2）
   T9 rank=8 Band D 形式チェック（light: 右辺定数 / standard: 両辺カッコ / heavy: カッコ複数+移項）
   T10 既存 rank の行数 regression なし
+  T11 rank=1 Band 配分（A=15, B=5, C=15, D=15）
+  T12 rank=1 Band B 全問が x²-c=0 形（たすき掛け = leading coef ≠ 1 が含まれない）
+  T13 rank=1 Band C: k_eq_1=10 / k_gt_1=5（k>1 が 30%以上）
+  T14 rank=1 Band D サブパターン配分（with_p=7, ax2_eq_c=8）
 
 実行:
   cd scripts/generate_kiso_questions
@@ -32,14 +36,43 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# 期待値（CLAUDE.md #171 + rank_08 Phase 1 拡充の Phase 4 投入仕様）
-EXPECTED_TOTAL = 740
-RANKS_30 = [1, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-RANKS_50 = [2, 3, 4, 5, 6, 7, 8]
+# 期待値（CLAUDE.md #171 + rank_08 + rank_01 Phase 1 拡充の Phase 4 投入仕様）
+EXPECTED_TOTAL = 760
+RANKS_30 = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8]
 EXPECTED_RANK_06_BANDS = {"A": 5, "B": 20, "C": 10, "D": 15}
 EXPECTED_RANK_08_BANDS = {"A": 5, "B": 25, "C": 10, "D": 10}
 # Band D の slot_index 駆動サブパターン配分（_resolve_band_d_subkind 由来）
 EXPECTED_RANK_08_BAND_D_SUBPATTERNS = {"light": 2, "standard": 6, "heavy": 2}
+EXPECTED_RANK_01_BANDS = {"A": 15, "B": 5, "C": 15, "D": 15}
+EXPECTED_RANK_01_BAND_C_SUBPATTERNS = {"k_eq_1": 10, "k_gt_1": 5}
+EXPECTED_RANK_01_BAND_D_SUBPATTERNS = {"with_p": 7, "ax2_eq_c": 8}
+
+
+def classify_rank01_band_d_subkind(latex: str) -> str:
+    """rank=1 Band D の latex を with_p / ax2_eq_c のいずれかに分類。
+
+      with_p   : "(x ± p)^2 = q" 形
+      ax2_eq_c : "a x^2 = c" 形（a >= 2 の整数係数）
+    """
+    if "(x" in latex and ")^2" in latex:
+        return "with_p"
+    # a x^2 = c 形: 先頭が数字 + "x^2 = "
+    import re
+    if re.match(r"^\d+x\^2\s*=\s*\d+$", latex):
+        return "ax2_eq_c"
+    return "unknown"
+
+
+def classify_rank01_band_c_subkind(latex: str, canonical: str) -> str:
+    """rank=1 Band C の canonical を k_eq_1 / k_gt_1 に分類。
+
+    canonical 内の k 係数が 1（数字+√d 表記がない）か k>=2（数字+√d 表記あり）かで判定。
+    """
+    import re
+    if re.search(r"\d+√", canonical):
+        return "k_gt_1"
+    return "k_eq_1"
 
 
 def classify_band_d_subkind(latex: str) -> str:
@@ -112,6 +145,7 @@ def main() -> int:
         i_rank = header.index("rank")
         i_band = header.index("difficultyBand")
         i_latex = header.index("problemLatex")
+        i_canonical = header.index("answerCanonical")
     except ValueError as e:
         sys.exit(f"[ERROR] 必須列が見つかりません: {e}")
 
@@ -131,7 +165,7 @@ def main() -> int:
         print(msg)
 
     # ============================================================
-    # T1: 全 rank 行数 = 720
+    # T1: 全 rank 行数 = 760
     # ============================================================
     check(
         f"T1 全 rank 行数 == {EXPECTED_TOTAL}",
@@ -178,7 +212,7 @@ def main() -> int:
         )
 
     # ============================================================
-    # T4: questionId 重複ゼロ（720 件全てユニーク）
+    # T4: questionId 重複ゼロ（760 件全てユニーク）
     # ============================================================
     qids = [r[i_qid] for r in rows if len(r) > i_qid]
     qid_counter = Counter(qids)
@@ -341,6 +375,109 @@ def main() -> int:
         print(f"  rank {rk:2d}: {rank_counts[rk]:3d} 行（期待 {expected:3d}）{mark}")
 
     # ============================================================
+    # T11: rank=1 Band 配分（A=15, B=5, C=15, D=15）
+    # ============================================================
+    band_counts_01: Counter = Counter()
+    for r in rows:
+        try:
+            if int(r[i_rank]) == 1:
+                band_counts_01[r[i_band]] += 1
+        except (ValueError, IndexError):
+            pass
+
+    for band, expected in EXPECTED_RANK_01_BANDS.items():
+        actual = band_counts_01.get(band, 0)
+        check(
+            f"T11 rank=1 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # ============================================================
+    # T12: rank=1 Band B 全問が x²-c=0 形（たすき掛け = leading coef ≠ 1 が含まれない）
+    # ============================================================
+    band_b_latexes_01 = [
+        r[i_latex] for r in rows
+        if len(r) > i_latex
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 1
+        and r[i_band] == "B"
+    ]
+    # x²-c=0 形は "x^{2} - <num> = 0" で始まる（係数 1）。たすき掛けは "<n>x^{2}" で始まる
+    import re as _re
+    band_b_form_ok = all(
+        _re.match(r"^x\^\{2\}\s*-\s*\d+\s*=\s*0$", l) for l in band_b_latexes_01
+    )
+    band_b_no_tasuki = not any(_re.match(r"^\d+x\^\{2\}", l) for l in band_b_latexes_01)
+    check(
+        f"T12 rank=1 Band B 全問が x²-c=0 形",
+        band_b_form_ok,
+        f"{len(band_b_latexes_01)} 問すべて OK" if band_b_form_ok else "違反あり",
+    )
+    check(
+        "T12 rank=1 Band B にたすき掛け（leading coef ≠ 1）が含まれない",
+        band_b_no_tasuki,
+        "たすき掛けゼロ" if band_b_no_tasuki else "違反あり",
+    )
+
+    # ============================================================
+    # T13: rank=1 Band C: k_eq_1=10 / k_gt_1=5（k>1 が 30%以上）
+    # ============================================================
+    band_c_rows_01 = [
+        r for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 1
+        and r[i_band] == "C"
+    ]
+    sub_counts_01_c: Counter = Counter()
+    for r in band_c_rows_01:
+        sub_counts_01_c[classify_rank01_band_c_subkind(r[i_latex], r[i_canonical])] += 1
+
+    for sub, expected in EXPECTED_RANK_01_BAND_C_SUBPATTERNS.items():
+        actual = sub_counts_01_c.get(sub, 0)
+        check(
+            f"T13 rank=1 Band C {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+    if len(band_c_rows_01) > 0:
+        ratio_kgt1 = sub_counts_01_c.get("k_gt_1", 0) / len(band_c_rows_01)
+        check(
+            f"T13 rank=1 Band C k_gt_1 比率 >= 30%",
+            ratio_kgt1 >= 0.30,
+            f"actual={ratio_kgt1*100:.1f}%",
+        )
+
+    # ============================================================
+    # T14: rank=1 Band D サブパターン配分（with_p=7, ax2_eq_c=8）
+    # ============================================================
+    band_d_latexes_01 = [
+        r[i_latex] for r in rows
+        if len(r) > i_latex
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 1
+        and r[i_band] == "D"
+    ]
+    sub_counts_01_d: Counter = Counter()
+    for l in band_d_latexes_01:
+        sub_counts_01_d[classify_rank01_band_d_subkind(l)] += 1
+
+    for sub, expected in EXPECTED_RANK_01_BAND_D_SUBPATTERNS.items():
+        actual = sub_counts_01_d.get(sub, 0)
+        check(
+            f"T14 rank=1 Band D {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+    unknown_count_01 = sub_counts_01_d.get("unknown", 0)
+    check(
+        f"T14 rank=1 Band D 未分類問題ゼロ",
+        unknown_count_01 == 0,
+        f"unknown={unknown_count_01}",
+    )
+
+    # ============================================================
     # rank=6 Band D サンプル表示（実機目視用）
     # ============================================================
     print("\n--- rank=6 Band D サンプル（最初の 5 問の eq1 部分） ---")
@@ -360,6 +497,26 @@ def main() -> int:
     for i, l in enumerate(band_d_latexes_08):
         sub = classify_band_d_subkind(l)
         print(f"  D[{i+1:2d}] ({sub:8s}): {l[:90]}")
+
+    # ============================================================
+    # rank=1 Band C k_gt_1 サンプル + Band D サブパターンサンプル（実機目視用）
+    # ============================================================
+    print("\n--- rank=1 Band C k_gt_1 サンプル（係数付き解 k>=2） ---")
+    for r in band_c_rows_01:
+        if classify_rank01_band_c_subkind(r[i_latex], r[i_canonical]) == "k_gt_1":
+            print(f"  C k_gt_1: {r[i_latex]}  =>  {r[i_canonical]}")
+
+    print("\n--- rank=1 Band D サンプル（slot_index 順、with_p / ax2_eq_c） ---")
+    for i, l in enumerate(band_d_latexes_01):
+        sub = classify_rank01_band_d_subkind(l)
+        # canonical も表示
+        canon = ""
+        for r in rows:
+            if (len(r) > i_canonical and r[i_rank].strip().isdigit()
+                and int(r[i_rank]) == 1 and r[i_band] == "D" and r[i_latex] == l):
+                canon = r[i_canonical]
+                break
+        print(f"  D[{i+1:2d}] ({sub:9s}): {l:30s}  =>  {canon}")
 
     # ============================================================
     # 結果サマリ
