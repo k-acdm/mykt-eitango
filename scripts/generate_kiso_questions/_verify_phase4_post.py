@@ -1,13 +1,13 @@
-"""KisoQuestions シート Phase 4 投入後検証（rank_11/12/13 対応版）。
+"""KisoQuestions シート Phase 4 投入後検証（rank_09 対応版）。
 
-過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 / rank_08 / rank_01
-投入後検証（CLAUDE.md #155-160 / #171）と同じパターンで gspread からシートを直接
-読み出し、rank_11/12/13 50題化（rank_12 Band B 構造改革 + rank_13 Band D 新設 +
-rank_11 Band C slot_index 化）の投入結果を検証する。
+過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 / rank_08 / rank_01 /
+rank_11 / rank_12 / rank_13 投入後検証（CLAUDE.md #155-160 / #171）と同じパターンで
+gspread からシートを直接読み出し、rank_09 50題化（Band D 新設 + Band A slot_index
+化）の投入結果を検証する。
 
 検証項目:
-  T1  全 rank 行数 = 820
-  T2  rank 別行数（rank 9/10/14-20 が 30、rank 1-8 + 11-13 が 50）
+  T1  全 rank 行数 = 840
+  T2  rank 別行数（rank 10/14-20 が 30、rank 1-9 + 11-13 が 50）
   T3  rank=6 Band 配分（A=5, B=20, C=10, D=15）
   T4  questionId 重複ゼロ（820 件全てユニーク）
   T5  problemLatex 重複ゼロ（rank 内で全てユニーク）
@@ -24,6 +24,9 @@ rank_11 Band C slot_index 化）の投入結果を検証する。
   T16 rank=12 Band 配分（A=15, B=15, C=20）+ Band B サブ配分（paren_neg=5, leading_minus=5, positive=5）
        + Band B 結果ガード |result| ≤ 1000
   T17 rank=13 Band 配分（A=12, B=12, C=11, D=15）+ Band D 全問が 3 項計算
+  T18 rank=9  Band 配分（A=13, B=13, C=11, D=13）
+       + Band A サブ配分（two_term=7, three_term=3, with_const=3）
+       + Band D 全問が "(...) ± (...)" 形 + -(...) 符号反転が過半数
 
 実行:
   cd scripts/generate_kiso_questions
@@ -41,10 +44,10 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# 期待値（CLAUDE.md #171 + rank_08 + rank_01 + rank_11/12/13 Phase 1 拡充の Phase 4 投入仕様）
-EXPECTED_TOTAL = 820
-RANKS_30 = [9, 10, 14, 15, 16, 17, 18, 19, 20]
-RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13]
+# 期待値（CLAUDE.md #171 + rank_08 + rank_01 + rank_11/12/13 + rank_09 Phase 1 拡充の Phase 4 投入仕様）
+EXPECTED_TOTAL = 840
+RANKS_30 = [10, 14, 15, 16, 17, 18, 19, 20]
+RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13]
 EXPECTED_RANK_06_BANDS = {"A": 5, "B": 20, "C": 10, "D": 15}
 EXPECTED_RANK_08_BANDS = {"A": 5, "B": 25, "C": 10, "D": 10}
 # Band D の slot_index 駆動サブパターン配分（_resolve_band_d_subkind 由来）
@@ -59,6 +62,10 @@ EXPECTED_RANK_12_BANDS = {"A": 15, "B": 15, "C": 20}
 EXPECTED_RANK_12_BAND_B_SUBPATTERNS = {"paren_neg": 5, "leading_minus": 5, "positive": 5}
 EXPECTED_RANK_12_BAND_B_MAX_RESULT_ABS = 1000
 EXPECTED_RANK_13_BANDS = {"A": 12, "B": 12, "C": 11, "D": 15}
+# 式の計算 中1（Phase 1、2026-05-06 拡充）
+EXPECTED_RANK_09_BANDS = {"A": 13, "B": 13, "C": 11, "D": 13}
+# rank_09 Band A の slot_index 駆動 3 サブパターン（_resolve_band_a_subkind 由来）
+EXPECTED_RANK_09_BAND_A_SUBPATTERNS = {"two_term": 7, "three_term": 3, "with_const": 3}
 
 
 def classify_rank12_band_b_subkind(latex: str) -> str:
@@ -75,6 +82,49 @@ def classify_rank12_band_b_subkind(latex: str) -> str:
         return "leading_minus"
     if _re.match(r"^\d+\^\{?\d+\}?$", latex):
         return "positive"
+    return "unknown"
+
+
+def classify_rank09_band_a_subkind(latex: str) -> str:
+    """rank=9 Band A の latex を two_term / three_term / with_const に分類。
+
+    紙教材形式：先頭 signed → ' ' → op → ' ' → 次項 → ... の構造。
+      two_term   : "Xx op Yx"           （x 項 2 つ、演算子 1 つ）
+      three_term : "Xx op Yx op Zx"     （x 項 3 つ、演算子 2 つ）
+      with_const : "Xx op N op Yx op N" （x 項 + 定数 + x 項 + 定数 の 4 項）
+    """
+    tokens = latex.strip().split()
+    if not tokens:
+        return "unknown"
+    # 偶数 index が項、奇数 index が op
+    terms = [tokens[i] for i in range(0, len(tokens), 2)]
+    is_x_term = lambda t: t.endswith("x")
+    if len(terms) == 2 and all(is_x_term(t) for t in terms):
+        return "two_term"
+    if len(terms) == 3 and all(is_x_term(t) for t in terms):
+        return "three_term"
+    if len(terms) == 4:
+        x_count = sum(1 for t in terms if is_x_term(t))
+        const_count = sum(1 for t in terms if not is_x_term(t))
+        if x_count == 2 and const_count == 2:
+            return "with_const"
+    return "unknown"
+
+
+def classify_rank09_band_d_form(latex: str) -> str:
+    """rank=9 Band D の latex が "(...) ± (...)" 形か判定。
+
+    形式：第 1 カッコ + outer_op + 第 2 カッコ
+    判定:
+      - "paren_addsub" : (open paren 2、close paren 2、トップレベル op が 1 つ)
+      - "unknown"      : それ以外
+    """
+    import re as _re
+    if _re.match(r"^\(.+\)\s+[+\-]\s+\(.+\)$", latex):
+        opens = latex.count("(")
+        closes = latex.count(")")
+        if opens == 2 and closes == 2:
+            return "paren_addsub"
     return "unknown"
 
 
@@ -653,6 +703,82 @@ def main() -> int:
     )
 
     # ============================================================
+    # T18: rank=9 Band 配分 + Band A サブ配分 + Band D 形式
+    # ============================================================
+    band_counts_09: Counter = Counter()
+    for r in rows:
+        try:
+            if int(r[i_rank]) == 9:
+                band_counts_09[r[i_band]] += 1
+        except (ValueError, IndexError):
+            pass
+
+    for band, expected in EXPECTED_RANK_09_BANDS.items():
+        actual = band_counts_09.get(band, 0)
+        check(
+            f"T18 rank=9 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=9 Band A の slot_index 駆動 3 サブパターン
+    band_a_latexes_09 = [
+        r[i_latex] for r in rows
+        if len(r) > i_latex
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 9
+        and r[i_band] == "A"
+    ]
+    sub_counts_09_a: Counter = Counter()
+    for l in band_a_latexes_09:
+        sub_counts_09_a[classify_rank09_band_a_subkind(l)] += 1
+
+    for sub, expected in EXPECTED_RANK_09_BAND_A_SUBPATTERNS.items():
+        actual = sub_counts_09_a.get(sub, 0)
+        check(
+            f"T18 rank=9 Band A {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+    unknown_count_09_a = sub_counts_09_a.get("unknown", 0)
+    check(
+        f"T18 rank=9 Band A 未分類問題ゼロ",
+        unknown_count_09_a == 0,
+        f"unknown={unknown_count_09_a}",
+    )
+
+    # rank=9 Band D の全問が "(...) ± (...)" 形 + -(...) 符号反転が過半数
+    band_d_latexes_09 = [
+        r[i_latex] for r in rows
+        if len(r) > i_latex
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 9
+        and r[i_band] == "D"
+    ]
+    paren_addsub_count = sum(
+        1 for l in band_d_latexes_09 if classify_rank09_band_d_form(l) == "paren_addsub"
+    )
+    check(
+        "T18 rank=9 Band D 全問が \"(...) ± (...)\" 形",
+        paren_addsub_count == len(band_d_latexes_09) and paren_addsub_count > 0,
+        f"paren_addsub={paren_addsub_count} / 全 {len(band_d_latexes_09)} 問",
+    )
+
+    # 第 2 カッコの直前の outer_op が "-" の問題が過半数（教育的に符号反転を主役化）
+    import re as _re
+    minus_count_09_d = sum(
+        1 for l in band_d_latexes_09 if _re.search(r"\)\s+-\s+\(", l)
+    )
+    plus_count_09_d = sum(
+        1 for l in band_d_latexes_09 if _re.search(r"\)\s+\+\s+\(", l)
+    )
+    check(
+        "T18 rank=9 Band D -(...) 符号反転が過半数",
+        minus_count_09_d > plus_count_09_d,
+        f"minus={minus_count_09_d}, plus={plus_count_09_d}",
+    )
+
+    # ============================================================
     # rank=6 Band D サンプル表示（実機目視用）
     # ============================================================
     print("\n--- rank=6 Band D サンプル（最初の 5 問の eq1 部分） ---")
@@ -717,6 +843,34 @@ def main() -> int:
                 canon = r[i_canonical]
                 break
         print(f"  D[{i+1:2d}]: {l:45s}  =>  {canon}")
+
+    # ============================================================
+    # rank=9 Band A サブパターンサンプル + Band D 符号反転サンプル
+    # ============================================================
+    rank09_a_rows = [
+        r for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 9
+        and r[i_band] == "A"
+    ]
+    print("\n--- rank=9 Band A サンプル（slot_index 順、two_term/three_term/with_const） ---")
+    for i, r in enumerate(rank09_a_rows):
+        sub = classify_rank09_band_a_subkind(r[i_latex])
+        print(f"  A[{i+1:2d}] ({sub:11s}): {r[i_latex]:30s}  =>  {r[i_canonical]}")
+
+    rank09_d_rows = [
+        r for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 9
+        and r[i_band] == "D"
+    ]
+    print("\n--- rank=9 Band D サンプル（特に符号反転 -(...) パターン） ---")
+    import re as _re_d
+    minus_rows = [r for r in rank09_d_rows if _re_d.search(r"\)\s+-\s+\(", r[i_latex])]
+    for r in minus_rows[:6]:
+        print(f"  D[-]: {r[i_latex]:42s}  =>  {r[i_canonical]}")
 
     # ============================================================
     # 結果サマリ

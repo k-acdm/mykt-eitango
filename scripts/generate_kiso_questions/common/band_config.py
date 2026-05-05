@@ -310,11 +310,32 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "C": {"count": 10, "complexity": "hard"},
     },
     # 9級：式の計算 中1
+    # 9級：式の計算 中1
+    # Phase 1（2026-05-06）: 30→50 題に拡充、Band D を新設して 4 Band 構成に。
+    # ふくちさん教育的判断（36 年塾長経験）:
+    #   - A: 同類項 13 問（slot_index 駆動の 3 サブパターン）
+    #     - two_term=7（既存ロジック踏襲、2 項単項式）
+    #     - three_term=3（新規、3 項同類項）
+    #     - with_const=3（新規、定数項込み）
+    #   - B: 分配法則 13 問（既存ロジック踏襲、count のみ 10→13）
+    #   - C: 単項式の乗除 11 問（既存ロジック踏襲、count のみ 10→11）
+    #   - D: カッコ展開 + 加減 13 問（新設、(ax+b) ± (cx+d) 形）
+    #     - 中1 文字式の山場「カッコ展開 + 符号反転」の集中練習
+    #     - 第 2 カッコの符号反転を伴う -(...) 形を多めに（rng.choices で 2:3）
+    # 中1 教科書の山場「カッコ展開 + 符号反転」が旧構成で完全に欠落していたため、
+    # Phase 1 で Band D を新設し教育的ギャップを解消する
+    # （rank_05/06/08/01/13 と同じ Band D 新設パターン）。
+    # TODO_PHASE3: distribute_addsub（2(x+3) + 3(x-1) 系）は中2 rank_07 範囲のため
+    # rank_09 では Phase 1 で導入しない。100 題化時に rank_07 への含有を確認すること。
+    # 4 項以上の同類項、二重括弧、分数係数、複数文字は Phase 3 の Band E 以降で導入。
     9: {
-        # A: 同類項 / B: 分配法則 / C: 単項式の乗除
-        "A": {"count": 10, "kind": "like_terms", "terms": 2, "coef_max": 9},
-        "B": {"count": 10, "kind": "distribute", "coef_max": 5, "const_max": 5},
-        "C": {"count": 10, "kind": "monomial_muldiv", "coef_max": 6},
+        "A": {
+            "count": 13, "kind": "like_terms", "coef_max": 9, "const_max": 7,
+            "subcounts": {"two_term": 7, "three_term": 3, "with_const": 3},
+        },
+        "B": {"count": 13, "kind": "distribute",      "coef_max": 5, "const_max": 5},
+        "C": {"count": 11, "kind": "monomial_muldiv", "coef_max": 6},
+        "D": {"count": 13, "kind": "paren_addsub",    "coef_max": 5, "const_max": 7},
     },
 }
 
