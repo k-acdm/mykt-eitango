@@ -359,6 +359,10 @@ function doGet(e) {
       //   セットアップ用で、ここには登録しない（CLAUDE.md の運用ルール準拠）。
       else if (action === 'getMessagesForStudent')   result = getMessagesForStudent(params);
       else if (action === 'getUnreadMessageCount')   result = getUnreadMessageCount(params);
+      // 管理画面: リスオン問題入力（getLisonLevels は無認証、他 2 つは _verifyAdmin で password 検証）
+      else if (action === 'getLisonLevels')                  result = getLisonLevels();
+      else if (action === 'getLisonContentsWeek')            result = getLisonContentsWeek(params);
+      else if (action === 'listLisonContentsWeeks')          result = listLisonContentsWeeks(params);
       // 管理画面: リスオン録音メタ一覧 + 既存録音の一括公開化バッチ（後者は GAS エディタ実行用）
       else if (action === 'getLisonSubmissionsList')         result = getLisonSubmissionsList(params);
       else if (action === 'migrateLisonRecordingsToShared')  result = migrateLisonRecordingsToShared(params);
@@ -406,6 +410,9 @@ function doPost(e) {
     //   本番デプロイ後の初回テストで「unknown action: submitLison」エラーを起こした実績あり
     //   （2026-04-29）。getLisonContent は GET（cachedGasGet）なので doGet のみで OK。
     else if (action === 'submitLison')              result = submitLison(params);
+    // 管理画面: リスオン問題の週単位一括登録（5 レベル × 3 問 + 英文 / 和訳で URL 長を
+    // 超えるため POST 必須、CLAUDE.md #93 と同パターン）。
+    else if (action === 'adminSaveLisonContentsWeek') result = adminSaveLisonContentsWeek(params);
     // カンジー：書き提出（写真 base64 が大きいため POST 経由）
     else if (action === 'submitKanjiKaki')          result = submitKanjiKaki(params);
     // 管理画面：HP 手動付与（誤実行防止のため POST 強制、Students.HP と HPLog を直接書き換える）
@@ -7071,6 +7078,32 @@ function adminSetWabun1Comment(params) {
 
 const LISON_VALID_LEVELS = ['4', '3', 'pre2', '2', 'pre1'];
 
+// レベルメタデータ（管理画面で動的生成するタブ・answer select の選択肢に利用）。
+// answerType: 'maru' = ○/✖（4 級のみ、教科書準拠の表記）、'tf' = T/F（3 級以上の英文 T/F 問題）。
+// 順序は LISON_VALID_LEVELS と一致させる（管理画面のタブ並びがそのまま再現される）。
+const LISON_LEVEL_META = [
+  { value: '4',    label: '4 級',    answerType: 'maru' },
+  { value: '3',    label: '3 級',    answerType: 'tf'   },
+  { value: 'pre2', label: '準 2 級', answerType: 'tf'   },
+  { value: '2',    label: '2 級',    answerType: 'tf'   },
+  { value: 'pre1', label: '準 1 級', answerType: 'tf'   }
+];
+
+// LisonContents シートのヘッダー（13 列、A〜M）。
+// _readLisonContentRow / 管理画面（adminSaveLisonContentsWeek 等）の両方で
+// この配列を参照することで、列順入れ替えや schema migration に強くする。
+const LISON_CONTENTS_HEADERS = [
+  'weekStart', 'level',
+  'englishText', 'japaneseText',
+  'q1_text', 'q1_answer', 'q1_explanation',
+  'q2_text', 'q2_answer', 'q2_explanation',
+  'q3_text', 'q3_answer', 'q3_explanation'
+];
+
+// 既存運用が手動で行を追加していくスタイルなので min_rows は控えめ（appendRow 中心）。
+// 5 レベル × 12 ヶ月分 ≈ 260 週 = 1300 行を想定して 1500 を確保。
+const LISON_CONTENTS_MIN_ROWS = 1500;
+
 // 録音の保存期間（日数）。Drive ファイルとシート行を両方削除する基準。
 // 値を変更したい場合（20 日 / 30 日など）はここ 1 箇所のみ。
 const LISON_RETENTION_DAYS = 15;
@@ -7133,6 +7166,284 @@ function _readLisonContentRow(weekStart, level) {
     };
   }
   return null;
+}
+
+// =============================================
+// 管理画面：LisonContents シートのヘッダー保証（冪等）
+// 既存シートが古い 8 列構成等の場合に末尾に欠落列を追記する（破壊的変更なし）。
+// シートが存在しなければ新規作成。GAS エディタからの 1 回限り実行を想定。
+// =============================================
+function ensureLisonContentsSheet() {
+  try {
+    const r = _ensureSheetWithHeaders(SHEET_LISON_CONTENTS, LISON_CONTENTS_HEADERS, LISON_CONTENTS_MIN_ROWS);
+    return {
+      ok: true,
+      created: r.created,
+      maxRows: r.sh.getMaxRows(),
+      headers: LISON_CONTENTS_HEADERS
+    };
+  } catch (err) {
+    console.error('[ensureLisonContentsSheet]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 公開API: リスオンのレベル一覧（管理画面のタブ動的生成用）
+// 認証不要。LISON_LEVEL_META をそのまま返す。
+// 戻り値: { ok, levels: [{ value, label, answerType }, ...] }
+// =============================================
+function getLisonLevels() {
+  return {
+    ok: true,
+    levels: LISON_LEVEL_META.map(function(m){
+      return { value: m.value, label: m.label, answerType: m.answerType };
+    })
+  };
+}
+
+// =============================================
+// 管理画面：LisonContents の (weekStart, level) 行マップを構築
+// 戻り値: { rowByKey: { 'weekStart|level': rowIdx1based, ... }, sheet, header, indices }
+// header から動的に列インデックスを引く（schema migration 対応）。
+// =============================================
+function _readLisonContentsIndex(sheet) {
+  const sh = sheet || _ss().getSheetByName(SHEET_LISON_CONTENTS);
+  if (!sh) return { sheet: null, header: null, rowByKey: {}, indices: null };
+  if (sh.getLastRow() < 1) {
+    return { sheet: sh, header: null, rowByKey: {}, indices: null };
+  }
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const idx = function(name) { return header.indexOf(name); };
+  const indices = {
+    iWS:  idx('weekStart'),
+    iLV:  idx('level'),
+    iEng: idx('englishText'),
+    iJa:  idx('japaneseText'),
+    iQ1T: idx('q1_text'), iQ1A: idx('q1_answer'), iQ1E: idx('q1_explanation'),
+    iQ2T: idx('q2_text'), iQ2A: idx('q2_answer'), iQ2E: idx('q2_explanation'),
+    iQ3T: idx('q3_text'), iQ3A: idx('q3_answer'), iQ3E: idx('q3_explanation')
+  };
+  const rowByKey = {};
+  if (indices.iWS < 0 || indices.iLV < 0) {
+    return { sheet: sh, header: header, rowByKey: rowByKey, indices: indices };
+  }
+  for (let r = 1; r < values.length; r++) {
+    const row = values[r];
+    const wsRaw = row[indices.iWS];
+    if (!wsRaw) continue;
+    let ws;
+    if (wsRaw instanceof Date) {
+      ws = Utilities.formatDate(wsRaw, 'Asia/Tokyo', 'yyyy-MM-dd');
+    } else {
+      ws = String(wsRaw).trim();
+    }
+    const lv = String(row[indices.iLV] || '').trim();
+    if (!ws || !lv) continue;
+    rowByKey[ws + '|' + lv] = r + 1; // 1-based シート行番号
+  }
+  return { sheet: sh, header: header, rowByKey: rowByKey, indices: indices };
+}
+
+// =============================================
+// 管理画面：1 週分のコンテンツを一括保存（5 レベル × 3 問 + 英文 / 和訳）
+// params:
+//   { password, weekStart: 'YYYY-MM-DD',
+//     levels: [{ level, englishText, japaneseText,
+//                questions: [{ text, answer, explanation }, x3] }, ...] }
+// 部分投入（5 レベル全部揃わなくても可）を許容、空のレベルはスキップ。
+// (weekStart, level) 一致行があれば setValues で上書き、なければ appendRow。
+// 戻り値: { ok, added, updated, errors: [] }
+// =============================================
+function adminSaveLisonContentsWeek(params) {
+  try {
+    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const weekStart = String((params && params.weekStart) || '').trim();
+    const levels = (params && params.levels) || [];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+      return { ok: false, message: 'weekStart は YYYY-MM-DD 形式で指定してください' };
+    }
+    if (!Array.isArray(levels)) {
+      return { ok: false, message: 'levels が配列ではありません' };
+    }
+
+    // シート存在保証 + 列構成チェック
+    const ensure = _ensureSheetWithHeaders(SHEET_LISON_CONTENTS, LISON_CONTENTS_HEADERS, LISON_CONTENTS_MIN_ROWS);
+    const sh = ensure.sh;
+    const idx = _readLisonContentsIndex(sh);
+    if (!idx.indices || idx.indices.iWS < 0 || idx.indices.iLV < 0) {
+      return { ok: false, message: 'LisonContents のヘッダーに weekStart / level 列が見つかりません' };
+    }
+
+    // 入力レベルの正規化 + 空判定（空レベルはスキップ）
+    const errors = [];
+    const targets = []; // { level, englishText, japaneseText, questions: [...] }
+    for (let i = 0; i < levels.length; i++) {
+      const it = levels[i] || {};
+      const level = String(it.level || '').trim();
+      if (!level) continue;
+      if (LISON_VALID_LEVELS.indexOf(level) < 0) {
+        errors.push('未定義のレベルをスキップ: ' + level);
+        continue;
+      }
+      const eng = String(it.englishText == null ? '' : it.englishText);
+      const ja  = String(it.japaneseText == null ? '' : it.japaneseText);
+      const qs  = Array.isArray(it.questions) ? it.questions : [];
+      const q1  = qs[0] || {}; const q2 = qs[1] || {}; const q3 = qs[2] || {};
+      const allEmpty =
+        !eng.trim() && !ja.trim() &&
+        !String(q1.text || '').trim() && !String(q1.answer || '').trim() && !String(q1.explanation || '').trim() &&
+        !String(q2.text || '').trim() && !String(q2.answer || '').trim() && !String(q2.explanation || '').trim() &&
+        !String(q3.text || '').trim() && !String(q3.answer || '').trim() && !String(q3.explanation || '').trim();
+      if (allEmpty) continue; // 完全に空のレベルは無視（既存行があってもそのまま残す）
+      targets.push({
+        level: level,
+        englishText: eng,
+        japaneseText: ja,
+        questions: [
+          { text: String(q1.text || ''), answer: String(q1.answer || '').trim(), explanation: String(q1.explanation || '') },
+          { text: String(q2.text || ''), answer: String(q2.answer || '').trim(), explanation: String(q2.explanation || '') },
+          { text: String(q3.text || ''), answer: String(q3.answer || '').trim(), explanation: String(q3.explanation || '') }
+        ]
+      });
+    }
+    if (targets.length === 0) {
+      return { ok: false, message: '保存対象のレベルがありません（少なくとも 1 レベルは入力してください）', errors: errors };
+    }
+
+    // ヘッダー順に並んだ行データを組み立てるヘルパー
+    function _buildRow(t) {
+      // header.indexOf 経由で各値を埋める。LISON_CONTENTS_HEADERS と一致前提。
+      const row = new Array(LISON_CONTENTS_HEADERS.length).fill('');
+      const set = function(col, v) { const i = idx.header.indexOf(col); if (i >= 0) row[i] = v; };
+      set('weekStart',     weekStart);
+      set('level',         t.level);
+      set('englishText',   t.englishText);
+      set('japaneseText',  t.japaneseText);
+      set('q1_text',       t.questions[0].text);
+      set('q1_answer',     t.questions[0].answer);
+      set('q1_explanation',t.questions[0].explanation);
+      set('q2_text',       t.questions[1].text);
+      set('q2_answer',     t.questions[1].answer);
+      set('q2_explanation',t.questions[1].explanation);
+      set('q3_text',       t.questions[2].text);
+      set('q3_answer',     t.questions[2].answer);
+      set('q3_explanation',t.questions[2].explanation);
+      return row;
+    }
+
+    let added = 0;
+    let updated = 0;
+    const appendRows = [];
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      const key = weekStart + '|' + t.level;
+      const row = _buildRow(t);
+      if (idx.rowByKey[key]) {
+        sh.getRange(idx.rowByKey[key], 1, 1, row.length).setValues([row]);
+        updated++;
+      } else {
+        appendRows.push(row);
+      }
+    }
+    if (appendRows.length > 0) {
+      const startRow = sh.getLastRow() + 1;
+      sh.getRange(startRow, 1, appendRows.length, appendRows[0].length).setValues(appendRows);
+      added = appendRows.length;
+    }
+    return { ok: true, added: added, updated: updated, errors: errors };
+  } catch (err) {
+    console.error('[adminSaveLisonContentsWeek]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 管理画面：1 週分のコンテンツを読み出し（編集モード用）
+// params: { password, weekStart }
+// 戻り値: { ok, weekStart, levels: [{ level, englishText, japaneseText, questions: [...] }, ...] }
+// 認証必須（生徒側 getLisonContent は無認証だが、管理画面は念のため認証あり）。
+// =============================================
+function getLisonContentsWeek(params) {
+  try {
+    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const weekStart = String((params && params.weekStart) || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+      return { ok: false, message: 'weekStart は YYYY-MM-DD 形式で指定してください' };
+    }
+    const sh = _ss().getSheetByName(SHEET_LISON_CONTENTS);
+    const result = { ok: true, weekStart: weekStart, levels: [] };
+    if (!sh || sh.getLastRow() < 2) return result;
+    // LISON_VALID_LEVELS の順序を保つため、各レベルを順番に読みに行く
+    for (let i = 0; i < LISON_VALID_LEVELS.length; i++) {
+      const lv = LISON_VALID_LEVELS[i];
+      const c = _readLisonContentRow(weekStart, lv);
+      if (!c) continue;
+      result.levels.push({
+        level: c.level,
+        englishText: c.englishText,
+        japaneseText: c.japaneseText,
+        questions: c.questions
+      });
+    }
+    return result;
+  } catch (err) {
+    console.error('[getLisonContentsWeek]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 管理画面：直近 N 週の登録状況を一覧
+// params: { password, limit?: 8 }
+// 戻り値: { ok, weeks: [{ weekStart, levels: [...投入済みレベル], complete: bool }, ...] }
+// weekStart 降順、最大 limit 件。
+// =============================================
+function listLisonContentsWeeks(params) {
+  try {
+    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const limit = Math.max(1, Math.min(60, Number((params && params.limit) || 8)));
+    const sh = _ss().getSheetByName(SHEET_LISON_CONTENTS);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, weeks: [] };
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iWS = header.indexOf('weekStart');
+    const iLV = header.indexOf('level');
+    if (iWS < 0 || iLV < 0) return { ok: true, weeks: [] };
+    // weekStart → Set<level> のマップを作る
+    const byWS = {};
+    for (let r = 1; r < values.length; r++) {
+      const row = values[r];
+      const wsRaw = row[iWS];
+      if (!wsRaw) continue;
+      let ws;
+      if (wsRaw instanceof Date) {
+        ws = Utilities.formatDate(wsRaw, 'Asia/Tokyo', 'yyyy-MM-dd');
+      } else {
+        ws = String(wsRaw).trim();
+      }
+      const lv = String(row[iLV] || '').trim();
+      if (!ws || LISON_VALID_LEVELS.indexOf(lv) < 0) continue;
+      if (!byWS[ws]) byWS[ws] = {};
+      byWS[ws][lv] = true;
+    }
+    // weekStart 降順にソート
+    const allWS = Object.keys(byWS).sort(function(a, b){ return a < b ? 1 : a > b ? -1 : 0; });
+    const weeks = allWS.slice(0, limit).map(function(ws){
+      // LISON_VALID_LEVELS の順序を保ったまま投入済みレベルだけ残す
+      const lvs = LISON_VALID_LEVELS.filter(function(lv){ return !!byWS[ws][lv]; });
+      return {
+        weekStart: ws,
+        levels: lvs,
+        complete: lvs.length === LISON_VALID_LEVELS.length
+      };
+    });
+    return { ok: true, weeks: weeks };
+  } catch (err) {
+    console.error('[listLisonContentsWeeks]', err);
+    return { ok: false, message: String(err) };
+  }
 }
 
 // =============================================

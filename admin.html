@@ -27,8 +27,8 @@
   .login-card button:disabled { opacity: .5; cursor: not-allowed; }
 
   /* メイン系画面のヘッダー（ダッシュボード以外） */
-  #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-  #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1 { font-size: 18px; font-weight: 600; }
+  #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1 { font-size: 18px; font-weight: 600; }
   .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
   .logout-btn:hover { background: rgba(255,255,255,.3); }
 
@@ -287,6 +287,44 @@
   .lison-students-table .name-link:hover { text-decoration: underline; }
   .lison-students-empty { padding: 24px; text-align: center; color: #94a3b8; background: #fff; border-radius: 10px; }
 
+  /* リスオン問題入力（管理画面） */
+  .lison-input-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; border-bottom: 2px solid #e1e5ee; padding-bottom: 0; }
+  .lison-input-tab { background: #f4f6fb; border: 1px solid #e1e5ee; border-bottom: 0; padding: 10px 16px; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; border-radius: 8px 8px 0 0; transition: all .15s; font-family: inherit; position: relative; top: 1px; }
+  .lison-input-tab:hover { background: #ecf0f9; color: #333; }
+  .lison-input-tab.active { background: #fff; color: #4338ca; border-color: #4338ca; border-bottom: 2px solid #fff; font-weight: 700; }
+  .lison-input-tab .lison-tab-badge { display: inline-block; margin-left: 6px; padding: 1px 7px; font-size: 10px; border-radius: 999px; vertical-align: middle; }
+  .lison-input-tab .lison-tab-badge.filled { background: #dcfce7; color: #166534; }
+  .lison-input-tab .lison-tab-badge.empty  { background: #fef3c7; color: #b45309; }
+  .lison-input-panel { display: none; padding: 4px 0; }
+  .lison-input-panel.active { display: block; }
+  .lison-input-panel h3 { font-size: 14px; color: #4f7df0; margin: 14px 0 6px; font-weight: 600; }
+  .lison-input-panel h3:first-child { margin-top: 4px; }
+  .lison-input-panel textarea { width: 100%; padding: 10px 12px; font-size: 14px; border: 2px solid #e1e5ee; border-radius: 8px; font-family: inherit; line-height: 1.6; resize: vertical; box-sizing: border-box; }
+  .lison-input-panel textarea:focus { border-color: #7c4fff; outline: 0; }
+  .lison-input-panel .lison-text-area { min-height: 160px; font-size: 14px; }
+  .lison-input-panel .lison-q-text  { min-height: 80px; }
+  .lison-input-panel .lison-q-expl  { min-height: 80px; }
+  .lison-input-panel .lison-q-block { background: #fafbff; border: 1px solid #eef0f9; border-radius: 8px; padding: 12px 14px; margin-top: 10px; }
+  .lison-input-panel .lison-q-block + .lison-q-block { margin-top: 12px; }
+  .lison-input-panel .lison-q-block-title { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px; }
+  .lison-input-panel .lison-q-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-top: 8px; }
+  .lison-input-panel .lison-q-row > label { flex: 1; min-width: 120px; }
+  .lison-input-panel .lison-q-row > label.lison-q-answer { flex: 0 0 auto; min-width: 110px; }
+  .lison-input-panel .lison-q-answer select { width: 100%; padding: 9px 10px; font-size: 14px; border: 2px solid #e1e5ee; border-radius: 8px; background: #fff; font-family: inherit; }
+  .lison-input-panel .lison-q-answer select:focus { border-color: #7c4fff; outline: 0; }
+  .lison-input-panel label .label-text { display: block; font-size: 13px; color: #475569; margin-bottom: 4px; font-weight: 500; }
+
+  /* 既存週リスト */
+  .lison-weeks-list { display: flex; flex-direction: column; gap: 8px; }
+  .lison-weeks-row { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .lison-weeks-ws { font-weight: 600; color: #1f2937; font-variant-numeric: tabular-nums; min-width: 110px; }
+  .lison-weeks-levels { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
+  .lison-weeks-level-tag { display: inline-block; padding: 3px 9px; background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .lison-weeks-level-tag.missing { background: #f8fafc; color: #cbd5e1; border-color: #e2e8f0; font-weight: 400; }
+  .lison-weeks-complete { font-size: 11px; color: #16a34a; font-weight: 600; padding: 2px 8px; background: #dcfce7; border-radius: 4px; }
+  .lison-weeks-edit-btn { padding: 6px 14px; background: linear-gradient(135deg,#7c4fff,#4f7df0); color: #fff; border: 0; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .lison-weeks-edit-btn:hover { filter: brightness(1.05); }
+
   /* 先生からのメッセージ */
   .tm-radio-group { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; }
   .tm-radio-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 2px solid #e1e5ee; border-radius: 8px; cursor: pointer; transition: all .15s; background: #fff; }
@@ -308,7 +346,7 @@
   .tm-result-summary strong { color: #16a34a; }
 
   @media (max-width: 480px) {
-    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1 { font-size: 15px; }
+    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
     .admin-page { padding: 16px 12px 80px; }
     .form-card { padding: 18px; }
@@ -371,6 +409,11 @@
       <div class="dashboard-card-icon">📷</div>
       <div class="dashboard-card-title">基礎計算・答案写真</div>
       <div class="dashboard-card-desc">生徒が提出した答案写真を確認（保存期間 15 日）</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminLisonInput()">
+      <div class="dashboard-card-icon">🎧</div>
+      <div class="dashboard-card-title">リスオン問題入力</div>
+      <div class="dashboard-card-desc">週ごとの問題を作成・編集</div>
     </button>
     <button type="button" class="dashboard-card" onclick="goAdminLisonRecordings()">
       <div class="dashboard-card-icon">🎤</div>
@@ -551,6 +594,53 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLisonRecordings()">← 生徒一覧に戻る</button>
     <div class="page-lead">▶️ 再生ボタンで音声プレイヤーを表示します。<br><span style="color:#94a3b8;font-size:13px">※ iPad Safari で再生できない場合は「ダウンロードして再生」をご利用ください（webm 形式は Safari 非対応）。</span></div>
     <div id="lison-list-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+  </div>
+</div>
+
+<!-- リスオン問題入力：5レベル × 3問の週単位入力 -->
+<div id="screen-admin-lison-input" class="screen">
+  <header>
+    <h1>🎧 リスオン問題入力</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <div class="form-card">
+      <h2>週開始日</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
+        <label style="flex:1;min-width:200px">
+          <span class="label-text">月曜日の日付 <span class="req">*</span></span>
+          <input type="date" id="lison-input-week" onchange="onLisonWeekChange()" style="padding:8px;border:1px solid #ccc;border-radius:6px;width:100%" />
+        </label>
+        <button type="button" class="btn-mini" onclick="loadLisonInputWeek()" style="height:38px;flex:0 0 auto">🔄 既存データ読み込み</button>
+      </div>
+      <div id="lison-input-weekstatus" style="font-size:13px;color:#666;line-height:1.7"></div>
+    </div>
+
+    <div class="form-card" style="margin-top:16px">
+      <h2>レベル別の問題</h2>
+      <div style="font-size:12px;color:#666;line-height:1.7;margin-bottom:10px">
+        ※ 各タブで <strong>英文 / 和訳 / 設問 1〜3</strong> を入力してください。<br>
+        ※ <strong>空のレベルはスキップされます</strong>（既存データがある場合はそのまま残ります、上書きされません）。<br>
+        ※ 設問の答えはレベルに応じて選択肢が切り替わります（4 級 = ○/✖、3 級以上 = T/F）。
+      </div>
+      <div id="lison-input-tabs" class="lison-input-tabs"></div>
+      <div id="lison-input-panels"></div>
+    </div>
+
+    <button type="button" class="submit-btn" id="lison-input-submit" style="margin-top:18px" onclick="submitLisonInputWeek()">✅ この週を保存（まとめて）</button>
+
+    <div class="form-card" style="margin-top:24px">
+      <h2>📚 既存週の一覧</h2>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <button type="button" class="btn-mini" onclick="loadLisonInputWeeksList()">🔄 更新</button>
+        <span style="font-size:12px;color:#888">直近 8 週分を表示</span>
+      </div>
+      <div id="lison-input-weeks-list"><div class="students-empty">⏳ 読み込み中...</div></div>
+    </div>
   </div>
 </div>
 
@@ -2072,6 +2162,345 @@
              '</div>';
     }).join('');
     document.getElementById('hp-grant-result-list').innerHTML = listHtml;
+  }
+
+  // =============================================================
+  // リスオン問題入力（管理画面、新画面 screen-admin-lison-input）
+  // =============================================================
+  // 設計：
+  //   - GAS getLisonLevels() でレベル一覧を動的取得（タブ生成 + answer select の選択肢決定）
+  //   - 週開始日（月曜）を date input で指定 → onLisonWeekChange / loadLisonInputWeek で
+  //     既存データ自動読み込み（編集モード）
+  //   - レベル別タブで英文 / 和訳 / 設問 1〜3 を入力
+  //   - 「保存」で adminSaveLisonContentsWeek を gasPost（5 レベル分まとめて送る）
+  //   - 既存週リスト（直近 8 週）から「編集」で過去週を呼び出し可能
+  //   - 部分投入許容：完全に空のレベルはスキップ、既存行は触らない
+  var _lisonLevels = [];      // [{ value, label, answerType }, ...]
+  var _lisonActiveLevel = null;
+  var _lisonAnswerOpts = {
+    maru: ['', '○', '✖'],
+    tf:   ['', 'T', 'F']
+  };
+
+  function _lisonNextMondayStr() {
+    var d = new Date();
+    var dow = d.getDay();
+    var daysUntilMon = (dow === 1) ? 0 : ((8 - dow) % 7);
+    d.setDate(d.getDate() + daysUntilMon);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  // ダッシュボード → リスオン問題入力画面
+  function goAdminLisonInput() {
+    _showScreen('screen-admin-lison-input');
+    window.scrollTo(0, 0);
+    var dateEl = document.getElementById('lison-input-week');
+    if (dateEl && !dateEl.value) dateEl.value = _lisonNextMondayStr();
+    // レベルが未取得なら取得 → タブ・パネル構築 → 既存データ読み込み → リスト読み込み
+    if (_lisonLevels.length === 0) {
+      gasGet({ action: 'getLisonLevels' }).then(function(res) {
+        if (res && res.ok && Array.isArray(res.levels)) {
+          _lisonLevels = res.levels;
+          _renderLisonInputTabs();
+          loadLisonInputWeek();
+          loadLisonInputWeeksList();
+        } else {
+          showToast('レベル一覧の取得に失敗しました', 'error');
+        }
+      }).catch(function(){ showToast('通信エラー（レベル一覧）', 'error'); });
+    } else {
+      _renderLisonInputTabs();
+      loadLisonInputWeek();
+      loadLisonInputWeeksList();
+    }
+  }
+
+  // タブとパネルを構築（_lisonLevels から動的生成、レベル可変対応）
+  function _renderLisonInputTabs() {
+    var tabsEl   = document.getElementById('lison-input-tabs');
+    var panelsEl = document.getElementById('lison-input-panels');
+    if (!tabsEl || !panelsEl) return;
+    tabsEl.innerHTML = _lisonLevels.map(function(lv, i){
+      return '<button type="button" class="lison-input-tab' + (i === 0 ? ' active' : '') + '" data-level="' + _esc(lv.value) + '" onclick="switchLisonInputTab(\'' + _esc(lv.value) + '\')">' +
+               _esc(lv.label) +
+               ' <span class="lison-tab-badge empty" id="lison-badge-' + _esc(lv.value) + '">空</span>' +
+             '</button>';
+    }).join('');
+    panelsEl.innerHTML = _lisonLevels.map(function(lv, i){
+      var opts = (_lisonAnswerOpts[lv.answerType] || _lisonAnswerOpts.tf);
+      var optHtml = opts.map(function(o){ return '<option value="' + _esc(o) + '">' + (o === '' ? '—' : _esc(o)) + '</option>'; }).join('');
+      var qBlocks = [1, 2, 3].map(function(qn) {
+        return '<div class="lison-q-block">' +
+                 '<div class="lison-q-block-title">設問 ' + qn + '</div>' +
+                 '<label><span class="label-text">問題文</span>' +
+                   '<textarea class="lison-q-text" id="lison-' + _esc(lv.value) + '-q' + qn + '-text" oninput="onLisonInputChange(\'' + _esc(lv.value) + '\')"></textarea>' +
+                 '</label>' +
+                 '<div class="lison-q-row">' +
+                   '<label class="lison-q-answer"><span class="label-text">正解</span>' +
+                     '<select id="lison-' + _esc(lv.value) + '-q' + qn + '-answer" onchange="onLisonInputChange(\'' + _esc(lv.value) + '\')">' + optHtml + '</select>' +
+                   '</label>' +
+                   '<label style="flex:1;min-width:200px"><span class="label-text">解説</span>' +
+                     '<textarea class="lison-q-expl" id="lison-' + _esc(lv.value) + '-q' + qn + '-explanation" oninput="onLisonInputChange(\'' + _esc(lv.value) + '\')"></textarea>' +
+                   '</label>' +
+                 '</div>' +
+               '</div>';
+      }).join('');
+      return '<div class="lison-input-panel' + (i === 0 ? ' active' : '') + '" data-level="' + _esc(lv.value) + '">' +
+               '<h3>英文（複数行可）</h3>' +
+               '<textarea class="lison-text-area" id="lison-' + _esc(lv.value) + '-english" oninput="onLisonInputChange(\'' + _esc(lv.value) + '\')" placeholder="英文をここに貼り付け（改行も保持されます）"></textarea>' +
+               '<h3>和訳（複数行可）</h3>' +
+               '<textarea class="lison-text-area" id="lison-' + _esc(lv.value) + '-japanese" oninput="onLisonInputChange(\'' + _esc(lv.value) + '\')" placeholder="和訳をここに貼り付け"></textarea>' +
+               '<h3>設問</h3>' +
+               qBlocks +
+             '</div>';
+    }).join('');
+    _lisonActiveLevel = _lisonLevels[0] ? _lisonLevels[0].value : null;
+  }
+
+  // タブ切り替え
+  function switchLisonInputTab(level) {
+    _lisonActiveLevel = level;
+    var tabs   = document.querySelectorAll('#lison-input-tabs .lison-input-tab');
+    var panels = document.querySelectorAll('#lison-input-panels .lison-input-panel');
+    tabs.forEach(function(t){
+      if (t.dataset.level === level) t.classList.add('active');
+      else t.classList.remove('active');
+    });
+    panels.forEach(function(p){
+      if (p.dataset.level === level) p.classList.add('active');
+      else p.classList.remove('active');
+    });
+  }
+
+  // 入力変更時にタブのバッジ（空/入力済）を更新
+  function onLisonInputChange(level) {
+    var hasContent = _lisonLevelHasContent(level);
+    var badge = document.getElementById('lison-badge-' + level);
+    if (!badge) return;
+    if (hasContent) {
+      badge.textContent = '入力中';
+      badge.classList.remove('empty');
+      badge.classList.add('filled');
+    } else {
+      badge.textContent = '空';
+      badge.classList.remove('filled');
+      badge.classList.add('empty');
+    }
+  }
+
+  // 指定レベルの入力欄に何か入っているか
+  function _lisonLevelHasContent(level) {
+    var ids = [
+      'lison-' + level + '-english',
+      'lison-' + level + '-japanese',
+      'lison-' + level + '-q1-text',  'lison-' + level + '-q1-answer', 'lison-' + level + '-q1-explanation',
+      'lison-' + level + '-q2-text',  'lison-' + level + '-q2-answer', 'lison-' + level + '-q2-explanation',
+      'lison-' + level + '-q3-text',  'lison-' + level + '-q3-answer', 'lison-' + level + '-q3-explanation'
+    ];
+    for (var i = 0; i < ids.length; i++) {
+      var el = document.getElementById(ids[i]);
+      if (el && String(el.value || '').trim() !== '') return true;
+    }
+    return false;
+  }
+
+  // 全レベルのフォームをクリア
+  function _clearAllLisonInputs() {
+    _lisonLevels.forEach(function(lv) {
+      var ids = [
+        'lison-' + lv.value + '-english',
+        'lison-' + lv.value + '-japanese',
+        'lison-' + lv.value + '-q1-text',  'lison-' + lv.value + '-q1-answer', 'lison-' + lv.value + '-q1-explanation',
+        'lison-' + lv.value + '-q2-text',  'lison-' + lv.value + '-q2-answer', 'lison-' + lv.value + '-q2-explanation',
+        'lison-' + lv.value + '-q3-text',  'lison-' + lv.value + '-q3-answer', 'lison-' + lv.value + '-q3-explanation'
+      ];
+      ids.forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
+      onLisonInputChange(lv.value);
+    });
+  }
+
+  // 既存データを各 textarea に流し込む
+  function _populateLisonInputs(levels) {
+    _clearAllLisonInputs();
+    if (!Array.isArray(levels)) return;
+    levels.forEach(function(lv) {
+      var v = lv.level;
+      var setVal = function(suffix, value) {
+        var el = document.getElementById('lison-' + v + '-' + suffix);
+        if (el) el.value = (value == null ? '' : String(value));
+      };
+      setVal('english',  lv.englishText);
+      setVal('japanese', lv.japaneseText);
+      var qs = lv.questions || [];
+      [0, 1, 2].forEach(function(i) {
+        var q = qs[i] || {};
+        setVal('q' + (i+1) + '-text',        q.text);
+        setVal('q' + (i+1) + '-answer',      q.answer);
+        setVal('q' + (i+1) + '-explanation', q.explanation);
+      });
+      onLisonInputChange(v);
+    });
+  }
+
+  // 週開始日変更時 → 自動読み込み
+  function onLisonWeekChange() {
+    loadLisonInputWeek();
+  }
+
+  // 既存週のデータを GAS から取得して画面に反映
+  function loadLisonInputWeek() {
+    var weekStart = document.getElementById('lison-input-week').value;
+    var statusEl = document.getElementById('lison-input-weekstatus');
+    if (!weekStart) {
+      if (statusEl) statusEl.textContent = '';
+      _clearAllLisonInputs();
+      return;
+    }
+    // 月曜日チェック
+    var d = new Date(weekStart + 'T00:00:00');
+    var dowWarn = '';
+    if (!isNaN(d.getTime()) && d.getDay() !== 1) {
+      var dowName = ['日','月','火','水','木','金','土'][d.getDay()];
+      dowWarn = '<span style="color:#e74c3c">⚠️ 月曜日ではありません（' + dowName + '曜日）</span><br>';
+    }
+    if (statusEl) statusEl.innerHTML = dowWarn + '⏳ 既存データを確認中...';
+    _clearAllLisonInputs();
+    gasGet({
+      action: 'getLisonContentsWeek',
+      password: sessionStorage.getItem('adminPassword') || '',
+      weekStart: weekStart
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : 'エラー';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        if (statusEl) statusEl.innerHTML = dowWarn + '<span style="color:#c62828">読み込みエラー：' + _esc(msg) + '</span>';
+        return;
+      }
+      var levels = res.levels || [];
+      if (levels.length === 0) {
+        if (statusEl) statusEl.innerHTML = dowWarn + '<span style="color:#888">この週の既存データはありません（新規入力）</span>';
+      } else {
+        var lvNames = levels.map(function(l){
+          var meta = _lisonLevels.find(function(m){ return m.value === l.level; });
+          return meta ? meta.label : l.level;
+        }).join('、');
+        if (statusEl) statusEl.innerHTML = dowWarn + '<span style="color:#16a34a">✏️ 編集モード：投入済み ' + levels.length + ' レベル（' + _esc(lvNames) + '）を読み込みました</span>';
+        _populateLisonInputs(levels);
+      }
+    }).catch(function() {
+      if (statusEl) statusEl.innerHTML = dowWarn + '<span style="color:#c62828">通信エラー</span>';
+    });
+  }
+
+  // 「保存」ボタン：5 レベル分の入力を集約して gasPost
+  function submitLisonInputWeek() {
+    var weekStart = document.getElementById('lison-input-week').value;
+    if (!weekStart) { showToast('週開始日を選択してください', 'error'); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) { showToast('週開始日が不正です', 'error'); return; }
+    // 各レベルの入力を集約（完全に空のレベルは投入対象から除外）
+    var levels = [];
+    _lisonLevels.forEach(function(lv) {
+      var v = lv.value;
+      var get = function(suffix) {
+        var el = document.getElementById('lison-' + v + '-' + suffix);
+        return el ? String(el.value || '') : '';
+      };
+      var eng = get('english'), ja = get('japanese');
+      var q1 = { text: get('q1-text'), answer: get('q1-answer'), explanation: get('q1-explanation') };
+      var q2 = { text: get('q2-text'), answer: get('q2-answer'), explanation: get('q2-explanation') };
+      var q3 = { text: get('q3-text'), answer: get('q3-answer'), explanation: get('q3-explanation') };
+      var allEmpty =
+        !eng.trim() && !ja.trim() &&
+        !q1.text.trim() && !q1.answer.trim() && !q1.explanation.trim() &&
+        !q2.text.trim() && !q2.answer.trim() && !q2.explanation.trim() &&
+        !q3.text.trim() && !q3.answer.trim() && !q3.explanation.trim();
+      if (allEmpty) return;
+      levels.push({
+        level: v,
+        englishText:  eng,
+        japaneseText: ja,
+        questions: [q1, q2, q3]
+      });
+    });
+    if (levels.length === 0) {
+      showToast('少なくとも 1 レベルは入力してください', 'error');
+      return;
+    }
+    var btn = document.getElementById('lison-input-submit');
+    if (btn) btn.disabled = true;
+    gasPost({
+      action: 'adminSaveLisonContentsWeek',
+      password: sessionStorage.getItem('adminPassword') || '',
+      weekStart: weekStart,
+      levels: levels
+    }).then(function(res) {
+      if (btn) btn.disabled = false;
+      if (res && res.ok) {
+        var added = res.added || 0;
+        var updated = res.updated || 0;
+        showToast('保存しました（追加: ' + added + ' 件、上書き: ' + updated + ' 件）', 'success');
+        loadLisonInputWeek();           // 保存後の最新状態を再読み込み
+        loadLisonInputWeeksList();      // 一覧も更新
+      } else {
+        var msg = (res && res.message) ? res.message : 'エラーが発生しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); }
+        else showToast(msg, 'error');
+      }
+    }).catch(function() {
+      if (btn) btn.disabled = false;
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // 既存週の一覧を取得して表示
+  function loadLisonInputWeeksList() {
+    var wrap = document.getElementById('lison-input-weeks-list');
+    if (!wrap) return;
+    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    gasGet({
+      action: 'listLisonContentsWeeks',
+      password: sessionStorage.getItem('adminPassword') || '',
+      limit: 8
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : 'エラー';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="students-empty">読み込みエラー：' + _esc(msg) + '</div>';
+        return;
+      }
+      var weeks = res.weeks || [];
+      if (weeks.length === 0) {
+        wrap.innerHTML = '<div class="students-empty">既存の登録はまだありません</div>';
+        return;
+      }
+      var rowsHtml = weeks.map(function(w) {
+        // 全レベルを並べ、投入済みは色付き、未投入は薄色
+        var levelTags = _lisonLevels.map(function(lv) {
+          var has = (w.levels || []).indexOf(lv.value) >= 0;
+          return '<span class="lison-weeks-level-tag' + (has ? '' : ' missing') + '">' + _esc(lv.label) + '</span>';
+        }).join('');
+        var completeTag = w.complete ? '<span class="lison-weeks-complete">完全</span>' : '';
+        return '<div class="lison-weeks-row">' +
+                 '<div class="lison-weeks-ws">' + _esc(w.weekStart) + '</div>' +
+                 '<div class="lison-weeks-levels">' + levelTags + '</div>' +
+                 completeTag +
+                 '<button type="button" class="lison-weeks-edit-btn" onclick="editLisonInputWeek(\'' + _esc(w.weekStart) + '\')">編集</button>' +
+               '</div>';
+      }).join('');
+      wrap.innerHTML = '<div class="lison-weeks-list">' + rowsHtml + '</div>';
+    }).catch(function() {
+      wrap.innerHTML = '<div class="students-empty">通信エラー</div>';
+    });
+  }
+
+  // 既存週リストの「編集」ボタン → 日付セット → 自動読み込み + 上部にスクロール
+  function editLisonInputWeek(weekStart) {
+    var dateEl = document.getElementById('lison-input-week');
+    if (dateEl) dateEl.value = weekStart;
+    loadLisonInputWeek();
+    // 入力欄まで自動スクロール
+    var topEl = document.querySelector('#screen-admin-lison-input .form-card');
+    if (topEl && topEl.scrollIntoView) topEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // =============================================================
