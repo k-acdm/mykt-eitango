@@ -56,13 +56,29 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "C": {"count": 10, "kind": "three_term", "denom_max": 8},
     },
     # 14級：分数 四則混合
+    # Phase 1（2026-05-07）: 30→50題化、Band D を新設して 4 Band 構成に。
+    # ふくちさん教育的判断（36年塾長経験）:
+    #   - A: 2項 四則混合 12 問（既存ロジック踏襲）
+    #   - B: 3項 四則混合 括弧なし 14 問（既存ロジック踏襲、単元の主役）
+    #   - C: 3項 四則混合 括弧あり（先頭カッコのみ）12 問（既存ロジック踏襲）
+    #   - D: 整数を含む混合 12 問（新設、小学校算数の核心パターン補完）
+    # 「分数の四則混合は中学数学の躓きの根本原因」哲学に基づき、
+    # 小学校算数で必須の「整数 ± 分数」「整数 × 分数」「整数 ÷ 分数」を
+    # Band D として量で確保（rank_15 Band A frac_int との整合性も改善）。
     14: {
-        # A: 2項 四則混合
-        # B: 3項 四則混合（括弧なし、優先順位）
-        # C: 3項 四則混合（括弧あり）
-        "A": {"count": 10, "kind": "two_term", "denom_max": 10},
-        "B": {"count": 10, "kind": "three_term_no_parens", "denom_max": 8},
-        "C": {"count": 10, "kind": "three_term_parens", "denom_max": 8},
+        "A": {"count": 12, "kind": "two_term", "denom_max": 10},
+        "B": {"count": 14, "kind": "three_term_no_parens", "denom_max": 8},
+        "C": {"count": 12, "kind": "three_term_parens", "denom_max": 8},
+        # Band D: 整数を含む混合。slot_index 駆動で 3 サブパターンを決定論的に分離。
+        #   int_addsub: 整数 ± 分数（4 問）— 例 3 - 5/6 = 13/6
+        #   int_mul:    整数 × 分数（4 問）— 例 6 × 2/3 = 4（約分が活きる組を多めに）
+        #   int_div:    整数 ÷ 分数（4 問）— 例 3 ÷ 1/4 = 12（逆数倍の理解）
+        # 整数の位置（先頭/末尾）は両方含む。
+        "D": {
+            "count": 12, "kind": "int_with_frac",
+            "denom_max": 8, "int_max_addsub": 10, "int_max_muldiv": 12,
+            "subcounts": {"int_addsub": 4, "int_mul": 4, "int_div": 4},
+        },
     },
     # 16級：分数加減
     16: {

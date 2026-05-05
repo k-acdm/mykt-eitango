@@ -1,16 +1,15 @@
-"""KisoQuestions シート Phase 4 投入後検証（rank_10 対応版）。
+"""KisoQuestions シート Phase 4 投入後検証（rank_14 対応版）。
 
 過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 / rank_08 / rank_01 /
-rank_11 / rank_12 / rank_13 / rank_09 投入後検証（CLAUDE.md #155-160 / #171）と同じ
-パターンで gspread からシートを直接読み出し、rank_10 50題化（10 スロット維持 + count
-増加 + slot 6 時刻表記追加 + slot 7 構造的バグ修正）の投入結果を検証する。
-これで中 1 数学 5 単元（rank_09/10/11/12/13）の Phase 1 拡充が全完了。
+rank_11 / rank_12 / rank_13 / rank_09 / rank_10 投入後検証（CLAUDE.md #155-160 / #171）
+と同じパターンで gspread からシートを直接読み出し、rank_14 50題化（Band D 整数を含む
+混合 新設、3 サブパターン slot_index 駆動）の投入結果を検証する。
 
 検証項目:
-  T1  全 rank 行数 = 860
-  T2  rank 別行数（rank 14-20 が 30、rank 1-13 が 50）
+  T1  全 rank 行数 = 880
+  T2  rank 別行数（rank 15-20 が 30、rank 1-14 が 50）
   T3  rank=6 Band 配分（A=5, B=20, C=10, D=15）
-  T4  questionId 重複ゼロ（820 件全てユニーク）
+  T4  questionId 重複ゼロ（880 件全てユニーク）
   T5  problemLatex 重複ゼロ（rank 内で全てユニーク）
   T6  rank=6 Band D に y=... 形と x=... 形の両方が含まれる
   T7  rank=8 Band 配分（A=5, B=25, C=10, D=10）
@@ -31,6 +30,10 @@ rank_11 / rank_12 / rank_13 / rank_09 投入後検証（CLAUDE.md #155-160 / #17
   T19 rank=10 Band 配分（A=17, B=17, C=16）
        + slot 6 に時刻表記「X 時間 Y 分 = N 分」が含まれる
        + slot 7 Band B/C の cases 拡張済み（時速 240km まで）
+  T20 rank=14 Band 配分（A=12, B=14, C=12, D=12）
+       + Band D サブパターン配分（int_addsub=4, int_mul=4, int_div=4）
+       + Band D 全 12 問に整数項 + 分数項の両方が含まれる
+       + Band D 配置順 slot 0-3=addsub, 4-7=mul, 8-11=div（決定論的）
 
 実行:
   cd scripts/generate_kiso_questions
@@ -48,11 +51,11 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# 期待値（CLAUDE.md #171 + rank_01/08/09/11/12/13 + rank_10 Phase 1 拡充の Phase 4 投入仕様）
-# 中 1 数学 5 単元（rank_09/10/11/12/13）の Phase 1 拡充が全完了した時点の合計 860 問。
-EXPECTED_TOTAL = 860
-RANKS_30 = [14, 15, 16, 17, 18, 19, 20]
-RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+# 期待値（CLAUDE.md #171 + rank_01/08/09/11/12/13 + rank_10 + rank_14 Phase 1 拡充の Phase 4 投入仕様）
+# 中 1 数学 5 単元 + rank_14（無学年・分数四則混合）拡充が全完了した時点の合計 880 問。
+EXPECTED_TOTAL = 880
+RANKS_30 = [15, 16, 17, 18, 19, 20]
+RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 EXPECTED_RANK_06_BANDS = {"A": 5, "B": 20, "C": 10, "D": 15}
 EXPECTED_RANK_08_BANDS = {"A": 5, "B": 25, "C": 10, "D": 10}
 # Band D の slot_index 駆動サブパターン配分（_resolve_band_d_subkind 由来）
@@ -76,6 +79,10 @@ EXPECTED_RANK_10_BANDS = {"A": 17, "B": 17, "C": 16}
 # slot 7 Band B/C cases 拡張（構造的バグ修正の証拠、ふくちさん指定の時速 240km まで）
 EXPECTED_RANK_10_SLOT7_B_VALUES = {60, 72, 90, 120, 144, 150, 180, 240}     # 時速 km
 EXPECTED_RANK_10_SLOT7_C_VALUES = {60, 120, 180, 240, 300, 360, 420, 480, 540, 600}  # 分速 m
+# 分数四則混合 無学年（Phase 1、2026-05-07 拡充、Band D 整数を含む混合 新設）
+EXPECTED_RANK_14_BANDS = {"A": 12, "B": 14, "C": 12, "D": 12}
+# rank_14 Band D の slot_index 駆動 3 サブパターン（_resolve_band_d_subkind 由来、cumulative dispatch）
+EXPECTED_RANK_14_BAND_D_SUBPATTERNS = {"int_addsub": 4, "int_mul": 4, "int_div": 4}
 
 
 def classify_rank12_band_b_subkind(latex: str) -> str:
@@ -201,6 +208,21 @@ def classify_band_d_subkind(latex: str) -> str:
     if lhs_opens == 1:
         return "light"
     return "unknown"
+
+
+def classify_rank14_band_d_subkind(latex: str) -> str:
+    """rank=14 Band D の latex を int_addsub / int_mul / int_div のいずれかに分類。
+
+    演算子の出現で判定（カッコなし、2 項のみの構造を前提）：
+      int_mul     : "\\times" を含む
+      int_div     : "\\div" を含む
+      int_addsub  : 上記以外（"+" or "-" のみ）
+    """
+    if "\\times" in latex:
+        return "int_mul"
+    if "\\div" in latex:
+        return "int_div"
+    return "int_addsub"
 
 
 def _ensure_utf8_console() -> None:
@@ -863,6 +885,83 @@ def main() -> int:
         not invalid_c and len(slot7_c_values_seen) > 0,
         f"観測値={sorted(slot7_c_values_seen)}, 拡張範囲外={sorted(invalid_c)}",
     )
+
+    # ============================================================
+    # T20: rank=14 Band 配分 + Band D サブパターン配分 + Band D 形式チェック
+    # ============================================================
+    band_counts_14: Counter = Counter()
+    rank14_rows = [
+        r for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 14
+    ]
+    for r in rank14_rows:
+        band_counts_14[r[i_band]] += 1
+
+    for band, expected in EXPECTED_RANK_14_BANDS.items():
+        actual = band_counts_14.get(band, 0)
+        check(
+            f"T20 rank=14 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=14 Band D 全 12 問のサブパターン配分
+    band_d_rows_14 = [r for r in rank14_rows if r[i_band] == "D"]
+    sub_counts_14: Counter = Counter()
+    for r in band_d_rows_14:
+        sub_counts_14[classify_rank14_band_d_subkind(r[i_latex])] += 1
+
+    for sub, expected in EXPECTED_RANK_14_BAND_D_SUBPATTERNS.items():
+        actual = sub_counts_14.get(sub, 0)
+        check(
+            f"T20 rank=14 Band D {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=14 Band D 全 12 問が「整数項 + 分数項」両方含む
+    def _has_standalone_int(lx: str) -> bool:
+        # \frac{...}{...} を伏せた残りに整数が出ればOK
+        stripped = _re.sub(r"\\frac\{[^}]*\}\{[^}]*\}", "", lx)
+        return bool(_re.search(r"\b\d+\b", stripped))
+
+    def _has_fraction(lx: str) -> bool:
+        return bool(_re.search(r"\\frac\{", lx))
+
+    band_d_structure_ok_14 = sum(
+        1 for r in band_d_rows_14
+        if _has_standalone_int(r[i_latex]) and _has_fraction(r[i_latex])
+    )
+    check(
+        "T20 rank=14 Band D 全 12 問に整数項と分数項の両方が含まれる",
+        band_d_structure_ok_14 == 12,
+        f"actual={band_d_structure_ok_14}/12",
+    )
+
+    # rank=14 Band D の slot 配置順が決定論的（先頭4=addsub, 中4=mul, 末4=div）
+    slot_order_ok_14 = True
+    for i, r in enumerate(band_d_rows_14):
+        sub = classify_rank14_band_d_subkind(r[i_latex])
+        if i < 4 and sub != "int_addsub":
+            slot_order_ok_14 = False
+        if 4 <= i < 8 and sub != "int_mul":
+            slot_order_ok_14 = False
+        if i >= 8 and sub != "int_div":
+            slot_order_ok_14 = False
+    check(
+        "T20 rank=14 Band D 配置順 slot 0-3=addsub, 4-7=mul, 8-11=div（決定論的）",
+        slot_order_ok_14,
+    )
+
+    # ============================================================
+    # rank=14 Band D サンプル表示（実機目視用）
+    # ============================================================
+    print("\n--- rank=14 Band D サンプル（slot_index 順、int_addsub/int_mul/int_div 各 4 問） ---")
+    for i, r in enumerate(band_d_rows_14):
+        sub = classify_rank14_band_d_subkind(r[i_latex])
+        print(f"  D[{i+1:2d}] ({sub:10s}): {r[i_latex]:42s}  =>  {r[i_canonical]}")
 
     # ============================================================
     # rank=6 Band D サンプル表示（実機目視用）
