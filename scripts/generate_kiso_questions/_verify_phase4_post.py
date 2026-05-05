@@ -1,24 +1,29 @@
-"""KisoQuestions シート Phase 4 投入後検証（rank_01 対応版）。
+"""KisoQuestions シート Phase 4 投入後検証（rank_11/12/13 対応版）。
 
-過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 / rank_08 投入後検証
-（CLAUDE.md #155-160 / #171）と同じパターンで gspread からシートを直接読み出し、
-rank_01 50題化 + Band B 純化 + Band D 新設の投入結果を検証する。
+過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 / rank_08 / rank_01
+投入後検証（CLAUDE.md #155-160 / #171）と同じパターンで gspread からシートを直接
+読み出し、rank_11/12/13 50題化（rank_12 Band B 構造改革 + rank_13 Band D 新設 +
+rank_11 Band C slot_index 化）の投入結果を検証する。
 
 検証項目:
-  T1 全 rank 行数 = 760
-  T2 rank 別行数（rank 9-20 が 30、rank 1/2/3/4/5/6/7/8 が 50）
-  T3 rank=6 Band 配分（A=5, B=20, C=10, D=15）
-  T4 questionId 重複ゼロ（760 件全てユニーク）
-  T5 problemLatex 重複ゼロ（rank 内で全てユニーク）
-  T6 rank=6 Band D に y=... 形と x=... 形の両方が含まれる
-  T7 rank=8 Band 配分（A=5, B=25, C=10, D=10）
-  T8 rank=8 Band D サブパターン配分（light=2, standard=6, heavy=2）
-  T9 rank=8 Band D 形式チェック（light: 右辺定数 / standard: 両辺カッコ / heavy: カッコ複数+移項）
+  T1  全 rank 行数 = 820
+  T2  rank 別行数（rank 9/10/14-20 が 30、rank 1-8 + 11-13 が 50）
+  T3  rank=6 Band 配分（A=5, B=20, C=10, D=15）
+  T4  questionId 重複ゼロ（820 件全てユニーク）
+  T5  problemLatex 重複ゼロ（rank 内で全てユニーク）
+  T6  rank=6 Band D に y=... 形と x=... 形の両方が含まれる
+  T7  rank=8 Band 配分（A=5, B=25, C=10, D=10）
+  T8  rank=8 Band D サブパターン配分（light=2, standard=6, heavy=2）
+  T9  rank=8 Band D 形式チェック（light: 右辺定数 / standard: 両辺カッコ / heavy: カッコ複数+移項）
   T10 既存 rank の行数 regression なし
   T11 rank=1 Band 配分（A=15, B=5, C=15, D=15）
   T12 rank=1 Band B 全問が x²-c=0 形（たすき掛け = leading coef ≠ 1 が含まれない）
   T13 rank=1 Band C: k_eq_1=10 / k_gt_1=5（k>1 が 30%以上）
   T14 rank=1 Band D サブパターン配分（with_p=7, ax2_eq_c=8）
+  T15 rank=11 Band 配分（A=15, B=15, C=20）
+  T16 rank=12 Band 配分（A=15, B=15, C=20）+ Band B サブ配分（paren_neg=5, leading_minus=5, positive=5）
+       + Band B 結果ガード |result| ≤ 1000
+  T17 rank=13 Band 配分（A=12, B=12, C=11, D=15）+ Band D 全問が 3 項計算
 
 実行:
   cd scripts/generate_kiso_questions
@@ -36,10 +41,10 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# 期待値（CLAUDE.md #171 + rank_08 + rank_01 Phase 1 拡充の Phase 4 投入仕様）
-EXPECTED_TOTAL = 760
-RANKS_30 = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8]
+# 期待値（CLAUDE.md #171 + rank_08 + rank_01 + rank_11/12/13 Phase 1 拡充の Phase 4 投入仕様）
+EXPECTED_TOTAL = 820
+RANKS_30 = [9, 10, 14, 15, 16, 17, 18, 19, 20]
+RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13]
 EXPECTED_RANK_06_BANDS = {"A": 5, "B": 20, "C": 10, "D": 15}
 EXPECTED_RANK_08_BANDS = {"A": 5, "B": 25, "C": 10, "D": 10}
 # Band D の slot_index 駆動サブパターン配分（_resolve_band_d_subkind 由来）
@@ -47,6 +52,45 @@ EXPECTED_RANK_08_BAND_D_SUBPATTERNS = {"light": 2, "standard": 6, "heavy": 2}
 EXPECTED_RANK_01_BANDS = {"A": 15, "B": 5, "C": 15, "D": 15}
 EXPECTED_RANK_01_BAND_C_SUBPATTERNS = {"k_eq_1": 10, "k_gt_1": 5}
 EXPECTED_RANK_01_BAND_D_SUBPATTERNS = {"with_p": 7, "ax2_eq_c": 8}
+# 正負の数 3 単元（Phase 1、2026-05-05 拡充）
+EXPECTED_RANK_11_BANDS = {"A": 15, "B": 15, "C": 20}
+EXPECTED_RANK_12_BANDS = {"A": 15, "B": 15, "C": 20}
+# rank_12 Band B の slot_index 駆動 3 サブパターン（_resolve_band_b_subkind 由来、interleave 方式）
+EXPECTED_RANK_12_BAND_B_SUBPATTERNS = {"paren_neg": 5, "leading_minus": 5, "positive": 5}
+EXPECTED_RANK_12_BAND_B_MAX_RESULT_ABS = 1000
+EXPECTED_RANK_13_BANDS = {"A": 12, "B": 12, "C": 11, "D": 15}
+
+
+def classify_rank12_band_b_subkind(latex: str) -> str:
+    """rank=12 Band B の latex を paren_neg / leading_minus / positive のいずれかに分類。
+
+      paren_neg     : "(-数字)^{exp}"     例: (-3)^{2}
+      leading_minus : "-数字^{exp}"       例: -3^{2}
+      positive      : "数字^{exp}"        例: 3^{2}
+    """
+    import re as _re
+    if _re.match(r"^\(-\d+\)\^\{?\d+\}?$", latex):
+        return "paren_neg"
+    if _re.match(r"^-\d+\^\{?\d+\}?$", latex):
+        return "leading_minus"
+    if _re.match(r"^\d+\^\{?\d+\}?$", latex):
+        return "positive"
+    return "unknown"
+
+
+def classify_rank13_band_d_form(latex: str) -> str:
+    """rank=13 Band D の latex が 3 項加減（paren 形式）か判定。
+
+    形式: "(±a) op1 (±b) op2 (±c)" のように (+/-数字) のかたまりが 3 つ + op が 2 つ。
+    判定:
+      - "three_term" : (±数字) のかたまりが 3 つ存在
+      - "unknown"    : それ以外
+    """
+    import re as _re
+    matches = _re.findall(r"\([+-]\d+\)", latex)
+    if len(matches) == 3:
+        return "three_term"
+    return "unknown"
 
 
 def classify_rank01_band_d_subkind(latex: str) -> str:
@@ -478,6 +522,137 @@ def main() -> int:
     )
 
     # ============================================================
+    # T15: rank=11 Band 配分（A=15, B=15, C=20）
+    # ============================================================
+    band_counts_11: Counter = Counter()
+    for r in rows:
+        try:
+            if int(r[i_rank]) == 11:
+                band_counts_11[r[i_band]] += 1
+        except (ValueError, IndexError):
+            pass
+
+    for band, expected in EXPECTED_RANK_11_BANDS.items():
+        actual = band_counts_11.get(band, 0)
+        check(
+            f"T15 rank=11 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # ============================================================
+    # T16: rank=12 Band 配分 + Band B サブ配分 + 結果ガード
+    # ============================================================
+    band_counts_12: Counter = Counter()
+    for r in rows:
+        try:
+            if int(r[i_rank]) == 12:
+                band_counts_12[r[i_band]] += 1
+        except (ValueError, IndexError):
+            pass
+
+    for band, expected in EXPECTED_RANK_12_BANDS.items():
+        actual = band_counts_12.get(band, 0)
+        check(
+            f"T16 rank=12 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=12 Band B のサブパターン配分（_resolve_band_b_subkind の interleave 順序）
+    band_b_rows_12 = [
+        r for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 12
+        and r[i_band] == "B"
+    ]
+    sub_counts_12_b: Counter = Counter()
+    for r in band_b_rows_12:
+        sub_counts_12_b[classify_rank12_band_b_subkind(r[i_latex])] += 1
+
+    for sub, expected in EXPECTED_RANK_12_BAND_B_SUBPATTERNS.items():
+        actual = sub_counts_12_b.get(sub, 0)
+        check(
+            f"T16 rank=12 Band B {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+    unknown_count_12_b = sub_counts_12_b.get("unknown", 0)
+    check(
+        f"T16 rank=12 Band B 未分類問題ゼロ",
+        unknown_count_12_b == 0,
+        f"unknown={unknown_count_12_b}",
+    )
+
+    # rank=12 Band B 結果ガード |result| ≤ 1000
+    result_violations = []
+    for r in band_b_rows_12:
+        try:
+            v = int(r[i_canonical])
+            if abs(v) > EXPECTED_RANK_12_BAND_B_MAX_RESULT_ABS:
+                result_violations.append((r[i_latex], v))
+        except (ValueError, TypeError):
+            pass  # canonical が整数でない場合（このランクでは想定外だが防御的に無視）
+    check(
+        f"T16 rank=12 Band B 結果ガード |result| ≤ {EXPECTED_RANK_12_BAND_B_MAX_RESULT_ABS}",
+        not result_violations,
+        f"違反 {len(result_violations)} 件" if result_violations else f"全 {len(band_b_rows_12)} 問 OK",
+    )
+    for latex, v in result_violations[:3]:
+        print(f"      [WARN] {latex} = {v}")
+
+    # ============================================================
+    # T17: rank=13 Band 配分 + Band D が 3 項計算
+    # ============================================================
+    band_counts_13: Counter = Counter()
+    for r in rows:
+        try:
+            if int(r[i_rank]) == 13:
+                band_counts_13[r[i_band]] += 1
+        except (ValueError, IndexError):
+            pass
+
+    for band, expected in EXPECTED_RANK_13_BANDS.items():
+        actual = band_counts_13.get(band, 0)
+        check(
+            f"T17 rank=13 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=13 Band D の全問が 3 項計算であること
+    band_d_latexes_13 = [
+        r[i_latex] for r in rows
+        if len(r) > i_latex
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 13
+        and r[i_band] == "D"
+    ]
+    three_term_count = sum(
+        1 for l in band_d_latexes_13 if classify_rank13_band_d_form(l) == "three_term"
+    )
+    check(
+        "T17 rank=13 Band D 全問が 3 項計算（(±a)(±b)(±c) 形）",
+        three_term_count == len(band_d_latexes_13) and three_term_count > 0,
+        f"three_term={three_term_count} / 全 {len(band_d_latexes_13)} 問",
+    )
+    # 結果ゼロ排除（教育的価値の維持）
+    zero_count_13_d = sum(
+        1 for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 13
+        and r[i_band] == "D"
+        and r[i_canonical].strip() == "0"
+    )
+    check(
+        "T17 rank=13 Band D 結果ゼロ排除",
+        zero_count_13_d == 0,
+        f"zero_count={zero_count_13_d}",
+    )
+
+    # ============================================================
     # rank=6 Band D サンプル表示（実機目視用）
     # ============================================================
     print("\n--- rank=6 Band D サンプル（最初の 5 問の eq1 部分） ---")
@@ -517,6 +692,31 @@ def main() -> int:
                 canon = r[i_canonical]
                 break
         print(f"  D[{i+1:2d}] ({sub:9s}): {l:30s}  =>  {canon}")
+
+    # ============================================================
+    # rank=12 Band B サンプル表示（実機目視用、interleave 順序確認）
+    # slot 0,1,2 で paren_neg → leading_minus → positive が並ぶことを目視確認できる
+    # ============================================================
+    print("\n--- rank=12 Band B サンプル（interleave 順序、slot 0-5） ---")
+    band_b_latexes_12 = [r[i_latex] for r in band_b_rows_12]
+    for i, l in enumerate(band_b_latexes_12[:6]):
+        sub = classify_rank12_band_b_subkind(l)
+        canon = band_b_rows_12[i][i_canonical]
+        print(f"  B[{i+1:2d}] ({sub:13s}): {l:18s}  =>  {canon}")
+
+    # ============================================================
+    # rank=13 Band D サンプル表示（実機目視用、3 項加減）
+    # ============================================================
+    print("\n--- rank=13 Band D サンプル（3 項加減、最初の 5 問） ---")
+    for i, l in enumerate(band_d_latexes_13[:5]):
+        # canonical を取得
+        canon = ""
+        for r in rows:
+            if (len(r) > i_canonical and r[i_rank].strip().isdigit()
+                and int(r[i_rank]) == 13 and r[i_band] == "D" and r[i_latex] == l):
+                canon = r[i_canonical]
+                break
+        print(f"  D[{i+1:2d}]: {l:45s}  =>  {canon}")
 
     # ============================================================
     # 結果サマリ
