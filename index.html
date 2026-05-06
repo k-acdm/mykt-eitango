@@ -356,6 +356,34 @@
     .content-btn .ico-mascot { display:block; box-sizing:border-box; width:56px; height:56px; margin:0 auto 6px; padding:6px; object-fit:contain; background: rgba(255,255,255,.18); border-radius:14px; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); transition: transform .2s, background .2s; }
     .content-btn:not(.disabled):hover .ico-mascot { transform: scale(1.06); background: rgba(255,255,255,.26); }
     @media (max-width: 480px) { .content-btn .ico-mascot { width:48px; height:48px; padding:5px; border-radius:12px; } }
+    /* ---- ホーム画面コンテンツボタンのキャラ画像ゆらゆら（マイカツ君 cbob 踏襲） ---- */
+    /* マイカツ君の cbob keyframes（行 219）と同じ上下 7px の控えめな揺れを 5 キャラに適用。
+       準備中（c-wabun2 / c-social / c-science / c-kanji）と秘密の扉（c-himitsu）には適用しない。
+       duration 2.4s、各キャラ delay 0/0.4/0.8/1.2/1.6s で機械的な同期を回避（半周期内に分散）。 */
+    @keyframes wobble-character { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+    .content-btn.c-eitango .ico-mascot,
+    .content-btn.c-sango   .ico-mascot,
+    .content-btn.c-wabun1  .ico-mascot,
+    .content-btn.c-math    .ico-mascot,
+    .content-btn.c-lison   .ico-mascot { animation: wobble-character 2.4s ease-in-out infinite; will-change: transform; }
+    .content-btn.c-eitango .ico-mascot { animation-delay: 0s; }
+    .content-btn.c-sango   .ico-mascot { animation-delay: 0.4s; }
+    .content-btn.c-wabun1  .ico-mascot { animation-delay: 0.8s; }
+    .content-btn.c-math    .ico-mascot { animation-delay: 1.2s; }
+    .content-btn.c-lison   .ico-mascot { animation-delay: 1.6s; }
+    /* hover 中は scale 効果と衝突しないよう揺れを一時停止（既存 :hover ルールの transform を維持） */
+    .content-btn.c-eitango:hover .ico-mascot,
+    .content-btn.c-sango:hover   .ico-mascot,
+    .content-btn.c-wabun1:hover  .ico-mascot,
+    .content-btn.c-math:hover    .ico-mascot,
+    .content-btn.c-lison:hover   .ico-mascot { animation-play-state: paused; }
+    @media (prefers-reduced-motion: reduce) {
+      .content-btn.c-eitango .ico-mascot,
+      .content-btn.c-sango   .ico-mascot,
+      .content-btn.c-wabun1  .ico-mascot,
+      .content-btn.c-math    .ico-mascot,
+      .content-btn.c-lison   .ico-mascot { animation: none; }
+    }
     .content-btn.c-himitsu   { background: linear-gradient(135deg,#5b21b6,#1e1b4b); position:relative; overflow:hidden; }
     .content-btn.c-himitsu::before { content:"✨"; position:absolute; top:6px; left:8px; font-size:14px; opacity:.85; pointer-events:none; }
     .content-btn.c-himitsu::after  { content:"✨"; position:absolute; bottom:6px; right:8px; font-size:14px; opacity:.85; pointer-events:none; }
