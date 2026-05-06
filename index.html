@@ -2013,7 +2013,8 @@
       <button class="kanji-level-btn" onclick="showKanjiCountSelect('準2')">漢検 準2級<small>高校 在学程度</small></button>
       <button class="kanji-level-btn" onclick="showKanjiCountSelect('2')">漢検 2級<small>高校 卒業程度</small></button>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:16px" onclick="showKanjiHistory()">📖 今までの実施履歴を見る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -2114,6 +2115,14 @@
   <div class="container" style="padding-top:16px">
     <div id="kanji-done-body"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<div id="screen-kanji-history" class="screen">
+  <header><h1>📖 カンジー おさらい</h1><span id="kanji-history-student"></span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="kanji-history-list"><div class="loading">⏳ 読み込み中...</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showKanjiLevelSelect()">← 級選択に戻る</button>
   </div>
 </div>
 
@@ -6130,6 +6139,43 @@
     var input = document.getElementById('kanji-photo-input');
     if (input) input.value = '';
     showScreen('screen-kanji-kaki');
+  }
+  // ----- おさらい画面：HPLog からカンジー実施履歴を取得して一覧表示（2026-05-08 追加） -----
+  function showKanjiHistory() {
+    showScreen('screen-kanji-history');
+    var stuEl = document.getElementById('kanji-history-student');
+    if (stuEl) stuEl.textContent = _studentId + ' さん';
+    var listEl = document.getElementById('kanji-history-list');
+    listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    cachedGasGet({ action:'getKanjiHistory', studentId:_studentId }).then(function(res){
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="error">読み込みに失敗しました。</div>';
+        return;
+      }
+      var hist = res.history || [];
+      if (hist.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:15px">まだカンジーの実施記録がありません。<br>級を選んで挑戦してみよう！</div>';
+        return;
+      }
+      // 日時 / 級 / 問題数 / HP獲得 を縦並びカード式（クリックでの再表示は将来課題：HPLog にセット番号未保存）
+      listEl.innerHTML = hist.map(function(h){
+        var ts = String(h.timestamp || '');
+        var dispDate = ts.length >= 10 ? (ts.slice(0,4) + '/' + ts.slice(5,7) + '/' + ts.slice(8,10)) : ts;
+        var dispTime = ts.length >= 16 ? ts.slice(11,16) : '';
+        var hp = Number(h.hpGained || 0);
+        var hpLabel = h.isPractice
+          ? '<span style="color:#888;font-size:12px">練習モード</span>'
+          : (hp > 0 ? '<span style="color:#d97706;font-weight:bold">+' + hp.toLocaleString() + ' HP</span>' : '<span style="color:#888;font-size:12px">HP上限到達</span>');
+        return '<div class="history-item" style="cursor:default">' +
+                 '<span class="history-date">' + dispDate + (dispTime ? ' ' + dispTime : '') + '</span>' +
+                 '<span class="history-level">漢検 ' + h.level + '級</span>' +
+                 '<span class="history-set">' + h.count + '問セット</span>' +
+                 '<span style="margin-left:auto">' + hpLabel + '</span>' +
+               '</div>';
+      }).join('');
+    }).catch(function(){
+      listEl.innerHTML = '<div class="error">読み込みに失敗しました。</div>';
+    });
   }
   // ----- HP獲得演出（三語短文・和文英訳①と同じ既存スタイルを流用） -----
   function _showKanjiDone(hpInfo) {
