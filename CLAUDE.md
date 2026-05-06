@@ -2633,6 +2633,103 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
 - **本セッション終了時点**: `dev = main = origin/dev = origin/main` で完全同期、stale worktree なし
 
+### 2026-05-07 夕方（塾PC：rank_16 分数加減 Phase 1 完走 = 分数 3 兄弟コンプリート達成）
+
+塾PC 夕方セッション。事前調査 → ふくちさん最終設計確定 → Phase 1〜3 完走。**分数 3 兄弟（rank_14/15/16）の最後の単元 rank_16 を完成させ、無学年 7 単元中 3 単元コンプリート、Phase 1 全体で 80% 達成**。
+
+#### 207. 事前調査と設計合意（塾PC 夕方）
+- **事前調査スクリプト**: `out/_explore_rank16.py` / `_explore_rank16_more.py`（gitignore 配下）で 30 問サンプル + 全列挙 enumeration + lcm 分布 + 演算子偏り原因 + 3 項加減余裕度を実測
+- **重要発見**:
+  - Band A 同分母 (denom_max=10): unique=184（+:- ≈ 2.6:1 が構造的期待値、答え=1 の組 31 種）
+  - Band B 異分母 (denom_max=12): unique=1,776 / 整数答え 0 / lcm 大>30 が 73.9%（教育的に偏り）
+  - Band C 異分母 (denom_max=15): unique=4,548 / lcm 大>30 が 82.3%
+  - 3 項加減 (denom_max=8): unique=5,500（余裕 550 倍）
+- **教育的観点**:
+  - 「易しい異分母」（lcm≤12）は乱択では 4-10% しか出ない → ふくちさん哲学「lcm 小→大を段階的に」を守るには slot_index 駆動の lcm 分離が必須
+  - 「分数を足したら整数になる」体験（1/3+2/3=1 系）は既存 30 問中 1 問のみ → 教育的訴求が弱い
+  - rank_14 Band D (整数 ± 分数 4 問) と rank_16 Band D で同パターンを入れると重複 → rank_16 では入れない方針
+- **設計確定（ふくちさん 2026-05-07 夕、案 B 採用）**:
+  - 4 Band 構成 A=15 / B=15 / C=10 / **D=10（新設、3 項加減）**
+  - Band A: subcounts={"add":8, "sub":7, "int_ans":2}（slot 0-1 で答え=1 を保証）
+  - Band B: subcounts={"easy_lcm":5, "medium_lcm":5, "hard_lcm":5}
+  - Band C: subcounts={"medium_lcm":5, "hard_lcm":5}（easy_lcm 含まない）
+  - Band D: subcounts={"all_add":5, "add_sub_mix":5}（all_add slot 0 で整数答え強制、add_sub_mix は + と - 両方含む）
+
+#### 208. 基礎計算 rank_16 分数：加減 Phase 1 完走（dev `<this commit>`）
+- **設計実装**:
+  - [common/band_config.py](scripts/generate_kiso_questions/common/band_config.py) rank=16 を 4 Band 構造（A/B/C/D = 15/15/10/10）に書き換え + subcounts 定義
+  - [rank_16_fraction_addsub.py](scripts/generate_kiso_questions/rank_16_fraction_addsub.py) 全面書き直し（既存 `_gen_addsub_pair_*` は温存しつつ 3 つの新ヘルパー追加）:
+    - `_gen_band_a_with_op(rng, denom_max, op, force_int_ans)`: 演算子強制 + 整数答え強制
+    - `_gen_band_bc_with_lcm_range(rng, denom_max, lcm_min, lcm_max)`: 通分難易度範囲制約
+    - `_gen_three_term_addsub(rng, denom_max, mode, force_int_ans)`: 3 項加減（mode='all_add'/'add_sub_mix'）
+    - 4 つの dispatcher: `_resolve_band_a_subkind` / `_resolve_band_bc_subkind` / `_resolve_band_d_subkind`（既存 cumulative 方式踏襲）
+    - `generate_problem(band, rng, slot_index=0)` 化（全 Band で slot_index 駆動）
+  - 「途中で 0 になる連続項」（例 `1/2 - 1/2 + 6/7`）も Band D で排除（教育的価値の維持）
+  - self_check 拡張：int_ans 答え整数 / Band B/C lcm 範囲 / Band D 3 項 + ops 整合性
+- **検証結果**:
+  - python main.py で rank_16: **50/50 unique / 0 failed selfcheck / 0 dedup_warn**
+  - 全 20 rank で **920/920 unique**（rank 17-20 = 30、rank 1-16 = 50、合計 920）
+  - Node 検証 [out/_verify_rank16.mjs](scripts/generate_kiso_questions/out/_verify_rank16.mjs)（gitignore 配下）で **26 PASS / 0 FAIL**
+    - T1 rank_16 50 unique / T2 Band 配分 15/15/10/10 / T3 Band A 演算子配分 add=8 sub=7 / T4 Band A 整数答え=2 / T5 Band B easy/medium/hard 各 5 / T6 Band C medium/hard 各 5（easy 含まず） / T7 Band B/C 全問 lcm 範囲内 / T8 Band D all_add=5 add_sub_mix=5 / T9 add_sub_mix で + と - 両方含む / T10 Band D 整数答え 1 問以上 / T11 Band D 全 10 問 3 項 / T12 既存 rank regression なし / T13 全 rank の問題式が既約形 / T14 全 rank 横断重複ゼロ（rank_14/15/16 間の構造的重複は許容） / T15 Band A int_ans が slot 0-1 配置（決定論的）
+- **GAS shortcut**: [gas/Code.js](gas/Code.js) に `diagnoseRank16InProgress()` / `abandonRank16InProgress(opts)` 追加（既存 `diagnoseKisoInProgressByRank` / `abandonKisoInProgressByRank` の薄いラッパー、+10 行）
+- **DESIGN_PRINCIPLES.md §「原則 3」更新**: rank_16 の TODO_PHASE3 候補 4 件追加
+  - 帯分数表記 `2\frac{1}{3} + 1\frac{1}{2}` → Band E 以降
+  - 小数混在 `0.5 + 1/2` → Band F 以降（rank_16/15/14 共通仕様）
+  - 4 項以上の加減 → Band E 以降
+  - rank_14 Band A 同分母加減との部分重複（例 `3/4 - 1/4`）→ 100 題化時に位置で分担
+  - 後半カッコ `3/4 - (1/2 + 1/4)` は **rank_09 領域として Phase 3 にも入れない**（rank_14 と同方針、ふくちさん 2026-05-07 判断）
+- **post-verification 拡張**: [_verify_phase4_post.py](scripts/generate_kiso_questions/_verify_phase4_post.py) を rank_16 対応に
+  - EXPECTED_TOTAL: 900 → 920、RANKS_30 から 16 を除外、RANKS_50 に 16 を追加
+  - 分類ヘルパー `classify_rank16_band_bc_subkind` / `classify_rank16_band_d_subkind` 追加
+  - T22 を新規追加（rank_16 Band 配分 + 各 Band サブパターン配分 + lcm 範囲 + 整数答え保証 + Band A int_ans 配置決定論性）
+
+#### 209. 🎉 分数 3 兄弟コンプリート達成 + Phase 1 全体 80%（マイルストーン記録）
+
+| 学年 | 単元数 | 状態 | 内訳 |
+|---|---|---|---|
+| **中3** | 5/5 | ✅ コンプリート | rank_01-05 |
+| **中2** | 2/2 | ✅ コンプリート | rank_06-07 |
+| **中1** | 6/6 | ✅ コンプリート | rank_08-13 |
+| **無学年・分数 3 兄弟** | 3/3 | ✅ **2026-05-07 夕 コンプリート達成 ★ NEW ★** | rank_14（四則混合）/ rank_15（乗除）/ rank_16（加減） |
+| **無学年・残り** | 0/4 | 🔄 未着手 | rank_17（小数四則混合）/ rank_18（小数乗除）/ rank_19（小数加減）/ rank_20（整数四則混合） |
+
+- **Phase 1 全体進捗**: **16 / 20 単元完了**（800 / 1000 題、**80%**）
+- **KisoQuestions シート**: 900 → 920 行（+20 行、rank_16 拡充分）
+- 分数領域コンプリート達成。残り無学年 4 単元（小数 3 + 整数 1）
+
+#### 210. 教訓・運用ルール（再発防止メモ）
+本セッションで学んだ重要事項 3 件：
+
+1. **「+ と - を最低各 1 個含む」仕様の厳格化**：rank_16 Band D add_sub_mix の初期実装で `[+,-]/[-,+]/[-,-]` の 3 候補から rng.choice したが、`[-,-]` は + を含まないため仕様違反。Phase 2 時点の検証で発覚 → `[+,-]/[-,+]` の 2 候補のみに絞り、self_check も `+ in ops and - in ops` に厳格化。仕様文を**最低条件として実装側でガード**する原則を再確認
+2. **「途中で 0 になる連続項」の排除**：rank_16 Band D で `1/2 - 1/2 + 6/7` のような「実質 2 項」問題が出ていた。`a + b op c` で `a + b == 0` なら退屈な問題なのでリトライ。3 項加減の generator では中間値ガードが教育的に重要
+3. **rank 横断重複の許容範囲を分類**：rank_14 Band A（四則混合の偶発加減）と rank_16 Band A（専門加減）で `3/4 - 1/4` が重複。分数 3 兄弟（rank_14/15/16）間の構造的重複は Phase 1 で許容、Phase 3 で位置分業。それ以外の rank 跨ぎ重複は構造異常として禁止 → 検証スクリプト T14 でこの分類を明示
+
+#### 211. 次回（数時間後）の最優先タスク
+- **★ ふくちさん側で必須の Phase 4 投入手順**:
+  1. `git pull origin dev`
+  2. `cd gas && clasp push` → GAS エディタで F5 リロード → 新バージョンデプロイ
+  3. GAS エディタから `diagnoseRank16InProgress()` を実行（in_progress セッション一覧確認）
+  4. `abandonRank16InProgress({ dryRun: true })` でドライラン → 問題なければ `abandonRank16InProgress()` で本実行
+  5. `cd scripts/generate_kiso_questions && python main.py` で 920 問生成
+  6. `python -m common.db_writer --dry-run` で 920 行 / rank_16 = 50 行 を確認
+  7. `python -m common.db_writer` で本番投入（全置換モード）
+  8. `python _verify_phase4_post.py` で post-verification（T1-T22、PASS/FAIL カウント表示）
+- **その後の候補**:
+  - 基礎計算 rank_17 小数四則混合 / rank_18 小数乗除 / rank_19 小数加減 / rank_20 整数四則混合 のいずれか
+  - カンジー問題データの本番投入と稼働
+  - リスオン default 画像の格子模様修正
+  - 全単元 100 題化（Phase 2、次の大きなマイルストーン）
+
+#### 212. 次回再開時の手順
+- **PowerShell で Claude Code 起動前に実行**:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
+- **本セッション終了時点**: dev に rank_16 Phase 1〜3 完走分を push 済（main マージはふくちさん側）
+
 ---
 
 ## 基礎計算 問題プール拡充計画
@@ -2673,16 +2770,16 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - ✅ **rank_12 乗除**（Band B 構造改革、unique 24 → 48、(-3)²/-3²/3² interleave）— 完了 2026-05-06、CLAUDE.md #194
 - ✅ **rank_13 加減**（Band D 新設で 3 項加減）— 完了 2026-05-06、CLAUDE.md #194
 
-**無学年（小学校範囲）残り 5 単元 → 次回以降**
-- ✅ **rank_14 分数四則混合**（Band D 新設で「整数を含む混合」を量で確保 4/4/4）— 完了 2026-05-07、CLAUDE.md #201
-- ✅ **rank_15 分数乗除**（全 Band slot_index 駆動化 + Band D 新設「答えが整数 muldiv」4/4）— 完了 2026-05-07、CLAUDE.md #202
-- ⏳ rank_16 分数加減（分数 3 兄弟の最後）
+**無学年（小学校範囲）3/7、★ 2026-05-07 夕 分数 3 兄弟コンプリート達成 ★**
+- ✅ **rank_14 分数四則混合**（Band D 新設で「整数を含む混合」を量で確保 4/4/4）— 完了 2026-05-07 早朝、CLAUDE.md #201
+- ✅ **rank_15 分数乗除**（全 Band slot_index 駆動化 + Band D 新設「答えが整数 muldiv」4/4）— 完了 2026-05-07 早朝、CLAUDE.md #202
+- ✅ **rank_16 分数加減**（4 Band 構成、Band D 新設で 3 項加減 5/5、Band B/C 通分難易度 slot_index 駆動分離、Band A 演算子均等 + 整数答え保証）— 完了 2026-05-07 夕、CLAUDE.md #208
 - ⏳ rank_17 小数四則混合
 - ⏳ rank_18 小数乗除
 - ⏳ rank_19 小数加減
 - ⏳ rank_20 整数四則混合
 
-**Phase 1 全体進捗**: **15 / 20 単元完了**（750 / 1000 題、**75%**） — 中学数学 13 単元 + 無学年 2 単元（分数 3 兄弟の 2/3）達成、残り無学年 5 単元
+**Phase 1 全体進捗**: **16 / 20 単元完了**（800 / 1000 題、**80%**） — 中学数学 13 単元 + 無学年 3 単元（分数 3 兄弟コンプリート）達成、残り無学年 4 単元（小数 3 + 整数 1）
 
 ### 進捗管理
 - 各単元増産時に main.py の WARN ログを確認（重複検出の有無）
