@@ -5919,9 +5919,9 @@
       var total = (res && res.total) || _kanjiState.questions.length;
       _showKanjiYomiResult(passed, correctCount, total);
     }).catch(function(){
-      // 通信失敗時はクライアント側のスコアでフォールバック判定
+      // 通信失敗時はクライアント側のスコアでフォールバック判定（2026-05-08 全問正解で合格）
       var total = _kanjiState.questions.length;
-      var passed = total > 0 && (_kanjiState.yomiScore / total) >= 0.8;
+      var passed = total > 0 && _kanjiState.yomiScore === total;
       _kanjiState.yomiPassed = passed;
       _showKanjiYomiResult(passed, _kanjiState.yomiScore, total);
     });
@@ -5941,11 +5941,11 @@
         '<button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="startKanjiKaki()">✏️ 次は書きに挑戦！</button>';
       try { playSfx('chime'); } catch(e){}
     } else {
-      _kanjiSetMascot('kanjii-img-yomi-result', 'encourage', 'kanjii-bubble-yomi-result', 'あと一歩！次はきっとできるよ！');
+      _kanjiSetMascot('kanjii-img-yomi-result', 'encourage', 'kanjii-bubble-yomi-result', 'もう一度じゃ、よく見てな');
       banner.innerHTML =
         '<div class="kanji-result-fail">' +
           '<div style="font-size:48px">😤</div>' +
-          '<div class="kanji-result-title">惜しい！合格ライン（8割）まで届かず…</div>' +
+          '<div class="kanji-result-title">惜しい！満点で合格だよ</div>' +
           '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
           '<div style="font-size:13px;color:#666;margin-top:6px">順序を変えて全問やり直しだよ</div>' +
         '</div>';
@@ -6095,7 +6095,7 @@
       _showKanjiDone(res.hpInfo || {});
       return;
     }
-    _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', 'あと一歩！間違えた問題だけ、もう一度撮ってみよう！');
+    _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', 'もう一度じゃ、よく見てな');
     var failed = (res.results || []).filter(function(r){ return !r.isCorrect; });
     var failedHtml = failed.map(function(r){
       return '<div>問 ' + r.no + '：<span class="ng">' + (r.expected || '') + '</span></div>';
@@ -6103,7 +6103,7 @@
     banner.innerHTML =
       '<div class="kanji-result-fail">' +
         '<div style="font-size:48px">😤</div>' +
-        '<div class="kanji-result-title">惜しい！合格ライン（8割）まで届かず…</div>' +
+        '<div class="kanji-result-title">惜しい！満点で合格だよ</div>' +
         '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
         '<div class="kanji-fail-list"><div style="font-weight:bold;margin-bottom:6px">読み取れなかった漢字：</div>' + (failedHtml || '（なし）') + '</div>' +
       '</div>';

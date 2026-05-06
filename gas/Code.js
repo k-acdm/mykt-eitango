@@ -8455,14 +8455,16 @@ function apologyWabun1MonyoBug_20260502() {
 // 強調マーカー: 問題文中の {xxx} は出題ターゲット部分、フロントで色付き表示
 // HP: rawHP = 50（10問セット）/ 100（20問セット）。1日 100HP 上限（kanji 内独立）。
 //     上限到達後は練習モード（HP 加算なし）。連続週²ボーナスは他コンテンツと同じ。
-//     合格判定は読み 8割 → 書き 8割の二段階で、両方クリアして初めて HP 加算。
+//     合格判定は読み 全問正解 → 書き 全問正解 の二段階（2026-05-08 仕様変更）。
+//     ふくちさん 36 年経験「漢字は英単語と同様に『知識』なので、全問正解が理にかなってる。
+//     基礎計算は思考系なので 8 割で良し」の教育的判断に基づく。英単語RUSH と同じく満点合格。
 // HPLog type: 'kanji_<level>_<count>' or 'kanji_<level>_<count>_practice'
 //   level は '5' / '4' / '3' / '準2' / '2'（'準' を含むため _ で区切ると 'kanji_準2_10' になる点に注意）
 const SHEET_KANJI_YOMI = 'KanjiYomi';
 const SHEET_KANJI_KAKI = 'KanjiKaki';
 const KANJI_VALID_LEVELS = ['5', '4', '3', '準2', '2'];
 const KANJI_DAILY_RAWHP_CAP = 100;
-const KANJI_PASS_RATIO = 0.8;
+const KANJI_PASS_RATIO = 1.0;  // 2026-05-08 0.8 → 1.0（全問正解で合格）。知識系コンテンツとしての英単語RUSH 整合
 const KANJI_YOMI_HEADERS = ['セット番号', '問番号', '漢字ID', '漢字', '問題', '選A', '選B', '選C', '選D', '正解', '級'];
 const KANJI_KAKI_HEADERS = ['セット番号', '問番号', '漢字ID', '漢字', '問題', '書き正解', '級'];
 
@@ -8746,6 +8748,7 @@ function _getMinKanjiSetNum(level) {
 // 読み問題の採点（HP は加算しない）
 // params: { studentId, level, sessionId, answers:[{kanjiId, chosen}] }
 //   - chosen: 'A' / 'B' / 'C' / 'D'
+//   - kanjiId は getKanjiSet が返した合成 ID 'set<N>_q<n>' 形式（2026-05-08 仕様）
 // 戻り値: { ok, passed, correctCount, total, results:[{kanjiId, chosen, correct, isCorrect}] }
 function submitKanjiYomi(params) {
   try {
@@ -8761,30 +8764,39 @@ function submitKanjiYomi(params) {
     if (!Array.isArray(answers) || answers.length === 0) return { ok: false, message: '解答データがありません' };
 
     // サーバー側で正解を再ルックアップ（クライアント信頼を避ける）
+    // 2026-05-08 修正：以下 2 バグを解消
+    //   (a) 旧コード `if (lv !== level) continue;` は K列='5級' vs level='5' で常に不一致 → correctMap 空
+    //       → levelKey で正規化（'5' → '5級' 等）してから比較
+    //   (b) 旧コードは漢字ID列（C列、'K5_189' 等）で correctMap キー化していたが、
+    //       getKanjiSet が返す合成 ID 'set<N>_q<n>' とは別体系。
+    //       → setNum + qNum を合成キー化して getKanjiSet と整合
+    const levelKey = (level === '準2') ? '準2級' : (level + '級');
     const ySheet = _ss().getSheetByName(SHEET_KANJI_YOMI);
     if (!ySheet || ySheet.getLastRow() < 2) return { ok: false, message: 'KanjiYomi シートが見つかりません' };
     const yRows = ySheet.getDataRange().getValues();
-    const correctMap = {};
+    const correctByKey = {};  // keyed by 'set<N>_q<n>'
     for (let i = 1; i < yRows.length; i++) {
       const r = yRows[i];
-      const lv = String(r[10] || '').trim();
-      if (lv !== level) continue;
-      const kid = String(r[2] || '').trim();
-      if (!kid) continue;
-      correctMap[kid] = String(r[9] || '').trim().toUpperCase();
+      if (String(r[10] || '').trim() !== levelKey) continue;
+      const sn = parseInt(r[0], 10);
+      const qn = parseInt(r[1], 10);
+      if (!sn || !qn) continue;
+      correctByKey['set' + sn + '_q' + qn] = String(r[9] || '').trim().toUpperCase();
     }
 
     let correctCount = 0;
     const results = answers.map(function(a){
       const kid = String((a && a.kanjiId) || '').trim();
       const chosen = String((a && a.chosen) || '').trim().toUpperCase();
-      const expected = correctMap[kid] || '';
+      const expected = correctByKey[kid] || '';
       const isCorrect = !!expected && chosen === expected;
       if (isCorrect) correctCount += 1;
       return { kanjiId: kid, chosen: chosen, correct: expected, isCorrect: isCorrect };
     });
     const total = results.length;
-    const passed = total > 0 && (correctCount / total) >= KANJI_PASS_RATIO;
+    // 2026-05-08 仕様変更：全問正解で合格（KANJI_PASS_RATIO = 1.0）。
+    // 厳密一致比較で「count に依存しない」シンプルな判定に統一（10問セット時の 5/10 など bug の根絶）。
+    const passed = total > 0 && correctCount === total;
     return { ok: true, passed: passed, correctCount: correctCount, total: total, results: results };
   } catch (err) {
     console.error('[submitKanjiYomi]', err);
@@ -8858,7 +8870,8 @@ function submitKanjiKaki(params) {
       };
     });
     const total = results.length;
-    const passed = total > 0 && (correctCount / total) >= KANJI_PASS_RATIO;
+    // 2026-05-08 仕様変更：全問正解で合格（KANJI_PASS_RATIO = 1.0）。書きも読みと同じ満点合格。
+    const passed = total > 0 && correctCount === total;
 
     // HP 加算判定（合格時のみ）
     const ss = _ss();
