@@ -26,19 +26,67 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         # D〜H は Phase 2 で追加
     },
     # 19級：小数 加減
+    # Phase 1（2026-05-07 夜）: 30→50 題化、Band D 新設で 4 Band 構成に。
+    # ふくちさん教育的判断（36 年塾長経験、小数加減は小数の入口・桁揃えの山場）:
+    #   - A: 1 桁同位 2項加減 15 問（slot_index 駆動 + 演算子均等 + 整数答え保証）
+    #     subcounts={"add": 8, "sub": 7, "int_ans": 2}
+    #     - slot 0-1: int_ans 強制（"2.3 + 1.7 = 4" 系で「足したら整数になる」体験を保証）
+    #     - slot 2-7: add 通常（残り 6 問、+ 演算子だが整数答えは強制せず偶発許容）
+    #     - slot 8-14: sub（7 問）
+    #     - 合計: 2 + 6 + 7 = 15（int_ans 2 + add 通常 6 + sub 7、ふくちさん仕様 typo
+    #       sub:5 → sub:7 に修正、count=15 整合性維持）
+    #   - B: 2 桁同位 2項加減 15 問（slot_index 駆動 + 演算子均等）
+    #     subcounts={"add": 8, "sub": 7}
+    #   - C: 桁違い 2項加減 10 問（slot_index 駆動 + 「整数 - 小数」躓き保証）
+    #     subcounts={"int_minus_dec": 5, "rest_diff": 5}
+    #     - int_minus_dec: 5 - 2.3 系（中学算数の最大躓きポイント）
+    #     - rest_diff: 整数 + 小数、桁違い小数同士
+    #   - D: 3項加減（新設）10 問（slot_index 駆動）
+    #     subcounts={"all_add": 5, "add_sub_mix": 5}
+    #     - all_add: 3 項全て加算（うち slot 0 は整数答え強制）
+    #     - add_sub_mix: + と - を最低各 1 個含む
+    # ふくちさん哲学「小数の計算は中1 正負の数（rank_11/12/13）への前段階」を反映。
+    # rank_16（分数加減）と同思想で Band D 3 項加減を新設。
+    # TODO_PHASE3: 4 項以上、3 桁同位、帯分数・分数混在は Phase 3 以降。
+    # 後半カッコ（3.5 - (1.2 + 0.5)）は rank_09 Band D paren_addsub の領域として
+    # rank_19 では入れない方針（rank_14/16 と同方針）。
     19: {
-        # int_max: 整数部最大、decimals: 小数桁数（A/B は同位取り、C は混在）
-        "A": {"count": 10, "int_max": 9, "decimals": 1, "terms": 2},
-        "B": {"count": 10, "int_max": 9, "decimals": 2, "terms": 2},
-        # C: 桁違い（整数 vs 小数、または 1 桁 vs 3 桁の小数）
-        "C": {"count": 10, "int_max": 9, "decimals_options": [(0, 3), (3, 0), (1, 3), (2, 1)], "terms": 2},
+        "A": {"count": 15, "int_max": 9, "decimals": 1, "terms": 2,
+              "subcounts": {"add": 8, "sub": 7, "int_ans": 2}},
+        "B": {"count": 15, "int_max": 9, "decimals": 2, "terms": 2,
+              "subcounts": {"add": 8, "sub": 7}},
+        "C": {"count": 10, "int_max": 9,
+              "decimals_options": [(0, 3), (3, 0), (1, 3), (2, 1)], "terms": 2,
+              "subcounts": {"int_minus_dec": 5, "rest_diff": 5}},
+        "D": {"count": 10, "kind": "three_term_addsub", "int_max": 9, "decimals": 1,
+              "subcounts": {"all_add": 5, "add_sub_mix": 5}},
     },
     # 18級：小数 乗除
+    # Phase 1（2026-05-07 夜）: 30→50 題化、Band D 新設で 4 Band 構成に。
+    # ふくちさん教育的判断（36 年塾長経験、小数の山場・小数点の移動）:
+    #   - A: 整数 × 小数 / 整数 ÷ 小数 / 小数 ÷ 整数 15 問（slot_index 駆動 + 演算子均等）
+    #     subcounts={"mul": 8, "div": 7}
+    #   - B: 小数 × 小数 / 小数 ÷ 小数 15 問（小さめ、slot_index 駆動 + 演算子均等）
+    #     subcounts={"mul": 8, "div": 7}
+    #   - C: 小数 × 小数 / 小数 ÷ 小数 10 問（やや大きめ、slot_index 駆動 + 演算子均等）
+    #     subcounts={"mul": 5, "div": 5}
+    #   - D: 答えが整数になる muldiv 10 問（新設、slot_index 駆動）
+    #     subcounts={"mul_int_ans": 5, "div_int_ans": 5}
+    #     - mul_int_ans: 5 × 0.6 = 3 / 20 × 0.25 = 5 系（位置先頭/末尾両方）
+    #     - div_int_ans: 12 ÷ 1.5 = 8 / 6 ÷ 0.5 = 12 系（中学算数の躓きポイント）
+    # rank_15（分数乗除）Band D（答えが整数 muldiv）と完全対称、教育的に映える。
+    # TODO_PHASE3: 4 項以上、小数 × 分数の混在は Phase 3 以降。
+    # 「割り切れない割り算」（小数の循環）は仕様書 §6.5 厳密値原則のため入れない。
     18: {
-        # A: 整数 × 小数 / B: 小数 × 小数（割り切れる積） / C: 桁数大きめ
-        "A": {"count": 10, "kind": "int_x_dec", "int_max": 9, "decimals": 1},
-        "B": {"count": 10, "kind": "dec_x_dec", "int_max": 5, "decimals": 1},
-        "C": {"count": 10, "kind": "dec_x_dec", "int_max": 9, "decimals": 1},
+        "A": {"count": 15, "kind": "int_x_dec", "int_max": 9, "decimals": 1,
+              "subcounts": {"mul": 8, "div": 7}},
+        "B": {"count": 15, "kind": "dec_x_dec", "int_max": 5, "decimals": 1,
+              "subcounts": {"mul": 8, "div": 7}},
+        "C": {"count": 10, "kind": "dec_x_dec", "int_max": 9, "decimals": 1,
+              "subcounts": {"mul": 5, "div": 5}},
+        "D": {"count": 10, "kind": "int_ans_muldiv", "int_max": 50,
+              "decimals_options": [1, 2],
+              "subcounts": {"mul_int_ans": 5, "div_int_ans": 5}},
     },
     # 17級：小数 四則混合
     17: {
