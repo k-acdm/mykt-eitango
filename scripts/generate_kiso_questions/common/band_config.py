@@ -19,11 +19,30 @@ from typing import Any, Dict
 
 BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     # 20級：整数四則混合
+    # Phase 1（2026-05-07 夜）: 30→50 題化、Band D 新設で 4 Band 構成 + digits=1 化。
+    # ふくちさん教育的判断（36 年塾長経験、小学校算数の最も基礎・四則混合の入口）:
+    #   - A: 1 桁 2項加減 5 問（入門、subcounts add=3 / sub=2）
+    #   - B: 1 桁 2項乗除 5 問（入門、subcounts mul=3 / div=2）
+    #   - C: 1 桁 3項四則混合 20 問（**digits=2→1 必須、構造的修正**）
+    #     subcounts={"plus_dom": 7, "minus_dom": 6, "mul_dom": 7}（演算子均等化）
+    #   - D: 1 桁 3項括弧あり 20 問（新設、ふくちさん「カッコの理解は基礎の山場」）
+    #     subcounts={"add_outer": 7, "mul_outer": 7, "div_outer": 6}
+    # **digits 縮小の理由**：旧 Band C は digits=2 で結果が 134,044 等の暗算範囲外
+    # （`62 × 23 × 94` 等）。小学校算数として教育的に重すぎるため digits=1 化。
+    # Band A/B の自明問題（6-6=0、9÷9=1 等）は **教育的価値があるため許容**
+    # （ふくちさん 2026-05-07 判断、「同じ数を引くと 0」「同じ数で割ると 1」の
+    # 体感が入門としての本質）。
+    # TODO_PHASE3: 4 項以上、二重カッコ、digits=2 の 3 項は Phase 3 以降。
+    # 負の数は rank_11/12/13 領域として rank_20 に入れない。
     20: {
-        "A": {"count": 10, "digits": 1, "terms": 2, "ops": ["+", "-"], "parens": False},
-        "B": {"count": 10, "digits": 1, "terms": 2, "ops": ["*", "/"], "parens": False},
-        "C": {"count": 10, "digits": 2, "terms": 3, "ops": ["+", "-", "*", "/"], "parens": False},
-        # D〜H は Phase 2 で追加
+        "A": {"count": 5, "digits": 1, "terms": 2, "ops": ["+", "-"], "parens": False,
+              "subcounts": {"add": 3, "sub": 2}},
+        "B": {"count": 5, "digits": 1, "terms": 2, "ops": ["*", "/"], "parens": False,
+              "subcounts": {"mul": 3, "div": 2}},
+        "C": {"count": 20, "digits": 1, "terms": 3, "ops": ["+", "-", "*", "/"], "parens": False,
+              "subcounts": {"plus_dom": 7, "minus_dom": 6, "mul_dom": 7}},
+        "D": {"count": 20, "kind": "three_term_paren", "digits": 1,
+              "subcounts": {"add_outer": 7, "mul_outer": 7, "div_outer": 6}},
     },
     # 19級：小数 加減
     # Phase 1（2026-05-07 夜）: 30→50 題化、Band D 新設で 4 Band 構成に。
@@ -89,10 +108,31 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
               "subcounts": {"mul_int_ans": 5, "div_int_ans": 5}},
     },
     # 17級：小数 四則混合
+    # Phase 1（2026-05-07 夜）: 30→50 題化、Band D 新設で 4 Band 構成に。
+    # ふくちさん教育的判断（36 年塾長経験、小数の山場・四則混合の頂点）:
+    #   - A: 2 項小数四則 12 問（slot_index 駆動、演算子均等化で ÷ 偏り少なすぎ解消）
+    #     subcounts={"add": 3, "sub": 3, "mul": 3, "div": 3}
+    #   - B: 3 項小数四則 14 問（カッコなし、既存ロジック踏襲、count のみ拡大）
+    #   - C: 3 項小数四則 12 問（カッコあり、既存ロジック踏襲、count のみ拡大）
+    #   - D: 答えが整数になる 3 項小数四則 12 問（新設、slot_index 駆動）
+    #     subcounts={"no_paren": 6, "with_paren": 6}
+    #     - 例 1.5 × 2 + 1 = 4 / (0.8 + 0.4) × 5 = 6
+    # rank_14（分数四則混合）Band D（整数を含む混合）と完全対称な構造、
+    # 教育的に「答え整数の達成感」を保証する rank_17 の主役 Band D。
+    # TODO_PHASE3: 4 項以上、二重カッコ、Band B/C で ÷ を含む 3 項は Phase 3 以降。
+    # 帯分数・分数混在は rank_14 領域。後半カッコは rank_09 領域として
+    # Phase 3 にも入れない（rank_14/16/19 と同方針）。
     17: {
-        "A": {"count": 10, "terms": 2, "ops": ["+", "-", "*", "/"], "parens": False, "int_max": 5, "decimals": 1},
-        "B": {"count": 10, "terms": 3, "ops": ["+", "-", "*", "/"], "parens": False, "int_max": 5, "decimals": 1},
-        "C": {"count": 10, "terms": 3, "ops": ["+", "-", "*", "/"], "parens": True,  "int_max": 5, "decimals": 1},
+        "A": {"count": 12, "terms": 2, "ops": ["+", "-", "*", "/"], "parens": False,
+              "int_max": 5, "decimals": 1,
+              "subcounts": {"add": 3, "sub": 3, "mul": 3, "div": 3}},
+        "B": {"count": 14, "terms": 3, "ops": ["+", "-", "*"], "parens": False,
+              "int_max": 5, "decimals": 1},
+        "C": {"count": 12, "terms": 3, "ops": ["+", "-", "*"], "parens": True,
+              "int_max": 5, "decimals": 1},
+        "D": {"count": 12, "kind": "int_ans_three_term",
+              "int_max": 5, "decimals": 1,
+              "subcounts": {"no_paren": 6, "with_paren": 6}},
     },
     # 15級：分数 乗除
     # Phase 1（2026-05-07）: 30→50題化、Band D を新設して 4 Band 構成に。

@@ -1,14 +1,18 @@
-"""KisoQuestions シート Phase 4 投入後検証（rank_18/19 対応版）。
+"""KisoQuestions シート Phase 4 投入後検証（rank_17/20 対応版、★ Phase 1 完全制覇 ★）。
 
 過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 / rank_08 / rank_01 /
-rank_11 / rank_12 / rank_13 / rank_09 / rank_10 / rank_14 / rank_15 / rank_16
-投入後検証（CLAUDE.md #155-160 / #171）と同じパターンで gspread からシートを直接
-読み出し、rank_18/19 50 題化（小数 3 兄弟のうち 2 単元、Band D 新設、slot_index
-駆動 + 演算子均等保証）の投入結果を検証する。
+rank_11 / rank_12 / rank_13 / rank_09 / rank_10 / rank_14 / rank_15 / rank_16 /
+rank_18 / rank_19 投入後検証（CLAUDE.md #155-160 / #171）と同じパターンで
+gspread からシートを直接読み出し、**Phase 1 完全制覇**（全 20 単元 50 題化、合計
+1000 問達成）の投入結果を検証する。
+
+最後の 2 単元 rank_17（小数四則混合）と rank_20（整数四則混合）の Phase 1 拡充
+（rank_17: Band D 答え整数 3 項小数四則、rank_20: digits=1 化 + Band D カッコあり）
+の投入で、全 20 単元が 50 題化、計 1000 問。
 
 検証項目:
-  T1  全 rank 行数 = 960
-  T2  rank 別行数（rank 17, 20 が 30、rank 1-16/18/19 が 50）
+  T1  全 rank 行数 = 1000
+  T2  rank 別行数（全 20 rank が 50、★ RANKS_30 は空 ★）
   T3  rank=6 Band 配分（A=5, B=20, C=10, D=15）
   T4  questionId 重複ゼロ（880 件全てユニーク）
   T5  problemLatex 重複ゼロ（rank 内で全てユニーク）
@@ -68,6 +72,22 @@ rank_11 / rank_12 / rank_13 / rank_09 / rank_10 / rank_14 / rank_15 / rank_16
        + Band D slot 0（all_add）が整数答え強制
        + Band D add_sub_mix で + と - 両方含まれる
        + Band D 全 10 問が 3 項
+  T25 rank=17 Band 配分（A=12, B=14, C=12, D=12）
+       + Band A 演算子配分（add=3, sub=3, mul=3, div=3、slot 0-2/3-5/6-8/9-11）
+       + Band A 演算子均等化（既存 + 24 / × 14 / ÷ 2 偏り解消）
+       + Band B 全 14 問が「カッコなし、÷ 含まない」
+       + Band C 全 12 問が「カッコあり、÷ 含まない」
+       + Band D サブパターン配分（no_paren=6, with_paren=6）
+       + Band D 全 12 問の答えが整数
+  T26 rank=20 Band 配分（A=5, B=5, C=20, D=20）
+       + Band A/B 自明問題許容（6-6=0、9÷9=1 等、ふくちさん 2026-05-07 判断）
+       + Band C digits=1 化（全項が 1 桁整数、結果 100 以下）
+       + Band C サブパターン slot 配置（plus_dom=7, minus_dom=6, mul_dom=7）
+       + Band D 全 20 問が 3 項カッコあり
+       + Band D サブパターン slot 配置（add_outer=7, mul_outer=7, div_outer=6）
+       + Band D 結果 100 以下
+
+★ Phase 1 完全制覇マイルストーン：全 20 rank が 50 題化、合計 1000 問達成 ★
 
 実行:
   cd scripts/generate_kiso_questions
@@ -86,11 +106,11 @@ from google.oauth2.service_account import Credentials
 
 
 # 期待値（CLAUDE.md #171 + rank_01/08/09/11/12/13 + rank_10 + rank_14/15/16 +
-# rank_18/19 Phase 1 拡充の Phase 4 投入仕様）
-# 中 1 数学 5 単元 + 分数 3 兄弟 + 小数 2 単元（rank_18/19）が全完了した時点の合計 960 問。
-EXPECTED_TOTAL = 960
-RANKS_30 = [17, 20]
-RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19]
+# rank_18/19 + rank_17/20 Phase 1 拡充の Phase 4 投入仕様）
+# ★ Phase 1 完全制覇 ★：全 20 単元 50 題化、合計 1000 問達成。
+EXPECTED_TOTAL = 1000
+RANKS_30 = []  # 全 rank が 50 題化、Phase 1 完全制覇後は RANKS_30 空
+RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 EXPECTED_RANK_06_BANDS = {"A": 5, "B": 20, "C": 10, "D": 15}
 EXPECTED_RANK_08_BANDS = {"A": 5, "B": 25, "C": 10, "D": 10}
 # Band D の slot_index 駆動サブパターン配分（_resolve_band_d_subkind 由来）
@@ -165,6 +185,70 @@ EXPECTED_RANK_19_BAND_B_SUB = 7
 EXPECTED_RANK_19_BAND_C_SUBPATTERNS = {"int_minus_dec": 5, "rest_diff": 5}
 # rank_19 Band D サブパターン配分
 EXPECTED_RANK_19_BAND_D_SUBPATTERNS = {"all_add": 5, "add_sub_mix": 5}
+# 小数四則混合 無学年（Phase 1、2026-05-07 夜 拡充、Band D 答え整数 3 項小数四則 新設）
+EXPECTED_RANK_17_BANDS = {"A": 12, "B": 14, "C": 12, "D": 12}
+# Band A 演算子配分（slot 0-2 add, 3-5 sub, 6-8 mul, 9-11 div、各 3 問均等）
+EXPECTED_RANK_17_BAND_A_SUBPATTERNS = {"add": 3, "sub": 3, "mul": 3, "div": 3}
+# Band D サブパターン配分（slot_index 駆動）
+EXPECTED_RANK_17_BAND_D_SUBPATTERNS = {"no_paren": 6, "with_paren": 6}
+# 整数四則混合 無学年（Phase 1、2026-05-07 夜 拡充、digits=1 化 + Band D カッコあり 新設）
+EXPECTED_RANK_20_BANDS = {"A": 5, "B": 5, "C": 20, "D": 20}
+# Band A/B 配分（入門編、自明問題許容）
+EXPECTED_RANK_20_BAND_A_SUBPATTERNS = {"add": 3, "sub": 2}
+EXPECTED_RANK_20_BAND_B_SUBPATTERNS = {"mul": 3, "div": 2}
+# Band C サブパターン配分（演算子均等化）
+EXPECTED_RANK_20_BAND_C_SUBPATTERNS = {"plus_dom": 7, "minus_dom": 6, "mul_dom": 7}
+# Band D サブパターン配分（外側演算子分離）
+EXPECTED_RANK_20_BAND_D_SUBPATTERNS = {"add_outer": 7, "mul_outer": 7, "div_outer": 6}
+# Band C/D 結果値域（小学校算数の暗算範囲）
+EXPECTED_RANK_20_RESULT_MAX = 100
+
+
+def _rank17_classify_band_a_op(latex: str) -> str:
+    """rank=17 Band A の演算子を判定。"""
+    if "\\times" in latex:
+        return "mul"
+    if "\\div" in latex:
+        return "div"
+    if " + " in latex:
+        return "add"
+    if " - " in latex:
+        return "sub"
+    return "unknown"
+
+
+def _rank17_classify_band_d_subkind(latex: str) -> str:
+    """rank=17 Band D の no_paren / with_paren を判定。"""
+    if "\\left(" in latex or "(" in latex:
+        return "with_paren"
+    return "no_paren"
+
+
+def _rank20_classify_band_d_outer(latex: str) -> str:
+    """rank=20 Band D の外側演算子（add_outer / mul_outer / div_outer）を判定。
+
+    形式: \\left(... \\right) op2 c
+    """
+    import re as _re
+    m = _re.search(r"\\right\)\s+(\\times|\\div|[+\-])\s+", latex)
+    if not m:
+        return "unknown"
+    op2 = m.group(1)
+    if op2 == "\\times":
+        return "mul_outer"
+    if op2 == "\\div":
+        return "div_outer"
+    if op2 in ("+", "-"):
+        return "add_outer"
+    return "unknown"
+
+
+def _rank20_extract_int_operands(latex: str):
+    """rank=20 の latex から整数オペランドを抽出（カッコ・演算子を除いた数値群）。"""
+    cleaned = latex.replace("\\left(", "").replace("\\right)", "")
+    cleaned = cleaned.replace("\\times", " ").replace("\\div", " ")
+    import re as _re
+    return [int(x) for x in _re.findall(r"-?\d+", cleaned)]
 
 
 def _rank19_classify_band_c_subkind(latex: str) -> str:
@@ -1897,6 +1981,224 @@ def main() -> int:
     for i, r in enumerate(band_d_rows_19):
         sub = _rank19_classify_band_d_subkind(r[i_latex])
         print(f"  D[{i+1:2d}] ({sub:11s}): {r[i_latex]:34s}  =>  {r[i_canonical]}")
+
+    # ============================================================
+    # T25: rank=17 Band 配分 + Band A 演算子均等化 + Band D 答え整数 3 項小数四則
+    # ============================================================
+    rank17_rows = [
+        r for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 17
+    ]
+    band_counts_17: Counter = Counter()
+    for r in rank17_rows:
+        band_counts_17[r[i_band]] += 1
+
+    for band, expected in EXPECTED_RANK_17_BANDS.items():
+        actual = band_counts_17.get(band, 0)
+        check(
+            f"T25 rank=17 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # Band A 演算子均等化（add=3, sub=3, mul=3, div=3）
+    band_a_rows_17 = [r for r in rank17_rows if r[i_band] == "A"]
+    a_op_counts_17: Counter = Counter()
+    for r in band_a_rows_17:
+        a_op_counts_17[_rank17_classify_band_a_op(r[i_latex])] += 1
+    for sub, expected in EXPECTED_RANK_17_BAND_A_SUBPATTERNS.items():
+        actual = a_op_counts_17.get(sub, 0)
+        check(
+            f"T25 rank=17 Band A {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # Band A 演算子配置（slot 0-2 add, 3-5 sub, 6-8 mul, 9-11 div）
+    expected_slot_ops_17 = ["add", "add", "add", "sub", "sub", "sub",
+                             "mul", "mul", "mul", "div", "div", "div"]
+    a_slot_ok_17 = all(
+        _rank17_classify_band_a_op(band_a_rows_17[i][i_latex]) == expected_slot_ops_17[i]
+        for i in range(min(12, len(band_a_rows_17)))
+    )
+    check(
+        "T25 rank=17 Band A 演算子配置（slot 0-2 add / 3-5 sub / 6-8 mul / 9-11 div）",
+        a_slot_ok_17,
+    )
+
+    # Band B/C 全問が「÷ 含まない」（既存仕様維持）
+    band_b_rows_17 = [r for r in rank17_rows if r[i_band] == "B"]
+    band_c_rows_17 = [r for r in rank17_rows if r[i_band] == "C"]
+    b_no_div = all("\\div" not in r[i_latex] for r in band_b_rows_17)
+    c_no_div = all("\\div" not in r[i_latex] for r in band_c_rows_17)
+    check("T25 rank=17 Band B 全問が「÷ 含まない」", b_no_div)
+    check("T25 rank=17 Band C 全問が「カッコあり、÷ 含まない」",
+          c_no_div and all("\\left(" in r[i_latex] for r in band_c_rows_17))
+
+    # Band D サブパターン配分
+    band_d_rows_17 = [r for r in rank17_rows if r[i_band] == "D"]
+    d_sub_counts_17: Counter = Counter()
+    for r in band_d_rows_17:
+        d_sub_counts_17[_rank17_classify_band_d_subkind(r[i_latex])] += 1
+    for sub, expected in EXPECTED_RANK_17_BAND_D_SUBPATTERNS.items():
+        actual = d_sub_counts_17.get(sub, 0)
+        check(
+            f"T25 rank=17 Band D {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # Band D 全問の答えが整数
+    import re as _re_d_int_17
+    d_int_count_17 = sum(
+        1 for r in band_d_rows_17 if _re_d_int_17.match(r"^-?\d+$", r[i_canonical])
+    )
+    check(
+        "T25 rank=17 Band D 全 12 問の答えが整数",
+        d_int_count_17 == 12,
+        f"actual={d_int_count_17}/12",
+    )
+
+    # ============================================================
+    # rank=17 サンプル表示
+    # ============================================================
+    print("\n--- rank=17 Band A サンプル（slot 0-2 add / 3-5 sub / 6-8 mul / 9-11 div） ---")
+    for i, r in enumerate(band_a_rows_17):
+        sub = expected_slot_ops_17[i] if i < len(expected_slot_ops_17) else "?"
+        print(f"  A[{i+1:2d}] ({sub:3s}): {r[i_latex]:28s}  =>  {r[i_canonical]}")
+
+    print("\n--- rank=17 Band D サンプル（no_paren 6 / with_paren 6、全問整数答え） ---")
+    for i, r in enumerate(band_d_rows_17):
+        sub = "no_paren" if i < 6 else "with_paren"
+        print(f"  D[{i+1:2d}] ({sub:10s}): {r[i_latex]:34s}  =>  {r[i_canonical]}")
+
+    # ============================================================
+    # T26: rank=20 Band 配分 + digits=1 化 + Band C/D サブパターン配分
+    # ============================================================
+    rank20_rows = [
+        r for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 20
+    ]
+    band_counts_20: Counter = Counter()
+    for r in rank20_rows:
+        band_counts_20[r[i_band]] += 1
+
+    for band, expected in EXPECTED_RANK_20_BANDS.items():
+        actual = band_counts_20.get(band, 0)
+        check(
+            f"T26 rank=20 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # Band A/B 演算子配分
+    band_a_rows_20 = [r for r in rank20_rows if r[i_band] == "A"]
+    band_b_rows_20 = [r for r in rank20_rows if r[i_band] == "B"]
+    band_c_rows_20 = [r for r in rank20_rows if r[i_band] == "C"]
+    band_d_rows_20 = [r for r in rank20_rows if r[i_band] == "D"]
+
+    a_add_20 = sum(1 for r in band_a_rows_20 if " + " in r[i_latex])
+    a_sub_20 = sum(1 for r in band_a_rows_20 if " - " in r[i_latex])
+    b_mul_20 = sum(1 for r in band_b_rows_20 if "\\times" in r[i_latex])
+    b_div_20 = sum(1 for r in band_b_rows_20 if "\\div" in r[i_latex])
+    check(f"T26 rank=20 Band A add == {EXPECTED_RANK_20_BAND_A_SUBPATTERNS['add']}",
+          a_add_20 == EXPECTED_RANK_20_BAND_A_SUBPATTERNS["add"], f"actual={a_add_20}")
+    check(f"T26 rank=20 Band A sub == {EXPECTED_RANK_20_BAND_A_SUBPATTERNS['sub']}",
+          a_sub_20 == EXPECTED_RANK_20_BAND_A_SUBPATTERNS["sub"], f"actual={a_sub_20}")
+    check(f"T26 rank=20 Band B mul == {EXPECTED_RANK_20_BAND_B_SUBPATTERNS['mul']}",
+          b_mul_20 == EXPECTED_RANK_20_BAND_B_SUBPATTERNS["mul"], f"actual={b_mul_20}")
+    check(f"T26 rank=20 Band B div == {EXPECTED_RANK_20_BAND_B_SUBPATTERNS['div']}",
+          b_div_20 == EXPECTED_RANK_20_BAND_B_SUBPATTERNS["div"], f"actual={b_div_20}")
+
+    # Band C/D digits=1 化検証（全項が 1 桁整数）
+    cd_all_single = True
+    for r in band_c_rows_20 + band_d_rows_20:
+        ops = _rank20_extract_int_operands(r[i_latex])
+        if not all(0 <= n <= 9 for n in ops):
+            cd_all_single = False
+            break
+    check("T26 rank=20 Band C/D 全項が 1 桁整数（digits=1 化の証拠）", cd_all_single)
+
+    # Band C 結果値域 100 以下
+    c_max_20 = max((abs(int(r[i_canonical])) for r in band_c_rows_20
+                     if r[i_canonical].lstrip("-").isdigit()), default=0)
+    check(
+        f"T26 rank=20 Band C 全結果が {EXPECTED_RANK_20_RESULT_MAX} 以下",
+        c_max_20 <= EXPECTED_RANK_20_RESULT_MAX,
+        f"max={c_max_20}",
+    )
+
+    # Band C サブパターン slot 配置（plus_dom 7 / minus_dom 6 / mul_dom 7）
+    c_slot_07_plus = sum(1 for r in band_c_rows_20[:7] if " + " in r[i_latex])
+    c_slot_7to12_minus = sum(1 for r in band_c_rows_20[7:13] if " - " in r[i_latex])
+    c_slot_13to19_times = sum(1 for r in band_c_rows_20[13:20] if "\\times" in r[i_latex])
+    check("T26 rank=20 Band C slot 0-6 plus_dom（+ を必ず含む）== 7",
+          c_slot_07_plus == 7, f"actual={c_slot_07_plus}")
+    check("T26 rank=20 Band C slot 7-12 minus_dom（- を必ず含む）== 6",
+          c_slot_7to12_minus == 6, f"actual={c_slot_7to12_minus}")
+    check("T26 rank=20 Band C slot 13-19 mul_dom（× を必ず含む）== 7",
+          c_slot_13to19_times == 7, f"actual={c_slot_13to19_times}")
+
+    # Band D 全 20 問がカッコあり
+    d_all_paren = all("\\left(" in r[i_latex] for r in band_d_rows_20)
+    check("T26 rank=20 Band D 全 20 問が 3 項カッコあり", d_all_paren)
+
+    # Band D 外側演算子サブパターン slot 配置
+    d_outer_counts: Counter = Counter()
+    for r in band_d_rows_20:
+        d_outer_counts[_rank20_classify_band_d_outer(r[i_latex])] += 1
+    for sub, expected in EXPECTED_RANK_20_BAND_D_SUBPATTERNS.items():
+        actual = d_outer_counts.get(sub, 0)
+        check(
+            f"T26 rank=20 Band D {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # Band D 結果値域 100 以下
+    d_max_20 = max((abs(int(r[i_canonical])) for r in band_d_rows_20
+                     if r[i_canonical].lstrip("-").isdigit()), default=0)
+    check(
+        f"T26 rank=20 Band D 全結果が {EXPECTED_RANK_20_RESULT_MAX} 以下",
+        d_max_20 <= EXPECTED_RANK_20_RESULT_MAX,
+        f"max={d_max_20}",
+    )
+
+    # Band D 全問の答えが整数（rank_20 全体）
+    import re as _re_d_int_20
+    d_int_count_20 = sum(
+        1 for r in rank20_rows if _re_d_int_20.match(r"^-?\d+$", r[i_canonical])
+    )
+    check(
+        "T26 rank=20 全 50 問の答えが整数",
+        d_int_count_20 == 50,
+        f"actual={d_int_count_20}/50",
+    )
+
+    # ============================================================
+    # rank=20 サンプル表示
+    # ============================================================
+    print("\n--- rank=20 Band A/B サンプル（自明問題許容、入門編） ---")
+    for i, r in enumerate(band_a_rows_20):
+        sub = "add" if i < 3 else "sub"
+        print(f"  A[{i+1}] ({sub}): {r[i_latex]:14s}  =>  {r[i_canonical]}")
+    for i, r in enumerate(band_b_rows_20):
+        sub = "mul" if i < 3 else "div"
+        print(f"  B[{i+1}] ({sub}): {r[i_latex]:14s}  =>  {r[i_canonical]}")
+
+    print("\n--- rank=20 Band C サンプル（plus_dom 7 / minus_dom 6 / mul_dom 7、digits=1） ---")
+    for i, r in enumerate(band_c_rows_20):
+        sub = ("plus_dom" if i < 7 else "minus_dom" if i < 13 else "mul_dom")
+        print(f"  C[{i+1:2d}] ({sub:9s}): {r[i_latex]:22s}  =>  {r[i_canonical]}")
+
+    print("\n--- rank=20 Band D サンプル（add_outer 7 / mul_outer 7 / div_outer 6） ---")
+    for i, r in enumerate(band_d_rows_20):
+        sub = ("add_outer" if i < 7 else "mul_outer" if i < 14 else "div_outer")
+        print(f"  D[{i+1:2d}] ({sub:9s}): {r[i_latex]:30s}  =>  {r[i_canonical]}")
 
     # ============================================================
     # 結果サマリ
