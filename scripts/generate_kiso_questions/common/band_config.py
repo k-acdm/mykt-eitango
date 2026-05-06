@@ -115,12 +115,49 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         },
     },
     # 16級：分数加減
+    # Phase 1（2026-05-07 夕）: 30→50 題化、Band D 新設で 4 Band 構成に。
+    # ふくちさん教育的判断（36 年塾長経験、分数 3 兄弟の最後・分数加減の核心）:
+    #   - A: 同分母 2項加減 15 問（slot_index 駆動 + 演算子均等 + 整数答え保証）
+    #     subcounts={"add": 8, "sub": 7, "int_ans": 2}
+    #     - slot 0-1: int_ans 強制（"1/3 + 2/3 = 1" 系を確実に 2 問入れる教育的訴求）
+    #     - slot 2-7: add 通常（残り 6 問）
+    #     - slot 8-14: sub 通常（7 問）
+    #   - B: 異分母 2項加減 15 問（slot_index 駆動 + 通分難易度サブパターン分離）
+    #     subcounts={"easy_lcm": 5, "medium_lcm": 5, "hard_lcm": 5}
+    #     - easy_lcm: lcm <= 12（簡単な通分）
+    #     - medium_lcm: 13 <= lcm <= 30（中くらい）
+    #     - hard_lcm: lcm > 30（難しい）
+    #   - C: 異分母 2項加減 10 問（中〜難の通分、easy_lcm 含まない）
+    #     subcounts={"medium_lcm": 5, "hard_lcm": 5}
+    #   - D: 3項加減（新設）10 問（slot_index 駆動）
+    #     subcounts={"all_add": 5, "add_sub_mix": 5}
+    #     - all_add: 3項全て足し算（うち最低 1 問は整数答え保証）
+    #     - add_sub_mix: + と - を最低各 1 個含む
+    # ふくちさん哲学「分数の加減（特に通分）は分数の最初の躓き、ここでつまずく
+    # 生徒は中学数学全体で詰まる」「lcm が小さい組から大きい組まで段階的に練習」
+    # を反映、通分難易度を slot_index で意図的に保証。
+    # rank_14 Band D（2項 整数 ± 分数）と完全に直交（rank_16 では 2項整数±分数を
+    # 入れない方針で分業）。
+    # TODO_PHASE3: 帯分数表記、小数混在、4 項以上、後半カッコは Phase 3 以降。
+    # 後半カッコ（3/4 - (1/2 + 1/4)）は rank_09 Band D paren_addsub の領域として
+    # rank_16 では入れない方針（ふくちさん 2026-05-07 判断、rank_14 と同方針）。
     16: {
-        # same_denom: 同分母 / mixed_denom: 異分母 / terms: 項数 / allow_mixed: 帯分数を許可
-        "A": {"count": 10, "same_denom": True,  "terms": 2, "allow_mixed": False, "denom_max": 10},
-        "B": {"count": 10, "same_denom": False, "terms": 2, "allow_mixed": False, "denom_max": 12},
-        "C": {"count": 10, "same_denom": False, "terms": 2, "allow_mixed": False, "denom_max": 15},
-        # D〜H で帯分数・3項・小数混在を導入予定
+        "A": {
+            "count": 15, "same_denom": True, "terms": 2, "denom_max": 10,
+            "subcounts": {"add": 8, "sub": 7, "int_ans": 2},
+        },
+        "B": {
+            "count": 15, "same_denom": False, "terms": 2, "denom_max": 12,
+            "subcounts": {"easy_lcm": 5, "medium_lcm": 5, "hard_lcm": 5},
+        },
+        "C": {
+            "count": 10, "same_denom": False, "terms": 2, "denom_max": 15,
+            "subcounts": {"medium_lcm": 5, "hard_lcm": 5},
+        },
+        "D": {
+            "count": 10, "kind": "three_term_addsub", "terms": 3, "denom_max": 8,
+            "subcounts": {"all_add": 5, "add_sub_mix": 5},
+        },
     },
     # 13級：正負の数 加減
     # Phase 1（2026-05-05）: 30→50 題に拡充、Band D を新設して 4 Band 構成に。

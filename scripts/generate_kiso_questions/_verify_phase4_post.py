@@ -1,13 +1,14 @@
-"""KisoQuestions シート Phase 4 投入後検証（rank_15 対応版）。
+"""KisoQuestions シート Phase 4 投入後検証（rank_16 対応版）。
 
 過去の rank_02 / rank_03 / rank_04 / rank_05 / rank_06 / rank_07 / rank_08 / rank_01 /
-rank_11 / rank_12 / rank_13 / rank_09 / rank_10 / rank_14 投入後検証（CLAUDE.md #155-160 / #171）
-と同じパターンで gspread からシートを直接読み出し、rank_15 50題化（4 Band 全て slot_index
-駆動 + Band D 答えが整数になる muldiv 新設）の投入結果を検証する。
+rank_11 / rank_12 / rank_13 / rank_09 / rank_10 / rank_14 / rank_15 投入後検証
+（CLAUDE.md #155-160 / #171）と同じパターンで gspread からシートを直接読み出し、
+rank_16 50題化（4 Band 構成、Band D 3 項加減新設、slot_index 駆動 + 通分難易度
+サブパターン分離）の投入結果を検証する。
 
 検証項目:
-  T1  全 rank 行数 = 900
-  T2  rank 別行数（rank 16-20 が 30、rank 1-15 が 50）
+  T1  全 rank 行数 = 920
+  T2  rank 別行数（rank 17-20 が 30、rank 1-16 が 50）
   T3  rank=6 Band 配分（A=5, B=20, C=10, D=15）
   T4  questionId 重複ゼロ（880 件全てユニーク）
   T5  problemLatex 重複ゼロ（rank 内で全てユニーク）
@@ -41,6 +42,15 @@ rank_11 / rank_12 / rank_13 / rank_09 / rank_10 / rank_14 投入後検証（CLAU
        + Band D サブパターン配分（mul_int_ans=4, div_int_ans=4）
        + Band D 全 8 問の答えが整数
        + Band A/B 約分強制（A は各演算子 ≥3、B は各演算子 ≥5）
+  T22 rank=16 Band 配分（A=15, B=15, C=10, D=10）
+       + Band A 演算子配分（add=8, sub=7、slot 0-1 が int_ans=1）
+       + Band B サブパターン配分（easy_lcm=5, medium_lcm=5, hard_lcm=5）
+       + Band C サブパターン配分（medium_lcm=5, hard_lcm=5、easy_lcm=0）
+       + Band B/C 全問の lcm が各サブパターン範囲内
+       + Band D サブパターン配分（all_add=5, add_sub_mix=5）
+       + Band D add_sub_mix で + と - が両方含まれる
+       + Band D 全 10 問が 3 項
+       + Band D に整数答えが 1 問以上（all_add の slot 0）
 
 実行:
   cd scripts/generate_kiso_questions
@@ -58,11 +68,11 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# 期待値（CLAUDE.md #171 + rank_01/08/09/11/12/13 + rank_10 + rank_14/15 Phase 1 拡充の Phase 4 投入仕様）
-# 中 1 数学 5 単元 + rank_14/15（無学年・分数四則混合 + 分数乗除）拡充が全完了した時点の合計 900 問。
-EXPECTED_TOTAL = 900
-RANKS_30 = [16, 17, 18, 19, 20]
-RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+# 期待値（CLAUDE.md #171 + rank_01/08/09/11/12/13 + rank_10 + rank_14/15/16 Phase 1 拡充の Phase 4 投入仕様）
+# 中 1 数学 5 単元 + rank_14/15/16（無学年・分数 3 兄弟全完成）拡充が全完了した時点の合計 920 問。
+EXPECTED_TOTAL = 920
+RANKS_30 = [17, 18, 19, 20]
+RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 EXPECTED_RANK_06_BANDS = {"A": 5, "B": 20, "C": 10, "D": 15}
 EXPECTED_RANK_08_BANDS = {"A": 5, "B": 25, "C": 10, "D": 10}
 # Band D の slot_index 駆動サブパターン配分（_resolve_band_d_subkind 由来）
@@ -100,6 +110,18 @@ EXPECTED_RANK_15_BAND_D_SUBPATTERNS = {"mul_int_ans": 4, "div_int_ans": 4}
 # rank_15 約分強制：Band A は各演算子 3 問以上、Band B は各演算子 5 問以上が「約分が活きる組」
 EXPECTED_RANK_15_BAND_A_FORCE_CANCEL_MIN_PER_OP = 3
 EXPECTED_RANK_15_BAND_B_FORCE_CANCEL_MIN_PER_OP = 5
+# 分数加減 無学年（Phase 1、2026-05-07 拡充、Band D 3 項加減新設、4 Band 全て slot_index 駆動）
+EXPECTED_RANK_16_BANDS = {"A": 15, "B": 15, "C": 10, "D": 10}
+# rank_16 Band A 演算子配分（slot 0-1=int_ans, 2-7=add 通常, 8-14=sub）
+EXPECTED_RANK_16_BAND_A_ADD_TOTAL = 8  # int_ans (2) + add 通常 (6)
+EXPECTED_RANK_16_BAND_A_SUB_TOTAL = 7
+EXPECTED_RANK_16_BAND_A_INT_ANS = 2  # slot 0-1 が答え=1
+# rank_16 Band B サブパターン配分（lcm 範囲）
+EXPECTED_RANK_16_BAND_B_SUBPATTERNS = {"easy_lcm": 5, "medium_lcm": 5, "hard_lcm": 5}
+# rank_16 Band C サブパターン配分（easy_lcm を含まない）
+EXPECTED_RANK_16_BAND_C_SUBPATTERNS = {"medium_lcm": 5, "hard_lcm": 5}
+# rank_16 Band D サブパターン配分（slot_index 駆動）
+EXPECTED_RANK_16_BAND_D_SUBPATTERNS = {"all_add": 5, "add_sub_mix": 5}
 
 
 def classify_rank12_band_b_subkind(latex: str) -> str:
@@ -272,6 +294,62 @@ def rank15_band_a_cancel_active(latex: str) -> bool:
     return _gcd(k, d) > 1 if is_mul else _gcd(n, k) > 1
 
 
+def _rank16_extract_fractions(latex: str):
+    """rank_16 用: \\frac{n}{d} を全件抽出して [(n, d), ...] を返す。"""
+    import re as _re
+    pairs = []
+    for m in _re.finditer(r"\\frac\{(-?\d+)\}\{(\d+)\}", latex):
+        pairs.append((int(m.group(1)), int(m.group(2))))
+    return pairs
+
+
+def _rank16_lcm(a: int, b: int) -> int:
+    from math import gcd as _gcd
+    return a * b // _gcd(a, b)
+
+
+def classify_rank16_band_bc_subkind(latex: str) -> str:
+    """rank=16 Band B/C の latex を easy_lcm / medium_lcm / hard_lcm に分類。
+
+    異分母 2 項加減の lcm を見て:
+      easy_lcm:   lcm <= 12
+      medium_lcm: 13 <= lcm <= 30
+      hard_lcm:   lcm > 30
+    """
+    pairs = _rank16_extract_fractions(latex)
+    if len(pairs) != 2:
+        return "unknown"
+    d1, d2 = pairs[0][1], pairs[1][1]
+    if d1 == d2:
+        return "unknown"
+    l = _rank16_lcm(d1, d2)
+    if l <= 12:
+        return "easy_lcm"
+    if l <= 30:
+        return "medium_lcm"
+    return "hard_lcm"
+
+
+def classify_rank16_band_d_subkind(latex: str) -> str:
+    """rank=16 Band D の 3 項加減を all_add / add_sub_mix に分類。
+
+    演算子 ' + ' / ' - ' を抽出して 2 個取り、両方 '+' なら all_add、
+    + と - が混在 or 両方 '-' なら add_sub_mix。
+    """
+    import re as _re
+    ops = []
+    for m in _re.finditer(r"\s([+\-])\s", latex):
+        ops.append(m.group(1))
+    if len(ops) != 2:
+        return "unknown"
+    if ops[0] == "+" and ops[1] == "+":
+        return "all_add"
+    if "+" in ops and "-" in ops:
+        return "add_sub_mix"
+    # 両方 '-' は仕様上禁止だが念のため分類（fail 検出用）
+    return "minus_minus"
+
+
 def rank15_band_b_cancel_active(latex: str) -> bool:
     """rank=15 Band B 「分数 op 分数」で約分が活きるか判定。
 
@@ -361,7 +439,7 @@ def main() -> int:
         print(msg)
 
     # ============================================================
-    # T1: 全 rank 行数 = 760
+    # T1: 全 rank 行数 = EXPECTED_TOTAL（920）
     # ============================================================
     check(
         f"T1 全 rank 行数 == {EXPECTED_TOTAL}",
@@ -1175,6 +1253,175 @@ def main() -> int:
     for i, r in enumerate(band_d_rows_15):
         sub = "mul_int_ans" if "\\times" in r[i_latex] else "div_int_ans"
         print(f"  D[{i+1:2d}] ({sub:11s}): {r[i_latex]:36s}  =>  {r[i_canonical]}")
+
+    # ============================================================
+    # T22: rank=16 Band 配分 + 各 Band サブパターン配分 + lcm 範囲 + 整数答え
+    # ============================================================
+    band_counts_16: Counter = Counter()
+    rank16_rows = [
+        r for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 16
+    ]
+    for r in rank16_rows:
+        band_counts_16[r[i_band]] += 1
+
+    for band, expected in EXPECTED_RANK_16_BANDS.items():
+        actual = band_counts_16.get(band, 0)
+        check(
+            f"T22 rank=16 Band {band} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+
+    # rank=16 Band A 演算子配分（add 8 / sub 7 / int_ans 2 は add の中に含む）
+    band_a_rows_16 = [r for r in rank16_rows if r[i_band] == "A"]
+    a_add_count = sum(1 for r in band_a_rows_16 if " + " in r[i_latex])
+    a_sub_count = sum(1 for r in band_a_rows_16 if " - " in r[i_latex])
+    a_int_ans_count = sum(1 for r in band_a_rows_16 if r[i_canonical] == "1")
+    check(
+        f"T22 rank=16 Band A add 演算子 == {EXPECTED_RANK_16_BAND_A_ADD_TOTAL}",
+        a_add_count == EXPECTED_RANK_16_BAND_A_ADD_TOTAL,
+        f"actual={a_add_count}",
+    )
+    check(
+        f"T22 rank=16 Band A sub 演算子 == {EXPECTED_RANK_16_BAND_A_SUB_TOTAL}",
+        a_sub_count == EXPECTED_RANK_16_BAND_A_SUB_TOTAL,
+        f"actual={a_sub_count}",
+    )
+    check(
+        f"T22 rank=16 Band A 整数答え（=1）== {EXPECTED_RANK_16_BAND_A_INT_ANS}",
+        a_int_ans_count == EXPECTED_RANK_16_BAND_A_INT_ANS,
+        f"actual={a_int_ans_count}",
+    )
+
+    # rank=16 Band A int_ans が slot 0-1 に配置（決定論的）
+    if len(band_a_rows_16) >= 2:
+        slot0_int = band_a_rows_16[0][i_canonical] == "1"
+        slot1_int = band_a_rows_16[1][i_canonical] == "1"
+        check(
+            "T22 rank=16 Band A slot 0-1 が int_ans（決定論的配置）",
+            slot0_int and slot1_int,
+            f"slot0={band_a_rows_16[0][i_canonical]}, slot1={band_a_rows_16[1][i_canonical]}",
+        )
+
+    # rank=16 Band B サブパターン配分（lcm ベース）
+    band_b_rows_16 = [r for r in rank16_rows if r[i_band] == "B"]
+    b_sub_counts: Counter = Counter()
+    for r in band_b_rows_16:
+        b_sub_counts[classify_rank16_band_bc_subkind(r[i_latex])] += 1
+    for sub, expected in EXPECTED_RANK_16_BAND_B_SUBPATTERNS.items():
+        actual = b_sub_counts.get(sub, 0)
+        check(
+            f"T22 rank=16 Band B {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+    unknown_b_16 = b_sub_counts.get("unknown", 0)
+    check(
+        "T22 rank=16 Band B 未分類（unknown）ゼロ",
+        unknown_b_16 == 0,
+        f"unknown={unknown_b_16}",
+    )
+
+    # rank=16 Band C サブパターン配分（easy_lcm 含まない）
+    band_c_rows_16 = [r for r in rank16_rows if r[i_band] == "C"]
+    c_sub_counts: Counter = Counter()
+    for r in band_c_rows_16:
+        c_sub_counts[classify_rank16_band_bc_subkind(r[i_latex])] += 1
+    for sub, expected in EXPECTED_RANK_16_BAND_C_SUBPATTERNS.items():
+        actual = c_sub_counts.get(sub, 0)
+        check(
+            f"T22 rank=16 Band C {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+    c_easy_count = c_sub_counts.get("easy_lcm", 0)
+    check(
+        "T22 rank=16 Band C easy_lcm == 0（含まれない）",
+        c_easy_count == 0,
+        f"actual={c_easy_count}",
+    )
+
+    # rank=16 Band D サブパターン配分（slot_index 駆動）
+    band_d_rows_16 = [r for r in rank16_rows if r[i_band] == "D"]
+    d_sub_counts_16: Counter = Counter()
+    for r in band_d_rows_16:
+        d_sub_counts_16[classify_rank16_band_d_subkind(r[i_latex])] += 1
+    for sub, expected in EXPECTED_RANK_16_BAND_D_SUBPATTERNS.items():
+        actual = d_sub_counts_16.get(sub, 0)
+        check(
+            f"T22 rank=16 Band D {sub} == {expected}",
+            actual == expected,
+            f"actual={actual}",
+        )
+    # add_sub_mix で + と - が両方含まれる（[-,-] の minus_minus がゼロ）
+    minus_minus_count = d_sub_counts_16.get("minus_minus", 0)
+    check(
+        "T22 rank=16 Band D add_sub_mix で + と - 両方含む（[-,-] ゼロ）",
+        minus_minus_count == 0,
+        f"minus_minus={minus_minus_count}",
+    )
+
+    # rank=16 Band D 全 10 問が 3 項
+    d_three_term_count = sum(
+        1 for r in band_d_rows_16
+        if len(_rank16_extract_fractions(r[i_latex])) == 3
+    )
+    check(
+        "T22 rank=16 Band D 全 10 問が 3 項",
+        d_three_term_count == 10,
+        f"actual={d_three_term_count}/10",
+    )
+
+    # rank=16 Band D に整数答えが 1 問以上（all_add の slot 0 が force_int_ans）
+    import re as _re_d_int_16
+    d_int_answers_16 = sum(
+        1 for r in band_d_rows_16
+        if _re_d_int_16.match(r"^\d+$", r[i_canonical])
+    )
+    check(
+        "T22 rank=16 Band D に整数答えが 1 問以上（all_add の slot 0）",
+        d_int_answers_16 >= 1,
+        f"actual={d_int_answers_16}（slot 0 が force_int_ans）",
+    )
+
+    # rank=16 Band B/C 全問の lcm が各サブパターン範囲内
+    # （classify_rank16_band_bc_subkind が unknown を返さないこと、
+    #  かつ subcounts と一致することで間接的に保証されている）
+
+    # ============================================================
+    # rank=16 Band A サンプル表示（実機目視用）
+    # ============================================================
+    print("\n--- rank=16 Band A サンプル（slot_index 順、int_ans 2 / add 6 / sub 7） ---")
+    for i, r in enumerate(band_a_rows_16):
+        if i < 2:
+            sub = "int_ans"
+        elif " + " in r[i_latex]:
+            sub = "add"
+        else:
+            sub = "sub"
+        print(f"  A[{i+1:2d}] ({sub:7s}): {r[i_latex]:34s}  =>  {r[i_canonical]}")
+
+    print("\n--- rank=16 Band B サンプル（easy/medium/hard 各 5、lcm 表示） ---")
+    for i, r in enumerate(band_b_rows_16):
+        sub = classify_rank16_band_bc_subkind(r[i_latex])
+        pairs = _rank16_extract_fractions(r[i_latex])
+        l = _rank16_lcm(pairs[0][1], pairs[1][1]) if len(pairs) == 2 else 0
+        print(f"  B[{i+1:2d}] ({sub:11s} lcm={l:3d}): {r[i_latex]:36s}  =>  {r[i_canonical]}")
+
+    print("\n--- rank=16 Band C サンプル（medium/hard 各 5、easy_lcm 含まず） ---")
+    for i, r in enumerate(band_c_rows_16):
+        sub = classify_rank16_band_bc_subkind(r[i_latex])
+        pairs = _rank16_extract_fractions(r[i_latex])
+        l = _rank16_lcm(pairs[0][1], pairs[1][1]) if len(pairs) == 2 else 0
+        print(f"  C[{i+1:2d}] ({sub:11s} lcm={l:3d}): {r[i_latex]:36s}  =>  {r[i_canonical]}")
+
+    print("\n--- rank=16 Band D サンプル（all_add 5 / add_sub_mix 5、3 項加減） ---")
+    for i, r in enumerate(band_d_rows_16):
+        sub = classify_rank16_band_d_subkind(r[i_latex])
+        print(f"  D[{i+1:2d}] ({sub:11s}): {r[i_latex]:48s}  =>  {r[i_canonical]}")
 
     # ============================================================
     # rank=6 Band D サンプル表示（実機目視用）
