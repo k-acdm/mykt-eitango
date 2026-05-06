@@ -353,6 +353,7 @@ function doGet(e) {
       else if (action === 'getKanjiSet')              result = getKanjiSet(params);
       else if (action === 'submitKanjiYomi')          result = submitKanjiYomi(params);
       else if (action === 'getKanjiTodayRawHP')       result = getKanjiTodayRawHP(params);
+      else if (action === 'getKanjiHistory')          result = getKanjiHistory(params);
       // 先生からのメッセージ（生徒画面：メッセージ一覧 + 未読件数）
       // ※ 管理画面の送信系（sendTeacherMessage）と既読化（markMessageAsRead）は doPost 側に登録。
       //   ensureTeachersSheet / ensureTeacherMessagesSheets は GAS エディタからの 1 回限り
@@ -6110,6 +6111,7 @@ function getChildActivityRecent(params) {
         wabun1:  { done: false, hpGained: 0 },
         kiso:    { done: false, hpGained: 0, rawHP: 0, sessions: [] },
         lison:   { done: false, hpGained: 0, levels: [] },
+        kanji:   { done: false, hpGained: 0, rawHP: 0, sessions: [] },
         extras:  []  // 未知の HPLog type は自動でここに集約（将来コンテンツの自動対応）
       };
     }
@@ -6163,6 +6165,23 @@ function getChildActivityRecent(params) {
           if (m) {
             byDate[ds].kiso.sessions.push({
               rank:       parseInt(m[1], 10),
+              count:      parseInt(m[2], 10),
+              isPractice: !!m[3],
+              hpGained:   hp,
+              rawHP:      raw
+            });
+          }
+        }
+        else if (type.indexOf('kanji_') === 0) {
+          // 'kanji_<level>_<count>' or 'kanji_<level>_<count>_practice'
+          // level は '5' / '4' / '3' / '準2' / '2'（'準2' を含むため _ で素朴に split しない）
+          byDate[ds].kanji.done = true;
+          byDate[ds].kanji.hpGained += hp;
+          byDate[ds].kanji.rawHP    += raw;
+          const m = /^kanji_(準?\d+)_(\d+)(_practice)?$/.exec(type);
+          if (m) {
+            byDate[ds].kanji.sessions.push({
+              level:      m[1],
               count:      parseInt(m[2], 10),
               isPractice: !!m[3],
               hpGained:   hp,
@@ -8521,18 +8540,27 @@ function getKanjiTodayRawHP(params) {
   }
 }
 
-// KanjiYomi / KanjiKaki シートを読み、指定級の漢字IDで揃えた問題セットを返す
+// KanjiYomi / KanjiKaki シートから「セット番号でペアリングした」問題セットを返す
+// 2026-05-08 仕様変更：英単語RUSH と同様、セット番号 → 問題番号順で「上から順に」拾う。
+//   - 漢字ID は内部キーとしては保持するが、ペアリングには使わない（v2 引き継ぎ書 §出題ロジック）
+//   - 「次にやるセット番号」は PropertiesService（kanji_next_<sid>_<level>）で生徒ごと追跡
+//   - 不合格時は next を更新しない（同じセットで再挑戦）→ submitKanjiKaki 合格時のみ +1/+2
+//   - 級の最終セットを超えたら 1 に戻す（無限ループ可能）
+//
 // params: { studentId, level, count }
-//   - level: '5' / '4' / '3' / '準2' / '2'
+//   - level: '5' / '4' / '3' / '準2' / '2'（bare 表記）
 //   - count: 5 or 10（読みの問題数。書きも同数）
-// 戻り値:
-//   - 成功: { ok:true, sessionId, level, count, questions:[{kanjiId, kanji, yomi:{question, choices, correct}, kaki:{question, answer}}] }
-//   - データなし: { ok:false, message:'このレベルの問題はまだ準備中だよ。もう少し待っててね！' }
+//   - count=5  → 1 セット = 読み 5 + 書き 5
+//   - count=10 → 連続する 2 セット = 読み 10 + 書き 10
+//
+// 戻り値（フロント互換性のため既存ペア構造 + 進捗 hint を追加）:
+//   { ok:true, sessionId, level, count, questions:[{kanjiId, kanji, yomi:{question, choices, correct}, kaki:{question, answer}}],
+//     setNumbers:[N, ...], maxSetForLevel }
 function getKanjiSet(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
     const level = String((params && params.level) || '').trim();
-    const count = Math.max(1, Math.min(20, parseInt((params && params.count) || 0, 10) || 0));
+    const count = parseInt((params && params.count) || 0, 10) || 0;
     if (!sid) return { ok: false, message: '生徒IDが必要です' };
     if (KANJI_VALID_LEVELS.indexOf(level) < 0) return { ok: false, message: 'レベル指定が不正です' };
     if (count !== 5 && count !== 10) return { ok: false, message: '問題数は 5 または 10 を指定してください' };
@@ -8548,71 +8576,105 @@ function getKanjiSet(params) {
     // ヘッダーは固定（仕様）。列インデックスは 0 始まりで定数化
     // KanjiYomi: 0=セット 1=問 2=ID 3=漢字 4=問題 5=A 6=B 7=C 8=D 9=正解 10=級
     // KanjiKaki: 0=セット 1=問 2=ID 3=漢字 4=問題 5=書き正解 6=級
+    // K/G 列の値は '5級' / '4級' / '3級' / '準2級' / '2級' 形式。bare level からの正規化キーで突合する。
+    const levelKey = (level === '準2') ? '準2級' : (level + '級');
 
-    const yomiByLevel = {};
+    // セット番号 → 問題行配列（問番号順にソート）
+    const yomiBySet = {};
     for (let i = 1; i < yRows.length; i++) {
       const r = yRows[i];
-      const lv = String(r[10] || '').trim();
-      if (lv !== level) continue;
-      const kid = String(r[2] || '').trim();
-      if (!kid) continue;
-      yomiByLevel[kid] = {
-        kanjiId: kid,
-        kanji:   String(r[3] || '').trim(),
-        question: String(r[4] || ''),
-        choices: {
-          A: String(r[5] || ''),
-          B: String(r[6] || ''),
-          C: String(r[7] || ''),
-          D: String(r[8] || '')
-        },
-        correct: String(r[9] || '').trim().toUpperCase()  // 'A'/'B'/'C'/'D'
-      };
+      if (String(r[10] || '').trim() !== levelKey) continue;
+      const sn = parseInt(r[0], 10);
+      if (!sn) continue;
+      if (!yomiBySet[sn]) yomiBySet[sn] = [];
+      yomiBySet[sn].push(r);
     }
-
-    const kakiByLevel = {};
+    const kakiBySet = {};
     for (let i = 1; i < kRows.length; i++) {
       const r = kRows[i];
-      const lv = String(r[6] || '').trim();
-      if (lv !== level) continue;
-      const kid = String(r[2] || '').trim();
-      if (!kid) continue;
-      kakiByLevel[kid] = {
-        kanjiId: kid,
-        kanji:   String(r[3] || '').trim(),
-        question: String(r[4] || ''),
-        answer:  String(r[5] || '').trim()
-      };
+      if (String(r[6] || '').trim() !== levelKey) continue;
+      const sn = parseInt(r[0], 10);
+      if (!sn) continue;
+      if (!kakiBySet[sn]) kakiBySet[sn] = [];
+      kakiBySet[sn].push(r);
     }
 
-    // 両シートに存在する漢字IDだけを使用
-    const pairedIds = Object.keys(yomiByLevel).filter(function(id){ return !!kakiByLevel[id]; });
-    if (pairedIds.length === 0) {
+    // 両シートに存在するセット番号の集合（昇順ソート）
+    const availableSets = Object.keys(yomiBySet)
+      .filter(function(sn){ return !!kakiBySet[sn]; })
+      .map(function(sn){ return parseInt(sn, 10); })
+      .sort(function(a, b){ return a - b; });
+    if (availableSets.length === 0) {
       return { ok: false, message: 'このレベルの問題はまだ準備中だよ。もう少し待っててね！' };
     }
-    if (pairedIds.length < count) {
-      // データはあるが count に満たない場合は使える分だけで返す（運用初期の救済）
-      Logger.log('[getKanjiSet] level=' + level + ' available=' + pairedIds.length + ' count=' + count + ' → 使用可能分で実施');
+    const minSet = availableSets[0];
+    const maxSet = availableSets[availableSets.length - 1];
+    const availableSet = {};
+    availableSets.forEach(function(sn){ availableSet[sn] = true; });
+
+    // PropertiesService から「次にやるセット番号」を取得（初期値 1）
+    const propKey = 'kanji_next_' + sid + '_' + level;
+    let nextSetNum = parseInt(_props().getProperty(propKey) || String(minSet), 10);
+    if (!nextSetNum || nextSetNum > maxSet || nextSetNum < minSet) nextSetNum = minSet;
+
+    // count に応じてセット数（5問=1セット / 10問=2セット）
+    const setsNeeded = (count === 10) ? 2 : 1;
+    const targetSets = [];
+    let cursor = nextSetNum;
+    let safety = availableSets.length + 5;  // 無限ループ防止
+    while (targetSets.length < setsNeeded && safety-- > 0) {
+      if (cursor > maxSet) cursor = minSet;
+      if (availableSet[cursor]) {
+        targetSets.push(cursor);
+      }
+      cursor++;
+    }
+    if (targetSets.length === 0) {
+      return { ok: false, message: 'このレベルの問題はまだ準備中だよ。もう少し待っててね！' };
     }
 
-    // シャッフル + 先頭 count 件
-    const shuffled = pairedIds.slice();
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const t = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = t;
-    }
-    const pickIds = shuffled.slice(0, Math.min(count, shuffled.length));
-
-    const questions = pickIds.map(function(id){
-      const y = yomiByLevel[id];
-      const k = kakiByLevel[id];
-      return {
-        kanjiId: id,
-        kanji: y.kanji || k.kanji,
-        yomi: { question: y.question, choices: y.choices, correct: y.correct },
-        kaki: { question: k.question, answer: k.answer }
-      };
+    // questions 配列を構築（セット番号順、問番号順）
+    // 既存フロントが期待するペア構造：[{kanjiId, kanji, yomi, kaki}]
+    // セット番号 N の問番号 i 番目同士をそのまま並べる（漢字 ID は表示しないので一致不要）
+    const questions = [];
+    targetSets.forEach(function(sn){
+      const yomiRows = (yomiBySet[sn] || []).slice().sort(function(a, b){ return parseInt(a[1], 10) - parseInt(b[1], 10); });
+      const kakiRows = (kakiBySet[sn] || []).slice().sort(function(a, b){ return parseInt(a[1], 10) - parseInt(b[1], 10); });
+      const pairLen = Math.min(yomiRows.length, kakiRows.length);
+      for (let i = 0; i < pairLen; i++) {
+        const y = yomiRows[i];
+        const k = kakiRows[i];
+        questions.push({
+          // kanjiId は読み・書きで体系が違うため pair の鍵に使わないが、
+          // 既存フロント（_retryKanjiKaki の idSet 構築 / 再挑戦時の対象抽出）が
+          // q.kanjiId に依存しているので、再挑戦時に一意に識別できる合成 ID を採用する。
+          // 形式: 'set<setNum>_q<問番号>'（同セッション内ユニーク、生徒解答経路に閉じる）
+          kanjiId: 'set' + sn + '_q' + parseInt(y[1], 10),
+          kanji:   String(y[3] || k[3] || '').trim(),
+          yomi: {
+            question: String(y[4] || ''),
+            choices: {
+              A: String(y[5] || ''),
+              B: String(y[6] || ''),
+              C: String(y[7] || ''),
+              D: String(y[8] || '')
+            },
+            correct: String(y[9] || '').trim().toUpperCase()
+          },
+          kaki: {
+            question: String(k[4] || ''),
+            answer:   String(k[5] || '').trim()
+          },
+          // 参考情報（クライアント側で必要なら表示可能）
+          setNum: sn,
+          qNum: parseInt(y[1], 10)
+        });
+      }
     });
+
+    if (questions.length === 0) {
+      return { ok: false, message: 'このレベルの問題はまだ準備中だよ。もう少し待っててね！' };
+    }
 
     const sessionId = _kanjiSessionId(sid);
     return {
@@ -8621,12 +8683,64 @@ function getKanjiSet(params) {
       level: level,
       count: questions.length,
       requestedCount: count,
+      setNumbers: targetSets,
+      maxSetForLevel: maxSet,
       questions: questions
     };
   } catch (err) {
     console.error('[getKanjiSet]', err);
     return { ok: false, message: String(err) };
   }
+}
+
+// 指定級の最大セット番号（読み・書き両方に存在するものの最大）
+function _getMaxKanjiSetNum(level) {
+  const ss = _ss();
+  const ySheet = ss.getSheetByName(SHEET_KANJI_YOMI);
+  const kSheet = ss.getSheetByName(SHEET_KANJI_KAKI);
+  if (!ySheet || !kSheet) return 0;
+  const levelKey = (level === '準2') ? '準2級' : (level + '級');
+  const yRows = ySheet.getDataRange().getValues();
+  const kRows = kSheet.getDataRange().getValues();
+  const ySet = {};
+  for (let i = 1; i < yRows.length; i++) {
+    if (String(yRows[i][10] || '').trim() !== levelKey) continue;
+    const sn = parseInt(yRows[i][0], 10);
+    if (sn) ySet[sn] = true;
+  }
+  let maxN = 0;
+  for (let i = 1; i < kRows.length; i++) {
+    if (String(kRows[i][6] || '').trim() !== levelKey) continue;
+    const sn = parseInt(kRows[i][0], 10);
+    if (!sn || !ySet[sn]) continue;
+    if (sn > maxN) maxN = sn;
+  }
+  return maxN;
+}
+
+// 指定級の最小セット番号（リセット時の戻り先）
+function _getMinKanjiSetNum(level) {
+  const ss = _ss();
+  const ySheet = ss.getSheetByName(SHEET_KANJI_YOMI);
+  const kSheet = ss.getSheetByName(SHEET_KANJI_KAKI);
+  if (!ySheet || !kSheet) return 1;
+  const levelKey = (level === '準2') ? '準2級' : (level + '級');
+  const yRows = ySheet.getDataRange().getValues();
+  const kRows = kSheet.getDataRange().getValues();
+  const ySet = {};
+  for (let i = 1; i < yRows.length; i++) {
+    if (String(yRows[i][10] || '').trim() !== levelKey) continue;
+    const sn = parseInt(yRows[i][0], 10);
+    if (sn) ySet[sn] = true;
+  }
+  let minN = 0;
+  for (let i = 1; i < kRows.length; i++) {
+    if (String(kRows[i][6] || '').trim() !== levelKey) continue;
+    const sn = parseInt(kRows[i][0], 10);
+    if (!sn || !ySet[sn]) continue;
+    if (minN === 0 || sn < minN) minN = sn;
+  }
+  return minN || 1;
 }
 
 // 読み問題の採点（HP は加算しない）
@@ -8710,16 +8824,31 @@ function submitKanjiKaki(params) {
     if (!ocrRes || !ocrRes.ok) return ocrRes || { ok: false, message: 'OCR に失敗しました' };
     const ocrText = String(ocrRes.ocrText || '');
 
-    // 各問の正解を OCR テキストから照合
-    // OCR テキストにはおおよそ「番号 漢字」の並びで生徒の答えが書かれている前提だが、
-    // 「指定の漢字が OCR テキスト全体に含まれていれば正解」というシンプルな照合とする。
-    // （番号順の厳密照合は手書き OCR の番号誤認識リスクが高いため避ける）
+    // 各問の正解を OCR テキストから照合（2026-05-08 厳密化：順序付き前進検索）
+    // OCR テキストには「番号 漢字」の並びで生徒の答えが書かれている前提。
+    // 仕様書 §採点ルール「F列『書き正解』との完全一致判定」を、手書き OCR の番号誤認識
+    // リスクを避けつつ実装するため、以下の方式を採用：
+    //   1. OCR テキスト全体を _kanjiNormalizeText（全角→半角・空白削除）で正規化
+    //   2. expectedAnswers を順番に前から順に検索（cursor 前進方式）
+    //   3. 一度見つかったら次回検索は cursor の次の位置から開始
+    //   4. 順序が違ったり、同じ漢字を別問題に書いた誤答は cursor が進まず不正解となる
+    // これは「ゆるい indexOf（既存）」より厳密、「行ベース完全一致」より OCR 番号誤認識
+    // に強い、現実的な厳密化。ふくちさん 36 年の塾長経験「丁寧に正しく書くことが裏の
+    // 第一目標」の哲学に基づく順序判定。
     const ocrNorm = _kanjiNormalizeText(ocrText);
+    let cursor = 0;
     let correctCount = 0;
     const results = expectedAnswers.map(function(e){
       const ans = String((e && e.answer) || '').trim();
       const ansNorm = _kanjiNormalizeText(ans);
-      const found = !!ansNorm && ocrNorm.indexOf(ansNorm) >= 0;
+      let found = false;
+      if (ansNorm) {
+        const pos = ocrNorm.indexOf(ansNorm, cursor);
+        if (pos >= 0) {
+          found = true;
+          cursor = pos + ansNorm.length;
+        }
+      }
       if (found) correctCount += 1;
       return {
         kanjiId: String((e && e.kanjiId) || ''),
@@ -8767,6 +8896,25 @@ function submitKanjiKaki(params) {
         _logHP(sid, 0, 0, 'kanji_' + level + '_' + count + '_practice');
         hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: true, alreadyAtCap: true };
       }
+
+      // 進捗追跡：合格時のみ「次にやるセット番号」をインクリメント
+      // (5 問セット → +1、10 問セット → +2)。級の最終セットを超えたら最初に戻す。
+      // 練習モードでも next は更新（HP は付与されないが進捗は進める = 学習の連続性優先）
+      try {
+        const propKey = 'kanji_next_' + sid + '_' + level;
+        const propsSvc = _props();
+        const minSet = _getMinKanjiSetNum(level);
+        const maxSet = _getMaxKanjiSetNum(level);
+        let curNext = parseInt(propsSvc.getProperty(propKey) || String(minSet), 10);
+        if (!curNext || curNext < minSet || curNext > maxSet) curNext = minSet;
+        const advance = (count === 10) ? 2 : 1;
+        let newNext = curNext + advance;
+        if (newNext > maxSet) newNext = minSet;  // 級を一周したら最初に戻す
+        propsSvc.setProperty(propKey, String(newNext));
+      } catch (progressErr) {
+        console.error('[submitKanjiKaki progress update]', progressErr);
+        // 進捗更新失敗時もユーザー応答は成功扱い（HP は加算済み）
+      }
     }
 
     return {
@@ -8782,6 +8930,48 @@ function submitKanjiKaki(params) {
     };
   } catch (err) {
     console.error('[submitKanjiKaki]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// カンジー履歴（おさらい画面用）：HPLog から sid のカンジー実施履歴を新しい順に返す
+// type 'kanji_<level>_<count>' / 'kanji_<level>_<count>_practice' をパース。
+// セット番号は HPLog に記録されないため一覧のみ（クリックで問題内容再表示は将来課題）。
+function getKanjiHistory(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const sh = _ss().getSheetByName(SHEET_HPLOG);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, history: [] };
+    const rows = _readLastNRows(sh, 2000);
+    // HPLog 列: [0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type [5]message
+    const history = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (String(r[1] || '').trim() !== sid) continue;
+      const type = String(r[4] || '').trim();
+      if (type.indexOf('kanji_') !== 0) continue;
+      const m = /^kanji_(準?\d+)_(\d+)(_practice)?$/.exec(type);
+      if (!m) continue;
+      let ts;
+      try { ts = Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'); }
+      catch (e) { ts = String(r[0] || ''); }
+      history.push({
+        timestamp:  ts,
+        date:       ts.slice(0, 10),
+        level:      m[1],
+        count:      parseInt(m[2], 10),
+        hpGained:   Number(r[3]) || 0,
+        rawHP:      Number(r[2]) || 0,
+        isPractice: !!m[3]
+      });
+    }
+    history.sort(function(a, b){
+      return a.timestamp < b.timestamp ? 1 : (a.timestamp > b.timestamp ? -1 : 0);
+    });
+    return { ok: true, history: history };
+  } catch (err) {
+    console.error('[getKanjiHistory]', err);
     return { ok: false, message: String(err) };
   }
 }

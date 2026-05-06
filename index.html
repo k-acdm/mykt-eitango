@@ -357,32 +357,37 @@
     .content-btn:not(.disabled):hover .ico-mascot { transform: scale(1.06); background: rgba(255,255,255,.26); }
     @media (max-width: 480px) { .content-btn .ico-mascot { width:48px; height:48px; padding:5px; border-radius:12px; } }
     /* ---- ホーム画面コンテンツボタンのキャラ画像ゆらゆら（マイカツ君 cbob 踏襲） ---- */
-    /* マイカツ君の cbob keyframes（行 219）と同じ上下 7px の控えめな揺れを 5 キャラに適用。
-       準備中（c-wabun2 / c-social / c-science / c-kanji）と秘密の扉（c-himitsu）には適用しない。
-       duration 2.4s、各キャラ delay 0/0.4/0.8/1.2/1.6s で機械的な同期を回避（半周期内に分散）。 */
+    /* マイカツ君の cbob keyframes（行 219）と同じ上下 7px の控えめな揺れを 6 キャラに適用。
+       準備中（c-wabun2 / c-social / c-science）と秘密の扉（c-himitsu）には適用しない。
+       2026-05-08：カンジー稼働化に合わせ c-kanji を追加（delay 2.0s）。
+       duration 2.4s、各キャラ delay 0/0.4/0.8/1.2/1.6/2.0s で機械的な同期を回避（半周期内に分散）。 */
     @keyframes wobble-character { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
     .content-btn.c-eitango .ico-mascot,
     .content-btn.c-sango   .ico-mascot,
     .content-btn.c-wabun1  .ico-mascot,
     .content-btn.c-math    .ico-mascot,
-    .content-btn.c-lison   .ico-mascot { animation: wobble-character 2.4s ease-in-out infinite; will-change: transform; }
+    .content-btn.c-lison   .ico-mascot,
+    .content-btn.c-kanji   .ico-mascot { animation: wobble-character 2.4s ease-in-out infinite; will-change: transform; }
     .content-btn.c-eitango .ico-mascot { animation-delay: 0s; }
     .content-btn.c-sango   .ico-mascot { animation-delay: 0.4s; }
     .content-btn.c-wabun1  .ico-mascot { animation-delay: 0.8s; }
     .content-btn.c-math    .ico-mascot { animation-delay: 1.2s; }
     .content-btn.c-lison   .ico-mascot { animation-delay: 1.6s; }
+    .content-btn.c-kanji   .ico-mascot { animation-delay: 2.0s; }
     /* hover 中は scale 効果と衝突しないよう揺れを一時停止（既存 :hover ルールの transform を維持） */
     .content-btn.c-eitango:hover .ico-mascot,
     .content-btn.c-sango:hover   .ico-mascot,
     .content-btn.c-wabun1:hover  .ico-mascot,
     .content-btn.c-math:hover    .ico-mascot,
-    .content-btn.c-lison:hover   .ico-mascot { animation-play-state: paused; }
+    .content-btn.c-lison:hover   .ico-mascot,
+    .content-btn.c-kanji:hover   .ico-mascot { animation-play-state: paused; }
     @media (prefers-reduced-motion: reduce) {
       .content-btn.c-eitango .ico-mascot,
       .content-btn.c-sango   .ico-mascot,
       .content-btn.c-wabun1  .ico-mascot,
       .content-btn.c-math    .ico-mascot,
-      .content-btn.c-lison   .ico-mascot { animation: none; }
+      .content-btn.c-lison   .ico-mascot,
+      .content-btn.c-kanji   .ico-mascot { animation: none; }
     }
     .content-btn.c-himitsu   { background: linear-gradient(135deg,#5b21b6,#1e1b4b); position:relative; overflow:hidden; }
     .content-btn.c-himitsu::before { content:"✨"; position:absolute; top:6px; left:8px; font-size:14px; opacity:.85; pointer-events:none; }
@@ -1153,8 +1158,8 @@
           <span class="badge-soon">準備中</span>
           <span class="ico">🔬</span>理科の重要用語
         </button>
-        <button class="content-btn c-kanji disabled" onclick="showKanjiLevelSelect()">
-          <span class="badge-soon">準備中</span>
+        <button class="content-btn c-kanji" onclick="showKanjiLevelSelect()">
+          <span class="badge-hp">50〜100HP/日</span>
           <img class="ico-mascot" src="images/kanjii-default.png" alt="">カンジー
           <span class="content-btn-sub">漢字の読み書き</span>
         </button>
@@ -2008,7 +2013,8 @@
       <button class="kanji-level-btn" onclick="showKanjiCountSelect('準2')">漢検 準2級<small>高校 在学程度</small></button>
       <button class="kanji-level-btn" onclick="showKanjiCountSelect('2')">漢検 2級<small>高校 卒業程度</small></button>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:16px" onclick="showKanjiHistory()">📖 今までの実施履歴を見る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -2109,6 +2115,14 @@
   <div class="container" style="padding-top:16px">
     <div id="kanji-done-body"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<div id="screen-kanji-history" class="screen">
+  <header><h1>📖 カンジー おさらい</h1><span id="kanji-history-student"></span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="kanji-history-list"><div class="loading">⏳ 読み込み中...</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showKanjiLevelSelect()">← 級選択に戻る</button>
   </div>
 </div>
 
@@ -6125,6 +6139,43 @@
     var input = document.getElementById('kanji-photo-input');
     if (input) input.value = '';
     showScreen('screen-kanji-kaki');
+  }
+  // ----- おさらい画面：HPLog からカンジー実施履歴を取得して一覧表示（2026-05-08 追加） -----
+  function showKanjiHistory() {
+    showScreen('screen-kanji-history');
+    var stuEl = document.getElementById('kanji-history-student');
+    if (stuEl) stuEl.textContent = _studentId + ' さん';
+    var listEl = document.getElementById('kanji-history-list');
+    listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    cachedGasGet({ action:'getKanjiHistory', studentId:_studentId }).then(function(res){
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="error">読み込みに失敗しました。</div>';
+        return;
+      }
+      var hist = res.history || [];
+      if (hist.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:15px">まだカンジーの実施記録がありません。<br>級を選んで挑戦してみよう！</div>';
+        return;
+      }
+      // 日時 / 級 / 問題数 / HP獲得 を縦並びカード式（クリックでの再表示は将来課題：HPLog にセット番号未保存）
+      listEl.innerHTML = hist.map(function(h){
+        var ts = String(h.timestamp || '');
+        var dispDate = ts.length >= 10 ? (ts.slice(0,4) + '/' + ts.slice(5,7) + '/' + ts.slice(8,10)) : ts;
+        var dispTime = ts.length >= 16 ? ts.slice(11,16) : '';
+        var hp = Number(h.hpGained || 0);
+        var hpLabel = h.isPractice
+          ? '<span style="color:#888;font-size:12px">練習モード</span>'
+          : (hp > 0 ? '<span style="color:#d97706;font-weight:bold">+' + hp.toLocaleString() + ' HP</span>' : '<span style="color:#888;font-size:12px">HP上限到達</span>');
+        return '<div class="history-item" style="cursor:default">' +
+                 '<span class="history-date">' + dispDate + (dispTime ? ' ' + dispTime : '') + '</span>' +
+                 '<span class="history-level">漢検 ' + h.level + '級</span>' +
+                 '<span class="history-set">' + h.count + '問セット</span>' +
+                 '<span style="margin-left:auto">' + hpLabel + '</span>' +
+               '</div>';
+      }).join('');
+    }).catch(function(){
+      listEl.innerHTML = '<div class="error">読み込みに失敗しました。</div>';
+    });
   }
   // ----- HP獲得演出（三語短文・和文英訳①と同じ既存スタイルを流用） -----
   function _showKanjiDone(hpInfo) {

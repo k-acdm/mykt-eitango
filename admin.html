@@ -3033,6 +3033,26 @@
           : (levels ? ' <span style="color:#555;font-size:13px">' + _esc(levels) + '</span>' : '');
         return CHILD_OK + hpLabel;
       }
+    },
+    {
+      label: 'カンジー',
+      render: function(d) {
+        if (!d.kanji || !d.kanji.done) return CHILD_NG;
+        var hp = Number(d.kanji.hpGained || 0);
+        var ord = { '5':1, '4':2, '3':3, '準2':4, '2':5 };
+        var sessions = (d.kanji.sessions || []).slice().sort(function(a, b){
+          var ra = ord[a.level] || 99, rb = ord[b.level] || 99;
+          if (ra !== rb) return ra - rb;
+          return a.count - b.count;
+        });
+        var detail = sessions.map(function(s){
+          return '漢検' + s.level + '級・' + s.count + '問' + (s.isPractice ? '（練習）' : '');
+        }).join(' / ');
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">' + _esc(detail) + (detail ? '：' : '') + hp.toLocaleString() + 'HP獲得</span>'
+          : (detail ? ' <span style="color:#555;font-size:13px">' + _esc(detail) + '</span>' : '');
+        return CHILD_OK + hpLabel;
+      }
     }
   ];
 
