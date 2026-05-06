@@ -114,6 +114,15 @@
     .kanji-level-btn, .kanji-count-btn { padding: 16px 12px; font-size: 17px; font-weight: bold; color: #fff; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.15); background: linear-gradient(135deg, #f97316, #c2410c); }
     .kanji-level-btn small, .kanji-count-btn small { display: block; font-size: 12px; font-weight: normal; opacity: .9; margin-top: 4px; }
     .kanji-count-btn.disabled { background: #d4d4d4; color: #666; cursor: not-allowed; box-shadow: none; }
+    /* 2026-05-08：レベルごとの色分け（5 級 → 2 級でステップアップ感を演出）。
+       5級=緑（成長の第一歩） / 4級=青緑（少し進む） / 3級=青（標準） /
+       準2級=紫（高度な漢字） / 2級=金（達成感、最終目標）。
+       準2級のクラス名は ASCII セーフのため -j2（jun2 略）。 */
+    .kanji-level-btn-5  { background: linear-gradient(135deg, #6abf69, #4caf50); }
+    .kanji-level-btn-4  { background: linear-gradient(135deg, #4dbfb1, #00897b); }
+    .kanji-level-btn-3  { background: linear-gradient(135deg, #5499c7, #2874a6); }
+    .kanji-level-btn-j2 { background: linear-gradient(135deg, #a569bd, #7d3c98); }
+    .kanji-level-btn-2  { background: linear-gradient(135deg, #d4ac0d, #b9770e); }
     .kanji-yomi-q-card { background: #fff; border: 2px solid #fcd34d; border-radius: 14px; padding: 18px 16px; margin: 10px 0; box-shadow: 0 3px 10px rgba(0,0,0,.06); font-size: 18px; line-height: 1.8; color: #1f2937; }
     .kanji-yomi-q-num { display: inline-block; background: #f97316; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
     .kanji-yomi-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
@@ -2007,11 +2016,11 @@
       <div class="kanjii-bubble" id="kanjii-bubble-level">どの級に挑戦する？</div>
     </div>
     <div class="kanji-level-grid">
-      <button class="kanji-level-btn" onclick="showKanjiCountSelect('5')">漢検 5級<small>小学校 5〜6年生</small></button>
-      <button class="kanji-level-btn" onclick="showKanjiCountSelect('4')">漢検 4級<small>中学校 在学程度</small></button>
-      <button class="kanji-level-btn" onclick="showKanjiCountSelect('3')">漢検 3級<small>中学校 卒業程度</small></button>
-      <button class="kanji-level-btn" onclick="showKanjiCountSelect('準2')">漢検 準2級<small>高校 在学程度</small></button>
-      <button class="kanji-level-btn" onclick="showKanjiCountSelect('2')">漢検 2級<small>高校 卒業程度</small></button>
+      <button class="kanji-level-btn kanji-level-btn-5"  onclick="showKanjiCountSelect('5')">漢検 5級レベル<small>小学校6年生程度</small></button>
+      <button class="kanji-level-btn kanji-level-btn-4"  onclick="showKanjiCountSelect('4')">漢検 4級レベル<small>中学校1〜2年生程度</small></button>
+      <button class="kanji-level-btn kanji-level-btn-3"  onclick="showKanjiCountSelect('3')">漢検 3級レベル<small>中学校3年生程度</small></button>
+      <button class="kanji-level-btn kanji-level-btn-j2" onclick="showKanjiCountSelect('準2')">漢検 準2級レベル<small>高校1〜2年生程度</small></button>
+      <button class="kanji-level-btn kanji-level-btn-2"  onclick="showKanjiCountSelect('2')">漢検 2級レベル<small>高校3年生程度</small></button>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:16px" onclick="showKanjiHistory()">📖 今までの実施履歴を見る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
@@ -5919,9 +5928,9 @@
       var total = (res && res.total) || _kanjiState.questions.length;
       _showKanjiYomiResult(passed, correctCount, total);
     }).catch(function(){
-      // 通信失敗時はクライアント側のスコアでフォールバック判定
+      // 通信失敗時はクライアント側のスコアでフォールバック判定（2026-05-08 全問正解で合格）
       var total = _kanjiState.questions.length;
-      var passed = total > 0 && (_kanjiState.yomiScore / total) >= 0.8;
+      var passed = total > 0 && _kanjiState.yomiScore === total;
       _kanjiState.yomiPassed = passed;
       _showKanjiYomiResult(passed, _kanjiState.yomiScore, total);
     });
@@ -5941,11 +5950,11 @@
         '<button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="startKanjiKaki()">✏️ 次は書きに挑戦！</button>';
       try { playSfx('chime'); } catch(e){}
     } else {
-      _kanjiSetMascot('kanjii-img-yomi-result', 'encourage', 'kanjii-bubble-yomi-result', 'あと一歩！次はきっとできるよ！');
+      _kanjiSetMascot('kanjii-img-yomi-result', 'encourage', 'kanjii-bubble-yomi-result', 'もう一度じゃ、よく見てな');
       banner.innerHTML =
         '<div class="kanji-result-fail">' +
           '<div style="font-size:48px">😤</div>' +
-          '<div class="kanji-result-title">惜しい！合格ライン（8割）まで届かず…</div>' +
+          '<div class="kanji-result-title">惜しい！満点で合格だよ</div>' +
           '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
           '<div style="font-size:13px;color:#666;margin-top:6px">順序を変えて全問やり直しだよ</div>' +
         '</div>';
@@ -6095,7 +6104,7 @@
       _showKanjiDone(res.hpInfo || {});
       return;
     }
-    _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', 'あと一歩！間違えた問題だけ、もう一度撮ってみよう！');
+    _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', 'もう一度じゃ、よく見てな');
     var failed = (res.results || []).filter(function(r){ return !r.isCorrect; });
     var failedHtml = failed.map(function(r){
       return '<div>問 ' + r.no + '：<span class="ng">' + (r.expected || '') + '</span></div>';
@@ -6103,7 +6112,7 @@
     banner.innerHTML =
       '<div class="kanji-result-fail">' +
         '<div style="font-size:48px">😤</div>' +
-        '<div class="kanji-result-title">惜しい！合格ライン（8割）まで届かず…</div>' +
+        '<div class="kanji-result-title">惜しい！満点で合格だよ</div>' +
         '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
         '<div class="kanji-fail-list"><div style="font-weight:bold;margin-bottom:6px">読み取れなかった漢字：</div>' + (failedHtml || '（なし）') + '</div>' +
       '</div>';
