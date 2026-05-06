@@ -113,16 +113,21 @@
     .kanji-level-grid, .kanji-count-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 8px; }
     .kanji-level-btn, .kanji-count-btn { padding: 16px 12px; font-size: 17px; font-weight: bold; color: #fff; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.15); background: linear-gradient(135deg, #f97316, #c2410c); }
     .kanji-level-btn small, .kanji-count-btn small { display: block; font-size: 12px; font-weight: normal; opacity: .9; margin-top: 4px; }
+    /* 2026-05-08：問題数選択ボタンは淡いオレンジ系に（ふくちさん指定、レベル選択の濃色から
+       コントラストを下げ、選択行為を控えめに）。文字色は読みやすさのため濃茶に変更。 */
+    .kanji-count-btn { background: linear-gradient(135deg, #ffd699, #ffb84d); color: #6b3410; box-shadow: 0 3px 10px rgba(0,0,0,.10); }
+    .kanji-count-btn small { opacity: .85; }
     .kanji-count-btn.disabled { background: #d4d4d4; color: #666; cursor: not-allowed; box-shadow: none; }
     /* 2026-05-08：レベルごとの色分け（5 級 → 2 級でステップアップ感を演出）。
        5級=緑（成長の第一歩） / 4級=青緑（少し進む） / 3級=青（標準） /
-       準2級=紫（高度な漢字） / 2級=金（達成感、最終目標）。
+       準2級=紫（高度な漢字） / 2級=赤（情熱・最高峰）。
+       2026-05-08 更新：2 級を金系から赤系へ変更（ふくちさん指定、最終ゴールの「燃える情熱」感）。
        準2級のクラス名は ASCII セーフのため -j2（jun2 略）。 */
     .kanji-level-btn-5  { background: linear-gradient(135deg, #6abf69, #4caf50); }
     .kanji-level-btn-4  { background: linear-gradient(135deg, #4dbfb1, #00897b); }
     .kanji-level-btn-3  { background: linear-gradient(135deg, #5499c7, #2874a6); }
     .kanji-level-btn-j2 { background: linear-gradient(135deg, #a569bd, #7d3c98); }
-    .kanji-level-btn-2  { background: linear-gradient(135deg, #d4ac0d, #b9770e); }
+    .kanji-level-btn-2  { background: linear-gradient(135deg, #e74c3c, #c0392b); }
     .kanji-yomi-q-card { background: #fff; border: 2px solid #fcd34d; border-radius: 14px; padding: 18px 16px; margin: 10px 0; box-shadow: 0 3px 10px rgba(0,0,0,.06); font-size: 18px; line-height: 1.8; color: #1f2937; }
     .kanji-yomi-q-num { display: inline-block; background: #f97316; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
     .kanji-yomi-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
@@ -146,6 +151,21 @@
     .kanji-result-score { font-size: 18px; color: #4b5563; margin: 6px 0; }
     .kanji-fail-list { background: #fff; border-radius: 8px; padding: 12px 14px; margin: 10px 0; text-align: left; font-size: 14px; line-height: 1.7; color: #555; }
     .kanji-fail-list .ng { color: #dc2626; font-weight: bold; }
+    /* 2026-05-08：答え合わせ（不合格時、全問の正解 + OCR 全文）。学習補助。 */
+    .kanji-answer-section { background: #fff; border-radius: 10px; padding: 14px 16px; margin: 12px 0; text-align: left; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .kanji-answer-section .sec-title { font-size: 14px; font-weight: bold; color: #1f2937; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px dashed #e5e7eb; }
+    .kanji-answer-list { display: flex; flex-direction: column; gap: 6px; }
+    .kanji-answer-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; font-size: 15px; line-height: 1.5; }
+    .kanji-answer-item.correct { background: #ecfdf5; color: #065f46; }
+    .kanji-answer-item.wrong   { background: #fef2f2; color: #991b1b; }
+    .kanji-answer-item .mark { font-weight: bold; min-width: 1.2em; }
+    .kanji-answer-item .qno  { font-weight: bold; min-width: 3em; opacity: .85; }
+    .kanji-answer-item .ans  { font-weight: bold; }
+    .kanji-ocr-details { background: #f9fafb; border-radius: 8px; padding: 10px 14px; margin-top: 10px; font-size: 13px; color: #374151; }
+    .kanji-ocr-details summary { cursor: pointer; font-weight: bold; color: #4b5563; padding: 2px 0; }
+    .kanji-ocr-details summary:hover { color: #1f2937; }
+    .kanji-ocr-box { background: #fff; border: 1px dashed #d1d5db; border-radius: 6px; padding: 10px 12px; margin-top: 8px; white-space: pre-wrap; word-break: break-all; font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; font-size: 14px; color: #1f2937; line-height: 1.7; max-height: 280px; overflow-y: auto; }
+    .kanji-answer-hint { font-size: 12px; color: #6b7280; margin-top: 8px; line-height: 1.6; }
     .btn-camera { display: inline-block; background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; font-size: 17px; font-weight: bold; padding: 14px 28px; border-radius: 12px; cursor: pointer; border: none; margin-top: 8px; }
     .word-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
     .num { width: 32px; height: 32px; background: #4f7df0; border-radius: 50%; color: #fff; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -2077,7 +2097,7 @@
     </div>
     <div id="kanji-kaki-list" class="kanji-kaki-list"></div>
     <input type="file" id="kanji-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKanjiPhotoSelected(event)">
-    <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを撮って送る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを写真に撮って送る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -6105,16 +6125,38 @@
       return;
     }
     _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', 'もう一度じゃ、よく見てな');
-    var failed = (res.results || []).filter(function(r){ return !r.isCorrect; });
-    var failedHtml = failed.map(function(r){
-      return '<div>問 ' + r.no + '：<span class="ng">' + (r.expected || '') + '</span></div>';
+    // 2026-05-08 学習補助強化：全問の正解一覧（✅/❌ 付き）+ OCR 全文（折り畳み）を表示。
+    // ふくちさん哲学「不合格で再テストになっても何もできないと学習にならない」に基づく。
+    // 「あなたの解答」を問ごとに切り分けて表示するのは cursor 前進方式の特性上困難なため、
+    // OCR テキスト全文を「あなたが書いた内容」として併記し、生徒が正解と見比べられるようにする。
+    var escH = function(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    var answerListHtml = (res.results || []).map(function(r){
+      var ok = !!r.isCorrect;
+      return '<div class="kanji-answer-item ' + (ok ? 'correct' : 'wrong') + '">' +
+               '<span class="mark">' + (ok ? '✅' : '❌') + '</span>' +
+               '<span class="qno">問 ' + r.no + '</span>' +
+               '<span style="opacity:.7">正解：</span>' +
+               '<span class="ans">' + escH(r.expected || '') + '</span>' +
+             '</div>';
     }).join('');
+    var ocrText = String(res.ocrText || '').trim();
+    var ocrBlock = ocrText
+      ? '<details class="kanji-ocr-details">' +
+          '<summary>📝 あなたが書いた内容（AI が読み取った全文を見る）</summary>' +
+          '<div class="kanji-ocr-box">' + escH(ocrText) + '</div>' +
+          '<div class="kanji-answer-hint">※ AI の読み取り結果なので、書いた字とずれている場合があります。間違えた問題は正解の字をよく見て、もう一度書いてみよう。</div>' +
+        '</details>'
+      : '';
     banner.innerHTML =
       '<div class="kanji-result-fail">' +
         '<div style="font-size:48px">😤</div>' +
         '<div class="kanji-result-title">惜しい！満点で合格だよ</div>' +
         '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
-        '<div class="kanji-fail-list"><div style="font-weight:bold;margin-bottom:6px">読み取れなかった漢字：</div>' + (failedHtml || '（なし）') + '</div>' +
+        '<div class="kanji-answer-section">' +
+          '<div class="sec-title">📖 答え合わせ</div>' +
+          '<div class="kanji-answer-list">' + (answerListHtml || '（なし）') + '</div>' +
+          ocrBlock +
+        '</div>' +
       '</div>';
     actions.innerHTML =
       '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKanjiKaki()">📸 間違えた問題だけ もう一度</button>' +
