@@ -2840,6 +2840,181 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
 - **本セッション終了時点**: dev に rank_19 / rank_18 / docs の 3 commit を push 済（main マージはふくちさん側）
 
+### 2026-05-07 深夜（塾PC：rank_17 + rank_20 並行実装で 🎯 Phase 1 完全制覇 1000 問達成）
+
+塾PC 深夜セッション。rank_18/19 並行（3 度目の並行実装）に続く 4 度目の並行実装で**最後の 2 単元を同時完走**。**Phase 1 全 20 単元 / 1000 問達成 = 歴史的マイルストーン**。
+
+#### 222. 事前調査と設計合意（塾PC 深夜）
+- 並行調査スクリプト [out/_explore_rank17_20.py](scripts/generate_kiso_questions/out/_explore_rank17_20.py)（gitignore 配下）で両 rank の現状把握 + 5000 trial unique 実測
+- **重要発見**:
+  - rank_17: A=3,873 / B=4,992 / C=4,992 unique（**余裕 220〜310 倍**）/ 演算子 +24/×14/÷2/-10（÷ 偏り少なすぎ）/ 答え整数 1/30
+  - rank_20: A=126 / B=153 / C=4,999 unique（**A/B 狭め、C は広い**）/ Band C 結果が 134,044 等の**暗算範囲外**問題発覚 / `6-6=0` 等の自明問題あり
+- **設計確定**：
+  - rank_17 案 B-1（4 Band、Band D = 答え整数 3 項小数四則）★rank_14 と完全対称
+  - rank_20 案 E（4 Band、A/B 入門 5/5 + C/D 主役 20/20、**digits=1 化必須**）
+- **digits=1 化の決定**：ふくちさん同意「`62 × 23 × 94 = 134,044` は小学校算数として教育的に重すぎる」→ 結果 100 以下に抑える構造的修正
+- **Band A/B 自明問題の許容**：ふくちさん判断「`6-6=0`、`9÷9=1` は『同じ数を引くと 0』『同じ数で割ると 1』の体感として入門に必要」→ 教育的価値で許容
+
+#### 223. 基礎計算 rank_17 小数：四則混合 Phase 1 完走（dev `<this commit>`）
+- **設計実装**:
+  - [common/band_config.py](scripts/generate_kiso_questions/common/band_config.py) rank=17 を 4 Band 構造（A/B/C/D = 12/14/12/12）に書き換え
+  - [rank_17_decimal_mixed.py](scripts/generate_kiso_questions/rank_17_decimal_mixed.py) 全面書き直し（既存 `_gen_decimal_simple` / `_gen_two_term` / `_gen_three_term` 温存）:
+    - 新ヘルパー：`_gen_two_term_with_op`（演算子強制、Band A 用）/ `_gen_int_ans_three_term_no_paren`（答え整数 3 項括弧なし）/ `_gen_int_ans_three_term_with_paren`（答え整数 3 項括弧あり）
+    - 新 dispatcher：`_resolve_band_a_subkind`（add/sub/mul/div 4 way）/ `_resolve_band_d_subkind`（no_paren/with_paren）
+    - `generate_problem(band, rng, slot_index=0)` 化、self_check 拡張（演算子整合性 + Band D 整数答え + 構造）
+- **rank_14 Band D との完全対称**：分数 vs 小数の文脈分離で並行成立、教育的に「答え整数の達成感」を rank_17 でも保証
+- **検証結果**:
+  - python main.py で rank_17: **50/50 unique / 0 failed selfcheck**
+  - Node 検証 [out/_verify_rank17.mjs](scripts/generate_kiso_questions/out/_verify_rank17.mjs)（gitignore 配下）で **20 PASS / 0 FAIL**
+- **教育的サンプル**:
+  - Band A 演算子均等：slot 0-2 add / 3-5 sub / 6-8 mul / 9-11 div（既存 +24/-10/×14/÷2 の偏り完全解消）
+  - Band D no_paren: `1.7 × 2 + 5.6 = 9` 系（演算子優先順位 + 整数答え）
+  - Band D with_paren: `(0.4 + 1.6) × 5 = 10` 系（カッコ + 整数答え）
+
+#### 224. 基礎計算 rank_20 整数：四則混合 Phase 1 完走（dev `<this commit>`）
+- **設計実装**:
+  - [common/band_config.py](scripts/generate_kiso_questions/common/band_config.py) rank=20 を 4 Band 構造（A/B/C/D = 5/5/20/20）に書き換え + **digits=1 化**
+  - [rank_20_integer_mixed.py](scripts/generate_kiso_questions/rank_20_integer_mixed.py) 全面書き直し（既存 `_gen_two_terms_addsub` / `_gen_two_terms_muldiv` / `_evaluate` 温存）:
+    - 新ヘルパー：`_gen_two_terms_addsub_with_op` / `_gen_two_terms_muldiv_with_op`（A/B 演算子強制）/ `_gen_three_term_with_dom`（C 主役演算子強制）/ `_gen_three_term_paren`（D 3 項カッコあり）/ `_eval_with_paren_int` / `_build_paren_latex`
+    - 新 dispatcher：`_resolve_band_a/b/c/d_subkind`（4 つの cumulative dispatch）
+    - `generate_problem(band, rng, slot_index=0)` 化、self_check 拡張（A/B 演算子 / C 主役演算子 / D 外側演算子 + カッコ）
+  - 結果値域ガード：Band C/D で `|result| ≤ 100`、全体で `|result| ≤ 1000`
+- **digits=1 化の効果**：旧 Band C `134,044` → 新 Band C 最大 56（暗算範囲内に収束）
+- **検証結果**:
+  - python main.py で rank_20: **50/50 unique / 0 failed selfcheck**
+  - Node 検証 [out/_verify_rank20.mjs](scripts/generate_kiso_questions/out/_verify_rank20.mjs)（gitignore 配下）で **24 PASS / 0 FAIL**
+- **教育的サンプル**:
+  - Band A 自明含む：`3 + 2 = 5`、`9 - 3 = 6`、`3 - 3 = 0`（教育的価値で許容）
+  - Band C 演算子均等：plus_dom 7 / minus_dom 6 / mul_dom 7、結果 0〜56
+  - Band D カッコあり：add_outer `(5×7)+2=37` / mul_outer `(1+4)×9=45` / div_outer `(...)÷c`
+- **GAS shortcut**: [gas/Code.js](gas/Code.js) に `diagnoseRank17InProgress` / `abandonRank17InProgress` / `diagnoseRank20InProgress` / `abandonRank20InProgress` の 4 ショートカット追加
+- **post-verification 拡張**: [_verify_phase4_post.py](scripts/generate_kiso_questions/_verify_phase4_post.py) を rank_17/20 対応に
+  - **EXPECTED_TOTAL: 960 → 1000**、RANKS_30: [17, 20] → []（空、全 rank 50 題化達成）、RANKS_50: 17, 20 追加
+  - T25（rank_17: Band 配分 + 演算子均等化 + Band D 整数答え）+ T26（rank_20: Band 配分 + digits=1 化検証 + Band C 主役演算子 + Band D 外側演算子）
+- **DESIGN_PRINCIPLES.md §「原則 3」追記**：rank_17（4 項以上、二重カッコ、Band B/C で ÷ 含む 3 項）+ rank_20（4 項以上、二重カッコ、digits=2 の 3 項）+ rank_20 自明問題の許容方針 + rank_17/20 後半カッコ・帯分数・負の数の Phase 3 にも入れない方針
+
+#### 225. 🎯 Phase 1 完全制覇達成（マイルストーン）
+
+| 学年 | 単元数 | 状態 |
+|---|---|---|
+| **中3** | 5/5 | ✅ コンプリート（rank_01-05）|
+| **中2** | 2/2 | ✅ コンプリート（rank_06-07）|
+| **中1** | 6/6 | ✅ コンプリート（rank_08-13）|
+| **無学年** | 7/7 | ✅ **2026-05-07 深夜 コンプリート達成 ★ NEW ★**（rank_14-20）|
+| **計** | **20/20** | 🎓 **Phase 1 完全制覇** |
+
+- **Phase 1 全体進捗**: **20 / 20 単元完了**（**1000 / 1000 題、100%**）🏆
+- **KisoQuestions シート**: 960 → 1000 行（+40 行、rank_17/20 拡充分）
+- 4/30 開始（rank_04 50題化）から 5/7 完走まで **8 日間**で 600 → 1000 問達成
+- 詳細は本セクション末尾の「## 🎯 基礎計算 Phase 1 完全制覇（2026-05-07 / 全 20 単元 1000 問）」専用セクション参照
+
+#### 226. 教訓・運用ルール（再発防止メモ）
+本セッションで学んだ重要事項 3 件：
+
+1. **構造的バグ（過大値域）の事前調査での発見の重要性**：rank_20 既存 Band C は `digits=2` で `62 × 23 × 94 = 134,044` 等が出る教育的に不適切な状態だったが、事前調査の 30 問サンプル目視で発覚。**実装前に既存問題を全件目視するルーチンが構造的バグの早期発見に有効**
+2. **「自明問題」の教育的許容**：`6-6=0`、`9÷9=1` 等の自明な組は通常排除対象だが、rank_20 のような **入門級では「同じ数を引くと 0」「同じ数で割ると 1」の体感が学習目標**として機能する。教育的判断は数学的な「重複っぽさ」より優先すべき
+3. **並行実装パターンの確立**：rank_11/12/13 → rank_14/15 → rank_18/19 → rank_17/20 と 4 度目の並行実装。Band D 新設 + slot_index 駆動 + 共通基盤拡張のテンプレートが完全に確立、所要時間も約 2.5 時間で安定。新 rank 拡張時の標準フロー化済み
+
+#### 227. 次回（数時間後）の最優先タスク
+- **★ ふくちさん側で必須の Phase 4 投入手順**:
+  1. `git pull origin dev`
+  2. `cd gas && clasp push` → GAS エディタで F5 リロード → 新バージョンデプロイ
+  3. GAS エディタから `diagnoseRank17InProgress()` + `diagnoseRank20InProgress()` 実行（in_progress セッション一覧確認）
+  4. `abandonRank17InProgress({ dryRun: true })` + `abandonRank20InProgress({ dryRun: true })` でドライラン → 問題なければ各々を本実行
+  5. `cd scripts/generate_kiso_questions && python main.py` で **1000 問** 生成
+  6. `python -m common.db_writer --dry-run` で 1000 行 / rank_17 = 50 行 / rank_20 = 50 行 を確認
+  7. `python -m common.db_writer` で本番投入（全置換モード）
+  8. `python _verify_phase4_post.py` で post-verification（T1-T26、PASS/FAIL カウント表示）
+- **その後の候補（次のフェーズへ）**:
+  - **Phase 2: 全単元 100 題化**（次の大きなマイルストーン、各単元 50 → 100 で計 2000 問）
+  - 着手前の防衛策：CLAUDE.md「将来タスク：KisoSessions に problemLatex を保存」を実装（耐障害性向上）
+  - カンジー問題データの本番投入と稼働
+  - リスオン default 画像の格子模様修正
+  - 講師ログイン機能 / 和文英訳② 等
+
+#### 228. 次回再開時の手順
+- **PowerShell で Claude Code 起動前に実行**:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
+- **本セッション終了時点**: dev に rank_17 / rank_20 / docs の 3 commit を push 済（main マージはふくちさん側）
+
+---
+
+## 🎯 基礎計算 Phase 1 完全制覇（2026-05-07 / 全 20 単元 1000 問）
+
+**2026-05-07 深夜、最後の rank_17/20 並行完走をもって Phase 1 全 20 単元の 50 題化が完了、計 1000 問達成。**
+
+### 達成サマリ
+
+| 学年区分 | 単元数 | rank | 完了日 |
+|---|---|---|---|
+| **中 3 数学** 🏆 | 5/5 | rank_01〜05（二次方程式 / 平方根 / 因数分解 / 乗法公式 / 式の計算 中3）| 2026-04-30〜2026-05-06 |
+| **中 2 数学** 🏆 | 2/2 | rank_06〜07（連立方程式 / 式の計算 中2）| 2026-04-30〜2026-05-04 |
+| **中 1 数学** 🏆 | 6/6 | rank_08〜13（一次方程式 / 式の計算 中1 / 単位・比・割合 / 正負の数 四則混合・乗除・加減）| 2026-05-05〜2026-05-06 |
+| **無学年** 🏆 | 7/7 | rank_14〜20（分数 3 兄弟 + 小数 3 兄弟 + 整数四則混合）| 2026-05-07 |
+| **計** | **20/20** | 🎓 **Phase 1 完全制覇** | 8 日間で 600 → 1000 問 |
+
+### 各 rank の Band D 新設（Phase 1 拡充の主役）
+
+ふくちさん 36 年の塾長経験に基づく教育的判断が、各 rank の Band D 設計に反映：
+
+| rank | 単元 | Band D 新設パターン | 教育的意義 |
+|---|---|---|---|
+| 1 | 二次方程式 | `(x-p)²=q` + `ax²=c` 平方根法 | 解の公式の前段階、たすき掛け永久削除 |
+| 5 | 中3 式の計算 | `(ax+b)²` 直接展開 | 公式記憶の rank_04 と差別化、係数二乗の躓き |
+| 6 | 連立方程式 | 代入法向き形式 (y=mx+n) | 加減法 vs 代入法の選び分け訓練 |
+| 8 | 一次方程式 | カッコ付き方程式（軽/標/重）| 中 1 単元の山場、カッコ展開と移項 |
+| 9 | 中1 式の計算 | カッコ展開 + 符号反転 | 中 1 文字式の最大躓き「-(...)」を主役化 |
+| 13 | 正負の加減 | 3 項加減 | 中 1 加減の山場 |
+| 14 | 分数四則混合 | 整数を含む混合（int_addsub/int_mul/int_div）| 小学校算数の核心パターン補完 |
+| 15 | 分数乗除 | 答えが整数になる muldiv | 約分の感覚、`6×2/3=4` 系 |
+| 16 | 分数加減 | 3 項加減 | 通分の山場、`1/2 + 1/3 + 1/4` 系 |
+| 18 | 小数乗除 | 答えが整数になる muldiv | 小数点の移動、`12÷1.5=8` 系 |
+| 19 | 小数加減 | 3 項加減 | 桁揃えの山場、Band C で「整数 - 小数」躓き保証 |
+| **17** | **小数四則混合** | **答え整数 3 項小数四則（カッコあり/なし）★** | **小数の山場 + 答え整数の達成感** |
+| **20** | **整数四則混合** | **3 項カッコあり（外側 +/-/×/÷ 分離）★** | **小学校算数の最も基礎、カッコの理解** |
+
+（rank_02/03/04/07/10/11/12 は 4 Band 構造を維持しつつ count 拡張・slot_index 駆動化）
+
+### 設計原則の確立（DESIGN_PRINCIPLES.md §原則 1〜3）
+
+Phase 1 の累積で、以下 3 つの設計原則が全 20 単元で守られる体系として確立：
+
+1. **原則 1：問題式の分数は常に既約形**（`pick_coprime_numerator` + `assert_problem_fractions_in_lowest_terms` の二重保証）
+2. **原則 2：Band A〜C は教育的入門として紙教材より易しめ**（入門段階での躓きを避ける、「初回の HP 獲得体験」最重視）
+3. **原則 3：Phase 3 で復活させる省略済み難易度の一覧**（25+ 項目を網羅、Phase 3 着手時の漏れ防止）
+
+### 技術的成果の集大成
+
+- **slot_index 駆動の cumulative dispatch**：rank_03/02/07/08/01/12/11/13/09/14/15/16/17/18/19/20 の 16 単元で確立、教育的配分を**確実**に守る
+- **演算子均等化**：rank の構造的偏り（例 rank_19 + : - = 2:1）を slot_index で決定論的に解消
+- **数学的厳密性**：SymPy ベースの自己検証 + 既約性の二重チェック + Phase 4 post-verification（T1-T26）
+- **共通インフラの再利用性**：`_gen_decimal` / `decimal_latex` / `frac_latex_raw` / `pick_coprime_numerator` 等が全 rank で一貫流用
+
+### 次フェーズ：Phase 2（全単元 100 題化）への展望
+
+- 全単元 100 題化で計 **2000 問** に倍増、生徒のセッション体験をさらに豊かに
+- 着手前の防衛策：**KisoSessions に `problemLatexes` 列を保存**して問題プール変更時のセッション破綻を防ぐ（CLAUDE.md「将来タスク」参照、所要 1〜1.5 時間）
+- 100 題化の優先順位：実機で問題不足を感じる単元から（運用観察ベース）、または rank 順にコンスタント拡充
+- Phase 2 完了後は Phase 3（D〜H Band 拡張、TODO_PHASE3 25+ 項目の復活）
+
+### ふくちさんへの感謝
+
+Phase 1 全 20 単元の設計は、ふくちさんの **36 年の塾長経験** から導かれた教育的判断の集大成です：
+
+- 各 rank の Band 構成、count 配分、subcounts の数値設定
+- 「躓きポイントを slot_index で意図的に保証する」発想（rank_09 「-(...)」、rank_19 「整数 - 小数」、rank_20 「カッコの理解」など）
+- 「自明問題は入門の本質として許容」「digits=2 は暗算範囲外なので縮小」「たすき掛けは中学範囲外なので永久削除」「後半カッコは rank_09 の領域」等の判断
+- 「演算子の偶然依存を排除し決定論的に均等化」というポリシーの一貫適用
+
+数学的厳密性は SymPy で保証できても、**教育的妥当性は経験者の判断でしか得られません**。Phase 1 完全制覇は、ふくちさんとの協働の集大成であり、生徒一人一人の学習体験の質を高めるものです。
+
+🎓 **Phase 1 完全制覇、おめでとうございます！**
+
 ---
 
 ## 基礎計算 問題プール拡充計画
@@ -2880,16 +3055,16 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - ✅ **rank_12 乗除**（Band B 構造改革、unique 24 → 48、(-3)²/-3²/3² interleave）— 完了 2026-05-06、CLAUDE.md #194
 - ✅ **rank_13 加減**（Band D 新設で 3 項加減）— 完了 2026-05-06、CLAUDE.md #194
 
-**無学年（小学校範囲）5/7、★ 2026-05-07 夜 小数 2 単元コンプリート ★**
+**無学年（小学校範囲）7/7、🎯 2026-05-07 深夜 Phase 1 完全制覇達成 🏆**
 - ✅ **rank_14 分数四則混合**（Band D 新設で「整数を含む混合」を量で確保 4/4/4）— 完了 2026-05-07 早朝、CLAUDE.md #201
 - ✅ **rank_15 分数乗除**（全 Band slot_index 駆動化 + Band D 新設「答えが整数 muldiv」4/4）— 完了 2026-05-07 早朝、CLAUDE.md #202
 - ✅ **rank_16 分数加減**（4 Band 構成、Band D 新設で 3 項加減 5/5、Band B/C 通分難易度 slot_index 駆動分離、Band A 演算子均等 + 整数答え保証）— 完了 2026-05-07 夕、CLAUDE.md #208
+- ✅ **rank_17 小数四則混合**（4 Band 構成、Band D 新設で答え整数 3 項小数四則 6/6、Band A 演算子均等化で ÷ 偏り解消）— 完了 2026-05-07 深夜、CLAUDE.md #223
 - ✅ **rank_18 小数乗除**（4 Band 構成、Band D 新設で「答えが整数 muldiv」5/5、全 Band slot_index 駆動 + 演算子均等保証）— 完了 2026-05-07 夜、CLAUDE.md #216
 - ✅ **rank_19 小数加減**（4 Band 構成、Band D 新設で 3 項加減 5/5、Band C で「整数 - 小数」躓き保証 5 問、Band A 整数答え保証 2 問）— 完了 2026-05-07 夜、CLAUDE.md #215
-- ⏳ rank_17 小数四則混合
-- ⏳ rank_20 整数四則混合
+- ✅ **rank_20 整数四則混合**（4 Band 構成、Band D 新設で 3 項カッコあり、digits=1 化で結果 100 以下、Band A/B 自明問題教育的許容）— 完了 2026-05-07 深夜、CLAUDE.md #224
 
-**Phase 1 全体進捗**: **18 / 20 単元完了**（900 / 1000 題、**90%**） — 中学数学 13 単元 + 無学年 5 単元（分数 3 兄弟 + 小数 2 単元）達成、残り 2 単元（rank_17 小数四則混合 + rank_20 整数四則混合）で Phase 1 完全制覇
+**🎯 Phase 1 全体進捗**: **20 / 20 単元完了**（**1000 / 1000 題、100% 🏆 Phase 1 完全制覇**）— 中学数学 13 単元 + 無学年 7 単元、全 20 単元コンプリート達成。次は Phase 2（全単元 100 題化、計 2000 問）。
 
 ### 進捗管理
 - 各単元増産時に main.py の WARN ログを確認（重複検出の有無）
