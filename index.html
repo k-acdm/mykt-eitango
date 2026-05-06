@@ -113,16 +113,21 @@
     .kanji-level-grid, .kanji-count-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 8px; }
     .kanji-level-btn, .kanji-count-btn { padding: 16px 12px; font-size: 17px; font-weight: bold; color: #fff; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.15); background: linear-gradient(135deg, #f97316, #c2410c); }
     .kanji-level-btn small, .kanji-count-btn small { display: block; font-size: 12px; font-weight: normal; opacity: .9; margin-top: 4px; }
+    /* 2026-05-08：問題数選択ボタンは淡いオレンジ系に（ふくちさん指定、レベル選択の濃色から
+       コントラストを下げ、選択行為を控えめに）。文字色は読みやすさのため濃茶に変更。 */
+    .kanji-count-btn { background: linear-gradient(135deg, #ffd699, #ffb84d); color: #6b3410; box-shadow: 0 3px 10px rgba(0,0,0,.10); }
+    .kanji-count-btn small { opacity: .85; }
     .kanji-count-btn.disabled { background: #d4d4d4; color: #666; cursor: not-allowed; box-shadow: none; }
     /* 2026-05-08：レベルごとの色分け（5 級 → 2 級でステップアップ感を演出）。
        5級=緑（成長の第一歩） / 4級=青緑（少し進む） / 3級=青（標準） /
-       準2級=紫（高度な漢字） / 2級=金（達成感、最終目標）。
+       準2級=紫（高度な漢字） / 2級=赤（情熱・最高峰）。
+       2026-05-08 更新：2 級を金系から赤系へ変更（ふくちさん指定、最終ゴールの「燃える情熱」感）。
        準2級のクラス名は ASCII セーフのため -j2（jun2 略）。 */
     .kanji-level-btn-5  { background: linear-gradient(135deg, #6abf69, #4caf50); }
     .kanji-level-btn-4  { background: linear-gradient(135deg, #4dbfb1, #00897b); }
     .kanji-level-btn-3  { background: linear-gradient(135deg, #5499c7, #2874a6); }
     .kanji-level-btn-j2 { background: linear-gradient(135deg, #a569bd, #7d3c98); }
-    .kanji-level-btn-2  { background: linear-gradient(135deg, #d4ac0d, #b9770e); }
+    .kanji-level-btn-2  { background: linear-gradient(135deg, #e74c3c, #c0392b); }
     .kanji-yomi-q-card { background: #fff; border: 2px solid #fcd34d; border-radius: 14px; padding: 18px 16px; margin: 10px 0; box-shadow: 0 3px 10px rgba(0,0,0,.06); font-size: 18px; line-height: 1.8; color: #1f2937; }
     .kanji-yomi-q-num { display: inline-block; background: #f97316; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
     .kanji-yomi-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
@@ -2077,7 +2082,7 @@
     </div>
     <div id="kanji-kaki-list" class="kanji-kaki-list"></div>
     <input type="file" id="kanji-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKanjiPhotoSelected(event)">
-    <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを撮って送る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを写真に撮って送る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
