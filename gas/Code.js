@@ -581,18 +581,70 @@ function _isMilestone(streak) {
   return false;
 }
 
+// ★ 2026-05-08 全コンテンツ対応に拡張（ふくちさん最終確認、案 B-1 採用）
+//
+// 旧仕様（〜2026-05-07）: SHEET_ATTEMPTS（英単語RUSH のテスト合格ログ専用）を末尾
+// 200 行走査して studentId + yesterday に一致する件数を返す。
+//
+// 新仕様（2026-05-08〜）: HPLog（全コンテンツの活動が _logHP で集約される唯一の点）
+// を末尾 500 行走査し、_isCountableActivityType で「学習活動」と判定された type の
+// 件数を返す。1 日に何回でもカウント（案 B-1）。
+//
+// 設計判断（HPLog 1 シート vs 6 シート個別走査）:
+//   - HPLog にすべてのコンテンツの活動が集約されている（test / sango / wabun1 /
+//     kiso_* / kanji_* / lison）。カンジーは提出ログ専用シートを持たないため、
+//     HPLog 集約方式でしか網羅対応できない
+//   - 1 シート読みで網羅的、6 シート個別走査より高速
+//   - 将来コンテンツ追加時は _logHP に新 type で書き込む + _isCountableActivityType
+//     の許可リストに 1 行追加 で対応可（拡張性高）
+//   - 末尾 500 行（旧 200 → 拡張）でマルチコンテンツの活動量増加に対応
+//
+// 旧 Attempts 単独カウント時の挙動との互換性:
+//   - 英単語RUSH 1 セット合格 → HPLog に type='test' が 1 件 → 同じ 1 カウント（互換）
+//   - 三語短文 / 基礎計算 / 和文英訳① / リスオン / カンジー の活動も自動カウント
 function _getPrevDayCount(studentId, yesterday) {
-  const sh = _ss().getSheetByName(SHEET_ATTEMPTS);
+  const sh = _ss().getSheetByName(SHEET_HPLOG);
   if (!sh) return 0;
-  // 末尾 200 行のみ走査（昨日の件数判定には十分）
-  const data = _readLastNRows(sh, 200);
-  let count  = 0;
+  let count = 0;
   const sid = String(studentId).trim();
+  // 末尾 500 行のみ走査（マルチコンテンツの活動量増加に対応、旧 200 行から拡張）
+  const data = _readLastNRows(sh, 500);
   for (let i = 0; i < data.length; i++) {
-    if (String(data[i][1]).trim() === sid &&
-        _toDateStr(data[i][0])    === yesterday) count++;
+    // HPLog 列: 0=timestamp, 1=studentId, 2=rawHP, 3=hpGained, 4=type
+    if (String(data[i][1]).trim() !== sid) continue;
+    if (_toDateStr(data[i][0])    !== yesterday) continue;
+    if (_isCountableActivityType(String(data[i][4] || ''))) count++;
   }
   return count;
+}
+
+// 学習活動として「prevDayCount に計上する type」かどうかを判定。
+// マイ活アプリの全コンテンツの活動を網羅し、運営付与・ログインボーナス・練習モード
+// は除外する。新コンテンツ追加時はここに 1 行足すだけで対応可。
+//
+// カウント対象（学習活動）:
+//   完全一致:    'test' / 'sango' / 'wabun1' / 'lison'
+//   プレフィックス: 'kiso_*' / 'kanji_*'
+// 除外対象:
+//   完全一致:    'login' / 'manual_grant'
+//   プレフィックス: 'apology_*'（apology_streak_bonus / apology_kiso / apology_wabun1）
+//   サフィックス:  '*_practice'（カンジー HP 上限到達後の練習モード）
+function _isCountableActivityType(type) {
+  if (!type) return false;
+  if (type === 'login') return false;
+  if (type === 'manual_grant') return false;
+  if (type.indexOf('apology_') === 0) return false;
+  // _practice 接尾の判定（カンジー練習モード等）
+  const PRACTICE_SUFFIX = '_practice';
+  if (type.length >= PRACTICE_SUFFIX.length &&
+      type.substring(type.length - PRACTICE_SUFFIX.length) === PRACTICE_SUFFIX) return false;
+  // カウント対象（完全一致）
+  if (type === 'test' || type === 'sango' || type === 'wabun1' || type === 'lison') return true;
+  // カウント対象（プレフィックス）
+  if (type.indexOf('kiso_')  === 0) return true;
+  if (type.indexOf('kanji_') === 0) return true;
+  // 未知の type はデフォルト除外（明示的に許可リストに追加してから有効化）
+  return false;
 }
 
 function _calcStage(streak, missedDays, prevDayCount) {
