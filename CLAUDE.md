@@ -2730,6 +2730,116 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
 - **本セッション終了時点**: dev に rank_16 Phase 1〜3 完走分を push 済（main マージはふくちさん側）
 
+### 2026-05-07 夜（塾PC：rank_18 + rank_19 並行実装で小数 2 単元 Phase 1 完走）
+
+塾PC 夜セッション。rank_11/12/13 並行（CLAUDE.md #194）/ rank_14/15 並行に続く 3 度目の並行実装。**rank_18（小数乗除）と rank_19（小数加減）の Phase 1〜3 を同時に完走、無学年 5/7 達成、Phase 1 全体 90% に到達**。
+
+#### 213. 事前調査（塾PC 夜）
+- 並行調査スクリプト [out/_explore_rank18_19.py](scripts/generate_kiso_questions/out/_explore_rank18_19.py)（gitignore 配下）で両 rank の現状把握 + 5000 trial unique 実測
+- **重要発見**:
+  - rank_19: Band A unique=4,105 / B=4,993 / C=4,978（**余裕 240〜310 倍**）/ **演算子 + 偏重 (構造的 2:1)** + 整数答えゼロ
+  - rank_18: Band A unique=1,903 / B=3,380 / C=4,284（**余裕 110〜270 倍**）/ **答え整数皆無**（教育訴求弱い）
+  - 3 項加減（rank_19 Band D 候補）unique=7,060 / 整数答え muldiv（rank_18 Band D 候補）unique=455
+  - 構造的バグなし、両 rank とも案 B（4 Band 化、Band D 新設）が最適
+- **設計確定**：両 rank とも 4 Band 構成、Band D は rank_15/16 と完全対称
+  - rank_19 ≈ rank_16（加減・3 項加減 / 整数答え保証）
+  - rank_18 ≈ rank_15（乗除・答えが整数 muldiv）
+
+#### 214. 仕様 typo 発見と修正（rank_19 Band A subcounts）
+- ふくちさん仕様文 `subcounts={"add": 8, "sub": 5, "int_ans": 2}` と `count: 15` が**算術的に矛盾**（int_ans 2 + add 通常 6 + sub 5 = 13 ≠ 15）
+- 実装は `count: 15` に合わせて自動的に sub=7 となり、ふくちさんの仕様文 "slot 8-12 (5 問)" は「slot 8-14 (7 問)」が正しいと推察
+- **修正**: subcounts を `{"add": 8, "sub": 7, "int_ans": 2}` に変更（int_ans 2 + add 通常 6 + sub 7 = 15、count=15 と整合）
+- 教訓：「count と subcounts 合計の整合性は band_config.py で必ず check すべき」（仕様書記載時のチェックリスト項目に追加候補）
+
+#### 215. 基礎計算 rank_19 小数：加減 Phase 1 完走（dev `<this commit>`）
+- **設計実装**:
+  - [common/band_config.py](scripts/generate_kiso_questions/common/band_config.py) rank=19 を 4 Band 構造（A/B/C/D = 15/15/10/10）に書き換え
+  - [rank_19_decimal_addsub.py](scripts/generate_kiso_questions/rank_19_decimal_addsub.py) 全面書き直し（既存 `_gen_decimal` 温存）:
+    - 5 つの新ヘルパー：`_gen_band_a_with_op`（演算子強制 + 整数答え強制）/ `_gen_band_b_with_op`（演算子強制）/ `_gen_band_c_int_minus_dec`（5 - 2.3 系）/ `_gen_band_c_rest_diff`（その他桁違い）/ `_gen_three_term_addsub`（3 項加減、mode='all_add'/'add_sub_mix'）
+    - 4 つの dispatcher：`_resolve_band_a_subkind` / `_resolve_band_b_subkind` / `_resolve_band_c_subkind` / `_resolve_band_d_subkind`
+    - `generate_problem(band, rng, slot_index=0)` 化（全 Band で slot_index 駆動）
+    - 「途中で 0 になる連続項」を Band D で排除、add_sub_mix は `[+,-]/[-,+]` の 2 候補のみ（rank_16 と同方針）
+    - self_check 拡張：int_ans 整数答え / int_minus_dec 構造（先頭整数+第2項小数）/ Band D 3 項 + ops 整合性
+- **検証結果**:
+  - python main.py で rank_19: **50/50 unique / 0 failed selfcheck**
+  - Node 検証 [out/_verify_rank19.mjs](scripts/generate_kiso_questions/out/_verify_rank19.mjs)（gitignore 配下）で **24 PASS / 0 FAIL**
+- **教育的サンプル**:
+  - Band A int_ans: `7.3 + 8.7 = 16` / `3.6 + 4.4 = 8`（slot 0-1 強制）
+  - Band C int_minus_dec: `8 - 6.56 = 1.44` / `9 - 8.36 = 0.64`（中学算数の最大躓きポイント、slot 0-4 強制）
+  - Band D all_add 整数答え: `1.4 + 2.4 + 1.2 = 5`（slot 0 強制）
+  - Band D add_sub_mix: `3.5 + 9.1 - 3.4 = 9.2`（+ と - 両方含む保証）
+
+#### 216. 基礎計算 rank_18 小数：乗除 Phase 1 完走（dev `<this commit>`）
+- **設計実装**:
+  - [common/band_config.py](scripts/generate_kiso_questions/common/band_config.py) rank=18 を 4 Band 構造（A/B/C/D = 15/15/10/10）に書き換え
+  - [rank_18_decimal_muldiv.py](scripts/generate_kiso_questions/rank_18_decimal_muldiv.py) 全面書き直し（既存 `_gen_decimal_simple` 温存）:
+    - 4 つの新ヘルパー：`_gen_int_x_dec_with_op`（演算子強制版、Band A 用）/ `_gen_dec_x_dec_with_op`（演算子強制版、Band B/C 用）/ `_gen_mul_int_ans`（答え整数 mul、位置先頭/末尾切替）/ `_gen_div_int_ans`（答え整数 div、整数 ÷ 小数）
+    - 2 つの dispatcher：`_resolve_band_abc_subkind`（A/B/C 共通の mul/div）/ `_resolve_band_d_subkind`
+    - `generate_problem(band, rng, slot_index=0)` 化、self_check 拡張（Band D 整数答え必須 + 構造整合）
+- **検証結果**:
+  - python main.py で rank_18: **50/50 unique / 0 failed selfcheck**
+  - Node 検証 [out/_verify_rank18.mjs](scripts/generate_kiso_questions/out/_verify_rank18.mjs)（gitignore 配下）で **24 PASS / 0 FAIL**
+- **教育的サンプル**:
+  - Band A 決定論的：slot 0-7 が `\times`、slot 8-14 が `\div`（演算子均等保証）
+  - Band D mul_int_ans: `5 × 1.6 = 8` / `50 × 0.1 = 5` / `7.3 × 10 = 73`（位置交互）
+  - Band D div_int_ans: `12 ÷ 2.4 = 5` / `15 ÷ 1.5 = 10` / `2 ÷ 0.5 = 4`（中学算数の躓きポイント）
+- **GAS shortcut**: [gas/Code.js](gas/Code.js) に `diagnoseRank18InProgress` / `abandonRank18InProgress` 追加（rank_19 と合わせて 4 関数）
+- **post-verification 拡張**: [_verify_phase4_post.py](scripts/generate_kiso_questions/_verify_phase4_post.py) を rank_18/19 対応に
+  - EXPECTED_TOTAL: 920 → 960、RANKS_30: [17, 20] のみ、RANKS_50: 18, 19 追加
+  - T23（rank_18: Band 配分 + 演算子配分 + Band D 整数答え + 構造）+ T24（rank_19: Band 配分 + Band A int_ans 強制 + Band C int_minus_dec 配置 + Band D サブパターン）
+
+#### 217. 全 20 rank で 960 / 960 unique / 0 failed selfcheck
+- rank 17, 20 = 30 × 2 = 60
+- rank 1-16, 18, 19 = 50 × 18 = 900
+- 合計 **960 問**、regression なし
+
+#### 218. 🎉 小数 2 単元コンプリート + 無学年 5/7 達成（マイルストーン記録）
+
+| 学年 | 単元数 | 状態 | 内訳 |
+|---|---|---|---|
+| **中3** | 5/5 | ✅ コンプリート | rank_01-05 |
+| **中2** | 2/2 | ✅ コンプリート | rank_06-07 |
+| **中1** | 6/6 | ✅ コンプリート | rank_08-13 |
+| **無学年・分数 3 兄弟** | 3/3 | ✅ コンプリート | rank_14-16 |
+| **無学年・小数 + 整数** | 2/4 | 🔄 進行中（rank_18/19 NEW） | rank_18（小数乗除）/ rank_19（小数加減）完了。残り rank_17（小数四則混合）/ rank_20（整数四則混合）|
+
+- **Phase 1 全体進捗**: **18 / 20 単元完了**（900 / 1000 題、**90%**）
+- **KisoQuestions シート**: 920 → 960 行（+40 行、rank_18/19 拡充分）
+- 残り 2 単元（rank_17 小数四則混合 + rank_20 整数四則混合）で **Phase 1 全完成 = 100% 達成**
+
+#### 219. 教訓・運用ルール（再発防止メモ）
+本セッションで学んだ重要事項 3 件：
+
+1. **count と subcounts 合計の整合性チェック必須**：rank_19 Band A 仕様文 typo（subcounts 合計 13 ≠ count 15）が事前調査では見抜けず、実装段階で実装の自動補正が原因で検証時に乖離発覚。仕様書記載時にふくちさんと Claude Code 双方で算術整合チェックを徹底する原則を確立。次回からは事前調査のレポートに「subcounts 合計 == count かどうか」を明示
+2. **演算子 + 偏重の構造的原因**：rank_19 Band A は `-` で `a > b` 制約 + 結果非負ガードで半減し、構造的に + : - = 2:1 の偏りが出る（rank_16 と同様）。slot_index 駆動で完全均等化することが必須（既存パターン踏襲）
+3. **小数 3 兄弟（rank_17/18/19）間の構造的重複ポリシー**：分数 3 兄弟と同じく Phase 1 では「内部間構造重複は許容、外部との重複は禁止」。Node 検証スクリプトの T16 で双方の TRIO（FRACTION_TRIO {14,15,16} と DECIMAL_TRIO {17,18,19}）の構造重複は許容判定
+
+#### 220. 次回（数時間後）の最優先タスク
+- **★ ふくちさん側で必須の Phase 4 投入手順**:
+  1. `git pull origin dev`
+  2. `cd gas && clasp push` → GAS エディタで F5 リロード → 新バージョンデプロイ
+  3. GAS エディタから `diagnoseRank18InProgress()` + `diagnoseRank19InProgress()` 実行（in_progress セッション一覧確認）
+  4. `abandonRank18InProgress({ dryRun: true })` + `abandonRank19InProgress({ dryRun: true })` でドライラン → 問題なければ各々を本実行
+  5. `cd scripts/generate_kiso_questions && python main.py` で 960 問生成
+  6. `python -m common.db_writer --dry-run` で 960 行 / rank_18 = 50 行 / rank_19 = 50 行 を確認
+  7. `python -m common.db_writer` で本番投入（全置換モード）
+  8. `python _verify_phase4_post.py` で post-verification（T1-T24、PASS/FAIL カウント表示）
+- **その後の候補**:
+  - rank_17 小数四則混合 + rank_20 整数四則混合（残り 2 単元、並行実装で Phase 1 完走 = 100%）
+  - 全単元 100 題化（Phase 2、次の大きなマイルストーン）
+  - カンジー問題データの本番投入と稼働
+  - リスオン default 画像の格子模様修正
+
+#### 221. 次回再開時の手順
+- **PowerShell で Claude Code 起動前に実行**:
+  ```powershell
+  cd C:\Users\Manager\mykt-eitango
+  git checkout dev
+  git pull origin dev
+  ```
+- 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
+- **本セッション終了時点**: dev に rank_19 / rank_18 / docs の 3 commit を push 済（main マージはふくちさん側）
+
 ---
 
 ## 基礎計算 問題プール拡充計画
@@ -2770,16 +2880,16 @@ Phase 3 着手中に新たな設計原則が発見された場合：
 - ✅ **rank_12 乗除**（Band B 構造改革、unique 24 → 48、(-3)²/-3²/3² interleave）— 完了 2026-05-06、CLAUDE.md #194
 - ✅ **rank_13 加減**（Band D 新設で 3 項加減）— 完了 2026-05-06、CLAUDE.md #194
 
-**無学年（小学校範囲）3/7、★ 2026-05-07 夕 分数 3 兄弟コンプリート達成 ★**
+**無学年（小学校範囲）5/7、★ 2026-05-07 夜 小数 2 単元コンプリート ★**
 - ✅ **rank_14 分数四則混合**（Band D 新設で「整数を含む混合」を量で確保 4/4/4）— 完了 2026-05-07 早朝、CLAUDE.md #201
 - ✅ **rank_15 分数乗除**（全 Band slot_index 駆動化 + Band D 新設「答えが整数 muldiv」4/4）— 完了 2026-05-07 早朝、CLAUDE.md #202
 - ✅ **rank_16 分数加減**（4 Band 構成、Band D 新設で 3 項加減 5/5、Band B/C 通分難易度 slot_index 駆動分離、Band A 演算子均等 + 整数答え保証）— 完了 2026-05-07 夕、CLAUDE.md #208
+- ✅ **rank_18 小数乗除**（4 Band 構成、Band D 新設で「答えが整数 muldiv」5/5、全 Band slot_index 駆動 + 演算子均等保証）— 完了 2026-05-07 夜、CLAUDE.md #216
+- ✅ **rank_19 小数加減**（4 Band 構成、Band D 新設で 3 項加減 5/5、Band C で「整数 - 小数」躓き保証 5 問、Band A 整数答え保証 2 問）— 完了 2026-05-07 夜、CLAUDE.md #215
 - ⏳ rank_17 小数四則混合
-- ⏳ rank_18 小数乗除
-- ⏳ rank_19 小数加減
 - ⏳ rank_20 整数四則混合
 
-**Phase 1 全体進捗**: **16 / 20 単元完了**（800 / 1000 題、**80%**） — 中学数学 13 単元 + 無学年 3 単元（分数 3 兄弟コンプリート）達成、残り無学年 4 単元（小数 3 + 整数 1）
+**Phase 1 全体進捗**: **18 / 20 単元完了**（900 / 1000 題、**90%**） — 中学数学 13 単元 + 無学年 5 単元（分数 3 兄弟 + 小数 2 単元）達成、残り 2 単元（rank_17 小数四則混合 + rank_20 整数四則混合）で Phase 1 完全制覇
 
 ### 進捗管理
 - 各単元増産時に main.py の WARN ログを確認（重複検出の有無）
