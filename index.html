@@ -1448,8 +1448,8 @@
   <header><h1>✏️ 作品を提出（直接入力）</h1></header>
   <div class="container" style="padding-top:16px">
     <div class="mate-row">
-      <img class="mate-img" src="images/sangotan-default.png" alt="サンゴタン">
-      <div class="mate-bubble">じっくり考えて書いてね〜</div>
+      <img class="mate-img" id="mate-img-sango-text" src="images/sangotan-default.png" alt="サンゴタン">
+      <div class="mate-bubble" id="mate-bubble-sango-text">じっくり考えて書いてね〜</div>
     </div>
     <div class="sango-level-tabs" id="sango-text-tabs"></div>
     <div id="sango-text-words"></div>
@@ -3280,6 +3280,7 @@
   function showSangoTopic() {
     document.getElementById('sango-student').textContent = _studentId + ' さん';
     document.getElementById('sango-topic-body').innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    _setContentMascot('mate-img-sango-topic', 'default', 'mate-bubble-sango-topic', _pickBubble(SANGOTAN_BUBBLES.topic), 'sangotan');
     showScreen('screen-sango-topic');
     var p = _prefetched['sangoTopic'];
     delete _prefetched['sangoTopic'];
@@ -3340,6 +3341,7 @@
     if (!_sangoTopics || _sangoTopics.length === 0) { alert('まだお題が登録されていません。'); return; }
     _renderSangoLevelTabs('sango-text-tabs', 'text');
     _selectSangoLevel('text', _sangoTopics[0].level);
+    _setContentMascot('mate-img-sango-text', 'default', 'mate-bubble-sango-text', _pickBubble(SANGOTAN_BUBBLES.text), 'sangotan');
     showScreen('screen-sango-text');
   }
   function _updateSangoTextSubmitBtn() {
@@ -3389,6 +3391,7 @@
     if (!_sangoTopics || _sangoTopics.length === 0) { alert('まだお題が登録されていません。'); return; }
     _renderSangoLevelTabs('sango-photo-tabs', 'photo');
     _selectSangoLevel('photo', _sangoTopics[0].level);
+    _setContentMascot('mate-img-sango-photo', 'thinking', 'mate-bubble-sango-photo', _pickBubble(SANGOTAN_BUBBLES.photo), 'sangotan');
     showScreen('screen-sango-photo');
   }
   function _resetSangoPhoto() {
@@ -3508,7 +3511,7 @@
       ? '<div class="wabun1-result-already">（本日のHPは既に獲得済みです）</div>'
       : '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="sango-done-hp-num">0</span> HP 獲得！</div>';
     bodyEl.innerHTML =
-      '<div class="mate-row"><img class="mate-img" src="images/sangotan-celebrate.png" alt="サンゴタン"><div class="mate-bubble">すごい！合格だ〜！</div></div>' +
+      '<div class="mate-row"><img class="mate-img" src="images/sangotan-celebrate.png" alt="サンゴタン"><div class="mate-bubble">'+_pickBubble(SANGOTAN_BUBBLES.done)+'</div></div>' +
       '<div class="wabun1-result-success">' +
         '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
         '<div style="font-size:52px">🎉</div>' +
