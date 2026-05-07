@@ -1634,8 +1634,8 @@
   <header><h1>🧮 基礎計算</h1><span>単元を選んでね</span></header>
   <div class="container" style="padding-top:16px">
     <div class="mate-row">
-      <img class="mate-img" src="images/kisoK-default.png" alt="キソKさん">
-      <div class="mate-bubble">どの単元をやる？</div>
+      <img class="mate-img" id="mate-img-kiso-rank" src="images/kisoK-default.png" alt="キソKさん">
+      <div class="mate-bubble" id="mate-bubble-kiso-rank">どの単元をやる？</div>
     </div>
     <div id="kiso-rank-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホーム画面に戻る</button>
@@ -1646,6 +1646,10 @@
 <div id="screen-kiso-count" class="screen">
   <header><h1>🧮 問題数を選ぼう</h1><span id="kiso-count-rank-label"></span></header>
   <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-kiso-count" src="images/kisoK-default.png" alt="キソKさん">
+      <div class="mate-bubble" id="mate-bubble-kiso-count">何問やる？</div>
+    </div>
     <div class="kiso-count-card">
       <div class="kiso-count-rank-label" id="kiso-count-rank-name"></div>
       <div id="kiso-count-notice" class="kiso-count-notice" style="display:none"></div>
@@ -1795,8 +1799,8 @@
   <header><h1>🧮 撮影確認</h1><span>この内容で良いですか？</span></header>
   <div class="container" style="padding-top:16px">
     <div class="mate-row">
-      <img class="mate-img" src="images/kisoK-thinking.png" alt="キソKさん">
-      <div class="mate-bubble">答え合わせ、いくよ</div>
+      <img class="mate-img" id="mate-img-kiso-confirm" src="images/kisoK-thinking.png" alt="キソKさん">
+      <div class="mate-bubble" id="mate-bubble-kiso-confirm">答え合わせ、いくよ</div>
     </div>
     <div class="kiso-confirm-card">
       <img id="kiso-confirm-preview" class="kiso-confirm-preview" alt="撮影画像"/>
@@ -4593,6 +4597,7 @@
             + '</button>';
     });
     el.innerHTML = html;
+    _setContentMascot('mate-img-kiso-rank', 'default', 'mate-bubble-kiso-rank', _pickBubble(KISOK_BUBBLES.rank), 'kisoK');
     showScreen('screen-kiso-rank');
   }
 
@@ -4602,6 +4607,7 @@
     _kisoState.selected = def;
     document.getElementById('kiso-count-rank-label').textContent = def.rank + '級';
     document.getElementById('kiso-count-rank-name').textContent = def.no + '. ' + def.name + '（' + def.rank + '級）';
+    _setContentMascot('mate-img-kiso-count', 'default', 'mate-bubble-kiso-count', _pickBubble(KISOK_BUBBLES.count), 'kisoK');
 
     // B-1（仕様書 §4.3 後半）：当日の素点獲得状況を取得して上限案内を動的差し替え
     var notice = document.getElementById('kiso-count-notice');
@@ -4764,6 +4770,7 @@
         _kisoState.photoDataUrl = dataUrl;  // 切り抜き救済用にフル dataUrl も保持
         document.getElementById('kiso-confirm-preview').src = dataUrl;
         document.getElementById('kiso-confirm-submit-btn').disabled = false;
+        _setContentMascot('mate-img-kiso-confirm', 'thinking', 'mate-bubble-kiso-confirm', _pickBubble(KISOK_BUBBLES.answer), 'kisoK');
         showScreen('screen-kiso-confirm');
       };
       img.src = e.target.result;
@@ -4888,7 +4895,7 @@
 
     if (res.passed) {
       bannerEl.innerHTML =
-        '<div class="mate-row"><img class="mate-img" src="images/kisoK-celebrate.png" alt="キソKさん"><div class="mate-bubble">やったね、合格！</div></div>' +
+        '<div class="mate-row"><img class="mate-img" src="images/kisoK-celebrate.png" alt="キソKさん"><div class="mate-bubble">'+_pickBubble(KISOK_BUBBLES.pass)+'</div></div>' +
         '<div class="kiso-result-pass-banner">' +
           '<h2>🎉 合格！やったね！</h2>' +
           '<p>' + (res.correctCount || 0) + ' / ' + (res.total || _kisoState.count) + ' 問正解（' +
@@ -4899,7 +4906,7 @@
         ? '正答率 80% に届かなかったよ。<br>間違えたところ、もう1回考えてみよう！'
         : '間違いがまだ残っているよ。<br>もう一度チャレンジ！';
       bannerEl.innerHTML =
-        '<div class="mate-row"><img class="mate-img" src="images/kisoK-encourage.png" alt="キソKさん"><div class="mate-bubble">ファイト！もう一回！</div></div>' +
+        '<div class="mate-row"><img class="mate-img" src="images/kisoK-encourage.png" alt="キソKさん"><div class="mate-bubble">'+_pickBubble(KISOK_BUBBLES.fail)+'</div></div>' +
         '<div class="kiso-result-fail-banner">' +
           '<h2>あと少し！</h2>' +
           '<p>' + (res.correctCount || 0) + ' / ' + (res.total || 0) + ' 問正解。<br>' + failMsg + '</p>' +
@@ -4973,7 +4980,7 @@
     if (info.isPractice) {
       // 練習完了
       bodyEl.innerHTML =
-        '<div class="mate-row"><img class="mate-img" src="images/kisoK-celebrate.png" alt="キソKさん"><div class="mate-bubble">よくがんばったね！</div></div>' +
+        '<div class="mate-row"><img class="mate-img" src="images/kisoK-celebrate.png" alt="キソKさん"><div class="mate-bubble">'+_pickBubble(KISOK_BUBBLES.done)+'</div></div>' +
         '<div class="kiso-practice-banner">' +
           '<h2>🌟 練習完了！</h2>' +
           '<p>今日のHP上限は達してるけど、しっかり練習できたね！<br>この積み重ねがきっと力になるよ。</p>' +
@@ -4993,7 +5000,7 @@
       var rawHP    = Number(info.rawHP) || 0;
       var weekStr  = info.week ? '（連続' + (info.streak || 0) + '日目・倍率 ×' + (info.week * info.week) + '）' : '';
       bodyEl.innerHTML =
-        '<div class="mate-row"><img class="mate-img" src="images/kisoK-celebrate.png" alt="キソKさん"><div class="mate-bubble">やったね、合格！</div></div>' +
+        '<div class="mate-row"><img class="mate-img" src="images/kisoK-celebrate.png" alt="キソKさん"><div class="mate-bubble">'+_pickBubble(KISOK_BUBBLES.pass)+'</div></div>' +
         '<div class="wabun1-result-success">' + confetti +
           '<div style="font-size:20px;font-weight:bold;color:#b45309;margin-bottom:8px">🎉 合格おめでとう！</div>' +
           '<div style="font-size:14px;color:#78350f;margin-bottom:12px">素点 ' + rawHP + 'HP × 倍率 = </div>' +
