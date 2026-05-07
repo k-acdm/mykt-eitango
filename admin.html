@@ -130,6 +130,22 @@
   .hp-grant-checkbox-row input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; cursor: pointer; }
   .hp-grant-checkbox-row span { font-size: 14px; color: #6b3a17; line-height: 1.5; }
   .hp-grant-bonus-note { font-size: 12px; color: #888; padding-left: 10px; }
+  /* HP 参考表（2026-05-08 追加） */
+  .hp-reference-details { margin-top: 12px; padding: 8px 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; }
+  .hp-reference-details > summary { cursor: pointer; color: #4b5563; font-size: 13px; font-weight: 600; outline: none; user-select: none; }
+  .hp-reference-details > summary:hover { color: #1f2937; }
+  .hp-reference-details[open] > summary { margin-bottom: 8px; }
+  .hp-reference-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; background: #fff; }
+  .hp-reference-table th, .hp-reference-table td { padding: 5px 8px; border: 1px solid #e5e7eb; text-align: left; vertical-align: middle; }
+  .hp-reference-table thead th { background: #f3f4f6; color: #374151; font-weight: 600; }
+  .hp-reference-table tbody td:first-child { color: #1f2937; font-weight: 500; }
+  .hp-reference-table tbody td { color: #4b5563; }
+  .hp-reference-note { margin-top: 8px; font-size: 11px; color: #6b7280; line-height: 1.6; }
+  .hp-reference-note code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 11px; color: #1f2937; }
+  @media (max-width: 480px) {
+    .hp-reference-table { font-size: 11px; }
+    .hp-reference-table th, .hp-reference-table td { padding: 4px 5px; }
+  }
   .hp-grant-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
   .btn-mini { padding: 6px 12px; font-size: 12px; background: #f4f6fb; color: #4f7df0; border: 2px solid #d8e0ee; border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: 600; transition: all .15s; }
   .btn-mini:hover { background: #4f7df0; color: #fff; border-color: #4f7df0; }
@@ -730,6 +746,38 @@
         <input type="number" id="hp-grant-raw" min="1" step="1" placeholder="例：200" />
         <span class="form-hint">1以上の整数で指定してください。</span>
       </label>
+
+      <!-- HP 参考表（2026-05-08 追加、各 GAS 関数の実値から収集） -->
+      <details class="hp-reference-details">
+        <summary>💡 各コンテンツの素点HP一覧（参考）</summary>
+        <table class="hp-reference-table">
+          <thead>
+            <tr>
+              <th>コンテンツ</th>
+              <th>素点HP</th>
+              <th>単位</th>
+              <th>1日上限</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>ログインボーナス</td><td>10HP</td><td>1日（初回ログイン時）</td><td>10HP</td></tr>
+            <tr><td>英単語RUSH</td><td>50HP</td><td>1セット合格</td><td>—（複数セット可）</td></tr>
+            <tr><td>三語短文</td><td>200HP</td><td>1日 1 回（提出時）</td><td>200HP</td></tr>
+            <tr><td>和文英訳①</td><td>200HP</td><td>1日 1 回（全問正解時）</td><td>200HP</td></tr>
+            <tr><td rowspan="2">基礎計算</td><td>50HP</td><td>5 問セット合格</td><td rowspan="2">100HP</td></tr>
+            <tr><td>100HP</td><td>10 問セット合格</td></tr>
+            <tr><td rowspan="2">英語リスオン</td><td>100HP</td><td>4 級 / 3 級 / 準2 級（1日1レベル）</td><td rowspan="2">200HP</td></tr>
+            <tr><td>200HP</td><td>2 級 / 準1 級（1日1レベル）</td></tr>
+            <tr><td rowspan="2">カンジー（書き）</td><td>50HP</td><td>5 問セット合格</td><td rowspan="2">100HP</td></tr>
+            <tr><td>100HP</td><td>10 問セット合格</td></tr>
+            <tr><td>カンジー（読み）</td><td>—</td><td>HP 加算なし（合格判定のみ）</td><td>—</td></tr>
+          </tbody>
+        </table>
+        <div class="hp-reference-note">
+          ※ 上の表は<strong>素点HP</strong>。実際の付与額は <code>素点HP × 連続週数²</code>（連続週数 = 連続ログイン日数 ÷ 7 切り上げ）。<br>
+          ※ 「連続実施週次ボーナスを加算する」をチェック ON にすると、この表と同じ計算式で付与されます。
+        </div>
+      </details>
       <label>
         <span class="form-label">付与理由 <span class="form-required">必須</span></span>
         <textarea id="hp-grant-reason" placeholder="例：和文英訳①の判定基準改善のお詫び付与"></textarea>
