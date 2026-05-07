@@ -1909,8 +1909,8 @@
   <div class="container" style="padding-top:16px">
     <div style="text-align:center"><span class="lison-total-badge">100〜200HP/日</span></div>
     <div class="lison-mascot-row">
-      <img class="mascot-img" src="images/lison-default.png" alt="リス">
-      <div class="mascot-bubble">どの級にチャレンジする？<br><small style="font-weight:normal;color:#3f6b56">毎週月曜日に新しい英文に切り替わるよ🐿️</small></div>
+      <img class="mascot-img" id="mate-img-lison-rank" src="images/lison-default.png" alt="リス">
+      <div class="mascot-bubble" id="mate-bubble-lison-rank">どの級にチャレンジする？</div>
     </div>
     <div id="lison-level-list" class="lison-level-list"></div>
     <div id="lison-rank-msg" class="msg" style="display:none"></div>
@@ -1924,8 +1924,8 @@
   <div class="container" style="padding-top:14px">
     <div class="lison-step-counter" id="lison-step1-counter">Step 1 / 5</div>
     <div class="lison-mascot-row">
-      <img class="mascot-img" src="images/lison-icon.png" alt="リス">
-      <div class="mascot-bubble">耳でしっかりキャッチしよう！🎧<br><small style="font-weight:normal;color:#3f6b56">いっしょに聴こう！</small></div>
+      <img class="mascot-img" id="mate-img-lison-step1" src="images/lison-thinking.png" alt="リス">
+      <div class="mascot-bubble" id="mate-bubble-lison-step1">集中して聴いてね〜</div>
     </div>
     <div class="lison-text-card lison-text-en" id="lison-step1-en"></div>
     <button id="lison-step1-play" class="btn-wide lison-play-btn" onclick="playLisonStep1()">🎧 最初に1回聴いてみよう</button>
@@ -1941,8 +1941,8 @@
   <div class="container" style="padding-top:14px">
     <div class="lison-step-counter">Step 2 / 5</div>
     <div class="lison-mascot-row">
-      <img class="mascot-img" src="images/lison-icon.png" alt="リス">
-      <div class="mascot-bubble">意味を確認しながら聴いてみよう！📖<br><small style="font-weight:normal;color:#3f6b56">英文と訳を見比べてね</small></div>
+      <img class="mascot-img" id="mate-img-lison-step2" src="images/lison-thinking.png" alt="リス">
+      <div class="mascot-bubble" id="mate-bubble-lison-step2">耳をすませよう！</div>
     </div>
     <!-- 仕様：日本語訳のみ表示。音声再生は引き続き englishText（playLisonStep2 内で参照） -->
     <div class="lison-text-card lison-text-ja" id="lison-step2-ja"></div>
@@ -1959,8 +1959,8 @@
   <div class="container" style="padding-top:14px">
     <div class="lison-step-counter">Step 3 / 5</div>
     <div class="lison-mascot-row">
-      <img class="mascot-img" src="images/lison-icon.png" alt="リス">
-      <div class="mascot-bubble">内容をしっかり読み取れたかな？🤔<br><small style="font-weight:normal;color:#3f6b56">3問とも答えてから「解答と解説を確認」を押してね</small></div>
+      <img class="mascot-img" id="mate-img-lison-step3" src="images/lison-thinking.png" alt="リス">
+      <div class="mascot-bubble" id="mate-bubble-lison-step3">じっくり考えてね〜</div>
     </div>
     <details class="lison-ref-passage">
       <summary>📖 英文をもう一度見る</summary>
@@ -1978,7 +1978,7 @@
   <div class="container" style="padding-top:14px">
     <div class="lison-step-counter">Step 4 / 5</div>
     <div class="lison-mascot-row">
-      <img class="mascot-img" src="images/lison-icon.png" alt="リス">
+      <img class="mascot-img" id="mate-img-lison-step4" src="images/lison-default.png" alt="リス">
       <div class="mascot-bubble" id="lison-step4-mascot">解答を見ていこう！</div>
     </div>
     <div id="lison-step4-list"></div>
@@ -1993,8 +1993,8 @@
   <div class="container" style="padding-top:14px">
     <div class="lison-step-counter">Step 5 / 5</div>
     <div class="lison-mascot-row">
-      <img class="mascot-img" src="images/lison-icon.png" alt="リス">
-      <div class="mascot-bubble">ゆっくりでOK、自分のペースで！🎤<br><small style="font-weight:normal;color:#3f6b56">英文をマイクに向かって読んでね</small></div>
+      <img class="mascot-img" id="mate-img-lison-step5" src="images/lison-default.png" alt="リス">
+      <div class="mascot-bubble" id="mate-bubble-lison-step5">大きな声でどうぞ〜</div>
     </div>
     <div class="lison-text-card lison-text-en" id="lison-step5-en"></div>
 
@@ -2009,7 +2009,7 @@
         <div class="lison-rec-indicator"><span class="rec-dot"></span>録音中</div>
         <div class="lison-rec-timer" id="lison-rec-timer">00:00</div>
         <div class="lison-rec-mascot-mini">
-          <img src="images/lison-icon.png" alt="リス">
+          <img src="images/lison-thinking.png" alt="リス">
           <span>キミの声、聴いてるよ🎧</span>
         </div>
       </div>
@@ -2170,7 +2170,7 @@
 <!-- 送信中オーバーレイ（リス版） -->
 <div id="lison-submit-overlay" class="lison-submit-overlay">
   <div class="lison-submit-card">
-    <img src="images/lison-icon.png" alt="リス">
+    <img src="images/lison-thinking.png" alt="リス">
     <div class="lison-submit-msg">送信中<span class="grading-dots" id="lison-submit-dots">...</span></div>
     <div class="lison-submit-sub">録音データをアップロード中です。<br>少し時間がかかる場合があります。</div>
   </div>
@@ -5235,6 +5235,7 @@
             + '</button>';
     });
     listEl.innerHTML = html;
+    _setContentMascot('mate-img-lison-rank', 'default', 'mate-bubble-lison-rank', _pickBubble(LISON_BUBBLES.rank), 'lison');
     showScreen('screen-lison-rank');
   }
 
@@ -5344,6 +5345,7 @@
     var c = _lisonState.content || {};
     document.getElementById('lison-step1-en').textContent = c.englishText || '';
     document.getElementById('lison-step1-next').disabled = !_lisonState.step1Played;
+    _setContentMascot('mate-img-lison-step1', 'thinking', 'mate-bubble-lison-step1', _pickBubble(LISON_BUBBLES.step1), 'lison');
     showScreen('screen-lison-step1');
   }
   function playLisonStep1() {
@@ -5378,6 +5380,7 @@
     // 仕様：Step 2 は日本語訳のみ表示（英文 DOM は削除済み）。音声は playLisonStep2 で englishText を読み上げる
     document.getElementById('lison-step2-ja').textContent = c.japaneseText || '';
     document.getElementById('lison-step2-next').disabled = !_lisonState.step2Played;
+    _setContentMascot('mate-img-lison-step2', 'thinking', 'mate-bubble-lison-step2', _pickBubble(LISON_BUBBLES.step1), 'lison');
     showScreen('screen-lison-step2');
   }
   function playLisonStep2() {
@@ -5438,6 +5441,7 @@
     // 戻ってきた場合の選択状態を復元
     for (var k = 0; k < 3; k++) _lisonRefreshQuizCard(k);
     _lisonRefreshStep3NextBtn();
+    _setContentMascot('mate-img-lison-step3', 'thinking', 'mate-bubble-lison-step3', _pickBubble(LISON_BUBBLES.step3), 'lison');
     showScreen('screen-lison-step3');
   }
   function selectLisonAnswer(qIdx, value) {
@@ -5507,6 +5511,8 @@
       else                  msg = 'だいじょうぶ、つぎはきっと聴けるよ💪<br><small style="font-weight:normal;color:#3f6b56">解説を読んで内容を確認しよう！</small>';
       mascot.innerHTML = msg;
     }
+    // 画像だけ default に切替（セリフは点数依存のため bubble は触らない）
+    _setContentMascot('mate-img-lison-step4', 'default', null, null, 'lison');
     showScreen('screen-lison-step4');
   }
   function goLisonStep5() {
@@ -5524,6 +5530,7 @@
     // Step 5 に入る時点で既に録音済みの blob があれば preview 状態で再表示
     if (_lisonState.recordingBlob) _lisonShowRecordingStopped();
     else                            _lisonShowRecordingIdle();
+    _setContentMascot('mate-img-lison-step5', 'default', 'mate-bubble-lison-step5', _pickBubble(LISON_BUBBLES.step4), 'lison');
     showScreen('screen-lison-step5');
   }
   function _lisonShowRecordingIdle() {
@@ -5736,7 +5743,7 @@
     var html = '';
     // リスがガッツポーズ風（jump animation 2 回）
     html += '<img class="lison-done-mascot" src="images/lison-celebrate.png" alt="リス">';
-    html += '<div class="lison-done-mascot-quote">ナイスリスニング！🐿️🎧✨</div>';
+    html += '<div class="lison-done-mascot-quote">'+_pickBubble(LISON_BUBBLES.done)+'</div>';
     html += '<div class="lison-done-quiz-summary">クイズ正解数：<strong>' + quizScore + ' / 3</strong>';
     if (def.label) html += '（' + _lisonEsc(def.label) + '）';
     html += '</div>';
