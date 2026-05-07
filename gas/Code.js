@@ -2167,7 +2167,14 @@ const KISO_SESSIONS_HEADERS = [
   'completedAt',
   'hpEarned',           // 素点（ボーナス前）
   'wrongIds',           // JSON 配列（前回不正解だった問題IDのサブセット、再挑戦用）
-  'hasWorkPhoto'        // 撮影前確認画面で生徒が「途中式の写真も送る」を選んだか（TRUE/FALSE）
+  'hasWorkPhoto',       // 撮影前確認画面で生徒が「途中式の写真も送る」を選んだか（TRUE/FALSE）
+  'problemLatexes'      // JSON 配列（startKisoSession 時の問題 LaTeX、questionIds と並列）
+                        // Phase 2（100題化）以降の問題プール入れ替えでも、進行中セッションの
+                        // 表示が破綻しないよう、開始時の latex を保存。getKisoRetryQuestions /
+                        // submitKisoAnswer の表示用 problemLatex はこれを優先参照。
+                        // 採点に使う answerAllowed / answerCanonical は引き続き DB から取得
+                        // （Phase 2 投入前に diagnose/abandon で in_progress を停止させる運用）。
+                        // 既存セッション（この列が空）は従来通り DB ルックアップで動作する。
 ];
 
 const KISO_PHOTOS_HEADERS = [
@@ -2996,6 +3003,34 @@ function abandonRank17InProgress(opts) {
 // 30→50 題化で問題プールが入れ替わるため、進行中セッションは abandoned 化推奨。
 function abandonRank20InProgress(opts) {
   return abandonKisoInProgressByRank(20, opts);
+}
+
+// セッション行から保存済みの problemLatex マップ {questionId: latex} を構築する。
+// Phase 2 防衛策。startKisoSession で `problemLatexes` 列に保存した JSON 配列を、
+// 同じセッションの `questionIds` と並列にひも付けて返す。
+//
+// 後方互換：以下のいずれかの場合は空マップ {} を返し、呼び出し側は従来通り
+// `_getKisoQuestionsByIds` の DB ルックアップ結果を使う。
+//   (a) 列がまだ存在しない（schema migration 前の旧シート）
+//   (b) 列はあるが値が空（旧セッションで未保存）
+//   (c) JSON parse 失敗 / 配列長が不一致 / 値が配列でない
+function _buildKisoStoredLatexMap(row, header) {
+  const cQids   = header.indexOf('questionIds');
+  const cLatexes = header.indexOf('problemLatexes');
+  if (cQids < 0 || cLatexes < 0) return {};
+  const rawLatexes = String(row[cLatexes] || '').trim();
+  if (!rawLatexes) return {};
+  let qids = [];
+  let latexes = [];
+  try { qids = JSON.parse(String(row[cQids] || '[]')); } catch (e) { return {}; }
+  try { latexes = JSON.parse(rawLatexes); } catch (e) { return {}; }
+  if (!Array.isArray(qids) || !Array.isArray(latexes)) return {};
+  if (qids.length !== latexes.length) return {};
+  const out = {};
+  for (let i = 0; i < qids.length; i++) {
+    out[String(qids[i])] = String(latexes[i] || '');
+  }
+  return out;
 }
 
 // KisoSessions シートを sessionId で線形検索（直近のセッションは末尾近く）
@@ -3919,19 +3954,29 @@ function startKisoSession(studentId, rank, count) {
     const sessionId = _kisoSessionId(sid);
     const startedAt = _nowJST();
     const questionIds = picked.map(function(row){ return String(row[0]); });
+    // Phase 2 防衛策：抽出時の problemLatex を questionIds と並列で保存。
+    // 進行中セッションが Phase 2 の問題プール入れ替えに巻き込まれても、
+    // 生徒の画面表示は開始時の問題のまま固定される（採点は DB ルックアップなので
+    // 運用上は abandonRank<N>InProgress で in_progress を停止させてから入れ替える）。
+    // KisoQuestions 列: questionId(0)/rank(1)/rankName(2)/difficultyBand(3)/problemLatex(4)/...
+    const problemLatexes = picked.map(function(row){ return String(row[4] || ''); });
     const sh = _ensureKisoSessionsSheet();
+    // ヘッダー駆動 appendRow（KISO_SESSIONS_HEADERS と同順で構築）
+    // hasWorkPhoto は初回提出時に submitKisoAnswer が更新するためここでは空文字
     sh.appendRow([
-      sessionId,
-      sid,
-      r,
-      n,
-      JSON.stringify(questionIds),
-      'in_progress',
-      0,
-      startedAt,
-      '',
-      0,
-      '[]'
+      sessionId,                     // 0 sessionId
+      sid,                           // 1 studentId
+      r,                             // 2 rank
+      n,                             // 3 count
+      JSON.stringify(questionIds),   // 4 questionIds
+      'in_progress',                 // 5 status
+      0,                             // 6 attempts
+      startedAt,                     // 7 startedAt
+      '',                            // 8 completedAt
+      0,                             // 9 hpEarned
+      '[]',                          // 10 wrongIds
+      '',                            // 11 hasWorkPhoto（提出時に上書き）
+      JSON.stringify(problemLatexes) // 12 problemLatexes（Phase 2 防衛策）
     ]);
 
     // フロントへ返す JSON（answer 系は除外）
@@ -3994,13 +4039,17 @@ function getKisoRetryQuestions(sessionId) {
     }
 
     const probs = _getKisoQuestionsByIds(wrongIds);
+    // Phase 2 防衛策：保存済み problemLatex があれば優先（DB プール入れ替え後も
+    // 生徒が見ていた問題テキストのまま再開できる）。空マップなら従来通り DB の値。
+    const storedLatexMap = _buildKisoStoredLatexMap(row, header);
     const rankNum = Number(row[cRank]);
     const rankName = probs.length > 0 ? probs[0].rankName : '';
     const questions = probs.map(function(p, i){
+      const stored = storedLatexMap[p.questionId];
       return {
         no: i + 1,
         questionId: p.questionId,
-        problemLatex: p.problemLatex
+        problemLatex: (stored !== undefined && stored !== '') ? stored : p.problemLatex
       };
     });
 
@@ -4103,6 +4152,11 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
     const probs = _getKisoQuestionsByIds(targetIds);
     const probById = {};
     probs.forEach(function(p){ probById[p.questionId] = p; });
+    // Phase 2 防衛策：保存済み problemLatex があれば results の表示用フィールドに優先採用。
+    // 採点に使う answerAllowedJson / answerCanonical は引き続き probs（DB ルックアップ）を
+    // 信頼源とする（運用上は abandonRank<N>InProgress で in_progress を停止させてから
+    // 問題プールを入れ替えるため、DB と保存値が乖離しているケースは想定しない）。
+    const storedLatexMap = _buildKisoStoredLatexMap(row, header);
 
     const results = [];
     let correctCount = 0;
@@ -4115,10 +4169,14 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
       if (p) correct = _kisoMatchAnswer(studentText, p.answerAllowedJson);
       if (correct) correctCount += 1;
       else newWrongIds.push(qid);
+      const storedLatex = storedLatexMap[qid];
+      const displayLatex = (storedLatex !== undefined && storedLatex !== '')
+        ? storedLatex
+        : (p ? p.problemLatex : '');
       results.push({
         no: i + 1,
         questionId: qid,
-        problemLatex: p ? p.problemLatex : '',
+        problemLatex: displayLatex,
         // answerCanonical を含める（Mode B 過去セッション閲覧で使用）。
         // startKisoSession のレスポンスには載せない（未提出時に正解漏洩を避けるため）が、
         // 提出後は採点結果と一緒に返してフロントで localStorage 保存 → Mode B で表示。
