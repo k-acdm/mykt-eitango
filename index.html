@@ -5822,10 +5822,71 @@
       if (b) b.textContent = text;
     }
   }
+  // 2026-05-08：セリフのマンネリ防止のため、配列からランダムに 1 件選ぶ。
+  // 配列が空 / 非配列ならフォールバックで '' を返す（_kanjiSetMascot/_setContentMascot で text=null 扱い相当）。
+  function _pickBubble(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) return '';
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+  // ============================================================================
+  // 各キャラの場面別セリフ集（2026-05-08 全 6 キャラ統一実装）
+  // 場面ごとに 2〜4 件の配列。同じ場面でも訪問のたびに違うセリフが出てマンネリ防止。
+  // ふくちさん 2026-05-07 夜セリフ案承認。中国仙人風（カンジー）/ 爽やか英語混じり（RUSH君）/
+  // ゆるふわ海の生き物（サンゴタン）/ 軽快お茶目（ニチエイ）/ 論理的・冷静（キソK）/
+  // 元気な応援（リスオン）の 6 種類のキャラ性に合わせている。
+  // ============================================================================
+  var KANJI_BUBBLES = {
+    level:        ['どの級に挑むかね？', 'ふむ、級を選びなされ', 'どの級じゃ？'],
+    yomiStart:    ['ふむふむ…', 'じっくりと読み解いてみよ', '集中じゃ'],
+    yomiPass:     ['ふむ、見事。次は書きじゃ', '天晴れ！書きへ進もう', 'お見事、次は書きじゃぞ'],
+    yomiFail:     ['もう一度じゃ、よく見てな', '気を取り直して、もう一度', '焦らずもう一度'],
+    kakiStart:    ['むむ、見させてもらうぞ…', 'ふむ、字を確かめておるぞ', '待っておれ…'],
+    kakiPass:     ['天晴れ！', '見事じゃ！', '精進したのう！'],
+    kakiFail:     ['惜しい、書き直しじゃ', 'もう一度、丁寧に', 'あと一歩じゃ'],
+    kakiRetry:    ['間違えた問題だけ、もう一度がんばろう！', 'もう一度、丁寧に書いてみよ', 'リベンジじゃ']
+  };
+  var RUSHKUN_BUBBLES = {
+    level:    ['どの級に挑戦する？', 'やる気あるね、どれにする？', "Let's go! どの級？"],
+    test:     ['集中して！', 'Focus!', 'いけるよ！'],
+    fail:     ['もう一回チャレンジしよう！', "Don't give up!", 'もう少し！'],
+    photoTry: ['きれいに書けてるかな？', 'ベスト尽くした？', '丁寧に書けたかな？'],
+    photoNg:  ['もう少し丁寧に書いてみよう！', 'もう一度トライ！', 'You can do it!'],
+    pass:     ['やったね！おめでとう！', 'Awesome!', 'Nice work!', 'すごいじゃん！']
+  };
+  var SANGOTAN_BUBBLES = {
+    topic: ['今日のお題はこれだよ〜', 'ぽこぽこ〜どんな話書く？', 'お題がきたよ〜'],
+    text:  ['じっくり考えて書いてね〜', 'ぽこぽこ〜ゆっくりでいいよ', 'いい言葉浮かんだ？'],
+    photo: ['ちゃんと読み取れるかな〜', '写真きれいに撮ってね', 'ぽこぽこ〜'],
+    done:  ['すばらしい〜！ぽこぽこ〜', 'ナイス文章！', 'お疲れさま〜']
+  };
+  var NICHIEI_BUBBLES = {
+    topic:   ['今日の問題だよ！', '英訳チャレンジ〜', 'すい〜っといこう！'],
+    confirm: ['ちゃんと書けてるかな？', 'もう一回見直そ〜', 'ふむふむ…'],
+    pass:    ['完璧！ナイス英訳！', '英訳マスターじゃん！', 'すい〜っとできたね！'],
+    fail:    ['あと少し！もう一回チェック', 'おっ、惜しい！', '次は完璧にいこう！'],
+    past:    ['復習はいいね〜', '過去問チェックだ〜']
+  };
+  var KISOK_BUBBLES = {
+    rank:    ['どの単元をやる？', '今日は何を計算するか。', '準備はいいか。'],
+    count:   ['何問やる？', 'セット数を決めよう。'],
+    answer:  ['答え合わせ、いくよ。', '写真を確認するぞ。', '準備はいいか。'],
+    grading: ['計算をチェック中…', '正確に判定するぞ。', '待ってくれ…'],
+    pass:    ['やったね、合格！', 'ナイス、計算正確だ。', '見事だ。'],
+    fail:    ['ファイト！もう一回！', '式を見直そう。', 'あと一歩だ。'],
+    done:    ['よくがんばったね！', '順番が大事だ。', '正確だったぞ。']
+  };
+  var LISON_BUBBLES = {
+    rank:    ['どの級に挑戦する？', 'いっしょにがんばろ〜！'],
+    step1:   ['集中して聴いてね〜', '耳をすませよう！'],
+    step3:   ['じっくり考えてね〜', 'よ〜く思い出してみよう'],
+    step4:   ['大きな声でどうぞ〜', '録音いくよ！'],
+    step5:   ['お疲れさま〜！', 'がんばった！'],
+    done:    ['やった〜！ナイス音読！', 'ばっちり録音できたね！']
+  };
   // ----- レベル選択 -----
   function showKanjiLevelSelect() {
     _kanjiResetState();
-    _kanjiSetMascot('kanjii-img-level', 'default', 'kanjii-bubble-level', 'どの級に挑戦する？');
+    _kanjiSetMascot('kanjii-img-level', 'default', 'kanjii-bubble-level', _pickBubble(KANJI_BUBBLES.level));
     showScreen('screen-kanji-level');
   }
   // ----- 問題数選択 -----
@@ -5891,7 +5952,7 @@
     if (idx >= total) { _finishKanjiYomi(); return; }
     var q = _kanjiState.questions[idx].yomi;
     document.getElementById('kanji-yomi-prog').textContent = (idx + 1) + ' / ' + total;
-    _kanjiSetMascot('kanjii-img-yomi', 'thinking', 'kanjii-bubble-yomi', 'まずは読み方をテストしよう！');
+    _kanjiSetMascot('kanjii-img-yomi', 'thinking', 'kanjii-bubble-yomi', _pickBubble(KANJI_BUBBLES.yomiStart));
     var qHtml = '<div class="kanji-yomi-q-card">' +
       '<div class="kanji-yomi-q-num">問 ' + (idx + 1) + '</div>' +
       '<div>' + _kanjiRenderEmphasis(q.question) + '</div>' +
@@ -5968,7 +6029,7 @@
     var banner = document.getElementById('kanji-yomi-result-banner');
     var actions = document.getElementById('kanji-yomi-result-actions');
     if (passed) {
-      _kanjiSetMascot('kanjii-img-yomi-result', 'celebrate', 'kanjii-bubble-yomi-result', '合格おめでとう！次は書きだよ！');
+      _kanjiSetMascot('kanjii-img-yomi-result', 'celebrate', 'kanjii-bubble-yomi-result', _pickBubble(KANJI_BUBBLES.yomiPass));
       banner.innerHTML =
         '<div class="kanji-result-success">' +
           '<div style="font-size:48px">🎉</div>' +
@@ -5979,7 +6040,7 @@
         '<button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="startKanjiKaki()">✏️ 次は書きに挑戦！</button>';
       try { playSfx('chime'); } catch(e){}
     } else {
-      _kanjiSetMascot('kanjii-img-yomi-result', 'encourage', 'kanjii-bubble-yomi-result', 'もう一度じゃ、よく見てな');
+      _kanjiSetMascot('kanjii-img-yomi-result', 'encourage', 'kanjii-bubble-yomi-result', _pickBubble(KANJI_BUBBLES.yomiFail));
       banner.innerHTML =
         '<div class="kanji-result-fail">' +
           '<div style="font-size:48px">😤</div>' +
@@ -6012,7 +6073,7 @@
   function startKanjiKaki() {
     _kanjiState.isKakiRetry = false;
     _kanjiState.retryAnswers = [];
-    _kanjiSetMascot('kanjii-img-kaki', 'thinking', 'kanjii-bubble-kaki', 'ノートに書いてキミの字、見せて〜！');
+    _kanjiSetMascot('kanjii-img-kaki', 'thinking', 'kanjii-bubble-kaki', _pickBubble(KANJI_BUBBLES.kakiStart));
     document.getElementById('kanji-kaki-meta').textContent = '漢検 ' + _kanjiState.level + '級｜書き ' + _kanjiState.questions.length + '問';
     _renderKanjiKakiList(_kanjiState.questions);
     var input = document.getElementById('kanji-photo-input');
@@ -6128,12 +6189,12 @@
     var banner = document.getElementById('kanji-kaki-result-banner');
     var actions = document.getElementById('kanji-kaki-result-actions');
     if (passed) {
-      _kanjiSetMascot('kanjii-img-kaki-result', 'celebrate', 'kanjii-bubble-kaki-result', 'ナイス漢字パワー！');
+      _kanjiSetMascot('kanjii-img-kaki-result', 'celebrate', 'kanjii-bubble-kaki-result', _pickBubble(KANJI_BUBBLES.kakiPass));
       // HP獲得演出（三語短文・和文英訳①と同じ既存演出を流用）
       _showKanjiDone(res.hpInfo || {});
       return;
     }
-    _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', 'もう一度じゃ、よく見てな');
+    _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', _pickBubble(KANJI_BUBBLES.kakiFail));
     // 2026-05-08 学習補助強化：全問の正解一覧（✅/❌ 付き）+ OCR 全文（折り畳み）を表示。
     // ふくちさん哲学「不合格で再テストになっても何もできないと学習にならない」に基づく。
     // 「あなたの解答」を問ごとに切り分けて表示するのは cursor 前進方式の特性上困難なため、
@@ -6192,7 +6253,7 @@
     } else {
       retryQuestions = _kanjiState.questions;
     }
-    _kanjiSetMascot('kanjii-img-kaki', 'thinking', 'kanjii-bubble-kaki', '間違えた問題だけ、もう一度がんばろう！');
+    _kanjiSetMascot('kanjii-img-kaki', 'thinking', 'kanjii-bubble-kaki', _pickBubble(KANJI_BUBBLES.kakiRetry));
     document.getElementById('kanji-kaki-meta').textContent = '漢検 ' + _kanjiState.level + '級｜再挑戦 ' + retryQuestions.length + '問';
     _renderKanjiKakiList(retryQuestions);
     document.getElementById('kanji-kaki-msg').style.display = 'none';
