@@ -1557,8 +1557,8 @@
   <header><h1>📷 読み取り結果の確認</h1></header>
   <div class="container" style="padding-top:16px">
     <div class="mate-row">
-      <img class="mate-img" src="images/nichiei-thinking.png" alt="ニチエイ">
-      <div class="mate-bubble">ちゃんと書けてるかな？</div>
+      <img class="mate-img" id="mate-img-wabun1-confirm" src="images/nichiei-thinking.png" alt="ニチエイ">
+      <div class="mate-bubble" id="mate-bubble-wabun1-confirm">ちゃんと書けてるかな？</div>
     </div>
     <div class="sango-ocr-box" style="display:block;border-color:#7c4fff">
       <div class="sango-ocr-label">📝 採点に使う文字列（問題ごとに切り出したもの）：</div>
@@ -1600,6 +1600,10 @@
 <div id="screen-wabun1-past" class="screen">
   <header><h1>📚 過去の問題と正解</h1></header>
   <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-wabun1-past" src="images/nichiei-default.png" alt="ニチエイ">
+      <div class="mate-bubble" id="mate-bubble-wabun1-past">復習はいいね〜</div>
+    </div>
     <div id="wabun1-past-body"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" id="wabun1-past-more-btn" style="display:none;background:linear-gradient(135deg,#8e9eab,#4b6cb7);margin-top:14px" onclick="showWabun1Archive(1)">📜 さらに過去のもの</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
@@ -3761,6 +3765,7 @@
     _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false, lastSourceDataUrl: '' };
     var bodyEl = document.getElementById('wabun1-topic-body');
     bodyEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    _setContentMascot('mate-img-wabun1-topic', 'default', 'mate-bubble-wabun1-topic', _pickBubble(NICHIEI_BUBBLES.topic), 'nichiei');
     document.getElementById('wabun1-photo-preview').style.display = 'none';
     document.getElementById('wabun1-photo-preview').src = '';
     document.getElementById('wabun1-camera-msg').style.display = 'none';
@@ -3945,6 +3950,7 @@
       document.getElementById('wabun1-confirm-msg').style.display = 'none';
       document.getElementById('wabun1-confirm-submit-btn').disabled = false;
       document.getElementById('wabun1-show-answer-confirm').style.display = _wabun1State.hasSubmitted ? 'block' : 'none';
+      _setContentMascot('mate-img-wabun1-confirm', 'thinking', 'mate-bubble-wabun1-confirm', _pickBubble(NICHIEI_BUBBLES.confirm), 'nichiei');
       showScreen('screen-wabun1-confirm');
     }).catch(function(err){
       var emsg = (err && err.message) ? err.message : String(err);
@@ -4055,7 +4061,7 @@
         hpBlock = '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="wabun1-hp-num">0</span> HP 獲得！</div>';
       }
       bodyEl.innerHTML =
-        '<div class="mate-row"><img class="mate-img" src="images/nichiei-celebrate.png" alt="ニチエイ"><div class="mate-bubble">完璧！ナイス英訳！</div></div>' +
+        '<div class="mate-row"><img class="mate-img" src="images/nichiei-celebrate.png" alt="ニチエイ"><div class="mate-bubble">'+_pickBubble(NICHIEI_BUBBLES.pass)+'</div></div>' +
         '<div class="wabun1-result-success">' +
           '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
           '<div style="font-size:52px">🎉</div>' +
@@ -4101,7 +4107,7 @@
                '</div>';
       }).join('');
       bodyEl.innerHTML =
-        '<div class="mate-row"><img class="mate-img" src="images/nichiei-encourage.png" alt="ニチエイ"><div class="mate-bubble">あと少し！もう一回チェックしてみよう</div></div>' +
+        '<div class="mate-row"><img class="mate-img" src="images/nichiei-encourage.png" alt="ニチエイ"><div class="mate-bubble">'+_pickBubble(NICHIEI_BUBBLES.fail)+'</div></div>' +
         '<div class="wabun1-result-partial">' +
           '<div style="font-size:44px">💪</div>' +
           '<div class="wabun1-result-partial-title">残念！もう一度挑戦しよう！</div>' +
@@ -4190,6 +4196,7 @@
     var moreBtn = document.getElementById('wabun1-past-more-btn');
     bodyEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     moreBtn.style.display = 'none';
+    _setContentMascot('mate-img-wabun1-past', 'default', 'mate-bubble-wabun1-past', _pickBubble(NICHIEI_BUBBLES.past), 'nichiei');
     showScreen('screen-wabun1-past');
     gasGet({ action:'getWabun1PastTopicsRecent', studentId:_studentId, _ts: Date.now() }).then(function(res){
       if (!res || !res.ok) { bodyEl.innerHTML = '<div class="wabun1-past-empty">読み込みに失敗しました。</div>'; return; }
