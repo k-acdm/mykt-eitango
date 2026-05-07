@@ -4426,8 +4426,18 @@ function submitPhoto(studentId, setNo, imageBase64, words) {
       return { ok: false, message: '画像の読み取りに失敗しました。' };
     }
 
-    const detected = json.responses[0].fullTextAnnotation
-      ? json.responses[0].fullTextAnnotation.text.toLowerCase() : '';
+    // OCR テキスト・期待単語の正規化（2026-05-08 追加、フロント sendPhoto と統一）
+    // 手書きの隙間が OCR で「スペース」と認識され "classmate" → "class mate" のように
+    // 分断されて完全一致判定が失敗する問題への対策。小文字化 + 全空白文字
+    // （半角・全角・改行・タブ + zero-width 系の不可視文字）を全削除する。
+    // 和文英訳① _normalizeWabun1 と同方針。
+    const _normForDictation = function(s) {
+      return String(s == null ? '' : s).toLowerCase().replace(/[\s　​‌‍⁠﻿]+/g, '');
+    };
+
+    const rawDetected = json.responses[0].fullTextAnnotation
+      ? json.responses[0].fullTextAnnotation.text : '';
+    const detected = _normForDictation(rawDetected);
 
     if (!detected) {
       return { ok: true, passed: false, message: '文字が読み取れませんでした。明るい場所でもう一度撮影してください。' };
@@ -4435,7 +4445,7 @@ function submitPhoto(studentId, setNo, imageBase64, words) {
 
     const failedWords = [];
     for (const w of words) {
-      const word  = w.toLowerCase();
+      const word  = _normForDictation(w);
       const regex = new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
       const count = (detected.match(regex) || []).length;
       if (count < 3) failedWords.push(w);

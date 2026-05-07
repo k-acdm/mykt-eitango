@@ -2930,6 +2930,14 @@
       }
     });
   }
+  // OCR テキスト・期待単語の正規化（2026-05-08 追加）
+  // 手書きの隙間を OCR が「スペース」と認識して "classmate" → "class mate" のように
+  // 分断するケースに対応するため、比較前に小文字化 + 全空白文字（半角・全角・改行・
+  // タブ + zero-width 系の不可視文字）を全削除する。和文英訳① _normalizeWabun1 と
+  // 同方針（CLAUDE.md「採点正規化関数の仕様」参照）。
+  function _normalizeForDictation(s) {
+    return String(s || '').toLowerCase().replace(/[\s　​‌‍⁠﻿]+/g, '');
+  }
   function sendPhoto(base64) {
     var msgEl = document.getElementById('photo-msg'); msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...'; msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     var wordList = _questions.map(function(w){ return w.word; });
@@ -2942,9 +2950,10 @@
       var avgConf = confCount > 0 ? totalConf/confCount : 1, confPct = Math.round(avgConf*100);
       if (avgConf < 0.75) { showMsg('photo-msg','❌ 字が雑すぎます（丁寧さスコア：'+confPct+'%）。もっと丁寧に書いてみよう！','ng'); return; }
       var rawText = response.fullTextAnnotation.text || '';
-      var detected = rawText.toLowerCase(), failedWords = [];
+      var detected = _normalizeForDictation(rawText), failedWords = [];
       wordList.forEach(function(w){
-        var regex = new RegExp(w.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g');
+        var normalized = _normalizeForDictation(w);
+        var regex = new RegExp(normalized.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g');
         var count = (detected.match(regex)||[]).length;
         if (count < 3) failedWords.push({ word: w, count: count });
       });
