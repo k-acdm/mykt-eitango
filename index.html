@@ -166,6 +166,48 @@
     .kanji-ocr-details summary:hover { color: #1f2937; }
     .kanji-ocr-box { background: #fff; border: 1px dashed #d1d5db; border-radius: 6px; padding: 10px 12px; margin-top: 8px; white-space: pre-wrap; word-break: break-all; font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; font-size: 14px; color: #1f2937; line-height: 1.7; max-height: 280px; overflow-y: auto; }
     .kanji-answer-hint { font-size: 12px; color: #6b7280; margin-top: 8px; line-height: 1.6; }
+    /* 古文単語「コブタン」（2026-05-08 枠組み実装）。暖色系 #d97706 で平安らしさを演出。 */
+    .kobun-emphasis { color: #d97706; font-weight: bold; }
+    .kobun-mate-row { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; }
+    .kobun-mate-row .kobun-img { width: 88px; height: 88px; object-fit: contain; flex-shrink: 0; background: rgba(255,255,255,.18); border-radius: 16px; padding: 6px; }
+    .kobun-bubble { position: relative; flex: 1; background: #fef3c7; border: 2px solid #d97706; border-radius: 18px; padding: 12px 16px; font-size: 15px; color: #78350f; line-height: 1.6; box-shadow: 0 3px 10px rgba(217,119,6,.20); }
+    .kobun-bubble::before { content: ''; position: absolute; left: -11px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: #d97706; }
+    .kobun-bubble::after  { content: ''; position: absolute; left: -8px;  top: 50%; transform: translateY(-50%); border: 8px solid transparent; border-right-color: #fef3c7; }
+    @media (max-width: 480px) {
+      .kobun-mate-row { flex-direction: column; gap: 8px; }
+      .kobun-bubble { width: 100%; }
+      .kobun-bubble::before { left: 50%; top: -11px; transform: translateX(-50%); border: 9px solid transparent; border-right-color: transparent; border-bottom-color: #d97706; }
+      .kobun-bubble::after  { left: 50%; top: -8px;  transform: translateX(-50%); border: 8px solid transparent; border-right-color: transparent; border-bottom-color: #fef3c7; }
+    }
+    .kobun-set-header { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #78350f; padding: 10px 14px; border-radius: 10px; font-size: 14px; font-weight: bold; margin: 8px 0; text-align: center; border: 1px solid #f5d796; }
+    .kobun-vocab-list { display: flex; flex-direction: column; gap: 12px; margin: 10px 0 14px; }
+    .kobun-vocab-card { background: #fffbeb; border: 2px solid #f5d796; border-radius: 12px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(217,119,6,.10); }
+    .kobun-vocab-word-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+    .kobun-vocab-word { font-size: 22px; font-weight: bold; color: #78350f; }
+    .kobun-vocab-conj { font-size: 13px; color: #92400e; opacity: .85; background: #fef9c3; padding: 2px 8px; border-radius: 8px; }
+    .kobun-vocab-meaning { font-size: 16px; color: #1f2937; line-height: 1.7; margin: 4px 0 8px; }
+    .kobun-vocab-example { font-size: 15px; color: #1f2937; line-height: 1.8; padding: 8px 12px; background: #fff; border-left: 3px solid #d97706; border-radius: 4px; margin: 4px 0; }
+    .kobun-vocab-trans { font-size: 13px; color: #6b7280; line-height: 1.6; margin-top: 4px; padding-left: 12px; }
+    .kobun-vocab-note { font-size: 12px; color: #6b7280; line-height: 1.6; margin: 14px 0; padding: 10px 12px; background: #f9fafb; border-radius: 8px; border-left: 3px solid #d1d5db; }
+    .kobun-q-card { background: #fff; border: 2px solid #f5d796; border-radius: 14px; padding: 18px 16px; margin: 10px 0; box-shadow: 0 3px 10px rgba(0,0,0,.06); font-size: 18px; line-height: 1.8; color: #1f2937; }
+    .kobun-q-num { display: inline-block; background: #d97706; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
+    .kobun-q-word { display: inline-block; background: #fef3c7; color: #78350f; padding: 2px 12px; border-radius: 8px; font-size: 16px; font-weight: bold; margin-left: 6px; border: 1px solid #f5d796; }
+    .kobun-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .kobun-choice { padding: 14px 16px; font-size: 16px; background: #fff; border: 2px solid #d4d4d4; border-radius: 10px; cursor: pointer; text-align: left; transition: transform .1s; }
+    .kobun-choice:hover { transform: translateY(-1px); border-color: #d97706; }
+    .kobun-choice.disabled { pointer-events: none; }
+    .kobun-choice.correct { background: #dcfce7; border-color: #16a34a; color: #14532d; font-weight: bold; }
+    .kobun-choice.wrong   { background: #fee2e2; border-color: #dc2626; color: #7f1d1d; }
+    .kobun-feedback { margin-top: 10px; min-height: 1.5em; font-size: 16px; font-weight: bold; }
+    .kobun-feedback.ok { color: #16a34a; }
+    .kobun-feedback.ng { color: #dc2626; }
+    .kobun-result-success { background: linear-gradient(135deg, #fef3c7, #fcd34d); border: 3px solid #d97706; border-radius: 14px; padding: 22px 16px; text-align: center; margin: 14px 0; box-shadow: 0 6px 20px rgba(217,119,6,.30); }
+    .kobun-result-fail    { background: linear-gradient(135deg, #fff7ed, #fef3c7); border: 2px solid #fb923c; border-radius: 14px; padding: 18px 16px; text-align: center; margin: 14px 0; }
+    .kobun-result-title { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+    .kobun-result-success .kobun-result-title { color: #78350f; }
+    .kobun-result-fail    .kobun-result-title { color: #9a3412; }
+    .kobun-result-score { font-size: 18px; color: #4b5563; margin: 6px 0; }
+    .kobun-prog-text { font-size: 13px; color: #666; text-align: center; margin: 6px 0; }
     .btn-camera { display: inline-block; background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; font-size: 17px; font-weight: bold; padding: 14px 28px; border-radius: 12px; cursor: pointer; border: none; margin-top: 8px; }
     .word-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
     .num { width: 32px; height: 32px; background: #4f7df0; border-radius: 50%; color: #fff; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -2164,6 +2206,70 @@
   <div class="container" style="padding-top:16px">
     <div id="kanji-history-list"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showKanjiLevelSelect()">← 級選択に戻る</button>
+  </div>
+</div>
+
+<!-- ===== 古文単語「コブタン」（2026-05-08 枠組み実装） ===== -->
+<!-- 学習フロー: vocab1 (5語) → Q1〜5 → vocab2 (5語) → Q6〜10 → 採点 → 結果 → done(HP獲得) -->
+<!-- 不合格時: 順序シャッフルで Q1〜10 全問再挑戦（用例画面はスキップ） -->
+<div id="screen-kobun-vocab" class="screen">
+  <header><h1>🎴 古文単語</h1><span id="kobun-vocab-header">用例を確かめよう</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kobun-mate-row">
+      <img class="kobun-img" id="kobun-img-vocab" src="images/kobun-default.png" alt="コブタン">
+      <div class="kobun-bubble" id="kobun-bubble-vocab">これらの語をしかと覚えなされ</div>
+    </div>
+    <div class="kobun-set-header" id="kobun-vocab-set-label"></div>
+    <div id="kobun-vocab-list" class="kobun-vocab-list"></div>
+    <div class="kobun-vocab-note">📜 ※ 用例文は AI が過去の文献等を参考にしてオリジナルで作成しています。学習用の参考としてご利用ください。</div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#d97706,#b45309)" onclick="proceedKobunVocab()">問題に進む →</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<div id="screen-kobun-question" class="screen">
+  <header><h1>🎴 問題</h1><span id="kobun-q-prog">0 / 0</span></header>
+  <div class="container" style="padding-top:14px">
+    <div class="kobun-mate-row">
+      <img class="kobun-img" id="kobun-img-q" src="images/kobun-thinking.png" alt="コブタン">
+      <div class="kobun-bubble" id="kobun-bubble-q">さあ、お試しじゃ</div>
+    </div>
+    <div id="kobun-q-area"></div>
+    <div id="kobun-q-feedback" class="kobun-feedback"></div>
+    <button class="btn-wide" id="kobun-q-next-btn" style="display:none" onclick="kobunQuestionNext()">次の問題へ →</button>
+  </div>
+</div>
+
+<div id="screen-kobun-result" class="screen">
+  <header><h1>🎴 結果</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kobun-mate-row">
+      <img class="kobun-img" id="kobun-img-result" src="images/kobun-default.png" alt="コブタン">
+      <div class="kobun-bubble" id="kobun-bubble-result">結果はいかに？</div>
+    </div>
+    <div id="kobun-result-banner"></div>
+    <div id="kobun-result-actions"></div>
+  </div>
+</div>
+
+<div id="screen-kobun-done" class="screen">
+  <header><h1>✅ 提出完了</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="kobun-done-body"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<div id="screen-kobun-history" class="screen">
+  <header><h1>📖 コブタン おさらい</h1><span id="kobun-history-student"></span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kobun-mate-row">
+      <img class="kobun-img" src="images/kobun-default.png" alt="コブタン">
+      <div class="kobun-bubble" id="kobun-bubble-history">過去の学びをふり返ろう</div>
+    </div>
+    <div id="kobun-history-list"><div class="loading">⏳ 読み込み中...</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showKobunStart()">← 古文単語のトップに戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#94a3b8,#64748b);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -5913,6 +6019,18 @@
     step5:   ['お疲れさま〜！', 'がんばった！'],
     done:    ['やった〜！ナイス音読！', 'ばっちり録音できたね！']
   };
+  // コブタン（古文単語、平安時代風の口調）。ふくちさん 2026-05-08 採用済み。
+  var KOBUN_BUBBLES = {
+    vocab:       ['これらの語をしかと覚えなされ', 'いとをかし、見つめてみよ', '平安の言葉、いざ参らん'],
+    qStart:      ['さあ、お試しじゃ', 'いざ、問題じゃ', '集中なされよ'],
+    qPass:       ['ナイスでござる！', 'いとをかし！', 'めでたし、めでたし'],
+    qFail:       ['あはれなり…もう一度じゃ', '次は当てなされ', 'あさましや、再挑戦'],
+    resultPass:  ['天晴れじゃ！', 'みごとなり！', '平安の知恵、その手に'],
+    resultFail:  ['あはれなり…もう一度じゃ', '気を取り直し、いざ参らん', '次こそ天晴れ目指せ'],
+    retry:       ['気を取り直し、いざ参らん', '再び挑むがよい', 'もう一度じゃ'],
+    done:        ['天晴れじゃ！', 'みごとなり！', '平安の知恵、その手に'],
+    history:     ['過去の学びをふり返ろう', '復習はみやびじゃ']
+  };
   // ----- レベル選択 -----
   function showKanjiLevelSelect() {
     _kanjiResetState();
@@ -6363,6 +6481,327 @@
       _totalHP += hp;
     }
     try { playSfx('chime'); } catch(e){}
+  }
+
+  // ============================================================================
+  // 古文単語「コブタン」（2026-05-08 枠組み実装）
+  // 学習フロー:
+  //   showKobunStart → getKobunSet → vocab1 (5語) → Q1-5 → vocab2 (5語) → Q6-10 → submit → 結果
+  // 不合格時:
+  //   _retryKobun で順序シャッフル → 用例画面はスキップ → Q1-10 を一気に再挑戦
+  // ============================================================================
+  var KOBUN_QUESTIONS_PER_SET = 5;  // 1 セット = 5 問
+  var _kobunState = {
+    sessionId: '', round: '1',
+    questions: [],     // [{questionKey, word, setNum, qNum, question, choices:{A,B,C,D}, correct}, ...10問]
+    setVocab: [],      // [{setNum, vocab:[{word, conjugation, meaning, example, exampleTrans}, ...5語]}, ...2セット]
+    current: 0,        // 現在の問題インデックス (0..9)
+    answers: [],       // [{questionKey, chosen}, ...]
+    score: 0,
+    passed: false,
+    isRetry: false,
+    hasData: false
+  };
+  function _kobunResetState() {
+    _kobunState = {
+      sessionId: '', round: '1', questions: [], setVocab: [],
+      current: 0, answers: [], score: 0, passed: false, isRetry: false, hasData: false
+    };
+  }
+  // 問題文・用例文の {xxx} を <span class="kobun-emphasis">xxx</span> に変換（暖色 #d97706 の太字）
+  function _kobunRenderEmphasis(text) {
+    var s = String(text == null ? '' : text);
+    s = s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    return s.replace(/\{([^}]+)\}/g, '<span class="kobun-emphasis">$1</span>');
+  }
+  function _kobunSetMascot(imgId, mood, bubbleId, bubbleText) {
+    var moodMap = { default: 'kobun-default.png', thinking: 'kobun-thinking.png', celebrate: 'kobun-celebrate.png', encourage: 'kobun-encourage.png' };
+    var img = document.getElementById(imgId);
+    if (img) img.src = 'images/' + (moodMap[mood] || moodMap.default);
+    if (bubbleId && bubbleText != null) {
+      var b = document.getElementById(bubbleId);
+      if (b) b.textContent = bubbleText;
+    }
+  }
+  // ----- エントリポイント：ホーム画面ボタンから呼ばれる -----
+  function showKobunStart() {
+    _kobunResetState();
+    _kobunSetMascot('kobun-img-vocab', 'default', 'kobun-bubble-vocab', _pickBubble(KOBUN_BUBBLES.vocab));
+    var listEl = document.getElementById('kobun-vocab-list');
+    if (listEl) listEl.innerHTML = '<div class="loading">⏳ 問題を読み込み中...</div>';
+    var setLabel = document.getElementById('kobun-vocab-set-label');
+    if (setLabel) setLabel.textContent = '';
+    showScreen('screen-kobun-vocab');
+    gasGet({ action:'getKobunSet', studentId:_studentId, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) {
+        if (listEl) listEl.innerHTML = '<div class="error">' + ((res && res.message) || 'コブタンの問題はまだ準備中だよ。もう少し待っててね！') + '</div>';
+        return;
+      }
+      _kobunState.sessionId = res.sessionId;
+      _kobunState.round = String(res.round || '1');
+      _kobunState.questions = res.questions || [];
+      _kobunState.setVocab = res.setVocab || [];
+      _kobunState.hasData = true;
+      _renderKobunVocab(0);
+    }).catch(function(){
+      if (listEl) listEl.innerHTML = '<div class="error">通信に失敗しました。もう一度お試しください。</div>';
+    });
+  }
+  // ----- 用例画面の描画（setIdx: 0 = 前半 5 語、1 = 後半 5 語） -----
+  function _renderKobunVocab(setIdx) {
+    var setData = (_kobunState.setVocab || [])[setIdx];
+    var setLabel = document.getElementById('kobun-vocab-set-label');
+    var listEl = document.getElementById('kobun-vocab-list');
+    var headerSpan = document.getElementById('kobun-vocab-header');
+    if (!setData) {
+      if (listEl) listEl.innerHTML = '<div class="error">用例データの読み込みに失敗しました。</div>';
+      return;
+    }
+    if (headerSpan) headerSpan.textContent = (setIdx === 0 ? '前半 5 語の用例' : '後半 5 語の用例');
+    if (setLabel) setLabel.textContent = '📚 セット ' + setData.setNum + '（' + (setIdx === 0 ? '前半' : '後半') + ' ' + KOBUN_QUESTIONS_PER_SET + ' 語）';
+    var html = (setData.vocab || []).map(function(v){
+      var conjStr = v.conjugation ? '<span class="kobun-vocab-conj">' + _kobunRenderEmphasis(v.conjugation) + '</span>' : '';
+      var exHtml = v.example ? '<div class="kobun-vocab-example">' + _kobunRenderEmphasis(v.example) + '</div>' : '';
+      var trHtml = v.exampleTrans ? '<div class="kobun-vocab-trans">→ ' + _kobunRenderEmphasis(v.exampleTrans) + '</div>' : '';
+      return '<div class="kobun-vocab-card">' +
+               '<div class="kobun-vocab-word-row">' +
+                 '<span class="kobun-vocab-word">' + _kobunRenderEmphasis(v.word) + '</span>' +
+                 conjStr +
+               '</div>' +
+               '<div class="kobun-vocab-meaning">' + _kobunRenderEmphasis(v.meaning) + '</div>' +
+               exHtml + trHtml +
+             '</div>';
+    }).join('');
+    if (listEl) listEl.innerHTML = html;
+    _kobunSetMascot('kobun-img-vocab', 'default', 'kobun-bubble-vocab', _pickBubble(KOBUN_BUBBLES.vocab));
+    _kobunState.current = setIdx * KOBUN_QUESTIONS_PER_SET;  // 次の問題開始位置
+    showScreen('screen-kobun-vocab');
+    window.scrollTo(0, 0);
+  }
+  // ----- 用例画面 → 問題画面 -----
+  function proceedKobunVocab() {
+    _renderKobunQuestion(_kobunState.current);
+  }
+  // ----- 問題画面：1 問ずつ表示 -----
+  function _renderKobunQuestion(qIdx) {
+    var total = _kobunState.questions.length;
+    if (qIdx >= total) { _finishKobunSet(); return; }
+    var q = _kobunState.questions[qIdx];
+    document.getElementById('kobun-q-prog').textContent = (qIdx + 1) + ' / ' + total;
+    _kobunSetMascot('kobun-img-q', 'thinking', 'kobun-bubble-q', _pickBubble(KOBUN_BUBBLES.qStart));
+    var wordChip = q.word ? '<span class="kobun-q-word">' + _kobunRenderEmphasis(q.word) + '</span>' : '';
+    var qHtml = '<div class="kobun-q-card">' +
+      '<div><span class="kobun-q-num">問 ' + (qIdx + 1) + '</span>' + wordChip + '</div>' +
+      '<div style="margin-top:10px">' + _kobunRenderEmphasis(q.question) + '</div>' +
+      '<div style="margin-top:8px;font-size:14px;color:#666">↑ <span class="kobun-emphasis">この語</span>の意味を選んでね</div>' +
+      '</div>' +
+      '<div class="kobun-choices" id="kobun-choices">' +
+        ['A','B','C','D'].map(function(k){
+          return '<button class="kobun-choice" data-choice="' + k + '" onclick="kobunQuestionAnswer(this,\'' + k + '\')">' +
+            '<strong style="color:#d97706">' + k + '</strong>&ensp;' + _kobunRenderEmphasis(q.choices[k]) +
+            '</button>';
+        }).join('') +
+      '</div>';
+    document.getElementById('kobun-q-area').innerHTML = qHtml;
+    document.getElementById('kobun-q-feedback').textContent = '';
+    document.getElementById('kobun-q-feedback').className = 'kobun-feedback';
+    var nb = document.getElementById('kobun-q-next-btn');
+    nb.style.display = 'none'; nb.disabled = false;
+    var isLast = (qIdx + 1 >= total);
+    var isMidBoundary = !_kobunState.isRetry && (qIdx + 1 === KOBUN_QUESTIONS_PER_SET);
+    nb.textContent = isLast ? '結果を見る 🏁' : (isMidBoundary ? '次の用例へ →' : '次の問題へ →');
+    showScreen('screen-kobun-question');
+  }
+  function kobunQuestionAnswer(btn, chosen) {
+    var idx = _kobunState.current;
+    var q = _kobunState.questions[idx];
+    var correct = String(q.correct || '').toUpperCase();
+    var isOk = (chosen === correct);
+    var choices = document.querySelectorAll('#kobun-choices .kobun-choice');
+    choices.forEach(function(c){
+      c.classList.add('disabled');
+      if (c.getAttribute('data-choice') === correct) c.classList.add('correct');
+    });
+    if (!isOk) btn.classList.add('wrong');
+    var fb = document.getElementById('kobun-q-feedback');
+    if (isOk) {
+      fb.textContent = '🎉 ' + _pickBubble(KOBUN_BUBBLES.qPass);
+      fb.className = 'kobun-feedback ok';
+      _kobunState.score += 1;
+      try { playSfx('correct'); } catch(e){}
+    } else {
+      fb.innerHTML = '❌ ' + _pickBubble(KOBUN_BUBBLES.qFail) + ' → 正解：<strong>' + (q.choices[correct] || '') + '</strong>';
+      fb.className = 'kobun-feedback ng';
+      try { playSfx('wrong'); } catch(e){}
+    }
+    _kobunState.answers.push({ questionKey: q.questionKey, chosen: chosen });
+    var nb = document.getElementById('kobun-q-next-btn');
+    nb.style.display = 'block';
+  }
+  function kobunQuestionNext() {
+    var nb = document.getElementById('kobun-q-next-btn');
+    if (nb.disabled) return; nb.disabled = true;
+    var nextIdx = _kobunState.current + 1;
+    var total = _kobunState.questions.length;
+    // 前半 5 問終了 + 通常モード（再挑戦でない）→ 用例画面 2 へ
+    if (!_kobunState.isRetry && nextIdx === KOBUN_QUESTIONS_PER_SET && total > KOBUN_QUESTIONS_PER_SET) {
+      _renderKobunVocab(1);
+      return;
+    }
+    if (nextIdx >= total) { _finishKobunSet(); return; }
+    _kobunState.current = nextIdx;
+    _renderKobunQuestion(nextIdx);
+  }
+  // ----- 終了：GAS で採点して結果画面へ -----
+  function _finishKobunSet() {
+    gasGet({
+      action: 'submitKobunSet',
+      studentId: _studentId,
+      round: _kobunState.round,
+      sessionId: _kobunState.sessionId,
+      answers: JSON.stringify(_kobunState.answers)
+    }).then(function(res){
+      var passed = !!(res && res.ok && res.passed);
+      _kobunState.passed = passed;
+      var correctCount = (res && res.correctCount) || _kobunState.score;
+      var total = (res && res.total) || _kobunState.questions.length;
+      if (passed) {
+        // HP 獲得演出（カンジー流用）
+        _showKobunDone(res && res.hpInfo);
+      } else {
+        _showKobunResult(passed, correctCount, total);
+      }
+    }).catch(function(){
+      // 通信失敗時はクライアント側のスコアでフォールバック判定（全問正解で合格）
+      var total = _kobunState.questions.length;
+      var passed = total > 0 && _kobunState.score === total;
+      _kobunState.passed = passed;
+      if (passed) {
+        _showKobunDone({});  // hpInfo 不明時は空オブジェクト → 「HP既に獲得済み」表示
+      } else {
+        _showKobunResult(passed, _kobunState.score, total);
+      }
+    });
+  }
+  function _showKobunResult(passed, correctCount, total) {
+    var banner = document.getElementById('kobun-result-banner');
+    var actions = document.getElementById('kobun-result-actions');
+    if (passed) {
+      // passed の場合は _showKobunDone 経由でこちらは呼ばれないが念のため
+      _kobunSetMascot('kobun-img-result', 'celebrate', 'kobun-bubble-result', _pickBubble(KOBUN_BUBBLES.resultPass));
+      banner.innerHTML =
+        '<div class="kobun-result-success">' +
+          '<div style="font-size:48px">🎴</div>' +
+          '<div class="kobun-result-title">合格！天晴れじゃ！</div>' +
+          '<div class="kobun-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
+        '</div>';
+      actions.innerHTML =
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+      try { playSfx('chime'); } catch(e){}
+    } else {
+      _kobunSetMascot('kobun-img-result', 'encourage', 'kobun-bubble-result', _pickBubble(KOBUN_BUBBLES.resultFail));
+      banner.innerHTML =
+        '<div class="kobun-result-fail">' +
+          '<div style="font-size:48px">😤</div>' +
+          '<div class="kobun-result-title">惜しい！満点で合格じゃ</div>' +
+          '<div class="kobun-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
+          '<div style="font-size:13px;color:#666;margin-top:6px">順序を変えて全問やり直しじゃ（用例画面はスキップ）</div>' +
+        '</div>';
+      actions.innerHTML =
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKobun()">🔄 もう一度挑戦する</button>' +
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+      try { playSfx('fail'); } catch(e){}
+    }
+    showScreen('screen-kobun-result');
+  }
+  function _retryKobun() {
+    // 順序シャッフル + state リセット（再挑戦は用例画面スキップ）
+    var arr = _kobunState.questions.slice();
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    _kobunState.questions = arr;
+    _kobunState.current = 0;
+    _kobunState.answers = [];
+    _kobunState.score = 0;
+    _kobunState.isRetry = true;
+    _kobunSetMascot('kobun-img-q', 'thinking', 'kobun-bubble-q', _pickBubble(KOBUN_BUBBLES.retry));
+    _renderKobunQuestion(0);
+  }
+  // ----- HP獲得演出（カンジー / 三語短文 / 和文英訳①と同じ既存スタイルを流用） -----
+  function _showKobunDone(hpInfo) {
+    var bodyEl = document.getElementById('kobun-done-body');
+    var hp = Number((hpInfo && hpInfo.hpGained) || 0);
+    var alreadyAtCap = !!(hpInfo && hpInfo.alreadyAtCap);
+    var isPractice   = !!(hpInfo && hpInfo.isPractice);
+    var confetti = '';
+    var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
+    for (var i = 0; i < 8; i++) {
+      var left = Math.floor(Math.random() * 90) + 5;
+      var delay = (Math.random() * 0.6).toFixed(2);
+      confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i] + '</span>';
+    }
+    var hpBlock;
+    if (isPractice || alreadyAtCap) {
+      hpBlock = '<div class="wabun1-result-already">（本日の素点上限に達しているためHPは付与されません）</div>';
+    } else if (hp > 0) {
+      hpBlock = '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="kobun-done-hp-num">0</span> HP 獲得！</div>';
+    } else {
+      hpBlock = '<div class="wabun1-result-already">（本日のHPは既に獲得済みです）</div>';
+    }
+    bodyEl.innerHTML =
+      '<div class="wabun1-result-success">' +
+        '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
+        '<div style="font-size:52px">🎴</div>' +
+        '<div class="wabun1-result-title">' + _pickBubble(KOBUN_BUBBLES.done) + '</div>' +
+        hpBlock +
+      '</div>';
+    showScreen('screen-kobun-done');
+    if (hp > 0 && !isPractice && !alreadyAtCap) {
+      var numEl = document.getElementById('kobun-done-hp-num');
+      if (numEl) _wabun1AnimateHp(numEl, hp, 1000);
+      _totalHP += hp;
+    }
+    try { playSfx('chime'); } catch(e){}
+  }
+  // ----- おさらい画面：HPLog からコブタン実施履歴を取得して一覧表示 -----
+  function showKobunHistory() {
+    showScreen('screen-kobun-history');
+    var stuEl = document.getElementById('kobun-history-student');
+    if (stuEl) stuEl.textContent = _studentId + ' さん';
+    _kobunSetMascot(null, 'default', 'kobun-bubble-history', _pickBubble(KOBUN_BUBBLES.history));
+    var listEl = document.getElementById('kobun-history-list');
+    listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    cachedGasGet({ action:'getKobunHistory', studentId:_studentId }).then(function(res){
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="error">読み込みに失敗しました。</div>';
+        return;
+      }
+      var hist = res.history || [];
+      if (hist.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:15px">まだコブタンの実施記録がありません。<br>挑戦してみよう！</div>';
+        return;
+      }
+      // 日時 / 周回 / 問題数 / HP獲得 を縦並びカード式
+      listEl.innerHTML = hist.map(function(h){
+        var ts = String(h.timestamp || '');
+        var dispDate = ts.length >= 10 ? (ts.slice(0,4) + '/' + ts.slice(5,7) + '/' + ts.slice(8,10)) : ts;
+        var dispTime = ts.length >= 16 ? ts.slice(11,16) : '';
+        var hp = Number(h.hpGained || 0);
+        var hpLabel = h.isPractice
+          ? '<span style="color:#888;font-size:12px">練習モード</span>'
+          : (hp > 0 ? '<span style="color:#d97706;font-weight:bold">+' + hp.toLocaleString() + ' HP</span>' : '<span style="color:#888;font-size:12px">HP上限到達</span>');
+        return '<div class="history-item" style="cursor:default">' +
+                 '<span class="history-date">' + dispDate + (dispTime ? ' ' + dispTime : '') + '</span>' +
+                 '<span class="history-level">' + h.round + '周目</span>' +
+                 '<span class="history-set">' + h.count + '問完走</span>' +
+                 '<span style="margin-left:auto">' + hpLabel + '</span>' +
+               '</div>';
+      }).join('');
+    }).catch(function(){
+      listEl.innerHTML = '<div class="error">読み込みに失敗しました。</div>';
+    });
   }
 
   function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
