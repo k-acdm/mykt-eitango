@@ -354,6 +354,14 @@ function doGet(e) {
       else if (action === 'submitKanjiYomi')          result = submitKanjiYomi(params);
       else if (action === 'getKanjiTodayRawHP')       result = getKanjiTodayRawHP(params);
       else if (action === 'getKanjiHistory')          result = getKanjiHistory(params);
+      // ※ ここにコブタン（古文単語）関連のルーティングを必ず残す。
+      //   2026-05-08 新規追加。4 択問題のみ（写真 OCR なし）のため doPost 不要、すべて doGet。
+      //   ensureKobunSheets は GAS エディタからの 1 回限りセットアップ用で、ここには登録しない。
+      else if (action === 'getKobunSet')              result = getKobunSet(params);
+      else if (action === 'submitKobunSet')           result = submitKobunSet(params);
+      else if (action === 'getKobunTodayRawHP')       result = getKobunTodayRawHP(params);
+      else if (action === 'getKobunHistory')          result = getKobunHistory(params);
+      else if (action === 'getKobunProgress')         result = getKobunProgress(params);
       // 先生からのメッセージ（生徒画面：メッセージ一覧 + 未読件数）
       // ※ 管理画面の送信系（sendTeacherMessage）と既読化（markMessageAsRead）は doPost 側に登録。
       //   ensureTeachersSheet / ensureTeacherMessagesSheets は GAS エディタからの 1 回限り
@@ -9175,4 +9183,519 @@ function _kanjiOcrWithGemini(imageBase64) {
     return { ok: true, ocrText: ocrText, attempts: attempt };
   }
   return { ok: false, message: 'Gemini API: 不明なエラー（リトライ完了後）：' + lastErrorSummary };
+}
+
+// =============================================================================
+// 古文単語コンテンツ「コブタン」（2026-05-08 枠組み実装）
+// =============================================================================
+// シート構成:
+//   KobunVocab     ( 6 列): 単語ID | 単語 | 活用 | 意味 | 用例 | 用例訳
+//   KobunQuestions (11 列): セット番号 | 問番号 | 単語ID | 単語 | 問題 | 選A | 選B | 選C | 選D | 正解 | 周回
+// 周回: 1（1周目）/ 2（2周目）
+// 学習構成:
+//   - 1セット = 5語 = 5問（1単語1問）
+//   - 1回の学習 = 2セット = 10問（用例1→Q5問→用例2→Q5問）
+//   - 全問正解（10/10）で合格 → 100 rawHP
+//   - 不合格時はフロント側で順序シャッフルして再挑戦（用例画面はスキップ）
+// 強調マーカー: 問題文中の {xxx} はフロントで暖色（#d97706）の太字表示
+// HP: rawHP = 100（1学習回 = 2セット = 10問完走時）。1日 200 rawHP 上限（kobun 内独立 = 2学習回 = 4セット相当）。
+//     上限到達後は練習モード（HP 加算なし）。連続週²ボーナスは他コンテンツと同じ。
+//     ふくちさん 36 年経験「古文単語は英単語と同様に『知識』なので、全問正解が理にかなう」（知識系コンテンツ）。
+// HPLog type: 'kobun_<round>_<count>' or 'kobun_<round>_<count>_practice'
+//   round = '1' / '2'（周回）、count = 10 固定（1学習回 = 10問完走）
+const SHEET_KOBUN_VOCAB = 'KobunVocab';
+const SHEET_KOBUN_QUESTIONS = 'KobunQuestions';
+const KOBUN_VALID_ROUNDS = ['1', '2'];
+const KOBUN_DAILY_RAWHP_CAP = 200;
+const KOBUN_PASS_RATIO = 1.0;  // 全問正解（知識系、カンジー / 英単語RUSH と同方針）
+const KOBUN_SET_SIZE = 5;       // 1 セット = 5 語
+const KOBUN_SETS_PER_SESSION = 2;  // 1 学習回 = 2 セット = 10 問
+const KOBUN_VOCAB_HEADERS = ['単語ID', '単語', '活用', '意味', '用例', '用例訳'];
+const KOBUN_QUESTIONS_HEADERS = ['セット番号', '問番号', '単語ID', '単語', '問題', '選A', '選B', '選C', '選D', '正解', '周回'];
+
+// シート初期化（GAS エディタから手動 1 回実行する想定、冪等）
+function ensureKobunSheets() {
+  const ss = _ss();
+  let vSheet = ss.getSheetByName(SHEET_KOBUN_VOCAB);
+  if (!vSheet) {
+    vSheet = ss.insertSheet(SHEET_KOBUN_VOCAB);
+    vSheet.getRange(1, 1, 1, KOBUN_VOCAB_HEADERS.length).setValues([KOBUN_VOCAB_HEADERS]);
+    vSheet.setFrozenRows(1);
+    Logger.log('[ensureKobunSheets] KobunVocab シートを新規作成しました');
+  } else {
+    Logger.log('[ensureKobunSheets] KobunVocab シートは既に存在します');
+  }
+  let qSheet = ss.getSheetByName(SHEET_KOBUN_QUESTIONS);
+  if (!qSheet) {
+    qSheet = ss.insertSheet(SHEET_KOBUN_QUESTIONS);
+    qSheet.getRange(1, 1, 1, KOBUN_QUESTIONS_HEADERS.length).setValues([KOBUN_QUESTIONS_HEADERS]);
+    qSheet.setFrozenRows(1);
+    Logger.log('[ensureKobunSheets] KobunQuestions シートを新規作成しました');
+  } else {
+    Logger.log('[ensureKobunSheets] KobunQuestions シートは既に存在します');
+  }
+  return { ok: true, message: 'コブタン用シートを確認/作成しました（KobunVocab / KobunQuestions）' };
+}
+
+// セッション ID 生成（kobun_{studentId}_{ts}_{random}）
+function _kobunSessionId(studentId) {
+  const ts = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMddHHmmss');
+  const rand = Math.random().toString(36).substring(2, 8);
+  return 'kobun_' + String(studentId).trim() + '_' + ts + '_' + rand;
+}
+
+// 当日（教育日基準）の kobun rawHP 合計（_practice 接尾は除外）
+function _kobunTodayRawHP(studentId) {
+  const sh = _ss().getSheetByName(SHEET_HPLOG);
+  if (!sh) return 0;
+  const today = _todayEducationalJST();
+  const data = _readLastNRows(sh, 200);
+  // HPLog 列: timestamp(0) / studentId(1) / rawHP(2) / hpGained(3) / type(4) / message(5)
+  let total = 0;
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    if (String(row[1]).trim() !== String(studentId).trim()) continue;
+    const type = String(row[4] || '');
+    if (type.indexOf('kobun_') !== 0) continue;
+    if (type.length >= 9 && type.lastIndexOf('_practice') === type.length - 9) continue;
+    const dateStr = _toEducationalDateStr(row[0]);
+    if (dateStr !== today) continue;
+    total += Number(row[2]) || 0;
+  }
+  return total;
+}
+
+// 当日（教育日基準）の kobun 完走セット数（HP 換算済みのみ。1学習回完走で 1 と数える）
+function _kobunTodaySetCount(studentId) {
+  const sh = _ss().getSheetByName(SHEET_HPLOG);
+  if (!sh) return 0;
+  const today = _todayEducationalJST();
+  const data = _readLastNRows(sh, 200);
+  let count = 0;
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    if (String(row[1]).trim() !== String(studentId).trim()) continue;
+    const type = String(row[4] || '');
+    if (type.indexOf('kobun_') !== 0) continue;
+    if (type.length >= 9 && type.lastIndexOf('_practice') === type.length - 9) continue;
+    const dateStr = _toEducationalDateStr(row[0]);
+    if (dateStr !== today) continue;
+    count += 1;
+  }
+  return count;
+}
+
+// 当日素点の公開 API（フロントの問題数選択画面で「あと N HP」表示用）
+function getKobunTodayRawHP(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const todayRawHP = _kobunTodayRawHP(sid);
+    const cap = KOBUN_DAILY_RAWHP_CAP;
+    const remaining = Math.max(0, cap - todayRawHP);
+    return {
+      ok: true,
+      studentId: sid,
+      todayRawHP: todayRawHP,
+      remaining: remaining,
+      isAtLimit: remaining === 0,
+      cap: cap,
+      sessionsToday: _kobunTodaySetCount(sid)
+    };
+  } catch (err) {
+    console.error('[getKobunTodayRawHP]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 指定周回の最大セット番号
+function _getMaxKobunSetNum(round) {
+  const ss = _ss();
+  const qSheet = ss.getSheetByName(SHEET_KOBUN_QUESTIONS);
+  if (!qSheet || qSheet.getLastRow() < 2) return 0;
+  const rows = qSheet.getDataRange().getValues();
+  const roundKey = String(round);
+  let maxN = 0;
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][10] || '').trim() !== roundKey) continue;
+    const sn = parseInt(rows[i][0], 10);
+    if (sn && sn > maxN) maxN = sn;
+  }
+  return maxN;
+}
+
+// 指定周回の最小セット番号（リセット時の戻り先）
+function _getMinKobunSetNum(round) {
+  const ss = _ss();
+  const qSheet = ss.getSheetByName(SHEET_KOBUN_QUESTIONS);
+  if (!qSheet || qSheet.getLastRow() < 2) return 1;
+  const rows = qSheet.getDataRange().getValues();
+  const roundKey = String(round);
+  let minN = 0;
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][10] || '').trim() !== roundKey) continue;
+    const sn = parseInt(rows[i][0], 10);
+    if (!sn) continue;
+    if (minN === 0 || sn < minN) minN = sn;
+  }
+  return minN || 1;
+}
+
+// 進捗追跡：現在の周回と次のセット番号
+// PropertiesService キー:
+//   kobun_next_<sid>_<round>: 次にやるセット番号（round=1 or 2）
+//   kobun_round_<sid>:        現在の周回（'1' または '2'、未設定時は '1'）
+function getKobunProgress(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const propsSvc = _props();
+    let round = String(propsSvc.getProperty('kobun_round_' + sid) || '1');
+    if (KOBUN_VALID_ROUNDS.indexOf(round) < 0) round = '1';
+    const minSet = _getMinKobunSetNum(round);
+    const maxSet = _getMaxKobunSetNum(round);
+    let nextSet = parseInt(propsSvc.getProperty('kobun_next_' + sid + '_' + round) || String(minSet), 10);
+    if (!nextSet || nextSet < minSet || nextSet > maxSet) nextSet = minSet;
+    return {
+      ok: true,
+      studentId: sid,
+      round: round,
+      nextSet: nextSet,
+      minSet: minSet,
+      maxSet: maxSet,
+      hasData: maxSet > 0
+    };
+  } catch (err) {
+    console.error('[getKobunProgress]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 1 学習回分（2 セット = 10 問）の問題と用例データを返す
+// params: { studentId }
+//   - 内部で getKobunProgress 相当を呼んで「次にやるセット番号」を取得
+//   - 連続する 2 セットを取得（足りなければ最初に戻る）
+//   - 用例画面用に KobunVocab を引いて単語の意味・用例を付与
+// 戻り値:
+//   { ok:true, sessionId, round, count, setNumbers:[N, N+1],
+//     setVocab: [{ setNum, vocab:[{wordId, word, conjugation, meaning, example, exampleTrans}, ...5語] }, ...2セット],
+//     questions: [{ questionKey, wordId, word, setNum, qNum, question, choices:{A,B,C,D}, correct }, ...10問] }
+//   ※ correct は念のため返すが、サーバー側採点（submitKobunSet）が真。
+//      ふくちさん側でのデバッグ用途のみ。フロントはサーバーレスポンスを信頼する設計。
+function getKobunSet(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+
+    const ss = _ss();
+    const vSheet = ss.getSheetByName(SHEET_KOBUN_VOCAB);
+    const qSheet = ss.getSheetByName(SHEET_KOBUN_QUESTIONS);
+    if (!vSheet || !qSheet || vSheet.getLastRow() < 2 || qSheet.getLastRow() < 2) {
+      return { ok: false, message: 'コブタンの問題はまだ準備中だよ。もう少し待っててね！' };
+    }
+
+    // 現在の周回を取得（kobun_round_<sid>、未設定時は '1'）
+    const propsSvc = _props();
+    let round = String(propsSvc.getProperty('kobun_round_' + sid) || '1');
+    if (KOBUN_VALID_ROUNDS.indexOf(round) < 0) round = '1';
+    const roundKey = round;
+
+    // KobunQuestions: 0=セット 1=問 2=単語ID 3=単語 4=問題 5=A 6=B 7=C 8=D 9=正解 10=周回
+    const qRows = qSheet.getDataRange().getValues();
+    const questionsBySet = {};
+    for (let i = 1; i < qRows.length; i++) {
+      const r = qRows[i];
+      if (String(r[10] || '').trim() !== roundKey) continue;
+      const sn = parseInt(r[0], 10);
+      if (!sn) continue;
+      if (!questionsBySet[sn]) questionsBySet[sn] = [];
+      questionsBySet[sn].push(r);
+    }
+    const availableSets = Object.keys(questionsBySet)
+      .map(function(sn){ return parseInt(sn, 10); })
+      .sort(function(a, b){ return a - b; });
+    if (availableSets.length === 0) {
+      return { ok: false, message: 'コブタン（' + roundKey + '周目）の問題はまだ準備中だよ。' };
+    }
+    const minSet = availableSets[0];
+    const maxSet = availableSets[availableSets.length - 1];
+    const availableSet = {};
+    availableSets.forEach(function(sn){ availableSet[sn] = true; });
+
+    // PropertiesService から「次にやるセット番号」を取得（初期値 minSet）
+    const propKey = 'kobun_next_' + sid + '_' + roundKey;
+    let nextSetNum = parseInt(propsSvc.getProperty(propKey) || String(minSet), 10);
+    if (!nextSetNum || nextSetNum > maxSet || nextSetNum < minSet) nextSetNum = minSet;
+
+    // 連続する 2 セットを取得（足りなければ最初に戻る）
+    const targetSets = [];
+    let cursor = nextSetNum;
+    let safety = availableSets.length + 5;  // 無限ループ防止
+    while (targetSets.length < KOBUN_SETS_PER_SESSION && safety-- > 0) {
+      if (cursor > maxSet) cursor = minSet;
+      if (availableSet[cursor]) {
+        targetSets.push(cursor);
+      }
+      cursor++;
+    }
+    if (targetSets.length === 0) {
+      return { ok: false, message: 'コブタンの問題はまだ準備中だよ。' };
+    }
+
+    // KobunVocab: 0=単語ID 1=単語 2=活用 3=意味 4=用例 5=用例訳
+    // wordId → vocab 行のマップを構築
+    const vRows = vSheet.getDataRange().getValues();
+    const vocabByWordId = {};
+    for (let i = 1; i < vRows.length; i++) {
+      const r = vRows[i];
+      const wordId = String(r[0] || '').trim();
+      if (!wordId) continue;
+      vocabByWordId[wordId] = {
+        wordId: wordId,
+        word: String(r[1] || '').trim(),
+        conjugation: String(r[2] || ''),
+        meaning: String(r[3] || ''),
+        example: String(r[4] || ''),
+        exampleTrans: String(r[5] || '')
+      };
+    }
+
+    // 各セットごとに：
+    //   (a) setVocab 配列を構築（用例画面用、5 語の意味・用例情報）
+    //   (b) questions 配列に追加（問題画面用、4 択）
+    const setVocab = [];
+    const questions = [];
+    targetSets.forEach(function(sn){
+      const sortedQs = (questionsBySet[sn] || []).slice().sort(function(a, b){ return parseInt(a[1], 10) - parseInt(b[1], 10); });
+      const vocab = [];
+      sortedQs.forEach(function(r){
+        const qNum = parseInt(r[1], 10);
+        const wordId = String(r[2] || '').trim();
+        const word = String(r[3] || '').trim();
+        const v = vocabByWordId[wordId] || { wordId: wordId, word: word, conjugation: '', meaning: '', example: '', exampleTrans: '' };
+        // 用例画面用の語彙データ（用例画面では word/meaning/example を表示）
+        vocab.push({
+          wordId: wordId,
+          word: word || v.word,
+          conjugation: v.conjugation,
+          meaning: v.meaning,
+          example: v.example,
+          exampleTrans: v.exampleTrans
+        });
+        // 問題画面用の問題データ（4 択）
+        questions.push({
+          // 採点キー：'set<N>_q<n>' 形式（同セッション内ユニーク、カンジー submitKanjiYomi と同パターン）
+          questionKey: 'set' + sn + '_q' + qNum,
+          wordId: wordId,
+          word: word,
+          setNum: sn,
+          qNum: qNum,
+          question: String(r[4] || ''),
+          choices: {
+            A: String(r[5] || ''),
+            B: String(r[6] || ''),
+            C: String(r[7] || ''),
+            D: String(r[8] || '')
+          },
+          // correct は念のため返すが、フロントは無視してサーバー再採点を信頼する
+          correct: String(r[9] || '').trim().toUpperCase()
+        });
+      });
+      setVocab.push({ setNum: sn, vocab: vocab });
+    });
+
+    if (questions.length === 0) {
+      return { ok: false, message: 'コブタンの問題はまだ準備中だよ。' };
+    }
+
+    const sessionId = _kobunSessionId(sid);
+    return {
+      ok: true,
+      sessionId: sessionId,
+      round: round,
+      count: questions.length,  // 通常は 10
+      setNumbers: targetSets,
+      maxSetForRound: maxSet,
+      setVocab: setVocab,
+      questions: questions
+    };
+  } catch (err) {
+    console.error('[getKobunSet]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 採点・HP記録（カンジー submitKanjiYomi と同パターン、ただし合格時は HP 加算 + 進捗更新も実施）
+// params: { studentId, round, sessionId, answers:[{questionKey, chosen}] }
+//   - chosen: 'A' / 'B' / 'C' / 'D'
+//   - questionKey: getKobunSet が返した 'set<N>_q<n>' 形式
+// 戻り値: { ok, passed, correctCount, total, results:[{questionKey, chosen, correct, isCorrect}], hpInfo }
+function submitKobunSet(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    const round = String((params && params.round) || '1').trim();
+    const rawAnswers = (params && params.answers) || [];
+    let answers = rawAnswers;
+    if (typeof rawAnswers === 'string') {
+      try { answers = JSON.parse(rawAnswers); } catch(e) { answers = []; }
+    }
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (KOBUN_VALID_ROUNDS.indexOf(round) < 0) return { ok: false, message: '周回指定が不正です' };
+    if (!Array.isArray(answers) || answers.length === 0) return { ok: false, message: '解答データがありません' };
+
+    // サーバー側で正解を再ルックアップ（クライアント信頼を避ける）
+    // KobunQuestions: 0=セット 1=問 2=単語ID 3=単語 4=問題 5=A 6=B 7=C 8=D 9=正解 10=周回
+    const qSheet = _ss().getSheetByName(SHEET_KOBUN_QUESTIONS);
+    if (!qSheet || qSheet.getLastRow() < 2) return { ok: false, message: 'KobunQuestions シートが見つかりません' };
+    const qRows = qSheet.getDataRange().getValues();
+    const correctByKey = {};  // keyed by 'set<N>_q<n>'
+    for (let i = 1; i < qRows.length; i++) {
+      const r = qRows[i];
+      if (String(r[10] || '').trim() !== round) continue;
+      const sn = parseInt(r[0], 10);
+      const qn = parseInt(r[1], 10);
+      if (!sn || !qn) continue;
+      correctByKey['set' + sn + '_q' + qn] = String(r[9] || '').trim().toUpperCase();
+    }
+
+    let correctCount = 0;
+    const results = answers.map(function(a){
+      const qkey = String((a && a.questionKey) || '').trim();
+      const chosen = String((a && a.chosen) || '').trim().toUpperCase();
+      const expected = correctByKey[qkey] || '';
+      const isCorrect = !!expected && chosen === expected;
+      if (isCorrect) correctCount += 1;
+      return { questionKey: qkey, chosen: chosen, correct: expected, isCorrect: isCorrect };
+    });
+    const total = results.length;
+    // 全問正解で合格（KOBUN_PASS_RATIO = 1.0、知識系コンテンツとして英単語RUSH/カンジー整合）
+    const passed = total > 0 && correctCount === total;
+
+    // HP 加算判定（合格時のみ）
+    const ss = _ss();
+    const stuRows = _getStudentsValues();
+    let stuRowIdx = -1;
+    for (let i = 1; stuRows && i < stuRows.length; i++) {
+      if (String(stuRows[i][COL_ID]).trim() === sid) { stuRowIdx = i; break; }
+    }
+
+    let hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: false, alreadyAtCap: false };
+    if (passed) {
+      const baseRawHP = 100;  // 1 学習回（2 セット = 10 問）完走 = 100 rawHP（仕様書通り）
+      const todayRawHP = _kobunTodayRawHP(sid);
+      const remaining = Math.max(0, KOBUN_DAILY_RAWHP_CAP - todayRawHP);
+      const grantedRawHP = Math.min(baseRawHP, remaining);
+      const isPractice = (remaining === 0);
+      const alreadyAtCap = (remaining === 0);
+
+      if (grantedRawHP > 0 && stuRowIdx >= 0) {
+        const streak = Number(stuRows[stuRowIdx][COL_STREAK]) || 1;
+        const week = Math.ceil(streak / 7);
+        const hpGained = grantedRawHP * week * week;
+        const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
+        const newHP = cur + hpGained;
+        const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
+        const upd = {}; upd[COL_HP] = newHP;
+        _updateStudentsCacheRow(stuRowIdx, upd);
+        // HPLog: type='kobun_<round>_<count>'
+        _logHP(sid, grantedRawHP, hpGained, 'kobun_' + round + '_' + total);
+        _invalidateCache('cache_ranking_last_week');
+        hpInfo = { rawHP: grantedRawHP, hpGained: hpGained, granted: true, isPractice: false, alreadyAtCap: false, streak: streak, week: week };
+      } else if (isPractice) {
+        // 練習モード（既に上限到達）：HPLog にも記録するが _practice 接尾で除外可能に
+        _logHP(sid, 0, 0, 'kobun_' + round + '_' + total + '_practice');
+        hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: true, alreadyAtCap: true };
+      }
+
+      // 進捗追跡：合格時のみ「次にやるセット番号」をインクリメント
+      // 1 学習回 = 2 セット → +2。周回の最終セットを超えたら次の周回へ移行（または周回内で巡回）。
+      // 練習モードでも next は更新（HP は付与されないが進捗は進める = 学習の連続性優先）
+      try {
+        const propsSvc = _props();
+        const propKey = 'kobun_next_' + sid + '_' + round;
+        const minSet = _getMinKobunSetNum(round);
+        const maxSet = _getMaxKobunSetNum(round);
+        let curNext = parseInt(propsSvc.getProperty(propKey) || String(minSet), 10);
+        if (!curNext || curNext < minSet || curNext > maxSet) curNext = minSet;
+        let newNext = curNext + KOBUN_SETS_PER_SESSION;  // +2
+
+        if (newNext > maxSet) {
+          // 周回完走 → 次の周回へ移行（1 → 2、2 → 1 ループ）
+          const nextRound = (round === '1') ? '2' : '1';
+          const nextRoundMaxSet = _getMaxKobunSetNum(nextRound);
+          const nextRoundMinSet = _getMinKobunSetNum(nextRound);
+          if (nextRoundMaxSet > 0) {
+            // 次の周回データがあれば移行
+            propsSvc.setProperty('kobun_round_' + sid, nextRound);
+            propsSvc.setProperty('kobun_next_' + sid + '_' + nextRound, String(nextRoundMinSet));
+            // 完走した周回の next は最初に戻す（おさらい用）
+            propsSvc.setProperty(propKey, String(minSet));
+          } else {
+            // 次の周回データが無ければ同周回内で先頭に戻す（無限ループ防止）
+            propsSvc.setProperty(propKey, String(minSet));
+          }
+        } else {
+          propsSvc.setProperty(propKey, String(newNext));
+        }
+      } catch (progressErr) {
+        console.error('[submitKobunSet progress update]', progressErr);
+        // 進捗更新失敗時もユーザー応答は成功扱い（HP は加算済み）
+      }
+    }
+
+    return {
+      ok: true,
+      passed: passed,
+      correctCount: correctCount,
+      total: total,
+      results: results,
+      hpInfo: hpInfo,
+      round: round
+    };
+  } catch (err) {
+    console.error('[submitKobunSet]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// コブタン履歴（おさらい画面用）：HPLog から sid のコブタン実施履歴を新しい順に返す
+// type 'kobun_<round>_<count>' / 'kobun_<round>_<count>_practice' をパース。
+function getKobunHistory(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const sh = _ss().getSheetByName(SHEET_HPLOG);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, history: [] };
+    const rows = _readLastNRows(sh, 2000);
+    // HPLog 列: [0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type [5]message
+    const history = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (String(r[1] || '').trim() !== sid) continue;
+      const type = String(r[4] || '').trim();
+      if (type.indexOf('kobun_') !== 0) continue;
+      const m = /^kobun_(\d+)_(\d+)(_practice)?$/.exec(type);
+      if (!m) continue;
+      let ts;
+      try { ts = Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'); }
+      catch (e) { ts = String(r[0] || ''); }
+      history.push({
+        timestamp:  ts,
+        date:       ts.slice(0, 10),
+        round:      m[1],
+        count:      parseInt(m[2], 10),
+        hpGained:   Number(r[3]) || 0,
+        rawHP:      Number(r[2]) || 0,
+        isPractice: !!m[3]
+      });
+    }
+    history.sort(function(a, b){
+      return a.timestamp < b.timestamp ? 1 : (a.timestamp > b.timestamp ? -1 : 0);
+    });
+    return { ok: true, history: history };
+  } catch (err) {
+    console.error('[getKobunHistory]', err);
+    return { ok: false, message: String(err) };
+  }
 }
