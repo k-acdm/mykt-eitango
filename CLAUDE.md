@@ -3826,6 +3826,56 @@ Phase 1 全 20 単元の設計は、ふくちさんの **36 年の塾長経験**
 - 環境前提: 自宅PC・塾PC とも Python 3.14.4 / clasp 導入済、`clasp pull` は禁止のまま運用継続
 - **本セッション終了時点（5/8 朝終了）**: `dev = main = origin/dev = origin/main` で完全同期、stale worktree なし
 
+### 2026-05-09（自宅PC：講師ログイン機能 Phase 1 認証基盤）
+
+事前調査レポート [docs/講師ログイン機能_事前調査レポート_2026-05-09.md](docs/講師ログイン機能_事前調査レポート_2026-05-09.md) の Phase 1 を実装。管理画面の認証を **`ADMIN_PASSWORD` シングルパスワード方式** から **Teachers シートベースの個人認証方式** に切り替え。
+
+#### 257. 講師ログイン機能 Phase 1：認証基盤の実装
+- **設計判断**（事前確定済）: 案 A（admin / teacher の 2 段階権限）/ teacherId は小文字 + 三桁形式（`t101` ふくち, `t102`〜`t107` 講師, `t108`〜`t110` バッファ枠）/ パスワードは SHA-256 + teacherId を salt としてハッシュ化、64 文字 hex で保存（平文は保存しない）/ active=false の講師はログイン拒否
+- **Teachers シートを 6 列 → 7 列に拡張**:
+  - 旧: `teacherId | teacherName | password | role | displayNickname | active`
+  - 新: 上記 + G 列 **`firstLoginCompleted`**（TRUE/FALSE、Phase 1.5 の初回ログインフローで使う）
+  - `_ensureSheetWithHeaders` の schema migration（[gas/Code.js:2218-2226](gas/Code.js)、ヘッダー欠損時の末尾追記）が自動的に G 列を追加するため、後方互換あり
+- **GAS 側 ([gas/Code.js](gas/Code.js))** +245 / -8 行:
+  - **新規ヘルパー 4 関数**:
+    - `_teacherTruthy(v)`: 'TRUE' / 'true' / true / 1 / '1' / 'yes' を真と判定（シートの値ゆらぎ吸収）
+    - `_passwordHash(plaintext, salt)`: `Utilities.computeDigest(SHA_256, salt + plaintext)` を 64 文字小文字 hex で返す。signed byte は `& 0xFF` で unsigned 化
+    - `_getTeacherInfo(teacherId)`: Teachers シートから行情報を取得。active=false なら null（ログイン拒否）
+    - `_verifyTeacher(teacherId, password)`: 認証コア関数。teacherId 空 / password 空 / 行なし / active=false / passwordHash 空 / ハッシュ不一致のいずれかで null を返す。成功時は `{ teacherId, teacherName, role, displayNickname, active, firstLoginCompleted }`（passwordHash は除外）
+  - **手動実行用 GAS エディタ関数 2 つ**:
+    - `setInitialTeacherPassword(teacherId, plaintext)`: 個別講師のパスワードを後から設定（plaintext は console.log しない）
+    - `migrateTeachersPasswordHash()`: 全講師の平文パスワードを一括ハッシュ化（既にハッシュ化済の行=64 文字 hex はスキップ、冪等）
+  - **`adminLogin` 全面書き換え**: `_verifyTeacher(teacherId, password)` ベース、戻り値に `teacherId / role / displayNickname / firstLoginCompleted` を含める
+  - **`ensureTeachersSheet` 大幅拡張**: G 列追加マイグレーション + t101 行（無ければ追加 / あれば G 列のみ TRUE 化）+ t102+ の G 列が空欄なら FALSE で初期化。**B〜F 列は絶対に書き換えない**（既存値保護）
+  - **全 admin API（22 関数）の認証チェックを置換**: `if (!_verifyAdmin(params.password)) return ...` → `const _teacher = _verifyTeacher(params && params.teacherId, params && params.password); if (!_teacher) return ...`。既存の 3 種類のインデント／ガードパターンを `_teacher` 変数を持つ統一形式に
+  - **`sendTeacherMessage` のなりすまし対策**: 旧コード `const senderId = String((params && params.senderId) || 'T001').trim();`（クライアントが任意 senderId を指定可能だった脆弱性）を `const senderId = _teacher.teacherId;`（認証された teacherId を強制使用）に修正
+  - **保険として残置**: `_verifyAdmin` 関数本体と `setAdminPassword`、Script Properties `ADMIN_PASSWORD` は Phase 2 完了まで残す（新フローでは呼ばれない）
+- **クライアント側 ([admin.html](admin.html))** +63 / -23 行:
+  - **ログインフォームに講師ID 入力欄を追加**: `<input type="text" id="admin-teacher-id" placeholder="講師ID（例：t101）" autocomplete="username" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" />`
+  - **`doAdminLogin` 改修**: teacherId + password を送信、成功時に sessionStorage 5 値を保存（`adminTeacherId / adminPassword / adminRole / adminDisplayNickname / adminFirstLoginCompleted`）。Phase 1.5 で初回フロー画面への分岐ポイントをコメントで明示
+  - **`doAdminLogout` 改修**: sessionStorage 5 値を全消去 + `_renderAdminLoginInfo()` で表示クリア
+  - **共通ヘルパー `adminGasGet(params)` / `adminGasPost(params)` を新設**: sessionStorage から teacherId + password を自動付与。**ログイン関数 `doAdminLogin` 自体は除外**（teacherId / password を引数で受け取る）
+  - **全 admin API 呼び出しの置換**: 旧 `gasGet({ ..., password: sessionStorage.getItem('adminPassword') || '', ... })` → `adminGasGet({ ... })`。22 箇所（gasGet 19 + gasPost 3 + 1 行型 + buildAdminUI 経由）。認証不要な API（`getLisonLevels` / `getChildActivityRecent` / `getWeeklyRanking` / `adminLogin`）は `gasGet` のまま残置
+  - **ダッシュボードヘッダーに `<span id="admin-login-info">` を追加**: 「ふく先生 としてログイン中」のような表示。CSS `.admin-login-info`（白透明角丸ピル、レスポンシブで font-size 縮小）
+  - **`_renderAdminLoginInfo()` 関数**: displayNickname が空なら teacherId を表示。ログイン直後 / 自動再開時 / ログアウト時に呼ぶ
+  - **Enter キーリスナー**: teacher-id 入力欄でも Enter で送信
+  - **init チェック**: `sessionStorage.adminTeacherId && sessionStorage.adminPassword` が両方揃っている時のみ自動再開（旧 `adminPassword` 単独チェックから変更）
+- **ロックアウト事故予防のため、ふくちさん側で必須の手順（順序厳守）**:
+  1. `git pull origin dev` → main マージ → push
+  2. **★ Apps Script の clasp push & デプロイは絶対にまだしない**
+  3. **GAS エディタを開いて `migrateTeachersPasswordHash()` を手動実行**（既存の平文パスワードをハッシュ化、Logger.log で migrated 件数確認）
+  4. **`ensureTeachersSheet()` を手動実行**（G 列追加 + t101 の `firstLoginCompleted=TRUE` 設定）
+  5. Teachers シートで G 列が追加され、t101 の G 列が TRUE になっていることを目視確認
+  6. `cd gas && clasp push`
+  7. Apps Script エディタで F5 リロード → 新バージョンデプロイ
+  8. admin.html を再読み込み → t101 + 旧パスワード（`noblesse`）でログインテスト
+  - 手順 3 を先にやらないと、ハッシュ化されていない平文パスワードに対して `_verifyTeacher` がハッシュ照合で失敗し、ふくちさんがログインできなくなる
+- **Phase 1.5 への引き継ぎポイント**:
+  - sessionStorage に `adminFirstLoginCompleted` が保存される（'true' / 'false' の文字列）
+  - `_verifyTeacher` の戻り値に `firstLoginCompleted` が含まれる
+  - 初回フロー画面の分岐ポイントは [admin.html](admin.html) `doAdminLogin` 内のコメント `// Phase 1.5（次フェーズ）：firstLoginCompleted=false なら初回フロー画面に遷移する分岐をここに追加予定。` に明示済
+- **範囲外（Phase 1.5 以降で対応）**: 初回ログインのパスワード変更フロー / displayNickname 設定フロー / ロール別機能制限 / HP 付与権限制限 / 全員送信制限 / 講師管理 UI / 操作ログ / 録音 DL 抑止 / 案 D / t102〜t107 の実名入力（ふくちさんが手動でスプレッドシートに入力済 or 入力中）
+
 ---
 
 ## TODO（未反映の GAS 側作業）

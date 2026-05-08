@@ -102,9 +102,12 @@
   /* ヘッダー右ボタン群（ホーム + ログアウト） */
   .header-btns { display: flex; gap: 8px; align-items: center; }
   .header-btns .logout-btn .btn-label { display: inline; }
+  /* ログイン中ユーザー表示（Phase 1：講師ログイン）。ヘッダー右側に控えめに表示 */
+  .admin-login-info { color: #fff; font-size: 13px; opacity: .9; padding: 4px 10px; background: rgba(255,255,255,.12); border-radius: 999px; white-space: nowrap; }
   @media (max-width: 480px) {
     .header-btns .logout-btn.logout { padding: 7px 10px; }
     .header-btns .logout-btn.logout .btn-label { display: none; }
+    .admin-login-info { font-size: 11px; padding: 3px 8px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
   }
 
   /* 汎用コンテンツ（ダッシュボード以外の画面用） */
@@ -390,7 +393,8 @@
 <div id="screen-admin-login" class="screen active">
   <div class="login-card">
     <h1>🔐 管理画面</h1>
-    <p>管理者パスワードを入力してください</p>
+    <p>講師IDとパスワードを入力してください</p>
+    <input type="text" id="admin-teacher-id" placeholder="講師ID（例：t101）" autocomplete="username" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" />
     <input type="password" id="admin-password" placeholder="パスワード" autocomplete="current-password" />
     <button id="admin-login-btn" onclick="doAdminLogin()">ログイン</button>
     <div id="admin-login-msg" class="msg"></div>
@@ -402,6 +406,7 @@
   <header>
     <h1>🏢 マイ活アプリ 管理画面</h1>
     <div class="header-btns">
+      <span id="admin-login-info" class="admin-login-info" style="display:none"></span>
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
     </div>
   </header>
@@ -1156,9 +1161,8 @@
     var btn = document.getElementById('sango-paste-submit');
     if (btn) btn.disabled = true;
     var weekNoStr = (document.getElementById('sango-paste-week-no') || {}).value || '';
-    gasGet({
+    adminGasGet({
       action: 'adminAddSangoTopicsWeek',
-      password: sessionStorage.getItem('adminPassword') || '',
       start: startStr,
       weekNo: weekNoStr,
       items: items
@@ -1188,9 +1192,8 @@
     if (!work) { showToast('先生の作品を入力してください', 'error'); return; }
     var btn = document.getElementById('sango-tw-submit');
     if (btn) btn.disabled = true;
-    gasGet({
+    adminGasGet({
       action: 'adminSetSangoTeacherWork',
-      password: sessionStorage.getItem('adminPassword') || '',
       date: date, level: level, teacher_work: work
     }).then(function(res) {
       if (btn) btn.disabled = false;
@@ -1382,7 +1385,7 @@
     var mod = AdminModules.find(function(m){ return m.id === modId; });
     if (!mod) return false;
     var btn = e.target.querySelector('.submit-btn');
-    var params = { action: mod.action, password: sessionStorage.getItem('adminPassword') || '' };
+    var params = { action: mod.action };
     for (var i = 0; i < mod.fields.length; i++) {
       var f = mod.fields[i];
       var el = document.getElementById(modId + '-' + f.name);
@@ -1391,7 +1394,7 @@
       params[f.name] = val;
     }
     btn.disabled = true;
-    gasGet(params).then(function(res) {
+    adminGasGet(params).then(function(res) {
       btn.disabled = false;
       if (res && res.ok) {
         showToast(mod.successMsg || '追加しました', 'success');
@@ -1418,23 +1421,31 @@
   }
 
   // =============================================================
-  // 認証
+  // 認証（Phase 1：Teachers シートベース、teacherId + パスワード方式）
   // =============================================================
   function doAdminLogin() {
-    var pw = document.getElementById('admin-password').value;
-    if (!pw) { _showLoginMsg('パスワードを入力してください', 'ng'); return; }
+    var teacherId = document.getElementById('admin-teacher-id').value.trim();
+    var pw        = document.getElementById('admin-password').value;
+    if (!teacherId || !pw) { _showLoginMsg('講師IDとパスワードを入力してください', 'ng'); return; }
     var btn = document.getElementById('admin-login-btn');
     btn.disabled = true;
     _showLoginMsg('確認中…', 'ok');
-    gasGet({ action: 'adminLogin', password: pw }).then(function(res) {
+    gasGet({ action: 'adminLogin', teacherId: teacherId, password: pw }).then(function(res) {
       btn.disabled = false;
       if (res && res.ok) {
-        sessionStorage.setItem('adminPassword', pw);
+        sessionStorage.setItem('adminTeacherId',           res.teacherId || teacherId);
+        sessionStorage.setItem('adminPassword',            pw);
+        sessionStorage.setItem('adminRole',                res.role || '');
+        sessionStorage.setItem('adminDisplayNickname',     res.displayNickname || '');
+        sessionStorage.setItem('adminFirstLoginCompleted', String(!!res.firstLoginCompleted));
         _showLoginMsg('', '');
         document.getElementById('admin-password').value = '';
+        // Phase 1.5（次フェーズ）：firstLoginCompleted=false なら初回フロー画面に遷移する分岐をここに追加予定。
+        //   現状（Phase 1）はそのままダッシュボードに進む。
+        _renderAdminLoginInfo();
         goAdminDashboard();
       } else {
-        _showLoginMsg((res && res.message) || 'パスワードが違います', 'ng');
+        _showLoginMsg((res && res.message) || '講師IDまたはパスワードが違います', 'ng');
       }
     }).catch(function() {
       btn.disabled = false;
@@ -1443,9 +1454,44 @@
   }
 
   function doAdminLogout() {
+    sessionStorage.removeItem('adminTeacherId');
     sessionStorage.removeItem('adminPassword');
+    sessionStorage.removeItem('adminRole');
+    sessionStorage.removeItem('adminDisplayNickname');
+    sessionStorage.removeItem('adminFirstLoginCompleted');
     _adminTabsBuilt = false;
+    _renderAdminLoginInfo();
     _showScreen('screen-admin-login');
+  }
+
+  // 全 admin API 呼び出しに teacherId + password を自動付与する共通ヘルパー。
+  // ⚠️ ログイン関数（doAdminLogin）自体はこのヘルパーを使わない（teacherId / password を引数で受け取るため）。
+  function adminGasGet(params) {
+    var p = Object.assign({}, params || {}, {
+      teacherId: sessionStorage.getItem('adminTeacherId') || '',
+      password:  sessionStorage.getItem('adminPassword')  || ''
+    });
+    return gasGet(p);
+  }
+  function adminGasPost(params) {
+    var p = Object.assign({}, params || {}, {
+      teacherId: sessionStorage.getItem('adminTeacherId') || '',
+      password:  sessionStorage.getItem('adminPassword')  || ''
+    });
+    return gasPost(p);
+  }
+
+  // ダッシュボード上部に「○○先生としてログイン中」を表示する。
+  // displayNickname が空なら teacherId を表示。未ログイン時は要素を空にする。
+  function _renderAdminLoginInfo() {
+    var el = document.getElementById('admin-login-info');
+    if (!el) return;
+    var tid  = sessionStorage.getItem('adminTeacherId') || '';
+    var nick = sessionStorage.getItem('adminDisplayNickname') || '';
+    if (!tid) { el.textContent = ''; el.style.display = 'none'; return; }
+    var name = nick || tid;
+    el.textContent = name + ' としてログイン中';
+    el.style.display = '';
   }
 
   // =============================================================
@@ -1541,9 +1587,8 @@
   function loadKisoStudents() {
     var wrap = document.getElementById('kiso-students-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    gasGet({
+    adminGasGet({
       action: 'getKisoPhotosList',
-      password: sessionStorage.getItem('adminPassword') || '',
       _ts: Date.now()
     }).then(function(res) {
       if (!res || !res.ok) {
@@ -1619,9 +1664,8 @@
   function loadKisoPhotos(studentId) {
     var wrap = document.getElementById('kiso-photos-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    gasGet({
+    adminGasGet({
       action: 'getKisoPhotosList',
-      password: sessionStorage.getItem('adminPassword') || '',
       studentId: studentId,
       _ts: Date.now()
     }).then(function(res) {
@@ -1753,9 +1797,8 @@
   function loadLisonRecordingStudents() {
     var wrap = document.getElementById('lison-students-wrap');
     wrap.innerHTML = '<div class="lison-students-empty">⏳ 読み込み中...</div>';
-    gasGet({
+    adminGasGet({
       action: 'getLisonSubmissionsList',
-      password: sessionStorage.getItem('adminPassword') || '',
       _ts: Date.now()
     }).then(function(res) {
       if (!res || !res.ok) {
@@ -1832,9 +1875,8 @@
   function loadLisonRecordingsForStudent(sid) {
     var wrap = document.getElementById('lison-list-wrap');
     wrap.innerHTML = '<div class="lison-students-empty">⏳ 読み込み中...</div>';
-    gasGet({
+    adminGasGet({
       action: 'getLisonSubmissionsList',
-      password: sessionStorage.getItem('adminPassword') || '',
       studentId: sid,
       _ts: Date.now()
     }).then(function(res) {
@@ -1930,7 +1972,7 @@
   function loadStudents() {
     var wrap = document.getElementById('students-list-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    gasGet({ action: 'adminListStudents', password: sessionStorage.getItem('adminPassword') || '', _ts: Date.now() }).then(function(res) {
+    adminGasGet({ action: 'adminListStudents', _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
         if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
@@ -2000,9 +2042,8 @@
   function loadHpGrantStudents() {
     var wrap = document.getElementById('hp-grant-students-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    gasGet({
+    adminGasGet({
       action: 'getStudentsListForGrant',
-      password: sessionStorage.getItem('adminPassword') || '',
       _ts: Date.now()
     }).then(function(res) {
       if (!res || !res.ok) {
@@ -2163,9 +2204,8 @@
     var btn = document.getElementById('hp-grant-execute-btn');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ 付与中...'; }
 
-    gasPost({
+    adminGasPost({
       action:     'executeManualHpGrant',
-      password:   sessionStorage.getItem('adminPassword') || '',
       studentIds: c.students.map(function(s){ return s.studentId; }),
       rawHp:      c.rawHp,
       reason:     c.reason,
@@ -2412,9 +2452,8 @@
     }
     if (statusEl) statusEl.innerHTML = dowWarn + '⏳ 既存データを確認中...';
     _clearAllLisonInputs();
-    gasGet({
+    adminGasGet({
       action: 'getLisonContentsWeek',
-      password: sessionStorage.getItem('adminPassword') || '',
       weekStart: weekStart
     }).then(function(res) {
       if (!res || !res.ok) {
@@ -2475,9 +2514,8 @@
     }
     var btn = document.getElementById('lison-input-submit');
     if (btn) btn.disabled = true;
-    gasPost({
+    adminGasPost({
       action: 'adminSaveLisonContentsWeek',
-      password: sessionStorage.getItem('adminPassword') || '',
       weekStart: weekStart,
       levels: levels
     }).then(function(res) {
@@ -2504,9 +2542,8 @@
     var wrap = document.getElementById('lison-input-weeks-list');
     if (!wrap) return;
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    gasGet({
+    adminGasGet({
       action: 'listLisonContentsWeeks',
-      password: sessionStorage.getItem('adminPassword') || '',
       limit: 8
     }).then(function(res) {
       if (!res || !res.ok) {
@@ -2602,9 +2639,8 @@
   function loadTmStudents() {
     var wrap = document.getElementById('tm-students-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    gasGet({
+    adminGasGet({
       action: 'getStudentsListForGrant',
-      password: sessionStorage.getItem('adminPassword') || '',
       _ts: Date.now()
     }).then(function(res) {
       if (!res || !res.ok) {
@@ -2745,7 +2781,6 @@
 
     var params = {
       action:     'sendTeacherMessage',
-      password:   sessionStorage.getItem('adminPassword') || '',
       targetType: c.targetType,
       content:    c.content
     };
@@ -2753,7 +2788,7 @@
       params.targetIds = c.students.map(function(s){ return s.studentId; }).join(',');
     }
 
-    gasPost(params).then(function(res) {
+    adminGasPost(params).then(function(res) {
       if (btn) { btn.disabled = false; btn.textContent = '✅ 送信する'; }
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : 'エラーが発生しました';
@@ -2847,10 +2882,9 @@
     if (labelEl) labelEl.textContent = year + '年' + month + '月';
     if (wrapEl)  wrapEl.innerHTML = '<div class="cal-loading">⏳ 読み込み中...</div>';
 
-    gasGet({
+    adminGasGet({
       action: 'getCalendarMonthSummary',
       yearMonth: ym,
-      password: sessionStorage.getItem('adminPassword') || '',
       _ts: Date.now()
     }).then(function(res) {
       if (!res || !res.ok) {
@@ -2955,10 +2989,9 @@
   function loadActivityDay(ds) {
     var wrapEl = document.getElementById('cal-day-list-wrap');
     wrapEl.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    gasGet({
+    adminGasGet({
       action: 'getCalendarDayDetail',
       date: ds,
-      password: sessionStorage.getItem('adminPassword') || '',
       _ts: Date.now()
     }).then(function(res) {
       if (!res || !res.ok) {
@@ -3274,7 +3307,7 @@
     var listEl = document.getElementById('sango-sub-list');
     if (!listEl) return;
     listEl.innerHTML = '<div class="ranking-empty">⏳ 読み込み中...</div>';
-    gasGet({ action: 'adminListSangoSubmissions', password: sessionStorage.getItem('adminPassword') || '', _ts: Date.now() }).then(function(res) {
+    adminGasGet({ action: 'adminListSangoSubmissions', _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
         if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
@@ -3359,9 +3392,8 @@
     var inputEl = document.getElementById('sango-comment-input-' + idx);
     if (!inputEl) return;
     var comment = inputEl.value;
-    gasGet({
+    adminGasGet({
       action: 'adminSetSangoComment',
-      password: sessionStorage.getItem('adminPassword') || '',
       timestamp: s.timestamp,
       studentId: s.studentId,
       comment: comment,
@@ -3498,9 +3530,8 @@
     var btn = document.getElementById('wabun1-paste-submit');
     if (btn) { btn.disabled = true; btn.textContent = '登録中…'; }
     // データ量が大きい（7日分で 80 行超え、URL クエリでは 400 になるため POST で送る）
-    gasPost({
+    adminGasPost({
       action: 'adminAddWabun1TopicsWeek',
-      password: sessionStorage.getItem('adminPassword') || '',
       start: startStr,
       weekNo: weekNo,
       items: parsed.items,
@@ -3572,9 +3603,8 @@
     var inputEl = document.getElementById('wabun1-comment-input-' + idx);
     if (!inputEl) return;
     var comment = inputEl.value;
-    gasGet({
+    adminGasGet({
       action: 'adminSetWabun1Comment',
-      password: sessionStorage.getItem('adminPassword') || '',
       timestamp: s.timestamp,
       studentId: s.studentId,
       comment: comment,
@@ -3601,14 +3631,13 @@
     listEl.innerHTML = '<div class="ranking-empty">⏳ 読み込み中...</div>';
     var params = {
       action: 'adminListWabun1Submissions',
-      password: sessionStorage.getItem('adminPassword') || '',
       _ts: Date.now()
     };
     var dateFilter = document.getElementById('wabun1-filter-date');
     var sidFilter  = document.getElementById('wabun1-filter-sid');
     if (dateFilter && dateFilter.value) params.date = dateFilter.value;
     if (sidFilter  && sidFilter.value.trim()) params.studentId = sidFilter.value.trim();
-    gasGet(params).then(function(res) {
+    adminGasGet(params).then(function(res) {
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
         if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
@@ -3668,14 +3697,18 @@
     });
   }
 
-  // Enter キーでログイン
+  // Enter キーでログイン（teacherId / password どちらの欄からでも発火）
+  document.getElementById('admin-teacher-id').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doAdminLogin();
+  });
   document.getElementById('admin-password').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') doAdminLogin();
   });
 
-  // セッション継続（タブ閉じで失効）
+  // セッション継続（タブ閉じで失効）。teacherId と password が両方揃っている時のみ自動再開。
   (function init() {
-    if (sessionStorage.getItem('adminPassword')) {
+    if (sessionStorage.getItem('adminTeacherId') && sessionStorage.getItem('adminPassword')) {
+      _renderAdminLoginInfo();
       goAdminDashboard();
     }
   })();

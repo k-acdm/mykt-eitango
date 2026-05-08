@@ -368,7 +368,7 @@ function doGet(e) {
       //   セットアップ用で、ここには登録しない（CLAUDE.md の運用ルール準拠）。
       else if (action === 'getMessagesForStudent')   result = getMessagesForStudent(params);
       else if (action === 'getUnreadMessageCount')   result = getUnreadMessageCount(params);
-      // 管理画面: リスオン問題入力（getLisonLevels は無認証、他 2 つは _verifyAdmin で password 検証）
+      // 管理画面: リスオン問題入力（getLisonLevels は無認証、他 2 つは _verifyTeacher で teacherId+password 検証）
       else if (action === 'getLisonLevels')                  result = getLisonLevels();
       else if (action === 'getLisonContentsWeek')            result = getLisonContentsWeek(params);
       else if (action === 'listLisonContentsWeeks')          result = listLisonContentsWeeks(params);
@@ -3697,12 +3697,11 @@ function _deleteKisoPhoto(driveFileId) {
 // 仕様書 §5.3 / §5.4：
 //   - studentId 指定なし → 生徒一覧サマリ（写真ありの生徒のみ、最新提出日時の降順）
 //   - studentId 指定あり → その生徒の写真を提出日時降順で全件返却
-// 認証必須（_verifyAdmin）
+// 認証必須（_verifyTeacher）
 function getKisoPhotosList(params) {
   try {
-    if (!_verifyAdmin(params && params.password)) {
-      return { ok: false, message: '認証エラー' };
-    }
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const sidFilter = String((params && params.studentId) || '').trim();
 
     const sh = _ensureKisoPhotosSheet();
@@ -4864,19 +4863,221 @@ function setAdminPassword() {
 // 管理画面用 API
 // =====================================================
 
+// ⚠️ Phase 1 で _verifyAdmin（ADMIN_PASSWORD ベース）から _verifyTeacher（Teachers シートベース）に
+// 認証フローを切替済（CLAUDE.md 講師ログイン機能 Phase 1 参照）。_verifyAdmin / setAdminPassword は
+// Phase 2 完了まで保険として残置するが、新しい認証フローでは呼ばれない。
 function _verifyAdmin(password) {
   const stored = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD');
   return !!stored && password === stored;
 }
 
+// =====================================================
+// 講師ログイン基盤（Phase 1）
+// =====================================================
+// 設計：
+//  - Teachers シート 7 列（A〜G）：teacherId / teacherName / password(SHA-256 hex) / role / displayNickname / active / firstLoginCompleted
+//  - パスワードは SHA-256 + teacherId を salt としてハッシュ化、64 文字 hex で保存（平文は保存しない）
+//  - role は 'admin' / 'teacher' の 2 段階（案 A）
+//  - active=false の講師はログイン拒否
+//  - firstLoginCompleted は Phase 1.5 で初回ログインフローの分岐に使う（Phase 1 では認証成功時に値を返すだけ）
+
+// 任意の値を boolean に正規化する。'TRUE' / 'true' / true / 1 / '1' を真と判定。
+// 空セル（''）は false 扱い。
+function _teacherTruthy(v) {
+  if (v === true) return true;
+  if (v === false) return false;
+  if (v === 1) return true;
+  if (v === 0) return false;
+  const s = String(v == null ? '' : v).trim().toLowerCase();
+  return s === 'true' || s === '1' || s === 'yes' || s === 'y';
+}
+
+// SHA-256(salt + plaintext) を 64 文字小文字 hex で返す。
+// salt は teacherId を使用する想定。空文字でも動作する（テスト用途）。
+function _passwordHash(plaintext, salt) {
+  const input = String(salt || '') + String(plaintext == null ? '' : plaintext);
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input, Utilities.Charset.UTF_8);
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    // computeDigest は signed byte（-128〜127）を返すので 0xFF マスクで unsigned 化
+    let b = bytes[i] & 0xFF;
+    let h = b.toString(16);
+    if (h.length === 1) h = '0' + h;
+    hex += h;
+  }
+  return hex; // 64 文字
+}
+
+// Teachers シートから teacherId に対応する行情報を取得する。
+// active=false の場合は null を返す（ログイン拒否）。
+// 戻り値: { teacherId, teacherName, passwordHash, role, displayNickname, active, firstLoginCompleted } or null
+function _getTeacherInfo(teacherId) {
+  try {
+    const target = String(teacherId || '').trim();
+    if (!target) return null;
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh || sh.getLastRow() < 2) return null;
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iId   = header.indexOf('teacherId');
+    const iName = header.indexOf('teacherName');
+    const iPw   = header.indexOf('password');
+    const iRole = header.indexOf('role');
+    const iNick = header.indexOf('displayNickname');
+    const iAct  = header.indexOf('active');
+    const iFlc  = header.indexOf('firstLoginCompleted');
+    if (iId < 0 || iPw < 0) return null;
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][iId] || '').trim() !== target) continue;
+      const active = (iAct >= 0) ? _teacherTruthy(values[i][iAct]) : false;
+      if (!active) return null; // active=false ならログイン拒否
+      return {
+        teacherId:           target,
+        teacherName:         iName >= 0 ? String(values[i][iName] || '').trim() : '',
+        passwordHash:        String(values[i][iPw] || '').trim(),
+        role:                iRole >= 0 ? String(values[i][iRole] || '').trim() : '',
+        displayNickname:     iNick >= 0 ? String(values[i][iNick] || '').trim() : '',
+        active:              true,
+        firstLoginCompleted: iFlc >= 0 ? _teacherTruthy(values[i][iFlc]) : false
+      };
+    }
+    return null;
+  } catch (e) {
+    console.error('[_getTeacherInfo]', e);
+    return null;
+  }
+}
+
+// 講師認証。teacherId + 平文パスワードを照合。
+// 成功時: { teacherId, teacherName, role, displayNickname, active, firstLoginCompleted }（passwordHash は除外）
+// 失敗時: null
+// 失敗のケース：teacherId 空 / password 空 / 行が無い / active=false / ハッシュ不一致
+function _verifyTeacher(teacherId, password) {
+  const target = String(teacherId || '').trim();
+  const pw     = String(password == null ? '' : password);
+  if (!target || !pw) return null;
+  const info = _getTeacherInfo(target);
+  if (!info) return null;
+  // シート上のハッシュが空（パスワード未設定）の場合はログイン不可
+  if (!info.passwordHash) return null;
+  const calc = _passwordHash(pw, target);
+  // 大文字混在で保存された場合に備えて小文字統一で比較
+  if (calc.toLowerCase() !== String(info.passwordHash).toLowerCase()) return null;
+  return {
+    teacherId:           info.teacherId,
+    teacherName:         info.teacherName,
+    role:                info.role,
+    displayNickname:     info.displayNickname,
+    active:              info.active,
+    firstLoginCompleted: info.firstLoginCompleted
+  };
+}
+
+// GAS エディタから手動実行する初期パスワード設定関数。
+// （Phase 3 の講師管理 UI で UI 化される予定だが、それまでの繋ぎとして用意）
+// 引数の plaintext は console.log しない（漏洩防止）。
+//
+// 使い方（GAS エディタ）：
+//   setInitialTeacherPassword('t102', 'noblesse0311')
+function setInitialTeacherPassword(teacherId, plaintext) {
+  try {
+    const target = String(teacherId || '').trim();
+    if (!target) { Logger.log('teacherId が空です'); return { ok: false }; }
+    if (plaintext == null || String(plaintext) === '') { Logger.log('plaintext が空です'); return { ok: false }; }
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh || sh.getLastRow() < 2) { Logger.log('Teachers シートが見つかりません'); return { ok: false }; }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iId = header.indexOf('teacherId');
+    const iPw = header.indexOf('password');
+    if (iId < 0 || iPw < 0) { Logger.log('teacherId / password 列が見つかりません'); return { ok: false }; }
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][iId] || '').trim() !== target) continue;
+      const hash = _passwordHash(plaintext, target);
+      sh.getRange(i + 1, iPw + 1).setValue(hash);
+      Logger.log('[setInitialTeacherPassword] ' + target + ' のパスワードハッシュを更新しました');
+      return { ok: true };
+    }
+    Logger.log('teacherId ' + target + ' が見つかりません。先に行を追加してください');
+    return { ok: false };
+  } catch (e) {
+    console.error('[setInitialTeacherPassword]', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// Teachers シートのパスワード列を一括でハッシュ化する。
+// 平文パスワードがハッシュ済みかどうかは、文字列長で判定（SHA-256 hex は 64 文字、平文は通常それより短い）。
+// 既にハッシュ化されている行（64 文字 + hex 構成）はスキップ。
+//
+// ⚠️ ふくちさんが GAS エディタから 1 度だけ手動実行する想定。
+// 実行後、平文パスワードは Teachers シートから完全に消える。
+//
+// Phase 1 投入時の実行順序：
+//   1. clasp push（ただしまだ新版はデプロイしない）
+//   2. ★ migrateTeachersPasswordHash() を手動実行（既存平文をハッシュ化）
+//   3. ensureTeachersSheet() を手動実行（G 列追加 + t101 firstLoginCompleted=TRUE）
+//   4. 新版を Apps Script でデプロイ
+function migrateTeachersPasswordHash() {
+  try {
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh) { Logger.log('Teachers シートが見つかりません'); return { ok: false, migrated: 0 }; }
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) { Logger.log('Teachers シートに行がありません'); return { ok: true, migrated: 0 }; }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iId = header.indexOf('teacherId');
+    const iPw = header.indexOf('password');
+    if (iId < 0 || iPw < 0) { Logger.log('teacherId / password 列が見つかりません'); return { ok: false, migrated: 0 }; }
+    let migrated = 0;
+    let skipped  = 0;
+    let emptyRow = 0;
+    const hexRe = /^[0-9a-f]{64}$/i;
+    for (let i = 1; i < values.length; i++) {
+      const sid = String(values[i][iId] || '').trim();
+      const pw  = String(values[i][iPw] || '').trim();
+      if (!sid) { emptyRow++; continue; } // teacherId 空欄行はスキップ（バッファ枠 t108-t110 等）
+      if (!pw) { emptyRow++; continue; }  // password 空欄もスキップ
+      if (hexRe.test(pw)) { skipped++; continue; } // 既にハッシュ化済み
+      // 平文 → ハッシュ化
+      const hash = _passwordHash(pw, sid);
+      sh.getRange(i + 1, iPw + 1).setValue(hash);
+      migrated++;
+    }
+    Logger.log('[migrateTeachersPasswordHash] migrated=' + migrated + ' skipped=' + skipped + ' empty=' + emptyRow);
+    return { ok: true, migrated: migrated, skipped: skipped, emptyRow: emptyRow };
+  } catch (e) {
+    console.error('[migrateTeachersPasswordHash]', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// 講師ログイン。Phase 1：teacherId + パスワードで Teachers シートを検索しハッシュ照合。
+// 戻り値: { ok, teacherId, role, displayNickname, firstLoginCompleted } または { ok:false, message }
 function adminLogin(params) {
-  if (!_verifyAdmin(params.password)) return { ok: false, message: 'パスワードが違います' };
-  return { ok: true };
+  const teacherId = String((params && params.teacherId) || '').trim();
+  const password  = String((params && params.password) || '');
+  if (!teacherId || !password) {
+    return { ok: false, message: '講師IDとパスワードを入力してください' };
+  }
+  const teacher = _verifyTeacher(teacherId, password);
+  if (!teacher) {
+    // エラーメッセージは曖昧に保つ（teacherId 存在の有無を漏らさない）
+    return { ok: false, message: '講師IDまたはパスワードが違います' };
+  }
+  return {
+    ok:                  true,
+    teacherId:           teacher.teacherId,
+    role:                teacher.role,
+    displayNickname:     teacher.displayNickname || '',
+    firstLoginCompleted: !!teacher.firstLoginCompleted
+  };
 }
 
 function adminAddQuote(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     if (!params.date || !params.text)   return { ok: false, message: '日付と本文は必須です' };
     const sh = _ss().getSheetByName(SHEET_QUOTE);
     if (!sh) return { ok: false, message: 'Quoteシートが見つかりません' };
@@ -4891,7 +5092,8 @@ function adminAddQuote(params) {
 
 function adminAddNotice(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     if (!params.date || !params.title || !params.body) return { ok: false, message: '日付・タイトル・本文は必須です' };
     const sh = _ss().getSheetByName(SHEET_NOTICE);
     if (!sh) return { ok: false, message: 'Noticeシートが見つかりません' };
@@ -4907,7 +5109,8 @@ function adminAddNotice(params) {
 // 管理画面：生徒一覧（Students シートの入力順、ID 空欄行はスキップ）
 function adminListStudents(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     // G1: Students はキャッシュ経由
     const values = _getStudentsValues();
     if (!values || values.length < 2) return { ok: true, students: [] };
@@ -4936,7 +5139,8 @@ function adminListStudents(params) {
 // 認証必須。生徒ID 空欄行はスキップ。
 function getStudentsListForGrant(params) {
   try {
-    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const values = _getStudentsValues();
     if (!values || values.length < 2) return { ok: true, students: [] };
     const students = [];
@@ -4974,7 +5178,8 @@ function getStudentsListForGrant(params) {
 // 二重実行防止なし（管理者判断に任せる仕様）。
 function executeManualHpGrant(params) {
   try {
-    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
 
     const studentIds = (params && Array.isArray(params.studentIds)) ? params.studentIds : [];
     const rawHpRaw   = Number(params && params.rawHp);
@@ -5111,39 +5316,124 @@ function executeManualHpGrant(params) {
 //   Teachers          : teacherId / teacherName / password / role / displayNickname / active
 //   TeacherMessages   : timestamp / messageId / senderId / senderNickname / targetType / targetIds / content / createdAt
 //   MessageReads      : studentId / messageId / readAt
-const TEACHERS_HEADERS         = ['teacherId','teacherName','password','role','displayNickname','active'];
+// ⚠️ Phase 1（講師ログイン機能）で G 列 firstLoginCompleted を追加。
+// 既存シートが 6 列（〜active）の場合は ensureTeachersSheet() で末尾追記マイグレーションを行う。
+const TEACHERS_HEADERS         = ['teacherId','teacherName','password','role','displayNickname','active','firstLoginCompleted'];
 const TEACHER_MESSAGES_HEADERS = ['timestamp','messageId','senderId','senderNickname','targetType','targetIds','content','createdAt'];
 const MESSAGE_READS_HEADERS    = ['studentId','messageId','readAt'];
 const TEACHER_MESSAGE_MAX_LEN  = 500;
 const TEACHER_INITIAL_PASSWORD = 'TEMP_PASSWORD_CHANGE_ME';
+const TEACHER_PRIMARY_ID       = 't101'; // ふくちさんの teacherId（admin role）
 
-// GAS エディタから 1 回だけ実行するセットアップ関数。冪等：既存ならスキップ。
-// ふくちさん用の T001 行を初期投入（パスワードは仮値、後でふくちさんが手動で書き換える）。
-// 戻り値: { ok, sheetCreated, initialRowAdded, password }
+// GAS エディタから手動実行するセットアップ関数。冪等。
+// 役割：
+//   - シートが無ければ作成
+//   - G 列 firstLoginCompleted が無ければ追加（既存 6 列構造への後方互換マイグレーション）
+//   - t101（ふくちさん、admin）行が無ければ追加。既にあれば既存値を保護しつつ
+//     firstLoginCompleted を TRUE にセット（既ログイン中ユーザーのため）
+//   - t102〜t110 の既存行は B〜F 列を絶対に書き換えない。G 列 firstLoginCompleted のみ
+//     未設定（空欄）なら FALSE で初期化する（Phase 1 投入後の整合性確保）
+//
+// 戻り値: { ok, sheetCreated, columnAdded, t101RowAdded, t101FirstLoginSet, otherFirstLoginInitialized, note }
 function ensureTeachersSheet() {
   try {
     const r = _ensureSheetWithHeaders(SHEET_TEACHERS, TEACHERS_HEADERS);
     const sh = r.sh;
-    let initialRowAdded = false;
-    // 既存行があるか調べる（ヘッダー行 1 行のみなら未投入とみなす）
+
+    // ヘッダー行を確認。G 列 firstLoginCompleted が無ければ追加マイグレーションを行う。
+    // _ensureSheetWithHeaders はシート新規作成時のみ TEACHERS_HEADERS を書き込むため、
+    // 既存シート（6 列構造）の場合はここで明示的に G 列を追加する。
+    let columnAdded = false;
+    const lastCol = sh.getLastColumn();
+    let header = lastCol > 0 ? sh.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+    let iFlc = header.indexOf('firstLoginCompleted');
+    if (iFlc < 0) {
+      // 末尾に firstLoginCompleted 列を追加
+      const newCol = lastCol + 1;
+      sh.getRange(1, newCol).setValue('firstLoginCompleted');
+      columnAdded = true;
+      // ヘッダー再読込（インデックス更新）
+      header = sh.getRange(1, 1, 1, newCol).getValues()[0];
+      iFlc = header.indexOf('firstLoginCompleted');
+    }
+
+    const iId   = header.indexOf('teacherId');
+    const iName = header.indexOf('teacherName');
+    const iPw   = header.indexOf('password');
+    const iRole = header.indexOf('role');
+    const iNick = header.indexOf('displayNickname');
+    const iAct  = header.indexOf('active');
+
+    let t101RowAdded = false;
+    let t101FirstLoginSet = false;
+    let otherFirstLoginInitialized = 0;
+
     const lastRow = sh.getLastRow();
-    let hasT001 = false;
+    let t101RowIdx = -1; // 1-indexed の行番号
     if (lastRow >= 2) {
-      const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
-      for (let i = 0; i < ids.length; i++) {
-        if (String(ids[i][0] || '').trim() === 'T001') { hasT001 = true; break; }
+      const idCol = sh.getRange(2, iId + 1, lastRow - 1, 1).getValues();
+      for (let i = 0; i < idCol.length; i++) {
+        const sid = String(idCol[i][0] || '').trim();
+        if (sid === TEACHER_PRIMARY_ID) { t101RowIdx = i + 2; break; }
       }
     }
-    if (!hasT001) {
-      sh.appendRow(['T001', '福地', TEACHER_INITIAL_PASSWORD, 'admin', 'ふく先生', true]);
-      initialRowAdded = true;
+
+    if (t101RowIdx < 0) {
+      // t101 行を新規追加（admin / firstLoginCompleted=TRUE）
+      // パスワードは仮値（migrateTeachersPasswordHash 実行時にハッシュ化される）
+      // 列数分を埋める（追加後のヘッダーに従う）
+      const newRow = [];
+      newRow[iId]   = TEACHER_PRIMARY_ID;
+      newRow[iName] = '福地';
+      newRow[iPw]   = TEACHER_INITIAL_PASSWORD;
+      newRow[iRole] = 'admin';
+      newRow[iNick] = 'ふく先生';
+      newRow[iAct]  = true;
+      newRow[iFlc]  = true;
+      // ヘッダー長まで埋める（不足セルは ''）
+      for (let i = 0; i < header.length; i++) if (newRow[i] === undefined) newRow[i] = '';
+      sh.appendRow(newRow);
+      t101RowAdded = true;
+      t101FirstLoginSet = true;
+    } else {
+      // t101 行は既存。G 列 firstLoginCompleted が空 or false なら TRUE にセット。
+      // ⚠️ B〜F 列（teacherName / password / role / displayNickname / active）は絶対に書き換えない。
+      const cur = sh.getRange(t101RowIdx, iFlc + 1).getValue();
+      if (!_teacherTruthy(cur)) {
+        sh.getRange(t101RowIdx, iFlc + 1).setValue(true);
+        t101FirstLoginSet = true;
+      }
     }
+
+    // t102〜t110 等の既存行：teacherId が入っていて firstLoginCompleted 列が完全に空の場合のみ FALSE を投入。
+    // ⚠️ 既に TRUE / FALSE が明示的に入っている場合は絶対に書き換えない。
+    // ⚠️ B〜F 列も絶対に書き換えない（読むだけ）。
+    const lastRowAfter = sh.getLastRow();
+    if (lastRowAfter >= 2) {
+      const range = sh.getRange(2, 1, lastRowAfter - 1, header.length).getValues();
+      for (let i = 0; i < range.length; i++) {
+        const sid = String(range[i][iId] || '').trim();
+        if (!sid) continue;                            // teacherId 空欄（バッファ枠）はスキップ
+        if (sid === TEACHER_PRIMARY_ID) continue;      // t101 は上で処理済
+        const flcCell = range[i][iFlc];
+        const isEmpty = (flcCell === '' || flcCell === null || flcCell === undefined);
+        if (isEmpty) {
+          sh.getRange(i + 2, iFlc + 1).setValue(false);
+          otherFirstLoginInitialized++;
+        }
+      }
+    }
+
     return {
       ok: true,
-      sheetCreated:    r.created,
-      initialRowAdded: initialRowAdded,
-      password:        TEACHER_INITIAL_PASSWORD,
-      note: '⚠️ T001 のパスワードを Teachers シート上で安全な値に書き換えてください'
+      sheetCreated:               r.created,
+      columnAdded:                columnAdded,
+      t101RowAdded:               t101RowAdded,
+      t101FirstLoginSet:          t101FirstLoginSet,
+      otherFirstLoginInitialized: otherFirstLoginInitialized,
+      note: t101RowAdded
+        ? '⚠️ t101 のパスワードを Teachers シート上で安全な値に書き換えてください（または migrateTeachersPasswordHash を実行）'
+        : (columnAdded ? 'G 列 firstLoginCompleted を追加しました' : '既に最新スキーマです')
     };
   } catch (err) {
     console.error('[ensureTeachersSheet]', err);
@@ -5204,9 +5494,12 @@ function _parseIndividualTargetIds(targetIdsStr) {
 // 戻り値: { ok, messageId } または { ok:false, message }
 function sendTeacherMessage(params) {
   try {
-    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
 
-    const senderId   = String((params && params.senderId) || 'T001').trim();
+    // ⚠️ なりすまし防止：params.senderId は受け付けず、認証された teacherId を強制使用する。
+    //    クライアントから渡された senderId は完全に無視する。
+    const senderId   = _teacher.teacherId;
     const targetType = String((params && params.targetType) || '').trim();
     const content    = String((params && params.content) || '').trim();
 
@@ -5454,7 +5747,8 @@ function _calendarIsActivity(type) {
 // キャッシュ: cache_calendar_<yearMonth>（15分 TTL）
 function getCalendarMonthSummary(params) {
   try {
-    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const ym = String((params && params.yearMonth) || '').trim();
     if (!/^\d{4}-\d{2}$/.test(ym)) return { ok: false, message: 'yearMonth は YYYY-MM 形式で指定してください' };
 
@@ -5504,7 +5798,8 @@ function getCalendarMonthSummary(params) {
 //                                  breakdown: [{ content, hp }] }] }
 function getCalendarDayDetail(params) {
   try {
-    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const date = String((params && params.date) || '').trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, message: 'date は YYYY-MM-DD 形式で指定してください' };
 
@@ -5866,7 +6161,8 @@ function submitSango(params) {
 
 function adminAddSangoTopic(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     if (!params.date || !params.level || !params.word1 || !params.word2 || !params.word3 || !params.teacher_work) {
       return { ok: false, message: '必須項目を入力してください' };
     }
@@ -5887,7 +6183,8 @@ function adminAddSangoTopic(params) {
 // week_no は週全体で1つの番号（全itemsに同じ番号を付与）
 function adminAddSangoTopicsWeek(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const items = params.items || [];
     if (!Array.isArray(items) || items.length === 0) {
       return { ok: false, message: '登録するお題がありません' };
@@ -5931,7 +6228,8 @@ function adminAddSangoTopicsWeek(params) {
 
 function adminListSangoSubmissions(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
     if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
 
@@ -5976,7 +6274,8 @@ function adminListSangoSubmissions(params) {
 // 既存の (date, level) 行を検索して teacher_work 列を上書きする
 function adminSetSangoTeacherWork(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const date  = String(params.date  || '').trim();
     const level = String(params.level || '').trim();
     const work  = String(params.teacher_work || '').trim();
@@ -6008,7 +6307,8 @@ function adminSetSangoTeacherWork(params) {
 
 function adminSetSangoComment(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const ts  = String(params.timestamp || '').trim();
     const sid = String(params.studentId || '').trim();
     const comment = String(params.comment != null ? params.comment : '');
@@ -7067,7 +7367,8 @@ function _wabun1NormalizeKind(rawKind) {
 // =============================================
 function adminAddWabun1TopicsWeek(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const start = String(params.start || '').trim();
     const weekNo = (params.weekNo == null || params.weekNo === '') ? '' : params.weekNo;
     const items = params.items || [];
@@ -7171,7 +7472,8 @@ function adminAddWabun1TopicsWeek(params) {
 // =============================================
 function adminSetWabun1AnswerWeek(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const start = String(params.start || '').trim();
     const items = params.items || [];
     if (!start) return { ok: false, message: '週開始日(start)が必要です' };
@@ -7235,7 +7537,8 @@ function adminSetWabun1AnswerWeek(params) {
 // =============================================
 function adminListWabun1Submissions(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const filterDate = String((params && params.date) || '').trim();
     const filterSid  = String((params && params.studentId) || '').trim();
 
@@ -7289,7 +7592,8 @@ function adminListWabun1Submissions(params) {
 // =============================================
 function adminSetWabun1Comment(params) {
   try {
-    if (!_verifyAdmin(params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const ts  = String(params.timestamp || '').trim();
     const sid = String(params.studentId || '').trim();
     const comment = String(params.comment != null ? params.comment : '');
@@ -7519,7 +7823,8 @@ function _readLisonContentsIndex(sheet) {
 // =============================================
 function adminSaveLisonContentsWeek(params) {
   try {
-    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const weekStart = String((params && params.weekStart) || '').trim();
     const levels = (params && params.levels) || [];
     if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
@@ -7628,7 +7933,8 @@ function adminSaveLisonContentsWeek(params) {
 // =============================================
 function getLisonContentsWeek(params) {
   try {
-    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const weekStart = String((params && params.weekStart) || '').trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
       return { ok: false, message: 'weekStart は YYYY-MM-DD 形式で指定してください' };
@@ -7663,7 +7969,8 @@ function getLisonContentsWeek(params) {
 // =============================================
 function listLisonContentsWeeks(params) {
   try {
-    if (!_verifyAdmin(params && params.password)) return { ok: false, message: '認証エラー' };
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const limit = Math.max(1, Math.min(60, Number((params && params.limit) || 8)));
     const sh = _ss().getSheetByName(SHEET_LISON_CONTENTS);
     if (!sh || sh.getLastRow() < 2) return { ok: true, weeks: [] };
@@ -7896,9 +8203,8 @@ function migrateLisonRecordingsToShared(params) {
 // timestamp 降順。30 日より古い行は除外。
 function getLisonSubmissionsList(params) {
   try {
-    if (!_verifyAdmin((params && params.password) || '')) {
-      return { ok: false, message: '認証エラー' };
-    }
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
     const filterSid = String((params && params.studentId) || '').trim();
 
     const sh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
