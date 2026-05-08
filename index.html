@@ -3294,7 +3294,7 @@
   // 副キャプション（caption フィールド）は今は空欄。ふくちさんが各キャラの
   // 性格説明を入れるとカード下部に表示される。空のままなら枠だけ確保される。
   // インデックス: 0=マイカツ君 / 1=RUSH君 / 2=サンゴタン / 3=ニチエイ /
-  //              4=キソ"K"さん / 5=リスオン / 6=カンジー
+  //              4=キソ"K"さん / 5=リスオン / 6=カンジー / 7=コブタン
   // 注：character.jpg はリポジトリルートに存在（他のキャラ画像のように images/
   // 配下ではない）。ふくちさんが将来 images/ に移動した場合は image パスを更新。
   var CHARACTER_INTRO_DATA = [
@@ -3305,6 +3305,7 @@
     { name: 'キソ"K"さん',    content: '基礎計算',           image: 'images/kisoK-default.png',     caption: '' },
     { name: 'リスオン',       content: '英語リスオン',       image: 'images/lison-default.png',     caption: '' },
     { name: 'カンジー',       content: 'カンジー',           image: 'images/kanjii-default.png',    caption: '' },
+    { name: 'コブタン',       content: '古文単語',           image: 'images/kobun-default.png',     caption: '' },
   ];
   function _charIntroEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function showCharacterIntro() {
