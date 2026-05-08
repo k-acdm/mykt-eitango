@@ -428,37 +428,42 @@
     .content-btn:not(.disabled):hover .ico-mascot { transform: scale(1.06); background: rgba(255,255,255,.26); }
     @media (max-width: 480px) { .content-btn .ico-mascot { width:48px; height:48px; padding:5px; border-radius:12px; } }
     /* ---- ホーム画面コンテンツボタンのキャラ画像ゆらゆら（マイカツ君 cbob 踏襲） ---- */
-    /* マイカツ君の cbob keyframes（行 219）と同じ上下 7px の控えめな揺れを 6 キャラに適用。
-       準備中（c-wabun2 / c-social / c-science）と秘密の扉（c-himitsu）には適用しない。
+    /* マイカツ君の cbob keyframes（行 219）と同じ上下 7px の控えめな揺れを 7 キャラに適用。
+       準備中（c-wabun2 / c-social / c-science / c-phonics）と秘密の扉（c-himitsu）には適用しない。
        2026-05-08：カンジー稼働化に合わせ c-kanji を追加（delay 2.0s）。
-       duration 2.4s、各キャラ delay 0/0.4/0.8/1.2/1.6/2.0s で機械的な同期を回避（半周期内に分散）。 */
+       2026-05-08 夕：古文単語コブタン稼働化に合わせ c-kobun を追加（delay 2.4s）。
+       duration 2.4s、各キャラ delay 0/0.4/0.8/1.2/1.6/2.0/2.4s で機械的な同期を回避（半周期内に分散）。 */
     @keyframes wobble-character { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
     .content-btn.c-eitango .ico-mascot,
     .content-btn.c-sango   .ico-mascot,
     .content-btn.c-wabun1  .ico-mascot,
     .content-btn.c-math    .ico-mascot,
     .content-btn.c-lison   .ico-mascot,
-    .content-btn.c-kanji   .ico-mascot { animation: wobble-character 2.4s ease-in-out infinite; will-change: transform; }
+    .content-btn.c-kanji   .ico-mascot,
+    .content-btn.c-kobun   .ico-mascot { animation: wobble-character 2.4s ease-in-out infinite; will-change: transform; }
     .content-btn.c-eitango .ico-mascot { animation-delay: 0s; }
     .content-btn.c-sango   .ico-mascot { animation-delay: 0.4s; }
     .content-btn.c-wabun1  .ico-mascot { animation-delay: 0.8s; }
     .content-btn.c-math    .ico-mascot { animation-delay: 1.2s; }
     .content-btn.c-lison   .ico-mascot { animation-delay: 1.6s; }
     .content-btn.c-kanji   .ico-mascot { animation-delay: 2.0s; }
+    .content-btn.c-kobun   .ico-mascot { animation-delay: 2.4s; }
     /* hover 中は scale 効果と衝突しないよう揺れを一時停止（既存 :hover ルールの transform を維持） */
     .content-btn.c-eitango:hover .ico-mascot,
     .content-btn.c-sango:hover   .ico-mascot,
     .content-btn.c-wabun1:hover  .ico-mascot,
     .content-btn.c-math:hover    .ico-mascot,
     .content-btn.c-lison:hover   .ico-mascot,
-    .content-btn.c-kanji:hover   .ico-mascot { animation-play-state: paused; }
+    .content-btn.c-kanji:hover   .ico-mascot,
+    .content-btn.c-kobun:hover   .ico-mascot { animation-play-state: paused; }
     @media (prefers-reduced-motion: reduce) {
       .content-btn.c-eitango .ico-mascot,
       .content-btn.c-sango   .ico-mascot,
       .content-btn.c-wabun1  .ico-mascot,
       .content-btn.c-math    .ico-mascot,
       .content-btn.c-lison   .ico-mascot,
-      .content-btn.c-kanji   .ico-mascot { animation: none; }
+      .content-btn.c-kanji   .ico-mascot,
+      .content-btn.c-kobun   .ico-mascot { animation: none; }
     }
     .content-btn.c-himitsu   { background: linear-gradient(135deg,#5b21b6,#1e1b4b); position:relative; overflow:hidden; }
     .content-btn.c-himitsu::before { content:"✨"; position:absolute; top:6px; left:8px; font-size:14px; opacity:.85; pointer-events:none; }
@@ -469,6 +474,10 @@
     .content-btn.c-kanji     { background: linear-gradient(135deg,#ff8a8a,#c92a2a); }
     .content-btn.c-social    { background: linear-gradient(135deg,#96e072,#2ecc71); }
     .content-btn.c-science   { background: linear-gradient(135deg,#43cea2,#185a9d); }
+    /* 古文単語「コブタン」（2026-05-08 稼働化）：暖色系（金〜琥珀）で平安らしさ + コブタンの吹き出しと統一感 */
+    .content-btn.c-kobun     { background: linear-gradient(135deg,#f6ad55,#b45309); }
+    /* フォニックスゲーム（2026-05-08 新設、準備中スケルトン）：桜色系で子供向けらしさ */
+    .content-btn.c-phonics   { background: linear-gradient(135deg,#fbb6ce,#ed64a6); }
     .content-btn.disabled  { opacity: .58; cursor: not-allowed; }
     .content-btn.disabled:hover { transform: none; box-shadow: 0 4px 14px rgba(0,0,0,.12); opacity: .58; }
     .content-btn .badge-soon { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.45); color: #fff; font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; letter-spacing: .5px; }
@@ -1233,6 +1242,15 @@
           <span class="badge-hp">50〜100HP/日</span>
           <img class="ico-mascot" src="images/kanjii-default.png" alt="">カンジー
           <span class="content-btn-sub">漢字の読み書き</span>
+        </button>
+        <button class="content-btn c-kobun" onclick="showKobunStart()">
+          <span class="badge-hp">100HP/日</span>
+          <img class="ico-mascot" src="images/kobun-default.png" alt="">古文単語
+          <span class="content-btn-sub">対象：高校生</span>
+        </button>
+        <button class="content-btn c-phonics disabled" onclick="showComingSoon('フォニックスゲーム')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">🎵</span>フォニックスゲーム
         </button>
         <button class="content-btn c-himitsu" onclick="showHimitsuDoor()">
           <span class="ico">🚪</span>秘密の扉
