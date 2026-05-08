@@ -6261,12 +6261,18 @@
     reader.onload = function(e) {
       var img = new Image();
       img.onload = function() {
-        var maxSize = 1200, w = img.width, h = img.height;
+        // 2026-05-08 夜：1200/0.7 → 1600/0.85 に強化。
+        // 背景：複雑な漢字（10 画以上、例：怒鳴・網・齢）の OCR 誤認識バグ対応。
+        // 1200px / 品質 0.7 では、細い線・トメ・ハネが JPEG 圧縮で潰れて Gemini が
+        // 字形を誤認識（怒鳴→焚き 等）。1600px / 0.85 で細部解像が向上し AI の判断
+        // 材料が増える。ファイルサイズ 200〜400KB → 500〜900KB（API payload 上限の
+        // 数 MB に対し余裕、通信 +1〜2 秒程度の許容範囲）。
+        var maxSize = 1600, w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } } else { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
         var canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         _kanjiState.kakiPhotoDataUrl = dataUrl;
         _kanjiState.kakiPhotoBase64 = dataUrl.split(',')[1];
         document.getElementById('kanji-kaki-preview').src = dataUrl;
