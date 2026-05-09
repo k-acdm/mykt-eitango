@@ -1052,12 +1052,12 @@ function doGet(e) {
       else if (action === 'getLisonLevels')                  result = getLisonLevels();
       else if (action === 'getLisonContentsWeek')            result = getLisonContentsWeek(params);
       else if (action === 'listLisonContentsWeeks')          result = listLisonContentsWeeks(params);
-      // 管理画面: リスオン録音メタ一覧 + 既存録音の一括公開化バッチ（後者は GAS エディタ実行用）
+      // 管理画面: リスオン録音メタ一覧
       else if (action === 'getLisonSubmissionsList')         result = getLisonSubmissionsList(params);
-      else if (action === 'migrateLisonRecordingsToShared')  result = migrateLisonRecordingsToShared(params);
-      // リスオン保守バッチ（いずれも GAS エディタ実行用、Time-based Trigger でも可）
-      else if (action === 'migrateLisonSubmissionsAddFileId') result = migrateLisonSubmissionsAddFileId(params);
-      else if (action === 'cleanupLisonOldRecordings')        result = cleanupLisonOldRecordings(params);
+      // ※ リスオン保守バッチ（migrateLisonRecordingsToShared / migrateLisonSubmissionsAddFileId
+      //   / cleanupLisonOldRecordings）は URL 経由を遮断（Phase 2、漏洩耐性向上）。
+      //   関数本体は残しており、GAS エディタからの手動実行 + Time-based Trigger（cleanup）は
+      //   引き続き動作する。将来 URL 経由が必要になった時はここに else if を再追加すること。
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -5861,30 +5861,17 @@ function completeFirstLogin(params) {
 //  - role は Phase 1 で 'admin' / 'teacher' の 2 段階（t101 = admin / t102〜t109 = teacher）
 //  - _verifyTeacher 成功後に _requireAdmin で admin 専用判定を行う
 //  - エラー文言は「この操作は管理者のみ可能です」で統一（論点④）
-//  - 保守バッチ系（migrateLison* / cleanupLison*）は GAS エディタからの直接実行を維持するため、
-//    URL 経由（params に teacherId / password が含まれる）の場合のみ admin 認証を強制する。
-//    params 未指定（GAS エディタ直接実行）は従来通り認証なしで実行可能。
+//  - 保守バッチ系（migrateLisonRecordingsToShared / migrateLisonSubmissionsAddFileId /
+//    cleanupLisonOldRecordings）は doGet / doPost ルーティングから完全に削除済み
+//    （Phase 2、漏洩耐性向上）。関数本体は残しており、GAS エディタからの手動実行 +
+//    Time-based Trigger（cleanupLisonOldRecordings 日次）のみで動作する。
+//    将来 URL 経由が必要になった時はルーティング再追加 + admin ガードを併せて入れること。
 
 // teacher オブジェクトの role が 'admin' かを判定する。
 // _verifyTeacher の戻り値（成功時オブジェクト、失敗時 null）を渡す前提。
 // null / undefined / role 列が空 / 'teacher' などはすべて false。
 function _requireAdmin(teacher) {
   return !!(teacher && teacher.role === 'admin');
-}
-
-// 保守バッチ系で URL 経由のみ admin 認証を強制するためのヘルパー。
-// 戻り値: null（認証チェック不要 = GAS エディタ直接実行）
-//         または { ok:false, message } 形式のエラーオブジェクト
-//         または { ok:true, teacher } 形式の成功オブジェクト
-// 呼び出し側で「null なら従来通り続行、ok:false なら return、ok:true なら _teacher を取り出して続行」のように使う。
-function _checkAdminIfFromUrl(params) {
-  if (!params) return null;
-  const hasAuth = !!(params.teacherId || params.password);
-  if (!hasAuth) return null; // GAS エディタからの直接実行 → 認証スキップ
-  const _teacher = _verifyTeacher(params.teacherId, params.password);
-  if (!_teacher) return { ok: false, message: '認証エラー' };
-  if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
-  return { ok: true, teacher: _teacher };
 }
 
 function adminAddQuote(params) {
@@ -8944,9 +8931,7 @@ function _lisonExtractFileId(url) {
 //
 // 削除済みファイル等で getFileById が throw したら個別にスキップして次へ。
 function migrateLisonRecordingsToShared(params) {
-  // URL 経由（doGet）の場合のみ admin 認証を強制。GAS エディタ直接実行は認証なしで継続。
-  const _authCheck = _checkAdminIfFromUrl(params);
-  if (_authCheck && _authCheck.ok === false) return _authCheck;
+  // ⚠️ Phase 2 で doGet / doPost ルーティングを削除済。GAS エディタからの手動実行のみで動作する。
   const t0 = Date.now();
   const result = {
     ok: true,
@@ -9108,9 +9093,7 @@ function getLisonSubmissionsList(params) {
 // 想定運用: GAS エディタの関数ドロップダウンから 1 回だけ実行。
 // 戻り値: { ok, total, succeeded, failed, errors:[{row,reason}], elapsedSec }
 function migrateLisonSubmissionsAddFileId(params) {
-  // URL 経由（doGet）の場合のみ admin 認証を強制。GAS エディタ直接実行は認証なしで継続。
-  const _authCheck = _checkAdminIfFromUrl(params);
-  if (_authCheck && _authCheck.ok === false) return _authCheck;
+  // ⚠️ Phase 2 で doGet / doPost ルーティングを削除済。GAS エディタからの手動実行のみで動作する。
   const t0 = Date.now();
   const result = {
     ok: true,
@@ -9233,10 +9216,8 @@ function migrateLisonSubmissionsAddFileId(params) {
 // 想定運用: Apps Script エディタの「時計アイコン」→「トリガーを追加」
 //   → 関数: cleanupLisonOldRecordings / イベント: 時間主導 / 日タイマー / 午前 4-5 時
 function cleanupLisonOldRecordings(params) {
-  // URL 経由（doGet）の場合のみ admin 認証を強制。GAS エディタ直接実行 / Time-based Trigger
-  // からの実行（params 未指定）は認証なしで継続。
-  const _authCheck = _checkAdminIfFromUrl(params);
-  if (_authCheck && _authCheck.ok === false) return _authCheck;
+  // ⚠️ Phase 2 で doGet / doPost ルーティングを削除済。GAS エディタ手動実行 +
+  //    Time-based Trigger（日次 04:00-05:00）のみで動作する。Trigger は params 未指定で呼ぶ。
   const t0 = Date.now();
   const dryRun = !!(params && params.dryRun);
   const result = {
