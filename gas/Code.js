@@ -231,6 +231,89 @@ function _updateStudentsCacheRow(rowIdx, updates) {
   }
 }
 
+// =============================================
+// 行シフト事故防止ヘルパー（2026-05-09 Step 0：SpecialAccounts 化前の地ならし）
+// =============================================
+// 背景：2026-05-08 の Students シート行追加事故と同種の事故を絶対に起こさない
+//       ため、書き込み系コードは「行番号ベース」から「生徒IDベース」に統一する。
+//       事故の機序：cache（_getStudentsValues）が stale な状態で、cache 上の
+//       行 index `i` をそのままシートの `i+1` 行への書き込み先として使うと、
+//       ふくちさんが手元でシートに行を追加していた場合に既存生徒の物理行が
+//       シフトしているため、別生徒の行を上書きしてしまう。
+//
+// 解決方針：
+//   1) DRY：_findStudentRowIndex は values から sid で 0-based index を返す純粋関数
+//   2) 書き込み前は _findStudentRowOnSheet で必ずシートからフレッシュに行特定する
+//   3) cache 更新は _updateStudentsCacheBySid で sid キーに統一（cache 上の
+//      index と sheet 上の index が乖離していても安全に更新できる）
+
+// 純粋ヘルパー：values 配列から sid に一致する行を 0-based index で返す。
+// values は _getStudentsValues() / sheet.getDataRange().getValues() どちらも可。
+// 戻り値: 0-based index（values[index][COL_ID] === sid）、見つからなければ -1
+function _findStudentRowIndex(values, sid) {
+  const target = String(sid || '').trim();
+  if (!target || !values || !values.length) return -1;
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][COL_ID] || '').trim() === target) return i;
+  }
+  return -1;
+}
+
+// 書き込み前のフレッシュ行特定。
+// シートを直接読んで sid に対応する行を探し、書き込み先として安全な
+// { sheet, rowIdx, rowValues, allValues } を返す。cache は経由しないため、
+// 行シフトが起きていても正しい行を返す。
+//
+// 戻り値:
+//   { sheet, rowIdx, rowValues, allValues } — 見つかった場合
+//   null — sheet が無い or sid が見つからない
+function _findStudentRowOnSheet(sid) {
+  const sheet = _ss().getSheetByName(SHEET_STUDENTS);
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  const allValues = sheet.getDataRange().getValues();
+  const rowIdx = _findStudentRowIndex(allValues, sid);
+  if (rowIdx < 0) return null;
+  return { sheet: sheet, rowIdx: rowIdx, rowValues: allValues[rowIdx], allValues: allValues };
+}
+
+// sid 経由で cache を in-place 更新。
+// _updateStudentsCacheRow（rowIdx 引数版）と違い、cache 上で sid を再検索して
+// その行を更新するため、cache の index と sheet の index が乖離していても
+// 「正しい sid の cache エントリ」を更新できる。
+// cache が未保持 / sid が cache に無い場合は invalidate にフォールバック。
+function _updateStudentsCacheBySid(sid, updates) {
+  const KEY = 'cache_students_values';
+  try {
+    const cache = CacheService.getScriptCache();
+    const hit = cache.get(KEY);
+    if (!hit) return; // 未保持：次回 read で fresh に取得される
+    const values = JSON.parse(hit);
+    const idx = _findStudentRowIndex(values, sid);
+    if (idx < 0) {
+      // cache に sid が存在しない（cache が古いか、新規生徒など）→ 安全側で invalidate
+      cache.remove(KEY);
+      _cacheLog(KEY, 'invalidate', 'sid not in cache: ' + sid);
+      return;
+    }
+    Object.keys(updates).forEach(function(k){
+      values[idx][parseInt(k, 10)] = updates[k];
+    });
+    const ser = JSON.stringify(values);
+    if (ser.length < 95000) {
+      cache.put(KEY, ser, 21600);
+      _cacheLog(KEY, 'update', 'sid=' + sid + ' row=' + idx);
+    } else {
+      cache.remove(KEY);
+      _cacheLog(KEY, 'invalidate', 'update skip: size=' + ser.length);
+    }
+  } catch(e) {
+    try {
+      CacheService.getScriptCache().remove(KEY);
+      _cacheLog(KEY, 'invalidate', 'update by sid failed: ' + e);
+    } catch(_) {}
+  }
+}
+
 // 診断ログを有効化（GAS エディタから直接実行）
 // 実行後、各リクエストの Executions ログに [cache HIT/MISS/INV] が出力される
 function enableDebugCache() {
@@ -446,98 +529,96 @@ function doPost(e) {
 // =============================================
 function loginStudent(studentId) {
   try {
-    // G1: Students キャッシュから読む（cold miss 時のみ全件読み）
-    const rows = _getStudentsValues();
-    if (!rows || rows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません。' };
+    // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行は必ず
+    // シートからフレッシュに sid で特定する（cache 経由禁止）。
+    // 読み取り側のキャッシュ最適化（_getStudentsValues）は他の read-only API でのみ使う。
+    const stuLoc = _findStudentRowOnSheet(studentId);
+    if (!stuLoc) return { ok: false, message: '生徒IDが見つかりません。先生に確認してください。' };
+    const row = stuLoc.rowValues;
     // 4/27 cutover 後は教育日（4:00 AM JST 区切り）。それ以前は _todayJST と同じ
     const today = _todayEducationalJST();
     const now   = _nowJST();
 
-    for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][COL_ID]).trim() !== String(studentId).trim()) continue;
+    const nickname     = String(row[COL_NICKNAME] || '').trim();
+    const isFirstLogin = (nickname === '');
+    let   currentHP    = Number(row[COL_HP])     || 0;
+    let   streak       = Number(row[COL_STREAK]) || 0;
+    const lastLogin    = _toDateStr(row[COL_LAST_LOGIN]);
 
-      const nickname     = String(rows[i][COL_NICKNAME] || '').trim();
-      const isFirstLogin = (nickname === '');
-      let   currentHP    = Number(rows[i][COL_HP])     || 0;
-      let   streak       = Number(rows[i][COL_STREAK]) || 0;
-      const lastLogin    = _toDateStr(rows[i][COL_LAST_LOGIN]);
-
-      // 未ログイン日数を計算
-      let missedDays = 0;
-      if (lastLogin && lastLogin !== today) {
-        const diff = (new Date(today) - new Date(lastLogin)) / (1000 * 60 * 60 * 24);
-        missedDays = Math.floor(diff);
-      }
-
-      // 今日まだログインしていない場合のみ更新
-      let loginBonus = 0;
-      if (lastLogin !== today) {
-        loginBonus = 10;
-        currentHP += loginBonus;
-
-        if (missedDays === 1) {
-          streak += 1;    // 昨日から連続
-        } else if (missedDays === 0) {
-          streak = 1;     // 初回ログイン
-        } else {
-          streak = 1;     // 2日以上空いたのでリセット
-        }
-
-        // 4/26 修正: 連続日数バグ対策で LAST_TEST 列を含む 5 列 setValues を廃止
-        //   旧: setValues E-I（UPDATED, HP, STREAK, LAST_TEST=preserved, LAST_LOGIN）
-        //       → preservedLastTest が cache 経由（stale な ISO 文字列の可能性）でリスク
-        //   新: setValues E-G（UPDATED, HP, STREAK）+ setValue I（LAST_LOGIN）
-        //       LAST_TEST には触らない（saveAttempt が必要に応じて自分で書く）
-        const sheet = _ss().getSheetByName(SHEET_STUDENTS);
-        sheet.getRange(i + 1, COL_UPDATED + 1, 1, COL_STREAK - COL_UPDATED + 1)
-             .setValues([[now, currentHP, streak]]);
-        sheet.getRange(i + 1, COL_LAST_LOGIN + 1).setValue(today);
-        const updates = {};
-        updates[COL_UPDATED]    = now;
-        updates[COL_HP]         = currentHP;
-        updates[COL_STREAK]     = streak;
-        updates[COL_LAST_LOGIN] = today;
-        _updateStudentsCacheRow(i, updates);
-        // 既存コンテンツは素点と倍率後HPが同値のため rawHP = hpGained
-        _logHP(studentId, loginBonus, loginBonus, 'login');
-      }
-
-      // ステージ・称号・節目を計算
-      const yesterday    = _getYesterdayJST();
-      const prevDayCount = _getPrevDayCount(studentId, yesterday);
-      const stage        = _calcStage(streak, missedDays, prevDayCount);
-      const title        = _getTitle(streak);
-      // 節目・称号ランクアップ チェック
-      let milestoneInfo = null;
-      if (loginBonus > 0) {
-        const isMsDay  = _isMilestone(streak);
-        const rankUpCheck = (missedDays === 1) && (_getTitle(streak) !== _getTitle(streak - 1));
-        if (isMsDay || rankUpCheck) {
-          milestoneInfo = {
-            streak:      streak,
-            isMilestone: isMsDay,
-            isRankUp:    rankUpCheck,
-            prevTitle:   missedDays === 1 ? _getTitle(streak - 1) : '',
-            newTitle:    title
-          };
-        }
-      }
-
-      return {
-        ok:          true,
-        studentId:   String(rows[i][COL_ID]).trim(),
-        name:        String(rows[i][COL_NAME] || ''),
-        nickname,
-        isFirstLogin,
-        totalHP:     currentHP,
-        loginBonus,
-        streak,
-        stage,
-        title,
-        milestone: milestoneInfo
-      };
+    // 未ログイン日数を計算
+    let missedDays = 0;
+    if (lastLogin && lastLogin !== today) {
+      const diff = (new Date(today) - new Date(lastLogin)) / (1000 * 60 * 60 * 24);
+      missedDays = Math.floor(diff);
     }
-    return { ok: false, message: '生徒IDが見つかりません。先生に確認してください。' };
+
+    // 今日まだログインしていない場合のみ更新
+    let loginBonus = 0;
+    if (lastLogin !== today) {
+      loginBonus = 10;
+      currentHP += loginBonus;
+
+      if (missedDays === 1) {
+        streak += 1;    // 昨日から連続
+      } else if (missedDays === 0) {
+        streak = 1;     // 初回ログイン
+      } else {
+        streak = 1;     // 2日以上空いたのでリセット
+      }
+
+      // 4/26 修正: 連続日数バグ対策で LAST_TEST 列を含む 5 列 setValues を廃止
+      //   旧: setValues E-I（UPDATED, HP, STREAK, LAST_TEST=preserved, LAST_LOGIN）
+      //       → preservedLastTest が cache 経由（stale な ISO 文字列の可能性）でリスク
+      //   新: setValues E-G（UPDATED, HP, STREAK）+ setValue I（LAST_LOGIN）
+      //       LAST_TEST には触らない（saveAttempt が必要に応じて自分で書く）
+      // 2026-05-09 Step 0：書き込み行は stuLoc.rowIdx（フレッシュ）を使う
+      stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_UPDATED + 1, 1, COL_STREAK - COL_UPDATED + 1)
+           .setValues([[now, currentHP, streak]]);
+      stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_LAST_LOGIN + 1).setValue(today);
+      const updates = {};
+      updates[COL_UPDATED]    = now;
+      updates[COL_HP]         = currentHP;
+      updates[COL_STREAK]     = streak;
+      updates[COL_LAST_LOGIN] = today;
+      _updateStudentsCacheBySid(studentId, updates);
+      // 既存コンテンツは素点と倍率後HPが同値のため rawHP = hpGained
+      _logHP(studentId, loginBonus, loginBonus, 'login');
+    }
+
+    // ステージ・称号・節目を計算
+    const yesterday    = _getYesterdayJST();
+    const prevDayCount = _getPrevDayCount(studentId, yesterday);
+    const stage        = _calcStage(streak, missedDays, prevDayCount);
+    const title        = _getTitle(streak);
+    // 節目・称号ランクアップ チェック
+    let milestoneInfo = null;
+    if (loginBonus > 0) {
+      const isMsDay  = _isMilestone(streak);
+      const rankUpCheck = (missedDays === 1) && (_getTitle(streak) !== _getTitle(streak - 1));
+      if (isMsDay || rankUpCheck) {
+        milestoneInfo = {
+          streak:      streak,
+          isMilestone: isMsDay,
+          isRankUp:    rankUpCheck,
+          prevTitle:   missedDays === 1 ? _getTitle(streak - 1) : '',
+          newTitle:    title
+        };
+      }
+    }
+
+    return {
+      ok:          true,
+      studentId:   String(row[COL_ID]).trim(),
+      name:        String(row[COL_NAME] || ''),
+      nickname,
+      isFirstLogin,
+      totalHP:     currentHP,
+      loginBonus,
+      streak,
+      stage,
+      title,
+      milestone: milestoneInfo
+    };
   } catch (err) {
     console.error('[loginStudent]', err);
     return { ok: false, message: '内部エラーが発生しました。' };
@@ -672,20 +753,16 @@ function _calcStage(streak, missedDays, prevDayCount) {
 // =============================================
 function saveNickname(studentId, nickname) {
   try {
-    // G1: キャッシュ経由で読み、書き込み後にキャッシュを in-place 更新
-    const rows = _getStudentsValues();
-    if (!rows || rows.length < 2) return { ok: false, message: '生徒IDが見つかりません。' };
+    // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行は必ず
+    // シートからフレッシュに sid で特定する（cache 経由禁止）
+    const stuLoc = _findStudentRowOnSheet(studentId);
+    if (!stuLoc) return { ok: false, message: '生徒IDが見つかりません。' };
     const trimmed = nickname.trim();
-    for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][COL_ID]).trim() !== String(studentId).trim()) continue;
-      const sheet = _ss().getSheetByName(SHEET_STUDENTS);
-      sheet.getRange(i + 1, COL_NICKNAME + 1).setValue(trimmed);
-      const updates = {};
-      updates[COL_NICKNAME] = trimmed;
-      _updateStudentsCacheRow(i, updates);
-      return { ok: true, nickname: trimmed };
-    }
-    return { ok: false, message: '生徒IDが見つかりません。' };
+    stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_NICKNAME + 1).setValue(trimmed);
+    const updates = {};
+    updates[COL_NICKNAME] = trimmed;
+    _updateStudentsCacheBySid(studentId, updates);
+    return { ok: true, nickname: trimmed };
   } catch (err) {
     return { ok: false, message: '保存に失敗しました。' };
   }
@@ -767,17 +844,10 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     const lv     = String(level || '4級').trim();
     const sNo    = Number(sessionNo) || 1;
 
-    // G1: Studentsシートをキャッシュ経由で読む
-    const sRows = _getStudentsValues();
-    let studentRowIdx = -1;
-    let studentName   = '';
-    for (let i = 1; i < sRows.length; i++) {
-      if (String(sRows[i][COL_ID]).trim() === sid) {
-        studentRowIdx = i;
-        studentName   = String(sRows[i][COL_NAME] || '');
-        break;
-      }
-    }
+    // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
+    // フレッシュに特定する。氏名 / 現在 HP / streak / cleared 等の現在値もここから読む。
+    const stuLoc = _findStudentRowOnSheet(sid);
+    const studentName = stuLoc ? String(stuLoc.rowValues[COL_NAME] || '') : '';
 
     // Attempts: 日時 / 生徒ID / 氏名 / セット番号 / 得点 / 合否 / 級 / 端末(任意) / メモ(任意)
     aSheet.appendRow([now, sid, studentName, setNo, score, passed ? '合格' : '不合格', lv, '', '']);
@@ -794,10 +864,10 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     // HP計算（streak ベース：ログイン連続日数 × week²）
     //   1セットクリアにつき 50 × (連続週数)² HPを加算
     //   → 1日2セット完了で合計 100 × (連続週数)² HP
-    if (studentRowIdx < 0) return { ok: false };
-    const i         = studentRowIdx;
-    const currentHP = Number(sRows[i][COL_HP]) || 0;
-    const streak    = Number(sRows[i][COL_STREAK]) || 1;  // 最低1
+    if (!stuLoc) return { ok: false };
+    const sRow      = stuLoc.rowValues;
+    const currentHP = Number(sRow[COL_HP]) || 0;
+    const streak    = Number(sRow[COL_STREAK]) || 1;  // 最低1
     const week      = Math.ceil(streak / 7);
     const hpGained  = 50 * week * week;
     const newHP     = currentHP + hpGained;
@@ -807,18 +877,18 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     //       → preservedStreak が cache 経由（stale な値の可能性）→ シートの STREAK を破壊するリスク
     //   新: setValues D-F（CLEARED, UPDATED, HP）+ setValue H（LAST_TEST）
     //       STREAK には絶対に触らない（loginStudent のみが書き込む列）
-    const currentCleared = Number(sRows[i][COL_CLEARED]) || 0;
+    // 2026-05-09 Step 0：書き込み行は stuLoc.rowIdx（フレッシュ）を使う
+    const currentCleared = Number(sRow[COL_CLEARED]) || 0;
     const newCleared = (setNo > currentCleared) ? setNo : currentCleared;
-    const sSheet = _ss().getSheetByName(SHEET_STUDENTS);
-    sSheet.getRange(i + 1, COL_CLEARED + 1, 1, COL_HP - COL_CLEARED + 1)
+    stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_CLEARED + 1, 1, COL_HP - COL_CLEARED + 1)
           .setValues([[newCleared, now, newHP]]);
-    sSheet.getRange(i + 1, COL_LAST_TEST + 1).setValue(today);
+    stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_LAST_TEST + 1).setValue(today);
     const updates = {};
     updates[COL_CLEARED]   = newCleared;
     updates[COL_UPDATED]   = now;
     updates[COL_HP]        = newHP;
     updates[COL_LAST_TEST] = today;
-    _updateStudentsCacheRow(i, updates);
+    _updateStudentsCacheBySid(sid, updates);
     // 既存コンテンツは素点と倍率後HPが同値のため rawHP = hpGained
     _logHP(sid, hpGained, hpGained, 'test');
     _invalidateCache('cache_ranking_last_week');
@@ -4228,22 +4298,11 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
 
     // 合格時の HP 計算
     if (passed) {
-      // streak は Students シートから取得
-      const stuSheet = _ss().getSheetByName(SHEET_STUDENTS);
-      let streakValue = 1;
-      let stuRowIdx = -1;
-      let currentHP = 0;
-      if (stuSheet) {
-        const stuRows = _getStudentsValues();
-        for (let i = 1; i < stuRows.length; i++) {
-          if (String(stuRows[i][COL_ID]).trim() === studentId) {
-            streakValue = Number(stuRows[i][COL_STREAK]) || 1;
-            currentHP = Number(stuRows[i][COL_HP]) || 0;
-            stuRowIdx = i;
-            break;
-          }
-        }
-      }
+      // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
+      // フレッシュに特定する。streak / 現在 HP もここから読む。
+      const stuLoc = _findStudentRowOnSheet(studentId);
+      const streakValue = stuLoc ? (Number(stuLoc.rowValues[COL_STREAK]) || 1) : 1;
+      const currentHP   = stuLoc ? (Number(stuLoc.rowValues[COL_HP])     || 0) : 0;
       const week = Math.ceil(streakValue / 7);
       const baseRawHP = (count === 5) ? 50 : 100;       // 仕様書 §8.1
       const todayTotalBefore = _kisoTodayRawHP(studentId);
@@ -4253,12 +4312,12 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
       const hpGained = effectiveRawHP * week * week;
 
       // Students.HP 更新（in-place）
-      if (!isPractice && stuRowIdx >= 0 && hpGained > 0 && stuSheet) {
+      if (!isPractice && stuLoc && hpGained > 0) {
         const newHP = currentHP + hpGained;
-        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
+        stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
         const upd = {};
         upd[COL_HP] = newHP;
-        _updateStudentsCacheRow(stuRowIdx, upd);
+        _updateStudentsCacheBySid(studentId, upd);
       }
 
       // HPLog 記録（仕様書 §8.4）
@@ -6211,18 +6270,11 @@ function submitSango(params) {
     if (!sid || !level || !work) return { ok: false, message: '必要な情報が不足しています' };
 
     const ss = _ss();
-    // G1: Students はキャッシュ経由
-    const stuRows = _getStudentsValues();
-    if (!stuRows || stuRows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません' };
-    let studentName = '';
-    let stuRowIdx = -1;
-    for (let i = 1; i < stuRows.length; i++) {
-      if (String(stuRows[i][COL_ID]).trim() === sid) {
-        studentName = String(stuRows[i][COL_NICKNAME] || '').trim() || '名無し';
-        stuRowIdx = i;
-        break;
-      }
-    }
+    // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
+    // フレッシュに特定する（cache 経由禁止）。氏名 / streak / HP もここから読む。
+    const stuLoc = _findStudentRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: 'Studentsシートが見つかりません' };
+    const studentName = String(stuLoc.rowValues[COL_NICKNAME] || '').trim() || '名無し';
 
     const subSheet = ss.getSheetByName(SHEET_SANGO_SUBMISSIONS);
     if (!subSheet) return { ok: false, message: 'SangoSubmissionsシートが見つかりません' };
@@ -6250,18 +6302,15 @@ function submitSango(params) {
     let hpGained = 0;
     if (!alreadyGranted) {
       // streak ベースの週数計算で 200 × week²
-      const streak = (stuRowIdx >= 0) ? (Number(stuRows[stuRowIdx][COL_STREAK]) || 1) : 1;
+      const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
       const week = Math.ceil(streak / 7);
       hpGained = 200 * week * week;
-      if (stuRowIdx >= 0) {
-        const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
-        const newHP = cur + hpGained;
-        const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
-        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
-        const upd = {};
-        upd[COL_HP] = newHP;
-        _updateStudentsCacheRow(stuRowIdx, upd);
-      }
+      const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
+      const newHP = cur + hpGained;
+      stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
+      const upd = {};
+      upd[COL_HP] = newHP;
+      _updateStudentsCacheBySid(sid, upd);
       // _logHP に統一（5 列：timestamp/studentId/rawHP/hpGained/type）
       // 三語短文は素点と倍率後HPが同値のため rawHP = hpGained
       _logHP(sid, hpGained, hpGained, 'sango');
@@ -7217,18 +7266,11 @@ function submitWabun1(params) {
     const allCorrect = results.length > 0 && results.every(function(r){ return r.correct; });
 
     const ss = _ss();
-    // G1: Students はキャッシュ経由
-    const stuRows = _getStudentsValues();
-    if (!stuRows || stuRows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません' };
-    let studentName = '';
-    let stuRowIdx = -1;
-    for (let i = 1; i < stuRows.length; i++) {
-      if (String(stuRows[i][COL_ID]).trim() === sid) {
-        studentName = String(stuRows[i][COL_NICKNAME] || '').trim() || '名無し';
-        stuRowIdx = i;
-        break;
-      }
-    }
+    // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
+    // フレッシュに特定する（cache 経由禁止）。
+    const stuLoc = _findStudentRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: 'Studentsシートが見つかりません' };
+    const studentName = String(stuLoc.rowValues[COL_NICKNAME] || '').trim() || '名無し';
 
     // 提出は毎回記録（正誤問わず）
     // 列構成: timestamp(1) | studentId(2) | studentName(3) | work(4) | method(5)
@@ -7260,21 +7302,18 @@ function submitWabun1(params) {
 
     let hpGained = 0;
     if (allCorrect && !alreadyGranted) {
-      const streak = (stuRowIdx >= 0) ? (Number(stuRows[stuRowIdx][COL_STREAK]) || 1) : 1;
+      const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
       const week = Math.ceil(streak / 7);
       // 素点HP は 2026-04-29 以降の教育日から 100 → 200 に変更（4/29 当日含む、過去分は遡及しない）
       // todayStr は _sangoToday() の JST 3 時区切り。問題の日替わり・alreadyGranted 判定と同じ基準で揃える
       const baseHp = (todayStr >= '2026-04-29') ? 200 : 100;
       hpGained = baseHp * week * week;
-      if (stuRowIdx >= 0) {
-        const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
-        const newHP = cur + hpGained;
-        const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
-        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
-        const upd = {};
-        upd[COL_HP] = newHP;
-        _updateStudentsCacheRow(stuRowIdx, upd);
-      }
+      const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
+      const newHP = cur + hpGained;
+      stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
+      const upd = {};
+      upd[COL_HP] = newHP;
+      _updateStudentsCacheBySid(sid, upd);
       // _logHP に統一（5 列：timestamp/studentId/rawHP/hpGained/type）
       // 和文英訳①は素点と倍率後HPが同値のため rawHP = hpGained
       _logHP(sid, hpGained, hpGained, 'wabun1');
@@ -8690,19 +8729,12 @@ function submitLison(params) {
       return { ok: false, message: 'このレベルの今週分のコンテンツはまだ準備中です' };
     }
 
-    // Students 行ルックアップ（キャッシュ経由）
+    // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
+    // フレッシュに特定する（cache 経由禁止）。
     const ss = _ss();
-    const stuRows = _getStudentsValues();
-    if (!stuRows || stuRows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません' };
-    let studentName = '';
-    let stuRowIdx = -1;
-    for (let i = 1; i < stuRows.length; i++) {
-      if (String(stuRows[i][COL_ID]).trim() === sid) {
-        studentName = String(stuRows[i][COL_NICKNAME] || '').trim() || '名無し';
-        stuRowIdx = i;
-        break;
-      }
-    }
+    const stuLoc = _findStudentRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: 'Studentsシートが見つかりません' };
+    const studentName = String(stuLoc.rowValues[COL_NICKNAME] || '').trim() || '名無し';
 
     // 採点（正解数 0〜3、完全一致比較）
     let quizScore = 0;
@@ -8742,20 +8774,17 @@ function submitLison(params) {
     // HP 計算（連続週²倍率は他コンテンツと同じ）
     let hpGained = 0;
     if (!alreadyGranted) {
-      const streak = (stuRowIdx >= 0) ? (Number(stuRows[stuRowIdx][COL_STREAK]) || 1) : 1;
+      const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
       const week = Math.ceil(streak / 7);
       const baseHp = _lisonBaseHpForLevel(level);
       hpGained = baseHp * week * week;
-      // Students シート HP 加算（書き込みは setValue、in-place キャッシュ更新）
-      if (stuRowIdx >= 0) {
-        const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
-        const newHP = cur + hpGained;
-        const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
-        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
-        const upd = {};
-        upd[COL_HP] = newHP;
-        _updateStudentsCacheRow(stuRowIdx, upd);
-      }
+      // Students シート HP 加算（書き込みはフレッシュ rowIdx + setValue、in-place キャッシュ更新）
+      const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
+      const newHP = cur + hpGained;
+      stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
+      const upd = {};
+      upd[COL_HP] = newHP;
+      _updateStudentsCacheBySid(sid, upd);
     }
 
     // LisonSubmissions に追記（alreadyGranted のときも recordingUrl と quizScore は残す）
@@ -9386,12 +9415,9 @@ function submitKanjiKaki(params) {
     const passed = total > 0 && correctCount === total;
 
     // HP 加算判定（合格時のみ）
-    const ss = _ss();
-    const stuRows = _getStudentsValues();
-    let stuRowIdx = -1;
-    for (let i = 1; stuRows && i < stuRows.length; i++) {
-      if (String(stuRows[i][COL_ID]).trim() === sid) { stuRowIdx = i; break; }
-    }
+    // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
+    // フレッシュに特定する（cache 経由禁止）。
+    const stuLoc = passed ? _findStudentRowOnSheet(sid) : null;
 
     let hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: false, alreadyAtCap: false };
     if (passed) {
@@ -9402,16 +9428,15 @@ function submitKanjiKaki(params) {
       const isPractice = (remaining === 0);
       const alreadyAtCap = (remaining === 0);
 
-      if (grantedRawHP > 0 && stuRowIdx >= 0) {
-        const streak = Number(stuRows[stuRowIdx][COL_STREAK]) || 1;
+      if (grantedRawHP > 0 && stuLoc) {
+        const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
         const week = Math.ceil(streak / 7);
         const hpGained = grantedRawHP * week * week;
-        const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
+        const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
         const newHP = cur + hpGained;
-        const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
-        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
+        stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
         const upd = {}; upd[COL_HP] = newHP;
-        _updateStudentsCacheRow(stuRowIdx, upd);
+        _updateStudentsCacheBySid(sid, upd);
         // HPLog: type='kanji_<level>_<count>'（'準2' レベルもそのまま使う）
         _logHP(sid, grantedRawHP, hpGained, 'kanji_' + level + '_' + count);
         _invalidateCache('cache_ranking_last_week');
@@ -10044,12 +10069,9 @@ function submitKobunSet(params) {
     const passed = total > 0 && correctCount === total;
 
     // HP 加算判定（合格時のみ）
-    const ss = _ss();
-    const stuRows = _getStudentsValues();
-    let stuRowIdx = -1;
-    for (let i = 1; stuRows && i < stuRows.length; i++) {
-      if (String(stuRows[i][COL_ID]).trim() === sid) { stuRowIdx = i; break; }
-    }
+    // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
+    // フレッシュに特定する（cache 経由禁止）。
+    const stuLoc = passed ? _findStudentRowOnSheet(sid) : null;
 
     let hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: false, alreadyAtCap: false };
     if (passed) {
@@ -10060,16 +10082,15 @@ function submitKobunSet(params) {
       const isPractice = (remaining === 0);
       const alreadyAtCap = (remaining === 0);
 
-      if (grantedRawHP > 0 && stuRowIdx >= 0) {
-        const streak = Number(stuRows[stuRowIdx][COL_STREAK]) || 1;
+      if (grantedRawHP > 0 && stuLoc) {
+        const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
         const week = Math.ceil(streak / 7);
         const hpGained = grantedRawHP * week * week;
-        const cur = Number(stuRows[stuRowIdx][COL_HP]) || 0;
+        const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
         const newHP = cur + hpGained;
-        const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
-        stuSheet.getRange(stuRowIdx + 1, COL_HP + 1).setValue(newHP);
+        stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
         const upd = {}; upd[COL_HP] = newHP;
-        _updateStudentsCacheRow(stuRowIdx, upd);
+        _updateStudentsCacheBySid(sid, upd);
         // HPLog: type='kobun_<round>_<count>'
         _logHP(sid, grantedRawHP, hpGained, 'kobun_' + round + '_' + total);
         _invalidateCache('cache_ranking_last_week');
