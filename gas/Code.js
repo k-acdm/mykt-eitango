@@ -23,6 +23,19 @@ const SHEET_LISON_SUBMISSIONS = 'LisonSubmissions';
 const SHEET_TEACHERS          = 'Teachers';
 const SHEET_TEACHER_MESSAGES  = 'TeacherMessages';
 const SHEET_MESSAGE_READS     = 'MessageReads';
+// SpecialAccounts シート（Step 1：2026-05-09 新設）
+//   テスト枠 / 先生枠 / 招待枠 / 体験枠 を Students から分離管理する。
+//   Step 1 ではシート新規作成 + Students 1001〜1010 をコピーのみ（Students は無変更）。
+//   統合読み込みは Step 2、Students 削除は Step 4 以降。
+const SHEET_SPECIAL_ACCOUNTS  = 'SpecialAccounts';
+// accountType 列に入る値（最右列。Students の列構成に追加される列）
+const SPECIAL_ACCOUNT_TYPES = {
+  TEST:       'test',          // 1001〜1099 テスト枠
+  TEACHER:    'teacher',       // 2001〜2099 先生枠
+  INVITED:    'invited',       // 3001〜3099 招待枠
+  EXPERIENCE: 'experience'     // 4001〜4099 体験枠（将来用）
+};
+const SPECIAL_ACCOUNT_TYPE_HEADER = 'accountType';
 
 const COL_ID         = 0;
 const COL_NAME       = 1;
@@ -311,6 +324,212 @@ function _updateStudentsCacheBySid(sid, updates) {
       CacheService.getScriptCache().remove(KEY);
       _cacheLog(KEY, 'invalidate', 'update by sid failed: ' + e);
     } catch(_) {}
+  }
+}
+
+// =============================================
+// SpecialAccounts シート（Step 1：2026-05-09 新設）
+// =============================================
+// 用途：テスト枠（1001〜1099）/ 先生枠（2001〜2099）/ 招待枠（3001〜3099）/
+//       体験枠（4001〜4099、将来用）を Students から分離管理する。
+//
+// 列構成：Students シートの列（生徒ID / 氏名 / ニックネーム / クリア済セット /
+//        最終更新 / 累計HP / 連続日数 / 最終テスト日 / 最終ログイン日）と完全同一
+//        の順序 + 最右列に accountType 列を追加。
+//
+// Step 1 のスコープ：
+//   - シート新規作成 + accountType 列保証
+//   - Students 1001〜1010 を **コピー**（Students は無変更）
+//   - Students からの削除は絶対にしない（Step 4 まで温存）
+//
+// 後続 Step：
+//   - Step 2：_getAllAccountsValues 等の統合読み込み + 各 API の参照書き換え
+//   - Step 3：並行運用での動作確認
+//   - Step 4：Students から 1001〜1010 を削除
+//   - Step 5：先生枠・招待枠の追加投入
+
+// テスト枠 ID 判定（1001〜1010）。
+// Students の ID は数値型 / 文字列型どちらでも来る可能性があるため両対応。
+// trim 後に Number 化し、整数かつ 1001〜1010 の範囲内なら true。
+function _isTestAccountId(idValue) {
+  const s = String(idValue == null ? '' : idValue).trim();
+  if (!s) return false;
+  const n = Number(s);
+  return Number.isInteger(n) && n >= 1001 && n <= 1010;
+}
+
+// SpecialAccounts シートが無ければ新規作成し、ヘッダー行を「Students の現状ヘッダー
+// + accountType」でセットする。既存の場合は accountType 列の存在のみ保証
+// （schema migration、既存データには触れない = 冪等）。
+//
+// 戻り値: { ok, created, headerColumns, accountTypeColIndex (0-based), message? }
+//   - created: 今回シートを新規作成したか
+//   - headerColumns: ヘッダー列数（Students 列数 + 1）
+//   - accountTypeColIndex: accountType 列の 0-based index
+function ensureSpecialAccountsSheet() {
+  try {
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
+
+    // Students シートのヘッダー行を読み取る（accountType 列を末尾に追加するため）
+    const stuLastCol = Math.max(1, stuSheet.getLastColumn());
+    const stuHeader = stuSheet.getRange(1, 1, 1, stuLastCol).getValues()[0];
+    if (stuHeader.length < 9) {
+      return { ok: false, message: 'Students シートのヘッダーが想定外（最低 9 列必要）: ' + JSON.stringify(stuHeader) };
+    }
+
+    // 期待ヘッダー = Students ヘッダー + 'accountType'
+    const desiredHeader = stuHeader.slice().concat([SPECIAL_ACCOUNT_TYPE_HEADER]);
+
+    let sh = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+    let created = false;
+    if (!sh) {
+      // 新規作成
+      sh = ss.insertSheet(SHEET_SPECIAL_ACCOUNTS);
+      sh.getRange(1, 1, 1, desiredHeader.length).setValues([desiredHeader]);
+      created = true;
+      Logger.log('[ensureSpecialAccountsSheet] 新規作成: ' + desiredHeader.length + ' 列 / ヘッダー = ' + JSON.stringify(desiredHeader));
+    } else {
+      // 既存：accountType 列が無ければ末尾に追加（schema migration）。既存データは変更しない。
+      const existingLastCol = Math.max(1, sh.getLastColumn());
+      const existingHeader = sh.getRange(1, 1, 1, existingLastCol).getValues()[0];
+      if (existingHeader.indexOf(SPECIAL_ACCOUNT_TYPE_HEADER) < 0) {
+        sh.getRange(1, existingLastCol + 1).setValue(SPECIAL_ACCOUNT_TYPE_HEADER);
+        Logger.log('[ensureSpecialAccountsSheet] 既存シートに accountType 列を追加（' + (existingLastCol + 1) + ' 列目）');
+      } else {
+        Logger.log('[ensureSpecialAccountsSheet] 既存（変更なし）: ' + existingLastCol + ' 列');
+      }
+    }
+
+    // accountType 列の最終位置を確定して返す
+    const lastCol = sh.getLastColumn();
+    const finalHeader = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    const accountTypeColIdx = finalHeader.indexOf(SPECIAL_ACCOUNT_TYPE_HEADER);
+    return {
+      ok: true,
+      created: created,
+      headerColumns: finalHeader.length,
+      accountTypeColIndex: accountTypeColIdx
+    };
+  } catch (e) {
+    console.error('[ensureSpecialAccountsSheet]', e);
+    Logger.log('[ensureSpecialAccountsSheet] ERROR: ' + e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// テスト枠 1001〜1010 を Students から SpecialAccounts に **コピー**する。
+// Students シートには触れない（行削除は Step 4 で別途実施）。
+//
+// 挙動：
+//   - 内部で ensureSpecialAccountsSheet を呼び、accountType 列の存在を保証
+//   - Students から ID が 1001〜1010 の行を抽出
+//   - 同 ID が SpecialAccounts に既に存在する行はスキップ（再実行安全 = 冪等）
+//   - 全列値を完全コピー（Date 型 / 数値型 / 文字列型を保持）
+//   - accountType 列に 'test' をセット
+//   - 一括書き込み（setValues 1 回）
+//   - 実行ログに「N 件コピー、M 件スキップ」+ ID リストを出力
+//
+// 戻り値: { ok, copied, skipped, copiedIds, skippedIds, message? }
+function copyTestAccountsFromStudents() {
+  try {
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
+
+    // SpecialAccounts シート + accountType 列の存在を保証
+    const ensureRes = ensureSpecialAccountsSheet();
+    if (!ensureRes.ok) return ensureRes;
+
+    const spSheet = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+    const accountTypeColIdx = ensureRes.accountTypeColIndex; // 0-based
+    const targetCols = ensureRes.headerColumns;
+
+    // Students の全データを読み込み（cache 経由禁止：最新値を確実にコピーするため）
+    const stuValues = stuSheet.getDataRange().getValues();
+    if (stuValues.length < 2) return { ok: false, message: 'Students シートにデータ行がありません' };
+
+    // SpecialAccounts に既に存在する ID を集合化（重複防止 = 冪等性のキー）
+    const existingIds = {};
+    if (spSheet.getLastRow() >= 2) {
+      const spValues = spSheet.getDataRange().getValues();
+      for (let i = 1; i < spValues.length; i++) {
+        const sid = String(spValues[i][COL_ID] || '').trim();
+        if (sid) existingIds[sid] = true;
+      }
+    }
+
+    // Students から 1001〜1010 を抽出してコピー対象を組み立てる
+    const rowsToAppend = [];
+    const copiedIds = [];
+    const skippedIds = [];
+    for (let i = 1; i < stuValues.length; i++) {
+      const idValue = stuValues[i][COL_ID];
+      if (!_isTestAccountId(idValue)) continue;
+      const sid = String(idValue).trim();
+      if (existingIds[sid]) {
+        skippedIds.push(sid);
+        continue;
+      }
+      // SpecialAccounts の列数に合わせて行を構築
+      //   - 0..(targetCols - 2): Students の各列値をコピー（Students 側に該当列が無ければ ''）
+      //   - accountTypeColIdx:    'test' をセット（最右列）
+      const newRow = new Array(targetCols).fill('');
+      for (let c = 0; c < targetCols; c++) {
+        if (c === accountTypeColIdx) continue; // 後でセット
+        if (c < stuValues[i].length) newRow[c] = stuValues[i][c];
+      }
+      newRow[accountTypeColIdx] = SPECIAL_ACCOUNT_TYPES.TEST;
+      rowsToAppend.push(newRow);
+      copiedIds.push(sid);
+    }
+
+    // 一括追記（追記対象が 0 件ならスキップ）
+    if (rowsToAppend.length > 0) {
+      const startRow = spSheet.getLastRow() + 1;
+      spSheet.getRange(startRow, 1, rowsToAppend.length, targetCols).setValues(rowsToAppend);
+    }
+
+    const summary = '[copyTestAccountsFromStudents] ' +
+      copiedIds.length + ' 件コピー (' + (copiedIds.join(', ') || '-') + ') / ' +
+      skippedIds.length + ' 件スキップ (' + (skippedIds.join(', ') || '-') + ')';
+    Logger.log(summary);
+    console.log(summary);
+
+    return {
+      ok: true,
+      copied: copiedIds.length,
+      skipped: skippedIds.length,
+      copiedIds: copiedIds,
+      skippedIds: skippedIds
+    };
+  } catch (e) {
+    console.error('[copyTestAccountsFromStudents]', e);
+    Logger.log('[copyTestAccountsFromStudents] ERROR: ' + e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// =============================================
+// カスタムメニュー（スプレッドシートを開いた時に発火）
+// =============================================
+// SpecialAccounts シートのセットアップ用メニューを追加する。
+// 既存の onOpen は無いため新設。将来別のメニュー項目を増やす場合はここに追記。
+// onOpen 内で例外が起きると以後のメニュー描画が止まるため、try/catch で握り潰す。
+function onOpen() {
+  try {
+    const ui = SpreadsheetApp.getUi();
+    ui.createMenu('🔧 マイ活アプリ')
+      .addSubMenu(
+        ui.createMenu('SpecialAccounts')
+          .addItem('① シート初期化（ヘッダー作成 / accountType 列追加）', 'ensureSpecialAccountsSheet')
+          .addItem('② テスト枠コピー（1001〜1010 を Students からコピー、削除なし）', 'copyTestAccountsFromStudents')
+      )
+      .addToUi();
+  } catch (e) {
+    // onOpen は権限が無い実行コンテキストでも呼ばれる場合があるため、エラーは無視する
+    console.error('[onOpen]', e);
   }
 }
 
