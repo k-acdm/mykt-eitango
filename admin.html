@@ -26,6 +26,33 @@
   .login-card button:hover:not(:disabled) { transform: translateY(-1px); }
   .login-card button:disabled { opacity: .5; cursor: not-allowed; }
 
+  /* 初回ログインフロー画面（Phase 1.5）。login-card と同じ中央配置スタイル + 横幅広め + フォームグループ */
+  #screen-admin-first-login { align-items: center; justify-content: center; padding: 20px; background: linear-gradient(135deg, #4f7df0 0%, #7c4fff 100%); }
+  #screen-admin-first-login.active { display: flex; }
+  .first-login-card { background: #fff; border-radius: 16px; padding: 32px 28px; max-width: 460px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,.15); }
+  .first-login-card h1 { font-size: 22px; margin-bottom: 8px; text-align: center; }
+  .first-login-card .lead { color: #666; margin-bottom: 22px; font-size: 14px; text-align: center; line-height: 1.7; }
+  .first-login-form-group { margin-bottom: 16px; }
+  .first-login-form-group label { display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px; }
+  .first-login-form-group .hint { display: block; font-size: 11px; color: #888; margin-top: 4px; line-height: 1.5; }
+  .first-login-form-group input { width: 100%; padding: 12px 14px; font-size: 16px; border: 2px solid #e1e5ee; border-radius: 8px; outline: none; transition: border .2s; box-sizing: border-box; }
+  .first-login-form-group input:focus { border-color: #4f7df0; }
+  .first-login-card .submit-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform .15s; margin-top: 8px; }
+  .first-login-card .submit-btn:hover:not(:disabled) { transform: translateY(-1px); }
+  .first-login-card .submit-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .first-login-card .logout-link { display: block; text-align: center; margin-top: 14px; padding: 10px; background: none; border: 1px solid #d0d4de; border-radius: 6px; color: #666; font-size: 13px; cursor: pointer; width: 100%; }
+  .first-login-card .logout-link:hover { background: #f5f6f8; color: #333; }
+  .first-login-warn { margin-top: 18px; padding: 10px 12px; background: #fff7e6; border-left: 3px solid #ff9800; color: #b45309; font-size: 12px; line-height: 1.6; border-radius: 4px; }
+  .first-login-msg { margin-bottom: 12px; padding: 10px 12px; border-radius: 6px; font-size: 13px; display: none; }
+  .first-login-msg.ng { display: block; background: #ffe7e7; color: #c0392b; border-left: 3px solid #e74c3c; }
+  .first-login-msg.ok { display: block; background: #e7f7ec; color: #1e7c3a; border-left: 3px solid #2ecc71; }
+  @media (max-width: 480px) {
+    .first-login-card { padding: 24px 20px; }
+    .first-login-card h1 { font-size: 19px; }
+    .first-login-card .lead { font-size: 13px; }
+    .first-login-form-group input { font-size: 15px; padding: 11px 12px; }
+  }
+
   /* メイン系画面のヘッダー（ダッシュボード以外） */
   #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
   #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1 { font-size: 18px; font-weight: 600; }
@@ -398,6 +425,40 @@
     <input type="password" id="admin-password" placeholder="パスワード" autocomplete="current-password" />
     <button id="admin-login-btn" onclick="doAdminLogin()">ログイン</button>
     <div id="admin-login-msg" class="msg"></div>
+  </div>
+</div>
+
+<!-- 初回ログインフロー画面（Phase 1.5） -->
+<!-- スキップ不可：ログイン直後 firstLoginCompleted=false の講師は必ずこの画面を通る。
+     ヘッダーは付けず（dashboard 機能へのアクセスを断つため）、ログアウトボタンのみで再認証へ戻れる。 -->
+<div id="screen-admin-first-login" class="screen">
+  <div class="first-login-card">
+    <h1>👋 ようこそ</h1>
+    <p class="lead">
+      <span id="first-login-greet">講師</span> さん、はじめまして！<br>
+      最初に、表示名と新しいパスワードを設定してください。
+    </p>
+    <div id="first-login-msg" class="first-login-msg"></div>
+    <div class="first-login-form-group">
+      <label for="first-login-nickname">表示名（1〜10文字、生徒に表示されます）</label>
+      <input type="text" id="first-login-nickname" maxlength="10"
+             placeholder="例：ふく先生、Mr.K、センセーなど"
+             autocomplete="nickname" autocapitalize="off" autocorrect="off" spellcheck="false" />
+    </div>
+    <div class="first-login-form-group">
+      <label for="first-login-new-password">新しいパスワード（6文字以上）</label>
+      <input type="password" id="first-login-new-password" autocomplete="new-password" />
+      <span class="hint">※ 初期パスワード（noblesse0311）と同じものは使えません</span>
+    </div>
+    <div class="first-login-form-group">
+      <label for="first-login-new-password-confirm">新しいパスワード（確認のためもう一度）</label>
+      <input type="password" id="first-login-new-password-confirm" autocomplete="new-password" />
+    </div>
+    <button id="first-login-submit-btn" class="submit-btn" onclick="doCompleteFirstLogin()">設定を完了する</button>
+    <button class="logout-link" onclick="doAdminLogout()">🚪 ログアウトしてやり直す</button>
+    <div class="first-login-warn">
+      ⚠️ 設定が完了するまで、管理画面の他のメニューにはアクセスできません。
+    </div>
   </div>
 </div>
 
@@ -1440,10 +1501,13 @@
         sessionStorage.setItem('adminFirstLoginCompleted', String(!!res.firstLoginCompleted));
         _showLoginMsg('', '');
         document.getElementById('admin-password').value = '';
-        // Phase 1.5（次フェーズ）：firstLoginCompleted=false なら初回フロー画面に遷移する分岐をここに追加予定。
-        //   現状（Phase 1）はそのままダッシュボードに進む。
         _renderAdminLoginInfo();
-        goAdminDashboard();
+        // Phase 1.5：firstLoginCompleted=false なら初回フロー画面、true ならダッシュボードへ
+        if (!res.firstLoginCompleted) {
+          goAdminFirstLogin();
+        } else {
+          goAdminDashboard();
+        }
       } else {
         _showLoginMsg((res && res.message) || '講師IDまたはパスワードが違います', 'ng');
       }
@@ -1502,7 +1566,115 @@
   var _selectedStudentName = null;
   var _adminChildArchiveOffset = 1;
 
-  function goAdminDashboard() { _showScreen('screen-admin-dashboard'); window.scrollTo(0, 0); }
+  // ダッシュボード遷移はメインの funnel。Phase 1.5：未完了の講師は強制的に初回フロー画面に戻す。
+  // これで sessionStorage を直接書き換えて遷移を試みても、ここで再度ガードされる。
+  function goAdminDashboard() {
+    if (sessionStorage.getItem('adminTeacherId') &&
+        sessionStorage.getItem('adminFirstLoginCompleted') !== 'true') {
+      goAdminFirstLogin();
+      return;
+    }
+    _showScreen('screen-admin-dashboard');
+    window.scrollTo(0, 0);
+  }
+
+  // =============================================================
+  // 初回ログインフロー（Phase 1.5）
+  // =============================================================
+  // ログイン直後、firstLoginCompleted=false の講師がここに遷移する。
+  // パスワード変更 + displayNickname 設定が完了するまでダッシュボードには進めない。
+  function goAdminFirstLogin() {
+    var tid = sessionStorage.getItem('adminTeacherId') || '';
+    var greet = document.getElementById('first-login-greet');
+    if (greet) greet.textContent = tid || '講師';
+    // フォームをクリアしてから表示
+    var nick = document.getElementById('first-login-nickname');
+    var np   = document.getElementById('first-login-new-password');
+    var npc  = document.getElementById('first-login-new-password-confirm');
+    if (nick) nick.value = '';
+    if (np)   np.value = '';
+    if (npc)  npc.value = '';
+    _showFirstLoginMsg('', '');
+    _showScreen('screen-admin-first-login');
+    window.scrollTo(0, 0);
+    // 表示名にフォーカスして入力を促す
+    setTimeout(function(){ if (nick) nick.focus(); }, 50);
+  }
+
+  function _showFirstLoginMsg(text, kind) {
+    var el = document.getElementById('first-login-msg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'first-login-msg ' + (kind || '');
+    if (!text) el.style.display = 'none';
+  }
+
+  // 初回フロー：表示名 + 新パスワード + 確認 を送信して Teachers シート更新
+  function doCompleteFirstLogin() {
+    var nickname           = (document.getElementById('first-login-nickname').value || '').trim();
+    var newPassword        = document.getElementById('first-login-new-password').value || '';
+    var newPasswordConfirm = document.getElementById('first-login-new-password-confirm').value || '';
+    var teacherId          = sessionStorage.getItem('adminTeacherId') || '';
+    var password           = sessionStorage.getItem('adminPassword')  || '';
+
+    // クライアント側バリデーション（GAS 側でも同じチェックをするので二重）
+    if (!nickname || nickname.length < 1 || nickname.length > 10) {
+      _showFirstLoginMsg('表示名は1〜10文字で入力してください', 'ng');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      _showFirstLoginMsg('パスワードは6文字以上で入力してください', 'ng');
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      _showFirstLoginMsg('パスワード（確認）が一致しません', 'ng');
+      return;
+    }
+    if (newPassword === 'noblesse0311' || (teacherId === 't101' && newPassword === 'noblesse')) {
+      _showFirstLoginMsg('初期パスワードと同じものは使用できません。別のパスワードに変更してください', 'ng');
+      return;
+    }
+    if (!teacherId || !password) {
+      // セッションが切れた等の保険
+      _showFirstLoginMsg('セッションが切れました。再ログインしてください', 'ng');
+      setTimeout(doAdminLogout, 1200);
+      return;
+    }
+
+    var btn = document.getElementById('first-login-submit-btn');
+    if (btn) btn.disabled = true;
+    _showFirstLoginMsg('設定中…', 'ok');
+
+    gasGet({
+      action:              'completeFirstLogin',
+      teacherId:           teacherId,
+      password:            password,
+      newPassword:         newPassword,
+      newPasswordConfirm:  newPasswordConfirm,
+      newDisplayNickname:  nickname
+    }).then(function(res) {
+      if (btn) btn.disabled = false;
+      if (res && res.ok) {
+        // sessionStorage を更新（adminPassword は新パスワードに、firstLoginCompleted は true に）
+        sessionStorage.setItem('adminPassword',            newPassword);
+        sessionStorage.setItem('adminDisplayNickname',     res.displayNickname || nickname);
+        sessionStorage.setItem('adminFirstLoginCompleted', 'true');
+        // 入力欄をクリア（パスワードを DOM に残さない）
+        document.getElementById('first-login-new-password').value = '';
+        document.getElementById('first-login-new-password-confirm').value = '';
+        _showFirstLoginMsg('', '');
+        _renderAdminLoginInfo();
+        showToast('設定が完了しました', 'success');
+        goAdminDashboard();
+      } else {
+        var msg = (res && res.message) || 'エラーが発生しました';
+        _showFirstLoginMsg(msg, 'ng');
+      }
+    }).catch(function() {
+      if (btn) btn.disabled = false;
+      _showFirstLoginMsg('通信エラーが発生しました', 'ng');
+    });
+  }
 
   function goAdminTabs() {
     _showScreen('screen-admin-tabs');
@@ -3705,11 +3877,25 @@
     if (e.key === 'Enter') doAdminLogin();
   });
 
+  // 初回ログインフローでも Enter キーで送信できるように（確認パスワード欄からのみ。
+  // 表示名 / 新パスワード欄での Enter は誤送信防止のため発火させない）
+  (function() {
+    var npc = document.getElementById('first-login-new-password-confirm');
+    if (npc) npc.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') doCompleteFirstLogin();
+    });
+  })();
+
   // セッション継続（タブ閉じで失効）。teacherId と password が両方揃っている時のみ自動再開。
+  // Phase 1.5：firstLoginCompleted=false なら自動再開先は初回フロー画面に変更。
   (function init() {
     if (sessionStorage.getItem('adminTeacherId') && sessionStorage.getItem('adminPassword')) {
       _renderAdminLoginInfo();
-      goAdminDashboard();
+      if (sessionStorage.getItem('adminFirstLoginCompleted') !== 'true') {
+        goAdminFirstLogin();
+      } else {
+        goAdminDashboard();
+      }
     }
   })();
 </script>

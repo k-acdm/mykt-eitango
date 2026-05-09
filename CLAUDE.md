@@ -3876,6 +3876,49 @@ Phase 1 全 20 単元の設計は、ふくちさんの **36 年の塾長経験**
   - 初回フロー画面の分岐ポイントは [admin.html](admin.html) `doAdminLogin` 内のコメント `// Phase 1.5（次フェーズ）：firstLoginCompleted=false なら初回フロー画面に遷移する分岐をここに追加予定。` に明示済
 - **範囲外（Phase 1.5 以降で対応）**: 初回ログインのパスワード変更フロー / displayNickname 設定フロー / ロール別機能制限 / HP 付与権限制限 / 全員送信制限 / 講師管理 UI / 操作ログ / 録音 DL 抑止 / 案 D / t102〜t107 の実名入力（ふくちさんが手動でスプレッドシートに入力済 or 入力中）
 
+### 2026-05-09 夕（塾PC：講師ログイン機能 Phase 1.5 初回ログインフロー）
+
+事前調査レポート [docs/講師ログイン機能_事前調査レポート_2026-05-09.md](docs/講師ログイン機能_事前調査レポート_2026-05-09.md) の Phase 1.5 を実装。Phase 1 で `firstLoginCompleted` フラグの基盤が整備されたので、初回ログイン時に **必ずパスワード変更 + displayNickname 設定** を経由してダッシュボードに進む構造に。
+
+#### 258. 講師ログイン機能 Phase 1.5：初回ログインフローの実装
+- **設計判断（事前確定済）**:
+  - displayNickname：必須 / 1〜10 文字 / 形式自由（「ふく先生」「Mr.K」「センセー」など）
+  - パスワード：6 文字以上 / 旧パスワード入力必須 / 初期パスワード（`noblesse0311`、t101 のみ過去の `noblesse` も）と同じものは使用禁止
+  - スキップ不可：`firstLoginCompleted=TRUE` になるまでダッシュボードに進めない
+  - t101（ふくちさん）への影響なし：Phase 1 で既に `TRUE` 化済のため、Phase 1.5 投入後も従来通りダッシュボード直行
+- **GAS 側 ([gas/Code.js](gas/Code.js))** +115 / -1 行:
+  - **新規ヘルパー 2 関数**:
+    - `_isInitialPassword(plaintext, teacherId)`: 初期パスワード再利用判定。t101 のみ `noblesse` / `noblesse0311` の両方を禁止対象に、それ以外は `noblesse0311` のみ。Node ユニットテスト 8 PASS / 0 FAIL（case-sensitive、空文字、teacherId trim 動作確認）
+    - `_completeFirstLogin(teacherId, newPasswordHash, newDisplayNickname)`: Teachers シートで teacherId 行を探し、C 列（password）/ E 列（displayNickname）/ G 列（firstLoginCompleted）の 3 セルを更新。ヘッダー駆動で列順依存なし。boolean `true` で書き込み（`_teacherTruthy` が真と判定）
+  - **新規 API `completeFirstLogin(params)`**:
+    - 引数: `{ teacherId, password, newPassword, newPasswordConfirm, newDisplayNickname }`
+    - バリデーション順序（早期リターン）: ① 旧パスワード認証（`_verifyTeacher`） → ② `firstLoginCompleted=TRUE` の行は再実行不可 → ③ 新パスワード長 6 文字以上 → ④ 確認一致 → ⑤ 初期パスワード再利用禁止 → ⑥ displayNickname 1〜10 文字 → ⑦ ハッシュ化 + シート更新
+    - 戻り値: `{ ok:true, displayNickname }` または `{ ok:false, message }`
+  - **doGet ルーティング追加**: `adminLogin` の直後に `completeFirstLogin` を 1 行追加。doPost には登録しない（base64 等の大データを送らないため doGet 単独で十分）
+  - 構文チェック `node -c gas/Code.js` 通過
+- **クライアント側 ([admin.html](admin.html))** +196 / -10 行:
+  - **新規画面 `screen-admin-first-login`**: 中央配置カード型（ログイン画面と同じパターン、ヘッダーなし）。表示名 / 新パスワード / 確認 + 「設定を完了する」+ 「ログアウトしてやり直す」+ 警告文「設定が完了するまで他のメニューにアクセスできません」
+  - **新規 CSS**: `.first-login-card` / `.first-login-form-group` / `.first-login-msg`（ng=赤系・ok=緑系）/ `.first-login-warn`（暖色） + モバイル `@media (max-width: 480px)` レスポンシブ対応
+  - **`doAdminLogin` 改修**: ログイン成功時、`firstLoginCompleted` を見て `goAdminFirstLogin()` か `goAdminDashboard()` に分岐
+  - **`doCompleteFirstLogin()`** 新規: クライアント側バリデーション 4 段階（表示名 / パスワード長 / 確認一致 / 初期パスワード再利用禁止）→ `gasGet({ action: 'completeFirstLogin', ... })` → 成功時 sessionStorage 3 値更新（`adminPassword` を新パスワードに、`adminDisplayNickname` を入力値に、`adminFirstLoginCompleted` を `'true'` に）+ パスワード入力欄を即時クリア（DOM に残さない）+ `_renderAdminLoginInfo()` 更新 + ダッシュボードへ
+  - **`goAdminFirstLogin()`** 新規: 表示名フィールドを teacherId で挨拶、フォームクリア、メッセージクリア、表示名にフォーカス
+  - **`_showFirstLoginMsg(text, kind)`** 新規: 画面内エラー / 進捗メッセージ表示（login screen の `_showLoginMsg` と同じパターン）
+  - **★ ダッシュボードガード**: `goAdminDashboard()` の冒頭で `adminFirstLoginCompleted !== 'true'` なら強制的に `goAdminFirstLogin()` に戻すガードを追加。sessionStorage を直接書き換えて遷移を試みても、ここで再度ガードされる（多重防御）
+  - **init auto-resume 改修**: タブ自動再開時も `firstLoginCompleted` を見て分岐
+  - **Enter キー対応**: 確認パスワード欄からも Enter で送信。表示名 / 新パスワード欄では誤送信防止のため発火させない
+- **t101 への影響テスト（必須）**:
+  - Phase 1 で t101 は `firstLoginCompleted=TRUE` で初期化済み
+  - Phase 1.5 投入後、t101 + 新パスワードでログインすると **従来通りダッシュボード直行**（初回フロー画面には行かない）
+  - sessionStorage `adminFirstLoginCompleted='true'` が auto-resume / `goAdminDashboard` ガードを正しくパスする
+- **ふくちさん側で必須の手順（マイグレーション不要）**:
+  1. `git pull origin dev` → main マージ → push
+  2. `cd gas && clasp push`
+  3. Apps Script エディタで F5 リロード → 新バージョンデプロイ（マイグレーション関数の手動実行は不要）
+  4. **確認 A（t101 への影響なし）**: t101 + 新パスワードでログイン → ダッシュボード直行を確認
+  5. **確認 B（初回フロー）**: 任意の講師 t102〜t107 のスプレッドシート行で `active=TRUE` に変更 → t102 + `noblesse0311` でログイン → 初回フロー画面に遷移すること → 表示名 + 新パスワード設定 → ダッシュボードに進めること → ログアウト後、再ログインで Phase 1 の通常フローに戻ること
+  6. **確認 C（拒否ケース）**: 新パスワードに `noblesse0311` を入力すると拒否されること、確認パスワードを違う値にすると拒否されること、表示名を空にすると拒否されること
+- **範囲外（Phase 2 以降で対応するので今回は触らない）**: ロール別機能制限（管理画面の表示分岐）/ HP 付与の権限制限 / 全員送信の制限 / 講師管理 UI（パスワード再発行機能等）/ 操作ログ / 録音 DL 抑止 / 案 D / 「パスワードを忘れた」機能（Phase 3 で admin から再発行）
+
 ---
 
 ## TODO（未反映の GAS 側作業）

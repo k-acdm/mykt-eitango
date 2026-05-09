@@ -305,6 +305,7 @@ function doGet(e) {
       else if (action === 'submitExchange')    result = submitExchange(params.studentId, params.rank);
       else if (action === 'getExchangeStatus') result = getExchangeStatus(params.studentId);
       else if (action === 'adminLogin')        result = adminLogin(params);
+      else if (action === 'completeFirstLogin') result = completeFirstLogin(params);
       else if (action === 'adminAddQuote')     result = adminAddQuote(params);
       else if (action === 'adminAddNotice')    result = adminAddNotice(params);
       else if (action === 'adminListStudents') result = adminListStudents(params);
@@ -5072,6 +5073,120 @@ function adminLogin(params) {
     displayNickname:     teacher.displayNickname || '',
     firstLoginCompleted: !!teacher.firstLoginCompleted
   };
+}
+
+// =====================================================
+// 講師ログイン Phase 1.5：初回ログインフロー
+// =====================================================
+// 設計：
+//  - 初期パスワード `noblesse0311`（および t101 のみ過去の `noblesse`）は
+//    変更後パスワードとして再利用不可（運用上の共通配布値のため）
+//  - 認証は通常通り _verifyTeacher（旧パスワードでハッシュ照合）
+//  - firstLoginCompleted=TRUE の行は再実行を拒否（誤操作防止）
+//  - パスワードと displayNickname の両方をバリデーションした上で C/E/G 列を一括更新
+
+// 初期パスワードかどうかを判定。
+// t101 は移行期に `noblesse` で運用していたため、両方を禁止対象に含める。
+// それ以外の講師は `noblesse0311`（一斉配布用）のみが禁止対象。
+function _isInitialPassword(plaintext, teacherId) {
+  const pw  = String(plaintext == null ? '' : plaintext);
+  const tid = String(teacherId || '').trim();
+  if (pw === 'noblesse0311') return true;
+  if (tid === 't101' && pw === 'noblesse') return true;
+  return false;
+}
+
+// Teachers シートで teacherId に該当する行を探し、
+//   C列（password）= newPasswordHash
+//   E列（displayNickname）= newDisplayNickname
+//   G列（firstLoginCompleted）= TRUE
+// を一括更新する（setValues で 1 回の呼び出し）。
+// 列の順序が想定と違っても header.indexOf で動的に探すので、ヘッダー駆動で安全に動く。
+// ただし C/E/G が連続していない可能性に備え、3 セルを個別に書き込む（パフォーマンス影響は無視できる範囲）。
+//
+// 戻り値: 成功時 true、失敗時 false（行が無い / 列が無い）
+function _completeFirstLogin(teacherId, newPasswordHash, newDisplayNickname) {
+  try {
+    const target = String(teacherId || '').trim();
+    if (!target) return false;
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh || sh.getLastRow() < 2) return false;
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iId   = header.indexOf('teacherId');
+    const iPw   = header.indexOf('password');
+    const iNick = header.indexOf('displayNickname');
+    const iFlc  = header.indexOf('firstLoginCompleted');
+    if (iId < 0 || iPw < 0 || iNick < 0 || iFlc < 0) return false;
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][iId] || '').trim() !== target) continue;
+      const row = i + 1;
+      sh.getRange(row, iPw   + 1).setValue(newPasswordHash);
+      sh.getRange(row, iNick + 1).setValue(newDisplayNickname);
+      sh.getRange(row, iFlc  + 1).setValue(true); // boolean TRUE で書く（_teacherTruthy が真と判定）
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error('[_completeFirstLogin]', e);
+    return false;
+  }
+}
+
+// 初回ログイン時のパスワード変更 + displayNickname 設定。
+// 引数: { teacherId, password, newPassword, newPasswordConfirm, newDisplayNickname }
+// 戻り値: { ok:true, displayNickname } または { ok:false, message }
+//
+// バリデーション順序（早期リターン）：
+//   1. 旧パスワード認証（_verifyTeacher）
+//   2. 既に firstLoginCompleted=TRUE なら拒否
+//   3. 新パスワードのバリデーション（6 文字以上 / 確認一致 / 初期パスワード再利用禁止）
+//   4. displayNickname のバリデーション（trim 後 1〜10 文字）
+//   5. ハッシュ化 → シート更新
+function completeFirstLogin(params) {
+  try {
+    const teacherId            = String((params && params.teacherId) || '').trim();
+    const password             = String((params && params.password) || '');
+    const newPassword          = String((params && params.newPassword) || '');
+    const newPasswordConfirm   = String((params && params.newPasswordConfirm) || '');
+    const newDisplayNickname   = String((params && params.newDisplayNickname) || '').trim();
+
+    // 1. 認証
+    const teacher = _verifyTeacher(teacherId, password);
+    if (!teacher) {
+      return { ok: false, message: '講師IDまたはパスワードが違います' };
+    }
+    // 2. 既に完了済の行は再実行不可
+    if (teacher.firstLoginCompleted) {
+      return { ok: false, message: '既に初期設定が完了しています' };
+    }
+    // 3-a. 新パスワード長
+    if (!newPassword || newPassword.length < 6) {
+      return { ok: false, message: 'パスワードは6文字以上で入力してください' };
+    }
+    // 3-b. 確認一致
+    if (newPassword !== newPasswordConfirm) {
+      return { ok: false, message: 'パスワード（確認）が一致しません' };
+    }
+    // 3-c. 初期パスワード再利用禁止
+    if (_isInitialPassword(newPassword, teacherId)) {
+      return { ok: false, message: '初期パスワードと同じものは使用できません。別のパスワードに変更してください' };
+    }
+    // 4. displayNickname
+    if (!newDisplayNickname || newDisplayNickname.length < 1 || newDisplayNickname.length > 10) {
+      return { ok: false, message: '表示名は1〜10文字で入力してください' };
+    }
+    // 5. ハッシュ化 + シート更新
+    const newHash = _passwordHash(newPassword, teacherId);
+    const ok = _completeFirstLogin(teacherId, newHash, newDisplayNickname);
+    if (!ok) {
+      return { ok: false, message: 'シート更新に失敗しました。管理者に連絡してください' };
+    }
+    return { ok: true, displayNickname: newDisplayNickname };
+  } catch (e) {
+    console.error('[completeFirstLogin]', e);
+    return { ok: false, message: String(e) };
+  }
 }
 
 function adminAddQuote(params) {
