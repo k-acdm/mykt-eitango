@@ -4472,3 +4472,35 @@ function getWeeklyRanking() {
      - 保護者画面（`view.html`）「📖 三語短文の提出作品を見る」で、ログイン中の生徒の提出作品が同様に表示される
      - 他の生徒IDの作品が混ざらないこと
      - 提出ゼロの場合は「まだ提出した作品はありません。」と表示されること
+
+---
+
+## 2026-05-09 終了総括（マイ活アプリ_10）
+
+### 今日の成果
+- **Phase 1.5 バグ修正**（commit `7eb8a57`）
+  - 初回設定画面の `_showFirstLoginMsg` で inline `display:none` が CSS class を上書きするバグ
+  - 1 行修正で解決（`el.style.display = text ? '' : 'none'`）
+- **SpecialAccounts化 完全完了**（Phase 7 永久欠番、Phase 8 全 Step）
+  - **Step 0**（`d66cb68`）：Students 操作を sid ベース化、9 関数改修。`_findStudentRowOnSheet` / `_updateStudentsCacheBySid` / `_findStudentRowIndex` 新設
+  - **Step 1**（`1ebf0fa`）：SpecialAccounts シート新設 + テスト枠コピー。`ensureSpecialAccountsSheet` / `copyTestAccountsFromStudents` / `onOpen`（カスタムメニュー）追加
+  - **Step 2**（`455f154`）：統合読み込みヘルパー + 既存 API 参照書き換え（19 関数）。`_getAllAccountsValues` / `_findAccountRowOnSheet` / `_updateAccountCacheBySid` / `_getSpecialAccountsValues` 新設、Students 優先 dedup ロジック確立
+  - **Step 4**（`2ba8034`）：Students からテスト枠物理削除関数（7 安全要件実装、UI 確認ダイアログ、降順 deleteRow ループ、サンプル保全検証、cache 全クリア）
+- **コブタン投入完了**：390 語 × 3 文 = 1,170 文をマイ活アプリスプレッドシートに反映
+- **コブタン 2 点修正**（`6f01081`）
+  - 修正 1：指示文「この語の意味」→「この文の現代語訳」（`index.html:6621`）
+  - 修正 2：調査の結果修正不要（実装は仕様通り、コード "セット (5問)" / "学習回 (10問)" 用語と仕様書 "セット (10問)" の食い違いのみ）
+- **HANDOVER.md 決定版作成**（v1〜v10 の全歴史を網羅）
+
+### 次回（マイ活アプリ_11、自宅PC再開）の予定
+- **講師ログイン Phase 2**（ロール別権限制御）から着手
+- その後 Phase 3 / 4 / **5（先生メッセージ機能 最優先）** / 6（録音 DL 抑止）の順
+- マニュアル作成（生徒用 → 管理者用 → 講師用）は Phase 2 完了後
+
+### 重要な引き継ぎポイント
+- Students シートはもう「実生徒のみ」に整理されている
+- テスト枠（1001〜1010）は SpecialAccounts シート側で稼働中
+- 1004 テスト4号の連続26日・HP5910 は完全保持
+- 5/8 行追加事故への耐性が完成（sid ベース化＋統合読み込み＋dedup）
+- Phase 7 は永久欠番（笑）
+
