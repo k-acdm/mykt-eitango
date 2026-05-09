@@ -1606,7 +1606,13 @@
     if (!el) return;
     el.textContent = text || '';
     el.className = 'first-login-msg ' + (kind || '');
-    if (!text) el.style.display = 'none';
+    // ★ inline display を毎回明示的に切替（CSS クラスとの食い違いを防ぐ）。
+    //   goAdminFirstLogin() 入場時に _showFirstLoginMsg('', '') で初期化されると
+    //   inline 'display:none' が残留し、後続の .ng / .ok クラス（display:block）を
+    //   上書きして「無言で拒否」になるバグの修正（CLAUDE.md #259）。
+    //   text あり → inline をクリアして .ng / .ok の display:block を有効化。
+    //   text なし → inline 'none' を設定して確実に隠す。
+    el.style.display = text ? '' : 'none';
   }
 
   // 初回フロー：表示名 + 新パスワード + 確認 を送信して Teachers シート更新

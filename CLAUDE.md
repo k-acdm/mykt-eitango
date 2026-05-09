@@ -3919,6 +3919,20 @@ Phase 1 全 20 単元の設計は、ふくちさんの **36 年の塾長経験**
   6. **確認 C（拒否ケース）**: 新パスワードに `noblesse0311` を入力すると拒否されること、確認パスワードを違う値にすると拒否されること、表示名を空にすると拒否されること
 - **範囲外（Phase 2 以降で対応するので今回は触らない）**: ロール別機能制限（管理画面の表示分岐）/ HP 付与の権限制限 / 全員送信の制限 / 講師管理 UI（パスワード再発行機能等）/ 操作ログ / 録音 DL 抑止 / 案 D / 「パスワードを忘れた」機能（Phase 3 で admin から再発行）
 
+#### 259. 講師ログイン Phase 1.5 バグ修正：初回設定画面のエラーメッセージが表示されない
+- **症状**: t103 で初回ログイン → 初回設定画面で「新パスワードに `noblesse0311` を入力」「新パスワードと確認の不一致」「表示名空欄」のいずれを発生させても、エラーメッセージが画面に表示されず「無言で拒否」状態。バリデーション自体は効いており画面遷移はブロックされていたが、ユーザーには何が悪いか伝わらない
+- **真因**: `_showFirstLoginMsg('', '')` が `goAdminFirstLogin()` 入場時に呼ばれ、`el.style.display = 'none'` が **inline スタイル**として設定される。その後エラー時に `_showFirstLoginMsg('…', 'ng')` を呼ぶと `className` は `first-login-msg ng` に変わるが、**inline の `display:none` が残留**して CSS クラス `.first-login-msg.ng { display: block }` を上書き → 表示されない（inline スタイルは CSS クラスより優先度が高い）
+- **修正** ([admin.html](admin.html) `_showFirstLoginMsg`、+7 / -1 行): inline display を毎回明示的に切替する単純なロジックに変更
+  ```js
+  el.style.display = text ? '' : 'none';
+  // text あり → inline をクリアして .ng / .ok の display:block を有効化
+  // text なし → inline 'none' を設定して確実に隠す
+  ```
+- **t101 への影響なし**: t101 は `firstLoginCompleted=TRUE` のため初回フロー画面に到達しない
+- **GAS 側無修正**: `completeFirstLogin` のバリデーションロジックは正常動作していた、フロント側の表示バグだったため
+- **観察事項（今回スコープ外、温存）**: 同じ画面表示パターンの `_showLoginMsg`（ログイン画面側）にも構造的に同じバグがある。ただし現状フロー（成功時のみ `_showLoginMsg('', '')` を呼んでから即画面遷移、エラー時は前段の inline 残留がない）では表面化していない。「ログイン成功 → ログアウト → ログイン画面で間違ったパスワード」の経路で潜在的に起こり得るが、症状は実運用で報告されていないため温存。Phase 2 着手時に同根バグとしてまとめて修正検討
+- **教訓（CLAUDE.md 運用ルール候補、Phase 2 着手時に昇格判断）**: 「inline style と CSS クラスの display 制御を併用するときは、毎回 inline を明示的に切替する」。クラス側だけで `display:block` / `display:none` を切替する想定でも、**一度でも inline `style.display='none'` を書き込むと優先順位で必ず勝つ**ため、後続の class 切替が無視される
+
 ---
 
 ## TODO（未反映の GAS 側作業）
