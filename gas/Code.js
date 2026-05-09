@@ -512,6 +512,222 @@ function copyTestAccountsFromStudents() {
 }
 
 // =============================================
+// SpecialAccounts化 Step 4（2026-05-09）：Students からテスト枠を物理削除
+// =============================================
+// Students シートから 1001〜1010（テスト枠）の行を物理削除する。一回限りの実行を想定。
+//
+// 前提：
+//   - Step 1（copyTestAccountsFromStudents）が完了し、SpecialAccounts に
+//     1001〜1010 が複製されていること。
+//   - 実行前にスプレッドシートのコピーバックアップを取ること（強く推奨）。
+//
+// ⚠️ この操作は行シフトを発生させる。2026-05-08 の Students シート行追加
+//    事故と同種のリスクパターンだが、Step 0〜2 の sid ベース化と統合読み込み
+//    により後続の挙動への影響は無い。万一のため、安全要件 1〜7 を全段で実施。
+//
+// 安全要件（仕様書 §安全要件 1〜7）：
+//   1. 削除前 Students 行数を記録
+//   2. 削除対象（1001〜1010）の検出件数をログ出力
+//   3. SpecialAccounts に同IDが全てコピー済か事前確認（1件でも欠けたら中断）
+//   4. 削除実行（行番号降順で deleteRow ループ）
+//   5. 削除後の行数確認（差分が削除件数と一致するか）
+//   6. 実生徒の代表サンプル（5桁ID）が削除されていないことを確認
+//   7. すべての関連キャッシュをクリア
+//
+// 並行運用フェーズ（Step 1〜3）中の test枠 への更新について：
+//   Students 優先動作のため、test枠 でログイン・学習した分は Students 側に
+//   蓄積されており、SpecialAccounts には Step 1 時点のスナップショットしかない。
+//   Step 4 でその差分は失われる（ふくちさん許容、test 用途のため）。
+//
+// 戻り値: { ok, deleted, message?, summary? }
+function removeTestAccountsFromStudents() {
+  try {
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) {
+      const msg = 'Students シートが見つかりません';
+      Logger.log('[removeTestAccountsFromStudents] ERROR: ' + msg);
+      return { ok: false, message: msg };
+    }
+    const spSheet = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+    if (!spSheet) {
+      const msg = 'SpecialAccounts シートが見つかりません。Step 1（ensureSpecialAccountsSheet + copyTestAccountsFromStudents）を先に実行してください';
+      Logger.log('[removeTestAccountsFromStudents] ERROR: ' + msg);
+      return { ok: false, message: msg };
+    }
+
+    // UI が利用可能なら確認ダイアログを表示（メニュー経由実行のとき）
+    let ui = null;
+    try { ui = SpreadsheetApp.getUi(); } catch (e) { /* スクリプトエディタからの直接実行などで UI が無い場合 */ }
+
+    if (ui) {
+      const r = ui.alert(
+        'Students からテスト枠を削除（Step 4）',
+        '⚠️ Students シートから 1001〜1010 の行を物理削除します。\n\n' +
+        '実行前にスプレッドシートのバックアップを取りましたか？\n' +
+        '（ファイル → コピーを作成）\n\n' +
+        'なお、Step 1〜3 の並行運用期間中に 1001〜1010 でログインや学習が\n' +
+        'あった場合、その分の更新（HP・連続日数等）は SpecialAccounts には\n' +
+        '反映されていない可能性があります（Students 優先動作のため）。\n' +
+        'SpecialAccounts には Step 1 時点のスナップショットが保存されています。\n\n' +
+        '「はい」で削除を続行、「いいえ」で中断します。',
+        ui.ButtonSet.YES_NO
+      );
+      if (r !== ui.Button.YES) {
+        Logger.log('[removeTestAccountsFromStudents] ユーザーキャンセル');
+        return { ok: false, message: '中断しました（バックアップ未確認またはキャンセル）' };
+      }
+    }
+
+    // 安全要件 1：削除前 Students 行数を記録
+    const beforeRowCount = stuSheet.getLastRow();
+    Logger.log('[removeTestAccountsFromStudents] 削除前 Students 行数 = ' + beforeRowCount);
+
+    // 安全要件 2：削除対象（1001〜1010）の検出
+    //   Students シート全体を読み込み、1001〜1010 の行を { sheetRow: 1-based, sid } で集約。
+    //   実生徒の代表サンプル（5桁ID）も最大 5 件保存（事後検証用）。
+    const stuValues = stuSheet.getDataRange().getValues();
+    const targets = [];
+    const realSidSamples = [];
+    for (let i = 1; i < stuValues.length; i++) {
+      const sid = String(stuValues[i][COL_ID] || '').trim();
+      if (!sid) continue;
+      if (_isTestAccountId(stuValues[i][COL_ID])) {
+        targets.push({ sheetRow: i + 1, sid: sid });
+      } else if (realSidSamples.length < 5) {
+        realSidSamples.push(sid);
+      }
+    }
+    Logger.log('[removeTestAccountsFromStudents] 削除対象 ' + targets.length + ' 件: ' +
+      (targets.map(function(t){ return t.sid; }).join(', ') || '-'));
+    Logger.log('[removeTestAccountsFromStudents] 実生徒サンプル: ' + (realSidSamples.join(', ') || '-'));
+
+    if (targets.length === 0) {
+      const msg = 'Students シートに 1001〜1010 の行がありません（既に削除済み？）';
+      Logger.log('[removeTestAccountsFromStudents] ' + msg);
+      if (ui) ui.alert('情報', msg, ui.ButtonSet.OK);
+      return { ok: true, deleted: 0, message: msg };
+    }
+
+    // 安全要件 3：SpecialAccounts に同 ID が全てコピー済か事前確認
+    const spValues = spSheet.getDataRange().getValues();
+    const spSids = {};
+    for (let i = 1; i < spValues.length; i++) {
+      const sid = String(spValues[i][COL_ID] || '').trim();
+      if (sid) spSids[sid] = true;
+    }
+    const missingInSpecial = targets
+      .filter(function(t){ return !spSids[t.sid]; })
+      .map(function(t){ return t.sid; });
+    if (missingInSpecial.length > 0) {
+      const msg = 'SpecialAccounts シートに以下の ID が存在しません：' + missingInSpecial.join(', ') +
+        '\n\nStep 1（copyTestAccountsFromStudents）を先に実行してから再試行してください。\n' +
+        '※ Students 側の削除は中断しました（データ保全のため）。';
+      Logger.log('[removeTestAccountsFromStudents] ABORT: ' + msg);
+      if (ui) ui.alert('削除を中断しました', msg, ui.ButtonSet.OK);
+      return { ok: false, message: msg, missingInSpecial: missingInSpecial };
+    }
+    Logger.log('[removeTestAccountsFromStudents] SpecialAccounts 側に全 ' + targets.length + ' 件確認済 → 削除実行');
+
+    // 安全要件 4：削除実行（行番号降順で deleteRow）
+    //   昇順だと先頭を削除した時点で後続の行番号がずれるため、必ず降順で削除する。
+    targets.sort(function(a, b){ return b.sheetRow - a.sheetRow; });
+    const deletedSids = [];
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      stuSheet.deleteRow(t.sheetRow);
+      deletedSids.push(t.sid);
+      Logger.log('[removeTestAccountsFromStudents] deleteRow(' + t.sheetRow + ') sid=' + t.sid);
+    }
+
+    // 安全要件 5：削除後の行数確認
+    const afterRowCount = stuSheet.getLastRow();
+    const expectedDelta = targets.length;
+    const actualDelta = beforeRowCount - afterRowCount;
+    if (actualDelta !== expectedDelta) {
+      Logger.log('[removeTestAccountsFromStudents] WARN: 行数差分が想定と一致しません：削除前=' +
+        beforeRowCount + ' / 削除後=' + afterRowCount + ' / 差分=' + actualDelta + ' / 想定=' + expectedDelta);
+      // 警告だが処理は続行（削除自体は完了している）
+    } else {
+      Logger.log('[removeTestAccountsFromStudents] OK: 行数差分一致 (' + actualDelta + ' 件)');
+    }
+
+    // 安全要件 6：実生徒の代表サンプルが削除後も存在することを確認
+    const afterValues = stuSheet.getDataRange().getValues();
+    const afterSids = {};
+    for (let i = 1; i < afterValues.length; i++) {
+      const sid = String(afterValues[i][COL_ID] || '').trim();
+      if (sid) afterSids[sid] = true;
+    }
+    const missingSamples = realSidSamples.filter(function(sid){ return !afterSids[sid]; });
+    if (missingSamples.length > 0) {
+      // 致命的：実生徒が消えた → 即時中断 + 警告
+      const msg = '🚨 実生徒の代表サンプルが削除後に存在しません：' + missingSamples.join(', ') +
+        '\n\n直ちにバックアップから復旧してください！';
+      Logger.log('[removeTestAccountsFromStudents] CRITICAL: ' + msg);
+      if (ui) ui.alert('🚨 致命的エラー', msg, ui.ButtonSet.OK);
+      return { ok: false, message: msg, missingSamples: missingSamples };
+    }
+    // テスト枠が残っていないことも確認（仕様上 0 件のはず）
+    const remainingTestSids = Object.keys(afterSids).filter(function(sid){
+      const n = Number(sid);
+      return Number.isInteger(n) && n >= 1001 && n <= 1010;
+    });
+    if (remainingTestSids.length > 0) {
+      Logger.log('[removeTestAccountsFromStudents] WARN: 削除後に残存テスト枠あり: ' + remainingTestSids.join(', '));
+    } else {
+      Logger.log('[removeTestAccountsFromStudents] OK: Students 側のテスト枠は 0 件');
+    }
+
+    // 安全要件 7：すべての関連キャッシュをクリア
+    //   _getStudentsValues / _getAllAccountsValues / 派生ランキング等を破棄。
+    //   _getSpecialAccountsValues も並行運用で stale 化している可能性があるため一緒にクリア。
+    _invalidateCache('cache_students_values');
+    _invalidateCache('cache_special_accounts_values');
+    _invalidateCache('cache_ranking_last_week');
+    Logger.log('[removeTestAccountsFromStudents] cache invalidate 完了');
+
+    // SpecialAccounts 側の保全確認（無変更であることを念押し）
+    let spTestCount = 0;
+    for (let i = 1; i < spValues.length; i++) {
+      if (_isTestAccountId(spValues[i][COL_ID])) spTestCount++;
+    }
+    Logger.log('[removeTestAccountsFromStudents] SpecialAccounts のテスト枠（保全確認）= ' + spTestCount + ' 件');
+
+    const summary = {
+      beforeRowCount:              beforeRowCount,
+      afterRowCount:               afterRowCount,
+      actualDelta:                 actualDelta,
+      expectedDelta:               expectedDelta,
+      deletedSids:                 deletedSids,
+      remainingTestSidsInStudents: remainingTestSids,
+      specialAccountsTestCount:    spTestCount,
+      realStudentSamplesPreserved: realSidSamples.filter(function(sid){ return afterSids[sid]; })
+    };
+    Logger.log('[removeTestAccountsFromStudents] サマリ: ' + JSON.stringify(summary));
+
+    if (ui) {
+      ui.alert(
+        '削除完了',
+        '✅ ' + targets.length + ' 件のテスト枠を Students シートから削除しました。\n\n' +
+        '削除前 ' + beforeRowCount + ' 行 → 削除後 ' + afterRowCount + ' 行（差分 ' + actualDelta + '）\n' +
+        '実生徒サンプル ' + realSidSamples.length + ' 件すべて保全確認済\n' +
+        'SpecialAccounts のテスト枠 ' + spTestCount + ' 件（無変更）\n\n' +
+        '実行ログの詳細は GAS エディタの「実行数（実行ログ）」で確認できます。\n\n' +
+        'これで 1001〜1010 でログインすると SpecialAccounts 側で動作するようになりました。',
+        ui.ButtonSet.OK
+      );
+    }
+
+    return { ok: true, deleted: targets.length, summary: summary };
+  } catch (e) {
+    console.error('[removeTestAccountsFromStudents]', e);
+    Logger.log('[removeTestAccountsFromStudents] EXCEPTION: ' + e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// =============================================
 // カスタムメニュー（スプレッドシートを開いた時に発火）
 // =============================================
 // SpecialAccounts シートのセットアップ用メニューを追加する。
@@ -525,6 +741,7 @@ function onOpen() {
         ui.createMenu('SpecialAccounts')
           .addItem('① シート初期化（ヘッダー作成 / accountType 列追加）', 'ensureSpecialAccountsSheet')
           .addItem('② テスト枠コピー（1001〜1010 を Students からコピー、削除なし）', 'copyTestAccountsFromStudents')
+          .addItem('③ Students からテスト枠を削除（Step 4 / ⚠️ 一回限りの操作）', 'removeTestAccountsFromStudents')
       )
       .addToUi();
   } catch (e) {
