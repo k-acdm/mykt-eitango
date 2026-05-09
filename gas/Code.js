@@ -533,6 +533,165 @@ function onOpen() {
   }
 }
 
+// =============================================
+// 統合読み込みヘルパー（SpecialAccounts化 Step 2：2026-05-09）
+// =============================================
+// 用途：生徒向け API および「全アカウント対象」の管理 API から、Students と
+//       SpecialAccounts を横断して生徒を扱えるようにする。
+//
+// 設計：
+//  - _getSpecialAccountsValues : SpecialAccounts シートの cache 読み（_getStudentsValues と対称）
+//  - _getAllAccountsValues     : Students + SpecialAccounts 結合（Students 優先で sid 重複を排除）
+//  - _findAccountRowOnSheet    : sid から「どのシート / どの行」かをフレッシュ読みで返す
+//  - _updateAccountCacheBySid  : sid を含むキャッシュを自動判定して更新
+//
+// Students 優先の理由：Step 2 の並行運用フェーズで 1001〜1010 が両シートに存在
+//   する状態が生じる。既存挙動と互換を保つため Students を先に検索し、見つかれば
+//   そのまま使う（Students 側が更新される）。Step 4 で Students から削除されたら
+//   自動的に SpecialAccounts 側に切り替わる。
+
+// SpecialAccounts シートの全 values を cache 経由で取得（_getStudentsValues と対称）。
+// シートが無い / データ行ゼロの場合は [] を返す（呼び出し側で length チェック）。
+function _getSpecialAccountsValues() {
+  return _getCachedValues('cache_special_accounts_values', 21600, function() {
+    const sh = _ss().getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+    if (!sh || sh.getLastRow() < 2) return [];
+    return sh.getDataRange().getValues();
+  });
+}
+
+// Students + SpecialAccounts を結合した values を返す。
+// - ヘッダー行は Students のものを採用（先頭 1 行）
+// - SpecialAccounts のデータ行を末尾に追加。ただし sid が Students に既存なら
+//   重複行をスキップ（Students 優先 = Step 4 までの並行運用フェーズへの配慮）
+// - 戻り値の各行は Students 列構成 + SpecialAccounts のみ accountType 列が末尾にある
+//   構造のまま（既存コードは row[COL_ID]〜row[COL_LAST_LOGIN] までしか触らないので問題なし）
+function _getAllAccountsValues() {
+  const stuRows = _getStudentsValues();
+  const spRows  = _getSpecialAccountsValues();
+  if (!stuRows || stuRows.length === 0) {
+    return spRows && spRows.length > 0 ? spRows.slice() : [];
+  }
+  if (!spRows || spRows.length < 2) {
+    return stuRows.slice();
+  }
+  // Students の sid 集合（重複排除キー）
+  const stuSids = {};
+  for (let i = 1; i < stuRows.length; i++) {
+    const sid = String(stuRows[i][COL_ID] || '').trim();
+    if (sid) stuSids[sid] = true;
+  }
+  const combined = stuRows.slice();
+  for (let i = 1; i < spRows.length; i++) {
+    const sid = String(spRows[i][COL_ID] || '').trim();
+    if (!sid) continue;
+    if (stuSids[sid]) continue;  // Students 優先：SpecialAccounts 側の重複行をスキップ
+    combined.push(spRows[i]);
+  }
+  return combined;
+}
+
+// sid から「どのシート / どの行」かをフレッシュ読みで特定する。
+// Students を先に検索し、見つからなければ SpecialAccounts を検索（Students 優先）。
+// 戻り値: { sheet, rowIdx, rowValues, allValues, sheetName } または null
+//   - sheet:     書き込み先の Sheet オブジェクト
+//   - rowIdx:    0-based index（書き込みは sheet.getRange(rowIdx + 1, ...)）
+//   - rowValues: その行の値配列
+//   - allValues: そのシートの全 values（呼び出し側で他列を読みたい場合用）
+//   - sheetName: 'Students' or 'SpecialAccounts'（呼び出し側で識別したい場合用）
+function _findAccountRowOnSheet(sid) {
+  // 1) Students を先に検索（既存挙動と互換）
+  const stuLoc = _findStudentRowOnSheet(sid);
+  if (stuLoc) {
+    return {
+      sheet:      stuLoc.sheet,
+      rowIdx:     stuLoc.rowIdx,
+      rowValues:  stuLoc.rowValues,
+      allValues:  stuLoc.allValues,
+      sheetName:  SHEET_STUDENTS
+    };
+  }
+  // 2) SpecialAccounts を検索
+  const spSheet = _ss().getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+  if (!spSheet || spSheet.getLastRow() < 2) return null;
+  const spValues = spSheet.getDataRange().getValues();
+  const idx = _findStudentRowIndex(spValues, sid);
+  if (idx < 0) return null;
+  return {
+    sheet:      spSheet,
+    rowIdx:     idx,
+    rowValues:  spValues[idx],
+    allValues:  spValues,
+    sheetName:  SHEET_SPECIAL_ACCOUNTS
+  };
+}
+
+// 書き込み後のキャッシュ更新を sid ベースで自動ディスパッチする。
+// Students cache → SpecialAccounts cache の順で sid を再検索し、見つかった
+// 側のキャッシュを in-place 更新する。どちらにも見つからなければ両方を
+// invalidate（cache stale 時の安全策）。
+function _updateAccountCacheBySid(sid, updates) {
+  const STU_KEY = 'cache_students_values';
+  const SP_KEY  = 'cache_special_accounts_values';
+  try {
+    const cache = CacheService.getScriptCache();
+
+    // 1) Students cache を先に試す（既存挙動と互換）
+    const stuHit = cache.get(STU_KEY);
+    if (stuHit) {
+      const values = JSON.parse(stuHit);
+      const idx = _findStudentRowIndex(values, sid);
+      if (idx >= 0) {
+        Object.keys(updates).forEach(function(k){
+          values[idx][parseInt(k, 10)] = updates[k];
+        });
+        const ser = JSON.stringify(values);
+        if (ser.length < 95000) {
+          cache.put(STU_KEY, ser, 21600);
+          _cacheLog(STU_KEY, 'update', 'sid=' + sid + ' row=' + idx);
+        } else {
+          cache.remove(STU_KEY);
+          _cacheLog(STU_KEY, 'invalidate', 'update skip: size=' + ser.length);
+        }
+        return; // 更新済
+      }
+    }
+
+    // 2) SpecialAccounts cache を試す
+    const spHit = cache.get(SP_KEY);
+    if (spHit) {
+      const values = JSON.parse(spHit);
+      const idx = _findStudentRowIndex(values, sid);
+      if (idx >= 0) {
+        Object.keys(updates).forEach(function(k){
+          values[idx][parseInt(k, 10)] = updates[k];
+        });
+        const ser = JSON.stringify(values);
+        if (ser.length < 95000) {
+          cache.put(SP_KEY, ser, 21600);
+          _cacheLog(SP_KEY, 'update', 'sid=' + sid + ' row=' + idx);
+        } else {
+          cache.remove(SP_KEY);
+          _cacheLog(SP_KEY, 'invalidate', 'update skip: size=' + ser.length);
+        }
+        return;
+      }
+    }
+
+    // 3) どちらの cache にも見つからない場合
+    //    → 両方の cache が stale 可能性。安全側で両方 invalidate。
+    if (stuHit) { cache.remove(STU_KEY); _cacheLog(STU_KEY, 'invalidate', 'sid not in either cache: ' + sid); }
+    if (spHit)  { cache.remove(SP_KEY);  _cacheLog(SP_KEY,  'invalidate', 'sid not in either cache: ' + sid); }
+  } catch(e) {
+    try {
+      const cache = CacheService.getScriptCache();
+      cache.remove(STU_KEY);
+      cache.remove(SP_KEY);
+      _cacheLog(STU_KEY, 'invalidate', 'update by sid failed: ' + e);
+    } catch(_) {}
+  }
+}
+
 // 診断ログを有効化（GAS エディタから直接実行）
 // 実行後、各リクエストの Executions ログに [cache HIT/MISS/INV] が出力される
 function enableDebugCache() {
@@ -572,7 +731,8 @@ function clearAllCache() {
       'cache_quote_values',
       'cache_notice_values',
       'cache_ranking_last_week',
-      'cache_students_values'
+      'cache_students_values',
+      'cache_special_accounts_values'
     ];
     // 基礎計算 KisoQuestions の rank 別キャッシュ（1〜20）
     for (let r = 1; r <= 20; r++) keys.push('cache_kiso_q_rows_' + r);
@@ -751,7 +911,7 @@ function loginStudent(studentId) {
     // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行は必ず
     // シートからフレッシュに sid で特定する（cache 経由禁止）。
     // 読み取り側のキャッシュ最適化（_getStudentsValues）は他の read-only API でのみ使う。
-    const stuLoc = _findStudentRowOnSheet(studentId);
+    const stuLoc = _findAccountRowOnSheet(studentId);
     if (!stuLoc) return { ok: false, message: '生徒IDが見つかりません。先生に確認してください。' };
     const row = stuLoc.rowValues;
     // 4/27 cutover 後は教育日（4:00 AM JST 区切り）。それ以前は _todayJST と同じ
@@ -799,7 +959,7 @@ function loginStudent(studentId) {
       updates[COL_HP]         = currentHP;
       updates[COL_STREAK]     = streak;
       updates[COL_LAST_LOGIN] = today;
-      _updateStudentsCacheBySid(studentId, updates);
+      _updateAccountCacheBySid(studentId, updates);
       // 既存コンテンツは素点と倍率後HPが同値のため rawHP = hpGained
       _logHP(studentId, loginBonus, loginBonus, 'login');
     }
@@ -974,13 +1134,13 @@ function saveNickname(studentId, nickname) {
   try {
     // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行は必ず
     // シートからフレッシュに sid で特定する（cache 経由禁止）
-    const stuLoc = _findStudentRowOnSheet(studentId);
+    const stuLoc = _findAccountRowOnSheet(studentId);
     if (!stuLoc) return { ok: false, message: '生徒IDが見つかりません。' };
     const trimmed = nickname.trim();
     stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_NICKNAME + 1).setValue(trimmed);
     const updates = {};
     updates[COL_NICKNAME] = trimmed;
-    _updateStudentsCacheBySid(studentId, updates);
+    _updateAccountCacheBySid(studentId, updates);
     return { ok: true, nickname: trimmed };
   } catch (err) {
     return { ok: false, message: '保存に失敗しました。' };
@@ -1065,7 +1225,7 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
 
     // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
     // フレッシュに特定する。氏名 / 現在 HP / streak / cleared 等の現在値もここから読む。
-    const stuLoc = _findStudentRowOnSheet(sid);
+    const stuLoc = _findAccountRowOnSheet(sid);
     const studentName = stuLoc ? String(stuLoc.rowValues[COL_NAME] || '') : '';
 
     // Attempts: 日時 / 生徒ID / 氏名 / セット番号 / 得点 / 合否 / 級 / 端末(任意) / メモ(任意)
@@ -1107,7 +1267,7 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     updates[COL_UPDATED]   = now;
     updates[COL_HP]        = newHP;
     updates[COL_LAST_TEST] = today;
-    _updateStudentsCacheBySid(sid, updates);
+    _updateAccountCacheBySid(sid, updates);
     // 既存コンテンツは素点と倍率後HPが同値のため rawHP = hpGained
     _logHP(sid, hpGained, hpGained, 'test');
     _invalidateCache('cache_ranking_last_week');
@@ -1221,6 +1381,8 @@ function migrateHpLogAddRawHp() {
 //     loginDays,            // HPLog type='login' のみの日数（参考）
 //     fallbackOnlyDays,     // HPLog 'login' が無く Attempts/他 type のみで救済された日のリスト
 //   }
+// ※ Step 2：本関数は Students 専用（実生徒のみ対象）。テスト枠 / 先生枠 / 招待枠 等の
+//   SpecialAccounts は streak 復旧の対象外（HPLog から復旧する設計の前提が実生徒のみ）。
 function recoverAllStudentsStreak(opts) {
   try {
     opts = opts || {};
@@ -1733,6 +1895,7 @@ function _ensureHpLogMessageColumn() {
   };
 }
 
+// ※ Step 2：本関数は Students 専用（実生徒のみ対象）。お詫び連続日数 +1 は実生徒の被害補償。
 function apologyStreakBonus(opts) {
   try {
     opts = opts || {};
@@ -1911,6 +2074,7 @@ function _wabun1SubmittersByDate(dateStr) {
 // 公開ヘルパー: 指定日の和文英訳①提出者一覧を返す（GAS エディタから事前確認用）
 // params: { date?: 'yyyy-MM-dd' }（既定: 今日）
 // 戻り値: { ok, date, count, submitters: [{ studentId, name, nickname, count, firstAt, lastAt }] }
+// ※ Step 2：本関数は Students 専用（apologyWabun1Bonus の内部関数として）。
 function getWabun1SubmittersByDate(params) {
   try {
     const date = String((params && params.date) || _todayJST());
@@ -1946,6 +2110,7 @@ function getWabun1SubmittersByDate(params) {
   }
 }
 
+// ※ Step 2：本関数は Students 専用（実生徒のみ対象）。お詫び HP 付与は実生徒の被害補償。
 function apologyWabun1Bonus(opts) {
   try {
     opts = opts || {};
@@ -2215,6 +2380,7 @@ function _kisoChallengersByDate(dateStr) {
 // 公開ヘルパー: 指定日の基礎計算チャレンジ生徒一覧を返す（GAS エディタから事前確認用）
 // params: { date?: 'yyyy-MM-dd' }（既定: 今日）
 // 戻り値: { ok, date, count, challengers: [{ studentId, name, nickname, sessionCount, firstAt, lastAt, ranks, counts }] }
+// ※ Step 2：本関数は Students 専用（apologyKisoBonus の内部関数として）。
 function getKisoChallengersByDate(params) {
   try {
     const date = String((params && params.date) || _todayJST());
@@ -2252,6 +2418,7 @@ function getKisoChallengersByDate(params) {
   }
 }
 
+// ※ Step 2：本関数は Students 専用（実生徒のみ対象）。お詫び HP 付与は実生徒の被害補償。
 function apologyKisoBonus(opts) {
   try {
     opts = opts || {};
@@ -2913,6 +3080,8 @@ function _getKisoQuestionsByIds(questionIds) {
 //
 // 戻り値: { ok, rank, count, sessions: [{ sessionId, studentId, studentName,
 //          studentNickname, startedAt, questionIdsPreview }] }
+// ※ Step 2：本関数は Students 専用（Phase 4 投入時のセッション診断は実生徒のみが対象。
+//   テスト枠の進行中セッションがあっても問題ないが、診断結果としては実生徒のみで十分）。
 function diagnoseKisoInProgressByRank(rank) {
   try {
     const r = Number(rank);
@@ -4013,8 +4182,8 @@ function getKisoPhotosList(params) {
     const cPhType  = header.indexOf('photoType');     // 新列：列が無い古いシートは -1
     const cPhIdx   = header.indexOf('photoIndex');
 
-    // 生徒名マップ（Students シートから cache 経由）
-    const stuRows = _getStudentsValues();
+    // 生徒名マップ（Step 2：全アカウント対象 = Students + SpecialAccounts）
+    const stuRows = _getAllAccountsValues();
     const nameMap = {};
     for (let i = 1; i < stuRows.length; i++) {
       const id = String(stuRows[i][COL_ID] || '').trim();
@@ -4519,7 +4688,7 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
     if (passed) {
       // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
       // フレッシュに特定する。streak / 現在 HP もここから読む。
-      const stuLoc = _findStudentRowOnSheet(studentId);
+      const stuLoc = _findAccountRowOnSheet(studentId);
       const streakValue = stuLoc ? (Number(stuLoc.rowValues[COL_STREAK]) || 1) : 1;
       const currentHP   = stuLoc ? (Number(stuLoc.rowValues[COL_HP])     || 0) : 0;
       const week = Math.ceil(streakValue / 7);
@@ -4536,7 +4705,7 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
         stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
         const upd = {};
         upd[COL_HP] = newHP;
-        _updateStudentsCacheBySid(studentId, upd);
+        _updateAccountCacheBySid(studentId, upd);
       }
 
       // HPLog 記録（仕様書 §8.4）
@@ -4706,8 +4875,9 @@ function getWeeklyRanking() {
     const range = _getLastWeekRange();
     const HP_PER_TEST = 50;
 
-    // 生徒マスタ（G1: キャッシュ経由）
-    const stuRows = _getStudentsValues();
+    // 生徒マスタ（Step 2：全アカウント対象 = Students + SpecialAccounts。
+    // ふくちさん方針「テスト枠が実生徒に勝ったら面白い」のためテスト枠も集計対象に含める）
+    const stuRows = _getAllAccountsValues();
     if (!stuRows || stuRows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません。' };
     const stuMap  = {};
     for (let i = 1; i < stuRows.length; i++) {
@@ -4977,8 +5147,8 @@ function submitExchange(studentId, rank) {
     if (!rankDef) return { ok: false, message: '不明なランクです。' };
 
     const sid  = String(studentId).trim();
-    // G1: Students はキャッシュ経由
-    const rows = _getStudentsValues();
+    // Step 2：全アカウント対象（テスト枠でも景品交換の動作確認ができるように）
+    const rows = _getAllAccountsValues();
     if (!rows || rows.length < 2) return { ok: false, message: 'シートが見つかりません。' };
 
     let currentHP = 0, nickname = '';
@@ -5015,9 +5185,9 @@ function getExchangeStatus(studentId) {
     const ss       = _ss();
     const exSheet  = ss.getSheetByName(SHEET_EXCHANGES);
 
-    // G1: Students はキャッシュ経由
+    // Step 2：全アカウント対象（テスト枠でも交換ステータス取得できるように）
     let currentHP = 0;
-    const stuRows = _getStudentsValues();
+    const stuRows = _getAllAccountsValues();
     for (let i = 1; i < stuRows.length; i++) {
       if (String(stuRows[i][COL_ID]).trim() === sid) {
         currentHP = Number(stuRows[i][COL_HP]) || 0; break;
@@ -5504,8 +5674,9 @@ function adminListStudents(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
-    // G1: Students はキャッシュ経由
-    const values = _getStudentsValues();
+    // Step 2：全アカウント対象（Students + SpecialAccounts）。
+    // 管理画面で 1001〜1010 等の特殊枠も一覧に含めるため。
+    const values = _getAllAccountsValues();
     if (!values || values.length < 2) return { ok: true, students: [] };
     const students = [];
     for (let i = 1; i < values.length; i++) {
@@ -5534,7 +5705,8 @@ function getStudentsListForGrant(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
-    const values = _getStudentsValues();
+    // Step 2：全アカウント対象。テスト枠への HP 付与（動作確認等）も可能にする。
+    const values = _getAllAccountsValues();
     if (!values || values.length < 2) return { ok: true, students: [] };
     const students = [];
     for (let i = 1; i < values.length; i++) {
@@ -5599,38 +5771,51 @@ function executeManualHpGrant(params) {
     const ss = _ss();
     const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
     if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
+    const spSheet  = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS); // 無くても可（Step 1 未実行時など）
 
     // cache 経由禁止：ここは最新値を直接読む（管理画面実行直前の HP を正確に加算するため）
+    // Step 2：Students + SpecialAccounts の両シートから sid → 行情報マップを構築。
+    //         同 sid が両シートに存在する場合は Students 優先（既存挙動と互換）。
     const stuValues = stuSheet.getDataRange().getValues();
+    const spValues  = (spSheet && spSheet.getLastRow() >= 2) ? spSheet.getDataRange().getValues() : [];
 
-    // sid → rowIdx マップ
-    const rowBySid = {};
+    const rowBySid = {};  // sid → { sheet, sheetName, rowIdx (0-based), values }
     for (let i = 1; i < stuValues.length; i++) {
       const sid = String(stuValues[i][COL_ID] || '').trim();
-      if (sid) rowBySid[sid] = i;
+      if (sid) rowBySid[sid] = { sheet: stuSheet, sheetName: SHEET_STUDENTS, rowIdx: i, values: stuValues[i] };
+    }
+    for (let i = 1; i < spValues.length; i++) {
+      const sid = String(spValues[i][COL_ID] || '').trim();
+      if (sid && !(sid in rowBySid)) {
+        rowBySid[sid] = { sheet: spSheet, sheetName: SHEET_SPECIAL_ACCOUNTS, rowIdx: i, values: spValues[i] };
+      }
     }
 
     const updates = [];
     const notFound = [];
+    let touchedSpecial = false;
     normIds.forEach(function(sid) {
       if (!(sid in rowBySid)) { notFound.push(sid); return; }
-      const i      = rowBySid[sid];
-      const name   = String(stuValues[i][COL_NAME]     || '').trim();
-      const streak = Math.max(1, Number(stuValues[i][COL_STREAK]) || 1);
+      const r = rowBySid[sid];
+      if (r.sheetName === SHEET_SPECIAL_ACCOUNTS) touchedSpecial = true;
+      const name   = String(r.values[COL_NAME]     || '').trim();
+      const streak = Math.max(1, Number(r.values[COL_STREAK]) || 1);
       const week   = Math.ceil(streak / 7);
       const mult   = applyBonus ? (week * week) : 1;
       const hpGained = rawHp * mult;
-      const curHP    = Number(stuValues[i][COL_HP]) || 0;
+      const curHP    = Number(r.values[COL_HP]) || 0;
       updates.push({
-        sid:       sid,
-        name:      name,
-        rowIdx:    i,
-        streak:    streak,
-        week:      week,
+        sid:        sid,
+        name:       name,
+        sheet:      r.sheet,
+        sheetName:  r.sheetName,
+        rowIdx:     r.rowIdx,
+        streak:     streak,
+        week:       week,
         multiplier: mult,
-        rawHp:     rawHp,
-        hpGained:  hpGained,
-        newHP:     curHP + hpGained
+        rawHp:      rawHp,
+        hpGained:   hpGained,
+        newHP:      curHP + hpGained
       });
     });
 
@@ -5638,10 +5823,10 @@ function executeManualHpGrant(params) {
       return { ok: false, message: '指定された生徒が見つかりません: ' + notFound.join(', ') };
     }
 
-    // Students.HP 列を 1 件ずつ書き込み
+    // Students / SpecialAccounts の HP 列を 1 件ずつ書き込み（行 index は事前に各シートで構築済）
     for (let k = 0; k < updates.length; k++) {
       const u = updates[k];
-      stuSheet.getRange(u.rowIdx + 1, COL_HP + 1).setValue(u.newHP);
+      u.sheet.getRange(u.rowIdx + 1, COL_HP + 1).setValue(u.newHP);
     }
 
     // HPLog に 1 行ずつ記録（既存の 6 列構造を _ensureHpLogMessageColumn 経由で保証）
@@ -5660,8 +5845,9 @@ function executeManualHpGrant(params) {
     log.sh.getRange(log.sh.getLastRow() + 1, 1, rowsToAppend.length, log.lastCol)
           .setValues(rowsToAppend);
 
-    // cache invalidate（Students の HP が変わったのでランキングと一覧キャッシュを破棄）
+    // cache invalidate（書き込みが行われたシートの cache を破棄。SpecialAccounts も touched なら同様）
     _invalidateCache('cache_students_values');
+    if (touchedSpecial) _invalidateCache('cache_special_accounts_values');
     _invalidateCache('cache_ranking_last_week');
 
     let totalHp = 0;
@@ -5927,9 +6113,11 @@ function sendTeacherMessage(params) {
     } else {
       // 'all'
       targetIdsCsv = 'ALL';
-      // 件数表示用に Students シートの ID 数を集計（cache 経由）
+      // 件数表示用に全アカウント（Students + SpecialAccounts）の ID 数を集計
+      // Step 2：テスト枠もメッセージを受け取るため対象に含む（_readMessagesForStudent 側で
+      //   targetType='all' は全 sid 一致なので、テスト枠でも届く＝集計対象に含めるのが整合）
       try {
-        const stuValues = _getStudentsValues();
+        const stuValues = _getAllAccountsValues();
         if (stuValues && stuValues.length >= 2) {
           let n = 0;
           for (let i = 1; i < stuValues.length; i++) {
@@ -6200,7 +6388,8 @@ function getCalendarDayDetail(params) {
     const sh = ss.getSheetByName(SHEET_HPLOG);
 
     // sid → 氏名・ニックネーム
-    const stuValues = _getStudentsValues();
+    // Step 2：全アカウント対象（Students + SpecialAccounts）。テスト枠も名前表示できるようにする。
+    const stuValues = _getAllAccountsValues();
     const stuMap = {};
     if (stuValues && stuValues.length >= 2) {
       for (let i = 1; i < stuValues.length; i++) {
@@ -6341,27 +6530,25 @@ function getStudentView(params) {
     const sid = String(params.studentId || '').trim();
     if (!sid) return { ok: false, message: '生徒IDを入力してください' };
 
-    // G1: Students はキャッシュ経由
-    const rows = _getStudentsValues();
-    if (!rows || rows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません' };
-    for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][COL_ID]).trim() !== sid) continue;
-      const nickname = (String(rows[i][COL_NICKNAME] || '').trim()) || '名無し';
-      const totalHP  = Number(rows[i][COL_HP])     || 0;
-      const streak   = Number(rows[i][COL_STREAK]) || 0;
-      const stage    = _calcStage(streak, 0, 0);
-      const title    = _getTitle(streak);
-      return {
-        ok: true,
-        studentId: sid,
-        nickname:  nickname,
-        totalHP:   totalHP,
-        streak:    streak,
-        stage:     stage,
-        title:     title
-      };
-    }
-    return { ok: false, message: '生徒IDが見つかりません' };
+    // Step 2：全アカウント対象。テスト枠でも保護者画面の動作確認ができるよう
+    //   _findAccountRowOnSheet（Students 優先、フォールバック SpecialAccounts）を使う。
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒IDが見つかりません' };
+    const row = stuLoc.rowValues;
+    const nickname = (String(row[COL_NICKNAME] || '').trim()) || '名無し';
+    const totalHP  = Number(row[COL_HP])     || 0;
+    const streak   = Number(row[COL_STREAK]) || 0;
+    const stage    = _calcStage(streak, 0, 0);
+    const title    = _getTitle(streak);
+    return {
+      ok: true,
+      studentId: sid,
+      nickname:  nickname,
+      totalHP:   totalHP,
+      streak:    streak,
+      stage:     stage,
+      title:     title
+    };
   } catch(err) {
     console.error('[getStudentView]', err);
     return { ok: false, message: String(err) };
@@ -6491,7 +6678,7 @@ function submitSango(params) {
     const ss = _ss();
     // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
     // フレッシュに特定する（cache 経由禁止）。氏名 / streak / HP もここから読む。
-    const stuLoc = _findStudentRowOnSheet(sid);
+    const stuLoc = _findAccountRowOnSheet(sid);
     if (!stuLoc) return { ok: false, message: 'Studentsシートが見つかりません' };
     const studentName = String(stuLoc.rowValues[COL_NICKNAME] || '').trim() || '名無し';
 
@@ -6529,7 +6716,7 @@ function submitSango(params) {
       stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
       const upd = {};
       upd[COL_HP] = newHP;
-      _updateStudentsCacheBySid(sid, upd);
+      _updateAccountCacheBySid(sid, upd);
       // _logHP に統一（5 列：timestamp/studentId/rawHP/hpGained/type）
       // 三語短文は素点と倍率後HPが同値のため rawHP = hpGained
       _logHP(sid, hpGained, hpGained, 'sango');
@@ -6616,9 +6803,9 @@ function adminListSangoSubmissions(params) {
     const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
     if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
 
-    // G1: Students はキャッシュ経由
+    // Step 2：全アカウント対象（Students + SpecialAccounts）。テスト枠の提出も生徒名表示できるように。
     const nameMap = {};
-    const stuRows = _getStudentsValues();
+    const stuRows = _getAllAccountsValues();
     if (stuRows && stuRows.length >= 2) {
       for (let i = 1; i < stuRows.length; i++) {
         const sid = String(stuRows[i][COL_ID] || '').trim();
@@ -7487,7 +7674,7 @@ function submitWabun1(params) {
     const ss = _ss();
     // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
     // フレッシュに特定する（cache 経由禁止）。
-    const stuLoc = _findStudentRowOnSheet(sid);
+    const stuLoc = _findAccountRowOnSheet(sid);
     if (!stuLoc) return { ok: false, message: 'Studentsシートが見つかりません' };
     const studentName = String(stuLoc.rowValues[COL_NICKNAME] || '').trim() || '名無し';
 
@@ -7532,7 +7719,7 @@ function submitWabun1(params) {
       stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
       const upd = {};
       upd[COL_HP] = newHP;
-      _updateStudentsCacheBySid(sid, upd);
+      _updateAccountCacheBySid(sid, upd);
       // _logHP に統一（5 列：timestamp/studentId/rawHP/hpGained/type）
       // 和文英訳①は素点と倍率後HPが同値のため rawHP = hpGained
       _logHP(sid, hpGained, hpGained, 'wabun1');
@@ -7918,9 +8105,9 @@ function adminListWabun1Submissions(params) {
     const sh = _ss().getSheetByName(SHEET_WABUN1_SUBMISSIONS);
     if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
 
-    // G1: Students はキャッシュ経由
+    // Step 2：全アカウント対象（Students + SpecialAccounts）。テスト枠の提出も生徒名表示できるように。
     const nameMap = {};
-    const stuRows = _getStudentsValues();
+    const stuRows = _getAllAccountsValues();
     if (stuRows && stuRows.length >= 2) {
       for (let i = 1; i < stuRows.length; i++) {
         const sid = String(stuRows[i][COL_ID] || '').trim();
@@ -8583,8 +8770,8 @@ function getLisonSubmissionsList(params) {
     const sh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
     if (!sh || sh.getLastRow() < 2) return { ok: true, submissions: [] };
 
-    // Students 突合用（real name 補完）
-    const stuRows = _getStudentsValues();
+    // 突合用（real name 補完）。Step 2：全アカウント対象 = Students + SpecialAccounts。
+    const stuRows = _getAllAccountsValues();
     const realNameMap = {};
     if (stuRows && stuRows.length >= 2) {
       for (let i = 1; i < stuRows.length; i++) {
@@ -8951,7 +9138,7 @@ function submitLison(params) {
     // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
     // フレッシュに特定する（cache 経由禁止）。
     const ss = _ss();
-    const stuLoc = _findStudentRowOnSheet(sid);
+    const stuLoc = _findAccountRowOnSheet(sid);
     if (!stuLoc) return { ok: false, message: 'Studentsシートが見つかりません' };
     const studentName = String(stuLoc.rowValues[COL_NICKNAME] || '').trim() || '名無し';
 
@@ -9003,7 +9190,7 @@ function submitLison(params) {
       stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
       const upd = {};
       upd[COL_HP] = newHP;
-      _updateStudentsCacheBySid(sid, upd);
+      _updateAccountCacheBySid(sid, upd);
     }
 
     // LisonSubmissions に追記（alreadyGranted のときも recordingUrl と quizScore は残す）
@@ -9062,6 +9249,7 @@ function submitLison(params) {
 // HPLog 列構成（_ensureHpLogMessageColumn 経由で 6 列を保証）:
 //   timestamp | studentId | rawHP | hpGained | type | message
 // =============================================
+// ※ Step 2：本関数は Students 専用（実生徒のみ対象）。一回限りのお詫び付与で対象 5 名は実生徒。
 function apologyWabun1MonyoBug_20260502() {
   const TARGET_DATE = '2026-05-02';
   const APOLOGY_TYPE = 'apology_wabun1';
@@ -9636,7 +9824,7 @@ function submitKanjiKaki(params) {
     // HP 加算判定（合格時のみ）
     // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
     // フレッシュに特定する（cache 経由禁止）。
-    const stuLoc = passed ? _findStudentRowOnSheet(sid) : null;
+    const stuLoc = passed ? _findAccountRowOnSheet(sid) : null;
 
     let hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: false, alreadyAtCap: false };
     if (passed) {
@@ -9655,7 +9843,7 @@ function submitKanjiKaki(params) {
         const newHP = cur + hpGained;
         stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
         const upd = {}; upd[COL_HP] = newHP;
-        _updateStudentsCacheBySid(sid, upd);
+        _updateAccountCacheBySid(sid, upd);
         // HPLog: type='kanji_<level>_<count>'（'準2' レベルもそのまま使う）
         _logHP(sid, grantedRawHP, hpGained, 'kanji_' + level + '_' + count);
         _invalidateCache('cache_ranking_last_week');
@@ -10290,7 +10478,7 @@ function submitKobunSet(params) {
     // HP 加算判定（合格時のみ）
     // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
     // フレッシュに特定する（cache 経由禁止）。
-    const stuLoc = passed ? _findStudentRowOnSheet(sid) : null;
+    const stuLoc = passed ? _findAccountRowOnSheet(sid) : null;
 
     let hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: false, alreadyAtCap: false };
     if (passed) {
@@ -10309,7 +10497,7 @@ function submitKobunSet(params) {
         const newHP = cur + hpGained;
         stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
         const upd = {}; upd[COL_HP] = newHP;
-        _updateStudentsCacheBySid(sid, upd);
+        _updateAccountCacheBySid(sid, upd);
         // HPLog: type='kobun_<round>_<count>'
         _logHP(sid, grantedRawHP, hpGained, 'kobun_' + round + '_' + total);
         _invalidateCache('cache_ranking_last_week');
