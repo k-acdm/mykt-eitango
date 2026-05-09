@@ -5854,10 +5854,44 @@ function completeFirstLogin(params) {
   }
 }
 
+// =====================================================
+// 講師ログイン基盤（Phase 2）：ロール別権限ガード
+// =====================================================
+// 設計：
+//  - role は Phase 1 で 'admin' / 'teacher' の 2 段階（t101 = admin / t102〜t109 = teacher）
+//  - _verifyTeacher 成功後に _requireAdmin で admin 専用判定を行う
+//  - エラー文言は「この操作は管理者のみ可能です」で統一（論点④）
+//  - 保守バッチ系（migrateLison* / cleanupLison*）は GAS エディタからの直接実行を維持するため、
+//    URL 経由（params に teacherId / password が含まれる）の場合のみ admin 認証を強制する。
+//    params 未指定（GAS エディタ直接実行）は従来通り認証なしで実行可能。
+
+// teacher オブジェクトの role が 'admin' かを判定する。
+// _verifyTeacher の戻り値（成功時オブジェクト、失敗時 null）を渡す前提。
+// null / undefined / role 列が空 / 'teacher' などはすべて false。
+function _requireAdmin(teacher) {
+  return !!(teacher && teacher.role === 'admin');
+}
+
+// 保守バッチ系で URL 経由のみ admin 認証を強制するためのヘルパー。
+// 戻り値: null（認証チェック不要 = GAS エディタ直接実行）
+//         または { ok:false, message } 形式のエラーオブジェクト
+//         または { ok:true, teacher } 形式の成功オブジェクト
+// 呼び出し側で「null なら従来通り続行、ok:false なら return、ok:true なら _teacher を取り出して続行」のように使う。
+function _checkAdminIfFromUrl(params) {
+  if (!params) return null;
+  const hasAuth = !!(params.teacherId || params.password);
+  if (!hasAuth) return null; // GAS エディタからの直接実行 → 認証スキップ
+  const _teacher = _verifyTeacher(params.teacherId, params.password);
+  if (!_teacher) return { ok: false, message: '認証エラー' };
+  if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+  return { ok: true, teacher: _teacher };
+}
+
 function adminAddQuote(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
     if (!params.date || !params.text)   return { ok: false, message: '日付と本文は必須です' };
     const sh = _ss().getSheetByName(SHEET_QUOTE);
     if (!sh) return { ok: false, message: 'Quoteシートが見つかりません' };
@@ -5874,6 +5908,7 @@ function adminAddNotice(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
     if (!params.date || !params.title || !params.body) return { ok: false, message: '日付・タイトル・本文は必須です' };
     const sh = _ss().getSheetByName(SHEET_NOTICE);
     if (!sh) return { ok: false, message: 'Noticeシートが見つかりません' };
@@ -5962,6 +5997,7 @@ function executeManualHpGrant(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
 
     const studentIds = (params && Array.isArray(params.studentIds)) ? params.studentIds : [];
     const rawHpRaw   = Number(params && params.rawHp);
@@ -6304,6 +6340,10 @@ function sendTeacherMessage(params) {
     }
     if (targetType !== 'individual' && targetType !== 'all') {
       return { ok: false, message: '送信先タイプが不正です' };
+    }
+    // Phase 2：全員送信は admin（塾長）のみ可能。teacher は個別送信のみ。
+    if (targetType === 'all' && !_requireAdmin(_teacher)) {
+      return { ok: false, message: 'この操作は管理者のみ可能です' };
     }
     if (!content) return { ok: false, message: 'メッセージ本文を入力してください' };
     if (content.length > TEACHER_MESSAGE_MAX_LEN) {
@@ -6950,6 +6990,7 @@ function adminAddSangoTopic(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
     if (!params.date || !params.level || !params.word1 || !params.word2 || !params.word3 || !params.teacher_work) {
       return { ok: false, message: '必須項目を入力してください' };
     }
@@ -6972,6 +7013,7 @@ function adminAddSangoTopicsWeek(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
     const items = params.items || [];
     if (!Array.isArray(items) || items.length === 0) {
       return { ok: false, message: '登録するお題がありません' };
@@ -7063,6 +7105,7 @@ function adminSetSangoTeacherWork(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
     const date  = String(params.date  || '').trim();
     const level = String(params.level || '').trim();
     const work  = String(params.teacher_work || '').trim();
@@ -8146,6 +8189,7 @@ function adminAddWabun1TopicsWeek(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
     const start = String(params.start || '').trim();
     const weekNo = (params.weekNo == null || params.weekNo === '') ? '' : params.weekNo;
     const items = params.items || [];
@@ -8251,6 +8295,7 @@ function adminSetWabun1AnswerWeek(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
     const start = String(params.start || '').trim();
     const items = params.items || [];
     if (!start) return { ok: false, message: '週開始日(start)が必要です' };
@@ -8602,6 +8647,7 @@ function adminSaveLisonContentsWeek(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
     const weekStart = String((params && params.weekStart) || '').trim();
     const levels = (params && params.levels) || [];
     if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
@@ -8712,6 +8758,7 @@ function getLisonContentsWeek(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
     const weekStart = String((params && params.weekStart) || '').trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
       return { ok: false, message: 'weekStart は YYYY-MM-DD 形式で指定してください' };
@@ -8748,6 +8795,7 @@ function listLisonContentsWeeks(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
     const limit = Math.max(1, Math.min(60, Number((params && params.limit) || 8)));
     const sh = _ss().getSheetByName(SHEET_LISON_CONTENTS);
     if (!sh || sh.getLastRow() < 2) return { ok: true, weeks: [] };
@@ -8896,6 +8944,9 @@ function _lisonExtractFileId(url) {
 //
 // 削除済みファイル等で getFileById が throw したら個別にスキップして次へ。
 function migrateLisonRecordingsToShared(params) {
+  // URL 経由（doGet）の場合のみ admin 認証を強制。GAS エディタ直接実行は認証なしで継続。
+  const _authCheck = _checkAdminIfFromUrl(params);
+  if (_authCheck && _authCheck.ok === false) return _authCheck;
   const t0 = Date.now();
   const result = {
     ok: true,
@@ -9057,6 +9108,9 @@ function getLisonSubmissionsList(params) {
 // 想定運用: GAS エディタの関数ドロップダウンから 1 回だけ実行。
 // 戻り値: { ok, total, succeeded, failed, errors:[{row,reason}], elapsedSec }
 function migrateLisonSubmissionsAddFileId(params) {
+  // URL 経由（doGet）の場合のみ admin 認証を強制。GAS エディタ直接実行は認証なしで継続。
+  const _authCheck = _checkAdminIfFromUrl(params);
+  if (_authCheck && _authCheck.ok === false) return _authCheck;
   const t0 = Date.now();
   const result = {
     ok: true,
@@ -9179,6 +9233,10 @@ function migrateLisonSubmissionsAddFileId(params) {
 // 想定運用: Apps Script エディタの「時計アイコン」→「トリガーを追加」
 //   → 関数: cleanupLisonOldRecordings / イベント: 時間主導 / 日タイマー / 午前 4-5 時
 function cleanupLisonOldRecordings(params) {
+  // URL 経由（doGet）の場合のみ admin 認証を強制。GAS エディタ直接実行 / Time-based Trigger
+  // からの実行（params 未指定）は認証なしで継続。
+  const _authCheck = _checkAdminIfFromUrl(params);
+  if (_authCheck && _authCheck.ok === false) return _authCheck;
   const t0 = Date.now();
   const dryRun = !!(params && params.dryRun);
   const result = {
