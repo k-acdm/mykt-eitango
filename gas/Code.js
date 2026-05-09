@@ -984,6 +984,8 @@ function doGet(e) {
       else if (action === 'submitExchange')    result = submitExchange(params.studentId, params.rank);
       else if (action === 'getExchangeStatus') result = getExchangeStatus(params.studentId);
       else if (action === 'adminLogin')        result = adminLogin(params);
+      // Phase 3 講師管理：一覧取得は読み取りなので doGet 経由。書き込み 5 関数は doPost のみ
+      else if (action === 'adminListTeachers') result = adminListTeachers(params);
       else if (action === 'completeFirstLogin') result = completeFirstLogin(params);
       else if (action === 'adminAddQuote')     result = adminAddQuote(params);
       else if (action === 'adminAddNotice')    result = adminAddNotice(params);
@@ -1112,6 +1114,13 @@ function doPost(e) {
     //   キャッシュに乗って既読化のレスポンスが古くなり得るため、書き込み系は POST のみ）。
     else if (action === 'sendTeacherMessage')       result = sendTeacherMessage(params);
     else if (action === 'markMessageAsRead')        result = markMessageAsRead(params);
+    // Phase 3 講師管理：書き込み系 5 関数は誤実行防止のため POST 強制
+    //   adminListTeachers（読み取り）は doGet のみ。
+    else if (action === 'adminAddTeacher')                  result = adminAddTeacher(params);
+    else if (action === 'adminResetTeacherPassword')        result = adminResetTeacherPassword(params);
+    else if (action === 'adminSetTeacherActive')            result = adminSetTeacherActive(params);
+    else if (action === 'adminSetTeacherRole')              result = adminSetTeacherRole(params);
+    else if (action === 'adminUpdateTeacherDisplayNickname') result = adminUpdateTeacherDisplayNickname(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -5872,6 +5881,401 @@ function completeFirstLogin(params) {
 // null / undefined / role 列が空 / 'teacher' などはすべて false。
 function _requireAdmin(teacher) {
   return !!(teacher && teacher.role === 'admin');
+}
+
+// =====================================================
+// 講師管理（Phase 3）
+// =====================================================
+// 設計（CLAUDE.md 講師ログイン機能 Phase 3 / 論点 P1〜P10 確定事項参照）：
+//  - admin 専用の講師管理 UI 用バックエンド。読み取り 1（doGet）+ 書き込み 5（doPost）。
+//  - 物理削除なし。「削除」は active=false で兼用（P2）。
+//  - パスワード再発行は 'noblesse0311' 固定 + firstLoginCompleted=false（P3、Phase 1.5 と整合）。
+//  - 新規追加は teacherId 自動採番（P4、_findNextTeacherId）。
+//  - 各操作の return 直前に Phase 4 操作ログ用 TODO コメントを残す（P7）。
+
+// 「最後の active=true admin 喪失防止」ロックの根拠：
+// このアプリの admin 権限は実質的に塾長（t101 ふくち）専属であり、
+// admin が誰もいなくなる状態 = アプリそのものの終了を意味する。
+// このチェックは技術的事故防止であると同時に、アプリの存続を守る仕組み。
+//
+// active=true かつ role='admin' の講師数を返す。
+// excludeTeacherId が指定された場合は、その teacherId を除外してカウントする
+// （「ある講師の active を false にしたら admin が 0 になるか」の事前判定用）。
+function _countActiveAdmins(excludeTeacherId) {
+  try {
+    const exclude = excludeTeacherId ? String(excludeTeacherId).trim() : '';
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh || sh.getLastRow() < 2) return 0;
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iId   = header.indexOf('teacherId');
+    const iRole = header.indexOf('role');
+    const iAct  = header.indexOf('active');
+    if (iId < 0 || iRole < 0 || iAct < 0) return 0;
+    let count = 0;
+    for (let i = 1; i < values.length; i++) {
+      const sid  = String(values[i][iId] || '').trim();
+      if (!sid) continue;
+      if (exclude && sid === exclude) continue;
+      const role = String(values[i][iRole] || '').trim();
+      const act  = _teacherTruthy(values[i][iAct]);
+      if (role === 'admin' && act) count++;
+    }
+    return count;
+  } catch (e) {
+    console.error('[_countActiveAdmins]', e);
+    return 0;
+  }
+}
+
+// Teachers シートから全行情報を取得する（active 問わず、Phase 3 講師管理 UI 用）。
+// _getTeacherInfo は active=false で null を返すため一覧用には使えないので別途用意。
+// passwordHash は返さず hasPassword（boolean）で代替（情報漏洩防止）。
+// 戻り値: [{ teacherId, teacherName, role, displayNickname, active, firstLoginCompleted, hasPassword, rowIndex(1-indexed) }, ...]
+function _getAllTeacherRows() {
+  try {
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh || sh.getLastRow() < 2) return [];
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iId   = header.indexOf('teacherId');
+    const iName = header.indexOf('teacherName');
+    const iPw   = header.indexOf('password');
+    const iRole = header.indexOf('role');
+    const iNick = header.indexOf('displayNickname');
+    const iAct  = header.indexOf('active');
+    const iFlc  = header.indexOf('firstLoginCompleted');
+    if (iId < 0) return [];
+    const rows = [];
+    for (let i = 1; i < values.length; i++) {
+      const sid = String(values[i][iId] || '').trim();
+      if (!sid) continue; // teacherId 空欄行（バッファ枠）はスキップ
+      const pwHash = iPw >= 0 ? String(values[i][iPw] || '').trim() : '';
+      rows.push({
+        teacherId:           sid,
+        teacherName:         iName >= 0 ? String(values[i][iName] || '').trim() : '',
+        role:                iRole >= 0 ? String(values[i][iRole] || '').trim() : '',
+        displayNickname:     iNick >= 0 ? String(values[i][iNick] || '').trim() : '',
+        active:              iAct >= 0 ? _teacherTruthy(values[i][iAct]) : false,
+        firstLoginCompleted: iFlc >= 0 ? _teacherTruthy(values[i][iFlc]) : false,
+        hasPassword:         !!pwHash,
+        rowIndex:            i + 1 // 1-indexed
+      });
+    }
+    return rows;
+  } catch (e) {
+    console.error('[_getAllTeacherRows]', e);
+    return [];
+  }
+}
+
+// teacherId から Teachers シート上の行番号（1-indexed）を返す。見つからなければ -1。
+function _findTeacherRowIndex(teacherId) {
+  try {
+    const target = String(teacherId || '').trim();
+    if (!target) return -1;
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh || sh.getLastRow() < 2) return -1;
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iId = header.indexOf('teacherId');
+    if (iId < 0) return -1;
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][iId] || '').trim() === target) return i + 1;
+    }
+    return -1;
+  } catch (e) {
+    console.error('[_findTeacherRowIndex]', e);
+    return -1;
+  }
+}
+
+// 既存全 teacherId から t<数字> パターンの最大値を取り出し、+1 した次の ID を返す。
+// 例：t101 / t102 / t108 がある場合 → 't109' を返す。
+// t101 のみの場合 → 't102' を返す。
+// 既存値ゼロの場合 → 't101' を返す（理論上 ensureTeachersSheet で t101 は必ず作られているので発生しない）。
+// 999 を超えた場合は安全側で例外（4 桁拡張は将来対応）。
+function _findNextTeacherId() {
+  const rows = _getAllTeacherRows();
+  let maxNum = 100; // t101 が最低ライン
+  rows.forEach(function(r) {
+    const m = /^t(\d{3,})$/.exec(r.teacherId);
+    if (m) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n > maxNum) maxNum = n;
+    }
+  });
+  const next = maxNum + 1;
+  if (next > 999) throw new Error('teacherId が t999 を超えました（4 桁拡張が必要）');
+  return 't' + next;
+}
+
+// 管理画面：講師一覧を取得する（Phase 3）。
+// 認証必須、admin 専用。passwordHash は返さない（hasPassword 真偽値のみ）。
+// active=false の行も含めて全件返す（管理画面の「無効化された講師」セクション用）。
+function adminListTeachers(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+    const rows = _getAllTeacherRows();
+    // クライアントには rowIndex は返さない（内部実装の漏洩を避ける）
+    const teachers = rows.map(function(r) {
+      return {
+        teacherId:           r.teacherId,
+        teacherName:         r.teacherName,
+        role:                r.role,
+        displayNickname:     r.displayNickname,
+        active:              r.active,
+        firstLoginCompleted: r.firstLoginCompleted,
+        hasPassword:         r.hasPassword
+      };
+    });
+    return { ok: true, teachers: teachers };
+  } catch (err) {
+    console.error('[adminListTeachers]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：講師を新規追加する（Phase 3）。
+// teacherId は自動採番（P4）。クライアントから newTeacherId は受け取らない。
+// 入力: { teacherId, password, teacherName, role, displayNickname? }
+// 出力: { ok, teacherId, initialPassword:'noblesse0311' } または { ok:false, message }
+// 初期パスワードは 'noblesse0311' 固定、active=true、firstLoginCompleted=false で投入。
+// 講師が初回ログインすると Phase 1.5 のフローでパスワード変更 + displayNickname 設定が強制される。
+function adminAddTeacher(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const teacherName     = String((params && params.teacherName) || '').trim();
+    const role            = String((params && params.role) || '').trim();
+    const displayNickname = String((params && params.displayNickname) || '').trim();
+
+    if (!teacherName) return { ok: false, message: '氏名は必須です' };
+    if (role !== 'admin' && role !== 'teacher') {
+      return { ok: false, message: '役割は admin / teacher のいずれかを指定してください' };
+    }
+    if (displayNickname && (displayNickname.length < 1 || displayNickname.length > 10)) {
+      return { ok: false, message: '表示名は1〜10文字で入力してください（空欄の場合は初回ログイン時に講師が設定）' };
+    }
+
+    const newTeacherId = _findNextTeacherId();
+
+    // 念のため重複チェック（_findNextTeacherId が壊れていた場合のセーフネット）
+    if (_findTeacherRowIndex(newTeacherId) >= 0) {
+      return { ok: false, message: 'teacherId 採番に失敗しました（既存と衝突）' };
+    }
+
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh) return { ok: false, message: 'Teachers シートが見つかりません' };
+
+    // ヘッダーから列順を取得し、新規行を組み立てる
+    const lastCol = sh.getLastColumn();
+    const header  = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    const iId   = header.indexOf('teacherId');
+    const iName = header.indexOf('teacherName');
+    const iPw   = header.indexOf('password');
+    const iRole = header.indexOf('role');
+    const iNick = header.indexOf('displayNickname');
+    const iAct  = header.indexOf('active');
+    const iFlc  = header.indexOf('firstLoginCompleted');
+    if (iId < 0 || iName < 0 || iPw < 0 || iRole < 0 || iNick < 0 || iAct < 0 || iFlc < 0) {
+      return { ok: false, message: 'Teachers シートのヘッダー構造が想定と異なります' };
+    }
+
+    const initialPassword = 'noblesse0311';
+    const newRow = [];
+    for (let i = 0; i < header.length; i++) newRow[i] = '';
+    newRow[iId]   = newTeacherId;
+    newRow[iName] = teacherName;
+    newRow[iPw]   = _passwordHash(initialPassword, newTeacherId);
+    newRow[iRole] = role;
+    newRow[iNick] = displayNickname; // 空欄可
+    newRow[iAct]  = true;
+    newRow[iFlc]  = false; // 初回ログイン時に Phase 1.5 フローへ強制誘導
+
+    sh.appendRow(newRow);
+
+    // TODO Phase 4: _logTeacherAction(_teacher.teacherId, 'TEACHER_ADD', newTeacherId, { role: role, name: teacherName });
+    return { ok: true, teacherId: newTeacherId, initialPassword: initialPassword };
+  } catch (err) {
+    console.error('[adminAddTeacher]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：講師のパスワードを再発行する（Phase 3）。
+// 入力: { teacherId, password, targetTeacherId }
+// 出力: { ok, initialPassword:'noblesse0311' } または { ok:false, message }
+// 動作: 該当行の password を 'noblesse0311' のハッシュにリセット + firstLoginCompleted=false に。
+// 次回ログイン時に Phase 1.5 の初回フロー（パスワード変更 + 表示名設定）に再誘導される。
+// 自分自身（_teacher.teacherId === targetTeacherId）への再発行も許可（自分で再ログインすればよい、P5）。
+function adminResetTeacherPassword(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const targetTeacherId = String((params && params.targetTeacherId) || '').trim();
+    if (!targetTeacherId) return { ok: false, message: '対象 teacherId を指定してください' };
+
+    const rowIdx = _findTeacherRowIndex(targetTeacherId);
+    if (rowIdx < 0) return { ok: false, message: '対象の講師が見つかりません: ' + targetTeacherId };
+
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh) return { ok: false, message: 'Teachers シートが見つかりません' };
+    const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    const iPw  = header.indexOf('password');
+    const iFlc = header.indexOf('firstLoginCompleted');
+    if (iPw < 0 || iFlc < 0) return { ok: false, message: 'Teachers シートのヘッダー構造が想定と異なります' };
+
+    const initialPassword = 'noblesse0311';
+    sh.getRange(rowIdx, iPw  + 1).setValue(_passwordHash(initialPassword, targetTeacherId));
+    sh.getRange(rowIdx, iFlc + 1).setValue(false);
+
+    // TODO Phase 4: _logTeacherAction(_teacher.teacherId, 'TEACHER_PASSWORD_RESET', targetTeacherId, {});
+    return { ok: true, initialPassword: initialPassword };
+  } catch (err) {
+    console.error('[adminResetTeacherPassword]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：講師の active を切り替える（Phase 3）。
+// 入力: { teacherId, password, targetTeacherId, active:bool }
+// 出力: { ok } または { ok:false, message }
+// 制約: 「最後の active=true admin」を非アクティブ化する操作は拒否（P1、ロックアウト防止）。
+//       具体的には active=false にしようとしている対象が現在 admin かつ
+//       _countActiveAdmins(targetTeacherId 除外) === 0 の場合に拒否。
+function adminSetTeacherActive(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const targetTeacherId = String((params && params.targetTeacherId) || '').trim();
+    const active          = !!(params && params.active);
+    if (!targetTeacherId) return { ok: false, message: '対象 teacherId を指定してください' };
+
+    const rowIdx = _findTeacherRowIndex(targetTeacherId);
+    if (rowIdx < 0) return { ok: false, message: '対象の講師が見つかりません: ' + targetTeacherId };
+
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh) return { ok: false, message: 'Teachers シートが見つかりません' };
+    const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    const iRole = header.indexOf('role');
+    const iAct  = header.indexOf('active');
+    if (iRole < 0 || iAct < 0) return { ok: false, message: 'Teachers シートのヘッダー構造が想定と異なります' };
+
+    // 最後の active=true admin 喪失防止チェック（active=false にする時のみ）
+    if (active === false) {
+      const currentRole = String(sh.getRange(rowIdx, iRole + 1).getValue() || '').trim();
+      const currentAct  = _teacherTruthy(sh.getRange(rowIdx, iAct  + 1).getValue());
+      if (currentRole === 'admin' && currentAct) {
+        // この講師を除外したカウントが 0 なら、ここを false にすると admin が 0 になる
+        if (_countActiveAdmins(targetTeacherId) === 0) {
+          return { ok: false, message: '最後の管理者の権限/有効状態は変更できません' };
+        }
+      }
+    }
+
+    sh.getRange(rowIdx, iAct + 1).setValue(!!active);
+
+    // TODO Phase 4: _logTeacherAction(_teacher.teacherId, 'TEACHER_SET_ACTIVE', targetTeacherId, { active: !!active });
+    return { ok: true };
+  } catch (err) {
+    console.error('[adminSetTeacherActive]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：講師の role を切り替える（Phase 3）。
+// 入力: { teacherId, password, targetTeacherId, role:'admin'|'teacher' }
+// 出力: { ok } または { ok:false, message }
+// 制約: 「最後の active=true admin」を teacher にする操作は拒否（P1、ロックアウト防止）。
+//       具体的には role='teacher' にしようとしている対象が現在 active=true & admin かつ
+//       _countActiveAdmins(targetTeacherId 除外) === 0 の場合に拒否。
+function adminSetTeacherRole(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const targetTeacherId = String((params && params.targetTeacherId) || '').trim();
+    const role            = String((params && params.role) || '').trim();
+    if (!targetTeacherId) return { ok: false, message: '対象 teacherId を指定してください' };
+    if (role !== 'admin' && role !== 'teacher') {
+      return { ok: false, message: '役割は admin / teacher のいずれかを指定してください' };
+    }
+
+    const rowIdx = _findTeacherRowIndex(targetTeacherId);
+    if (rowIdx < 0) return { ok: false, message: '対象の講師が見つかりません: ' + targetTeacherId };
+
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh) return { ok: false, message: 'Teachers シートが見つかりません' };
+    const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    const iRole = header.indexOf('role');
+    const iAct  = header.indexOf('active');
+    if (iRole < 0 || iAct < 0) return { ok: false, message: 'Teachers シートのヘッダー構造が想定と異なります' };
+
+    // 最後の active=true admin 喪失防止チェック（teacher にする時のみ）
+    if (role === 'teacher') {
+      const currentRole = String(sh.getRange(rowIdx, iRole + 1).getValue() || '').trim();
+      const currentAct  = _teacherTruthy(sh.getRange(rowIdx, iAct  + 1).getValue());
+      if (currentRole === 'admin' && currentAct) {
+        if (_countActiveAdmins(targetTeacherId) === 0) {
+          return { ok: false, message: '最後の管理者の権限/有効状態は変更できません' };
+        }
+      }
+    }
+
+    sh.getRange(rowIdx, iRole + 1).setValue(role);
+
+    // TODO Phase 4: _logTeacherAction(_teacher.teacherId, 'TEACHER_SET_ROLE', targetTeacherId, { role: role });
+    return { ok: true };
+  } catch (err) {
+    console.error('[adminSetTeacherRole]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：講師の displayNickname を変更する（Phase 3）。
+// 入力: { teacherId, password, targetTeacherId, displayNickname }
+// 出力: { ok, displayNickname } または { ok:false, message }
+// 制約: displayNickname は 1〜10 文字（completeFirstLogin と同じバリデーション）。
+function adminUpdateTeacherDisplayNickname(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const targetTeacherId  = String((params && params.targetTeacherId) || '').trim();
+    const displayNickname  = String((params && params.displayNickname) || '').trim();
+    if (!targetTeacherId) return { ok: false, message: '対象 teacherId を指定してください' };
+    if (!displayNickname || displayNickname.length < 1 || displayNickname.length > 10) {
+      return { ok: false, message: '表示名は1〜10文字で入力してください' };
+    }
+
+    const rowIdx = _findTeacherRowIndex(targetTeacherId);
+    if (rowIdx < 0) return { ok: false, message: '対象の講師が見つかりません: ' + targetTeacherId };
+
+    const sh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!sh) return { ok: false, message: 'Teachers シートが見つかりません' };
+    const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    const iNick = header.indexOf('displayNickname');
+    if (iNick < 0) return { ok: false, message: 'Teachers シートのヘッダー構造が想定と異なります' };
+
+    sh.getRange(rowIdx, iNick + 1).setValue(displayNickname);
+
+    // TODO Phase 4: _logTeacherAction(_teacher.teacherId, 'TEACHER_UPDATE_NICKNAME', targetTeacherId, { displayNickname: displayNickname });
+    return { ok: true, displayNickname: displayNickname };
+  } catch (err) {
+    console.error('[adminUpdateTeacherDisplayNickname]', err);
+    return { ok: false, message: String(err) };
+  }
 }
 
 function adminAddQuote(params) {
