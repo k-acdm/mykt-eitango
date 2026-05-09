@@ -54,8 +54,8 @@
   }
 
   /* メイン系画面のヘッダー（ダッシュボード以外） */
-  #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-  #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1 { font-size: 18px; font-weight: 600; }
+  #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header, #screen-admin-teachers header, #screen-admin-teacher-edit header, #screen-admin-teacher-add header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1 { font-size: 18px; font-weight: 600; }
   .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
   .logout-btn:hover { background: rgba(255,255,255,.3); }
 
@@ -155,6 +155,40 @@
   .students-table .name-link { color: #4f7df0; font-weight: 600; cursor: pointer; text-decoration: underline; }
   .students-table .name-link:hover { color: #7c4fff; }
   .students-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; }
+
+  /* 講師管理（Phase 3） */
+  .teachers-inactive-details { margin-top: 16px; }
+  .teachers-inactive-details summary { cursor: pointer; padding: 10px 14px; background: #f4f6fb; border-radius: 8px; font-weight: 600; color: #666; user-select: none; }
+  .teachers-inactive-details summary:hover { background: #eaf0ff; }
+  .teachers-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .teachers-table th, .teachers-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eef1f7; }
+  .teachers-table th { background: #f4f6fb; color: #555; font-weight: 600; font-size: 13px; }
+  .teachers-table .role-cell-admin   { color: #b45309; font-weight: 600; }
+  .teachers-table .role-cell-teacher { color: #1e40af; font-weight: 600; }
+  .teachers-table .you-mark { display: inline-block; margin-left: 6px; padding: 1px 8px; background: #dcfce7; color: #166534; border-radius: 999px; font-size: 11px; font-weight: 600; vertical-align: baseline; }
+  .teachers-table .first-login-pending { display: inline-block; padding: 1px 8px; background: #fef3c7; color: #b45309; border-radius: 999px; font-size: 11px; }
+  .teachers-table .first-login-done { display: inline-block; padding: 1px 8px; background: #dcfce7; color: #166534; border-radius: 999px; font-size: 11px; }
+  .teachers-table .btn-edit { padding: 6px 14px; background: #4f7df0; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .teachers-table .btn-edit:hover { background: #3b5fcf; }
+  .teachers-table .btn-reactivate { padding: 6px 14px; background: #22c55e; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .teachers-table .btn-reactivate:hover { background: #16a34a; }
+  .teacher-edit-info { display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; font-size: 14px; }
+  .teacher-edit-info dt { font-weight: 600; color: #555; }
+  .teacher-edit-info dd { margin: 0; }
+  .teacher-edit-note { font-size: 13px; color: #666; line-height: 1.7; padding: 8px 12px; background: #f4f6fb; border-radius: 6px; }
+  .teacher-edit-note code { background: #fff; padding: 1px 6px; border-radius: 3px; border: 1px solid #ddd; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .teacher-edit-warn { font-size: 13px; color: #b45309; line-height: 1.7; padding: 8px 12px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 6px; margin-top: 8px; }
+  .teacher-edit-radio-group { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .teacher-edit-radio-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #fff; border: 2px solid #e1e5ee; border-radius: 8px; cursor: pointer; }
+  .teacher-edit-radio-row:hover { border-color: #7c4fff; background: #f7f5ff; }
+  .teacher-edit-radio-row input[type=radio] { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; accent-color: #7c4fff; }
+  .teacher-edit-radio-row.disabled { opacity: .55; cursor: not-allowed; background: #f7f7f7; border-color: #e1e5ee; }
+  .teacher-edit-radio-row.disabled:hover { border-color: #e1e5ee; background: #f7f7f7; }
+  .submit-btn:disabled { opacity: .5; cursor: not-allowed; background: #ccc !important; }
+  @media (max-width: 480px) {
+    .teacher-edit-info { grid-template-columns: 100px 1fr; font-size: 13px; }
+    .teachers-table th, .teachers-table td { padding: 8px 8px; font-size: 12px; }
+  }
 
   /* HP 手動付与 */
   .form-label { display: block; font-size: 14px; font-weight: 600; color: #333; margin-bottom: 6px; }
@@ -396,7 +430,7 @@
   .tm-result-summary strong { color: #16a34a; }
 
   @media (max-width: 480px) {
-    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1 { font-size: 15px; }
+    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
     .admin-page { padding: 16px 12px 80px; }
     .form-card { padding: 18px; }
@@ -515,6 +549,11 @@
       <div class="dashboard-card-icon">📩</div>
       <div class="dashboard-card-title">先生からのメッセージ</div>
       <div class="dashboard-card-desc">生徒へのメッセージを作成・送信（個別 / 全員）</div>
+    </button>
+    <button type="button" id="dash-card-teacher-mgmt" class="dashboard-card admin-only" onclick="goAdminTeachers()">
+      <div class="dashboard-card-icon">👨‍🏫</div>
+      <div class="dashboard-card-title">講師管理</div>
+      <div class="dashboard-card-desc">講師の追加・パスワード再発行・有効/無効切替</div>
     </button>
   </div>
 </div>
@@ -1015,6 +1054,141 @@
     </div>
     <button class="submit-btn" style="margin-top:18px" onclick="goAdminDashboard()">ダッシュボードに戻る</button>
     <button class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#7c4fff,#4f7df0)" onclick="goAdminTeacherMessages(false)">続けて別のメッセージを送る</button>
+  </div>
+</div>
+
+<!-- 講師管理：一覧画面（Phase 3） -->
+<div id="screen-admin-teachers" class="screen">
+  <header>
+    <h1>👨‍🏫 講師管理</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#22c55e,#16a34a)" onclick="goAdminTeacherAdd()">+ 新規講師追加</button>
+
+    <div class="form-card">
+      <h2>✅ 有効な講師</h2>
+      <div id="admin-teachers-active-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    </div>
+
+    <details class="teachers-inactive-details">
+      <summary>⚠️ 無効化された講師（クリックで展開）</summary>
+      <div class="form-card" style="margin-top:8px">
+        <div id="admin-teachers-inactive-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+      </div>
+    </details>
+  </div>
+</div>
+
+<!-- 講師管理：編集画面（Phase 3） -->
+<div id="screen-admin-teacher-edit" class="screen">
+  <header>
+    <h1>👨‍🏫 講師編集</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminTeachers()">← 講師一覧に戻る</button>
+
+    <div class="form-card">
+      <h2>講師情報</h2>
+      <div id="teacher-edit-info" class="teacher-edit-info"></div>
+    </div>
+
+    <div class="form-card" style="margin-top:16px">
+      <h2>表示名の変更</h2>
+      <label>
+        <span class="form-label">表示名（1〜10文字）</span>
+        <input type="text" id="teacher-edit-nickname" maxlength="10" placeholder="例：ふく先生" />
+      </label>
+      <button class="submit-btn" style="margin-top:8px" onclick="submitTeacherNickname()">表示名を変更する</button>
+    </div>
+
+    <div class="form-card" style="margin-top:16px">
+      <h2>パスワード再発行</h2>
+      <div class="teacher-edit-note">
+        パスワードを <code>noblesse0311</code> にリセットし、講師は次回ログイン時に
+        再度パスワード変更画面（初回設定フロー）に誘導されます。
+      </div>
+      <button class="submit-btn" style="margin-top:8px;background:linear-gradient(135deg,#fb923c,#ea580c)" onclick="submitTeacherPasswordReset()">🔑 パスワードを再発行する</button>
+    </div>
+
+    <div class="form-card" style="margin-top:16px">
+      <h2>役割の変更</h2>
+      <div class="teacher-edit-radio-group">
+        <label class="teacher-edit-radio-row">
+          <input type="radio" name="teacher-edit-role" value="admin" id="teacher-edit-role-admin" />
+          <span>管理者（admin / 塾長）</span>
+        </label>
+        <label class="teacher-edit-radio-row">
+          <input type="radio" name="teacher-edit-role" value="teacher" id="teacher-edit-role-teacher" />
+          <span>講師（teacher）</span>
+        </label>
+      </div>
+      <div id="teacher-edit-role-warn" class="teacher-edit-warn" style="display:none"></div>
+      <button id="teacher-edit-role-submit" class="submit-btn" style="margin-top:8px" onclick="submitTeacherRole()">役割を変更する</button>
+    </div>
+
+    <div class="form-card" style="margin-top:16px">
+      <h2>有効 / 無効の切替</h2>
+      <div id="teacher-edit-active-status" class="teacher-edit-note"></div>
+      <button id="teacher-edit-active-btn" class="submit-btn" style="margin-top:8px" onclick="submitTeacherActive()"></button>
+      <div id="teacher-edit-active-warn" class="teacher-edit-warn" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 講師管理：新規追加画面（Phase 3） -->
+<div id="screen-admin-teacher-add" class="screen">
+  <header>
+    <h1>👨‍🏫 講師の新規追加</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminTeachers()">← 講師一覧に戻る</button>
+
+    <div class="form-card">
+      <h2>新規講師の情報</h2>
+      <label>
+        <span class="form-label">講師ID（自動採番）</span>
+        <input type="text" id="teacher-add-id" readonly />
+        <span class="form-hint">既存の最大番号 + 1 を自動採番します（変更不可）。</span>
+      </label>
+      <label>
+        <span class="form-label">氏名 <span class="form-required">必須</span></span>
+        <input type="text" id="teacher-add-name" maxlength="30" placeholder="例：山田太郎" />
+        <span class="form-hint">スプレッドシート上の管理用氏名（生徒には displayNickname で表示）。</span>
+      </label>
+      <label class="teacher-edit-radio-row" style="margin-top:8px">
+        <span class="form-label">役割 <span class="form-required">必須</span></span>
+      </label>
+      <div class="teacher-edit-radio-group">
+        <label class="teacher-edit-radio-row">
+          <input type="radio" name="teacher-add-role" value="teacher" checked />
+          <span>講師（teacher、デフォルト）</span>
+        </label>
+        <label class="teacher-edit-radio-row">
+          <input type="radio" name="teacher-add-role" value="admin" />
+          <span>管理者（admin / 塾長）</span>
+        </label>
+      </div>
+      <label style="margin-top:12px">
+        <span class="form-label">表示名（任意・1〜10文字）</span>
+        <input type="text" id="teacher-add-nickname" maxlength="10" placeholder="例：山田先生" />
+        <span class="form-hint">空欄なら、講師が初回ログイン時に自分で設定します。</span>
+      </label>
+    </div>
+
+    <button class="submit-btn" style="margin-top:18px;background:linear-gradient(135deg,#22c55e,#16a34a)" onclick="submitTeacherAdd()">✅ 追加する</button>
   </div>
 </div>
 
@@ -1625,6 +1799,441 @@
     var cards = document.querySelectorAll('.dashboard-card.admin-only');
     cards.forEach(function(c) {
       c.style.display = isAdmin ? '' : 'none';
+    });
+  }
+
+  // =============================================================
+  // 講師管理（Phase 3）
+  // =============================================================
+  // 設計：admin 専用の 3 画面（一覧 / 編集 / 新規追加）。
+  //  - 一覧 → adminListTeachers でロード、active=true / false で 2 セクションに分ける
+  //  - 編集 → 4 ブロック（表示名 / パスワード再発行 / 役割 / 有効化切替）。
+  //    「最後の active=true admin」検知でボタン disabled + ツールチップ（多重防御）
+  //  - 新規追加 → adminListTeachers のレスポンスから _findNextTeacherId 同等の自動採番を表示
+  //  - 破壊的操作には confirm() ダイアログ
+  //  - サーバー側にも _countActiveAdmins ガードあり（commit d6c03d0）
+
+  var _teachersList = [];        // adminListTeachers のレスポンスを保持
+  var _editingTeacherId = null;  // 編集中の teacherId
+
+  function goAdminTeachers() {
+    _showScreen('screen-admin-teachers');
+    window.scrollTo(0, 0);
+    loadTeachers();
+  }
+
+  function loadTeachers() {
+    var activeWrap   = document.getElementById('admin-teachers-active-wrap');
+    var inactiveWrap = document.getElementById('admin-teachers-inactive-wrap');
+    if (activeWrap)   activeWrap.innerHTML   = '<div class="students-empty">⏳ 読み込み中...</div>';
+    if (inactiveWrap) inactiveWrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    adminGasGet({ action: 'adminListTeachers', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        if (activeWrap)   activeWrap.innerHTML   = '<div class="students-empty">' + _esc(msg) + '</div>';
+        if (inactiveWrap) inactiveWrap.innerHTML = '';
+        return;
+      }
+      _teachersList = res.teachers || [];
+      _renderTeachersTables();
+    }).catch(function() {
+      if (activeWrap)   activeWrap.innerHTML   = '<div class="students-empty">通信エラーが発生しました</div>';
+      if (inactiveWrap) inactiveWrap.innerHTML = '';
+    });
+  }
+
+  // 「最後の active=true admin」を判定（フロント側の事前 disabled 用）。
+  // 戻り値: {teacherId, ...} or null。サーバー側にも同等チェックあり（多重防御）
+  function _findLastActiveAdmin() {
+    var activeAdmins = _teachersList.filter(function(t) { return t.active && t.role === 'admin'; });
+    if (activeAdmins.length === 1) return activeAdmins[0];
+    return null;
+  }
+
+  function _renderTeachersTables() {
+    var activeWrap   = document.getElementById('admin-teachers-active-wrap');
+    var inactiveWrap = document.getElementById('admin-teachers-inactive-wrap');
+    if (!activeWrap || !inactiveWrap) return;
+
+    var meId = sessionStorage.getItem('adminTeacherId') || '';
+    var actives   = _teachersList.filter(function(t) { return t.active; });
+    var inactives = _teachersList.filter(function(t) { return !t.active; });
+
+    if (actives.length === 0) {
+      activeWrap.innerHTML = '<div class="students-empty">有効な講師がいません</div>';
+    } else {
+      var rowsActive = actives.map(function(t) {
+        var youMark   = (t.teacherId === meId) ? '<span class="you-mark">あなた</span>' : '';
+        var roleClass = (t.role === 'admin') ? 'role-cell-admin' : 'role-cell-teacher';
+        var roleLabel = (t.role === 'admin') ? '塾長' : '講師';
+        var flcBadge  = t.firstLoginCompleted
+          ? '<span class="first-login-done">✅ 設定済</span>'
+          : '<span class="first-login-pending">⏳ 初回設定未完了</span>';
+        return '<tr>' +
+          '<td>' + _esc(t.teacherId) + youMark + '</td>' +
+          '<td>' + _esc(t.teacherName || '-') + '</td>' +
+          '<td>' + _esc(t.displayNickname || '-') + '</td>' +
+          '<td><span class="' + roleClass + '">' + roleLabel + '</span></td>' +
+          '<td>' + flcBadge + '</td>' +
+          '<td><button type="button" class="btn-edit" onclick="goAdminTeacherEdit(\'' + _esc(t.teacherId) + '\')">編集</button></td>' +
+        '</tr>';
+      }).join('');
+      activeWrap.innerHTML =
+        '<table class="teachers-table">' +
+          '<thead><tr><th>講師ID</th><th>氏名</th><th>表示名</th><th>役割</th><th>初回設定</th><th>操作</th></tr></thead>' +
+          '<tbody>' + rowsActive + '</tbody>' +
+        '</table>';
+    }
+
+    if (inactives.length === 0) {
+      inactiveWrap.innerHTML = '<div class="students-empty">無効化された講師はいません</div>';
+    } else {
+      var rowsInactive = inactives.map(function(t) {
+        var roleLabel = (t.role === 'admin') ? '塾長' : '講師';
+        return '<tr>' +
+          '<td>' + _esc(t.teacherId) + '</td>' +
+          '<td>' + _esc(t.teacherName || '-') + '</td>' +
+          '<td>' + _esc(t.displayNickname || '-') + '</td>' +
+          '<td>' + roleLabel + '</td>' +
+          '<td><button type="button" class="btn-reactivate" onclick="reactivateTeacher(\'' + _esc(t.teacherId) + '\')">再有効化</button></td>' +
+        '</tr>';
+      }).join('');
+      inactiveWrap.innerHTML =
+        '<table class="teachers-table">' +
+          '<thead><tr><th>講師ID</th><th>氏名</th><th>表示名</th><th>役割</th><th>操作</th></tr></thead>' +
+          '<tbody>' + rowsInactive + '</tbody>' +
+        '</table>';
+    }
+  }
+
+  function reactivateTeacher(teacherId) {
+    if (!confirm(teacherId + ' を再有効化しますか？')) return;
+    adminGasPost({
+      action: 'adminSetTeacherActive',
+      targetTeacherId: teacherId,
+      active: true
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '再有効化に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error');
+        return;
+      }
+      showToast(teacherId + ' を再有効化しました', 'success');
+      loadTeachers();
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // ---- 編集画面 ----
+  function goAdminTeacherEdit(teacherId) {
+    _editingTeacherId = teacherId;
+    // _teachersList から対象を引く（一覧から遷移する想定なのでキャッシュは新鮮）
+    var t = _teachersList.find(function(x) { return x.teacherId === teacherId; });
+    if (!t) {
+      // キャッシュがない場合は再フェッチ
+      adminGasGet({ action: 'adminListTeachers', _ts: Date.now() }).then(function(res) {
+        if (res && res.ok) {
+          _teachersList = res.teachers || [];
+          var t2 = _teachersList.find(function(x) { return x.teacherId === teacherId; });
+          if (t2) { _renderTeacherEdit(t2); _showScreen('screen-admin-teacher-edit'); window.scrollTo(0, 0); }
+          else showToast('対象の講師が見つかりません', 'error');
+        }
+      });
+      return;
+    }
+    _renderTeacherEdit(t);
+    _showScreen('screen-admin-teacher-edit');
+    window.scrollTo(0, 0);
+  }
+
+  function _renderTeacherEdit(t) {
+    var meId = sessionStorage.getItem('adminTeacherId') || '';
+    var isSelf = (t.teacherId === meId);
+    var lastAdmin = _findLastActiveAdmin();
+    var isLastAdmin = !!(lastAdmin && lastAdmin.teacherId === t.teacherId);
+
+    // 講師情報
+    var infoEl = document.getElementById('teacher-edit-info');
+    if (infoEl) {
+      var roleLabel = (t.role === 'admin') ? '塾長（admin）' : '講師（teacher）';
+      var youMark = isSelf ? ' <span class="you-mark">あなた</span>' : '';
+      var flcText = t.firstLoginCompleted ? '✅ 完了' : '⏳ 未完了（次回ログインで誘導）';
+      var actText = t.active ? '✅ 有効' : '⚠️ 無効化中';
+      infoEl.innerHTML =
+        '<dt>講師ID</dt><dd>' + _esc(t.teacherId) + youMark + '</dd>' +
+        '<dt>氏名</dt><dd>' + _esc(t.teacherName || '-') + '</dd>' +
+        '<dt>表示名</dt><dd>' + _esc(t.displayNickname || '（未設定）') + '</dd>' +
+        '<dt>役割</dt><dd>' + roleLabel + '</dd>' +
+        '<dt>初回設定</dt><dd>' + flcText + '</dd>' +
+        '<dt>状態</dt><dd>' + actText + '</dd>';
+    }
+
+    // 表示名フィールド
+    var nickEl = document.getElementById('teacher-edit-nickname');
+    if (nickEl) nickEl.value = t.displayNickname || '';
+
+    // 役割ラジオ
+    var roleAdmin   = document.getElementById('teacher-edit-role-admin');
+    var roleTeacher = document.getElementById('teacher-edit-role-teacher');
+    if (roleAdmin)   roleAdmin.checked   = (t.role === 'admin');
+    if (roleTeacher) roleTeacher.checked = (t.role === 'teacher');
+    // 「最後の active=true admin」なら teacher ラジオを disabled
+    var roleWarn   = document.getElementById('teacher-edit-role-warn');
+    var roleSubmit = document.getElementById('teacher-edit-role-submit');
+    if (isLastAdmin) {
+      if (roleTeacher) {
+        roleTeacher.disabled = true;
+        var teacherRow = roleTeacher.closest('.teacher-edit-radio-row');
+        if (teacherRow) {
+          teacherRow.classList.add('disabled');
+          teacherRow.title = '最後の管理者の役割は変更できません';
+        }
+      }
+      if (roleWarn) {
+        roleWarn.textContent = '⚠️ あなたは最後の有効な管理者です。役割を「講師」に変更することはできません。';
+        roleWarn.style.display = '';
+      }
+      if (roleSubmit) roleSubmit.disabled = true;
+    } else {
+      if (roleTeacher) {
+        roleTeacher.disabled = false;
+        var teacherRow2 = roleTeacher.closest('.teacher-edit-radio-row');
+        if (teacherRow2) {
+          teacherRow2.classList.remove('disabled');
+          teacherRow2.title = '';
+        }
+      }
+      if (roleWarn) { roleWarn.textContent = ''; roleWarn.style.display = 'none'; }
+      if (roleSubmit) roleSubmit.disabled = false;
+    }
+
+    // 有効/無効切替ボタン
+    var actStatus = document.getElementById('teacher-edit-active-status');
+    var actBtn    = document.getElementById('teacher-edit-active-btn');
+    var actWarn   = document.getElementById('teacher-edit-active-warn');
+    if (actStatus) {
+      actStatus.textContent = t.active
+        ? '現在の状態：✅ 有効。無効化するとこの講師はログインできなくなります（履歴はシートに残ります）。'
+        : '現在の状態：⚠️ 無効化中。再有効化するとログインが可能になります。';
+    }
+    if (actBtn) {
+      if (t.active) {
+        actBtn.textContent = '⛔ この講師を無効化する';
+        actBtn.style.background = 'linear-gradient(135deg,#ef4444,#dc2626)';
+        if (isLastAdmin) {
+          actBtn.disabled = true;
+          actBtn.title = '最後の管理者は無効化できません';
+        } else {
+          actBtn.disabled = false;
+          actBtn.title = '';
+        }
+      } else {
+        actBtn.textContent = '✅ この講師を再有効化する';
+        actBtn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+        actBtn.disabled = false;
+        actBtn.title = '';
+      }
+    }
+    if (actWarn) {
+      if (isLastAdmin && t.active) {
+        actWarn.textContent = '⚠️ あなたは最後の有効な管理者です。無効化することはできません。';
+        actWarn.style.display = '';
+      } else {
+        actWarn.textContent = '';
+        actWarn.style.display = 'none';
+      }
+    }
+  }
+
+  // 表示名変更
+  function submitTeacherNickname() {
+    if (!_editingTeacherId) return;
+    var nick = (document.getElementById('teacher-edit-nickname').value || '').trim();
+    if (!nick || nick.length < 1 || nick.length > 10) {
+      showToast('表示名は1〜10文字で入力してください', 'error');
+      return;
+    }
+    adminGasPost({
+      action: 'adminUpdateTeacherDisplayNickname',
+      targetTeacherId: _editingTeacherId,
+      displayNickname: nick
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '更新に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error');
+        return;
+      }
+      showToast('表示名を更新しました', 'success');
+      // キャッシュも更新して画面に反映
+      var t = _teachersList.find(function(x) { return x.teacherId === _editingTeacherId; });
+      if (t) t.displayNickname = nick;
+      _renderTeacherEdit(t || { teacherId: _editingTeacherId });
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // パスワード再発行
+  function submitTeacherPasswordReset() {
+    if (!_editingTeacherId) return;
+    var t = _teachersList.find(function(x) { return x.teacherId === _editingTeacherId; });
+    var meId = sessionStorage.getItem('adminTeacherId') || '';
+    var isSelf = (_editingTeacherId === meId);
+    var dispName = (t && t.displayNickname) ? t.displayNickname : (t && t.teacherName ? t.teacherName : _editingTeacherId);
+    var msg = isSelf
+      ? 'あなた（' + dispName + '）のパスワードを再発行します。\n再発行後は noblesse0311 で再ログインが必要です。続行しますか？'
+      : (dispName + '先生のパスワードを再発行します。続行しますか？');
+    if (!confirm(msg)) return;
+    adminGasPost({
+      action: 'adminResetTeacherPassword',
+      targetTeacherId: _editingTeacherId
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '再発行に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        showToast(em, 'error');
+        return;
+      }
+      showToast('パスワードを再発行しました。講師に「初期パスワード: noblesse0311」と伝えてください', 'success');
+      // 自分自身のパスワードを再発行した場合、現セッションの adminPassword は古いまま
+      // 次回 API 呼び出しで認証エラーになる → _handleAdminApiError でログアウト誘導される。
+      // キャッシュ更新（firstLoginCompleted=false に）
+      if (t) t.firstLoginCompleted = false;
+      if (t) _renderTeacherEdit(t);
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // 役割変更
+  function submitTeacherRole() {
+    if (!_editingTeacherId) return;
+    var roleEl = document.querySelector('input[name="teacher-edit-role"]:checked');
+    if (!roleEl) { showToast('役割を選択してください', 'error'); return; }
+    var newRole = roleEl.value;
+    var t = _teachersList.find(function(x) { return x.teacherId === _editingTeacherId; });
+    if (t && t.role === newRole) { showToast('現在と同じ役割です', 'error'); return; }
+    var label = (newRole === 'admin') ? '管理者（admin / 塾長）' : '講師（teacher）';
+    if (!confirm(_editingTeacherId + ' の役割を「' + label + '」に変更します。続行しますか？')) return;
+    adminGasPost({
+      action: 'adminSetTeacherRole',
+      targetTeacherId: _editingTeacherId,
+      role: newRole
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '変更に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        showToast(em, 'error');
+        return;
+      }
+      showToast('役割を「' + label + '」に変更しました', 'success');
+      if (t) t.role = newRole;
+      if (t) _renderTeacherEdit(t);
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // active 切替（編集画面のボタン）
+  function submitTeacherActive() {
+    if (!_editingTeacherId) return;
+    var t = _teachersList.find(function(x) { return x.teacherId === _editingTeacherId; });
+    if (!t) return;
+    var nextActive = !t.active;
+    var word = nextActive ? '再有効化' : '無効化';
+    if (!confirm(_editingTeacherId + ' を' + word + 'します。続行しますか？')) return;
+    adminGasPost({
+      action: 'adminSetTeacherActive',
+      targetTeacherId: _editingTeacherId,
+      active: nextActive
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : (word + 'に失敗しました');
+        if (_handleAdminApiError(em)) return;
+        showToast(em, 'error');
+        return;
+      }
+      showToast(_editingTeacherId + ' を' + word + 'しました', 'success');
+      t.active = nextActive;
+      _renderTeacherEdit(t);
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // ---- 新規追加画面 ----
+  function goAdminTeacherAdd() {
+    // 自動採番のために最新一覧を取得（キャッシュがあれば使う）
+    var pre = function(){
+      // teacherId 自動採番: 既存最大 t番号 + 1（_findNextTeacherId と同等のクライアント側計算）
+      var maxNum = 100;
+      _teachersList.forEach(function(r) {
+        var m = /^t(\d{3,})$/.exec(r.teacherId);
+        if (m) {
+          var n = Number(m[1]);
+          if (isFinite(n) && n > maxNum) maxNum = n;
+        }
+      });
+      var nextId = 't' + (maxNum + 1);
+      var idEl = document.getElementById('teacher-add-id');
+      if (idEl) idEl.value = nextId;
+      // フォームクリア
+      var nameEl = document.getElementById('teacher-add-name');
+      var nickEl = document.getElementById('teacher-add-nickname');
+      if (nameEl) nameEl.value = '';
+      if (nickEl) nickEl.value = '';
+      var teacherRadio = document.querySelector('input[name="teacher-add-role"][value="teacher"]');
+      if (teacherRadio) teacherRadio.checked = true;
+      _showScreen('screen-admin-teacher-add');
+      window.scrollTo(0, 0);
+    };
+    // 一覧未取得 or 古い場合は再取得
+    if (_teachersList.length === 0) {
+      adminGasGet({ action: 'adminListTeachers', _ts: Date.now() }).then(function(res) {
+        if (res && res.ok) { _teachersList = res.teachers || []; }
+        pre();
+      });
+    } else {
+      pre();
+    }
+  }
+
+  function submitTeacherAdd() {
+    var name = (document.getElementById('teacher-add-name').value || '').trim();
+    var nick = (document.getElementById('teacher-add-nickname').value || '').trim();
+    var roleEl = document.querySelector('input[name="teacher-add-role"]:checked');
+    var role = roleEl ? roleEl.value : 'teacher';
+    if (!name || name.length < 1 || name.length > 30) {
+      showToast('氏名は1〜30文字で入力してください', 'error');
+      return;
+    }
+    if (nick && (nick.length < 1 || nick.length > 10)) {
+      showToast('表示名は1〜10文字で入力してください（空欄可）', 'error');
+      return;
+    }
+    if (!confirm('講師「' + name + '」を ' + role + ' として追加します。続行しますか？')) return;
+    adminGasPost({
+      action: 'adminAddTeacher',
+      teacherName: name,
+      role: role,
+      displayNickname: nick
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '追加に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        showToast(em, 'error');
+        return;
+      }
+      var newId = res.teacherId || '?';
+      showToast(newId + ' を追加しました。初期パスワード「noblesse0311」を講師に伝えてください', 'success');
+      // 一覧画面に戻り、リストを再ロード
+      goAdminTeachers();
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
     });
   }
 
