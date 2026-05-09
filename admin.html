@@ -131,10 +131,14 @@
   .header-btns .logout-btn .btn-label { display: inline; }
   /* ログイン中ユーザー表示（Phase 1：講師ログイン）。ヘッダー右側に控えめに表示 */
   .admin-login-info { color: #fff; font-size: 13px; opacity: .9; padding: 4px 10px; background: rgba(255,255,255,.12); border-radius: 999px; white-space: nowrap; }
+  .role-badge { display: inline-block; margin: 0 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: bold; line-height: 1.5; vertical-align: baseline; opacity: 1; }
+  .role-badge-admin   { background: #ffd54f; color: #5c2a00; }
+  .role-badge-teacher { background: #b3e5fc; color: #0d3a52; }
   @media (max-width: 480px) {
     .header-btns .logout-btn.logout { padding: 7px 10px; }
     .header-btns .logout-btn.logout .btn-label { display: none; }
-    .admin-login-info { font-size: 11px; padding: 3px 8px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+    .admin-login-info { font-size: 11px; padding: 3px 8px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+    .role-badge { font-size: 10px; padding: 0 6px; margin: 0 3px; }
   }
 
   /* 汎用コンテンツ（ダッシュボード以外の画面用） */
@@ -492,7 +496,7 @@
       <div class="dashboard-card-title">基礎計算・答案写真</div>
       <div class="dashboard-card-desc">生徒が提出した答案写真を確認（保存期間 15 日）</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminLisonInput()">
+    <button type="button" id="dash-card-lison-input" class="dashboard-card admin-only" onclick="goAdminLisonInput()">
       <div class="dashboard-card-icon">🎧</div>
       <div class="dashboard-card-title">リスオン問題入力</div>
       <div class="dashboard-card-desc">週ごとの問題を作成・編集</div>
@@ -502,7 +506,7 @@
       <div class="dashboard-card-title">リスオン録音データ</div>
       <div class="dashboard-card-desc">生徒の音読録音を確認（保存期間 15 日）</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminHpGrant()">
+    <button type="button" id="dash-card-hp-grant" class="dashboard-card admin-only" onclick="goAdminHpGrant()">
       <div class="dashboard-card-icon">💎</div>
       <div class="dashboard-card-title">HP手動付与</div>
       <div class="dashboard-card-desc">指定した生徒に素点HPを付与（連続週数ボーナスの加算可）</div>
@@ -1374,12 +1378,22 @@
   // =============================================================
   // UI 構築
   // =============================================================
+  // Phase 2：ロール別にモジュールをフィルタ。admin 専用モジュールは teacher には表示しない。
+  // 'sango-submissions' / 'wabun1-submissions' は提出物確認 + 先生コメントなので teacher も使う（両方可）。
+  // 一覧変更時はこの配列を更新するだけで済む（DRY）。
+  var ADMIN_ONLY_MODULE_IDS = ['quote', 'notice', 'sango-topic', 'wabun1-topic'];
+
   function buildAdminUI() {
     var tabs = document.getElementById('admin-tabs');
     var content = document.getElementById('admin-content');
     tabs.innerHTML = '';
     content.innerHTML = '';
-    AdminModules.forEach(function(mod, i) {
+    var isAdmin = (sessionStorage.getItem('adminRole') || '') === 'admin';
+    var visibleModules = AdminModules.filter(function(mod) {
+      if (isAdmin) return true;
+      return ADMIN_ONLY_MODULE_IDS.indexOf(mod.id) < 0; // teacher は admin-only モジュールを除外
+    });
+    visibleModules.forEach(function(mod, i) {
       var btn = document.createElement('button');
       btn.textContent = mod.label;
       btn.dataset.tabId = mod.id;
@@ -1467,12 +1481,8 @@
         });
       } else {
         var msg = (res && res.message) ? res.message : 'エラーが発生しました';
-        if (/認証|パスワード/.test(msg)) {
-          showToast('セッションが切れました。再ログインしてください。', 'error');
-          doAdminLogout();
-        } else {
-          showToast(msg, 'error');
-        }
+        // Phase 2：認証エラー / 管理者のみエラーを共通ハンドラで処理
+        if (!_handleAdminApiError(msg)) showToast(msg, 'error');
       }
     }).catch(function() {
       btn.disabled = false;
@@ -1545,16 +1555,42 @@
     return gasPost(p);
   }
 
-  // ダッシュボード上部に「○○先生としてログイン中」を表示する。
+  // Phase 2 共通エラーハンドラ。
+  //  - 「認証」「パスワード」を含むメッセージ → セッション切れ扱いでログアウト
+  //  - 「管理者のみ」を含むメッセージ → admin 専用エラーをトーストで表示（ログアウトしない）
+  //    teacher が URL 直打ち / sessionStorage 改ざんで admin 専用 API を踏んだ時のバックアップ
+  // 戻り値: true（処理済、呼び出し側は return すべき）/ false（その他のエラー）
+  function _handleAdminApiError(msg) {
+    if (!msg) return false;
+    if (/認証|パスワード/.test(msg)) {
+      showToast('セッションが切れました', 'error');
+      doAdminLogout();
+      return true;
+    }
+    if (/管理者のみ/.test(msg)) {
+      showToast(msg, 'error');
+      return true;
+    }
+    return false;
+  }
+
+  // ダッシュボード上部に「○○先生（塾長/講師）としてログイン中」を表示する。
   // displayNickname が空なら teacherId を表示。未ログイン時は要素を空にする。
+  // Phase 2：role を見て「塾長」（admin）/「講師」（teacher）のバッジを併記する（論点③）。
   function _renderAdminLoginInfo() {
     var el = document.getElementById('admin-login-info');
     if (!el) return;
     var tid  = sessionStorage.getItem('adminTeacherId') || '';
     var nick = sessionStorage.getItem('adminDisplayNickname') || '';
-    if (!tid) { el.textContent = ''; el.style.display = 'none'; return; }
+    var role = sessionStorage.getItem('adminRole') || '';
+    if (!tid) { el.innerHTML = ''; el.style.display = 'none'; return; }
     var name = nick || tid;
-    el.textContent = name + ' としてログイン中';
+    var roleLabel = (role === 'admin') ? '塾長' : (role === 'teacher' ? '講師' : '');
+    var roleBadge = roleLabel
+      ? '<span class="role-badge role-badge-' + (role === 'admin' ? 'admin' : 'teacher') + '">' + roleLabel + '</span>'
+      : '';
+    // textContent → innerHTML に変更（バッジ要素のため）。name は escape する。
+    el.innerHTML = _esc(name) + roleBadge + ' としてログイン中';
     el.style.display = '';
   }
 
@@ -1568,14 +1604,28 @@
 
   // ダッシュボード遷移はメインの funnel。Phase 1.5：未完了の講師は強制的に初回フロー画面に戻す。
   // これで sessionStorage を直接書き換えて遷移を試みても、ここで再度ガードされる。
+  // Phase 2：role に応じてカード表示を分岐する（admin 専用カードを teacher には非表示）。
   function goAdminDashboard() {
     if (sessionStorage.getItem('adminTeacherId') &&
         sessionStorage.getItem('adminFirstLoginCompleted') !== 'true') {
       goAdminFirstLogin();
       return;
     }
+    _applyDashboardRoleVisibility();
     _showScreen('screen-admin-dashboard');
     window.scrollTo(0, 0);
+  }
+
+  // Phase 2：ダッシュボードカードのロール別表示分岐。
+  // admin → 全カード表示。teacher → admin-only クラスを持つカードを非表示。
+  // sessionStorage の adminRole を見て判定するが、サーバー側にも _requireAdmin ガードが
+  // あるため、teacher が URL 直打ち / sessionStorage 改ざんで進んでも API レベルで拒否される。
+  function _applyDashboardRoleVisibility() {
+    var isAdmin = (sessionStorage.getItem('adminRole') || '') === 'admin';
+    var cards = document.querySelectorAll('.dashboard-card.admin-only');
+    cards.forEach(function(c) {
+      c.style.display = isAdmin ? '' : 'none';
+    });
   }
 
   // =============================================================
@@ -2392,7 +2442,8 @@
       if (btn) { btn.disabled = false; btn.textContent = '✅ はい、付与する'; }
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : 'エラーが発生しました';
-        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        // Phase 2：認証エラー / 管理者のみエラーを共通ハンドラで処理
+        if (_handleAdminApiError(msg)) return;
         showToast(msg, 'error');
         return;
       }
@@ -2781,14 +2832,24 @@
   function goAdminTeacherMessages(preserveInput) {
     _showScreen('screen-admin-teacher-messages');
     window.scrollTo(0, 0);
+    // Phase 2：「全員」ラジオは admin（塾長）のみ表示する。teacher には完全非表示。
+    // サーバー側 sendTeacherMessage でも targetType='all' を admin チェックでガード済み（多重防御）。
+    var isAdmin = (sessionStorage.getItem('adminRole') || '') === 'admin';
+    var radioAll = document.getElementById('tm-radio-all');
+    if (radioAll) radioAll.style.display = isAdmin ? '' : 'none';
     if (!preserveInput) {
       var ta = document.getElementById('tm-content');
       if (ta) ta.value = '';
       _tmSelected = {};
       _tmTargetType = 'individual';
-      // ラジオを初期状態に戻す
+      // ラジオを初期状態に戻す（teacher が以前 'all' を選んでいた状態を引き継いだ場合の保険含む）
       var radioInd = document.querySelector('input[name="tm-target"][value="individual"]');
       if (radioInd) radioInd.checked = true;
+      // teacher に対して 'all' が selected 状態で残っていた場合に強制リセット
+      if (!isAdmin) {
+        var radioAllInput = document.querySelector('input[name="tm-target"][value="all"]');
+        if (radioAllInput) radioAllInput.checked = false;
+      }
       setTmTarget('individual');
     }
     updateTmCounter();
@@ -2970,7 +3031,8 @@
       if (btn) { btn.disabled = false; btn.textContent = '✅ 送信する'; }
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : 'エラーが発生しました';
-        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        // Phase 2：認証エラー / 管理者のみエラーを共通ハンドラで処理
+        if (_handleAdminApiError(msg)) return;
         showToast(msg, 'error');
         return;
       }
