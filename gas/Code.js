@@ -1036,6 +1036,8 @@ function doGet(e) {
       //   doPost にも保護登録（CLAUDE.md #148 原則踏襲）。
       else if (action === 'getKisoPhotoBlob')          result = getKisoPhotoBlob(params);
       else if (action === 'getKisoPhotoBlobForStudent') result = getKisoPhotoBlobForStudent(params);
+      // 閲覧系操作ログ：DL ボタン押下時の独立ログ記録（キャッシュヒット時でも確実に記録）
+      else if (action === 'logKisoPhotoDownload')      result = logKisoPhotoDownload(params);
       // ※ ここにリスオン関連（getLisonContent, submitLison）のルーティングを必ず残す。
       //   Phase 1-A コミット 71b8c93 で追加。過去に管理画面リファクタ作業で巻き込まれて
       //   消えかけ、ふくちさん側の clasp push が古いまま実機テストで「録音送信が失敗する」
@@ -1123,6 +1125,8 @@ function doPost(e) {
     // Phase 6: 基礎計算 答案写真 base64 配信（doGet にも保護登録、両方セットで保持）。
     else if (action === 'getKisoPhotoBlob')          result = getKisoPhotoBlob(params);
     else if (action === 'getKisoPhotoBlobForStudent') result = getKisoPhotoBlobForStudent(params);
+    // 閲覧系操作ログ：DL ボタン押下時の独立ログ記録
+    else if (action === 'logKisoPhotoDownload')      result = logKisoPhotoDownload(params);
     // 基礎計算 履歴一覧（doGet にも保護登録、両方セットで保持）
     else if (action === 'getKisoHistoryForStudent')  result = getKisoHistoryForStudent(params);
     // 管理画面: リスオン問題の週単位一括登録（5 レベル × 3 問 + 英文 / 和訳で URL 長を
@@ -4412,12 +4416,85 @@ function _deleteKisoPhoto(driveFileId) {
 // Phase 6：基礎計算 答案写真の認証付き base64 配信
 // =============================================
 
+// fileId から KisoPhotos シートで sid / sessionId を逆引き（操作ログ details 用）。
+// 見つからなければ空オブジェクト（ログ記録は best-effort、業務処理は壊さない）。
+function _kisoPhotoLookupByFileId(fileId) {
+  try {
+    const sh = _ss().getSheetByName(SHEET_KISO_PHOTOS);
+    if (!sh || sh.getLastRow() < 2) return {};
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cFid = header.indexOf('driveFileId');
+    const cSid = header.indexOf('studentId');
+    const cSes = header.indexOf('sessionId');
+    if (cFid < 0) return {};
+    const target = String(fileId || '').trim();
+    for (let i = 1; i < values.length; i++) {
+      const rowFid = String(values[i][cFid] || '').trim();
+      if (rowFid === target) {
+        return {
+          sid:       (cSid >= 0) ? String(values[i][cSid] || '').trim() : '',
+          sessionId: (cSes >= 0) ? String(values[i][cSes] || '').trim() : ''
+        };
+      }
+    }
+  } catch (e) {
+    console.error('[_kisoPhotoLookupByFileId]', e);
+  }
+  return {};
+}
+
 // admin / teacher 用の写真 base64 配信（閲覧 + DL 用途）。
 // 入力: { teacherId, password, fileId }
 // 出力: _verifyTeacherAndGetDriveBlob(params, true) のレスポンスをそのまま返す
 // 共通基盤 (_verifyTeacherAndGetDriveBlob) は録音側 commit 1 で実装済。
+//
+// 操作ログ：成功時に KISO_PHOTO_VIEW を記録（admin/teacher の閲覧監査用）。
+// DL ボタン押下経由のログは別 API logKisoPhotoDownload で独立記録（DL は外部
+// 持出の重要行為のため独立カウント、ふくちさん指示）。
 function getKisoPhotoBlob(params) {
-  return _verifyTeacherAndGetDriveBlob(params, true);
+  const res = _verifyTeacherAndGetDriveBlob(params, true);
+  if (res && res.ok) {
+    try {
+      const teacherId = String((params && params.teacherId) || '').trim();
+      const fileId    = String((params && params.fileId)    || '').trim();
+      const meta = _kisoPhotoLookupByFileId(fileId);
+      _logTeacherAction(teacherId, 'KISO_PHOTO_VIEW', '', 'success', {
+        fileId:    fileId,
+        sid:       meta.sid       || '',
+        sessionId: meta.sessionId || ''
+      });
+    } catch (e) {
+      console.error('[getKisoPhotoBlob log]', e);
+    }
+  }
+  return res;
+}
+
+// admin/teacher が「⬇️ ダウンロード」ボタンを押した時に明示的にログ記録する API。
+// getKisoPhotoBlob のキャッシュヒット時でも DL を確実に記録できるよう独立 API。
+// 入力: { teacherId, password, fileId }
+// 出力: { ok:true } または { ok:false, message }
+//
+// 認証スコープ：_verifyTeacher 通過（admin/teacher 両方OK、active=true 限定）。
+// 写真の DL は admin/teacher 両方可（HANDOVER.md Q10）。
+function logKisoPhotoDownload(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const fileId = String((params && params.fileId) || '').trim();
+    if (!fileId) return { ok: false, message: 'fileId が指定されていません' };
+    const meta = _kisoPhotoLookupByFileId(fileId);
+    _logTeacherAction(_teacher.teacherId, 'KISO_PHOTO_DOWNLOAD', '', 'success', {
+      fileId:    fileId,
+      sid:       meta.sid       || '',
+      sessionId: meta.sessionId || ''
+    });
+    return { ok: true };
+  } catch (err) {
+    console.error('[logKisoPhotoDownload]', err);
+    return { ok: false, message: String(err) };
+  }
 }
 
 // 生徒（Mode B 過去セッション再表示）用の写真 base64 配信（閲覧のみ、DL 不可は UI 側で実施）。
@@ -9935,12 +10012,61 @@ function _verifyTeacherAndGetDriveBlob(params, allowTeacher) {
   }
 }
 
+// fileId から LisonSubmissions シートで sid / level を逆引き（操作ログ details 用）。
+// fileId 列優先、無ければ recordingUrl から regex 抽出（古い行への後方互換）。
+function _lisonLookupByFileId(fileId) {
+  try {
+    const sh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return {};
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cFid = header.indexOf('fileId');
+    const cSid = header.indexOf('studentId');
+    const cLv  = header.indexOf('level');
+    const cUrl = header.indexOf('recordingUrl');
+    const target = String(fileId || '').trim();
+    for (let i = 1; i < values.length; i++) {
+      let rowFid = (cFid >= 0) ? String(values[i][cFid] || '').trim() : '';
+      if (!rowFid && cUrl >= 0) {
+        rowFid = _lisonExtractFileId(String(values[i][cUrl] || ''));
+      }
+      if (rowFid === target) {
+        return {
+          sid:   (cSid >= 0) ? String(values[i][cSid] || '').trim() : '',
+          level: (cLv  >= 0) ? String(values[i][cLv]  || '').trim() : ''
+        };
+      }
+    }
+  } catch (e) {
+    console.error('[_lisonLookupByFileId]', e);
+  }
+  return {};
+}
+
 // リスオン録音の認証付き base64 配信（admin / teacher 両方再生可、DL は UI 側で抑止）。
 // 用途: admin.html リスオン録音再生 UI が <audio> + Blob URL 方式で再生する際の音声取得。
 // 入力: { teacherId, password, fileId }
 // 出力: _verifyTeacherAndGetDriveBlob(params, true) のレスポンスをそのまま返す
+//
+// 操作ログ：成功時に LISON_RECORDING_PLAY を記録（admin/teacher の再生監査用）。
+// 録音は誰も DL 不可（Q10）のため、再生 = 唯一の閲覧経路。すべて記録対象。
 function getLisonRecordingBlob(params) {
-  return _verifyTeacherAndGetDriveBlob(params, true);
+  const res = _verifyTeacherAndGetDriveBlob(params, true);
+  if (res && res.ok) {
+    try {
+      const teacherId = String((params && params.teacherId) || '').trim();
+      const fileId    = String((params && params.fileId)    || '').trim();
+      const meta = _lisonLookupByFileId(fileId);
+      _logTeacherAction(teacherId, 'LISON_RECORDING_PLAY', '', 'success', {
+        fileId: fileId,
+        sid:    meta.sid   || '',
+        level:  meta.level || ''
+      });
+    } catch (e) {
+      console.error('[getLisonRecordingBlob log]', e);
+    }
+  }
+  return res;
 }
 
 // =============================================
