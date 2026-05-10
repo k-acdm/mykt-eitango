@@ -1282,6 +1282,10 @@
           <option value="TEACHER_SET_ROLE">役割変更</option>
           <option value="TEACHER_UPDATE_NICKNAME">表示名変更</option>
           <option value="MANUAL_HP_GRANT">HP手動付与</option>
+          <option value="MESSAGE_SEND">メッセージ送信</option>
+          <option value="LISON_RECORDING_PLAY">録音再生</option>
+          <option value="KISO_PHOTO_VIEW">写真表示</option>
+          <option value="KISO_PHOTO_DOWNLOAD">写真DL</option>
         </select>
       </div>
       <div>
@@ -2360,7 +2364,11 @@
     TEACHER_SET_ROLE:         '役割変更',
     TEACHER_UPDATE_NICKNAME:  '表示名変更',
     MANUAL_HP_GRANT:          'HP手動付与',
-    MESSAGE_SEND:             'メッセージ送信'
+    MESSAGE_SEND:             'メッセージ送信',
+    // 閲覧系操作ログ（admin/teacher の閲覧監査用）
+    LISON_RECORDING_PLAY:     '録音再生',
+    KISO_PHOTO_VIEW:          '写真表示',
+    KISO_PHOTO_DOWNLOAD:      '写真DL'
   };
   function _actionLabel(act) {
     return _ACTION_LABELS[act] || act || '(不明)';
@@ -2421,6 +2429,19 @@
         if (d.contentLength != null)  parts.push('文字数：' + d.contentLength + '字');
         if (d.content != null)        parts.push('本文：<div class="action-log-content">' + _esc(d.content) + '</div>');
         if (d.messageId)              parts.push('messageId：<code>' + _esc(d.messageId) + '</code>');
+        break;
+      case 'LISON_RECORDING_PLAY':
+        // リスオン録音再生：誰が・どの生徒の・どの級の録音を再生したか
+        if (d.sid)    parts.push('対象生徒：<code>' + _esc(d.sid) + '</code>');
+        if (d.level)  parts.push('級：' + _esc(d.level));
+        if (d.fileId) parts.push('fileId：<code>' + _esc(d.fileId) + '</code>');
+        break;
+      case 'KISO_PHOTO_VIEW':
+      case 'KISO_PHOTO_DOWNLOAD':
+        // 基礎計算 答案写真の閲覧 / DL：誰が・どの生徒の・どのセッションの写真か
+        if (d.sid)       parts.push('対象生徒：<code>' + _esc(d.sid) + '</code>');
+        if (d.sessionId) parts.push('セッション：<code>' + _esc(d.sessionId) + '</code>');
+        if (d.fileId)    parts.push('fileId：<code>' + _esc(d.fileId) + '</code>');
         break;
       default:
         return '<code>' + _esc(raw) + '</code>';
@@ -2977,6 +2998,9 @@
         document.body.removeChild(a);
         // 30 秒後に Blob URL 解放（DL 完了を待つ）
         setTimeout(function(){ try { URL.revokeObjectURL(url); } catch (e) {} }, 30000);
+        // 操作ログ：DL を独立記録（getKisoPhotoBlob のキャッシュヒット時でも確実に記録）。
+        // 失敗してもユーザー体験は壊さない（fire-and-forget、認証エラーはサイレントに）。
+        adminGasGet({ action: 'logKisoPhotoDownload', fileId: fileId }).catch(function(){});
       } catch (e) {
         showToast('ダウンロードに失敗しました', 'error');
       }
