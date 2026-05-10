@@ -6857,6 +6857,15 @@ function sendTeacherMessage(params) {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
 
+    // Phase 5：TeacherMessages / MessageReads の自動初期化（冪等）。
+    // Phase 4 の _ensureSheetWithHeaders 思想と統一して、手動セットアップ工程を不要にする。
+    // 初期化失敗はログのみ。後段の getSheetByName で検出して安全弁が働く。
+    try {
+      ensureTeacherMessagesSheets();
+    } catch (e) {
+      console.error('[sendTeacherMessage] ensureTeacherMessagesSheets failed:', e);
+    }
+
     // ⚠️ なりすまし防止：params.senderId は受け付けず、認証された teacherId を強制使用する。
     //    クライアントから渡された senderId は完全に無視する。
     const senderId   = _teacher.teacherId;
@@ -6921,8 +6930,25 @@ function sendTeacherMessage(params) {
     const now = _nowJST();
 
     const sh = _ss().getSheetByName(SHEET_TEACHER_MESSAGES);
-    if (!sh) return { ok: false, message: 'TeacherMessages シートが見つかりません。先に ensureTeacherMessagesSheets() を実行してください' };
+    if (!sh) return { ok: false, message: 'TeacherMessages シートが見つかりません' };
     sh.appendRow([now, messageId, senderId, senderNickname, targetType, targetIdsCsv, content, now]);
+
+    // Phase 5：操作ログ記録（教育者の振り返り用、本文全文を含む）。
+    //   ふくちさん判断：「思い出す必要がある時は正確に思い出さなくてはいけない。
+    //   『たしかこうだったはず』はコミュニケーションのズレの原因になる」
+    //   → details に content 全文 + targetType='individual' なら studentIds 配列も含める。
+    //   targetType='all' の場合は studentIds は省略（'ALL' は受信者数で表現）。
+    const _logDetails = {
+      targetType:     targetType,
+      recipientCount: recipientCount,
+      contentLength:  content.length,
+      content:        content,
+      messageId:      messageId
+    };
+    if (targetType === 'individual') {
+      _logDetails.studentIds = _parseIndividualTargetIds(targetIdsCsv);
+    }
+    _logTeacherAction(_teacher.teacherId, 'MESSAGE_SEND', '', 'success', _logDetails);
 
     return {
       ok: true,

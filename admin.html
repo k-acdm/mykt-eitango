@@ -477,6 +477,8 @@
   .action-log-table .col-result.failure { color: #dc2626; }
   .action-log-table .col-details { color: #444; font-size: 12px; line-height: 1.6; }
   .action-log-table .col-details code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  /* Phase 5：MESSAGE_SEND の本文ブロック（全文表示 + word-break + max-height スクロール）*/
+  .action-log-table .col-details .action-log-content { display: block; margin-top: 4px; padding: 6px 10px; background: #fafbff; border-left: 3px solid #4f7df0; border-radius: 4px; white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.5; max-height: 240px; overflow-y: auto; color: #333; }
   .action-log-pager { display: flex; justify-content: center; gap: 12px; margin-top: 16px; align-items: center; }
   .action-log-pager .submit-btn { flex: 0 0 auto; padding: 8px 16px; }
   .action-log-pager .submit-btn:disabled { opacity: .4; cursor: not-allowed; }
@@ -2340,7 +2342,8 @@
     TEACHER_SET_ACTIVE:       '有効/無効切替',
     TEACHER_SET_ROLE:         '役割変更',
     TEACHER_UPDATE_NICKNAME:  '表示名変更',
-    MANUAL_HP_GRANT:          'HP手動付与'
+    MANUAL_HP_GRANT:          'HP手動付与',
+    MESSAGE_SEND:             'メッセージ送信'
   };
   function _actionLabel(act) {
     return _ACTION_LABELS[act] || act || '(不明)';
@@ -2384,6 +2387,23 @@
         if (Array.isArray(d.studentIds) && d.studentIds.length) {
           parts.push('生徒ID：<code>' + _esc(d.studentIds.join(', ')) + '</code>');
         }
+        break;
+      case 'MESSAGE_SEND':
+        // ふくちさん判断：本文は全文表示（教育現場での正確性重視のため）
+        if (d.targetType === 'all') {
+          parts.push('宛先：<strong>全員</strong>');
+        } else if (d.targetType === 'individual') {
+          parts.push('宛先：<strong>個別</strong>');
+          if (Array.isArray(d.studentIds) && d.studentIds.length) {
+            parts.push('受信者：<code>' + _esc(d.studentIds.join(', ')) + '</code>');
+          }
+        } else if (d.targetType) {
+          parts.push('宛先：' + _esc(d.targetType));
+        }
+        if (d.recipientCount != null) parts.push('受信者数：' + d.recipientCount + '名');
+        if (d.contentLength != null)  parts.push('文字数：' + d.contentLength + '字');
+        if (d.content != null)        parts.push('本文：<div class="action-log-content">' + _esc(d.content) + '</div>');
+        if (d.messageId)              parts.push('messageId：<code>' + _esc(d.messageId) + '</code>');
         break;
       default:
         return '<code>' + _esc(raw) + '</code>';
