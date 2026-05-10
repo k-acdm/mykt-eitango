@@ -4315,6 +4315,10 @@ function _saveKisoPhoto(studentId, sessionId, rank, count, imageBase64) {
       'answer',
       1
     ]);
+    // ⚠️ 書き込み確定（flush）：直後の getKisoPhotoBlobForStudent 突合で
+    // appendRow が反映されていない事例の防止策（Apps Script の Sheets 内部
+    // バッファリングで別 execution の読み取りに反映されない既知問題）。
+    SpreadsheetApp.flush();
 
     return {
       ok: true,
@@ -4374,6 +4378,8 @@ function _saveKisoWorkPhoto(studentId, sessionId, rank, count, imageBase64, phot
       'work',
       idx
     ]);
+    // _saveKisoPhoto と同方針：appendRow の書き込み確定
+    SpreadsheetApp.flush();
 
     return {
       ok: true,
@@ -4450,16 +4456,40 @@ function getKisoPhotoBlobForStudent(params) {
       return { ok: false, message: 'アクセス権がありません' };
     }
     let matched = false;
+    let sidMatchCount = 0;
+    let fidMatchCount = 0;
+    let sampleSidRows = []; // sid 一致した行の fileId（デバッグ用、上限 5 件）
     for (let i = 1; i < values.length; i++) {
-      if (String(values[i][cSid] || '').trim() === sid &&
-          String(values[i][cFid] || '').trim() === fileId) {
+      const rowSidRaw = values[i][cSid];
+      const rowFidRaw = values[i][cFid];
+      const rowSid = String(rowSidRaw == null ? '' : rowSidRaw).trim();
+      const rowFid = String(rowFidRaw == null ? '' : rowFidRaw).trim();
+      if (rowSid === sid && rowFid === fileId) {
         matched = true;
         break;
       }
+      if (rowSid === sid) {
+        sidMatchCount++;
+        if (sampleSidRows.length < 5) sampleSidRows.push({ rowFid: rowFid, rowFidLen: rowFid.length, rowFidType: typeof rowFidRaw });
+      }
+      if (rowFid === fileId) fidMatchCount++;
     }
     if (!matched) {
-      // ⚠️ セキュリティガード：他生徒の fileId を直接叩いてもここで拒否される
-      console.warn('[getKisoPhotoBlobForStudent] sid×fileId 突合失敗 sid=' + sid + ' fileId=' + fileId);
+      // ⚠️ セキュリティガード：他生徒の fileId を直接叩いてもここで拒否される。
+      // バグ調査用に詳細ログを残す（2026-05-11 追加）：
+      //   sid 一致行があるのに fileId が違う → 撮影写真の sid×fileId ペアが意図と違う
+      //   fileId 一致行があるのに sid が違う → 他生徒の fileId 直叩き（正常拒否）
+      //   両方ゼロ → KisoPhotos シート未反映（appendRow 反映遅延）or fileId が不正
+      console.warn('[getKisoPhotoBlobForStudent] sid×fileId 突合失敗', {
+        sid: sid,
+        sidLen: sid.length,
+        fileId: fileId,
+        fileIdLen: fileId.length,
+        sidMatchCount: sidMatchCount,
+        fidMatchCount: fidMatchCount,
+        sampleSidRows: sampleSidRows,
+        totalRows: values.length - 1
+      });
       return { ok: false, message: 'アクセス権がありません' };
     }
 
