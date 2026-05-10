@@ -28,6 +28,8 @@ const SHEET_MESSAGE_READS     = 'MessageReads';
 //   Step 1 ではシート新規作成 + Students 1001〜1010 をコピーのみ（Students は無変更）。
 //   統合読み込みは Step 2、Students 削除は Step 4 以降。
 const SHEET_SPECIAL_ACCOUNTS  = 'SpecialAccounts';
+// Phase 4：講師の操作ログ（admin の監査用、永久保存）。_ensureSheetWithHeaders で自動作成される。
+const SHEET_TEACHER_ACTIONS   = 'TeacherActions';
 // accountType 列に入る値（最右列。Students の列構成に追加される列）
 const SPECIAL_ACCOUNT_TYPES = {
   TEST:       'test',          // 1001〜1099 テスト枠
@@ -986,6 +988,8 @@ function doGet(e) {
       else if (action === 'adminLogin')        result = adminLogin(params);
       // Phase 3 講師管理：一覧取得は読み取りなので doGet 経由。書き込み 5 関数は doPost のみ
       else if (action === 'adminListTeachers') result = adminListTeachers(params);
+      // Phase 4 操作ログ：閲覧（admin-only）。書き込みは _logTeacherAction が内部で副作用として行う
+      else if (action === 'getTeacherActionsList') result = getTeacherActionsList(params);
       else if (action === 'completeFirstLogin') result = completeFirstLogin(params);
       else if (action === 'adminAddQuote')     result = adminAddQuote(params);
       else if (action === 'adminAddNotice')    result = adminAddNotice(params);
@@ -6549,6 +6553,120 @@ const MESSAGE_READS_HEADERS    = ['studentId','messageId','readAt'];
 const TEACHER_MESSAGE_MAX_LEN  = 500;
 const TEACHER_INITIAL_PASSWORD = 'TEMP_PASSWORD_CHANGE_ME';
 const TEACHER_PRIMARY_ID       = 't101'; // ふくちさんの teacherId（admin role）
+
+// Phase 4：操作ログ（TeacherActions）の列構成
+//   timestamp       : 'yyyy-MM-dd HH:mm:ss'（_nowJST 由来）
+//   actorTeacherId  : 操作を実行した講師の teacherId
+//   action          : 'TEACHER_ADD' / 'TEACHER_PASSWORD_RESET' / 'TEACHER_SET_ACTIVE' /
+//                     'TEACHER_SET_ROLE' / 'TEACHER_UPDATE_NICKNAME' / 'MANUAL_HP_GRANT'
+//   targetTeacherId : 操作対象の teacherId（MANUAL_HP_GRANT の場合は空、複数生徒は details に集約）
+//   result          : 'success' / 'failure'（v1 では常に 'success'。失敗ログは Phase 4.5 以降で別シート対応）
+//   details         : JSON 文字列（action ごとに異なる構造、可読化はフロント側で行う）
+const TEACHER_ACTIONS_HEADERS  = ['timestamp','actorTeacherId','action','targetTeacherId','result','details'];
+
+// Phase 4：講師の操作ログを記録するヘルパー
+// - シート未存在なら _ensureSheetWithHeaders で自動作成（手動セットアップ不要）
+// - 内部 catch でラップし、ログ書き込みの失敗が呼び出し元の正常処理を壊さないようにする
+//   （監査ログ書き込み失敗 ≠ 業務処理失敗。ログ用シートが消えても業務は継続させる方針）
+// - 戻り値なし（log は副作用のみ）
+// - キャッシュなし（ログは常に最新を読む方針、件数増加対策は Phase 5 以降で末尾 N 行読みヘルパー導入を検討）
+function _logTeacherAction(actorTeacherId, action, targetTeacherId, result, details) {
+  try {
+    const sh = _ensureSheetWithHeaders(SHEET_TEACHER_ACTIONS, TEACHER_ACTIONS_HEADERS).sh;
+    const detailsStr = (details && typeof details === 'object')
+      ? JSON.stringify(details)
+      : (details ? String(details) : '{}');
+    sh.appendRow([
+      _nowJST(),
+      String(actorTeacherId || ''),
+      String(action || ''),
+      String(targetTeacherId || ''),
+      String(result || 'success'),
+      detailsStr
+    ]);
+  } catch (err) {
+    console.error('[_logTeacherAction]', err, { actor: actorTeacherId, action: action });
+    // ログ失敗はサイレント。呼び出し元の処理は継続させる
+  }
+}
+
+// 管理画面：操作ログ一覧を取得（Phase 4、admin-only）
+// 入力: { teacherId, password, dateFrom?:'yyyy-MM-dd', dateTo?:'yyyy-MM-dd',
+//         actionFilter?:string, page?:number, pageSize?:number }
+//   - dateFrom/dateTo を省略すると直近 7 日（dateTo=今日, dateFrom=6 日前）
+//   - actionFilter 省略 or 'ALL' で全件
+//   - page は 1 始まり、pageSize default 50（最大 200 でガード）
+// 出力: { ok, items:[...], total, page, pageSize, hasNewer, hasOlder,
+//         dateFrom, dateTo, actionFilter, actions:[期間内に存在する action 種別の集合] }
+function getTeacherActionsList(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const sh = _ss().getSheetByName(SHEET_TEACHER_ACTIONS);
+    if (!sh || sh.getLastRow() < 2) {
+      return { ok: true, items: [], total: 0, page: 1, pageSize: 50,
+               hasNewer: false, hasOlder: false, actions: [] };
+    }
+    // dateFrom/dateTo の正規化（'yyyy-MM-dd' 期待、文字列比較で範囲判定）
+    const today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+    const dateTo   = String((params && params.dateTo)   || today);
+    const dateFrom = String((params && params.dateFrom) || (function(){
+      const d = new Date(); d.setDate(d.getDate() - 6);
+      return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+    })());
+    const actionFilter = String((params && params.actionFilter) || 'ALL');
+    const page     = Math.max(1, Number(params && params.page) || 1);
+    const pageSize = Math.max(1, Math.min(200, Number(params && params.pageSize) || 50));
+
+    const values = sh.getDataRange().getValues();
+    const allActions = {};
+    const filtered = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[0]) continue;
+      const ts = String(r[0]);              // 'yyyy-MM-dd HH:mm:ss'
+      const datePart = ts.substring(0, 10); // 'yyyy-MM-dd'
+      if (datePart < dateFrom || datePart > dateTo) continue;
+      const act = String(r[2] || '');
+      allActions[act] = true;
+      if (actionFilter !== 'ALL' && act !== actionFilter) continue;
+      filtered.push({
+        timestamp:       ts,
+        actorTeacherId:  String(r[1] || ''),
+        action:          act,
+        targetTeacherId: String(r[3] || ''),
+        result:          String(r[4] || ''),
+        details:         String(r[5] || '')
+      });
+    }
+    // 新しい順
+    filtered.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+
+    const total = filtered.length;
+    const start = (page - 1) * pageSize;
+    const end   = Math.min(start + pageSize, total);
+    const items = filtered.slice(start, end);
+
+    return {
+      ok: true,
+      items: items,
+      total: total,
+      page: page,
+      pageSize: pageSize,
+      hasNewer: page > 1,
+      hasOlder: end < total,
+      dateFrom: dateFrom,
+      dateTo: dateTo,
+      actionFilter: actionFilter,
+      actions: Object.keys(allActions).sort()
+    };
+  } catch (err) {
+    console.error('[getTeacherActionsList]', err);
+    return { ok: false, message: String(err) };
+  }
+}
 
 // GAS エディタから手動実行するセットアップ関数。冪等。
 // 役割：
