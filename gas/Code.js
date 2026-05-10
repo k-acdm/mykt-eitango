@@ -1034,6 +1034,9 @@ function doGet(e) {
       //   症状を起こした実績あり（2026-04-29）。両ルーティングはセットで保持すること。
       else if (action === 'getLisonContent')         result = getLisonContent(params.level);
       else if (action === 'submitLison')              result = submitLison(params);
+      // Phase 6: リスオン録音の認証付き base64 配信（DL 抑止用、admin/teacher 両方再生可）。
+      //   doPost にも保護登録（submitLison 事故 / CLAUDE.md #148 の教訓）。
+      else if (action === 'getLisonRecordingBlob')    result = getLisonRecordingBlob(params);
       // ※ ここにカンジー関連（getKanjiSet, submitKanjiYomi）のルーティングを必ず残す。
       //   2026-05-02 新規追加。submitKanjiKaki は base64 画像があるため doPost 側のみ。
       else if (action === 'getKanjiSet')              result = getKanjiSet(params);
@@ -1107,6 +1110,8 @@ function doPost(e) {
     //   本番デプロイ後の初回テストで「unknown action: submitLison」エラーを起こした実績あり
     //   （2026-04-29）。getLisonContent は GET（cachedGasGet）なので doGet のみで OK。
     else if (action === 'submitLison')              result = submitLison(params);
+    // Phase 6: リスオン録音 base64 配信（doGet にも保護登録、両方セットで保持）。
+    else if (action === 'getLisonRecordingBlob')    result = getLisonRecordingBlob(params);
     // 管理画面: リスオン問題の週単位一括登録（5 レベル × 3 問 + 英文 / 和訳で URL 長を
     // 超えるため POST 必須、CLAUDE.md #93 と同パターン）。
     else if (action === 'adminSaveLisonContentsWeek') result = adminSaveLisonContentsWeek(params);
@@ -9430,6 +9435,81 @@ function getLisonContent(level) {
 }
 
 // =============================================
+// Phase 6 共通基盤：認証付き Drive ファイル base64 配信
+// =============================================
+// 録音 (LisonRecordings) と 答案写真 (KisoPhotos) で共通利用。
+// Drive 直接公開 (setSharing(ANYONE_WITH_LINK)) を廃止し、本ヘルパーを通して
+// base64 で配信する。クライアント側は base64 → Blob → Blob URL 経由で
+// <audio> / <img> に流し込む（DL ボタンは UI 側で削除、controlsList=nodownload で
+// ブラウザ右クリック保存等のカジュアル DL も抑止）。
+//
+// 認証スコープ：
+//   allowTeacher = true   → admin / teacher 両方の認証通過を許可（再生・閲覧用途）
+//   allowTeacher = false  → admin（owner）のみ
+//
+// 戻り値：
+//   { ok:true, base64, mime, fileName, sizeBytes }
+//   { ok:false, message:'認証エラー' }                          ← 認証失敗
+//   { ok:false, message:'この操作は管理者のみ可能です' }        ← teacher が admin 専用 API 呼出
+//   { ok:false, message:'fileId が指定されていません' }         ← 引数不正
+//   { ok:false, message:'ファイルが見つかりません' }            ← Drive 削除済み・ID 不正
+//   { ok:false, message:'ファイル取得に失敗しました：<詳細>' }  ← Drive API その他エラー
+function _verifyTeacherAndGetDriveBlob(params, allowTeacher) {
+  try {
+    // 1. 認証
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!allowTeacher && !_requireAdmin(_teacher)) {
+      return { ok: false, message: 'この操作は管理者のみ可能です' };
+    }
+
+    // 2. fileId 検証
+    const fileId = String((params && params.fileId) || '').trim();
+    if (!fileId) return { ok: false, message: 'fileId が指定されていません' };
+
+    // 3. Drive ファイル取得（GAS オーナー = ふくちさん権限で動作するため
+    //    setSharing(NONE) のファイルでも問題なくアクセス可能）
+    let file;
+    try {
+      file = DriveApp.getFileById(fileId);
+    } catch (e) {
+      console.error('[_verifyTeacherAndGetDriveBlob] DriveApp.getFileById failed:', fileId, e);
+      return { ok: false, message: 'ファイルが見つかりません' };
+    }
+
+    // 4. Blob → base64
+    try {
+      const blob = file.getBlob();
+      const bytes = blob.getBytes();
+      const base64 = Utilities.base64Encode(bytes);
+      const mime = blob.getContentType() || '';
+      const fileName = file.getName() || '';
+      return {
+        ok: true,
+        base64: base64,
+        mime: mime,
+        fileName: fileName,
+        sizeBytes: bytes.length
+      };
+    } catch (e) {
+      console.error('[_verifyTeacherAndGetDriveBlob] blob/base64 failed:', fileId, e);
+      return { ok: false, message: 'ファイル取得に失敗しました：' + String(e) };
+    }
+  } catch (err) {
+    console.error('[_verifyTeacherAndGetDriveBlob]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// リスオン録音の認証付き base64 配信（admin / teacher 両方再生可、DL は UI 側で抑止）。
+// 用途: admin.html リスオン録音再生 UI が <audio> + Blob URL 方式で再生する際の音声取得。
+// 入力: { teacherId, password, fileId }
+// 出力: _verifyTeacherAndGetDriveBlob(params, true) のレスポンスをそのまま返す
+function getLisonRecordingBlob(params) {
+  return _verifyTeacherAndGetDriveBlob(params, true);
+}
+
+// =============================================
 // 録音 Drive 保存（基礎計算 _saveKisoPhoto と同様のパターン）
 // =============================================
 const LISON_RECORDING_ROOT_FOLDER = 'LisonRecordings';
@@ -9468,13 +9548,14 @@ function _saveLisonRecording(sid, level, base64Data, mime) {
     const fileName = 'lison_' + sid + '_' + level + '_' + tsStr + '.' + ext;
     const folder = _ensureLisonRecordingsFolder();
     const file = folder.createFile(blob).setName(fileName);
-    // 管理画面の <audio> から再生できるよう ANYONE_WITH_LINK で公開（基礎計算 _saveKisoPhoto と同パターン）
-    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
-    catch (e) { console.warn('[_saveLisonRecording setSharing failed]', e); }
+    // Phase 6：setSharing(ANYONE_WITH_LINK) を削除。録音は Drive 直アクセス不可。
+    // 再生は getLisonRecordingBlob 経由で base64 配信する設計に変更（DL 抑止のため）。
+    // shareUrl は LisonSubmissions.recordingUrl 列の互換性のために残置するが、
+    // 値は 'private' プレースホルダー（過去ファイルの URL とは値で区別可能）。
     return {
       ok: true,
       fileId: file.getId(),
-      shareUrl: file.getUrl(),
+      shareUrl: 'private',
       fileName: fileName
     };
   } catch(err) {
@@ -9493,14 +9574,16 @@ function _lisonExtractFileId(url) {
 }
 
 // =============================================
-// 既存 LisonRecordings の一括公開化バッチ（1 回限り手動実行）
+// 既存 LisonRecordings の一括公開化バッチ（旧仕様、Phase 6 ロールバック用に残置）
 // =============================================
+// ⚠️ Phase 6（録音 DL 抑止）以降、本関数は通常運用では使用しない。
+//    Phase 6 で逆方向の migrateLisonRecordingsToPrivate を新設しており、
+//    本関数は「Phase 6 を巻き戻したい場合の緊急ロールバック手段」として残置。
+//    通常の運用ではアクセスする必要なし。
+//
 // LisonSubmissions シートの全 recordingUrl から fileId を抽出して
 // DriveApp.getFileById(fileId).setSharing(ANYONE_WITH_LINK, VIEW) を実行する。
 // すでに公開済みのファイルでも setSharing は冪等なので二重実行してもエラーにならない。
-//
-// 想定運用: GAS エディタの関数ドロップダウンから 1 回だけ実行。
-//          以降の新規録音は _saveLisonRecording 内で自動公開されるため再実行不要。
 //
 // 戻り値: { ok, total, succeeded, failed, errors:[{fileId,reason}], elapsedSec }
 //
@@ -9655,6 +9738,127 @@ function getLisonSubmissionsList(params) {
   } catch (err) {
     console.error('[getLisonSubmissionsList]', err);
     return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// Phase 6: 既存 LisonRecordings の一括非公開化バッチ（GAS エディタ手動実行のみ）
+// =============================================
+// LisonSubmissions シートの fileId 列を駆動して
+// DriveApp.getFileById(fileId).setSharing(NONE, NONE) を実行する。
+// fileId 列が空の古い行は recordingUrl から regex で抽出してフォールバック。
+//
+// 6 分実行制限対策として { startIndex, limit } で分割実行可能：
+//   - 初回：migrateLisonRecordingsToPrivate() → startIndex=0, limit=100 で実行
+//   - 続行：戻り値の hasMore=true なら、ふくちさんが
+//          migrateLisonRecordingsToPrivate({startIndex: <nextStartIndex>}) を実行
+//   - hasMore=false まで繰り返し
+//
+// 削除済み・既に NONE のファイルは個別スキップ（getFileById が throw or setSharing が
+// 失敗しても errors に蓄積するだけで、succeeded カウントには加算しない）。
+//
+// ⚠️ Phase 2 commit 59857f2 と同じく doGet / doPost ルーティングに登録しない。
+//    GAS エディタの関数ドロップダウンからの手動実行のみで動作する。
+//
+// 戻り値: { ok, total, processedFromIndex, processedTo, succeeded, failed,
+//          errors:[{fileId, reason}], hasMore, nextStartIndex, elapsedSec }
+//
+// ロールバック手段：緊急時は migrateLisonRecordingsToShared を実行すれば公開化に戻せる。
+function migrateLisonRecordingsToPrivate(params) {
+  const t0 = Date.now();
+  const startIndex = Math.max(0, Number(params && params.startIndex) || 0);
+  const limit      = Math.max(1, Math.min(500, Number(params && params.limit) || 100));
+  const result = {
+    ok: true,
+    total: 0,
+    processedFromIndex: startIndex,
+    processedTo: startIndex,
+    succeeded: 0,
+    failed: 0,
+    errors: [],
+    hasMore: false,
+    nextStartIndex: startIndex,
+    elapsedSec: 0
+  };
+  try {
+    const sh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) {
+      console.log('[migrateLisonRecordingsToPrivate] LisonSubmissions が空です');
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      return result;
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iFid = header.indexOf('fileId');
+    const iUrl = header.indexOf('recordingUrl');
+    if (iFid < 0 && iUrl < 0) {
+      console.warn('[migrateLisonRecordingsToPrivate] fileId / recordingUrl 列が見つかりません');
+      result.ok = false;
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      return result;
+    }
+
+    // データ行から fileId を抽出（fileId 列優先、無ければ recordingUrl から regex 抽出）。
+    // recordingUrl が 'private' プレースホルダーの場合（Phase 6 以降の新規録音）は
+    // fileId 列に値が入っているはずなので問題なし。
+    const fileIds = [];
+    for (let i = 1; i < values.length; i++) {
+      let fid = (iFid >= 0) ? String(values[i][iFid] || '').trim() : '';
+      if (!fid && iUrl >= 0) {
+        fid = _lisonExtractFileId(String(values[i][iUrl] || ''));
+      }
+      if (fid) fileIds.push(fid);
+    }
+    result.total = fileIds.length;
+
+    // startIndex から limit 件分だけ処理
+    const endIndex = Math.min(startIndex + limit, fileIds.length);
+    result.processedTo = endIndex;
+    result.hasMore = endIndex < fileIds.length;
+    result.nextStartIndex = result.hasMore ? endIndex : fileIds.length;
+
+    if (startIndex >= fileIds.length) {
+      console.log('[migrateLisonRecordingsToPrivate] startIndex 超過。total=' + result.total
+        + ', startIndex=' + startIndex);
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      return result;
+    }
+
+    console.log('[migrateLisonRecordingsToPrivate] 開始: total=' + result.total
+      + ', range=[' + startIndex + ',' + endIndex + ')');
+
+    for (let k = startIndex; k < endIndex; k++) {
+      const fid = fileIds[k];
+      try {
+        const file = DriveApp.getFileById(fid);
+        // setSharing(NONE, NONE) で完全非公開化。getFileById で取得できる時点で
+        // GAS オーナー（ふくちさん）からはアクセス可能。リンクを知る他者からのアクセスを遮断。
+        file.setSharing(DriveApp.Access.NONE, DriveApp.Permission.NONE);
+        result.succeeded++;
+      } catch (e) {
+        result.failed++;
+        result.errors.push({ fileId: fid, reason: String(e) });
+        console.warn('[migrateLisonRecordingsToPrivate] failed: fileId=' + fid + ' err=' + e);
+      }
+      // 進捗ログ：10 件ごと
+      if ((k - startIndex + 1) % 10 === 0) {
+        console.log('[migrateLisonRecordingsToPrivate] 進捗 '
+          + (k - startIndex + 1) + '/' + (endIndex - startIndex)
+          + ' succeeded=' + result.succeeded + ' failed=' + result.failed);
+      }
+    }
+
+    console.log('[migrateLisonRecordingsToPrivate] 完了: succeeded=' + result.succeeded
+      + ' failed=' + result.failed + ' hasMore=' + result.hasMore
+      + ' nextStartIndex=' + result.nextStartIndex);
+
+    result.elapsedSec = (Date.now() - t0) / 1000;
+    return result;
+  } catch (err) {
+    console.error('[migrateLisonRecordingsToPrivate]', err);
+    result.ok = false;
+    result.elapsedSec = (Date.now() - t0) / 1000;
+    return result;
   }
 }
 
