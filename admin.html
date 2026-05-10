@@ -322,9 +322,12 @@
   .kiso-photo-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); overflow: hidden; cursor: pointer; transition: transform .15s, box-shadow .15s; }
   .kiso-photo-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(14,165,233,.18); }
   /* Phase 6：サムネは初期プレースホルダー、押下で base64 取得 → <img> に差し替え */
-  .kiso-photo-thumb { width: 100%; aspect-ratio: 4/3; background: #f1f5f9; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .kiso-photo-thumb { width: 100%; aspect-ratio: 4/3; background: #f1f5f9; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; transition: background .15s; }
+  .kiso-photo-thumb:hover { background: #e2e8f0; }
   .kiso-photo-thumb-pending { background: #f1f5f9; }
   .kiso-photo-thumb-placeholder { font-size: 13px; color: #64748b; padding: 4px 10px; text-align: center; line-height: 1.5; }
+  /* サムネ表示済（pending クラス除去後）：画像タップで拡大モーダルが開くため zoom-in カーソル */
+  .kiso-photo-thumb:not(.kiso-photo-thumb-pending) { cursor: zoom-in; }
   .kiso-photo-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .kiso-photo-info { padding: 10px 12px; }
   .kiso-photo-rank { font-size: 14px; font-weight: bold; color: #0c4a6e; margin-bottom: 4px; }
@@ -2823,8 +2826,12 @@
       ? '途中式 #' + (Number(p.photoIndex) || 1)
       : '解答用紙';
     var hasFile = !!fid;
-    // サムネ枠は最初プレースホルダー。「🔍 拡大表示」押下で取得 → <img> に差し替え。
-    var thumbHtml = '<div class="kiso-photo-thumb kiso-photo-thumb-pending" id="kiso-photo-thumb-' + fid + '">' +
+    // サムネ枠：2 段階インタラクション
+    //   1) 初期 pending：「📷 押して表示」→ タップ → サムネ画像表示（拡大しない）
+    //   2) サムネ表示済：画像タップ → 拡大モーダル
+    // クリックハンドラは onKisoPhotoThumbClick が pending クラスの有無で分岐。
+    var thumbClickAttr = hasFile ? ' onclick="onKisoPhotoThumbClick(\'' + fidEsc + '\')"' : '';
+    var thumbHtml = '<div class="kiso-photo-thumb kiso-photo-thumb-pending" id="kiso-photo-thumb-' + fid + '"' + thumbClickAttr + '>' +
                       '<span class="kiso-photo-thumb-placeholder">📷 押して表示</span>' +
                     '</div>';
     var actions;
@@ -2868,6 +2875,41 @@
       };
       _kisoPhotoBlobCache[fileId] = entry;
       return entry;
+    });
+  }
+
+  // サムネ枠のクリック分岐（pending = サムネ取得のみ / サムネ表示済 = 拡大モーダル）
+  // 2 段階インタラクション：押して表示 → サムネ → タップ → 拡大
+  function onKisoPhotoThumbClick(fileId) {
+    if (!fileId) return;
+    var thumbEl = document.getElementById('kiso-photo-thumb-' + fileId);
+    if (thumbEl && thumbEl.classList.contains('kiso-photo-thumb-pending')) {
+      // 状態 1：未取得 → サムネだけ表示（拡大しない）
+      showKisoPhotoThumb(fileId);
+    } else {
+      // 状態 2：サムネ表示済 → 拡大モーダル
+      var cached = _kisoPhotoBlobCache[fileId];
+      if (cached) _showKisoPhotoModal(cached);
+    }
+  }
+
+  // サムネだけ表示（拡大モーダルは開かない）。「📷 押して表示」タップ用。
+  function showKisoPhotoThumb(fileId) {
+    if (!fileId) return;
+    var cached = _kisoPhotoBlobCache[fileId];
+    if (cached) {
+      _kisoUpdateThumb(fileId, cached);
+      return;
+    }
+    var thumbEl = document.getElementById('kiso-photo-thumb-' + fileId);
+    if (thumbEl) thumbEl.innerHTML = '<span class="kiso-photo-thumb-placeholder">⏳ 取得中…</span>';
+    _kisoFetchPhoto(fileId).then(function(entry) {
+      _kisoUpdateThumb(fileId, entry);
+    }).catch(function(e) {
+      if (e && e.message === 'auth') return;
+      showToast((e && e.message) || '通信エラーが発生しました', 'error');
+      var el = document.getElementById('kiso-photo-thumb-' + fileId);
+      if (el) el.innerHTML = '<span class="kiso-photo-thumb-placeholder">⚠ 取得失敗</span>';
     });
   }
 
