@@ -6638,7 +6638,12 @@ function getTeacherActionsList(params) {
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
       if (!r[0]) continue;
-      const ts = String(r[0]);              // 'yyyy-MM-dd HH:mm:ss'
+      // Google Sheets が _nowJST() の文字列を datetime 型に自動変換することがあり、
+      // getValues() で Date オブジェクトとして返る場合がある。Date でも文字列でも両対応。
+      // adminListSangoSubmissions / adminListWabun1Submissions と同じ正規化パターン。
+      const ts = (r[0] instanceof Date)
+        ? Utilities.formatDate(r[0], 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(r[0]);
       const datePart = ts.substring(0, 10); // 'yyyy-MM-dd'
       if (datePart < dateFrom || datePart > dateTo) continue;
       const act = String(r[2] || '');
