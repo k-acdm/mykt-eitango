@@ -1088,6 +1088,8 @@ function doPost(e) {
     if      (action === 'submitPhoto')              result = submitPhoto(params.studentId, params.setNo, params.imageBase64, params.words);
     // 管理画面の大量データ投入用（GET ではクエリ長制限を超えるため POST 経由）
     else if (action === 'adminAddWabun1TopicsWeek') result = adminAddWabun1TopicsWeek(params);
+    // 同上：三語短文の週単位一括登録（28 件で 8KB 超過、CLAUDE.md #93 と同パターン）
+    else if (action === 'adminAddSangoTopicsWeek')  result = adminAddSangoTopicsWeek(params);
     // 基礎計算：写真提出（base64 画像が大きいため POST 経由）
     else if (action === 'submitKisoAnswer')         result = submitKisoAnswer(params.sessionId, params.imageBase64, params.hasWorkPhoto);
     else if (action === 'submitKisoWorkPhoto')      result = submitKisoWorkPhoto(params.sessionId, params.imageBase64, params.photoIndex);

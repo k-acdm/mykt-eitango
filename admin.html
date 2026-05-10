@@ -1400,7 +1400,9 @@
     var btn = document.getElementById('sango-paste-submit');
     if (btn) btn.disabled = true;
     var weekNoStr = (document.getElementById('sango-paste-week-no') || {}).value || '';
-    adminGasGet({
+    // データ量が大きい（7日×4レベル=28件で encodeURIComponent 後に 8KB 閾値超過）ため POST で送る
+    // CLAUDE.md #93（和文英訳①週次登録）と同パターン
+    adminGasPost({
       action: 'adminAddSangoTopicsWeek',
       start: startStr,
       weekNo: weekNoStr,
