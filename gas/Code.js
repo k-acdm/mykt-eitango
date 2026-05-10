@@ -6846,12 +6846,20 @@ function _parseIndividualTargetIds(targetIdsStr) {
 }
 
 // 管理画面：メッセージ送信。認証必須・doPost 経由のみ。
-// params: { password, senderId?, targetType, targetIds, content }
-//   senderId: 省略時は 'T001'（ふくちさん固定運用、将来 Teachers ログインで決定）
-//   targetType: 'individual' | 'all' （'group' は今回エラー）
-//   targetIds:  individual 時は studentId 配列 or カンマ区切り文字列。all 時は無視
-//   content:    メッセージ本文（500 文字まで）
-// 戻り値: { ok, messageId } または { ok:false, message }
+// params: { teacherId, password, targetType, targetIds, content }
+//   teacherId/password: _verifyTeacher で認証。送信者の表示名は Teachers シートの
+//                       displayNickname を送信時点でスナップショット保存。
+//                       ⚠️ params.senderId は受け付けない（なりすまし防止 / Phase 1）。
+//                          認証された teacherId を強制的に senderId として使用する。
+//   targetType: 'individual' | 'all' （'group' は明示的にエラー）
+//                'all' は admin（塾長）のみ可能（Phase 2 で _requireAdmin ガード）。
+//                'individual' は admin / teacher 両方可能。
+//   targetIds:  individual 時は studentId 配列 or カンマ区切り文字列。all 時は無視。
+//   content:    メッセージ本文（TEACHER_MESSAGE_MAX_LEN = 500 文字まで）。
+// 戻り値: { ok, messageId, senderNickname, recipientCount, targetType }
+//         または { ok:false, message }
+// シート自動初期化：冒頭で ensureTeacherMessagesSheets() を呼ぶため事前セットアップ不要（Phase 5）。
+// 操作ログ：成功時に _logTeacherAction で MESSAGE_SEND を記録（Phase 5、本文全文を含む）。
 function sendTeacherMessage(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
