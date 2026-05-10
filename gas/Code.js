@@ -6105,7 +6105,7 @@ function adminAddTeacher(params) {
 
     sh.appendRow(newRow);
 
-    // TODO Phase 4: _logTeacherAction(_teacher.teacherId, 'TEACHER_ADD', newTeacherId, { role: role, name: teacherName });
+    _logTeacherAction(_teacher.teacherId, 'TEACHER_ADD', newTeacherId, 'success', { role: role, name: teacherName });
     return { ok: true, teacherId: newTeacherId, initialPassword: initialPassword };
   } catch (err) {
     console.error('[adminAddTeacher]', err);
@@ -6142,7 +6142,7 @@ function adminResetTeacherPassword(params) {
     sh.getRange(rowIdx, iPw  + 1).setValue(_passwordHash(initialPassword, targetTeacherId));
     sh.getRange(rowIdx, iFlc + 1).setValue(false);
 
-    // TODO Phase 4: _logTeacherAction(_teacher.teacherId, 'TEACHER_PASSWORD_RESET', targetTeacherId, {});
+    _logTeacherAction(_teacher.teacherId, 'TEACHER_PASSWORD_RESET', targetTeacherId, 'success', {});
     return { ok: true, initialPassword: initialPassword };
   } catch (err) {
     console.error('[adminResetTeacherPassword]', err);
@@ -6190,7 +6190,7 @@ function adminSetTeacherActive(params) {
 
     sh.getRange(rowIdx, iAct + 1).setValue(!!active);
 
-    // TODO Phase 4: _logTeacherAction(_teacher.teacherId, 'TEACHER_SET_ACTIVE', targetTeacherId, { active: !!active });
+    _logTeacherAction(_teacher.teacherId, 'TEACHER_SET_ACTIVE', targetTeacherId, 'success', { active: !!active });
     return { ok: true };
   } catch (err) {
     console.error('[adminSetTeacherActive]', err);
@@ -6240,7 +6240,7 @@ function adminSetTeacherRole(params) {
 
     sh.getRange(rowIdx, iRole + 1).setValue(role);
 
-    // TODO Phase 4: _logTeacherAction(_teacher.teacherId, 'TEACHER_SET_ROLE', targetTeacherId, { role: role });
+    _logTeacherAction(_teacher.teacherId, 'TEACHER_SET_ROLE', targetTeacherId, 'success', { role: role });
     return { ok: true };
   } catch (err) {
     console.error('[adminSetTeacherRole]', err);
@@ -6276,7 +6276,7 @@ function adminUpdateTeacherDisplayNickname(params) {
 
     sh.getRange(rowIdx, iNick + 1).setValue(displayNickname);
 
-    // TODO Phase 4: _logTeacherAction(_teacher.teacherId, 'TEACHER_UPDATE_NICKNAME', targetTeacherId, { displayNickname: displayNickname });
+    _logTeacherAction(_teacher.teacherId, 'TEACHER_UPDATE_NICKNAME', targetTeacherId, 'success', { displayNickname: displayNickname });
     return { ok: true, displayNickname: displayNickname };
   } catch (err) {
     console.error('[adminUpdateTeacherDisplayNickname]', err);
@@ -6499,6 +6499,18 @@ function executeManualHpGrant(params) {
     _invalidateCache('cache_students_values');
     if (touchedSpecial) _invalidateCache('cache_special_accounts_values');
     _invalidateCache('cache_ranking_last_week');
+
+    // Phase 4 操作ログ：複数生徒を 1 行に集約（targetTeacherId は空、details に明細）。
+    // ここまで来た時点で全副作用（HP 加算 + HPLog 追記 + cache invalidate）が確定済み。
+    _logTeacherAction(_teacher.teacherId, 'MANUAL_HP_GRANT', '', 'success', {
+      studentIds:    normIds,
+      rawHp:         rawHp,
+      applyBonus:    applyBonus,
+      reason:        reason,
+      count:         updates.length,
+      notFoundCount: notFound.length,
+      totalHp:       updates.reduce(function(s,u){return s + u.hpGained;}, 0)
+    });
 
     let totalHp = 0;
     const results = updates.map(function(u){
