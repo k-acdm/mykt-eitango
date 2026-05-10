@@ -2356,6 +2356,86 @@
   // 状態：直近の絞り込み条件 + ページ番号を保持。「絞り込み」押下で page=1 リセット。
   var _actionLogState = { dateFrom: '', dateTo: '', actionFilter: 'ALL', page: 1 };
 
+  // -------------------------------------------------------------
+  // 氏名解決キャッシュ（操作ログ画面で生徒ID・講師ID に氏名併記用）
+  // -------------------------------------------------------------
+  // null = 未取得、{}（空）= 取得済みで空 or API 失敗時のフォールバック、{id: name} = 通常
+  // ページリロード（Ctrl+F5）でキャッシュリセット → 講師管理後の最新氏名を反映可能
+  var _studentNameCache = null;
+  var _teacherNameCache = null;
+  var _nameCachesLoadingPromise = null; // 取得中の重複呼び出し防止
+
+  // 操作ログ画面に入った時に一度だけ呼ばれる：生徒一覧 + 講師一覧を並列取得してメモリキャッシュ
+  // 失敗時は空キャッシュにフォールバック（_resolveXxxName が ID のみ表示で動作継続）
+  function _ensureNameCaches() {
+    if (_studentNameCache != null && _teacherNameCache != null) {
+      return Promise.resolve();
+    }
+    if (_nameCachesLoadingPromise) return _nameCachesLoadingPromise;
+    _nameCachesLoadingPromise = Promise.all([
+      adminGasGet({ action: 'getStudentsListForGrant', _ts: Date.now() }).catch(function(){ return null; }),
+      adminGasGet({ action: 'adminListTeachers',         _ts: Date.now() }).catch(function(){ return null; })
+    ]).then(function(results) {
+      var studentsRes = results[0];
+      var teachersRes = results[1];
+      var stuMap = {};
+      if (studentsRes && studentsRes.ok && Array.isArray(studentsRes.students)) {
+        studentsRes.students.forEach(function(s) {
+          var sid = String(s.studentId || '').trim();
+          if (sid) stuMap[sid] = String(s.name || '').trim();
+        });
+      }
+      var tchMap = {};
+      if (teachersRes && teachersRes.ok && Array.isArray(teachersRes.teachers)) {
+        teachersRes.teachers.forEach(function(t) {
+          var tid = String(t.teacherId || '').trim();
+          if (tid) tchMap[tid] = String(t.teacherName || '').trim();
+        });
+      }
+      _studentNameCache = stuMap;
+      _teacherNameCache = tchMap;
+      _nameCachesLoadingPromise = null;
+    }).catch(function() {
+      // フォールバック：空キャッシュ（ID のみ表示）
+      if (_studentNameCache == null) _studentNameCache = {};
+      if (_teacherNameCache == null) _teacherNameCache = {};
+      _nameCachesLoadingPromise = null;
+    });
+    return _nameCachesLoadingPromise;
+  }
+
+  // 生徒ID → "氏名（ID）" 形式の HTML 安全文字列。
+  // 削除済み・見つからない場合は「（削除済 1004）」、キャッシュ未取得時は ID のみ。
+  function _resolveStudentName(studentId) {
+    var sid = String(studentId || '').trim();
+    if (!sid) return '';
+    if (!_studentNameCache) return _esc(sid);  // 未取得 → ID のみ
+    var name = _studentNameCache[sid];
+    if (name) return _esc(name) + '（' + _esc(sid) + '）';
+    return '（削除済 ' + _esc(sid) + '）';
+  }
+
+  // 講師ID → "ID 氏名" 形式の HTML 安全文字列。
+  // 講師管理画面と整合（teacherName を使用、displayNickname は使わない）。
+  function _resolveTeacherName(teacherId) {
+    var tid = String(teacherId || '').trim();
+    if (!tid) return '';
+    if (!_teacherNameCache) return _esc(tid);  // 未取得 → ID のみ
+    var name = _teacherNameCache[tid];
+    if (name) return _esc(tid) + ' ' + _esc(name);
+    return '（削除済 ' + _esc(tid) + '）';
+  }
+
+  // 生徒ID 配列 → "氏名（ID）, 氏名（ID）..." 形式。10 名超は省略表示。
+  function _renderStudentIdList(ids) {
+    if (!Array.isArray(ids) || ids.length === 0) return '';
+    if (ids.length <= 10) {
+      return ids.map(_resolveStudentName).join(', ');
+    }
+    var first = ids.slice(0, 5).map(_resolveStudentName).join(', ');
+    return first + ' 他 ' + (ids.length - 5) + '名';
+  }
+
   // action 名 → 日本語ラベル
   var _ACTION_LABELS = {
     TEACHER_ADD:              '講師追加',
@@ -2410,7 +2490,7 @@
         if (d.totalHp != null)       parts.push('合計：' + d.totalHp + 'HP');
         if (d.reason)                parts.push('理由：' + _esc(d.reason));
         if (Array.isArray(d.studentIds) && d.studentIds.length) {
-          parts.push('生徒ID：<code>' + _esc(d.studentIds.join(', ')) + '</code>');
+          parts.push('対象生徒：' + _renderStudentIdList(d.studentIds));
         }
         break;
       case 'MESSAGE_SEND':
@@ -2420,7 +2500,7 @@
         } else if (d.targetType === 'individual') {
           parts.push('宛先：<strong>個別</strong>');
           if (Array.isArray(d.studentIds) && d.studentIds.length) {
-            parts.push('受信者：<code>' + _esc(d.studentIds.join(', ')) + '</code>');
+            parts.push('受信者：' + _renderStudentIdList(d.studentIds));
           }
         } else if (d.targetType) {
           parts.push('宛先：' + _esc(d.targetType));
@@ -2432,14 +2512,14 @@
         break;
       case 'LISON_RECORDING_PLAY':
         // リスオン録音再生：誰が・どの生徒の・どの級の録音を再生したか
-        if (d.sid)    parts.push('対象生徒：<code>' + _esc(d.sid) + '</code>');
+        if (d.sid)    parts.push('対象生徒：' + _resolveStudentName(d.sid));
         if (d.level)  parts.push('級：' + _esc(d.level));
         if (d.fileId) parts.push('fileId：<code>' + _esc(d.fileId) + '</code>');
         break;
       case 'KISO_PHOTO_VIEW':
       case 'KISO_PHOTO_DOWNLOAD':
         // 基礎計算 答案写真の閲覧 / DL：誰が・どの生徒の・どのセッションの写真か
-        if (d.sid)       parts.push('対象生徒：<code>' + _esc(d.sid) + '</code>');
+        if (d.sid)       parts.push('対象生徒：' + _resolveStudentName(d.sid));
         if (d.sessionId) parts.push('セッション：<code>' + _esc(d.sessionId) + '</code>');
         if (d.fileId)    parts.push('fileId：<code>' + _esc(d.fileId) + '</code>');
         break;
@@ -2508,14 +2588,18 @@
     if (pagerEl)   pagerEl.style.display = 'none';
 
     var s = _actionLogState;
-    adminGasGet({
-      action: 'getTeacherActionsList',
-      dateFrom: s.dateFrom,
-      dateTo:   s.dateTo,
-      actionFilter: s.actionFilter,
-      page: s.page,
-      pageSize: 50,
-      _ts: Date.now()
+    // 氏名解決キャッシュを先に確保（取得済みなら即解決、未取得なら 1 回だけ取りに行く）
+    // 取得失敗してもフォールバック（ID のみ表示）で続行されるため、_renderActionLog は必ず動く。
+    _ensureNameCaches().then(function() {
+      return adminGasGet({
+        action: 'getTeacherActionsList',
+        dateFrom: s.dateFrom,
+        dateTo:   s.dateTo,
+        actionFilter: s.actionFilter,
+        page: s.page,
+        pageSize: 50,
+        _ts: Date.now()
+      });
     }).then(function(res) {
       if (!res || !res.ok) {
         var em = (res && res.message) ? res.message : '取得に失敗しました';
@@ -2566,11 +2650,14 @@
       var resCls = (it.result === 'success') ? 'success' : (it.result === 'failure' ? 'failure' : '');
       var resLabel = (it.result === 'success') ? '✅ 成功' : (it.result === 'failure' ? '❌ 失敗' : _esc(it.result || ''));
       var actionLabel = _actionLabel(it.action);
+      // 実行者・対象列に氏名併記（_resolveTeacherName は内部で _esc 済み、HTML 安全）
+      var actorHtml = it.actorTeacherId ? _resolveTeacherName(it.actorTeacherId) : '';
+      var targetHtml = it.targetTeacherId ? _resolveTeacherName(it.targetTeacherId) : '-';
       return '<tr>' +
         '<td class="col-ts" data-label="日時">' + _esc(it.timestamp || '') + '</td>' +
-        '<td class="col-actor" data-label="実行者">' + _esc(it.actorTeacherId || '') + '</td>' +
+        '<td class="col-actor" data-label="実行者">' + actorHtml + '</td>' +
         '<td class="col-action" data-label="操作">' + _esc(actionLabel) + '</td>' +
-        '<td class="col-target" data-label="対象">' + _esc(it.targetTeacherId || '-') + '</td>' +
+        '<td class="col-target" data-label="対象">' + targetHtml + '</td>' +
         '<td class="col-result ' + resCls + '" data-label="結果">' + resLabel + '</td>' +
         '<td class="col-details" data-label="詳細">' + _formatActionDetails(it) + '</td>' +
       '</tr>';
