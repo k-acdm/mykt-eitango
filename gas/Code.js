@@ -9831,9 +9831,12 @@ function migrateLisonRecordingsToPrivate(params) {
       const fid = fileIds[k];
       try {
         const file = DriveApp.getFileById(fid);
-        // setSharing(NONE, NONE) で完全非公開化。getFileById で取得できる時点で
-        // GAS オーナー（ふくちさん）からはアクセス可能。リンクを知る他者からのアクセスを遮断。
-        file.setSharing(DriveApp.Access.NONE, DriveApp.Permission.NONE);
+        // 完全非公開化：DriveApp.Access.PRIVATE = 「リンク共有解除、明示的に共有された
+        // 人のみアクセス可」状態。Permission.VIEW は明示共有先の権限指定（共有先が
+        // いない限り効果なし、オーナー = GAS スクリプトのみアクセス可になる）。
+        // ⚠️ DriveApp.Access.NONE は存在しない enum 値（undefined → エラー）。
+        //    PRIVATE が「リンクを知る誰でもアクセス」を解除する正しい値。
+        file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.VIEW);
         result.succeeded++;
       } catch (e) {
         result.failed++;
