@@ -360,8 +360,9 @@
   .lison-rec-dl-link:hover { background: #e2e8f0; }
   .lison-rec-player { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e5e7eb; display: none; }
   .lison-rec-player.active { display: block; }
-  .lison-rec-iframe { width: 100%; height: 80px; border: 0; border-radius: 6px; background: #f8fafc; }
-  @media (max-width: 480px) { .lison-rec-iframe { height: 70px; } }
+  /* Phase 6：Drive iframe → <audio> + Blob URL 方式に変更（DL 抑止） */
+  .lison-rec-audio { width: 100%; height: 40px; display: block; }
+  @media (max-width: 480px) { .lison-rec-audio { height: 38px; } }
   .lison-rec-fallback { font-size: 12px; color: #94a3b8; margin-top: 6px; }
   .lison-students-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
   .lison-students-table th, .lison-students-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; text-align: left; font-size: 14px; }
@@ -3060,19 +3061,15 @@
         var hpLabel = (Number(s.hpGained) > 0) ? ('+' + Number(s.hpGained) + 'HP') : '本日2回目以降';
         var fid = String(s.fileId || '').trim();
         var hasFile = !!fid;
-        // Drive 公式埋め込みプレイヤー（iframe）。<audio src="uc?export=download"> は
-        // Content-Disposition: attachment が付くため audio として読み込めない。
-        // /preview は Drive 側でブラウザ対応形式に再エンコードして配信するため、
-        // iPad Safari でも webm 録音が再生できる副次効果あり。
-        var previewUrl = hasFile ? ('https://drive.google.com/file/d/' + encodeURIComponent(fid) + '/preview') : '';
-        var dlUrl      = hasFile ? ('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(fid)) : '';
-        var viewUrl    = hasFile ? ('https://drive.google.com/file/d/' + encodeURIComponent(fid) + '/view') : '';
+        // Phase 6：Drive 直アクセスを禁止し、GAS プロキシ getLisonRecordingBlob 経由で
+        // base64 を取得 → Blob URL 経由で <audio> に流し込む方式に変更。
+        // 「⬇️ ダウンロード」「🔗 Drive」リンクは削除（DL 抑止のため）。
+        // <audio controlsList="nodownload"> でブラウザ標準の DL ボタンも抑止。
+        var fidEsc = String(fid).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         var actions = '';
         if (hasFile) {
           actions =
-            '<button type="button" class="lison-rec-play-btn" id="lison-rec-btn-' + idx + '" onclick="toggleLisonRecPlayer(' + idx + ')">▶️ 再生</button>' +
-            '<a class="lison-rec-dl-link" href="' + _esc(dlUrl) + '" target="_blank" rel="noopener" download>⬇️ ダウンロード</a>' +
-            '<a class="lison-rec-dl-link" href="' + _esc(viewUrl) + '" target="_blank" rel="noopener">🔗 Drive</a>';
+            '<button type="button" class="lison-rec-play-btn" id="lison-rec-btn-' + idx + '" onclick="toggleLisonRecPlayer(' + idx + ', \'' + fidEsc + '\')">▶️ 再生</button>';
         } else {
           actions = '<span style="color:#94a3b8;font-size:12px">⚠ ファイルID取得不可</span>';
         }
@@ -3085,12 +3082,12 @@
                    '<span class="lison-rec-actions">' + actions + '</span>' +
                  '</div>' +
                  (hasFile ? (
-                   '<div class="lison-rec-player" id="lison-rec-player-' + idx + '" data-src="' + _esc(previewUrl) + '">' +
-                     // iframe は再生ボタン押下時に初めて src を入れる（オンデマンドロード、N 個同時ロード回避）。
-                     // ★ 初期 src は about:blank（空文字 "" は「現在のドキュメント URL」に解決され
-                     //    admin.html 自身を再帰ロードしてしまうため厳禁）
-                     '<iframe class="lison-rec-iframe" id="lison-rec-iframe-' + idx + '" src="about:blank" allow="autoplay" loading="lazy"></iframe>' +
-                     '<div class="lison-rec-fallback">※ Google ドライブのプレイヤーで再生されます。再生できない場合は「⬇️ ダウンロード」をご利用ください。</div>' +
+                   '<div class="lison-rec-player" id="lison-rec-player-' + idx + '">' +
+                     // <audio> は再生ボタン押下時に初めて src を入れる（オンデマンドロード、
+                     // N 個同時取得を回避。base64 取得は GAS UrlFetchApp 経由で 1〜2 秒の待ち時間あり）。
+                     // controlsList="nodownload" でブラウザ標準のダウンロードメニューを抑止。
+                     '<audio class="lison-rec-audio" id="lison-rec-audio-' + idx + '" controls controlsList="nodownload" preload="none"></audio>' +
+                     '<div class="lison-rec-fallback">※ 録音は配信専用です。ダウンロードはできません。</div>' +
                    '</div>'
                  ) : '') +
                '</div>';
@@ -3101,29 +3098,82 @@
     });
   }
 
-  // 再生ボタンで Drive iframe プレイヤーを表示／隠す。
-  // 初回表示時に data-src を iframe.src へコピー（オンデマンドロード）。
-  // 再度押すと iframe.src を about:blank に戻して停止 + 折りたたみ。
-  // ★ iframe.src への代入は無条件（前回ガード `!iframe.src` は about:blank も
-  //   ドキュメント URL も truthy となるため常に false で機能しなかった）。
-  // ★ リセット時の代入は about:blank（空文字 "" は admin.html 自身を再ロードする）。
-  function toggleLisonRecPlayer(idx) {
+  // Phase 6：再生ボタンで <audio> + Blob URL プレイヤーを表示／隠す。
+  // 初回展開時に GAS プロキシ getLisonRecordingBlob で base64 取得 → Blob → Blob URL
+  // を生成して <audio src> に流し込む。再閉時は URL.revokeObjectURL でメモリ解放。
+  //
+  // ※ 旧仕様（Drive iframe + /preview）は Phase 6 で setSharing(NONE) 化したため動かない。
+  //    DL リンクと Drive リンクは UI から削除済（撮影者・端末を問わず DL 不可）。
+  //    完全な DL 抑止は技術的に不可能（DevTools で Blob URL を抜き取れば DL 可）だが、
+  //    UI 上の DL ボタン削除 + controlsList="nodownload" でカジュアル DL は抑止する。
+  var _lisonRecBlobUrls = {};  // idx → Blob URL（再閉時に revokeObjectURL するため）
+
+  function toggleLisonRecPlayer(idx, fileId) {
     var el = document.getElementById('lison-rec-player-' + idx);
     if (!el) return;
-    var iframe = document.getElementById('lison-rec-iframe-' + idx);
     var btn = document.getElementById('lison-rec-btn-' + idx);
     var willActivate = !el.classList.contains('active');
-    if (willActivate) {
-      var src = el.getAttribute('data-src') || '';
-      if (iframe && src) iframe.src = src;
-      el.classList.add('active');
-      if (btn) btn.textContent = '⏹ 閉じる';
-    } else {
-      el.classList.remove('active');
-      // 再生停止のため iframe をリセット（次回 active 化時に再ロード）
-      if (iframe) iframe.src = 'about:blank';
-      if (btn) btn.textContent = '▶️ 再生';
+    if (!willActivate) { _closeLisonRecPlayer(idx); return; }
+    if (!fileId) { showToast('ファイル ID が取得できません', 'error'); return; }
+
+    // ボタンをローディング表示にして、プレイヤー領域を先に開く
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 取得中…'; }
+    el.classList.add('active');
+
+    adminGasGet({ action: 'getLisonRecordingBlob', fileId: fileId }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '取得に失敗しました';
+        if (_handleAdminApiError(em)) { _closeLisonRecPlayer(idx); return; }
+        showToast(em, 'error');
+        _closeLisonRecPlayer(idx);
+        return;
+      }
+      // base64 → Uint8Array → Blob → Blob URL
+      try {
+        var b64 = res.base64 || '';
+        var mime = res.mime || 'audio/webm';
+        var bin = atob(b64);
+        var len = bin.length;
+        var bytes = new Uint8Array(len);
+        for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+        var blob = new Blob([bytes], { type: mime });
+        // 既存 Blob URL があれば解放してから新規生成（再生→閉じる→再生サイクル対応）
+        if (_lisonRecBlobUrls[idx]) {
+          try { URL.revokeObjectURL(_lisonRecBlobUrls[idx]); } catch (e) {}
+        }
+        var blobUrl = URL.createObjectURL(blob);
+        _lisonRecBlobUrls[idx] = blobUrl;
+        var audio = document.getElementById('lison-rec-audio-' + idx);
+        if (audio) {
+          audio.src = blobUrl;
+          try { audio.load(); } catch (e) {}
+        }
+        if (btn) { btn.disabled = false; btn.textContent = '⏹ 閉じる'; }
+      } catch (e) {
+        showToast('音声データの変換に失敗しました', 'error');
+        _closeLisonRecPlayer(idx);
+      }
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+      _closeLisonRecPlayer(idx);
+    });
+  }
+
+  // 再閉処理：audio 停止 + src クリア + Blob URL 解放 + ボタン文言戻し
+  function _closeLisonRecPlayer(idx) {
+    var el = document.getElementById('lison-rec-player-' + idx);
+    var audio = document.getElementById('lison-rec-audio-' + idx);
+    var btn = document.getElementById('lison-rec-btn-' + idx);
+    if (audio) {
+      try { audio.pause(); } catch (e) {}
+      try { audio.removeAttribute('src'); audio.load(); } catch (e) {}
     }
+    if (_lisonRecBlobUrls[idx]) {
+      try { URL.revokeObjectURL(_lisonRecBlobUrls[idx]); } catch (e) {}
+      delete _lisonRecBlobUrls[idx];
+    }
+    if (el) el.classList.remove('active');
+    if (btn) { btn.disabled = false; btn.textContent = '▶️ 再生'; }
   }
 
   // =============================================================

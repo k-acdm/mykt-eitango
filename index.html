@@ -5697,8 +5697,13 @@
     // SFX をマイク取得前に unlock してしまうと OS が確認ダイアログを出さないことがあるので注意
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
       _lisonState.mediaStream = stream;
-      // ブラウザが対応する MIME を優先順に試す（iOS Safari は audio/mp4、Chrome/Firefox は audio/webm が多い）
-      var preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/aac', 'audio/ogg'];
+      // ブラウザが対応する MIME を優先順に試す。
+      // Phase 6：mp4 を最優先に変更。理由：
+      //   1) iPad Safari は録音 mp4 のみ対応 + 再生 mp4/webm 両方 OK
+      //   2) Chrome/Edge も最近 mp4 録音対応（recently サポート）
+      //   3) Phase 6 の <audio> 再生方式で iPad が新規録音を再生できるようになる
+      // 過去の webm 録音は iPad 再生不可（許容済）。新規録音は iPad/PC 両方で再生可能。
+      var preferred = ['audio/mp4', 'audio/mp4;codecs=mp4a.40.2', 'audio/webm;codecs=opus', 'audio/webm', 'audio/aac', 'audio/ogg'];
       var chosenMime = '';
       if (typeof MediaRecorder.isTypeSupported === 'function') {
         for (var i = 0; i < preferred.length; i++) {
