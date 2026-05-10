@@ -1028,6 +1028,8 @@ function doGet(e) {
       else if (action === 'getKisoRetryQuestions')   result = getKisoRetryQuestions(params.sessionId);
       else if (action === 'getKisoTodayRawHP')       result = getKisoTodayRawHP(params);
       else if (action === 'getKisoPhotosList')       result = getKisoPhotosList(params);
+      // 基礎計算 履歴一覧（生徒画面 screen-kiso-history、カンジー方式踏襲）
+      else if (action === 'getKisoHistoryForStudent') result = getKisoHistoryForStudent(params);
       // Phase 6: 基礎計算 答案写真の認証付き base64 配信。
       //   getKisoPhotoBlob          → admin/teacher 用（閲覧 + DL 可、UI 側で DL ボタン表示）
       //   getKisoPhotoBlobForStudent → 生徒 Mode B 用（sid×fileId 突合、閲覧のみ）
@@ -1121,6 +1123,8 @@ function doPost(e) {
     // Phase 6: 基礎計算 答案写真 base64 配信（doGet にも保護登録、両方セットで保持）。
     else if (action === 'getKisoPhotoBlob')          result = getKisoPhotoBlob(params);
     else if (action === 'getKisoPhotoBlobForStudent') result = getKisoPhotoBlobForStudent(params);
+    // 基礎計算 履歴一覧（doGet にも保護登録、両方セットで保持）
+    else if (action === 'getKisoHistoryForStudent')  result = getKisoHistoryForStudent(params);
     // 管理画面: リスオン問題の週単位一括登録（5 レベル × 3 問 + 英文 / 和訳で URL 長を
     // 超えるため POST 必須、CLAUDE.md #93 と同パターン）。
     else if (action === 'adminSaveLisonContentsWeek') result = adminSaveLisonContentsWeek(params);
@@ -4598,6 +4602,194 @@ function migrateKisoPhotosToPrivate(params) {
     result.ok = false;
     result.elapsedSec = (Date.now() - t0) / 1000;
     return result;
+  }
+}
+
+// =============================================
+// 基礎計算 履歴一覧 API（生徒画面 screen-kiso-history 用）
+// =============================================
+// 入力: { studentId, limit?: 50 }
+// 出力: { ok, items:[{
+//          sessionId, rank, rankName, count, status,
+//          correctCount, total, hpEarned, photoFileId,
+//          startedAt, completedAt,
+//          results:[{ no, questionId, problemLatex, answerCanonical,
+//                     studentAnswer:'', correct }]
+//        }, ...], total }
+//
+// 設計：
+// - KisoSessions シートの status='passed' / 'failed_retry' のみ
+//   ('in_progress' / 'abandoned' は除外、生徒の振り返り対象外)
+// - studentId で絞り込み + completedAt 降順
+// - results 配列は wrongIds / questionIds / problemLatexes から構築
+//   - studentAnswer は KisoSessions に永続保存されていないため空文字
+//     （フロント側の _showKisoReview は「履歴データには残っていません」表示）
+//   - answerCanonical は KisoQuestions シートからルックアップ
+// - photoFileId は KisoPhotos シートから sessionId + photoType='answer' で取得
+//
+// パフォーマンス考慮：
+// - KisoQuestions / KisoPhotos のルックアップは Map にキャッシュして O(N+M+K)
+// - 末尾 N 行読みではなく全件スキャン（KisoSessions は 1000 行台まで現実的）
+function getKisoHistoryForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const limit = Math.max(1, Math.min(200, Number(params && params.limit) || 50));
+
+    const ss = _ss();
+    const sesSh = ss.getSheetByName(SHEET_KISO_SESSIONS);
+    if (!sesSh || sesSh.getLastRow() < 2) return { ok: true, items: [], total: 0 };
+
+    const sesValues = sesSh.getDataRange().getValues();
+    const sH = sesValues[0];
+    const cSesId    = sH.indexOf('sessionId');
+    const cSesSid   = sH.indexOf('studentId');
+    const cSesRank  = sH.indexOf('rank');
+    const cSesCount = sH.indexOf('count');
+    const cSesQids  = sH.indexOf('questionIds');
+    const cSesStat  = sH.indexOf('status');
+    const cSesStart = sH.indexOf('startedAt');
+    const cSesEnd   = sH.indexOf('completedAt');
+    const cSesHp    = sH.indexOf('hpEarned');
+    const cSesWrong = sH.indexOf('wrongIds');
+    const cSesLatex = sH.indexOf('problemLatexes');
+    if (cSesId < 0 || cSesSid < 0 || cSesStat < 0) {
+      return { ok: false, message: 'KisoSessions シートのヘッダー構造が想定外です' };
+    }
+
+    // 1. KisoSessions から sid + status='passed'/'failed_retry' を抽出
+    const sessions = [];
+    for (let i = 1; i < sesValues.length; i++) {
+      const r = sesValues[i];
+      if (String(r[cSesSid] || '').trim() !== sid) continue;
+      const status = String(r[cSesStat] || '').trim();
+      if (status !== 'passed' && status !== 'failed_retry') continue;
+      const completedAtRaw = (cSesEnd >= 0) ? r[cSesEnd] : '';
+      const completedAt = (completedAtRaw instanceof Date)
+        ? Utilities.formatDate(completedAtRaw, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(completedAtRaw || '');
+      const startedAtRaw = (cSesStart >= 0) ? r[cSesStart] : '';
+      const startedAt = (startedAtRaw instanceof Date)
+        ? Utilities.formatDate(startedAtRaw, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(startedAtRaw || '');
+      sessions.push({
+        sessionId:   String(r[cSesId] || ''),
+        rank:        Number(r[cSesRank]) || 0,
+        count:       Number(r[cSesCount]) || 0,
+        status:      status,
+        startedAt:   startedAt,
+        completedAt: completedAt,
+        hpEarned:    Number(r[cSesHp]) || 0,
+        questionIds: String((cSesQids  >= 0) ? r[cSesQids]  : ''),
+        wrongIds:    String((cSesWrong >= 0) ? r[cSesWrong] : ''),
+        problemLatexes: String((cSesLatex >= 0) ? r[cSesLatex] : '')
+      });
+    }
+    if (sessions.length === 0) return { ok: true, items: [], total: 0 };
+
+    // completedAt 降順 → limit 件で打ち切り
+    sessions.sort(function(a, b){
+      return a.completedAt < b.completedAt ? 1 : (a.completedAt > b.completedAt ? -1 : 0);
+    });
+    const trimmed = sessions.slice(0, limit);
+
+    // 2. KisoQuestions シートから rank → rankName マップ + questionId → {problemLatex, answerCanonical} マップ
+    const qSh = ss.getSheetByName(SHEET_KISO_QUESTIONS);
+    const rankNameMap = {};       // rank → rankName
+    const questionMap = {};       // questionId → { problemLatex, answerCanonical }
+    if (qSh && qSh.getLastRow() >= 2) {
+      const qValues = qSh.getDataRange().getValues();
+      const qH = qValues[0];
+      const qCQid  = qH.indexOf('questionId');
+      const qCRank = qH.indexOf('rank');
+      const qCName = qH.indexOf('rankName');
+      const qCLtx  = qH.indexOf('problemLatex');
+      const qCCan  = qH.indexOf('answerCanonical');
+      if (qCQid >= 0) {
+        for (let i = 1; i < qValues.length; i++) {
+          const qid = String(qValues[i][qCQid] || '').trim();
+          if (!qid) continue;
+          const rk = (qCRank >= 0) ? (Number(qValues[i][qCRank]) || 0) : 0;
+          const rn = (qCName >= 0) ? String(qValues[i][qCName] || '').trim() : '';
+          if (rk && rn && !rankNameMap[rk]) rankNameMap[rk] = rn;
+          questionMap[qid] = {
+            problemLatex:    (qCLtx  >= 0) ? String(qValues[i][qCLtx]  || '') : '',
+            answerCanonical: (qCCan  >= 0) ? String(qValues[i][qCCan]  || '') : ''
+          };
+        }
+      }
+    }
+
+    // 3. KisoPhotos シートから sessionId → photoFileId（photoType='answer' のみ）
+    const pSh = ss.getSheetByName(SHEET_KISO_PHOTOS);
+    const photoMap = {};
+    if (pSh && pSh.getLastRow() >= 2) {
+      const pValues = pSh.getDataRange().getValues();
+      const pH = pValues[0];
+      const pCSes  = pH.indexOf('sessionId');
+      const pCFid  = pH.indexOf('driveFileId');
+      const pCType = pH.indexOf('photoType');
+      if (pCSes >= 0 && pCFid >= 0) {
+        for (let i = 1; i < pValues.length; i++) {
+          const ses = String(pValues[i][pCSes] || '').trim();
+          if (!ses) continue;
+          const ptype = (pCType >= 0) ? String(pValues[i][pCType] || '').trim() : 'answer';
+          if (ptype && ptype !== 'answer') continue; // 途中式は除外（メイン解答のみ）
+          if (photoMap[ses]) continue; // 最初の 1 件で十分（同じ session に複数 answer はないはず）
+          photoMap[ses] = String(pValues[i][pCFid] || '');
+        }
+      }
+    }
+
+    // 4. 各セッションについて results 配列を構築
+    const items = trimmed.map(function(s) {
+      let qids = [];
+      let wrongs = [];
+      let latexes = [];
+      try { qids   = s.questionIds ? JSON.parse(s.questionIds) : []; } catch (e) { qids = []; }
+      try { wrongs = s.wrongIds    ? JSON.parse(s.wrongIds)    : []; } catch (e) { wrongs = []; }
+      try { latexes = s.problemLatexes ? JSON.parse(s.problemLatexes) : []; } catch (e) { latexes = []; }
+      const wrongSet = {};
+      for (let k = 0; k < wrongs.length; k++) wrongSet[String(wrongs[k])] = true;
+
+      const total = qids.length || s.count || 0;
+      const correctCount = total - wrongs.length;
+      const results = qids.map(function(qid, idx) {
+        const qstr = String(qid);
+        const meta = questionMap[qstr] || {};
+        // problemLatex は KisoSessions の保存値（problemLatexes）優先、無ければ KisoQuestions から
+        const latex = (Array.isArray(latexes) && latexes[idx]) ? String(latexes[idx]) : (meta.problemLatex || '');
+        return {
+          no:              idx + 1,
+          questionId:      qstr,
+          problemLatex:    latex,
+          answerCanonical: meta.answerCanonical || '',
+          studentAnswer:   '',  // KisoSessions に永続保存されていないため空（フロント側でフォールバック表示）
+          correct:         !wrongSet[qstr]
+        };
+      });
+
+      const rankName = rankNameMap[s.rank] || ('rank ' + s.rank);
+      return {
+        sessionId:    s.sessionId,
+        rank:         s.rank,
+        rankName:     rankName,
+        count:        s.count,
+        status:       s.status,
+        correctCount: correctCount,
+        total:        total,
+        hpEarned:     s.hpEarned,
+        photoFileId:  photoMap[s.sessionId] || '',
+        startedAt:    s.startedAt,
+        completedAt:  s.completedAt,
+        results:      results
+      };
+    });
+
+    return { ok: true, items: items, total: sessions.length };
+  } catch (err) {
+    console.error('[getKisoHistoryForStudent]', err);
+    return { ok: false, message: String(err) };
   }
 }
 
