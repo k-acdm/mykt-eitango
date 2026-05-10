@@ -1703,7 +1703,8 @@
       <div class="mate-bubble" id="mate-bubble-kiso-rank">どの単元をやる？</div>
     </div>
     <div id="kiso-rank-list"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:16px" onclick="showKisoHistory()">📖 過去の実施履歴を見る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">← ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -1893,6 +1894,8 @@
   <header><h1>🧮 採点結果</h1><span id="kiso-result-meta"></span></header>
   <div class="container" style="padding-top:16px">
     <div id="kiso-result-banner"></div>
+    <!-- 撮影した解答用紙の写真表示（自分の sid に紐付く写真のみ閲覧可、DL 不可） -->
+    <div id="kiso-result-photo"></div>
     <div id="kiso-result-list" class="kiso-result-list"></div>
     <div id="kiso-result-actions"></div>
   </div>
@@ -1953,6 +1956,16 @@
     <div id="kiso-review-summary"></div>
     <div id="kiso-review-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="closeKisoReview()">← 戻る</button>
+  </div>
+</div>
+
+<!-- 基礎計算 履歴一覧画面（採点済の振り返り学習用、カンジー方式踏襲） -->
+<div id="screen-kiso-history" class="screen">
+  <header><h1>📖 基礎計算 履歴</h1><span id="kiso-history-student"></span></header>
+  <div class="container" style="padding-top:14px">
+    <div style="font-size:12px;color:#94a3b8;margin-bottom:12px;text-align:center">※ 自分の履歴のみ閲覧できます。タップで内容を確認できます。</div>
+    <div id="kiso-history-list"><div class="loading">⏳ 読み込み中...</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showKisoRankSelect()">← 単元選択に戻る</button>
   </div>
 </div>
 
@@ -4566,8 +4579,11 @@
   // 自分の sid に紐付く写真のみ取得可能。サーバ側で sid×fileId 突合チェックがあるため、
   // 他生徒の fileId を直接叩いても拒否される。
   // <img> の src に base64 dataUrl を埋め込む（DL ボタンは UI 側で追加しない、閲覧のみ）。
-  function _kisoLoadStudentPhoto(fileId) {
-    var wrap = document.getElementById('kiso-rev-photo-wrap');
+  //
+  // 汎用化（commit 6）：wrapElementId を 2 引数目で指定可能。省略時は Mode B 既存
+  // 'kiso-rev-photo-wrap'。結果画面用は 'kiso-result-photo-wrap' を渡す。
+  function _kisoLoadStudentPhoto(fileId, wrapElementId) {
+    var wrap = document.getElementById(wrapElementId || 'kiso-rev-photo-wrap');
     if (!wrap) return;
     if (!_studentId) {
       wrap.innerHTML = '<div class="kiso-rev-photo-fallback">📷 写真は表示できません<br><small>ログイン情報がありません</small></div>';
@@ -4597,9 +4613,10 @@
     var passed = !!sub.passed;
     var total = Number(sub.total) || (sub.results ? sub.results.length : 0);
     var correct = Number(sub.correctCount) || 0;
-    // メタ
+    // メタ：pos が数値 → 「N つ前」、文字列 → そのまま表示（履歴経由は '履歴'）
     var metaEl = document.getElementById('kiso-review-meta');
-    if (metaEl) metaEl.textContent = (entry.rankName || '') + '・' + entry.count + '題（' + pos + 'つ前）';
+    var posLabel = (typeof pos === 'number') ? (pos + 'つ前') : String(pos || '');
+    if (metaEl) metaEl.textContent = (entry.rankName || '') + '・' + entry.count + '題' + (posLabel ? '（' + posLabel + '）' : '');
     // サマリ
     var summaryEl = document.getElementById('kiso-review-summary');
     var pct = total > 0 ? Math.round((correct / total) * 100) : 0;
@@ -4703,6 +4720,8 @@
     _kisoState.hasWorkPhoto    = false;
     _kisoState.workPhotoBase64 = '';
     _kisoState.workPhotoIndex  = 0;
+    // commit 6：結果画面の写真表示用 state をリセット（再開時は写真も最初から撮り直しのため）
+    _kisoState.lastPhotoFileId = '';
     // selected も復元（_renderKisoResult のメタ表示で使う）
     var def = null;
     for (var i = 0; i < KISO_RANK_DEFS.length; i++) {
@@ -4715,6 +4734,93 @@
     document.getElementById('kiso-problem-meta-label').textContent = _kisoState.rank + '級・' + _kisoState.count + '題';
     _renderKisoProblemList();
     showScreen('screen-kiso-problem');
+  }
+
+  // -----------------------------------------------------
+  // 基礎計算 履歴一覧（screen-kiso-history、カンジー方式踏襲）
+  // -----------------------------------------------------
+  // サーバ側 getKisoHistoryForStudent から採点済セッションを取得して新しい順に表示。
+  // localStorage 駆動 Mode B（onKisoPastBtnClick、当日 + 前日 + 同一単元限定）の
+  // 補助として、過去全採点済を「振り返り学習」用に閲覧できる導線。
+  // タップで _showKisoReview に遷移 → Phase 6 commit 3 の写真表示が活用される。
+  var _kisoHistoryCache = {};
+
+  function showKisoHistory() {
+    showScreen('screen-kiso-history');
+    var stuEl = document.getElementById('kiso-history-student');
+    if (stuEl) stuEl.textContent = _studentId + ' さん';
+    var listEl = document.getElementById('kiso-history-list');
+    listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    _kisoHistoryCache = {};
+    cachedGasGet({ action:'getKisoHistoryForStudent', studentId:_studentId, limit:50 }).then(function(res){
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '通信エラー';
+        listEl.innerHTML = '<div class="error">読み込みに失敗しました：' + _kisoEsc(em) + '</div>';
+        return;
+      }
+      var items = res.items || [];
+      if (items.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:15px">'
+                         + 'まだ採点済みの履歴がありません。<br>単元を選んで挑戦してみよう！</div>';
+        return;
+      }
+      // 新しい順（GAS 側で completedAt 降順済）。日時 / 状態バッジ / 単元名 / スコア / 写真ありマーク
+      listEl.innerHTML = items.map(function(it, idx) {
+        _kisoHistoryCache[idx] = it;
+        var ts = String(it.completedAt || it.startedAt || '');
+        var dispDate = ts.length >= 10 ? (ts.slice(0,4) + '/' + ts.slice(5,7) + '/' + ts.slice(8,10)) : ts;
+        var dispTime = ts.length >= 16 ? ts.slice(11,16) : '';
+        var passed = (it.status === 'passed');
+        var statusBadge = passed
+          ? '<span style="color:#fff;background:#10b981;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:bold;margin-right:6px">合格</span>'
+          : '<span style="color:#fff;background:#f59e0b;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:bold;margin-right:6px">不合格</span>';
+        var photoIcon = it.photoFileId
+          ? '<span style="color:#0ea5e9;font-size:13px;margin-left:6px" title="写真あり">📷</span>'
+          : '';
+        return '<div class="history-item" onclick="onKisoHistoryItemClick(' + idx + ')">' +
+                 '<span class="history-date">' + _kisoEsc(dispDate) + (dispTime ? '<br>' + _kisoEsc(dispTime) : '') + '</span>' +
+                 '<span class="history-level">' + statusBadge + _kisoEsc(it.rankName || ('rank ' + it.rank)) + '</span>' +
+                 '<span class="history-set">' + Number(it.correctCount) + '/' + Number(it.total) + '</span>' +
+                 photoIcon +
+                 '<span class="history-arrow" style="color:#94a3b8;margin-left:6px">›</span>' +
+               '</div>';
+      }).join('');
+    }).catch(function(){
+      listEl.innerHTML = '<div class="error">読み込みに失敗しました</div>';
+    });
+  }
+
+  // 履歴アイテムタップ：getKisoHistoryForStudent 由来の item を _showKisoReview の
+  // entry 構造にアダプトして遷移。studentAnswer は KisoSessions に永続保存されて
+  // いないため空文字（_showKisoReview 側で「履歴データには残っていません」相当の
+  // フォールバック表示が出る）。
+  function onKisoHistoryItemClick(idx) {
+    var item = _kisoHistoryCache[idx];
+    if (!item) return;
+    var entry = {
+      sessionId: item.sessionId,
+      rank:      item.rank,
+      rankName:  item.rankName,
+      count:     item.count,
+      questions: (item.results || []).map(function(r) {
+        return { no: r.no, questionId: r.questionId, problemLatex: r.problemLatex };
+      }),
+      submission: {
+        submittedAt:    Date.now(),
+        attempts:       1,
+        isFirstAttempt: true,
+        passed:         (item.status === 'passed'),
+        total:          item.total,
+        correctCount:   item.correctCount,
+        results:        item.results || [],
+        hpInfo:         { hpGained: Number(item.hpEarned) || 0 },
+        photoFileId:    item.photoFileId || '',
+        photoShareUrl:  ''
+      }
+    };
+    // 戻る先を「履歴一覧」に切替（既存の _kisoReviewReturnScreen 機構を活用）
+    _kisoReviewReturnScreen = 'screen-kiso-history';
+    _showKisoReview(entry, '履歴');
   }
 
   function _kisoEsc(s) {
@@ -4860,6 +4966,8 @@
       _kisoState.hasWorkPhoto    = false;
       _kisoState.workPhotoBase64 = '';
       _kisoState.workPhotoIndex  = 0;
+      // commit 6：結果画面の写真表示用 state をリセット（前セッションの写真を引きずらない）
+      _kisoState.lastPhotoFileId = '';
       // 過去セッション再表示用に localStorage に保存（submission は null）
       _kisoSaveSessionStart({
         sessionId: _kisoState.sessionId,
@@ -5045,8 +5153,30 @@
                      + (_kisoState.rankName || '')
                      + '（' + (res.total || _kisoState.count) + '題） / ' + _kisoState.attempts + '回目';
     var bannerEl = document.getElementById('kiso-result-banner');
+    var photoEl   = document.getElementById('kiso-result-photo');
     var listEl   = document.getElementById('kiso-result-list');
     var actionsEl = document.getElementById('kiso-result-actions');
+
+    // 採点直後の写真表示（commit 6）：初回提出時の photoInfo.fileId を _kisoState に
+    // 保存しておき、再挑戦時の結果画面でも同じ写真を表示できるようにする。
+    if (res.photoInfo && res.photoInfo.ok && res.photoInfo.fileId) {
+      _kisoState.lastPhotoFileId = String(res.photoInfo.fileId);
+    }
+    if (photoEl) {
+      if (_kisoState.lastPhotoFileId) {
+        photoEl.innerHTML =
+          '<div class="kiso-rev-section" style="margin-bottom:14px">' +
+            '<span class="kiso-rev-label">📷 撮影した解答用紙</span>' +
+            '<div class="kiso-rev-photo-wrap" id="kiso-result-photo-wrap">' +
+              '<div class="kiso-rev-photo-loading">⏳ 写真を読み込み中…</div>' +
+            '</div>' +
+            '<div class="kiso-rev-photo-note">※ 自分の写真のみ閲覧できます。ダウンロードはできません。</div>' +
+          '</div>';
+        _kisoLoadStudentPhoto(_kisoState.lastPhotoFileId, 'kiso-result-photo-wrap');
+      } else {
+        photoEl.innerHTML = '';
+      }
+    }
 
     if (res.passed) {
       bannerEl.innerHTML =
