@@ -1894,6 +1894,8 @@
   <header><h1>🧮 採点結果</h1><span id="kiso-result-meta"></span></header>
   <div class="container" style="padding-top:16px">
     <div id="kiso-result-banner"></div>
+    <!-- 撮影した解答用紙の写真表示（自分の sid に紐付く写真のみ閲覧可、DL 不可） -->
+    <div id="kiso-result-photo"></div>
     <div id="kiso-result-list" class="kiso-result-list"></div>
     <div id="kiso-result-actions"></div>
   </div>
@@ -4577,8 +4579,11 @@
   // 自分の sid に紐付く写真のみ取得可能。サーバ側で sid×fileId 突合チェックがあるため、
   // 他生徒の fileId を直接叩いても拒否される。
   // <img> の src に base64 dataUrl を埋め込む（DL ボタンは UI 側で追加しない、閲覧のみ）。
-  function _kisoLoadStudentPhoto(fileId) {
-    var wrap = document.getElementById('kiso-rev-photo-wrap');
+  //
+  // 汎用化（commit 6）：wrapElementId を 2 引数目で指定可能。省略時は Mode B 既存
+  // 'kiso-rev-photo-wrap'。結果画面用は 'kiso-result-photo-wrap' を渡す。
+  function _kisoLoadStudentPhoto(fileId, wrapElementId) {
+    var wrap = document.getElementById(wrapElementId || 'kiso-rev-photo-wrap');
     if (!wrap) return;
     if (!_studentId) {
       wrap.innerHTML = '<div class="kiso-rev-photo-fallback">📷 写真は表示できません<br><small>ログイン情報がありません</small></div>';
@@ -4715,6 +4720,8 @@
     _kisoState.hasWorkPhoto    = false;
     _kisoState.workPhotoBase64 = '';
     _kisoState.workPhotoIndex  = 0;
+    // commit 6：結果画面の写真表示用 state をリセット（再開時は写真も最初から撮り直しのため）
+    _kisoState.lastPhotoFileId = '';
     // selected も復元（_renderKisoResult のメタ表示で使う）
     var def = null;
     for (var i = 0; i < KISO_RANK_DEFS.length; i++) {
@@ -4959,6 +4966,8 @@
       _kisoState.hasWorkPhoto    = false;
       _kisoState.workPhotoBase64 = '';
       _kisoState.workPhotoIndex  = 0;
+      // commit 6：結果画面の写真表示用 state をリセット（前セッションの写真を引きずらない）
+      _kisoState.lastPhotoFileId = '';
       // 過去セッション再表示用に localStorage に保存（submission は null）
       _kisoSaveSessionStart({
         sessionId: _kisoState.sessionId,
@@ -5144,8 +5153,30 @@
                      + (_kisoState.rankName || '')
                      + '（' + (res.total || _kisoState.count) + '題） / ' + _kisoState.attempts + '回目';
     var bannerEl = document.getElementById('kiso-result-banner');
+    var photoEl   = document.getElementById('kiso-result-photo');
     var listEl   = document.getElementById('kiso-result-list');
     var actionsEl = document.getElementById('kiso-result-actions');
+
+    // 採点直後の写真表示（commit 6）：初回提出時の photoInfo.fileId を _kisoState に
+    // 保存しておき、再挑戦時の結果画面でも同じ写真を表示できるようにする。
+    if (res.photoInfo && res.photoInfo.ok && res.photoInfo.fileId) {
+      _kisoState.lastPhotoFileId = String(res.photoInfo.fileId);
+    }
+    if (photoEl) {
+      if (_kisoState.lastPhotoFileId) {
+        photoEl.innerHTML =
+          '<div class="kiso-rev-section" style="margin-bottom:14px">' +
+            '<span class="kiso-rev-label">📷 撮影した解答用紙</span>' +
+            '<div class="kiso-rev-photo-wrap" id="kiso-result-photo-wrap">' +
+              '<div class="kiso-rev-photo-loading">⏳ 写真を読み込み中…</div>' +
+            '</div>' +
+            '<div class="kiso-rev-photo-note">※ 自分の写真のみ閲覧できます。ダウンロードはできません。</div>' +
+          '</div>';
+        _kisoLoadStudentPhoto(_kisoState.lastPhotoFileId, 'kiso-result-photo-wrap');
+      } else {
+        photoEl.innerHTML = '';
+      }
+    }
 
     if (res.passed) {
       bannerEl.innerHTML =
