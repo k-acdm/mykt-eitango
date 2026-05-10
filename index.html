@@ -892,8 +892,13 @@
     .kiso-rev-canonical { font-size: 16px; color: #047857; padding: 10px 12px; background: #ecfdf5; border-radius: 8px; border: 1px solid #a7f3d0; }
     .kiso-rev-student-text { padding: 8px 12px; background: #fff; border: 1px dashed #cbd5e1; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 14px; color: #1f2937; }
     .kiso-rev-photo-wrap { text-align: center; margin: 6px 0; }
-    .kiso-rev-photo-wrap img { max-width: 100%; max-height: 480px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.15); cursor: zoom-in; }
+    /* Phase 6：拡大表示（cursor:zoom-in）は撤廃 → DL リスク回避のため閲覧のみ */
+    .kiso-rev-photo-wrap img { max-width: 100%; max-height: 480px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
     .kiso-rev-photo-fallback { padding: 16px; background: #f3f4f6; border: 1px dashed #d1d5db; border-radius: 8px; color: #9ca3af; font-size: 12px; text-align: center; }
+    /* Phase 6：base64 取得中のローディング表示 */
+    .kiso-rev-photo-loading { padding: 24px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 13px; text-align: center; }
+    /* Phase 6：写真下の補足表示（生徒は閲覧のみ・DL不可） */
+    .kiso-rev-photo-note { font-size: 12px; color: #94a3b8; margin-top: 4px; text-align: center; }
 
     .kiso-grading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9000; display: none; align-items: center; justify-content: center; }
     .kiso-grading-overlay.active { display: flex; }
@@ -4557,12 +4562,33 @@
   function closeKisoReview() {
     showScreen(_kisoReviewReturnScreen || 'screen-kiso-problem');
   }
-  // Drive ファイルID から <img> で表示できる thumbnail URL を生成。
-  // ANYONE_WITH_LINK で公開された写真のみ表示可能（_saveKisoPhoto 改修以降）。
-  function _kisoDriveThumbnailUrl(fileId, sz) {
-    if (!fileId) return '';
-    var size = sz || 'w1200';
-    return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=' + size;
+  // Phase 6：Drive 直アクセスを禁止し、生徒経路は getKisoPhotoBlobForStudent 経由で
+  // 自分の sid に紐付く写真のみ取得可能。サーバ側で sid×fileId 突合チェックがあるため、
+  // 他生徒の fileId を直接叩いても拒否される。
+  // <img> の src に base64 dataUrl を埋め込む（DL ボタンは UI 側で追加しない、閲覧のみ）。
+  function _kisoLoadStudentPhoto(fileId) {
+    var wrap = document.getElementById('kiso-rev-photo-wrap');
+    if (!wrap) return;
+    if (!_studentId) {
+      wrap.innerHTML = '<div class="kiso-rev-photo-fallback">📷 写真は表示できません<br><small>ログイン情報がありません</small></div>';
+      return;
+    }
+    gasGet({
+      action: 'getKisoPhotoBlobForStudent',
+      studentId: _studentId,
+      fileId: fileId,
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '取得に失敗しました';
+        wrap.innerHTML = '<div class="kiso-rev-photo-fallback">📷 写真は表示できません<br><small>' + _kisoEsc(em) + '</small></div>';
+        return;
+      }
+      var dataUrl = 'data:' + (res.mime || 'image/jpeg') + ';base64,' + res.base64;
+      wrap.innerHTML = '<img src="' + dataUrl + '" alt="解答写真" loading="lazy">';
+    }).catch(function() {
+      wrap.innerHTML = '<div class="kiso-rev-photo-fallback">📷 通信エラーが発生しました</div>';
+    });
   }
   function _showKisoReview(entry, pos) {
     if (!entry || !entry.submission) return;
@@ -4592,16 +4618,15 @@
     var photoFileId  = sub.photoFileId  || '';
     var photoBlock = '';
     if (photoFileId) {
-      var imgUrl = _kisoDriveThumbnailUrl(photoFileId, 'w1200');
-      var fallbackHtml = '<div class="kiso-rev-photo-fallback">📷 写真は表示できません<br>'
-                       + '<small>古いセッションの場合、リンク共有が設定されていない可能性があります</small></div>';
+      // Phase 6：Drive 直アクセスを禁止。プレースホルダーで描画し、
+      // listEl.innerHTML 後に _kisoLoadStudentPhoto で base64 取得して差し替える。
+      // 拡大表示は新規ウィンドウ open しない（dataUrl 露出 → DL リスクを避ける）。
       photoBlock = '<div class="kiso-rev-section">'
                  +   '<span class="kiso-rev-label">📷 撮影した解答用紙</span>'
-                 +   '<div class="kiso-rev-photo-wrap">'
-                 +     '<img src="' + _kisoEsc(imgUrl) + '" alt="解答写真" '
-                 +     'onclick="window.open(this.src,\'_blank\')" '
-                 +     'onerror="this.outerHTML=' + JSON.stringify(fallbackHtml) + '">'
+                 +   '<div class="kiso-rev-photo-wrap" id="kiso-rev-photo-wrap">'
+                 +     '<div class="kiso-rev-photo-loading">⏳ 写真を読み込み中…</div>'
                  +   '</div>'
+                 +   '<div class="kiso-rev-photo-note">※ 自分の写真のみ閲覧できます。ダウンロードはできません。</div>'
                  + '</div>';
     } else {
       photoBlock = '<div class="kiso-rev-section">'
@@ -4642,6 +4667,11 @@
     listEl.innerHTML = photoBlock + cardsHtml;
     showScreen('screen-kiso-review');
     _kisoTypeset(listEl);
+    // Phase 6：写真があれば、認証 API 経由で base64 を取得して差し替える。
+    // サーバ側で sid×fileId 突合チェックがあるため、自分の写真のみ閲覧可能。
+    if (photoFileId) {
+      _kisoLoadStudentPhoto(photoFileId);
+    }
   }
 
   // -----------------------------------------------------

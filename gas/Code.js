@@ -1028,6 +1028,12 @@ function doGet(e) {
       else if (action === 'getKisoRetryQuestions')   result = getKisoRetryQuestions(params.sessionId);
       else if (action === 'getKisoTodayRawHP')       result = getKisoTodayRawHP(params);
       else if (action === 'getKisoPhotosList')       result = getKisoPhotosList(params);
+      // Phase 6: 基礎計算 答案写真の認証付き base64 配信。
+      //   getKisoPhotoBlob          → admin/teacher 用（閲覧 + DL 可、UI 側で DL ボタン表示）
+      //   getKisoPhotoBlobForStudent → 生徒 Mode B 用（sid×fileId 突合、閲覧のみ）
+      //   doPost にも保護登録（CLAUDE.md #148 原則踏襲）。
+      else if (action === 'getKisoPhotoBlob')          result = getKisoPhotoBlob(params);
+      else if (action === 'getKisoPhotoBlobForStudent') result = getKisoPhotoBlobForStudent(params);
       // ※ ここにリスオン関連（getLisonContent, submitLison）のルーティングを必ず残す。
       //   Phase 1-A コミット 71b8c93 で追加。過去に管理画面リファクタ作業で巻き込まれて
       //   消えかけ、ふくちさん側の clasp push が古いまま実機テストで「録音送信が失敗する」
@@ -1112,6 +1118,9 @@ function doPost(e) {
     else if (action === 'submitLison')              result = submitLison(params);
     // Phase 6: リスオン録音 base64 配信（doGet にも保護登録、両方セットで保持）。
     else if (action === 'getLisonRecordingBlob')    result = getLisonRecordingBlob(params);
+    // Phase 6: 基礎計算 答案写真 base64 配信（doGet にも保護登録、両方セットで保持）。
+    else if (action === 'getKisoPhotoBlob')          result = getKisoPhotoBlob(params);
+    else if (action === 'getKisoPhotoBlobForStudent') result = getKisoPhotoBlobForStudent(params);
     // 管理画面: リスオン問題の週単位一括登録（5 レベル × 3 問 + 英文 / 和訳で URL 長を
     // 超えるため POST 必須、CLAUDE.md #93 と同パターン）。
     else if (action === 'adminSaveLisonContentsWeek') result = adminSaveLisonContentsWeek(params);
@@ -4281,11 +4290,12 @@ function _saveKisoPhoto(studentId, sessionId, rank, count, imageBase64) {
     const fileName = sid + '_' + rank + '_' + sessionId + '.jpg';
     const file = folder.createFile(blob).setName(fileName);
     const fileId = file.getId();
-    // 過去セッション閲覧（Mode B）でフロント側 <img> から表示できるよう ANYONE_WITH_LINK で公開。
-    // URL を知る本人のみが閲覧可能（fileId はランダム + 15 日で自動削除のためリスク許容）。
-    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
-    catch (e) { console.warn('[_saveKisoPhoto setSharing failed]', e); }
-    const shareUrl = file.getUrl();
+    // Phase 6：setSharing(ANYONE_WITH_LINK) を削除。写真は Drive 直アクセス不可。
+    // 表示は GAS プロキシ経由で base64 配信する設計に変更：
+    //   - admin/teacher → getKisoPhotoBlob（閲覧 + DL 可）
+    //   - 生徒 Mode B   → getKisoPhotoBlobForStudent（sid×fileId 突合チェック、閲覧のみ）
+    // shareUrl は KisoPhotos.shareUrl 列の互換性のため 'private' プレースホルダー。
+    const shareUrl = 'private';
 
     // KisoPhotos シートに記録（解答用紙: photoType='answer' / photoIndex=1）
     const sh = _ensureKisoPhotosSheet();
@@ -4343,10 +4353,9 @@ function _saveKisoWorkPhoto(studentId, sessionId, rank, count, imageBase64, phot
     const fileName = sid + '_' + rank + '_' + sessionId + '_work' + idx + '.jpg';
     const file = folder.createFile(blob).setName(fileName);
     const fileId = file.getId();
-    // _saveKisoPhoto と揃えて ANYONE_WITH_LINK で公開（Mode B 閲覧用）
-    try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); }
-    catch (e) { console.warn('[_saveKisoWorkPhoto setSharing failed]', e); }
-    const shareUrl = file.getUrl();
+    // Phase 6：setSharing(ANYONE_WITH_LINK) を削除。_saveKisoPhoto と同方針。
+    // 表示は getKisoPhotoBlob / getKisoPhotoBlobForStudent 経由の base64 配信。
+    const shareUrl = 'private';
 
     const sh = _ensureKisoPhotosSheet();
     sh.appendRow([
@@ -4386,6 +4395,209 @@ function _deleteKisoPhoto(driveFileId) {
   } catch (err) {
     console.warn('[_deleteKisoPhoto]', driveFileId, err);
     return { ok: false, error: String(err) };
+  }
+}
+
+// =============================================
+// Phase 6：基礎計算 答案写真の認証付き base64 配信
+// =============================================
+
+// admin / teacher 用の写真 base64 配信（閲覧 + DL 用途）。
+// 入力: { teacherId, password, fileId }
+// 出力: _verifyTeacherAndGetDriveBlob(params, true) のレスポンスをそのまま返す
+// 共通基盤 (_verifyTeacherAndGetDriveBlob) は録音側 commit 1 で実装済。
+function getKisoPhotoBlob(params) {
+  return _verifyTeacherAndGetDriveBlob(params, true);
+}
+
+// 生徒（Mode B 過去セッション再表示）用の写真 base64 配信（閲覧のみ、DL 不可は UI 側で実施）。
+// ふくちさん確定ルール（HANDOVER.md Q10）：
+//   「生徒は自分の sid に紐付く写真のみ閲覧可能、他生徒の写真は閲覧不可」
+//
+// セキュリティの核心：
+//   1) studentId と fileId のペアが KisoPhotos シートに存在することを確認
+//   2) 一致しなければ拒否（他生徒のファイル盗み見を防止）
+//   3) 一致すれば DriveApp.getFileById でブロブ化 → base64 返却
+//
+// 入力: { studentId, fileId }
+// 出力: { ok:true, base64, mime, fileName, sizeBytes }
+//      { ok:false, message:'生徒IDが指定されていません' }
+//      { ok:false, message:'fileId が指定されていません' }
+//      { ok:false, message:'アクセス権がありません' }  ← sid×fileId 不一致
+//      { ok:false, message:'ファイルが見つかりません' }
+function getKisoPhotoBlobForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const fileId = String((params && params.fileId) || '').trim();
+    if (!fileId) return { ok: false, message: 'fileId が指定されていません' };
+
+    // KisoPhotos シートで { studentId, fileId } のペア突合
+    const sh = _ss().getSheetByName(SHEET_KISO_PHOTOS);
+    if (!sh || sh.getLastRow() < 2) {
+      return { ok: false, message: 'アクセス権がありません' };
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSid = header.indexOf('studentId');
+    const cFid = header.indexOf('driveFileId');
+    if (cSid < 0 || cFid < 0) {
+      console.warn('[getKisoPhotoBlobForStudent] KisoPhotos シートのヘッダー構造が想定外');
+      return { ok: false, message: 'アクセス権がありません' };
+    }
+    let matched = false;
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][cSid] || '').trim() === sid &&
+          String(values[i][cFid] || '').trim() === fileId) {
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      // ⚠️ セキュリティガード：他生徒の fileId を直接叩いてもここで拒否される
+      console.warn('[getKisoPhotoBlobForStudent] sid×fileId 突合失敗 sid=' + sid + ' fileId=' + fileId);
+      return { ok: false, message: 'アクセス権がありません' };
+    }
+
+    // 突合 OK：Drive から取得して base64 化
+    let file;
+    try {
+      file = DriveApp.getFileById(fileId);
+    } catch (e) {
+      console.error('[getKisoPhotoBlobForStudent] DriveApp.getFileById failed:', fileId, e);
+      return { ok: false, message: 'ファイルが見つかりません' };
+    }
+    try {
+      const blob = file.getBlob();
+      const bytes = blob.getBytes();
+      return {
+        ok: true,
+        base64: Utilities.base64Encode(bytes),
+        mime: blob.getContentType() || 'image/jpeg',
+        fileName: file.getName() || '',
+        sizeBytes: bytes.length
+      };
+    } catch (e) {
+      console.error('[getKisoPhotoBlobForStudent] blob/base64 failed:', fileId, e);
+      return { ok: false, message: 'ファイル取得に失敗しました：' + String(e) };
+    }
+  } catch (err) {
+    console.error('[getKisoPhotoBlobForStudent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// Phase 6：既存 KisoPhotos の一括非公開化バッチ（GAS エディタ手動実行のみ）
+// =============================================
+// KisoPhotos シートの driveFileId 列を駆動して
+// DriveApp.getFileById(fileId).setSharing(PRIVATE, VIEW) を実行する。
+//
+// 6 分実行制限対策として { startIndex, limit } で分割実行可能：
+//   - 初回：migrateKisoPhotosToPrivate() → startIndex=0, limit=200 で実行
+//   - 続行：戻り値の hasMore=true なら、ふくちさんが
+//          migrateKisoPhotosToPrivate({startIndex: <nextStartIndex>}) を実行
+//   - hasMore=false まで繰り返し
+//
+// 削除済み・既に PRIVATE のファイルは個別スキップ（errors:[] に蓄積するが部分成功許容）。
+//
+// ⚠️ Phase 2 commit 59857f2 の保守バッチ原則踏襲、URL ルーティング登録なし。
+//
+// 戻り値: { ok, total, processedFromIndex, processedTo, succeeded, failed,
+//          errors:[{fileId, reason}], hasMore, nextStartIndex, elapsedSec }
+//
+// ロールバック手段：緊急時は手動で setSharing(ANYONE_WITH_LINK) を Drive UI から復元可能。
+// （リスオン側の migrateLisonRecordingsToShared に相当する逆方向バッチは KisoPhotos には
+//   従来も存在しなかったため、Phase 6 でも追加しない。緊急時は Drive UI から個別復元）。
+function migrateKisoPhotosToPrivate(params) {
+  const t0 = Date.now();
+  const startIndex = Math.max(0, Number(params && params.startIndex) || 0);
+  const limit      = Math.max(1, Math.min(500, Number(params && params.limit) || 200));
+  const result = {
+    ok: true,
+    total: 0,
+    processedFromIndex: startIndex,
+    processedTo: startIndex,
+    succeeded: 0,
+    failed: 0,
+    errors: [],
+    hasMore: false,
+    nextStartIndex: startIndex,
+    elapsedSec: 0
+  };
+  try {
+    const sh = _ss().getSheetByName(SHEET_KISO_PHOTOS);
+    if (!sh || sh.getLastRow() < 2) {
+      console.log('[migrateKisoPhotosToPrivate] KisoPhotos が空です');
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      return result;
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iFid = header.indexOf('driveFileId');
+    if (iFid < 0) {
+      console.warn('[migrateKisoPhotosToPrivate] driveFileId 列が見つかりません');
+      result.ok = false;
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      return result;
+    }
+
+    // データ行から fileId を抽出（重複は許容、Drive 側で setSharing は冪等なので問題なし）
+    const fileIds = [];
+    for (let i = 1; i < values.length; i++) {
+      const fid = String(values[i][iFid] || '').trim();
+      if (fid) fileIds.push(fid);
+    }
+    result.total = fileIds.length;
+
+    const endIndex = Math.min(startIndex + limit, fileIds.length);
+    result.processedTo = endIndex;
+    result.hasMore = endIndex < fileIds.length;
+    result.nextStartIndex = result.hasMore ? endIndex : fileIds.length;
+
+    if (startIndex >= fileIds.length) {
+      console.log('[migrateKisoPhotosToPrivate] startIndex 超過。total=' + result.total
+        + ', startIndex=' + startIndex);
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      return result;
+    }
+
+    console.log('[migrateKisoPhotosToPrivate] 開始: total=' + result.total
+      + ', range=[' + startIndex + ',' + endIndex + ')');
+
+    for (let k = startIndex; k < endIndex; k++) {
+      const fid = fileIds[k];
+      try {
+        const file = DriveApp.getFileById(fid);
+        // setSharing(PRIVATE, VIEW) で「リンク共有解除、明示共有先のみ閲覧可」状態。
+        // GAS スクリプトオーナー以外はアクセス不可になる。setSharing 引数は
+        // commit adb9c10 で確立した正しい enum 値を使用（NONE は存在しない）。
+        file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.VIEW);
+        result.succeeded++;
+      } catch (e) {
+        result.failed++;
+        result.errors.push({ fileId: fid, reason: String(e) });
+        console.warn('[migrateKisoPhotosToPrivate] failed: fileId=' + fid + ' err=' + e);
+      }
+      // 進捗ログ：20 件ごと（写真は録音より大量想定なので間引く）
+      if ((k - startIndex + 1) % 20 === 0) {
+        console.log('[migrateKisoPhotosToPrivate] 進捗 '
+          + (k - startIndex + 1) + '/' + (endIndex - startIndex)
+          + ' succeeded=' + result.succeeded + ' failed=' + result.failed);
+      }
+    }
+
+    console.log('[migrateKisoPhotosToPrivate] 完了: succeeded=' + result.succeeded
+      + ' failed=' + result.failed + ' hasMore=' + result.hasMore
+      + ' nextStartIndex=' + result.nextStartIndex);
+
+    result.elapsedSec = (Date.now() - t0) / 1000;
+    return result;
+  } catch (err) {
+    console.error('[migrateKisoPhotosToPrivate]', err);
+    result.ok = false;
+    result.elapsedSec = (Date.now() - t0) / 1000;
+    return result;
   }
 }
 
