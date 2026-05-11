@@ -155,17 +155,26 @@
     .kanji-answer-section { background: #fff; border-radius: 10px; padding: 14px 16px; margin: 12px 0; text-align: left; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     .kanji-answer-section .sec-title { font-size: 14px; font-weight: bold; color: #1f2937; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px dashed #e5e7eb; }
     .kanji-answer-list { display: flex; flex-direction: column; gap: 6px; }
-    .kanji-answer-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; font-size: 15px; line-height: 1.5; }
+    /* 2026-05-12 バグ⑤ Phase B：item を block にし、正解行 + 生徒解答行の 2 段構成に対応 */
+    .kanji-answer-item { display: block; padding: 8px 10px; border-radius: 6px; font-size: 15px; line-height: 1.5; }
     .kanji-answer-item.correct { background: #ecfdf5; color: #065f46; }
     .kanji-answer-item.wrong   { background: #fef2f2; color: #991b1b; }
+    .kanji-answer-row { display: flex; align-items: center; gap: 8px; }
     .kanji-answer-item .mark { font-weight: bold; min-width: 1.2em; }
     .kanji-answer-item .qno  { font-weight: bold; min-width: 3em; opacity: .85; }
     .kanji-answer-item .ans  { font-weight: bold; }
+    /* 不正解時の「あなたが書いた内容」行（item.wrong 内に表示される） */
+    .kanji-answer-student { margin-top: 4px; padding-left: calc(1.2em + 3em + 16px); font-size: 14px; color: #7f1d1d; line-height: 1.5; }
+    .kanji-answer-student .ans-student { font-weight: bold; font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; }
+    /* 旧 OCR テキスト折り畳み（案A 移行で未使用化、styles は後方互換のため残置） */
     .kanji-ocr-details { background: #f9fafb; border-radius: 8px; padding: 10px 14px; margin-top: 10px; font-size: 13px; color: #374151; }
     .kanji-ocr-details summary { cursor: pointer; font-weight: bold; color: #4b5563; padding: 2px 0; }
     .kanji-ocr-details summary:hover { color: #1f2937; }
     .kanji-ocr-box { background: #fff; border: 1px dashed #d1d5db; border-radius: 6px; padding: 10px 12px; margin-top: 8px; white-space: pre-wrap; word-break: break-all; font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; font-size: 14px; color: #1f2937; line-height: 1.7; max-height: 280px; overflow-y: auto; }
     .kanji-answer-hint { font-size: 12px; color: #6b7280; margin-top: 8px; line-height: 1.6; }
+    @media (max-width: 480px) {
+      .kanji-answer-student { padding-left: calc(1.2em + 2.5em + 14px); font-size: 13px; }
+    }
     /* 古文単語「コブタン」（2026-05-08 枠組み実装）。暖色系 #d97706 で平安らしさを演出。 */
     .kobun-emphasis { color: #d97706; font-weight: bold; }
     .kobun-mate-row { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; }
@@ -6611,28 +6620,51 @@
       return;
     }
     _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', _pickBubble(KANJI_BUBBLES.kakiFail));
-    // 2026-05-08 学習補助強化：全問の正解一覧（✅/❌ 付き）+ OCR 全文（折り畳み）を表示。
+    // 2026-05-08 学習補助強化：全問の正解一覧（✅/❌ 付き）+ 生徒の解答を併記。
     // ふくちさん哲学「不合格で再テストになっても何もできないと学習にならない」に基づく。
-    // 「あなたの解答」を問ごとに切り分けて表示するのは cursor 前進方式の特性上困難なため、
-    // OCR テキスト全文を「あなたが書いた内容」として併記し、生徒が正解と見比べられるようにする。
+    //
+    // 2026-05-12 バグ⑤ Phase B（案A）改修：
+    // 案 A では Gemini Vision が各問の studentWrote（読み取った字形）を返すため、
+    // 「正解」と「あなたが書いた内容」を問ごとに並べて表示できるようになった。
+    // 旧仕様（OCR テキスト全文を details で折り畳む方式）から、各問独立の
+    // diff 表示（正解：xx / あなたが書いた内容：yy）に切り替える。
+    // ・readable='blank' 時は「（空白）」と表示
+    // ・readable='no' 時は通常採点に来ないので考慮不要
+    // ・readable='yes' で match=true → ✅ 緑、不一致なら「あなたが書いた内容」を併記
     var escH = function(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
     var answerListHtml = (res.results || []).map(function(r){
       var ok = !!r.isCorrect;
+      var sw = String(r.studentWrote || '').trim();
+      var readable = String(r.readable || '');
+      var studentLine = '';
+      if (!ok) {
+        var swDisplay;
+        if (readable === 'blank' || !sw) {
+          swDisplay = '<span style="opacity:.6">（書かれていません）</span>';
+        } else {
+          swDisplay = escH(sw);
+        }
+        studentLine =
+          '<div class="kanji-answer-student">' +
+            '<span style="opacity:.7">あなたが書いた内容：</span>' +
+            '<span class="ans-student">' + swDisplay + '</span>' +
+          '</div>';
+      }
       return '<div class="kanji-answer-item ' + (ok ? 'correct' : 'wrong') + '">' +
-               '<span class="mark">' + (ok ? '✅' : '❌') + '</span>' +
-               '<span class="qno">問 ' + r.no + '</span>' +
-               '<span style="opacity:.7">正解：</span>' +
-               '<span class="ans">' + escH(r.expected || '') + '</span>' +
+               '<div class="kanji-answer-row">' +
+                 '<span class="mark">' + (ok ? '✅' : '❌') + '</span>' +
+                 '<span class="qno">問 ' + r.no + '</span>' +
+                 '<span style="opacity:.7">正解：</span>' +
+                 '<span class="ans">' + escH(r.expected || '') + '</span>' +
+               '</div>' +
+               studentLine +
              '</div>';
     }).join('');
-    var ocrText = String(res.ocrText || '').trim();
-    var ocrBlock = ocrText
-      ? '<details class="kanji-ocr-details">' +
-          '<summary>📝 あなたが書いた内容（AI が読み取った全文を見る）</summary>' +
-          '<div class="kanji-ocr-box">' + escH(ocrText) + '</div>' +
-          '<div class="kanji-answer-hint">※ AI の読み取り結果なので、書いた字とずれている場合があります。間違えた問題は正解の字をよく見て、もう一度書いてみよう。</div>' +
-        '</details>'
-      : '';
+    var hintBlock =
+      '<div class="kanji-answer-hint">' +
+        '※ AI が読み取った内容なので、書いた字とずれている場合があります。' +
+        '間違えた問題は正解の字をよく見て、もう一度書いてみよう。' +
+      '</div>';
     banner.innerHTML =
       '<div class="kanji-result-fail">' +
         '<div style="font-size:48px">😤</div>' +
@@ -6641,7 +6673,7 @@
         '<div class="kanji-answer-section">' +
           '<div class="sec-title">📖 答え合わせ</div>' +
           '<div class="kanji-answer-list">' + (answerListHtml || '（なし）') + '</div>' +
-          ocrBlock +
+          hintBlock +
         '</div>' +
       '</div>';
     actions.innerHTML =
