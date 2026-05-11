@@ -11627,17 +11627,28 @@ function submitKanjiKaki(params) {
         const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
         const week = Math.ceil(streak / 7);
         const hpGained = grantedRawHP * week * week;
+
+        // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
+        // HPLog 書き込み失敗時は Students.HP / 進捗（kanji_next）更新をスキップして
+        // エラー応答を返す。KanjiSubmissions は既に appendRow 済み（事後検証に有用）。
+        // 同じセットを再挑戦すれば次回成功で救済される。
+        const logRes = _logHP(sid, grantedRawHP, hpGained, 'kanji_' + level + '_' + count);
+        if (!logRes.ok) {
+          console.error('[submitKanjiKaki] HPLog 書き込みに失敗しました。HP/進捗を更新せず終了。', logRes.error);
+          return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+        }
+
         const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
         const newHP = cur + hpGained;
         stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
         const upd = {}; upd[COL_HP] = newHP;
         _updateAccountCacheBySid(sid, upd);
-        // HPLog: type='kanji_<level>_<count>'（'準2' レベルもそのまま使う）
-        _logHP(sid, grantedRawHP, hpGained, 'kanji_' + level + '_' + count);
         _invalidateCache('cache_ranking_last_week');
         hpInfo = { rawHP: grantedRawHP, hpGained: hpGained, granted: true, isPractice: false, alreadyAtCap: false, streak: streak, week: week };
       } else if (isPractice) {
-        // 練習モード（既に上限到達）：HPLog にも記録するが _practice 接尾で除外可能に
+        // 練習モード（既に上限到達）：HPLog にも記録するが _practice 接尾で除外可能に。
+        // 練習モードは付与する HP がないため、_logHP 失敗時も警告ログのみで処理を継続する
+        // （戻り値を無視）。進捗更新は実施される。
         _logHP(sid, 0, 0, 'kanji_' + level + '_' + count + '_practice');
         hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: true, alreadyAtCap: true };
       }
