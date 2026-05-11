@@ -8114,15 +8114,22 @@ function submitSango(params) {
       const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
       const week = Math.ceil(streak / 7);
       hpGained = 200 * week * week;
+
+      // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
+      // HPLog 書き込み失敗時は Students.HP を加算せず、提出は受理した状態でエラー応答を返す。
+      // SangoSubmissions は appendRow 済み（提出記録は保持）。
+      const logRes = _logHP(sid, hpGained, hpGained, 'sango');
+      if (!logRes.ok) {
+        console.error('[submitSango] HPLog 書き込みに失敗しました。HP を加算せず終了。', logRes.error);
+        return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+      }
+
       const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
       const newHP = cur + hpGained;
       stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
       const upd = {};
       upd[COL_HP] = newHP;
       _updateAccountCacheBySid(sid, upd);
-      // _logHP に統一（5 列：timestamp/studentId/rawHP/hpGained/type）
-      // 三語短文は素点と倍率後HPが同値のため rawHP = hpGained
-      _logHP(sid, hpGained, hpGained, 'sango');
       _invalidateCache('cache_ranking_last_week');
     }
     return { ok: true, hpGained: hpGained };
