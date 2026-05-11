@@ -1542,18 +1542,58 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
 // 既存コンテンツ（英単語RUSH/三語短文/和文英訳①）は素点と倍率後HPが同値のため
 // rawHP に hpGained と同じ値を渡せば後方互換。基礎計算 Phase 4 で submitKisoAnswer
 // が rawHP（素点）を別の値（倍率前）として記録するために本シグネチャに統一する。
+// 2026-05-12 バグ④-本質 Phase B（案 A）：戻り値 + flush + 即時リトライ + テレメトリ
+//   - 戻り値: { ok: true } / { ok: false, error: string }
+//   - 成功時は SpreadsheetApp.flush() で確実に書き込み（別 execution への可視性保証）
+//   - 失敗時は 500ms 待機して 1 回だけリトライ（一時的 quota / lock / 内部エラー対策）
+//   - DEBUG_HPLOG プロパティが 'true' のときのみ成功/失敗を console.log に記録
+//
+// 呼び出し元の責務（順序変更方式 = Q2 採用）：
+//   先に _logHP を呼び、result.ok === true を確認してから Students.HP 加算に進む。
+//   _logHP が失敗した場合は Students.HP を加算せず、関数全体としてエラー応答を返す。
+//   これにより「Students 進 + HPLog 欠落」の不一致パターン（パターン A・B）を構造的に防ぐ。
 function _logHP(studentId, rawHP, hpGained, type) {
+  const sid = String(studentId).trim();
+
+  // テレメトリ flag（PropertiesService 読み取りは 1 関数呼び出しで 1 回のみ）
+  let debug = false;
   try {
-    const ss = _ss();
-    let sh   = ss.getSheetByName(SHEET_HPLOG);
-    if (!sh) {
-      sh = ss.insertSheet(SHEET_HPLOG);
-      sh.getRange(1, 1, 1, 5).setValues([['timestamp', 'studentId', 'rawHP', 'hpGained', 'type']]);
-    }
-    sh.appendRow([_nowJST(), String(studentId).trim(), rawHP, hpGained, type]);
-  } catch(e) {
-    console.error('[_logHP]', e);
+    debug = (PropertiesService.getScriptProperties().getProperty('DEBUG_HPLOG') === 'true');
+  } catch (propErr) {
+    // PropertiesService 失敗時はテレメトリ無効として継続
   }
+
+  const MAX_ATTEMPTS  = 2;
+  const RETRY_WAIT_MS = 500;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const ss = _ss();
+      let sh   = ss.getSheetByName(SHEET_HPLOG);
+      if (!sh) {
+        sh = ss.insertSheet(SHEET_HPLOG);
+        sh.getRange(1, 1, 1, 5).setValues([['timestamp', 'studentId', 'rawHP', 'hpGained', 'type']]);
+      }
+      sh.appendRow([_nowJST(), sid, rawHP, hpGained, type]);
+      SpreadsheetApp.flush();  // v12 教訓踏襲：appendRow 直後の flush で確実に永続化
+      if (debug) {
+        console.log('[_logHP] sid=' + sid + ' type=' + type + ' attempts=' + attempt + ' ok=true');
+      }
+      return { ok: true };
+    } catch (e) {
+      lastError = e;
+      console.error('[_logHP] attempt=' + attempt + ' sid=' + sid + ' type=' + type, e);
+      if (attempt < MAX_ATTEMPTS) {
+        Utilities.sleep(RETRY_WAIT_MS);
+      }
+    }
+  }
+
+  if (debug) {
+    console.log('[_logHP] sid=' + sid + ' type=' + type + ' attempts=' + MAX_ATTEMPTS + ' ok=false error=' + String(lastError && lastError.message || lastError));
+  }
+  return { ok: false, error: String(lastError && lastError.message || lastError) };
 }
 
 // =============================================
