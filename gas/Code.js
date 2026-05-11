@@ -11041,11 +11041,19 @@ function apologyWabun1MonyoBug_20260502() {
 //   level は '5' / '4' / '3' / '準2' / '2'（'準' を含むため _ で区切ると 'kanji_準2_10' になる点に注意）
 const SHEET_KANJI_YOMI = 'KanjiYomi';
 const SHEET_KANJI_KAKI = 'KanjiKaki';
+// 2026-05-12 バグ⑤ Phase B（案A）：書き判定結果の永続化用シート。軽量版F'。
+// 1 提出ごとに各問 1 行ずつ appendRow（5 問セットで 5 行、10 問セットで 10 行）。
+// 「正しく書いたのに ❌」報告時の事後検証 / プロンプト調整評価の基盤。
+const SHEET_KANJI_SUBMISSIONS = 'KanjiSubmissions';
 const KANJI_VALID_LEVELS = ['5', '4', '3', '準2', '2'];
 const KANJI_DAILY_RAWHP_CAP = 100;
 const KANJI_PASS_RATIO = 1.0;  // 2026-05-08 0.8 → 1.0（全問正解で合格）。知識系コンテンツとしての英単語RUSH 整合
 const KANJI_YOMI_HEADERS = ['セット番号', '問番号', '漢字ID', '漢字', '問題', '選A', '選B', '選C', '選D', '正解', '級'];
 const KANJI_KAKI_HEADERS = ['セット番号', '問番号', '漢字ID', '漢字', '問題', '書き正解', '級'];
+// KanjiSubmissions（9 列）: timestamp / sid / level / sessionId / no / expected / studentWrote / isCorrect / readable
+// - readable: 'yes'（読み取れた）/ 'no'（判別不能）/ 'blank'（答え欄空白）
+// - needsRetake=true で採点保留になった提出も記録（再撮影誘導の発生も追跡）
+const KANJI_SUBMISSIONS_HEADERS = ['timestamp', 'sid', 'level', 'sessionId', 'no', 'expected', 'studentWrote', 'isCorrect', 'readable'];
 
 // シート初期化（GAS エディタから手動 1 回実行する想定、冪等）
 function ensureKanjiSheets() {
@@ -11068,7 +11076,17 @@ function ensureKanjiSheets() {
   } else {
     Logger.log('[ensureKanjiSheets] KanjiKaki シートは既に存在します');
   }
-  return { ok: true, message: 'カンジー用シートを確認/作成しました（KanjiYomi / KanjiKaki）' };
+  // 2026-05-12 バグ⑤ Phase B：KanjiSubmissions シート（書き判定結果の永続化）
+  let sSheet = ss.getSheetByName(SHEET_KANJI_SUBMISSIONS);
+  if (!sSheet) {
+    sSheet = ss.insertSheet(SHEET_KANJI_SUBMISSIONS);
+    sSheet.getRange(1, 1, 1, KANJI_SUBMISSIONS_HEADERS.length).setValues([KANJI_SUBMISSIONS_HEADERS]);
+    sSheet.setFrozenRows(1);
+    Logger.log('[ensureKanjiSheets] KanjiSubmissions シートを新規作成しました');
+  } else {
+    Logger.log('[ensureKanjiSheets] KanjiSubmissions シートは既に存在します');
+  }
+  return { ok: true, message: 'カンジー用シートを確認/作成しました（KanjiYomi / KanjiKaki / KanjiSubmissions）' };
 }
 
 // セッション ID 生成（kanji_{studentId}_{ts}_{random}）
