@@ -2480,6 +2480,8 @@
   ];
   var _voiceIdx = 0;
   var _finishing = false;
+  // 2026-05-11 バグ② 対策：ログアウト処理の多重実行ガード
+  var _logoutInProgress = false;
   // セッション中の最新HPを保持（各HP獲得アクション後に追従更新して、ホーム画面に戻ったときに反映）
   var _totalHP = 0;
   // E1: ログインの streak をセッション中保持（HP 予測に使用）
@@ -3293,7 +3295,30 @@
     loadUnreadMessageCount();
   }
   function doLogout() {
-    if (!confirm('今日もよく頑張りました！ログアウトしますか？')) return;
+    // 2026-05-11 バグ② 修正：iPad ログアウト不能対策（防御層）。
+    // 「特定操作後にログアウトボタンが効かない（Windows では再現せず）」報告に対し、
+    // 以下 3 件の複合原因が想定される：
+    //   (a) mykt-grading-overlay / mykt-error-overlay / kiso-grading-overlay / submit-pending-ind
+    //       が z-index 9000-9500 で居残り、画面が押せない（操作不能）状態
+    //   (b) iOS Safari の confirm() が「ダイアログをブロック」状態で常に false 即返
+    //   (c) 二重タップでハンドラが衝突
+    // 対策：confirm 前にオーバーレイを強制クリア、二重実行ガード、診断ログ。
+    if (_logoutInProgress) return;
+    _hideSubmitPending(); _hideSubmitError(); _hideWabun1Grading();
+    try {
+      var ko = document.getElementById('kiso-grading-overlay');
+      if (ko) ko.classList.remove('active');
+    } catch(e){}
+    _logoutInProgress = true;
+    var ok;
+    try { ok = confirm('今日もよく頑張りました！ログアウトしますか？'); }
+    catch(e){ ok = false; }
+    _logoutInProgress = false;
+    if (!ok) {
+      // iPad で confirm が suppress された場合のための診断ログ（Mac WebInspector で確認可）
+      console.log('[doLogout] confirm() returned false — user cancelled, or iOS Safari suppressed the dialog.');
+      return;
+    }
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('popstate', popstateHandler);
     _stopAudio();
