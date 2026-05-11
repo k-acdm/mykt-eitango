@@ -11738,6 +11738,243 @@ function _kanjiOcrWithGemini(imageBase64) {
   return { ok: false, message: 'Gemini API: 不明なエラー（リトライ完了後）：' + lastErrorSummary };
 }
 
+// 2026-05-12 バグ⑤ Phase B（案A）：正解候補ヒント付き判定タスク版
+// 既存の _kanjiOcrWithGemini（自由 OCR）と共存。即 rollback 可能にするため削除しない。
+//
+// 構造的真因：
+//   既存 OCR 方式は「Gemini Vision に正解漢字を伝えず、答案ノート全体を 1 枚の画像として
+//   渡し、AI 任せでテキスト化させている」設計のため、字形が遠い別漢字への飛躍誤認識
+//   （恩恵→困田、怒鳴→焚き、網→称、齢→断 等）が頻発していた。プロンプト強化
+//   （5/7 補正禁止、5/8 厳格化）は加点だが、Vision の確率分布に事前情報として作用しない
+//   ため根治には届かなかった（Phase A 調査レポート §仮説 H1）。
+//
+// 改善方針（案A）：
+//   タスクを「自由 OCR」→「N 個の正解候補との一致判定」に切り替える。
+//   各問の正解漢字をプロンプトに埋め込むことで Vision の posterior を絞り、字形ベースの
+//   類似度判定タスクに変換する。これは Vision にとって遥かに易しいタスクで、飛躍誤読は
+//   構造的に大幅減少する見込み。
+//
+// 引数：
+//   imageBase64       … 答案画像（縮小 + JPEG 圧縮済）
+//   expectedAnswers   … [{ no, answer }, ...] の配列（1〜N 問の正解漢字）
+//
+// 戻り値（成功時）：
+//   {
+//     ok: true,
+//     results: [
+//       { no:1, match:true,  studentWrote:"恩恵",  readable:"yes" },
+//       { no:2, match:false, studentWrote:"焚き", readable:"yes" },
+//       { no:3, match:false, studentWrote:"?",    readable:"no" },
+//       { no:4, match:false, studentWrote:"",     readable:"blank" }
+//     ],
+//     attempts: number
+//   }
+//
+// 戻り値（失敗時）：
+//   { ok:false, message } / { ok:false, retake:true, message } / { ok:false, message, attempts }
+//
+// プロンプト設計の要点：
+//   ・厳格判定：偏旁冠脚一致なら match=true、トメ/ハネ/ハライ揺れも true、字形が遠ければ false
+//   ・「寄せる」補正禁止：字形が違うなら必ず false
+//   ・readable 3 値：yes（字形が読める）/ no（ぼやけ等で判別不能）/ blank（答え欄に何もなし）
+//   ・出力形式：JSON 配列のみ、前置き・説明・コードブロック禁止
+//   ・generationConfig.responseMimeType='application/json' で JSON 強制（基礎計算と同パターン）
+function _kanjiJudgeWithGemini(imageBase64, expectedAnswers) {
+  const apiKey = _props().getProperty('GEMINI_API_KEY');
+  if (!apiKey) return { ok: false, message: 'GEMINI_API_KEY が設定されていません' };
+  if (!Array.isArray(expectedAnswers) || expectedAnswers.length === 0) {
+    return { ok: false, message: '判定対象の問題リストがありません' };
+  }
+
+  // 正解候補をプロンプトに埋め込む
+  const problemLines = expectedAnswers.map(function(e){
+    const no = Number((e && e.no) || 0);
+    const ans = String((e && e.answer) || '').trim();
+    return '問' + no + ': 期待する漢字 = "' + ans + '"';
+  }).join('\n');
+
+  const numCount = expectedAnswers.length;
+
+  const prompt =
+    'これは生徒の手書き答案の画像です。以下の各問題について、答え欄に書かれた字形が\n' +
+    '「正解の漢字」と一致するか判定してください。\n' +
+    '\n' +
+    '【問題リスト（' + numCount + '問）】\n' +
+    problemLines + '\n' +
+    '\n' +
+    '【判定ルール（厳格に守ること）】\n' +
+    '・偏（へん）・旁（つくり）・冠（かんむり）・脚（あし）など漢字を構成する部首が\n' +
+    '  完全に一致するなら match=true。\n' +
+    '・トメ・ハネ・ハライの細部の揺れだけが違う場合は match=true（部首ベース判定）。\n' +
+    '・部首が違う、字形が遠い、判読困難な場合は match=false。\n' +
+    '・「即」と「朗」、「未」と「末」、「土」と「士」、「干」と「于」、「己」と「已」「巳」、\n' +
+    '  「郎」と「朗」のように、字形が似ていても部首/構成が違うものは別漢字。それぞれを\n' +
+    '  混同してはいけない。\n' +
+    '・期待する漢字に「寄せる」補正は絶対に禁止。生徒が違う字を書いていたら必ず false。\n' +
+    '・送り仮名（ひらがな）が含まれる場合も含めて、期待値と一致するか判定する。\n' +
+    '・字数も忠実に判定する。「怒鳴」（2 文字）の答え欄に「焚き」（1 文字+ひらがな）が\n' +
+    '  書かれていたら match=false。\n' +
+    '\n' +
+    '【読み取り可否（readable）の判定】\n' +
+    '・readable="yes"   … 答え欄に何か書かれていて、字形がはっきり読める場合\n' +
+    '・readable="no"    … 答え欄に何か書かれているが、ぼやけ / ピンボケ / 影の濃淡 / 細かすぎる等で\n' +
+    '                    字形が判別不能な場合（その場合 match=false、studentWrote には「?」または近似字を入れる）\n' +
+    '・readable="blank" … 答え欄に何も書かれていない（白紙、空白の）場合\n' +
+    '                    （その場合 match=false、studentWrote="" を入れる）\n' +
+    '\n' +
+    '【出力ルール】\n' +
+    '・出力は JSON 配列のみ。前置き・説明・コードブロック（```）は絶対に含めない。\n' +
+    '・各問題について以下の形式で出力する：\n' +
+    '  [\n' +
+    '    {"no":1, "match":true,  "studentWrote":"恩恵",  "readable":"yes"},\n' +
+    '    {"no":2, "match":false, "studentWrote":"焚き", "readable":"yes"},\n' +
+    '    {"no":3, "match":false, "studentWrote":"?",   "readable":"no"},\n' +
+    '    {"no":4, "match":false, "studentWrote":"",    "readable":"blank"}\n' +
+    '  ]\n' +
+    '・問題番号は問題リストの no と完全に一致させる。順序も同じ。\n' +
+    '・studentWrote には、その答え欄に実際に書かれている字形をそのまま記録する\n' +
+    '  （正解側に寄せた補正はしないこと）。\n' +
+    '\n' +
+    '【背景の除去】\n' +
+    '・写真には畳・机・木目・影・紙の縁などの背景が写り込んでいる場合がある。\n' +
+    '・紙の上に書かれた手書き文字のみが判定対象。背景の模様や影の濃淡を文字と誤認しない。\n' +
+    '\n' +
+    '【答案領域の限定】\n' +
+    '・答案用紙には「問題文」「設問」「生徒の答え」などが混在している場合がある。\n' +
+    '・問題文や説明文（活字・印刷文字に見えるもの）は判定対象外。\n' +
+    '・行頭の番号（1. 2. 3. ...）を起点に、その右側または下側に書かれた答えを使う。';
+
+  const body = {
+    contents: [{ parts: [ { text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: String(imageBase64) } } ] }],
+    generationConfig: {
+      temperature: 0,
+      // 既存基礎計算 OCR と同パターン。JSON を絶対形式で要求する二重防御
+      responseMimeType: 'application/json'
+    }
+  };
+  const fetchOpts = { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true };
+  const model = 'gemini-2.5-flash';
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+  const MAX_ATTEMPTS = 2;
+  const RETRY_WAIT_MS = 500;
+  const QUOTA_PATTERN = /quota|rate|limit|exhaust|busy|unavail|帯域/i;
+  let lastErrorSummary = '';
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res;
+    try { res = UrlFetchApp.fetch(url, fetchOpts); }
+    catch (e) {
+      const exMsg = String(e);
+      console.error('[Gemini kanjiJudge fetch exception attempt=' + attempt + ']', exMsg);
+      lastErrorSummary = 'fetch exception: ' + exMsg;
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, message: 'Gemini API 通信エラー：' + exMsg };
+    }
+    const code = res.getResponseCode();
+    const raw = res.getContentText();
+    if (code === 429 || (code >= 500 && code < 600)) {
+      console.error('[Gemini kanjiJudge retryable HTTP attempt=' + attempt + ']', code, raw.substring(0, 400));
+      lastErrorSummary = 'HTTP ' + code;
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, message: 'Gemini API が混雑しています（HTTP ' + code + '）。少し時間をおいて再送信してください。' };
+    }
+    let json;
+    try { json = JSON.parse(raw); }
+    catch (e) {
+      console.error('[Gemini kanjiJudge JSON parse error]', code, e, raw.substring(0, 800));
+      return { ok: false, message: 'Gemini API: 応答 JSON が不正（HTTP ' + code + '）' };
+    }
+    if (json && json.error) {
+      const errMsg = String(json.error.message || '');
+      console.error('[Gemini kanjiJudge top-level error attempt=' + attempt + ']', code, JSON.stringify(json.error));
+      if (QUOTA_PATTERN.test(errMsg) && attempt < MAX_ATTEMPTS) {
+        lastErrorSummary = 'top-level error: ' + errMsg;
+        Utilities.sleep(RETRY_WAIT_MS); continue;
+      }
+      return { ok: false, message: 'Gemini API: ' + (errMsg || 'error') };
+    }
+    if (json && json.promptFeedback && json.promptFeedback.blockReason) {
+      console.error('[Gemini kanjiJudge blocked]', JSON.stringify(json.promptFeedback));
+      return { ok: false, retake: true, message: '画像のチェックでブロックされました。別の写真でもう一度試してください。' };
+    }
+    const candidates = json && json.candidates;
+    if (!candidates || !candidates[0]) return { ok: false, message: 'Gemini 応答に候補がありません（HTTP ' + code + '）' };
+    const cand = candidates[0];
+    if (cand.finishReason && cand.finishReason !== 'STOP' && cand.finishReason !== 'MAX_TOKENS') {
+      console.error('[Gemini kanjiJudge abnormal finishReason]', cand.finishReason);
+      return { ok: false, retake: true, message: '画像の解析が中断されました。もう一度撮影してください。' };
+    }
+    const parts = cand.content && cand.content.parts;
+    if (!parts || !parts[0] || typeof parts[0].text !== 'string') {
+      return { ok: false, retake: true, message: '画像から判定結果を得られませんでした。明るい場所でもう一度撮影してください。' };
+    }
+    let responseText = String(parts[0].text || '').trim();
+    // フォールバック保険：レスポンスにコードブロック装飾が混入していたら剥がす
+    responseText = responseText.replace(/^```(?:[a-zA-Z]+)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    if (!responseText) {
+      return { ok: false, retake: true, message: '画像から判定結果を得られませんでした。明るい場所でもう一度撮影してください。' };
+    }
+
+    // JSON parse + バリデーション
+    let parsed;
+    try { parsed = JSON.parse(responseText); }
+    catch (e) {
+      console.error('[Gemini kanjiJudge response JSON parse error]', e, responseText.substring(0, 500));
+      if (attempt < MAX_ATTEMPTS) {
+        lastErrorSummary = 'response not JSON: ' + String(e);
+        Utilities.sleep(RETRY_WAIT_MS); continue;
+      }
+      return { ok: false, message: 'Gemini API: 判定結果の JSON が不正な形式でした' };
+    }
+    if (!Array.isArray(parsed)) {
+      console.error('[Gemini kanjiJudge response not array]', responseText.substring(0, 500));
+      if (attempt < MAX_ATTEMPTS) {
+        lastErrorSummary = 'response not array';
+        Utilities.sleep(RETRY_WAIT_MS); continue;
+      }
+      return { ok: false, message: 'Gemini API: 判定結果が配列形式ではありませんでした' };
+    }
+    if (parsed.length !== expectedAnswers.length) {
+      console.error('[Gemini kanjiJudge response length mismatch]',
+        'expected=' + expectedAnswers.length, 'got=' + parsed.length,
+        responseText.substring(0, 500));
+      // 長さ不一致は致命的（番号ずれ）：リトライ後にエラー返却
+      if (attempt < MAX_ATTEMPTS) {
+        lastErrorSummary = 'length mismatch: expected ' + expectedAnswers.length + ', got ' + parsed.length;
+        Utilities.sleep(RETRY_WAIT_MS); continue;
+      }
+      return { ok: false, message: 'Gemini API: 判定結果の件数が問題数と一致しませんでした' };
+    }
+
+    // 期待 no で索引化、欠損は false / blank で埋める
+    const byNo = {};
+    parsed.forEach(function(item){
+      if (item && typeof item === 'object' && item.no !== undefined) {
+        byNo[String(item.no)] = item;
+      }
+    });
+    const results = expectedAnswers.map(function(e){
+      const noKey = String(Number((e && e.no) || 0));
+      const item = byNo[noKey] || {};
+      const readableRaw = String(item.readable || '').toLowerCase().trim();
+      const readable = (readableRaw === 'yes' || readableRaw === 'no' || readableRaw === 'blank')
+        ? readableRaw : 'no';  // 未指定/異常値は no（再撮影誘導側に倒す = 安全側）
+      return {
+        no: Number((e && e.no) || 0),
+        match: !!item.match,
+        studentWrote: String(item.studentWrote || ''),
+        readable: readable
+      };
+    });
+
+    if (attempt > 1) {
+      console.log('[Gemini kanjiJudge retry success] attempt=' + attempt + ' initial_error=' + lastErrorSummary);
+    }
+    return { ok: true, results: results, attempts: attempt };
+  }
+  return { ok: false, message: 'Gemini API: 不明なエラー（リトライ完了後）：' + lastErrorSummary };
+}
+
 // =============================================================================
 // 古文単語コンテンツ「コブタン」（2026-05-08 枠組み実装）
 // =============================================================================
