@@ -6344,11 +6344,24 @@
       sessionId: _kanjiState.sessionId,
       answers: JSON.stringify(_kanjiState.yomiAnswers)
     }).then(function(res){
-      var passed = !!(res && res.ok && res.passed);
-      _kanjiState.yomiPassed = passed;
-      var correctCount = (res && res.correctCount) || _kanjiState.yomiScore;
-      var total = (res && res.total) || _kanjiState.questions.length;
-      _showKanjiYomiResult(passed, correctCount, total);
+      // 2026-05-11 バグ③ 修正：falsy-0 フォールバック禁止。
+      // 旧コード `(res && res.correctCount) || _kanjiState.yomiScore` は 0 が falsy
+      // のため、サーバーが「全部 0 点」と返した時にクライアントの yomiScore（最大値）
+      // にフォールバックして「5/5問正解 + 惜しい！」（満点表示なのに不合格文言）の
+      // 矛盾を起こしていた。サーバー応答が正常（ok=true）ならその値を信頼する。
+      if (res && res.ok) {
+        var passed = !!res.passed;
+        _kanjiState.yomiPassed = passed;
+        var correctCount = (typeof res.correctCount === 'number') ? res.correctCount : _kanjiState.yomiScore;
+        var total        = (typeof res.total === 'number')        ? res.total        : _kanjiState.questions.length;
+        _showKanjiYomiResult(passed, correctCount, total);
+      } else {
+        // サーバーエラー → クライアント側スコアでフォールバック判定
+        var totalC = _kanjiState.questions.length;
+        var passedC = totalC > 0 && _kanjiState.yomiScore === totalC;
+        _kanjiState.yomiPassed = passedC;
+        _showKanjiYomiResult(passedC, _kanjiState.yomiScore, totalC);
+      }
     }).catch(function(){
       // 通信失敗時はクライアント側のスコアでフォールバック判定（2026-05-08 全問正解で合格）
       var total = _kanjiState.questions.length;
@@ -6362,10 +6375,12 @@
     var actions = document.getElementById('kanji-yomi-result-actions');
     if (passed) {
       _kanjiSetMascot('kanjii-img-yomi-result', 'celebrate', 'kanjii-bubble-yomi-result', _pickBubble(KANJI_BUBBLES.yomiPass));
+      // 2026-05-11 バグ③ 修正：満点合格時の文言を E 案に変更（ふくちさん承認済み）。
+      // 知識系コンテンツ（カンジー）は満点 = 合格なので「合格 = 満点」を明示的に祝う。
       banner.innerHTML =
         '<div class="kanji-result-success">' +
-          '<div style="font-size:48px">🎉</div>' +
-          '<div class="kanji-result-title">読み 合格！</div>' +
+          '<div style="font-size:48px">🎊</div>' +
+          '<div class="kanji-result-title">満点！カンジー仙人もうなずいています</div>' +
           '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
         '</div>';
       actions.innerHTML =
@@ -6657,11 +6672,13 @@
     } else {
       hpBlock = '<div class="wabun1-result-already">（本日のHPは既に獲得済みです）</div>';
     }
+    // 2026-05-11 バグ③ 修正：満点合格時の文言を E 案に統一（ふくちさん承認済み）。
+    // 読みの banner（_showKanjiYomiResult 内）と表現を揃えて、知識系の「満点=合格」を祝う。
     bodyEl.innerHTML =
       '<div class="wabun1-result-success">' +
         '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
-        '<div style="font-size:52px">🖌️</div>' +
-        '<div class="wabun1-result-title">提出完了！漢字マスター！</div>' +
+        '<div style="font-size:52px">🎊</div>' +
+        '<div class="wabun1-result-title">満点！カンジー仙人もうなずいています</div>' +
         hpBlock +
       '</div>';
     showScreen('screen-kanji-done');
