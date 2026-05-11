@@ -10898,6 +10898,17 @@ function submitLison(params) {
       const week = Math.ceil(streak / 7);
       const baseHp = _lisonBaseHpForLevel(level);
       hpGained = baseHp * week * week;
+
+      // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
+      // HPLog 書き込み失敗時は Students.HP / LisonSubmissions 追記をスキップしてエラー応答
+      // を返す。Drive に保存済みの録音ファイルは残るが、再提出時に alreadyGranted=false
+      // のまま再度 HP 付与経路に入る（LisonSubmissions に未追記のため）→ 次回成功で救済。
+      const logRes = _logHP(sid, hpGained, hpGained, 'lison');
+      if (!logRes.ok) {
+        console.error('[submitLison] HPLog 書き込みに失敗しました。HP/LisonSubmissions を更新せず終了。', logRes.error);
+        return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+      }
+
       // Students シート HP 加算（書き込みはフレッシュ rowIdx + setValue、in-place キャッシュ更新）
       const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
       const newHP = cur + hpGained;
@@ -10905,6 +10916,7 @@ function submitLison(params) {
       const upd = {};
       upd[COL_HP] = newHP;
       _updateAccountCacheBySid(sid, upd);
+      _invalidateCache('cache_ranking_last_week');
     }
 
     // LisonSubmissions に追記（alreadyGranted のときも recordingUrl と quizScore は残す）
@@ -10924,13 +10936,6 @@ function submitLison(params) {
       hpGained,
       saveRes.fileId || ''
     ]);
-
-    // HP 付与時のみ HPLog 記録 + ランキングキャッシュ無効化
-    // 注: rawHP と hpGained は同値（素点HP × 週²）。他コンテンツ（sango/wabun1）と同パターン。
-    if (hpGained > 0) {
-      _logHP(sid, hpGained, hpGained, 'lison');
-      _invalidateCache('cache_ranking_last_week');
-    }
 
     return {
       ok: true,
