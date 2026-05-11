@@ -11406,7 +11406,11 @@ function submitKanjiYomi(params) {
 //   - count: 全体セットの問題数（5 or 10、HP 計算用。再挑戦時も元の count を渡す）
 //   - expectedAnswers: [{kanjiId, no, answer}] 各問の正解（再挑戦時は不正解のみ）
 //   - isRetry: true なら再挑戦（HP 上限判定はパス済みで合格時は付与）
-// 戻り値: { ok, passed, correctCount, total, results, hpInfo, ocrText }
+// 戻り値:
+//   通常採点時:    { ok, passed, needsRetake:false, correctCount, total, results, hpInfo, isRetry, attempts }
+//   再撮影誘導時:  { ok, passed:false, needsRetake:true, retakeReasonNos:[3,7], total, attempts, message }
+//   ※ results[].studentWrote / readable は Vision の判定結果（フロント表示用）
+//   ※ ocrText フィールドは案 A で廃止（互換性のため空文字を返す）
 function submitKanjiKaki(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
@@ -11428,46 +11432,93 @@ function submitKanjiKaki(params) {
     }
     if (count !== 5 && count !== 10) return { ok: false, message: '問題数は 5 または 10 を指定してください' };
 
-    // Gemini Vision で OCR
-    const ocrRes = _kanjiOcrWithGemini(photoBase64);
-    if (!ocrRes || !ocrRes.ok) return ocrRes || { ok: false, message: 'OCR に失敗しました' };
-    const ocrText = String(ocrRes.ocrText || '');
+    // 2026-05-12 バグ⑤ Phase B（案 A）：
+    // 旧 _kanjiOcrWithGemini（自由 OCR + cursor 前進 indexOf 照合）から
+    // _kanjiJudgeWithGemini（正解候補ヒント付き判定タスク）に切り替え。
+    // 判定結果は Vision から直接 results 配列で返ってくるため、サーバ側の
+    // 文字列突合は不要になる。
+    const judgeRes = _kanjiJudgeWithGemini(photoBase64, expectedAnswers);
+    if (!judgeRes || !judgeRes.ok) return judgeRes || { ok: false, message: '判定に失敗しました' };
 
-    // 各問の正解を OCR テキストから照合（2026-05-08 厳密化：順序付き前進検索）
-    // OCR テキストには「番号 漢字」の並びで生徒の答えが書かれている前提。
-    // 仕様書 §採点ルール「F列『書き正解』との完全一致判定」を、手書き OCR の番号誤認識
-    // リスクを避けつつ実装するため、以下の方式を採用：
-    //   1. OCR テキスト全体を _kanjiNormalizeText（全角→半角・空白削除）で正規化
-    //   2. expectedAnswers を順番に前から順に検索（cursor 前進方式）
-    //   3. 一度見つかったら次回検索は cursor の次の位置から開始
-    //   4. 順序が違ったり、同じ漢字を別問題に書いた誤答は cursor が進まず不正解となる
-    // これは「ゆるい indexOf（既存）」より厳密、「行ベース完全一致」より OCR 番号誤認識
-    // に強い、現実的な厳密化。ふくちさん 36 年の塾長経験「丁寧に正しく書くことが裏の
-    // 第一目標」の哲学に基づく順序判定。
-    const ocrNorm = _kanjiNormalizeText(ocrText);
-    let cursor = 0;
-    let correctCount = 0;
-    const results = expectedAnswers.map(function(e){
-      const ans = String((e && e.answer) || '').trim();
-      const ansNorm = _kanjiNormalizeText(ans);
-      let found = false;
-      if (ansNorm) {
-        const pos = ocrNorm.indexOf(ansNorm, cursor);
-        if (pos >= 0) {
-          found = true;
-          cursor = pos + ansNorm.length;
-        }
+    // judgeRes.results は [{ no, match, studentWrote, readable }, ...] 形式。
+    // expectedAnswers と同順で並んでいる（_kanjiJudgeWithGemini 内で索引化済）。
+    // 採点 + 再撮影誘導の判定：
+    //   readable='no' の問が 1 つでもあれば「採点保留 + 再撮影誘導」を発動。
+    //   この場合、HP 加算もセット進捗更新もしない（生徒の答案ノートはそのまま使える）。
+    //   readable='blank' は「書き忘れ」なので不正解扱い（通常採点を継続）。
+    const judgeResults = Array.isArray(judgeRes.results) ? judgeRes.results : [];
+    const retakeReasonNos = [];
+    judgeResults.forEach(function(r, idx){
+      if (r && r.readable === 'no') {
+        retakeReasonNos.push(Number((r && r.no) || (idx + 1)));
       }
-      if (found) correctCount += 1;
+    });
+    const needsRetake = retakeReasonNos.length > 0;
+
+    // results の正規化（expectedAnswers との対応保持）
+    let correctCount = 0;
+    const results = expectedAnswers.map(function(e, idx){
+      const judgeItem = judgeResults[idx] || {};
+      const ans = String((e && e.answer) || '').trim();
+      const isCorrect = !!judgeItem.match;
+      if (isCorrect) correctCount += 1;
       return {
-        kanjiId: String((e && e.kanjiId) || ''),
-        no:      Number((e && e.no) || 0),
-        expected: ans,
-        isCorrect: found
+        kanjiId:      String((e && e.kanjiId) || ''),
+        no:           Number((e && e.no) || 0),
+        expected:     ans,
+        isCorrect:    isCorrect,
+        studentWrote: String(judgeItem.studentWrote || ''),
+        readable:     String(judgeItem.readable || '')
       };
     });
     const total = results.length;
-    // 2026-05-08 仕様変更：全問正解で合格（KANJI_PASS_RATIO = 1.0）。書きも読みと同じ満点合格。
+
+    // KanjiSubmissions シートに判定結果を永続化（軽量版 F'、needsRetake でも記録）
+    // 生徒からの「正しく書いたのに ❌」報告に対する事後検証 + プロンプト調整の基盤。
+    try {
+      const subSheet = _ss().getSheetByName(SHEET_KANJI_SUBMISSIONS);
+      if (subSheet) {
+        const ts = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+        results.forEach(function(r){
+          subSheet.appendRow([
+            ts,
+            sid,
+            level,
+            sessionId,
+            r.no,
+            r.expected,
+            r.studentWrote,
+            r.isCorrect,
+            r.readable
+          ]);
+        });
+        SpreadsheetApp.flush();  // v12 教訓（CLAUDE.md）：appendRow 直後の flush で別 execution への反映保証
+      } else {
+        console.error('[submitKanjiKaki] KanjiSubmissions シートが存在しません。ensureKanjiSheets() を実行してください。');
+      }
+    } catch (writeErr) {
+      console.error('[submitKanjiKaki KanjiSubmissions write]', writeErr);
+      // 永続化失敗時もユーザー応答は継続（採点結果は返す）
+    }
+
+    // 再撮影誘導時：採点 + HP 付与をスキップして即座に返却
+    // 生徒画面では「読み取れなかった問X があります、もう一度撮影してね」と
+    // 表示し、kanji_next も進めない（不合格扱いではないため）。
+    if (needsRetake) {
+      return {
+        ok: true,
+        passed: false,
+        needsRetake: true,
+        retakeReasonNos: retakeReasonNos,
+        total: total,
+        results: results,                  // フロントが必要なら参照可だが通常は使わない
+        attempts: judgeRes.attempts || 1,
+        message: '読み取れなかった答えがあります（問 ' + retakeReasonNos.join('、') + '）'
+      };
+    }
+
+    // 通常採点（合格判定）：全問正解で合格（KANJI_PASS_RATIO = 1.0）。
+    // 知識系コンテンツ方針（5/8 ふくちさん哲学）。書きも読みと同じ満点合格。
     const passed = total > 0 && correctCount === total;
 
     // HP 加算判定（合格時のみ）
@@ -11526,13 +11577,16 @@ function submitKanjiKaki(params) {
     return {
       ok: true,
       passed: passed,
+      needsRetake: false,
       correctCount: correctCount,
       total: total,
       results: results,
       hpInfo: hpInfo,
-      ocrText: ocrText,
+      // 案 A では生 OCR テキスト全文は取得しない（判定タスクのため）。
+      // フロント互換性のため空文字を返す（フロント側で details ブロックを出さなくなる）。
+      ocrText: '',
       isRetry: isRetry,
-      attempts: ocrRes.attempts || 1
+      attempts: judgeRes.attempts || 1
     };
   } catch (err) {
     console.error('[submitKanjiKaki]', err);
