@@ -5506,6 +5506,19 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
       const isPractice = (effectiveRawHP === 0);
       const hpGained = effectiveRawHP * week * week;
 
+      // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
+      // 非練習モード（hpGained > 0）で HPLog 書き込みに失敗した場合は Students.HP /
+      // KisoSessions 更新をスキップし、セッションを in_progress のまま残してエラー応答を
+      // 返す（生徒は同じ写真で再提出すれば次回成功する）。
+      // 練習モード（hpGained === 0）の場合は付与する HP がないため、_logHP 失敗は警告
+      // ログのみで処理を継続する（KisoSessions / 写真保存は実行）。
+      const logType = 'kiso_' + rank + '_' + count + (isPractice ? '_practice' : '');
+      const logRes  = _logHP(studentId, effectiveRawHP, hpGained, logType);
+      if (!logRes.ok && !isPractice && hpGained > 0) {
+        console.error('[submitKisoAnswer] HPLog 書き込みに失敗しました。HP/KisoSessions 更新せず終了。', logRes.error);
+        return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+      }
+
       // Students.HP 更新（in-place）
       if (!isPractice && stuLoc && hpGained > 0) {
         const newHP = currentHP + hpGained;
@@ -5515,9 +5528,6 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
         _updateAccountCacheBySid(studentId, upd);
       }
 
-      // HPLog 記録（仕様書 §8.4）
-      const logType = 'kiso_' + rank + '_' + count + (isPractice ? '_practice' : '');
-      _logHP(studentId, effectiveRawHP, hpGained, logType);
       _invalidateCache('cache_ranking_last_week');
 
       hpInfo = {
