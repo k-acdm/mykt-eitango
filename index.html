@@ -3452,13 +3452,24 @@
       body.innerHTML = '<div style="text-align:center;color:#888;padding:30px">本日のお題はまだ登録されていません。</div>';
       return;
     }
+    // 2026-05-11 バグ① 修正：level で重複排除（後勝ち）の防御層。
+    // GAS 側 _readSangoTopicsByDate でも dedupe しているが、キャッシュが古い時の保険。
+    var dedupByLevel = {};
+    var orderedLevels = [];
+    _sangoTopics.forEach(function(t) {
+      var lv = String(t.level || '');
+      if (!dedupByLevel[lv]) orderedLevels.push(lv);
+      dedupByLevel[lv] = t;
+    });
+    var uniqTopics = orderedLevels.map(function(lv){ return dedupByLevel[lv]; });
+
     var titleText = _sangoWeekNo
       ? '三語短文【第' + _sangoEscHtml(_sangoWeekNo) + '週目】　本日のお題'
       : '三語短文　本日のお題';
     var titleHtml = '<div class="sango-title-banner">' + titleText + '</div>';
 
     var dateHtml = _sangoDate ? '<div class="sango-date-label">📅 ' + _sangoEscHtml(formatDate(_sangoDate)) + ' のお題</div>' : '';
-    var topicsHtml = _sangoTopics.map(function(t) {
+    var topicsHtml = uniqTopics.map(function(t) {
       var words = (t.words || []).map(function(w){ return '<span class="sango-word">' + _sangoEscHtml(w) + '</span>'; }).join('');
       var desc = SANGO_LEVEL_DESCRIPTIONS[t.level] || '';
       var descHtml = desc ? '<span class="sango-level-desc">（' + _sangoEscHtml(desc) + '）</span>' : '';

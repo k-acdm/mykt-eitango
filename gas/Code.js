@@ -7962,21 +7962,30 @@ function _readSangoTopicsByDate(dateStr) {
   const iW3    = header.indexOf('word3');
   const iTW    = header.indexOf('teacher_work');
   const iWN    = header.indexOf('week_no');
-  const out = [];
+  // 2026-05-11 バグ① 修正：(date, level) で重複排除（後勝ち）。
+  // 真因：adminAddSangoTopicsWeek が dedupe せず appendRow するため、同じ週を 2 回貼り付け
+  // すると SangoTopics シートに同 (date, level) が複数行残り、本日のお題画面に同じレベルが
+  // 数回〜十数回連続表示されていた。シートの行は後勝ち（管理者が誤って 2 回貼ったら最新
+  // のものを採用）が自然なので、走査中に同 level に遭遇したら値を上書きする。
+  const byLevel = {};
+  const orderedLevels = [];
   for (let i = 1; i < values.length; i++) {
     const r = values[i];
     if (!r[iDate]) continue;
     const ds = Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
     if (ds !== dateStr) continue;
-    out.push({
-      level: String(r[iLevel] || '').trim(),
+    const level = String(r[iLevel] || '').trim();
+    const entry = {
+      level: level,
       words: [r[iW1], r[iW2], r[iW3]].map(function(w){ return String(w || '').trim(); }).filter(Boolean),
       teacher_work: String(r[iTW] || '').trim(),
       week_no: iWN >= 0 ? String(r[iWN] || '').trim() : '',
       date: ds
-    });
+    };
+    if (!byLevel[level]) orderedLevels.push(level);
+    byLevel[level] = entry;  // 後勝ち
   }
-  return out;
+  return orderedLevels.map(function(l){ return byLevel[l]; });
 }
 
 // 今日のお題（各レベル）と前日の福地作品（各レベル）を返す
@@ -8285,23 +8294,30 @@ function _readSangoTopicsByDateRange(startStr, endStr) {
   const iW3    = header.indexOf('word3');
   const iTW    = header.indexOf('teacher_work');
   const iWN    = header.indexOf('week_no');
-  const out = [];
+  // 2026-05-11 バグ① 修正：(date, level) で重複排除（後勝ち）。
+  // _readSangoTopicsByDate と同じ理由で、過去画面・アーカイブ画面の同レベル重複表示を防ぐ。
+  const byKey = {};
+  const orderedKeys = [];
   for (let i = 1; i < values.length; i++) {
     const r = values[i];
     if (!r[iDate]) continue;
     const ds = Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd');
     if (ds < startStr || ds > endStr) continue;
-    out.push({
+    const level = String(r[iLevel] || '').trim();
+    const key = ds + '\t' + level;
+    const entry = {
       date:  ds,
-      level: String(r[iLevel] || '').trim(),
+      level: level,
       word1: String(r[iW1] || '').trim(),
       word2: String(r[iW2] || '').trim(),
       word3: String(r[iW3] || '').trim(),
       teacher_work: iTW >= 0 ? String(r[iTW] || '').trim() : '',
       week_no:      iWN >= 0 ? String(r[iWN] || '').trim() : ''
-    });
+    };
+    if (!byKey[key]) orderedKeys.push(key);
+    byKey[key] = entry;  // 後勝ち
   }
-  return out;
+  return orderedKeys.map(function(k){ return byKey[k]; });
 }
 
 // 日付降順 × レベルA→S→B→T にまとめたレスポンス topics 配列を生成
