@@ -1199,6 +1199,19 @@ function loginStudent(studentId) {
         streak = 1;     // 2日以上空いたのでリセット
       }
 
+      // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
+      // 旧: Students 更新（HP / STREAK / LAST_LOGIN）→ _logHP（失敗してもサイレント）
+      // 新: _logHP（戻り値で成否確認）→ 成功時のみ Students 更新
+      //
+      // _logHP が失敗した場合は Students.HP / STREAK / LAST_LOGIN を一切更新せずに
+      // エラー応答を返す。これにより lastLogin が今日に書き換わらないので、生徒が
+      // 再ログインすれば +10HP がもう一度試行され、自動救済される。
+      const logRes = _logHP(studentId, loginBonus, loginBonus, 'login');
+      if (!logRes.ok) {
+        console.error('[loginStudent] HPLog 書き込みに失敗しました。HP/STREAK/LAST_LOGIN を更新せず終了。', logRes.error);
+        return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+      }
+
       // 4/26 修正: 連続日数バグ対策で LAST_TEST 列を含む 5 列 setValues を廃止
       //   旧: setValues E-I（UPDATED, HP, STREAK, LAST_TEST=preserved, LAST_LOGIN）
       //       → preservedLastTest が cache 経由（stale な ISO 文字列の可能性）でリスク
@@ -1214,8 +1227,6 @@ function loginStudent(studentId) {
       updates[COL_STREAK]     = streak;
       updates[COL_LAST_LOGIN] = today;
       _updateAccountCacheBySid(studentId, updates);
-      // 既存コンテンツは素点と倍率後HPが同値のため rawHP = hpGained
-      _logHP(studentId, loginBonus, loginBonus, 'login');
     }
 
     // ステージ・称号・節目を計算
