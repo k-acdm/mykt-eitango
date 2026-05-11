@@ -1516,6 +1516,16 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     const hpGained  = 50 * week * week;
     const newHP     = currentHP + hpGained;
 
+    // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
+    // HPLog 書き込みに失敗した場合は Students.HP / CLEARED / LAST_TEST を更新せずに
+    // エラー応答を返す。Attempts シートと PropertiesService（pass1/pass2/cleared_*）の
+    // 更新はそのまま残す（合格記録自体は有効、HP だけが付与されなかった状態）。
+    const logRes = _logHP(sid, hpGained, hpGained, 'test');
+    if (!logRes.ok) {
+      console.error('[saveAttempt] HPLog 書き込みに失敗しました。HP/CLEARED/LAST_TEST を更新せず終了。', logRes.error);
+      return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+    }
+
     // 4/26 修正: 連続日数バグ対策で STREAK 列を含む 5 列 setValues を廃止
     //   旧: setValues D-H（CLEARED, UPDATED, HP, STREAK=preservedStreak, LAST_TEST）
     //       → preservedStreak が cache 経由（stale な値の可能性）→ シートの STREAK を破壊するリスク
@@ -1533,8 +1543,6 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     updates[COL_HP]        = newHP;
     updates[COL_LAST_TEST] = today;
     _updateAccountCacheBySid(sid, updates);
-    // 既存コンテンツは素点と倍率後HPが同値のため rawHP = hpGained
-    _logHP(sid, hpGained, hpGained, 'test');
     _invalidateCache('cache_ranking_last_week');
 
     return { ok: true, clearHP: hpGained, bonusHP: 0, hpGained, totalHP: newHP, streak: streak, week: week };
