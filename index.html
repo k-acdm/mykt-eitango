@@ -2229,6 +2229,22 @@
   </div>
 </div>
 
+<!-- 2026-05-12 バグ⑤ Phase B（案A）：再撮影誘導画面
+     readable='no' の問が 1 件以上ある時、サーバ側で採点保留として
+     needsRetake:true で返却される。フロントは結果画面に進まず、
+     この画面でユーザーに撮り直しを促す。-->
+<div id="screen-kanji-kaki-retake" class="screen">
+  <header><h1>📷 撮り直し</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kanjii-mate-row">
+      <img class="kanjii-img" id="kanjii-img-kaki-retake" src="images/kanjii-encourage.png" alt="カンジー">
+      <div class="kanjii-bubble" id="kanjii-bubble-kaki-retake">明るい場所でもう一度撮ってくれ〜！</div>
+    </div>
+    <div id="kanji-kaki-retake-banner"></div>
+    <div id="kanji-kaki-retake-actions"></div>
+  </div>
+</div>
+
 <div id="screen-kanji-done" class="screen">
   <header><h1>✅ 提出完了</h1><span></span></header>
   <div class="container" style="padding-top:16px">
@@ -6199,7 +6215,9 @@
     kakiStart:    ['むむ、見させてもらうぞ…', 'ふむ、字を確かめておるぞ', '待っておれ…'],
     kakiPass:     ['天晴れ！', '見事じゃ！', '精進したのう！'],
     kakiFail:     ['惜しい、書き直しじゃ', 'もう一度、丁寧に', 'あと一歩じゃ'],
-    kakiRetry:    ['間違えた問題だけ、もう一度がんばろう！', 'もう一度、丁寧に書いてみよ', 'リベンジじゃ']
+    kakiRetry:    ['間違えた問題だけ、もう一度がんばろう！', 'もう一度、丁寧に書いてみよ', 'リベンジじゃ'],
+    // 2026-05-12 バグ⑤ Phase B：読み取り不能時の再撮影誘導（不合格扱いではない）
+    kakiRetake:   ['ふむ、もう一度撮ってもらえるかのう', '明るい場所で撮り直しじゃ', 'もう一回じっくり撮影なされ']
   };
   var RUSHKUN_BUBBLES = {
     level:    ['どの級に挑戦する？', 'やる気あるね、どれにする？', "Let's go! どの級？"],
@@ -6562,6 +6580,15 @@
         return;
       }
       msgEl.style.display = 'none';
+      // 2026-05-12 バグ⑤ Phase B：再撮影誘導（採点保留）。
+      // readable='no' の問が 1 件以上あるとサーバ側で needsRetake:true で返却される。
+      // 結果画面に進まず、撮り直し画面に遷移して生徒に再撮影を促す。
+      // この時点では不合格扱いではないため、_kanjiState.kakiResults / kakiPassed は
+      // 更新せず、答案ノートはそのまま使える状態を維持する。
+      if (res.needsRetake) {
+        _showKanjiKakiRetake(res);
+        return;
+      }
       _kanjiState.kakiResults = res.results || [];
       _kanjiState.kakiPassed = !!res.passed;
       _showKanjiKakiResult(res);
@@ -6622,6 +6649,37 @@
       '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
     try { playSfx('fail'); } catch(e){}
     showScreen('screen-kanji-kaki-result');
+  }
+  // 2026-05-12 バグ⑤ Phase B（案A）：再撮影誘導画面
+  // サーバから needsRetake:true が返った時に呼び出される。
+  // この時点では「答え欄に書かれているがぼやけて判別不能」な問題があるため
+  // 「採点保留」となっている。生徒の答案ノートは無傷なので撮り直しのみで OK。
+  // - HP 加算なし
+  // - セット進捗（kanji_next）も更新されない
+  // - 不合格扱いではないため _kanjiState.kakiResults / kakiPassed は更新しない
+  function _showKanjiKakiRetake(res) {
+    var escH = function(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    var reasonNos = (res && res.retakeReasonNos) || [];
+    var reasonText = reasonNos.length > 0 ? '問 ' + reasonNos.join('、') : 'いくつかの問題';
+    _kanjiSetMascot('kanjii-img-kaki-retake', 'encourage', 'kanjii-bubble-kaki-retake', _pickBubble(KANJI_BUBBLES.kakiRetake));
+    var banner = document.getElementById('kanji-kaki-retake-banner');
+    var actions = document.getElementById('kanji-kaki-retake-actions');
+    banner.innerHTML =
+      '<div class="kanji-result-fail" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border-color:#f59e0b">' +
+        '<div style="font-size:48px">📷</div>' +
+        '<div class="kanji-result-title" style="color:#92400e">はっきり読み取れませんでした</div>' +
+        '<div style="margin-top:12px;font-size:15px;line-height:1.8;color:#78350f">' +
+          escH(reasonText) + ' がはっきり読み取れませんでした。<br>' +
+          '写真がブレていないか・明るさが十分かを確認して、もう一度撮影してね。' +
+        '</div>' +
+        '<div style="margin-top:14px;font-size:13px;color:#92400e;background:#fffbeb;padding:10px 12px;border-radius:8px">' +
+          '※ 答案ノートはそのまま使えるよ（今回の判定は保留されているので、HP は減らないよ）' +
+        '</div>' +
+      '</div>';
+    actions.innerHTML =
+      '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="retakeKanjiPhoto()">📷 もう一度撮影</button>' +
+      '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+    showScreen('screen-kanji-kaki-retake');
   }
   function _retryKanjiKaki() {
     // 不正解のみを再挑戦対象に
