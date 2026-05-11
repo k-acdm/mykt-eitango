@@ -8555,6 +8555,23 @@ function getChildActivityRecent(params) {
       }
     }
 
+    // 2026-05-11 バグ④ 修正：HP 獲得記録があるのにログイン ❌ 表示の矛盾解消。
+    // 真因：HPLog の type='login' レコードのみで login フラグを判定していたため、
+    // 何らかの事情で login レコードが欠落した日（過去の連続日数バグ #97-99 復旧前の日付・
+    // 教育日切替前後の境界・手動編集・処理失敗等）に「HP 獲得済みなのにログイン❌」が
+    // 表示されていた。HP 獲得は必ずログイン後に発生するという因果関係から、いずれかの
+    // 学習活動が記録されている日は login=true を保証する（推論ベース）。
+    // 既存の type='login' 直接ヒット経路は無修正なので、login レコードがある日は従来通り。
+    Object.keys(byDate).forEach(function(ds){
+      const d = byDate[ds];
+      if (d.login) return;  // 既に true ならスキップ
+      if (d.eitango.done || d.sango.done || d.wabun1.done || d.kiso.done || d.lison.done || d.kanji.done) {
+        d.login = true;
+      } else if (d.extras && d.extras.length > 0) {
+        d.login = true;
+      }
+    });
+
     // 新しい順に配列化
     const days = [];
     for (let i = endDaysAgo; i <= startDaysAgo; i++) {
