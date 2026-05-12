@@ -188,6 +188,34 @@
       .kobun-bubble::before { left: 50%; top: -11px; transform: translateX(-50%); border: 9px solid transparent; border-right-color: transparent; border-bottom-color: #d97706; }
       .kobun-bubble::after  { left: 50%; top: -8px;  transform: translateX(-50%); border: 8px solid transparent; border-right-color: transparent; border-bottom-color: #fef3c7; }
     }
+    /* ===== 今日の運勢（2026-05-13 新規） =====
+       薄ラベンダー系の背景、紫の枠線でホーム画面カードのトーンと統一。 */
+    #screen-fortune { background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%); }
+    .fortune-mate-row { display:flex; align-items:flex-start; gap:12px; margin: 6px 0 14px; }
+    .fortune-mate-row .fortune-mascot { width:96px; height:96px; object-fit:contain; flex-shrink:0; background:rgba(255,255,255,.6); border-radius:18px; padding:6px; box-shadow:0 2px 8px rgba(91,33,182,.15); }
+    .fortune-bubble { position:relative; flex:1; background:#ffffff; border:2px solid #c4b5fd; border-radius:18px; padding:14px 16px; color:#3b0764; line-height:1.7; box-shadow:0 3px 10px rgba(91,33,182,.12); }
+    .fortune-bubble::before { content:''; position:absolute; left:-11px; top:24px; border:9px solid transparent; border-right-color:#c4b5fd; }
+    .fortune-bubble::after  { content:''; position:absolute; left:-8px;  top:25px; border:8px solid transparent; border-right-color:#ffffff; }
+    .fortune-greet { font-size:15px; color:#5b21b6; margin-bottom:10px; }
+    .fortune-section { margin-top:14px; padding-top:12px; border-top:1px dashed #c4b5fd; }
+    .fortune-section:first-of-type { margin-top:6px; padding-top:0; border-top:none; }
+    .fortune-label { font-size:13px; font-weight:bold; color:#6d28d9; letter-spacing:.5px; margin-bottom:4px; }
+    .fortune-stars { font-size:22px; color:#f59e0b; letter-spacing:2px; margin: 2px 0 6px; }
+    .fortune-text { font-size:15px; color:#3b0764; }
+    .fortune-lucky { margin-top:14px; padding:12px 14px; background:#faf5ff; border:1px solid #ddd6fe; border-radius:14px; }
+    .fortune-lucky-title { font-size:14px; font-weight:bold; color:#6d28d9; margin-bottom:8px; }
+    .fortune-lucky-list { display:flex; flex-direction:column; gap:4px; font-size:14px; color:#3b0764; }
+    .fortune-lucky-list li { list-style:none; }
+    .fortune-lucky-list .k { display:inline-block; min-width:120px; color:#6d28d9; }
+    .fortune-footer-note { margin-top:14px; padding:10px 14px; background:rgba(255,255,255,.55); border:1px dashed #c4b5fd; border-radius:12px; font-size:12px; color:#6d28d9; line-height:1.6; text-align:center; }
+    @media (max-width: 480px) {
+      .fortune-mate-row { flex-direction: column; gap: 8px; }
+      .fortune-bubble { width: 100%; }
+      .fortune-bubble::before { left: 50%; top: -11px; transform: translateX(-50%); border: 9px solid transparent; border-right-color: transparent; border-bottom-color: #c4b5fd; }
+      .fortune-bubble::after  { left: 50%; top: -8px;  transform: translateX(-50%); border: 8px solid transparent; border-right-color: transparent; border-bottom-color: #ffffff; }
+      .fortune-lucky-list .k { min-width: 96px; }
+    }
+
     .kobun-set-header { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #78350f; padding: 10px 14px; border-radius: 10px; font-size: 14px; font-weight: bold; margin: 8px 0; text-align: center; border: 1px solid #f5d796; }
     .kobun-vocab-list { display: flex; flex-direction: column; gap: 12px; margin: 10px 0 14px; }
     .kobun-vocab-card { background: #fffbeb; border: 2px solid #f5d796; border-radius: 12px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(217,119,6,.10); }
@@ -448,7 +476,7 @@
     @media (max-width: 480px) { .content-btn .ico-mascot { width:48px; height:48px; padding:5px; border-radius:12px; } }
     /* ---- ホーム画面コンテンツボタンのキャラ画像ゆらゆら（マイカツ君 cbob 踏襲） ---- */
     /* マイカツ君の cbob keyframes（行 219）と同じ上下 7px の控えめな揺れを 7 キャラに適用。
-       準備中（c-wabun2 / c-social / c-science / c-phonics）と秘密の扉（c-himitsu）には適用しない。
+       準備中（c-wabun2 / c-social / c-science / c-phonics）と今日の運勢（c-himitsu、マスコット画像なしのため対象外）には適用しない。
        2026-05-08：カンジー稼働化に合わせ c-kanji を追加（delay 2.0s）。
        2026-05-08 夕：古文単語コブタン稼働化に合わせ c-kobun を追加（delay 2.4s）。
        duration 2.4s、各キャラ delay 0/0.4/0.8/1.2/1.6/2.0/2.4s で機械的な同期を回避（半周期内に分散）。 */
@@ -484,11 +512,13 @@
       .content-btn.c-kanji   .ico-mascot,
       .content-btn.c-kobun   .ico-mascot { animation: none; }
     }
-    .content-btn.c-himitsu   { background: linear-gradient(135deg,#5b21b6,#1e1b4b); position:relative; overflow:hidden; }
-    .content-btn.c-himitsu::before { content:"✨"; position:absolute; top:6px; left:8px; font-size:14px; opacity:.85; pointer-events:none; }
-    .content-btn.c-himitsu::after  { content:"✨"; position:absolute; bottom:6px; right:8px; font-size:14px; opacity:.85; pointer-events:none; }
-    .content-btn.c-himitsu .content-btn-sub-equal { display:block; font-size:16px; font-weight:bold; opacity:.95; margin-top:6px; letter-spacing:.3px; }
-    @media (max-width: 480px) { .content-btn.c-himitsu .content-btn-sub-equal { font-size:14px; } }
+    /* 「今日の運勢」カード（旧「秘密の扉」、2026-05-13 リブランド）
+       薄ラベンダー系（占い感を出しつつ他カードと並んでも浮かないトーン）。
+       文字は濃い紫で十分なコントラストを確保。✨ 装飾は控えめに維持。 */
+    .content-btn.c-himitsu   { background: linear-gradient(135deg,#ede9fe,#ddd6fe); color:#4c1d95; position:relative; overflow:hidden; box-shadow: 0 3px 10px rgba(91,33,182,.18); }
+    .content-btn.c-himitsu::before { content:"✨"; position:absolute; top:6px; left:8px; font-size:12px; opacity:.75; color:#7c3aed; pointer-events:none; }
+    .content-btn.c-himitsu::after  { content:"✨"; position:absolute; bottom:6px; right:8px; font-size:12px; opacity:.75; color:#7c3aed; pointer-events:none; }
+    .content-btn.c-himitsu .ico { color:#6d28d9; }
     .content-btn.c-math      { background: linear-gradient(135deg,#4fc3f7,#2979ff); }
     .content-btn.c-kanji     { background: linear-gradient(135deg,#ff8a8a,#c92a2a); }
     .content-btn.c-social    { background: linear-gradient(135deg,#96e072,#2ecc71); }
@@ -1386,9 +1416,8 @@
           <span class="badge-soon">準備中</span>
           <span class="ico">🎵</span>フォニックスゲーム
         </button>
-        <button class="content-btn c-himitsu" onclick="showHimitsuDoor()">
-          <span class="ico">🚪</span>秘密の扉
-          <span class="content-btn-sub-equal">（近日公開、お楽しみに！）</span>
+        <button class="content-btn c-himitsu" onclick="showFortuneScreen()">
+          <span class="ico">🔮</span>今日の運勢
         </button>
       </div>
     </div>
@@ -2496,6 +2525,19 @@
   </div>
 </div>
 
+<!-- ===== 今日の運勢（2026-05-13 新規、旧「秘密の扉」のリブランド） ===== -->
+<!-- マイカツ君が運勢を語る。骨格データはダミー（後でプリスレが本骨格に差し替え予定）。 -->
+<!-- 決定論的シード（studentId + JST 日付）で同じ日は同じ運勢を返す。 -->
+<div id="screen-fortune" class="screen">
+  <header><h1>🔮 今日の運勢</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="fortune-body">
+      <div class="loading">⏳ 今日の運勢を占っています...</div>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#7c3aed,#5b21b6);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
 <!-- 送信中オーバーレイ（リス版） -->
 <div id="lison-submit-overlay" class="lison-submit-overlay">
   <div class="lison-submit-card">
@@ -3211,7 +3253,73 @@
   function selectLevel(level) { _level = level; showToday(); }
   function showComingSoonLevel(name) { alert('英検' + name + 'レベルは現在準備中です。もうしばらくお待ちください！'); }
   function showComingSoon(name) { alert(name + ' は現在準備中です。もうしばらくお待ちください！'); }
-  function showHimitsuDoor() { alert('🚪 秘密の扉はまだ閉じています…\n近日公開、お楽しみに！'); }
+  // ===== 今日の運勢（2026-05-13 新規、旧「秘密の扉」のリブランド） =====
+  // GAS getTodayFortune を呼び、screen-fortune に運勢をレンダリングする。
+  // 骨格データはまだダミー 5 個。プリスレが本骨格を作ったら GAS 側を差し替えるだけで OK。
+  function showFortuneScreen() {
+    var body = document.getElementById('fortune-body');
+    if (body) body.innerHTML = '<div class="loading">⏳ 今日の運勢を占っています...</div>';
+    showScreen('screen-fortune');
+    gasGet({ action:'getTodayFortune', studentId:_studentId, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) {
+        if (body) body.innerHTML = '<div class="error">' + _fortuneEsc((res && res.message) || '占いの読み込みに失敗しました。') + '</div>';
+        return;
+      }
+      _renderFortune(res.fortune || {}, res.meta || {});
+    }).catch(function(){
+      if (body) body.innerHTML = '<div class="error">通信に失敗しました。もう一度お試しください。</div>';
+    });
+  }
+  function _fortuneEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  function _fortuneRenderStars(n) {
+    var v = Math.max(0, Math.min(5, Number(n) || 0));
+    var s = '';
+    for (var i = 0; i < 5; i++) s += (i < v ? '★' : '☆');
+    return s;
+  }
+  function _renderFortune(fortune, meta) {
+    var body = document.getElementById('fortune-body');
+    if (!body) return;
+    var stars   = _fortuneRenderStars(fortune.stars);
+    var general = _fortuneEsc(fortune.general || '');
+    var study   = _fortuneEsc(fortune.study   || '');
+    var lucky   = fortune.lucky || {};
+    // マイカツ君の語り出し（meta.nickname が空なら「あなた」にフォールバック）
+    var nick = String(meta.nickname || '').trim() || 'あなた';
+    var greet = 'やぁ、' + _fortuneEsc(nick) + (nick === 'あなた' ? '' : 'さん') + '。今日のキミの運勢を見てあげるね。';
+    body.innerHTML =
+      '<div class="fortune-mate-row">' +
+        '<img class="fortune-mascot" src="./character.jpg" alt="マイカツ君">' +
+        '<div class="fortune-bubble">' +
+          '<div class="fortune-greet">' + greet + '</div>' +
+          '<div class="fortune-section">' +
+            '<div class="fortune-label">総合運</div>' +
+            '<div class="fortune-stars">' + stars + '</div>' +
+            '<div class="fortune-text">' + general + '</div>' +
+          '</div>' +
+          '<div class="fortune-section">' +
+            '<div class="fortune-label">勉強運</div>' +
+            '<div class="fortune-text">' + study + '</div>' +
+          '</div>' +
+          '<div class="fortune-lucky">' +
+            '<div class="fortune-lucky-title">🍀 ラッキー要素</div>' +
+            '<ul class="fortune-lucky-list">' +
+              '<li><span class="k">・ラッキーカラー：</span>' + _fortuneEsc(lucky.color  || '') + '</li>' +
+              '<li><span class="k">・ラッキー数字：</span>' + _fortuneEsc(lucky.number || '') + '</li>' +
+              '<li><span class="k">・ラッキーフード：</span>' + _fortuneEsc(lucky.food   || '') + '</li>' +
+            '</ul>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="fortune-footer-note">⚠️ マイカツ君はAIなので間違えることもあります。ゴメンナサイ🙇‍♂️</div>';
+  }
   function showToday() {
     document.getElementById('today-student').textContent = _studentId + ' さん';
     document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';

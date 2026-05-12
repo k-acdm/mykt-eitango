@@ -1062,6 +1062,9 @@ function doGet(e) {
       // ※ ここにコブタン（古文単語）関連のルーティングを必ず残す。
       //   2026-05-08 新規追加。4 択問題のみ（写真 OCR なし）のため doPost 不要、すべて doGet。
       //   ensureKobunSheets は GAS エディタからの 1 回限りセットアップ用で、ここには登録しない。
+      // 今日の運勢（2026-05-13 新規、旧「秘密の扉」のリブランド）
+      // 4 択や写真送信は無いので doGet 単独で十分。骨格データのみ返す軽量 API。
+      else if (action === 'getTodayFortune')          result = getTodayFortune(params);
       else if (action === 'getKobunSet')              result = getKobunSet(params);
       else if (action === 'submitKobunSet')           result = submitKobunSet(params);
       else if (action === 'getKobunTodayRawHP')       result = getKobunTodayRawHP(params);
@@ -13207,6 +13210,144 @@ function submitKobunSet(params) {
 
 // コブタン履歴（おさらい画面用）：HPLog から sid のコブタン実施履歴を新しい順に返す
 // type 'kobun_<round>_<count>' / 'kobun_<round>_<count>_practice' をパース。
+// ========================================================================
+// 今日の運勢（2026-05-13 新規、旧「秘密の扉」のリブランド）
+// ------------------------------------------------------------------------
+// マイカツ君が日替わりで運勢を語るコンテンツ。
+// 設計方針：
+//  - 同じ生徒 × 同じ日（JST）なら何回開いても同じ運勢を返す（決定論的シード）。
+//  - シード = studentId + JST 日付（yyyy-MM-dd）。
+//  - 骨格は現段階ではダミー 5 個（プリスレが完成させたら本骨格に差し替え）。
+//  - {nickname} / {title} / {streak} はサーバ側で差し込み済の文字列で返す
+//    （フロントは整形済テキストをそのまま表示するだけで良い）。
+//  - HP 加算なし、提出ログなし、Drive 保存なし。シート読み書きも生徒情報の取得のみ。
+// ========================================================================
+
+// 仮の骨格データ（後で本骨格に置き換え予定）。
+// {nickname} / {title} / {streak} の 3 プレースホルダに対応。
+const FORTUNE_PRESETS_DUMMY = [
+  {
+    id: 'fortune_dummy_5',
+    stars: 5,
+    general: 'やぁ、{title}の{nickname}さん。{streak}日も続けてるなんて本物だよ。今日は何をやってもうまくいく日だね ✨',
+    study:   '勉強運は絶好調！集中力が冴える日だから、苦手な単元こそチャンスだよ。'
+  },
+  {
+    id: 'fortune_dummy_4',
+    stars: 4,
+    general: '{nickname}さん、今日はいい流れの日。コツコツ続けてきた成果が見えそうだね 🌟',
+    study:   '勉強運は好調。新しいことを覚えるのに向いてる日だよ。'
+  },
+  {
+    id: 'fortune_dummy_3',
+    stars: 3,
+    general: '{nickname}さん、今日はいつも通りの日。淡々といくのが一番だよ 😊',
+    study:   '勉強運は安定。基礎の見直しに使うといいかも。'
+  },
+  {
+    id: 'fortune_dummy_2',
+    stars: 2,
+    general: '{nickname}さん、今日はちょっと焦らず一呼吸ね。無理しなくていいよ 🍀',
+    study:   '勉強運はやや控えめ。難しい問題より、得意分野を磨こう。'
+  },
+  {
+    id: 'fortune_dummy_1',
+    stars: 1,
+    general: '{nickname}さん、今日はゆっくりいこう。休むのも大事だよ 😊',
+    study:   '勉強運は静かな日。今日は復習中心がベスト。'
+  }
+];
+
+const FORTUNE_LUCKY_COLORS  = ['赤', '青', '黄', '緑', '紫', '白', '黒', 'ピンク', 'オレンジ', '水色', '金', '銀'];
+const FORTUNE_LUCKY_NUMBERS = [1, 3, 5, 7, 9, 11, 13, 17, 21, 23, 29, 33];
+const FORTUNE_LUCKY_FOODS   = ['いちご', 'りんご', 'チョコ', 'おにぎり', 'カレー', 'うどん', 'プリン', 'バナナ', 'たまご', 'みかん', 'パン', 'アイス'];
+
+// 簡易ハッシュ（GAS で使える、決定論的）。同じ文字列なら同じ非負整数を返す。
+function _fortuneHash(seedStr) {
+  let h = 0;
+  const s = String(seedStr || '');
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0; // 32bit
+  }
+  return Math.abs(h);
+}
+
+// ニックネーム空欄時の差し込みフォールバック。
+// {nickname} の直後に「さん」が付くテンプレートで「あなたさん」にならないよう、
+// nickname 自体を '' にし、'さん' を取り除く形で 2 段階置換する。
+function _fortuneApplyVariables(template, vars) {
+  let t = String(template || '');
+  const nick = String(vars.nickname || '').trim();
+  if (nick) {
+    t = t.replace(/\{nickname\}/g, nick);
+  } else {
+    // 「{nickname}さん」→「あなた」、孤立 {nickname} もフォールバック
+    t = t.replace(/\{nickname\}さん/g, 'あなた');
+    t = t.replace(/\{nickname\}/g, 'あなた');
+  }
+  t = t.replace(/\{title\}/g,  String(vars.title  || ''));
+  t = t.replace(/\{streak\}/g, String(vars.streak || 0));
+  return t;
+}
+
+function getTodayFortune(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+
+    // 生徒情報取得（Students / SpecialAccounts 統合読み込み）
+    const loc = _findAccountRowOnSheet(sid);
+    let nickname = '';
+    let streak   = 0;
+    if (loc) {
+      nickname = String(loc.rowValues[COL_NICKNAME] || '').trim();
+      streak   = Number(loc.rowValues[COL_STREAK]) || 0;
+    }
+    const title = _getTitle(streak);
+
+    // 決定論的シード：sid + JST 日付（yyyy-MM-dd）
+    const today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+    const seed  = sid + '_' + today;
+    const baseHash = _fortuneHash(seed);
+
+    // 骨格選択：今は stars 1..5 を均等分布で
+    const preset = FORTUNE_PRESETS_DUMMY[baseHash % FORTUNE_PRESETS_DUMMY.length];
+
+    // 差し込み（nickname/title/streak）
+    const vars = { nickname: nickname, title: title, streak: streak };
+    const general = _fortuneApplyVariables(preset.general, vars);
+    const study   = _fortuneApplyVariables(preset.study,   vars);
+
+    // ラッキー要素：別シードでバラけさせる
+    const luckyColor  = FORTUNE_LUCKY_COLORS [_fortuneHash(seed + '_color')  % FORTUNE_LUCKY_COLORS.length];
+    const luckyNumber = FORTUNE_LUCKY_NUMBERS[_fortuneHash(seed + '_number') % FORTUNE_LUCKY_NUMBERS.length];
+    const luckyFood   = FORTUNE_LUCKY_FOODS  [_fortuneHash(seed + '_food')   % FORTUNE_LUCKY_FOODS.length];
+
+    return {
+      ok: true,
+      fortune: {
+        stars:   preset.stars,
+        general: general,
+        study:   study,
+        lucky: {
+          color:  luckyColor,
+          number: luckyNumber,
+          food:   luckyFood
+        }
+      },
+      meta: {
+        nickname: nickname,
+        title:    title,
+        streak:   streak
+      }
+    };
+  } catch (err) {
+    console.error('[getTodayFortune]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
 function getKobunHistory(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
