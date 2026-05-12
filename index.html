@@ -652,7 +652,9 @@
     .sango-fb-card.needs_improvement  .sango-fb-title { color:#c2410c; }
     .sango-fb-card.offline            .sango-fb-title { color:#616161; }
     .sango-fb-body { font-size:17px; line-height:1.8; color:#1f2937; white-space:pre-wrap; padding:14px 16px; background:rgba(255,255,255,.6); border-radius:12px; }
-    .sango-fb-excuse { margin-top:12px; font-size:12px; color:#6b7280; line-height:1.6; text-align:center; }
+    /* 2026-05-12 改善2：エクスキューズはカード下端の「枠下の濃い部分」に分離 */
+    /* sango-fb-card の padding（22px 18px）を打ち消してフチまで広げる */
+    .sango-fb-excuse { margin:14px -18px -22px; padding:10px 18px; background:rgba(0,0,0,.10); border-top:1px solid rgba(0,0,0,.10); border-radius:0 0 15px 15px; font-size:12px; color:#4a6fa5; line-height:1.6; text-align:center; }
     @media (max-width:480px) {
       .sango-thinking-img { width:110px; }
       .sango-thinking-bubble { font-size:15px; padding:12px 14px; }
@@ -3917,6 +3919,8 @@
   function _showSangoFeedback(aiFeedback) {
     var body = document.getElementById('sango-feedback-body');
     if (!body) return;
+    // 2026-05-12 改善2：末尾エクスキューズをカード footer に分離（本文の印象を弱めないため）
+    var EXCUSE = 'サンゴタンはAIなので間違う可能性もあります。ゴメンナサイ🙇‍♂️💦';
     if (aiFeedback && aiFeedback.feedback) {
       var cat = String(aiFeedback.category || 'good');
       var validCats = { 'excellent': 1, 'good': 1, 'needs_improvement': 1 };
@@ -3930,11 +3934,15 @@
       var titleText = (cat === 'excellent') ? '🌟 サンゴタンからのコメント'
                      : (cat === 'needs_improvement') ? '🐠 サンゴタンからのコメント'
                      : '🐠 サンゴタンからのコメント';
-      // 末尾エクスキューズは GAS 側で feedback に既に結合されているが、念のためフロント側でも
-      // 含まれていない場合は付与する（GAS 側仕様変更への耐性）
+      // 本文とエクスキューズを分離（GAS 側で結合されていれば剥がす）
       var fbText = String(aiFeedback.feedback || '');
-      if (fbText.indexOf('サンゴタンはAI') < 0 && fbText.indexOf('AIなので') < 0) {
-        fbText = fbText + '\n\nサンゴタンはAIなので間違う可能性もあります。ゴメンナサイ🙇‍♂️💦';
+      var mainBody = fbText;
+      var idx = fbText.indexOf('サンゴタンはAI');
+      if (idx > 0) {
+        mainBody = fbText.substring(0, idx).replace(/\s+$/, '');
+      } else if (idx === 0) {
+        // feedback がエクスキューズだけ（異常ケース）：空にする
+        mainBody = '';
       }
       body.innerHTML =
         '<div class="sango-fb-card ' + cat + '">' +
@@ -3945,10 +3953,11 @@
               '<div style="font-size:13px;color:#6b7280;margin-top:4px">' + _sangoEscHtml(_pickBubble(bubbleArr)) + '</div>' +
             '</div>' +
           '</div>' +
-          '<div class="sango-fb-body">' + _sangoEscHtml(fbText) + '</div>' +
+          '<div class="sango-fb-body">' + _sangoEscHtml(mainBody) + '</div>' +
+          '<div class="sango-fb-excuse">⚠️ ' + _sangoEscHtml(EXCUSE) + '</div>' +
         '</div>';
     } else {
-      // AI 失敗時：お休み中表示
+      // AI 失敗時：お休み中表示（エクスキューズは付けない、そもそも AI 出力がないので不要）
       body.innerHTML =
         '<div class="sango-fb-card offline">' +
           '<div class="sango-fb-mate">' +
