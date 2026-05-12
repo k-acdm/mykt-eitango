@@ -8325,6 +8325,10 @@ function submitSango(params) {
     if (!subSheet) return { ok: false, message: 'SangoSubmissionsシートが見つかりません' };
     const now = new Date();
     subSheet.appendRow([now, sid, studentName, level, words, work, method]);
+    // 2026-05-12 サンゴタンAIフィードバック：appendRow 直後に行番号を取得して、
+    // 後段の setValues（AI 結果書き込み）で同じ行を更新する。
+    // appendRow は同期実行のため、直後の getLastRow() は自分が append した行を指す。
+    const submissionRowIdx = subSheet.getLastRow();
 
     // HPLog の type='sango' で当日分チェック（末尾 200 行のみ走査、3時基準で日付判定）
     // HPLog 列構成（rawHP 追加後）：[0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type
@@ -8368,7 +8372,47 @@ function submitSango(params) {
       _updateAccountCacheBySid(sid, upd);
       _invalidateCache('cache_ranking_last_week');
     }
-    return { ok: true, hpGained: hpGained };
+
+    // 2026-05-12 サンゴタンAIフィードバック：HP 付与完了後に AI を呼び出す。
+    // alreadyGranted=true（本日 2 回目以降）でも AI は呼ぶ（生徒は何度も書きたいので
+    // 毎回フィードバックを返す）。
+    // AI 失敗時はフィードバックなしで提出を完了させる（HP は付与済み）。
+    // 末尾エクスキューズ「サンゴタンはAIなので…」はフロントに返す文字列のみに付与し、
+    // シートに保存する ai_feedback には含めない（管理画面では純粋な AI 出力を見たい）。
+    let aiFeedbackForFrontend = null;
+    try {
+      const wordsArr = words.split(/[,、,，\s]+/).filter(function(s){ return s && s.trim(); }).map(function(s){ return s.trim(); });
+      const w1 = wordsArr[0] || '';
+      const w2 = wordsArr[1] || '';
+      const w3 = wordsArr[2] || '';
+      const fb = _sangoAiFeedback(work, w1, w2, w3);
+      if (fb && fb.ok) {
+        // SangoSubmissions の I, J, K 列（AI 関連）に書き込み。
+        // L〜N 列（starred / starred_at / published_in_week）は admin が後から書く列なので触らない。
+        try {
+          subSheet.getRange(
+            submissionRowIdx,
+            SANGO_SUB_COL_AI_CATEGORY + 1,
+            1,
+            3
+          ).setValues([[fb.category, fb.feedback, fb.reasoning]]);
+        } catch (writeErr) {
+          console.error('[submitSango] AI フィードバック列の書き込み失敗', writeErr);
+          // 書き込み失敗してもフロントへの応答は続行（生徒体験を優先）
+        }
+        aiFeedbackForFrontend = {
+          category: fb.category,
+          feedback: fb.feedback + '\n\nサンゴタンはAIなので間違う可能性もあります。ゴメンナサイ🙇‍♂️💦'
+        };
+      } else {
+        console.warn('[submitSango] AI フィードバック失敗（提出は完了）', fb && fb.error);
+      }
+    } catch (aiErr) {
+      // AI 呼び出しの try-catch：何があっても提出完了の応答を阻害しない
+      console.error('[submitSango] AI フィードバック処理で例外', aiErr);
+    }
+
+    return { ok: true, hpGained: hpGained, aiFeedback: aiFeedbackForFrontend };
   } catch(err) {
     console.error('[submitSango]', err);
     return { ok: false, message: String(err) };
