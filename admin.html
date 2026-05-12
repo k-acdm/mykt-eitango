@@ -4817,6 +4817,7 @@
       var items = res.submissions || [];
       if (items.length === 0) { listEl.innerHTML = '<div class="ranking-empty">まだ提出はありません</div>'; return; }
       _sangoSubCache = items;
+      _sangoSubCurrentWeek = String(res.currentWeek || '');
       listEl.innerHTML = items.map(function(s, idx) {
         var ts = String(s.timestamp || '').replace('T', ' ').slice(0, 16);
         var methodLabel = (s.method === 'photo') ? '📷 写真' : (s.method === 'text') ? '✏️ 直接入力' : _esc(s.method || '');
@@ -4827,11 +4828,48 @@
         else if (nick)         who = _esc(nick);
         else if (real)         who = '（' + _esc(real) + '）';
         else                   who = '（不明）';
-        return '<div style="background:#fff;border-left:4px solid #fe6d73;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">' +
-                 '<div style="font-size:12px;color:#888;margin-bottom:6px">' + _esc(ts) + '｜' + methodLabel + '</div>' +
+        // 2026-05-12 AI 判定アイコン
+        var aiIcon = '';
+        var aiCat  = String(s.ai_category || '');
+        if (aiCat === 'excellent')          aiIcon = '<span title="AI 判定：候補" style="background:#fef3c7;color:#b45309;border:1.5px solid #f59e0b;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:bold;margin-left:6px">⭐ 候補</span>';
+        else if (aiCat === 'good')          aiIcon = '<span title="AI 判定：良い" style="background:#e0f7fa;color:#0e7490;border:1.5px solid #5ec8c8;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:bold;margin-left:6px">👍 良い</span>';
+        else if (aiCat === 'needs_improvement') aiIcon = '<span title="AI 判定：要改善" style="background:#fff5e1;color:#c2410c;border:1.5px solid #fb923c;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:bold;margin-left:6px">📝 要改善</span>';
+        // ボーダー色（AI 判定別）
+        var borderColor = (aiCat === 'excellent') ? '#f59e0b' : (aiCat === 'needs_improvement') ? '#fb923c' : '#fe6d73';
+        // ⭐認定 / 公開 UI（既に⭐かどうかで分岐）
+        var isStarred = !!s.starred;
+        var isPublishedThisWeek = (String(s.published_in_week || '') === _sangoSubCurrentWeek);
+        var starBtn = isStarred
+          ? '<button onclick="unstarSangoSub(' + idx + ')" style="font-size:12px;padding:5px 12px;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold">⭐ 認定取消</button>'
+          : '<button onclick="starSangoSub(' + idx + ')" style="font-size:12px;padding:5px 12px;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold">⭐ 認定する</button>';
+        var publishCb = '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:' + (isStarred ? '#333' : '#999') + ';cursor:' + (isStarred ? 'pointer' : 'not-allowed') + '">' +
+          '<input type="checkbox" id="sango-pub-' + idx + '" ' + (isPublishedThisWeek ? 'checked' : '') + ' ' + (isStarred ? '' : 'disabled') + ' onchange="togglePublishSangoSub(' + idx + ', this.checked)">' +
+          '今週分として公開' + (isPublishedThisWeek ? '（' + _esc(s.published_in_week) + '）' : '') +
+        '</label>';
+        // AI フィードバック表示ブロック（カテゴリ別の薄い背景色）
+        var aiBlock = '';
+        if (aiCat) {
+          var aiBg = (aiCat === 'excellent') ? '#fef3c7' : (aiCat === 'good') ? '#e0f7fa' : '#fff5e1';
+          var aiBorderL = (aiCat === 'excellent') ? '#f59e0b' : (aiCat === 'good') ? '#5ec8c8' : '#fb923c';
+          aiBlock =
+            '<div style="background:' + aiBg + ';border-left:3px solid ' + aiBorderL + ';border-radius:6px;padding:8px 10px;margin-top:8px;font-size:12px;line-height:1.6">' +
+              '<div style="color:#555;font-weight:bold;margin-bottom:3px">🐠 AI 判定 ＆ 生徒向けフィードバック</div>' +
+              '<div style="color:#1f2937;white-space:pre-wrap;word-break:break-word">' + _esc(s.ai_feedback || '(なし)') + '</div>' +
+              (s.ai_reasoning ? ('<div style="color:#6b7280;font-size:11px;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(0,0,0,.15)"><b>判定理由（内部）:</b> ' + _esc(s.ai_reasoning) + '</div>') : '') +
+            '</div>';
+        }
+        // ⭐認定操作行
+        var starRow =
+          '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;padding:8px 10px;background:#f9fafb;border-radius:6px">' +
+            starBtn + publishCb +
+          '</div>';
+        return '<div style="background:#fff;border-left:4px solid ' + borderColor + ';border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">' +
+                 '<div style="font-size:12px;color:#888;margin-bottom:6px">' + _esc(ts) + '｜' + methodLabel + aiIcon + (isStarred ? '<span style="margin-left:6px;color:#b45309;font-weight:bold">⭐ 認定済</span>' : '') + '</div>' +
                  '<div style="font-size:14px;font-weight:bold;color:#333;margin-bottom:4px">' + who + '｜レベル ' + _esc(s.level || '') + '</div>' +
                  '<div style="font-size:13px;color:#c0392b;margin-bottom:8px">📝 ' + _esc(s.words || '') + '</div>' +
                  '<div style="font-size:14px;line-height:1.7;white-space:pre-wrap;padding:10px;background:#fafafa;border-radius:6px">' + _esc(s.work || '') + '</div>' +
+                 aiBlock +
+                 starRow +
                  '<div id="sango-comment-' + idx + '">' + _renderSangoCommentView(idx, s.teacher_comment) + '</div>' +
                '</div>';
       }).join('');
@@ -4844,6 +4882,69 @@
   // 三語短文：先生コメント UI
   // =============================================================
   var _sangoSubCache = [];
+  var _sangoSubCurrentWeek = '';  // 2026-05-12 サンゴタン⭐認定：今週公開判定用
+
+  // 2026-05-12 サンゴタン⭐認定 / 公開トグル
+  function starSangoSub(idx) {
+    _toggleSangoStar(idx, true);
+  }
+  function unstarSangoSub(idx) {
+    if (!confirm('⭐認定を取り消します。公開設定もクリアされますが、よろしいですか？')) return;
+    _toggleSangoStar(idx, false);
+  }
+  function _toggleSangoStar(idx, star) {
+    var s = _sangoSubCache[idx];
+    if (!s) return;
+    adminGasGet({
+      action: 'adminSangoStar',
+      timestamp: s.timestamp,
+      studentId: s.studentId,
+      star: star ? 'true' : 'false',
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '更新に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        showToast(msg, 'error');
+        return;
+      }
+      // キャッシュ更新 + リスト全体を再描画（⭐ボタン / 公開チェックの状態を反映）
+      s.starred = !!star;
+      s.starred_at = res.starred_at || '';
+      if (!star) s.published_in_week = '';
+      showToast(star ? '⭐認定しました' : '⭐認定を取り消しました', 'success');
+      loadSangoSubmissions();  // フルリロード（公開チェックの enabled / 表示の整合を取る）
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+  function togglePublishSangoSub(idx, publish) {
+    var s = _sangoSubCache[idx];
+    if (!s) return;
+    var cb = document.getElementById('sango-pub-' + idx);
+    adminGasGet({
+      action: 'adminSangoPublish',
+      timestamp: s.timestamp,
+      studentId: s.studentId,
+      publish: publish ? 'true' : 'false',
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '更新に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        showToast(msg, 'error');
+        // チェック状態をロールバック
+        if (cb) cb.checked = !publish;
+        return;
+      }
+      s.published_in_week = res.publishedWeek || '';
+      showToast(publish ? '今週分として公開しました（ホーム画面に表示）' : '公開を停止しました', 'success');
+      loadSangoSubmissions();
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+      if (cb) cb.checked = !publish;
+    });
+  }
 
   function _renderSangoCommentView(idx, comment) {
     var c = String(comment || '');

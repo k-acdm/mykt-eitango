@@ -1010,6 +1010,8 @@ function doGet(e) {
       else if (action === 'getSangoStarredForStudent')  result = getSangoStarredForStudent(params);
       else if (action === 'getSangoWeeklyFeatured')     result = getSangoWeeklyFeatured();
       else if (action === 'getSangoHallOfFame')         result = getSangoHallOfFame(params);
+      else if (action === 'adminSangoStar')             result = adminSangoStar(params);
+      else if (action === 'adminSangoPublish')          result = adminSangoPublish(params);
       else if (action === 'getSangoPastTopicsRecent')   result = getSangoPastTopicsRecent();
       else if (action === 'getSangoPastTopicsPaged')    result = getSangoPastTopicsPaged(params);
       else if (action === 'getChildActivityRecent')    result = getChildActivityRecent(params);
@@ -8542,6 +8544,16 @@ function adminListSangoSubmissions(params) {
       const r = values[i];
       if (!r[0]) continue;
       const sid = String(r[1] || '').trim();
+      // 2026-05-12 サンゴタンAIフィードバック関連 6 列も含めて返す
+      // starred は型ゆらぎ吸収（TRUE / true / 1 / '1' すべて真扱い）
+      const starredVal = r[SANGO_SUB_COL_STARRED];
+      const isStarred = (starredVal === true) || (String(starredVal).toLowerCase() === 'true') || (starredVal === 1) || (String(starredVal) === '1');
+      const starredAtRaw = r[SANGO_SUB_COL_STARRED_AT];
+      let starredAtStr = '';
+      if (starredAtRaw) {
+        try { starredAtStr = Utilities.formatDate(new Date(starredAtRaw), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'); }
+        catch(e) { starredAtStr = String(starredAtRaw); }
+      }
       submissions.push({
         timestamp:      Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
         studentId:      sid,
@@ -8551,13 +8563,94 @@ function adminListSangoSubmissions(params) {
         words:          String(r[4] || ''),
         work:           String(r[5] || ''),
         method:         String(r[6] || ''),
-        teacher_comment: String(r[7] || '')
+        teacher_comment: String(r[7] || ''),
+        ai_category:    String(r[SANGO_SUB_COL_AI_CATEGORY] || ''),
+        ai_feedback:    String(r[SANGO_SUB_COL_AI_FEEDBACK] || ''),
+        ai_reasoning:   String(r[SANGO_SUB_COL_AI_REASONING] || ''),
+        starred:        isStarred,
+        starred_at:     starredAtStr,
+        published_in_week: String(r[SANGO_SUB_COL_PUBLISHED] || '')
       });
     }
     submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
-    return { ok: true, submissions: submissions };
+    return { ok: true, submissions: submissions, currentWeek: _sangoCurrentIsoWeek() };
   } catch(err) {
     console.error('[adminListSangoSubmissions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 管理画面：⭐認定 / 公開 設定（2026-05-12 新機能）
+// =============================================
+// adminSangoStar: starred 列を TRUE / 空 にトグル。starred_at にもタイムスタンプを書く。
+//   認定を取り消した場合は published_in_week 列もクリア（公開停止）。
+function adminSangoStar(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const ts   = String((params && params.timestamp) || '').trim();
+    const sid  = String((params && params.studentId) || '').trim();
+    const star = !!(params && params.star);  // true: 認定、false: 取消
+    if (!ts || !sid) return { ok: false, message: 'timestamp / studentId が必要です' };
+    const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: false, message: '提出が見つかりません' };
+    const values = sh.getDataRange().getValues();
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[SANGO_SUB_COL_TIMESTAMP]) continue;
+      const rowTs  = Utilities.formatDate(new Date(r[SANGO_SUB_COL_TIMESTAMP]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      const rowSid = String(r[SANGO_SUB_COL_SID] || '').trim();
+      if (rowTs === ts && rowSid === sid) {
+        const now = _nowJST();
+        // starred 列 + starred_at 列を 1 回の setValues で更新
+        sh.getRange(i + 1, SANGO_SUB_COL_STARRED + 1, 1, 2).setValues([[star ? true : '', star ? now : '']]);
+        // 認定取消時は published_in_week もクリア（公開も停止）
+        if (!star) {
+          sh.getRange(i + 1, SANGO_SUB_COL_PUBLISHED + 1).setValue('');
+        }
+        return { ok: true, starred: star, starred_at: star ? Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : '' };
+      }
+    }
+    return { ok: false, message: '該当する提出が見つかりません' };
+  } catch (err) {
+    console.error('[adminSangoStar]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// adminSangoPublish: published_in_week 列に「今週」をセット / 解除。
+//   認定済み（starred=TRUE）でない作品の公開はエラー。
+function adminSangoPublish(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const ts      = String((params && params.timestamp) || '').trim();
+    const sid     = String((params && params.studentId) || '').trim();
+    const publish = !!(params && params.publish);
+    if (!ts || !sid) return { ok: false, message: 'timestamp / studentId が必要です' };
+    const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: false, message: '提出が見つかりません' };
+    const values = sh.getDataRange().getValues();
+    const currentWeek = _sangoCurrentIsoWeek();
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[SANGO_SUB_COL_TIMESTAMP]) continue;
+      const rowTs  = Utilities.formatDate(new Date(r[SANGO_SUB_COL_TIMESTAMP]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      const rowSid = String(r[SANGO_SUB_COL_SID] || '').trim();
+      if (rowTs === ts && rowSid === sid) {
+        const starredVal = r[SANGO_SUB_COL_STARRED];
+        const isStarred = (starredVal === true) || (String(starredVal).toLowerCase() === 'true') || (starredVal === 1) || (String(starredVal) === '1');
+        if (publish && !isStarred) {
+          return { ok: false, message: '⭐認定された作品のみ公開できます。先に⭐認定してください。' };
+        }
+        sh.getRange(i + 1, SANGO_SUB_COL_PUBLISHED + 1).setValue(publish ? currentWeek : '');
+        return { ok: true, publishedWeek: publish ? currentWeek : '' };
+      }
+    }
+    return { ok: false, message: '該当する提出が見つかりません' };
+  } catch (err) {
+    console.error('[adminSangoPublish]', err);
     return { ok: false, message: String(err) };
   }
 }
