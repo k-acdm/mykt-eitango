@@ -8413,7 +8413,10 @@ function submitSango(params) {
     // シートに保存する ai_feedback には含めない（管理画面では純粋な AI 出力を見たい）。
     let aiFeedbackForFrontend = null;
     try {
-      const wordsArr = words.split(/[,、,，\s]+/).filter(function(s){ return s && s.trim(); }).map(function(s){ return s.trim(); });
+      // 2026-05-12 修正：フロントは topic.words.join(' / ') で送ってくるため、'/' も区切り文字に含める。
+      // 旧 regex（'/' なし）だと '原因 / 説得 / 寛容' を ['原因','/','説得','/','寛容'] に分割し、
+      // w1='原因', w2='/', w3='説得' が AI に渡って「『/』が活かされてない」と誤判定された。
+      const wordsArr = words.split(/[,、,，\/\s]+/).filter(function(s){ return s && s.trim(); }).map(function(s){ return s.trim(); });
       const w1 = wordsArr[0] || '';
       const w2 = wordsArr[1] || '';
       const w3 = wordsArr[2] || '';
