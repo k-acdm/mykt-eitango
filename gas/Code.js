@@ -2986,9 +2986,35 @@ function _ensureSheetWithHeaders(sheetName, headers, minRows) {
     // 完全に空のシート（手動作成された直後など）
     sh.getRange(1, 1, 1, headers.length).setValues([headers]);
   } else {
-    // 既にヘッダー付きで存在 → 欠落している末尾列だけ追記（schema migration 対応）
+    // 既にヘッダー付きで存在 → schema migration 対応
+    // 注意：sh.getLastColumn() は「データ行を含めて」最後に値があるカラム位置を返す。
+    // ヘッダー行に値がなくても、データ行のどこかに値があればその列も existingLastCol に含まれる。
+    // 例：ヘッダーは A〜H（8 列）だが、データ行の K 列にメモがあれば getLastColumn() = 11。
+    // この場合、existingHeaders は 11 件取得され、I〜K のヘッダーセル値は空文字になる。
+    // 旧実装ではこれを「11 列分の既存ヘッダー」と見做して、末尾追記だけで I〜K の空ヘッダーを放置していた。
+    // 2026-05-12 修正：既存ヘッダー範囲内の空セルも new headers の値で埋める自己修復ロジックを追加。
+    //   - 既存ヘッダー位置のセル値が **空文字 or null** なら、new headers の対応位置で埋める
+    //   - 既存値が non-empty なら温存（誤改名を防ぐため後方互換）
+    //   - これにより「データ行に値があるが、ヘッダー行は空」というシートに対しても再実行で自己修復可能
     const existingLastCol = Math.max(1, sh.getLastColumn());
     const existingHeaders = sh.getRange(1, 1, 1, existingLastCol).getValues()[0];
+
+    // 範囲内の空ヘッダーセルを自己修復
+    const fillCount = Math.min(existingHeaders.length, headers.length);
+    let needFillUpdate = false;
+    const filledHeaders = existingHeaders.slice(0, fillCount);
+    for (let i = 0; i < fillCount; i++) {
+      const v = filledHeaders[i];
+      if (v === '' || v === null || v === undefined) {
+        filledHeaders[i] = headers[i];
+        needFillUpdate = true;
+      }
+    }
+    if (needFillUpdate) {
+      sh.getRange(1, 1, 1, fillCount).setValues([filledHeaders]);
+    }
+
+    // 末尾の欠落列を追記（既存ロジック）
     if (headers.length > existingHeaders.length) {
       const append = headers.slice(existingHeaders.length);
       sh.getRange(1, existingHeaders.length + 1, 1, append.length).setValues([append]);
