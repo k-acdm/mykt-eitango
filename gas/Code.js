@@ -9082,6 +9082,7 @@ function getChildActivityRecent(params) {
         kiso:    { done: false, hpGained: 0, rawHP: 0, sessions: [] },
         lison:   { done: false, hpGained: 0, levels: [] },
         kanji:   { done: false, hpGained: 0, rawHP: 0, sessions: [] },
+        kobun:   { done: false, hpGained: 0, rawHP: 0, sessions: [] },
         extras:  []  // 未知の HPLog type は自動でここに集約（将来コンテンツの自動対応）
       };
     }
@@ -9152,6 +9153,23 @@ function getChildActivityRecent(params) {
           if (m) {
             byDate[ds].kanji.sessions.push({
               level:      m[1],
+              count:      parseInt(m[2], 10),
+              isPractice: !!m[3],
+              hpGained:   hp,
+              rawHP:      raw
+            });
+          }
+        }
+        else if (type.indexOf('kobun_') === 0) {
+          // 'kobun_<round>_<count>' or 'kobun_<round>_<count>_practice'
+          // round は '1' or '2'（周回）、count は 5 or 10
+          byDate[ds].kobun.done = true;
+          byDate[ds].kobun.hpGained += hp;
+          byDate[ds].kobun.rawHP    += raw;
+          const m = /^kobun_(\d+)_(\d+)(_practice)?$/.exec(type);
+          if (m) {
+            byDate[ds].kobun.sessions.push({
+              round:      m[1],
               count:      parseInt(m[2], 10),
               isPractice: !!m[3],
               hpGained:   hp,
@@ -9236,7 +9254,7 @@ function getChildActivityRecent(params) {
     Object.keys(byDate).forEach(function(ds){
       const d = byDate[ds];
       if (d.login) return;  // 既に true ならスキップ
-      if (d.eitango.done || d.sango.done || d.wabun1.done || d.kiso.done || d.lison.done || d.kanji.done) {
+      if (d.eitango.done || d.sango.done || d.wabun1.done || d.kiso.done || d.lison.done || d.kanji.done || d.kobun.done) {
         d.login = true;
       } else if (d.extras && d.extras.length > 0) {
         d.login = true;

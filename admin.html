@@ -4633,6 +4633,24 @@
           : (detail ? ' <span style="color:#555;font-size:13px">' + _esc(detail) + '</span>' : '');
         return CHILD_OK + hpLabel;
       }
+    },
+    {
+      label: 'コブタン',
+      render: function(d) {
+        if (!d.kobun || !d.kobun.done) return CHILD_NG;
+        var hp = Number(d.kobun.hpGained || 0);
+        var sessions = (d.kobun.sessions || []).slice().sort(function(a, b){
+          if (a.round !== b.round) return String(a.round) < String(b.round) ? -1 : 1;
+          return a.count - b.count;
+        });
+        var detail = sessions.map(function(s){
+          return s.round + '周目・' + s.count + '問' + (s.isPractice ? '（練習）' : '');
+        }).join(' / ');
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">' + _esc(detail) + (detail ? '：' : '') + hp.toLocaleString() + 'HP獲得</span>'
+          : (detail ? ' <span style="color:#555;font-size:13px">' + _esc(detail) + '</span>' : '');
+        return CHILD_OK + hpLabel;
+      }
     }
   ];
 
