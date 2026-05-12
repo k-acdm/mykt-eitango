@@ -629,6 +629,37 @@
     .wabun1-period-warn li small { display: block; font-size: 12px; font-weight: normal; color: #991b1b; margin-top: 2px; }
     .sango-ocr-actions { display:flex; gap:10px; }
     .sango-ocr-actions .btn-wide { margin-top:0; flex:1; }
+    /* 2026-05-12 サンゴタンAIフィードバック：考え中演出 */
+    .sango-thinking-wrap { text-align:center; padding:30px 20px; background:linear-gradient(135deg,#e0f7fa,#fff5e1); border-radius:18px; border:3px solid #5ec8c8; }
+    .sango-thinking-img { width:140px; height:auto; animation: sango-thinking-bob 1.4s ease-in-out infinite; filter: drop-shadow(0 4px 10px rgba(94,200,200,.3)); }
+    @keyframes sango-thinking-bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-10px) rotate(2deg); } }
+    .sango-thinking-bubble { margin-top:18px; padding:14px 18px; background:#fff; border:2px solid #5ec8c8; border-radius:14px; color:#0e7490; font-size:17px; font-weight:bold; line-height:1.6; display:inline-block; max-width:90%; }
+    .sango-thinking-dots { margin-top:18px; display:flex; gap:8px; justify-content:center; }
+    .sango-thinking-dot { width:14px; height:14px; border-radius:50%; background:#5ec8c8; animation: sango-thinking-dot 1.2s ease-in-out infinite; }
+    .sango-thinking-dot:nth-child(2) { animation-delay: .2s; }
+    .sango-thinking-dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes sango-thinking-dot { 0%, 80%, 100% { opacity: .3; transform: scale(.8); } 40% { opacity: 1; transform: scale(1.2); } }
+    /* サンゴタンAIフィードバック：結果表示カード */
+    .sango-fb-card { padding:22px 18px; border-radius:18px; box-shadow:0 4px 14px rgba(0,0,0,.08); }
+    .sango-fb-card.excellent          { background:linear-gradient(135deg,#fef3c7,#fde68a); border:3px solid #f59e0b; }
+    .sango-fb-card.good               { background:linear-gradient(135deg,#e0f7fa,#b2ebf2); border:3px solid #5ec8c8; }
+    .sango-fb-card.needs_improvement  { background:linear-gradient(135deg,#fff5e1,#ffe0b2); border:3px solid #fb923c; }
+    .sango-fb-card.offline            { background:linear-gradient(135deg,#f5f5f5,#e0e0e0); border:3px solid #9e9e9e; }
+    .sango-fb-mate { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+    .sango-fb-mate img { width:90px; height:auto; }
+    .sango-fb-title { font-size:18px; font-weight:bold; color:#0e7490; }
+    .sango-fb-card.excellent          .sango-fb-title { color:#b45309; }
+    .sango-fb-card.needs_improvement  .sango-fb-title { color:#c2410c; }
+    .sango-fb-card.offline            .sango-fb-title { color:#616161; }
+    .sango-fb-body { font-size:17px; line-height:1.8; color:#1f2937; white-space:pre-wrap; padding:14px 16px; background:rgba(255,255,255,.6); border-radius:12px; }
+    .sango-fb-excuse { margin-top:12px; font-size:12px; color:#6b7280; line-height:1.6; text-align:center; }
+    @media (max-width:480px) {
+      .sango-thinking-img { width:110px; }
+      .sango-thinking-bubble { font-size:15px; padding:12px 14px; }
+      .sango-fb-mate img { width:72px; }
+      .sango-fb-title { font-size:16px; }
+      .sango-fb-body { font-size:15px; padding:12px 14px; }
+    }
     /* 和文英訳① 確認画面：問題ごとに切り出した「採点に使う文字列」を表示 */
     .wabun1-parsed-list { background:#f0f9ff; border:1px solid #7dd3fc; border-radius:10px; padding:6px 12px; margin:6px 0 12px; }
     .wabun1-parsed-item { display:flex; gap:10px; padding:8px 0; border-bottom:1px dashed #bae6fd; align-items:flex-start; }
@@ -1573,6 +1604,29 @@
   <div class="container" style="padding-top:16px">
     <div id="sango-done-body"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
+  </div>
+</div>
+<!-- 2026-05-12 サンゴタンAIフィードバック：演出 + フィードバック表示画面 -->
+<div id="screen-sango-thinking" class="screen">
+  <header><h1>🐠 サンゴタンが考え中…</h1></header>
+  <div class="container" style="padding-top:24px">
+    <div class="sango-thinking-wrap">
+      <img class="sango-thinking-img" src="images/sangotan-thinking.png" alt="サンゴタン">
+      <div class="sango-thinking-bubble" id="sango-thinking-bubble">サンゴタンがキミの作品を読んでるよ〜</div>
+      <div class="sango-thinking-dots" aria-hidden="true">
+        <span class="sango-thinking-dot"></span>
+        <span class="sango-thinking-dot"></span>
+        <span class="sango-thinking-dot"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="screen-sango-feedback" class="screen">
+  <header><h1>🐠 サンゴタンからのコメント</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div id="sango-feedback-body"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goHome()">🏠 ホームに戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:10px" onclick="showScreen('screen-sango-topic')">📝 もう一作書く</button>
   </div>
 </div>
 <div id="screen-wabun1-topic" class="screen">
@@ -3593,6 +3647,8 @@
       }
       document.getElementById('sango-text-input').value = '';
       btn.disabled = false;
+      // 2026-05-12 サンゴタンAIフィードバック：HP 演出後に thinking → feedback へ遷移
+      _scheduleSangoAiFeedback(res.aiFeedback || null);
     }).catch(function(){
       _hideSubmitPending();
       if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
@@ -3703,6 +3759,8 @@
         _showSangoDone(actualHp, actualHp === 0);
       }
       _resetSangoPhoto();
+      // 2026-05-12 サンゴタンAIフィードバック：HP 演出後に thinking → feedback へ遷移
+      _scheduleSangoAiFeedback(res.aiFeedback || null);
     }).catch(function(){
       _hideSubmitPending();
       if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
@@ -3736,6 +3794,72 @@
       if (numEl) _wabun1AnimateHp(numEl, hp, 1000);
     }
     try { playSfx('chime'); } catch(e){}
+  }
+  // 2026-05-12 サンゴタンAIフィードバック演出
+  // submitSango の .then 内から呼ぶ。HP 獲得演出（screen-sango-done）を 2.5 秒
+  // 堪能してから、サンゴタンが考え中（screen-sango-thinking）を 1.8 秒、
+  // その後フィードバック画面（screen-sango-feedback）に遷移する。
+  // aiFeedback が null（AI 失敗）の場合は「サンゴタンお休み中」表示。
+  function _scheduleSangoAiFeedback(aiFeedback) {
+    // 2.5 秒：HP 獲得演出を堪能
+    setTimeout(function() {
+      // 1.8 秒：サンゴタンが考えてる演出
+      var bubble = document.getElementById('sango-thinking-bubble');
+      if (bubble) bubble.textContent = _pickBubble(SANGOTAN_BUBBLES.thinking);
+      showScreen('screen-sango-thinking');
+      setTimeout(function() {
+        _showSangoFeedback(aiFeedback);
+      }, 1800);
+    }, 2500);
+  }
+  function _showSangoFeedback(aiFeedback) {
+    var body = document.getElementById('sango-feedback-body');
+    if (!body) return;
+    if (aiFeedback && aiFeedback.feedback) {
+      var cat = String(aiFeedback.category || 'good');
+      var validCats = { 'excellent': 1, 'good': 1, 'needs_improvement': 1 };
+      if (!validCats[cat]) cat = 'good';
+      var bubbleKey = 'fb_' + cat;
+      var bubbleArr = SANGOTAN_BUBBLES[bubbleKey] || SANGOTAN_BUBBLES.fb_good;
+      // category 別のキャラ表情：excellent → celebrate、good → default、needs_improvement → encourage
+      var charImg = (cat === 'excellent') ? 'images/sangotan-celebrate.png'
+                   : (cat === 'needs_improvement') ? 'images/sangotan-encourage.png'
+                   : 'images/sangotan-default.png';
+      var titleText = (cat === 'excellent') ? '🌟 サンゴタンからのコメント'
+                     : (cat === 'needs_improvement') ? '🐠 サンゴタンからのコメント'
+                     : '🐠 サンゴタンからのコメント';
+      // 末尾エクスキューズは GAS 側で feedback に既に結合されているが、念のためフロント側でも
+      // 含まれていない場合は付与する（GAS 側仕様変更への耐性）
+      var fbText = String(aiFeedback.feedback || '');
+      if (fbText.indexOf('サンゴタンはAI') < 0 && fbText.indexOf('AIなので') < 0) {
+        fbText = fbText + '\n\nサンゴタンはAIなので間違う可能性もあります。ゴメンナサイ🙇‍♂️💦';
+      }
+      body.innerHTML =
+        '<div class="sango-fb-card ' + cat + '">' +
+          '<div class="sango-fb-mate">' +
+            '<img src="' + charImg + '" alt="サンゴタン">' +
+            '<div>' +
+              '<div class="sango-fb-title">' + _sangoEscHtml(titleText) + '</div>' +
+              '<div style="font-size:13px;color:#6b7280;margin-top:4px">' + _sangoEscHtml(_pickBubble(bubbleArr)) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="sango-fb-body">' + _sangoEscHtml(fbText) + '</div>' +
+        '</div>';
+    } else {
+      // AI 失敗時：お休み中表示
+      body.innerHTML =
+        '<div class="sango-fb-card offline">' +
+          '<div class="sango-fb-mate">' +
+            '<img src="images/sangotan-default.png" alt="サンゴタン">' +
+            '<div>' +
+              '<div class="sango-fb-title">🐠 サンゴタンは今お休み中</div>' +
+              '<div style="font-size:13px;color:#6b7280;margin-top:4px">' + _sangoEscHtml(_pickBubble(SANGOTAN_BUBBLES.fb_offline)) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="sango-fb-body">提出は完了したよ！HP もちゃんと加算されてるから安心してね〜\n\nコメントはまた今度〜🌙</div>' +
+        '</div>';
+    }
+    showScreen('screen-sango-feedback');
   }
 
   // ----- 過去のお題と福地の作品（直近1週間） -----
@@ -6240,7 +6364,17 @@
     topic: ['今日のお題はこれだよ〜', 'ぽこぽこ〜どんな話書く？', 'お題がきたよ〜'],
     text:  ['じっくり考えて書いてね〜', 'ぽこぽこ〜ゆっくりでいいよ', 'いい言葉浮かんだ？'],
     photo: ['ちゃんと読み取れるかな〜', '写真きれいに撮ってね', 'ぽこぽこ〜'],
-    done:  ['すばらしい〜！ぽこぽこ〜', 'ナイス文章！', 'お疲れさま〜']
+    done:  ['すばらしい〜！ぽこぽこ〜', 'ナイス文章！', 'お疲れさま〜'],
+    // 2026-05-12 AI フィードバック演出用
+    thinking: [
+      'サンゴタンがキミの作品を読んでるよ〜',
+      'ぽこぽこ〜じっくり読むね',
+      'ちょっと待っててね、感想考えてるよ〜'
+    ],
+    fb_excellent:         ['すばらしい作品だ〜！ぽこぽこ〜', 'お〜！これは光ってるよ', 'ナイス！'],
+    fb_good:              ['いい作品だね〜', 'よく書けてるよ〜', 'ぽこぽこ〜'],
+    fb_needs_improvement: ['お疲れさま！次も楽しみだよ〜', '一緒にもう少し考えてみよ〜', 'ぽこぽこ〜次は何書く？'],
+    fb_offline:           ['サンゴタンは今お休み中〜', 'ぽこぽこ〜今日は早寝するね', 'ちょっと電池切れ〜']
   };
   var NICHIEI_BUBBLES = {
     topic:   ['今日の問題だよ！', '英訳チャレンジ〜', 'すい〜っといこう！'],
