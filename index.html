@@ -660,6 +660,24 @@
       .sango-fb-title { font-size:16px; }
       .sango-fb-body { font-size:15px; padding:12px 14px; }
     }
+    /* 2026-05-12 サンゴタンが選んだ今週の秀逸作品カード */
+    .sango-featured-list { display:flex; flex-direction:column; gap:12px; }
+    .sango-featured-card { background:linear-gradient(135deg,#fef3c7,#fde68a); border:3px solid #f59e0b; border-radius:14px; padding:14px 16px; box-shadow:0 4px 12px rgba(245,158,11,.2); cursor:pointer; transition: transform .15s ease, box-shadow .15s ease; position:relative; overflow:hidden; }
+    .sango-featured-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(245,158,11,.3); }
+    .sango-featured-card::before { content:'⭐'; position:absolute; top:-10px; right:-10px; font-size:60px; opacity:.18; transform:rotate(15deg); pointer-events:none; }
+    .sango-featured-badge { display:inline-block; background:#b45309; color:#fff; font-size:12px; font-weight:bold; padding:3px 10px; border-radius:12px; margin-bottom:8px; }
+    .sango-featured-header { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; position:relative; z-index:1; }
+    .sango-featured-nickname { font-size:14px; color:#78350f; font-weight:bold; }
+    .sango-featured-level { font-size:12px; color:#92400e; background:rgba(255,255,255,.6); padding:2px 8px; border-radius:8px; }
+    .sango-featured-words { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; position:relative; z-index:1; }
+    .sango-featured-word { display:inline-block; background:#fff; color:#b45309; font-size:13px; font-weight:bold; padding:4px 10px; border-radius:14px; border:1.5px solid #f59e0b; }
+    .sango-featured-work { font-size:15px; color:#1f2937; line-height:1.7; padding:10px 12px; background:rgba(255,255,255,.7); border-radius:10px; white-space:pre-wrap; position:relative; z-index:1; }
+    @media (max-width:480px) {
+      .sango-featured-card { padding:12px 14px; }
+      .sango-featured-nickname { font-size:13px; }
+      .sango-featured-word { font-size:12px; padding:3px 8px; }
+      .sango-featured-work { font-size:14px; padding:8px 10px; }
+    }
     /* 2026-05-12 サンゴタン⭐認定通知オーバーレイ（派手な演出） */
     .sango-starred-overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:1100; display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
     .sango-starred-card { position:relative; background:linear-gradient(135deg,#fef3c7,#fcd34d,#f59e0b); border:4px solid #b45309; border-radius:24px; padding:36px 26px 26px; max-width:480px; width:100%; text-align:center; box-shadow:0 12px 40px rgba(245,158,11,.45); overflow:hidden; animation: sango-starred-pop .55s cubic-bezier(.34,1.56,.64,1); }
@@ -1366,6 +1384,13 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ③-2 サンゴタンが選んだ今週の秀逸作品（2026-05-12 新機能） -->
+    <div class="dash-section" id="sango-featured-section" style="display:none">
+      <div class="section-title">🐠 サンゴタンが選んだ今週の秀逸作品</div>
+      <div id="sango-featured-list" class="sango-featured-list"></div>
+      <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:10px;font-size:14px;padding:10px" onclick="showSangoHallOfFame()">🏆 殿堂アーカイブを見る</button>
     </div>
 
     <!-- ④ 塾からの連絡事項（最新3件） -->
@@ -3104,8 +3129,9 @@
     loadWeeklyRanking();
     loadUnreadMessageCount();
     _prefetchTopics();
-    // 2026-05-12 サンゴタン⭐認定通知（未読のみ）
-    checkSangoStarredNotifications();
+    // 2026-05-12 サンゴタン関連
+    loadSangoWeeklyFeatured();        // 今週の秀逸作品カード
+    checkSangoStarredNotifications(); // ⭐認定通知（未読のみ）
   }
   function toggleChangeArea() { var area = document.getElementById('change-area'); area.style.display = area.style.display === 'none' ? 'block' : 'none'; }
   function openModal()  { document.getElementById('img-modal').classList.add('active'); }
@@ -3899,6 +3925,48 @@
         '</div>';
     }
     showScreen('screen-sango-feedback');
+  }
+
+  // 2026-05-12 サンゴタンが選んだ今週の秀逸作品（ホーム画面のカード）
+  // ふくちさんが admin で⭐認定 + 「今週公開」設定した作品を表示する。
+  // 0 件なら section ごと非表示（DOM はあるが display:none）。
+  function loadSangoWeeklyFeatured() {
+    var sect = document.getElementById('sango-featured-section');
+    var listEl = document.getElementById('sango-featured-list');
+    if (!sect || !listEl) return;
+    gasGet({ action:'getSangoWeeklyFeatured', _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok || !Array.isArray(res.featured) || res.featured.length === 0) {
+        sect.style.display = 'none';
+        return;
+      }
+      listEl.innerHTML = res.featured.map(_renderSangoFeaturedCard).join('');
+      sect.style.display = 'block';
+    }).catch(function(){ sect.style.display = 'none'; });
+  }
+  function _renderSangoFeaturedCard(item) {
+    var wordsArr = String(item.words || '').split(/[,、,，\s]+/).filter(function(s){ return s && s.trim(); }).map(function(s){ return s.trim(); });
+    var wordsHtml = wordsArr.map(function(w){ return '<span class="sango-featured-word">' + _sangoEscHtml(w) + '</span>'; }).join('');
+    var nick = String(item.studentNickname || '名無し');
+    var lv   = String(item.level || '');
+    var work = String(item.work || '');
+    return (
+      '<div class="sango-featured-card" onclick="showSangoHallOfFame()">' +
+        '<div class="sango-featured-badge">⭐ 今週の秀逸作品</div>' +
+        '<div class="sango-featured-header">' +
+          '<div class="sango-featured-nickname">' + _sangoEscHtml(nick) + ' さん</div>' +
+          '<div class="sango-featured-level">レベル ' + _sangoEscHtml(lv) + '</div>' +
+        '</div>' +
+        '<div class="sango-featured-words">' + wordsHtml + '</div>' +
+        '<div class="sango-featured-work">' + _sangoEscHtml(work) + '</div>' +
+      '</div>'
+    );
+  }
+  // showSangoHallOfFame の本実装は次コミット 7 で。ここでは暫定 stub
+  // （コミット 6 単独でもビルドが通り、tapしても安全に動作するように）
+  if (typeof window.showSangoHallOfFame !== 'function') {
+    window.showSangoHallOfFame = function() {
+      alert('🏆 殿堂アーカイブ画面は準備中です。もう少し待ってね〜');
+    };
   }
 
   // 2026-05-12 サンゴタン⭐認定通知

@@ -1008,6 +1008,7 @@ function doGet(e) {
       else if (action === 'getSangoSubmissions') result = getSangoSubmissions(params);
       // 2026-05-12 サンゴタン AI フィードバック関連
       else if (action === 'getSangoStarredForStudent')  result = getSangoStarredForStudent(params);
+      else if (action === 'getSangoWeeklyFeatured')     result = getSangoWeeklyFeatured();
       else if (action === 'getSangoPastTopicsRecent')   result = getSangoPastTopicsRecent();
       else if (action === 'getSangoPastTopicsPaged')    result = getSangoPastTopicsPaged(params);
       else if (action === 'getChildActivityRecent')    result = getChildActivityRecent(params);
@@ -8651,6 +8652,74 @@ function getSangoSubmissions(params) {
     return { ok: true, submissions: submissions };
   } catch(err) {
     console.error('[getSangoSubmissions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// サンゴタン ISO 8601 週番号ヘルパー（2026-05-12 新機能）
+// =============================================
+// 「今週」を 'yyyy-Www' 形式（例：2026-W19）の文字列で表す。月曜始まり。
+// admin が「今週公開」をチェック → published_in_week 列にこの文字列を書き、
+// 生徒画面の getSangoWeeklyFeatured が同じ文字列でフィルタする。
+// 教育日 4:00 AM は適用しない（週単位の粒度なので深夜 0:00 切替で十分）。
+function _sangoIsoWeekStr(d) {
+  // d を JST の Date として解釈し、ISO 8601 ルールで週番号を決定する。
+  const tz = 'Asia/Tokyo';
+  const ymd = Utilities.formatDate(d, tz, 'yyyy-MM-dd').split('-');
+  // 当日 0:00 JST の Date を作る（UTC 表記）
+  const today = new Date(Date.UTC(Number(ymd[0]), Number(ymd[1]) - 1, Number(ymd[2])));
+  // ISO weekday: 月=1 ... 日=7
+  const day = today.getUTCDay() || 7;
+  // その週の木曜日に揃える（ISO 8601：木曜が含まれる年がその週の年）
+  today.setUTCDate(today.getUTCDate() + 4 - day);
+  const year = today.getUTCFullYear();
+  // その年の最初の木曜日と比較して週番号を計算
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const weekNo = Math.ceil((((today - yearStart) / 86400000) + 1) / 7);
+  return year + '-W' + (weekNo < 10 ? '0' + weekNo : String(weekNo));
+}
+function _sangoCurrentIsoWeek() {
+  return _sangoIsoWeekStr(new Date());
+}
+
+// =============================================
+// サンゴタン「今週の秀逸作品」（2026-05-12 新機能）
+// =============================================
+// ふくちさんが admin で⭐認定 + 「今週公開」設定した作品を、生徒のホーム画面に
+// カード表示するための API。starred=TRUE かつ published_in_week=現在週の作品を返す。
+// 認証不要（生徒全員に同じ内容を見せる仕様）。
+function getSangoWeeklyFeatured() {
+  try {
+    const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
+    const currentWeek = _sangoCurrentIsoWeek();
+    if (!sh || sh.getLastRow() < 2) return { ok: true, featured: [], currentWeek: currentWeek };
+    const values = sh.getDataRange().getValues();
+    const out = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[SANGO_SUB_COL_TIMESTAMP]) continue;
+      const starredVal = r[SANGO_SUB_COL_STARRED];
+      const isStarred = (starredVal === true) || (String(starredVal).toLowerCase() === 'true') || (starredVal === 1) || (String(starredVal) === '1');
+      if (!isStarred) continue;
+      const publishedWeek = String(r[SANGO_SUB_COL_PUBLISHED] || '').trim();
+      if (publishedWeek !== currentWeek) continue;
+      const ts = Utilities.formatDate(new Date(r[SANGO_SUB_COL_TIMESTAMP]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      out.push({
+        submissionId:    ts + '_' + String(r[SANGO_SUB_COL_SID] || '').trim(),
+        timestamp:       ts,
+        studentNickname: String(r[SANGO_SUB_COL_NICKNAME] || '').trim() || '名無し',
+        level:           String(r[SANGO_SUB_COL_LEVEL] || ''),
+        words:           String(r[SANGO_SUB_COL_WORDS] || ''),
+        work:            String(r[SANGO_SUB_COL_WORK] || ''),
+        publishedWeek:   publishedWeek
+      });
+    }
+    // timestamp 降順（新しい認定が先頭）
+    out.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+    return { ok: true, featured: out, currentWeek: currentWeek };
+  } catch(err) {
+    console.error('[getSangoWeeklyFeatured]', err);
     return { ok: false, message: String(err) };
   }
 }
