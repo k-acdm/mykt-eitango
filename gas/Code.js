@@ -8079,6 +8079,180 @@ function getSangoTopic() {
   }
 }
 
+// =============================================
+// サンゴタン AI フィードバック（Anthropic Claude Haiku 4.5）
+// =============================================
+// 2026-05-12 新機能：三語短文の生徒作品に対して、サンゴタンが AI を使って
+//   即時フィードバックを返す。
+// 入力：生徒の作品文 + お題 3 単語
+// 出力：{ ok, category, feedback, reasoning } or { ok:false, error }
+//   - category: 'excellent' | 'good' | 'needs_improvement'
+//   - feedback: 生徒に見せる短いフィードバック（絵文字込み、最大 80 字程度）
+//   - reasoning: 管理画面用の判定理由（最大 200 字）
+// 注：末尾エクスキューズ「サンゴタンはAIなので…」はここでは付与せず、
+//     呼び出し側（submitSango）で結合してフロントに返す。
+// 失敗時：1 回リトライ、それでもダメなら { ok:false, error } を返す。
+//        呼び出し側はフィードバックなしで提出を完了させる（HP は付与済み）。
+function _sangoAiFeedback(submissionText, topic1, topic2, topic3) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+  if (!apiKey) {
+    console.error('[_sangoAiFeedback] ANTHROPIC_API_KEY が設定されていません');
+    return { ok: false, error: 'ANTHROPIC_API_KEY missing' };
+  }
+
+  const submission = String(submissionText || '').trim();
+  if (!submission) return { ok: false, error: 'submission empty' };
+
+  const w1 = String(topic1 || '').trim();
+  const w2 = String(topic2 || '').trim();
+  const w3 = String(topic3 || '').trim();
+
+  const systemPrompt =
+    'あなたは「サンゴタン」という、三語短文（3つの単語を使った日本語の短い作文）の\n' +
+    '作品を読んでフィードバックを返すキャラクターです。\n' +
+    '温かい目線で、生徒の作品を評価してください。\n' +
+    '\n' +
+    '【絶対ルール】\n' +
+    '・「次も頑張ろう」と思える表現で書く（生徒を傷つけない）\n' +
+    '・改善点を伝える場合も、優しく前向きな言い方にする\n' +
+    '・短く（最大 80 字以内、絵文字 1〜2 個入れて親しみやすく）\n' +
+    '・出力は JSON 形式のみ。前置き・説明・コードブロック（```）は絶対に含めない。\n' +
+    '\n' +
+    '【評価軸】\n' +
+    '・3 つの単語を活かして文に組み込めているか（順序は不問）\n' +
+    '・日本語として自然か（不自然な言い回し / 誤用 / 文法ミス）\n' +
+    '・創意工夫（視点の面白さ / 比喩 / ユーモア / 情景描写）\n' +
+    '\n' +
+    '【判定カテゴリ】\n' +
+    '・"excellent"          … 3 単語をしっかり活かし、日本語も自然で、視点や表現に光るものがある\n' +
+    '・"good"               … 3 単語を使い、日本語も自然。標準的に良い作品\n' +
+    '・"needs_improvement"  … 単語の使い方が不自然、または日本語に明らかな違和感がある\n' +
+    '\n' +
+    '【出力形式（厳密に JSON のみ）】\n' +
+    '{\n' +
+    '  "category": "excellent" | "good" | "needs_improvement",\n' +
+    '  "feedback": "生徒向けの短いコメント（絵文字込み、80字以内）",\n' +
+    '  "reasoning_internal": "判定理由を管理画面用に簡潔に（200字以内、絵文字なしで構わない）"\n' +
+    '}\n';
+
+  const userPrompt =
+    '【今日のお題（3 単語）】\n' +
+    '1) ' + w1 + '\n' +
+    '2) ' + w2 + '\n' +
+    '3) ' + w3 + '\n' +
+    '\n' +
+    '【生徒が書いた作品】\n' +
+    submission + '\n' +
+    '\n' +
+    'この作品を評価して、上記のルール・出力形式に厳密に従って JSON のみ出力してください。';
+
+  const body = {
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 500,
+    temperature: 0.3,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }]
+  };
+
+  const fetchOpts = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  };
+
+  const url = 'https://api.anthropic.com/v1/messages';
+  const MAX_ATTEMPTS  = 2;
+  const RETRY_WAIT_MS = 500;
+  const QUOTA_PATTERN = /quota|rate|limit|overload|busy|unavailable/i;
+  const VALID_CATEGORIES = { 'excellent': 1, 'good': 1, 'needs_improvement': 1 };
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res;
+    try { res = UrlFetchApp.fetch(url, fetchOpts); }
+    catch (e) {
+      const exMsg = String(e);
+      console.error('[_sangoAiFeedback fetch exception attempt=' + attempt + ']', exMsg);
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'fetch exception: ' + exMsg };
+    }
+    const code = res.getResponseCode();
+    const raw  = res.getContentText();
+    if (code === 429 || (code >= 500 && code < 600)) {
+      console.error('[_sangoAiFeedback retryable HTTP attempt=' + attempt + ']', code, raw.substring(0, 400));
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'HTTP ' + code };
+    }
+    if (code !== 200) {
+      console.error('[_sangoAiFeedback HTTP error]', code, raw.substring(0, 400));
+      // 4xx 系は永続エラー（auth / quota_exceeded など）なのでリトライしない
+      return { ok: false, error: 'HTTP ' + code };
+    }
+
+    let json;
+    try { json = JSON.parse(raw); }
+    catch (e) {
+      console.error('[_sangoAiFeedback response JSON parse error]', e, raw.substring(0, 400));
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'response not JSON: ' + String(e) };
+    }
+
+    // Anthropic は top-level type='error' で返すことがある（500 / 529 等）
+    if (json && json.type === 'error') {
+      const errMsg = String((json.error && json.error.message) || 'error');
+      console.error('[_sangoAiFeedback top-level error attempt=' + attempt + ']', JSON.stringify(json.error));
+      if (QUOTA_PATTERN.test(errMsg) && attempt < MAX_ATTEMPTS) {
+        Utilities.sleep(RETRY_WAIT_MS); continue;
+      }
+      return { ok: false, error: 'anthropic error: ' + errMsg };
+    }
+
+    // 正常応答：content[0].text を取り出す
+    const content = json && json.content;
+    if (!Array.isArray(content) || !content[0] || typeof content[0].text !== 'string') {
+      console.error('[_sangoAiFeedback unexpected response shape]', JSON.stringify(json).substring(0, 400));
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'unexpected response shape' };
+    }
+
+    let responseText = String(content[0].text || '').trim();
+    // フォールバック保険：コードブロック装飾が混入していたら剥がす
+    responseText = responseText.replace(/^```(?:[a-zA-Z]+)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    // JSON 本体を抽出（プロンプト指示で JSON のみのはずだが、保険として { ... } 部分を抜き出す）
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('[_sangoAiFeedback no JSON in response]', responseText.substring(0, 400));
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'no JSON in response' };
+    }
+
+    let parsed;
+    try { parsed = JSON.parse(jsonMatch[0]); }
+    catch (e) {
+      console.error('[_sangoAiFeedback inner JSON parse error]', e, jsonMatch[0].substring(0, 400));
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'inner JSON parse: ' + String(e) };
+    }
+
+    const cat = String(parsed.category || '').trim();
+    const fb  = String(parsed.feedback || '').trim();
+    const rsn = String(parsed.reasoning_internal || '').trim();
+    if (!VALID_CATEGORIES[cat] || !fb) {
+      console.error('[_sangoAiFeedback validation failed]', JSON.stringify(parsed).substring(0, 400));
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'validation failed' };
+    }
+
+    return { ok: true, category: cat, feedback: fb, reasoning: rsn, attempts: attempt };
+  }
+
+  return { ok: false, error: 'all attempts exhausted' };
+}
+
 function submitSango(params) {
   try {
     const sid    = String(params.studentId || '').trim();
