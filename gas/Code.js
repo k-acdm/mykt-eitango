@@ -1009,6 +1009,7 @@ function doGet(e) {
       // 2026-05-12 サンゴタン AI フィードバック関連
       else if (action === 'getSangoStarredForStudent')  result = getSangoStarredForStudent(params);
       else if (action === 'getSangoWeeklyFeatured')     result = getSangoWeeklyFeatured();
+      else if (action === 'getSangoHallOfFame')         result = getSangoHallOfFame(params);
       else if (action === 'getSangoPastTopicsRecent')   result = getSangoPastTopicsRecent();
       else if (action === 'getSangoPastTopicsPaged')    result = getSangoPastTopicsPaged(params);
       else if (action === 'getChildActivityRecent')    result = getChildActivityRecent(params);
@@ -8720,6 +8721,66 @@ function getSangoWeeklyFeatured() {
     return { ok: true, featured: out, currentWeek: currentWeek };
   } catch(err) {
     console.error('[getSangoWeeklyFeatured]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// サンゴタン殿堂アーカイブ（2026-05-12 新機能）
+// =============================================
+// ホーム画面の秀逸作品カードから「殿堂アーカイブを見る」で遷移。
+// 過去に⭐認定 + 公開された作品を週ごとにグループ化、1 ページ 4 週ずつ
+// ページネーション。
+// 引数：{ weekOffset:0 }（0 = 最新 4 週、1 = さらに次の 4 週、...）
+function getSangoHallOfFame(params) {
+  try {
+    const offset = Math.max(0, parseInt((params && params.weekOffset) || 0, 10) || 0);
+    const PAGE_SIZE = 4;
+    const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, weeks: [], hasMore: false, weekOffset: offset };
+    const values = sh.getDataRange().getValues();
+    // starred=TRUE かつ published_in_week 非空 の行だけを抽出
+    const items = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[SANGO_SUB_COL_TIMESTAMP]) continue;
+      const starredVal = r[SANGO_SUB_COL_STARRED];
+      const isStarred = (starredVal === true) || (String(starredVal).toLowerCase() === 'true') || (starredVal === 1) || (String(starredVal) === '1');
+      if (!isStarred) continue;
+      const publishedWeek = String(r[SANGO_SUB_COL_PUBLISHED] || '').trim();
+      if (!publishedWeek) continue;
+      const ts = Utilities.formatDate(new Date(r[SANGO_SUB_COL_TIMESTAMP]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      items.push({
+        submissionId:    ts + '_' + String(r[SANGO_SUB_COL_SID] || '').trim(),
+        timestamp:       ts,
+        studentNickname: String(r[SANGO_SUB_COL_NICKNAME] || '').trim() || '名無し',
+        level:           String(r[SANGO_SUB_COL_LEVEL] || ''),
+        words:           String(r[SANGO_SUB_COL_WORDS] || ''),
+        work:            String(r[SANGO_SUB_COL_WORK] || ''),
+        publishedWeek:   publishedWeek
+      });
+    }
+    // 週ごとにグループ化
+    const groupMap = {};
+    items.forEach(function(it){
+      if (!groupMap[it.publishedWeek]) groupMap[it.publishedWeek] = [];
+      groupMap[it.publishedWeek].push(it);
+    });
+    // 週を降順にソート（'yyyy-Www' 文字列で辞書順比較 = 時系列降順と一致）
+    const sortedWeeks = Object.keys(groupMap).sort(function(a, b){ return a < b ? 1 : a > b ? -1 : 0; });
+    // ページネーション
+    const startIdx = offset * PAGE_SIZE;
+    const endIdx   = startIdx + PAGE_SIZE;
+    const pageWeeks = sortedWeeks.slice(startIdx, endIdx);
+    const hasMore   = sortedWeeks.length > endIdx;
+    const weeks = pageWeeks.map(function(w){
+      // 週内は timestamp 降順
+      const itemsInWeek = groupMap[w].sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+      return { week: w, items: itemsInWeek };
+    });
+    return { ok: true, weeks: weeks, hasMore: hasMore, weekOffset: offset, totalWeeks: sortedWeeks.length };
+  } catch(err) {
+    console.error('[getSangoHallOfFame]', err);
     return { ok: false, message: String(err) };
   }
 }
