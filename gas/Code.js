@@ -1006,6 +1006,8 @@ function doGet(e) {
       else if (action === 'adminSetSangoTeacherWork')   result = adminSetSangoTeacherWork(params);
       else if (action === 'adminSetSangoComment')      result = adminSetSangoComment(params);
       else if (action === 'getSangoSubmissions') result = getSangoSubmissions(params);
+      // 2026-05-12 サンゴタン AI フィードバック関連
+      else if (action === 'getSangoStarredForStudent')  result = getSangoStarredForStudent(params);
       else if (action === 'getSangoPastTopicsRecent')   result = getSangoPastTopicsRecent();
       else if (action === 'getSangoPastTopicsPaged')    result = getSangoPastTopicsPaged(params);
       else if (action === 'getChildActivityRecent')    result = getChildActivityRecent(params);
@@ -8649,6 +8651,61 @@ function getSangoSubmissions(params) {
     return { ok: true, submissions: submissions };
   } catch(err) {
     console.error('[getSangoSubmissions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// サンゴタン⭐認定通知（2026-05-12 新機能）
+// =============================================
+// 生徒が次回ログイン時 / ホーム表示時に呼び出して、自身の作品で
+// ⭐認定（starred=TRUE）されているものを返す。フロント側は localStorage
+// で「mykt_sango_starred_seen_<sid>_<submission_id>」フラグを管理し、
+// 未読の⭐があれば派手な演出を表示。
+// 注：「秀逸作品」「公開」等の情報は意図的に返さない（仕様）。生徒には
+// 「特別な称号をもらった」とだけ伝え、公開対象選定はふくちさんに委ねる。
+function getSangoStarredForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const sh = _ss().getSheetByName(SHEET_SANGO_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, starred: [] };
+    const values = sh.getDataRange().getValues();
+    const out = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r[SANGO_SUB_COL_TIMESTAMP]) continue;
+      if (String(r[SANGO_SUB_COL_SID] || '').trim() !== sid) continue;
+      // starred 列が TRUE / true / 1 のいずれかなら⭐認定済
+      const starredVal = r[SANGO_SUB_COL_STARRED];
+      const isStarred = (starredVal === true) || (String(starredVal).toLowerCase() === 'true') || (starredVal === 1) || (String(starredVal) === '1');
+      if (!isStarred) continue;
+      const ts = Utilities.formatDate(new Date(r[SANGO_SUB_COL_TIMESTAMP]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      const starredAtRaw = r[SANGO_SUB_COL_STARRED_AT];
+      let starredAt = '';
+      if (starredAtRaw) {
+        try { starredAt = Utilities.formatDate(new Date(starredAtRaw), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'); }
+        catch(e) { starredAt = String(starredAtRaw); }
+      }
+      out.push({
+        // submissionId は timestamp + sid をシンプルに結合した一意キー
+        submissionId: ts + '_' + sid,
+        timestamp:    ts,
+        level:        String(r[SANGO_SUB_COL_LEVEL] || ''),
+        words:        String(r[SANGO_SUB_COL_WORDS] || ''),
+        work:         String(r[SANGO_SUB_COL_WORK] || ''),
+        starred_at:   starredAt
+      });
+    }
+    // starred_at（または timestamp）降順で並べる（最新の⭐認定が先頭）
+    out.sort(function(a, b){
+      const aKey = a.starred_at || a.timestamp;
+      const bKey = b.starred_at || b.timestamp;
+      return aKey < bKey ? 1 : aKey > bKey ? -1 : 0;
+    });
+    return { ok: true, starred: out };
+  } catch(err) {
+    console.error('[getSangoStarredForStudent]', err);
     return { ok: false, message: String(err) };
   }
 }
