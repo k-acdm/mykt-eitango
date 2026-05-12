@@ -1697,8 +1697,9 @@
   <header><h1>🐠 サンゴタンからのコメント</h1></header>
   <div class="container" style="padding-top:16px">
     <div id="sango-feedback-body"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goHome()">🏠 ホームに戻る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:10px" onclick="showScreen('screen-sango-topic')">📝 もう一作書く</button>
+    <!-- 2026-05-12 改善1：feedback → done の順に変更。「HP獲得演出を見る」がプライマリ -->
+    <button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:14px" onclick="_showSangoFinalDone()">🎁 HP獲得演出を見る →</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:10px" onclick="showScreen('screen-sango-topic')">📝 もう一作書く（演出スキップ）</button>
   </div>
 </div>
 <!-- 2026-05-12 サンゴタン殿堂アーカイブ画面 -->
@@ -3708,12 +3709,13 @@
     var words = topic ? (topic.words || []).join(' / ') : '';
     var btn = document.getElementById('sango-text-submit-btn'); btn.disabled = true;
     var levelSnap = _sangoCurrentLevel, sidSnap = _studentId;
-    // E1 楽観的UI: 即座に完了画面を表示
+    // 2026-05-12 改善1：画面遷移順序を thinking → feedback → done に変更。
+    // HP 予測加算は内部のみ（_totalHP / localStorage）。画面は thinking 直行。
     var isFirst = !_isHpGrantedToday('sango');
     var predictedHp = isFirst ? _predictHp(200) : 0;
     if (predictedHp > 0) { _totalHP += predictedHp; _markHpGrantedToday('sango'); }
     document.getElementById('sango-text-msg').style.display = 'none';
-    _showSangoDone(predictedHp, !isFirst);
+    _showSangoThinkingScreen();
     _showSubmitPending();
     _pendingRetry = function(){ submitSangoText(); };
     _pendingDismiss = function(){ btn.disabled = false; showScreen('screen-sango-text'); };
@@ -3730,12 +3732,13 @@
       if (actualHp !== predictedHp) {
         _totalHP += (actualHp - predictedHp);
         if (actualHp === 0) _unmarkHpGrantedToday('sango'); else _markHpGrantedToday('sango');
-        _showSangoDone(actualHp, actualHp === 0);
       }
       document.getElementById('sango-text-input').value = '';
       btn.disabled = false;
-      // 2026-05-12 サンゴタンAIフィードバック：HP 演出後に thinking → feedback へ遷移
-      _scheduleSangoAiFeedback(res.aiFeedback || null);
+      // HP 情報を保存して、後で feedback 画面の「HP獲得演出を見る」ボタンで使う
+      _pendingSangoHp = { hp: actualHp, alreadyGranted: actualHp === 0 };
+      // thinking を最低 1.8 秒見せてから feedback 画面へ
+      _waitThinkingThenFeedback(res.aiFeedback || null);
     }).catch(function(){
       _hideSubmitPending();
       if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
@@ -3822,11 +3825,12 @@
     var levelSnap = _sangoCurrentLevel, sidSnap = _studentId, ocrSnap = _sangoOcrText;
     document.getElementById('sango-photo-msg').style.display = 'none';
     document.getElementById('sango-ocr-confirm').style.display = 'none';
-    // E1 楽観的UI: 即座に完了画面を表示
+    // 2026-05-12 改善1：画面遷移順序を thinking → feedback → done に変更。
+    // HP 予測加算は内部のみ（_totalHP / localStorage）。画面は thinking 直行。
     var isFirst = !_isHpGrantedToday('sango');
     var predictedHp = isFirst ? _predictHp(200) : 0;
     if (predictedHp > 0) { _totalHP += predictedHp; _markHpGrantedToday('sango'); }
-    _showSangoDone(predictedHp, !isFirst);
+    _showSangoThinkingScreen();
     _showSubmitPending();
     _pendingRetry = function(){ _sangoOcrText = ocrSnap; _sangoCurrentLevel = levelSnap; confirmSangoPhoto(true); };
     _pendingDismiss = function(){ showScreen('screen-sango-photo'); };
@@ -3843,11 +3847,12 @@
       if (actualHp !== predictedHp) {
         _totalHP += (actualHp - predictedHp);
         if (actualHp === 0) _unmarkHpGrantedToday('sango'); else _markHpGrantedToday('sango');
-        _showSangoDone(actualHp, actualHp === 0);
       }
       _resetSangoPhoto();
-      // 2026-05-12 サンゴタンAIフィードバック：HP 演出後に thinking → feedback へ遷移
-      _scheduleSangoAiFeedback(res.aiFeedback || null);
+      // HP 情報を保存して、後で feedback 画面の「HP獲得演出を見る」ボタンで使う
+      _pendingSangoHp = { hp: actualHp, alreadyGranted: actualHp === 0 };
+      // thinking を最低 1.8 秒見せてから feedback 画面へ
+      _waitThinkingThenFeedback(res.aiFeedback || null);
     }).catch(function(){
       _hideSubmitPending();
       if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
@@ -3882,22 +3887,32 @@
     }
     try { playSfx('chime'); } catch(e){}
   }
-  // 2026-05-12 サンゴタンAIフィードバック演出
-  // submitSango の .then 内から呼ぶ。HP 獲得演出（screen-sango-done）を 2.5 秒
-  // 堪能してから、サンゴタンが考え中（screen-sango-thinking）を 1.8 秒、
-  // その後フィードバック画面（screen-sango-feedback）に遷移する。
-  // aiFeedback が null（AI 失敗）の場合は「サンゴタンお休み中」表示。
-  function _scheduleSangoAiFeedback(aiFeedback) {
-    // 2.5 秒：HP 獲得演出を堪能
+  // 2026-05-12 改善1：画面遷移順序の入れ替え（thinking → feedback → done）
+  // 旧フロー：HP 演出（done）2.5 秒 + thinking 1.8 秒 + feedback
+  // 新フロー：thinking（即座、AI 待ち）+ feedback（生徒操作）+ HP 演出（done）
+  //
+  // _pendingSangoHp は submitSango の .then 内でセットされる：
+  //   { hp: actualHp, alreadyGranted: bool }
+  // feedback 画面の「HP獲得演出を見る」ボタンから _showSangoFinalDone() を呼ぶ。
+  var _pendingSangoHp = null;
+  function _showSangoThinkingScreen() {
+    var bubble = document.getElementById('sango-thinking-bubble');
+    if (bubble) bubble.textContent = _pickBubble(SANGOTAN_BUBBLES.thinking);
+    showScreen('screen-sango-thinking');
+  }
+  function _waitThinkingThenFeedback(aiFeedback) {
+    // thinking を最低 1.8 秒見せてから feedback へ。submitSango のレスポンスが
+    // 既に届いているこの時点でも、サンゴタンが読んでる演出として最低時間は確保する。
     setTimeout(function() {
-      // 1.8 秒：サンゴタンが考えてる演出
-      var bubble = document.getElementById('sango-thinking-bubble');
-      if (bubble) bubble.textContent = _pickBubble(SANGOTAN_BUBBLES.thinking);
-      showScreen('screen-sango-thinking');
-      setTimeout(function() {
-        _showSangoFeedback(aiFeedback);
-      }, 1800);
-    }, 2500);
+      _showSangoFeedback(aiFeedback);
+    }, 1800);
+  }
+  function _showSangoFinalDone() {
+    // feedback 画面の「HP獲得演出を見る」ボタンから呼ばれる。
+    // _pendingSangoHp に actual HP が入っているのでそれを screen-sango-done に表示。
+    var info = _pendingSangoHp || { hp: 0, alreadyGranted: true };
+    _showSangoDone(info.hp, info.alreadyGranted);
+    _pendingSangoHp = null;  // 一度きりの状態なのでリセット
   }
   function _showSangoFeedback(aiFeedback) {
     var body = document.getElementById('sango-feedback-body');
