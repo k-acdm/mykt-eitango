@@ -8080,6 +8080,58 @@ function getSangoTopic() {
 }
 
 // =============================================
+// SangoSubmissions シート定義（2026-05-12 拡張）
+// =============================================
+// 既存 8 列（A〜H）：timestamp / studentId / studentName / level / words / work / method / teacher_comment
+// 新規 6 列（I〜N）：ai_category / ai_feedback / ai_reasoning / starred / starred_at / published_in_week
+// schema migration：既存シートに対しては _ensureSheetWithHeaders が末尾列だけ自動追記する。
+// 既存提出レコードの新 6 列は空欄のまま（後方互換、AI 判定なし扱い）。
+const SANGO_SUBMISSIONS_HEADERS = [
+  'timestamp',           // A: 提出日時
+  'studentId',           // B: 生徒 ID
+  'studentName',         // C: ニックネーム
+  'level',               // D: レベル（A/B/S/T）
+  'words',               // E: お題 3 単語
+  'work',                // F: 生徒作品本文
+  'method',              // G: 提出方法（text / photo）
+  'teacher_comment',     // H: 先生コメント（既存）
+  'ai_category',         // I: AI 判定（excellent / good / needs_improvement）
+  'ai_feedback',         // J: 生徒向けフィードバック本文
+  'ai_reasoning',        // K: 管理画面用の判定理由
+  'starred',             // L: ふくちさんが⭐認定したか（TRUE / FALSE / 空）
+  'starred_at',          // M: 認定日時
+  'published_in_week'    // N: 公開された週（'2026-W19' 形式）
+];
+// SangoSubmissions の列インデックス（読み書き両用）
+const SANGO_SUB_COL_TIMESTAMP    = 0;
+const SANGO_SUB_COL_SID          = 1;
+const SANGO_SUB_COL_NICKNAME     = 2;
+const SANGO_SUB_COL_LEVEL        = 3;
+const SANGO_SUB_COL_WORDS        = 4;
+const SANGO_SUB_COL_WORK         = 5;
+const SANGO_SUB_COL_METHOD       = 6;
+const SANGO_SUB_COL_TEACHER_COMM = 7;
+const SANGO_SUB_COL_AI_CATEGORY  = 8;
+const SANGO_SUB_COL_AI_FEEDBACK  = 9;
+const SANGO_SUB_COL_AI_REASONING = 10;
+const SANGO_SUB_COL_STARRED      = 11;
+const SANGO_SUB_COL_STARRED_AT   = 12;
+const SANGO_SUB_COL_PUBLISHED    = 13;
+
+// SangoSubmissions シートの存在保証 + schema migration
+// GAS エディタから手動 1 回実行（clasp push 後の初回セットアップ）。
+// 既存シートには新 6 列（I〜N）を末尾追記する（_ensureSheetWithHeaders の機能）。
+function ensureSangoSubmissionsSheet() {
+  try {
+    const r = _ensureSheetWithHeaders(SHEET_SANGO_SUBMISSIONS, SANGO_SUBMISSIONS_HEADERS);
+    return { ok: true, created: r.created, sheet: SHEET_SANGO_SUBMISSIONS, headers: SANGO_SUBMISSIONS_HEADERS };
+  } catch (err) {
+    console.error('[ensureSangoSubmissionsSheet]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
 // サンゴタン AI フィードバック（Anthropic Claude Haiku 4.5）
 // =============================================
 // 2026-05-12 新機能：三語短文の生徒作品に対して、サンゴタンが AI を使って
