@@ -13534,42 +13534,124 @@ function _getZodiac(birthday) {
   return null;
 }
 
-// 仮ダミーの星座メッセージ（stars=3 のみ、12 星座分）。
-// プリスレが生成中の本骨格（12 星座 × 5 stars = 60 個）を組み込むまでの繋ぎ。
-// stars が 3 以外でも、ダミー段階ではこの 12 個から該当星座を返せばよい。
-const ZODIAC_PRESETS_DUMMY = [
-  { id: 'zodiac_aries_3',       zodiac: 'aries',       stars: 3, message: '牡羊座の{nickname}さん、今日は基本に立ち返るといい日だよ 😊 焦らず自分のペースで進んでみて。' },
-  { id: 'zodiac_taurus_3',      zodiac: 'taurus',      stars: 3, message: '牡牛座の{nickname}さん、いつものペースで進むのが今日の正解 🌱 マイペースが一番の強みだよ。' },
-  { id: 'zodiac_gemini_3',      zodiac: 'gemini',      stars: 3, message: '双子座の{nickname}さん、好奇心の赴くままに動くと吉 ✨ 興味のあるところから手をつけてみて。' },
-  { id: 'zodiac_cancer_3',      zodiac: 'cancer',      stars: 3, message: '蟹座の{nickname}さん、今日は身近な人との時間を大切に 🍀 ホッとできる場所で力を蓄えよう。' },
-  { id: 'zodiac_leo_3',         zodiac: 'leo',         stars: 3, message: '獅子座の{nickname}さん、今日は持ち前のパワーを少し抑えめに ⭐ 落ち着いた行動が周りからの信頼を呼ぶよ。' },
-  { id: 'zodiac_virgo_3',       zodiac: 'virgo',       stars: 3, message: '乙女座の{nickname}さん、丁寧さが今日の武器 🌸 細かいところに気を配ると、いい結果につながるよ。' },
-  { id: 'zodiac_libra_3',       zodiac: 'libra',       stars: 3, message: '天秤座の{nickname}さん、バランスを意識して過ごす日 ⚖️ 偏らず、ちょうどよく整える一日に。' },
-  { id: 'zodiac_scorpio_3',     zodiac: 'scorpio',     stars: 3, message: '蠍座の{nickname}さん、今日は内に深く向き合うのが吉 🌙 ひとつのテーマをじっくり掘り下げてみて。' },
-  { id: 'zodiac_sagittarius_3', zodiac: 'sagittarius', stars: 3, message: '射手座の{nickname}さん、視野を広く持つと新しい発見があるよ 🏹 ちょっと違う角度から見てみよう。' },
-  { id: 'zodiac_capricorn_3',   zodiac: 'capricorn',   stars: 3, message: '山羊座の{nickname}さん、コツコツ続けることが今日も最大の味方 🏔 焦らず一歩ずつ積み上げて。' },
-  { id: 'zodiac_aquarius_3',    zodiac: 'aquarius',    stars: 3, message: '水瓶座の{nickname}さん、ちょっと変わった方法で取り組むと吉 💡 ひらめきを信じてみて。' },
-  { id: 'zodiac_pisces_3',      zodiac: 'pisces',      stars: 3, message: '魚座の{nickname}さん、優しい気持ちで人と接すると運気が上がる日 🐟 直感も冴えてるよ。' }
+// ========================================================================
+// 星座運 本骨格（2026-05-13 Phase 2 段階B、プリスレ生成版 v2.0、計 60 個）。
+// ------------------------------------------------------------------------
+// 12 星座 × 5 stars レベル = 60 個。順序は aries→taurus→...→pisces、
+// 各星座内は stars=5→1（プリスレが既にこの順序で出力済みのまま保持）。
+// {nickname} 差し込みは stars=5/4/2 にあり（テンプレ側で「呼びかけ」が
+// 入る位置のみ）、_fortuneApplyVariables で nickname/title/streak を差し込む。
+// 将来 zodiac × stars の組み合わせを複数化したくなった時は、同じ zodiac+stars
+// の preset を複数追加すれば _zodiacPickPreset が自動的に hash で選択する設計。
+// ========================================================================
+const ZODIAC_PRESETS = [
+  { id: 'zodiac_aries_5',       zodiac: 'aries',       zodiac_jp: '牡羊座', stars: 5, message: '牡羊座の{nickname}さん、今日は持ち前の行動力が大爆発する日だよ。直感を信じて、一気に飛び込んでみて ⭐' },
+  { id: 'zodiac_aries_4',       zodiac: 'aries',       zodiac_jp: '牡羊座', stars: 4, message: '牡羊座らしい情熱がうまく回る日。リーダーシップを発揮するチャンス、声を上げると流れが変わるよ 🌟' },
+  { id: 'zodiac_aries_3',       zodiac: 'aries',       zodiac_jp: '牡羊座', stars: 3, message: '今日の牡羊座は自分のペースで OK。突っ走らず、ときどき後ろも振り返ってみてね 🍀' },
+  { id: 'zodiac_aries_2',       zodiac: 'aries',       zodiac_jp: '牡羊座', stars: 2, message: '牡羊座の{nickname}さん、今日は行動力が空回りしがち。一呼吸置いてから動くと、ちゃんと噛み合うよ 😊' },
+  { id: 'zodiac_aries_1',       zodiac: 'aries',       zodiac_jp: '牡羊座', stars: 1, message: '牡羊座も今日は休む日があっていい。急がず、明日また走り出せば大丈夫だよ ✨' },
+  { id: 'zodiac_taurus_5',      zodiac: 'taurus',      zodiac_jp: '牡牛座', stars: 5, message: '牡牛座の{nickname}さん、粘り強さが実を結ぶ日。続けてきたことが、大きな成果として返ってくるよ ⭐' },
+  { id: 'zodiac_taurus_4',      zodiac: 'taurus',      zodiac_jp: '牡牛座', stars: 4, message: '牡牛座らしい安定感がプラスに働く日。じっくり積み上げると、確実に手応えが出るよ 🌟' },
+  { id: 'zodiac_taurus_3',      zodiac: 'taurus',      zodiac_jp: '牡牛座', stars: 3, message: '今日はいつもの牡牛座ペースで OK。変えなくていい、慣れた道がそのまま正解だよ 🍀' },
+  { id: 'zodiac_taurus_2',      zodiac: 'taurus',      zodiac_jp: '牡牛座', stars: 2, message: '牡牛座の{nickname}さん、マイペースを乱されがちな日。流されず、自分のリズムを守ってね 😊' },
+  { id: 'zodiac_taurus_1',      zodiac: 'taurus',      zodiac_jp: '牡牛座', stars: 1, message: '牡牛座は動かない勇気も強み。今日はじっとしてるくらいでちょうどいいんだよ ✨' },
+  { id: 'zodiac_gemini_5',      zodiac: 'gemini',      zodiac_jp: '双子座', stars: 5, message: '双子座の{nickname}さん、好奇心が冴えわたる日。気になったこと、片っ端から手を出してみていいよ ⭐' },
+  { id: 'zodiac_gemini_4',      zodiac: 'gemini',      zodiac_jp: '双子座', stars: 4, message: '双子座らしいコミュ力がフル稼働の日。誰かと話すと、いい流れが舞い込んでくるよ 🌟' },
+  { id: 'zodiac_gemini_3',      zodiac: 'gemini',      zodiac_jp: '双子座', stars: 3, message: '今日の双子座は機敏な動きが普段通りに発揮できる日。軽やかに過ごしてみて 🍀' },
+  { id: 'zodiac_gemini_2',      zodiac: 'gemini',      zodiac_jp: '双子座', stars: 2, message: '双子座の{nickname}さん、あれこれ手を出しすぎず、今日は 1 つに絞ると吉だよ 😊' },
+  { id: 'zodiac_gemini_1',      zodiac: 'gemini',      zodiac_jp: '双子座', stars: 1, message: '双子座も今日は情報の波から少し離れて、静かに過ごす日にしてみてね ✨' },
+  { id: 'zodiac_cancer_5',      zodiac: 'cancer',      zodiac_jp: '蟹座',   stars: 5, message: '蟹座の{nickname}さん、持ち前の優しさが返ってくる日だよ。人に恵まれる予感、大切にしてね ⭐' },
+  { id: 'zodiac_cancer_4',      zodiac: 'cancer',      zodiac_jp: '蟹座',   stars: 4, message: '蟹座の共感力で誰かを支えると、自分にも温かい力が返ってくる日になるよ 🌟' },
+  { id: 'zodiac_cancer_3',      zodiac: 'cancer',      zodiac_jp: '蟹座',   stars: 3, message: '今日の蟹座は身近な人と穏やかに過ごすのが吉。落ち着いた時間が栄養になるよ 🍀' },
+  { id: 'zodiac_cancer_2',      zodiac: 'cancer',      zodiac_jp: '蟹座',   stars: 2, message: '蟹座の{nickname}さん、感情が揺れやすい日。深呼吸して、落ち着いて過ごしてね 😊' },
+  { id: 'zodiac_cancer_1',      zodiac: 'cancer',      zodiac_jp: '蟹座',   stars: 1, message: '蟹座は心を守る日も大事。安心できる場所で、ゆっくり充電してね ✨' },
+  { id: 'zodiac_leo_5',         zodiac: 'leo',         zodiac_jp: '獅子座', stars: 5, message: '獅子座の{nickname}さん、持ち前の輝きが今日は特別。周りからも注目される予感、堂々といこう ⭐' },
+  { id: 'zodiac_leo_4',         zodiac: 'leo',         zodiac_jp: '獅子座', stars: 4, message: '獅子座らしい自信を持って表現すると、いい反応が返ってくる日。胸を張って 🌟' },
+  { id: 'zodiac_leo_3',         zodiac: 'leo',         zodiac_jp: '獅子座', stars: 3, message: '今日の獅子座はいつも通り堂々と。特別なことをしなくても、存在感は十分だよ 🍀' },
+  { id: 'zodiac_leo_2',         zodiac: 'leo',         zodiac_jp: '獅子座', stars: 2, message: '獅子座の{nickname}さん、今日は目立とうとせず、控えめにいくのが吉。一歩引く勇気を 😊' },
+  { id: 'zodiac_leo_1',         zodiac: 'leo',         zodiac_jp: '獅子座', stars: 1, message: '獅子座も今日はスポットライトはお休み。影でゆっくり休息する日にしようね ✨' },
+  { id: 'zodiac_virgo_5',       zodiac: 'virgo',       zodiac_jp: '乙女座', stars: 5, message: '乙女座の{nickname}さん、緻密さが冴え渡る日。細かい作業がいつもより完璧に進む、満足度高い一日に ⭐' },
+  { id: 'zodiac_virgo_4',       zodiac: 'virgo',       zodiac_jp: '乙女座', stars: 4, message: '乙女座の分析力が活きる日。データや情報を整理してみると、新しい発見があるよ 🌟' },
+  { id: 'zodiac_virgo_3',       zodiac: 'virgo',       zodiac_jp: '乙女座', stars: 3, message: '今日の乙女座は几帳面さを発揮しつつ、コツコツ進めれば OK。地味な作業も丁寧に 🍀' },
+  { id: 'zodiac_virgo_2',       zodiac: 'virgo',       zodiac_jp: '乙女座', stars: 2, message: '乙女座の{nickname}さん、完璧主義は今日は禁物。70%できれば合格、それでいいんだよ 😊' },
+  { id: 'zodiac_virgo_1',       zodiac: 'virgo',       zodiac_jp: '乙女座', stars: 1, message: '乙女座も今日は細かいこと気にしない日。少し大雑把に過ごすくらいがちょうどいいよ ✨' },
+  { id: 'zodiac_libra_5',       zodiac: 'libra',       zodiac_jp: '天秤座', stars: 5, message: '天秤座の{nickname}さん、バランス感覚が最高潮の日。調整役として周りから頼られる予感だよ ⭐' },
+  { id: 'zodiac_libra_4',       zodiac: 'libra',       zodiac_jp: '天秤座', stars: 4, message: '天秤座の美意識が冴える日。好きなものに囲まれて過ごすと、エネルギーが湧いてくるよ 🌟' },
+  { id: 'zodiac_libra_3',       zodiac: 'libra',       zodiac_jp: '天秤座', stars: 3, message: '今日の天秤座は周りとの調和を大事に。いつも通りの社交モードで吉だよ 🍀' },
+  { id: 'zodiac_libra_2',       zodiac: 'libra',       zodiac_jp: '天秤座', stars: 2, message: '天秤座の{nickname}さん、迷いやすい日。決めきれなくても自分を責めないでね 😊' },
+  { id: 'zodiac_libra_1',       zodiac: 'libra',       zodiac_jp: '天秤座', stars: 1, message: '天秤座も今日は人付き合いはお休み。一人の時間を、じっくり楽しんでみてね ✨' },
+  { id: 'zodiac_scorpio_5',     zodiac: 'scorpio',     zodiac_jp: '蠍座',   stars: 5, message: '蠍座の{nickname}さん、洞察力が最大化する日。物事の本質を見抜ける、頼もしい一日になるよ ⭐' },
+  { id: 'zodiac_scorpio_4',     zodiac: 'scorpio',     zodiac_jp: '蠍座',   stars: 4, message: '蠍座らしい集中力が深まる日。1 つのことに没頭すると、大きな手応えが残るよ 🌟' },
+  { id: 'zodiac_scorpio_3',     zodiac: 'scorpio',     zodiac_jp: '蠍座',   stars: 3, message: '今日の蠍座はいつもの深さで物事に向き合えば OK。自分の感覚を信じてみて 🍀' },
+  { id: 'zodiac_scorpio_2',     zodiac: 'scorpio',     zodiac_jp: '蠍座',   stars: 2, message: '蠍座の{nickname}さん、考えすぎ注意の日。今日は表面をなぞるくらいでちょうどいいよ 😊' },
+  { id: 'zodiac_scorpio_1',     zodiac: 'scorpio',     zodiac_jp: '蠍座',   stars: 1, message: '蠍座も今日は深掘りはお休み。軽やかに、表面を泳ぐくらいで過ごしてみてね ✨' },
+  { id: 'zodiac_sagittarius_5', zodiac: 'sagittarius', zodiac_jp: '射手座', stars: 5, message: '射手座の{nickname}さん、冒険心が最高潮の日。新しい挑戦をするなら、今日が絶好のタイミング ⭐' },
+  { id: 'zodiac_sagittarius_4', zodiac: 'sagittarius', zodiac_jp: '射手座', stars: 4, message: '射手座の自由な発想が活きる日。好きなことに時間を使うと、ひらめきが降りてくるよ 🌟' },
+  { id: 'zodiac_sagittarius_3', zodiac: 'sagittarius', zodiac_jp: '射手座', stars: 3, message: '今日の射手座は楽観的にいつも通りで OK。気楽にいくのが、結局いちばん効くんだよ 🍀' },
+  { id: 'zodiac_sagittarius_2', zodiac: 'sagittarius', zodiac_jp: '射手座', stars: 2, message: '射手座の{nickname}さん、風呂敷を広げすぎず、今日は足元を見るのが吉だよ 😊' },
+  { id: 'zodiac_sagittarius_1', zodiac: 'sagittarius', zodiac_jp: '射手座', stars: 1, message: '射手座も今日は行動範囲を狭めて OK。休むのも、自由のうちの一つだよ ✨' },
+  { id: 'zodiac_capricorn_5',   zodiac: 'capricorn',   zodiac_jp: '山羊座', stars: 5, message: '山羊座の{nickname}さん、努力が形になる日。目指してた目標が、一気に近づく予感がするよ ⭐' },
+  { id: 'zodiac_capricorn_4',   zodiac: 'capricorn',   zodiac_jp: '山羊座', stars: 4, message: '山羊座の堅実さが報われる日。コツコツ積み上げてきた成果が、ちゃんと見える形で返ってくるよ 🌟' },
+  { id: 'zodiac_capricorn_3',   zodiac: 'capricorn',   zodiac_jp: '山羊座', stars: 3, message: '今日の山羊座はマイペースで前進すれば OK。地道な一歩を、いつも通り重ねてね 🍀' },
+  { id: 'zodiac_capricorn_2',   zodiac: 'capricorn',   zodiac_jp: '山羊座', stars: 2, message: '山羊座の{nickname}さん、頑張りすぎ注意の日。適度に肩の力を抜くのも、立派な戦略だよ 😊' },
+  { id: 'zodiac_capricorn_1',   zodiac: 'capricorn',   zodiac_jp: '山羊座', stars: 1, message: '山羊座も今日は目標を一旦置いて、自分を労う日にしてみて。休むのも目標の一部 ✨' },
+  { id: 'zodiac_aquarius_5',    zodiac: 'aquarius',    zodiac_jp: '水瓶座', stars: 5, message: '水瓶座の{nickname}さん、独創性が冴える日。自分らしいアイデアを、堂々と出してみて ⭐' },
+  { id: 'zodiac_aquarius_4',    zodiac: 'aquarius',    zodiac_jp: '水瓶座', stars: 4, message: '水瓶座の自由な発想が、周りにも刺激を与える日。型にはまらない発想を、堂々と表に出してみてね 🌟' },
+  { id: 'zodiac_aquarius_3',    zodiac: 'aquarius',    zodiac_jp: '水瓶座', stars: 3, message: '今日の水瓶座はいつも通り自分の道で進めば OK。マイペースが今日は強みだよ 🍀' },
+  { id: 'zodiac_aquarius_2',    zodiac: 'aquarius',    zodiac_jp: '水瓶座', stars: 2, message: '水瓶座の{nickname}さん、個性を主張しすぎず、ちょっと周りに合わせるくらいがちょうどいい日 😊' },
+  { id: 'zodiac_aquarius_1',    zodiac: 'aquarius',    zodiac_jp: '水瓶座', stars: 1, message: '水瓶座も今日は一人の時間で静かに過ごす日に。インプットだけの日があってもいいよ ✨' },
+  { id: 'zodiac_pisces_5',      zodiac: 'pisces',      zodiac_jp: '魚座',   stars: 5, message: '魚座の{nickname}さん、感受性が冴えわたる日。創造的なひらめきが舞い込んでくる、特別な一日に ⭐' },
+  { id: 'zodiac_pisces_4',      zodiac: 'pisces',      zodiac_jp: '魚座',   stars: 4, message: '魚座の優しさが人を動かす日。誰かをそっと支えると、自分の心も温かくなるよ 🌟' },
+  { id: 'zodiac_pisces_3',      zodiac: 'pisces',      zodiac_jp: '魚座',   stars: 3, message: '今日の魚座は夢想にひたる時間も大事。いつも通り、自分の世界を持って過ごしてね 🍀' },
+  { id: 'zodiac_pisces_2',      zodiac: 'pisces',      zodiac_jp: '魚座',   stars: 2, message: '魚座の{nickname}さん、感情に振り回されないで、今日は現実をそっと見つめてみてね 😊' },
+  { id: 'zodiac_pisces_1',      zodiac: 'pisces',      zodiac_jp: '魚座',   stars: 1, message: '魚座も今日は心の充電日。好きな世界に浸るのが、ちゃんと栄養になるよ ✨' }
 ];
 
 // 星座 × stars レベルから 1 個選ぶ（決定論的）。
-// 仮ダミー段階では stars 引数は無視して、各星座 1 個ずつしかないメッセージを返す。
-// 本骨格組み込み時にプール拡張すれば、stars レベルでフィルタしたうえで
-// _fortuneHash でインデックス選択する形に差し替えればよい。
-function _pickZodiacPreset(zodiacKey, stars, seedHash) {
-  // ダミー：該当星座を返すだけ（stars は今は使わない）
-  for (let i = 0; i < ZODIAC_PRESETS_DUMMY.length; i++) {
-    if (ZODIAC_PRESETS_DUMMY[i].zodiac === zodiacKey) return ZODIAC_PRESETS_DUMMY[i];
-  }
-  // フォールバック（理論上は到達しないが安全側）
-  return ZODIAC_PRESETS_DUMMY[seedHash % ZODIAC_PRESETS_DUMMY.length];
+// 現状は各組み合わせ 1 個ずつなので形式的だが、同じ zodiac+stars を複数追加すれば
+// _fortuneHash で自動的に複数候補から選択する設計にしてある（将来拡張用）。
+// プール 0 件のケースは理論上発生しないが、安全側で同 zodiac の任意 1 個に
+// フォールバック → それも無ければ ZODIAC_PRESETS[0]。
+function _zodiacPickPreset(zodiac, stars, seedHash) {
+  const pool = ZODIAC_PRESETS.filter(function(p){ return p.zodiac === zodiac && p.stars === stars; });
+  if (pool.length > 0) return pool[seedHash % pool.length];
+  // フォールバック 1：同 zodiac の任意 1 個
+  const same = ZODIAC_PRESETS.filter(function(p){ return p.zodiac === zodiac; });
+  if (same.length > 0) return same[seedHash % same.length];
+  // フォールバック 2：全体から（理論上到達しない）
+  return ZODIAC_PRESETS[seedHash % ZODIAC_PRESETS.length];
 }
 
-// 誕生日サプライズの仮ダミー文言（プリスレが 10 個を生成したら差し替え予定）。
-// 段階A では固定文言 1 つでよい（本骨格組み込み時に決定論選択に変更）。
-function _pickBirthdaySurpriseMessage(nickname, seedHash) {
-  const nick = String(nickname || '').trim() || 'あなた';
-  return '🎂 お誕生日おめでとう、' + nick + 'さん！今日はキミの特別な日 ✨';
+// ========================================================================
+// 誕生日サプライズ 本骨格（2026-05-13 Phase 2 段階B、プリスレ生成版 v2.0、計 10 個）
+// ------------------------------------------------------------------------
+// 全メッセージに {nickname} 差し込み点あり。_fortuneApplyVariables で nickname を
+// 差し込む（未入力なら 'あなた' フォールバック）。
+// シードは studentId + year（西暦）。同じ年内は同じメッセージ、翌年は別メッセージ
+// が当たる設計で、複数年の継続利用でも飽きない。
+// ========================================================================
+const BIRTHDAY_MESSAGES = [
+  { id: 'birthday_msg_001', message: '🎂 お誕生日おめでとう、{nickname}さん！ボクからの贈り物は、今日いちにちの大きな幸運だよ。思いっきり笑顔で過ごしてね 🎉✨' },
+  { id: 'birthday_msg_002', message: '{nickname}さん、生まれてきてくれてありがとう 🎁 今日は 1 年に 1 度のスペシャルデー、ボクからの応援を受け取ってね 🌟' },
+  { id: 'birthday_msg_003', message: '🎉 ハッピーバースデー、{nickname}さん!ボクは知ってるよ、ここまで頑張ってきた{nickname}さんのこと。今日は誇らしい日だね ✨' },
+  { id: 'birthday_msg_004', message: '特別な日が来たよ、{nickname}さん 🎂 今日はマイカツ君からの祝福を、ぜんぶ受け取って。新しい 1 年もずっと隣にいるからね 🎁' },
+  { id: 'birthday_msg_005', message: '{nickname}さんの新しい 1 年がスタートする日！🌟 ボクからの願いは、{nickname}さんが毎日笑っていられること。おめでとう 🎉' },
+  { id: 'birthday_msg_006', message: '今日は{nickname}さん主役の日だよ 🎂 ボクは小さな相棒だけど、今日いちにちは特大の応援を送るからね、おめでとう ✨🎁' },
+  { id: 'birthday_msg_007', message: 'ボクから{nickname}さんへ、特別なお祝いを 🎉 努力を続けてきた{nickname}さんに、今日は最高の運気をプレゼントするよ 🌟' },
+  { id: 'birthday_msg_008', message: '1 年に 1 度の{nickname}さんデーがやってきた 🎂 今日はゆったり、好きなことをして過ごしてね。お祝いの気持ちを込めて ✨🎉' },
+  { id: 'birthday_msg_009', message: '「ありがとう」を伝えたい日、{nickname}さん 🎁 一緒に学んでくれて、ボクは毎日嬉しいよ。これからもよろしくね、おめでとう ✨' },
+  { id: 'birthday_msg_010', message: '新しい 1 年の始まりに、ボクからエールを送るよ、{nickname}さん 🎂 今日は最高の 1 日にしようね、おめでとう 🎉🌟' }
+];
+
+// 誕生日サプライズメッセージを決定論的に選択。
+// シード：studentId + year（西暦 4 桁）。
+// - 同じ年内は同じメッセージ（誕生日に何度開いても同じ）
+// - 翌年は別メッセージが当たる可能性が高い（同じ生徒の連年体験を新鮮に保つ）
+// 戻り値：{ id, message } のオブジェクト。呼び出し側で nickname 差し込みを行う。
+function _pickBirthdaySurpriseMessage(studentId, year) {
+  const seed = String(studentId || '') + '_' + String(year || '');
+  const hash = _fortuneHash(seed);
+  return BIRTHDAY_MESSAGES[hash % BIRTHDAY_MESSAGES.length];
 }
 
 // =============================================
@@ -13671,14 +13753,14 @@ function getTodayFortune(params) {
     const luckyFood   = FORTUNE_LUCKY_FOODS  [_fortuneHash(seed + '_food')   % FORTUNE_LUCKY_FOODS.length];
 
     // 星座運（誕生日が登録されている場合のみ）
-    // 仮ダミー段階：12 星座 × stars=3 のメッセージしかないので、stars に
-    // 関わらず stars=3 メッセージを返す。本骨格組み込み後は _pickZodiacPreset
-    // 内で stars に応じたフィルタが効くようになる予定。
+    // 段階B：本骨格 60 個（12 星座 × 5 stars）から zodiac × stars で 1 個選択。
+    // 各組み合わせは現状 1 個ずつなのでシードによる選択は形式的だが、将来同じ
+    // 組み合わせを複数追加すれば _zodiacPickPreset が自動で hash 選択する設計。
     let zodiacBlock = null;
     if (birthday) {
       const z = _getZodiac(birthday);
       if (z) {
-        const zPreset = _pickZodiacPreset(z.zodiac, stars, _fortuneHash(seed + '_zodiac'));
+        const zPreset = _zodiacPickPreset(z.zodiac, stars, _fortuneHash(seed + '_zodiac'));
         const zMsg = _fortuneApplyVariables(zPreset.message, vars);
         zodiacBlock = {
           symbol:   z.symbol,
@@ -13691,13 +13773,21 @@ function getTodayFortune(params) {
     }
 
     // 誕生日サプライズ（生徒の誕生日 MM-DD と 今日（_sangoToday の MM-DD 部分）が一致したら表示）
-    // 段階C で別途「ログイン直後のサプライズ画面」を実装予定。段階A では運勢画面内のバナーのみ。
+    // 段階B：本骨格 10 個から studentId + year シードで 1 個を決定論的に選択。
+    //   - 同じ年内は何度開いても同じメッセージ（誕生日に複数回見ても同一）
+    //   - 翌年は別メッセージが当たる可能性が高い（連年体験を新鮮に保つ）
+    // 段階C で別途「ログイン直後のサプライズ画面」を実装予定。
     let birthdaySurprise = null;
     if (birthday && today && today.length >= 10) {
       const todayMMDD = today.substring(5); // 'yyyy-MM-dd' → 'MM-dd'
       if (todayMMDD === birthday) {
+        // year は _sangoToday() の yyyy-MM-dd の先頭 4 文字を採用（教育日基準で
+        // 0:00〜2:59 が前日扱いの場合は前日の年）。1/1 跨ぎでも矛盾しない。
+        const year = today.substring(0, 4);
+        const bPreset = _pickBirthdaySurpriseMessage(sid, year);
         birthdaySurprise = {
-          message: _pickBirthdaySurpriseMessage(nickname, _fortuneHash(seed + '_birthday'))
+          id:      bPreset.id,
+          message: _fortuneApplyVariables(bPreset.message, vars)
         };
       }
     }
