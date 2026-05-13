@@ -272,6 +272,87 @@
       .birthday-form-row select { font-size:15px; min-width:80px; }
     }
 
+    /* ===== 誕生日サプライズ画面（screen-birthday-surprise、2026-05-14 Phase 2 段階C 新規） =====
+       誕生日当日の初回ログイン時のみ全画面表示。ピンク〜ラベンダーのお祝いトーン。 */
+    #screen-birthday-surprise {
+      background: linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%);
+      position: relative;
+      overflow: hidden;
+      min-height: 100vh;
+    }
+    .bsurprise-stage { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding: 24px 20px; box-sizing:border-box; }
+    .bsurprise-mascot-wrap { animation: bsurprise-pop .6s cubic-bezier(.34,1.56,.64,1) both; }
+    .bsurprise-mascot { width: 180px; height: 180px; object-fit: cover; border-radius: 50%; border: 5px solid #ffffff; box-shadow: 0 8px 24px rgba(236, 72, 153, .35); background:#fff; }
+    @keyframes bsurprise-pop { 0% { transform: scale(.4); opacity:0; } 60% { transform: scale(1.08); opacity:1; } 100% { transform: scale(1); opacity:1; } }
+    .bsurprise-card {
+      background: rgba(255, 255, 255, .92);
+      border: 2px solid #fbcfe8;
+      border-radius: 22px;
+      padding: 22px 22px 24px;
+      max-width: 480px;
+      width: 92%;
+      margin-top: 18px;
+      box-shadow: 0 10px 30px rgba(236, 72, 153, .22);
+      text-align: center;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: bsurprise-fade-in-up .8s ease-out .5s forwards;
+    }
+    .bsurprise-card-title { font-size: 22px; font-weight: bold; color: #be185d; margin-bottom: 12px; line-height: 1.5; }
+    .bsurprise-card-message { font-size: 16px; color: #4c1d4a; line-height: 1.85; white-space: pre-wrap; word-break: break-word; }
+    .bsurprise-btn {
+      margin-top: 22px;
+      padding: 14px 28px;
+      background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 14px;
+      font-size: 17px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(236, 72, 153, .40);
+      opacity: 0;
+      transform: translateY(20px);
+      animation: bsurprise-fade-in-up .8s ease-out 1.5s forwards;
+      transition: transform .12s ease, filter .15s ease;
+    }
+    .bsurprise-btn:hover { filter: brightness(1.05); }
+    .bsurprise-btn:active { transform: scale(.96); }
+    .bsurprise-btn:disabled { filter: grayscale(.4) brightness(.95); cursor: default; }
+    @keyframes bsurprise-fade-in-up {
+      0%   { opacity: 0; transform: translateY(20px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    /* 紙吹雪：絵文字ベース、上から落ちる。各 span に left / animation-delay /
+       animation-duration をインラインで動的指定（_bsurpriseRenderConfetti）。 */
+    .bsurprise-confetti-wrap { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+    .bsurprise-confetti {
+      position: absolute;
+      top: -50px;
+      font-size: 28px;
+      animation-name: bsurprise-fall;
+      animation-timing-function: linear;
+      animation-iteration-count: infinite;
+      opacity: .95;
+    }
+    @keyframes bsurprise-fall {
+      0%   { transform: translateY(-50px) rotate(0deg);   opacity: 1; }
+      90%  {                                              opacity: 1; }
+      100% { transform: translateY(110vh) rotate(720deg); opacity: .85; }
+    }
+    @media (max-width: 480px) {
+      .bsurprise-mascot { width: 140px; height: 140px; border-width: 4px; }
+      .bsurprise-card { padding: 18px 16px 20px; margin-top: 14px; }
+      .bsurprise-card-title { font-size: 19px; }
+      .bsurprise-card-message { font-size: 15px; line-height: 1.75; }
+      .bsurprise-btn { padding: 13px 22px; font-size: 16px; }
+      .bsurprise-confetti { font-size: 24px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .bsurprise-mascot-wrap, .bsurprise-card, .bsurprise-btn { animation-duration: .01s; animation-delay: 0s; }
+      .bsurprise-confetti { animation-duration: 8s; }
+    }
+
     .kobun-set-header { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #78350f; padding: 10px 14px; border-radius: 10px; font-size: 14px; font-weight: bold; margin: 8px 0; text-align: center; border: 1px solid #f5d796; }
     .kobun-vocab-list { display: flex; flex-direction: column; gap: 12px; margin: 10px 0 14px; }
     .kobun-vocab-card { background: #fffbeb; border: 2px solid #f5d796; border-radius: 12px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(217,119,6,.10); }
@@ -2628,6 +2709,25 @@
   </div>
 </div>
 
+<!-- ===== 誕生日サプライズ画面（2026-05-14 Phase 2 段階C 新規） =====
+     誕生日当日の「初回ログイン時のみ」全画面で 1 回表示される祝賀画面。
+     翌年の誕生日にも 1 回だけ表示される（GAS 側 LAST_BIRTHDAY_GREET_YEAR で年単位管理）。
+     - メッセージは GAS の _pickBirthdaySurpriseMessage で決定論的に選択 + {nickname} 差し込み済み。
+     - 「ありがとう、マイカツ君！」ボタンで markBirthdayGreetShown を呼んでホーム画面遷移。 -->
+<div id="screen-birthday-surprise" class="screen">
+  <div class="bsurprise-confetti-wrap" id="bsurprise-confetti-wrap"></div>
+  <div class="bsurprise-stage">
+    <div class="bsurprise-mascot-wrap">
+      <img class="bsurprise-mascot" src="./character.jpg" alt="マイカツ君">
+    </div>
+    <div class="bsurprise-card">
+      <div class="bsurprise-card-title" id="bsurprise-title">🎂 お誕生日おめでとう！</div>
+      <div class="bsurprise-card-message" id="bsurprise-message"></div>
+    </div>
+    <button class="bsurprise-btn" id="bsurprise-btn" onclick="onBirthdaySurpriseClose()">ありがとう、マイカツ君！✨✨✨</button>
+  </div>
+</div>
+
 <!-- 送信中オーバーレイ（リス版） -->
 <div id="lison-submit-overlay" class="lison-submit-overlay">
   <div class="lison-submit-card">
@@ -3214,7 +3314,15 @@
       _studentId = res.studentId;
       _totalHP   = Number(res.totalHP) || 0;
       _streak    = Number(res.streak) || 0;
-      res.isFirstLogin ? showScreen('screen-nickname') : showWelcome(res.nickname, res.totalHP, res.loginBonus, res.stage, res.streak, res.title, res.milestone);
+      // 初回ログイン（ニックネーム未設定）はサプライズ判定の対象外。先にニックネームを設定させる。
+      // 通常ログイン経路：ホーム遷移前に誕生日サプライズ判定を挟む（_maybeShowBirthdaySurprise）。
+      if (res.isFirstLogin) {
+        showScreen('screen-nickname');
+      } else {
+        _maybeShowBirthdaySurprise(function(){
+          showWelcome(res.nickname, res.totalHP, res.loginBonus, res.stage, res.streak, res.title, res.milestone);
+        });
+      }
     }).catch(function(){ document.getElementById('login-btn').disabled = false; showMsg('login-msg','エラーが発生しました。','ng'); });
   }
 
@@ -3296,6 +3404,104 @@
       showWelcome(res.nickname, 10, 10, 4, 1, 'マイカツ見習い', null);
     }).catch(function(){ showMsg('nickname-msg','エラーが発生しました。','ng'); });
   }
+  // ===== 誕生日サプライズ画面（2026-05-14 Phase 2 段階C 新規） =====
+  // GAS checkBirthdayGreet で「今、サプライズ画面を表示すべきか」を判定し、
+  // 表示すべきなら全画面のサプライズ画面を出す。表示不要 / 通信失敗時は
+  // そのまま nextCb（= showWelcome 呼び出しクロージャ）を実行する（UX を止めない＝失敗握り潰し）。
+  //
+  // 設計判断：
+  //   - checkBirthdayGreet の戻り値が { shouldShow: true } のときのみサプライズ表示。
+  //   - 表示する場合は nextCb を _bsurpriseAfterCb に保管しておき、ボタン押下後に実行する。
+  //     これによりサプライズ → showWelcome（welcome-name / マスコット / マイルストーン演出が
+  //     正しく動く経路）の流れを保つ。
+  //   - markBirthdayGreetShown は fire-and-forget（成功確認を待たない）。
+  //     書き込み失敗時も UX は止めない（年内の二重表示は起きにくく、起きてもユーザー不利益はない）。
+  var _bsurpriseAfterCb = null;  // サプライズ画面を閉じた後に実行する関数（通常は showWelcome クロージャ）
+  function _maybeShowBirthdaySurprise(nextCb) {
+    try {
+      gasGet({ action: 'checkBirthdayGreet', studentId: _studentId, _ts: Date.now() })
+        .then(function(res){
+          if (res && res.ok && res.shouldShow) {
+            _bsurpriseAfterCb = (typeof nextCb === 'function') ? nextCb : null;
+            _showBirthdaySurpriseScreen(res.message || '', res.nickname || '');
+          } else {
+            if (typeof nextCb === 'function') nextCb();
+          }
+        })
+        .catch(function(err){
+          try { console.warn('[checkBirthdayGreet] failed', err); } catch(_){}
+          if (typeof nextCb === 'function') nextCb();
+        });
+    } catch (e) {
+      try { console.warn('[_maybeShowBirthdaySurprise] threw', e); } catch(_){}
+      if (typeof nextCb === 'function') nextCb();
+    }
+  }
+
+  // サプライズ画面の表示。message は GAS 側で {nickname} 差し込み済み。
+  // 紙吹雪は表示直前に動的生成（横位置・速度・遅延・絵文字をランダム化）。
+  function _showBirthdaySurpriseScreen(message, nickname) {
+    var msgEl = document.getElementById('bsurprise-message');
+    var titleEl = document.getElementById('bsurprise-title');
+    var btn  = document.getElementById('bsurprise-btn');
+    if (titleEl) {
+      // ニックネーム空でも "あなた" にフォールバック（GAS 側でも差し込み済みだが安全側）
+      var nick = String(nickname || '').trim();
+      titleEl.textContent = '🎂 お誕生日おめでとう、' + (nick ? nick + 'さん！' : 'あなた！');
+    }
+    if (msgEl) msgEl.textContent = String(message || '');
+    if (btn)   btn.disabled = false;
+    _bsurpriseRenderConfetti();
+    showScreen('screen-birthday-surprise');
+  }
+
+  // 紙吹雪を動的生成（14 個、絵文字 + 横位置 + 遅延 + 速度をランダム化）
+  function _bsurpriseRenderConfetti() {
+    var wrap = document.getElementById('bsurprise-confetti-wrap');
+    if (!wrap) return;
+    var emojis = ['🎉','🎂','🎁','✨','🌟','🎈','🍰','🎊'];
+    var html = '';
+    var count = 14;
+    for (var i = 0; i < count; i++) {
+      var em = emojis[Math.floor(Math.random() * emojis.length)];
+      var left = Math.floor(Math.random() * 100);              // 0〜99 vw
+      var delay = (Math.random() * 3).toFixed(2);              // 0〜3s
+      var dur   = (3 + Math.random() * 3).toFixed(2);          // 3〜6s
+      var size  = (22 + Math.random() * 14).toFixed(0);        // 22〜36px
+      html += '<span class="bsurprise-confetti" style="' +
+        'left:' + left + 'vw;' +
+        'animation-delay:' + delay + 's;' +
+        'animation-duration:' + dur + 's;' +
+        'font-size:' + size + 'px;' +
+        '">' + em + '</span>';
+    }
+    wrap.innerHTML = html;
+  }
+
+  // 「ありがとう、マイカツ君！」ボタンの動作。
+  // markBirthdayGreetShown を fire-and-forget（成功確認を待たずに即ホーム遷移）。
+  // 通信失敗時もログのみで握り潰す（UX を止めない）。
+  function onBirthdaySurpriseClose() {
+    var btn = document.getElementById('bsurprise-btn');
+    if (btn) btn.disabled = true;
+    try {
+      gasGet({ action: 'markBirthdayGreetShown', studentId: _studentId, _ts: Date.now() })
+        .catch(function(err){ try { console.warn('[markBirthdayGreetShown] failed', err); } catch(_){} });
+    } catch(e) { try { console.warn('[markBirthdayGreetShown] threw', e); } catch(_){} }
+    // 紙吹雪はクリア（無駄な animation を止める）
+    var wrap = document.getElementById('bsurprise-confetti-wrap');
+    if (wrap) wrap.innerHTML = '';
+    // サプライズ直前に保管した nextCb（通常は showWelcome クロージャ）を実行。
+    // 何らかの理由で未設定なら goHome にフォールバック。
+    var cb = _bsurpriseAfterCb;
+    _bsurpriseAfterCb = null;
+    if (typeof cb === 'function') {
+      try { cb(); } catch(e) { try { console.warn('[bsurprise after-cb threw]', e); } catch(_){} goHome(); }
+    } else {
+      goHome();
+    }
+  }
+
   function showWelcome(nickname, totalHP, loginBonus, stage, streak, title, milestone) {
     document.getElementById('welcome-name').textContent = nickname + ' さん、今日も頑張ろう！';
     document.getElementById('welcome-hp').textContent   = totalHP.toLocaleString();

@@ -1068,6 +1068,11 @@ function doGet(e) {
       // 誕生日保存（2026-05-13 Phase 2 段階A 新規）: 'MM-DD' を Students/SpecialAccounts
       // に保存。任意項目のため未登録でも getTodayFortune は問題なく動く（星座運のみ非表示）。
       else if (action === 'saveBirthday')             result = saveBirthday(params);
+      // 誕生日サプライズ表示制御（2026-05-14 Phase 2 段階C 新規）
+      //   checkBirthdayGreet : ログイン直後に「今、サプライズ画面を表示すべきか」を判定。
+      //   markBirthdayGreetShown : サプライズ画面の「ありがとう」ボタン押下で年フラグを書き込む。
+      else if (action === 'checkBirthdayGreet')       result = checkBirthdayGreet(params);
+      else if (action === 'markBirthdayGreetShown')   result = markBirthdayGreetShown(params);
       else if (action === 'getKobunSet')              result = getKobunSet(params);
       else if (action === 'submitKobunSet')           result = submitKobunSet(params);
       else if (action === 'getKobunTodayRawHP')       result = getKobunTodayRawHP(params);
@@ -13708,6 +13713,169 @@ function saveBirthday(params) {
     return { ok: true, birthday: valueToWrite };
   } catch (err) {
     console.error('[saveBirthday]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// ========================================================================
+// 誕生日サプライズ画面 表示制御（2026-05-14 Phase 2 段階C 新規）
+// ------------------------------------------------------------------------
+// 仕様：
+//   - 誕生日当日の「初回ログイン時のみ」サプライズ画面を全画面表示。
+//   - その年に既に見たら同日内に再ログインしても表示しない（年単位リセット）。
+//   - 翌年の誕生日には再度 1 回だけ表示される。
+//
+// 実装方針：
+//   - Students / SpecialAccounts シートに 'LAST_BIRTHDAY_GREET_YEAR' 列を新設
+//     （BIRTHDAY 列と同じヘッダー駆動パターン、固定インデックスは使わない）。
+//   - 形式は西暦 4 桁の数値文字列（例：'2026'）。空文字は「未表示」。
+//   - 年取得は _sangoToday() の先頭 4 文字（教育日基準で 0:00〜2:59 は前日年）。
+//
+// セル書き込み時：Google Sheets の locale 自動変換を防ぐため
+// setNumberFormat('@') で text 固定してから setValue（BIRTHDAY 列と同じ防御）。
+// ========================================================================
+
+const GREET_YEAR_HEADER_NAME = 'LAST_BIRTHDAY_GREET_YEAR';
+
+// allValues の 1 行目（ヘッダー）から GREET_YEAR 列の 0-based index を返す。
+// 列が存在しなければ -1。
+function _findGreetYearColIdx(allValues) {
+  if (!allValues || !allValues.length || !allValues[0] || !allValues[0].length) return -1;
+  const header = allValues[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === GREET_YEAR_HEADER_NAME) return i;
+  }
+  return -1;
+}
+
+// 指定シートに GREET_YEAR 列があれば 0-based index を返す。
+// なければ最右列の右側に追加してその index を返す。
+// 戻り値: { idx, created }（created=true なら今回追加したことを示す）
+function _ensureGreetYearColOnSheet(sheet) {
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === GREET_YEAR_HEADER_NAME) {
+      return { idx: i, created: false };
+    }
+  }
+  const newCol = lastCol + 1;
+  sheet.getRange(1, newCol).setValue(GREET_YEAR_HEADER_NAME);
+  return { idx: newCol - 1, created: true };
+}
+
+// loc.allValues から LAST_BIRTHDAY_GREET_YEAR 文字列（西暦4桁 or ''）を抽出する。
+// 列がなければ '' を返す。Date 化されていた場合は getFullYear() で救済（BIRTHDAY と同じ防御）。
+function _readGreetYearFromLoc(loc) {
+  if (!loc) return '';
+  const gIdx = _findGreetYearColIdx(loc.allValues);
+  if (gIdx < 0) return '';
+  const v = loc.rowValues[gIdx];
+  if (v == null || v === '') return '';
+  if (v instanceof Date) {
+    // 万一 Sheets が日付として解釈したら、年だけ救済（'2026-01-01' → 2026 など）
+    return String(v.getFullYear());
+  }
+  // 数値・文字列両対応（'2026' / 2026 のいずれも 4 桁文字列に正規化）
+  const s = String(v).trim();
+  // 末尾 '.0' などの数値表現が混ざってもよいよう、頭から数字を取る
+  const m = s.match(/^\d{4}/);
+  return m ? m[0] : s;
+}
+
+// 誕生日サプライズ画面を「今、表示すべきか」を判定。
+// params: { studentId }
+// 戻り値:
+//   { ok: true, shouldShow: false }                      … 表示不要
+//   { ok: true, shouldShow: true, message, nickname }    … 表示すべき（message は差し込み済み）
+//   { ok: false, message }                                … エラー
+function checkBirthdayGreet(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { ok: true, shouldShow: false };
+
+    const birthday = _readBirthdayFromLoc(loc);  // 'MM-DD' or ''
+    if (!birthday) return { ok: true, shouldShow: false };
+
+    const today = _sangoToday();  // 'yyyy-MM-dd'（教育日基準）
+    if (!today || today.length < 10) return { ok: true, shouldShow: false };
+
+    const todayMMDD = today.substring(5);  // 'MM-dd'
+    if (todayMMDD !== birthday) return { ok: true, shouldShow: false };
+
+    const year = today.substring(0, 4);  // 西暦 4 桁
+    const lastYear = _readGreetYearFromLoc(loc);
+    if (lastYear === year) return { ok: true, shouldShow: false };  // 今年は表示済み
+
+    // 表示すべき → メッセージを取得して nickname 差し込みまで実施
+    const nickname = String(loc.rowValues[COL_NICKNAME] || '').trim();
+    const streak   = Number(loc.rowValues[COL_STREAK]) || 0;
+    const title    = _getTitle(streak);
+    const preset = _pickBirthdaySurpriseMessage(sid, year);
+    const message = _fortuneApplyVariables(preset.message, {
+      nickname: nickname,
+      title:    title,
+      streak:   streak
+    });
+
+    return {
+      ok: true,
+      shouldShow: true,
+      message:  message,
+      nickname: nickname
+    };
+  } catch (err) {
+    console.error('[checkBirthdayGreet]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 誕生日サプライズ画面で「ありがとう、マイカツ君！」ボタン押下時に呼ぶ。
+// Students / SpecialAccounts シートの LAST_BIRTHDAY_GREET_YEAR 列に今年の西暦を書き込む。
+// 戻り値: { ok: true, year } / { ok: false, message }
+function markBirthdayGreetShown(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { ok: false, message: '生徒IDが見つかりません' };
+
+    const today = _sangoToday();
+    if (!today || today.length < 4) return { ok: false, message: '日付の取得に失敗しました' };
+    const year = today.substring(0, 4);
+
+    // 列を保証（なければ追加）
+    const ensure = _ensureGreetYearColOnSheet(loc.sheet);
+    const colIdx = ensure.idx;
+
+    // ★ 重要：BIRTHDAY 列と同様に setNumberFormat('@') で text 固定してから書く。
+    //   '2026' のような数値文字列を Sheets が「数値」として保存することがあり、
+    //   _readGreetYearFromLoc 側で正規化はしているが、書き込み時に text 固定する
+    //   方が読み戻しの揺れが少なく安全。
+    const cell = loc.sheet.getRange(loc.rowIdx + 1, colIdx + 1);
+    cell.setNumberFormat('@');
+    cell.setValue(year);
+
+    // キャッシュ整合性：列を追加した場合 / 値を書き換えた場合は対応シートの
+    // キャッシュを invalidate（次回 read で fresh）。saveBirthday と同パターン。
+    try {
+      const cache = CacheService.getScriptCache();
+      if (loc.sheetName === SHEET_STUDENTS) {
+        cache.remove('cache_students_values');
+        _cacheLog('cache_students_values', 'invalidate', 'markBirthdayGreetShown sid=' + sid);
+      } else {
+        cache.remove('cache_special_accounts_values');
+        _cacheLog('cache_special_accounts_values', 'invalidate', 'markBirthdayGreetShown sid=' + sid);
+      }
+    } catch(_) {}
+
+    return { ok: true, year: year };
+  } catch (err) {
+    console.error('[markBirthdayGreetShown]', err);
     return { ok: false, message: String(err) };
   }
 }
