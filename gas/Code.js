@@ -12744,7 +12744,7 @@ function _kanjiJudgeWithGemini(imageBase64, expectedAnswers) {
 //   - 全問正解（10/10）で合格 → 100 rawHP
 //   - 不合格時はフロント側で順序シャッフルして再挑戦（用例画面はスキップ）
 // 強調マーカー: 問題文中の {xxx} はフロントで暖色（#d97706）の太字表示
-// HP: rawHP = 100（1学習回 = 2セット = 10問完走時）。1日 200 rawHP 上限（kobun 内独立 = 2学習回 = 4セット相当）。
+// HP: rawHP = 100（1学習回 = 2セット = 10問完走時）。1日 100 rawHP 上限（kobun 内独立 = 1日1学習回のみ HP 付与）。
 //     上限到達後は練習モード（HP 加算なし）。連続週²ボーナスは他コンテンツと同じ。
 //     ふくちさん 36 年経験「古文単語は英単語と同様に『知識』なので、全問正解が理にかなう」（知識系コンテンツ）。
 // HPLog type: 'kobun_<round>_<count>' or 'kobun_<round>_<count>_practice'
@@ -12752,7 +12752,7 @@ function _kanjiJudgeWithGemini(imageBase64, expectedAnswers) {
 const SHEET_KOBUN_VOCAB = 'KobunVocab';
 const SHEET_KOBUN_QUESTIONS = 'KobunQuestions';
 const KOBUN_VALID_ROUNDS = ['1', '2'];
-const KOBUN_DAILY_RAWHP_CAP = 200;
+const KOBUN_DAILY_RAWHP_CAP = 100;
 const KOBUN_PASS_RATIO = 1.0;  // 全問正解（知識系、カンジー / 英単語RUSH と同方針）
 const KOBUN_SET_SIZE = 5;       // 1 セット = 5 語
 const KOBUN_SETS_PER_SESSION = 2;  // 1 学習回 = 2 セット = 10 問
