@@ -272,85 +272,370 @@
       .birthday-form-row select { font-size:15px; min-width:80px; }
     }
 
-    /* ===== 誕生日サプライズ画面（screen-birthday-surprise、2026-05-14 Phase 2 段階C 新規） =====
-       誕生日当日の初回ログイン時のみ全画面表示。ピンク〜ラベンダーのお祝いトーン。 */
+    /* ===== 誕生日サプライズ画面（screen-birthday-surprise） =====
+       2026-05-14 Phase 2 段階C 初版実装。
+       2026-05-14 ド派手化アップデート：演出 14 項目を全力で重ね掛け。
+       「年に 1 回しか見られない画面なのでテーマパーク級に派手に」（ふくち塾長）。
+       ※ パフォーマンス：transform / opacity 中心、reflow を起こす layout プロパティは避ける。
+       ※ アクセシビリティ：@media (prefers-reduced-motion: reduce) で全アニメを抑制。 */
     #screen-birthday-surprise {
-      background: linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%);
       position: relative;
       overflow: hidden;
       min-height: 100vh;
+      /* ベース背景。色変化は .bsurprise-bg-shift レイヤーで重ねる */
+      background: linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%);
     }
-    .bsurprise-stage { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding: 24px 20px; box-sizing:border-box; }
-    .bsurprise-mascot-wrap { animation: bsurprise-pop .6s cubic-bezier(.34,1.56,.64,1) both; }
-    .bsurprise-mascot { width: 180px; height: 180px; object-fit: cover; border-radius: 50%; border: 5px solid #ffffff; box-shadow: 0 8px 24px rgba(236, 72, 153, .35); background:#fff; }
-    @keyframes bsurprise-pop { 0% { transform: scale(.4); opacity:0; } 60% { transform: scale(1.08); opacity:1; } 100% { transform: scale(1); opacity:1; } }
+    /* ① 背景の動的演出：グラデーションが色を巡る（ピンク→紫→ピンクのループ） */
+    .bsurprise-bg-shift {
+      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 25%, #f3e8ff 50%, #ddd6fe 75%, #fce7f3 100%);
+      background-size: 300% 300%;
+      animation: bsurprise-bg-shift 14s ease-in-out infinite;
+    }
+    @keyframes bsurprise-bg-shift {
+      0%   { background-position:   0%   0%; }
+      50%  { background-position: 100% 100%; }
+      100% { background-position:   0%   0%; }
+    }
+    /* ① 続き：放射状の光線（円錐グラデを薄く重ねて回転） */
+    .bsurprise-rays {
+      position: absolute; inset: -25%; z-index: 0; pointer-events: none;
+      background: conic-gradient(
+        from 0deg,
+        rgba(255,255,255,.00) 0deg,
+        rgba(255,255,255,.16) 12deg,
+        rgba(255,255,255,.00) 24deg,
+        rgba(255,224,250,.18) 60deg,
+        rgba(255,255,255,.00) 78deg,
+        rgba(232,213,255,.16) 130deg,
+        rgba(255,255,255,.00) 150deg,
+        rgba(255,255,255,.18) 200deg,
+        rgba(255,255,255,.00) 220deg,
+        rgba(255,224,250,.16) 270deg,
+        rgba(255,255,255,.00) 290deg,
+        rgba(232,213,255,.18) 330deg,
+        rgba(255,255,255,.00) 360deg
+      );
+      filter: blur(2px);
+      animation: bsurprise-rays-spin 30s linear infinite;
+    }
+    @keyframes bsurprise-rays-spin {
+      0%   { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* ⑩「HAPPY BIRTHDAY」斜め流れ装飾。半透明で背景演出として延々と流す */
+    .bsurprise-marquee {
+      position: absolute; left: -25%; right: -25%; top: 38%; z-index: 0; pointer-events: none;
+      transform: rotate(-14deg);
+      white-space: nowrap;
+      opacity: .18;
+      font-weight: 900;
+      font-size: clamp(36px, 7vw, 84px);
+      color: #be185d;
+      letter-spacing: 6px;
+      text-shadow: 0 2px 6px rgba(190,24,93,.25);
+      overflow: hidden;
+      display: flex;
+    }
+    .bsurprise-marquee span {
+      display: inline-block;
+      padding-right: 1.5em;
+      animation: bsurprise-marquee-scroll 22s linear infinite;
+    }
+    @keyframes bsurprise-marquee-scroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    /* ⑪ 四隅クラッカー風リボン：登場直後に放射状の光が出て数秒でフェードアウト */
+    .bsurprise-cracker {
+      position: absolute; width: 50vmin; height: 50vmin; z-index: 1; pointer-events: none;
+      opacity: 0;
+      background: conic-gradient(
+        from 0deg,
+        rgba(255,224,250,.00) 0deg,
+        rgba(255,224,250,.45) 10deg,
+        rgba(255,224,250,.00) 20deg,
+        rgba(255,255,255,.55) 40deg,
+        rgba(255,224,250,.00) 50deg,
+        rgba(245,208,254,.50) 70deg,
+        rgba(255,224,250,.00) 80deg,
+        rgba(255,255,255,.50) 100deg,
+        rgba(255,224,250,.00) 110deg
+      );
+      filter: blur(.5px);
+      animation: bsurprise-cracker-burst 2.4s ease-out forwards;
+    }
+    .bsurprise-cracker-tl { top: -25vmin; left: -25vmin; transform-origin: bottom right; animation-delay: .12s; }
+    .bsurprise-cracker-tr { top: -25vmin; right: -25vmin; transform-origin: bottom left;  animation-delay: .22s; }
+    .bsurprise-cracker-bl { bottom: -25vmin; left: -25vmin; transform-origin: top right;  animation-delay: .32s; }
+    .bsurprise-cracker-br { bottom: -25vmin; right: -25vmin; transform-origin: top left;  animation-delay: .42s; }
+    @keyframes bsurprise-cracker-burst {
+      0%   { opacity: 0;   transform: scale(.4); }
+      30%  { opacity: 1;   transform: scale(1.05); }
+      80%  { opacity: .35; transform: scale(1.4); }
+      100% { opacity: 0;   transform: scale(1.55); }
+    }
+    /* ⑧ 登場直後の白フラッシュ：0〜0.3 秒で全画面を白く、その後一気に透過 */
+    .bsurprise-flash {
+      position: absolute; inset: 0; z-index: 50; pointer-events: none;
+      background: #ffffff;
+      opacity: 0;
+      animation: bsurprise-flash-once 1s ease-out forwards;
+    }
+    @keyframes bsurprise-flash-once {
+      0%   { opacity: .95; }
+      20%  { opacity: .9;  }
+      45%  { opacity: .35; }
+      100% { opacity: 0;   }
+    }
+    /* メインステージ：z-index で背景演出より前面、フラッシュより背面 */
+    .bsurprise-stage {
+      position: relative; z-index: 5;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 24px 20px; box-sizing: border-box;
+    }
+    /* ② マイカツ君のズームアップ + 継続ピョコピョコ */
+    .bsurprise-mascot-wrap {
+      position: relative;
+      animation: bsurprise-pop 1s cubic-bezier(.34,1.8,.64,1) both,
+                 bsurprise-mascot-bob 2.2s ease-in-out 1s infinite;
+    }
+    .bsurprise-mascot {
+      position: relative; z-index: 2;
+      width: 200px; height: 200px; object-fit: cover; border-radius: 50%;
+      border: 6px solid #ffffff;
+      box-shadow: 0 10px 28px rgba(236,72,153,.40), 0 0 0 4px rgba(255,255,255,.55);
+      background: #fff;
+    }
+    @keyframes bsurprise-pop {
+      0%   { transform: scale(.3) rotate(-12deg); opacity: 0; }
+      50%  { transform: scale(1.18) rotate(4deg); opacity: 1; }
+      70%  { transform: scale(.92) rotate(-2deg); }
+      85%  { transform: scale(1.05) rotate(1deg); }
+      100% { transform: scale(1)    rotate(0deg); opacity: 1; }
+    }
+    @keyframes bsurprise-mascot-bob {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50%      { transform: translateY(-7px) scale(1.03); }
+    }
+    /* ⑨ マイカツ君の周りに光のオーラ：黄〜白の円形グロー、明滅 */
+    .bsurprise-aura {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 290px; height: 290px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,251,200,.78) 0%, rgba(255,228,150,.45) 35%, rgba(255,255,255,0) 70%);
+      filter: blur(8px);
+      z-index: 1;
+      animation: bsurprise-aura-pulse 2.4s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes bsurprise-aura-pulse {
+      0%, 100% { opacity: .55; transform: translate(-50%, -50%) scale(.95); }
+      50%      { opacity:  1;  transform: translate(-50%, -50%) scale(1.12); }
+    }
+    /* ④ メッセージカード：bounce-in 登場 + パルス発光（box-shadow が拡縮）+ ⑫ 呼吸演出 */
     .bsurprise-card {
-      background: rgba(255, 255, 255, .92);
-      border: 2px solid #fbcfe8;
-      border-radius: 22px;
-      padding: 22px 22px 24px;
-      max-width: 480px;
+      position: relative;
+      background: rgba(255, 255, 255, .94);
+      border: 3px solid #fbcfe8;
+      border-radius: 24px;
+      padding: 24px 24px 26px;
+      max-width: 500px;
       width: 92%;
-      margin-top: 18px;
-      box-shadow: 0 10px 30px rgba(236, 72, 153, .22);
+      margin-top: 22px;
       text-align: center;
       opacity: 0;
-      transform: translateY(20px);
-      animation: bsurprise-fade-in-up .8s ease-out .5s forwards;
+      transform: scale(.4);
+      animation:
+        bsurprise-card-bounce-in .9s cubic-bezier(.34,1.7,.55,1) .35s forwards,
+        bsurprise-card-glow 2.6s ease-in-out 1.4s infinite,
+        bsurprise-card-breathe 4s ease-in-out 1.4s infinite;
     }
-    .bsurprise-card-title { font-size: 22px; font-weight: bold; color: #be185d; margin-bottom: 12px; line-height: 1.5; }
-    .bsurprise-card-message { font-size: 16px; color: #4c1d4a; line-height: 1.85; white-space: pre-wrap; word-break: break-word; }
+    @keyframes bsurprise-card-bounce-in {
+      0%   { opacity: 0;   transform: scale(.3)  translateY(40px); }
+      50%  { opacity: 1;   transform: scale(1.08) translateY(0); }
+      70%  { transform: scale(.96) translateY(0); }
+      85%  { transform: scale(1.03) translateY(0); }
+      100% { opacity: 1;   transform: scale(1) translateY(0); }
+    }
+    /* パルス発光（box-shadow 拡縮）。breathe と同時に走るので軽めに */
+    @keyframes bsurprise-card-glow {
+      0%, 100% { box-shadow: 0 10px 30px rgba(236,72,153,.28), 0 0  0 rgba(196,181,253,.0); }
+      50%      { box-shadow: 0 14px 38px rgba(236,72,153,.42), 0 0 28px rgba(196,181,253,.65); }
+    }
+    @keyframes bsurprise-card-breathe {
+      0%, 100% { transform: scale(1);    }
+      50%      { transform: scale(1.02); }
+    }
+    /* ⑥ タイトル：虹色グラデで色が巡る + 跳ねる演出 */
+    .bsurprise-card-title {
+      font-size: 26px;
+      font-weight: 900;
+      margin-bottom: 14px;
+      line-height: 1.45;
+      background: linear-gradient(90deg, #ec4899, #f59e0b, #facc15, #34d399, #38bdf8, #a78bfa, #ec4899);
+      background-size: 300% 100%;
+      -webkit-background-clip: text;
+              background-clip: text;
+      color: transparent;
+      -webkit-text-fill-color: transparent;
+      animation:
+        bsurprise-rainbow-shift 5s linear 1.4s infinite,
+        bsurprise-title-bounce .9s cubic-bezier(.34,1.7,.55,1) 1.2s both;
+      text-shadow: 0 2px 8px rgba(236,72,153,.10);
+    }
+    @keyframes bsurprise-rainbow-shift {
+      0%   { background-position:   0% 50%; }
+      100% { background-position: 300% 50%; }
+    }
+    @keyframes bsurprise-title-bounce {
+      0%   { transform: scale(.7);  }
+      50%  { transform: scale(1.18);}
+      75%  { transform: scale(.95); }
+      100% { transform: scale(1);   }
+    }
+    .bsurprise-card-message {
+      font-size: 17px; color: #4c1d4a; line-height: 1.85;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    /* ⑤ ボタン：ゆらゆら揺れ + ホバー / 押下演出 + ⑭ 誘導キラキラ */
+    .bsurprise-btn-wrap { position: relative; margin-top: 26px; }
     .bsurprise-btn {
-      margin-top: 22px;
-      padding: 14px 28px;
-      background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+      padding: 16px 32px;
+      background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #be185d 100%);
       color: #ffffff;
       border: none;
-      border-radius: 14px;
-      font-size: 17px;
-      font-weight: bold;
+      border-radius: 16px;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 1px;
       cursor: pointer;
-      box-shadow: 0 6px 20px rgba(236, 72, 153, .40);
+      box-shadow: 0 8px 22px rgba(236, 72, 153, .50), 0 0 0 0 rgba(236,72,153,.45);
+      position: relative;
+      z-index: 1;
       opacity: 0;
-      transform: translateY(20px);
-      animation: bsurprise-fade-in-up .8s ease-out 1.5s forwards;
-      transition: transform .12s ease, filter .15s ease;
+      transform: translateY(20px) rotate(0deg);
+      animation:
+        bsurprise-btn-fade-in 1s ease-out 1.5s forwards,
+        bsurprise-btn-wobble 2.4s ease-in-out 2.5s infinite;
+      transition: transform .12s ease, filter .15s ease, box-shadow .2s ease;
     }
-    .bsurprise-btn:hover { filter: brightness(1.05); }
-    .bsurprise-btn:active { transform: scale(.96); }
-    .bsurprise-btn:disabled { filter: grayscale(.4) brightness(.95); cursor: default; }
-    @keyframes bsurprise-fade-in-up {
-      0%   { opacity: 0; transform: translateY(20px); }
-      100% { opacity: 1; transform: translateY(0); }
+    @keyframes bsurprise-btn-fade-in {
+      0%   { opacity: 0; transform: translateY(20px) scale(.85); }
+      60%  { opacity: 1; transform: translateY(0)    scale(1.08); }
+      100% { opacity: 1; transform: translateY(0)    scale(1); }
     }
-    /* 紙吹雪：絵文字ベース、上から落ちる。各 span に left / animation-delay /
-       animation-duration をインラインで動的指定（_bsurpriseRenderConfetti）。 */
-    .bsurprise-confetti-wrap { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+    @keyframes bsurprise-btn-wobble {
+      0%, 100% { transform: rotate(-2deg); }
+      50%      { transform: rotate(2deg);  }
+    }
+    .bsurprise-btn:hover {
+      filter: brightness(1.08);
+      box-shadow: 0 10px 28px rgba(236, 72, 153, .60), 0 0 24px rgba(255,255,255,.7);
+    }
+    .bsurprise-btn:active { transform: scale(.94) translateY(2px) !important; filter: brightness(.95); }
+    .bsurprise-btn:disabled { filter: grayscale(.4) brightness(.95); cursor: default; animation-play-state: paused; }
+    /* ⑭ ボタン誘導キラキラ：4 個の ✨ を周辺に配置 + 点滅 */
+    .bsurprise-btn-spark {
+      position: absolute; z-index: 0; font-size: 22px; pointer-events: none;
+      opacity: 0;
+      animation: bsurprise-spark-twinkle 1.4s ease-in-out infinite;
+    }
+    .bsurprise-btn-spark-1 { top: -12px;  left: -14px;  animation-delay: 1.7s; }
+    .bsurprise-btn-spark-2 { top: -8px;   right: -10px; animation-delay: 2.0s; }
+    .bsurprise-btn-spark-3 { bottom: -10px; left: 14%;  animation-delay: 2.3s; }
+    .bsurprise-btn-spark-4 { bottom: -14px; right: 10%; animation-delay: 1.9s; }
+    @keyframes bsurprise-spark-twinkle {
+      0%, 100% { opacity: 0;   transform: scale(.6); }
+      50%      { opacity: .95; transform: scale(1.15); }
+    }
+    /* 紙吹雪（縦落下）：JS で left / animation-delay / animation-duration をインライン指定 */
+    .bsurprise-confetti-wrap { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 2; }
     .bsurprise-confetti {
-      position: absolute;
-      top: -50px;
-      font-size: 28px;
+      position: absolute; top: -50px;
       animation-name: bsurprise-fall;
       animation-timing-function: linear;
       animation-iteration-count: infinite;
       opacity: .95;
+      will-change: transform, opacity;
     }
     @keyframes bsurprise-fall {
       0%   { transform: translateY(-50px) rotate(0deg);   opacity: 1; }
       90%  {                                              opacity: 1; }
       100% { transform: translateY(110vh) rotate(720deg); opacity: .85; }
     }
-    @media (max-width: 480px) {
-      .bsurprise-mascot { width: 140px; height: 140px; border-width: 4px; }
-      .bsurprise-card { padding: 18px 16px 20px; margin-top: 14px; }
-      .bsurprise-card-title { font-size: 19px; }
-      .bsurprise-card-message { font-size: 15px; line-height: 1.75; }
-      .bsurprise-btn { padding: 13px 22px; font-size: 16px; }
-      .bsurprise-confetti { font-size: 24px; }
+    /* ⑬ 中央放射紙吹雪（クラッカー風）：CSS 変数 --tx / --ty で飛散方向を指定 */
+    .bsurprise-burst-wrap { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 3; }
+    .bsurprise-burst {
+      position: absolute; top: 42%; left: 50%;
+      animation: bsurprise-burst-out 1.6s cubic-bezier(.18,.7,.32,1) forwards;
+      opacity: 0;
+      will-change: transform, opacity;
     }
+    @keyframes bsurprise-burst-out {
+      0%   { opacity: 1; transform: translate(-50%, -50%) scale(.4); }
+      30%  { opacity: 1; }
+      100% { opacity: 0; transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) scale(1.1) rotate(540deg); }
+    }
+    /* ⑦ 画面端からのキラキラ流入：左右両端から内側に斜めに ✨🌟 が流れる */
+    .bsurprise-edge-wrap { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 2; }
+    .bsurprise-edge-sparkle {
+      position: absolute;
+      font-size: 22px;
+      opacity: 0;
+      animation-iteration-count: infinite;
+      animation-timing-function: linear;
+      will-change: transform, opacity;
+    }
+    .bsurprise-edge-sparkle.from-left  { left:  -8vw; animation-name: bsurprise-edge-from-left;  }
+    .bsurprise-edge-sparkle.from-right { right: -8vw; animation-name: bsurprise-edge-from-right; }
+    @keyframes bsurprise-edge-from-left {
+      0%   { opacity: 0;  transform: translate(0, 0) rotate(0deg); }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { opacity: 0;  transform: translate(60vw, 22vh) rotate(360deg); }
+    }
+    @keyframes bsurprise-edge-from-right {
+      0%   { opacity: 0;  transform: translate(0, 0) rotate(0deg); }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { opacity: 0;  transform: translate(-60vw, 22vh) rotate(-360deg); }
+    }
+    @media (max-width: 480px) {
+      .bsurprise-mascot { width: 150px; height: 150px; border-width: 5px; }
+      .bsurprise-aura   { width: 230px; height: 230px; }
+      .bsurprise-card { padding: 20px 16px 22px; margin-top: 16px; }
+      .bsurprise-card-title { font-size: 21px; }
+      .bsurprise-card-message { font-size: 15px; line-height: 1.75; }
+      .bsurprise-btn { padding: 14px 24px; font-size: 16px; }
+      .bsurprise-marquee { font-size: clamp(28px, 9vw, 56px); letter-spacing: 4px; top: 42%; }
+      .bsurprise-edge-sparkle { font-size: 18px; }
+    }
+    /* アクセシビリティ：モーション低減設定の生徒は派手な演出を全停止し、
+       静的に「マイカツ君 + メッセージ + ボタン」だけ穏やかに見える状態へ。 */
     @media (prefers-reduced-motion: reduce) {
-      .bsurprise-mascot-wrap, .bsurprise-card, .bsurprise-btn { animation-duration: .01s; animation-delay: 0s; }
-      .bsurprise-confetti { animation-duration: 8s; }
+      .bsurprise-bg-shift,
+      .bsurprise-rays,
+      .bsurprise-marquee span,
+      .bsurprise-cracker,
+      .bsurprise-flash,
+      .bsurprise-aura,
+      .bsurprise-btn-spark,
+      .bsurprise-edge-sparkle,
+      .bsurprise-burst { animation: none !important; opacity: 0 !important; }
+      .bsurprise-marquee { display: none; }
+      .bsurprise-mascot-wrap { animation: bsurprise-fade-in-up .3s ease-out both !important; }
+      .bsurprise-card { animation: bsurprise-fade-in-up .3s ease-out .1s forwards !important; opacity: 1; transform: none; }
+      .bsurprise-card-title { animation: none !important; background: none; -webkit-text-fill-color: #be185d; color: #be185d; }
+      .bsurprise-btn { animation: bsurprise-fade-in-up .3s ease-out .2s forwards !important; opacity: 1; transform: none; }
+      .bsurprise-confetti { animation-duration: 12s !important; opacity: .4 !important; }
+    }
+    /* 旧 fade-in-up 用（reduced-motion 経路でのみ使用） */
+    @keyframes bsurprise-fade-in-up {
+      0%   { opacity: 0; transform: translateY(20px); }
+      100% { opacity: 1; transform: translateY(0); }
     }
 
     .kobun-set-header { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #78350f; padding: 10px 14px; border-radius: 10px; font-size: 14px; font-weight: bold; margin: 8px 0; text-align: center; border: 1px solid #f5d796; }
@@ -2715,16 +3000,44 @@
      - メッセージは GAS の _pickBirthdaySurpriseMessage で決定論的に選択 + {nickname} 差し込み済み。
      - 「ありがとう、マイカツ君！」ボタンで markBirthdayGreetShown を呼んでホーム画面遷移。 -->
 <div id="screen-birthday-surprise" class="screen">
+  <!-- 背景レイヤー：色変化グラデ + 放射状ライト + HAPPY BIRTHDAY 流れ装飾 -->
+  <div class="bsurprise-bg-shift"></div>
+  <div class="bsurprise-rays"></div>
+  <div class="bsurprise-marquee" aria-hidden="true">
+    <span>HAPPY BIRTHDAY ✦ HAPPY BIRTHDAY ✦ HAPPY BIRTHDAY ✦ HAPPY BIRTHDAY ✦ HAPPY BIRTHDAY ✦ HAPPY BIRTHDAY ✦</span>
+    <span>HAPPY BIRTHDAY ✦ HAPPY BIRTHDAY ✦ HAPPY BIRTHDAY ✦ HAPPY BIRTHDAY ✦ HAPPY BIRTHDAY ✦ HAPPY BIRTHDAY ✦</span>
+  </div>
+  <!-- 四隅クラッカー風リボン -->
+  <div class="bsurprise-cracker bsurprise-cracker-tl"></div>
+  <div class="bsurprise-cracker bsurprise-cracker-tr"></div>
+  <div class="bsurprise-cracker bsurprise-cracker-bl"></div>
+  <div class="bsurprise-cracker bsurprise-cracker-br"></div>
+  <!-- 紙吹雪（縦落下、JS で動的生成） -->
   <div class="bsurprise-confetti-wrap" id="bsurprise-confetti-wrap"></div>
+  <!-- 中央放射紙吹雪（クラッカー風、JS で動的生成） -->
+  <div class="bsurprise-burst-wrap" id="bsurprise-burst-wrap"></div>
+  <!-- 画面端からのキラキラ流入（JS で動的生成） -->
+  <div class="bsurprise-edge-wrap" id="bsurprise-edge-wrap"></div>
+  <!-- 登場直後の白フラッシュ -->
+  <div class="bsurprise-flash"></div>
+  <!-- メインステージ -->
   <div class="bsurprise-stage">
     <div class="bsurprise-mascot-wrap">
+      <div class="bsurprise-aura"></div>
       <img class="bsurprise-mascot" src="./character.jpg" alt="マイカツ君">
     </div>
     <div class="bsurprise-card">
       <div class="bsurprise-card-title" id="bsurprise-title">🎂 お誕生日おめでとう！</div>
       <div class="bsurprise-card-message" id="bsurprise-message"></div>
     </div>
-    <button class="bsurprise-btn" id="bsurprise-btn" onclick="onBirthdaySurpriseClose()">ありがとう、マイカツ君！✨✨✨</button>
+    <div class="bsurprise-btn-wrap">
+      <button class="bsurprise-btn" id="bsurprise-btn" onclick="onBirthdaySurpriseClose()">ありがとう、マイカツ君！✨✨✨</button>
+      <!-- ボタン誘導キラキラ -->
+      <span class="bsurprise-btn-spark bsurprise-btn-spark-1">✨</span>
+      <span class="bsurprise-btn-spark bsurprise-btn-spark-2">✨</span>
+      <span class="bsurprise-btn-spark bsurprise-btn-spark-3">✨</span>
+      <span class="bsurprise-btn-spark bsurprise-btn-spark-4">✨</span>
+    </div>
   </div>
 </div>
 
@@ -3455,27 +3768,88 @@
     showScreen('screen-birthday-surprise');
   }
 
-  // 紙吹雪を動的生成（14 個、絵文字 + 横位置 + 遅延 + 速度をランダム化）
+  // 紙吹雪を動的生成。ド派手化アップデート（2026-05-14）で 3 系統:
+  //   (a) 縦落下紙吹雪 45 個（無限ループ、サイズ 30〜56px に大型化）
+  //   (b) ⑬ 中央放射紙吹雪（クラッカー風）28 個：扇形に飛散→重力で落下するイメージで
+  //       --tx / --ty CSS 変数で方向を指定。一発演出 forwards で終了状態を維持。
+  //   (c) ⑦ 画面端からのキラキラ流入 14 個：左右端から内側に向かって斜めに流れる
+  //       （無限ループ、無方向ランダム遅延）
   function _bsurpriseRenderConfetti() {
-    var wrap = document.getElementById('bsurprise-confetti-wrap');
-    if (!wrap) return;
-    var emojis = ['🎉','🎂','🎁','✨','🌟','🎈','🍰','🎊'];
-    var html = '';
-    var count = 14;
-    for (var i = 0; i < count; i++) {
-      var em = emojis[Math.floor(Math.random() * emojis.length)];
-      var left = Math.floor(Math.random() * 100);              // 0〜99 vw
-      var delay = (Math.random() * 3).toFixed(2);              // 0〜3s
-      var dur   = (3 + Math.random() * 3).toFixed(2);          // 3〜6s
-      var size  = (22 + Math.random() * 14).toFixed(0);        // 22〜36px
-      html += '<span class="bsurprise-confetti" style="' +
-        'left:' + left + 'vw;' +
-        'animation-delay:' + delay + 's;' +
-        'animation-duration:' + dur + 's;' +
-        'font-size:' + size + 'px;' +
-        '">' + em + '</span>';
+    var fallWrap  = document.getElementById('bsurprise-confetti-wrap');
+    var burstWrap = document.getElementById('bsurprise-burst-wrap');
+    var edgeWrap  = document.getElementById('bsurprise-edge-wrap');
+    var emojis     = ['🎉','🎂','🎁','✨','🌟','🎈','🍰','🎊'];
+    var edgeEmojis = ['✨','🌟','✨','🌟','💖'];
+
+    // (a) 縦落下紙吹雪
+    if (fallWrap) {
+      var fallHtml = '';
+      var fallCount = 45;
+      for (var i = 0; i < fallCount; i++) {
+        var em = emojis[Math.floor(Math.random() * emojis.length)];
+        var left = (Math.random() * 100).toFixed(1);             // 0〜100 vw
+        var delay = (Math.random() * 4).toFixed(2);              // 0〜4s
+        var dur   = (3 + Math.random() * 4.5).toFixed(2);        // 3〜7.5s
+        var size  = (30 + Math.random() * 26).toFixed(0);        // 30〜56px に大型化
+        var op    = (.8 + Math.random() * .2).toFixed(2);        // .80〜1.00
+        fallHtml += '<span class="bsurprise-confetti" style="' +
+          'left:' + left + 'vw;' +
+          'animation-delay:' + delay + 's;' +
+          'animation-duration:' + dur + 's;' +
+          'font-size:' + size + 'px;' +
+          'opacity:' + op + ';' +
+          '">' + em + '</span>';
+      }
+      fallWrap.innerHTML = fallHtml;
     }
-    wrap.innerHTML = html;
+
+    // (b) 中央放射紙吹雪（クラッカー風、一発演出）
+    if (burstWrap) {
+      var burstHtml = '';
+      var burstCount = 28;
+      for (var b = 0; b < burstCount; b++) {
+        var bem = emojis[Math.floor(Math.random() * emojis.length)];
+        // 上半球を中心に扇形に飛び出すよう、角度は -30° 〜 -150°（上向き優勢）
+        // 距離は 32vh〜52vh 相当に。ピクセル換算で vh を使い、SP/PC 両方で見栄えするように
+        var angle = (-30 - Math.random() * 120);                 // 度
+        var rad = angle * Math.PI / 180;
+        var dist = (32 + Math.random() * 22);                    // 32〜54 vh
+        var tx = (Math.cos(rad) * dist).toFixed(1) + 'vh';
+        var ty = (Math.sin(rad) * dist).toFixed(1) + 'vh';
+        var bsize  = (28 + Math.random() * 28).toFixed(0);       // 28〜56px
+        var bdelay = (Math.random() * .25).toFixed(2);           // 0〜0.25s（一気に噴き出す）
+        var bdur   = (1.3 + Math.random() * .7).toFixed(2);      // 1.3〜2.0s
+        burstHtml += '<span class="bsurprise-burst" style="' +
+          '--tx:' + tx + ';' +
+          '--ty:' + ty + ';' +
+          'animation-delay:' + bdelay + 's;' +
+          'animation-duration:' + bdur + 's;' +
+          'font-size:' + bsize + 'px;' +
+          '">' + bem + '</span>';
+      }
+      burstWrap.innerHTML = burstHtml;
+    }
+
+    // (c) 画面端からのキラキラ流入
+    if (edgeWrap) {
+      var edgeHtml = '';
+      var edgeCount = 14;
+      for (var e = 0; e < edgeCount; e++) {
+        var eem  = edgeEmojis[Math.floor(Math.random() * edgeEmojis.length)];
+        var fromLeft = (e % 2 === 0);                            // 左右交互
+        var top  = (5 + Math.random() * 70).toFixed(1);          // 5〜75 vh
+        var edur = (3 + Math.random() * 3).toFixed(2);           // 3〜6s
+        var edel = (Math.random() * 5).toFixed(2);               // 0〜5s
+        var esize = (20 + Math.random() * 18).toFixed(0);        // 20〜38px
+        edgeHtml += '<span class="bsurprise-edge-sparkle ' + (fromLeft ? 'from-left' : 'from-right') + '" style="' +
+          'top:' + top + 'vh;' +
+          'animation-delay:' + edel + 's;' +
+          'animation-duration:' + edur + 's;' +
+          'font-size:' + esize + 'px;' +
+          '">' + eem + '</span>';
+      }
+      edgeWrap.innerHTML = edgeHtml;
+    }
   }
 
   // 「ありがとう、マイカツ君！」ボタンの動作。
@@ -3488,9 +3862,13 @@
       gasGet({ action: 'markBirthdayGreetShown', studentId: _studentId, _ts: Date.now() })
         .catch(function(err){ try { console.warn('[markBirthdayGreetShown] failed', err); } catch(_){} });
     } catch(e) { try { console.warn('[markBirthdayGreetShown] threw', e); } catch(_){} }
-    // 紙吹雪はクリア（無駄な animation を止める）
-    var wrap = document.getElementById('bsurprise-confetti-wrap');
-    if (wrap) wrap.innerHTML = '';
+    // 紙吹雪 / 中央放射 / エッジキラキラを全クリア（無駄な animation を止める + 次回再表示時の二重生成を防ぐ）
+    var wrap     = document.getElementById('bsurprise-confetti-wrap');
+    var burstW   = document.getElementById('bsurprise-burst-wrap');
+    var edgeW    = document.getElementById('bsurprise-edge-wrap');
+    if (wrap)   wrap.innerHTML   = '';
+    if (burstW) burstW.innerHTML = '';
+    if (edgeW)  edgeW.innerHTML  = '';
     // サプライズ直前に保管した nextCb（通常は showWelcome クロージャ）を実行。
     // 何らかの理由で未設定なら goHome にフォールバック。
     var cb = _bsurpriseAfterCb;
