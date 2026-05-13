@@ -215,6 +215,50 @@
       .fortune-bubble::after  { left: 50%; top: -8px;  transform: translateX(-50%); border: 8px solid transparent; border-right-color: transparent; border-bottom-color: #ffffff; }
       .fortune-lucky-list .k { min-width: 96px; }
     }
+    /* ===== 星座運（Phase 2 段階A、2026-05-13 新規） =====
+       誕生日登録済みの生徒だけに表示される第 4 ブロック。
+       アイコン（♌等）は大きめ + 濃ラベンダー太字で「星座らしさ」を演出。 */
+    .fortune-zodiac-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap; }
+    .fortune-zodiac-icon { font-size:2.5em; font-weight:bold; color:#7c3aed; line-height:1; }
+    .fortune-zodiac-name { font-size:16px; font-weight:bold; color:#5b21b6; }
+    .fortune-zodiac-period { font-size:12px; color:#9ca3af; }
+    /* ===== 誕生日サプライズバナー（運勢画面最上部、誕生日マッチ時のみ表示） =====
+       薄ピンク背景 + 濃ピンク文字。アニメーションでさりげなく主張。 */
+    .fortune-birthday-surprise { margin:6px 0 14px; padding:14px 18px; background:#fce7f3; border:2px solid #f9a8d4; border-radius:14px; color:#be185d; font-weight:bold; font-size:16px; text-align:center; box-shadow:0 3px 10px rgba(190,24,93,.18); animation: fortuneBdayBounce 1.2s ease-out; }
+    @keyframes fortuneBdayBounce {
+      0%   { transform: translateY(-14px); opacity: 0; }
+      60%  { transform: translateY(4px);   opacity: 1; }
+      100% { transform: translateY(0);     opacity: 1; }
+    }
+    /* ===== 誕生日登録への誘導セクション（運勢画面下部、ホームボタンの直上） ===== */
+    .fortune-birthday-cta { margin-top:16px; padding:14px 16px; background:#f5f3ff; border:1px dashed #c4b5fd; border-radius:14px; text-align:center; color:#5b21b6; }
+    .fortune-birthday-cta .cta-headline { font-size:14px; font-weight:bold; margin-bottom:4px; }
+    .fortune-birthday-cta .cta-sub { font-size:12px; color:#6d28d9; margin-bottom:10px; line-height:1.5; }
+    .fortune-birthday-cta .cta-btn { display:inline-block; padding:8px 18px; background:linear-gradient(135deg, #ddd6fe, #c4b5fd); color:#3b0764; border:none; border-radius:10px; font-size:14px; font-weight:bold; cursor:pointer; box-shadow:0 2px 6px rgba(91,33,182,.18); }
+    .fortune-birthday-cta .cta-btn:hover { filter: brightness(.96); }
+    /* ===== 誕生日入力画面（screen-birthday-input） ===== */
+    #screen-birthday-input { background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%); }
+    .birthday-card { background:#ffffff; border:2px solid #c4b5fd; border-radius:16px; padding:16px 18px; box-shadow:0 4px 14px rgba(91,33,182,.14); }
+    .birthday-card .bday-mate-row { display:flex; align-items:flex-start; gap:12px; margin-bottom:14px; }
+    .birthday-card .bday-mascot { width:80px; height:80px; object-fit:contain; flex-shrink:0; background:rgba(196,181,253,.20); border-radius:14px; padding:6px; }
+    .birthday-card .bday-bubble { position:relative; flex:1; background:#faf5ff; border:1px solid #ddd6fe; border-radius:14px; padding:10px 14px; color:#3b0764; font-size:14px; line-height:1.7; }
+    .birthday-card .bday-bubble::before { content:''; position:absolute; left:-9px; top:18px; border:7px solid transparent; border-right-color:#ddd6fe; }
+    .birthday-card .bday-bubble::after  { content:''; position:absolute; left:-7px; top:19px; border:6px solid transparent; border-right-color:#faf5ff; }
+    .birthday-form-row { display:flex; align-items:center; justify-content:center; gap:10px; margin: 10px 0; }
+    .birthday-form-row label { font-size:15px; color:#5b21b6; font-weight:bold; min-width:48px; text-align:right; }
+    .birthday-form-row select { padding:8px 12px; font-size:16px; border:2px solid #c4b5fd; border-radius:10px; background:#ffffff; color:#3b0764; min-width:90px; }
+    .birthday-error { margin-top:10px; padding:10px 12px; background:#fef2f2; border:1px solid #fecaca; border-radius:10px; color:#b91c1c; font-size:13px; display:none; }
+    .birthday-error.show { display:block; }
+    .birthday-btn-primary { background:linear-gradient(135deg, #c4b5fd, #a78bfa); }
+    .birthday-btn-secondary { background:linear-gradient(135deg, #cbd5e1, #94a3b8); }
+    @media (max-width: 480px) {
+      .birthday-card .bday-mate-row { flex-direction: column; gap: 8px; }
+      .birthday-card .bday-bubble { width:100%; }
+      .birthday-card .bday-bubble::before { left:50%; top:-9px; transform:translateX(-50%); border:7px solid transparent; border-right-color:transparent; border-bottom-color:#ddd6fe; }
+      .birthday-card .bday-bubble::after  { left:50%; top:-7px; transform:translateX(-50%); border:6px solid transparent; border-right-color:transparent; border-bottom-color:#faf5ff; }
+      .birthday-form-row label { min-width:40px; font-size:14px; }
+      .birthday-form-row select { font-size:15px; min-width:80px; }
+    }
 
     .kobun-set-header { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #78350f; padding: 10px 14px; border-radius: 10px; font-size: 14px; font-weight: bold; margin: 8px 0; text-align: center; border: 1px solid #f5d796; }
     .kobun-vocab-list { display: flex; flex-direction: column; gap: 12px; margin: 10px 0 14px; }
@@ -2528,13 +2572,47 @@
 <!-- ===== 今日の運勢（2026-05-13 新規、旧「秘密の扉」のリブランド） ===== -->
 <!-- マイカツ君が運勢を語る。骨格データはダミー（後でプリスレが本骨格に差し替え予定）。 -->
 <!-- 決定論的シード（studentId + JST 日付）で同じ日は同じ運勢を返す。 -->
+<!-- 2026-05-13 Phase 2 段階A：誕生日登録済みなら星座運（第 4 ブロック）も表示 -->
 <div id="screen-fortune" class="screen">
   <header><h1>🔮 今日の運勢</h1><span></span></header>
   <div class="container" style="padding-top:16px">
+    <!-- 誕生日サプライズバナー（誕生日マッチ時のみ動的挿入） -->
+    <div id="fortune-birthday-banner"></div>
     <div id="fortune-body">
       <div class="loading">⏳ 今日の運勢を占っています...</div>
     </div>
+    <!-- 誕生日登録への誘導セクション（運勢読み込み完了後に動的挿入） -->
+    <div id="fortune-birthday-cta"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#7c3aed,#5b21b6);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- ===== 誕生日入力画面（2026-05-13 Phase 2 段階A 新規） ===== -->
+<!-- 任意入力。MM-DD のみ保存し、星座判定と誕生日マッチに使う（プライバシー配慮で年は保存しない）。 -->
+<div id="screen-birthday-input" class="screen">
+  <header><h1>🎂 誕生日を登録</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="birthday-card">
+      <div class="bday-mate-row">
+        <img class="bday-mascot" src="./character.jpg" alt="マイカツ君">
+        <div class="bday-bubble">
+          マイカツ君が、あなたの星座占いをするために使うよ。<br>
+          誕生日の<strong>「月」と「日」</strong>だけ教えてね。<br>
+          <span style="font-size:12px;color:#6d28d9">※ 年は保存しないから安心してね。</span>
+        </div>
+      </div>
+      <div class="birthday-form-row">
+        <label for="birthday-month">月：</label>
+        <select id="birthday-month" onchange="_updateBirthdayDayOptions()"></select>
+      </div>
+      <div class="birthday-form-row">
+        <label for="birthday-day">日：</label>
+        <select id="birthday-day"></select>
+      </div>
+      <div class="birthday-error" id="birthday-error"></div>
+    </div>
+    <button class="btn-wide birthday-btn-primary" style="margin-top:16px" onclick="submitBirthday()">登録する</button>
+    <button class="btn-wide birthday-btn-secondary" style="margin-top:10px" onclick="cancelBirthdayInput()">キャンセル</button>
   </div>
 </div>
 
@@ -3255,16 +3333,25 @@
   function showComingSoon(name) { alert(name + ' は現在準備中です。もうしばらくお待ちください！'); }
   // ===== 今日の運勢（2026-05-13 新規、旧「秘密の扉」のリブランド） =====
   // GAS getTodayFortune を呼び、screen-fortune に運勢をレンダリングする。
-  // 骨格データはまだダミー 5 個。プリスレが本骨格を作ったら GAS 側を差し替えるだけで OK。
+  // 骨格データは本骨格 100 個（2026-05-12 v1.0 投入済）。
+  // 2026-05-13 Phase 2 段階A：誕生日が登録されていれば星座運（第 4 ブロック）も表示。
+  //   星座メッセージは仮ダミー（12 星座 × stars=3 のみ）。プリスレが本骨格を作ったら
+  //   GAS 側 ZODIAC_PRESETS_DUMMY を差し替えるだけで OK。
+  var _fortuneMetaCache = null;  // 誕生日入力画面で初期値を使うため、最後に取得した meta を保持
   function showFortuneScreen() {
-    var body = document.getElementById('fortune-body');
-    if (body) body.innerHTML = '<div class="loading">⏳ 今日の運勢を占っています...</div>';
+    var body   = document.getElementById('fortune-body');
+    var banner = document.getElementById('fortune-birthday-banner');
+    var cta    = document.getElementById('fortune-birthday-cta');
+    if (body)   body.innerHTML   = '<div class="loading">⏳ 今日の運勢を占っています...</div>';
+    if (banner) banner.innerHTML = '';
+    if (cta)    cta.innerHTML    = '';
     showScreen('screen-fortune');
     gasGet({ action:'getTodayFortune', studentId:_studentId, _ts: Date.now() }).then(function(res){
       if (!res || !res.ok) {
         if (body) body.innerHTML = '<div class="error">' + _fortuneEsc((res && res.message) || '占いの読み込みに失敗しました。') + '</div>';
         return;
       }
+      _fortuneMetaCache = res.meta || {};
       _renderFortune(res.fortune || {}, res.meta || {});
     }).catch(function(){
       if (body) body.innerHTML = '<div class="error">通信に失敗しました。もう一度お試しください。</div>';
@@ -3291,9 +3378,27 @@
     var general = _fortuneEsc(fortune.general || '');
     var study   = _fortuneEsc(fortune.study   || '');
     var lucky   = fortune.lucky || {};
+    var zodiac  = fortune.zodiac || null;            // 誕生日未入力なら null
+    var surprise = fortune.birthday_surprise || null; // 誕生日と今日が一致した時のみ object
     // マイカツ君の語り出し（meta.nickname が空なら「あなた」にフォールバック）
     var nick = String(meta.nickname || '').trim() || 'あなた';
     var greet = 'やぁ、' + _fortuneEsc(nick) + (nick === 'あなた' ? '' : 'さん') + '。今日のキミの運勢を見てあげるね。';
+
+    // 星座運ブロック（誕生日登録済みなら表示。未登録なら zodiac=null で非表示）
+    var zodiacHtml = '';
+    if (zodiac && zodiac.symbol) {
+      zodiacHtml =
+        '<div class="fortune-section">' +
+          '<div class="fortune-label">星座運</div>' +
+          '<div class="fortune-zodiac-row">' +
+            '<span class="fortune-zodiac-icon">' + _fortuneEsc(zodiac.symbol) + '</span>' +
+            '<span class="fortune-zodiac-name">' + _fortuneEsc(zodiac.jp || '') + '</span>' +
+            (zodiac.period ? '<span class="fortune-zodiac-period">(' + _fortuneEsc(zodiac.period) + ')</span>' : '') +
+          '</div>' +
+          '<div class="fortune-text">' + _fortuneEsc(zodiac.message || '') + '</div>' +
+        '</div>';
+    }
+
     body.innerHTML =
       '<div class="fortune-mate-row">' +
         '<img class="fortune-mascot" src="./character.jpg" alt="マイカツ君">' +
@@ -3316,9 +3421,132 @@
               '<li><span class="k">・ラッキーフード：</span>' + _fortuneEsc(lucky.food   || '') + '</li>' +
             '</ul>' +
           '</div>' +
+          zodiacHtml +
         '</div>' +
       '</div>' +
       '<div class="fortune-footer-note">⚠️ マイカツ君はAIなので間違えることもあります。ゴメンナサイ🙇‍♂️</div>';
+
+    // 誕生日サプライズバナー（最上部、誕生日と今日が一致した時のみ）
+    var banner = document.getElementById('fortune-birthday-banner');
+    if (banner) {
+      if (surprise && surprise.message) {
+        banner.innerHTML = '<div class="fortune-birthday-surprise">' + _fortuneEsc(surprise.message) + '</div>';
+      } else {
+        banner.innerHTML = '';
+      }
+    }
+
+    // 誕生日登録への誘導セクション（運勢ブロックの下、ホームボタンの上）
+    var cta = document.getElementById('fortune-birthday-cta');
+    if (cta) {
+      var hasBd = !!(meta && meta.has_birthday);
+      var ctaHeadline = hasBd
+        ? '🌟 誕生日の登録内容を変更できるよ'
+        : '🌟 もっと詳しい運勢を知りたい？';
+      var ctaSub = hasBd
+        ? '入力した内容を変えたいときはこちらから。'
+        : '誕生日を登録すると、星座占いも加わるよ。<br><span style="font-size:11px">※ 月と日だけ保存します（年は保存しません）</span>';
+      var btnLabel = hasBd ? '誕生日を変更する' : '誕生日を登録する';
+      cta.innerHTML =
+        '<div class="fortune-birthday-cta">' +
+          '<div class="cta-headline">' + ctaHeadline + '</div>' +
+          '<div class="cta-sub">' + ctaSub + '</div>' +
+          '<button class="cta-btn" onclick="showBirthdayInputScreen()">' + _fortuneEsc(btnLabel) + '</button>' +
+        '</div>';
+    }
+  }
+
+  // ===== 誕生日入力画面（2026-05-13 Phase 2 段階A 新規） =====
+  // 既存入力済みの月日があれば、セレクトのデフォルト値にする。
+  function showBirthdayInputScreen() {
+    // _fortuneMetaCache に最新の meta.birthday が入っている（運勢画面から来た場合）
+    var bd = (_fortuneMetaCache && _fortuneMetaCache.birthday) ? String(_fortuneMetaCache.birthday) : '';
+    var presetM = 0, presetD = 0;
+    if (/^\d{2}-\d{2}$/.test(bd)) {
+      presetM = parseInt(bd.substring(0, 2), 10);
+      presetD = parseInt(bd.substring(3, 5), 10);
+    }
+    _populateBirthdayMonthSelect(presetM);
+    _populateBirthdayDaySelect(presetM || 1, presetD);
+    var errEl = document.getElementById('birthday-error');
+    if (errEl) { errEl.classList.remove('show'); errEl.textContent = ''; }
+    showScreen('screen-birthday-input');
+  }
+  function _populateBirthdayMonthSelect(presetMonth) {
+    var sel = document.getElementById('birthday-month');
+    if (!sel) return;
+    var html = '';
+    for (var m = 1; m <= 12; m++) {
+      html += '<option value="' + m + '"' + (m === presetMonth ? ' selected' : '') + '>' + m + '</option>';
+    }
+    sel.innerHTML = html;
+  }
+  function _populateBirthdayDaySelect(month, presetDay) {
+    var sel = document.getElementById('birthday-day');
+    if (!sel) return;
+    var mm = parseInt(month, 10) || 1;
+    var maxDay = 31;
+    if (mm === 2) maxDay = 29;                              // うるう年配慮なし（年を保存しないため 2/29 OK）
+    else if ([4, 6, 9, 11].indexOf(mm) >= 0) maxDay = 30;
+    var html = '';
+    for (var d = 1; d <= maxDay; d++) {
+      html += '<option value="' + d + '"' + (d === presetDay ? ' selected' : '') + '>' + d + '</option>';
+    }
+    sel.innerHTML = html;
+  }
+  // 月セレクト変更時に日セレクトを動的に更新（4/31 のような不正値を構造的に防ぐ）
+  function _updateBirthdayDayOptions() {
+    var mSel = document.getElementById('birthday-month');
+    var dSel = document.getElementById('birthday-day');
+    if (!mSel || !dSel) return;
+    var prevDay = parseInt(dSel.value, 10) || 1;
+    var newMonth = parseInt(mSel.value, 10) || 1;
+    _populateBirthdayDaySelect(newMonth, prevDay);
+    // 月変更により上限を超えた場合、最大日に丸める
+    if (parseInt(dSel.value, 10) > parseInt(dSel.options[dSel.options.length - 1].value, 10)) {
+      dSel.value = dSel.options[dSel.options.length - 1].value;
+    }
+  }
+  function _showBirthdayError(msg) {
+    var el = document.getElementById('birthday-error');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+  function submitBirthday() {
+    var mSel = document.getElementById('birthday-month');
+    var dSel = document.getElementById('birthday-day');
+    if (!mSel || !dSel) return;
+    var mm = parseInt(mSel.value, 10) || 0;
+    var dd = parseInt(dSel.value, 10) || 0;
+    if (!mm || !dd) { _showBirthdayError('月と日を選んでね。'); return; }
+    // クライアント側でも MM-DD 形式に整形（サーバー側でも _validateBirthdayMMDD で検証）
+    var mmS = (mm < 10 ? '0' : '') + mm;
+    var ddS = (dd < 10 ? '0' : '') + dd;
+    var bd = mmS + '-' + ddS;
+    // 重複送信防止：登録ボタンを一時無効化
+    var btn = document.querySelector('#screen-birthday-input .birthday-btn-primary');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+    gasGet({ action:'saveBirthday', studentId:_studentId, birthday:bd, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) {
+        _showBirthdayError((res && res.message) || '保存に失敗しました。もう一度お試しください。');
+        if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+        return;
+      }
+      // _fortuneMetaCache を即時更新（次に運勢画面に戻ったときに正しく反映）
+      if (!_fortuneMetaCache) _fortuneMetaCache = {};
+      _fortuneMetaCache.birthday = res.birthday || bd;
+      _fortuneMetaCache.has_birthday = !!res.birthday;
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      // 運勢画面に戻る（再取得で星座運が反映される）
+      showFortuneScreen();
+    }).catch(function(){
+      _showBirthdayError('通信に失敗しました。もう一度お試しください。');
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    });
+  }
+  function cancelBirthdayInput() {
+    showFortuneScreen();
   }
   function showToday() {
     document.getElementById('today-student').textContent = _studentId + ' さん';

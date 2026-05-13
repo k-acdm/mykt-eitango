@@ -1065,6 +1065,9 @@ function doGet(e) {
       // 今日の運勢（2026-05-13 新規、旧「秘密の扉」のリブランド）
       // 4 択や写真送信は無いので doGet 単独で十分。骨格データのみ返す軽量 API。
       else if (action === 'getTodayFortune')          result = getTodayFortune(params);
+      // 誕生日保存（2026-05-13 Phase 2 段階A 新規）: 'MM-DD' を Students/SpecialAccounts
+      // に保存。任意項目のため未登録でも getTodayFortune は問題なく動く（星座運のみ非表示）。
+      else if (action === 'saveBirthday')             result = saveBirthday(params);
       else if (action === 'getKobunSet')              result = getKobunSet(params);
       else if (action === 'submitKobunSet')           result = submitKobunSet(params);
       else if (action === 'getKobunTodayRawHP')       result = getKobunTodayRawHP(params);
@@ -13385,6 +13388,224 @@ function _fortuneApplyVariables(template, vars) {
   return t;
 }
 
+// ========================================================================
+// 誕生日 & 星座（2026-05-13 Phase 2 段階A 新規）
+// ------------------------------------------------------------------------
+// 用途：誕生日（MM-DD）を Students/SpecialAccounts シートに保存し、星座運の
+//       選択 + 誕生日サプライズ（誕生日と今日が一致した時の祝賀バナー）に使う。
+//
+// プライバシー方針：
+//   - 「月・日」のみ保存（年は保存しない）。星座判定と誕生日マッチにしか
+//     使わないため、年情報は不要。
+//   - 形式：'MM-DD'（例：'08-15'、'01-09'）。空文字 = 未入力。
+//
+// 実装方針：
+//   - 列名 'BIRTHDAY' をヘッダーから動的に解決する（COL_BIRTHDAY 定数は使わない）。
+//     理由：SpecialAccounts シートは accountType 列が末尾に既に存在するため、
+//     固定インデックスにすると 2 シート間で位置が乖離する。ヘッダー駆動なら
+//     どちらのシートでも安全に動く。
+//   - 列がなければ saveBirthday 内で末尾に追加（schema migration）。
+//   - キャッシュ整合性：列を追加した場合 / 値を書き込んだ場合は対応する
+//     Students/SpecialAccounts キャッシュを invalidate（次回 read で fresh）。
+// ========================================================================
+
+const BIRTHDAY_HEADER_NAME = 'BIRTHDAY';
+
+// allValues の 1 行目（ヘッダー）から 'BIRTHDAY' 列の 0-based index を返す。
+// 列が存在しなければ -1。allValues は _findAccountRowOnSheet 等が返す
+// 「シート全体の values 配列」を想定。
+function _findBirthdayColIdx(allValues) {
+  if (!allValues || !allValues.length || !allValues[0] || !allValues[0].length) return -1;
+  const header = allValues[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === BIRTHDAY_HEADER_NAME) return i;
+  }
+  return -1;
+}
+
+// 指定シートに 'BIRTHDAY' 列があれば 0-based index を返す。
+// なければ最右列の右側に追加してその index を返す。
+// 戻り値: { idx, created }（created=true なら今回追加したことを示す）
+function _ensureBirthdayColOnSheet(sheet) {
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === BIRTHDAY_HEADER_NAME) {
+      return { idx: i, created: false };
+    }
+  }
+  // 末尾に追加（既存データ列には触らない）
+  const newCol = lastCol + 1;
+  sheet.getRange(1, newCol).setValue(BIRTHDAY_HEADER_NAME);
+  return { idx: newCol - 1, created: true };
+}
+
+// loc.allValues から birthday 文字列（'MM-DD' or ''）を抽出する。
+// loc は _findAccountRowOnSheet が返したもの。BIRTHDAY 列がなければ ''。
+function _readBirthdayFromLoc(loc) {
+  if (!loc) return '';
+  const bIdx = _findBirthdayColIdx(loc.allValues);
+  if (bIdx < 0) return '';
+  const v = loc.rowValues[bIdx];
+  return String(v == null ? '' : v).trim();
+}
+
+// MM-DD 文字列のバリデーション（うるう年は問題なし＝年なし保存のため 2/29 OK）。
+// 戻り値: { ok, message?, mm, dd, normalized? }
+function _validateBirthdayMMDD(s) {
+  const t = String(s || '').trim();
+  if (!/^\d{2}-\d{2}$/.test(t)) {
+    return { ok: false, message: '誕生日の形式が正しくありません（MM-DD）' };
+  }
+  const mm = parseInt(t.substring(0, 2), 10);
+  const dd = parseInt(t.substring(3, 5), 10);
+  if (!mm || mm < 1 || mm > 12) return { ok: false, message: '月は 1〜12 で指定してください' };
+  if (!dd || dd < 1 || dd > 31) return { ok: false, message: '日は 1〜31 で指定してください' };
+  // 月別の上限チェック（2/29 は許容、4/31 等の不正値は弾く）
+  const maxDay = (function(){
+    if (mm === 2) return 29; // うるう年関係なく 2/29 まで許容
+    if ([4, 6, 9, 11].indexOf(mm) >= 0) return 30;
+    return 31;
+  })();
+  if (dd > maxDay) return { ok: false, message: mm + '月は ' + maxDay + ' 日までです' };
+  return { ok: true, mm: mm, dd: dd, normalized: t };
+}
+
+// 12 星座テーブル（トロピカル方式）。
+const ZODIAC_TABLE = [
+  { z: 'capricorn',   jp: '山羊座',   sym: '♑', period: '12/22〜1/19',  start: [12, 22], end: [1, 19] },
+  { z: 'aquarius',    jp: '水瓶座',   sym: '♒', period: '1/20〜2/18',   start: [1, 20],  end: [2, 18] },
+  { z: 'pisces',      jp: '魚座',     sym: '♓', period: '2/19〜3/20',   start: [2, 19],  end: [3, 20] },
+  { z: 'aries',       jp: '牡羊座',   sym: '♈', period: '3/21〜4/19',   start: [3, 21],  end: [4, 19] },
+  { z: 'taurus',      jp: '牡牛座',   sym: '♉', period: '4/20〜5/20',   start: [4, 20],  end: [5, 20] },
+  { z: 'gemini',      jp: '双子座',   sym: '♊', period: '5/21〜6/21',   start: [5, 21],  end: [6, 21] },
+  { z: 'cancer',      jp: '蟹座',     sym: '♋', period: '6/22〜7/22',   start: [6, 22],  end: [7, 22] },
+  { z: 'leo',         jp: '獅子座',   sym: '♌', period: '7/23〜8/22',   start: [7, 23],  end: [8, 22] },
+  { z: 'virgo',       jp: '乙女座',   sym: '♍', period: '8/23〜9/22',   start: [8, 23],  end: [9, 22] },
+  { z: 'libra',       jp: '天秤座',   sym: '♎', period: '9/23〜10/23',  start: [9, 23],  end: [10, 23] },
+  { z: 'scorpio',     jp: '蠍座',     sym: '♏', period: '10/24〜11/22', start: [10, 24], end: [11, 22] },
+  { z: 'sagittarius', jp: '射手座',   sym: '♐', period: '11/23〜12/21', start: [11, 23], end: [12, 21] }
+];
+
+/**
+ * MM-DD 形式の誕生日から星座を判定。
+ * @param {string} birthday - "MM-DD" 形式（例："08-15"）
+ * @return {{zodiac, zodiac_jp, symbol, period}|null}
+ *   - 2/29 生まれは 2/19〜3/20 の範囲なので「魚座」になる（内部仕様）
+ */
+function _getZodiac(birthday) {
+  const v = _validateBirthdayMMDD(birthday);
+  if (!v.ok) return null;
+  const m = v.mm;
+  const d = v.dd;
+  for (let i = 0; i < ZODIAC_TABLE.length; i++) {
+    const item = ZODIAC_TABLE[i];
+    const sm = item.start[0], sd = item.start[1];
+    const em = item.end[0],   ed = item.end[1];
+    if (sm === em) {
+      if (m === sm && d >= sd && d <= ed) {
+        return { zodiac: item.z, zodiac_jp: item.jp, symbol: item.sym, period: item.period };
+      }
+    } else {
+      // 月またぎ（山羊座のみ：12/22〜1/19）
+      if ((m === sm && d >= sd) || (m === em && d <= ed)) {
+        return { zodiac: item.z, zodiac_jp: item.jp, symbol: item.sym, period: item.period };
+      }
+    }
+  }
+  return null;
+}
+
+// 仮ダミーの星座メッセージ（stars=3 のみ、12 星座分）。
+// プリスレが生成中の本骨格（12 星座 × 5 stars = 60 個）を組み込むまでの繋ぎ。
+// stars が 3 以外でも、ダミー段階ではこの 12 個から該当星座を返せばよい。
+const ZODIAC_PRESETS_DUMMY = [
+  { id: 'zodiac_aries_3',       zodiac: 'aries',       stars: 3, message: '牡羊座の{nickname}さん、今日は基本に立ち返るといい日だよ 😊 焦らず自分のペースで進んでみて。' },
+  { id: 'zodiac_taurus_3',      zodiac: 'taurus',      stars: 3, message: '牡牛座の{nickname}さん、いつものペースで進むのが今日の正解 🌱 マイペースが一番の強みだよ。' },
+  { id: 'zodiac_gemini_3',      zodiac: 'gemini',      stars: 3, message: '双子座の{nickname}さん、好奇心の赴くままに動くと吉 ✨ 興味のあるところから手をつけてみて。' },
+  { id: 'zodiac_cancer_3',      zodiac: 'cancer',      stars: 3, message: '蟹座の{nickname}さん、今日は身近な人との時間を大切に 🍀 ホッとできる場所で力を蓄えよう。' },
+  { id: 'zodiac_leo_3',         zodiac: 'leo',         stars: 3, message: '獅子座の{nickname}さん、今日は持ち前のパワーを少し抑えめに ⭐ 落ち着いた行動が周りからの信頼を呼ぶよ。' },
+  { id: 'zodiac_virgo_3',       zodiac: 'virgo',       stars: 3, message: '乙女座の{nickname}さん、丁寧さが今日の武器 🌸 細かいところに気を配ると、いい結果につながるよ。' },
+  { id: 'zodiac_libra_3',       zodiac: 'libra',       stars: 3, message: '天秤座の{nickname}さん、バランスを意識して過ごす日 ⚖️ 偏らず、ちょうどよく整える一日に。' },
+  { id: 'zodiac_scorpio_3',     zodiac: 'scorpio',     stars: 3, message: '蠍座の{nickname}さん、今日は内に深く向き合うのが吉 🌙 ひとつのテーマをじっくり掘り下げてみて。' },
+  { id: 'zodiac_sagittarius_3', zodiac: 'sagittarius', stars: 3, message: '射手座の{nickname}さん、視野を広く持つと新しい発見があるよ 🏹 ちょっと違う角度から見てみよう。' },
+  { id: 'zodiac_capricorn_3',   zodiac: 'capricorn',   stars: 3, message: '山羊座の{nickname}さん、コツコツ続けることが今日も最大の味方 🏔 焦らず一歩ずつ積み上げて。' },
+  { id: 'zodiac_aquarius_3',    zodiac: 'aquarius',    stars: 3, message: '水瓶座の{nickname}さん、ちょっと変わった方法で取り組むと吉 💡 ひらめきを信じてみて。' },
+  { id: 'zodiac_pisces_3',      zodiac: 'pisces',      stars: 3, message: '魚座の{nickname}さん、優しい気持ちで人と接すると運気が上がる日 🐟 直感も冴えてるよ。' }
+];
+
+// 星座 × stars レベルから 1 個選ぶ（決定論的）。
+// 仮ダミー段階では stars 引数は無視して、各星座 1 個ずつしかないメッセージを返す。
+// 本骨格組み込み時にプール拡張すれば、stars レベルでフィルタしたうえで
+// _fortuneHash でインデックス選択する形に差し替えればよい。
+function _pickZodiacPreset(zodiacKey, stars, seedHash) {
+  // ダミー：該当星座を返すだけ（stars は今は使わない）
+  for (let i = 0; i < ZODIAC_PRESETS_DUMMY.length; i++) {
+    if (ZODIAC_PRESETS_DUMMY[i].zodiac === zodiacKey) return ZODIAC_PRESETS_DUMMY[i];
+  }
+  // フォールバック（理論上は到達しないが安全側）
+  return ZODIAC_PRESETS_DUMMY[seedHash % ZODIAC_PRESETS_DUMMY.length];
+}
+
+// 誕生日サプライズの仮ダミー文言（プリスレが 10 個を生成したら差し替え予定）。
+// 段階A では固定文言 1 つでよい（本骨格組み込み時に決定論選択に変更）。
+function _pickBirthdaySurpriseMessage(nickname, seedHash) {
+  const nick = String(nickname || '').trim() || 'あなた';
+  return '🎂 お誕生日おめでとう、' + nick + 'さん！今日はキミの特別な日 ✨';
+}
+
+// =============================================
+// saveBirthday：誕生日を Students / SpecialAccounts シートに保存
+// =============================================
+function saveBirthday(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    const raw = String((params && params.birthday)  || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+
+    // 空文字を渡された場合は「削除」扱い（誕生日入力をやめる経路の予備）
+    let valueToWrite = '';
+    if (raw !== '') {
+      const v = _validateBirthdayMMDD(raw);
+      if (!v.ok) return { ok: false, message: v.message };
+      valueToWrite = v.normalized;
+    }
+
+    // 書き込み対象行をフレッシュに特定（Students 優先、フォールバック SpecialAccounts）
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { ok: false, message: '生徒IDが見つかりません' };
+
+    // 該当シートで BIRTHDAY 列を保証
+    const ensure = _ensureBirthdayColOnSheet(loc.sheet);
+    const birthdayColIdx = ensure.idx;
+
+    // 値を書き込み
+    loc.sheet.getRange(loc.rowIdx + 1, birthdayColIdx + 1).setValue(valueToWrite);
+
+    // キャッシュ整合性：
+    //   - 列を今回追加した場合は、cache の各行に BIRTHDAY 列分のスロットが
+    //     存在しないため in-place 更新だと配列長不一致になる。安全側で
+    //     対応シートのキャッシュを invalidate（次回 read で fresh）。
+    //   - 列が既にあった場合も、cache 経由読み取りで invalidate しておくのが
+    //     最も簡単（保存頻度は低いので追加 read コストは無視できる範囲）。
+    try {
+      const cache = CacheService.getScriptCache();
+      if (loc.sheetName === SHEET_STUDENTS) {
+        cache.remove('cache_students_values');
+        _cacheLog('cache_students_values', 'invalidate', 'saveBirthday sid=' + sid);
+      } else {
+        cache.remove('cache_special_accounts_values');
+        _cacheLog('cache_special_accounts_values', 'invalidate', 'saveBirthday sid=' + sid);
+      }
+    } catch(_) {}
+
+    return { ok: true, birthday: valueToWrite };
+  } catch (err) {
+    console.error('[saveBirthday]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
 function getTodayFortune(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
@@ -13394,9 +13615,11 @@ function getTodayFortune(params) {
     const loc = _findAccountRowOnSheet(sid);
     let nickname = '';
     let streak   = 0;
+    let birthday = '';
     if (loc) {
       nickname = String(loc.rowValues[COL_NICKNAME] || '').trim();
       streak   = Number(loc.rowValues[COL_STREAK]) || 0;
+      birthday = _readBirthdayFromLoc(loc);  // 'MM-DD' or ''
     }
     const title = _getTitle(streak);
 
@@ -13423,6 +13646,38 @@ function getTodayFortune(params) {
     const luckyNumber = FORTUNE_LUCKY_NUMBERS[_fortuneHash(seed + '_number') % FORTUNE_LUCKY_NUMBERS.length];
     const luckyFood   = FORTUNE_LUCKY_FOODS  [_fortuneHash(seed + '_food')   % FORTUNE_LUCKY_FOODS.length];
 
+    // 星座運（誕生日が登録されている場合のみ）
+    // 仮ダミー段階：12 星座 × stars=3 のメッセージしかないので、stars に
+    // 関わらず stars=3 メッセージを返す。本骨格組み込み後は _pickZodiacPreset
+    // 内で stars に応じたフィルタが効くようになる予定。
+    let zodiacBlock = null;
+    if (birthday) {
+      const z = _getZodiac(birthday);
+      if (z) {
+        const zPreset = _pickZodiacPreset(z.zodiac, stars, _fortuneHash(seed + '_zodiac'));
+        const zMsg = _fortuneApplyVariables(zPreset.message, vars);
+        zodiacBlock = {
+          symbol:   z.symbol,
+          jp:       z.zodiac_jp,
+          zodiac:   z.zodiac,
+          period:   z.period,
+          message:  zMsg
+        };
+      }
+    }
+
+    // 誕生日サプライズ（生徒の誕生日 MM-DD と 今日（_sangoToday の MM-DD 部分）が一致したら表示）
+    // 段階C で別途「ログイン直後のサプライズ画面」を実装予定。段階A では運勢画面内のバナーのみ。
+    let birthdaySurprise = null;
+    if (birthday && today && today.length >= 10) {
+      const todayMMDD = today.substring(5); // 'yyyy-MM-dd' → 'MM-dd'
+      if (todayMMDD === birthday) {
+        birthdaySurprise = {
+          message: _pickBirthdaySurpriseMessage(nickname, _fortuneHash(seed + '_birthday'))
+        };
+      }
+    }
+
     return {
       ok: true,
       fortune: {
@@ -13433,12 +13688,17 @@ function getTodayFortune(params) {
           color:  luckyColor,
           number: luckyNumber,
           food:   luckyFood
-        }
+        },
+        zodiac:           zodiacBlock,        // 未入力 / 判定失敗時は null（フロントで非表示）
+        birthday_surprise: birthdaySurprise   // 誕生日マッチ時のみ object、それ以外は null
       },
       meta: {
-        nickname: nickname,
-        title:    title,
-        streak:   streak
+        nickname:     nickname,
+        title:        title,
+        streak:       streak,
+        has_birthday: !!birthday,            // フロントで「登録する/変更する」ボタン文言切替に使う
+        birthday:     birthday                // 入力済み MM-DD（未入力なら ''）。フロント側で
+                                              // 入力画面のデフォルト値設定に使う。
       }
     };
   } catch (err) {
