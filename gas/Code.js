@@ -13442,12 +13442,30 @@ function _ensureBirthdayColOnSheet(sheet) {
 
 // loc.allValues から birthday 文字列（'MM-DD' or ''）を抽出する。
 // loc は _findAccountRowOnSheet が返したもの。BIRTHDAY 列がなければ ''。
+//
+// ★ 注意（2026-05-13 段階A バグ修正）：
+//   Google Sheets はセルの数値フォーマット未指定状態で setValue('05-13') すると、
+//   '05-13' を「日付（5/13）」と解釈して Date オブジェクトとして保存することがある
+//   （ロケール依存）。getDataRange().getValues() で読み戻すと Date インスタンスが
+//   返ってきて、String(date) は "Tue May 13 2026 ..." のような形式になり、
+//   _validateBirthdayMMDD の /^\d{2}-\d{2}$/ にマッチせず星座運がまるごと
+//   非表示になる（段階A の動作確認で発生したバグ 2/3 の真因）。
+//   対策：① saveBirthday 側で setNumberFormat('@') で text に固定（新規書き込み分の根本対策）
+//        ② 本関数で Date オブジェクトを MM-DD に再構成（既書込分の救済 + 防御）
 function _readBirthdayFromLoc(loc) {
   if (!loc) return '';
   const bIdx = _findBirthdayColIdx(loc.allValues);
   if (bIdx < 0) return '';
   const v = loc.rowValues[bIdx];
-  return String(v == null ? '' : v).trim();
+  if (v == null || v === '') return '';
+  // Date 救済：Google Sheets が "05-13" を自動的に日付化していたケースに対応。
+  // 年情報は捨てて MM-DD に再構成（プライバシー仕様にも合致）。
+  if (v instanceof Date) {
+    const mm = v.getMonth() + 1;
+    const dd = v.getDate();
+    return (mm < 10 ? '0' : '') + mm + '-' + (dd < 10 ? '0' : '') + dd;
+  }
+  return String(v).trim();
 }
 
 // MM-DD 文字列のバリデーション（うるう年は問題なし＝年なし保存のため 2/29 OK）。
@@ -13579,8 +13597,14 @@ function saveBirthday(params) {
     const ensure = _ensureBirthdayColOnSheet(loc.sheet);
     const birthdayColIdx = ensure.idx;
 
-    // 値を書き込み
-    loc.sheet.getRange(loc.rowIdx + 1, birthdayColIdx + 1).setValue(valueToWrite);
+    // 値を書き込み。
+    // ★ 重要（2026-05-13 バグ修正）：setNumberFormat('@') でセルを text 固定してから書く。
+    //   これをしないと Google Sheets が '05-13' を「5/13（日付型）」と解釈して Date 化し、
+    //   読み戻し時に _readBirthdayFromLoc が String(Date) を返して MM-DD 比較に失敗する。
+    //   段階A 初版で「星座運が表示されない / 誕生日バナーが出ない」バグの真因だった。
+    const cell = loc.sheet.getRange(loc.rowIdx + 1, birthdayColIdx + 1);
+    cell.setNumberFormat('@');
+    cell.setValue(valueToWrite);
 
     // キャッシュ整合性：
     //   - 列を今回追加した場合は、cache の各行に BIRTHDAY 列分のスロットが

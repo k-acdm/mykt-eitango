@@ -249,7 +249,10 @@
     .birthday-form-row select { padding:8px 12px; font-size:16px; border:2px solid #c4b5fd; border-radius:10px; background:#ffffff; color:#3b0764; min-width:90px; }
     .birthday-error { margin-top:10px; padding:10px 12px; background:#fef2f2; border:1px solid #fecaca; border-radius:10px; color:#b91c1c; font-size:13px; display:none; }
     .birthday-error.show { display:block; }
-    .birthday-btn-primary { background:linear-gradient(135deg, #c4b5fd, #a78bfa); }
+    /* 「登録する」ボタン：星座アイコンと同系の濃ラベンダーで押下可能性を明示
+       （段階A 初版は #c4b5fd→#a78bfa の薄ラベンダーでグレーアウト風に見えていた） */
+    .birthday-btn-primary { background:linear-gradient(135deg, #7c3aed, #5b21b6) !important; color:#ffffff; }
+    .birthday-btn-primary:hover { filter: brightness(.96); }
     .birthday-btn-secondary { background:linear-gradient(135deg, #cbd5e1, #94a3b8); }
     @media (max-width: 480px) {
       .birthday-card .bday-mate-row { flex-direction: column; gap: 8px; }
