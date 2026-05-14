@@ -10277,17 +10277,21 @@ function adminSetWabun1Comment(params) {
 // cleanupLisonOldRecordings() を Time-based Trigger で日次実行する想定。
 // =============================================
 
-const LISON_VALID_LEVELS = ['4', '3', 'pre2', '2', 'pre1'];
+// 2026-05-15 拡張：英単語RUSH と並びを揃え、準2級プラス（'pre2plus'）と 1級（'1'）を追加。
+// LISON_VALID_LEVELS の順序は管理画面タブ・生徒画面ボタンの表示順にそのまま反映される。
+const LISON_VALID_LEVELS = ['4', '3', 'pre2', 'pre2plus', '2', 'pre1', '1'];
 
 // レベルメタデータ（管理画面で動的生成するタブ・answer select の選択肢に利用）。
 // answerType: 'maru' = ○/✖（4 級のみ、教科書準拠の表記）、'tf' = T/F（3 級以上の英文 T/F 問題）。
 // 順序は LISON_VALID_LEVELS と一致させる（管理画面のタブ並びがそのまま再現される）。
 const LISON_LEVEL_META = [
-  { value: '4',    label: '4 級',    answerType: 'maru' },
-  { value: '3',    label: '3 級',    answerType: 'tf'   },
-  { value: 'pre2', label: '準 2 級', answerType: 'tf'   },
-  { value: '2',    label: '2 級',    answerType: 'tf'   },
-  { value: 'pre1', label: '準 1 級', answerType: 'tf'   }
+  { value: '4',        label: '4 級',         answerType: 'maru' },
+  { value: '3',        label: '3 級',         answerType: 'tf'   },
+  { value: 'pre2',     label: '準 2 級',      answerType: 'tf'   },
+  { value: 'pre2plus', label: '準 2 級プラス', answerType: 'tf'   },
+  { value: '2',        label: '2 級',         answerType: 'tf'   },
+  { value: 'pre1',     label: '準 1 級',      answerType: 'tf'   },
+  { value: '1',        label: '1 級',         answerType: 'tf'   }
 ];
 
 // LisonContents シートのヘッダー（13 列、A〜M）。
@@ -10320,8 +10324,9 @@ function _lisonGetWeekStart(dateStr) {
 }
 
 // レベルごとの素点HP（連続週²倍率を掛ける前の値）
+// 2026-05-15 拡張：'pre2plus' / '1' を追加（2 級・準 1 級と同じ 200HP）
 function _lisonBaseHpForLevel(level) {
-  if (level === '2' || level === 'pre1') return 200;
+  if (level === '2' || level === 'pre1' || level === '1' || level === 'pre2plus') return 200;
   return 100; // '4' / '3' / 'pre2'
 }
 

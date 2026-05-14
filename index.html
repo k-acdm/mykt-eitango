@@ -1559,11 +1559,15 @@
     .lison-level-btn:disabled { opacity: .55; cursor: default; }
     .lison-level-btn .lv-name { flex: 1; font-size: 18px; }
     .lison-level-btn .lv-hp { background: rgba(255,255,255,.22); border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: bold; }
-    .lison-level-btn.lv-4    { background: linear-gradient(135deg,#10b981,#059669); }
-    .lison-level-btn.lv-3    { background: linear-gradient(135deg,#3b82f6,#2563eb); }
-    .lison-level-btn.lv-pre2 { background: linear-gradient(135deg,#8b5cf6,#7c3aed); }
-    .lison-level-btn.lv-2    { background: linear-gradient(135deg,#f59e0b,#d97706); }
-    .lison-level-btn.lv-pre1 { background: linear-gradient(135deg,#ef4444,#dc2626); }
+    /* 2026-05-15 色調整：既存色系統を維持しつつ各色を 1〜2 段階明るくして全体に柔らかく。
+       併せて準2級プラス（藍系）と 1 級（深紅紫系、最高峰）を新設して 7 色グラデーション化。 */
+    .lison-level-btn.lv-4        { background: linear-gradient(135deg,#34d399,#10b981); }
+    .lison-level-btn.lv-3        { background: linear-gradient(135deg,#60a5fa,#3b82f6); }
+    .lison-level-btn.lv-pre2     { background: linear-gradient(135deg,#a78bfa,#8b5cf6); }
+    .lison-level-btn.lv-pre2plus { background: linear-gradient(135deg,#818cf8,#6366f1); }
+    .lison-level-btn.lv-2        { background: linear-gradient(135deg,#fbbf24,#f59e0b); }
+    .lison-level-btn.lv-pre1     { background: linear-gradient(135deg,#f87171,#ef4444); }
+    .lison-level-btn.lv-1        { background: linear-gradient(135deg,#f472b6,#db2777); }
     .lison-total-badge { display: inline-block; background: linear-gradient(135deg,#fef3c7,#fde68a); color: #92400e; border: 2px solid #f59e0b; border-radius: 999px; padding: 5px 14px; font-size: 13px; font-weight: bold; margin: 0 0 10px; box-shadow: 0 2px 6px rgba(245,158,11,.2); }
     /* テキストカード（英文/和文の表示） */
     .lison-text-card { background: #fff; border: 2px solid #cbd5e1; border-radius: 14px; padding: 16px 18px; margin: 12px 0; line-height: 1.85; font-size: 16px; color: #1f2937; box-shadow: 0 2px 8px rgba(0,0,0,.06); white-space: pre-wrap; }
@@ -7140,13 +7144,17 @@
     recordingStartMs: 0,
     recordingTimer: null
   };
-  // レベル定義。useTF=false は ○/✖（4 級）、true は T/F（3 級以上）
+  // レベル定義。useTF=false は ○/✖（4 級）、true は T/F（3 級以上）。
+  // label は「英検○級レベル」形式に統一（2026-05-15）、英単語RUSH と並びを揃える。
+  // 2026-05-15 拡張：準2級プラス（pre2plus）と 1 級（1）を追加、いずれも 200HP。
   var LISON_LEVEL_DEFS = [
-    { code: '4',    label: '4級',   baseHp: 100, useTF: false, cls: 'lv-4'    },
-    { code: '3',    label: '3級',   baseHp: 100, useTF: true,  cls: 'lv-3'    },
-    { code: 'pre2', label: '準2級', baseHp: 100, useTF: true,  cls: 'lv-pre2' },
-    { code: '2',    label: '2級',   baseHp: 200, useTF: true,  cls: 'lv-2'    },
-    { code: 'pre1', label: '準1級', baseHp: 200, useTF: true,  cls: 'lv-pre1' }
+    { code: '4',        label: '英検4級レベル',       baseHp: 100, useTF: false, cls: 'lv-4'        },
+    { code: '3',        label: '英検3級レベル',       baseHp: 100, useTF: true,  cls: 'lv-3'        },
+    { code: 'pre2',     label: '英検準2級レベル',     baseHp: 100, useTF: true,  cls: 'lv-pre2'     },
+    { code: 'pre2plus', label: '英検準2級プラスレベル', baseHp: 200, useTF: true,  cls: 'lv-pre2plus' },
+    { code: '2',        label: '英検2級レベル',       baseHp: 200, useTF: true,  cls: 'lv-2'        },
+    { code: 'pre1',     label: '英検準1級レベル',     baseHp: 200, useTF: true,  cls: 'lv-pre1'     },
+    { code: '1',        label: '英検1級レベル',       baseHp: 200, useTF: true,  cls: 'lv-1'        }
   ];
   function _lisonLevelDef(code) {
     for (var i = 0; i < LISON_LEVEL_DEFS.length; i++) if (LISON_LEVEL_DEFS[i].code === code) return LISON_LEVEL_DEFS[i];
