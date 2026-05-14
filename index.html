@@ -748,8 +748,42 @@
     /* ホーム画面：マイカツ君と並ぶアバタースロット。タップで選択 / コーナー画面に遷移。
        2026-05-15 サイズ改善：アバター画像は縦長アスペクト比のため、強制 150x150 だと
        左右が letterbox 化して見た目が小さくなる。height 基準で 240px に拡大し、
-       マイカツ君（150x150）と同等以上の存在感を確保（width は auto＝アスペクト比保持）。 */
+       マイカツ君（150x150）と同等以上の存在感を確保（width は auto＝アスペクト比保持）。
+       2026-05-15 演出追加：薄ラベンダー角丸枠（B）+ 楕円スポット（A）+ 微光パルス（C）+
+       季節モチーフ（D：JS で月別に桜/雲/紅葉/雪を生成）でアバターに温度感を持たせる。 */
     .avatar-home-row { display: flex; justify-content: center; margin: 6px 0 12px; }
+    .avatar-stage { position: relative; padding: 18px 28px 16px; background: linear-gradient(180deg, rgba(245,243,255,.6) 0%, rgba(237,233,254,.75) 100%); border-radius: 18px; overflow: hidden; box-shadow: inset 0 0 24px rgba(167,139,250,.12); }
+    /* 演出 C：ステージ風の微光（柔らかい放射グラデが脈動） */
+    .avatar-stage-light { position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); width: 260px; height: 220px; background: radial-gradient(ellipse 55% 45% at center, rgba(196,181,253,.45) 0%, rgba(196,181,253,0) 72%); pointer-events: none; z-index: 0; animation: avatarLightPulse 4.5s ease-in-out infinite; }
+    /* 演出 A：足元の楕円スポット（立ち位置感） */
+    .avatar-stage-spot { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 220px; height: 28px; background: radial-gradient(ellipse at center, rgba(255,255,255,.75) 0%, rgba(255,255,255,0) 72%); pointer-events: none; filter: blur(2px); z-index: 1; }
+    /* 演出 D：季節モチーフ（JS で生成された .petal が降下/漂う） */
+    .avatar-seasonal { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+    .avatar-seasonal .petal { position: absolute; top: -24px; left: var(--x, 50%); font-size: var(--size, 18px); opacity: 0; will-change: transform, opacity; animation: petalFall var(--dur, 9s) linear infinite; animation-delay: var(--delay, 0s); }
+    .avatar-seasonal .petal.drift { animation-name: petalDrift; }
+    @keyframes avatarLightPulse {
+      0%, 100% { opacity: .85; transform: translateX(-50%) scale(1); }
+      50%      { opacity: 1;   transform: translateX(-50%) scale(1.05); }
+    }
+    @keyframes petalFall {
+      0%   { transform: translateY(0) rotate(0deg);   opacity: 0; }
+      10%  { opacity: .75; }
+      90%  { opacity: .75; }
+      100% { transform: translateY(calc(100% + 40px)) rotate(320deg); opacity: 0; }
+    }
+    /* 夏の雲はゆらゆら漂うだけ（落下しない） */
+    @keyframes petalDrift {
+      0%   { transform: translate(0, 8px); opacity: 0; }
+      15%  { opacity: .55; }
+      50%  { transform: translate(8px, 18px); }
+      85%  { opacity: .55; }
+      100% { transform: translate(0, 8px); opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .avatar-stage-light { animation: none; }
+      .avatar-seasonal { display: none; }
+    }
+    .avatar-stage .avatar-slot { position: relative; z-index: 2; }
     .avatar-slot { flex-shrink: 0; text-align: center; cursor: pointer; }
     .avatar-slot .avatar-wrap { position: relative; height: 240px; display: flex; align-items: flex-end; justify-content: center; }
     .avatar-slot .avatar-img { width: auto; height: 240px; max-width: 200px; object-fit: contain; transition: transform .2s, filter .2s; border-radius: 16px; }
@@ -1086,6 +1120,10 @@
       .avatar-slot .avatar-img { width: auto; height: 180px; max-width: 150px; }
       .avatar-slot .avatar-placeholder { width: 135px; height: 180px; font-size: 72px; }
       .avatar-slot .avatar-name { max-width: 150px; }
+      /* ステージ演出もモバイル用に縮小（2026-05-15） */
+      .avatar-stage { padding: 14px 18px 12px; border-radius: 16px; }
+      .avatar-stage-light { width: 200px; height: 170px; bottom: 22px; }
+      .avatar-stage-spot  { width: 170px; height: 22px; bottom: 20px; }
       .avatar-corner-pic img { width: 70%; }
       .avatar-select-card { width: 92%; }
       .chara-bubble { width: 100%; }
@@ -1828,14 +1866,21 @@
       </div>
       <!-- アバター機能 Phase α：マイカツ君と同サイズのアバター枠を独立行に配置。
            未選択時はプレースホルダー「？」、選択済みは選んだベース画像を表示。
-           タップで onAvatarSlotTap() に飛ぶ（未選択→選択画面 / 選択済→コーナー画面）。 -->
+           タップで onAvatarSlotTap() に飛ぶ（未選択→選択画面 / 選択済→コーナー画面）。
+           2026-05-15 演出追加：avatar-stage で薄ラベンダー枠 + 楕円スポット + 微光 +
+           季節モチーフ（JS で月別生成）を重ねて、アバターに温度感を持たせる。 -->
       <div class="avatar-home-row">
-        <div class="avatar-slot" id="avatar-slot" onclick="onAvatarSlotTap()" role="button" tabindex="0">
-          <div class="avatar-wrap">
-            <img class="avatar-img" id="avatar-img" alt="アバター" style="display:none">
-            <div class="avatar-placeholder" id="avatar-placeholder">？</div>
+        <div class="avatar-stage">
+          <div class="avatar-seasonal" id="avatar-seasonal"></div>
+          <div class="avatar-stage-light"></div>
+          <div class="avatar-stage-spot"></div>
+          <div class="avatar-slot" id="avatar-slot" onclick="onAvatarSlotTap()" role="button" tabindex="0">
+            <div class="avatar-wrap">
+              <img class="avatar-img" id="avatar-img" alt="アバター" style="display:none">
+              <div class="avatar-placeholder" id="avatar-placeholder">？</div>
+            </div>
+            <div class="avatar-name" id="avatar-name">アバターを選ぶ</div>
           </div>
-          <div class="avatar-name" id="avatar-name">アバターを選ぶ</div>
         </div>
       </div>
       <div class="welcome-name" id="welcome-name"></div>
@@ -4046,6 +4091,7 @@
   // ホーム画面表示時の getAvatarState 呼び出し（cachedGasGet で 5 分キャッシュ）。
   // 失敗時はプレースホルダー（？）表示のままにする。
   function _loadAvatarStateOnHome() {
+    _renderAvatarSeasonal();
     if (!_studentId) { _renderAvatarSlot(); return; }
     cachedGasGet({ action: 'getAvatarState', studentId: _studentId }).then(function(res){
       if (res && res.ok) {
@@ -4059,6 +4105,36 @@
       // エラー時はプレースホルダー表示で UX を止めない
       _renderAvatarSlot();
     });
+  }
+
+  // 季節モチーフを月別に生成して .avatar-seasonal に注入。ホーム表示の度に呼ぶ。
+  // 月をまたいでアプリを開きっぱなしでも showWelcome の再呼び出しで自然に切り替わる。
+  //   3〜5 月：🌸 桜（落下）/ 6〜8 月：☁️ 雲（漂う、drift）/
+  //   9〜11 月：🍁 紅葉（落下）/ 12〜2 月：❄️ 雪（落下、ややゆっくり）
+  // 控えめに 3〜5 個程度のみ生成。prefers-reduced-motion は CSS 側で display:none。
+  function _renderAvatarSeasonal() {
+    var el = document.getElementById('avatar-seasonal');
+    if (!el) return;
+    var month = new Date().getMonth() + 1; // 1-12
+    var emoji, drift = false, count, dur, sizeMin, sizeMax;
+    if (month >= 3 && month <= 5) {
+      emoji = '🌸'; count = 4; dur = 9;  sizeMin = 16; sizeMax = 22; // 春：桜
+    } else if (month >= 6 && month <= 8) {
+      emoji = '☁️'; count = 3; dur = 14; sizeMin = 22; sizeMax = 30; drift = true; // 夏：雲（漂う）
+    } else if (month >= 9 && month <= 11) {
+      emoji = '🍁'; count = 4; dur = 10; sizeMin = 16; sizeMax = 22; // 秋：紅葉
+    } else {
+      emoji = '❄️'; count = 5; dur = 13; sizeMin = 14; sizeMax = 20; // 冬：雪
+    }
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      var x      = (8 + Math.random() * 84).toFixed(1);
+      var d      = (dur + Math.random() * 4).toFixed(1);
+      var delay  = (i * (dur / count) * 0.55).toFixed(1);
+      var size   = (sizeMin + Math.random() * (sizeMax - sizeMin)).toFixed(0);
+      html += '<span class="petal' + (drift ? ' drift' : '') + '" style="--x:' + x + '%;--dur:' + d + 's;--delay:' + delay + 's;--size:' + size + 'px;">' + emoji + '</span>';
+    }
+    el.innerHTML = html;
   }
 
   // ホーム画面のマイカツ君隣アバター枠タップ時。
