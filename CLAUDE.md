@@ -80,6 +80,8 @@
   - [ ] alreadyGranted 判定の整備（同日重複防止が必要なら）
 - [ ] admin.html の「生徒学習履歴」に追加 ← v13 で見落とした項目
 - [ ] admin.html の「💡 各コンテンツの素点HP一覧（参考）」テーブルに行追加 ← v14 で見落とした項目（HP 手動付与ページ内）
+- [ ] **GAS `_calendarContentName` に type プレフィックスのマッピングを追加** ← 漏れると管理画面カレンダーの「○年○月○日の学習活動」内訳が `その他（kobun_1_10）` のように表示される（commit `<本コミット>` で発覚）
+- [ ] **GAS `_isCountableActivityType` の許可リストに type プレフィックスを追加** ← 漏れるとマイカツ君の Stage 計算（連続日数の活動カウント）にそのコンテンツの活動が含まれなくなる。CLAUDE.md #229-230 で英単語RUSH 単独依存から HPLog 集約に拡張した経緯あり
 - [ ] view.html（保護者画面）への反映確認・必要なら追加
 - [ ] CLAUDE.md / docs/HANDOVER.md への記載
 - [ ] ローカル動作確認（提出 → 履歴反映 → admin 表示）

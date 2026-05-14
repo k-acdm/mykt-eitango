@@ -1401,6 +1401,7 @@ function _isCountableActivityType(type) {
   // カウント対象（プレフィックス）
   if (type.indexOf('kiso_')  === 0) return true;
   if (type.indexOf('kanji_') === 0) return true;
+  if (type.indexOf('kobun_') === 0) return true;
   // 未知の type はデフォルト除外（明示的に許可リストに追加してから有効化）
   return false;
 }
@@ -7766,6 +7767,7 @@ function _calendarContentName(type) {
   if (t === 'manual_grant') return '手動付与';
   if (t.indexOf('kiso_')  === 0) return '基礎計算';
   if (t.indexOf('kanji_') === 0) return 'カンジー';
+  if (t.indexOf('kobun_') === 0) return 'コブタン';
   if (t.indexOf('apology_') === 0) return 'お詫びHP';
   return 'その他（' + t + '）';
 }
@@ -7878,9 +7880,13 @@ function getCalendarDayDetail(params) {
     const students = Object.keys(acc).sort().map(function(sid){
       const a = acc[sid];
       const info = stuMap[sid] || { name: '', nickname: '' };
-      const breakdown = Object.keys(a.byContent).sort().map(function(c){
-        return { content: c, hp: a.byContent[c] };
-      });
+      // 練習モード（_practice 接尾の rawHP=0 行など、HP 0 のレコード）は内訳表示から除外。
+      // 「活動した」判定（acc[sid] の有無）には残すため、生徒一覧からは消えない。
+      const breakdown = Object.keys(a.byContent).sort()
+        .filter(function(c){ return Number(a.byContent[c]) > 0; })
+        .map(function(c){
+          return { content: c, hp: a.byContent[c] };
+        });
       return {
         studentId: sid,
         name:      info.name,
