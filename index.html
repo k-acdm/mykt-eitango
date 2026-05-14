@@ -744,6 +744,33 @@
     .chara-bubble { position: relative; flex: 1; background: #fff; border: 2px solid #c8dcff; border-radius: 20px; padding: 14px 18px; font-size: 15px; color: #2d3a8c; line-height: 1.7; box-shadow: 0 3px 12px rgba(79,125,240,.15); text-align: left; }
     .chara-bubble::before { content: ''; position: absolute; left: -11px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: #c8dcff; }
     .chara-bubble::after  { content: ''; position: absolute; left: -8px;  top: 50%; transform: translateY(-50%); border: 8px solid transparent; border-right-color: #fff; }
+    /* ---- アバター機能 Phase α（2026-05-15 新規） ---- */
+    /* ホーム画面：マイカツ君と並ぶアバタースロット。.chara-wrap / .chara-img と
+       同じ寸法（150x150）で並びを揃える。タップで選択 / コーナー画面に遷移。 */
+    .avatar-slot { flex-shrink: 0; text-align: center; cursor: pointer; }
+    .avatar-slot .avatar-wrap { position: relative; height: 200px; display: flex; align-items: flex-end; justify-content: center; }
+    .avatar-slot .avatar-img { width: 150px; height: 150px; object-fit: contain; transition: transform .2s, filter .2s; border-radius: 16px; }
+    .avatar-slot:hover .avatar-img { transform: scale(1.04); filter: drop-shadow(0 2px 6px rgba(124,58,237,.2)); }
+    .avatar-slot .avatar-placeholder { width: 150px; height: 150px; display: flex; align-items: center; justify-content: center; background: rgba(200,220,255,.25); border: 2px dashed #b0c0e0; border-radius: 16px; color: #6b7a99; font-size: 72px; font-weight: bold; line-height: 1; transition: transform .2s, background .2s; }
+    .avatar-slot:hover .avatar-placeholder { transform: scale(1.04); background: rgba(200,220,255,.4); }
+    .avatar-slot .avatar-name { font-size: 13px; color: #666; font-weight: bold; margin-top: 4px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .avatar-slot .avatar-name.placeholder-label { color: #7c3aed; }
+    /* アバターコーナー画面 */
+    .avatar-corner-wrap { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-radius: 18px; padding: 22px 18px; }
+    .avatar-corner-pic { display: flex; justify-content: center; margin-bottom: 12px; }
+    .avatar-corner-pic img { width: 60%; max-width: 280px; height: auto; object-fit: contain; background: #fff; border-radius: 20px; padding: 10px; box-shadow: 0 4px 18px rgba(124,58,237,.18); }
+    .avatar-corner-name { text-align: center; font-size: 18px; font-weight: bold; color: #5b21b6; margin-bottom: 18px; }
+    .avatar-corner-change-btn { display: block; width: 100%; padding: 14px 18px; background: #7c3aed; color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(124,58,237,.3); transition: transform .15s, box-shadow .15s; }
+    .avatar-corner-change-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(124,58,237,.4); }
+    .avatar-corner-divider { height: 1px; background: rgba(124,58,237,.18); margin: 22px 0 18px; }
+    .avatar-corner-soon { background: rgba(255,255,255,.6); border: 2px dashed #c4b5fd; border-radius: 14px; padding: 18px 14px; text-align: center; color: #6b21a8; }
+    .avatar-corner-soon-title { font-size: 16px; font-weight: bold; margin-bottom: 6px; }
+    .avatar-corner-soon-msg { font-size: 13px; color: #7c3aed; }
+    /* アバター選択画面 */
+    .avatar-select-card { display: block; width: 80%; max-width: 360px; margin: 14px auto; background: #fff; border: 2px solid transparent; border-radius: 18px; padding: 14px; box-shadow: 0 3px 12px rgba(0,0,0,.08); cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s; }
+    .avatar-select-card:hover { transform: scale(1.02); box-shadow: 0 5px 18px rgba(0,0,0,.12); }
+    .avatar-select-card.selected { border-color: #c4b5fd; box-shadow: 0 4px 16px rgba(124,58,237,.18); background: linear-gradient(135deg, #f5f3ff, #fff); }
+    .avatar-select-card img { display: block; width: 100%; height: auto; object-fit: contain; border-radius: 12px; }
     @keyframes bigbounce { 0%,100%{transform:translateY(0) scale(1) rotate(0deg)} 30%{transform:translateY(-26px) scale(1.08) rotate(-3deg)} 60%{transform:translateY(-10px) scale(1.04) rotate(2deg)} }
     @keyframes cbounce  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-16px)} }
     @keyframes cbob     { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
@@ -893,6 +920,8 @@
     .content-btn.c-wabun1    { background: linear-gradient(135deg,#b28dff,#7c4fff); }
     .content-btn.c-wabun2    { background: linear-gradient(135deg,#f093fb,#f5576c); }
     .content-btn.c-lison     { background: linear-gradient(135deg,#1e3c72,#2a5298); }
+    /* アバターコーナー：薄ラベンダー系（今日の運勢の深紫より淡く、別物と分かる差別化）。 */
+    .content-btn.c-avatar    { background: linear-gradient(135deg,#a78bfa,#7c3aed); }
     .content-btn .ico-mascot { display:block; box-sizing:border-box; width:56px; height:56px; margin:0 auto 6px; padding:6px; object-fit:contain; background: rgba(255,255,255,.18); border-radius:14px; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); transition: transform .2s, background .2s; }
     .content-btn:not(.disabled):hover .ico-mascot { transform: scale(1.06); background: rgba(255,255,255,.26); }
     @media (max-width: 480px) { .content-btn .ico-mascot { width:48px; height:48px; padding:5px; border-radius:12px; } }
@@ -1036,6 +1065,12 @@
       .content-btn .ico { font-size: 26px; }
       .content-btn .badge-hp { font-size: 9px; padding: 2px 6px; }
       .mate-row { flex-direction: column; gap: 6px; }
+      .avatar-slot .avatar-wrap { height: 140px; }
+      .avatar-slot .avatar-img,
+      .avatar-slot .avatar-placeholder { width: 110px; height: 110px; }
+      .avatar-slot .avatar-placeholder { font-size: 56px; }
+      .avatar-corner-pic img { width: 70%; }
+      .avatar-select-card { width: 92%; }
       .chara-bubble { width: 100%; }
       .chara-bubble::before { left: 50%; top: -11px; transform: translateX(-50%); border: 9px solid transparent; border-right-color: transparent; border-bottom-color: #c8dcff; }
       .chara-bubble::after  { left: 50%; top: -8px;  transform: translateX(-50%); border: 8px solid transparent; border-right-color: transparent; border-bottom-color: #fff; }
@@ -1764,6 +1799,16 @@
           </div>
           <div class="chara-name">マイカツ君</div>
         </div>
+        <!-- アバター機能 Phase α：マイカツ君と同サイズのアバター枠。
+             未選択時はプレースホルダー「？」、選択済みは選んだベース画像を表示。
+             タップで onAvatarSlotTap() に飛ぶ（未選択→選択画面 / 選択済→コーナー画面）。 -->
+        <div class="avatar-slot" id="avatar-slot" onclick="onAvatarSlotTap()" role="button" tabindex="0">
+          <div class="avatar-wrap">
+            <img class="avatar-img" id="avatar-img" alt="アバター" style="display:none">
+            <div class="avatar-placeholder" id="avatar-placeholder">？</div>
+          </div>
+          <div class="avatar-name" id="avatar-name">アバターを選ぶ</div>
+        </div>
         <div class="chara-bubble" id="chara-msg"></div>
       </div>
       <div class="welcome-name" id="welcome-name"></div>
@@ -1840,6 +1885,14 @@
         </button>
         <button class="content-btn c-himitsu" onclick="showFortuneScreen()">
           <span class="ico">🔮</span>今日の運勢
+        </button>
+        <!-- アバターコーナー（2026-05-15 Phase α 新規）。
+             未選択生徒には NEW バッジを表示して導線を強調（_applyAvatarCornerCardState で制御）。
+             onclick は内部で「未選択→選択画面 / 選択済→コーナー画面」を分岐する。 -->
+        <button class="content-btn c-avatar" id="card-avatar-corner" onclick="onAvatarCardTap()">
+          <span class="badge-soon" id="card-avatar-new-badge" style="display:none;background:linear-gradient(135deg,#a78bfa,#7c3aed);color:#fff">NEW</span>
+          <span class="ico">✨</span>アバターコーナー
+          <span class="content-btn-sub">アバターを変更したり、着せ替えで楽しもう<br>（着せ替えは近日公開）</span>
         </button>
       </div>
     </div>
@@ -1926,6 +1979,45 @@
     <div class="char-intro-title">マイ活アプリのキャラクターたち</div>
     <div id="char-intro-grid" class="char-intro-grid"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホームに戻る</button>
+  </div>
+</div>
+<!-- アバターコーナー画面（2026-05-15 Phase α 新規） -->
+<div id="screen-avatar-corner" class="screen">
+  <header><h1>✨ アバターコーナー</h1></header>
+  <div class="container" style="padding-top:20px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">← 戻る</button>
+    <div class="avatar-corner-wrap">
+      <div class="avatar-corner-pic">
+        <img id="avatar-corner-img" alt="アバター">
+      </div>
+      <div class="avatar-corner-name" id="avatar-corner-name"></div>
+      <button class="avatar-corner-change-btn" onclick="showAvatarSelect()">アバターを変更する</button>
+      <div class="avatar-corner-divider"></div>
+      <div class="avatar-corner-soon">
+        <div class="avatar-corner-soon-title">📦 着せ替えアイテム</div>
+        <div class="avatar-corner-soon-msg">近日公開、お楽しみに</div>
+      </div>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+<!-- アバター選択画面（2026-05-15 Phase α 新規） -->
+<div id="screen-avatar-select" class="screen">
+  <header><h1>アバターを選ぼう</h1></header>
+  <div class="container" style="padding-top:20px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="backFromAvatarSelect()">← 戻る</button>
+    <p style="text-align:center;color:#666;font-size:14px;margin-bottom:8px">気に入ったアバターをタップしてね</p>
+    <div id="avatar-select-list">
+      <div class="avatar-select-card" id="avatar-select-card-boy"     data-base="boy"     onclick="selectAvatarBase('boy')"     role="button" tabindex="0">
+        <img src="images/avatar/base_boy.png" alt="男の子のアバター">
+      </div>
+      <div class="avatar-select-card" id="avatar-select-card-girl"    data-base="girl"    onclick="selectAvatarBase('girl')"    role="button" tabindex="0">
+        <img src="images/avatar/base_girl.png" alt="女の子のアバター">
+      </div>
+      <div class="avatar-select-card" id="avatar-select-card-neutral" data-base="neutral" onclick="selectAvatarBase('neutral')" role="button" tabindex="0">
+        <img src="images/avatar/base_neutral.png" alt="中性的なアバター">
+      </div>
+    </div>
   </div>
 </div>
 <div id="screen-level" class="screen">
@@ -3880,12 +3972,147 @@
     }
   }
 
+  // =============================================
+  // アバター機能 Phase α（2026-05-15 新規）
+  // =============================================
+  // セッション中のアバター状態（ニックネーム / base / items / equipped）。
+  // ホーム表示時に getAvatarState で読み込み、saveAvatarBase 成功時に更新する。
+  // items / equipped は Phase β で使う。Phase α では参照しない。
+  var _avatarState = { base: '', items: [], equipped: {}, nickname: '' };
+
+  var AVATAR_BASE_IMG = {
+    boy:     'images/avatar/base_boy.png',
+    girl:    'images/avatar/base_girl.png',
+    neutral: 'images/avatar/base_neutral.png'
+  };
+
+  // ホーム画面のマイカツ君隣アバター枠 + 下部カード（NEW バッジ）を、
+  // _avatarState の base 値に応じて描画する。
+  function _renderAvatarSlot() {
+    var img         = document.getElementById('avatar-img');
+    var placeholder = document.getElementById('avatar-placeholder');
+    var nameEl      = document.getElementById('avatar-name');
+    var newBadge    = document.getElementById('card-avatar-new-badge');
+    if (!img || !placeholder || !nameEl) return;
+    var base = _avatarState.base;
+    if (base && AVATAR_BASE_IMG[base]) {
+      img.src = AVATAR_BASE_IMG[base];
+      img.style.display = '';
+      placeholder.style.display = 'none';
+      nameEl.textContent = _avatarState.nickname || '';
+      nameEl.classList.remove('placeholder-label');
+      if (newBadge) newBadge.style.display = 'none';
+    } else {
+      img.style.display = 'none';
+      img.removeAttribute('src');
+      placeholder.style.display = '';
+      nameEl.textContent = 'アバターを選ぶ';
+      nameEl.classList.add('placeholder-label');
+      // 未選択生徒には NEW バッジで誘導
+      if (newBadge) newBadge.style.display = '';
+    }
+  }
+
+  // ホーム画面表示時の getAvatarState 呼び出し（cachedGasGet で 5 分キャッシュ）。
+  // 失敗時はプレースホルダー（？）表示のままにする。
+  function _loadAvatarStateOnHome() {
+    if (!_studentId) { _renderAvatarSlot(); return; }
+    cachedGasGet({ action: 'getAvatarState', studentId: _studentId }).then(function(res){
+      if (res && res.ok) {
+        _avatarState.base     = String(res.base || '');
+        _avatarState.items    = Array.isArray(res.items) ? res.items : [];
+        _avatarState.equipped = (res.equipped && typeof res.equipped === 'object') ? res.equipped : {};
+        _avatarState.nickname = String(res.nickname || '');
+      }
+      _renderAvatarSlot();
+    }).catch(function(){
+      // エラー時はプレースホルダー表示で UX を止めない
+      _renderAvatarSlot();
+    });
+  }
+
+  // ホーム画面のマイカツ君隣アバター枠タップ時。
+  function onAvatarSlotTap() {
+    if (_avatarState.base) {
+      showAvatarCorner();
+    } else {
+      showAvatarSelect();
+    }
+  }
+  // ホーム画面下部の「アバターコーナー」カードタップ時。動作は同じ分岐。
+  function onAvatarCardTap() {
+    onAvatarSlotTap();
+  }
+
+  // アバターコーナー画面を表示。state が空の時（直接遷移された保険）は選択画面に飛ばす。
+  function showAvatarCorner() {
+    if (!_avatarState.base) {
+      showAvatarSelect();
+      return;
+    }
+    var img = document.getElementById('avatar-corner-img');
+    var nm  = document.getElementById('avatar-corner-name');
+    if (img && AVATAR_BASE_IMG[_avatarState.base]) img.src = AVATAR_BASE_IMG[_avatarState.base];
+    if (nm)  nm.textContent  = _avatarState.nickname || '';
+    showScreen('screen-avatar-corner');
+  }
+
+  // アバター選択画面を表示。現在選択中のアバターには微妙にハイライトをかける。
+  function showAvatarSelect() {
+    var ids = ['boy', 'girl', 'neutral'];
+    for (var i = 0; i < ids.length; i++) {
+      var c = document.getElementById('avatar-select-card-' + ids[i]);
+      if (!c) continue;
+      if (_avatarState.base === ids[i]) c.classList.add('selected');
+      else c.classList.remove('selected');
+    }
+    showScreen('screen-avatar-select');
+  }
+
+  // アバター選択画面の「← 戻る」：選択済みならコーナー画面、未選択ならホームへ。
+  function backFromAvatarSelect() {
+    if (_avatarState.base) showAvatarCorner();
+    else goHome();
+  }
+
+  // アバター選択画面の各カードタップ時：確認 → saveAvatarBase。
+  // saveAvatarBase 二重送信防止：処理中フラグを持つ。
+  var _avatarSaveInFlight = false;
+  function selectAvatarBase(base) {
+    if (_avatarSaveInFlight) return;
+    if (!base || !AVATAR_BASE_IMG[base]) return;
+    var ok = confirm('このアバターにしますか？');
+    if (!ok) return;
+    _avatarSaveInFlight = true;
+    gasGet({ action: 'saveAvatarBase', studentId: _studentId, base: base, _ts: Date.now() }).then(function(res){
+      _avatarSaveInFlight = false;
+      if (!res || !res.ok) {
+        alert('保存に失敗しました：' + ((res && res.message) || '通信エラー'));
+        return;
+      }
+      var wasUnset = !_avatarState.base;
+      _avatarState.base = base;
+      // getAvatarState のキャッシュを破棄して次回 fresh 読み（保護者画面等の整合も保つ）
+      try { _invalidateCacheByAction('getAvatarState'); } catch(e){}
+      // ホーム側スロット + 下部カードバッジを即時反映
+      _renderAvatarSlot();
+      // 遷移先：初回選択 → ホーム、変更 → アバターコーナー
+      if (wasUnset) goHome();
+      else showAvatarCorner();
+    }).catch(function(){
+      _avatarSaveInFlight = false;
+      alert('保存に失敗しました：通信エラー');
+    });
+  }
+
   function showWelcome(nickname, totalHP, loginBonus, stage, streak, title, milestone) {
     document.getElementById('welcome-name').textContent = nickname + ' さん、今日も頑張ろう！';
     document.getElementById('welcome-hp').textContent   = totalHP.toLocaleString();
     document.getElementById('welcome-msg').textContent  = loginBonus > 0 ? '🎁 ログインボーナス +' + loginBonus + 'HP もらったよ！' : '今日もよろしく！';
     showCharacter(stage || 4, streak || 0, title || 'マイカツ見習い');
     _applyWabun1HpBadge();
+    // アバター状態のセッション側 nickname を同期（getAvatarState 取得前のフォールバック表示用）
+    _avatarState.nickname = nickname || '';
     showScreen('screen-welcome');
     if (milestone) setTimeout(function(){ showMilestoneFlash(milestone); }, 600);
     loadTodayQuote();
@@ -3896,6 +4123,8 @@
     // 2026-05-12 サンゴタン関連
     loadSangoWeeklyFeatured();        // 今週の秀逸作品カード
     checkSangoStarredNotifications(); // ⭐認定通知（未読のみ）
+    // アバター状態を取得（getAvatarState、5 分キャッシュ）
+    _loadAvatarStateOnHome();
   }
   function toggleChangeArea() { var area = document.getElementById('change-area'); area.style.display = area.style.display === 'none' ? 'block' : 'none'; }
   function openModal()  { document.getElementById('img-modal').classList.add('active'); }
@@ -4417,6 +4646,8 @@
     loadUnreadMessageCount();
     // 2026-05-12 サンゴタン⭐認定通知（三語短文提出後の遷移でも反映される）
     checkSangoStarredNotifications();
+    // アバター変更があれば即時反映（saveAvatarBase 直後の _avatarState を信頼）
+    _renderAvatarSlot();
   }
   function doLogout() {
     // 2026-05-11 バグ② 修正：iPad ログアウト不能対策（防御層）。

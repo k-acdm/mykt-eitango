@@ -1073,6 +1073,12 @@ function doGet(e) {
       //   markBirthdayGreetShown : サプライズ画面の「ありがとう」ボタン押下で年フラグを書き込む。
       else if (action === 'checkBirthdayGreet')       result = checkBirthdayGreet(params);
       else if (action === 'markBirthdayGreetShown')   result = markBirthdayGreetShown(params);
+      // アバター機能 Phase α（2026-05-15 新規）：ベース選択 + 所持機能のみ。
+      //   getAvatarState : ホーム表示 / アバターコーナー画面で呼ぶ（base + items + equipped + nickname）。
+      //   saveAvatarBase : アバター選択画面の「決定」押下で呼ぶ（base のみ書き換え）。
+      // Phase β（着せ替え）/ γ（マイカツ君との会話）はスコープ外。列だけ先行で用意済み。
+      else if (action === 'getAvatarState')           result = getAvatarState(params);
+      else if (action === 'saveAvatarBase')           result = saveAvatarBase(params);
       else if (action === 'getKobunSet')              result = getKobunSet(params);
       else if (action === 'submitKobunSet')           result = submitKobunSet(params);
       else if (action === 'getKobunTodayRawHP')       result = getKobunTodayRawHP(params);
@@ -13876,6 +13882,224 @@ function markBirthdayGreetShown(params) {
     return { ok: true, year: year };
   } catch (err) {
     console.error('[markBirthdayGreetShown]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// ========================================================================
+// アバター機能 Phase α（2026-05-15 新規）
+// ------------------------------------------------------------------------
+// 仕様：
+//   - Students / SpecialAccounts シートに 3 列を新設：
+//       AVATAR_BASE      : 'boy' / 'girl' / 'neutral' / ''（未選択）
+//       AVATAR_ITEMS     : 所持着せ替えアイテム ID 配列の JSON 文字列（Phase β 用、現状 '[]'）
+//       AVATAR_EQUIPPED  : 現在装着中のアイテム ID マップの JSON 文字列（Phase β 用、現状 '{}'）
+//   - Phase α は「ベース 1 枚を選んで所持する」だけのスコープ。
+//     items / equipped はスキーマだけ用意して空で持っておき、Phase β で初めて書き込み。
+//
+// 実装方針（BIRTHDAY 列追加と完全同パターン）：
+//   - 列名をヘッダーから動的に解決（固定インデックス不使用）。SpecialAccounts シートとの
+//     位置乖離を吸収。
+//   - 列がなければ saveAvatarBase 内で末尾に追加（schema migration）。
+//   - 書き込み時：setNumberFormat('@') で text 固定してから setValue
+//     （Sheets ロケールの自動変換から保護。BIRTHDAY 列追加時の事例と同根対策）。
+//   - 読み込み時：JSON.parse 失敗時は空配列 / 空オブジェクトに戻す（防御的）。
+//   - キャッシュ整合性：書き込み時は対応シートの cache を invalidate。
+// ========================================================================
+
+const AVATAR_BASE_HEADER_NAME     = 'AVATAR_BASE';
+const AVATAR_ITEMS_HEADER_NAME    = 'AVATAR_ITEMS';
+const AVATAR_EQUIPPED_HEADER_NAME = 'AVATAR_EQUIPPED';
+
+// 許容するベース値（クライアントから来る値はこの 3 つに限定）
+const AVATAR_BASE_ALLOWED = ['boy', 'girl', 'neutral'];
+
+// --- 列インデックス検出ヘルパー（_findBirthdayColIdx と同パターン） ---
+function _findAvatarBaseColIdx(allValues) {
+  if (!allValues || !allValues.length || !allValues[0] || !allValues[0].length) return -1;
+  const header = allValues[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === AVATAR_BASE_HEADER_NAME) return i;
+  }
+  return -1;
+}
+function _findAvatarItemsColIdx(allValues) {
+  if (!allValues || !allValues.length || !allValues[0] || !allValues[0].length) return -1;
+  const header = allValues[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === AVATAR_ITEMS_HEADER_NAME) return i;
+  }
+  return -1;
+}
+function _findAvatarEquippedColIdx(allValues) {
+  if (!allValues || !allValues.length || !allValues[0] || !allValues[0].length) return -1;
+  const header = allValues[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === AVATAR_EQUIPPED_HEADER_NAME) return i;
+  }
+  return -1;
+}
+
+// --- 列保証ヘルパー（_ensureBirthdayColOnSheet と同パターン） ---
+// それぞれ 0-based index と created フラグを返す。
+function _ensureAvatarBaseColOnSheet(sheet) {
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === AVATAR_BASE_HEADER_NAME) {
+      return { idx: i, created: false };
+    }
+  }
+  const newCol = lastCol + 1;
+  sheet.getRange(1, newCol).setValue(AVATAR_BASE_HEADER_NAME);
+  return { idx: newCol - 1, created: true };
+}
+function _ensureAvatarItemsColOnSheet(sheet) {
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === AVATAR_ITEMS_HEADER_NAME) {
+      return { idx: i, created: false };
+    }
+  }
+  const newCol = lastCol + 1;
+  sheet.getRange(1, newCol).setValue(AVATAR_ITEMS_HEADER_NAME);
+  return { idx: newCol - 1, created: true };
+}
+function _ensureAvatarEquippedColOnSheet(sheet) {
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === AVATAR_EQUIPPED_HEADER_NAME) {
+      return { idx: i, created: false };
+    }
+  }
+  const newCol = lastCol + 1;
+  sheet.getRange(1, newCol).setValue(AVATAR_EQUIPPED_HEADER_NAME);
+  return { idx: newCol - 1, created: true };
+}
+
+// loc.allValues から AVATAR_BASE 値を抽出。許容外の値は '' に正規化（防御的）。
+function _readAvatarBaseFromLoc(loc) {
+  if (!loc) return '';
+  const idx = _findAvatarBaseColIdx(loc.allValues);
+  if (idx < 0) return '';
+  const v = loc.rowValues[idx];
+  if (v == null || v === '') return '';
+  const s = String(v).trim();
+  return (AVATAR_BASE_ALLOWED.indexOf(s) >= 0) ? s : '';
+}
+
+// loc.allValues から AVATAR_ITEMS（JSON 配列文字列）を抽出。
+// パース失敗 / 配列でない場合は空配列を返す（Phase β で安全に拡張できるよう防御）。
+function _readAvatarItemsFromLoc(loc) {
+  if (!loc) return [];
+  const idx = _findAvatarItemsColIdx(loc.allValues);
+  if (idx < 0) return [];
+  const v = loc.rowValues[idx];
+  if (v == null || v === '') return [];
+  try {
+    const parsed = JSON.parse(String(v));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// loc.allValues から AVATAR_EQUIPPED（JSON オブジェクト文字列）を抽出。
+// パース失敗 / オブジェクトでない場合は空オブジェクトを返す。
+function _readAvatarEquippedFromLoc(loc) {
+  if (!loc) return {};
+  const idx = _findAvatarEquippedColIdx(loc.allValues);
+  if (idx < 0) return {};
+  const v = loc.rowValues[idx];
+  if (v == null || v === '') return {};
+  try {
+    const parsed = JSON.parse(String(v));
+    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+// --- 公開 API ---
+
+// アバター状態を取得（ホーム / アバターコーナーから呼ぶ）。
+// params: { studentId }
+// return: { ok, base, items, equipped, nickname } or { ok:false, message }
+function getAvatarState(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) {
+      // 行が見つからなくてもエラーにせず、空のアバター状態を返す（フロントで「？」表示にフォールバック）
+      return { ok: true, base: '', items: [], equipped: {}, nickname: '' };
+    }
+
+    const base     = _readAvatarBaseFromLoc(loc);
+    const items    = _readAvatarItemsFromLoc(loc);
+    const equipped = _readAvatarEquippedFromLoc(loc);
+    const nickname = String(loc.rowValues[COL_NICKNAME] || '').trim();
+
+    return { ok: true, base: base, items: items, equipped: equipped, nickname: nickname };
+  } catch (err) {
+    console.error('[getAvatarState]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// アバターベースを保存（アバター選択画面の「決定」押下時）。
+// params: { studentId, base }
+// return: { ok, base } or { ok:false, message }
+function saveAvatarBase(params) {
+  try {
+    const sid  = String((params && params.studentId) || '').trim();
+    const base = String((params && params.base) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    if (AVATAR_BASE_ALLOWED.indexOf(base) < 0) {
+      return { ok: false, message: 'アバターの種類が正しくありません' };
+    }
+
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { ok: false, message: '生徒IDが見つかりません' };
+
+    // 3 列を保証（無ければ末尾に追加）。
+    // ベースだけ書き込めば動くが、Phase β でいきなり items/equipped を扱えるよう
+    // 同時に列だけ用意しておく（schema migration を一気に済ませる）。
+    const ensureBase     = _ensureAvatarBaseColOnSheet(loc.sheet);
+    const ensureItems    = _ensureAvatarItemsColOnSheet(loc.sheet);
+    const ensureEquipped = _ensureAvatarEquippedColOnSheet(loc.sheet);
+
+    // ★ setNumberFormat('@') で text 固定してから setValue
+    //   （BIRTHDAY 列追加時に Date 化された事例の同根対策。Phase β で
+    //    items='["hat_01"]' のような文字列を書く時にも効く）。
+    const cellBase = loc.sheet.getRange(loc.rowIdx + 1, ensureBase.idx + 1);
+    cellBase.setNumberFormat('@');
+    cellBase.setValue(base);
+
+    // items / equipped の列を新規作成した場合は、既存行は空文字のまま。
+    // 「空文字」はフロント / GAS 両方で「空配列 / 空オブジェクト」として
+    // 正しく解釈される（_readAvatarItemsFromLoc / _readAvatarEquippedFromLoc 参照）。
+    // 既存値があれば一切上書きしない（Phase β を見据えた防御）。
+
+    // キャッシュ整合性：列を追加した場合は配列長が変わるため必ず invalidate。
+    // saveBirthday と同パターン。
+    try {
+      const cache = CacheService.getScriptCache();
+      if (loc.sheetName === SHEET_STUDENTS) {
+        cache.remove('cache_students_values');
+        _cacheLog('cache_students_values', 'invalidate', 'saveAvatarBase sid=' + sid);
+      } else {
+        cache.remove('cache_special_accounts_values');
+        _cacheLog('cache_special_accounts_values', 'invalidate', 'saveAvatarBase sid=' + sid);
+      }
+    } catch(_) {}
+
+    return { ok: true, base: base };
+  } catch (err) {
+    console.error('[saveAvatarBase]', err);
     return { ok: false, message: String(err) };
   }
 }
