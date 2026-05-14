@@ -747,6 +747,8 @@
     /* ---- アバター機能 Phase α（2026-05-15 新規） ---- */
     /* ホーム画面：マイカツ君と並ぶアバタースロット。.chara-wrap / .chara-img と
        同じ寸法（150x150）で並びを揃える。タップで選択 / コーナー画面に遷移。 */
+    /* アバター枠を独立行として中央配置（2026-05-15 修正：マイカツ君と分離） */
+    .avatar-home-row { display: flex; justify-content: center; margin: 6px 0 12px; }
     .avatar-slot { flex-shrink: 0; text-align: center; cursor: pointer; }
     .avatar-slot .avatar-wrap { position: relative; height: 200px; display: flex; align-items: flex-end; justify-content: center; }
     .avatar-slot .avatar-img { width: 150px; height: 150px; object-fit: contain; transition: transform .2s, filter .2s; border-radius: 16px; }
@@ -1027,6 +1029,17 @@
     /* キャラクター紹介ページ */
     .char-intro-home-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#fff0f5,#f3e5ff); border: 2px solid #b24bf3; border-radius: 14px; box-shadow: 0 3px 12px rgba(178,75,243,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; font-size: 16px; font-weight: bold; color: #6a1b9a; }
     .char-intro-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(178,75,243,.26); }
+    /* アバターコーナー：ホーム画面の横長ボタン（2026-05-15 学習コンテンツ群から分離） */
+    .avatar-corner-home-btn { position: relative; width: 100%; display: flex; align-items: center; gap: 14px; padding: 16px 18px; background: linear-gradient(135deg,#f5f3ff,#ede9fe); border: 2px solid #a78bfa; border-radius: 14px; box-shadow: 0 3px 12px rgba(124,58,237,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; text-align: left; }
+    .avatar-corner-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(124,58,237,.28); }
+    .avatar-corner-home-title { flex-shrink: 0; font-size: 16px; font-weight: bold; color: #5b21b6; letter-spacing: .3px; }
+    .avatar-corner-home-sub { flex: 1; font-size: 13px; color: #6b21a8; line-height: 1.55; opacity: .95; }
+    .avatar-corner-home-badge { position: absolute; top: -8px; right: 10px; background: linear-gradient(135deg,#a78bfa,#7c3aed); color: #fff; font-size: 11px; font-weight: bold; padding: 3px 10px; border-radius: 999px; box-shadow: 0 2px 6px rgba(124,58,237,.4); letter-spacing: .5px; }
+    @media (max-width: 480px) {
+      .avatar-corner-home-btn { flex-direction: column; align-items: stretch; text-align: center; gap: 6px; padding: 14px 16px; }
+      .avatar-corner-home-title { font-size: 15px; }
+      .avatar-corner-home-sub { font-size: 12px; }
+    }
     .char-intro-title { text-align: center; font-size: 22px; font-weight: bold; background: linear-gradient(135deg,#ff6ea0,#b24bf3,#4f7df0); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: 1px; margin: 8px 0 18px; }
     .char-intro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .char-intro-card { display: flex; flex-direction: column; align-items: center; background: #fff; border: 2px solid #f0e6ff; border-radius: 16px; padding: 18px 14px 16px; box-shadow: 0 3px 12px rgba(0,0,0,.06); transition: transform .15s, box-shadow .15s; }
@@ -1791,6 +1804,10 @@
         <div class="chara-title-badge"  id="chara-title-badge"></div><br>
         <div class="chara-streak-label" id="chara-streak-label"></div>
       </div>
+      <!-- マイカツ君セット：吹き出しはマイカツ君に密着させ、発言の帰属を明確にする。
+           2026-05-15 修正：以前は同じ mate-row 内にアバターも並べていたが、
+           吹き出しがアバターの右にあるとアバター発言に見えてしまうため、
+           アバター枠は下の独立行（.avatar-home-row）に分離した。 -->
       <div class="mate-row">
         <div class="mate-avatar">
           <div class="chara-wrap">
@@ -1799,9 +1816,12 @@
           </div>
           <div class="chara-name">マイカツ君</div>
         </div>
-        <!-- アバター機能 Phase α：マイカツ君と同サイズのアバター枠。
-             未選択時はプレースホルダー「？」、選択済みは選んだベース画像を表示。
-             タップで onAvatarSlotTap() に飛ぶ（未選択→選択画面 / 選択済→コーナー画面）。 -->
+        <div class="chara-bubble" id="chara-msg"></div>
+      </div>
+      <!-- アバター機能 Phase α：マイカツ君と同サイズのアバター枠を独立行に配置。
+           未選択時はプレースホルダー「？」、選択済みは選んだベース画像を表示。
+           タップで onAvatarSlotTap() に飛ぶ（未選択→選択画面 / 選択済→コーナー画面）。 -->
+      <div class="avatar-home-row">
         <div class="avatar-slot" id="avatar-slot" onclick="onAvatarSlotTap()" role="button" tabindex="0">
           <div class="avatar-wrap">
             <img class="avatar-img" id="avatar-img" alt="アバター" style="display:none">
@@ -1809,7 +1829,6 @@
           </div>
           <div class="avatar-name" id="avatar-name">アバターを選ぶ</div>
         </div>
-        <div class="chara-bubble" id="chara-msg"></div>
       </div>
       <div class="welcome-name" id="welcome-name"></div>
       <div class="welcome-msg"  id="welcome-msg"></div>
@@ -1886,14 +1905,6 @@
         <button class="content-btn c-himitsu" onclick="showFortuneScreen()">
           <span class="ico">🔮</span>今日の運勢
         </button>
-        <!-- アバターコーナー（2026-05-15 Phase α 新規）。
-             未選択生徒には NEW バッジを表示して導線を強調（_applyAvatarCornerCardState で制御）。
-             onclick は内部で「未選択→選択画面 / 選択済→コーナー画面」を分岐する。 -->
-        <button class="content-btn c-avatar" id="card-avatar-corner" onclick="onAvatarCardTap()">
-          <span class="badge-soon" id="card-avatar-new-badge" style="display:none;background:linear-gradient(135deg,#a78bfa,#7c3aed);color:#fff">NEW</span>
-          <span class="ico">✨</span>アバターコーナー
-          <span class="content-btn-sub">アバターを変更したり、着せ替えで楽しもう<br>（着せ替えは近日公開）</span>
-        </button>
       </div>
     </div>
 
@@ -1924,6 +1935,17 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ③-3 アバターコーナー（2026-05-15 学習コンテンツ群から分離して横長ボタン化）。
+         未選択生徒には NEW バッジを表示して導線を強調（_renderAvatarSlot で制御）。
+         onclick は内部で「未選択→選択画面 / 選択済→コーナー画面」を分岐する。 -->
+    <div class="dash-section">
+      <button type="button" class="avatar-corner-home-btn" id="card-avatar-corner" onclick="onAvatarCardTap()">
+        <span class="avatar-corner-home-title">✨ アバターコーナー ✨</span>
+        <span class="avatar-corner-home-sub">アバターを変更したり、着せ替えで楽しもう（着せ替えは近日公開）</span>
+        <span class="avatar-corner-home-badge" id="card-avatar-new-badge" style="display:none">NEW</span>
+      </button>
     </div>
 
     <!-- ③-2 サンゴタンが選んだ今週の秀逸作品（2026-05-12 新機能） -->
