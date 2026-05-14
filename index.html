@@ -745,17 +745,18 @@
     .chara-bubble::before { content: ''; position: absolute; left: -11px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: #c8dcff; }
     .chara-bubble::after  { content: ''; position: absolute; left: -8px;  top: 50%; transform: translateY(-50%); border: 8px solid transparent; border-right-color: #fff; }
     /* ---- アバター機能 Phase α（2026-05-15 新規） ---- */
-    /* ホーム画面：マイカツ君と並ぶアバタースロット。.chara-wrap / .chara-img と
-       同じ寸法（150x150）で並びを揃える。タップで選択 / コーナー画面に遷移。 */
-    /* アバター枠を独立行として中央配置（2026-05-15 修正：マイカツ君と分離） */
+    /* ホーム画面：マイカツ君と並ぶアバタースロット。タップで選択 / コーナー画面に遷移。
+       2026-05-15 サイズ改善：アバター画像は縦長アスペクト比のため、強制 150x150 だと
+       左右が letterbox 化して見た目が小さくなる。height 基準で 240px に拡大し、
+       マイカツ君（150x150）と同等以上の存在感を確保（width は auto＝アスペクト比保持）。 */
     .avatar-home-row { display: flex; justify-content: center; margin: 6px 0 12px; }
     .avatar-slot { flex-shrink: 0; text-align: center; cursor: pointer; }
-    .avatar-slot .avatar-wrap { position: relative; height: 200px; display: flex; align-items: flex-end; justify-content: center; }
-    .avatar-slot .avatar-img { width: 150px; height: 150px; object-fit: contain; transition: transform .2s, filter .2s; border-radius: 16px; }
+    .avatar-slot .avatar-wrap { position: relative; height: 240px; display: flex; align-items: flex-end; justify-content: center; }
+    .avatar-slot .avatar-img { width: auto; height: 240px; max-width: 200px; object-fit: contain; transition: transform .2s, filter .2s; border-radius: 16px; }
     .avatar-slot:hover .avatar-img { transform: scale(1.04); filter: drop-shadow(0 2px 6px rgba(124,58,237,.2)); }
-    .avatar-slot .avatar-placeholder { width: 150px; height: 150px; display: flex; align-items: center; justify-content: center; background: rgba(200,220,255,.25); border: 2px dashed #b0c0e0; border-radius: 16px; color: #6b7a99; font-size: 72px; font-weight: bold; line-height: 1; transition: transform .2s, background .2s; }
+    .avatar-slot .avatar-placeholder { width: 180px; height: 240px; display: flex; align-items: center; justify-content: center; background: rgba(200,220,255,.25); border: 2px dashed #b0c0e0; border-radius: 16px; color: #6b7a99; font-size: 96px; font-weight: bold; line-height: 1; transition: transform .2s, background .2s; }
     .avatar-slot:hover .avatar-placeholder { transform: scale(1.04); background: rgba(200,220,255,.4); }
-    .avatar-slot .avatar-name { font-size: 13px; color: #666; font-weight: bold; margin-top: 4px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .avatar-slot .avatar-name { font-size: 13px; color: #666; font-weight: bold; margin-top: 4px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .avatar-slot .avatar-name.placeholder-label { color: #7c3aed; }
     /* アバターコーナー画面 */
     .avatar-corner-wrap { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-radius: 18px; padding: 22px 18px; }
@@ -1029,12 +1030,14 @@
     /* キャラクター紹介ページ */
     .char-intro-home-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#fff0f5,#f3e5ff); border: 2px solid #b24bf3; border-radius: 14px; box-shadow: 0 3px 12px rgba(178,75,243,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; font-size: 16px; font-weight: bold; color: #6a1b9a; }
     .char-intro-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(178,75,243,.26); }
-    /* アバターコーナー：ホーム画面の横長ボタン（2026-05-15 学習コンテンツ群から分離） */
-    .avatar-corner-home-btn { position: relative; width: 100%; display: flex; align-items: center; gap: 14px; padding: 16px 18px; background: linear-gradient(135deg,#f5f3ff,#ede9fe); border: 2px solid #a78bfa; border-radius: 14px; box-shadow: 0 3px 12px rgba(124,58,237,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; text-align: left; }
-    .avatar-corner-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(124,58,237,.28); }
-    .avatar-corner-home-title { flex-shrink: 0; font-size: 16px; font-weight: bold; color: #5b21b6; letter-spacing: .3px; }
-    .avatar-corner-home-sub { flex: 1; font-size: 13px; color: #6b21a8; line-height: 1.55; opacity: .95; }
-    .avatar-corner-home-badge { position: absolute; top: -8px; right: 10px; background: linear-gradient(135deg,#a78bfa,#7c3aed); color: #fff; font-size: 11px; font-weight: bold; padding: 3px 10px; border-radius: 999px; box-shadow: 0 2px 6px rgba(124,58,237,.4); letter-spacing: .5px; }
+    /* アバターコーナー：ホーム画面の横長ボタン（2026-05-15 学習コンテンツ群から分離）。
+       2026-05-15 色強化：薄ラベンダーだとボタンとして認識されにくかったため、
+       濃いめラベンダー（#8b5cf6 ベース）+ 白文字で視認性を改善。 */
+    .avatar-corner-home-btn { position: relative; width: 100%; display: flex; align-items: center; gap: 14px; padding: 16px 18px; background: linear-gradient(135deg,#a78bfa,#8b5cf6); border: 2px solid #7c3aed; border-radius: 14px; box-shadow: 0 3px 12px rgba(124,58,237,.35); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; text-align: left; }
+    .avatar-corner-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(124,58,237,.45); }
+    .avatar-corner-home-title { flex-shrink: 0; font-size: 16px; font-weight: bold; color: #fff; letter-spacing: .3px; text-shadow: 0 1px 2px rgba(0,0,0,.15); }
+    .avatar-corner-home-sub { flex: 1; font-size: 13px; color: #fff; line-height: 1.55; opacity: .95; }
+    .avatar-corner-home-badge { position: absolute; top: -8px; right: 10px; background: #fff; color: #7c3aed; font-size: 11px; font-weight: bold; padding: 3px 10px; border-radius: 999px; box-shadow: 0 2px 6px rgba(0,0,0,.25); letter-spacing: .5px; }
     @media (max-width: 480px) {
       .avatar-corner-home-btn { flex-direction: column; align-items: stretch; text-align: center; gap: 6px; padding: 14px 16px; }
       .avatar-corner-home-title { font-size: 15px; }
@@ -1078,10 +1081,11 @@
       .content-btn .ico { font-size: 26px; }
       .content-btn .badge-hp { font-size: 9px; padding: 2px 6px; }
       .mate-row { flex-direction: column; gap: 6px; }
-      .avatar-slot .avatar-wrap { height: 140px; }
-      .avatar-slot .avatar-img,
-      .avatar-slot .avatar-placeholder { width: 110px; height: 110px; }
-      .avatar-slot .avatar-placeholder { font-size: 56px; }
+      /* モバイル：マイカツ君と同等の存在感を保ちつつ縦長アスペクト比で拡大（2026-05-15 サイズ改善） */
+      .avatar-slot .avatar-wrap { height: 180px; }
+      .avatar-slot .avatar-img { width: auto; height: 180px; max-width: 150px; }
+      .avatar-slot .avatar-placeholder { width: 135px; height: 180px; font-size: 72px; }
+      .avatar-slot .avatar-name { max-width: 150px; }
       .avatar-corner-pic img { width: 70%; }
       .avatar-select-card { width: 92%; }
       .chara-bubble { width: 100%; }
