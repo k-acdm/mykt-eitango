@@ -114,11 +114,13 @@
     .kanji-count-btn { background: linear-gradient(135deg, #ffd699, #ffb84d); color: #6b3410; box-shadow: 0 3px 10px rgba(0,0,0,.10); }
     .kanji-count-btn small { opacity: .85; }
     .kanji-count-btn.disabled { background: #d4d4d4; color: #666; cursor: not-allowed; box-shadow: none; }
-    /* 2026-05-08：レベルごとの色分け（5 級 → 2 級でステップアップ感を演出）。
-       5級=緑（成長の第一歩） / 4級=青緑（少し進む） / 3級=青（標準） /
-       準2級=紫（高度な漢字） / 2級=赤（情熱・最高峰）。
+    /* 2026-05-08：レベルごとの色分け（6 級 → 2 級でステップアップ感を演出）。
+       6級=黄（始まりの太陽） / 5級=緑（成長の第一歩） / 4級=青緑（少し進む） /
+       3級=青（標準） / 準2級=紫（高度な漢字） / 2級=赤（情熱・最高峰）。
        2026-05-08 更新：2 級を金系から赤系へ変更（ふくちさん指定、最終ゴールの「燃える情熱」感）。
+       2026-05-16 更新：6 級（小学校5年生程度）を追加。黄〜オレンジで「明るい入り口」感。
        準2級のクラス名は ASCII セーフのため -j2（jun2 略）。 */
+    .kanji-level-btn-6  { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
     .kanji-level-btn-5  { background: linear-gradient(135deg, #6abf69, #4caf50); }
     .kanji-level-btn-4  { background: linear-gradient(135deg, #4dbfb1, #00897b); }
     .kanji-level-btn-3  { background: linear-gradient(135deg, #5499c7, #2874a6); }
@@ -2921,6 +2923,7 @@
       <div class="kanjii-bubble" id="kanjii-bubble-level">どの級に挑戦する？</div>
     </div>
     <div class="kanji-level-grid">
+      <button class="kanji-level-btn kanji-level-btn-6"  onclick="showKanjiCountSelect('6')">漢検 6級レベル<small>小学校5年生程度</small></button>
       <button class="kanji-level-btn kanji-level-btn-5"  onclick="showKanjiCountSelect('5')">漢検 5級レベル<small>小学校6年生程度</small></button>
       <button class="kanji-level-btn kanji-level-btn-4"  onclick="showKanjiCountSelect('4')">漢検 4級レベル<small>中学校1〜2年生程度</small></button>
       <button class="kanji-level-btn kanji-level-btn-3"  onclick="showKanjiCountSelect('3')">漢検 3級レベル<small>中学校3年生程度</small></button>

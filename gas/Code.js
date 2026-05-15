@@ -11981,7 +11981,7 @@ function apologyWabun1MonyoBug_20260502() {
 // シート構成:
 //   KanjiYomi (11 列): セット番号 | 問番号 | 漢字ID | 漢字 | 問題 | 選A | 選B | 選C | 選D | 正解 | 級
 //   KanjiKaki ( 7 列): セット番号 | 問番号 | 漢字ID | 漢字 | 問題 | 書き正解 | 級
-// 級表記: '5' / '4' / '3' / '準2' / '2'（漢検 5級〜2級）
+// 級表記: '6' / '5' / '4' / '3' / '準2' / '2'（漢検 6級〜2級。2026-05-16 に 6 級追加）
 // 強調マーカー: 問題文中の {xxx} は出題ターゲット部分、フロントで色付き表示
 // HP: rawHP = 50（10問セット）/ 100（20問セット）。1日 100HP 上限（kanji 内独立）。
 //     上限到達後は練習モード（HP 加算なし）。連続週²ボーナスは他コンテンツと同じ。
@@ -11989,14 +11989,14 @@ function apologyWabun1MonyoBug_20260502() {
 //     ふくちさん 36 年経験「漢字は英単語と同様に『知識』なので、全問正解が理にかなってる。
 //     基礎計算は思考系なので 8 割で良し」の教育的判断に基づく。英単語RUSH と同じく満点合格。
 // HPLog type: 'kanji_<level>_<count>' or 'kanji_<level>_<count>_practice'
-//   level は '5' / '4' / '3' / '準2' / '2'（'準' を含むため _ で区切ると 'kanji_準2_10' になる点に注意）
+//   level は '6' / '5' / '4' / '3' / '準2' / '2'（'準' を含むため _ で区切ると 'kanji_準2_10' になる点に注意）
 const SHEET_KANJI_YOMI = 'KanjiYomi';
 const SHEET_KANJI_KAKI = 'KanjiKaki';
 // 2026-05-12 バグ⑤ Phase B（案A）：書き判定結果の永続化用シート。軽量版F'。
 // 1 提出ごとに各問 1 行ずつ appendRow（5 問セットで 5 行、10 問セットで 10 行）。
 // 「正しく書いたのに ❌」報告時の事後検証 / プロンプト調整評価の基盤。
 const SHEET_KANJI_SUBMISSIONS = 'KanjiSubmissions';
-const KANJI_VALID_LEVELS = ['5', '4', '3', '準2', '2'];
+const KANJI_VALID_LEVELS = ['6', '5', '4', '3', '準2', '2'];
 const KANJI_DAILY_RAWHP_CAP = 100;
 const KANJI_PASS_RATIO = 1.0;  // 2026-05-08 0.8 → 1.0（全問正解で合格）。知識系コンテンツとしての英単語RUSH 整合
 const KANJI_YOMI_HEADERS = ['セット番号', '問番号', '漢字ID', '漢字', '問題', '選A', '選B', '選C', '選D', '正解', '級'];
