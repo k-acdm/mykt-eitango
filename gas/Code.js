@@ -14162,65 +14162,229 @@ function _readAvatarEquippedFromLoc(loc) {
 
 // --- 公開 API ---
 
+// 単一シートから sid に対応する行を「フレッシュ読み」で探し、AVATAR 列の値を
+// 取り出すヘルパー（getAvatarState 用の独立実装）。
+//
+// 設計方針（2026-05-15 二度目のバグ修正）：
+//   - 既存の _findAccountRowOnSheet / _readAvatarBaseFromLoc は loc を経由する。
+//     一度目の修正でフォールバック層を増やしたが、それでもダメだったため、
+//     さらにシンプルな実装に変えて「Students と SpecialAccounts を別々に」
+//     試す。
+//   - sid 比較を更に防御的に（前後の不可視文字も除去、数値/文字列両方を比較）。
+//   - 列ヘッダー検索もスペース除去・正規化を強化。
+//   - 1 つのシートで AVATAR_BASE が見つからなくても、もう一方のシートを試す
+//     （Students 優先だが、片方にしか書かれていないケースを救済）。
+//   - レスポンスに `_debug` を含めてフロントの DevTools から確認可能にする。
+function _avatarReadFromSheetBySid(sheet, sid) {
+  const out = {
+    found:        false,
+    rowIdx:       -1,
+    base:         '',
+    items:        [],
+    equipped:     {},
+    nickname:     '',
+    baseColIdx:   -1,
+    itemsColIdx:  -1,
+    equipColIdx:  -1,
+    baseRaw:      null,
+    itemsRaw:     null,
+    equipRaw:     null,
+    error:        null
+  };
+  if (!sheet) return out;
+  try {
+    if (sheet.getLastRow() < 2 || sheet.getLastColumn() < 1) return out;
+
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    const allValues = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+    const header = allValues[0] || [];
+
+    // === 列ヘッダー検索（強化版：trim + 不可視文字除去 + case 不変） ===
+    function _normHeader(v) {
+      // 不可視/ゼロ幅文字も含めて削ぎ落とす
+      return String(v == null ? '' : v).replace(/[\s​‌‍﻿ ]+/g, '').toUpperCase();
+    }
+    const TARGET_BASE  = _normHeader(AVATAR_BASE_HEADER_NAME);
+    const TARGET_ITEMS = _normHeader(AVATAR_ITEMS_HEADER_NAME);
+    const TARGET_EQUIP = _normHeader(AVATAR_EQUIPPED_HEADER_NAME);
+    for (let c = 0; c < header.length; c++) {
+      const h = _normHeader(header[c]);
+      if (h && out.baseColIdx  < 0 && h === TARGET_BASE)  out.baseColIdx  = c;
+      if (h && out.itemsColIdx < 0 && h === TARGET_ITEMS) out.itemsColIdx = c;
+      if (h && out.equipColIdx < 0 && h === TARGET_EQUIP) out.equipColIdx = c;
+    }
+
+    // === sid に対応する行を線形探索（数値/文字列両対応 + 不可視除去） ===
+    function _normSid(v) {
+      return String(v == null ? '' : v).replace(/[\s​‌‍﻿ ]+/g, '');
+    }
+    const target = _normSid(sid);
+    let rowIdx = -1;
+    for (let r = 1; r < allValues.length; r++) {
+      if (_normSid(allValues[r][COL_ID]) === target) { rowIdx = r; break; }
+    }
+    if (rowIdx < 0) return out;
+
+    out.found  = true;
+    out.rowIdx = rowIdx;
+    out.nickname = String(allValues[rowIdx][COL_NICKNAME] || '').trim();
+
+    // === AVATAR_BASE 値読み（rowValues 経由 → 失敗なら個別セル読み） ===
+    if (out.baseColIdx >= 0) {
+      const rv = allValues[rowIdx];
+      let v = (out.baseColIdx < rv.length) ? rv[out.baseColIdx] : null;
+      // rowValues が truncated の場合は個別セル読みで救済
+      if ((v == null || v === '') && rowIdx >= 0) {
+        try { v = sheet.getRange(rowIdx + 1, out.baseColIdx + 1).getValue(); } catch(_) {}
+      }
+      out.baseRaw = v;
+      if (v != null && v !== '') {
+        const s = String(v).trim();
+        if (AVATAR_BASE_ALLOWED.indexOf(s) >= 0) out.base = s;
+      }
+    }
+
+    // === AVATAR_ITEMS 値読み ===
+    if (out.itemsColIdx >= 0) {
+      const rv = allValues[rowIdx];
+      let v = (out.itemsColIdx < rv.length) ? rv[out.itemsColIdx] : null;
+      if ((v == null || v === '') && rowIdx >= 0) {
+        try { v = sheet.getRange(rowIdx + 1, out.itemsColIdx + 1).getValue(); } catch(_) {}
+      }
+      out.itemsRaw = v;
+      if (v != null && v !== '') {
+        try {
+          const parsed = JSON.parse(String(v));
+          if (Array.isArray(parsed)) out.items = parsed;
+        } catch(_) {}
+      }
+    }
+
+    // === AVATAR_EQUIPPED 値読み ===
+    if (out.equipColIdx >= 0) {
+      const rv = allValues[rowIdx];
+      let v = (out.equipColIdx < rv.length) ? rv[out.equipColIdx] : null;
+      if ((v == null || v === '') && rowIdx >= 0) {
+        try { v = sheet.getRange(rowIdx + 1, out.equipColIdx + 1).getValue(); } catch(_) {}
+      }
+      out.equipRaw = v;
+      if (v != null && v !== '') {
+        try {
+          const parsed = JSON.parse(String(v));
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) out.equipped = parsed;
+        } catch(_) {}
+      }
+    }
+  } catch (e) {
+    out.error = String(e);
+  }
+  return out;
+}
+
 // アバター状態を取得（ホーム / アバターコーナーから呼ぶ）。
 // params: { studentId }
-// return: { ok, base, items, equipped, nickname } or { ok:false, message }
+// return: { ok, base, items, equipped, nickname, _debug } or { ok:false, message }
+//
+// 2026-05-15 二度目のバグ修正：Students 優先で見つかってもベース未設定なら
+//   SpecialAccounts も試す独立読み出し方式に変更。`_findAccountRowOnSheet` を
+//   経由せず、`_avatarReadFromSheetBySid` で各シートを直接走査する。
+//   レスポンスの `_debug` フィールドにシートごとの検索結果が入るため、ふくち
+//   さんの DevTools（F12 → Console → ネットワークタブで getAvatarState の
+//   応答 JSON を確認）で内部状態が把握できる。
 function getAvatarState(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
     if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
 
-    const loc = _findAccountRowOnSheet(sid);
-    if (!loc) {
-      // 行が見つからなくてもエラーにせず、空のアバター状態を返す（フロントで「？」表示にフォールバック）
-      console.warn('[getAvatarState] account row not found', 'sid=' + sid);
-      return { ok: true, base: '', items: [], equipped: {}, nickname: '' };
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    const spSheet  = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+
+    const stuRes = _avatarReadFromSheetBySid(stuSheet, sid);
+    const spRes  = _avatarReadFromSheetBySid(spSheet,  sid);
+
+    // 値の採用ルール：
+    //   1) Students 側に行が見つかり、AVATAR_BASE が非空 → Students 採用
+    //   2) Students 側に行が見つかったが AVATAR_BASE が空、かつ SpecialAccounts
+    //      側に行 + 非空の base がある → SpecialAccounts 採用
+    //   3) Students 側に行がない、かつ SpecialAccounts 側に行 → SpecialAccounts 採用
+    //   4) どちらにもない → 空状態を返す
+    let chosen = null;
+    let chosenSheetName = '';
+    if (stuRes.found && stuRes.base) {
+      chosen = stuRes; chosenSheetName = SHEET_STUDENTS;
+    } else if (stuRes.found && !stuRes.base && spRes.found && spRes.base) {
+      chosen = spRes;  chosenSheetName = SHEET_SPECIAL_ACCOUNTS;
+    } else if (stuRes.found) {
+      chosen = stuRes; chosenSheetName = SHEET_STUDENTS;
+    } else if (spRes.found) {
+      chosen = spRes;  chosenSheetName = SHEET_SPECIAL_ACCOUNTS;
     }
 
-    const base     = _readAvatarBaseFromLoc(loc);
-    const items    = _readAvatarItemsFromLoc(loc);
-    const equipped = _readAvatarEquippedFromLoc(loc);
-    const nickname = String(loc.rowValues[COL_NICKNAME] || '').trim();
+    if (!chosen) {
+      console.warn('[getAvatarState] account row not found in either sheet', 'sid=' + sid);
+      return {
+        ok: true, base: '', items: [], equipped: {}, nickname: '',
+        _debug: { sid: sid, students: _avatarDbgSummary(stuRes), special: _avatarDbgSummary(spRes) }
+      };
+    }
 
-    // 2026-05-15 診断ログ：シート上にデータがあるはずなのに base が空になるバグの調査用。
-    // シート / 行 / 列 / 値の各段階で何が起きているかを追跡できるようにする。
-    //
-    // ※読み出し負荷を抑えるため、base が空のときだけ「読み出し直しでも空か」を
-    //   詳細チェックする。空ではないケース（正常時）は何も出さない。
-    if (!base) {
-      try {
-        const headerIdxFromAll   = _findAvatarBaseColIdx(loc.allValues);
-        const headerIdxFromSheet = _findAvatarBaseColIdxOnSheet(loc.sheet);
-        const rowValuesLen = (loc.rowValues || []).length;
-        const rawFromRow   = (headerIdxFromAll  >= 0 && headerIdxFromAll  < rowValuesLen) ? loc.rowValues[headerIdxFromAll]  : null;
-        const rawFromSheet = (headerIdxFromSheet >= 0)
-          ? loc.sheet.getRange(loc.rowIdx + 1, headerIdxFromSheet + 1).getValue()
-          : null;
-        console.warn('[getAvatarState] empty base diagnostic',
-          'sid=' + sid,
-          'sheetName=' + (loc.sheetName || ''),
-          'rowIdx=' + loc.rowIdx,
-          'rowValuesLen=' + rowValuesLen,
-          'headerIdxFromAllValues=' + headerIdxFromAll,
-          'headerIdxFromSheet=' + headerIdxFromSheet,
-          'rawFromRow=' + JSON.stringify(rawFromRow),
-          'rawFromSheet=' + JSON.stringify(rawFromSheet)
-        );
-      } catch (diagErr) {
-        console.error('[getAvatarState] diagnostic block failed', diagErr);
+    const result = {
+      ok:       true,
+      base:     chosen.base || '',
+      items:    Array.isArray(chosen.items) ? chosen.items : [],
+      equipped: (chosen.equipped && typeof chosen.equipped === 'object') ? chosen.equipped : {},
+      nickname: chosen.nickname || '',
+      _debug: {
+        sid:          sid,
+        chosen:       chosenSheetName,
+        students:     _avatarDbgSummary(stuRes),
+        special:      _avatarDbgSummary(spRes)
       }
-    }
+    };
 
-    return { ok: true, base: base, items: items, equipped: equipped, nickname: nickname };
+    if (!result.base) {
+      console.warn('[getAvatarState] returning empty base after both-sheet check',
+        'sid=' + sid,
+        'chosen=' + chosenSheetName,
+        'stu.found=' + stuRes.found,
+        'stu.baseColIdx=' + stuRes.baseColIdx,
+        'stu.baseRaw=' + JSON.stringify(stuRes.baseRaw),
+        'sp.found=' + spRes.found,
+        'sp.baseColIdx=' + spRes.baseColIdx,
+        'sp.baseRaw=' + JSON.stringify(spRes.baseRaw)
+      );
+    }
+    return result;
   } catch (err) {
     console.error('[getAvatarState]', err);
     return { ok: false, message: String(err) };
   }
 }
 
+// _debug 用のサマリ生成（応答 JSON サイズを抑えるため不要なフィールドは省く）。
+function _avatarDbgSummary(r) {
+  if (!r) return { found: false };
+  return {
+    found:       r.found,
+    rowIdx:      r.rowIdx,
+    baseColIdx:  r.baseColIdx,
+    itemsColIdx: r.itemsColIdx,
+    equipColIdx: r.equipColIdx,
+    baseRaw:     r.baseRaw,
+    error:       r.error
+  };
+}
+
 // アバターベースを保存（アバター選択画面の「決定」押下時）。
 // params: { studentId, base }
-// return: { ok, base } or { ok:false, message }
+// return: { ok, base, _debug } or { ok:false, message }
+//
+// 2026-05-15 二度目のバグ修正：生徒が Students と SpecialAccounts の両方に
+//   存在する場合、どちらに書くかが getAvatarState の読み出し先と乖離する
+//   リスクを排除するため、両方に書き込む方式に変更。
+//   どちらの読み出し経路でも同じ値が見つかるため、bug が再発しない。
 function saveAvatarBase(params) {
   try {
     const sid  = String((params && params.studentId) || '').trim();
@@ -14230,42 +14394,60 @@ function saveAvatarBase(params) {
       return { ok: false, message: 'アバターの種類が正しくありません' };
     }
 
-    const loc = _findAccountRowOnSheet(sid);
-    if (!loc) return { ok: false, message: '生徒IDが見つかりません' };
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    const spSheet  = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
 
-    // 3 列を保証（無ければ末尾に追加）。
-    // ベースだけ書き込めば動くが、Phase β でいきなり items/equipped を扱えるよう
-    // 同時に列だけ用意しておく（schema migration を一気に済ませる）。
-    const ensureBase     = _ensureAvatarBaseColOnSheet(loc.sheet);
-    const ensureItems    = _ensureAvatarItemsColOnSheet(loc.sheet);
-    const ensureEquipped = _ensureAvatarEquippedColOnSheet(loc.sheet);
+    // 両シートで sid に対応する行を探し、見つかったシート「すべて」に書き込む。
+    // 1004 が Students にも SpecialAccounts にも存在する場合、両方に同じ値を
+    // 書くことで、読み出し時のどちらが先に hit しても同じ値が返る。
+    const stuRes = _avatarReadFromSheetBySid(stuSheet, sid);
+    const spRes  = _avatarReadFromSheetBySid(spSheet,  sid);
 
-    // ★ setNumberFormat('@') で text 固定してから setValue
-    //   （BIRTHDAY 列追加時に Date 化された事例の同根対策。Phase β で
-    //    items='["hat_01"]' のような文字列を書く時にも効く）。
-    const cellBase = loc.sheet.getRange(loc.rowIdx + 1, ensureBase.idx + 1);
-    cellBase.setNumberFormat('@');
-    cellBase.setValue(base);
+    const writeTargets = [];
+    if (stuRes.found) writeTargets.push({ sheet: stuSheet, rowIdx: stuRes.rowIdx, sheetName: SHEET_STUDENTS });
+    if (spRes.found)  writeTargets.push({ sheet: spSheet,  rowIdx: spRes.rowIdx,  sheetName: SHEET_SPECIAL_ACCOUNTS });
 
-    // items / equipped の列を新規作成した場合は、既存行は空文字のまま。
-    // 「空文字」はフロント / GAS 両方で「空配列 / 空オブジェクト」として
-    // 正しく解釈される（_readAvatarItemsFromLoc / _readAvatarEquippedFromLoc 参照）。
-    // 既存値があれば一切上書きしない（Phase β を見据えた防御）。
+    if (writeTargets.length === 0) {
+      return { ok: false, message: '生徒IDが見つかりません' };
+    }
 
-    // キャッシュ整合性：列を追加した場合は配列長が変わるため必ず invalidate。
-    // saveBirthday と同パターン。
-    try {
-      const cache = CacheService.getScriptCache();
-      if (loc.sheetName === SHEET_STUDENTS) {
-        cache.remove('cache_students_values');
-        _cacheLog('cache_students_values', 'invalidate', 'saveAvatarBase sid=' + sid);
-      } else {
-        cache.remove('cache_special_accounts_values');
-        _cacheLog('cache_special_accounts_values', 'invalidate', 'saveAvatarBase sid=' + sid);
-      }
-    } catch(_) {}
+    const debugWrites = [];
+    for (let t = 0; t < writeTargets.length; t++) {
+      const tgt = writeTargets[t];
+      // 3 列を保証（無ければ末尾に追加）。
+      const ensureBase     = _ensureAvatarBaseColOnSheet(tgt.sheet);
+      const ensureItems    = _ensureAvatarItemsColOnSheet(tgt.sheet);
+      const ensureEquipped = _ensureAvatarEquippedColOnSheet(tgt.sheet);
 
-    return { ok: true, base: base };
+      // ★ setNumberFormat('@') で text 固定してから setValue
+      //   （BIRTHDAY 列追加時に Date 化された事例の同根対策。Phase β で
+      //    items='["hat_01"]' のような文字列を書く時にも効く）。
+      const cellBase = tgt.sheet.getRange(tgt.rowIdx + 1, ensureBase.idx + 1);
+      cellBase.setNumberFormat('@');
+      cellBase.setValue(base);
+
+      debugWrites.push({
+        sheetName: tgt.sheetName,
+        rowIdx:    tgt.rowIdx,
+        baseColIdx: ensureBase.idx,
+        baseColCreated: ensureBase.created
+      });
+
+      // キャッシュ整合性：列を追加した場合は配列長が変わるため必ず invalidate。
+      try {
+        const cache = CacheService.getScriptCache();
+        if (tgt.sheetName === SHEET_STUDENTS) {
+          cache.remove('cache_students_values');
+          _cacheLog('cache_students_values', 'invalidate', 'saveAvatarBase sid=' + sid);
+        } else {
+          cache.remove('cache_special_accounts_values');
+          _cacheLog('cache_special_accounts_values', 'invalidate', 'saveAvatarBase sid=' + sid);
+        }
+      } catch(_) {}
+    }
+
+    return { ok: true, base: base, _debug: { sid: sid, writes: debugWrites } };
   } catch (err) {
     console.error('[saveAvatarBase]', err);
     return { ok: false, message: String(err) };

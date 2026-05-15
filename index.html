@@ -4088,21 +4088,39 @@
     }
   }
 
-  // ホーム画面表示時の getAvatarState 呼び出し（cachedGasGet で 5 分キャッシュ）。
-  // 失敗時はプレースホルダー（？）表示のままにする。
+  // ホーム画面表示時の getAvatarState 呼び出し。
+  //
+  // 2026-05-15 二度目のバグ修正：cachedGasGet（5分キャッシュ）→ gasGet（毎回フレッシュ）に
+  //   変更。アバター表示は1ページ1回しか呼ばれないので、キャッシュの恩恵が小さく、
+  //   一方で「空 base が cache されると 5 分間ずっと placeholder」というリスクの方が
+  //   大きい。また _ts を URL に含めることでブラウザ層の HTTP キャッシュも回避。
+  //
+  //   さらに、レスポンスの _debug フィールドを console.log することで、ふくちさんの
+  //   DevTools（F12 → Console）で「GAS が何を返しているか」が確認できる。Apps Script
+  //   Executions ログが見られない環境向けの代替手段。
   function _loadAvatarStateOnHome() {
     _renderAvatarSeasonal();
-    if (!_studentId) { _renderAvatarSlot(); return; }
-    cachedGasGet({ action: 'getAvatarState', studentId: _studentId }).then(function(res){
+    if (!_studentId) {
+      console.log('[avatar] _loadAvatarStateOnHome skipped: _studentId is empty');
+      _renderAvatarSlot();
+      return;
+    }
+    gasGet({ action: 'getAvatarState', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      console.log('[avatar] getAvatarState response', res);
       if (res && res.ok) {
         _avatarState.base     = String(res.base || '');
         _avatarState.items    = Array.isArray(res.items) ? res.items : [];
         _avatarState.equipped = (res.equipped && typeof res.equipped === 'object') ? res.equipped : {};
         _avatarState.nickname = String(res.nickname || '');
+        if (!_avatarState.base) {
+          console.warn('[avatar] getAvatarState returned ok but base is empty. _debug=', res._debug);
+        }
+      } else {
+        console.warn('[avatar] getAvatarState failed', res);
       }
       _renderAvatarSlot();
-    }).catch(function(){
-      // エラー時はプレースホルダー表示で UX を止めない
+    }).catch(function(err){
+      console.error('[avatar] getAvatarState exception', err);
       _renderAvatarSlot();
     });
   }
@@ -4754,6 +4772,11 @@
     checkSangoStarredNotifications();
     // アバター変更があれば即時反映（saveAvatarBase 直後の _avatarState を信頼）
     _renderAvatarSlot();
+    // 2026-05-15 防御層：base が空のままならサーバから再取得を試みる
+    // （showWelcome の初期 fetch が失敗していた場合のリカバリ）
+    if (_studentId && !_avatarState.base) {
+      _loadAvatarStateOnHome();
+    }
   }
   function doLogout() {
     // 2026-05-11 バグ② 修正：iPad ログアウト不能対策（防御層）。
@@ -4786,6 +4809,8 @@
     _studentId = null; _questions = []; _score = 0; _current = 0;
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
+    // アバター state も明示的にリセット（古い値が別生徒のセッションに漏れないように）
+    _avatarState = { base: '', items: [], equipped: {}, nickname: '' };
     try { _lisonResetState(); } catch(e){}
     _hideSubmitPending(); _hideSubmitError(); _hideWabun1Grading();
     try { document.getElementById('login-id').value = ''; } catch(e){}
