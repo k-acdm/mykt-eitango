@@ -752,17 +752,25 @@
     .avatar-home-row { display: flex; justify-content: center; margin: 6px 0 12px; }
     /* ステージ枠：縦 ≒ 横の正方形寄り（min-width で横幅を明示確保、padding は左右余裕） */
     .avatar-stage { position: relative; padding: 20px 56px 18px; min-width: 320px; background: linear-gradient(180deg, rgba(243,240,255,.85) 0%, rgba(232,226,254,.9) 100%); border-radius: 22px; overflow: hidden; box-shadow: inset 0 0 28px rgba(167,139,250,.2); }
-    /* 演出 C：ステージ風の微光（柔らかい放射グラデが脈動）— 透明度・サイズを増やしてはっきり脈動 */
-    .avatar-stage-light { position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); width: 320px; height: 240px; background: radial-gradient(ellipse 55% 45% at center, rgba(196,181,253,.72) 0%, rgba(196,181,253,.18) 50%, rgba(196,181,253,0) 78%); pointer-events: none; z-index: 0; animation: avatarLightPulse 3.6s ease-in-out infinite; }
-    /* 演出 A：足元の楕円スポット（立ち位置感）— 白を強めて立体感アップ */
-    .avatar-stage-spot { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 280px; height: 32px; background: radial-gradient(ellipse at center, rgba(255,255,255,.95) 0%, rgba(255,255,255,0) 72%); pointer-events: none; filter: blur(2px); z-index: 1; }
+    /* 演出 C：ステージ風の微光（柔らかい放射グラデが脈動）。
+       2026-05-16 視認性改善：背景の薄ラベンダーに溶け込んで見えない問題への対策として、
+       光の色を紫系（#c4b5fd ≒ rgba(196,181,253,...)）→ 暖色クリーム（#fff5cc ≒
+       rgba(255,245,204,...)）に変更。背景の紫補色寄りの色を当てることで明度差 + 色相差が
+       両方発生し、強い視認性を得る。誕生日サプライズほど派手にはしない。 */
+    .avatar-stage-light { position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); width: 320px; height: 240px; background: radial-gradient(ellipse 55% 45% at center, rgba(255,245,204,.88) 0%, rgba(255,235,170,.32) 50%, rgba(255,235,170,0) 78%); pointer-events: none; z-index: 0; animation: avatarLightPulse 3.6s ease-in-out infinite; }
+    /* 演出 A：足元の楕円スポット（立ち位置感）。
+       2026-05-16 視認性改善：純白 → 暖色クリーム（#fff8e8）に変更。背景ラベンダーに対して
+       「足元の暖かいスポットライト」感を強く出す。幅も 280 → 320px に拡大。 */
+    .avatar-stage-spot { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 320px; height: 36px; background: radial-gradient(ellipse at center, rgba(255,248,232,1) 0%, rgba(255,243,210,.65) 35%, rgba(255,240,200,0) 78%); pointer-events: none; filter: blur(2px); z-index: 1; }
     /* 演出 D：季節モチーフ（JS で生成された .petal が降下/漂う）— サイズ・透明度を強化 */
     .avatar-seasonal { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
     .avatar-seasonal .petal { position: absolute; top: -28px; left: var(--x, 50%); font-size: var(--size, 22px); opacity: 0; will-change: transform, opacity; animation: petalFall var(--dur, 8s) linear infinite; animation-delay: var(--delay, 0s); filter: drop-shadow(0 1px 2px rgba(0,0,0,.08)); }
     .avatar-seasonal .petal.drift { animation-name: petalDrift; }
     @keyframes avatarLightPulse {
-      0%, 100% { opacity: .85; transform: translateX(-50%) scale(1); }
-      50%      { opacity: 1;   transform: translateX(-50%) scale(1.10); }
+      /* 2026-05-16 視認性改善：scale を 1.10 → 1.15 に広げて脈動をはっきり認識可能に。
+         opacity の振れ幅も .85→1 から .82→1 に少し広げる。 */
+      0%, 100% { opacity: .82; transform: translateX(-50%) scale(1); }
+      50%      { opacity: 1;   transform: translateX(-50%) scale(1.15); }
     }
     @keyframes petalFall {
       0%   { transform: translateY(0) rotate(0deg);   opacity: 0; }
@@ -1120,10 +1128,11 @@
       .avatar-slot .avatar-placeholder { width: 135px; height: 180px; font-size: 72px; }
       .avatar-slot .avatar-name { max-width: 150px; }
       /* ステージ演出もモバイル用に縮小（2026-05-15）。
-         強化版に合わせて横幅と微光サイズも調整。 */
+         強化版に合わせて横幅と微光サイズも調整。
+         2026-05-16 視認性改善：スポットを 200→240px に拡大（desktop 280→320 と比率合わせ）。 */
       .avatar-stage { padding: 16px 32px 14px; min-width: 240px; border-radius: 20px; }
       .avatar-stage-light { width: 240px; height: 180px; bottom: 22px; }
-      .avatar-stage-spot  { width: 200px; height: 24px; bottom: 20px; }
+      .avatar-stage-spot  { width: 240px; height: 28px; bottom: 20px; }
       .avatar-corner-pic img { width: 70%; }
       .avatar-select-card { width: 92%; }
       .chara-bubble { width: 100%; }
