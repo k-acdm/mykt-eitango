@@ -13926,6 +13926,9 @@ const AVATAR_EQUIPPED_HEADER_NAME = 'AVATAR_EQUIPPED';
 const AVATAR_BASE_ALLOWED = ['boy', 'girl', 'neutral'];
 
 // --- 列インデックス検出ヘルパー（_findBirthdayColIdx と同パターン） ---
+// allValues を信頼してヘッダー検索する高速版。allValues が truncated だったり
+// 列が更新後にまだ反映されていない場合は -1 を返すため、呼び出し側で
+// _findAvatarBaseColIdxOnSheet にフォールバックする実装を必ず併用すること。
 function _findAvatarBaseColIdx(allValues) {
   if (!allValues || !allValues.length || !allValues[0] || !allValues[0].length) return -1;
   const header = allValues[0];
@@ -13945,6 +13948,40 @@ function _findAvatarItemsColIdx(allValues) {
 function _findAvatarEquippedColIdx(allValues) {
   if (!allValues || !allValues.length || !allValues[0] || !allValues[0].length) return -1;
   const header = allValues[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === AVATAR_EQUIPPED_HEADER_NAME) return i;
+  }
+  return -1;
+}
+
+// --- シート直接読みの読み取り専用ヘルパー（防御的フォールバック用） ---
+// _ensureAvatar*ColOnSheet は「無ければ作成」する副作用があるため、READ 経路で
+// 使うわけにいかない。これらは「無ければ -1」を返す read-only 版。
+// loc.allValues 経由の検索で見つからなかった時のフォールバックとして使う。
+// getDataRange().getValues() の戻り値が、ロケール / 空セル絡みで予期せず
+// truncated になっているケースを救済する。
+function _findAvatarBaseColIdxOnSheet(sheet) {
+  if (!sheet) return -1;
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === AVATAR_BASE_HEADER_NAME) return i;
+  }
+  return -1;
+}
+function _findAvatarItemsColIdxOnSheet(sheet) {
+  if (!sheet) return -1;
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === AVATAR_ITEMS_HEADER_NAME) return i;
+  }
+  return -1;
+}
+function _findAvatarEquippedColIdxOnSheet(sheet) {
+  if (!sheet) return -1;
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   for (let i = 0; i < header.length; i++) {
     if (String(header[i] || '').trim() === AVATAR_EQUIPPED_HEADER_NAME) return i;
   }
@@ -13991,11 +14028,57 @@ function _ensureAvatarEquippedColOnSheet(sheet) {
 }
 
 // loc.allValues から AVATAR_BASE 値を抽出。許容外の値は '' に正規化（防御的）。
+//
+// 二段階フォールバック（2026-05-15 バグ修正）：
+//   1) loc.allValues（_findAccountRowOnSheet が getDataRange().getValues() で
+//      取得した値）でヘッダー検索 + rowValues[idx] で値読み
+//   2) ↑で見つからなかった時、loc.sheet を直接シート読みしてヘッダー検索 +
+//      個別セル読み（getRange(rowIdx+1, idx+1).getValue()）でフォールバック
+//
+// なぜフォールバックが必要か：
+//   - getDataRange().getValues() が空セル絡みで、ヘッダー行に空セルがあると
+//     その列を含めなかったり、行の長さが不揃いになるエッジケースを観測。
+//   - シートに途中で空ヘッダー列（生徒シートの K, L）があり、後ろに AVATAR_*
+//     列が並ぶレイアウトでこの問題が出やすい。
+//   - 直接シート読みは fresh で確実だが遅いため、フォールバック扱いに留めて
+//     primary 経路は高速版を維持する。
 function _readAvatarBaseFromLoc(loc) {
   if (!loc) return '';
-  const idx = _findAvatarBaseColIdx(loc.allValues);
+
+  // 1) Primary: loc.allValues 経由のヘッダー検索
+  let idx = _findAvatarBaseColIdx(loc.allValues);
+
+  // 2) Fallback: シートから直接ヘッダー再検索
+  if (idx < 0 && loc.sheet) {
+    idx = _findAvatarBaseColIdxOnSheet(loc.sheet);
+    if (idx >= 0) {
+      console.warn('[_readAvatarBaseFromLoc] header not found in loc.allValues, fallback to sheet read',
+                   'sheetName=' + (loc.sheetName || ''), 'idx=' + idx);
+    }
+  }
   if (idx < 0) return '';
-  const v = loc.rowValues[idx];
+
+  // 3) Try rowValues first
+  let v;
+  if (loc.rowValues && idx < loc.rowValues.length) {
+    v = loc.rowValues[idx];
+  }
+
+  // 4) Fallback: rowValues が truncated だった / undefined 等の場合は個別セル読み
+  if ((v == null || v === '') && loc.sheet && typeof loc.rowIdx === 'number' && loc.rowIdx >= 0) {
+    try {
+      const cellVal = loc.sheet.getRange(loc.rowIdx + 1, idx + 1).getValue();
+      if (cellVal != null && cellVal !== '') {
+        v = cellVal;
+        console.warn('[_readAvatarBaseFromLoc] rowValues empty, fallback to direct cell read',
+                     'sheetName=' + (loc.sheetName || ''), 'rowIdx=' + loc.rowIdx, 'colIdx=' + idx,
+                     'value=' + JSON.stringify(cellVal));
+      }
+    } catch (e) {
+      console.error('[_readAvatarBaseFromLoc] direct cell read failed', e);
+    }
+  }
+
   if (v == null || v === '') return '';
   const s = String(v).trim();
   return (AVATAR_BASE_ALLOWED.indexOf(s) >= 0) ? s : '';
@@ -14003,11 +14086,33 @@ function _readAvatarBaseFromLoc(loc) {
 
 // loc.allValues から AVATAR_ITEMS（JSON 配列文字列）を抽出。
 // パース失敗 / 配列でない場合は空配列を返す（Phase β で安全に拡張できるよう防御）。
+// AVATAR_BASE と同じ二段階フォールバックを適用。
 function _readAvatarItemsFromLoc(loc) {
   if (!loc) return [];
-  const idx = _findAvatarItemsColIdx(loc.allValues);
+
+  // 1) Primary
+  let idx = _findAvatarItemsColIdx(loc.allValues);
+  // 2) Fallback: シートから直接ヘッダー再検索
+  if (idx < 0 && loc.sheet) {
+    idx = _findAvatarItemsColIdxOnSheet(loc.sheet);
+  }
   if (idx < 0) return [];
-  const v = loc.rowValues[idx];
+
+  // 3) Try rowValues first
+  let v;
+  if (loc.rowValues && idx < loc.rowValues.length) {
+    v = loc.rowValues[idx];
+  }
+  // 4) Fallback: 個別セル読み
+  if ((v == null || v === '') && loc.sheet && typeof loc.rowIdx === 'number' && loc.rowIdx >= 0) {
+    try {
+      const cellVal = loc.sheet.getRange(loc.rowIdx + 1, idx + 1).getValue();
+      if (cellVal != null && cellVal !== '') v = cellVal;
+    } catch (e) {
+      // 黙って空配列にフォールバック
+    }
+  }
+
   if (v == null || v === '') return [];
   try {
     const parsed = JSON.parse(String(v));
@@ -14019,11 +14124,33 @@ function _readAvatarItemsFromLoc(loc) {
 
 // loc.allValues から AVATAR_EQUIPPED（JSON オブジェクト文字列）を抽出。
 // パース失敗 / オブジェクトでない場合は空オブジェクトを返す。
+// AVATAR_BASE と同じ二段階フォールバックを適用。
 function _readAvatarEquippedFromLoc(loc) {
   if (!loc) return {};
-  const idx = _findAvatarEquippedColIdx(loc.allValues);
+
+  // 1) Primary
+  let idx = _findAvatarEquippedColIdx(loc.allValues);
+  // 2) Fallback: シートから直接ヘッダー再検索
+  if (idx < 0 && loc.sheet) {
+    idx = _findAvatarEquippedColIdxOnSheet(loc.sheet);
+  }
   if (idx < 0) return {};
-  const v = loc.rowValues[idx];
+
+  // 3) Try rowValues first
+  let v;
+  if (loc.rowValues && idx < loc.rowValues.length) {
+    v = loc.rowValues[idx];
+  }
+  // 4) Fallback: 個別セル読み
+  if ((v == null || v === '') && loc.sheet && typeof loc.rowIdx === 'number' && loc.rowIdx >= 0) {
+    try {
+      const cellVal = loc.sheet.getRange(loc.rowIdx + 1, idx + 1).getValue();
+      if (cellVal != null && cellVal !== '') v = cellVal;
+    } catch (e) {
+      // 黙って空オブジェクトにフォールバック
+    }
+  }
+
   if (v == null || v === '') return {};
   try {
     const parsed = JSON.parse(String(v));
@@ -14046,6 +14173,7 @@ function getAvatarState(params) {
     const loc = _findAccountRowOnSheet(sid);
     if (!loc) {
       // 行が見つからなくてもエラーにせず、空のアバター状態を返す（フロントで「？」表示にフォールバック）
+      console.warn('[getAvatarState] account row not found', 'sid=' + sid);
       return { ok: true, base: '', items: [], equipped: {}, nickname: '' };
     }
 
@@ -14053,6 +14181,35 @@ function getAvatarState(params) {
     const items    = _readAvatarItemsFromLoc(loc);
     const equipped = _readAvatarEquippedFromLoc(loc);
     const nickname = String(loc.rowValues[COL_NICKNAME] || '').trim();
+
+    // 2026-05-15 診断ログ：シート上にデータがあるはずなのに base が空になるバグの調査用。
+    // シート / 行 / 列 / 値の各段階で何が起きているかを追跡できるようにする。
+    //
+    // ※読み出し負荷を抑えるため、base が空のときだけ「読み出し直しでも空か」を
+    //   詳細チェックする。空ではないケース（正常時）は何も出さない。
+    if (!base) {
+      try {
+        const headerIdxFromAll   = _findAvatarBaseColIdx(loc.allValues);
+        const headerIdxFromSheet = _findAvatarBaseColIdxOnSheet(loc.sheet);
+        const rowValuesLen = (loc.rowValues || []).length;
+        const rawFromRow   = (headerIdxFromAll  >= 0 && headerIdxFromAll  < rowValuesLen) ? loc.rowValues[headerIdxFromAll]  : null;
+        const rawFromSheet = (headerIdxFromSheet >= 0)
+          ? loc.sheet.getRange(loc.rowIdx + 1, headerIdxFromSheet + 1).getValue()
+          : null;
+        console.warn('[getAvatarState] empty base diagnostic',
+          'sid=' + sid,
+          'sheetName=' + (loc.sheetName || ''),
+          'rowIdx=' + loc.rowIdx,
+          'rowValuesLen=' + rowValuesLen,
+          'headerIdxFromAllValues=' + headerIdxFromAll,
+          'headerIdxFromSheet=' + headerIdxFromSheet,
+          'rawFromRow=' + JSON.stringify(rawFromRow),
+          'rawFromSheet=' + JSON.stringify(rawFromSheet)
+        );
+      } catch (diagErr) {
+        console.error('[getAvatarState] diagnostic block failed', diagErr);
+      }
+    }
 
     return { ok: true, base: base, items: items, equipped: equipped, nickname: nickname };
   } catch (err) {
