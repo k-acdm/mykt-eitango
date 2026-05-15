@@ -1229,7 +1229,15 @@ function loginStudent(studentId) {
       // _logHP が失敗した場合は Students.HP / STREAK / LAST_LOGIN を一切更新せずに
       // エラー応答を返す。これにより lastLogin が今日に書き換わらないので、生徒が
       // 再ログインすれば +10HP がもう一度試行され、自動救済される。
-      const logRes = _logHP(studentId, loginBonus, loginBonus, 'login');
+      //
+      // 2026-05-16：lockTimeoutMs=500 を渡してロック取得待ちを 5s → 0.5s に短縮。
+      //   ab1b99c で _logHP に LockService.tryLock(5000) を入れたが、重い submitSango
+      //   等がロックを握っていると login 全体が 5 秒以上待たされる症状が観測された。
+      //   ログイン HP 書き込みは 10HP の単発で、レース時の二重加算リスクも上記の自動
+      //   救済機構（lastLogin 未更新 → 再ログインで再試行）で軽減できるため、待ち時間
+      //   を犠牲にしてレスポンスを優先する。タイムアウト時はロック無しで書き込み続行
+      //   （verify + retry でレース緩和あり）。
+      const logRes = _logHP(studentId, loginBonus, loginBonus, 'login', 500);
       if (!logRes.ok) {
         console.error('[loginStudent] HPLog 書き込みに失敗しました。HP/STREAK/LAST_LOGIN を更新せず終了。', logRes.error);
         return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
@@ -1606,7 +1614,13 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
 //   _logHP が失敗した場合は Students.HP を加算せず、関数全体としてエラー応答を返す。
 //   これにより「Students 進 + HPLog 欠落」の不一致パターン（パターン A・B）を構造的に防ぐ。
 const SHEET_HPLOG_WRITE_ATTEMPTS = 'HPLogWriteAttempts';
-function _logHP(studentId, rawHP, hpGained, type) {
+// 2026-05-16：lockTimeoutMs を optional 5 番目の引数として追加（後方互換、既定 5000ms）。
+//   呼び出し元で「待ちたくないが書き込みは試したい」場合は短い timeout（例：500ms）を
+//   指定できる。タイムアウトで取得失敗してもロック無しで続行するため、書き込みは
+//   行われる（verify + retry でレースも軽減）。
+//   主な用途：loginStudent の +10HP 書き込み。重い submitSango / submitKanji が
+//   ロックを握っている間、ログイン応答全体が 5 秒待たされる問題を回避する。
+function _logHP(studentId, rawHP, hpGained, type, lockTimeoutMs) {
   const sid = String(studentId).trim();
 
   // テレメトリ flag（PropertiesService 読み取りは 1 関数呼び出しで 1 回のみ）
@@ -1627,16 +1641,17 @@ function _logHP(studentId, rawHP, hpGained, type) {
   // れた場合（生徒の二重タップ + 1〜2 秒の遅延）、appendRow が同時実行されて片方が
   // 「成功したつもり」のまま実は行が書かれていない事故が起きうる。
   // Script Lock（同一スクリプト内で 1 つだけ取れる）でこの全 execution を直列化する。
-  // 最大 5 秒待機（待ち時間中の生徒体感はゼロ〜数百ミリ秒、通常は 100ms 以内に取得）。
+  // 通常は 5 秒待機。loginStudent のようなレイテンシ敏感な呼び出し元は短い timeout を渡す。
+  const timeoutMs = (typeof lockTimeoutMs === 'number' && lockTimeoutMs > 0) ? lockTimeoutMs : 5000;
   const lock = LockService.getScriptLock();
   let lockAcquired = false;
   try {
-    lockAcquired = lock.tryLock(5000);  // 5 秒待ってダメなら諦める
+    lockAcquired = lock.tryLock(timeoutMs);
   } catch (lockErr) {
     console.warn('[_logHP] LockService.tryLock 失敗（ロック無しで続行）', lockErr);
   }
   if (!lockAcquired) {
-    console.warn('[_logHP] ロック取得に失敗（5秒待機）。ロック無しで書き込み続行 sid=' + sid + ' type=' + type);
+    console.warn('[_logHP] ロック取得に失敗（' + timeoutMs + 'ms 待機）。ロック無しで書き込み続行 sid=' + sid + ' type=' + type);
   }
 
   try {

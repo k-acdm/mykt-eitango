@@ -3798,7 +3798,7 @@
   function doLogin() {
     var sid = document.getElementById('login-id').value.trim();
     if (!sid) { showMsg('login-msg','生徒IDを入力してください。','ng'); return; }
-    showMsg('login-msg','確認中…','ok'); document.getElementById('login-btn').disabled = true;
+    showMsg('login-msg','マイカツ君が準備中…','ok'); document.getElementById('login-btn').disabled = true;
     gasGet({ action:'loginStudent', studentId:sid }).then(function(res){
       document.getElementById('login-btn').disabled = false;
       if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
@@ -4114,6 +4114,12 @@
 
   // ホーム画面のマイカツ君隣アバター枠 + 下部カード（NEW バッジ）を、
   // _avatarState の base 値に応じて描画する。
+  //
+  // 2026-05-16 v3：設定済み者は「？」プレースホルダーを一切表示せず、
+  //   img を透過状態から始めて画像ロード完了時にフェードイン演出。
+  //   未設定者は従来どおり「？」プレースホルダーを表示する。
+  //   同じ src で再呼び出しされた場合（goHome 等）はフェードを省略して
+  //   既に表示されている画像をちらつかせない。
   function _renderAvatarSlot() {
     var img         = document.getElementById('avatar-img');
     var placeholder = document.getElementById('avatar-placeholder');
@@ -4122,15 +4128,40 @@
     if (!img || !placeholder || !nameEl) return;
     var base = _avatarState.base;
     if (base && AVATAR_BASE_IMG[base]) {
-      img.src = AVATAR_BASE_IMG[base];
-      img.style.display = '';
+      var newSrc = AVATAR_BASE_IMG[base];
+      // 設定済み：プレースホルダー「？」は一切表示せず、img を即座に display 化。
+      // 画像が DOM 上に乗るまでの空白期間も、placeholder ではなく透過状態にする。
       placeholder.style.display = 'none';
+      img.style.display = '';
+      var currentSrc = img.getAttribute('src') || '';
+      var alreadyShowingSameSrc = (currentSrc.indexOf(newSrc) !== -1) && (img.style.opacity === '' || img.style.opacity === '1');
+      if (!alreadyShowingSameSrc) {
+        // 新しい src（または初回設定）：透過 → 画像ロード完了 → opacity 0.3s でフェードイン
+        img.style.opacity = '0';
+        img.style.transition = 'opacity 0.3s ease-in';
+        var _fadeIn = function() {
+          img.style.opacity = '1';
+          img.onload  = null;
+          img.onerror = null;
+        };
+        img.onload  = _fadeIn;
+        img.onerror = _fadeIn; // 読み込みに失敗してもとりあえず表示状態にする
+        img.src = newSrc;
+        // ブラウザキャッシュにあり onload が即発火しなかった場合のフォールバック
+        if (img.complete && img.naturalWidth > 0) _fadeIn();
+      }
       nameEl.textContent = _avatarState.nickname || '';
       nameEl.classList.remove('placeholder-label');
       if (newBadge) newBadge.style.display = 'none';
     } else {
+      // 未設定：「？」プレースホルダーを表示（従来挙動）。
+      // 直前まで設定済み描画されていた可能性があるので opacity / transition もリセットする。
       img.style.display = 'none';
       img.removeAttribute('src');
+      img.style.opacity = '';
+      img.style.transition = '';
+      img.onload  = null;
+      img.onerror = null;
       placeholder.style.display = '';
       nameEl.textContent = 'アバターを選ぶ';
       nameEl.classList.add('placeholder-label');
