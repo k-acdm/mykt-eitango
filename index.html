@@ -3381,6 +3381,11 @@
   var _finishing = false;
   // 2026-05-11 バグ② 対策：ログアウト処理の多重実行ガード
   var _logoutInProgress = false;
+  // 2026-05-15 バグ修正：おさらいモード判定フラグ。複数箇所で代入されるが、
+  // 初回ログイン→showWelcome→checkSangoStarredNotifications までの経路では
+  // 一度も代入されないため、ReferenceError で showWelcome の後続処理（特に
+  // _loadAvatarStateOnHome）が中断する事象が発生した。明示的に false で初期化。
+  var _historyMode = false;
   // セッション中の最新HPを保持（各HP獲得アクション後に追従更新して、ホーム画面に戻ったときに反映）
   var _totalHP = 0;
   // E1: ログインの streak をセッション中保持（HP 予測に使用）
@@ -4239,16 +4244,20 @@
     _avatarState.nickname = nickname || '';
     showScreen('screen-welcome');
     if (milestone) setTimeout(function(){ showMilestoneFlash(milestone); }, 600);
-    loadTodayQuote();
-    loadLatestNotice();
-    loadWeeklyRanking();
-    loadUnreadMessageCount();
-    _prefetchTopics();
+    // 2026-05-15 バグ修正：各非同期初期化呼び出しを try-catch で個別に囲み、
+    // どれか 1 つが例外を投げても後続（特に _loadAvatarStateOnHome）が中断しないようにする。
+    // 既知の事故：checkSangoStarredNotifications が _historyMode 未定義で
+    // ReferenceError を投げ、後続のアバター取得が呼ばれずプレースホルダーが残る事象が発生。
+    try { loadTodayQuote();                 } catch(e){ console.error('[showWelcome] loadTodayQuote',                 e); }
+    try { loadLatestNotice();               } catch(e){ console.error('[showWelcome] loadLatestNotice',               e); }
+    try { loadWeeklyRanking();              } catch(e){ console.error('[showWelcome] loadWeeklyRanking',              e); }
+    try { loadUnreadMessageCount();         } catch(e){ console.error('[showWelcome] loadUnreadMessageCount',         e); }
+    try { _prefetchTopics();                } catch(e){ console.error('[showWelcome] _prefetchTopics',                e); }
     // 2026-05-12 サンゴタン関連
-    loadSangoWeeklyFeatured();        // 今週の秀逸作品カード
-    checkSangoStarredNotifications(); // ⭐認定通知（未読のみ）
-    // アバター状態を取得（getAvatarState、5 分キャッシュ）
-    _loadAvatarStateOnHome();
+    try { loadSangoWeeklyFeatured();        } catch(e){ console.error('[showWelcome] loadSangoWeeklyFeatured',        e); }
+    try { checkSangoStarredNotifications(); } catch(e){ console.error('[showWelcome] checkSangoStarredNotifications', e); }
+    // ★ アバター状態取得は他の何かが失敗しても必ず呼ぶ（プレースホルダー残留防止）
+    try { _loadAvatarStateOnHome();         } catch(e){ console.error('[showWelcome] _loadAvatarStateOnHome',         e); }
   }
   function toggleChangeArea() { var area = document.getElementById('change-area'); area.style.display = area.style.display === 'none' ? 'block' : 'none'; }
   function openModal()  { document.getElementById('img-modal').classList.add('active'); }
@@ -4766,17 +4775,18 @@
     var hpEl = document.getElementById('welcome-hp');
     if (hpEl && typeof _totalHP === 'number') hpEl.textContent = _totalHP.toLocaleString();
     showScreen('screen-welcome');
-    // メッセージ画面から戻ったときに未読バッジを最新化（既読化が反映される）
-    loadUnreadMessageCount();
-    // 2026-05-12 サンゴタン⭐認定通知（三語短文提出後の遷移でも反映される）
-    checkSangoStarredNotifications();
+    // 2026-05-15 バグ修正：個別 try-catch でアバター再描画が必ず実行されるようにする
+    try { loadUnreadMessageCount();         } catch(e){ console.error('[goHome] loadUnreadMessageCount',         e); }
+    try { checkSangoStarredNotifications(); } catch(e){ console.error('[goHome] checkSangoStarredNotifications', e); }
     // アバター変更があれば即時反映（saveAvatarBase 直後の _avatarState を信頼）
-    _renderAvatarSlot();
+    try { _renderAvatarSlot();              } catch(e){ console.error('[goHome] _renderAvatarSlot',              e); }
     // 2026-05-15 防御層：base が空のままならサーバから再取得を試みる
     // （showWelcome の初期 fetch が失敗していた場合のリカバリ）
-    if (_studentId && !_avatarState.base) {
-      _loadAvatarStateOnHome();
-    }
+    try {
+      if (_studentId && !_avatarState.base) {
+        _loadAvatarStateOnHome();
+      }
+    } catch(e){ console.error('[goHome] _loadAvatarStateOnHome', e); }
   }
   function doLogout() {
     // 2026-05-11 バグ② 修正：iPad ログアウト不能対策（防御層）。
