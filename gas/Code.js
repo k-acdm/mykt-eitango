@@ -1591,10 +1591,21 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
 //   - 失敗時は 500ms 待機して 1 回だけリトライ（一時的 quota / lock / 内部エラー対策）
 //   - DEBUG_HPLOG プロパティが 'true' のときのみ成功/失敗を console.log に記録
 //
+// 2026-05-15 防御層追加（24035 5/14 三語短文 silent write failure 事故への対策）：
+//   - LockService による serialize：複数生徒の同時提出 + 同じ生徒の二重タップ等で
+//     appendRow の race condition が発生する事象に対する根本対策。
+//   - 書き込み後の verify（read-back）：appendRow + flush の戻り値だけでなく、
+//     直後に末尾 5 行を読み戻して「自分が書いた行が物理的に存在するか」を確認。
+//     verify 失敗時は retry に回す。
+//   - HPLogWriteAttempts シートへの試行ログ：成功・失敗・verify 失敗の全試行を
+//     ふくちさんが確認できる別シートに記録。HPLog 本体と突き合わせて「サーバが
+//     書いたつもりだったのにシートに無い」事象を可視化できる。
+//
 // 呼び出し元の責務（順序変更方式 = Q2 採用）：
 //   先に _logHP を呼び、result.ok === true を確認してから Students.HP 加算に進む。
 //   _logHP が失敗した場合は Students.HP を加算せず、関数全体としてエラー応答を返す。
 //   これにより「Students 進 + HPLog 欠落」の不一致パターン（パターン A・B）を構造的に防ぐ。
+const SHEET_HPLOG_WRITE_ATTEMPTS = 'HPLogWriteAttempts';
 function _logHP(studentId, rawHP, hpGained, type) {
   const sid = String(studentId).trim();
 
@@ -1609,34 +1620,135 @@ function _logHP(studentId, rawHP, hpGained, type) {
   const MAX_ATTEMPTS  = 2;
   const RETRY_WAIT_MS = 500;
   let lastError = null;
+  let verifyFailureCount = 0;
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      const ss = _ss();
-      let sh   = ss.getSheetByName(SHEET_HPLOG);
-      if (!sh) {
-        sh = ss.insertSheet(SHEET_HPLOG);
-        sh.getRange(1, 1, 1, 5).setValues([['timestamp', 'studentId', 'rawHP', 'hpGained', 'type']]);
-      }
-      sh.appendRow([_nowJST(), sid, rawHP, hpGained, type]);
-      SpreadsheetApp.flush();  // v12 教訓踏襲：appendRow 直後の flush で確実に永続化
-      if (debug) {
-        console.log('[_logHP] sid=' + sid + ' type=' + type + ' attempts=' + attempt + ' ok=true');
-      }
-      return { ok: true };
-    } catch (e) {
-      lastError = e;
-      console.error('[_logHP] attempt=' + attempt + ' sid=' + sid + ' type=' + type, e);
-      if (attempt < MAX_ATTEMPTS) {
-        Utilities.sleep(RETRY_WAIT_MS);
+  // 2026-05-15 防御層：複数 execution の同時書き込み race を排除する LockService
+  // GAS は doGet / doPost を per-request に並列実行できる。submitSango が二重に呼ば
+  // れた場合（生徒の二重タップ + 1〜2 秒の遅延）、appendRow が同時実行されて片方が
+  // 「成功したつもり」のまま実は行が書かれていない事故が起きうる。
+  // Script Lock（同一スクリプト内で 1 つだけ取れる）でこの全 execution を直列化する。
+  // 最大 5 秒待機（待ち時間中の生徒体感はゼロ〜数百ミリ秒、通常は 100ms 以内に取得）。
+  const lock = LockService.getScriptLock();
+  let lockAcquired = false;
+  try {
+    lockAcquired = lock.tryLock(5000);  // 5 秒待ってダメなら諦める
+  } catch (lockErr) {
+    console.warn('[_logHP] LockService.tryLock 失敗（ロック無しで続行）', lockErr);
+  }
+  if (!lockAcquired) {
+    console.warn('[_logHP] ロック取得に失敗（5秒待機）。ロック無しで書き込み続行 sid=' + sid + ' type=' + type);
+  }
+
+  try {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const ss = _ss();
+        let sh   = ss.getSheetByName(SHEET_HPLOG);
+        if (!sh) {
+          sh = ss.insertSheet(SHEET_HPLOG);
+          sh.getRange(1, 1, 1, 5).setValues([['timestamp', 'studentId', 'rawHP', 'hpGained', 'type']]);
+        }
+        const beforeLastRow = sh.getLastRow();
+        const writeTs = _nowJST();
+        sh.appendRow([writeTs, sid, rawHP, hpGained, type]);
+        SpreadsheetApp.flush();  // v12 教訓踏襲：appendRow 直後の flush で確実に永続化
+
+        // 2026-05-15 防御層：書き込み verify
+        //   appendRow + flush の戻り値を信用しすぎず、末尾 5 行を実際に読み戻して
+        //   「自分の sid + type の行が存在するか」を確認する。
+        //   並列書き込みで自分の行が「最後」ではない可能性があるので、末尾 5 行を
+        //   走査して sid + type が一致する最新行を探す。
+        //   verify 失敗時は retry に回し、最終的に ok:false で返す。
+        const afterLastRow = sh.getLastRow();
+        let verified = false;
+        if (afterLastRow > beforeLastRow) {
+          const startRow = Math.max(2, afterLastRow - 4);
+          const numRows  = afterLastRow - startRow + 1;
+          const tail = sh.getRange(startRow, 1, numRows, 5).getValues();
+          for (let i = tail.length - 1; i >= 0; i--) {
+            if (String(tail[i][1] || '').trim() === sid && String(tail[i][4] || '').trim() === type) {
+              verified = true;
+              break;
+            }
+          }
+        }
+
+        if (verified) {
+          _recordHpLogAttempt(sid, type, rawHP, hpGained, attempt, 'ok', '');
+          if (debug) {
+            console.log('[_logHP] sid=' + sid + ' type=' + type + ' attempts=' + attempt + ' ok=true verified');
+          }
+          return { ok: true };
+        }
+
+        // verify 失敗（appendRow + flush 成功したが、末尾走査で自分の行が見つからない）
+        verifyFailureCount += 1;
+        console.error('[_logHP] WRITE NOT VERIFIED', 'sid=' + sid, 'type=' + type, 'attempt=' + attempt,
+                      'beforeLastRow=' + beforeLastRow, 'afterLastRow=' + afterLastRow);
+        lastError = new Error('write_not_verified: appendRow succeeded but row not found in tail');
+        if (attempt < MAX_ATTEMPTS) {
+          Utilities.sleep(RETRY_WAIT_MS);
+        }
+      } catch (e) {
+        lastError = e;
+        console.error('[_logHP] attempt=' + attempt + ' sid=' + sid + ' type=' + type + ' rawHP=' + rawHP + ' hpGained=' + hpGained, e);
+        if (attempt < MAX_ATTEMPTS) {
+          Utilities.sleep(RETRY_WAIT_MS);
+        }
       }
     }
-  }
 
-  if (debug) {
-    console.log('[_logHP] sid=' + sid + ' type=' + type + ' attempts=' + MAX_ATTEMPTS + ' ok=false error=' + String(lastError && lastError.message || lastError));
+    // 全試行失敗
+    const errStr = String(lastError && (lastError.message || lastError) || 'unknown');
+    _recordHpLogAttempt(sid, type, rawHP, hpGained, MAX_ATTEMPTS, 'failed', errStr + (verifyFailureCount > 0 ? ' (verify_fail x' + verifyFailureCount + ')' : ''));
+    if (debug) {
+      console.log('[_logHP] sid=' + sid + ' type=' + type + ' attempts=' + MAX_ATTEMPTS + ' ok=false error=' + errStr);
+    }
+    return { ok: false, error: errStr };
+  } finally {
+    if (lockAcquired) {
+      try { lock.releaseLock(); } catch (relErr) {}
+    }
   }
-  return { ok: false, error: String(lastError && lastError.message || lastError) };
+}
+
+// 2026-05-15 防御層：HPLogWriteAttempts シートへ全試行を記録する補助関数。
+// 失敗だけでなく成功も記録するため、ふくちさんは「サーバが書こうとしたが
+// HPLog 本体に無い」事象を検出できる（diagnostic ground truth）。
+//
+// 失敗時は console.error も含むため、Apps Script Executions と
+// HPLogWriteAttempts シートの両方で確認可能。
+//
+// 自己保護：この関数の例外で _logHP 全体が落ちないよう内部で try-catch。
+// シートが存在しない場合は自動作成する（軽量・初回 1 回のみ insertSheet）。
+function _recordHpLogAttempt(sid, type, rawHP, hpGained, attempts, status, errorMsg) {
+  try {
+    const ss = _ss();
+    let sh = ss.getSheetByName(SHEET_HPLOG_WRITE_ATTEMPTS);
+    if (!sh) {
+      sh = ss.insertSheet(SHEET_HPLOG_WRITE_ATTEMPTS);
+      sh.getRange(1, 1, 1, 8).setValues([['timestamp', 'sid', 'type', 'rawHP', 'hpGained', 'attempts', 'status', 'errorMsg']]);
+    }
+    sh.appendRow([_nowJST(), sid, type, rawHP, hpGained, attempts, status, errorMsg]);
+  } catch (e) {
+    // 試行ログの書き込み自体が失敗 → console.error のみで黙って継続
+    console.error('[_recordHpLogAttempt] 試行ログ書き込み失敗', e);
+  }
+}
+
+// HPLogWriteAttempts シートを手動で作成する関数（GAS エディタから 1 回実行）。
+// 自動で _recordHpLogAttempt 初回呼び出し時に作成されるため、通常は不要。
+function ensureHpLogWriteAttemptsSheet() {
+  const ss = _ss();
+  let sh = ss.getSheetByName(SHEET_HPLOG_WRITE_ATTEMPTS);
+  if (sh) {
+    Logger.log('[ensureHpLogWriteAttemptsSheet] 既に存在します');
+    return { ok: true, message: '既に存在' };
+  }
+  sh = ss.insertSheet(SHEET_HPLOG_WRITE_ATTEMPTS);
+  sh.getRange(1, 1, 1, 8).setValues([['timestamp', 'sid', 'type', 'rawHP', 'hpGained', 'attempts', 'status', 'errorMsg']]);
+  Logger.log('[ensureHpLogWriteAttemptsSheet] 新規作成しました');
+  return { ok: true, message: '新規作成' };
 }
 
 // =============================================
