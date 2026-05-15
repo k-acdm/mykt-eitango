@@ -4072,6 +4072,20 @@
     neutral: 'images/avatar/base_neutral.png'
   };
 
+  // 2026-05-16 v2：アバター画像をページ読込時にブラウザキャッシュへ先読みする。
+  // showWelcome での即時描画で img.src を切り替えても、画像本体がブラウザキャッシュに
+  // 無いとデコードに時間がかかり、見た目上「空白 → アバター」になる。ここで Image()
+  // を使って事前にロードしておけば、ログイン後の初回描画時点で即座にピクセルが出る。
+  (function _preloadAvatarBases(){
+    try {
+      for (var k in AVATAR_BASE_IMG) {
+        if (!AVATAR_BASE_IMG.hasOwnProperty(k)) continue;
+        var im = new Image();
+        im.src = AVATAR_BASE_IMG[k];
+      }
+    } catch(e){}
+  })();
+
   // localStorage キャッシュ（楽観的表示用、2026-05-16 追加）。
   // ホーム画面遷移時に GAS API レスポンス待ちで数秒「?」プレースホルダーが
   // 出る問題を解消するため、前回の base 値をローカルに保存しておき、
@@ -4283,13 +4297,28 @@
   }
 
   function showWelcome(nickname, totalHP, loginBonus, stage, streak, title, milestone) {
+    // ★ 2026-05-16 v2 楽観的表示の即時化（バグ修正）：
+    //   従来は末尾の _loadAvatarStateOnHome から描画していたが、showScreen の後に
+    //   実行されるため「ホーム画面に「?」プレースホルダーが見えてから数 frame 後に
+    //   アバターが出る」状態になり、ユーザー体感ではタイムラグとして観測された。
+    //   ここで showScreen より前に img.src を localStorage 値で確定させる。
+    //   こうすると、screen-welcome が display:block になった初回 paint の瞬間から
+    //   ベース画像が DOM 上に乗っているため、プレースホルダーは一切表示されない。
+    //   nickname も _avatarState に同期しておかないと avatar-name が空になる。
+    _avatarState.nickname = nickname || '';
+    try {
+      var _cachedBase = _loadCachedAvatarBase(_studentId);
+      if (_cachedBase) {
+        _avatarState.base = _cachedBase;
+        _renderAvatarSlot();
+      }
+    } catch(e){ console.error('[showWelcome] applyCachedAvatar', e); }
+
     document.getElementById('welcome-name').textContent = nickname + ' さん、今日も頑張ろう！';
     document.getElementById('welcome-hp').textContent   = totalHP.toLocaleString();
     document.getElementById('welcome-msg').textContent  = loginBonus > 0 ? '🎁 ログインボーナス +' + loginBonus + 'HP もらったよ！' : '今日もよろしく！';
     showCharacter(stage || 4, streak || 0, title || 'マイカツ見習い');
     _applyWabun1HpBadge();
-    // アバター状態のセッション側 nickname を同期（getAvatarState 取得前のフォールバック表示用）
-    _avatarState.nickname = nickname || '';
     showScreen('screen-welcome');
     if (milestone) setTimeout(function(){ showMilestoneFlash(milestone); }, 600);
     // 2026-05-15 バグ修正：各非同期初期化呼び出しを try-catch で個別に囲み、
@@ -4824,12 +4853,20 @@
     // コンテンツ遷移で HP を獲得していればホーム画面の表示に反映
     var hpEl = document.getElementById('welcome-hp');
     if (hpEl && typeof _totalHP === 'number') hpEl.textContent = _totalHP.toLocaleString();
+    // ★ 2026-05-16 v2：showScreen より前に img.src を確定させる。
+    //   _avatarState.base が空（showWelcome の初期 fetch が失敗していた等）でも
+    //   localStorage に値があれば即描画する。これで goHome 経由でも「?」が出ない。
+    try {
+      if (!_avatarState.base) {
+        var _gh_cachedBase = _loadCachedAvatarBase(_studentId);
+        if (_gh_cachedBase) _avatarState.base = _gh_cachedBase;
+      }
+      _renderAvatarSlot();
+    } catch(e){ console.error('[goHome] preShowAvatarRender', e); }
     showScreen('screen-welcome');
     // 2026-05-15 バグ修正：個別 try-catch でアバター再描画が必ず実行されるようにする
     try { loadUnreadMessageCount();         } catch(e){ console.error('[goHome] loadUnreadMessageCount',         e); }
     try { checkSangoStarredNotifications(); } catch(e){ console.error('[goHome] checkSangoStarredNotifications', e); }
-    // アバター変更があれば即時反映（saveAvatarBase 直後の _avatarState を信頼）
-    try { _renderAvatarSlot();              } catch(e){ console.error('[goHome] _renderAvatarSlot',              e); }
     // 2026-05-15 防御層：base が空のままならサーバから再取得を試みる
     // （showWelcome の初期 fetch が失敗していた場合のリカバリ）
     try {
