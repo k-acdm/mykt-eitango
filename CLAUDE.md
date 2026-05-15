@@ -82,6 +82,7 @@
 - [ ] admin.html の「💡 各コンテンツの素点HP一覧（参考）」テーブルに行追加 ← v14 で見落とした項目（HP 手動付与ページ内）
 - [ ] **GAS `_calendarContentName` に type プレフィックスのマッピングを追加** ← 漏れると管理画面カレンダーの「○年○月○日の学習活動」内訳が `その他（kobun_1_10）` のように表示される（commit `<本コミット>` で発覚）
 - [ ] **GAS `_isCountableActivityType` の許可リストに type プレフィックスを追加** ← 漏れるとマイカツ君の Stage 計算（連続日数の活動カウント）にそのコンテンツの活動が含まれなくなる。CLAUDE.md #229-230 で英単語RUSH 単独依存から HPLog 集約に拡張した経緯あり
+- [ ] **★ GAS `getChildActivityRecent` の集計ロジックに新コンテンツの分岐 + 提出シートフォールバックを追加** ← **2026-05-15 致命的バグで発覚（commit `<本コミット>` 参照）**。新コンテンツの submit 関数の多くは「合格 + 初回付与」時のみ HPLog に書き込むため、不合格・同日2回目以降・部分正解の活動は HPLog に残らない。HPLog 単独依存の集計関数（`getChildActivityRecent`）はこれらの活動を「やっていない」と誤判定する。**必ず Submissions シート（*Submissions / KisoSessions 等）を併読して done フラグをセット**すること。テンプレートは [gas/Code.js](gas/Code.js) `getChildActivityRecent` 内の各 `▼ ～Submissions: 提出があれば done=true` ブロックを参照
 - [ ] view.html（保護者画面）への反映確認・必要なら追加
 - [ ] CLAUDE.md / docs/HANDOVER.md への記載
 - [ ] ローカル動作確認（提出 → 履歴反映 → admin 表示）
