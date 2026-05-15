@@ -40,10 +40,6 @@
     .hp-badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #fff3cd, #ffe08a); border: 2px solid #f0c040; border-radius: 20px; padding: 8px 16px; font-size: 15px; font-weight: bold; color: #7a5c00; margin-top: 12px; }
     .btn-link { background: none; border: none; color: #4f7df0; font-size: 13px; cursor: pointer; text-decoration: underline; margin-top: 12px; display: block; }
     #change-area { display: none; margin-top: 12px; }
-    /* [2026-04-20 問題一新告知] 不要になったらこのブロックごと削除可 */
-    .announcement-banner { background: linear-gradient(135deg,#ff6b6b 0%,#ffd93d 50%,#ff6b6b 100%); color: #fff; text-align: center; font-size: 16px; font-weight: bold; padding: 14px 16px; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(255,107,107,.35); text-shadow: 0 1px 3px rgba(0,0,0,.25); border: 2px solid #fff; letter-spacing: .5px; animation: announcePulse 1.6s ease-in-out infinite; }
-    @keyframes announcePulse { 0%,100% { transform: scale(1); box-shadow: 0 4px 14px rgba(255,107,107,.35); } 50% { transform: scale(1.025); box-shadow: 0 6px 20px rgba(255,107,107,.55); } }
-    /* [/2026-04-20 問題一新告知] */
     .level-grid { display: grid; gap: 12px; margin-top: 8px; }
     .level-btn { width: 100%; padding: 18px 16px; border: 2px solid #d0d8ff; border-radius: 14px; background: #fff; font-size: 17px; font-weight: bold; color: #2d3a8c; cursor: pointer; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: all .15s; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     .level-btn:hover { border-color: #4f7df0; background: #f0f4ff; }
@@ -750,33 +746,36 @@
        左右が letterbox 化して見た目が小さくなる。height 基準で 240px に拡大し、
        マイカツ君（150x150）と同等以上の存在感を確保（width は auto＝アスペクト比保持）。
        2026-05-15 演出追加：薄ラベンダー角丸枠（B）+ 楕円スポット（A）+ 微光パルス（C）+
-       季節モチーフ（D：JS で月別に桜/雲/紅葉/雪を生成）でアバターに温度感を持たせる。 */
+       季節モチーフ（D：JS で月別に桜/雲/紅葉/雪を生成）でアバターに温度感を持たせる。
+       2026-05-15 強化版：ステージの横幅を縦と同程度（≒正方形）に拡大、季節モチーフの
+       個数と視認性を上げ、微光・楕円スポットの明るさを強める（誕生日サプライズより控えめ）。 */
     .avatar-home-row { display: flex; justify-content: center; margin: 6px 0 12px; }
-    .avatar-stage { position: relative; padding: 18px 28px 16px; background: linear-gradient(180deg, rgba(245,243,255,.6) 0%, rgba(237,233,254,.75) 100%); border-radius: 18px; overflow: hidden; box-shadow: inset 0 0 24px rgba(167,139,250,.12); }
-    /* 演出 C：ステージ風の微光（柔らかい放射グラデが脈動） */
-    .avatar-stage-light { position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); width: 260px; height: 220px; background: radial-gradient(ellipse 55% 45% at center, rgba(196,181,253,.45) 0%, rgba(196,181,253,0) 72%); pointer-events: none; z-index: 0; animation: avatarLightPulse 4.5s ease-in-out infinite; }
-    /* 演出 A：足元の楕円スポット（立ち位置感） */
-    .avatar-stage-spot { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 220px; height: 28px; background: radial-gradient(ellipse at center, rgba(255,255,255,.75) 0%, rgba(255,255,255,0) 72%); pointer-events: none; filter: blur(2px); z-index: 1; }
-    /* 演出 D：季節モチーフ（JS で生成された .petal が降下/漂う） */
+    /* ステージ枠：縦 ≒ 横の正方形寄り（min-width で横幅を明示確保、padding は左右余裕） */
+    .avatar-stage { position: relative; padding: 20px 56px 18px; min-width: 320px; background: linear-gradient(180deg, rgba(243,240,255,.85) 0%, rgba(232,226,254,.9) 100%); border-radius: 22px; overflow: hidden; box-shadow: inset 0 0 28px rgba(167,139,250,.2); }
+    /* 演出 C：ステージ風の微光（柔らかい放射グラデが脈動）— 透明度・サイズを増やしてはっきり脈動 */
+    .avatar-stage-light { position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); width: 320px; height: 240px; background: radial-gradient(ellipse 55% 45% at center, rgba(196,181,253,.72) 0%, rgba(196,181,253,.18) 50%, rgba(196,181,253,0) 78%); pointer-events: none; z-index: 0; animation: avatarLightPulse 3.6s ease-in-out infinite; }
+    /* 演出 A：足元の楕円スポット（立ち位置感）— 白を強めて立体感アップ */
+    .avatar-stage-spot { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 280px; height: 32px; background: radial-gradient(ellipse at center, rgba(255,255,255,.95) 0%, rgba(255,255,255,0) 72%); pointer-events: none; filter: blur(2px); z-index: 1; }
+    /* 演出 D：季節モチーフ（JS で生成された .petal が降下/漂う）— サイズ・透明度を強化 */
     .avatar-seasonal { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
-    .avatar-seasonal .petal { position: absolute; top: -24px; left: var(--x, 50%); font-size: var(--size, 18px); opacity: 0; will-change: transform, opacity; animation: petalFall var(--dur, 9s) linear infinite; animation-delay: var(--delay, 0s); }
+    .avatar-seasonal .petal { position: absolute; top: -28px; left: var(--x, 50%); font-size: var(--size, 22px); opacity: 0; will-change: transform, opacity; animation: petalFall var(--dur, 8s) linear infinite; animation-delay: var(--delay, 0s); filter: drop-shadow(0 1px 2px rgba(0,0,0,.08)); }
     .avatar-seasonal .petal.drift { animation-name: petalDrift; }
     @keyframes avatarLightPulse {
       0%, 100% { opacity: .85; transform: translateX(-50%) scale(1); }
-      50%      { opacity: 1;   transform: translateX(-50%) scale(1.05); }
+      50%      { opacity: 1;   transform: translateX(-50%) scale(1.10); }
     }
     @keyframes petalFall {
       0%   { transform: translateY(0) rotate(0deg);   opacity: 0; }
-      10%  { opacity: .75; }
-      90%  { opacity: .75; }
-      100% { transform: translateY(calc(100% + 40px)) rotate(320deg); opacity: 0; }
+      10%  { opacity: .95; }
+      90%  { opacity: .95; }
+      100% { transform: translateY(calc(100% + 48px)) rotate(360deg); opacity: 0; }
     }
     /* 夏の雲はゆらゆら漂うだけ（落下しない） */
     @keyframes petalDrift {
       0%   { transform: translate(0, 8px); opacity: 0; }
-      15%  { opacity: .55; }
-      50%  { transform: translate(8px, 18px); }
-      85%  { opacity: .55; }
+      15%  { opacity: .75; }
+      50%  { transform: translate(10px, 24px); }
+      85%  { opacity: .75; }
       100% { transform: translate(0, 8px); opacity: 0; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -1120,10 +1119,11 @@
       .avatar-slot .avatar-img { width: auto; height: 180px; max-width: 150px; }
       .avatar-slot .avatar-placeholder { width: 135px; height: 180px; font-size: 72px; }
       .avatar-slot .avatar-name { max-width: 150px; }
-      /* ステージ演出もモバイル用に縮小（2026-05-15） */
-      .avatar-stage { padding: 14px 18px 12px; border-radius: 16px; }
-      .avatar-stage-light { width: 200px; height: 170px; bottom: 22px; }
-      .avatar-stage-spot  { width: 170px; height: 22px; bottom: 20px; }
+      /* ステージ演出もモバイル用に縮小（2026-05-15）。
+         強化版に合わせて横幅と微光サイズも調整。 */
+      .avatar-stage { padding: 16px 32px 14px; min-width: 240px; border-radius: 20px; }
+      .avatar-stage-light { width: 240px; height: 180px; bottom: 22px; }
+      .avatar-stage-spot  { width: 200px; height: 24px; bottom: 20px; }
       .avatar-corner-pic img { width: 70%; }
       .avatar-select-card { width: 92%; }
       .chara-bubble { width: 100%; }
@@ -2098,9 +2098,6 @@
 <div id="screen-level" class="screen">
   <header><h1>📚 レベル選択</h1><span id="level-student"></span></header>
   <div class="container" style="padding-top:20px">
-    <!-- [2026-04-20 問題一新告知] 不要になったらこのブロックごと削除可 -->
-    <div id="level-announcement" class="announcement-banner" style="display:none">🎉 4月20日に問題を一新しました！</div>
-    <!-- [/2026-04-20 問題一新告知] -->
     <div class="mate-row">
       <img class="mate-img" id="mate-img-eitan-level" src="images/rushkun-default.png" alt="RUSH君">
       <div class="mate-bubble" id="mate-bubble-eitan-level">どの級に挑戦する？</div>
@@ -4134,26 +4131,29 @@
   // 月をまたいでアプリを開きっぱなしでも showWelcome の再呼び出しで自然に切り替わる。
   //   3〜5 月：🌸 桜（落下）/ 6〜8 月：☁️ 雲（漂う、drift）/
   //   9〜11 月：🍁 紅葉（落下）/ 12〜2 月：❄️ 雪（落下、ややゆっくり）
-  // 控えめに 3〜5 個程度のみ生成。prefers-reduced-motion は CSS 側で display:none。
+  // 2026-05-15 強化版：個数を 8〜12 個に増やし、サイズを 1.3〜1.5 倍程度に拡大。
+  //   開始遅延もバラけさせて「常に何かが落ちている」状態を作る。
+  //   prefers-reduced-motion は CSS 側で display:none で完全停止。
   function _renderAvatarSeasonal() {
     var el = document.getElementById('avatar-seasonal');
     if (!el) return;
     var month = new Date().getMonth() + 1; // 1-12
     var emoji, drift = false, count, dur, sizeMin, sizeMax;
     if (month >= 3 && month <= 5) {
-      emoji = '🌸'; count = 4; dur = 9;  sizeMin = 16; sizeMax = 22; // 春：桜
+      emoji = '🌸'; count = 11; dur = 8;  sizeMin = 22; sizeMax = 32; // 春：桜（多めにフワッと）
     } else if (month >= 6 && month <= 8) {
-      emoji = '☁️'; count = 3; dur = 14; sizeMin = 22; sizeMax = 30; drift = true; // 夏：雲（漂う）
+      emoji = '☁️'; count = 8;  dur = 13; sizeMin = 28; sizeMax = 40; drift = true; // 夏：雲（漂う）
     } else if (month >= 9 && month <= 11) {
-      emoji = '🍁'; count = 4; dur = 10; sizeMin = 16; sizeMax = 22; // 秋：紅葉
+      emoji = '🍁'; count = 11; dur = 9;  sizeMin = 22; sizeMax = 32; // 秋：紅葉
     } else {
-      emoji = '❄️'; count = 5; dur = 13; sizeMin = 14; sizeMax = 20; // 冬：雪
+      emoji = '❄️'; count = 12; dur = 12; sizeMin = 20; sizeMax = 28; // 冬：雪（ややゆっくり多め）
     }
     var html = '';
     for (var i = 0; i < count; i++) {
-      var x      = (8 + Math.random() * 84).toFixed(1);
+      var x      = (4 + Math.random() * 92).toFixed(1);                          // 横位置をほぼ全幅にバラける
       var d      = (dur + Math.random() * 4).toFixed(1);
-      var delay  = (i * (dur / count) * 0.55).toFixed(1);
+      // 開始遅延を「均等割り + ランダム」にして、最初の数秒から多くの粒子が見えるようにする
+      var delay  = ((i * (dur / count)) - Math.random() * 2).toFixed(1);
       var size   = (sizeMin + Math.random() * (sizeMax - sizeMin)).toFixed(0);
       html += '<span class="petal' + (drift ? ' drift' : '') + '" style="--x:' + x + '%;--dur:' + d + 's;--delay:' + delay + 's;--size:' + size + 'px;">' + emoji + '</span>';
     }
@@ -4274,19 +4274,21 @@
   }
   function showLevelSelect() {
     document.getElementById('level-student').textContent = _studentId + ' さん';
-    _applyLevelAnnouncement();
     _setContentMascot('mate-img-eitan-level', 'default', 'mate-bubble-eitan-level', _pickBubble(RUSHKUN_BUBBLES.level), 'rushkun');
     showScreen('screen-level');
   }
-  // [2026-04-20 問題一新告知] 不要になったらこの関数と showLevelSelect からの呼び出しを削除可
-  function _applyLevelAnnouncement() {
-    var el = document.getElementById('level-announcement');
-    if (!el) return;
-    var threshold = new Date('2026-04-20T04:00:00+09:00').getTime();
-    el.style.display = (Date.now() >= threshold) ? 'block' : 'none';
+  function selectLevel(level) {
+    _level = level;
+    // 2026-05-15 バグ修正：読み込み中ヘッダーが前回級のままになる問題への対策。
+    // showToday の GAS 応答到着前に「英検{選択した級}レベル｜読み込み中…」を即座に表示し、
+    // 古い級名（例：前回 3 級を選んでいたのに 1 級を選択した場合の「3 級｜セット 5」）
+    // が残らないようにする。GAS 応答後は showToday 内で正式な「セット N（K セット目）」表記に更新される。
+    var labelEl = document.getElementById('today-set-label');
+    if (labelEl) labelEl.textContent = '英検' + level + 'レベル｜読み込み中…';
+    var stuEl = document.getElementById('today-student');
+    if (stuEl) stuEl.textContent = _studentId + ' さん｜英検' + level + 'レベル';
+    showToday();
   }
-  // [/2026-04-20 問題一新告知]
-  function selectLevel(level) { _level = level; showToday(); }
   function showComingSoonLevel(name) { alert('英検' + name + 'レベルは現在準備中です。もうしばらくお待ちください！'); }
   function showComingSoon(name) { alert(name + ' は現在準備中です。もうしばらくお待ちください！'); }
   // ===== 今日の運勢（2026-05-13 新規、旧「秘密の扉」のリブランド） =====
