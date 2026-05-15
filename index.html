@@ -4072,6 +4072,32 @@
     neutral: 'images/avatar/base_neutral.png'
   };
 
+  // localStorage キャッシュ（楽観的表示用、2026-05-16 追加）。
+  // ホーム画面遷移時に GAS API レスポンス待ちで数秒「?」プレースホルダーが
+  // 出る問題を解消するため、前回の base 値をローカルに保存しておき、
+  // 次回ログイン時は即座に表示する（並行して GAS で最新値を取得・差分更新）。
+  // studentId をキーに含めて複数アカウントの混在を防止。
+  function _avatarCacheKey(sid) { return 'avatarBase_' + String(sid || ''); }
+  function _loadCachedAvatarBase(sid) {
+    if (!sid) return '';
+    try {
+      var v = localStorage.getItem(_avatarCacheKey(sid));
+      if (v && AVATAR_BASE_IMG[v]) return v;
+    } catch(e){}
+    return '';
+  }
+  function _saveCachedAvatarBase(sid, base) {
+    if (!sid) return;
+    try {
+      if (base && AVATAR_BASE_IMG[base]) localStorage.setItem(_avatarCacheKey(sid), base);
+      else localStorage.removeItem(_avatarCacheKey(sid));
+    } catch(e){}
+  }
+  function _clearCachedAvatarBase(sid) {
+    if (!sid) return;
+    try { localStorage.removeItem(_avatarCacheKey(sid)); } catch(e){}
+  }
+
   // ホーム画面のマイカツ君隣アバター枠 + 下部カード（NEW バッジ）を、
   // _avatarState の base 値に応じて描画する。
   function _renderAvatarSlot() {
@@ -4116,14 +4142,24 @@
       _renderAvatarSlot();
       return;
     }
+    // 2026-05-16 楽観的表示：localStorage キャッシュがあれば即描画してタイムラグを解消。
+    // 並行して GAS で最新値を取得し、差分があれば再描画 + キャッシュ更新。
+    var cachedBase = _loadCachedAvatarBase(_studentId);
+    if (cachedBase) {
+      _avatarState.base = cachedBase;
+      _renderAvatarSlot();
+    }
     gasGet({ action: 'getAvatarState', studentId: _studentId, _ts: Date.now() }).then(function(res){
       console.log('[avatar] getAvatarState response', res);
       if (res && res.ok) {
-        _avatarState.base     = String(res.base || '');
+        var serverBase = String(res.base || '');
+        _avatarState.base     = serverBase;
         _avatarState.items    = Array.isArray(res.items) ? res.items : [];
         _avatarState.equipped = (res.equipped && typeof res.equipped === 'object') ? res.equipped : {};
         _avatarState.nickname = String(res.nickname || '');
-        if (!_avatarState.base) {
+        // サーバ値で localStorage を更新（空ならクリア、AVATAR_BASE_IMG に無い値もクリア）
+        if (serverBase !== cachedBase) _saveCachedAvatarBase(_studentId, serverBase);
+        if (!serverBase) {
           console.warn('[avatar] getAvatarState returned ok but base is empty. _debug=', res._debug);
         }
       } else {
@@ -4132,6 +4168,7 @@
       _renderAvatarSlot();
     }).catch(function(err){
       console.error('[avatar] getAvatarState exception', err);
+      // 通信エラー時は楽観表示を維持（cachedBase は既に _avatarState.base に入っている）
       _renderAvatarSlot();
     });
   }
@@ -4230,6 +4267,8 @@
       }
       var wasUnset = !_avatarState.base;
       _avatarState.base = base;
+      // 楽観的表示用 localStorage キャッシュも同期更新（次回ログイン時タイムラグなし）
+      _saveCachedAvatarBase(_studentId, base);
       // getAvatarState のキャッシュを破棄して次回 fresh 読み（保護者画面等の整合も保つ）
       try { _invalidateCacheByAction('getAvatarState'); } catch(e){}
       // ホーム側スロット + 下部カードバッジを即時反映
@@ -4827,6 +4866,8 @@
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('popstate', popstateHandler);
     _stopAudio();
+    // アバター localStorage キャッシュをクリア（別アカウントへの混在防止、_studentId クリア前に実行）
+    _clearCachedAvatarBase(_studentId);
     _studentId = null; _questions = []; _score = 0; _current = 0;
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
