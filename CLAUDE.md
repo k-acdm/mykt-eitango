@@ -82,7 +82,16 @@
 - [ ] admin.html の「💡 各コンテンツの素点HP一覧（参考）」テーブルに行追加 ← v14 で見落とした項目（HP 手動付与ページ内）
 - [ ] **GAS `_calendarContentName` に type プレフィックスのマッピングを追加** ← 漏れると管理画面カレンダーの「○年○月○日の学習活動」内訳が `その他（kobun_1_10）` のように表示される（commit `<本コミット>` で発覚）
 - [ ] **GAS `_isCountableActivityType` の許可リストに type プレフィックスを追加** ← 漏れるとマイカツ君の Stage 計算（連続日数の活動カウント）にそのコンテンツの活動が含まれなくなる。CLAUDE.md #229-230 で英単語RUSH 単独依存から HPLog 集約に拡張した経緯あり
-- [ ] **★ GAS `getChildActivityRecent` の集計ロジックに新コンテンツの分岐 + 提出シートフォールバックを追加** ← **2026-05-15 致命的バグで発覚（commit `<本コミット>` 参照）**。新コンテンツの submit 関数の多くは「合格 + 初回付与」時のみ HPLog に書き込むため、不合格・同日2回目以降・部分正解の活動は HPLog に残らない。HPLog 単独依存の集計関数（`getChildActivityRecent`）はこれらの活動を「やっていない」と誤判定する。**必ず Submissions シート（*Submissions / KisoSessions 等）を併読して done フラグをセット**すること。テンプレートは [gas/Code.js](gas/Code.js) `getChildActivityRecent` 内の各 `▼ ～Submissions: 提出があれば done=true` ブロックを参照
+- [ ] **★ GAS `getChildActivityRecent` の集計ロジックに新コンテンツの分岐を追加**（2026-05-15 確立）。
+  **ふくちさん教育観：「HP 獲得まで到達した = ✅、それ未満 = ❌」**。「最初だけ少しやっただけで ✅ が付くのは何の意味もない」。新コンテンツ追加時は以下の方針で分岐を追加：
+  - **通常判定**：HPLog の type プレフィックス（'sango' / 'wabun1' / 'kiso_*' / 'kanji_*' / 'lison' / 'kobun_*' 等）が唯一の ✅ 判定源。HPLog は「HP 獲得条件を満たした活動」だけが残る設計のため、HPLog 単独依存で論理的に正しい
+  - **フォールバック（任意）**：HPLog 書き込みが silent failure した場合の救済策。**「HP 獲得条件を満たした活動」のみを救済対象に**：
+    - sango / lison：提出 = HP 獲得条件 → 行があれば ✅
+    - test：Attempts.合否='合格' の行のみ ✅（'不合格' 行は ❌）
+    - kiso：KisoSessions.status='passed' の行のみ ✅
+    - wabun1 / kanji：「allCorrect だったか」を判定する列がない / 集計コストが高い → フォールバックなし、HPLog 単独依存（silent failure 検知は HPLogWriteAttempts シートで補う）
+  - **やってはいけないこと**：「Submissions シートに行があれば ✅」のような参加賞的フォールバック。「挑戦したら ✅」になると教育観と逆方向（ふくちさん 2026-05-15 確認）
+  - テンプレートは [gas/Code.js](gas/Code.js) `getChildActivityRecent` 内の各 `▼ ～: ` ブロックを参照
 - [ ] view.html（保護者画面）への反映確認・必要なら追加
 - [ ] CLAUDE.md / docs/HANDOVER.md への記載
 - [ ] ローカル動作確認（提出 → 履歴反映 → admin 表示）

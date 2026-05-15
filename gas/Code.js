@@ -9321,30 +9321,49 @@ function getChildActivityRecent(params) {
     }
 
     // ================================================================
-    // 2026-05-15 構造的バグ修正：HPLog 単独依存からの脱却（全コンテンツ網羅）
+    // 2026-05-15 教育観整合：✅ = HP 獲得した活動のみ（ふくちさん哲学）
     // ----------------------------------------------------------------
-    // 多くのコンテンツが HPLog に書き込むのは「合格 + HP 付与あり」の場合のみで、
-    //   - wabun1：allCorrect && !alreadyGranted の時のみ
-    //   - test (英単語RUSH)：passed の時のみ
-    //   - kiso：passed の時のみ
-    //   - kanji（書き）：passed の時のみ（読みは独立 API で HPLog に書かない）
-    //   - kobun：passed の時のみ
-    //   - sango / lison：!alreadyGranted の時のみ
-    // 提出記録自体は各 *Submissions / *Sessions シートに常に残るため、それらを
-    // 「学習活動の事実」のフォールバックとして必ず参照する。これがないと、
-    // 「不正解だった日」「同日 2 回目以降の挑戦」が学習履歴に出ない問題が発生。
+    // 「HP 獲得まで到達した = ✅、それ未満 = ❌」というシンプルなルール。
+    // 「最初だけ少しやっただけで ✅ が付くのは、何の意味もない」（ふくちさん）。
+    //
+    // 各コンテンツの ✅ 条件（= HPLog 書き込み条件と同一）：
+    //   - sango   : 同日 1 回目の提出（提出 = 活動）
+    //   - lison   : 同日 1 回目の完走（録音アップロード = 完走 = 活動）
+    //   - wabun1  : 全問正解で提出（不正解含む提出は ❌）
+    //   - test    : 合格（英単語RUSH 4択 or 5級書取り）
+    //   - kiso    : 合格（passed セッション）
+    //   - kanji   : 合格（書き全問正解）
+    //   - kobun   : 合格
+    //
+    // 通常の判定経路は HPLog 単独で論理的に正しい（HPLog ⇔ HP 獲得活動）。
+    // 各 Submissions / Sessions シートのフォールバックは、HPLog 書き込みが
+    // silent failure した場合の救済策として位置づける（_logHP の LockService +
+    // verify + HPLogWriteAttempts と組み合わせて多重防御）。
+    //
+    // 重要：フォールバックも「HP 獲得条件を満たした活動」のみカウントする。
+    //   - sango / lison : 提出 1 件 = HP 獲得条件 → 行があれば ✅
+    //   - wabun1        : allCorrect の判定情報が Wabun1Submissions に残らないため
+    //                     フォールバックなし（HPLog 単独依存、silent failure は
+    //                     HPLogWriteAttempts で検知）
+    //   - test          : Attempts.合否='合格' の行のみ ✅
+    //   - kiso          : KisoSessions.status='passed' の行のみ ✅
+    //   - kanji         : セッション単位の合格判定が KanjiSubmissions だけでは
+    //                     困難なためフォールバックなし（HPLog 単独依存）
+    //   - kobun         : Submissions シートなし → HPLog 単独依存
+    //
+    // 読み取り行数：直近 7 日分 + スケール余裕を見て主要シートは 2000 行を読む。
     //
     // 過去のバグ事例：
     //   5/7  マイカツ君 Stage が単一コンテンツ依存（_getPrevDayCount）→ HPLog 集約に修正
     //   5/14 コブタンが「その他」表記 → _calendarContentName / _isCountableActivityType 拡張
-    //   5/15 学習履歴 全コンテンツ ✗ ← この修正で対処（同種の構造的バグ）
-    //
-    // 読み取り行数も増やす：直近 7 日分で 70 生徒 × 2 件/日 = 約 1000 件/週。
-    // 余裕を見て主要シートは 2000〜5000 行を読む。
+    //   5/15 学習履歴 全コンテンツ ✗ → 03e1607 で「挑戦も ✅」に振りすぎた
+    //        → 本コミットで「HP 獲得条件を満たした活動のみ ✅」に修正
     // ================================================================
 
-    // ▼ Attempts（英単語RUSH）: 合格 1 件でも eitango.done=true 化（旧実装は details のみ補完）
+    // ▼ Attempts（英単語RUSH）: 合格行のみ eitango.done=true セット + details 補完
     //   列構成: [0]timestamp [1]studentId [2]studentName [3]setNo [4]score [5]合否 [6]level
+    //   合否列は '合格' / '不合格' のいずれか（saveAttempt が両方とも appendRow する）。
+    //   '不合格' 行は continue でスキップ → ふくちさん哲学「合格してないものは ❌」に整合。
     const atSheet = ss.getSheetByName(SHEET_ATTEMPTS);
     if (atSheet && atSheet.getLastRow() >= 2) {
       const rows = _readLastNRows(atSheet, 2000);
@@ -9354,8 +9373,7 @@ function getChildActivityRecent(params) {
         const ds = _toDateStr(r[0]);
         if (!ds || !byDate[ds]) continue;
         const pass = String(r[5] || '').trim();
-        if (pass !== '合格') continue;
-        // 2026-05-15 バグ修正：HPLog 'test' が無くても done=true にする（合格記録があれば十分）
+        if (pass !== '合格') continue;  // ★ 不合格は ✅ にしない
         byDate[ds].eitango.done = true;
         byDate[ds].eitango.details.push({
           level: String(r[6] || '').trim(),
@@ -9366,6 +9384,9 @@ function getChildActivityRecent(params) {
 
     // ▼ SangoSubmissions: 提出があれば done=true（行数 500 → 2000 に拡張）
     //   列構成: [0]timestamp [1]studentId [2]studentName [3]level [4]words [5]work [6]method
+    //   三語短文は「提出した = HP 獲得条件達成」（正誤判定なし、創作的活動）。
+    //   submitSango は appendRow を !alreadyGranted の前に行うため、HPLog が
+    //   silent failure しても SangoSubmissions には行が残る → 救済できる。
     const sgSheet = ss.getSheetByName(SHEET_SANGO_SUBMISSIONS);
     if (sgSheet && sgSheet.getLastRow() >= 2) {
       const rows = _readLastNRows(sgSheet, 2000);
@@ -9384,107 +9405,69 @@ function getChildActivityRecent(params) {
       }
     }
 
-    // ▼ Wabun1Submissions: 提出があれば done=true（新規追加フォールバック）
-    //   列構成: [0]timestamp [1]studentId [2]studentName [3]workText [4]method [5]teacher_comment [6]skipJson
-    //   2026-05-15 バグ修正：submitWabun1 は allCorrect 時のみ HPLog 書き込む仕様のため、
-    //   不正解を含む提出は HPLog に残らない。Wabun1Submissions は appendRow 常時実行のため
-    //   ここをフォールバックとして必ず参照する。hpGained は HPLog からの集計値を温存。
-    const wbSheet = ss.getSheetByName(SHEET_WABUN1_SUBMISSIONS);
-    if (wbSheet && wbSheet.getLastRow() >= 2) {
-      const rows = _readLastNRows(wbSheet, 2000);
-      for (let i = 0; i < rows.length; i++) {
-        const r = rows[i];
-        if (!r[0]) continue;
-        if (String(r[1] || '').trim() !== sid) continue;
-        const tsStr = Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
-        const ds = tsStr.slice(0, 10);
-        if (!byDate[ds]) continue;
-        byDate[ds].wabun1.done = true;
-        // hpGained は HPLog 集計値（全問正解 + 初回付与時のみ）を維持。
-        // 提出のみ（不正解含む）は hpGained = 0 のままで done だけ true。
-      }
-    }
+    // ▼ Wabun1Submissions: フォールバックなし（HPLog 単独依存）
+    //   現状の Wabun1Submissions シートは appendRow を allCorrect 判定の前に行うため、
+    //   不正解を含む全提出が記録される。「allCorrect か否か」を識別する列が存在しない
+    //   ため、サブミッションシートからは「HP 獲得条件達成」を判定できない。
+    //   → フォールバックなしとし、HPLog 'wabun1' を唯一の ✅ 判定源とする。
+    //   → silent failure 検知は _logHP の HPLogWriteAttempts シートが担う。
+    //   将来 allCorrect 列を追加するなら、ここに「allCorrect=true 行があれば ✅」の
+    //   フォールバックを追加することで silent failure 救済も可能になる（任意拡張）。
 
-    // ▼ KisoSessions: 提出があれば kiso.done=true（新規追加フォールバック）
+    // ▼ KisoSessions: status='passed' のセッションのみ kiso.done=true（合格行のみ）
     //   列構成: [0]sessionId [1]studentId [2]rank [3]count [4]questionIds [5]status
     //           [6]attempts [7]startedAt [8]completedAt [9]hpEarned [10]wrongIds [11]hasWorkPhoto [12]problemLatexes
-    //   2026-05-15 バグ修正：submitKisoAnswer は passed 時のみ HPLog 書き込む。
-    //   不合格セッションは status='failed_retry' で KisoSessions に残るが HPLog に出ない。
-    //   ここをフォールバックとして使う。attempts > 0（提出した）かつ startedAt が範囲内なら done。
-    //   セッション情報（rank, count）も sessions 配列に流し込み、表示に活用。
+    //   2026-05-15 哲学整合：status='failed_retry' / 'in_progress' は ✅ にしない。
+    //   passed セッションのみ HP 獲得条件を満たすため、これだけを救済対象とする。
+    //   completedAt が範囲内のセッションを採用（startedAt より completedAt の方が
+    //   HP 獲得タイミングに近いため、表示日とずれにくい）。completedAt が空の場合は
+    //   startedAt をフォールバック日付として使う（保険）。
     const ksSheet = ss.getSheetByName(SHEET_KISO_SESSIONS);
     if (ksSheet && ksSheet.getLastRow() >= 2) {
       const rows = _readLastNRows(ksSheet, 2000);
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (String(r[1] || '').trim() !== sid) continue;
-        const attempts = Number(r[6]) || 0;
-        if (attempts <= 0) continue;  // 0 回提出（in_progress 直後）はスキップ
-        const startedAt = r[7];
-        if (!startedAt) continue;
-        const tsStr = Utilities.formatDate(new Date(startedAt), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+        const status = String(r[5] || '').trim();
+        if (status !== 'passed') continue;  // ★ 合格のみ ✅
+        const refDate = r[8] || r[7];  // completedAt 優先、なければ startedAt
+        if (!refDate) continue;
+        const tsStr = Utilities.formatDate(new Date(refDate), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
         const ds = tsStr.slice(0, 10);
         if (!byDate[ds]) continue;
-        // 既に HPLog 経由で sessions が積まれていれば、KisoSessions ベースの sessions は追加しない
-        // （重複表示を避ける。HPLog 側がより詳細な情報を持つため優先）。
-        // HPLog なしのセッション（不合格・未完了）の場合のみ done=true セットアップ。
+        // 既に HPLog 経由で sessions が積まれていれば追加しない（重複表示を避ける）。
+        // HPLog 経由なしの passed セッション = silent failure 救済対象 → done=true セット。
         const alreadyHasHpLogSession = byDate[ds].kiso.done && byDate[ds].kiso.sessions.length > 0;
         if (!alreadyHasHpLogSession) {
           byDate[ds].kiso.done = true;
-          // HPLog 経由の sessions がない場合は KisoSessions から最低限の情報を流す
-          const rank = Number(r[2]) || 0;
+          const rank  = Number(r[2]) || 0;
           const count = Number(r[3]) || 0;
-          const status = String(r[5] || '');
           byDate[ds].kiso.sessions.push({
             rank:       rank,
             count:      count,
             isPractice: false,
             hpGained:   0,
             rawHP:      0,
-            status:     status,  // 'in_progress' / 'passed' / 'failed_retry'
-            attempts:   attempts
+            status:     'passed',
+            attempts:   Number(r[6]) || 0
           });
         }
       }
     }
 
-    // ▼ KanjiSubmissions: 提出があれば kanji.done=true（新規追加フォールバック）
-    //   列構成: [0]timestamp [1]sid [2]level [3]sessionId [4]no [5]expected [6]studentWrote [7]isCorrect [8]readable
-    //   2026-05-15 バグ修正：submitKanjiKaki は passed 時のみ HPLog 書き込むが、
-    //   KanjiSubmissions は needsRetake でも 1 問ずつ appendRow される。
-    //   1 セッション = 5〜10 行のため、行数は他より多めに 5000 を読む。
-    //   level 値は '5' / '4' / '3' / '準2' / '2' のいずれか（kanji_yomi の levelKey を統一前提）。
-    const kjSheet = ss.getSheetByName(SHEET_KANJI_SUBMISSIONS);
-    if (kjSheet && kjSheet.getLastRow() >= 2) {
-      const rows = _readLastNRows(kjSheet, 5000);
-      for (let i = 0; i < rows.length; i++) {
-        const r = rows[i];
-        if (!r[0]) continue;
-        if (String(r[1] || '').trim() !== sid) continue;
-        const tsStr = Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
-        const ds = tsStr.slice(0, 10);
-        if (!byDate[ds]) continue;
-        byDate[ds].kanji.done = true;
-        // HPLog 経由でセッション情報が積まれていなければ、KanjiSubmissions から
-        // セッション情報を 1 つだけ生成（複数行 = 同一セッションの可能性高、雑な重複防止）。
-        const lv = String(r[2] || '').trim();
-        const hasSessionForLevel = byDate[ds].kanji.sessions.some(function(s){ return s.level === lv; });
-        if (lv && !hasSessionForLevel) {
-          byDate[ds].kanji.sessions.push({
-            level:      lv,
-            count:      0,  // KanjiSubmissions からは count 推定困難
-            isPractice: false,
-            hpGained:   0,
-            rawHP:      0
-          });
-        }
-      }
-    }
+    // ▼ KanjiSubmissions: フォールバックなし（HPLog 単独依存）
+    //   KanjiSubmissions は 1 行 = 1 問の判定結果を記録する設計（needsRetake でも
+    //   個別問題の行が残る）。セッション単位で「全問正解だったか」を判定するには
+    //   sessionId でグルーピングして全行の isCorrect=true を確認する必要があり、
+    //   コストが高い割に値が薄い。
+    //   → HPLog 'kanji_*' を唯一の ✅ 判定源とする（合格時のみ HPLog 書き込まれる）。
+    //   → silent failure 検知は _logHP の HPLogWriteAttempts シートが担う。
 
     // ▼ LisonSubmissions: level 補完（行数 500 → 2000 に拡張）
     //   列構成: [0]timestamp [1]studentId [2]studentName [3]level [4]weekStart [5]quizScore [6]recordingUrl [7]hpGained
-    //   alreadyGranted（同日 2 回目以降）でも提出記録は残るので、HPLog に lison 行が無い日でも
-    //   ここで done=true になる（保護者画面で「練習はした」が見える）
+    //   リスオンは「完走 = 録音アップロード」が活動の証で正誤判定がない。
+    //   alreadyGranted（同日 2 回目以降）でも recording は残るので、HPLog に lison 行が
+    //   無い日でも完走したことが分かる → done=true 救済。
     const lsSheet = ss.getSheetByName(SHEET_LISON_SUBMISSIONS);
     if (lsSheet && lsSheet.getLastRow() >= 2) {
       const rows = _readLastNRows(lsSheet, 2000);
@@ -9504,8 +9487,8 @@ function getChildActivityRecent(params) {
     }
 
     // ▼ kobun: 専用の Submissions シートが存在しないため、HPLog 単独依存のまま。
-    //   不合格・途中放棄の活動は学習履歴に出ない。これは仕様（HP 付与時のみ記録）。
-    //   将来 KobunSubmissions シートが追加された場合はここにフォールバックを追加すること。
+    //   不合格・途中放棄の活動は学習履歴に出ない（ふくちさん哲学：合格してないものは ❌）。
+    //   将来 KobunSubmissions シートが追加された場合は status='passed' を救済条件とする。
 
     // 2026-05-11 バグ④ 修正：HP 獲得記録があるのにログイン ❌ 表示の矛盾解消。
     // 真因：HPLog の type='login' レコードのみで login フラグを判定していたため、
