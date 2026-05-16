@@ -927,12 +927,21 @@
     .line-register-btn-student { background: linear-gradient(135deg, #06c755, #04a64b); }
     .line-register-btn-parent  { background: linear-gradient(135deg, #04a64b, #036c30); }
     .line-register-main { display: block; font-size: 14px; font-weight: 700; letter-spacing: .3px; }
+    .line-register-note {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #6b7d70;
+      text-align: center;
+      line-height: 1.5;
+      letter-spacing: .3px;
+    }
     @media (max-width: 480px) {
       .line-register-section { margin-top: 18px; padding: 12px 12px 10px; }
       .line-register-title { font-size: 13px; }
       .line-register-desc  { font-size: 10px; }
       .line-register-btn   { padding: 10px 12px; }
       .line-register-main  { font-size: 13px; }
+      .line-register-note  { font-size: 10px; }
     }
 
     /* ===== Step 2 の保護者モード時のスタイル切替 ===== */
@@ -2028,18 +2037,21 @@
           </button>
 
           <!-- LINE 通知登録セクション（Phase B-1、2026-05-16）：
-               前日に何もやってない時に正午に LINE で通知を送るための userId 紐付け。
+               LINE Login OAuth で生徒 / 保護者の userId を Students シートに紐付け。
+               ★ 通知の理由（やってない日に通知が来る等）は説明文に一切書かない。
+                  → ふくちさん明示指示：理由を伝えると「通知を送る必要がある子が登録しなくなる」ため。
                ボタンタップ → GAS Web App → LINE 認可 → 生徒ID入力 → 完了。
                GAS_URL は本ファイル冒頭で定義済の定数を使う。 -->
           <div class="line-register-section">
             <div class="line-register-title">📲 LINE 通知の登録</div>
-            <div class="line-register-desc">提出忘れの日にお知らせが届きます</div>
+            <div class="line-register-desc">アプリ側でも公式LINEへの<br>登録をお願いします。</div>
             <button type="button" class="line-register-btn line-register-btn-student" onclick="startLineLoginFlow('student')">
               <span class="line-register-main">🧒 生徒として LINE を登録</span>
             </button>
             <button type="button" class="line-register-btn line-register-btn-parent" onclick="startLineLoginFlow('parent')">
               <span class="line-register-main">👨‍👩‍👧 保護者として LINE を登録</span>
             </button>
+            <div class="line-register-note">⚠️ 既に登録済みの方は、ボタンを押す必要はありません。</div>
           </div>
         </div>
 
