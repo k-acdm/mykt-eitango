@@ -15619,7 +15619,10 @@ function ensureRequiredColumns() {
 //        APP_BASE_URL（GitHub Pages の URL、デフォルトはコード内の DEFAULT_APP_BASE_URL）
 //   3) LINE Login のコールバック URL に
 //        {GAS_WEB_APP_URL}?action=lineLoginCallback
-//        を登録（ScriptApp.getService().getUrl() で取得した値 + クエリ）
+//        を登録 + その本体 URL（?action=...を除く /exec まで）を ScriptProperty 'WEB_APP_URL' に保存。
+//        ★ 2026-05-17 修正：旧版は ScriptApp.getService().getUrl() を使っていたが、これは
+//          開発版 URL（/dev）を返すケースがあり LINE 認可に失敗（access.line.me で接続拒否）するため、
+//          必ず ScriptProperty 'WEB_APP_URL' から取得する設計に変更。
 //   4) GAS エディタから ensureLineNotifyColumns() を 1 回実行（3 列を Students / SpecialAccounts に追加）
 //
 // フロー（ユーザー視点）：
@@ -15753,11 +15756,42 @@ function _deleteTempLineToken(tempToken) {
   try { CacheService.getScriptCache().remove('line_login_' + String(tempToken).trim()); } catch(e){}
 }
 
-// --- redirect_uri ヘルパー：LINE Console に登録するべき URL ---
-// 注意：このメソッドが返す URL は GAS デプロイのたびに変わるため、ふくちさんは
-// 「デプロイ → 既存デプロイの編集 → バージョン更新」で URL を保つこと（新規デプロイは作らない）。
+// --- WEB_APP_URL ヘルパー（2026-05-17 緊急修正：/dev URL バグ対策） ---
+// 旧版は ScriptApp.getService().getUrl() を使っていたが、これは GAS の実行コンテキストに
+// よって開発版 URL（末尾 /dev）を返す問題があった（ふくちさん環境で実害発生：
+// LINE 認可で「access.line.me で接続が拒否されました」エラー）。
+// 対策：ScriptProperty 'WEB_APP_URL' に「LINE Console に登録した本番デプロイ URL」を
+// 保存し、そこから取得する。値の例：
+//   https://script.google.com/macros/s/AKfycb.../exec
+// （末尾 /exec まで、?action=... のクエリは含めない）
+function _getWebAppUrl() {
+  var url = '';
+  try {
+    url = String(PropertiesService.getScriptProperties().getProperty('WEB_APP_URL') || '').trim();
+  } catch (e) {}
+  if (!url) {
+    throw new Error('WEB_APP_URL が ScriptProperties に未設定です。Apps Script のプロジェクト設定 → スクリプトプロパティで登録してください（値は LINE Console に登録した Callback URL から ?action=lineLoginCallback を除いた本体のみ）。');
+  }
+  return url;
+}
+// 例外を投げずに '' を返す版（getLineRegistrationStatus の表示用、retry リンク等）。
+function _getWebAppUrlOrEmpty() {
+  try { return _getWebAppUrl(); } catch (e) { return ''; }
+}
+// LINE Console の Callback URL に登録する完全な URL（?action=lineLoginCallback 付き）。
+function _getCallbackUrl() {
+  return _getWebAppUrl() + '?action=lineLoginCallback';
+}
+// 旧 API 互換のためのエイリアス（今後の追加コードは _getCallbackUrl() を直接使うこと）。
 function _lineRedirectUri() {
-  return ScriptApp.getService().getUrl() + '?action=lineLoginCallback';
+  return _getCallbackUrl();
+}
+// WEB_APP_URL 未設定時の専用エラー HTML（_renderLineErrorHtml の薄いラッパー）。
+function _renderWebAppUrlMissingHtml(detailMsg) {
+  return _renderLineErrorHtml(
+    'LINE 通知の準備中',
+    detailMsg || 'WEB_APP_URL が ScriptProperties に未設定です。Apps Script のプロジェクト設定で登録してください。'
+  );
 }
 
 // --- HTML テンプレート（自己完結スタイル、CDN は使わない） ---
@@ -15797,14 +15831,17 @@ function _escapeHtmlMinimal(s) {
 
 function _renderLineErrorHtml(title, msg, opt) {
   var appUrl = _getAppBaseUrl();
-  var startUrl = ScriptApp.getService().getUrl();
+  // 2026-05-17：retry リンクの startUrl も WEB_APP_URL から取得。
+  // この関数は WEB_APP_URL 未設定時のエラー描画にも使われるため、欠落でも throw しない
+  // _getWebAppUrlOrEmpty を使う。空なら retry リンクは出さない（マイ活に戻るリンクのみ）。
+  var startUrl = _getWebAppUrlOrEmpty();
+  var retryHtml = (opt && opt.retry && startUrl)
+    ? '<a class="btn-line" href="' + _escapeHtmlMinimal(startUrl) + '?action=lineLoginStart&role=' + _escapeHtmlMinimal(opt.retry) + '">もう一度やり直す</a>'
+    : '';
   var body =
     '<h1>⚠️ ' + _escapeHtmlMinimal(title) + '</h1>' +
     '<div class="line-msg error">' + _escapeHtmlMinimal(msg) + '</div>' +
-    (opt && opt.retry
-      ? '<a class="btn-line" href="' + _escapeHtmlMinimal(startUrl) + '?action=lineLoginStart&role=' + _escapeHtmlMinimal(opt.retry) + '">もう一度やり直す</a>'
-      : ''
-    ) +
+    retryHtml +
     '<a class="btn-back" href="' + _escapeHtmlMinimal(appUrl) + '">マイ活アプリに戻る</a>';
   return _renderLineLayoutHtml(title, body);
 }
@@ -15827,7 +15864,11 @@ function _renderLineSuccessHtml(role, sid, displayName) {
 
 function _renderLineRegisterFormHtml(tempToken, role, displayName) {
   var roleLabel = role === 'parent' ? '保護者' : '生徒本人';
-  var formAction = ScriptApp.getService().getUrl();
+  // 2026-05-17：フォーム action も WEB_APP_URL から取得。
+  // 通常はコールバック処理を通過した時点で WEB_APP_URL は設定済みのはずだが、防御的に try/catch。
+  var formAction;
+  try { formAction = _getWebAppUrl(); }
+  catch (e) { return _renderWebAppUrlMissingHtml(String(e && e.message || e)); }
   var greet = displayName
     ? '<strong>' + _escapeHtmlMinimal(displayName) + '</strong> さん、こんにちは！<br>'
     : '';
@@ -15856,13 +15897,18 @@ function _handleLineLoginStart(params) {
   if (!channelId) {
     return _renderLineErrorHtml('準備中', 'LINE Login の設定がまだ完了していません。塾の先生にお問い合わせください。');
   }
+  // 2026-05-17：redirect_uri は ScriptProperty 'WEB_APP_URL' から組み立てる（旧版の
+  // ScriptApp.getService().getUrl() は /dev URL を返すケースがあり LINE 認可失敗の実害があった）。
+  var callbackUrl;
+  try { callbackUrl = _getCallbackUrl(); }
+  catch (e) { return _renderWebAppUrlMissingHtml(String(e && e.message || e)); }
   // CSRF 対策の state はランダム値 + role。簡易版（GAS は OAuth 専用ストアを持たないため）
   var nonce = Utilities.getUuid().substring(0, 8);
   var state = role + ':' + nonce;
   var authorizeUrl = LINE_LOGIN_AUTHORIZE_URL
     + '?response_type=code'
     + '&client_id=' + encodeURIComponent(channelId)
-    + '&redirect_uri=' + encodeURIComponent(_lineRedirectUri())
+    + '&redirect_uri=' + encodeURIComponent(callbackUrl)
     + '&state=' + encodeURIComponent(state)
     + '&scope=' + encodeURIComponent('profile openid')
     + '&bot_prompt=aggressive';  // 友だち追加を促進（公式アカウントが設定されていれば）
@@ -15890,6 +15936,12 @@ function _handleLineLoginCallback(params) {
   if (!channelId || !channelSecret) {
     return _renderLineErrorHtml('準備中', 'LINE Login の設定がまだ完了していません。塾の先生にお問い合わせください。');
   }
+  // 2026-05-17：トークン交換の redirect_uri は WEB_APP_URL ベースに（/dev URL バグ対策）。
+  // LINE 仕様で redirect_uri は authorize 時と token 交換時で完全一致が必須なため、
+  // _handleLineLoginStart と同じ _getCallbackUrl() を使う。
+  var callbackUrl;
+  try { callbackUrl = _getCallbackUrl(); }
+  catch (e) { return _renderWebAppUrlMissingHtml(String(e && e.message || e)); }
 
   // code → access_token
   var tokenRes;
@@ -15900,7 +15952,7 @@ function _handleLineLoginCallback(params) {
       payload: {
         grant_type: 'authorization_code',
         code: code,
-        redirect_uri: _lineRedirectUri(),
+        redirect_uri: callbackUrl,
         client_id: channelId,
         client_secret: channelSecret
       },
@@ -16039,7 +16091,11 @@ function getLineRegistrationStatus(params) {
       }
     }
     info.channelConfigured = !!_getLineLoginChannelId();
-    info.redirectUriForConsole = _lineRedirectUri();
+    // 2026-05-17：WEB_APP_URL（ScriptProperty）が未設定だと redirectUriForConsole は出せない。
+    // 画面表示用の参考値なので throw せず空文字でフォールバック。
+    var webAppUrl = _getWebAppUrlOrEmpty();
+    info.webAppUrlConfigured   = !!webAppUrl;
+    info.redirectUriForConsole = webAppUrl ? (webAppUrl + '?action=lineLoginCallback') : '';
     return info;
   } catch (e) {
     console.error('[getLineRegistrationStatus]', e);
