@@ -34,6 +34,16 @@ const SHEET_TEACHER_ACTIONS   = 'TeacherActions';
 // 専用シート（必須機能：「やったら得 + やらないと損」の両輪を作るための基盤）。
 // _ensureHpReservePoolSheet() で初回 _appendHpReservePool 呼び出し時に自動作成される。
 const SHEET_HP_RESERVE_POOL   = 'HpReservePool';
+
+// LINE 通知 Phase B-1（2026-05-16）：LINE Login OAuth + Messaging API 連携用列。
+// Students / SpecialAccounts の両シートに追加（ensureLineNotifyColumns() で 1 回手動投入）。
+//   - LINE_USER_ID_PARENT   : 保護者の LINE userId（'U' 始まり 33 文字）
+//   - LINE_USER_ID_STUDENT  : 生徒本人の LINE userId
+//   - NOTIFY_LINE           : 通知の有効/無効（'TRUE'/'FALSE'/空欄。
+//                              空欄は小中=TRUE扱い・高校=FALSE扱いとして notify 側で評価）
+const LINE_USER_ID_PARENT_HEADER_NAME  = 'LINE_USER_ID_PARENT';
+const LINE_USER_ID_STUDENT_HEADER_NAME = 'LINE_USER_ID_STUDENT';
+const NOTIFY_LINE_HEADER_NAME          = 'NOTIFY_LINE';
 // accountType 列に入る値（最右列。Students の列構成に追加される列）
 const SPECIAL_ACCOUNT_TYPES = {
   TEST:       'test',          // 1001〜1099 テスト枠
@@ -971,6 +981,14 @@ function clearAllCache() {
 // doGet
 // =============================================
 function doGet(e) {
+  // LINE Phase B-1：raw query（params=JSON wrapper でない）かつ action=lineLogin* なら
+  // OAuth フロー HTML を返す。LINE 側からのコールバックは raw query で来るためここで catch。
+  // 既存の params=JSON API には一切影響しない（&& !e.parameter.params で隔離）。
+  if (e && e.parameter && !e.parameter.params && e.parameter.action) {
+    if (LINE_LOGIN_RAW_ACTIONS.indexOf(e.parameter.action) >= 0) {
+      return _handleLineRawAction(e.parameter.action, e.parameter);
+    }
+  }
   if (e && e.parameter && e.parameter.params) {
     try {
       const params = JSON.parse(e.parameter.params);
@@ -1109,6 +1127,8 @@ function doGet(e) {
       // 完走通知 API は内部 _checkAndReleaseReserveIfCompleted の薄いラッパー。冪等。
       else if (action === 'getRequiredProgress')      result = getRequiredProgress(params);
       else if (action === 'onRequiredAllCompleted')   result = onRequiredAllCompleted(params);
+      // LINE 通知 Phase B-1（2026-05-16）：登録状況を JSON で返す（ホーム画面 / 保護者画面 / admin 表示用）
+      else if (action === 'getLineRegistrationStatus') result = getLineRegistrationStatus(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1130,6 +1150,16 @@ function doGet(e) {
 // doPost（写真判定用）
 // =============================================
 function doPost(e) {
+  // LINE Phase B-1：LINE Messaging API からの Webhook POST を検出して 200 OK を返す。
+  // 既存の doPost は body を JSON.parse して action フィールドで分岐する設計だが、
+  // LINE Webhook は { destination, events:[...] } 形（action フィールド無し）で来るため、
+  // 先に webhook 判定を通す。既存ルートに影響しないよう _isLineWebhookRequest で厳格判定。
+  try {
+    if (_isLineWebhookRequest(e)) return _handleLineWebhook(e);
+  } catch (lineErr) {
+    console.error('[doPost] LINE webhook detection error', lineErr);
+    // 検出失敗時は通常ルートにフォールバック（既存挙動を壊さない）
+  }
   try {
     const params = JSON.parse(e.postData.contents);
     const action = params.action;
@@ -15571,4 +15601,488 @@ function ensureRequiredColumns() {
     console.error('[ensureRequiredColumns]', e);
     return { ok: false, message: String(e) };
   }
+}
+
+// ========================================================================
+// LINE 通知システム Phase B-1（2026-05-16）：LINE Login OAuth + Webhook 基盤 + 列追加
+// ------------------------------------------------------------------------
+// 運用方針：
+//   - 前日に何も提出していない生徒の保護者・本人に毎日 12:00 に LINE で通知（実装は次フェーズ）
+//   - 登録方法は LINE Login OAuth（ボタン → LINE 認可 → 生徒ID入力 → 紐付け完了）
+//   - 生徒 / 保護者それぞれ別の userId を保存（Students の 2 列に分ける）
+//
+// ふくちさん側の事前作業：
+//   1) LINE Developers Console で「LINE Login」チャネル作成
+//   2) Apps Script スクリプトプロパティに以下を登録（コード内には書かない）：
+//        LINE_LOGIN_CHANNEL_ID, LINE_LOGIN_CHANNEL_SECRET
+//        LINE_MESSAGING_CHANNEL_ACCESS_TOKEN（既に取得済み）
+//        APP_BASE_URL（GitHub Pages の URL、デフォルトはコード内の DEFAULT_APP_BASE_URL）
+//   3) LINE Login のコールバック URL に
+//        {GAS_WEB_APP_URL}?action=lineLoginCallback
+//        を登録（ScriptApp.getService().getUrl() で取得した値 + クエリ）
+//   4) GAS エディタから ensureLineNotifyColumns() を 1 回実行（3 列を Students / SpecialAccounts に追加）
+//
+// フロー（ユーザー視点）：
+//   1) フロントの「生徒として登録」/「保護者として登録」ボタンタップ
+//   2) ブラウザが {GAS_URL}?action=lineLoginStart&role=student に遷移
+//   3) GAS が LINE 認可 URL に JS 即時リダイレクト
+//   4) ユーザーが LINE で「許可する」
+//   5) LINE が {GAS_URL}?action=lineLoginCallback&code=xxx&state=student に戻す
+//   6) GAS が code → access_token → profile → userId を取得、CacheService に tempToken で保存
+//   7) GAS が生徒ID入力フォーム HTML を返す
+//   8) ユーザーが生徒IDを送信 → {GAS_URL}?action=lineLoginRegister&tempToken=xxx&studentId=yyy
+//   9) GAS が Students / SpecialAccounts に userId を書き込み、完了 HTML を返す
+//
+// 既存挙動の保護：
+//   - 列を追加するだけ。loginStudent / saveAttempt 等の既存関数は無修正
+//   - ScriptProperties に LINE_LOGIN_CHANNEL_ID が無い場合はエラー HTML を返して終了
+//     （ふくちさん未設定の段階でフロントから誤って踏まれても害なし）
+// ========================================================================
+
+const LINE_LOGIN_AUTHORIZE_URL   = 'https://access.line.me/oauth2/v2.1/authorize';
+const LINE_LOGIN_TOKEN_URL       = 'https://api.line.me/oauth2/v2.1/token';
+const LINE_LOGIN_PROFILE_URL    = 'https://api.line.me/v2/profile';
+const LINE_LOGIN_TEMP_TTL_SEC    = 300;  // tempToken の有効期間（秒）
+const LINE_LOGIN_VALID_ROLES     = ['student', 'parent'];
+const LINE_LOGIN_RAW_ACTIONS     = ['lineLoginStart', 'lineLoginCallback', 'lineLoginRegister'];
+// フロント（GitHub Pages）に戻るデフォルト URL。スクリプトプロパティ APP_BASE_URL で上書き可能。
+const DEFAULT_APP_BASE_URL       = 'https://k-acdm.github.io/mykt-eitango/';
+
+// --- 列ヘルパー（既存 _findUnlockFlagColIdx 系の薄いラッパー、命名統一のため新設） ---
+function _findLineUserIdParentColIdx(allValues)          { return _findUnlockFlagColIdx(allValues, LINE_USER_ID_PARENT_HEADER_NAME); }
+function _findLineUserIdParentColIdxOnSheet(sheet)       { return _findUnlockFlagColIdxOnSheet(sheet, LINE_USER_ID_PARENT_HEADER_NAME); }
+function _ensureLineUserIdParentColOnSheet(sheet)        { return _ensureUnlockFlagColOnSheet(sheet, LINE_USER_ID_PARENT_HEADER_NAME); }
+function _findLineUserIdStudentColIdx(allValues)         { return _findUnlockFlagColIdx(allValues, LINE_USER_ID_STUDENT_HEADER_NAME); }
+function _findLineUserIdStudentColIdxOnSheet(sheet)      { return _findUnlockFlagColIdxOnSheet(sheet, LINE_USER_ID_STUDENT_HEADER_NAME); }
+function _ensureLineUserIdStudentColOnSheet(sheet)       { return _ensureUnlockFlagColOnSheet(sheet, LINE_USER_ID_STUDENT_HEADER_NAME); }
+function _findNotifyLineColIdx(allValues)                { return _findUnlockFlagColIdx(allValues, NOTIFY_LINE_HEADER_NAME); }
+function _findNotifyLineColIdxOnSheet(sheet)             { return _findUnlockFlagColIdxOnSheet(sheet, NOTIFY_LINE_HEADER_NAME); }
+function _ensureNotifyLineColOnSheet(sheet)              { return _ensureUnlockFlagColOnSheet(sheet, NOTIFY_LINE_HEADER_NAME); }
+
+// --- 読み取りヘルパー（既存 _readUnlockFlagFromLoc 流用、二段階フォールバック含む） ---
+function _readLineUserIdParentFromLoc(loc)  { return _readUnlockFlagFromLoc(loc, LINE_USER_ID_PARENT_HEADER_NAME); }
+function _readLineUserIdStudentFromLoc(loc) { return _readUnlockFlagFromLoc(loc, LINE_USER_ID_STUDENT_HEADER_NAME); }
+function _readNotifyLineRawFromLoc(loc)     { return _readUnlockFlagFromLoc(loc, NOTIFY_LINE_HEADER_NAME); }
+
+// LINE userId は uppercase 強制 + trim。空欄 / 'FALSE' のような壊れ値は '' とみなす。
+function _normalizeLineUserId(raw) {
+  var s = String(raw == null ? '' : raw).trim();
+  if (!s) return '';
+  // userId 形式（'U' + 32 文字 hex）に近いものだけ通す。それ以外は安全のため空扱い
+  if (!/^U[0-9a-f]{32}$/i.test(s)) return s;  // 形式違反でも raw を返す（admin で目視確認用）
+  return s;
+}
+
+// セットアップ補助：3 列を Students + SpecialAccounts に一括追加（冪等）。
+// GAS エディタから 1 回手動実行する。
+// 戻り値: { ok, students: { parent, student, notify }, special: {...} } - 各 boolean は created
+function ensureLineNotifyColumns() {
+  try {
+    var ss = _ss();
+    var stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    var spSheet  = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+    var out = { ok: true, students: null, special: null };
+    if (stuSheet) {
+      var r1 = _ensureLineUserIdParentColOnSheet(stuSheet);
+      var r2 = _ensureLineUserIdStudentColOnSheet(stuSheet);
+      var r3 = _ensureNotifyLineColOnSheet(stuSheet);
+      if (r1.created || r2.created || r3.created) {
+        try {
+          CacheService.getScriptCache().remove('cache_students_values');
+          _cacheLog('cache_students_values', 'invalidate', 'ensureLineNotifyColumns Students');
+        } catch(_) {}
+      }
+      out.students = { parent: r1.created, student: r2.created, notify: r3.created };
+    }
+    if (spSheet) {
+      var s1 = _ensureLineUserIdParentColOnSheet(spSheet);
+      var s2 = _ensureLineUserIdStudentColOnSheet(spSheet);
+      var s3 = _ensureNotifyLineColOnSheet(spSheet);
+      if (s1.created || s2.created || s3.created) {
+        try {
+          CacheService.getScriptCache().remove('cache_special_accounts_values');
+          _cacheLog('cache_special_accounts_values', 'invalidate', 'ensureLineNotifyColumns SpecialAccounts');
+        } catch(_) {}
+      }
+      out.special = { parent: s1.created, student: s2.created, notify: s3.created };
+    }
+    return out;
+  } catch (e) {
+    console.error('[ensureLineNotifyColumns]', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// --- スクリプトプロパティ取得（直書き禁止、PropertiesService 経由） ---
+function _getLineLoginChannelId()        { try { return String(PropertiesService.getScriptProperties().getProperty('LINE_LOGIN_CHANNEL_ID') || '').trim(); } catch(e){ return ''; } }
+function _getLineLoginChannelSecret()    { try { return String(PropertiesService.getScriptProperties().getProperty('LINE_LOGIN_CHANNEL_SECRET') || '').trim(); } catch(e){ return ''; } }
+function _getLineMessagingAccessToken()  { try { return String(PropertiesService.getScriptProperties().getProperty('LINE_MESSAGING_CHANNEL_ACCESS_TOKEN') || '').trim(); } catch(e){ return ''; } }
+function _getAppBaseUrl() {
+  try {
+    var v = String(PropertiesService.getScriptProperties().getProperty('APP_BASE_URL') || '').trim();
+    return v || DEFAULT_APP_BASE_URL;
+  } catch(e){ return DEFAULT_APP_BASE_URL; }
+}
+
+// --- tempToken の発行 / 取得（CacheService に 5 分間保存） ---
+function _saveTempLineToken(userId, role, displayName) {
+  try {
+    var cache = CacheService.getScriptCache();
+    var tempToken = Utilities.getUuid();
+    var payload = JSON.stringify({ userId: userId, role: role, displayName: displayName || '' });
+    cache.put('line_login_' + tempToken, payload, LINE_LOGIN_TEMP_TTL_SEC);
+    return tempToken;
+  } catch (e) {
+    console.error('[_saveTempLineToken]', e);
+    return null;
+  }
+}
+function _getTempLineToken(tempToken) {
+  if (!tempToken) return null;
+  try {
+    var cache = CacheService.getScriptCache();
+    var data = cache.get('line_login_' + String(tempToken).trim());
+    if (!data) return null;
+    return JSON.parse(data);
+  } catch (e) {
+    console.error('[_getTempLineToken]', e);
+    return null;
+  }
+}
+function _deleteTempLineToken(tempToken) {
+  try { CacheService.getScriptCache().remove('line_login_' + String(tempToken).trim()); } catch(e){}
+}
+
+// --- redirect_uri ヘルパー：LINE Console に登録するべき URL ---
+// 注意：このメソッドが返す URL は GAS デプロイのたびに変わるため、ふくちさんは
+// 「デプロイ → 既存デプロイの編集 → バージョン更新」で URL を保つこと（新規デプロイは作らない）。
+function _lineRedirectUri() {
+  return ScriptApp.getService().getUrl() + '?action=lineLoginCallback';
+}
+
+// --- HTML テンプレート（自己完結スタイル、CDN は使わない） ---
+function _renderLineLayoutHtml(title, bodyHtml) {
+  // GAS は HtmlOutput を script.googleusercontent.com サンドボックスで配信するため、
+  // 外部 CSS は読み込まない。最小限の inline CSS で見やすさだけ確保する。
+  var css =
+    '* { box-sizing: border-box; }' +
+    'body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; background: linear-gradient(135deg, #fff7ed, #fef3c7); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; color: #333; }' +
+    '.line-card { background: #fff; border-radius: 18px; padding: 26px 22px; max-width: 440px; width: 100%; box-shadow: 0 12px 32px rgba(0,0,0,.12); text-align: center; }' +
+    '.line-card h1 { color: #06c755; font-size: 22px; margin: 0 0 12px; letter-spacing: .5px; }' +
+    '.line-card p  { margin: 10px 0; line-height: 1.8; font-size: 14px; color: #555; }' +
+    '.line-card strong { color: #b45309; }' +
+    '.line-card .line-msg { margin: 16px 0; padding: 12px 14px; border-radius: 10px; font-size: 14px; line-height: 1.7; }' +
+    '.line-card .line-msg.error   { background: #fee2e2; border: 1.5px solid #f87171; color: #b91c1c; }' +
+    '.line-card .line-msg.success { background: #d1fae5; border: 1.5px solid #34d399; color: #065f46; }' +
+    '.line-card form { margin-top: 16px; }' +
+    '.line-card label { display: block; text-align: left; font-size: 13px; color: #555; margin: 12px 0 4px; }' +
+    '.line-card input[type=text],.line-card input[type=number]{ width: 100%; padding: 12px 14px; font-size: 18px; border: 2px solid #fcd34d; border-radius: 10px; outline: none; transition: border .15s; }' +
+    '.line-card input:focus { border-color: #06c755; }' +
+    '.line-card .btn-line { display: block; width: 100%; margin-top: 16px; padding: 14px; background: linear-gradient(135deg, #06c755, #04a64b); color: #fff; border: 0; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(6,199,85,.3); text-decoration: none; }' +
+    '.line-card .btn-line:active { transform: translateY(1px); }' +
+    '.line-card .btn-back { display: inline-block; margin-top: 12px; color: #92400e; font-size: 13px; text-decoration: underline; }' +
+    '.line-card .role-pill { display: inline-block; background: linear-gradient(135deg, #fef3c7, #fcd34d); color: #92400e; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-bottom: 8px; }' +
+    '.line-card .small-note { font-size: 12px; color: #888; margin-top: 14px; }';
+  var html =
+    '<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>' + _escapeHtmlMinimal(title) + '</title>' +
+    '<style>' + css + '</style></head><body>' +
+    '<div class="line-card">' + bodyHtml + '</div></body></html>';
+  return HtmlService.createHtmlOutput(html).setTitle(title).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+function _escapeHtmlMinimal(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function _renderLineErrorHtml(title, msg, opt) {
+  var appUrl = _getAppBaseUrl();
+  var startUrl = ScriptApp.getService().getUrl();
+  var body =
+    '<h1>⚠️ ' + _escapeHtmlMinimal(title) + '</h1>' +
+    '<div class="line-msg error">' + _escapeHtmlMinimal(msg) + '</div>' +
+    (opt && opt.retry
+      ? '<a class="btn-line" href="' + _escapeHtmlMinimal(startUrl) + '?action=lineLoginStart&role=' + _escapeHtmlMinimal(opt.retry) + '">もう一度やり直す</a>'
+      : ''
+    ) +
+    '<a class="btn-back" href="' + _escapeHtmlMinimal(appUrl) + '">マイ活アプリに戻る</a>';
+  return _renderLineLayoutHtml(title, body);
+}
+
+function _renderLineSuccessHtml(role, sid, displayName) {
+  var appUrl = _getAppBaseUrl();
+  var roleLabel = role === 'parent' ? '保護者' : '生徒本人';
+  var body =
+    '<h1>✅ 登録完了！</h1>' +
+    '<span class="role-pill">' + _escapeHtmlMinimal(roleLabel) + 'として登録</span>' +
+    '<div class="line-msg success">' +
+      '<strong>' + _escapeHtmlMinimal(displayName || 'LINE') + '</strong> さんの LINE と<br>' +
+      '生徒ID <strong>' + _escapeHtmlMinimal(sid) + '</strong> をひも付けました。' +
+    '</div>' +
+    '<p>これからは前日に何も提出してない日があると、<br>正午（12:00）に LINE でお知らせが届きます。</p>' +
+    '<p class="small-note">※ 通知の有効/無効は塾の先生にお伝えください。</p>' +
+    '<a class="btn-line" href="' + _escapeHtmlMinimal(appUrl) + '">マイ活アプリに戻る</a>';
+  return _renderLineLayoutHtml('登録完了', body);
+}
+
+function _renderLineRegisterFormHtml(tempToken, role, displayName) {
+  var roleLabel = role === 'parent' ? '保護者' : '生徒本人';
+  var formAction = ScriptApp.getService().getUrl();
+  var greet = displayName
+    ? '<strong>' + _escapeHtmlMinimal(displayName) + '</strong> さん、こんにちは！<br>'
+    : '';
+  var body =
+    '<h1>📲 LINE 連携</h1>' +
+    '<span class="role-pill">' + _escapeHtmlMinimal(roleLabel) + 'として登録</span>' +
+    '<p>' + greet + '生徒IDを入力すると、登録が完了します。</p>' +
+    '<form method="get" action="' + _escapeHtmlMinimal(formAction) + '">' +
+    '<input type="hidden" name="action" value="lineLoginRegister"/>' +
+    '<input type="hidden" name="tempToken" value="' + _escapeHtmlMinimal(tempToken) + '"/>' +
+    '<label for="line-sid-input">生徒ID</label>' +
+    '<input id="line-sid-input" type="number" name="studentId" inputmode="numeric" autocomplete="off" required placeholder="例：23010"/>' +
+    '<button class="btn-line" type="submit">この生徒IDで登録する</button>' +
+    '</form>' +
+    '<p class="small-note">※ 5 分以内に登録してください。期限切れの場合は最初からやり直してください。</p>';
+  return _renderLineLayoutHtml('LINE 連携 - 生徒ID入力', body);
+}
+
+// --- Handler: lineLoginStart（生徒/保護者ボタンタップ → LINE 認可 URL へ） ---
+function _handleLineLoginStart(params) {
+  var role = String((params && params.role) || '').trim();
+  if (LINE_LOGIN_VALID_ROLES.indexOf(role) < 0) {
+    return _renderLineErrorHtml('役割指定エラー', '生徒/保護者の役割が指定されていません。マイ活アプリのログイン画面からもう一度お試しください。');
+  }
+  var channelId = _getLineLoginChannelId();
+  if (!channelId) {
+    return _renderLineErrorHtml('準備中', 'LINE Login の設定がまだ完了していません。塾の先生にお問い合わせください。');
+  }
+  // CSRF 対策の state はランダム値 + role。簡易版（GAS は OAuth 専用ストアを持たないため）
+  var nonce = Utilities.getUuid().substring(0, 8);
+  var state = role + ':' + nonce;
+  var authorizeUrl = LINE_LOGIN_AUTHORIZE_URL
+    + '?response_type=code'
+    + '&client_id=' + encodeURIComponent(channelId)
+    + '&redirect_uri=' + encodeURIComponent(_lineRedirectUri())
+    + '&state=' + encodeURIComponent(state)
+    + '&scope=' + encodeURIComponent('profile openid')
+    + '&bot_prompt=aggressive';  // 友だち追加を促進（公式アカウントが設定されていれば）
+  var body =
+    '<h1>📲 LINE に接続中…</h1>' +
+    '<p>LINE の認可画面に移動します。<br>少々お待ちください。</p>' +
+    '<a class="btn-line" id="line-jump" href="' + _escapeHtmlMinimal(authorizeUrl) + '">手動で LINE を開く</a>' +
+    '<script>setTimeout(function(){ window.location.replace(' + JSON.stringify(authorizeUrl) + '); }, 200);<' + '/script>';
+  return _renderLineLayoutHtml('LINE に接続中', body);
+}
+
+// --- Handler: lineLoginCallback（LINE から code を受け取る） ---
+function _handleLineLoginCallback(params) {
+  var code = String((params && params.code) || '').trim();
+  var state = String((params && params.state) || '').trim();
+  var role = state.split(':')[0];
+  if (LINE_LOGIN_VALID_ROLES.indexOf(role) < 0) {
+    return _renderLineErrorHtml('不正なリクエスト', 'state パラメータが不正です。マイ活アプリのログイン画面からもう一度お試しください。');
+  }
+  if (!code) {
+    return _renderLineErrorHtml('認可がキャンセルされました', 'LINE 側で「キャンセル」が押されたか、コードが取得できませんでした。', { retry: role });
+  }
+  var channelId = _getLineLoginChannelId();
+  var channelSecret = _getLineLoginChannelSecret();
+  if (!channelId || !channelSecret) {
+    return _renderLineErrorHtml('準備中', 'LINE Login の設定がまだ完了していません。塾の先生にお問い合わせください。');
+  }
+
+  // code → access_token
+  var tokenRes;
+  try {
+    tokenRes = UrlFetchApp.fetch(LINE_LOGIN_TOKEN_URL, {
+      method: 'post',
+      contentType: 'application/x-www-form-urlencoded',
+      payload: {
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: _lineRedirectUri(),
+        client_id: channelId,
+        client_secret: channelSecret
+      },
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    console.error('[lineLoginCallback] token fetch failed', e);
+    return _renderLineErrorHtml('LINE 接続エラー', 'LINE への接続に失敗しました。時間を空けてもう一度お試しください。', { retry: role });
+  }
+  var tokenStatus = tokenRes.getResponseCode();
+  var tokenJson = {};
+  try { tokenJson = JSON.parse(tokenRes.getContentText()); } catch(e){}
+  if (tokenStatus !== 200 || !tokenJson.access_token) {
+    console.error('[lineLoginCallback] token error', tokenStatus, tokenRes.getContentText());
+    return _renderLineErrorHtml('LINE 認証エラー', '認証コードの交換に失敗しました。最初からやり直してください。', { retry: role });
+  }
+  var accessToken = String(tokenJson.access_token || '').trim();
+
+  // access_token → profile (userId)
+  var profileRes;
+  try {
+    profileRes = UrlFetchApp.fetch(LINE_LOGIN_PROFILE_URL, {
+      method: 'get',
+      headers: { Authorization: 'Bearer ' + accessToken },
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    console.error('[lineLoginCallback] profile fetch failed', e);
+    return _renderLineErrorHtml('LINE 接続エラー', 'プロフィール取得に失敗しました。時間を空けてもう一度お試しください。', { retry: role });
+  }
+  if (profileRes.getResponseCode() !== 200) {
+    console.error('[lineLoginCallback] profile error', profileRes.getResponseCode(), profileRes.getContentText());
+    return _renderLineErrorHtml('LINE プロフィール取得エラー', 'LINE のプロフィール情報を取得できませんでした。', { retry: role });
+  }
+  var profile = {};
+  try { profile = JSON.parse(profileRes.getContentText()); } catch(e){}
+  var userId = String(profile.userId || '').trim();
+  if (!userId) {
+    return _renderLineErrorHtml('LINE userId 取得失敗', 'LINE の userId が取得できませんでした。最初からやり直してください。', { retry: role });
+  }
+
+  // CacheService に tempToken で 5 分保存
+  var tempToken = _saveTempLineToken(userId, role, profile.displayName || '');
+  if (!tempToken) {
+    return _renderLineErrorHtml('内部エラー', '一時データの保存に失敗しました。最初からやり直してください。', { retry: role });
+  }
+  return _renderLineRegisterFormHtml(tempToken, role, profile.displayName || '');
+}
+
+// --- Handler: lineLoginRegister（生徒IDフォーム送信） ---
+function _handleLineLoginRegister(params) {
+  var tempToken = String((params && params.tempToken) || '').trim();
+  var sid = String((params && params.studentId) || '').trim();
+  if (!tempToken || !sid) {
+    return _renderLineErrorHtml('入力エラー', '生徒IDが入力されていません。最初からやり直してください。');
+  }
+  var temp = _getTempLineToken(tempToken);
+  if (!temp) {
+    return _renderLineErrorHtml('セッションが切れました', 'LINE 認証から 5 分以上経過しました。最初からやり直してください。');
+  }
+  var userId = String(temp.userId || '').trim();
+  var role = String(temp.role || '').trim();
+  var displayName = String(temp.displayName || '').trim();
+  if (!userId || LINE_LOGIN_VALID_ROLES.indexOf(role) < 0) {
+    _deleteTempLineToken(tempToken);
+    return _renderLineErrorHtml('内部エラー', 'セッション情報が壊れています。最初からやり直してください。');
+  }
+
+  // 生徒IDで Students / SpecialAccounts 行を特定
+  var loc = _findAccountRowOnSheet(sid);
+  if (!loc) {
+    return _renderLineErrorHtml('生徒IDが見つかりません',
+      '生徒ID <strong>' + sid + '</strong> は登録されていません。<br>正しい生徒IDを確認してもう一度お試しください。',
+      { retry: role }
+    );
+  }
+
+  // 列が無ければここで自動作成（ensureLineNotifyColumns を 1 回手動実行することが前提だが
+  // 列追加忘れでもこの経路で救済できるように防御的に保証する）
+  var headerName = (role === 'parent') ? LINE_USER_ID_PARENT_HEADER_NAME : LINE_USER_ID_STUDENT_HEADER_NAME;
+  var ensure = _ensureUnlockFlagColOnSheet(loc.sheet, headerName);
+  var colIdx = ensure.idx;
+  // setNumberFormat('@') で text 固定（BIRTHDAY 列で日付化された事例の同根対策）
+  try {
+    var cell = loc.sheet.getRange(loc.rowIdx + 1, colIdx + 1);
+    cell.setNumberFormat('@');
+    cell.setValue(userId);
+  } catch (e) {
+    console.error('[_handleLineLoginRegister] setValue failed', e);
+    return _renderLineErrorHtml('書き込みエラー', 'スプレッドシートへの書き込みに失敗しました。時間を空けてもう一度お試しください。', { retry: role });
+  }
+
+  // キャッシュ整合性：列を追加した場合は配列長が変わるので invalidate
+  try {
+    var cache = CacheService.getScriptCache();
+    if (loc.sheetName === SHEET_STUDENTS) {
+      cache.remove('cache_students_values');
+      _cacheLog('cache_students_values', 'invalidate', 'lineLoginRegister sid=' + sid);
+    } else {
+      cache.remove('cache_special_accounts_values');
+      _cacheLog('cache_special_accounts_values', 'invalidate', 'lineLoginRegister sid=' + sid);
+    }
+  } catch(_) {}
+
+  _deleteTempLineToken(tempToken);
+  return _renderLineSuccessHtml(role, sid, displayName);
+}
+
+// raw query（params=JSON でない）かつ action=lineLogin* の経路 dispatch
+function _handleLineRawAction(action, params) {
+  switch (action) {
+    case 'lineLoginStart':    return _handleLineLoginStart(params);
+    case 'lineLoginCallback': return _handleLineLoginCallback(params);
+    case 'lineLoginRegister': return _handleLineLoginRegister(params);
+  }
+  return _renderLineErrorHtml('不明なアクション', 'リクエスト内容が不正です。');
+}
+
+// --- 公開 API：JSON で登録状況を返す（フロント / 管理画面の表示用） ---
+// params: { studentId }
+// 戻り値: { ok, parentRegistered, studentRegistered, notifyLine, gradeIsHigh, redirectUriForConsole, channelConfigured }
+//   - redirectUriForConsole は ふくちさんが LINE Console に登録する URL を画面表示するためのヒント
+//   - channelConfigured は false なら ふくちさんがまだ LINE Login チャネル設定をしていない
+function getLineRegistrationStatus(params) {
+  try {
+    var sid = String((params && params.studentId) || '').trim();
+    var info = { ok: true, parentRegistered: false, studentRegistered: false, notifyLine: '', gradeIsHigh: false };
+    if (sid) {
+      var loc = _findAccountRowOnSheet(sid);
+      if (loc) {
+        info.parentRegistered  = !!_readLineUserIdParentFromLoc(loc);
+        info.studentRegistered = !!_readLineUserIdStudentFromLoc(loc);
+        info.notifyLine        = _readNotifyLineRawFromLoc(loc);  // 'TRUE'/'FALSE'/''
+        var grade = _readGradeLevelFromLoc(loc);
+        info.gradeIsHigh = (grade === '高1' || grade === '高2' || grade === '高3');
+      }
+    }
+    info.channelConfigured = !!_getLineLoginChannelId();
+    info.redirectUriForConsole = _lineRedirectUri();
+    return info;
+  } catch (e) {
+    console.error('[getLineRegistrationStatus]', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// --- Webhook（Messaging API からのイベント受信） ---
+// Phase B-1 ではスタブのみ：LINE Console の「Webhook 検証」ボタンに 200 OK を返せれば OK。
+// 将来 follow/unfollow / block 等のイベント処理を加える際は handlers をここに追加。
+// LINE は POST で JSON ボディ { destination, events:[...] } を送ってくる。
+function _isLineWebhookRequest(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) return false;
+    // 軽量判定：postData.type が JSON + body に "events" を含むか
+    var ct = String(e.postData.type || '').toLowerCase();
+    if (ct.indexOf('json') < 0) return false;
+    var body = String(e.postData.contents);
+    if (body.indexOf('"events"') < 0) return false;
+    // params=JSON wrapper でない素の JSON ペイロード（既存 doPost 群とは形が違う）
+    // 既存ペイロードは {action:'...'} 必須なので衝突しない
+    var parsed;
+    try { parsed = JSON.parse(body); } catch(_){ return false; }
+    if (!parsed || typeof parsed !== 'object') return false;
+    if (!Array.isArray(parsed.events)) return false;
+    // 既存の doPost ペイロードは action フィールドを持つ。LINE Webhook は持たない。
+    if (parsed.action) return false;
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+function _handleLineWebhook(e) {
+  // 詳細処理は Phase B-2 以降で実装。ここでは 200 OK を返すだけ（LINE Console の検証が通る最小実装）。
+  try {
+    var parsed = {};
+    try { parsed = JSON.parse(e.postData.contents); } catch(_){}
+    var events = (parsed && Array.isArray(parsed.events)) ? parsed.events : [];
+    // Phase B-2 で各イベントタイプ（follow / unfollow / message / postback）に応じた処理を追加予定
+    console.log('[LINE webhook] events=' + events.length + ' (Phase B-1 stub)');
+  } catch (err) {
+    console.error('[LINE webhook]', err);
+  }
+  return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
 }

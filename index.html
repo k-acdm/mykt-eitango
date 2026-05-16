@@ -884,6 +884,57 @@
     .role-btn-parent  { background: linear-gradient(135deg, #43a047 0%, #26a69a 100%); }
     .role-btn:last-child { margin-bottom: 0; }
 
+    /* ===== LINE 通知登録セクション（Phase B-1、2026-05-16） ===== */
+    .line-register-section {
+      margin-top: 22px;
+      padding: 14px 14px 12px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #f0f9f4, #e6f7ed);
+      border: 1.5px dashed #06c755;
+    }
+    .line-register-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #04a64b;
+      text-align: center;
+      letter-spacing: .4px;
+      margin-bottom: 2px;
+    }
+    .line-register-desc {
+      font-size: 11px;
+      color: #4b7d5d;
+      text-align: center;
+      margin-bottom: 10px;
+      letter-spacing: .3px;
+    }
+    .line-register-btn {
+      display: block;
+      width: 100%;
+      padding: 11px 14px;
+      margin-bottom: 8px;
+      border: none;
+      border-radius: 11px;
+      cursor: pointer;
+      color: #fff;
+      font-family: inherit;
+      text-align: center;
+      box-shadow: 0 3px 10px rgba(6,199,85,.25);
+      transition: transform .14s, box-shadow .14s;
+    }
+    .line-register-btn:hover  { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(6,199,85,.32); }
+    .line-register-btn:active { transform: translateY(0); }
+    .line-register-btn:last-child { margin-bottom: 0; }
+    .line-register-btn-student { background: linear-gradient(135deg, #06c755, #04a64b); }
+    .line-register-btn-parent  { background: linear-gradient(135deg, #04a64b, #036c30); }
+    .line-register-main { display: block; font-size: 14px; font-weight: 700; letter-spacing: .3px; }
+    @media (max-width: 480px) {
+      .line-register-section { margin-top: 18px; padding: 12px 12px 10px; }
+      .line-register-title { font-size: 13px; }
+      .line-register-desc  { font-size: 10px; }
+      .line-register-btn   { padding: 10px 12px; }
+      .line-register-main  { font-size: 13px; }
+    }
+
     /* ===== Step 2 の保護者モード時のスタイル切替 ===== */
     .login-step-id.role-parent .login-title { background: linear-gradient(135deg,#43a047,#26a69a); -webkit-background-clip: text; background-clip: text; color: transparent; }
     .login-step-id.role-parent .row input { border-color: #c8e6c9; }
@@ -1975,6 +2026,21 @@
             <span class="role-btn-main">👨‍👩‍👧 保護者用</span>
             <span class="role-btn-sub">日々の提出状況を閲覧する用です</span>
           </button>
+
+          <!-- LINE 通知登録セクション（Phase B-1、2026-05-16）：
+               前日に何もやってない時に正午に LINE で通知を送るための userId 紐付け。
+               ボタンタップ → GAS Web App → LINE 認可 → 生徒ID入力 → 完了。
+               GAS_URL は本ファイル冒頭で定義済の定数を使う。 -->
+          <div class="line-register-section">
+            <div class="line-register-title">📲 LINE 通知の登録</div>
+            <div class="line-register-desc">提出忘れの日にお知らせが届きます</div>
+            <button type="button" class="line-register-btn line-register-btn-student" onclick="startLineLoginFlow('student')">
+              <span class="line-register-main">🧒 生徒として LINE を登録</span>
+            </button>
+            <button type="button" class="line-register-btn line-register-btn-parent" onclick="startLineLoginFlow('parent')">
+              <span class="line-register-main">👨‍👩‍👧 保護者として LINE を登録</span>
+            </button>
+          </div>
         </div>
 
         <!-- Step 2: ID 入力（生徒・保護者で文言・色を切替） -->
@@ -4248,6 +4314,18 @@
   // _loginRole は 'student' | 'parent' | null。Step 2 のボタン押下時に分岐。
   // ★ 副作用ガード：保護者経路では絶対に loginStudent を呼ばない（getStudentView のみ使う view.html へ遷移）
   var _loginRole = null;
+
+  // LINE 通知登録フロー（Phase B-1、2026-05-16）：
+  // ボタン → GAS Web App に直接遷移 → GAS が LINE 認可画面へ即時リダイレクト → 生徒ID入力 → 完了。
+  // GAS_URL は本ファイル冒頭で定義済（const GAS_URL = 'https://script.google.com/macros/s/.../exec'）。
+  // raw query 経路（params=JSON wrapper を使わない）を採用：GAS の doGet が LINE_LOGIN_RAW_ACTIONS
+  // を検知して OAuth フロー HTML を返す。ふくちさんが LINE Login チャネルを未設定の段階で押された
+  // 場合も、GAS 側で「準備中」エラー HTML を返すため安全に空振りする。
+  function startLineLoginFlow(role) {
+    if (role !== 'student' && role !== 'parent') return;
+    var url = GAS_URL + '?action=lineLoginStart&role=' + encodeURIComponent(role);
+    window.location.href = url;
+  }
 
   function selectLoginRole(role) {
     _loginRole = role;
