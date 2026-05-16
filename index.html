@@ -797,7 +797,7 @@
     .avatar-slot .avatar-wrap { position: relative; height: 240px; display: flex; align-items: flex-end; justify-content: center; }
     .avatar-slot .avatar-img { width: auto; height: 240px; max-width: 200px; object-fit: contain; transition: transform .2s, filter .2s; border-radius: 16px; }
     .avatar-slot:hover .avatar-img { transform: scale(1.04); filter: drop-shadow(0 2px 6px rgba(124,58,237,.2)); }
-    .avatar-slot .avatar-placeholder { width: 180px; height: 240px; display: flex; align-items: center; justify-content: center; background: rgba(200,220,255,.25); border: 2px dashed #b0c0e0; border-radius: 16px; color: #6b7a99; font-size: 96px; font-weight: bold; line-height: 1; transition: transform .2s, background .2s; }
+    .avatar-slot .avatar-placeholder { width: 180px; height: 240px; display: none; align-items: center; justify-content: center; background: rgba(200,220,255,.25); border: 2px dashed #b0c0e0; border-radius: 16px; color: #6b7a99; font-size: 96px; font-weight: bold; line-height: 1; transition: transform .2s, background .2s; }
     .avatar-slot:hover .avatar-placeholder { transform: scale(1.04); background: rgba(200,220,255,.4); }
     .avatar-slot .avatar-name { font-size: 13px; color: #666; font-weight: bold; margin-top: 4px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .avatar-slot .avatar-name.placeholder-label { color: #7c3aed; }
@@ -4165,7 +4165,7 @@
       img.style.transition = '';
       img.onload  = null;
       img.onerror = null;
-      placeholder.style.display = '';
+      placeholder.style.display = 'flex';
       nameEl.textContent = 'アバターを選ぶ';
       nameEl.classList.add('placeholder-label');
       // 未選択生徒には NEW バッジで誘導
