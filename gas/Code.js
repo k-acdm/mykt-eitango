@@ -30,6 +30,10 @@ const SHEET_MESSAGE_READS     = 'MessageReads';
 const SHEET_SPECIAL_ACCOUNTS  = 'SpecialAccounts';
 // Phase 4：講師の操作ログ（admin の監査用、永久保存）。_ensureSheetWithHeaders で自動作成される。
 const SHEET_TEACHER_ACTIONS   = 'TeacherActions';
+// 両輪システム Phase A（2026-05-16）：HP の 30% 保留と必須完走時の一括解放 + ボーナスを記録する
+// 専用シート（必須機能：「やったら得 + やらないと損」の両輪を作るための基盤）。
+// _ensureHpReservePoolSheet() で初回 _appendHpReservePool 呼び出し時に自動作成される。
+const SHEET_HP_RESERVE_POOL   = 'HpReservePool';
 // accountType 列に入る値（最右列。Students の列構成に追加される列）
 const SPECIAL_ACCOUNT_TYPES = {
   TEST:       'test',          // 1001〜1099 テスト枠
@@ -1100,6 +1104,11 @@ function doGet(e) {
       //   / cleanupLisonOldRecordings）は URL 経由を遮断（Phase 2、漏洩耐性向上）。
       //   関数本体は残しており、GAS エディタからの手動実行 + Time-based Trigger（cleanup）は
       //   引き続き動作する。将来 URL 経由が必要になった時はここに else if を再追加すること。
+      // 両輪システム Phase A（2026-05-16）：必須コンテンツ進捗 + 完走通知（任意ポーリング用）
+      // 進捗 API はフロント UI（次フェーズで実装）で「○/○ 完了」インジケータ表示に使う。
+      // 完走通知 API は内部 _checkAndReleaseReserveIfCompleted の薄いラッパー。冪等。
+      else if (action === 'getRequiredProgress')      result = getRequiredProgress(params);
+      else if (action === 'onRequiredAllCompleted')   result = onRequiredAllCompleted(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1545,17 +1554,25 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     const currentHP = Number(sRow[COL_HP]) || 0;
     const streak    = Number(sRow[COL_STREAK]) || 1;  // 最低1
     const week      = Math.ceil(streak / 7);
-    const hpGained  = 50 * week * week;
-    const newHP     = currentHP + hpGained;
+    const rawHp_    = 50 * week * week;
+    // 両輪システム Phase A：必須未完走なら 70%/30% に分割（既存挙動：必須なし or 完走済なら 100%）
+    const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_);
+    const hpGained    = reserveCalc.granted;   // 即時付与分（フロント既存互換のためフィールド名は維持）
+    const reservedHp  = reserveCalc.reserved;
+    const newHP       = currentHP + hpGained;
 
     // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
     // HPLog 書き込みに失敗した場合は Students.HP / CLEARED / LAST_TEST を更新せずに
     // エラー応答を返す。Attempts シートと PropertiesService（pass1/pass2/cleared_*）の
     // 更新はそのまま残す（合格記録自体は有効、HP だけが付与されなかった状態）。
-    const logRes = _logHP(sid, hpGained, hpGained, 'test');
+    const logRes = _logHP(sid, rawHp_, hpGained, 'test');
     if (!logRes.ok) {
       console.error('[saveAttempt] HPLog 書き込みに失敗しました。HP/CLEARED/LAST_TEST を更新せず終了。', logRes.error);
       return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+    }
+    // 保留分を Pool に追記（reserve_active のときのみ実行、失敗しても HP 付与は完了済み）
+    if (reservedHp > 0) {
+      _appendHpReservePool(sid, _sangoToday(), 'test', rawHp_, reservedHp);
     }
 
     // 4/26 修正: 連続日数バグ対策で STREAK 列を含む 5 列 setValues を廃止
@@ -1577,7 +1594,23 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     _updateAccountCacheBySid(sid, updates);
     _invalidateCache('cache_ranking_last_week');
 
-    return { ok: true, clearHP: hpGained, bonusHP: 0, hpGained, totalHP: newHP, streak: streak, week: week };
+    // 両輪 Phase A：必須完走チェック（reserve_active のときのみ呼ぶ）
+    let completion = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    if (reserveCalc.isReserveActive) {
+      completion = _checkAndReleaseReserveIfCompleted(sid, 'test');
+    }
+    const finalTotalHP = completion.justCompleted ? newHP + completion.releasedHp + completion.bonusHp : newHP;
+    return {
+      ok: true,
+      clearHP: hpGained, bonusHP: 0,
+      hpGained: hpGained,            // 即時付与分（必須未完走なら 70%、それ以外なら 100%）
+      hpReserved: reservedHp,        // 保留分（必須未完走時のみ > 0）
+      justCompleted: completion.justCompleted,
+      releasedHp: completion.releasedHp,
+      bonusHp: completion.bonusHp,
+      totalHP: finalTotalHP,
+      streak: streak, week: week
+    };
   } catch (err) {
     console.error('[saveAttempt]', err);
     return { ok: false };
@@ -5681,7 +5714,12 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
       const remaining = Math.max(0, 100 - todayTotalBefore);
       const effectiveRawHP = Math.min(baseRawHP, remaining);   // 仕様書 §8.5 ケース 2
       const isPractice = (effectiveRawHP === 0);
-      const hpGained = effectiveRawHP * week * week;
+      const fullHpGained = effectiveRawHP * week * week;
+      // 両輪 Phase A：必須未完走なら 70%/30% に分割（練習モードは rawHp=0 で reserveActive のみ true）
+      const reserveCalc_kiso = _calculateHpWithReserve(stuLoc, fullHpGained);
+      const hpGained = reserveCalc_kiso.granted;
+      const reservedHp_kiso = reserveCalc_kiso.reserved;
+      var __reserveActive_kiso = reserveCalc_kiso.isReserveActive;
 
       // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
       // 非練習モード（hpGained > 0）で HPLog 書き込みに失敗した場合は Students.HP /
@@ -5694,6 +5732,9 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
       if (!logRes.ok && !isPractice && hpGained > 0) {
         console.error('[submitKisoAnswer] HPLog 書き込みに失敗しました。HP/KisoSessions 更新せず終了。', logRes.error);
         return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+      }
+      if (reservedHp_kiso > 0) {
+        _appendHpReservePool(studentId, _sangoToday(), logType, fullHpGained, reservedHp_kiso);
       }
 
       // Students.HP 更新（in-place）
@@ -5710,6 +5751,7 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
       hpInfo = {
         rawHP: effectiveRawHP,
         hpGained: hpGained,
+        hpReserved: reservedHp_kiso,
         isPractice: isPractice,
         todayTotalAfter: todayTotalBefore + effectiveRawHP,
         week: week,
@@ -5717,6 +5759,13 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
         baseRawHP: baseRawHP,
         sessionType: logType
       };
+      // 両輪 Phase A：完走チェック（kiso 練習モードでも、必須リストに kiso 含めば完走の最後の 1 ピースになり得る）
+      if (__reserveActive_kiso) {
+        const comp_kiso = _checkAndReleaseReserveIfCompleted(studentId, logType);
+        hpInfo.justCompleted = comp_kiso.justCompleted;
+        hpInfo.releasedHp = comp_kiso.releasedHp;
+        hpInfo.bonusHp = comp_kiso.bonusHp;
+      }
     }
 
     // KisoSessions 行更新（status / attempts / wrongIds / completedAt / hpEarned）
@@ -8531,19 +8580,30 @@ function submitSango(params) {
     }
 
     let hpGained = 0;
+    let rawHp_sango = 0;
+    let reservedHp_sango = 0;
+    let reserveActive_sango = false;
     if (!alreadyGranted) {
       // streak ベースの週数計算で 200 × week²
       const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
       const week = Math.ceil(streak / 7);
-      hpGained = 200 * week * week;
+      rawHp_sango = 200 * week * week;
+      // 両輪 Phase A：必須未完走なら 70%/30% に分割
+      const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_sango);
+      hpGained = reserveCalc.granted;
+      reservedHp_sango = reserveCalc.reserved;
+      reserveActive_sango = reserveCalc.isReserveActive;
 
       // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
       // HPLog 書き込み失敗時は Students.HP を加算せず、提出は受理した状態でエラー応答を返す。
       // SangoSubmissions は appendRow 済み（提出記録は保持）。
-      const logRes = _logHP(sid, hpGained, hpGained, 'sango');
+      const logRes = _logHP(sid, rawHp_sango, hpGained, 'sango');
       if (!logRes.ok) {
         console.error('[submitSango] HPLog 書き込みに失敗しました。HP を加算せず終了。', logRes.error);
         return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+      }
+      if (reservedHp_sango > 0) {
+        _appendHpReservePool(sid, _sangoToday(), 'sango', rawHp_sango, reservedHp_sango);
       }
 
       const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
@@ -8553,6 +8613,11 @@ function submitSango(params) {
       upd[COL_HP] = newHP;
       _updateAccountCacheBySid(sid, upd);
       _invalidateCache('cache_ranking_last_week');
+    }
+    // 両輪 Phase A：完走チェック（HP 付与なし日でも必須リスト次第で起動する可能性あり）
+    let completion_sango = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    if (reserveActive_sango) {
+      completion_sango = _checkAndReleaseReserveIfCompleted(sid, 'sango');
     }
 
     // 2026-05-12 サンゴタンAIフィードバック：HP 付与完了後に AI を呼び出す。
@@ -8597,7 +8662,15 @@ function submitSango(params) {
       console.error('[submitSango] AI フィードバック処理で例外', aiErr);
     }
 
-    return { ok: true, hpGained: hpGained, aiFeedback: aiFeedbackForFrontend };
+    return {
+      ok: true,
+      hpGained: hpGained,
+      hpReserved: reservedHp_sango,
+      justCompleted: completion_sango.justCompleted,
+      releasedHp: completion_sango.releasedHp,
+      bonusHp: completion_sango.bonusHp,
+      aiFeedback: aiFeedbackForFrontend
+    };
   } catch(err) {
     console.error('[submitSango]', err);
     return { ok: false, message: String(err) };
@@ -10012,21 +10085,32 @@ function submitWabun1(params) {
     }
 
     let hpGained = 0;
+    let rawHp_wabun1 = 0;
+    let reservedHp_wabun1 = 0;
+    let reserveActive_wabun1 = false;
     if (allCorrect && !alreadyGranted) {
       const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
       const week = Math.ceil(streak / 7);
       // 素点HP は 2026-04-29 以降の教育日から 100 → 200 に変更（4/29 当日含む、過去分は遡及しない）
       // todayStr は _sangoToday() の JST 3 時区切り。問題の日替わり・alreadyGranted 判定と同じ基準で揃える
       const baseHp = (todayStr >= '2026-04-29') ? 200 : 100;
-      hpGained = baseHp * week * week;
+      rawHp_wabun1 = baseHp * week * week;
+      // 両輪 Phase A：必須未完走なら 70%/30% に分割
+      const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_wabun1);
+      hpGained = reserveCalc.granted;
+      reservedHp_wabun1 = reserveCalc.reserved;
+      reserveActive_wabun1 = reserveCalc.isReserveActive;
 
       // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
       // HPLog 書き込み失敗時は Students.HP を加算せず、提出は受理した状態でエラー応答を返す。
       // Wabun1Submissions は appendRow 済み（提出記録は保持）。
-      const logRes = _logHP(sid, hpGained, hpGained, 'wabun1');
+      const logRes = _logHP(sid, rawHp_wabun1, hpGained, 'wabun1');
       if (!logRes.ok) {
         console.error('[submitWabun1] HPLog 書き込みに失敗しました。HP を加算せず終了。', logRes.error);
         return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+      }
+      if (reservedHp_wabun1 > 0) {
+        _appendHpReservePool(sid, _sangoToday(), 'wabun1', rawHp_wabun1, reservedHp_wabun1);
       }
 
       const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
@@ -10038,11 +10122,20 @@ function submitWabun1(params) {
       _invalidateCache('cache_ranking_last_week');
     }
 
+    // 両輪 Phase A：完走チェック
+    let completion_wabun1 = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    if (reserveActive_wabun1) {
+      completion_wabun1 = _checkAndReleaseReserveIfCompleted(sid, 'wabun1');
+    }
     return {
       ok: true,
       allCorrect: allCorrect,
       results: results,
       hpGained: hpGained,
+      hpReserved: reservedHp_wabun1,
+      justCompleted: completion_wabun1.justCompleted,
+      releasedHp: completion_wabun1.releasedHp,
+      bonusHp: completion_wabun1.bonusHp,
       alreadyGranted: alreadyGranted,
       appliedSkips: appliedSkips
     };
@@ -11756,20 +11849,31 @@ function submitLison(params) {
 
     // HP 計算（連続週²倍率は他コンテンツと同じ）
     let hpGained = 0;
+    let rawHp_lison = 0;
+    let reservedHp_lison = 0;
+    var __reserveActive_lison = false;
     if (!alreadyGranted) {
       const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
       const week = Math.ceil(streak / 7);
       const baseHp = _lisonBaseHpForLevel(level);
-      hpGained = baseHp * week * week;
+      rawHp_lison = baseHp * week * week;
+      // 両輪 Phase A：必須未完走なら 70%/30% に分割（リスオンは必須リスト対象外なので通常 100%）
+      const reserveCalc_lison = _calculateHpWithReserve(stuLoc, rawHp_lison);
+      hpGained = reserveCalc_lison.granted;
+      reservedHp_lison = reserveCalc_lison.reserved;
+      __reserveActive_lison = reserveCalc_lison.isReserveActive;
 
       // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
       // HPLog 書き込み失敗時は Students.HP / LisonSubmissions 追記をスキップしてエラー応答
       // を返す。Drive に保存済みの録音ファイルは残るが、再提出時に alreadyGranted=false
       // のまま再度 HP 付与経路に入る（LisonSubmissions に未追記のため）→ 次回成功で救済。
-      const logRes = _logHP(sid, hpGained, hpGained, 'lison');
+      const logRes = _logHP(sid, rawHp_lison, hpGained, 'lison');
       if (!logRes.ok) {
         console.error('[submitLison] HPLog 書き込みに失敗しました。HP/LisonSubmissions を更新せず終了。', logRes.error);
         return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+      }
+      if (reservedHp_lison > 0) {
+        _appendHpReservePool(sid, _sangoToday(), 'lison', rawHp_lison, reservedHp_lison);
       }
 
       // Students シート HP 加算（書き込みはフレッシュ rowIdx + setValue、in-place キャッシュ更新）
@@ -11780,6 +11884,11 @@ function submitLison(params) {
       upd[COL_HP] = newHP;
       _updateAccountCacheBySid(sid, upd);
       _invalidateCache('cache_ranking_last_week');
+    }
+    // 両輪 Phase A：完走チェック
+    let completion_lison = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    if (__reserveActive_lison) {
+      completion_lison = _checkAndReleaseReserveIfCompleted(sid, 'lison');
     }
 
     // LisonSubmissions に追記（alreadyGranted のときも recordingUrl と quizScore は残す）
@@ -11803,6 +11912,10 @@ function submitLison(params) {
     return {
       ok: true,
       hpGained: hpGained,
+      hpReserved: reservedHp_lison,
+      justCompleted: completion_lison.justCompleted,
+      releasedHp: completion_lison.releasedHp,
+      bonusHp: completion_lison.bonusHp,
       alreadyGranted: alreadyGranted,
       quizScore: quizScore,
       recordingUrl: saveRes.shareUrl
@@ -12489,16 +12602,25 @@ function submitKanjiKaki(params) {
       if (grantedRawHP > 0 && stuLoc) {
         const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
         const week = Math.ceil(streak / 7);
-        const hpGained = grantedRawHP * week * week;
+        const fullHpGained_kanji = grantedRawHP * week * week;
+        // 両輪 Phase A：必須未完走なら 70%/30% に分割
+        const reserveCalc_kanji = _calculateHpWithReserve(stuLoc, fullHpGained_kanji);
+        const hpGained = reserveCalc_kanji.granted;
+        const reservedHp_kanji = reserveCalc_kanji.reserved;
+        var __reserveActive_kanji = reserveCalc_kanji.isReserveActive;
+        const logType_kanji = 'kanji_' + level + '_' + count;
 
         // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
         // HPLog 書き込み失敗時は Students.HP / 進捗（kanji_next）更新をスキップして
         // エラー応答を返す。KanjiSubmissions は既に appendRow 済み（事後検証に有用）。
         // 同じセットを再挑戦すれば次回成功で救済される。
-        const logRes = _logHP(sid, grantedRawHP, hpGained, 'kanji_' + level + '_' + count);
+        const logRes = _logHP(sid, grantedRawHP, hpGained, logType_kanji);
         if (!logRes.ok) {
           console.error('[submitKanjiKaki] HPLog 書き込みに失敗しました。HP/進捗を更新せず終了。', logRes.error);
           return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+        }
+        if (reservedHp_kanji > 0) {
+          _appendHpReservePool(sid, _sangoToday(), logType_kanji, fullHpGained_kanji, reservedHp_kanji);
         }
 
         const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
@@ -12507,13 +12629,32 @@ function submitKanjiKaki(params) {
         const upd = {}; upd[COL_HP] = newHP;
         _updateAccountCacheBySid(sid, upd);
         _invalidateCache('cache_ranking_last_week');
-        hpInfo = { rawHP: grantedRawHP, hpGained: hpGained, granted: true, isPractice: false, alreadyAtCap: false, streak: streak, week: week };
+        hpInfo = { rawHP: grantedRawHP, hpGained: hpGained, hpReserved: reservedHp_kanji, granted: true, isPractice: false, alreadyAtCap: false, streak: streak, week: week };
+        // 両輪 Phase A：完走チェック
+        if (__reserveActive_kanji) {
+          const comp_kanji = _checkAndReleaseReserveIfCompleted(sid, logType_kanji);
+          hpInfo.justCompleted = comp_kanji.justCompleted;
+          hpInfo.releasedHp = comp_kanji.releasedHp;
+          hpInfo.bonusHp = comp_kanji.bonusHp;
+        }
       } else if (isPractice) {
         // 練習モード（既に上限到達）：HPLog にも記録するが _practice 接尾で除外可能に。
         // 練習モードは付与する HP がないため、_logHP 失敗時も警告ログのみで処理を継続する
         // （戻り値を無視）。進捗更新は実施される。
-        _logHP(sid, 0, 0, 'kanji_' + level + '_' + count + '_practice');
+        const logType_kanji_p = 'kanji_' + level + '_' + count + '_practice';
+        _logHP(sid, 0, 0, logType_kanji_p);
         hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: true, alreadyAtCap: true };
+        // 両輪 Phase A：練習モードでも必須完走の最後の 1 ピースになり得る（kanji 必須リストに含まれる場合）
+        // _calculateHpWithReserve(rawHp=0) は isReserveActive=true を返すので完走チェックを試みる。
+        if (stuLoc) {
+          const reserveCalc_kanji_p = _calculateHpWithReserve(stuLoc, 0);
+          if (reserveCalc_kanji_p.isReserveActive) {
+            const comp_kanji_p = _checkAndReleaseReserveIfCompleted(sid, logType_kanji_p);
+            hpInfo.justCompleted = comp_kanji_p.justCompleted;
+            hpInfo.releasedHp = comp_kanji_p.releasedHp;
+            hpInfo.bonusHp = comp_kanji_p.bonusHp;
+          }
+        }
       }
 
       // 進捗追跡：合格時のみ「次にやるセット番号」をインクリメント
@@ -13394,15 +13535,26 @@ function submitKobunSet(params) {
       if (grantedRawHP > 0 && stuLoc) {
         const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
         const week = Math.ceil(streak / 7);
-        const hpGained = grantedRawHP * week * week;
+        const fullHpGained_kobun = grantedRawHP * week * week;
+        // 両輪 Phase A：kobun は必須リスト対象外だが、生徒の学齢が他コンテンツの reserve を
+        // 起動している場合、kobun 提出は granted 100% で問題なし（_calculateHpWithReserve は
+        // 通常 isReserveActive=false を返すため reserve は発生しない）。
+        const reserveCalc_kobun = _calculateHpWithReserve(stuLoc, fullHpGained_kobun);
+        const hpGained = reserveCalc_kobun.granted;
+        const reservedHp_kobun = reserveCalc_kobun.reserved;
+        var __reserveActive_kobun = reserveCalc_kobun.isReserveActive;
+        const logType_kobun = 'kobun_' + round + '_' + total;
 
         // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
         // HPLog 書き込み失敗時は Students.HP / 進捗（kobun_next）更新をスキップして
         // エラー応答を返す。同じ周を再挑戦すれば次回成功で救済される。
-        const logRes = _logHP(sid, grantedRawHP, hpGained, 'kobun_' + round + '_' + total);
+        const logRes = _logHP(sid, grantedRawHP, hpGained, logType_kobun);
         if (!logRes.ok) {
           console.error('[submitKobunSet] HPLog 書き込みに失敗しました。HP/進捗を更新せず終了。', logRes.error);
           return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+        }
+        if (reservedHp_kobun > 0) {
+          _appendHpReservePool(sid, _sangoToday(), logType_kobun, fullHpGained_kobun, reservedHp_kobun);
         }
 
         const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
@@ -13411,7 +13563,14 @@ function submitKobunSet(params) {
         const upd = {}; upd[COL_HP] = newHP;
         _updateAccountCacheBySid(sid, upd);
         _invalidateCache('cache_ranking_last_week');
-        hpInfo = { rawHP: grantedRawHP, hpGained: hpGained, granted: true, isPractice: false, alreadyAtCap: false, streak: streak, week: week };
+        hpInfo = { rawHP: grantedRawHP, hpGained: hpGained, hpReserved: reservedHp_kobun, granted: true, isPractice: false, alreadyAtCap: false, streak: streak, week: week };
+        // 両輪 Phase A：完走チェック（kobun 提出が他コンテンツの完走後に発生する場合は no-op）
+        if (__reserveActive_kobun) {
+          const comp_kobun = _checkAndReleaseReserveIfCompleted(sid, logType_kobun);
+          hpInfo.justCompleted = comp_kobun.justCompleted;
+          hpInfo.releasedHp = comp_kobun.releasedHp;
+          hpInfo.bonusHp = comp_kobun.bonusHp;
+        }
       } else if (isPractice) {
         // 練習モード（既に上限到達）：HPLog にも記録するが _practice 接尾で除外可能に。
         // 練習モードは付与する HP がないため、_logHP 失敗時も警告ログのみで処理を継続する
@@ -14837,5 +14996,511 @@ function getKobunHistory(params) {
   } catch (err) {
     console.error('[getKobunHistory]', err);
     return { ok: false, message: String(err) };
+  }
+}
+
+// ========================================================================
+// 両輪システム Phase A 基盤（2026-05-16）
+// ------------------------------------------------------------------------
+// ふくちさん教育観：
+//   「本来やってほしいコンテンツ（書く系・思考系）」を生徒がやらない傾向に対し、
+//   「やったら得（完走ボーナス）」+「やらないと損（HP の 30% 保留）」の両輪で
+//   行動変容を促す。罰則感を抑えるため "保留" 概念を採用。
+//
+// 仕様（Phase A：サーバ側のみ。フロント UI 変更は Phase A-3 で実施）：
+//   1) Students シートに 4 列追加：GRADE_LEVEL / WABUN1_UNLOCKED / KISO_UNLOCKED / KANJI_UNLOCKED
+//      → 既存 BIRTHDAY 列 / AVATAR_BASE 列と同パターン（ヘッダー駆動、末尾自動追加、setNumberFormat('@')）
+//   2) 学齢別の必須コンテンツ定義 REQUIRED_CONTENTS_BY_GRADE
+//   3) 開放フラグで動的フィルタ：FALSE のコンテンツは必須リストから除外
+//   4) 提出時：必須未完走なら HP の 70% 即時付与 + 30% を HpReservePool に保留
+//      必須完走済 or 必須なし学齢：従来どおり 100% 即時付与（reserve 非起動）
+//   5) 提出後に "今日の必須全完走" を判定。完走の瞬間：
+//      a) HpReservePool の今日の未解放分を全部 resolved=TRUE にして合計を HPLog へ release
+//      b) ボーナス 200HP × 連続週数² を completion_bonus として HPLog へ追加
+//      c) Students.HP に (released + bonus) を加算
+//      d) PropertiesService フラグで二重発火防止
+//
+// 重要な不変条件（既存挙動を絶対に壊さない）：
+//   - GRADE_LEVEL が空欄 = REQUIRED_CONTENTS_BY_GRADE[""] = undefined → 必須なし → 100% 即時付与
+//   - WABUN1_UNLOCKED 等が FALSE / 空欄 = そのコンテンツは必須から除外
+//   - つまりデフォルト（全フラグ空欄）の生徒は完全に従来挙動を維持
+//   - ふくちさんが GRADE_LEVEL + UNLOCKED フラグを手動で設定した生徒のみ両輪システムが起動
+//
+// 完走ロジックの判定基準：
+//   - 「今日 HPLog に該当 type のレコードが 1 つ以上ある」= 完了とみなす
+//   - 練習モード（HP=0、type='..._practice'）も「やった」事実なので完了扱い（プレフィックス match）
+//   - 1 日の境界は _sangoToday()（JST 3:00 区切り）に統一（既存 submit と整合）
+// ========================================================================
+
+// 必須コンテンツの抽象名（HPLog type とは別の論理名）。
+// HPLog の type プレフィックスとのマッピングは _isHpLogTypeForRequired() を参照。
+const REQUIRED_CONTENT_KEYS = ['eitango', 'sango', 'wabun1', 'kiso', 'kanji'];
+
+// 学齢別の必須コンテンツ定義（仕様書通り）。
+// 小学生：英単語RUSH、三語短文、和文英訳①、カンジー（4 つ）
+// 中学生：英単語RUSH、三語短文、和文英訳①、基礎計算、カンジー（5 つ）
+// 高校生：必須なし（自主性重視）
+const REQUIRED_CONTENTS_BY_GRADE = {
+  '小1': ['eitango', 'sango', 'wabun1', 'kanji'],
+  '小2': ['eitango', 'sango', 'wabun1', 'kanji'],
+  '小3': ['eitango', 'sango', 'wabun1', 'kanji'],
+  '小4': ['eitango', 'sango', 'wabun1', 'kanji'],
+  '小5': ['eitango', 'sango', 'wabun1', 'kanji'],
+  '小6': ['eitango', 'sango', 'wabun1', 'kanji'],
+  '中1': ['eitango', 'sango', 'wabun1', 'kiso', 'kanji'],
+  '中2': ['eitango', 'sango', 'wabun1', 'kiso', 'kanji'],
+  '中3': ['eitango', 'sango', 'wabun1', 'kiso', 'kanji'],
+  '高1': [],
+  '高2': [],
+  '高3': []
+};
+
+// 開放フラグが反映されるコンテンツ（FALSE なら必須から除外する対象）。
+// eitango / sango は学齢が小・中なら全員必須（開放フラグなし）。
+const UNLOCK_FLAG_BY_CONTENT = {
+  wabun1: 'WABUN1_UNLOCKED',
+  kiso:   'KISO_UNLOCKED',
+  kanji:  'KANJI_UNLOCKED'
+};
+
+// 列ヘッダー名（既存 BIRTHDAY_HEADER_NAME / AVATAR_BASE_HEADER_NAME と同パターン）
+const GRADE_LEVEL_HEADER_NAME     = 'GRADE_LEVEL';
+const WABUN1_UNLOCKED_HEADER_NAME = 'WABUN1_UNLOCKED';
+const KISO_UNLOCKED_HEADER_NAME   = 'KISO_UNLOCKED';
+const KANJI_UNLOCKED_HEADER_NAME  = 'KANJI_UNLOCKED';
+
+// 保留比率と完走ボーナス基本値
+const REQUIRED_RESERVE_RATIO         = 0.30;  // 必須未完走時：30% を保留、70% を即時付与
+const REQUIRED_COMPLETION_BONUS_BASE = 200;   // 完走ボーナス基本 HP（× 連続週数² で確定）
+
+// HpReservePool シートのヘッダー（7 列、仕様書準拠）
+//   studentId | date | type | rawHp | reservedHp | resolved | resolvedAt
+//   - date: '_sangoToday()' 形式の 'yyyy-MM-dd' 文字列（JST 3:00 区切り）
+//   - type: 元の HPLog type（'sango', 'kiso_15_5' 等）
+//   - rawHp: 倍率適用後の総 HP（元の hpGained）
+//   - reservedHp: 保留分（rawHp - 即時付与分）
+//   - resolved: 'TRUE' / 'FALSE'（文字列）
+//   - resolvedAt: 解放時の '_nowJST()'、未解放なら ''
+const HP_RESERVE_POOL_HEADERS = ['studentId', 'date', 'type', 'rawHp', 'reservedHp', 'resolved', 'resolvedAt'];
+
+// --- 列インデックス検出ヘルパー（_findBirthdayColIdx / _findAvatarBaseColIdx と同パターン） ---
+
+function _findGradeLevelColIdx(allValues) {
+  if (!allValues || !allValues.length || !allValues[0] || !allValues[0].length) return -1;
+  const header = allValues[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === GRADE_LEVEL_HEADER_NAME) return i;
+  }
+  return -1;
+}
+
+function _findGradeLevelColIdxOnSheet(sheet) {
+  if (!sheet) return -1;
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === GRADE_LEVEL_HEADER_NAME) return i;
+  }
+  return -1;
+}
+
+function _ensureGradeLevelColOnSheet(sheet) {
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === GRADE_LEVEL_HEADER_NAME) {
+      return { idx: i, created: false };
+    }
+  }
+  const newCol = lastCol + 1;
+  sheet.getRange(1, newCol).setValue(GRADE_LEVEL_HEADER_NAME);
+  return { idx: newCol - 1, created: true };
+}
+
+// 開放フラグ 3 種は共通の汎用ヘルパーで扱う（headerName を引数で受ける）。
+function _findUnlockFlagColIdx(allValues, headerName) {
+  if (!allValues || !allValues.length || !allValues[0] || !allValues[0].length) return -1;
+  const header = allValues[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === headerName) return i;
+  }
+  return -1;
+}
+
+function _findUnlockFlagColIdxOnSheet(sheet, headerName) {
+  if (!sheet) return -1;
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === headerName) return i;
+  }
+  return -1;
+}
+
+function _ensureUnlockFlagColOnSheet(sheet, headerName) {
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === headerName) {
+      return { idx: i, created: false };
+    }
+  }
+  const newCol = lastCol + 1;
+  sheet.getRange(1, newCol).setValue(headerName);
+  return { idx: newCol - 1, created: true };
+}
+
+// --- 読み取りヘルパー（loc 経由、二段階フォールバック：_readAvatarBaseFromLoc と同パターン） ---
+
+function _readGradeLevelFromLoc(loc) {
+  if (!loc) return '';
+  let idx = _findGradeLevelColIdx(loc.allValues);
+  if (idx < 0 && loc.sheet) idx = _findGradeLevelColIdxOnSheet(loc.sheet);
+  if (idx < 0) return '';
+  let v;
+  if (loc.rowValues && idx < loc.rowValues.length) v = loc.rowValues[idx];
+  if ((v == null || v === '') && loc.sheet && typeof loc.rowIdx === 'number' && loc.rowIdx >= 0) {
+    try {
+      const cellVal = loc.sheet.getRange(loc.rowIdx + 1, idx + 1).getValue();
+      if (cellVal != null && cellVal !== '') v = cellVal;
+    } catch (e) {
+      console.error('[_readGradeLevelFromLoc] direct read failed', e);
+    }
+  }
+  return v == null ? '' : String(v).trim();
+}
+
+// 開放フラグの値を読む（'TRUE' / 'FALSE' / 空欄 のいずれか）。
+// boolean 判定は _isUnlockFlagTrue を別途使う。
+function _readUnlockFlagFromLoc(loc, headerName) {
+  if (!loc) return '';
+  let idx = _findUnlockFlagColIdx(loc.allValues, headerName);
+  if (idx < 0 && loc.sheet) idx = _findUnlockFlagColIdxOnSheet(loc.sheet, headerName);
+  if (idx < 0) return '';
+  let v;
+  if (loc.rowValues && idx < loc.rowValues.length) v = loc.rowValues[idx];
+  if ((v == null || v === '') && loc.sheet && typeof loc.rowIdx === 'number' && loc.rowIdx >= 0) {
+    try {
+      const cellVal = loc.sheet.getRange(loc.rowIdx + 1, idx + 1).getValue();
+      if (cellVal != null && cellVal !== '') v = cellVal;
+    } catch (e) {
+      console.error('[_readUnlockFlagFromLoc] direct read failed', e);
+    }
+  }
+  return v == null ? '' : String(v).trim().toUpperCase();
+}
+
+// 'TRUE' / true / 1 / 'YES' なら true、それ以外は false（_teacherTruthy と同パターン）。
+function _isUnlockFlagTrue(rawValue) {
+  if (rawValue === true) return true;
+  if (rawValue === 1) return true;
+  const s = String(rawValue == null ? '' : rawValue).trim().toUpperCase();
+  return s === 'TRUE' || s === '1' || s === 'YES';
+}
+
+// 学齢 + 開放フラグから、その生徒の必須コンテンツ配列を返す。
+// 高校生 or 学齢未設定なら []。
+function _getRequiredContentsForLoc(loc) {
+  const grade = _readGradeLevelFromLoc(loc);
+  const baseList = REQUIRED_CONTENTS_BY_GRADE[grade] || [];
+  if (baseList.length === 0) return [];
+  // 開放フラグでフィルタ：eitango / sango は無条件、それ以外は UNLOCK_FLAG_BY_CONTENT で判定
+  return baseList.filter(function(content) {
+    const flagHeader = UNLOCK_FLAG_BY_CONTENT[content];
+    if (!flagHeader) return true;  // 開放フラグ対象外（eitango, sango）は無条件で必須
+    const rawFlag = _readUnlockFlagFromLoc(loc, flagHeader);
+    return _isUnlockFlagTrue(rawFlag);
+  });
+}
+
+// HPLog の type 文字列が required コンテンツ（抽象名）に該当するか判定。
+// 'test'              → eitango（saveAttempt / submitPhoto も最終的に saveAttempt から HP）
+// 'sango'             → sango
+// 'wabun1'            → wabun1
+// 'kiso_*' (含 _practice) → kiso
+// 'kanji_*' (含 _practice) → kanji
+function _isHpLogTypeForRequired(hpLogType, requiredContent) {
+  const t = String(hpLogType || '').trim();
+  switch (requiredContent) {
+    case 'eitango': return t === 'test' || t === 'eitango' || t === 'eitan';
+    case 'sango':   return t === 'sango';
+    case 'wabun1':  return t === 'wabun1';
+    case 'kiso':    return t.indexOf('kiso_') === 0;
+    case 'kanji':   return t.indexOf('kanji_') === 0;
+  }
+  return false;
+}
+
+// 今日（_sangoToday() 基準）の HPLog から、指定生徒が完了した必須コンテンツの Set を返す。
+// 末尾 500 行のみ走査（マルチコンテンツ化で活動量が増えた現状を考慮、_getPrevDayCount と同じ走査幅）。
+function _getTodayCompletedRequired(sid, requiredList) {
+  const completed = {};
+  if (!requiredList || requiredList.length === 0) return completed;
+  const sh = _ss().getSheetByName(SHEET_HPLOG);
+  if (!sh) return completed;
+  const rows = _readLastNRows(sh, 500);
+  const todayStr = _sangoToday();
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (String(r[1] || '').trim() !== sid) continue;
+    // 3 時基準で日付判定（既存 submit の alreadyGranted ロジックと完全一致）
+    const ts = r[0];
+    if (!ts) continue;
+    const t = new Date(ts);
+    t.setHours(t.getHours() - 3);
+    const ds = Utilities.formatDate(t, 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (ds !== todayStr) continue;
+    const type = String(r[4] || '').trim();
+    for (let j = 0; j < requiredList.length; j++) {
+      const rc = requiredList[j];
+      if (!completed[rc] && _isHpLogTypeForRequired(type, rc)) completed[rc] = true;
+    }
+  }
+  return completed;
+}
+
+// --- HpReservePool シート操作 ---
+
+function _ensureHpReservePoolSheet() {
+  return _ensureSheetWithHeaders(SHEET_HP_RESERVE_POOL, HP_RESERVE_POOL_HEADERS, 0).sh;
+}
+
+// 保留分を Pool に追記。失敗しても submit 全体は止めない（ベストエフォート）。
+function _appendHpReservePool(sid, dateStr, type, rawHp, reservedHp) {
+  try {
+    if (!sid || !dateStr || !type) return { ok: false, message: 'invalid args' };
+    if (reservedHp == null || reservedHp <= 0) return { ok: false, message: 'no reserve' };
+    const sh = _ensureHpReservePoolSheet();
+    sh.appendRow([sid, dateStr, type, rawHp, reservedHp, 'FALSE', '']);
+    SpreadsheetApp.flush();
+    return { ok: true };
+  } catch (e) {
+    console.error('[_appendHpReservePool]', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// 指定生徒の today の未解放 Pool 行を一括 resolved=TRUE 化し、合計 reservedHp を返す。
+// 戻り値: { ok, totalReleased, count }
+// 注意：完走判定の race を防ぐため、呼び出し側で PropertiesService フラグで gate すること。
+function _markReservePoolEntriesResolved(sid, dateStr) {
+  try {
+    const sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, totalReleased: 0, count: 0 };
+    const values = sh.getDataRange().getValues();
+    // header: studentId(0) date(1) type(2) rawHp(3) reservedHp(4) resolved(5) resolvedAt(6)
+    const targets = [];
+    let totalReleased = 0;
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (String(r[0] || '').trim() !== sid) continue;
+      if (String(r[1] || '').trim() !== dateStr) continue;
+      if (String(r[5] || '').trim().toUpperCase() === 'TRUE') continue;
+      targets.push(i + 1);  // 1-based row index
+      totalReleased += Number(r[4]) || 0;
+    }
+    if (targets.length === 0) return { ok: true, totalReleased: 0, count: 0 };
+    const now = _nowJST();
+    // setValues で 1 行ずつ更新（バッチ最適化より単純さ優先：完走は 1 日 1 回の rare path）
+    for (let k = 0; k < targets.length; k++) {
+      sh.getRange(targets[k], 6, 1, 2).setValues([['TRUE', now]]);
+    }
+    SpreadsheetApp.flush();
+    return { ok: true, totalReleased: totalReleased, count: targets.length };
+  } catch (e) {
+    console.error('[_markReservePoolEntriesResolved]', e);
+    return { ok: false, totalReleased: 0, count: 0, message: String(e) };
+  }
+}
+
+// --- 中核：保留分計算 ---
+// loc: _findAccountRowOnSheet(sid) の戻り値
+// rawHp: 元の獲得 HP（倍率適用後、_logHP の hpGained に渡そうとしていた値）
+// 戻り値: { granted, reserved, isReserveActive, requiredList, completedSet }
+//   isReserveActive=true なら granted=floor(rawHp * 0.7), reserved=rawHp - granted
+//   isReserveActive=false なら granted=rawHp, reserved=0（従来挙動と完全同等）
+function _calculateHpWithReserve(loc, rawHp) {
+  const safe = { granted: rawHp || 0, reserved: 0, isReserveActive: false, requiredList: [], completedSet: {} };
+  if (!loc) return safe;
+  const requiredList = _getRequiredContentsForLoc(loc);
+  if (!requiredList || requiredList.length === 0) return safe;
+  // rawHp=0（練習モード等）は分割しない（granted=0, reserved=0、ただし isReserveActive は true）
+  if (!rawHp || rawHp <= 0) {
+    return { granted: 0, reserved: 0, isReserveActive: true, requiredList: requiredList, completedSet: {} };
+  }
+  const sid = String(loc.rowValues[COL_ID] || '').trim();
+  const completedSet = _getTodayCompletedRequired(sid, requiredList);
+  // 必須全完走済 → 既に release 済 or release は別経路で実施。100% 即時付与
+  const allDone = requiredList.every(function(rc) { return !!completedSet[rc]; });
+  if (allDone) {
+    return { granted: rawHp, reserved: 0, isReserveActive: false, requiredList: requiredList, completedSet: completedSet };
+  }
+  // 未完走 → 70%/30% 分割
+  const granted = Math.floor(rawHp * (1 - REQUIRED_RESERVE_RATIO));
+  const reserved = rawHp - granted;
+  return { granted: granted, reserved: reserved, isReserveActive: true, requiredList: requiredList, completedSet: completedSet };
+}
+
+// --- 完走チェック & 解放 + ボーナス付与 ---
+// submit 関数の末尾（_logHP + Students.HP 加算が完了した後）に呼ぶ。
+// 完走判定時：
+//   - PropertiesService フラグ 'completion_bonus_<sid>_<date>' で二重発火防止
+//   - HpReservePool の未解放分を全部 TRUE 化 → totalReleased
+//   - bonusHp = REQUIRED_COMPLETION_BONUS_BASE × 連続週数²
+//   - _logHP 2 回（'reserve_release' と 'completion_bonus'）
+//   - Students.HP += (totalReleased + bonusHp)
+// 戻り値: { justCompleted, releasedHp, bonusHp }
+function _checkAndReleaseReserveIfCompleted(sid, justLoggedType) {
+  try {
+    if (!sid) return { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    // 二重発火防止フラグ（_sangoToday の日付で gate）
+    const todayStr = _sangoToday();
+    const props = _props();
+    const flagKey = 'completion_bonus_' + sid + '_' + todayStr;
+    if (props.getProperty(flagKey)) {
+      return { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    }
+    // フレッシュに sid 行を読む（提出直後の Students.HP は既に更新済）
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    const requiredList = _getRequiredContentsForLoc(loc);
+    if (!requiredList || requiredList.length === 0) {
+      return { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    }
+    const completedSet = _getTodayCompletedRequired(sid, requiredList);
+    const allDone = requiredList.every(function(rc) { return !!completedSet[rc]; });
+    if (!allDone) return { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+
+    // 完走の瞬間：フラグを先に立てる（race 防止）
+    props.setProperty(flagKey, '1');
+
+    // Pool 解放
+    const releaseRes = _markReservePoolEntriesResolved(sid, todayStr);
+    const releasedHp = releaseRes.totalReleased || 0;
+
+    // ボーナス計算（loc から streak を取得）
+    const streak = Number(loc.rowValues[COL_STREAK]) || 1;
+    const week = Math.ceil(streak / 7);
+    const bonusHp = REQUIRED_COMPLETION_BONUS_BASE * week * week;
+
+    // HPLog 書き込み：release（あれば）+ bonus（必ず）
+    // _logHP は LockService で serialize される。submit 側の _logHP は既に release 済みなので nesting 問題なし。
+    if (releasedHp > 0) {
+      _logHP(sid, releasedHp, releasedHp, 'reserve_release');
+    }
+    _logHP(sid, bonusHp, bonusHp, 'completion_bonus');
+
+    // Students.HP に release + bonus を加算（フレッシュ読みで race を回避）
+    try {
+      const loc2 = _findAccountRowOnSheet(sid);
+      if (loc2) {
+        const curHP = Number(loc2.rowValues[COL_HP]) || 0;
+        const newHP = curHP + releasedHp + bonusHp;
+        loc2.sheet.getRange(loc2.rowIdx + 1, COL_HP + 1).setValue(newHP);
+        const upd = {}; upd[COL_HP] = newHP;
+        _updateAccountCacheBySid(sid, upd);
+        _invalidateCache('cache_ranking_last_week');
+      }
+    } catch (hpErr) {
+      console.error('[_checkAndReleaseReserveIfCompleted] HP 加算失敗（HPLog は記録済み）', hpErr);
+    }
+    return { justCompleted: true, releasedHp: releasedHp, bonusHp: bonusHp };
+  } catch (e) {
+    console.error('[_checkAndReleaseReserveIfCompleted]', e);
+    return { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+  }
+}
+
+// 公開 API：必須完走進捗（フロント UI 表示用、認証不要 = 自分の情報）
+// params: { studentId }
+// 戻り値: { ok, grade, required, completed, remaining, isAllCompleted, completedCount, totalCount }
+function getRequiredProgress(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { ok: false, message: '生徒IDが見つかりません' };
+    const grade = _readGradeLevelFromLoc(loc);
+    const required = _getRequiredContentsForLoc(loc);
+    const completedMap = _getTodayCompletedRequired(sid, required);
+    const completed = required.filter(function(rc){ return !!completedMap[rc]; });
+    const remaining = required.filter(function(rc){ return !completedMap[rc]; });
+    return {
+      ok: true,
+      grade: grade,
+      required: required,
+      completed: completed,
+      remaining: remaining,
+      isAllCompleted: remaining.length === 0 && required.length > 0,
+      completedCount: completed.length,
+      totalCount: required.length
+    };
+  } catch (e) {
+    console.error('[getRequiredProgress]', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// 公開 API（任意）：完走通知 / 内部の _checkAndReleaseReserveIfCompleted の薄いラッパー
+// 主用途は submit 関数末尾からの呼び出し（内部）だが、フロントが完走通知をポーリング
+// したくなった時のためにも doGet 経由で叩けるようにしておく。冪等。
+// params: { studentId, completedType }
+function onRequiredAllCompleted(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const completedType = String((params && params.completedType) || '').trim();
+    const res = _checkAndReleaseReserveIfCompleted(sid, completedType);
+    return { ok: true, justCompleted: res.justCompleted, releasedHp: res.releasedHp, bonusHp: res.bonusHp };
+  } catch (e) {
+    console.error('[onRequiredAllCompleted]', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// セットアップ補助：Students + SpecialAccounts に GRADE_LEVEL / 開放 3 種を一括追加。
+// GAS エディタから 1 回手動実行（既に列があればスキップ）。
+// 既存データ列には触らず末尾に追加するため、Students 表示順は保たれる。
+// 戻り値: { ok, students: {grade, wabun1, kiso, kanji}, special: {...} } - 各 boolean は created
+function ensureRequiredColumns() {
+  try {
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    const spSheet  = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+    const out = { ok: true, students: null, special: null };
+
+    if (stuSheet) {
+      const r1 = _ensureGradeLevelColOnSheet(stuSheet);
+      const r2 = _ensureUnlockFlagColOnSheet(stuSheet, WABUN1_UNLOCKED_HEADER_NAME);
+      const r3 = _ensureUnlockFlagColOnSheet(stuSheet, KISO_UNLOCKED_HEADER_NAME);
+      const r4 = _ensureUnlockFlagColOnSheet(stuSheet, KANJI_UNLOCKED_HEADER_NAME);
+      // 列を作成した場合はキャッシュ整合性のため invalidate
+      if (r1.created || r2.created || r3.created || r4.created) {
+        try {
+          CacheService.getScriptCache().remove('cache_students_values');
+          _cacheLog('cache_students_values', 'invalidate', 'ensureRequiredColumns Students');
+        } catch(_) {}
+      }
+      out.students = { grade: r1.created, wabun1: r2.created, kiso: r3.created, kanji: r4.created };
+    }
+    if (spSheet) {
+      const r1 = _ensureGradeLevelColOnSheet(spSheet);
+      const r2 = _ensureUnlockFlagColOnSheet(spSheet, WABUN1_UNLOCKED_HEADER_NAME);
+      const r3 = _ensureUnlockFlagColOnSheet(spSheet, KISO_UNLOCKED_HEADER_NAME);
+      const r4 = _ensureUnlockFlagColOnSheet(spSheet, KANJI_UNLOCKED_HEADER_NAME);
+      if (r1.created || r2.created || r3.created || r4.created) {
+        try {
+          CacheService.getScriptCache().remove('cache_special_accounts_values');
+          _cacheLog('cache_special_accounts_values', 'invalidate', 'ensureRequiredColumns SpecialAccounts');
+        } catch(_) {}
+      }
+      out.special = { grade: r1.created, wabun1: r2.created, kiso: r3.created, kanji: r4.created };
+    }
+    // HpReservePool も同時に保証（初回セットアップ簡略化）
+    _ensureHpReservePoolSheet();
+    return out;
+  } catch (e) {
+    console.error('[ensureRequiredColumns]', e);
+    return { ok: false, message: String(e) };
   }
 }
