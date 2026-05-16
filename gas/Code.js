@@ -15073,6 +15073,11 @@ const KANJI_UNLOCKED_HEADER_NAME  = 'KANJI_UNLOCKED';
 const REQUIRED_RESERVE_RATIO         = 0.40;  // 必須未完走時：40% を保留、60% を即時付与（2026-05-16 60/40 へ強化、ふくちさん「結構な痛手」設計）
 const REQUIRED_COMPLETION_BONUS_BASE = 200;   // 完走ボーナス基本 HP（× 連続週数² で確定）
 
+// 両輪システムの起動日（教育日 _sangoToday() 基準で yyyy-MM-dd 文字列比較）。
+// この日以降に初めて _calculateHpWithReserve が「必須未完走 → 保留」分岐に入る。
+// 5/16〜5/24 は予告期間（フロントの予告モーダルだけ表示、HP は従来通り 100% 即時付与）。
+const REQUIRED_SYSTEM_START_DATE     = '2026-05-25';
+
 // HpReservePool シートのヘッダー（7 列、仕様書準拠）
 //   studentId | date | type | rawHp | reservedHp | resolved | resolvedAt
 //   - date: '_sangoToday()' 形式の 'yyyy-MM-dd' 文字列（JST 3:00 区切り）
@@ -15322,6 +15327,9 @@ function _markReservePoolEntriesResolved(sid, dateStr) {
 function _calculateHpWithReserve(loc, rawHp) {
   const safe = { granted: rawHp || 0, reserved: 0, isReserveActive: false, requiredList: [], completedSet: {} };
   if (!loc) return safe;
+  // 予告期間中（〜5/24）は両輪非起動：従来挙動と完全に同じ granted=rawHp / reserved=0 を返す。
+  // 5/25 以降に初めて分割ロジックが動く。フロントの予告モーダルとセットで「お知らせ → 開始」の体験を作る。
+  if (_sangoToday() < REQUIRED_SYSTEM_START_DATE) return safe;
   const requiredList = _getRequiredContentsForLoc(loc);
   if (!requiredList || requiredList.length === 0) return safe;
   // rawHp=0（練習モード等）は分割しない（granted=0, reserved=0、ただし isReserveActive は true）
@@ -15355,6 +15363,8 @@ function _checkAndReleaseReserveIfCompleted(sid, justLoggedType) {
     if (!sid) return { justCompleted: false, releasedHp: 0, bonusHp: 0 };
     // 二重発火防止フラグ（_sangoToday の日付で gate）
     const todayStr = _sangoToday();
+    // 予告期間中（〜5/24）は完走判定もスキップ
+    if (todayStr < REQUIRED_SYSTEM_START_DATE) return { justCompleted: false, releasedHp: 0, bonusHp: 0 };
     const props = _props();
     const flagKey = 'completion_bonus_' + sid + '_' + todayStr;
     if (props.getProperty(flagKey)) {
@@ -15413,7 +15423,11 @@ function _checkAndReleaseReserveIfCompleted(sid, justLoggedType) {
 
 // 公開 API：必須完走進捗（フロント UI 表示用、認証不要 = 自分の情報）
 // params: { studentId }
-// 戻り値: { ok, grade, required, completed, remaining, isAllCompleted, completedCount, totalCount }
+// 戻り値: { ok, grade, required, completed, remaining, isAllCompleted, completedCount, totalCount,
+//          todayReservedHp, todayBonusHp, systemActive }
+//   - todayReservedHp : HpReservePool の今日 + resolved=FALSE の reservedHp 合計（保留 HP 表示用）
+//   - todayBonusHp    : 今日の HPLog の completion_bonus を 1 件だけ拾った hpGained（未完走なら 0）
+//   - systemActive    : 今日が REQUIRED_SYSTEM_START_DATE 以降なら true（フロントで予告 vs 本番を区別）
 function getRequiredProgress(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
@@ -15425,6 +15439,7 @@ function getRequiredProgress(params) {
     const completedMap = _getTodayCompletedRequired(sid, required);
     const completed = required.filter(function(rc){ return !!completedMap[rc]; });
     const remaining = required.filter(function(rc){ return !completedMap[rc]; });
+    const todayStr = _sangoToday();
     return {
       ok: true,
       grade: grade,
@@ -15433,11 +15448,64 @@ function getRequiredProgress(params) {
       remaining: remaining,
       isAllCompleted: remaining.length === 0 && required.length > 0,
       completedCount: completed.length,
-      totalCount: required.length
+      totalCount: required.length,
+      todayReservedHp: _getTodayReservedHpForSid(sid),
+      todayBonusHp: _getTodayCompletionBonusForSid(sid),
+      systemActive: todayStr >= REQUIRED_SYSTEM_START_DATE,
+      systemStartDate: REQUIRED_SYSTEM_START_DATE
     };
   } catch (e) {
     console.error('[getRequiredProgress]', e);
     return { ok: false, message: String(e) };
+  }
+}
+
+// HpReservePool から指定生徒の今日 + 未解放分の reservedHp 合計（ホーム画面「💰 今日の保留 HP」用）
+function _getTodayReservedHpForSid(sid) {
+  try {
+    const sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+    if (!sh || sh.getLastRow() < 2) return 0;
+    const todayStr = _sangoToday();
+    const values = sh.getDataRange().getValues();
+    let total = 0;
+    // header: studentId(0) date(1) type(2) rawHp(3) reservedHp(4) resolved(5) resolvedAt(6)
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (String(r[0] || '').trim() !== sid) continue;
+      if (String(r[1] || '').trim() !== todayStr) continue;
+      if (String(r[5] || '').trim().toUpperCase() === 'TRUE') continue;
+      total += Number(r[4]) || 0;
+    }
+    return total;
+  } catch (e) {
+    console.error('[_getTodayReservedHpForSid]', e);
+    return 0;
+  }
+}
+
+// HPLog 末尾走査して、今日の type='completion_bonus' の hpGained を返す（無ければ 0）。
+// 1 日に 1 度しか発火しないため、1 件見つかれば確定。
+function _getTodayCompletionBonusForSid(sid) {
+  try {
+    const sh = _ss().getSheetByName(SHEET_HPLOG);
+    if (!sh) return 0;
+    const rows = _readLastNRows(sh, 200);
+    const todayStr = _sangoToday();
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const r = rows[i];
+      if (String(r[1] || '').trim() !== sid) continue;
+      if (String(r[4] || '').trim() !== 'completion_bonus') continue;
+      const ts = r[0];
+      if (!ts) continue;
+      const t = new Date(ts);
+      t.setHours(t.getHours() - 3);
+      const ds = Utilities.formatDate(t, 'Asia/Tokyo', 'yyyy-MM-dd');
+      if (ds === todayStr) return Number(r[3]) || 0;
+    }
+    return 0;
+  } catch (e) {
+    console.error('[_getTodayCompletionBonusForSid]', e);
+    return 0;
   }
 }
 

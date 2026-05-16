@@ -1718,6 +1718,184 @@
       .lison-submit-card { padding: 20px 16px; max-width: 90vw; }
       .lison-submit-card img { width: 80px; height: 80px; }
     }
+
+    /* ===== 両輪システム Phase A（2026-05-16）：HP獲得画面の保留通知・完走演出 + ホーム UI + 予告モーダル ===== */
+
+    /* HP獲得画面：保留通知（オレンジ系・優しいトーン） */
+    .reserve-notice {
+      margin-top: 14px;
+      background: linear-gradient(135deg, #fff7ed, #fed7aa);
+      border: 2px solid #fb923c;
+      border-radius: 14px;
+      padding: 14px 16px;
+      text-align: center;
+      color: #7c2d12;
+    }
+    .reserve-notice-icon { font-size: 32px; margin-bottom: 4px; }
+    .reserve-notice-main { font-size: 16px; font-weight: bold; margin-bottom: 6px; line-height: 1.5; }
+    .reserve-notice-sub  { font-size: 14px; line-height: 1.7; color: #9a3412; }
+    .reserve-notice-main strong { color: #c2410c; font-size: 18px; }
+    .reserve-notice-sub  strong { color: #c2410c; }
+
+    /* HP獲得画面：必須完走時の派手な解放演出 */
+    .completion-celebration {
+      position: relative;
+      margin-top: 16px;
+      background: linear-gradient(135deg, #fef3c7, #fbbf24, #f59e0b);
+      border: 3px solid #d97706;
+      border-radius: 18px;
+      padding: 22px 18px;
+      text-align: center;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(217,119,6,.35);
+      animation: completion-glow 2.0s ease-out;
+    }
+    @keyframes completion-glow {
+      0% { box-shadow: 0 0 0 rgba(217,119,6,.5); }
+      40% { box-shadow: 0 0 36px rgba(251,191,36,.85); }
+      100% { box-shadow: 0 8px 24px rgba(217,119,6,.35); }
+    }
+    .completion-confetti-wrap { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+    .completion-confetti { position: absolute; top: -30px; font-size: 22px; animation: completion-confetti-fall 2.4s ease-out forwards; opacity: 0; }
+    @keyframes completion-confetti-fall {
+      0%   { transform: translateY(-20px) rotate(0deg);   opacity: 1; }
+      100% { transform: translateY(280px) rotate(540deg); opacity: 0; }
+    }
+    .completion-title { font-size: 22px; font-weight: bold; color: #78350f; margin-bottom: 6px; position: relative; z-index: 1; }
+    .completion-sub   { font-size: 14px; color: #92400e; margin-bottom: 14px; position: relative; z-index: 1; }
+    .completion-breakdown {
+      background: rgba(255,255,255,.85);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-top: 8px;
+      position: relative;
+      z-index: 1;
+      text-align: left;
+    }
+    .cb-line { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; font-size: 15px; color: #555; }
+    .cb-line .cb-label { color: #78350f; }
+    .cb-line .cb-value { font-weight: bold; color: #b45309; }
+    .cb-line.cb-total { font-size: 18px; padding-top: 8px; }
+    .cb-line.cb-total .cb-label { color: #7c2d12; font-weight: bold; }
+    .cb-line.cb-total .cb-value { font-size: 22px; color: #dc2626; }
+    .cb-line .cb-value small { font-size: 11px; color: #9a3412; font-weight: normal; margin-left: 4px; }
+    .cb-divider { height: 1px; background: linear-gradient(90deg, transparent, #f59e0b, transparent); margin: 6px 0; }
+
+    /* ホーム画面：必須コンテンツバッジ（既存 .badge-hp / .badge-soon と衝突しない位置） */
+    .badge-required {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      color: #fff;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 3px 7px;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,.2);
+      letter-spacing: .3px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .badge-required.done {
+      background: linear-gradient(135deg, #34d399, #10b981);
+    }
+
+    /* ホーム画面：必須進捗バー */
+    .required-progress-card {
+      background: linear-gradient(135deg, #fef9c3, #fef3c7);
+      border: 2px solid #f59e0b;
+      border-radius: 14px;
+      padding: 14px 16px;
+      box-shadow: 0 2px 8px rgba(245,158,11,.15);
+    }
+    .rp-title { font-size: 16px; font-weight: bold; color: #92400e; margin-bottom: 8px; text-align: center; }
+    .rp-bar { background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px; height: 14px; overflow: hidden; margin: 6px 0; }
+    .rp-fill { background: linear-gradient(90deg, #f59e0b, #fb923c, #f59e0b); height: 100%; transition: width 0.6s ease-out; box-shadow: 0 0 6px rgba(245,158,11,.5); }
+    .rp-msg { font-size: 13px; color: #78350f; margin-top: 8px; line-height: 1.6; text-align: center; }
+    .rp-msg.done-msg { color: #166534; font-weight: bold; }
+    .reserve-hp-line {
+      margin-top: 10px;
+      background: linear-gradient(135deg, #fff7ed, #fed7aa);
+      border: 1.5px dashed #fb923c;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #9a3412;
+      text-align: center;
+    }
+    .reserve-hp-line strong { color: #c2410c; font-size: 16px; }
+
+    /* 予告モーダル（〜2026-05-24 表示） */
+    .rp-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 9800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .rp-modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.55); backdrop-filter: blur(2px); }
+    .rp-modal-card {
+      position: relative;
+      z-index: 1;
+      background: #fff;
+      border-radius: 18px;
+      padding: 20px 18px;
+      max-width: 440px;
+      width: 100%;
+      max-height: 88vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 40px rgba(0,0,0,.4);
+      animation: rp-modal-in .35s cubic-bezier(.2,.9,.3,1.2);
+    }
+    @keyframes rp-modal-in {
+      0%   { opacity: 0; transform: translateY(20px) scale(.95); }
+      100% { opacity: 1; transform: translateY(0)    scale(1); }
+    }
+    .rp-modal-card h2 { color: #b45309; margin: 0 0 12px; font-size: 20px; text-align: center; }
+    .rp-modal-card h3 { color: #7c2d12; margin: 14px 0 6px; font-size: 16px; border-left: 4px solid #fb923c; padding-left: 10px; }
+    .rp-modal-card p { color: #444; margin: 8px 0; font-size: 14px; line-height: 1.7; }
+    .rp-modal-card p strong { color: #c2410c; }
+    .rp-modal-card .rp-countdown-box {
+      background: linear-gradient(135deg, #fef3c7, #fde68a);
+      border: 2px solid #f59e0b;
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+      margin: 14px 0;
+      font-size: 18px;
+      color: #92400e;
+      font-weight: bold;
+    }
+    .rp-modal-card .rp-countdown-box span { color: #dc2626; font-size: 24px; }
+    .rp-modal-card .rp-ok-btn {
+      display: block;
+      width: 100%;
+      margin-top: 14px;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #fff;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(217,119,6,.3);
+    }
+    .rp-modal-card .rp-ok-btn:active { transform: translateY(1px); }
+
+    @media (max-width: 480px) {
+      .completion-title { font-size: 19px; }
+      .cb-line { font-size: 13px; }
+      .cb-line.cb-total .cb-value { font-size: 18px; }
+      .reserve-notice-main { font-size: 14px; }
+      .reserve-notice-sub  { font-size: 12px; }
+      .rp-modal-card h2 { font-size: 18px; }
+      .rp-modal-card p  { font-size: 13px; }
+      .badge-required { font-size: 9px; padding: 2px 5px; }
+    }
   </style>
 
   <!-- MathJax v3（基礎計算 §4.5 の問題表示で利用。動的描画は MathJax.typesetPromise() で再描画） -->
@@ -1911,6 +2089,13 @@
         <span class="msg-home-btn-label">📩 先生からのメッセージ</span>
         <span class="msg-home-badge" id="msg-home-badge">⚠️ 0件</span>
       </button>
+    </div>
+
+    <!-- ②-3 両輪システム Phase A：必須コンテンツ進捗 + 保留 HP（学齢 / 開放フラグから動的表示、
+         予告期間中 〜5/24 は非表示） -->
+    <div class="dash-section" id="required-section" style="display:none">
+      <div class="required-progress-card" id="required-progress-card"></div>
+      <div class="reserve-hp-line" id="reserve-hp-line" style="display:none"></div>
     </div>
 
     <!-- ③ コンテンツ選択 -->
@@ -3399,6 +3584,243 @@
   var _totalHP = 0;
   // E1: ログインの streak をセッション中保持（HP 予測に使用）
   var _streak = 0;
+
+  // ========================================================================
+  // 両輪システム Phase A フロント（2026-05-16）：
+  //   - 5/16〜5/24：予告モーダルだけ表示（HP は従来通り 100% 即時付与）
+  //   - 5/25 以降：必須コンテンツ進捗 + ⭐バッジ + 保留 HP 表示 + 完走演出が有効化
+  //   GAS 側ガード（_calculateHpWithReserve / _checkAndReleaseReserveIfCompleted）と
+  //   日付定数を必ず同期させること（差分があると予告期間中に保留が発火する事故になる）。
+  // ========================================================================
+  var REQUIRED_SYSTEM_START_DATE = '2026-05-25';
+
+  var REQUIRED_CONTENT_LABELS = {
+    eitango: '英単語RUSH',
+    sango:   '三語短文',
+    wabun1:  '和文英訳①',
+    kiso:    '基礎計算',
+    kanji:   'カンジー'
+  };
+  // content-btn 上の DOM クラス名（仕様書通りの並び順用）
+  var REQUIRED_CONTENT_TO_BTN_CLASS = {
+    eitango: 'c-eitango',
+    sango:   'c-sango',
+    wabun1:  'c-wabun1',
+    kiso:    'c-math',     // 基礎計算ボタンは DOM 上は c-math クラス
+    kanji:   'c-kanji'
+  };
+
+  var _requiredProgress = null;  // 直近の getRequiredProgress レスポンスをキャッシュ
+
+  // JST 'yyyy-MM-dd' を返す（_todayKeyJST3am と違い 3 時境界ではなく素の JST 0:00 切替）。
+  // 予告モーダルは表示日制御だけなので 3 時境界は不要、素の JST で十分。
+  function _todayKeyJSTPlain() {
+    var now = new Date();
+    var jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
+    var y = jst.getFullYear(), m = jst.getMonth() + 1, d = jst.getDate();
+    return y + '-' + (m < 10 ? '0' + m : m) + '-' + (d < 10 ? '0' + d : d);
+  }
+  // 開始日（5/25）までの残日数（0 以上）
+  function _requiredDaysUntilStart() {
+    var today = _todayKeyJSTPlain();
+    var startMs = new Date(REQUIRED_SYSTEM_START_DATE + 'T00:00:00+09:00').getTime();
+    var nowMs   = new Date(today + 'T00:00:00+09:00').getTime();
+    return Math.max(0, Math.round((startMs - nowMs) / 86400000));
+  }
+  function _isReqSystemActive() {
+    return _todayKeyJSTPlain() >= REQUIRED_SYSTEM_START_DATE;
+  }
+
+  // 予告モーダル：開始日 5/25 まで毎日 1 回表示（localStorage で当日分は再表示しない）
+  function showRequiredPreviewIfNeeded() {
+    if (!_studentId) return;
+    if (_isReqSystemActive()) return;  // 5/25 以降は予告終了
+    var today = _todayKeyJSTPlain();
+    var key = 'mykt_req_preview_' + today;
+    try { if (localStorage.getItem(key) === '1') return; } catch(e){}
+    var days = _requiredDaysUntilStart();
+    var cd = document.getElementById('rp-countdown');
+    if (cd) cd.textContent = days;
+    var modal = document.getElementById('required-preview-modal');
+    if (modal) modal.style.display = 'flex';
+  }
+  function closeRequiredPreview() {
+    var today = _todayKeyJSTPlain();
+    try { localStorage.setItem('mykt_req_preview_' + today, '1'); } catch(e){}
+    var modal = document.getElementById('required-preview-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  // 必須進捗 + 保留 HP をサーバから取得して UI を更新（ホーム画面表示時に呼ぶ）
+  function loadRequiredProgress() {
+    if (!_studentId) return Promise.resolve(null);
+    return gasGet({ action: 'getRequiredProgress', studentId: _studentId, _ts: Date.now() })
+      .then(function(res){
+        if (!res || !res.ok) { _renderRequiredUI(null); return null; }
+        _requiredProgress = res;
+        _renderRequiredUI(res);
+        return res;
+      })
+      .catch(function(err){
+        console.error('[loadRequiredProgress]', err);
+        _renderRequiredUI(null);
+        return null;
+      });
+  }
+  // 進捗バー + ⭐バッジ + 並び替え + 💰保留 HP を一括描画
+  function _renderRequiredUI(res) {
+    var section = document.getElementById('required-section');
+    if (!section) return;
+    // 予告期間中 or 必須なし or データなし → セクション非表示 + バッジ削除
+    var required = (res && Array.isArray(res.required)) ? res.required : [];
+    if (!_isReqSystemActive() || !required.length) {
+      section.style.display = 'none';
+      _clearRequiredBadges();
+      return;
+    }
+    section.style.display = '';
+
+    var completed = (res && Array.isArray(res.completed)) ? res.completed : [];
+    var remaining = (res && Array.isArray(res.remaining)) ? res.remaining : [];
+    var completedCount = completed.length;
+    var totalCount = required.length;
+    var pct = totalCount > 0 ? Math.floor(completedCount * 100 / totalCount) : 0;
+    var msg, msgClass = '';
+    if (completedCount === 0) {
+      msg = '今日の必須はこちら！全部やってボーナスをゲットしよう';
+    } else if (completedCount >= totalCount) {
+      var bonusHp = Number(res.todayBonusHp || 0);
+      msgClass = ' done-msg';
+      msg = '✨ 必須完走おめでとう！' + (bonusHp > 0 ? 'ボーナス HP +' + bonusHp.toLocaleString() + ' 獲得済み' : '');
+    } else {
+      var labels = remaining.map(function(rc){ return '「' + (REQUIRED_CONTENT_LABELS[rc] || rc) + '」'; }).join('');
+      msg = 'あと ' + labels + 'をクリアすれば完成！';
+    }
+    var card = document.getElementById('required-progress-card');
+    if (card) {
+      card.innerHTML =
+        '<div class="rp-title">⭐ 今日の必須 ' + completedCount + '/' + totalCount + ' 完了</div>' +
+        '<div class="rp-bar"><div class="rp-fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="rp-msg' + msgClass + '">' + msg + '</div>';
+    }
+
+    var resvLine = document.getElementById('reserve-hp-line');
+    var todayReserved = Number(res.todayReservedHp || 0);
+    if (resvLine) {
+      if (todayReserved > 0) {
+        resvLine.style.display = '';
+        resvLine.innerHTML = '💰 今日の保留 HP：<strong>' + todayReserved.toLocaleString() + ' HP</strong>（必須完走で解放！）';
+      } else {
+        resvLine.style.display = 'none';
+      }
+    }
+
+    // 必須コンテンツに ⭐ バッジを付ける + 並び替え（先頭に固定）
+    _applyRequiredBadgesAndOrder(required, completed);
+  }
+  function _clearRequiredBadges() {
+    var grid = document.querySelector('.content-grid');
+    if (!grid) return;
+    var badges = grid.querySelectorAll('.badge-required');
+    for (var i = 0; i < badges.length; i++) badges[i].parentNode && badges[i].parentNode.removeChild(badges[i]);
+  }
+  function _applyRequiredBadgesAndOrder(required, completed) {
+    var grid = document.querySelector('.content-grid');
+    if (!grid) return;
+    _clearRequiredBadges();
+    var completedSet = {};
+    for (var i = 0; i < completed.length; i++) completedSet[completed[i]] = true;
+    // バッジ追加
+    for (var j = 0; j < required.length; j++) {
+      var rc = required[j];
+      var cls = REQUIRED_CONTENT_TO_BTN_CLASS[rc];
+      if (!cls) continue;
+      var btn = grid.querySelector('.content-btn.' + cls);
+      if (!btn) continue;
+      var badge = document.createElement('span');
+      badge.className = 'badge-required';
+      if (completedSet[rc]) { badge.classList.add('done'); badge.textContent = '✅ 完了'; }
+      else                  { badge.textContent = '⭐ 必須'; }
+      // CSS position:relative が前提 → content-btn は元から position:relative なので OK
+      btn.appendChild(badge);
+    }
+    // 並び替え：必須を仕様順で先頭に挿入（reverse + insertBefore(firstChild) で 0番目から順に並ぶ）
+    var ordered = [];
+    for (var k = 0; k < required.length; k++) {
+      var c = REQUIRED_CONTENT_TO_BTN_CLASS[required[k]];
+      var b = c ? grid.querySelector('.content-btn.' + c) : null;
+      if (b) ordered.push(b);
+    }
+    for (var m = ordered.length - 1; m >= 0; m--) {
+      grid.insertBefore(ordered[m], grid.firstChild);
+    }
+  }
+
+  // HP獲得画面の末尾に「保留通知」「完走演出」HTML を追記する共通ヘルパー。
+  // bodyEl: 結果カードを innerHTML 設定済のコンテナ
+  // res:    submit レスポンス（または hpInfo）。hpGained / hpReserved / justCompleted /
+  //         releasedHp / bonusHp を期待。
+  // 戻り値: { addedReserve, addedCompletion, bonusHp, releasedHp }
+  //   呼び出し側は完走時に _totalHP += releasedHp + bonusHp を必要に応じて行うこと。
+  //   （saveAttempt は server 由来 totalHP で上書きされるため不要、それ以外は加算が必要）
+  function _appendReserveAndCompletionBlock(bodyEl, res) {
+    var result = { addedReserve: false, addedCompletion: false, bonusHp: 0, releasedHp: 0 };
+    if (!bodyEl || !res) return result;
+    var hpReserved   = Number(res.hpReserved)   || 0;
+    var justCompleted = !!res.justCompleted;
+    var releasedHp   = Number(res.releasedHp)   || 0;
+    var bonusHp      = Number(res.bonusHp)      || 0;
+    var hpGained     = Number(res.hpGained)     || 0;
+    if (!hpReserved && !justCompleted) return result;
+
+    var html = '';
+    // 保留通知（完走と同時には出さない＝完走時は内訳で見せる）
+    if (hpReserved > 0 && !justCompleted) {
+      html += '<div class="reserve-notice">' +
+                '<div class="reserve-notice-icon">📦</div>' +
+                '<div class="reserve-notice-main">まずは <strong>' + hpGained.toLocaleString() + ' HP</strong> だけあげるね。</div>' +
+                '<div class="reserve-notice-sub">残りの <strong>' + hpReserved.toLocaleString() + ' HP</strong> は、<br>「必須」を全部やった後にまとめてあげるよ。</div>' +
+              '</div>';
+      result.addedReserve = true;
+    }
+    // 完走演出（紙吹雪 + 内訳）
+    if (justCompleted) {
+      var totalHp = hpGained + releasedHp + bonusHp;
+      var emojis = ['🎉','✨','🎊','🌟','💖','⭐','🥳','🎈','🏆','💫'];
+      var confetti = '<div class="completion-confetti-wrap">';
+      for (var i = 0; i < 16; i++) {
+        var left = (Math.random() * 100).toFixed(0);
+        var delay = (Math.random() * 1.0).toFixed(2);
+        confetti += '<span class="completion-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' +
+                    emojis[i % emojis.length] + '</span>';
+      }
+      confetti += '</div>';
+      html += '<div class="completion-celebration">' + confetti +
+                '<div class="completion-title">🎉 必須完走おめでとう！🎉</div>' +
+                '<div class="completion-sub">今日の保留分が解放されたよ！</div>' +
+                '<div class="completion-breakdown">' +
+                  '<div class="cb-line"><span class="cb-label">即時付与</span><span class="cb-value">' + hpGained.toLocaleString() + ' HP</span></div>' +
+                  '<div class="cb-line"><span class="cb-label">保留解放</span><span class="cb-value">' + releasedHp.toLocaleString() + ' HP</span></div>' +
+                  '<div class="cb-line"><span class="cb-label">ボーナス</span><span class="cb-value">' + bonusHp.toLocaleString() + ' HP <small>（必須完走報酬）</small></span></div>' +
+                  '<div class="cb-divider"></div>' +
+                  '<div class="cb-line cb-total"><span class="cb-label">合計</span><span class="cb-value">+' + totalHp.toLocaleString() + ' HP</span></div>' +
+                '</div>' +
+              '</div>';
+      result.addedCompletion = true;
+      result.bonusHp = bonusHp;
+      result.releasedHp = releasedHp;
+    }
+    if (!html) return result;
+    bodyEl.insertAdjacentHTML('beforeend', html);
+    // 完走時は祝福 chime（呼び出し元が別途 chime を鳴らしている場合は重なるが、控えめな
+    // 重なりは「やったぜ感」の演出として許容）
+    if (result.addedCompletion) {
+      try { setTimeout(function(){ playSfx('chime'); }, 900); } catch(e){}
+    }
+    return result;
+  }
+  // ========================================================================
+
   // E1: 楽観的UI のリトライ / キャンセル用クロージャ
   var _pendingRetry = null;
   var _pendingDismiss = null;
@@ -4369,6 +4791,9 @@
     try { checkSangoStarredNotifications(); } catch(e){ console.error('[showWelcome] checkSangoStarredNotifications', e); }
     // ★ アバター状態取得は他の何かが失敗しても必ず呼ぶ（プレースホルダー残留防止）
     try { _loadAvatarStateOnHome();         } catch(e){ console.error('[showWelcome] _loadAvatarStateOnHome',         e); }
+    // 両輪システム Phase A：5/25 以降の進捗 UI + 5/16〜5/24 の予告モーダル
+    try { loadRequiredProgress();           } catch(e){ console.error('[showWelcome] loadRequiredProgress',           e); }
+    try { showRequiredPreviewIfNeeded();    } catch(e){ console.error('[showWelcome] showRequiredPreviewIfNeeded',    e); }
   }
   function toggleChangeArea() { var area = document.getElementById('change-area'); area.style.display = area.style.display === 'none' ? 'block' : 'none'; }
   function openModal()  { document.getElementById('img-modal').classList.add('active'); }
@@ -4853,6 +5278,9 @@
       '<div class="hp-card"><div class="hp-title">⚡ 獲得 HP</div><div class="hp-row"><div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+'+clearHP.toLocaleString()+'</div></div></div><div class="hp-total-wrap"><div class="hp-total-label">現在の春アカポイント</div><div class="hp-total-value">⚡ '+totalHP.toLocaleString()+' HP</div></div>'+(streak>=2?'<div class="hp-streak">🔥 '+streak+'日連続継続中！この調子で続けよう！</div>':'')+'</div>' +
       '<div class="btn-wrap">'+(isSession1?'<button class="btn-result" style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;font-size:19px" onclick="goNextSession()">📚 次の10題に進む →</button>':'')+'<button class="btn-result btn-review" onclick="showHistory()">📖 今までの単語をおさらいする</button><button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button><button class="btn-result btn-close" onclick="goHome()">🏠 ホーム画面に戻る</button></div>';
     if (passed) requestAnimationFrame(function(){ requestAnimationFrame(function(){ playSfx('pass'); }); });
+    // 両輪 Phase A：保留通知 + 完走演出を追記（saveRes は server レスポンス）
+    // saveAttempt のレスポンスは totalHP が release/bonus 込みなので _totalHP の追加加算は不要。
+    try { _appendReserveAndCompletionBlock(document.getElementById('result-container'), saveRes || {}); } catch(e){}
   }
   function goNextSession() { showToday(); }
   function fillBlank(blank, correctText) { if (!blank) return correctText; return blank.replace(/（[　\s]*）/g, '（'+correctText+'）'); }
@@ -4908,6 +5336,8 @@
         _loadAvatarStateOnHome();
       }
     } catch(e){ console.error('[goHome] _loadAvatarStateOnHome', e); }
+    // 両輪 Phase A：ホーム戻り時にも必須進捗を再ロード（提出後の reserved / 完走を反映）
+    try { loadRequiredProgress(); } catch(e){ console.error('[goHome] loadRequiredProgress', e); }
   }
   function doLogout() {
     // 2026-05-11 バグ② 修正：iPad ログアウト不能対策（防御層）。
@@ -4942,6 +5372,7 @@
     _studentId = null; _questions = []; _score = 0; _current = 0;
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
+    _requiredProgress = null;
     // アバター state も明示的にリセット（古い値が別生徒のセッションに漏れないように）
     _avatarState = { base: '', items: [], equipped: {}, nickname: '' };
     try { _lisonResetState(); } catch(e){}
@@ -5187,8 +5618,15 @@
       }
       document.getElementById('sango-text-input').value = '';
       btn.disabled = false;
-      // HP 情報を保存して、後で feedback 画面の「HP獲得演出を見る」ボタンで使う
-      _pendingSangoHp = { hp: actualHp, alreadyGranted: actualHp === 0 };
+      // HP 情報を保存して、後で feedback 画面の「HP獲得演出を見る」ボタンで使う。
+      // 両輪 Phase A：hpReserved / justCompleted / releasedHp / bonusHp も保持して done 画面で表示。
+      _pendingSangoHp = {
+        hp: actualHp, alreadyGranted: actualHp === 0,
+        hpReserved: Number(res.hpReserved) || 0,
+        justCompleted: !!res.justCompleted,
+        releasedHp: Number(res.releasedHp) || 0,
+        bonusHp: Number(res.bonusHp) || 0
+      };
       // thinking を最低 1.8 秒見せてから feedback 画面へ
       _waitThinkingThenFeedback(res.aiFeedback || null);
     }).catch(function(){
@@ -5301,8 +5739,15 @@
         if (actualHp === 0) _unmarkHpGrantedToday('sango'); else _markHpGrantedToday('sango');
       }
       _resetSangoPhoto();
-      // HP 情報を保存して、後で feedback 画面の「HP獲得演出を見る」ボタンで使う
-      _pendingSangoHp = { hp: actualHp, alreadyGranted: actualHp === 0 };
+      // HP 情報を保存して、後で feedback 画面の「HP獲得演出を見る」ボタンで使う。
+      // 両輪 Phase A：hpReserved / justCompleted / releasedHp / bonusHp も保持して done 画面で表示。
+      _pendingSangoHp = {
+        hp: actualHp, alreadyGranted: actualHp === 0,
+        hpReserved: Number(res.hpReserved) || 0,
+        justCompleted: !!res.justCompleted,
+        releasedHp: Number(res.releasedHp) || 0,
+        bonusHp: Number(res.bonusHp) || 0
+      };
       // thinking を最低 1.8 秒見せてから feedback 画面へ
       _waitThinkingThenFeedback(res.aiFeedback || null);
     }).catch(function(){
@@ -5312,7 +5757,9 @@
     });
   }
 
-  function _showSangoDone(hp, alreadyGranted) {
+  // 第3引数 extra（任意）: { hpReserved, justCompleted, releasedHp, bonusHp }
+  // 両輪 Phase A の保留通知 / 完走演出を done 画面末尾に追記する。
+  function _showSangoDone(hp, alreadyGranted, extra) {
     var bodyEl = document.getElementById('sango-done-body');
     var confetti = '';
     var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
@@ -5338,6 +5785,16 @@
       if (numEl) _wabun1AnimateHp(numEl, hp, 1000);
     }
     try { playSfx('chime'); } catch(e){}
+    // 両輪 Phase A：保留通知 + 完走演出を追記
+    if (extra) {
+      var resvRes = { hpGained: hp, hpReserved: extra.hpReserved, justCompleted: extra.justCompleted, releasedHp: extra.releasedHp, bonusHp: extra.bonusHp };
+      try {
+        var apnd = _appendReserveAndCompletionBlock(bodyEl, resvRes);
+        if (apnd.addedCompletion) {
+          if (typeof _totalHP === 'number') _totalHP += apnd.releasedHp + apnd.bonusHp;
+        }
+      } catch(e){}
+    }
   }
   // 2026-05-12 改善1：画面遷移順序の入れ替え（thinking → feedback → done）
   // 旧フロー：HP 演出（done）2.5 秒 + thinking 1.8 秒 + feedback
@@ -5361,9 +5818,14 @@
   }
   function _showSangoFinalDone() {
     // feedback 画面の「HP獲得演出を見る」ボタンから呼ばれる。
-    // _pendingSangoHp に actual HP が入っているのでそれを screen-sango-done に表示。
+    // _pendingSangoHp に actual HP + 両輪 Phase A の reserve/completion 情報が入っている。
     var info = _pendingSangoHp || { hp: 0, alreadyGranted: true };
-    _showSangoDone(info.hp, info.alreadyGranted);
+    _showSangoDone(info.hp, info.alreadyGranted, {
+      hpReserved: info.hpReserved || 0,
+      justCompleted: !!info.justCompleted,
+      releasedHp: info.releasedHp || 0,
+      bonusHp: info.bonusHp || 0
+    });
     _pendingSangoHp = null;  // 一度きりの状態なのでリセット
   }
   function _showSangoFeedback(aiFeedback) {
@@ -6137,6 +6599,13 @@
         if (numEl) _wabun1AnimateHp(numEl, hp, 1000);
       }
       try { playSfx('chime'); } catch(e){}
+      // 両輪 Phase A：保留通知 + 完走演出
+      try {
+        var apnd = _appendReserveAndCompletionBlock(bodyEl, res);
+        if (apnd.addedCompletion && typeof _totalHP === 'number') {
+          _totalHP += apnd.releasedHp + apnd.bonusHp;
+        }
+      } catch(e){}
     } else {
       // 正解・スキップは単行サマリ、不正解は diff カードで詳細表示
       var summaryItems = (res.results || []).map(function(r){
@@ -7216,6 +7685,13 @@
     }
 
     showScreen('screen-kiso-done');
+    // 両輪 Phase A：保留通知 + 完走演出（info に hpReserved / justCompleted 等が入っている）
+    try {
+      var apnd = _appendReserveAndCompletionBlock(bodyEl, info);
+      if (apnd.addedCompletion && typeof _totalHP === 'number') {
+        _totalHP += apnd.releasedHp + apnd.bonusHp;
+      }
+    } catch(e){}
   }
 
   // =====================================================
@@ -7997,6 +8473,13 @@
     }
 
     showScreen('screen-lison-done');
+    // 両輪 Phase A：保留通知 + 完走演出（リスオンは必須リスト対象外なので reserved=0 / justCompleted=false が通常）
+    try {
+      var apnd = _appendReserveAndCompletionBlock(bodyEl, res);
+      if (apnd.addedCompletion && typeof _totalHP === 'number') {
+        _totalHP += apnd.releasedHp + apnd.bonusHp;
+      }
+    } catch(e){}
   }
 
   // 戻る確認（途中で抜けると最初からやり直しになる）
@@ -8682,6 +9165,13 @@
       _totalHP += hp;
     }
     try { playSfx('chime'); } catch(e){}
+    // 両輪 Phase A：hpInfo に hpReserved / justCompleted 等が入っている
+    try {
+      var apnd = _appendReserveAndCompletionBlock(bodyEl, hpInfo || {});
+      if (apnd.addedCompletion && typeof _totalHP === 'number') {
+        _totalHP += apnd.releasedHp + apnd.bonusHp;
+      }
+    } catch(e){}
   }
 
   // ============================================================================
@@ -8965,6 +9455,15 @@
       _totalHP += hp;
     }
     try { playSfx('chime'); } catch(e){}
+    // 両輪 Phase A：hpInfo に hpReserved / justCompleted 等が入っている
+    // （コブタンは必須リスト対象外なので reserved=0 / justCompleted=false が通常返るが、
+    //  この生徒の必須完走の最後の引き金になる可能性は理論上ある）
+    try {
+      var apnd = _appendReserveAndCompletionBlock(bodyEl, hpInfo || {});
+      if (apnd.addedCompletion && typeof _totalHP === 'number') {
+        _totalHP += apnd.releasedHp + apnd.bonusHp;
+      }
+    } catch(e){}
   }
   // ----- おさらい画面：HPLog からコブタン実施履歴を取得して一覧表示 -----
   function showKobunHistory() {
@@ -9026,5 +9525,27 @@
     });
   })();
 </script>
+
+<!-- 両輪システム Phase A 予告モーダル（〜2026-05-24、毎ログイン日 1 回表示） -->
+<div id="required-preview-modal" class="rp-modal" style="display:none">
+  <div class="rp-modal-overlay" onclick="closeRequiredPreview()"></div>
+  <div class="rp-modal-card">
+    <h2>📢 新しいルールのお知らせ</h2>
+    <p><strong>2026/05/25（月）</strong>から、マイ活アプリのルールが少し変わります。</p>
+
+    <h3>【新ルール】</h3>
+    <p>✨ <strong>必須コンテンツを全部やった日</strong>は、ボーナス HP <strong>+200</strong> がもらえる！（連続週数²倍がついて、続ければ続けるほど大きくなるよ）</p>
+    <p>⚠️ 必須をまだクリアしてない時に他のコンテンツで HP を獲得すると、HP の <strong>40%</strong> は「お預け」になります。<br>必須を全部クリアしたら、お預け分もまとめて返ってくる！</p>
+
+    <h3>【必須コンテンツ】</h3>
+    <p><strong>小学生：</strong>英単語RUSH、三語短文、和文英訳①、カンジー</p>
+    <p><strong>中学生：</strong>英単語RUSH、三語短文、和文英訳①、基礎計算、カンジー</p>
+    <p><strong>高校生：</strong>必須なし（自由学習）</p>
+
+    <div class="rp-countdown-box">⏰ あと <span id="rp-countdown">○</span> 日</div>
+
+    <button class="rp-ok-btn" onclick="closeRequiredPreview()">わかった！</button>
+  </div>
+</div>
 </body>
 </html>
