@@ -30,7 +30,7 @@ const SHEET_MESSAGE_READS     = 'MessageReads';
 const SHEET_SPECIAL_ACCOUNTS  = 'SpecialAccounts';
 // Phase 4：講師の操作ログ（admin の監査用、永久保存）。_ensureSheetWithHeaders で自動作成される。
 const SHEET_TEACHER_ACTIONS   = 'TeacherActions';
-// 両輪システム Phase A（2026-05-16）：HP の 30% 保留と必須完走時の一括解放 + ボーナスを記録する
+// 両輪システム Phase A（2026-05-16）：HP の 40% 保留と必須完走時の一括解放 + ボーナスを記録する
 // 専用シート（必須機能：「やったら得 + やらないと損」の両輪を作るための基盤）。
 // _ensureHpReservePoolSheet() で初回 _appendHpReservePool 呼び出し時に自動作成される。
 const SHEET_HP_RESERVE_POOL   = 'HpReservePool';
@@ -1555,7 +1555,7 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     const streak    = Number(sRow[COL_STREAK]) || 1;  // 最低1
     const week      = Math.ceil(streak / 7);
     const rawHp_    = 50 * week * week;
-    // 両輪システム Phase A：必須未完走なら 70%/30% に分割（既存挙動：必須なし or 完走済なら 100%）
+    // 両輪システム Phase A：必須未完走なら 60%/40% に分割（既存挙動：必須なし or 完走済なら 100%）
     const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_);
     const hpGained    = reserveCalc.granted;   // 即時付与分（フロント既存互換のためフィールド名は維持）
     const reservedHp  = reserveCalc.reserved;
@@ -1603,7 +1603,7 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     return {
       ok: true,
       clearHP: hpGained, bonusHP: 0,
-      hpGained: hpGained,            // 即時付与分（必須未完走なら 70%、それ以外なら 100%）
+      hpGained: hpGained,            // 即時付与分（必須未完走なら 60%、それ以外なら 100%）
       hpReserved: reservedHp,        // 保留分（必須未完走時のみ > 0）
       justCompleted: completion.justCompleted,
       releasedHp: completion.releasedHp,
@@ -5715,7 +5715,7 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
       const effectiveRawHP = Math.min(baseRawHP, remaining);   // 仕様書 §8.5 ケース 2
       const isPractice = (effectiveRawHP === 0);
       const fullHpGained = effectiveRawHP * week * week;
-      // 両輪 Phase A：必須未完走なら 70%/30% に分割（練習モードは rawHp=0 で reserveActive のみ true）
+      // 両輪 Phase A：必須未完走なら 60%/40% に分割（練習モードは rawHp=0 で reserveActive のみ true）
       const reserveCalc_kiso = _calculateHpWithReserve(stuLoc, fullHpGained);
       const hpGained = reserveCalc_kiso.granted;
       const reservedHp_kiso = reserveCalc_kiso.reserved;
@@ -8588,7 +8588,7 @@ function submitSango(params) {
       const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
       const week = Math.ceil(streak / 7);
       rawHp_sango = 200 * week * week;
-      // 両輪 Phase A：必須未完走なら 70%/30% に分割
+      // 両輪 Phase A：必須未完走なら 60%/40% に分割
       const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_sango);
       hpGained = reserveCalc.granted;
       reservedHp_sango = reserveCalc.reserved;
@@ -10095,7 +10095,7 @@ function submitWabun1(params) {
       // todayStr は _sangoToday() の JST 3 時区切り。問題の日替わり・alreadyGranted 判定と同じ基準で揃える
       const baseHp = (todayStr >= '2026-04-29') ? 200 : 100;
       rawHp_wabun1 = baseHp * week * week;
-      // 両輪 Phase A：必須未完走なら 70%/30% に分割
+      // 両輪 Phase A：必須未完走なら 60%/40% に分割
       const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_wabun1);
       hpGained = reserveCalc.granted;
       reservedHp_wabun1 = reserveCalc.reserved;
@@ -11857,7 +11857,7 @@ function submitLison(params) {
       const week = Math.ceil(streak / 7);
       const baseHp = _lisonBaseHpForLevel(level);
       rawHp_lison = baseHp * week * week;
-      // 両輪 Phase A：必須未完走なら 70%/30% に分割（リスオンは必須リスト対象外なので通常 100%）
+      // 両輪 Phase A：必須未完走なら 60%/40% に分割（リスオンは必須リスト対象外なので通常 100%）
       const reserveCalc_lison = _calculateHpWithReserve(stuLoc, rawHp_lison);
       hpGained = reserveCalc_lison.granted;
       reservedHp_lison = reserveCalc_lison.reserved;
@@ -12603,7 +12603,7 @@ function submitKanjiKaki(params) {
         const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
         const week = Math.ceil(streak / 7);
         const fullHpGained_kanji = grantedRawHP * week * week;
-        // 両輪 Phase A：必須未完走なら 70%/30% に分割
+        // 両輪 Phase A：必須未完走なら 60%/40% に分割
         const reserveCalc_kanji = _calculateHpWithReserve(stuLoc, fullHpGained_kanji);
         const hpGained = reserveCalc_kanji.granted;
         const reservedHp_kanji = reserveCalc_kanji.reserved;
@@ -15004,7 +15004,7 @@ function getKobunHistory(params) {
 // ------------------------------------------------------------------------
 // ふくちさん教育観：
 //   「本来やってほしいコンテンツ（書く系・思考系）」を生徒がやらない傾向に対し、
-//   「やったら得（完走ボーナス）」+「やらないと損（HP の 30% 保留）」の両輪で
+//   「やったら得（完走ボーナス）」+「やらないと損（HP の 40% 保留）」の両輪で
 //   行動変容を促す。罰則感を抑えるため "保留" 概念を採用。
 //
 // 仕様（Phase A：サーバ側のみ。フロント UI 変更は Phase A-3 で実施）：
@@ -15012,7 +15012,7 @@ function getKobunHistory(params) {
 //      → 既存 BIRTHDAY 列 / AVATAR_BASE 列と同パターン（ヘッダー駆動、末尾自動追加、setNumberFormat('@')）
 //   2) 学齢別の必須コンテンツ定義 REQUIRED_CONTENTS_BY_GRADE
 //   3) 開放フラグで動的フィルタ：FALSE のコンテンツは必須リストから除外
-//   4) 提出時：必須未完走なら HP の 70% 即時付与 + 30% を HpReservePool に保留
+//   4) 提出時：必須未完走なら HP の 60% 即時付与 + 40% を HpReservePool に保留
 //      必須完走済 or 必須なし学齢：従来どおり 100% 即時付与（reserve 非起動）
 //   5) 提出後に "今日の必須全完走" を判定。完走の瞬間：
 //      a) HpReservePool の今日の未解放分を全部 resolved=TRUE にして合計を HPLog へ release
@@ -15070,7 +15070,7 @@ const KISO_UNLOCKED_HEADER_NAME   = 'KISO_UNLOCKED';
 const KANJI_UNLOCKED_HEADER_NAME  = 'KANJI_UNLOCKED';
 
 // 保留比率と完走ボーナス基本値
-const REQUIRED_RESERVE_RATIO         = 0.30;  // 必須未完走時：30% を保留、70% を即時付与
+const REQUIRED_RESERVE_RATIO         = 0.40;  // 必須未完走時：40% を保留、60% を即時付与（2026-05-16 60/40 へ強化、ふくちさん「結構な痛手」設計）
 const REQUIRED_COMPLETION_BONUS_BASE = 200;   // 完走ボーナス基本 HP（× 連続週数² で確定）
 
 // HpReservePool シートのヘッダー（7 列、仕様書準拠）
@@ -15317,7 +15317,7 @@ function _markReservePoolEntriesResolved(sid, dateStr) {
 // loc: _findAccountRowOnSheet(sid) の戻り値
 // rawHp: 元の獲得 HP（倍率適用後、_logHP の hpGained に渡そうとしていた値）
 // 戻り値: { granted, reserved, isReserveActive, requiredList, completedSet }
-//   isReserveActive=true なら granted=floor(rawHp * 0.7), reserved=rawHp - granted
+//   isReserveActive=true なら granted=floor(rawHp * 0.6), reserved=rawHp - granted
 //   isReserveActive=false なら granted=rawHp, reserved=0（従来挙動と完全同等）
 function _calculateHpWithReserve(loc, rawHp) {
   const safe = { granted: rawHp || 0, reserved: 0, isReserveActive: false, requiredList: [], completedSet: {} };
@@ -15335,7 +15335,7 @@ function _calculateHpWithReserve(loc, rawHp) {
   if (allDone) {
     return { granted: rawHp, reserved: 0, isReserveActive: false, requiredList: requiredList, completedSet: completedSet };
   }
-  // 未完走 → 70%/30% 分割
+  // 未完走 → 60%/40% 分割
   const granted = Math.floor(rawHp * (1 - REQUIRED_RESERVE_RATIO));
   const reserved = rawHp - granted;
   return { granted: granted, reserved: reserved, isReserveActive: true, requiredList: requiredList, completedSet: completedSet };
