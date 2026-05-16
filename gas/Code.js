@@ -15836,13 +15836,13 @@ function _renderLineErrorHtml(title, msg, opt) {
   // _getWebAppUrlOrEmpty を使う。空なら retry リンクは出さない（マイ活に戻るリンクのみ）。
   var startUrl = _getWebAppUrlOrEmpty();
   var retryHtml = (opt && opt.retry && startUrl)
-    ? '<a class="btn-line" href="' + _escapeHtmlMinimal(startUrl) + '?action=lineLoginStart&role=' + _escapeHtmlMinimal(opt.retry) + '">もう一度やり直す</a>'
+    ? '<a class="btn-line" target="_top" href="' + _escapeHtmlMinimal(startUrl) + '?action=lineLoginStart&role=' + _escapeHtmlMinimal(opt.retry) + '">もう一度やり直す</a>'
     : '';
   var body =
     '<h1>⚠️ ' + _escapeHtmlMinimal(title) + '</h1>' +
     '<div class="line-msg error">' + _escapeHtmlMinimal(msg) + '</div>' +
     retryHtml +
-    '<a class="btn-back" href="' + _escapeHtmlMinimal(appUrl) + '">マイ活アプリに戻る</a>';
+    '<a class="btn-back" target="_top" href="' + _escapeHtmlMinimal(appUrl) + '">マイ活アプリに戻る</a>';
   return _renderLineLayoutHtml(title, body);
 }
 
@@ -15858,7 +15858,7 @@ function _renderLineSuccessHtml(role, sid, displayName) {
     '</div>' +
     '<p>これからは前日に何も提出してない日があると、<br>正午（12:00）に LINE でお知らせが届きます。</p>' +
     '<p class="small-note">※ 通知の有効/無効は塾の先生にお伝えください。</p>' +
-    '<a class="btn-line" href="' + _escapeHtmlMinimal(appUrl) + '">マイ活アプリに戻る</a>';
+    '<a class="btn-line" target="_top" href="' + _escapeHtmlMinimal(appUrl) + '">マイ活アプリに戻る</a>';
   return _renderLineLayoutHtml('登録完了', body);
 }
 
@@ -15876,7 +15876,7 @@ function _renderLineRegisterFormHtml(tempToken, role, displayName) {
     '<h1>📲 LINE 連携</h1>' +
     '<span class="role-pill">' + _escapeHtmlMinimal(roleLabel) + 'として登録</span>' +
     '<p>' + greet + '生徒IDを入力すると、登録が完了します。</p>' +
-    '<form method="get" action="' + _escapeHtmlMinimal(formAction) + '">' +
+    '<form method="get" target="_top" action="' + _escapeHtmlMinimal(formAction) + '">' +
     '<input type="hidden" name="action" value="lineLoginRegister"/>' +
     '<input type="hidden" name="tempToken" value="' + _escapeHtmlMinimal(tempToken) + '"/>' +
     '<label for="line-sid-input">生徒ID</label>' +
@@ -15915,8 +15915,11 @@ function _handleLineLoginStart(params) {
   var body =
     '<h1>📲 LINE に接続中…</h1>' +
     '<p>LINE の認可画面に移動します。<br>少々お待ちください。</p>' +
-    '<a class="btn-line" id="line-jump" href="' + _escapeHtmlMinimal(authorizeUrl) + '">手動で LINE を開く</a>' +
-    '<script>setTimeout(function(){ window.location.replace(' + JSON.stringify(authorizeUrl) + '); }, 200);<' + '/script>';
+    '<a class="btn-line" id="line-jump" target="_top" href="' + _escapeHtmlMinimal(authorizeUrl) + '">手動で LINE を開く</a>' +
+    // 2026-05-17：GAS Web App は iframe で配信されるため、window.location.replace では
+    // 親フレーム外（access.line.me）への遷移が X-Frame-Options: DENY でブロックされる。
+    // window.top を使って親ウィンドウ全体を遷移させる必要がある。
+    '<script>setTimeout(function(){ (window.top || window).location.replace(' + JSON.stringify(authorizeUrl) + '); }, 200);<' + '/script>';
   return _renderLineLayoutHtml('LINE に接続中', body);
 }
 
