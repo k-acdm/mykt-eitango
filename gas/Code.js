@@ -15849,6 +15849,14 @@ function _renderLineErrorHtml(title, msg, opt) {
 function _renderLineSuccessHtml(role, sid, displayName) {
   var appUrl = _getAppBaseUrl();
   var roleLabel = role === 'parent' ? '保護者' : '生徒本人';
+  // 2026-05-17：マイ活アプリに戻る際 ?lineRegistered=<role> を付与。
+  // index.html 側がこのクエリを検知して localStorage に登録状態を保存し、
+  // ログイン画面の LINE 登録ボタンをグレーアウト表示に切替える（同一ブラウザでの二重登録防止）。
+  // GAS iframe → GitHub Pages はクロスオリジンのため window.top.localStorage は使えない。
+  // 既存 appUrl に ? が無い場合は ?、ある場合は & を使う防御的な実装。
+  var safeRole = (role === 'parent') ? 'parent' : 'student';
+  var sep = appUrl.indexOf('?') < 0 ? '?' : '&';
+  var returnUrl = appUrl + sep + 'lineRegistered=' + safeRole;
   var body =
     '<h1>✅ 登録完了！</h1>' +
     '<span class="role-pill">' + _escapeHtmlMinimal(roleLabel) + 'として登録</span>' +
@@ -15858,7 +15866,7 @@ function _renderLineSuccessHtml(role, sid, displayName) {
     '</div>' +
     '<p>これからは前日に何も提出してない日があると、<br>正午（12:00）に LINE でお知らせが届きます。</p>' +
     '<p class="small-note">※ 通知の有効/無効は塾の先生にお伝えください。</p>' +
-    '<a class="btn-line" target="_top" href="' + _escapeHtmlMinimal(appUrl) + '">マイ活アプリに戻る</a>';
+    '<a class="btn-line" target="_top" href="' + _escapeHtmlMinimal(returnUrl) + '">マイ活アプリに戻る</a>';
   return _renderLineLayoutHtml('登録完了', body);
 }
 

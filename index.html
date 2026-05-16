@@ -926,6 +926,19 @@
     .line-register-btn:last-child { margin-bottom: 0; }
     .line-register-btn-student { background: linear-gradient(135deg, #06c755, #04a64b); }
     .line-register-btn-parent  { background: linear-gradient(135deg, #04a64b, #036c30); }
+    /* 2026-05-17：登録済みボタンのグレーアウト表示（localStorage 検知ベース、同一ブラウザ内のみ） */
+    .line-register-btn.registered {
+      background: linear-gradient(135deg, #9ca3af, #6b7280);
+      cursor: default;
+      opacity: 0.7;
+      box-shadow: 0 2px 6px rgba(107,114,128,.2);
+    }
+    .line-register-btn.registered:hover,
+    .line-register-btn.registered:active {
+      transform: none;
+      box-shadow: 0 2px 6px rgba(107,114,128,.2);
+      filter: none;
+    }
     .line-register-main { display: block; font-size: 14px; font-weight: 700; letter-spacing: .3px; }
     .line-register-note {
       margin-top: 10px;
@@ -2045,11 +2058,11 @@
           <div class="line-register-section">
             <div class="line-register-title">📲 LINE 通知の登録</div>
             <div class="line-register-desc">アプリ側でも公式LINEへの<br>登録をお願いします。</div>
-            <button type="button" class="line-register-btn line-register-btn-student" onclick="startLineLoginFlow('student')">
-              <span class="line-register-main">🧒 生徒として LINE を登録</span>
+            <button type="button" id="line-register-btn-student" class="line-register-btn line-register-btn-student" onclick="startLineLoginFlow('student')">
+              <span class="line-register-main" id="line-register-label-student">🧒 生徒として LINE を登録</span>
             </button>
-            <button type="button" class="line-register-btn line-register-btn-parent" onclick="startLineLoginFlow('parent')">
-              <span class="line-register-main">👨‍👩‍👧 保護者として LINE を登録</span>
+            <button type="button" id="line-register-btn-parent" class="line-register-btn line-register-btn-parent" onclick="startLineLoginFlow('parent')">
+              <span class="line-register-main" id="line-register-label-parent">👨‍👩‍👧 保護者として LINE を登録</span>
             </button>
             <div class="line-register-note">⚠️ 既に登録済みの方は、ボタンを押す必要はありません。</div>
           </div>
@@ -4335,9 +4348,53 @@
   // 場合も、GAS 側で「準備中」エラー HTML を返すため安全に空振りする。
   function startLineLoginFlow(role) {
     if (role !== 'student' && role !== 'parent') return;
+    // 2026-05-17：localStorage で同一ブラウザの登録済みフラグを見て、登録済みなら遷移しない。
+    // ボタン自体もグレーアウト表示にしているが、防御的にここでも止める。
+    try {
+      if (localStorage.getItem('lineRegistered_' + role) === 'true') return;
+    } catch(e){}
     var url = GAS_URL + '?action=lineLoginStart&role=' + encodeURIComponent(role);
     window.location.href = url;
   }
+
+  // 2026-05-17：LINE 登録完了時のクエリ検知 + ボタン状態の適用。
+  // GAS → GitHub Pages はクロスオリジンのため window.top.localStorage が使えない。
+  // 代わりに _renderLineSuccessHtml の戻りリンクに ?lineRegistered=<role> を付与してもらい、
+  // 戻ってきたここで localStorage に書き込んで URL をクリーンアップする。
+  function _applyLineRegisteredButtons() {
+    var roles = ['student', 'parent'];
+    var labels = {
+      student: '✅ 生徒として登録済み',
+      parent:  '✅ 保護者として登録済み'
+    };
+    for (var i = 0; i < roles.length; i++) {
+      var role = roles[i];
+      var registered = false;
+      try { registered = (localStorage.getItem('lineRegistered_' + role) === 'true'); } catch(e){}
+      if (!registered) continue;
+      var btn = document.getElementById('line-register-btn-' + role);
+      var lbl = document.getElementById('line-register-label-' + role);
+      if (btn && !btn.classList.contains('registered')) btn.classList.add('registered');
+      if (lbl) lbl.textContent = labels[role];
+    }
+  }
+  (function _initLineRegisteredFlag(){
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var registered = params.get('lineRegistered');
+      if (registered === 'student' || registered === 'parent') {
+        try { localStorage.setItem('lineRegistered_' + registered, 'true'); } catch(e){}
+        // URL クリーンアップ（他のクエリは保持）
+        try {
+          params.delete('lineRegistered');
+          var qs = params.toString();
+          var newUrl = window.location.pathname + (qs ? ('?' + qs) : '') + window.location.hash;
+          history.replaceState({}, '', newUrl);
+        } catch(e){}
+      }
+    } catch(e){}
+    try { _applyLineRegisteredButtons(); } catch(e){}
+  })();
 
   function selectLoginRole(role) {
     _loginRole = role;
