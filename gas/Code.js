@@ -1129,6 +1129,10 @@ function doGet(e) {
       else if (action === 'onRequiredAllCompleted')   result = onRequiredAllCompleted(params);
       // LINE 通知 Phase B-1（2026-05-16）：登録状況を JSON で返す（ホーム画面 / 保護者画面 / admin 表示用）
       else if (action === 'getLineRegistrationStatus') result = getLineRegistrationStatus(params);
+      // LINE 通知 Phase B-3（2026-05-17）：管理用 API。
+      //   - previewNotifyTargets は読み取り専用（実配信なし）→ doGet で OK。
+      //   - sendTestNotification と clearNotifyTargets は副作用ありのため doPost に登録（後段）。
+      else if (action === 'previewNotifyTargets')      result = previewNotifyTargets(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1211,6 +1215,12 @@ function doPost(e) {
     else if (action === 'adminSetTeacherActive')            result = adminSetTeacherActive(params);
     else if (action === 'adminSetTeacherRole')              result = adminSetTeacherRole(params);
     else if (action === 'adminUpdateTeacherDisplayNickname') result = adminUpdateTeacherDisplayNickname(params);
+    // LINE 通知 Phase B-3（2026-05-17）：副作用ありの管理 API は POST 強制（誤実行防止）。
+    //   sendTestNotification は実際に LINE Messaging API で push する → POST。
+    //   clearNotifyTargets は NotifyTargets シートをクリアする → POST。
+    //   いずれも _verifyTeacher 認証必須。
+    else if (action === 'sendTestNotification')             result = sendTestNotification(params);
+    else if (action === 'clearNotifyTargets')               result = clearNotifyTargets(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -16152,4 +16162,600 @@ function _handleLineWebhook(e) {
     console.error('[LINE webhook]', err);
   }
   return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// =============================================
+// LINE 通知 Phase B-3：自動配信機能（2026-05-17）
+// =============================================
+// 設計概要：
+//   - 毎日 03:00（_sangoToday 境界 = 3 時切替）に Time-based Trigger で
+//     runDailyNotifyTargetExtraction() 起動 → 全生徒の前日活動を集計し、
+//     当日配信対象を NotifyTargets シートに保存。
+//   - 毎日 12:00（正午）に Time-based Trigger で runDailyNotifyDelivery() 起動
+//     → NotifyTargets を読み、LINE Messaging API でプッシュ送信、結果を
+//     NotifyLog シートに永続記録、NotifyTargets をクリア。
+//   - 4 パターン文面：(a)生徒・サボった (b)保護者・子サボった (c)保護者・子やった (d)生徒・やった
+//   - NOTIFY_LINE 列で opt-out 可。GRADE_LEVEL 未設定は対象外、'高' 系で空欄は対象外。
+//
+// 既存挙動の保護：
+//   - HPLog / Students / SpecialAccounts は読み取りのみ。書き込みは
+//     NotifyTargets / NotifyLog の新規 2 シートと、初回 ensure 時の作成だけ。
+//   - 両輪システム（reserve_release / completion_bonus）/ アバター / 既存
+//     コンテンツの提出経路には一切干渉しない。
+// =============================================
+
+// --- 定数 ---
+var SHEET_NOTIFY_TARGETS = 'NotifyTargets';
+var SHEET_NOTIFY_LOG     = 'NotifyLog';
+
+var NOTIFY_TARGETS_HEADERS = [
+  'studentId', 'nickname', 'date', 'status', 'contents',
+  'totalHp', 'cumulativeHp', 'parentUserId', 'studentUserId'
+];
+var NOTIFY_LOG_HEADERS = [
+  'timestamp', 'studentId', 'nickname', 'date',
+  'targetType', 'userId', 'status', 'messageBody', 'sendResult'
+];
+
+var LINE_MESSAGING_PUSH_URL = 'https://api.line.me/v2/bot/message/push';
+var LINE_MESSAGING_PUSH_RATE_LIMIT_MS = 200; // 連続送信時の待機（レート制限緩和）
+var LINE_MESSAGING_RETRY_WAIT_MS = 5000;     // 429 リトライ待機
+var LINE_MESSAGING_RETRY_MAX = 1;            // 429 リトライ回数（合計試行 = max+1）
+
+// 「コンテンツに 1 つも取り組んでない」を判定するための「取組みカウント対象」type 判定。
+// 既存 _isCountableActivityType（マイカツ君 Stage 計算用）とは要件が異なる：
+//   - LINE 通知：reserve_release / completion_bonus / manual_* もカウント対象
+//     （manual_* は倍率有無の判別が現状の HPLog 構造では明確に取れないため、
+//      安全側として全てカウント。運用しながら「救済 manual_* は除外したい」
+//      判断が出たら、本関数内の `manual_` 分岐を 1 行修正で対応可能）
+//   - 共通除外：login / apology_*
+//   - 練習モード（kiso_*_practice 等）は engagement としては成立しているため
+//     カウント対象（HP=0 でも「取り組んだ」と扱う）。
+function _lineNotifyCountableType(type) {
+  if (!type) return false;
+  var t = String(type);
+  if (t === 'login') return false;
+  if (t.indexOf('apology_') === 0) return false;
+  if (t === 'test' || t === 'sango' || t === 'wabun1' || t === 'lison') return true;
+  if (t.indexOf('test_')   === 0) return true;
+  if (t.indexOf('sango_')  === 0) return true;
+  if (t.indexOf('wabun1_') === 0) return true;
+  if (t.indexOf('lison_')  === 0) return true;
+  if (t.indexOf('kiso_')   === 0) return true;
+  if (t.indexOf('kanji_')  === 0) return true;
+  if (t.indexOf('kobun_')  === 0) return true;
+  if (t === 'reserve_release') return true;
+  if (t === 'completion_bonus') return true;
+  // 一旦すべての manual_* をカウント対象とする（安全側）。
+  // ★ 将来「救済 manual_* はカウント外」にしたい場合はこの 1 行を書き換える。
+  if (t.indexOf('manual_') === 0 || t === 'manual_grant') return true;
+  return false;
+}
+
+// 取組み内容の日本語表記マッピング（保護者向け「やった子」メッセージ用）。
+// reserve_release + completion_bonus は同じ「必須完走ボーナス」に集約する。
+function _lineNotifyContentNameFor(type) {
+  if (!type) return null;
+  var t = String(type);
+  if (t === 'test' || t.indexOf('test_') === 0)   return '英単語RUSH';
+  if (t === 'sango' || t.indexOf('sango_') === 0) return '三語短文';
+  if (t === 'wabun1' || t.indexOf('wabun1_') === 0) return '和文英訳①';
+  if (t === 'lison' || t.indexOf('lison_') === 0)   return '英語リスオン';
+  if (t.indexOf('kiso_')  === 0) return '基礎計算';
+  if (t.indexOf('kanji_') === 0) return 'カンジー';
+  if (t.indexOf('kobun_') === 0) return 'コブタン';
+  if (t === 'reserve_release' || t === 'completion_bonus') return '必須完走ボーナス';
+  if (t.indexOf('manual_') === 0 || t === 'manual_grant') return '手動付与';
+  return null;
+}
+
+// NOTIFY_LINE 列の値と GRADE_LEVEL からその生徒が通知対象かを判定。
+// 戻り値 true なら配信対象。
+//   - 'TRUE'  : 強制 ON
+//   - 'FALSE' : 強制 OFF
+//   - 空欄    : 学齢が小・中なら ON、高 1〜3 なら OFF、それ以外（空欄や不明）も OFF
+function _lineNotifyShouldNotify(notifyLineRaw, gradeLevel) {
+  var flag = String(notifyLineRaw == null ? '' : notifyLineRaw).trim().toUpperCase();
+  if (flag === 'TRUE')  return true;
+  if (flag === 'FALSE') return false;
+  // 空欄 → 学齢基準
+  var g = String(gradeLevel == null ? '' : gradeLevel).trim();
+  if (!g) return false;
+  if (g.indexOf('高') === 0) return false; // 高1/高2/高3
+  return true; // 小1〜6, 中1〜3
+}
+
+// --- シート ensure（idempotent） ---
+function ensureNotifyTargetsSheet() {
+  return _ensureSheetWithHeaders(SHEET_NOTIFY_TARGETS, NOTIFY_TARGETS_HEADERS, 1);
+}
+function ensureNotifyLogSheet() {
+  return _ensureSheetWithHeaders(SHEET_NOTIFY_LOG, NOTIFY_LOG_HEADERS, 1);
+}
+function ensureLineNotifySheets() {
+  var t = ensureNotifyTargetsSheet();
+  var l = ensureNotifyLogSheet();
+  return { ok: true, targets: { created: t.created }, log: { created: l.created } };
+}
+
+// --- 文面ビルダー（4 パターン） ---
+// ★ 全パターンで {生徒名} 直後に「全角スペース 1 つ」を挟む（仕様）。
+//   「マイカツ 太郎」のような姓名空白入り名でも「マイカツ 太郎 さん」と読みやすくするため。
+var LINE_NOTIFY_TEMPLATE_SIG = '— 春日部アカデミー　講師一同';
+var LINE_NOTIFY_AUTO_TAIL    = '（このメッセージは自動配信です。やむを得ない事情で 取り組めなかった場合はご了承ください）';
+
+function _buildLineMessage_sabotagedStudent(nickname) {
+  var name = String(nickname || '').trim() || '生徒';
+  return name + ' さん\n'
+       + '昨日のマイ活、取り組めてなかったみたいだね。\n'
+       + '今日はしっかりやろう！\n'
+       + LINE_NOTIFY_TEMPLATE_SIG + '\n'
+       + LINE_NOTIFY_AUTO_TAIL;
+}
+
+function _buildLineMessage_sabotagedParent(nickname) {
+  var name = String(nickname || '').trim() || '生徒';
+  return name + ' さんの保護者様\n'
+       + '昨日のマイ活、' + name + ' さんは取り組めてなかったようです。\n'
+       + '今日はしっかり取り組むよう、お声がけください。\n'
+       + LINE_NOTIFY_TEMPLATE_SIG + '\n'
+       + LINE_NOTIFY_AUTO_TAIL;
+}
+
+function _buildLineMessage_workedStudent(nickname) {
+  var name = String(nickname || '').trim() || '生徒';
+  return name + ' さん、昨日はマイ活よく頑張りました！\n'
+       + '今日も頑張ろう！\n'
+       + LINE_NOTIFY_TEMPLATE_SIG;
+}
+
+// contents: [{ name: '英単語RUSH', hp: 30 }, ...]、totalHp / cumulativeHp は number
+function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp) {
+  var name = String(nickname || '').trim() || '生徒';
+  var lines = [];
+  for (var i = 0; i < contents.length; i++) {
+    lines.push('・' + contents[i].name + '（' + Number(contents[i].hp || 0).toLocaleString() + 'HP 獲得）');
+  }
+  var contentBlock = lines.length ? lines.join('\n') : '・（取組みなし）';
+  return name + ' さんの保護者様\n'
+       + '昨日のマイ活、' + name + ' さんは以下に取り組みました。\n'
+       + '【取り組み内容】\n' + contentBlock + '\n'
+       + '【獲得 HP】 ' + Number(totalHp || 0).toLocaleString() + 'HP\n'
+       + '【累計 HP】 ' + Number(cumulativeHp || 0).toLocaleString() + 'HP\n'
+       + '引き続き応援していきましょう。\n'
+       + LINE_NOTIFY_TEMPLATE_SIG;
+}
+
+// --- LINE Messaging API: push ---
+// 戻り値: { ok: boolean, status?: number, error?: string, attempts: number }
+// エラー時も throw しない（呼び出し側は ok を見て NotifyLog に記録する）。
+function _pushLineMessage(userId, text) {
+  var token = _getLineMessagingAccessToken();
+  if (!token) return { ok: false, error: 'LINE_MESSAGING_CHANNEL_ACCESS_TOKEN 未設定', attempts: 0 };
+  var uid = String(userId || '').trim();
+  if (!uid) return { ok: false, error: 'userId が空', attempts: 0 };
+  var body = { to: uid, messages: [{ type: 'text', text: String(text || '') }] };
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + token },
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  };
+  var attempts = 0;
+  var lastStatus = 0;
+  var lastErrText = '';
+  for (var attempt = 0; attempt <= LINE_MESSAGING_RETRY_MAX; attempt++) {
+    attempts++;
+    var res;
+    try {
+      res = UrlFetchApp.fetch(LINE_MESSAGING_PUSH_URL, options);
+    } catch (e) {
+      // fetch 自体が例外 → ネットワーク系。リトライ対象にしない（次の対象へ）
+      lastErrText = String(e && e.message || e);
+      console.error('[_pushLineMessage] fetch threw', lastErrText);
+      return { ok: false, error: 'fetch_exception: ' + lastErrText, attempts: attempts };
+    }
+    lastStatus = res.getResponseCode();
+    if (lastStatus === 200) {
+      return { ok: true, status: 200, attempts: attempts };
+    }
+    lastErrText = String(res.getContentText() || '').substring(0, 500);
+    // 429 はレート制限 → 5 秒待機してリトライ
+    if (lastStatus === 429 && attempt < LINE_MESSAGING_RETRY_MAX) {
+      Utilities.sleep(LINE_MESSAGING_RETRY_WAIT_MS);
+      continue;
+    }
+    // 401/403/400/その他: NotifyLog に記録して終了
+    break;
+  }
+  return { ok: false, status: lastStatus, error: 'http_' + lastStatus + ': ' + lastErrText, attempts: attempts };
+}
+
+// NotifyLog 1 行追加。失敗しても throw しない（配信ループを止めない）。
+function _appendNotifyLog(studentId, nickname, dateStr, targetType, userId, status, messageBody, sendResult) {
+  try {
+    var sh = _ss().getSheetByName(SHEET_NOTIFY_LOG);
+    if (!sh) {
+      ensureNotifyLogSheet();
+      sh = _ss().getSheetByName(SHEET_NOTIFY_LOG);
+    }
+    if (!sh) return;
+    var row = [
+      Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'),
+      String(studentId || ''),
+      String(nickname || ''),
+      String(dateStr || ''),
+      String(targetType || ''),
+      String(userId || ''),
+      String(status || ''),
+      String(messageBody || '').substring(0, 1000),
+      String(sendResult || '')
+    ];
+    sh.appendRow(row);
+  } catch (e) {
+    console.error('[_appendNotifyLog]', e);
+  }
+}
+
+// --- HPLog 走査ヘルパー（前日 3:00 〜 本日 3:00 JST の sango date が yesterdayStr の行を抽出） ---
+// 戻り値: { bySid: { '<sid>': [{type, rawHP, hpGained, ts}], ... } }
+// 全生徒分を 1 度のスキャンで集計する。HPLog は末尾 5000 行を読む（1 日あたり数百〜数千行を想定）。
+function _lineNotifyScanHpLogForYesterday(yesterdayStr) {
+  var sh = _ss().getSheetByName(SHEET_HPLOG);
+  if (!sh) return { bySid: {} };
+  var rows = _readLastNRows(sh, 5000);
+  var bySid = {};
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var ts = r[0];
+    if (!ts) continue;
+    // _wabun1LogDate と同じ「3 時切替」ロジック
+    var d;
+    try { d = new Date(ts); } catch (e) { continue; }
+    if (isNaN(d.getTime())) continue;
+    var shifted = new Date(d.getTime());
+    shifted.setHours(shifted.getHours() - 3);
+    var dateStr = Utilities.formatDate(shifted, 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (dateStr !== yesterdayStr) continue;
+    var sid = String(r[1] || '').trim();
+    if (!sid) continue;
+    var rawHP    = Number(r[2]) || 0;
+    var hpGained = Number(r[3]) || 0;
+    var type     = String(r[4] || '');
+    if (!bySid[sid]) bySid[sid] = [];
+    bySid[sid].push({ type: type, rawHP: rawHP, hpGained: hpGained, ts: ts });
+  }
+  return { bySid: bySid };
+}
+
+// 生徒 1 人分の HPLog エントリ配列から、(取組み判定 / コンテンツ別 HP 集計 / 合計 HP) を返す。
+//   { worked: boolean, contents: [{name, hp}], totalHp: number }
+// contents は表記順を「英単語RUSH → 三語短文 → 和文英訳① → 基礎計算 → カンジー → コブタン
+// → 英語リスオン → 必須完走ボーナス → 手動付与」で固定（読みやすさ重視）。
+var LINE_NOTIFY_CONTENT_DISPLAY_ORDER = [
+  '英単語RUSH', '三語短文', '和文英訳①', '基礎計算', 'カンジー',
+  'コブタン', '英語リスオン', '必須完走ボーナス', '手動付与'
+];
+function _lineNotifySummarizeStudentEntries(entries) {
+  var worked = false;
+  var byName = {};
+  var totalHp = 0;
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i];
+    if (!_lineNotifyCountableType(e.type)) continue;
+    worked = true;
+    totalHp += Number(e.hpGained || 0);
+    var name = _lineNotifyContentNameFor(e.type);
+    if (!name) continue;
+    if (!byName[name]) byName[name] = 0;
+    byName[name] += Number(e.hpGained || 0);
+  }
+  var contents = [];
+  for (var k = 0; k < LINE_NOTIFY_CONTENT_DISPLAY_ORDER.length; k++) {
+    var nm = LINE_NOTIFY_CONTENT_DISPLAY_ORDER[k];
+    if (byName[nm] != null) contents.push({ name: nm, hp: byName[nm] });
+  }
+  return { worked: worked, contents: contents, totalHp: totalHp };
+}
+
+// --- 取得対象生徒のスナップショット構築 ---
+// 戻り値: [{ sid, nickname, gradeLevel, notifyLineRaw, shouldNotify, parentUserId, studentUserId, cumulativeHp }]
+// Students + SpecialAccounts を両方スキャン（sid 重複は Students 優先）。
+// 通知判定は shouldNotify に格納（呼び出し側で false をスキップ）。
+function _lineNotifyBuildStudentSnapshots() {
+  var ss = _ss();
+  var snapshots = [];
+  var seen = {};
+
+  function processSheet(sheetName, values) {
+    if (!values || values.length < 2) return;
+    var header = values[0];
+    function findCol(name) {
+      for (var i = 0; i < header.length; i++) {
+        if (String(header[i] || '').trim() === name) return i;
+      }
+      return -1;
+    }
+    var iLineP  = findCol(LINE_USER_ID_PARENT_HEADER_NAME);
+    var iLineS  = findCol(LINE_USER_ID_STUDENT_HEADER_NAME);
+    var iNotify = findCol(NOTIFY_LINE_HEADER_NAME);
+    var iGrade  = findCol(GRADE_LEVEL_HEADER_NAME);
+    for (var r = 1; r < values.length; r++) {
+      var row = values[r];
+      var sid = String(row[COL_ID] || '').trim();
+      if (!sid) continue;
+      if (seen[sid]) continue;
+      seen[sid] = true;
+      var nickname = String(row[COL_NICKNAME] || '').trim() || sid;
+      var hp = Number(row[COL_HP]) || 0;
+      var gradeLevel    = iGrade  >= 0 ? String(row[iGrade]  || '').trim() : '';
+      var notifyLineRaw = iNotify >= 0 ? String(row[iNotify] || '').trim() : '';
+      var parentUserId  = iLineP  >= 0 ? String(row[iLineP]  || '').trim() : '';
+      var studentUserId = iLineS  >= 0 ? String(row[iLineS]  || '').trim() : '';
+      var shouldNotify = _lineNotifyShouldNotify(notifyLineRaw, gradeLevel);
+      snapshots.push({
+        sid: sid,
+        nickname: nickname,
+        gradeLevel: gradeLevel,
+        notifyLineRaw: notifyLineRaw,
+        shouldNotify: shouldNotify,
+        parentUserId: parentUserId,
+        studentUserId: studentUserId,
+        cumulativeHp: hp,
+        sheetName: sheetName
+      });
+    }
+  }
+
+  try { processSheet(SHEET_STUDENTS, _getStudentsValues()); } catch (e) { console.error('[snapshots Students]', e); }
+  try { processSheet(SHEET_SPECIAL_ACCOUNTS, _getSpecialAccountsValues()); } catch (e) { console.error('[snapshots SpecialAccounts]', e); }
+  return snapshots;
+}
+
+// --- コア：配信対象抽出（trigger 兼 preview 共通） ---
+// オプション: { persist: boolean, dateOverride: 'yyyy-MM-dd' }
+//   persist=true なら NotifyTargets シートを書き換える。
+//   dateOverride を渡すと「本日扱いの日付」を強制（テスト用）。
+function _extractNotifyTargets(opts) {
+  opts = opts || {};
+  ensureNotifyTargetsSheet();
+  ensureNotifyLogSheet();
+  var today = opts.dateOverride ? String(opts.dateOverride) : _sangoToday();
+  var yesterday = _sangoPrevDate(today);
+  var snapshots = _lineNotifyBuildStudentSnapshots();
+  var hpScan = _lineNotifyScanHpLogForYesterday(yesterday);
+  var targets = [];
+  var skipped = { notifyOff: 0, gradeEmpty: 0, noLine: 0 };
+  for (var i = 0; i < snapshots.length; i++) {
+    var s = snapshots[i];
+    // 高校生 or 空欄でフラグ未設定 → skip
+    if (!s.shouldNotify) {
+      if (!s.gradeLevel) skipped.gradeEmpty++; else skipped.notifyOff++;
+      continue;
+    }
+    // どちらの LINE userId も未登録 → skip（送る先が無い）
+    if (!s.parentUserId && !s.studentUserId) { skipped.noLine++; continue; }
+    var entries = hpScan.bySid[s.sid] || [];
+    var summary = _lineNotifySummarizeStudentEntries(entries);
+    var status = summary.worked ? 'worked' : 'sabotaged';
+    targets.push({
+      studentId: s.sid,
+      nickname: s.nickname,
+      date: today,
+      status: status,
+      contents: summary.worked ? summary.contents : [],
+      totalHp: summary.worked ? summary.totalHp : 0,
+      cumulativeHp: summary.worked ? s.cumulativeHp : 0,
+      parentUserId: s.parentUserId,
+      studentUserId: s.studentUserId
+    });
+  }
+  if (opts.persist) {
+    var sh = _ss().getSheetByName(SHEET_NOTIFY_TARGETS);
+    // 既存行を全削除（ヘッダー残す）
+    if (sh.getLastRow() > 1) {
+      sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+    }
+    if (targets.length > 0) {
+      var rows = targets.map(function(t) {
+        return [
+          t.studentId, t.nickname, t.date, t.status,
+          JSON.stringify(t.contents || []),
+          t.totalHp, t.cumulativeHp,
+          t.parentUserId, t.studentUserId
+        ];
+      });
+      sh.getRange(2, 1, rows.length, NOTIFY_TARGETS_HEADERS.length).setValues(rows);
+    }
+  }
+  return {
+    ok: true,
+    today: today,
+    yesterday: yesterday,
+    totalSnapshots: snapshots.length,
+    targetsCount: targets.length,
+    skipped: skipped,
+    targets: targets
+  };
+}
+
+// --- Trigger 1: 毎日 03:00 起動 → 配信対象を NotifyTargets に書き込む ---
+// ふくちさん側で Apps Script UI から time-driven trigger を 1 つ作成する。
+//   関数: runDailyNotifyTargetExtraction / 日付ベース / 毎日 / 午前 3 時〜4 時
+function runDailyNotifyTargetExtraction() {
+  try {
+    var res = _extractNotifyTargets({ persist: true });
+    console.log('[runDailyNotifyTargetExtraction] today=' + res.today
+      + ' yesterday=' + res.yesterday
+      + ' targets=' + res.targetsCount
+      + ' skipped notifyOff=' + res.skipped.notifyOff
+      + ' gradeEmpty=' + res.skipped.gradeEmpty
+      + ' noLine=' + res.skipped.noLine);
+    return res;
+  } catch (err) {
+    console.error('[runDailyNotifyTargetExtraction]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// --- Trigger 2: 毎日 12:00 起動 → NotifyTargets を読み LINE に push、ログ記録、シートをクリア ---
+// ふくちさん側で Apps Script UI から time-driven trigger を 1 つ作成する。
+//   関数: runDailyNotifyDelivery / 日付ベース / 毎日 / 午後 0 時〜1 時
+function runDailyNotifyDelivery() {
+  try {
+    ensureNotifyTargetsSheet();
+    ensureNotifyLogSheet();
+    var sh = _ss().getSheetByName(SHEET_NOTIFY_TARGETS);
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) {
+      console.log('[runDailyNotifyDelivery] no targets');
+      return { ok: true, delivered: 0, failed: 0, totalTargets: 0 };
+    }
+    var values = sh.getRange(2, 1, lastRow - 1, NOTIFY_TARGETS_HEADERS.length).getValues();
+    var delivered = 0;
+    var failed = 0;
+    var totalTargets = values.length;
+    for (var i = 0; i < values.length; i++) {
+      var row = values[i];
+      var sid       = String(row[0] || '').trim();
+      var nickname  = String(row[1] || '').trim();
+      var dateStr   = String(row[2] || '').trim();
+      var status    = String(row[3] || '').trim(); // 'sabotaged' or 'worked'
+      var contents  = [];
+      try { contents = JSON.parse(String(row[4] || '[]')) || []; } catch(_){}
+      var totalHp      = Number(row[5]) || 0;
+      var cumulativeHp = Number(row[6]) || 0;
+      var parentUserId  = String(row[7] || '').trim();
+      var studentUserId = String(row[8] || '').trim();
+      if (!sid) continue;
+
+      // 4 パターン文面の構築
+      var studentMsg = (status === 'sabotaged')
+        ? _buildLineMessage_sabotagedStudent(nickname)
+        : _buildLineMessage_workedStudent(nickname);
+      var parentMsg = (status === 'sabotaged')
+        ? _buildLineMessage_sabotagedParent(nickname)
+        : _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp);
+
+      // 生徒本人へ
+      if (studentUserId) {
+        var rStu = _pushLineMessage(studentUserId, studentMsg);
+        _appendNotifyLog(sid, nickname, dateStr, 'student', studentUserId, status,
+          studentMsg, rStu.ok ? 'ok' : String(rStu.error || 'error'));
+        if (rStu.ok) delivered++; else failed++;
+        Utilities.sleep(LINE_MESSAGING_PUSH_RATE_LIMIT_MS);
+      }
+      // 保護者へ
+      if (parentUserId) {
+        var rPar = _pushLineMessage(parentUserId, parentMsg);
+        _appendNotifyLog(sid, nickname, dateStr, 'parent', parentUserId, status,
+          parentMsg, rPar.ok ? 'ok' : String(rPar.error || 'error'));
+        if (rPar.ok) delivered++; else failed++;
+        Utilities.sleep(LINE_MESSAGING_PUSH_RATE_LIMIT_MS);
+      }
+    }
+    // 配信完了 → NotifyTargets をクリア（ヘッダー残す）
+    if (sh.getLastRow() > 1) {
+      sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+    }
+    console.log('[runDailyNotifyDelivery] delivered=' + delivered + ' failed=' + failed
+      + ' totalTargets=' + totalTargets);
+    return { ok: true, delivered: delivered, failed: failed, totalTargets: totalTargets };
+  } catch (err) {
+    console.error('[runDailyNotifyDelivery]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// --- 管理用 API（手動実行用） ---
+// 認証：講師ログイン必須（_verifyTeacher）。doGet/doPost ルーティングは
+// この下の Phase B-3 セクション分岐に追加する（既存 admin API パターン踏襲）。
+function previewNotifyTargets(params) {
+  try {
+    var teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!teacher) return { ok: false, message: '認証エラー' };
+    var res = _extractNotifyTargets({ persist: false });
+    return res;
+  } catch (err) {
+    console.error('[previewNotifyTargets]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// params: { teacherId, password, studentId, targetType }
+//   - targetType: 'student' | 'parent'
+//   - 自動配信ロジックと同じ文面を使ってテスト送信する（NotifyTargets シートには
+//     書かない）。HPLog の前日活動を実際に集計して status / contents を決定。
+//   - NotifyLog にはテスト送信として記録（sendResult プレフィックスに [test] を付ける）
+function sendTestNotification(params) {
+  try {
+    var teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!teacher) return { ok: false, message: '認証エラー' };
+    var sid = String((params && params.studentId) || '').trim();
+    var targetType = String((params && params.targetType) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+    if (targetType !== 'student' && targetType !== 'parent') {
+      return { ok: false, message: 'targetType は student または parent を指定してください' };
+    }
+    var snapshots = _lineNotifyBuildStudentSnapshots();
+    var snap = null;
+    for (var i = 0; i < snapshots.length; i++) {
+      if (snapshots[i].sid === sid) { snap = snapshots[i]; break; }
+    }
+    if (!snap) return { ok: false, message: '生徒IDが見つかりません: ' + sid };
+    var userId = (targetType === 'student') ? snap.studentUserId : snap.parentUserId;
+    if (!userId) return { ok: false, message: targetType + ' の LINE userId が未登録です' };
+    var today = _sangoToday();
+    var yesterday = _sangoPrevDate(today);
+    var hpScan = _lineNotifyScanHpLogForYesterday(yesterday);
+    var entries = hpScan.bySid[sid] || [];
+    var summary = _lineNotifySummarizeStudentEntries(entries);
+    var status = summary.worked ? 'worked' : 'sabotaged';
+    var msg;
+    if (targetType === 'student') {
+      msg = (status === 'sabotaged')
+        ? _buildLineMessage_sabotagedStudent(snap.nickname)
+        : _buildLineMessage_workedStudent(snap.nickname);
+    } else {
+      msg = (status === 'sabotaged')
+        ? _buildLineMessage_sabotagedParent(snap.nickname)
+        : _buildLineMessage_workedParent(snap.nickname, summary.contents, summary.totalHp, snap.cumulativeHp);
+    }
+    var push = _pushLineMessage(userId, msg);
+    _appendNotifyLog(sid, snap.nickname, today, targetType, userId, status,
+      msg, '[test] ' + (push.ok ? 'ok' : String(push.error || 'error')));
+    return {
+      ok: !!push.ok,
+      status: status,
+      targetType: targetType,
+      userId: userId,
+      pushStatus: push.status || 0,
+      pushError: push.error || '',
+      attempts: push.attempts || 0,
+      messagePreview: msg
+    };
+  } catch (err) {
+    console.error('[sendTestNotification]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// NotifyTargets を手動でクリア（ヘッダー残す）。誤実行防止のため POST 経由 + 認証必須。
+function clearNotifyTargets(params) {
+  try {
+    var teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!teacher) return { ok: false, message: '認証エラー' };
+    ensureNotifyTargetsSheet();
+    var sh = _ss().getSheetByName(SHEET_NOTIFY_TARGETS);
+    var cleared = 0;
+    if (sh.getLastRow() > 1) {
+      cleared = sh.getLastRow() - 1;
+      sh.getRange(2, 1, cleared, sh.getLastColumn()).clearContent();
+    }
+    return { ok: true, cleared: cleared };
+  } catch (err) {
+    console.error('[clearNotifyTargets]', err);
+    return { ok: false, message: String(err) };
+  }
 }
