@@ -1810,7 +1810,7 @@
     .reserve-notice-main strong { color: #c2410c; font-size: 18px; }
     .reserve-notice-sub  strong { color: #c2410c; }
 
-    /* HP獲得画面：必須完走時の派手な解放演出 */
+    /* HP獲得画面：絶対ミッション達成時の派手な解放演出 */
     .completion-celebration {
       position: relative;
       margin-top: 16px;
@@ -1854,7 +1854,7 @@
     .cb-line .cb-value small { font-size: 11px; color: #9a3412; font-weight: normal; margin-left: 4px; }
     .cb-divider { height: 1px; background: linear-gradient(90deg, transparent, #f59e0b, transparent); margin: 6px 0; }
 
-    /* ホーム画面：必須コンテンツバッジ（既存 .badge-hp / .badge-soon と衝突しない位置） */
+    /* ホーム画面：絶対ミッションバッジ（既存 .badge-hp / .badge-soon と衝突しない位置） */
     .badge-required {
       position: absolute;
       top: 6px;
@@ -1874,7 +1874,7 @@
       background: linear-gradient(135deg, #34d399, #10b981);
     }
 
-    /* ホーム画面：必須進捗バー */
+    /* ホーム画面：絶対ミッション進捗バー */
     .required-progress-card {
       background: linear-gradient(135deg, #fef9c3, #fef3c7);
       border: 2px solid #f59e0b;
@@ -1931,6 +1931,17 @@
     .rp-modal-card h3 { color: #7c2d12; margin: 14px 0 6px; font-size: 16px; border-left: 4px solid #fb923c; padding-left: 10px; }
     .rp-modal-card p { color: #444; margin: 8px 0; font-size: 14px; line-height: 1.7; }
     .rp-modal-card p strong { color: #c2410c; }
+    /* 個別性強調文言（2026-05-18 リブランド時に追加）：先生があなた専用に設定したという温かさを伝える */
+    .rp-modal-card .individual-customization-note {
+      margin: 10px 0;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, #eef2ff, #ede9fe);
+      border-left: 4px solid #7c3aed;
+      border-radius: 8px;
+      color: #3730a3;
+      font-size: 14px;
+      line-height: 1.9;
+    }
     .rp-modal-card .rp-countdown-box {
       background: linear-gradient(135deg, #fef3c7, #fde68a);
       border: 2px solid #f59e0b;
@@ -2182,7 +2193,7 @@
       </button>
     </div>
 
-    <!-- ②-3 両輪システム Phase A：必須コンテンツ進捗 + 保留 HP（学齢 / 開放フラグから動的表示、
+    <!-- ②-3 両輪システム Phase A：絶対ミッション進捗 + 保留 HP（学齢 / 開放フラグから動的表示、
          予告期間中 〜5/24 は非表示） -->
     <div class="dash-section" id="required-section" style="display:none">
       <div class="required-progress-card" id="required-progress-card"></div>
@@ -3679,7 +3690,7 @@
   // ========================================================================
   // 両輪システム Phase A フロント（2026-05-16）：
   //   - 5/16〜5/24：予告モーダルだけ表示（HP は従来通り 100% 即時付与）
-  //   - 5/25 以降：必須コンテンツ進捗 + ⭐バッジ + 保留 HP 表示 + 完走演出が有効化
+  //   - 5/25 以降：絶対ミッション進捗 + ⭐バッジ + 保留 HP 表示 + 達成演出が有効化
   //   GAS 側ガード（_calculateHpWithReserve / _checkAndReleaseReserveIfCompleted）と
   //   日付定数を必ず同期させること（差分があると予告期間中に保留が発火する事故になる）。
   // ========================================================================
@@ -3742,7 +3753,7 @@
     if (modal) modal.style.display = 'none';
   }
 
-  // 必須進捗 + 保留 HP をサーバから取得して UI を更新（ホーム画面表示時に呼ぶ）
+  // 絶対ミッション進捗 + 保留 HP をサーバから取得して UI を更新（ホーム画面表示時に呼ぶ）
   function loadRequiredProgress() {
     if (!_studentId) return Promise.resolve(null);
     return gasGet({ action: 'getRequiredProgress', studentId: _studentId, _ts: Date.now() })
@@ -3762,7 +3773,7 @@
   function _renderRequiredUI(res) {
     var section = document.getElementById('required-section');
     if (!section) return;
-    // 予告期間中 or 必須なし or データなし → セクション非表示 + バッジ削除
+    // 予告期間中 or 絶対ミッションなし or データなし → セクション非表示 + バッジ削除
     var required = (res && Array.isArray(res.required)) ? res.required : [];
     if (!_isReqSystemActive() || !required.length) {
       section.style.display = 'none';
@@ -3778,19 +3789,19 @@
     var pct = totalCount > 0 ? Math.floor(completedCount * 100 / totalCount) : 0;
     var msg, msgClass = '';
     if (completedCount === 0) {
-      msg = '今日の必須はこちら！全部やってボーナスをゲットしよう';
+      msg = '今日の絶対ミッションはこちら！全部やってボーナスをゲットしよう';
     } else if (completedCount >= totalCount) {
       var bonusHp = Number(res.todayBonusHp || 0);
       msgClass = ' done-msg';
-      msg = '✨ 必須完走おめでとう！' + (bonusHp > 0 ? 'ボーナス HP +' + bonusHp.toLocaleString() + ' 獲得済み' : '');
+      msg = '✨ 絶対ミッション達成おめでとう！' + (bonusHp > 0 ? 'ボーナス HP +' + bonusHp.toLocaleString() + ' 獲得済み' : '');
     } else {
       var labels = remaining.map(function(rc){ return '「' + (REQUIRED_CONTENT_LABELS[rc] || rc) + '」'; }).join('');
-      msg = 'あと ' + labels + 'をクリアすれば完成！';
+      msg = 'あと ' + labels + 'をクリアすれば達成！';
     }
     var card = document.getElementById('required-progress-card');
     if (card) {
       card.innerHTML =
-        '<div class="rp-title">⭐ 今日の必須 ' + completedCount + '/' + totalCount + ' 完了</div>' +
+        '<div class="rp-title">⭐ 今日の絶対ミッション ' + completedCount + '/' + totalCount + ' 達成</div>' +
         '<div class="rp-bar"><div class="rp-fill" style="width:' + pct + '%"></div></div>' +
         '<div class="rp-msg' + msgClass + '">' + msg + '</div>';
     }
@@ -3800,13 +3811,13 @@
     if (resvLine) {
       if (todayReserved > 0) {
         resvLine.style.display = '';
-        resvLine.innerHTML = '💰 今日の保留 HP：<strong>' + todayReserved.toLocaleString() + ' HP</strong>（必須完走で解放！）';
+        resvLine.innerHTML = '💰 今日の保留 HP：<strong>' + todayReserved.toLocaleString() + ' HP</strong>（絶対ミッション達成で解放！）';
       } else {
         resvLine.style.display = 'none';
       }
     }
 
-    // 必須コンテンツに ⭐ バッジを付ける + 並び替え（先頭に固定）
+    // 絶対ミッションコンテンツに ⭐ バッジを付ける + 並び替え（先頭に固定）
     _applyRequiredBadgesAndOrder(required, completed);
   }
   function _clearRequiredBadges() {
@@ -3830,12 +3841,12 @@
       if (!btn) continue;
       var badge = document.createElement('span');
       badge.className = 'badge-required';
-      if (completedSet[rc]) { badge.classList.add('done'); badge.textContent = '✅ 完了'; }
-      else                  { badge.textContent = '⭐ 必須'; }
+      if (completedSet[rc]) { badge.classList.add('done'); badge.textContent = '✅ 達成'; }
+      else                  { badge.textContent = '⭐ 絶対ミッション'; }
       // CSS position:relative が前提 → content-btn は元から position:relative なので OK
       btn.appendChild(badge);
     }
-    // 並び替え：必須を仕様順で先頭に挿入（reverse + insertBefore(firstChild) で 0番目から順に並ぶ）
+    // 並び替え：絶対ミッションを仕様順で先頭に挿入（reverse + insertBefore(firstChild) で 0番目から順に並ぶ）
     var ordered = [];
     for (var k = 0; k < required.length; k++) {
       var c = REQUIRED_CONTENT_TO_BTN_CLASS[required[k]];
@@ -3870,7 +3881,7 @@
       html += '<div class="reserve-notice">' +
                 '<div class="reserve-notice-icon">📦</div>' +
                 '<div class="reserve-notice-main">まずは <strong>' + hpGained.toLocaleString() + ' HP</strong> だけあげるね。</div>' +
-                '<div class="reserve-notice-sub">残りの <strong>' + hpReserved.toLocaleString() + ' HP</strong> は、<br>「必須」を全部やった後にまとめてあげるよ。</div>' +
+                '<div class="reserve-notice-sub">残りの <strong>' + hpReserved.toLocaleString() + ' HP</strong> は、<br>「絶対ミッション」を全部やった後にまとめてあげるよ。</div>' +
               '</div>';
       result.addedReserve = true;
     }
@@ -3887,12 +3898,12 @@
       }
       confetti += '</div>';
       html += '<div class="completion-celebration">' + confetti +
-                '<div class="completion-title">🎉 必須完走おめでとう！🎉</div>' +
+                '<div class="completion-title">🎉 絶対ミッション達成おめでとう！🎉</div>' +
                 '<div class="completion-sub">今日の保留分が解放されたよ！</div>' +
                 '<div class="completion-breakdown">' +
                   '<div class="cb-line"><span class="cb-label">即時付与</span><span class="cb-value">' + hpGained.toLocaleString() + ' HP</span></div>' +
                   '<div class="cb-line"><span class="cb-label">保留解放</span><span class="cb-value">' + releasedHp.toLocaleString() + ' HP</span></div>' +
-                  '<div class="cb-line"><span class="cb-label">ボーナス</span><span class="cb-value">' + bonusHp.toLocaleString() + ' HP <small>（必須完走報酬）</small></span></div>' +
+                  '<div class="cb-line"><span class="cb-label">ボーナス</span><span class="cb-value">' + bonusHp.toLocaleString() + ' HP <small>（絶対ミッション達成報酬）</small></span></div>' +
                   '<div class="cb-divider"></div>' +
                   '<div class="cb-line cb-total"><span class="cb-label">合計</span><span class="cb-value">+' + totalHp.toLocaleString() + ' HP</span></div>' +
                 '</div>' +
@@ -5483,7 +5494,7 @@
         _loadAvatarStateOnHome();
       }
     } catch(e){ console.error('[goHome] _loadAvatarStateOnHome', e); }
-    // 両輪 Phase A：ホーム戻り時にも必須進捗を再ロード（提出後の reserved / 完走を反映）
+    // 両輪 Phase A：ホーム戻り時にも絶対ミッション進捗を再ロード（提出後の reserved / 達成を反映）
     try { loadRequiredProgress(); } catch(e){ console.error('[goHome] loadRequiredProgress', e); }
   }
   function doLogout() {
@@ -8620,7 +8631,7 @@
     }
 
     showScreen('screen-lison-done');
-    // 両輪 Phase A：保留通知 + 完走演出（リスオンは必須リスト対象外なので reserved=0 / justCompleted=false が通常）
+    // 両輪 Phase A：保留通知 + 完走演出（リスオンは絶対ミッションのリスト対象外なので reserved=0 / justCompleted=false が通常）
     try {
       var apnd = _appendReserveAndCompletionBlock(bodyEl, res);
       if (apnd.addedCompletion && typeof _totalHP === 'number') {
@@ -9603,8 +9614,8 @@
     }
     try { playSfx('chime'); } catch(e){}
     // 両輪 Phase A：hpInfo に hpReserved / justCompleted 等が入っている
-    // （コブタンは必須リスト対象外なので reserved=0 / justCompleted=false が通常返るが、
-    //  この生徒の必須完走の最後の引き金になる可能性は理論上ある）
+    // （コブタンは絶対ミッションのリスト対象外なので reserved=0 / justCompleted=false が通常返るが、
+    //  この生徒の絶対ミッション達成の最後の引き金になる可能性は理論上ある）
     try {
       var apnd = _appendReserveAndCompletionBlock(bodyEl, hpInfo || {});
       if (apnd.addedCompletion && typeof _totalHP === 'number') {
@@ -9681,13 +9692,16 @@
     <p><strong>2026/05/25（月）</strong>から、マイ活アプリのルールが少し変わります。</p>
 
     <h3>【新ルール】</h3>
-    <p>✨ <strong>必須コンテンツを全部やった日</strong>は、ボーナス HP <strong>+200</strong> がもらえる！（連続週数²倍がついて、続ければ続けるほど大きくなるよ）</p>
-    <p>⚠️ 必須をまだクリアしてない時に他のコンテンツで HP を獲得すると、HP の <strong>40%</strong> は「お預け」になります。<br>必須を全部クリアしたら、お預け分もまとめて返ってくる！</p>
+    <p>✨ <strong>絶対ミッションを全部やった日</strong>は、ボーナス HP <strong>+200</strong> がもらえる！（連続週数²倍がついて、続ければ続けるほど大きくなるよ）</p>
+    <p>⚠️ 絶対ミッションをまだクリアしてない時に他のコンテンツで HP を獲得すると、HP の <strong>40%</strong> は「お預け」になります。<br>絶対ミッションを全部クリアしたら、お預け分もまとめて返ってくる！</p>
 
-    <h3>【必須コンテンツ】</h3>
-    <p><strong>小学生：</strong>英単語RUSH、三語短文、和文英訳①、カンジー</p>
-    <p><strong>中学生：</strong>英単語RUSH、三語短文、和文英訳①、基礎計算、カンジー</p>
-    <p><strong>高校生：</strong>必須なし（自由学習）</p>
+    <h3>【あなたの絶対ミッションについて】</h3>
+    <div class="individual-customization-note">
+      「絶対ミッション」は先生があなたに必要な内容を選んで設定しています。<br>
+      だから、他の人と違うこともあります。<br>
+      それぞれが自分のペースで成長できるよう、<br>
+      あなた専用にカスタマイズされています。
+    </div>
 
     <div class="rp-countdown-box">⏰ あと <span id="rp-countdown">○</span> 日</div>
 

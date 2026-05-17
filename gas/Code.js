@@ -30,8 +30,8 @@ const SHEET_MESSAGE_READS     = 'MessageReads';
 const SHEET_SPECIAL_ACCOUNTS  = 'SpecialAccounts';
 // Phase 4：講師の操作ログ（admin の監査用、永久保存）。_ensureSheetWithHeaders で自動作成される。
 const SHEET_TEACHER_ACTIONS   = 'TeacherActions';
-// 両輪システム Phase A（2026-05-16）：HP の 40% 保留と必須完走時の一括解放 + ボーナスを記録する
-// 専用シート（必須機能：「やったら得 + やらないと損」の両輪を作るための基盤）。
+// 両輪システム Phase A（2026-05-16）：HP の 40% 保留と絶対ミッション達成時の一括解放 + ボーナスを記録する
+// 専用シート（基盤機能：「やったら得 + やらないと損」の両輪を作るためのデータ層）。
 // _ensureHpReservePoolSheet() で初回 _appendHpReservePool 呼び出し時に自動作成される。
 const SHEET_HP_RESERVE_POOL   = 'HpReservePool';
 
@@ -1131,7 +1131,7 @@ function doGet(e) {
       //   / cleanupLisonOldRecordings）は URL 経由を遮断（Phase 2、漏洩耐性向上）。
       //   関数本体は残しており、GAS エディタからの手動実行 + Time-based Trigger（cleanup）は
       //   引き続き動作する。将来 URL 経由が必要になった時はここに else if を再追加すること。
-      // 両輪システム Phase A（2026-05-16）：必須コンテンツ進捗 + 完走通知（任意ポーリング用）
+      // 両輪システム Phase A（2026-05-16）：絶対ミッション進捗 + 達成通知（任意ポーリング用）
       // 進捗 API はフロント UI（次フェーズで実装）で「○/○ 完了」インジケータ表示に使う。
       // 完走通知 API は内部 _checkAndReleaseReserveIfCompleted の薄いラッパー。冪等。
       else if (action === 'getRequiredProgress')      result = getRequiredProgress(params);
@@ -1617,7 +1617,7 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     const streak    = Number(sRow[COL_STREAK]) || 1;  // 最低1
     const week      = Math.ceil(streak / 7);
     const rawHp_    = 50 * week * week;
-    // 両輪システム Phase A：必須未完走なら 60%/40% に分割（既存挙動：必須なし or 完走済なら 100%）
+    // 両輪システム Phase A：絶対ミッション未達成なら 60%/40% に分割（既存挙動：絶対ミッションなし or 達成済なら 100%）
     const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_);
     const hpGained    = reserveCalc.granted;   // 即時付与分（フロント既存互換のためフィールド名は維持）
     const reservedHp  = reserveCalc.reserved;
@@ -1656,7 +1656,7 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     _updateAccountCacheBySid(sid, updates);
     _invalidateCache('cache_ranking_last_week');
 
-    // 両輪 Phase A：必須完走チェック（reserve_active のときのみ呼ぶ）
+    // 両輪 Phase A：絶対ミッション達成チェック（reserve_active のときのみ呼ぶ）
     let completion = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
     if (reserveCalc.isReserveActive) {
       completion = _checkAndReleaseReserveIfCompleted(sid, 'test');
@@ -1665,8 +1665,8 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     return {
       ok: true,
       clearHP: hpGained, bonusHP: 0,
-      hpGained: hpGained,            // 即時付与分（必須未完走なら 60%、それ以外なら 100%）
-      hpReserved: reservedHp,        // 保留分（必須未完走時のみ > 0）
+      hpGained: hpGained,            // 即時付与分（絶対ミッション未達成なら 60%、それ以外なら 100%）
+      hpReserved: reservedHp,        // 保留分（絶対ミッション未達成時のみ > 0）
       justCompleted: completion.justCompleted,
       releasedHp: completion.releasedHp,
       bonusHp: completion.bonusHp,
@@ -5777,7 +5777,7 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
       const effectiveRawHP = Math.min(baseRawHP, remaining);   // 仕様書 §8.5 ケース 2
       const isPractice = (effectiveRawHP === 0);
       const fullHpGained = effectiveRawHP * week * week;
-      // 両輪 Phase A：必須未完走なら 60%/40% に分割（練習モードは rawHp=0 で reserveActive のみ true）
+      // 両輪 Phase A：絶対ミッション未達成なら 60%/40% に分割（練習モードは rawHp=0 で reserveActive のみ true）
       const reserveCalc_kiso = _calculateHpWithReserve(stuLoc, fullHpGained);
       const hpGained = reserveCalc_kiso.granted;
       const reservedHp_kiso = reserveCalc_kiso.reserved;
@@ -5821,7 +5821,7 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
         baseRawHP: baseRawHP,
         sessionType: logType
       };
-      // 両輪 Phase A：完走チェック（kiso 練習モードでも、必須リストに kiso 含めば完走の最後の 1 ピースになり得る）
+      // 両輪 Phase A：達成チェック（kiso 練習モードでも、絶対ミッションのリストに kiso 含めば達成の最後の 1 ピースになり得る）
       if (__reserveActive_kiso) {
         const comp_kiso = _checkAndReleaseReserveIfCompleted(studentId, logType);
         hpInfo.justCompleted = comp_kiso.justCompleted;
@@ -8232,9 +8232,9 @@ function updateLineNotifySetting(params) {
 
 // 管理画面：絶対ミッション設定データ取得（塾長専用）
 // 戻り値: { ok, students: [{ studentId, nickname, gradeLevel,
-//          wabun1Unlocked, kisoUnlocked, kanjiUnlocked }, ...] }
+//          testUnlocked, sangoUnlocked, wabun1Unlocked, kisoUnlocked, kanjiUnlocked }, ...] }
 //   - 'TRUE' / 'FALSE' / '' の生値で返す（フロント側で表示形式を決める）
-//   - 英単語RUSH / 三語短文 は全員必須なので返り値に含めない（UI 側で固定 ☑ 表示）
+//   - 2026-05-18：英単語RUSH / 三語短文 も bi-toggle 化（旧仕様の固定 ☑ は廃止）
 function getRequiredMissionsManagementData(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
@@ -9581,7 +9581,7 @@ function submitSango(params) {
       const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
       const week = Math.ceil(streak / 7);
       rawHp_sango = 200 * week * week;
-      // 両輪 Phase A：必須未完走なら 60%/40% に分割
+      // 両輪 Phase A：絶対ミッション未達成なら 60%/40% に分割
       const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_sango);
       hpGained = reserveCalc.granted;
       reservedHp_sango = reserveCalc.reserved;
@@ -9607,7 +9607,7 @@ function submitSango(params) {
       _updateAccountCacheBySid(sid, upd);
       _invalidateCache('cache_ranking_last_week');
     }
-    // 両輪 Phase A：完走チェック（HP 付与なし日でも必須リスト次第で起動する可能性あり）
+    // 両輪 Phase A：達成チェック（HP 付与なし日でも絶対ミッションのリスト次第で起動する可能性あり）
     let completion_sango = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
     if (reserveActive_sango) {
       completion_sango = _checkAndReleaseReserveIfCompleted(sid, 'sango');
@@ -11088,7 +11088,7 @@ function submitWabun1(params) {
       // todayStr は _sangoToday() の JST 3 時区切り。問題の日替わり・alreadyGranted 判定と同じ基準で揃える
       const baseHp = (todayStr >= '2026-04-29') ? 200 : 100;
       rawHp_wabun1 = baseHp * week * week;
-      // 両輪 Phase A：必須未完走なら 60%/40% に分割
+      // 両輪 Phase A：絶対ミッション未達成なら 60%/40% に分割
       const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_wabun1);
       hpGained = reserveCalc.granted;
       reservedHp_wabun1 = reserveCalc.reserved;
@@ -12850,7 +12850,7 @@ function submitLison(params) {
       const week = Math.ceil(streak / 7);
       const baseHp = _lisonBaseHpForLevel(level);
       rawHp_lison = baseHp * week * week;
-      // 両輪 Phase A：必須未完走なら 60%/40% に分割（リスオンは必須リスト対象外なので通常 100%）
+      // 両輪 Phase A：絶対ミッション未達成なら 60%/40% に分割（リスオンは絶対ミッションのリスト対象外なので通常 100%）
       const reserveCalc_lison = _calculateHpWithReserve(stuLoc, rawHp_lison);
       hpGained = reserveCalc_lison.granted;
       reservedHp_lison = reserveCalc_lison.reserved;
@@ -13596,7 +13596,7 @@ function submitKanjiKaki(params) {
         const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
         const week = Math.ceil(streak / 7);
         const fullHpGained_kanji = grantedRawHP * week * week;
-        // 両輪 Phase A：必須未完走なら 60%/40% に分割
+        // 両輪 Phase A：絶対ミッション未達成なら 60%/40% に分割
         const reserveCalc_kanji = _calculateHpWithReserve(stuLoc, fullHpGained_kanji);
         const hpGained = reserveCalc_kanji.granted;
         const reservedHp_kanji = reserveCalc_kanji.reserved;
@@ -13637,7 +13637,7 @@ function submitKanjiKaki(params) {
         const logType_kanji_p = 'kanji_' + level + '_' + count + '_practice';
         _logHP(sid, 0, 0, logType_kanji_p);
         hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: true, alreadyAtCap: true };
-        // 両輪 Phase A：練習モードでも必須完走の最後の 1 ピースになり得る（kanji 必須リストに含まれる場合）
+        // 両輪 Phase A：練習モードでも絶対ミッション達成の最後の 1 ピースになり得る（kanji が絶対ミッションのリストに含まれる場合）
         // _calculateHpWithReserve(rawHp=0) は isReserveActive=true を返すので完走チェックを試みる。
         if (stuLoc) {
           const reserveCalc_kanji_p = _calculateHpWithReserve(stuLoc, 0);
@@ -14529,7 +14529,7 @@ function submitKobunSet(params) {
         const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
         const week = Math.ceil(streak / 7);
         const fullHpGained_kobun = grantedRawHP * week * week;
-        // 両輪 Phase A：kobun は必須リスト対象外だが、生徒の学齢が他コンテンツの reserve を
+        // 両輪 Phase A：kobun は絶対ミッションのリスト対象外だが、生徒の学齢が他コンテンツの reserve を
         // 起動している場合、kobun 提出は granted 100% で問題なし（_calculateHpWithReserve は
         // 通常 isReserveActive=false を返すため reserve は発生しない）。
         const reserveCalc_kobun = _calculateHpWithReserve(stuLoc, fullHpGained_kobun);
@@ -16003,38 +16003,38 @@ function getKobunHistory(params) {
 // 仕様（Phase A：サーバ側のみ。フロント UI 変更は Phase A-3 で実施）：
 //   1) Students シートに 4 列追加：GRADE_LEVEL / WABUN1_UNLOCKED / KISO_UNLOCKED / KANJI_UNLOCKED
 //      → 既存 BIRTHDAY 列 / AVATAR_BASE 列と同パターン（ヘッダー駆動、末尾自動追加、setNumberFormat('@')）
-//   2) 学齢別の必須コンテンツ定義 REQUIRED_CONTENTS_BY_GRADE
-//   3) 開放フラグで動的フィルタ：FALSE のコンテンツは必須リストから除外
-//   4) 提出時：必須未完走なら HP の 60% 即時付与 + 40% を HpReservePool に保留
-//      必須完走済 or 必須なし学齢：従来どおり 100% 即時付与（reserve 非起動）
-//   5) 提出後に "今日の必須全完走" を判定。完走の瞬間：
+//   2) 学齢別の絶対ミッション定義 REQUIRED_CONTENTS_BY_GRADE（2026-05-18 以降は legacy 参照のみ）
+//   3) 開放フラグで動的フィルタ：FALSE のコンテンツは絶対ミッションのリストから除外
+//   4) 提出時：絶対ミッション未達成なら HP の 60% 即時付与 + 40% を HpReservePool に保留
+//      絶対ミッション達成済 or 絶対ミッションなし学齢：従来どおり 100% 即時付与（reserve 非起動）
+//   5) 提出後に "今日の絶対ミッション全達成" を判定。達成の瞬間：
 //      a) HpReservePool の今日の未解放分を全部 resolved=TRUE にして合計を HPLog へ release
 //      b) ボーナス 200HP × 連続週数² を completion_bonus として HPLog へ追加
 //      c) Students.HP に (released + bonus) を加算
 //      d) PropertiesService フラグで二重発火防止
 //
 // 重要な不変条件（既存挙動を絶対に壊さない）：
-//   - GRADE_LEVEL が空欄 = REQUIRED_CONTENTS_BY_GRADE[""] = undefined → 必須なし → 100% 即時付与
-//   - WABUN1_UNLOCKED 等が FALSE / 空欄 = そのコンテンツは必須から除外
+//   - GRADE_LEVEL が空欄 → 絶対ミッションなし → 100% 即時付与
+//   - WABUN1_UNLOCKED 等が FALSE / 空欄 = そのコンテンツは絶対ミッションから除外
 //   - つまりデフォルト（全フラグ空欄）の生徒は完全に従来挙動を維持
 //   - ふくちさんが GRADE_LEVEL + UNLOCKED フラグを手動で設定した生徒のみ両輪システムが起動
 //
-// 完走ロジックの判定基準：
+// 達成ロジックの判定基準：
 //   - 「今日 HPLog に該当 type のレコードが 1 つ以上ある」= 完了とみなす
 //   - 練習モード（HP=0、type='..._practice'）も「やった」事実なので完了扱い（プレフィックス match）
 //   - 1 日の境界は _sangoToday()（JST 3:00 区切り）に統一（既存 submit と整合）
 // ========================================================================
 
-// 必須コンテンツの抽象名（HPLog type とは別の論理名）。
+// 絶対ミッション（コンテンツ）の抽象名（HPLog type とは別の論理名）。
 // HPLog の type プレフィックスとのマッピングは _isHpLogTypeForRequired() を参照。
 const REQUIRED_CONTENT_KEYS = ['eitango', 'sango', 'wabun1', 'kiso', 'kanji'];
 
-// 学齢別の必須コンテンツ定義（参考、2026-05-18 以降は未使用）。
-// 旧仕様：学齢で必須リストを決定、wabun1/kiso/kanji のみ開放フラグでさらにフィルタ。
+// 学齢別の絶対ミッション定義（参考、2026-05-18 以降は未使用）。
+// 旧仕様：学齢で絶対ミッションのリストを決定、wabun1/kiso/kanji のみ開放フラグでさらにフィルタ。
 // 新仕様（2026-05-18）：全コンテンツが個別の開放フラグで制御 + 教科内容上の学齢制約あり。
-//   - eitango / sango : 学齢関係なく TEST_UNLOCKED / SANGO_UNLOCKED の TRUE で必須化（高校生も opt-in 可）
-//   - wabun1 / kanji  : 小・中 + WABUN1_UNLOCKED / KANJI_UNLOCKED が TRUE のとき必須
-//   - kiso            : 中のみ + KISO_UNLOCKED が TRUE のとき必須
+//   - eitango / sango : 学齢関係なく TEST_UNLOCKED / SANGO_UNLOCKED の TRUE で絶対ミッション化（高校生も opt-in 可）
+//   - wabun1 / kanji  : 小・中 + WABUN1_UNLOCKED / KANJI_UNLOCKED が TRUE のとき絶対ミッション
+//   - kiso            : 中のみ + KISO_UNLOCKED が TRUE のとき絶対ミッション
 // 判定の本体は _getRequiredContentsForLoc 参照。下の定数は legacy 参照（残置のみ）。
 const REQUIRED_CONTENTS_BY_GRADE = {
   '小1': ['eitango', 'sango', 'wabun1', 'kanji'],
@@ -16051,9 +16051,9 @@ const REQUIRED_CONTENTS_BY_GRADE = {
   '高3': []
 };
 
-// 開放フラグが反映されるコンテンツ（FALSE / 空欄なら必須から除外）。
-// 2026-05-18：eitango / sango も追加（旧版は学齢ベースで自動的に必須だったが、
-// 個別に ON/OFF できるように変更。デフォルト空欄なので明示的に TRUE を立てないと非必須）。
+// 開放フラグが反映されるコンテンツ（FALSE / 空欄なら絶対ミッションから除外）。
+// 2026-05-18：eitango / sango も追加（旧版は学齢ベースで自動的に絶対ミッション化されていたが、
+// 個別に ON/OFF できるように変更。デフォルト空欄なので明示的に TRUE を立てないと絶対ミッション外）。
 const UNLOCK_FLAG_BY_CONTENT = {
   eitango: 'TEST_UNLOCKED',
   sango:   'SANGO_UNLOCKED',
@@ -16080,12 +16080,12 @@ function _isJunior(grade) {
   return grade.indexOf('中') === 0;
 }
 
-// 保留比率と完走ボーナス基本値
-const REQUIRED_RESERVE_RATIO         = 0.40;  // 必須未完走時：40% を保留、60% を即時付与（2026-05-16 60/40 へ強化、ふくちさん「結構な痛手」設計）
-const REQUIRED_COMPLETION_BONUS_BASE = 200;   // 完走ボーナス基本 HP（× 連続週数² で確定）
+// 保留比率と達成ボーナス基本値
+const REQUIRED_RESERVE_RATIO         = 0.40;  // 絶対ミッション未達成時：40% を保留、60% を即時付与（2026-05-16 60/40 へ強化、ふくちさん「結構な痛手」設計）
+const REQUIRED_COMPLETION_BONUS_BASE = 200;   // 絶対ミッション達成ボーナス基本 HP（× 連続週数² で確定）
 
 // 両輪システムの起動日（教育日 _sangoToday() 基準で yyyy-MM-dd 文字列比較）。
-// この日以降に初めて _calculateHpWithReserve が「必須未完走 → 保留」分岐に入る。
+// この日以降に初めて _calculateHpWithReserve が「絶対ミッション未達成 → 保留」分岐に入る。
 // 5/16〜5/24 は予告期間（フロントの予告モーダルだけ表示、HP は従来通り 100% 即時付与）。
 const REQUIRED_SYSTEM_START_DATE     = '2026-05-25';
 
@@ -16214,13 +16214,13 @@ function _isUnlockFlagTrue(rawValue) {
   return s === 'TRUE' || s === '1' || s === 'YES';
 }
 
-// 学齢 + 開放フラグから、その生徒の必須コンテンツ配列を返す。
+// 学齢 + 開放フラグから、その生徒の絶対ミッション配列を返す。
 // 2026-05-18：全コンテンツが個別の開放フラグで制御される設計に変更。
 // 学齢制約（教科内容上の妥当性ガード）：
 //   - eitango / sango : 学齢関係なく TEST_UNLOCKED / SANGO_UNLOCKED で判定（高校生も opt-in 可）
 //   - wabun1 / kanji  : 小・中限定（高校生は flag を立てても無視）
 //   - kiso            : 中のみ限定（小学生 / 高校生は flag を立てても無視）
-// デフォルト（全フラグ空欄）の生徒は必須リスト [] になり、両輪システム非起動 = 従来挙動と同等。
+// デフォルト（全フラグ空欄）の生徒は絶対ミッションのリスト [] になり、両輪システム非起動 = 従来挙動と同等。
 function _getRequiredContentsForLoc(loc) {
   if (!loc) return [];
   const grade = _readGradeLevelFromLoc(loc);
@@ -16251,7 +16251,7 @@ function _isHpLogTypeForRequired(hpLogType, requiredContent) {
   return false;
 }
 
-// 今日（_sangoToday() 基準）の HPLog から、指定生徒が完了した必須コンテンツの Set を返す。
+// 今日（_sangoToday() 基準）の HPLog から、指定生徒が完了した絶対ミッションの Set を返す。
 // 末尾 500 行のみ走査（マルチコンテンツ化で活動量が増えた現状を考慮、_getPrevDayCount と同じ走査幅）。
 function _getTodayCompletedRequired(sid, requiredList) {
   const completed = {};
@@ -16353,7 +16353,7 @@ function _calculateHpWithReserve(loc, rawHp) {
   }
   const sid = String(loc.rowValues[COL_ID] || '').trim();
   const completedSet = _getTodayCompletedRequired(sid, requiredList);
-  // 必須全完走済 → 既に release 済 or release は別経路で実施。100% 即時付与
+  // 絶対ミッション全達成済 → 既に release 済 or release は別経路で実施。100% 即時付与
   const allDone = requiredList.every(function(rc) { return !!completedSet[rc]; });
   if (allDone) {
     return { granted: rawHp, reserved: 0, isReserveActive: false, requiredList: requiredList, completedSet: completedSet };
@@ -16436,7 +16436,7 @@ function _checkAndReleaseReserveIfCompleted(sid, justLoggedType) {
   }
 }
 
-// 公開 API：必須完走進捗（フロント UI 表示用、認証不要 = 自分の情報）
+// 公開 API：絶対ミッション達成進捗（フロント UI 表示用、認証不要 = 自分の情報）
 // params: { studentId }
 // 戻り値: { ok, grade, required, completed, remaining, isAllCompleted, completedCount, totalCount,
 //          todayReservedHp, todayBonusHp, systemActive }
@@ -16776,9 +16776,9 @@ function migrateLineNotifyColumn() {
 // Students / SpecialAccounts の両シートに列追加（冪等：既存ならスキップ）。
 //
 // 設計変更（同時に行う）：
-//   - 旧: eitango / sango は学齢が小・中なら全員自動的に必須（開放フラグなし）
-//   - 新: eitango / sango も TEST_UNLOCKED / SANGO_UNLOCKED の TRUE で必須化
-//        デフォルト空欄なので、ふくちさんが管理画面から個別に ON にするまで非必須
+//   - 旧: eitango / sango は学齢が小・中なら全員自動的に絶対ミッション化（開放フラグなし）
+//   - 新: eitango / sango も TEST_UNLOCKED / SANGO_UNLOCKED の TRUE で絶対ミッション化
+//        デフォルト空欄なので、ふくちさんが管理画面から個別に ON にするまで絶対ミッション外
 //        両輪システム稼働日（2026-05-25）までに各生徒の設定を完了する想定
 //
 // 既存データ：列追加のみ。既存生徒の TEST_UNLOCKED / SANGO_UNLOCKED は空欄のまま。
@@ -17327,7 +17327,7 @@ function _lineNotifyCountableType(type) {
 }
 
 // 取組み内容の日本語表記マッピング（保護者向け「やった子」メッセージ用）。
-// reserve_release + completion_bonus は同じ「必須完走ボーナス」に集約する。
+// reserve_release + completion_bonus は同じ「絶対ミッション達成ボーナス」に集約する。
 function _lineNotifyContentNameFor(type) {
   if (!type) return null;
   var t = String(type);
@@ -17338,7 +17338,7 @@ function _lineNotifyContentNameFor(type) {
   if (t.indexOf('kiso_')  === 0) return '基礎計算';
   if (t.indexOf('kanji_') === 0) return 'カンジー';
   if (t.indexOf('kobun_') === 0) return 'コブタン';
-  if (t === 'reserve_release' || t === 'completion_bonus') return '必須完走ボーナス';
+  if (t === 'reserve_release' || t === 'completion_bonus') return '絶対ミッション達成ボーナス';
   if (t.indexOf('manual_') === 0 || t === 'manual_grant') return '手動付与';
   return null;
 }
@@ -17539,10 +17539,10 @@ function _lineNotifyScanHpLogForYesterday(yesterdayStr) {
 // 生徒 1 人分の HPLog エントリ配列から、(取組み判定 / コンテンツ別 HP 集計 / 合計 HP) を返す。
 //   { worked: boolean, contents: [{name, hp}], totalHp: number }
 // contents は表記順を「英単語RUSH → 三語短文 → 和文英訳① → 基礎計算 → カンジー → コブタン
-// → 英語リスオン → 必須完走ボーナス → 手動付与」で固定（読みやすさ重視）。
+// → 英語リスオン → 絶対ミッション達成ボーナス → 手動付与」で固定（読みやすさ重視）。
 var LINE_NOTIFY_CONTENT_DISPLAY_ORDER = [
   '英単語RUSH', '三語短文', '和文英訳①', '基礎計算', 'カンジー',
-  'コブタン', '英語リスオン', '必須完走ボーナス', '手動付与'
+  'コブタン', '英語リスオン', '絶対ミッション達成ボーナス', '手動付与'
 ];
 function _lineNotifySummarizeStudentEntries(entries) {
   var worked = false;
