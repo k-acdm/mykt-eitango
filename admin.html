@@ -671,6 +671,16 @@
       <div class="dashboard-card-title">問題等の入力と解答確認</div>
       <div class="dashboard-card-desc">各種お題・問題の入力と提出確認</div>
     </button>
+    <button type="button" id="dash-card-line-notify" class="dashboard-card admin-only" onclick="goAdminLineNotify()">
+      <div class="dashboard-card-icon">💎</div>
+      <div class="dashboard-card-title">LINE通知管理</div>
+      <div class="dashboard-card-desc">各生徒の保護者LINE・生徒LINE 登録状況と通知 ON/OFF を確認・変更</div>
+    </button>
+    <button type="button" id="dash-card-required-missions" class="dashboard-card admin-only" onclick="goAdminRequiredMissions()">
+      <div class="dashboard-card-icon">🎯</div>
+      <div class="dashboard-card-title">絶対ミッション設定</div>
+      <div class="dashboard-card-desc">各生徒の絶対ミッション（英単語RUSH / 三語短文 / 和文英訳① / 基礎計算 / カンジー）を切替</div>
+    </button>
     <button type="button" class="dashboard-card" onclick="goAdminRanking()">
       <div class="dashboard-card-icon">🏆</div>
       <div class="dashboard-card-title">週間HPランキング</div>
@@ -710,16 +720,6 @@
       <div class="dashboard-card-icon">📋</div>
       <div class="dashboard-card-title">操作ログ</div>
       <div class="dashboard-card-desc">講師の管理操作・HP付与の履歴を確認（admin専用）</div>
-    </button>
-    <button type="button" id="dash-card-line-notify" class="dashboard-card admin-only" onclick="goAdminLineNotify()">
-      <div class="dashboard-card-icon">💎</div>
-      <div class="dashboard-card-title">LINE通知管理</div>
-      <div class="dashboard-card-desc">各生徒の保護者LINE・生徒LINE 登録状況と通知 ON/OFF を確認・変更</div>
-    </button>
-    <button type="button" id="dash-card-required-missions" class="dashboard-card admin-only" onclick="goAdminRequiredMissions()">
-      <div class="dashboard-card-icon">🎯</div>
-      <div class="dashboard-card-title">絶対ミッション設定</div>
-      <div class="dashboard-card-desc">各生徒の和文英訳①・基礎計算・カンジーの必須化を切替</div>
     </button>
   </div>
 </div>
@@ -1450,8 +1450,10 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
     <div class="admin-mgmt-lead">
       各生徒の <strong>絶対ミッション</strong>（両輪システム必須コンテンツ）を切り替えます。<br>
-      <strong>英単語RUSH / 三語短文</strong> は全員必須で切替不可（固定 ☑）。<br>
-      <strong>和文英訳① / 基礎計算 / カンジー</strong> はトグルで TRUE / FALSE を切替（その場で保存）。
+      <strong>英単語RUSH / 三語短文</strong>：学齢に関係なく ON/OFF 可（高校生も opt-in 可能）。<br>
+      <strong>和文英訳① / カンジー</strong>：小・中学生のみ ON 可（学齢設定が必要）。<br>
+      <strong>基礎計算</strong>：中学生のみ ON 可（教科内容上の妥当性ガード）。<br>
+      トグルで TRUE / FALSE を切替（その場で保存、空欄は FALSE 扱い）。
     </div>
     <div class="admin-mgmt-toolbar">
       <button type="button" class="submit-btn" onclick="loadRequiredMissionsManagement()">🔄 最新データ取得</button>
@@ -2954,13 +2956,15 @@
       if (!res || !res.ok) {
         var em = (res && res.message) ? res.message : '保存に失敗しました';
         if (_handleAdminApiError(em)) return;  // 認証エラー時はログアウト処理
-        // ロールバック
+        // ロールバック（busy 解除 + innerHTML から spinner span を取り除く）
         _applyTriToggleVisual(btn, prev, false);
         _showLineNotifyMsg('保存失敗：' + em, 'ng');
         showToast('保存失敗：' + em, 'error');
       } else {
-        // 成功：データ更新 + 状態確定
-        btn.classList.remove('busy');
+        // 成功：busy 解除 + spinner span を innerHTML から取り除いて確定表示
+        // ⚠️ busy class だけ remove では innerHTML の <span class="spin"> が残り、
+        // CSS .tri-toggle .spin のアニメーションが回り続けるため必ず _applyTriToggleVisual を呼ぶ
+        _applyTriToggleVisual(btn, next, false);
         // 内部キャッシュも更新
         _updateLineNotifyCache(sid, field, next);
         _showLineNotifyMsg('保存しました', 'ok');
@@ -3043,15 +3047,17 @@
       var displayName = _esc(s.name || s.nickname || s.studentId);
       var nickSub = (s.name && s.nickname) ? '<span class="sub-nick">' + _esc(s.nickname) + '</span>' : '';
       var grade = s.gradeLevel ? '<span class="col-grade">' + _esc(s.gradeLevel) + '</span>' : '<span class="col-grade empty">（未設定）</span>';
-      // 英単語RUSH / 三語短文 は固定 ☑（編集不可）
-      var fixedCell = '<td class="col-toggle"><span class="bi-toggle-fixed" title="全員必須（切替不可）">☑</span></td>';
+      // 2026-05-18：英単語RUSH / 三語短文 も bi-toggle 化（旧版は固定 ☑ で切替不可だった）
+      var test   = _renderBiToggle(s.studentId, 'testUnlocked',   s.testUnlocked);
+      var sango  = _renderBiToggle(s.studentId, 'sangoUnlocked',  s.sangoUnlocked);
       var wabun1 = _renderBiToggle(s.studentId, 'wabun1Unlocked', s.wabun1Unlocked);
       var kiso   = _renderBiToggle(s.studentId, 'kisoUnlocked',   s.kisoUnlocked);
       var kanji  = _renderBiToggle(s.studentId, 'kanjiUnlocked',  s.kanjiUnlocked);
       return '<tr data-sid="' + _esc(s.studentId) + '">' +
         '<td class="col-name">' + displayName + nickSub + '</td>' +
         '<td>' + grade + '</td>' +
-        fixedCell + fixedCell +
+        '<td class="col-toggle">' + test + '</td>' +
+        '<td class="col-toggle">' + sango + '</td>' +
         '<td class="col-toggle">' + wabun1 + '</td>' +
         '<td class="col-toggle">' + kiso + '</td>' +
         '<td class="col-toggle">' + kanji + '</td>' +
@@ -3097,20 +3103,24 @@
       if (!res || !res.ok) {
         var em = (res && res.message) ? res.message : '保存に失敗しました';
         if (_handleAdminApiError(em)) return;
-        // ロールバック：チェックボックスを元に戻す
+        // ロールバック：チェックボックス + busy 解除 + data-value 復元
         input.checked = (String(prev).toUpperCase() === 'TRUE');
         lbl.classList.remove('busy');
+        lbl.setAttribute('data-value', prev);
         _showRequiredMissionsMsg('保存失敗：' + em, 'ng');
         showToast('保存失敗：' + em, 'error');
       } else {
+        // 成功：busy 解除 + 確定値で再設定（防御的に input.checked も明示）
         lbl.classList.remove('busy');
         lbl.setAttribute('data-value', next);
+        input.checked = (next === 'TRUE');
         _updateRequiredMissionsCache(sid, field, next);
         _showRequiredMissionsMsg('保存しました', 'ok');
       }
     }).catch(function() {
       input.checked = (String(prev).toUpperCase() === 'TRUE');
       lbl.classList.remove('busy');
+      lbl.setAttribute('data-value', prev);
       _showRequiredMissionsMsg('通信エラー', 'ng');
       showToast('通信エラー', 'error');
     });

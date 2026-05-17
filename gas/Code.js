@@ -7569,6 +7569,8 @@ function getRequiredMissionsManagementData(params) {
         return -1;
       };
       const iGrade  = findCol(GRADE_LEVEL_HEADER_NAME);
+      const iTest   = findCol(TEST_UNLOCKED_HEADER_NAME);
+      const iSango  = findCol(SANGO_UNLOCKED_HEADER_NAME);
       const iWabun1 = findCol(WABUN1_UNLOCKED_HEADER_NAME);
       const iKiso   = findCol(KISO_UNLOCKED_HEADER_NAME);
       const iKanji  = findCol(KANJI_UNLOCKED_HEADER_NAME);
@@ -7583,6 +7585,8 @@ function getRequiredMissionsManagementData(params) {
           nickname:       String(row[COL_NICKNAME] || '').trim(),
           name:           String(row[COL_NAME]     || '').trim(),
           gradeLevel:     iGrade  >= 0 ? String(row[iGrade]  || '').trim() : '',
+          testUnlocked:   iTest   >= 0 ? String(row[iTest]   || '').trim().toUpperCase() : '',
+          sangoUnlocked:  iSango  >= 0 ? String(row[iSango]  || '').trim().toUpperCase() : '',
           wabun1Unlocked: iWabun1 >= 0 ? String(row[iWabun1] || '').trim().toUpperCase() : '',
           kisoUnlocked:   iKiso   >= 0 ? String(row[iKiso]   || '').trim().toUpperCase() : '',
           kanjiUnlocked:  iKanji  >= 0 ? String(row[iKanji]  || '').trim().toUpperCase() : ''
@@ -7618,13 +7622,15 @@ function updateRequiredMission(params) {
     if (!sid)   return { ok: false, message: 'studentId が必要です' };
 
     const HEADER_MAP = {
+      testUnlocked:   TEST_UNLOCKED_HEADER_NAME,
+      sangoUnlocked:  SANGO_UNLOCKED_HEADER_NAME,
       wabun1Unlocked: WABUN1_UNLOCKED_HEADER_NAME,
       kisoUnlocked:   KISO_UNLOCKED_HEADER_NAME,
       kanjiUnlocked:  KANJI_UNLOCKED_HEADER_NAME
     };
     const headerName = HEADER_MAP[field];
     if (!headerName) {
-      return { ok: false, message: 'field は wabun1Unlocked / kisoUnlocked / kanjiUnlocked のいずれかを指定してください' };
+      return { ok: false, message: 'field は testUnlocked / sangoUnlocked / wabun1Unlocked / kisoUnlocked / kanjiUnlocked のいずれかを指定してください' };
     }
     if (value === null) return { ok: false, message: 'value は TRUE / FALSE / 空欄 のいずれかを指定してください' };
 
@@ -15338,10 +15344,13 @@ function getKobunHistory(params) {
 // HPLog の type プレフィックスとのマッピングは _isHpLogTypeForRequired() を参照。
 const REQUIRED_CONTENT_KEYS = ['eitango', 'sango', 'wabun1', 'kiso', 'kanji'];
 
-// 学齢別の必須コンテンツ定義（仕様書通り）。
-// 小学生：英単語RUSH、三語短文、和文英訳①、カンジー（4 つ）
-// 中学生：英単語RUSH、三語短文、和文英訳①、基礎計算、カンジー（5 つ）
-// 高校生：必須なし（自主性重視）
+// 学齢別の必須コンテンツ定義（参考、2026-05-18 以降は未使用）。
+// 旧仕様：学齢で必須リストを決定、wabun1/kiso/kanji のみ開放フラグでさらにフィルタ。
+// 新仕様（2026-05-18）：全コンテンツが個別の開放フラグで制御 + 教科内容上の学齢制約あり。
+//   - eitango / sango : 学齢関係なく TEST_UNLOCKED / SANGO_UNLOCKED の TRUE で必須化（高校生も opt-in 可）
+//   - wabun1 / kanji  : 小・中 + WABUN1_UNLOCKED / KANJI_UNLOCKED が TRUE のとき必須
+//   - kiso            : 中のみ + KISO_UNLOCKED が TRUE のとき必須
+// 判定の本体は _getRequiredContentsForLoc 参照。下の定数は legacy 参照（残置のみ）。
 const REQUIRED_CONTENTS_BY_GRADE = {
   '小1': ['eitango', 'sango', 'wabun1', 'kanji'],
   '小2': ['eitango', 'sango', 'wabun1', 'kanji'],
@@ -15357,19 +15366,34 @@ const REQUIRED_CONTENTS_BY_GRADE = {
   '高3': []
 };
 
-// 開放フラグが反映されるコンテンツ（FALSE なら必須から除外する対象）。
-// eitango / sango は学齢が小・中なら全員必須（開放フラグなし）。
+// 開放フラグが反映されるコンテンツ（FALSE / 空欄なら必須から除外）。
+// 2026-05-18：eitango / sango も追加（旧版は学齢ベースで自動的に必須だったが、
+// 個別に ON/OFF できるように変更。デフォルト空欄なので明示的に TRUE を立てないと非必須）。
 const UNLOCK_FLAG_BY_CONTENT = {
-  wabun1: 'WABUN1_UNLOCKED',
-  kiso:   'KISO_UNLOCKED',
-  kanji:  'KANJI_UNLOCKED'
+  eitango: 'TEST_UNLOCKED',
+  sango:   'SANGO_UNLOCKED',
+  wabun1:  'WABUN1_UNLOCKED',
+  kiso:    'KISO_UNLOCKED',
+  kanji:   'KANJI_UNLOCKED'
 };
 
 // 列ヘッダー名（既存 BIRTHDAY_HEADER_NAME / AVATAR_BASE_HEADER_NAME と同パターン）
 const GRADE_LEVEL_HEADER_NAME     = 'GRADE_LEVEL';
+const TEST_UNLOCKED_HEADER_NAME   = 'TEST_UNLOCKED';
+const SANGO_UNLOCKED_HEADER_NAME  = 'SANGO_UNLOCKED';
 const WABUN1_UNLOCKED_HEADER_NAME = 'WABUN1_UNLOCKED';
 const KISO_UNLOCKED_HEADER_NAME   = 'KISO_UNLOCKED';
 const KANJI_UNLOCKED_HEADER_NAME  = 'KANJI_UNLOCKED';
+
+// 2026-05-18：学齢区分判定ヘルパー（_getRequiredContentsForLoc で使用）
+function _isElemOrJunior(grade) {
+  if (!grade) return false;
+  return grade.indexOf('小') === 0 || grade.indexOf('中') === 0;
+}
+function _isJunior(grade) {
+  if (!grade) return false;
+  return grade.indexOf('中') === 0;
+}
 
 // 保留比率と完走ボーナス基本値
 const REQUIRED_RESERVE_RATIO         = 0.40;  // 必須未完走時：40% を保留、60% を即時付与（2026-05-16 60/40 へ強化、ふくちさん「結構な痛手」設計）
@@ -15506,18 +15530,22 @@ function _isUnlockFlagTrue(rawValue) {
 }
 
 // 学齢 + 開放フラグから、その生徒の必須コンテンツ配列を返す。
-// 高校生 or 学齢未設定なら []。
+// 2026-05-18：全コンテンツが個別の開放フラグで制御される設計に変更。
+// 学齢制約（教科内容上の妥当性ガード）：
+//   - eitango / sango : 学齢関係なく TEST_UNLOCKED / SANGO_UNLOCKED で判定（高校生も opt-in 可）
+//   - wabun1 / kanji  : 小・中限定（高校生は flag を立てても無視）
+//   - kiso            : 中のみ限定（小学生 / 高校生は flag を立てても無視）
+// デフォルト（全フラグ空欄）の生徒は必須リスト [] になり、両輪システム非起動 = 従来挙動と同等。
 function _getRequiredContentsForLoc(loc) {
+  if (!loc) return [];
   const grade = _readGradeLevelFromLoc(loc);
-  const baseList = REQUIRED_CONTENTS_BY_GRADE[grade] || [];
-  if (baseList.length === 0) return [];
-  // 開放フラグでフィルタ：eitango / sango は無条件、それ以外は UNLOCK_FLAG_BY_CONTENT で判定
-  return baseList.filter(function(content) {
-    const flagHeader = UNLOCK_FLAG_BY_CONTENT[content];
-    if (!flagHeader) return true;  // 開放フラグ対象外（eitango, sango）は無条件で必須
-    const rawFlag = _readUnlockFlagFromLoc(loc, flagHeader);
-    return _isUnlockFlagTrue(rawFlag);
-  });
+  const out = [];
+  if (_isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, TEST_UNLOCKED_HEADER_NAME)))  out.push('eitango');
+  if (_isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, SANGO_UNLOCKED_HEADER_NAME))) out.push('sango');
+  if (_isElemOrJunior(grade) && _isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, WABUN1_UNLOCKED_HEADER_NAME))) out.push('wabun1');
+  if (_isJunior(grade)       && _isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, KISO_UNLOCKED_HEADER_NAME)))   out.push('kiso');
+  if (_isElemOrJunior(grade) && _isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, KANJI_UNLOCKED_HEADER_NAME))) out.push('kanji');
+  return out;
 }
 
 // HPLog の type 文字列が required コンテンツ（抽象名）に該当するか判定。
@@ -16052,6 +16080,52 @@ function migrateLineNotifyColumn() {
     return out;
   } catch (e) {
     console.error('[migrateLineNotifyColumn]', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// =============================================================
+// 2026-05-18：TEST_UNLOCKED / SANGO_UNLOCKED 列追加マイグレーション（GAS エディタから 1 回手動実行）
+// =============================================================
+// 既存の WABUN1_UNLOCKED / KISO_UNLOCKED / KANJI_UNLOCKED と同パターン。
+// Students / SpecialAccounts の両シートに列追加（冪等：既存ならスキップ）。
+//
+// 設計変更（同時に行う）：
+//   - 旧: eitango / sango は学齢が小・中なら全員自動的に必須（開放フラグなし）
+//   - 新: eitango / sango も TEST_UNLOCKED / SANGO_UNLOCKED の TRUE で必須化
+//        デフォルト空欄なので、ふくちさんが管理画面から個別に ON にするまで非必須
+//        両輪システム稼働日（2026-05-25）までに各生徒の設定を完了する想定
+//
+// 既存データ：列追加のみ。既存生徒の TEST_UNLOCKED / SANGO_UNLOCKED は空欄のまま。
+// 戻り値: { ok, students: {test, sango}, special: {...} } - 各 boolean は created
+function migrateTestSangoUnlockedColumns() {
+  try {
+    var ss = _ss();
+    var out = { ok: true, students: null, special: null };
+
+    function migrateOne(sheet, sheetName, cacheKey) {
+      if (!sheet) return null;
+      var t = _ensureUnlockFlagColOnSheet(sheet, TEST_UNLOCKED_HEADER_NAME);
+      var s = _ensureUnlockFlagColOnSheet(sheet, SANGO_UNLOCKED_HEADER_NAME);
+      if (t.created || s.created) {
+        try {
+          CacheService.getScriptCache().remove(cacheKey);
+          _cacheLog(cacheKey, 'invalidate', 'migrateTestSangoUnlockedColumns ' + sheetName);
+        } catch(_) {}
+        Logger.log('[migrateTestSangoUnlockedColumns] ' + sheetName
+          + ' TEST_UNLOCKED=' + (t.created ? '新規追加' : '既存')
+          + ' / SANGO_UNLOCKED=' + (s.created ? '新規追加' : '既存'));
+      } else {
+        Logger.log('[migrateTestSangoUnlockedColumns] ' + sheetName + ' 既に両列ありスキップ');
+      }
+      return { test: t.created, sango: s.created };
+    }
+
+    out.students = migrateOne(ss.getSheetByName(SHEET_STUDENTS),         SHEET_STUDENTS,         'cache_students_values');
+    out.special  = migrateOne(ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS), SHEET_SPECIAL_ACCOUNTS, 'cache_special_accounts_values');
+    return out;
+  } catch (e) {
+    console.error('[migrateTestSangoUnlockedColumns]', e);
     return { ok: false, message: String(e) };
   }
 }
