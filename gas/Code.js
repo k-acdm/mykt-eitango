@@ -1146,6 +1146,9 @@ function doGet(e) {
       //   - read は doGet、write は doPost に登録（誤実行防止）。
       else if (action === 'getLineNotifyManagementData')        result = getLineNotifyManagementData(params);
       else if (action === 'getRequiredMissionsManagementData')  result = getRequiredMissionsManagementData(params);
+      // 塾からの連絡：LINE 配信機能（2026-05-18 新規、admin-only）
+      //   - 一覧 read は doGet、追加 / キャンセル write は doPost に登録（誤実行防止 + 画像 base64）。
+      else if (action === 'getNoticeListWithLineStatus')        result = getNoticeListWithLineStatus(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1237,6 +1240,9 @@ function doPost(e) {
     // 塾長権限：LINE 通知管理 + 絶対ミッション設定の更新（admin-only、doPost 強制）
     else if (action === 'updateLineNotifySetting')          result = updateLineNotifySetting(params);
     else if (action === 'updateRequiredMission')            result = updateRequiredMission(params);
+    // 塾からの連絡：LINE 配信機能（2026-05-18 新規、admin-only、画像 base64 のため POST 必須）
+    else if (action === 'addNoticeWithLine')                result = addNoticeWithLine(params);
+    else if (action === 'cancelScheduledNoticeLine')        result = cancelScheduledNoticeLine(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -7181,6 +7187,685 @@ function adminAddNotice(params) {
     return { ok: true };
   } catch(err) {
     console.error('[adminAddNotice]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// 塾からの連絡：LINE 配信機能（2026-05-18 新規）
+// =====================================================
+// 設計：
+//   - 既存 adminAddNotice / Notice シートは温存（後方互換）
+//   - Notice シートに 9 列追加（noticeId / 画像系 2 列 / LINE 配信系 6 列）
+//   - NoticeLineQueue シート新設（予約配信レコード）
+//   - Drive 連携：「マイ活_LINE配信画像」フォルダに画像を保存、公開設定で LINE Messaging API が取得できるようにする
+//   - 配信ロジックは既存 _lineNotifyShouldNotifyParent/Student + _pushLineMessage を再利用
+//   - Time-based Trigger（5 分ごと）で予約配信を実行
+//
+// 新規 API：
+//   - addNoticeWithLine（doPost、画像 base64 を含むため）
+//   - cancelScheduledNoticeLine（doPost、誤実行防止）
+//   - getNoticeListWithLineStatus（doGet、塾長用一覧）
+//   - runScheduledNoticeLineDelivery（GAS エディタ + Time-based Trigger からのみ実行）
+
+// --- 定数 ---
+var SHEET_NOTICE_LINE_QUEUE = 'NoticeLineQueue';
+
+// Notice シート拡張列（順番固定、ensureNoticeLineColumns で末尾追加）
+var NOTICE_ID_HEADER                     = 'noticeId';
+var NOTICE_IMAGE_FILE_ID_HEADER          = 'imageFileId';
+var NOTICE_IMAGE_URL_HEADER              = 'imageUrl';
+var NOTICE_LINE_RECIPIENTS_HEADER        = 'lineRecipients';     // 'parent' / 'student' / 'both' / 'specific'
+var NOTICE_LINE_SPECIFIC_HEADER          = 'lineSpecificStudents'; // JSON 配列文字列
+var NOTICE_LINE_DELIVERY_MODE_HEADER     = 'lineDeliveryMode';   // 'none' / 'immediate' / 'scheduled'
+var NOTICE_LINE_SCHEDULED_AT_HEADER      = 'lineScheduledAt';    // ISO 文字列
+var NOTICE_LINE_DELIVERY_STATUS_HEADER   = 'lineDeliveryStatus'; // 'pending' / 'sent' / 'cancelled' / 'failed'
+var NOTICE_LINE_DELIVERED_AT_HEADER      = 'lineDeliveredAt';    // ISO 文字列
+var NOTICE_NEW_HEADERS = [
+  NOTICE_ID_HEADER,
+  NOTICE_IMAGE_FILE_ID_HEADER,
+  NOTICE_IMAGE_URL_HEADER,
+  NOTICE_LINE_RECIPIENTS_HEADER,
+  NOTICE_LINE_SPECIFIC_HEADER,
+  NOTICE_LINE_DELIVERY_MODE_HEADER,
+  NOTICE_LINE_SCHEDULED_AT_HEADER,
+  NOTICE_LINE_DELIVERY_STATUS_HEADER,
+  NOTICE_LINE_DELIVERED_AT_HEADER
+];
+
+var NOTICE_LINE_QUEUE_HEADERS = [
+  'queueId', 'noticeId', 'scheduledAt', 'recipients', 'specificStudents', 'createdAt'
+];
+
+var NOTICE_LINE_IMAGE_ROOT_FOLDER = 'マイ活_LINE配信画像';
+var NOTICE_LINE_IMAGE_MAX_BYTES   = 5 * 1024 * 1024;  // 5 MB
+var NOTICE_LINE_VALID_MIMES       = ['image/jpeg', 'image/jpg', 'image/png'];
+var NOTICE_LINE_VALID_RECIPIENTS  = ['parent', 'student', 'both', 'specific'];
+var NOTICE_LINE_VALID_DELIVERY_MODES = ['none', 'immediate', 'scheduled'];
+var NOTICE_LINE_DELIVERY_RATE_LIMIT_MS = 200;
+
+// --- セットアップ補助 ---
+
+// Notice シートに 9 列を末尾追加（冪等）。
+// 既存行で noticeId が空の行には UUID を発行して埋め戻す（互換のため）。
+// GAS エディタから 1 回手動実行する。
+function ensureNoticeLineColumns() {
+  try {
+    var sh = _ss().getSheetByName(SHEET_NOTICE);
+    if (!sh) return { ok: false, message: 'Notice シートが見つかりません' };
+    var createdFlags = {};
+    for (var i = 0; i < NOTICE_NEW_HEADERS.length; i++) {
+      var res = _ensureUnlockFlagColOnSheet(sh, NOTICE_NEW_HEADERS[i]);  // 汎用ヘッダー追加ヘルパー
+      createdFlags[NOTICE_NEW_HEADERS[i]] = res.created;
+    }
+    // 既存行の noticeId を backfill（空の行のみ）
+    var lastRow = sh.getLastRow();
+    var lastCol = sh.getLastColumn();
+    if (lastRow >= 2) {
+      var header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+      var iNid = header.indexOf(NOTICE_ID_HEADER);
+      var iStatus = header.indexOf(NOTICE_LINE_DELIVERY_STATUS_HEADER);
+      if (iNid >= 0) {
+        // 一括読み → ローカルで空欄判定 → 個別 setValue
+        var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+        var backfilledCount = 0;
+        for (var r = 0; r < values.length; r++) {
+          var v = String(values[r][iNid] || '').trim();
+          if (!v) {
+            var nid = 'N_' + Utilities.getUuid();
+            sh.getRange(r + 2, iNid + 1).setValue(nid);
+            backfilledCount++;
+          }
+        }
+        if (backfilledCount > 0) {
+          Logger.log('[ensureNoticeLineColumns] noticeId backfill: ' + backfilledCount + ' rows');
+        }
+      }
+    }
+    _invalidateCache('cache_notice_values');
+    return { ok: true, created: createdFlags };
+  } catch (e) {
+    console.error('[ensureNoticeLineColumns]', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// NoticeLineQueue シートを作成（_ensureSheetWithHeaders 流用、冪等）。
+function ensureNoticeLineQueueSheet() {
+  return _ensureSheetWithHeaders(SHEET_NOTICE_LINE_QUEUE, NOTICE_LINE_QUEUE_HEADERS, 1);
+}
+
+// --- Drive 連携（画像アップロード） ---
+
+function _ensureNoticeLineImageFolder() {
+  var it = DriveApp.getFoldersByName(NOTICE_LINE_IMAGE_ROOT_FOLDER);
+  if (it.hasNext()) return it.next();
+  return DriveApp.createFolder(NOTICE_LINE_IMAGE_ROOT_FOLDER);
+}
+
+// 画像を Drive にアップロードし、公開 URL を返す。
+// 戻り値: { ok, fileId, publicUrl } または { ok:false, message }
+function _saveNoticeLineImage(noticeId, imageBase64, mimeType) {
+  try {
+    if (!imageBase64) return { ok: false, message: '画像データが空です' };
+    var mt = String(mimeType || '').trim().toLowerCase();
+    if (NOTICE_LINE_VALID_MIMES.indexOf(mt) < 0) {
+      return { ok: false, message: '画像形式は JPG / PNG のみ対応しています' };
+    }
+    // base64 デコード + サイズチェック
+    var decoded = Utilities.base64Decode(String(imageBase64));
+    if (decoded.length > NOTICE_LINE_IMAGE_MAX_BYTES) {
+      return { ok: false, message: '画像サイズは 5MB 以下にしてください（現在: ' + Math.round(decoded.length / 1024) + ' KB）' };
+    }
+    var ext = (mt === 'image/png') ? 'png' : 'jpg';
+    var fileName = 'notice_' + String(noticeId || 'unknown') + '.' + ext;
+    var blob = Utilities.newBlob(decoded, mt, fileName);
+    var folder = _ensureNoticeLineImageFolder();
+    var file = folder.createFile(blob);
+    // 公開設定：リンクを知っている全員が閲覧可（LINE Messaging API が画像取得するため必須）
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var fileId = file.getId();
+    var publicUrl = 'https://drive.google.com/uc?export=view&id=' + fileId;
+    return { ok: true, fileId: fileId, publicUrl: publicUrl };
+  } catch (e) {
+    console.error('[_saveNoticeLineImage]', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// --- 文面組立 ---
+
+function _buildNoticeLineTextMessage(title, body) {
+  var t = String(title || '').trim();
+  var b = String(body || '').trim();
+  return '📢 マイカツ君（マイ活アプリ）からの連絡\n\n'
+       + t + '\n\n'
+       + b + '\n\n'
+       + '— 春日部アカデミー　講師一同';
+}
+
+// LINE Messaging API：複数メッセージ送信（テキスト + 画像）。
+// 既存 _pushLineMessage はテキスト単発のみ。これは messages 配列を直接送る版。
+// 戻り値: { ok, status?, error?, attempts }
+function _pushLineMessagesMulti(userId, messages) {
+  var token = _getLineMessagingAccessToken();
+  if (!token) return { ok: false, error: 'LINE_MESSAGING_CHANNEL_ACCESS_TOKEN 未設定', attempts: 0 };
+  var uid = String(userId || '').trim();
+  if (!uid) return { ok: false, error: 'userId が空', attempts: 0 };
+  if (!messages || !messages.length) return { ok: false, error: 'messages が空', attempts: 0 };
+  if (messages.length > 5) return { ok: false, error: 'messages は最大 5 件まで', attempts: 0 };
+  var body = { to: uid, messages: messages };
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + token },
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  };
+  var attempts = 0;
+  var lastStatus = 0;
+  var lastErrText = '';
+  for (var attempt = 0; attempt <= LINE_MESSAGING_RETRY_MAX; attempt++) {
+    attempts++;
+    var res;
+    try {
+      res = UrlFetchApp.fetch(LINE_MESSAGING_PUSH_URL, options);
+    } catch (e) {
+      lastErrText = String(e && e.message || e);
+      return { ok: false, error: 'fetch_exception: ' + lastErrText, attempts: attempts };
+    }
+    lastStatus = res.getResponseCode();
+    if (lastStatus === 200) {
+      return { ok: true, status: 200, attempts: attempts };
+    }
+    lastErrText = String(res.getContentText() || '').substring(0, 500);
+    if (lastStatus === 429 && attempt < LINE_MESSAGING_RETRY_MAX) {
+      Utilities.sleep(LINE_MESSAGING_RETRY_WAIT_MS);
+      continue;
+    }
+    break;
+  }
+  return { ok: false, status: lastStatus, error: 'http_' + lastStatus + ': ' + lastErrText, attempts: attempts };
+}
+
+// --- 配信対象解決 ---
+
+// 戻り値: [{ studentId, nickname, userId, targetType: 'parent'|'student' }]
+//   - 'parent'   : NOTIFY_LINE_PARENT が ON 扱い (true) の保護者全員
+//   - 'student'  : NOTIFY_LINE_STUDENT が ON 扱いの生徒本人全員
+//   - 'both'     : 両方
+//   - 'specific' : specificStudents 配列の各生徒の parent + student（opt-out は尊重）
+// 既存の _lineNotifyBuildStudentSnapshots を流用して shouldNotify を判定。
+function _resolveNoticeLineRecipients(recipients, specificStudents) {
+  var snapshots = _lineNotifyBuildStudentSnapshots();
+  var out = [];
+  var mode = String(recipients || '').trim();
+
+  if (mode === 'specific') {
+    var idSet = {};
+    var arr = Array.isArray(specificStudents) ? specificStudents : [];
+    arr.forEach(function(s){
+      var v = String(s || '').trim();
+      if (v) idSet[v] = true;
+    });
+    for (var i = 0; i < snapshots.length; i++) {
+      var s = snapshots[i];
+      if (!idSet[s.sid]) continue;
+      // specific でも opt-out（明示 FALSE / 高校生空欄）は尊重
+      if (s.shouldNotifyParent  && s.parentUserId)  out.push({ studentId: s.sid, nickname: s.nickname, userId: s.parentUserId,  targetType: 'parent'  });
+      if (s.shouldNotifyStudent && s.studentUserId) out.push({ studentId: s.sid, nickname: s.nickname, userId: s.studentUserId, targetType: 'student' });
+    }
+    return out;
+  }
+
+  // 'parent' / 'student' / 'both'
+  var wantParent  = (mode === 'parent'  || mode === 'both');
+  var wantStudent = (mode === 'student' || mode === 'both');
+  for (var j = 0; j < snapshots.length; j++) {
+    var sn = snapshots[j];
+    if (wantParent  && sn.shouldNotifyParent  && sn.parentUserId)  out.push({ studentId: sn.sid, nickname: sn.nickname, userId: sn.parentUserId,  targetType: 'parent'  });
+    if (wantStudent && sn.shouldNotifyStudent && sn.studentUserId) out.push({ studentId: sn.sid, nickname: sn.nickname, userId: sn.studentUserId, targetType: 'student' });
+  }
+  return out;
+}
+
+// --- 配信実行（コア） ---
+
+// 戻り値: { ok, delivered, failed, totalTargets, sampleErrors }
+// 失敗してもループは継続（_pushLineMessagesMulti は throw しない）。
+function _executeNoticeLineDelivery(noticeData) {
+  try {
+    var title         = String(noticeData.title || '').trim();
+    var body          = String(noticeData.body  || '').trim();
+    var imageUrl      = String(noticeData.imageUrl || '').trim();
+    var recipients    = String(noticeData.lineRecipients || '').trim();
+    var specificArr   = [];
+    try {
+      if (noticeData.lineSpecificStudents) specificArr = JSON.parse(noticeData.lineSpecificStudents) || [];
+    } catch(_){}
+
+    var targets = _resolveNoticeLineRecipients(recipients, specificArr);
+    if (targets.length === 0) {
+      return { ok: true, delivered: 0, failed: 0, totalTargets: 0, sampleErrors: [] };
+    }
+
+    var textMsg = _buildNoticeLineTextMessage(title, body);
+    var messages = [{ type: 'text', text: textMsg }];
+    if (imageUrl) {
+      messages.push({
+        type: 'image',
+        originalContentUrl: imageUrl,
+        previewImageUrl:    imageUrl
+      });
+    }
+
+    var delivered = 0;
+    var failed = 0;
+    var sampleErrors = [];
+    for (var i = 0; i < targets.length; i++) {
+      var t = targets[i];
+      var r = _pushLineMessagesMulti(t.userId, messages);
+      if (r.ok) {
+        delivered++;
+      } else {
+        failed++;
+        if (sampleErrors.length < 5) sampleErrors.push({ studentId: t.studentId, targetType: t.targetType, error: r.error });
+      }
+      // レート制限
+      Utilities.sleep(NOTICE_LINE_DELIVERY_RATE_LIMIT_MS);
+    }
+    return { ok: true, delivered: delivered, failed: failed, totalTargets: targets.length, sampleErrors: sampleErrors };
+  } catch (e) {
+    console.error('[_executeNoticeLineDelivery]', e);
+    return { ok: false, message: String(e), delivered: 0, failed: 0, totalTargets: 0 };
+  }
+}
+
+// --- Notice シート操作ヘルパー ---
+
+// noticeId で行を特定。戻り値: { rowIdx (1-based), values (行全体), header } または null
+function _findNoticeRowByNoticeId(noticeId) {
+  var sh = _ss().getSheetByName(SHEET_NOTICE);
+  if (!sh || sh.getLastRow() < 2) return null;
+  var lastCol = sh.getLastColumn();
+  var values = sh.getRange(1, 1, sh.getLastRow(), lastCol).getValues();
+  var header = values[0];
+  var iNid = header.indexOf(NOTICE_ID_HEADER);
+  if (iNid < 0) return null;
+  var target = String(noticeId || '').trim();
+  if (!target) return null;
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][iNid] || '').trim() === target) {
+      return { rowIdx: i + 1, values: values[i], header: header };
+    }
+  }
+  return null;
+}
+
+// 指定 noticeId 行の指定列を setValue で更新。
+function _updateNoticeColumn(noticeId, headerName, value) {
+  var loc = _findNoticeRowByNoticeId(noticeId);
+  if (!loc) return { ok: false, message: 'noticeId が見つかりません: ' + noticeId };
+  var idx = loc.header.indexOf(headerName);
+  if (idx < 0) return { ok: false, message: '列が見つかりません: ' + headerName };
+  var sh = _ss().getSheetByName(SHEET_NOTICE);
+  sh.getRange(loc.rowIdx, idx + 1).setValue(value);
+  _invalidateCache('cache_notice_values');
+  return { ok: true };
+}
+
+// --- 3 公開 API ---
+
+// 連絡事項 + LINE 配信設定の追加（塾長専用、doPost 強制）
+// params: {
+//   teacherId, password,
+//   date, title, body,
+//   imageFileBase64, imageMimeType,         // 任意
+//   lineRecipients,                          // 'none' / 'parent' / 'student' / 'both' / 'specific'
+//   lineSpecificStudents,                    // 'specific' のとき配列
+//   lineDeliveryMode,                        // 'none' / 'immediate' / 'scheduled'
+//   lineScheduledAt                          // 'scheduled' のとき ISO 文字列
+// }
+// 戻り値: { ok, noticeId, imageUrl?, deliveryResult? }
+function addNoticeWithLine(params) {
+  try {
+    var _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    var date  = String((params && params.date)  || '').trim();
+    var title = String((params && params.title) || '').trim();
+    var body  = String((params && params.body)  || '').trim();
+    if (!date || !title || !body) return { ok: false, message: '日付・タイトル・本文は必須です' };
+
+    var deliveryMode = String((params && params.lineDeliveryMode) || 'none').trim();
+    if (NOTICE_LINE_VALID_DELIVERY_MODES.indexOf(deliveryMode) < 0) {
+      return { ok: false, message: 'lineDeliveryMode が不正です' };
+    }
+    var recipients = String((params && params.lineRecipients) || '').trim();
+    var specificStudents = Array.isArray(params && params.lineSpecificStudents) ? params.lineSpecificStudents.slice() : [];
+
+    // 配信モードが 'none' なら recipients は問わない。それ以外は recipients 必須。
+    if (deliveryMode !== 'none') {
+      if (NOTICE_LINE_VALID_RECIPIENTS.indexOf(recipients) < 0) {
+        return { ok: false, message: 'lineRecipients は parent / student / both / specific のいずれかを指定してください' };
+      }
+      if (recipients === 'specific') {
+        // 配列正規化
+        var seen = {};
+        var uniq = [];
+        specificStudents.forEach(function(s){
+          var v = String(s || '').trim();
+          if (v && !seen[v]) { seen[v] = true; uniq.push(v); }
+        });
+        if (uniq.length === 0) return { ok: false, message: 'specific の場合は対象生徒を 1 人以上指定してください' };
+        specificStudents = uniq;
+      } else {
+        specificStudents = [];
+      }
+    } else {
+      recipients = '';
+      specificStudents = [];
+    }
+
+    // 予約配信時は日時必須 + 妥当性チェック
+    var scheduledAtIso = '';
+    if (deliveryMode === 'scheduled') {
+      scheduledAtIso = String((params && params.lineScheduledAt) || '').trim();
+      if (!scheduledAtIso) return { ok: false, message: '予約配信時は配信日時の指定が必須です' };
+      var schDate = new Date(scheduledAtIso);
+      if (isNaN(schDate.getTime())) return { ok: false, message: '配信日時の形式が不正です' };
+      if (schDate.getTime() <= Date.now()) return { ok: false, message: '配信日時は未来を指定してください' };
+    }
+
+    // 自動セットアップ（冪等）
+    try { ensureNoticeLineColumns(); } catch(_){}
+    try { ensureNoticeLineQueueSheet(); } catch(_){}
+
+    // 画像アップロード（任意）
+    var noticeId = 'N_' + Utilities.getUuid();
+    var imageFileId = '';
+    var imageUrl    = '';
+    if (params && params.imageFileBase64) {
+      var imgRes = _saveNoticeLineImage(noticeId, params.imageFileBase64, params.imageMimeType);
+      if (!imgRes.ok) return { ok: false, message: '画像のアップロードに失敗：' + imgRes.message };
+      imageFileId = imgRes.fileId;
+      imageUrl    = imgRes.publicUrl;
+    }
+
+    // 配信ステータスの初期値
+    var initialStatus = '';
+    if (deliveryMode === 'immediate') initialStatus = 'pending';
+    else if (deliveryMode === 'scheduled') initialStatus = 'pending';
+    else initialStatus = '';  // 'none' は空欄（アプリ内のみ）
+
+    // Notice シートに行追加
+    var sh = _ss().getSheetByName(SHEET_NOTICE);
+    if (!sh) return { ok: false, message: 'Notice シートが見つかりません' };
+    // ヘッダー駆動で値を埋める（列順は ensure 完了後の実際のヘッダー順）
+    var lastCol = sh.getLastColumn();
+    var header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var rowToInsert = new Array(lastCol).fill('');
+    function setByHeader(headerName, value) {
+      var idx = header.indexOf(headerName);
+      if (idx >= 0) rowToInsert[idx] = value;
+    }
+    setByHeader('date',  date);
+    setByHeader('title', title);
+    setByHeader('body',  body);
+    setByHeader(NOTICE_ID_HEADER,                   noticeId);
+    setByHeader(NOTICE_IMAGE_FILE_ID_HEADER,        imageFileId);
+    setByHeader(NOTICE_IMAGE_URL_HEADER,            imageUrl);
+    setByHeader(NOTICE_LINE_RECIPIENTS_HEADER,      recipients);
+    setByHeader(NOTICE_LINE_SPECIFIC_HEADER,        specificStudents.length > 0 ? JSON.stringify(specificStudents) : '');
+    setByHeader(NOTICE_LINE_DELIVERY_MODE_HEADER,   deliveryMode);
+    setByHeader(NOTICE_LINE_SCHEDULED_AT_HEADER,    scheduledAtIso);
+    setByHeader(NOTICE_LINE_DELIVERY_STATUS_HEADER, initialStatus);
+    setByHeader(NOTICE_LINE_DELIVERED_AT_HEADER,    '');
+    sh.getRange(sh.getLastRow() + 1, 1, 1, lastCol).setValues([rowToInsert]);
+    _invalidateCache('cache_notice_values');
+
+    var deliveryResult = null;
+    if (deliveryMode === 'immediate') {
+      // 即時配信
+      deliveryResult = _executeNoticeLineDelivery({
+        title: title, body: body, imageUrl: imageUrl,
+        lineRecipients: recipients,
+        lineSpecificStudents: specificStudents.length > 0 ? JSON.stringify(specificStudents) : ''
+      });
+      // ステータス更新
+      var finalStatus = (deliveryResult.ok && deliveryResult.failed === 0) ? 'sent'
+                      : (deliveryResult.delivered > 0) ? 'sent'  // 一部成功も 'sent' 扱い（運用判断）
+                      : 'failed';
+      _updateNoticeColumn(noticeId, NOTICE_LINE_DELIVERY_STATUS_HEADER, finalStatus);
+      _updateNoticeColumn(noticeId, NOTICE_LINE_DELIVERED_AT_HEADER, _nowJST());
+    } else if (deliveryMode === 'scheduled') {
+      // NoticeLineQueue に登録
+      var qSh = _ss().getSheetByName(SHEET_NOTICE_LINE_QUEUE);
+      if (qSh) {
+        qSh.appendRow([
+          'Q_' + Utilities.getUuid(),
+          noticeId,
+          scheduledAtIso,
+          recipients,
+          specificStudents.length > 0 ? JSON.stringify(specificStudents) : '',
+          _nowJST()
+        ]);
+      }
+    }
+
+    _logTeacherAction(_teacher.teacherId, 'NOTICE_ADD_WITH_LINE', '', 'success', {
+      noticeId:        noticeId,
+      hasImage:        !!imageFileId,
+      lineRecipients:  recipients,
+      deliveryMode:    deliveryMode,
+      scheduledAt:     scheduledAtIso,
+      specificCount:   specificStudents.length,
+      delivered:       (deliveryResult && deliveryResult.delivered) || 0,
+      failed:          (deliveryResult && deliveryResult.failed)    || 0
+    });
+
+    return {
+      ok: true,
+      noticeId: noticeId,
+      imageUrl: imageUrl,
+      deliveryResult: deliveryResult
+    };
+  } catch (err) {
+    console.error('[addNoticeWithLine]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 予約配信のキャンセル（塾長専用、doPost 強制）
+// params: { teacherId, password, noticeId }
+function cancelScheduledNoticeLine(params) {
+  try {
+    var _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    var noticeId = String((params && params.noticeId) || '').trim();
+    if (!noticeId) return { ok: false, message: 'noticeId が必要です' };
+
+    // NoticeLineQueue から該当行を削除（複数あり得るが noticeId 単位で削除）
+    var qSh = _ss().getSheetByName(SHEET_NOTICE_LINE_QUEUE);
+    var deletedQueue = 0;
+    if (qSh && qSh.getLastRow() >= 2) {
+      var qLastCol = qSh.getLastColumn();
+      var qValues = qSh.getRange(1, 1, qSh.getLastRow(), qLastCol).getValues();
+      var qHeader = qValues[0];
+      var iNid = qHeader.indexOf('noticeId');
+      if (iNid >= 0) {
+        // 降順に削除（行シフト回避）
+        for (var i = qValues.length - 1; i >= 1; i--) {
+          if (String(qValues[i][iNid] || '').trim() === noticeId) {
+            qSh.deleteRow(i + 1);
+            deletedQueue++;
+          }
+        }
+      }
+    }
+
+    // Notice の lineDeliveryStatus を 'cancelled' に
+    var statRes = _updateNoticeColumn(noticeId, NOTICE_LINE_DELIVERY_STATUS_HEADER, 'cancelled');
+    if (!statRes.ok) return statRes;
+
+    _logTeacherAction(_teacher.teacherId, 'NOTICE_LINE_CANCEL', '', 'success', {
+      noticeId:      noticeId,
+      deletedQueue:  deletedQueue
+    });
+
+    return { ok: true, noticeId: noticeId, deletedQueue: deletedQueue };
+  } catch (err) {
+    console.error('[cancelScheduledNoticeLine]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 連絡事項一覧 + LINE 配信状況（塾長専用、doGet）
+function getNoticeListWithLineStatus(params) {
+  try {
+    var _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    var sh = _ss().getSheetByName(SHEET_NOTICE);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, notices: [] };
+    var lastCol = sh.getLastColumn();
+    var values = sh.getRange(1, 1, sh.getLastRow(), lastCol).getValues();
+    var header = values[0];
+    var iDate    = header.indexOf('date');
+    var iTitle   = header.indexOf('title');
+    var iBody    = header.indexOf('body');
+    var iNid     = header.indexOf(NOTICE_ID_HEADER);
+    var iImgId   = header.indexOf(NOTICE_IMAGE_FILE_ID_HEADER);
+    var iImgUrl  = header.indexOf(NOTICE_IMAGE_URL_HEADER);
+    var iRecip   = header.indexOf(NOTICE_LINE_RECIPIENTS_HEADER);
+    var iSpec    = header.indexOf(NOTICE_LINE_SPECIFIC_HEADER);
+    var iMode    = header.indexOf(NOTICE_LINE_DELIVERY_MODE_HEADER);
+    var iSched   = header.indexOf(NOTICE_LINE_SCHEDULED_AT_HEADER);
+    var iStat    = header.indexOf(NOTICE_LINE_DELIVERY_STATUS_HEADER);
+    var iDelvd   = header.indexOf(NOTICE_LINE_DELIVERED_AT_HEADER);
+    var rows = [];
+    for (var i = 1; i < values.length; i++) {
+      var r = values[i];
+      if (!(r[iDate] || r[iTitle] || r[iBody])) continue;
+      var dateStr = r[iDate] ? Utilities.formatDate(new Date(r[iDate]), 'Asia/Tokyo', 'yyyy-MM-dd') : '';
+      var specArr = [];
+      if (iSpec >= 0 && r[iSpec]) { try { specArr = JSON.parse(r[iSpec]) || []; } catch(_){} }
+      rows.push({
+        idx:              i,
+        noticeId:         iNid >= 0 ? String(r[iNid] || '').trim() : '',
+        date:             dateStr,
+        title:            String(r[iTitle] || ''),
+        body:             String(r[iBody]  || ''),
+        imageFileId:      iImgId >= 0 ? String(r[iImgId] || '').trim() : '',
+        imageUrl:         iImgUrl >= 0 ? String(r[iImgUrl] || '').trim() : '',
+        lineRecipients:   iRecip >= 0 ? String(r[iRecip] || '').trim() : '',
+        lineSpecificStudents: specArr,
+        lineDeliveryMode: iMode >= 0 ? String(r[iMode] || '').trim() : '',
+        lineScheduledAt:  iSched >= 0 ? String(r[iSched] || '').trim() : '',
+        lineDeliveryStatus: iStat >= 0 ? String(r[iStat] || '').trim() : '',
+        lineDeliveredAt:  iDelvd >= 0 ? String(r[iDelvd] || '').trim() : ''
+      });
+    }
+    // date 降順 + 同日は idx 降順
+    rows.sort(function(a, b){
+      var da = new Date(a.date).getTime() || 0;
+      var db = new Date(b.date).getTime() || 0;
+      if (db !== da) return db - da;
+      return b.idx - a.idx;
+    });
+    // idx はクライアントに不要なので外す
+    rows.forEach(function(x){ delete x.idx; });
+    return { ok: true, notices: rows };
+  } catch (err) {
+    console.error('[getNoticeListWithLineStatus]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// --- 予約配信実行（Time-based Trigger から起動） ---
+// ふくちさん側で Apps Script UI から time-driven trigger を 1 つ作成する。
+//   関数: runScheduledNoticeLineDelivery / 時間ベースで 5 分ごと
+function runScheduledNoticeLineDelivery() {
+  try {
+    ensureNoticeLineQueueSheet();
+    var qSh = _ss().getSheetByName(SHEET_NOTICE_LINE_QUEUE);
+    if (!qSh || qSh.getLastRow() < 2) {
+      console.log('[runScheduledNoticeLineDelivery] queue empty');
+      return { ok: true, processed: 0 };
+    }
+    var qLastCol = qSh.getLastColumn();
+    var qValues = qSh.getRange(1, 1, qSh.getLastRow(), qLastCol).getValues();
+    var qHeader = qValues[0];
+    var iQid    = qHeader.indexOf('queueId');
+    var iNid    = qHeader.indexOf('noticeId');
+    var iSched  = qHeader.indexOf('scheduledAt');
+    var iRecip  = qHeader.indexOf('recipients');
+    var iSpec   = qHeader.indexOf('specificStudents');
+    if (iQid < 0 || iNid < 0 || iSched < 0) {
+      console.error('[runScheduledNoticeLineDelivery] queue header invalid');
+      return { ok: false, message: 'queue header invalid' };
+    }
+    var now = Date.now();
+    var toProcess = [];   // { rowIdx (1-based) ascending, queueId, noticeId, recipients, specificStudents }
+    for (var i = 1; i < qValues.length; i++) {
+      var schStr = String(qValues[i][iSched] || '').trim();
+      if (!schStr) continue;
+      var schT = new Date(schStr).getTime();
+      if (isNaN(schT)) continue;
+      if (schT > now) continue;  // まだ時間が来ていない
+      toProcess.push({
+        rowIdx:     i + 1,
+        queueId:    String(qValues[i][iQid] || '').trim(),
+        noticeId:   String(qValues[i][iNid] || '').trim(),
+        recipients: iRecip >= 0 ? String(qValues[i][iRecip] || '').trim() : '',
+        specificStudents: iSpec >= 0 ? String(qValues[i][iSpec] || '').trim() : ''
+      });
+    }
+    if (toProcess.length === 0) {
+      console.log('[runScheduledNoticeLineDelivery] no due rows');
+      return { ok: true, processed: 0 };
+    }
+    var processed = 0;
+    var failed = 0;
+    for (var k = 0; k < toProcess.length; k++) {
+      var p = toProcess[k];
+      // Notice 行を取得
+      var loc = _findNoticeRowByNoticeId(p.noticeId);
+      if (!loc) {
+        console.error('[runScheduledNoticeLineDelivery] notice not found: ' + p.noticeId);
+        failed++;
+        continue;
+      }
+      var hdr = loc.header;
+      var title    = String(loc.values[hdr.indexOf('title')] || '');
+      var body     = String(loc.values[hdr.indexOf('body')]  || '');
+      var imageUrl = String(loc.values[hdr.indexOf(NOTICE_IMAGE_URL_HEADER)] || '');
+      var noticeData = {
+        title: title, body: body, imageUrl: imageUrl,
+        lineRecipients: p.recipients,
+        lineSpecificStudents: p.specificStudents
+      };
+      var result = _executeNoticeLineDelivery(noticeData);
+      var finalStatus = (result.ok && (result.failed === 0 || result.delivered > 0)) ? 'sent' : 'failed';
+      _updateNoticeColumn(p.noticeId, NOTICE_LINE_DELIVERY_STATUS_HEADER, finalStatus);
+      _updateNoticeColumn(p.noticeId, NOTICE_LINE_DELIVERED_AT_HEADER, _nowJST());
+      processed++;
+      console.log('[runScheduledNoticeLineDelivery] processed noticeId=' + p.noticeId
+        + ' delivered=' + result.delivered + ' failed=' + result.failed);
+    }
+    // Queue から処理済み行を降順削除（行シフト回避）
+    toProcess.sort(function(a,b){ return b.rowIdx - a.rowIdx; });
+    for (var d = 0; d < toProcess.length; d++) {
+      try { qSh.deleteRow(toProcess[d].rowIdx); } catch(e){ console.error('[runScheduledNoticeLineDelivery] deleteRow', e); }
+    }
+    console.log('[runScheduledNoticeLineDelivery] processed=' + processed + ' failed=' + failed);
+    return { ok: true, processed: processed, failed: failed };
+  } catch (err) {
+    console.error('[runScheduledNoticeLineDelivery]', err);
     return { ok: false, message: String(err) };
   }
 }

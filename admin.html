@@ -523,6 +523,32 @@
   .action-log-pager-info { color: #666; font-size: 13px; }
 
   /* =============================================================
+     塾からの連絡：LINE 配信機能（2026-05-18 新規）
+     ============================================================= */
+  .notice-image-preview { margin-top: 10px; padding: 10px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center; }
+  .notice-image-preview img { max-width: 100%; max-height: 200px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .notice-line-section { padding: 10px 12px; background: #f9fbff; border-radius: 8px; border: 1px solid #e0e8f5; }
+  .notice-scheduled-card { padding: 10px 14px; background: #fff7ed; border-left: 3px solid #fb923c; border-radius: 6px; }
+  .notice-scheduled-card input[type=datetime-local] { width: 100%; padding: 8px 10px; border: 2px solid #e1e5ee; border-radius: 6px; font-family: inherit; font-size: 14px; }
+  .notice-list-card { padding: 14px 16px; background: #fff; border: 1px solid #e1e5ee; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .notice-list-card .nl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .notice-list-card .nl-date { font-size: 13px; color: #666; font-weight: 600; }
+  .notice-list-card .nl-title { font-size: 16px; font-weight: 700; color: #333; margin: 4px 0; }
+  .notice-list-card .nl-body { font-size: 13px; color: #555; line-height: 1.7; white-space: pre-wrap; word-break: break-word; margin-top: 6px; }
+  .notice-list-card .nl-body.truncated { max-height: 4.5em; overflow: hidden; position: relative; }
+  .notice-list-card .nl-body.truncated::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1.5em; background: linear-gradient(transparent, #fff); }
+  .notice-list-card .nl-image-badge { display: inline-block; padding: 2px 8px; background: #fef3c7; color: #92400e; border-radius: 999px; font-size: 11px; font-weight: 600; margin-top: 6px; }
+  .notice-list-card .nl-line-info { margin-top: 8px; padding: 8px 10px; background: #f0f9ff; border-left: 3px solid #4f7df0; border-radius: 4px; font-size: 12px; color: #0c4a6e; line-height: 1.6; }
+  .notice-list-card .nl-status-pending   { color: #b45309; font-weight: 600; }
+  .notice-list-card .nl-status-sent      { color: #15803d; font-weight: 600; }
+  .notice-list-card .nl-status-cancelled { color: #6b7280; font-weight: 600; }
+  .notice-list-card .nl-status-failed    { color: #b91c1c; font-weight: 600; }
+  .notice-list-card .nl-actions { margin-top: 8px; }
+  .notice-list-card .nl-cancel-btn { padding: 6px 14px; background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .notice-list-card .nl-cancel-btn:hover { background: #fecaca; }
+  .notice-list-card .nl-cancel-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* =============================================================
      塾長権限：LINE通知管理 + 絶対ミッション設定（2026-05-18 新規）
      ============================================================= */
   /* テーブル共通（admin-mgmt-table） */
@@ -1516,17 +1542,131 @@
     ]
   });
 
-  // --- 塾からの連絡 ---
+  // --- 塾からの連絡（2026-05-18 LINE 配信機能追加で custom 型に変更） ---
+  // 旧版：シンプルな adminAddNotice 呼び出しの form。
+  // 新版：画像添付 + LINE 配信設定 + 過去一覧 + キャンセル可能な統合 UI。
   registerAdminModule({
     id: 'notice',
     label: '📢 塾からの連絡',
-    action: 'adminAddNotice',
-    successMsg: '連絡事項を追加しました',
-    fields: [
-      { name: 'date',  label: '日付',     type: 'date',     required: true, default: _todayStr },
-      { name: 'title', label: 'タイトル', type: 'text',     required: true, placeholder: '例：冬期講習のお知らせ' },
-      { name: 'body',  label: '本文',     type: 'textarea', required: true, placeholder: '連絡内容' }
-    ]
+    type: 'custom',
+    render: function(section) {
+      section.innerHTML =
+        '<div class="form-card">' +
+          '<h2>📢 塾からの連絡を追加</h2>' +
+          '<label>' +
+            '<span class="form-label">日付 <span class="form-required">必須</span></span>' +
+            '<input type="date" id="notice-date" />' +
+          '</label>' +
+          '<label>' +
+            '<span class="form-label">タイトル <span class="form-required">必須</span></span>' +
+            '<input type="text" id="notice-title" maxlength="80" placeholder="例：冬期講習のお知らせ" />' +
+          '</label>' +
+          '<label>' +
+            '<span class="form-label">本文 <span class="form-required">必須</span></span>' +
+            '<textarea id="notice-body" maxlength="1000" placeholder="連絡内容（最大 1000 文字）"></textarea>' +
+          '</label>' +
+
+          '<label style="margin-top:10px">' +
+            '<span class="form-label">📎 画像（任意、JPG/PNG、最大 5MB）</span>' +
+            '<input type="file" id="notice-image" accept="image/jpeg,image/png,image/jpg" onchange="onNoticeImageSelected(this)" />' +
+            '<span class="form-hint">⚠️ 個人情報を含む画像は配信しないでください。LINE 配信時のみ使用されます。</span>' +
+            '<div id="notice-image-preview" class="notice-image-preview" style="display:none">' +
+              '<img id="notice-image-preview-img" alt="" />' +
+              '<button type="button" class="btn-mini" onclick="clearNoticeImage()" style="margin-top:6px">🗑️ 画像を削除</button>' +
+            '</div>' +
+          '</label>' +
+
+          '<hr style="border:none;border-top:1px solid #e1e5ee;margin:18px 0" />' +
+
+          '<h3 style="font-size:15px;color:#4f7df0;margin:6px 0 10px">🎯 LINE 配信設定</h3>' +
+
+          '<div class="notice-line-section">' +
+            '<div class="form-label">配信タイミング</div>' +
+            '<div class="tm-radio-group">' +
+              '<label class="tm-radio-row selected" onclick="setNoticeLineMode(\'none\')">' +
+                '<input type="radio" name="notice-line-mode" value="none" checked />' +
+                '<span class="tm-radio-label">⚪ 配信しない（アプリ内のみ）</span>' +
+              '</label>' +
+              '<label class="tm-radio-row" onclick="setNoticeLineMode(\'immediate\')">' +
+                '<input type="radio" name="notice-line-mode" value="immediate" />' +
+                '<span class="tm-radio-label">⚪ 投稿時に即時配信</span>' +
+              '</label>' +
+              '<label class="tm-radio-row" onclick="setNoticeLineMode(\'scheduled\')">' +
+                '<input type="radio" name="notice-line-mode" value="scheduled" />' +
+                '<span class="tm-radio-label">⚪ 予約配信</span>' +
+                '<span class="tm-radio-note">配信日時を指定</span>' +
+              '</label>' +
+            '</div>' +
+            '<div id="notice-scheduled-card" class="notice-scheduled-card" style="display:none;margin-top:8px">' +
+              '<label>' +
+                '<span class="form-label">配信日時（未来の時刻を指定）</span>' +
+                '<input type="datetime-local" id="notice-scheduled-at" />' +
+              '</label>' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="notice-line-section" id="notice-line-recipients-card" style="display:none;margin-top:14px">' +
+            '<div class="form-label">配信対象</div>' +
+            '<div class="tm-radio-group">' +
+              '<label class="tm-radio-row" onclick="setNoticeLineRecipients(\'parent\')">' +
+                '<input type="radio" name="notice-line-recipients" value="parent" />' +
+                '<span class="tm-radio-label">⚪ 保護者だけ</span>' +
+              '</label>' +
+              '<label class="tm-radio-row" onclick="setNoticeLineRecipients(\'student\')">' +
+                '<input type="radio" name="notice-line-recipients" value="student" />' +
+                '<span class="tm-radio-label">⚪ 生徒だけ</span>' +
+              '</label>' +
+              '<label class="tm-radio-row selected" onclick="setNoticeLineRecipients(\'both\')">' +
+                '<input type="radio" name="notice-line-recipients" value="both" checked />' +
+                '<span class="tm-radio-label">⚪ 両方（全員）</span>' +
+                '<span class="tm-radio-note">保護者・生徒の両方に配信</span>' +
+              '</label>' +
+              '<label class="tm-radio-row" onclick="setNoticeLineRecipients(\'specific\')">' +
+                '<input type="radio" name="notice-line-recipients" value="specific" />' +
+                '<span class="tm-radio-label">⚪ 特定の生徒だけ</span>' +
+                '<span class="tm-radio-note">生徒を選んで配信</span>' +
+              '</label>' +
+            '</div>' +
+            '<div id="notice-specific-students-card" style="display:none;margin-top:12px">' +
+              '<div class="hp-grant-actions">' +
+                '<button type="button" class="btn-mini" onclick="noticeStudentsSelectAll()">全選択</button>' +
+                '<button type="button" class="btn-mini" onclick="noticeStudentsSelectNone()">全解除</button>' +
+                '<button type="button" class="btn-mini" onclick="loadNoticeStudents()">🔄 再読み込み</button>' +
+                '<span id="notice-students-count" class="hp-grant-count">0 名選択中</span>' +
+              '</div>' +
+              '<div id="notice-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>' +
+            '</div>' +
+          '</div>' +
+
+          '<hr style="border:none;border-top:1px solid #e1e5ee;margin:18px 0" />' +
+
+          '<button class="submit-btn" id="notice-submit-btn" onclick="submitNoticeWithLine()">✅ 追加する</button>' +
+          '<div id="notice-msg" class="msg"></div>' +
+        '</div>' +
+
+        '<div class="form-card" style="margin-top:18px">' +
+          '<h2>📋 過去の連絡事項</h2>' +
+          '<div class="hp-grant-actions" style="margin-bottom:10px">' +
+            '<button type="button" class="btn-mini" onclick="loadNoticeList()">🔄 最新データ取得</button>' +
+            '<span id="notice-list-count" class="hp-grant-count"></span>' +
+          '</div>' +
+          '<div id="notice-list-body"><div class="students-empty">⏳ 読み込み中...</div></div>' +
+        '</div>';
+
+      // 初期値セット
+      var dateEl = document.getElementById('notice-date');
+      if (dateEl) dateEl.value = _todayStr();
+      _noticeFormState = {
+        imageBase64: '',
+        imageMimeType: '',
+        imageFileName: '',
+        lineMode: 'none',
+        lineRecipients: 'both',
+        specificSelected: {}
+      };
+      _noticeStudents = [];
+      loadNoticeList();
+    }
   });
 
   // --- 三語短文：お題（Excel コピペ一括登録 + 先生の作品は個別登録）---
@@ -1899,6 +2039,390 @@
   function switchTab(id) {
     document.querySelectorAll('#admin-tabs button').forEach(function(b){ b.classList.toggle('active', b.dataset.tabId === id); });
     document.querySelectorAll('.admin-tab').forEach(function(s){ s.classList.toggle('active', s.id === 'tab-' + id); });
+  }
+
+  // =============================================================
+  // 塾からの連絡：LINE 配信機能（2026-05-18 新規）
+  // =============================================================
+  // フォーム状態 + 学生キャッシュは notice モジュールの render で初期化される。
+  var _noticeFormState = null;
+  var _noticeStudents  = [];
+  var _noticeList      = [];
+  var _NOTICE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+  var _NOTICE_IMAGE_VALID_MIMES = ['image/jpeg','image/jpg','image/png'];
+
+  function onNoticeImageSelected(input) {
+    if (!input || !input.files || !input.files[0]) return;
+    var f = input.files[0];
+    var mt = String(f.type || '').toLowerCase();
+    if (_NOTICE_IMAGE_VALID_MIMES.indexOf(mt) < 0) {
+      showToast('画像は JPG または PNG のみ対応しています', 'error');
+      input.value = '';
+      return;
+    }
+    if (f.size > _NOTICE_IMAGE_MAX_BYTES) {
+      showToast('画像サイズは 5MB 以下にしてください（現在: ' + Math.round(f.size / 1024) + ' KB）', 'error');
+      input.value = '';
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var dataUrl = String(ev.target.result || '');
+      var commaIdx = dataUrl.indexOf(',');
+      var base64 = commaIdx >= 0 ? dataUrl.substring(commaIdx + 1) : '';
+      if (_noticeFormState) {
+        _noticeFormState.imageBase64 = base64;
+        _noticeFormState.imageMimeType = mt;
+        _noticeFormState.imageFileName = f.name || '';
+      }
+      var preview = document.getElementById('notice-image-preview');
+      var img = document.getElementById('notice-image-preview-img');
+      if (img) img.src = dataUrl;
+      if (preview) preview.style.display = '';
+    };
+    reader.readAsDataURL(f);
+  }
+
+  function clearNoticeImage() {
+    if (_noticeFormState) {
+      _noticeFormState.imageBase64 = '';
+      _noticeFormState.imageMimeType = '';
+      _noticeFormState.imageFileName = '';
+    }
+    var input = document.getElementById('notice-image');
+    if (input) input.value = '';
+    var preview = document.getElementById('notice-image-preview');
+    if (preview) preview.style.display = 'none';
+  }
+
+  function setNoticeLineMode(mode) {
+    if (!_noticeFormState) return;
+    _noticeFormState.lineMode = mode;
+    document.querySelectorAll('input[name="notice-line-mode"]').forEach(function(r){
+      var row = r.closest('.tm-radio-row');
+      if (row) row.classList.toggle('selected', r.value === mode);
+      if (r.value === mode) r.checked = true;
+    });
+    // 予約日時入力の表示切替
+    var schCard = document.getElementById('notice-scheduled-card');
+    if (schCard) schCard.style.display = (mode === 'scheduled') ? '' : 'none';
+    // 配信対象セクション：none なら非表示、それ以外なら表示
+    var recipCard = document.getElementById('notice-line-recipients-card');
+    if (recipCard) recipCard.style.display = (mode === 'none') ? 'none' : '';
+  }
+
+  function setNoticeLineRecipients(r) {
+    if (!_noticeFormState) return;
+    _noticeFormState.lineRecipients = r;
+    document.querySelectorAll('input[name="notice-line-recipients"]').forEach(function(rad){
+      var row = rad.closest('.tm-radio-row');
+      if (row) row.classList.toggle('selected', rad.value === r);
+      if (rad.value === r) rad.checked = true;
+    });
+    var card = document.getElementById('notice-specific-students-card');
+    if (card) card.style.display = (r === 'specific') ? '' : 'none';
+    if (r === 'specific' && _noticeStudents.length === 0) {
+      loadNoticeStudents();
+    }
+  }
+
+  function loadNoticeStudents() {
+    var wrap = document.getElementById('notice-students-wrap');
+    if (wrap) wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    adminGasGet({ action: 'getStudentsListForGrant', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '取得に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        if (wrap) wrap.innerHTML = '<div class="students-empty">' + _esc(em) + '</div>';
+        return;
+      }
+      _noticeStudents = res.students || [];
+      _renderNoticeStudentsTable();
+    }).catch(function() {
+      if (wrap) wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  function _renderNoticeStudentsTable() {
+    var wrap = document.getElementById('notice-students-wrap');
+    if (!wrap) return;
+    if (_noticeStudents.length === 0) {
+      wrap.innerHTML = '<div class="students-empty">生徒データがありません</div>';
+      _updateNoticeStudentsCount();
+      return;
+    }
+    var rows = _noticeStudents.map(function(s){
+      var sidEsc  = _esc(s.studentId);
+      var nameEsc = _esc(s.name || '');
+      var nickEsc = _esc(s.nickname || '');
+      var checked = (_noticeFormState && _noticeFormState.specificSelected[s.studentId]) ? 'checked' : '';
+      var rowCls  = (_noticeFormState && _noticeFormState.specificSelected[s.studentId]) ? ' class="selected"' : '';
+      return '<tr' + rowCls + ' data-sid="' + sidEsc + '" onclick="noticeStudentsToggleRow(\'' + sidEsc + '\')">' +
+        '<td><input type="checkbox" ' + checked + ' onclick="event.stopPropagation();noticeStudentsToggleRow(\'' + sidEsc + '\')" /></td>' +
+        '<td>' + sidEsc + '</td>' +
+        '<td>' + (nameEsc || '（未登録）') + '</td>' +
+        '<td>' + (nickEsc || '—') + '</td>' +
+      '</tr>';
+    }).join('');
+    wrap.innerHTML =
+      '<div class="students-table-wrap">' +
+        '<table class="hp-grant-table">' +
+          '<thead><tr><th>選択</th><th>生徒ID</th><th>氏名</th><th>ニックネーム</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>' +
+      '</div>';
+    _updateNoticeStudentsCount();
+  }
+
+  function noticeStudentsToggleRow(sid) {
+    if (!_noticeFormState) return;
+    if (_noticeFormState.specificSelected[sid]) delete _noticeFormState.specificSelected[sid];
+    else _noticeFormState.specificSelected[sid] = true;
+    var tr = document.querySelector('#notice-students-wrap tr[data-sid="' + sid + '"]');
+    if (tr) {
+      var sel = !!_noticeFormState.specificSelected[sid];
+      tr.classList.toggle('selected', sel);
+      var cb = tr.querySelector('input[type=checkbox]');
+      if (cb) cb.checked = sel;
+    }
+    _updateNoticeStudentsCount();
+  }
+  function noticeStudentsSelectAll() {
+    if (!_noticeFormState) return;
+    _noticeStudents.forEach(function(s){ _noticeFormState.specificSelected[s.studentId] = true; });
+    _renderNoticeStudentsTable();
+  }
+  function noticeStudentsSelectNone() {
+    if (!_noticeFormState) return;
+    _noticeFormState.specificSelected = {};
+    _renderNoticeStudentsTable();
+  }
+  function _updateNoticeStudentsCount() {
+    var n = _noticeFormState ? Object.keys(_noticeFormState.specificSelected).length : 0;
+    var el = document.getElementById('notice-students-count');
+    if (el) el.textContent = n + ' 名選択中';
+  }
+
+  function _showNoticeMsg(text, kind) {
+    var el = document.getElementById('notice-msg');
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'msg ' + (kind || '');
+    el.style.display = text ? '' : 'none';
+    if (kind === 'ok') {
+      clearTimeout(el._t);
+      el._t = setTimeout(function(){ el.textContent = ''; el.className = 'msg'; el.style.display = 'none'; }, 3000);
+    }
+  }
+
+  function submitNoticeWithLine() {
+    if (!_noticeFormState) return;
+    var date  = (document.getElementById('notice-date').value || '').trim();
+    var title = (document.getElementById('notice-title').value || '').trim();
+    var body  = (document.getElementById('notice-body').value || '').trim();
+    if (!date || !title || !body) { _showNoticeMsg('日付・タイトル・本文は必須です', 'ng'); return; }
+
+    var lineMode = _noticeFormState.lineMode || 'none';
+    var lineRecipients = (lineMode !== 'none') ? (_noticeFormState.lineRecipients || 'both') : '';
+    var specificStudents = [];
+    if (lineMode !== 'none' && lineRecipients === 'specific') {
+      specificStudents = Object.keys(_noticeFormState.specificSelected || {});
+      if (specificStudents.length === 0) {
+        _showNoticeMsg('「特定の生徒だけ」の場合は対象生徒を 1 人以上選択してください', 'ng');
+        return;
+      }
+    }
+    var scheduledAtIso = '';
+    if (lineMode === 'scheduled') {
+      var schVal = (document.getElementById('notice-scheduled-at').value || '').trim();
+      if (!schVal) { _showNoticeMsg('予約配信時は配信日時の指定が必須です', 'ng'); return; }
+      // datetime-local の値（'YYYY-MM-DDTHH:mm'）を JST ISO に変換
+      var schDate = new Date(schVal);
+      if (isNaN(schDate.getTime())) { _showNoticeMsg('配信日時の形式が不正です', 'ng'); return; }
+      if (schDate.getTime() <= Date.now()) { _showNoticeMsg('配信日時は未来の時刻を指定してください', 'ng'); return; }
+      scheduledAtIso = schDate.toISOString();
+    }
+
+    var btn = document.getElementById('notice-submit-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 送信中...'; }
+    _showNoticeMsg('送信中…', 'ok');
+
+    var params = {
+      action: 'addNoticeWithLine',
+      date:  date,
+      title: title,
+      body:  body,
+      lineDeliveryMode: lineMode,
+      lineRecipients:   lineRecipients,
+      lineSpecificStudents: specificStudents,
+      lineScheduledAt:  scheduledAtIso
+    };
+    if (_noticeFormState.imageBase64) {
+      params.imageFileBase64 = _noticeFormState.imageBase64;
+      params.imageMimeType   = _noticeFormState.imageMimeType;
+    }
+
+    adminGasPost(params).then(function(res) {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ 追加する'; }
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '追加に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        _showNoticeMsg('失敗：' + em, 'ng');
+        showToast('失敗：' + em, 'error');
+        return;
+      }
+      var msg = '✅ 連絡事項を追加しました';
+      if (res.deliveryResult) {
+        var dr = res.deliveryResult;
+        msg += '（LINE 配信：' + dr.delivered + ' 件成功 / ' + dr.failed + ' 件失敗）';
+      } else if (lineMode === 'scheduled') {
+        msg += '（予約配信に登録）';
+      }
+      _showNoticeMsg(msg, 'ok');
+      showToast('追加しました', 'success');
+      // フォームをクリアして次の投稿に備える
+      document.getElementById('notice-title').value = '';
+      document.getElementById('notice-body').value  = '';
+      clearNoticeImage();
+      var schEl = document.getElementById('notice-scheduled-at');
+      if (schEl) schEl.value = '';
+      _noticeFormState.specificSelected = {};
+      setNoticeLineMode('none');
+      setNoticeLineRecipients('both');
+      _renderNoticeStudentsTable();
+      loadNoticeList();
+    }).catch(function(err) {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ 追加する'; }
+      _showNoticeMsg('通信エラー：' + (err && err.message ? err.message : ''), 'ng');
+      showToast('通信エラー', 'error');
+    });
+  }
+
+  function loadNoticeList() {
+    var body = document.getElementById('notice-list-body');
+    var cnt  = document.getElementById('notice-list-count');
+    if (body) body.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    if (cnt)  cnt.textContent  = '';
+    adminGasGet({ action: 'getNoticeListWithLineStatus', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '取得に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        if (body) body.innerHTML = '<div class="students-empty">' + _esc(em) + '</div>';
+        return;
+      }
+      _noticeList = res.notices || [];
+      _renderNoticeList();
+    }).catch(function() {
+      if (body) body.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  function _renderNoticeList() {
+    var body = document.getElementById('notice-list-body');
+    var cnt  = document.getElementById('notice-list-count');
+    if (!body) return;
+    if (cnt) cnt.textContent = (_noticeList.length || 0) + ' 件';
+    if (_noticeList.length === 0) {
+      body.innerHTML = '<div class="students-empty">過去の連絡事項はありません</div>';
+      return;
+    }
+    body.innerHTML = _noticeList.map(_renderNoticeListCard).join('');
+  }
+
+  function _renderNoticeListCard(n) {
+    var dateStr = _esc(n.date || '');
+    var titleStr = _esc(n.title || '');
+    var bodyStr  = _esc(n.body  || '');
+    var hasImage = !!n.imageFileId;
+    var lineHtml = '';
+    if (n.lineDeliveryMode && n.lineDeliveryMode !== 'none' && n.lineDeliveryMode !== '') {
+      var recipLabel = ({
+        parent:   '保護者だけ',
+        student:  '生徒だけ',
+        both:     '両方（全員）',
+        specific: '特定の生徒（' + (n.lineSpecificStudents || []).length + ' 名）'
+      })[n.lineRecipients] || _esc(n.lineRecipients);
+      var statLabel = '', statCls = '';
+      switch (n.lineDeliveryStatus) {
+        case 'pending':
+          if (n.lineDeliveryMode === 'scheduled') {
+            statLabel = '⏳ 予約中（' + _formatNoticeIsoForDisplay(n.lineScheduledAt) + '）';
+          } else {
+            statLabel = '⏳ 配信待ち';
+          }
+          statCls = 'nl-status-pending';
+          break;
+        case 'sent':
+          statLabel = '✅ 配信済' + (n.lineDeliveredAt ? '（' + _esc(n.lineDeliveredAt) + '）' : '');
+          statCls = 'nl-status-sent';
+          break;
+        case 'cancelled':
+          statLabel = '❌ キャンセル済';
+          statCls = 'nl-status-cancelled';
+          break;
+        case 'failed':
+          statLabel = '⚠️ 配信失敗';
+          statCls = 'nl-status-failed';
+          break;
+        default:
+          statLabel = _esc(n.lineDeliveryStatus || '');
+      }
+      lineHtml =
+        '<div class="nl-line-info">' +
+          '🎯 LINE：' + _esc(recipLabel) + ' ｜ <span class="' + statCls + '">' + statLabel + '</span>' +
+        '</div>';
+      // 予約中ならキャンセルボタン
+      if (n.lineDeliveryStatus === 'pending' && n.lineDeliveryMode === 'scheduled' && n.noticeId) {
+        lineHtml +=
+          '<div class="nl-actions">' +
+            '<button type="button" class="nl-cancel-btn" onclick="cancelNoticeLineDelivery(\'' + _esc(n.noticeId) + '\', this)">予約をキャンセル</button>' +
+          '</div>';
+      }
+    }
+    var imageBadge = hasImage ? '<div><span class="nl-image-badge">📷 画像あり</span></div>' : '';
+    return '<div class="notice-list-card" data-nid="' + _esc(n.noticeId || '') + '">' +
+      '<div class="nl-head">' +
+        '<div class="nl-date">' + dateStr + '</div>' +
+      '</div>' +
+      '<div class="nl-title">' + titleStr + '</div>' +
+      '<div class="nl-body' + (bodyStr.length > 200 ? ' truncated' : '') + '">' + bodyStr + '</div>' +
+      imageBadge +
+      lineHtml +
+    '</div>';
+  }
+
+  function _formatNoticeIsoForDisplay(iso) {
+    if (!iso) return '';
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return _esc(iso);
+      var y = d.getFullYear();
+      var m = String(d.getMonth() + 1).padStart(2,'0');
+      var dd = String(d.getDate()).padStart(2,'0');
+      var hh = String(d.getHours()).padStart(2,'0');
+      var mm = String(d.getMinutes()).padStart(2,'0');
+      return y + '/' + m + '/' + dd + ' ' + hh + ':' + mm;
+    } catch(e){ return _esc(iso); }
+  }
+
+  function cancelNoticeLineDelivery(noticeId, btn) {
+    if (!noticeId) return;
+    if (!confirm('この予約配信をキャンセルしますか？')) return;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ キャンセル中...'; }
+    adminGasPost({ action: 'cancelScheduledNoticeLine', noticeId: noticeId }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : 'キャンセルに失敗しました';
+        if (_handleAdminApiError(em)) return;
+        if (btn) { btn.disabled = false; btn.textContent = '予約をキャンセル'; }
+        showToast('失敗：' + em, 'error');
+        return;
+      }
+      showToast('予約をキャンセルしました', 'success');
+      loadNoticeList();
+    }).catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = '予約をキャンセル'; }
+      showToast('通信エラー', 'error');
+    });
   }
 
   // =============================================================
