@@ -39,11 +39,20 @@ const SHEET_HP_RESERVE_POOL   = 'HpReservePool';
 // Students / SpecialAccounts の両シートに追加（ensureLineNotifyColumns() で 1 回手動投入）。
 //   - LINE_USER_ID_PARENT   : 保護者の LINE userId（'U' 始まり 33 文字）
 //   - LINE_USER_ID_STUDENT  : 生徒本人の LINE userId
-//   - NOTIFY_LINE           : 通知の有効/無効（'TRUE'/'FALSE'/空欄。
-//                              空欄は小中=TRUE扱い・高校=FALSE扱いとして notify 側で評価）
+//   - NOTIFY_LINE_PARENT    : 保護者向け通知の有効/無効（'TRUE'/'FALSE'/空欄）
+//   - NOTIFY_LINE_STUDENT   : 生徒向け通知の有効/無効（'TRUE'/'FALSE'/空欄）
+//                              空欄は小中=TRUE扱い・高校=FALSE扱いとして notify 側で評価
+//
+// 2026-05-18 列分割：旧 NOTIFY_LINE（保護者・生徒共通）を 2 列に分離。塾長が管理画面から
+// 保護者と生徒で別々に通知 ON/OFF できるようにするため。migrateLineNotifyColumn() で
+// 旧列を削除 + 新 2 列を末尾追加する（既存データは無いため復元不要）。
+// 旧 NOTIFY_LINE_HEADER_NAME は legacy 名として残置（_findNotifyLineColIdx などの薄い
+// ヘルパーがまだ参照しているが、migrate 後はシートに該当列が存在しないため -1 が返る）。
 const LINE_USER_ID_PARENT_HEADER_NAME  = 'LINE_USER_ID_PARENT';
 const LINE_USER_ID_STUDENT_HEADER_NAME = 'LINE_USER_ID_STUDENT';
-const NOTIFY_LINE_HEADER_NAME          = 'NOTIFY_LINE';
+const NOTIFY_LINE_HEADER_NAME          = 'NOTIFY_LINE';          // legacy（migrate で削除される列名）
+const NOTIFY_LINE_PARENT_HEADER_NAME   = 'NOTIFY_LINE_PARENT';
+const NOTIFY_LINE_STUDENT_HEADER_NAME  = 'NOTIFY_LINE_STUDENT';
 // accountType 列に入る値（最右列。Students の列構成に追加される列）
 const SPECIAL_ACCOUNT_TYPES = {
   TEST:       'test',          // 1001〜1099 テスト枠
@@ -1133,6 +1142,10 @@ function doGet(e) {
       //   - previewNotifyTargets は読み取り専用（実配信なし）→ doGet で OK。
       //   - sendTestNotification と clearNotifyTargets は副作用ありのため doPost に登録（後段）。
       else if (action === 'previewNotifyTargets')      result = previewNotifyTargets(params);
+      // 塾長権限：LINE 通知管理 + 絶対ミッション設定（2026-05-18 新規、admin-only）
+      //   - read は doGet、write は doPost に登録（誤実行防止）。
+      else if (action === 'getLineNotifyManagementData')        result = getLineNotifyManagementData(params);
+      else if (action === 'getRequiredMissionsManagementData')  result = getRequiredMissionsManagementData(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1221,6 +1234,9 @@ function doPost(e) {
     //   いずれも _verifyTeacher 認証必須。
     else if (action === 'sendTestNotification')             result = sendTestNotification(params);
     else if (action === 'clearNotifyTargets')               result = clearNotifyTargets(params);
+    // 塾長権限：LINE 通知管理 + 絶対ミッション設定の更新（admin-only、doPost 強制）
+    else if (action === 'updateLineNotifySetting')          result = updateLineNotifySetting(params);
+    else if (action === 'updateRequiredMission')            result = updateRequiredMission(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -7387,6 +7403,252 @@ function executeManualHpGrant(params) {
     };
   } catch(err) {
     console.error('[executeManualHpGrant]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// 塾長権限：LINE 通知管理 + 絶対ミッション設定（2026-05-18）
+// =====================================================
+// 設計：
+//   - すべての関数で _verifyTeacher → _requireAdmin で塾長権限のみ通す（role='admin'）。
+//   - write 系は doPost 経由（誤実行防止）。read 系は doGet。
+//   - Students + SpecialAccounts の両シート対象。書き込みは sid → _findAccountRowOnSheet
+//     でフレッシュに行特定（行シフト事故防止、CLAUDE.md Step 0 原則）。
+//   - キャッシュは書き込み後に _updateAccountCacheBySid で in-place 更新。
+//   - 操作ログは _logTeacherAction で記録（'LINE_NOTIFY_UPDATE' / 'REQUIRED_MISSION_UPDATE'）。
+//
+// 想定 UI：admin.html のダッシュボード「LINE通知管理」「絶対ミッション設定」カード（admin-only）。
+
+// 値正規化：'TRUE' / 'FALSE' / ''（未設定）以外は弾く（誤値の混入防止）。
+function _normalizeLineNotifyValue(raw) {
+  var s = String(raw == null ? '' : raw).trim().toUpperCase();
+  if (s === 'TRUE')  return 'TRUE';
+  if (s === 'FALSE') return 'FALSE';
+  if (s === '')      return '';
+  return null;  // 不正値
+}
+function _normalizeMissionUnlockValue(raw) {
+  var s = String(raw == null ? '' : raw).trim().toUpperCase();
+  if (s === 'TRUE')  return 'TRUE';
+  if (s === 'FALSE') return 'FALSE';
+  if (s === '')      return '';
+  return null;  // 不正値
+}
+
+// 管理画面：LINE 通知管理データ取得（塾長専用）
+// 戻り値: { ok, students: [{ studentId, nickname, gradeLevel,
+//          parentLineId, studentLineId, notifyParent, notifyStudent }, ...] }
+//   - 'TRUE' / 'FALSE' / '' の生値で返す（フロント側で 3 状態トグル UI を構築）
+//   - parentLineId / studentLineId は登録済み判定（'U' 始まり 33 文字、空欄なら未登録）
+function getLineNotifyManagementData(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const ss = _ss();
+    const stuValues = _getStudentsValues();
+    const spValues  = _getSpecialAccountsValues();
+
+    function collect(sheetName, values, out, seen) {
+      if (!values || values.length < 2) return;
+      const header = values[0];
+      const findCol = function(name){
+        for (var i = 0; i < header.length; i++) {
+          if (String(header[i] || '').trim() === name) return i;
+        }
+        return -1;
+      };
+      const iLineP        = findCol(LINE_USER_ID_PARENT_HEADER_NAME);
+      const iLineS        = findCol(LINE_USER_ID_STUDENT_HEADER_NAME);
+      const iNotifyParent = findCol(NOTIFY_LINE_PARENT_HEADER_NAME);
+      const iNotifyStudent = findCol(NOTIFY_LINE_STUDENT_HEADER_NAME);
+      const iGrade        = findCol(GRADE_LEVEL_HEADER_NAME);
+      for (var r = 1; r < values.length; r++) {
+        const row = values[r];
+        const sid = String(row[COL_ID] || '').trim();
+        if (!sid) continue;
+        if (seen[sid]) continue;  // Students 優先
+        seen[sid] = true;
+        out.push({
+          studentId:     sid,
+          nickname:      String(row[COL_NICKNAME] || '').trim(),
+          name:          String(row[COL_NAME]     || '').trim(),
+          gradeLevel:    iGrade        >= 0 ? String(row[iGrade]        || '').trim() : '',
+          parentLineId:  iLineP        >= 0 ? String(row[iLineP]        || '').trim() : '',
+          studentLineId: iLineS        >= 0 ? String(row[iLineS]        || '').trim() : '',
+          notifyParent:  iNotifyParent >= 0 ? String(row[iNotifyParent] || '').trim().toUpperCase() : '',
+          notifyStudent: iNotifyStudent >= 0 ? String(row[iNotifyStudent] || '').trim().toUpperCase() : ''
+        });
+      }
+    }
+
+    const out = [];
+    const seen = {};
+    collect(SHEET_STUDENTS,         stuValues, out, seen);
+    collect(SHEET_SPECIAL_ACCOUNTS, spValues,  out, seen);
+    return { ok: true, students: out };
+  } catch (err) {
+    console.error('[getLineNotifyManagementData]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：LINE 通知設定の更新（塾長専用、doPost 強制）
+// params: { teacherId, password, studentId, field, value }
+//   - field: 'notifyParent' | 'notifyStudent'
+//   - value: 'TRUE' | 'FALSE' | ''（未設定）
+// Students または SpecialAccounts の該当行 / 該当列を setValue で 1 セル更新。
+function updateLineNotifySetting(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const sid   = String((params && params.studentId) || '').trim();
+    const field = String((params && params.field)     || '').trim();
+    const value = _normalizeLineNotifyValue(params && params.value);
+    if (!sid)   return { ok: false, message: 'studentId が必要です' };
+    if (field !== 'notifyParent' && field !== 'notifyStudent') {
+      return { ok: false, message: 'field は notifyParent / notifyStudent のいずれかを指定してください' };
+    }
+    if (value === null) return { ok: false, message: 'value は TRUE / FALSE / 空欄 のいずれかを指定してください' };
+
+    // 行特定はフレッシュに（行シフト事故防止）
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+
+    // 書き込み列の特定（無ければ末尾追加）
+    const headerName = (field === 'notifyParent') ? NOTIFY_LINE_PARENT_HEADER_NAME : NOTIFY_LINE_STUDENT_HEADER_NAME;
+    const colInfo = _ensureUnlockFlagColOnSheet(loc.sheet, headerName);
+    const colIdx = colInfo.idx;  // 0-based
+    loc.sheet.getRange(loc.rowIdx + 1, colIdx + 1).setValue(value);
+
+    // キャッシュ in-place 更新（Students / SpecialAccounts どちらでも自動判別）
+    var upd = {};
+    upd[colIdx] = value;
+    _updateAccountCacheBySid(sid, upd);
+
+    // 操作ログ（admin 監査用）
+    _logTeacherAction(_teacher.teacherId, 'LINE_NOTIFY_UPDATE', '', 'success', {
+      studentId: sid,
+      field:     field,
+      value:     value,
+      sheetName: loc.sheetName
+    });
+
+    return { ok: true, studentId: sid, field: field, value: value };
+  } catch (err) {
+    console.error('[updateLineNotifySetting]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：絶対ミッション設定データ取得（塾長専用）
+// 戻り値: { ok, students: [{ studentId, nickname, gradeLevel,
+//          wabun1Unlocked, kisoUnlocked, kanjiUnlocked }, ...] }
+//   - 'TRUE' / 'FALSE' / '' の生値で返す（フロント側で表示形式を決める）
+//   - 英単語RUSH / 三語短文 は全員必須なので返り値に含めない（UI 側で固定 ☑ 表示）
+function getRequiredMissionsManagementData(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const stuValues = _getStudentsValues();
+    const spValues  = _getSpecialAccountsValues();
+
+    function collect(sheetName, values, out, seen) {
+      if (!values || values.length < 2) return;
+      const header = values[0];
+      const findCol = function(name){
+        for (var i = 0; i < header.length; i++) {
+          if (String(header[i] || '').trim() === name) return i;
+        }
+        return -1;
+      };
+      const iGrade  = findCol(GRADE_LEVEL_HEADER_NAME);
+      const iWabun1 = findCol(WABUN1_UNLOCKED_HEADER_NAME);
+      const iKiso   = findCol(KISO_UNLOCKED_HEADER_NAME);
+      const iKanji  = findCol(KANJI_UNLOCKED_HEADER_NAME);
+      for (var r = 1; r < values.length; r++) {
+        const row = values[r];
+        const sid = String(row[COL_ID] || '').trim();
+        if (!sid) continue;
+        if (seen[sid]) continue;  // Students 優先
+        seen[sid] = true;
+        out.push({
+          studentId:      sid,
+          nickname:       String(row[COL_NICKNAME] || '').trim(),
+          name:           String(row[COL_NAME]     || '').trim(),
+          gradeLevel:     iGrade  >= 0 ? String(row[iGrade]  || '').trim() : '',
+          wabun1Unlocked: iWabun1 >= 0 ? String(row[iWabun1] || '').trim().toUpperCase() : '',
+          kisoUnlocked:   iKiso   >= 0 ? String(row[iKiso]   || '').trim().toUpperCase() : '',
+          kanjiUnlocked:  iKanji  >= 0 ? String(row[iKanji]  || '').trim().toUpperCase() : ''
+        });
+      }
+    }
+
+    const out = [];
+    const seen = {};
+    collect(SHEET_STUDENTS,         stuValues, out, seen);
+    collect(SHEET_SPECIAL_ACCOUNTS, spValues,  out, seen);
+    return { ok: true, students: out };
+  } catch (err) {
+    console.error('[getRequiredMissionsManagementData]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：絶対ミッション設定の更新（塾長専用、doPost 強制）
+// params: { teacherId, password, studentId, field, value }
+//   - field: 'wabun1Unlocked' | 'kisoUnlocked' | 'kanjiUnlocked'
+//   - value: 'TRUE' | 'FALSE' | ''
+// 該当列が無ければ自動で末尾追加（_ensureUnlockFlagColOnSheet 流用）。
+function updateRequiredMission(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const sid   = String((params && params.studentId) || '').trim();
+    const field = String((params && params.field)     || '').trim();
+    const value = _normalizeMissionUnlockValue(params && params.value);
+    if (!sid)   return { ok: false, message: 'studentId が必要です' };
+
+    const HEADER_MAP = {
+      wabun1Unlocked: WABUN1_UNLOCKED_HEADER_NAME,
+      kisoUnlocked:   KISO_UNLOCKED_HEADER_NAME,
+      kanjiUnlocked:  KANJI_UNLOCKED_HEADER_NAME
+    };
+    const headerName = HEADER_MAP[field];
+    if (!headerName) {
+      return { ok: false, message: 'field は wabun1Unlocked / kisoUnlocked / kanjiUnlocked のいずれかを指定してください' };
+    }
+    if (value === null) return { ok: false, message: 'value は TRUE / FALSE / 空欄 のいずれかを指定してください' };
+
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+
+    const colInfo = _ensureUnlockFlagColOnSheet(loc.sheet, headerName);
+    const colIdx = colInfo.idx;
+    loc.sheet.getRange(loc.rowIdx + 1, colIdx + 1).setValue(value);
+
+    var upd = {};
+    upd[colIdx] = value;
+    _updateAccountCacheBySid(sid, upd);
+
+    _logTeacherAction(_teacher.teacherId, 'REQUIRED_MISSION_UPDATE', '', 'success', {
+      studentId: sid,
+      field:     field,
+      value:     value,
+      sheetName: loc.sheetName
+    });
+
+    return { ok: true, studentId: sid, field: field, value: value };
+  } catch (err) {
+    console.error('[updateRequiredMission]', err);
     return { ok: false, message: String(err) };
   }
 }
@@ -15668,14 +15930,28 @@ function _ensureLineUserIdParentColOnSheet(sheet)        { return _ensureUnlockF
 function _findLineUserIdStudentColIdx(allValues)         { return _findUnlockFlagColIdx(allValues, LINE_USER_ID_STUDENT_HEADER_NAME); }
 function _findLineUserIdStudentColIdxOnSheet(sheet)      { return _findUnlockFlagColIdxOnSheet(sheet, LINE_USER_ID_STUDENT_HEADER_NAME); }
 function _ensureLineUserIdStudentColOnSheet(sheet)       { return _ensureUnlockFlagColOnSheet(sheet, LINE_USER_ID_STUDENT_HEADER_NAME); }
+// legacy（旧 NOTIFY_LINE 単一列）。migrate 後はシートに列が存在しないため、これらは
+// 常に -1（findColIdx 系）または '' （read 系）を返す。残置している理由：
+//   - 万一 migrate を実行する前に Phase B-3 trigger が走った場合の defensive fallback
+//   - 旧コードを呼ぶ箇所の grep ヒットを残し、将来の整理時に検出しやすくする
 function _findNotifyLineColIdx(allValues)                { return _findUnlockFlagColIdx(allValues, NOTIFY_LINE_HEADER_NAME); }
 function _findNotifyLineColIdxOnSheet(sheet)             { return _findUnlockFlagColIdxOnSheet(sheet, NOTIFY_LINE_HEADER_NAME); }
 function _ensureNotifyLineColOnSheet(sheet)              { return _ensureUnlockFlagColOnSheet(sheet, NOTIFY_LINE_HEADER_NAME); }
 
+// 2026-05-18 列分割：保護者向け / 生徒向けの個別フラグ用ヘルパー。
+function _findNotifyLineParentColIdx(allValues)          { return _findUnlockFlagColIdx(allValues, NOTIFY_LINE_PARENT_HEADER_NAME); }
+function _findNotifyLineParentColIdxOnSheet(sheet)       { return _findUnlockFlagColIdxOnSheet(sheet, NOTIFY_LINE_PARENT_HEADER_NAME); }
+function _ensureNotifyLineParentColOnSheet(sheet)        { return _ensureUnlockFlagColOnSheet(sheet, NOTIFY_LINE_PARENT_HEADER_NAME); }
+function _findNotifyLineStudentColIdx(allValues)         { return _findUnlockFlagColIdx(allValues, NOTIFY_LINE_STUDENT_HEADER_NAME); }
+function _findNotifyLineStudentColIdxOnSheet(sheet)      { return _findUnlockFlagColIdxOnSheet(sheet, NOTIFY_LINE_STUDENT_HEADER_NAME); }
+function _ensureNotifyLineStudentColOnSheet(sheet)       { return _ensureUnlockFlagColOnSheet(sheet, NOTIFY_LINE_STUDENT_HEADER_NAME); }
+
 // --- 読み取りヘルパー（既存 _readUnlockFlagFromLoc 流用、二段階フォールバック含む） ---
 function _readLineUserIdParentFromLoc(loc)  { return _readUnlockFlagFromLoc(loc, LINE_USER_ID_PARENT_HEADER_NAME); }
 function _readLineUserIdStudentFromLoc(loc) { return _readUnlockFlagFromLoc(loc, LINE_USER_ID_STUDENT_HEADER_NAME); }
-function _readNotifyLineRawFromLoc(loc)     { return _readUnlockFlagFromLoc(loc, NOTIFY_LINE_HEADER_NAME); }
+function _readNotifyLineRawFromLoc(loc)             { return _readUnlockFlagFromLoc(loc, NOTIFY_LINE_HEADER_NAME); }          // legacy（migrate 後は '' 固定）
+function _readNotifyLineParentRawFromLoc(loc)       { return _readUnlockFlagFromLoc(loc, NOTIFY_LINE_PARENT_HEADER_NAME); }
+function _readNotifyLineStudentRawFromLoc(loc)      { return _readUnlockFlagFromLoc(loc, NOTIFY_LINE_STUDENT_HEADER_NAME); }
 
 // LINE userId は uppercase 強制 + trim。空欄 / 'FALSE' のような壊れ値は '' とみなす。
 function _normalizeLineUserId(raw) {
@@ -15722,6 +15998,60 @@ function ensureLineNotifyColumns() {
     return out;
   } catch (e) {
     console.error('[ensureLineNotifyColumns]', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// =============================================================
+// 2026-05-18：NOTIFY_LINE 列分割マイグレーション（GAS エディタから 1 回手動実行）
+// =============================================================
+// 旧 NOTIFY_LINE 列（保護者・生徒共通）を削除し、NOTIFY_LINE_PARENT と
+// NOTIFY_LINE_STUDENT を末尾に追加する。Students / SpecialAccounts の両シートに適用。
+// データ復元は不要（運用開始前で NOTIFY_LINE 列に値は入っていない、ふくちさん確認済）。
+//
+// 冪等：
+//   - 旧 NOTIFY_LINE 列が無ければスキップ
+//   - 新 NOTIFY_LINE_PARENT / NOTIFY_LINE_STUDENT 列が既にあればスキップ
+//
+// 戻り値: { ok, students: {legacyDeleted, parentCreated, studentCreated}, special: {...} }
+function migrateLineNotifyColumn() {
+  try {
+    var ss = _ss();
+    var out = { ok: true, students: null, special: null };
+
+    function migrateOne(sheet, sheetName, cacheKey) {
+      if (!sheet) return null;
+      var result = { legacyDeleted: false, parentCreated: false, studentCreated: false };
+      // (1) 旧 NOTIFY_LINE 列を削除（存在する場合のみ）
+      var oldIdx = _findNotifyLineColIdxOnSheet(sheet);
+      if (oldIdx >= 0) {
+        sheet.deleteColumn(oldIdx + 1);  // 1-based
+        result.legacyDeleted = true;
+        Logger.log('[migrateLineNotifyColumn] ' + sheetName + ' から旧 NOTIFY_LINE 列を削除（位置 ' + (oldIdx + 1) + '）');
+      }
+      // (2) 新 2 列を末尾に追加（既存なら何もしない）
+      var p = _ensureNotifyLineParentColOnSheet(sheet);
+      var s = _ensureNotifyLineStudentColOnSheet(sheet);
+      result.parentCreated  = p.created;
+      result.studentCreated = s.created;
+      if (result.parentCreated || result.studentCreated) {
+        Logger.log('[migrateLineNotifyColumn] ' + sheetName + ' に NOTIFY_LINE_PARENT / NOTIFY_LINE_STUDENT を追加');
+      }
+      // (3) キャッシュ整合性のため invalidate（列構成が変わった可能性があるため強制クリア）
+      if (result.legacyDeleted || result.parentCreated || result.studentCreated) {
+        try {
+          CacheService.getScriptCache().remove(cacheKey);
+          _cacheLog(cacheKey, 'invalidate', 'migrateLineNotifyColumn ' + sheetName);
+        } catch(_) {}
+      }
+      return result;
+    }
+
+    out.students = migrateOne(ss.getSheetByName(SHEET_STUDENTS),         SHEET_STUDENTS,         'cache_students_values');
+    out.special  = migrateOne(ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS), SHEET_SPECIAL_ACCOUNTS, 'cache_special_accounts_values');
+    return out;
+  } catch (e) {
+    console.error('[migrateLineNotifyColumn]', e);
     return { ok: false, message: String(e) };
   }
 }
@@ -16100,13 +16430,18 @@ function _handleLineRawAction(action, params) {
 function getLineRegistrationStatus(params) {
   try {
     var sid = String((params && params.studentId) || '').trim();
-    var info = { ok: true, parentRegistered: false, studentRegistered: false, notifyLine: '', gradeIsHigh: false };
+    // 2026-05-18 列分割：notifyLine（legacy）は migrate 後 '' になるため、保護者 / 生徒の
+    // 分割値も併せて返却（フロントは未消費だが将来の参照用 + admin デバッグ用）。
+    var info = { ok: true, parentRegistered: false, studentRegistered: false,
+                 notifyLine: '', notifyLineParent: '', notifyLineStudent: '', gradeIsHigh: false };
     if (sid) {
       var loc = _findAccountRowOnSheet(sid);
       if (loc) {
-        info.parentRegistered  = !!_readLineUserIdParentFromLoc(loc);
-        info.studentRegistered = !!_readLineUserIdStudentFromLoc(loc);
-        info.notifyLine        = _readNotifyLineRawFromLoc(loc);  // 'TRUE'/'FALSE'/''
+        info.parentRegistered    = !!_readLineUserIdParentFromLoc(loc);
+        info.studentRegistered   = !!_readLineUserIdStudentFromLoc(loc);
+        info.notifyLine          = _readNotifyLineRawFromLoc(loc);          // legacy、migrate 後は ''
+        info.notifyLineParent    = _readNotifyLineParentRawFromLoc(loc);    // 'TRUE'/'FALSE'/''
+        info.notifyLineStudent   = _readNotifyLineStudentRawFromLoc(loc);   // 'TRUE'/'FALSE'/''
         var grade = _readGradeLevelFromLoc(loc);
         info.gradeIsHigh = (grade === '高1' || grade === '高2' || grade === '高3');
       }
@@ -16249,12 +16584,13 @@ function _lineNotifyContentNameFor(type) {
   return null;
 }
 
-// NOTIFY_LINE 列の値と GRADE_LEVEL からその生徒が通知対象かを判定。
-// 戻り値 true なら配信対象。
+// NOTIFY_LINE_* 列の値と GRADE_LEVEL から「保護者向け」または「生徒向け」の
+// 通知が必要かを判定。共通ロジックを 1 つにまとめ、Parent / Student 両方の
+// public 関数から呼ぶ。
 //   - 'TRUE'  : 強制 ON
 //   - 'FALSE' : 強制 OFF
 //   - 空欄    : 学齢が小・中なら ON、高 1〜3 なら OFF、それ以外（空欄や不明）も OFF
-function _lineNotifyShouldNotify(notifyLineRaw, gradeLevel) {
+function _lineNotifyShouldNotifyRaw(notifyLineRaw, gradeLevel) {
   var flag = String(notifyLineRaw == null ? '' : notifyLineRaw).trim().toUpperCase();
   if (flag === 'TRUE')  return true;
   if (flag === 'FALSE') return false;
@@ -16263,6 +16599,18 @@ function _lineNotifyShouldNotify(notifyLineRaw, gradeLevel) {
   if (!g) return false;
   if (g.indexOf('高') === 0) return false; // 高1/高2/高3
   return true; // 小1〜6, 中1〜3
+}
+// 2026-05-18 列分割：保護者向け判定。
+function _lineNotifyShouldNotifyParent(notifyLineParentRaw, gradeLevel) {
+  return _lineNotifyShouldNotifyRaw(notifyLineParentRaw, gradeLevel);
+}
+// 2026-05-18 列分割：生徒向け判定。
+function _lineNotifyShouldNotifyStudent(notifyLineStudentRaw, gradeLevel) {
+  return _lineNotifyShouldNotifyRaw(notifyLineStudentRaw, gradeLevel);
+}
+// 旧 API（legacy。残置）：単一フラグからの判定。migrate 前のテスト経路でのみ使用。
+function _lineNotifyShouldNotify(notifyLineRaw, gradeLevel) {
+  return _lineNotifyShouldNotifyRaw(notifyLineRaw, gradeLevel);
 }
 
 // --- シート ensure（idempotent） ---
@@ -16460,9 +16808,12 @@ function _lineNotifySummarizeStudentEntries(entries) {
 }
 
 // --- 取得対象生徒のスナップショット構築 ---
-// 戻り値: [{ sid, nickname, gradeLevel, notifyLineRaw, shouldNotify, parentUserId, studentUserId, cumulativeHp }]
+// 戻り値: [{ sid, nickname, gradeLevel, notifyLineParentRaw, notifyLineStudentRaw,
+//          shouldNotifyParent, shouldNotifyStudent, parentUserId, studentUserId, cumulativeHp, sheetName }]
 // Students + SpecialAccounts を両方スキャン（sid 重複は Students 優先）。
-// 通知判定は shouldNotify に格納（呼び出し側で false をスキップ）。
+// 通知判定は保護者向け / 生徒向けを独立に shouldNotifyParent / shouldNotifyStudent に格納。
+// 2026-05-18 列分割：旧 NOTIFY_LINE 列が残っていればフォールバックとして両 flag に使う
+// （migrate 前の B-3 実行も壊さないため。migrate 後は新 2 列の値が優先される）。
 function _lineNotifyBuildStudentSnapshots() {
   var ss = _ss();
   var snapshots = [];
@@ -16477,10 +16828,12 @@ function _lineNotifyBuildStudentSnapshots() {
       }
       return -1;
     }
-    var iLineP  = findCol(LINE_USER_ID_PARENT_HEADER_NAME);
-    var iLineS  = findCol(LINE_USER_ID_STUDENT_HEADER_NAME);
-    var iNotify = findCol(NOTIFY_LINE_HEADER_NAME);
-    var iGrade  = findCol(GRADE_LEVEL_HEADER_NAME);
+    var iLineP        = findCol(LINE_USER_ID_PARENT_HEADER_NAME);
+    var iLineS        = findCol(LINE_USER_ID_STUDENT_HEADER_NAME);
+    var iNotifyParent = findCol(NOTIFY_LINE_PARENT_HEADER_NAME);
+    var iNotifyStudent = findCol(NOTIFY_LINE_STUDENT_HEADER_NAME);
+    var iNotifyLegacy = findCol(NOTIFY_LINE_HEADER_NAME);  // migrate 前のフォールバック
+    var iGrade        = findCol(GRADE_LEVEL_HEADER_NAME);
     for (var r = 1; r < values.length; r++) {
       var row = values[r];
       var sid = String(row[COL_ID] || '').trim();
@@ -16489,17 +16842,29 @@ function _lineNotifyBuildStudentSnapshots() {
       seen[sid] = true;
       var nickname = String(row[COL_NICKNAME] || '').trim() || sid;
       var hp = Number(row[COL_HP]) || 0;
-      var gradeLevel    = iGrade  >= 0 ? String(row[iGrade]  || '').trim() : '';
-      var notifyLineRaw = iNotify >= 0 ? String(row[iNotify] || '').trim() : '';
-      var parentUserId  = iLineP  >= 0 ? String(row[iLineP]  || '').trim() : '';
-      var studentUserId = iLineS  >= 0 ? String(row[iLineS]  || '').trim() : '';
-      var shouldNotify = _lineNotifyShouldNotify(notifyLineRaw, gradeLevel);
+      var gradeLevel           = iGrade        >= 0 ? String(row[iGrade]        || '').trim() : '';
+      var notifyLineParentRaw  = iNotifyParent >= 0 ? String(row[iNotifyParent] || '').trim() : '';
+      var notifyLineStudentRaw = iNotifyStudent >= 0 ? String(row[iNotifyStudent] || '').trim() : '';
+      // migrate 前フォールバック：新 2 列が未追加 / 空欄かつ旧 NOTIFY_LINE 列に値があればそれを使う。
+      // 新 2 列に値があればそちらを優先（migrate 後の通常運用）。
+      if (!notifyLineParentRaw && iNotifyLegacy >= 0) {
+        notifyLineParentRaw = String(row[iNotifyLegacy] || '').trim();
+      }
+      if (!notifyLineStudentRaw && iNotifyLegacy >= 0) {
+        notifyLineStudentRaw = String(row[iNotifyLegacy] || '').trim();
+      }
+      var parentUserId  = iLineP >= 0 ? String(row[iLineP] || '').trim() : '';
+      var studentUserId = iLineS >= 0 ? String(row[iLineS] || '').trim() : '';
+      var shouldNotifyParent  = _lineNotifyShouldNotifyParent(notifyLineParentRaw, gradeLevel);
+      var shouldNotifyStudent = _lineNotifyShouldNotifyStudent(notifyLineStudentRaw, gradeLevel);
       snapshots.push({
         sid: sid,
         nickname: nickname,
         gradeLevel: gradeLevel,
-        notifyLineRaw: notifyLineRaw,
-        shouldNotify: shouldNotify,
+        notifyLineParentRaw: notifyLineParentRaw,
+        notifyLineStudentRaw: notifyLineStudentRaw,
+        shouldNotifyParent: shouldNotifyParent,
+        shouldNotifyStudent: shouldNotifyStudent,
         parentUserId: parentUserId,
         studentUserId: studentUserId,
         cumulativeHp: hp,
@@ -16529,13 +16894,22 @@ function _extractNotifyTargets(opts) {
   var skipped = { notifyOff: 0, gradeEmpty: 0, noLine: 0 };
   for (var i = 0; i < snapshots.length; i++) {
     var s = snapshots[i];
-    // 高校生 or 空欄でフラグ未設定 → skip
-    if (!s.shouldNotify) {
-      if (!s.gradeLevel) skipped.gradeEmpty++; else skipped.notifyOff++;
+    // 2026-05-18 列分割：保護者と生徒で独立に判定。
+    //   - shouldNotifyParent=false なら parentUserId を空扱いに（配信先から除外）
+    //   - shouldNotifyStudent=false なら studentUserId を空扱いに（配信先から除外）
+    //   - 結果として両方とも配信先無し → skip（送る先が無い）
+    var effectiveParentUserId  = s.shouldNotifyParent  ? s.parentUserId  : '';
+    var effectiveStudentUserId = s.shouldNotifyStudent ? s.studentUserId : '';
+    if (!effectiveParentUserId && !effectiveStudentUserId) {
+      // skip カウント分類：
+      //   - 学齢が空欄なら gradeEmpty
+      //   - LINE 未登録（そもそも userId が無い）なら noLine
+      //   - それ以外（明示 OFF / 高校生空欄）は notifyOff
+      if (!s.gradeLevel) skipped.gradeEmpty++;
+      else if (!s.parentUserId && !s.studentUserId) skipped.noLine++;
+      else skipped.notifyOff++;
       continue;
     }
-    // どちらの LINE userId も未登録 → skip（送る先が無い）
-    if (!s.parentUserId && !s.studentUserId) { skipped.noLine++; continue; }
     var entries = hpScan.bySid[s.sid] || [];
     var summary = _lineNotifySummarizeStudentEntries(entries);
     var status = summary.worked ? 'worked' : 'sabotaged';
@@ -16547,8 +16921,8 @@ function _extractNotifyTargets(opts) {
       contents: summary.worked ? summary.contents : [],
       totalHp: summary.worked ? summary.totalHp : 0,
       cumulativeHp: summary.worked ? s.cumulativeHp : 0,
-      parentUserId: s.parentUserId,
-      studentUserId: s.studentUserId
+      parentUserId: effectiveParentUserId,
+      studentUserId: effectiveStudentUserId
     });
   }
   if (opts.persist) {
