@@ -22,6 +22,11 @@ const SHEET_LISON_CONTENTS    = 'LisonContents';
 const SHEET_LISON_SUBMISSIONS = 'LisonSubmissions';
 // 計算タイムトライアル（2026-05-19 新設、トラール）：1 セッション = 1 行
 const SHEET_CALCTRIAL_SESSIONS = 'CalcTrialSessions';
+// 今日のマイ活 振り返り（2026-05-19 新設）：ログアウト前に必ず書き込む
+//   - 100 文字以上 1500 文字以内必須（クライアント + サーバー二重防御）
+//   - 1 日複数件記録可能（時系列で別行、マージしない）
+//   - HP 付与なし（v1 デフォルト、v2 で継続ボーナス案 Z 検討）
+const SHEET_REFLECTIONS = 'Reflections';
 const SHEET_TEACHERS          = 'Teachers';
 const SHEET_TEACHER_MESSAGES  = 'TeacherMessages';
 const SHEET_MESSAGE_READS     = 'MessageReads';
@@ -1029,6 +1034,9 @@ function doGet(e) {
       else if (action === 'adminListStudents') result = adminListStudents(params);
       else if (action === 'getStudentsListForGrant') result = getStudentsListForGrant(params);
       else if (action === 'getStreakRecoveryCandidates') result = getStreakRecoveryCandidates(params);
+      // 今日のマイ活 振り返り：閲覧系（認証なしの生徒/保護者用 + admin/teacher 認証用の 2 本）
+      else if (action === 'getReflectionsForStudent')    result = getReflectionsForStudent(params);
+      else if (action === 'getReflectionsForAdmin')      result = getReflectionsForAdmin(params);
       else if (action === 'getCalendarMonthSummary') result = getCalendarMonthSummary(params);
       else if (action === 'getCalendarDayDetail')    result = getCalendarDayDetail(params);
       else if (action === 'getStudentView') result = getStudentView(params);  
@@ -1225,6 +1233,8 @@ function doPost(e) {
     else if (action === 'executeManualStreakModify') result = executeManualStreakModify(params);
     // 計算タイムトライアル：2 ラウンド完走後の結果送信（POST 強制、CalcTrialSessions と HPLog/Students.HP を更新）
     else if (action === 'submitCalcTrialResult')     result = submitCalcTrialResult(params);
+    // 今日のマイ活 振り返り：ログアウト前の必須記録（POST 強制、Reflections シートに 1 行記録）
+    else if (action === 'submitReflection')          result = submitReflection(params);
     // 先生からのメッセージ（管理画面：送信 / 生徒画面：既読化）
     // ※ 管理者認証必須の sendTeacherMessage は POST 強制（誤送信防止）。
     //   markMessageAsRead は誤書き込みリスクが極小だが POST に統一（doGet にも登録すると
@@ -8721,6 +8731,229 @@ function submitCalcTrialResult(params) {
     };
   } catch(err) {
     console.error('[submitCalcTrialResult]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// 今日のマイ活 振り返り（2026-05-19 新設）
+// =====================================================
+// 仕様：ログアウト前に必ず書き込む（doLogout 経由）。
+// 100 文字以上 1500 文字以内必須（ふくちさん教育観：「一言テキトーに書いておしまい」を防ぐ）。
+// 1 日複数件記録可能、HP 付与なし（v1 デフォルト）。
+//
+// 公開関数：
+//   submitReflection(params)            — 振り返り送信（doPost 強制、生徒画面用、認証なし）
+//   getReflectionsForStudent(params)    — 自分の履歴一覧（doGet、生徒・保護者画面用、認証なし）
+//   getReflectionsForAdmin(params)      — admin/teacher 画面用（doGet、認証必須 + 操作ログ記録）
+//   ensureReflectionsSheets()           — シート初期化（GAS エディタから 1 回限り実行）
+
+// 結果集計の列構成（1 提出 = 1 行）
+const REFLECTIONS_HEADERS = [
+  'reflectionId',   // refl_{sid}_{ts}_{rand}
+  'studentId',
+  'date',           // 教育日基準（_sangoToday の JST 3:00 区切り）'yyyy-MM-dd'
+  'timestamp',      // 実書き込み時刻 _nowJST() 'yyyy-MM-dd HH:mm:ss'
+  'content',        // 本文（100〜1500 文字、サーバー側で reject）
+  'wordCount',      // クライアント計測の文字数（参考、改行・空白含む単純カウント）
+  'sheetName'       // 'Students' / 'SpecialAccounts'（書き込み時に判定、デバッグ用）
+];
+
+const REFLECTIONS_MIN_ROWS    = 1100;
+const REFLECTION_MIN_LENGTH   = 100;   // ふくちさん追加要件（2026-05-19）
+const REFLECTION_MAX_LENGTH   = 1500;
+
+function _ensureReflectionsSheet() {
+  return _ensureSheetWithHeaders(SHEET_REFLECTIONS, REFLECTIONS_HEADERS, REFLECTIONS_MIN_ROWS).sh;
+}
+
+// シート存在保証（GAS エディタから 1 回限り実行する想定）
+function ensureReflectionsSheets() {
+  try {
+    const r = _ensureSheetWithHeaders(SHEET_REFLECTIONS, REFLECTIONS_HEADERS, REFLECTIONS_MIN_ROWS);
+    return {
+      ok: true,
+      created: { reflections: r.created },
+      headers: { reflections: REFLECTIONS_HEADERS }
+    };
+  } catch(err) {
+    console.error('[ensureReflectionsSheets]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 内部ヘルパー：指定 sid の振り返り履歴を timestamp 降順で返す
+// limit は呼び出し側で clamp 済の値を渡す（1 以上の整数）
+function _readReflectionsForSid(sid, limit) {
+  const sh = _ss().getSheetByName(SHEET_REFLECTIONS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const lastCol = sh.getLastColumn();
+  const header  = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  const iId      = header.indexOf('reflectionId');
+  const iSid     = header.indexOf('studentId');
+  const iDate    = header.indexOf('date');
+  const iTs      = header.indexOf('timestamp');
+  const iContent = header.indexOf('content');
+  const iWc      = header.indexOf('wordCount');
+  if (iSid < 0) return [];
+  const values = sh.getDataRange().getValues();
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][iSid] || '').trim() !== sid) continue;
+    out.push({
+      reflectionId: String((iId      >= 0 ? values[i][iId]      : '') || ''),
+      date:         String((iDate    >= 0 ? values[i][iDate]    : '') || ''),
+      timestamp:    String((iTs      >= 0 ? values[i][iTs]      : '') || ''),
+      content:      String((iContent >= 0 ? values[i][iContent] : '') || ''),
+      wordCount:    Number((iWc      >= 0 ? values[i][iWc]      : 0)) || 0
+    });
+  }
+  // timestamp 文字列の降順（'yyyy-MM-dd HH:mm:ss' 形式なので辞書順 = 時系列順）
+  out.sort(function(a, b) { return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+  return out.slice(0, limit);
+}
+
+// 振り返り送信。doPost 経由のみ（誤実行防止 + base64 等の大データ送信余地）。
+// params:
+//   studentId:  生徒ID（必須、行特定）
+//   content:    振り返り本文（必須、100 〜 1500 文字、サーバー側で reject）
+//   wordCount:  クライアント計測の文字数（任意、参考保存。サーバー側は content.length で再判定）
+//
+// 処理：
+//   1. studentId 検証 + 行特定（Students 優先 → SpecialAccounts、cache 経由禁止）
+//   2. content の長さチェック（100 〜 1500 文字、サーバー側二重防御）
+//   3. Reflections シートに 1 行 appendRow
+//      date = _sangoToday()（教育日基準）
+//      timestamp = _nowJST()（実時刻）
+//   4. 戻り値: { ok, reflectionId, date, timestamp, wordCount }
+//
+// HP 付与は v1 では実施しない（_logHP を呼ばない）。v2 で継続ボーナス案 Z を検討。
+function submitReflection(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '対象生徒IDが指定されていません' };
+
+    // ① 行特定（書き込み対象 rowIdx の安全性 + sheetName の取得）
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+
+    // ② content バリデーション（サーバー側二重防御）
+    const contentRaw = (params && params.content);
+    if (contentRaw == null) return { ok: false, message: '振り返り本文が指定されていません' };
+    const content = String(contentRaw);
+    const len = content.length;
+    if (len < REFLECTION_MIN_LENGTH) {
+      return { ok: false, message: '振り返りは' + REFLECTION_MIN_LENGTH + '文字以上必要です（現在: ' + len + '文字）', errorCode: 'TOO_SHORT' };
+    }
+    if (len > REFLECTION_MAX_LENGTH) {
+      return { ok: false, message: '振り返りは' + REFLECTION_MAX_LENGTH + '文字以内で書いてください（現在: ' + len + '文字）', errorCode: 'TOO_LONG' };
+    }
+
+    // wordCount はクライアント計測の参考値。指定なしなら content.length を保存。
+    let wordCount = Number(params && params.wordCount);
+    if (!Number.isFinite(wordCount) || wordCount < 0) wordCount = len;
+    wordCount = Math.floor(wordCount);
+
+    // ③ Reflections に 1 行 appendRow
+    const date         = _sangoToday();   // 教育日基準（JST 3:00 区切り）
+    const timestamp    = _nowJST();
+    const reflectionId = 'refl_' + sid + '_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+
+    const sh = _ensureReflectionsSheet();
+    sh.appendRow([
+      reflectionId,
+      sid,
+      date,
+      timestamp,
+      content,
+      wordCount,
+      stuLoc.sheetName
+    ]);
+
+    return {
+      ok:           true,
+      reflectionId: reflectionId,
+      date:         date,
+      timestamp:    timestamp,
+      wordCount:    wordCount
+    };
+  } catch(err) {
+    console.error('[submitReflection]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 自分の振り返り履歴を取得（生徒画面 / 保護者画面共通、認証なし）。
+// params:
+//   studentId:  生徒ID（必須、自分の履歴のみ取得可能）
+//   limit:      取得件数（任意、デフォルト 30、最大 100）
+//
+// 戻り値: { ok, studentId, reflections: [{ reflectionId, date, timestamp, content, wordCount }, ...] }
+//   timestamp 降順（最新が先頭）
+function getReflectionsForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '対象生徒IDが指定されていません' };
+    let limit = Number((params && params.limit));
+    if (!Number.isFinite(limit) || limit < 1) limit = 30;
+    limit = Math.min(100, Math.floor(limit));
+
+    const reflections = _readReflectionsForSid(sid, limit);
+    return { ok: true, studentId: sid, reflections: reflections };
+  } catch(err) {
+    console.error('[getReflectionsForStudent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// admin/teacher 画面用：振り返り履歴閲覧。認証必須 + 操作ログ記録（REFLECTION_VIEW）。
+// params:
+//   teacherId, password:  講師認証（admin / teacher 両ロール許可、_requireAdmin は呼ばない）
+//   studentId:            対象生徒ID（必須）
+//   limit:                取得件数（任意、デフォルト 50、最大 200）
+//
+// 戻り値: { ok, studentId, name, nickname, reflections: [...] }
+function getReflectionsForAdmin(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    // admin / teacher 両ロール許可（振り返りは生徒指導の文脈で全講師が見られる必要があるため）
+
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '対象生徒IDが指定されていません' };
+
+    let limit = Number((params && params.limit));
+    if (!Number.isFinite(limit) || limit < 1) limit = 50;
+    limit = Math.min(200, Math.floor(limit));
+
+    // 生徒情報を返却に含める（admin 画面の見出し用）
+    const stuLoc = _findAccountRowOnSheet(sid);
+    let name = '', nickname = '';
+    if (stuLoc) {
+      name     = String(stuLoc.rowValues[COL_NAME] || '').trim();
+      nickname = String(stuLoc.rowValues[COL_NICKNAME] || '').trim();
+    }
+
+    const reflections = _readReflectionsForSid(sid, limit);
+
+    // 操作ログ（LISON_RECORDING_PLAY と同パターン、admin/teacher の閲覧監査用）
+    _logTeacherAction(_teacher.teacherId, 'REFLECTION_VIEW', '', 'success', {
+      studentId: sid,
+      name:      name,
+      nickname:  nickname,
+      limit:     limit,
+      returned:  reflections.length
+    });
+
+    return {
+      ok:          true,
+      studentId:   sid,
+      name:        name,
+      nickname:    nickname,
+      reflections: reflections
+    };
+  } catch(err) {
+    console.error('[getReflectionsForAdmin]', err);
     return { ok: false, message: String(err) };
   }
 }
