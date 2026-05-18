@@ -1026,6 +1026,7 @@ function doGet(e) {
       else if (action === 'adminAddNotice')    result = adminAddNotice(params);
       else if (action === 'adminListStudents') result = adminListStudents(params);
       else if (action === 'getStudentsListForGrant') result = getStudentsListForGrant(params);
+      else if (action === 'getStreakRecoveryCandidates') result = getStreakRecoveryCandidates(params);
       else if (action === 'getCalendarMonthSummary') result = getCalendarMonthSummary(params);
       else if (action === 'getCalendarDayDetail')    result = getCalendarDayDetail(params);
       else if (action === 'getStudentView') result = getStudentView(params);  
@@ -1465,7 +1466,7 @@ function _getPrevDayCount(studentId, yesterday) {
 //   完全一致:    'test' / 'sango' / 'wabun1' / 'lison'
 //   プレフィックス: 'kiso_*' / 'kanji_*'
 // 除外対象:
-//   完全一致:    'login' / 'manual_grant' / 'manual_streak_modify'
+//   完全一致:    'login' / 'manual_grant' / 'manual_streak_modify' / 'login_recovery'
 //   プレフィックス: 'apology_*'（apology_streak_bonus / apology_kiso / apology_wabun1）
 //   サフィックス:  '*_practice'（カンジー HP 上限到達後の練習モード）
 function _isCountableActivityType(type) {
@@ -1474,6 +1475,8 @@ function _isCountableActivityType(type) {
   if (type === 'manual_grant') return false;
   // 2026-05-19：連続日数修正は HP 0 のメタデータ書き換えなのでマイカツ君 Stage 計算から除外
   if (type === 'manual_streak_modify') return false;
+  // 2026-05-19 リライト：自動復旧で補完された login 相当レコードもメタデータなので除外
+  if (type === 'login_recovery') return false;
   if (type.indexOf('apology_') === 0) return false;
   // _practice 接尾の判定（カンジー練習モード等）
   const PRACTICE_SUFFIX = '_practice';
@@ -8097,136 +8100,387 @@ function executeManualHpGrant(params) {
 }
 
 // =====================================================
-// 連続ログイン日数 手動修正（2026-05-19、管理画面）
+// 連続ログイン日数 自動復旧（2026-05-19 リライト、管理画面）
 // =====================================================
-// 管理者認証必須。doPost 経由のみ（誤実行防止）。
+// 旧設計（d2d2523、2026-05-19 朝の初版）は「新しい連続日数」を人力入力させていたため、
+// ふくちさんの計算ミスで streak が誤った値になるリスクがあった。
+// 新設計は HPLog の type='login' と他活動レコードを突合し、「login 欠落 + 他活動あり」
+// の日を検出して補完候補として提示。塾長は目視確認＋承認のみで、streak 値は機械算出。
+//
+// 公開関数 2 つ：
+//   ① getStreakRecoveryCandidates(params)  — 補完候補抽出（読み取り、doGet）
+//   ② executeManualStreakModify(params)    — 補完実行（書き込み、doPost）
+//
+// 補完日の HPLog 記録は type='login_recovery'、streak 書換は type='manual_streak_modify'
+// の 2 系統に分離（_logHP の type 分類との整合）。
+
+// ---- 内部ヘルパー：sid をキーに Students または SpecialAccounts の行を特定 ----
+function _findStreakModifyTarget(sid) {
+  const ss = _ss();
+  const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+  if (!stuSheet) return { error: 'Students シートが見つかりません' };
+  const spSheet = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+
+  // Students 優先（cache 経由禁止：書き込み対象行はシートからフレッシュに特定）
+  const stuValues = stuSheet.getDataRange().getValues();
+  for (let i = 1; i < stuValues.length; i++) {
+    if (String(stuValues[i][COL_ID] || '').trim() === sid) {
+      return {
+        sheet:     stuSheet,
+        sheetName: SHEET_STUDENTS,
+        rowIdx:    i,
+        rowValues: stuValues[i]
+      };
+    }
+  }
+  if (spSheet && spSheet.getLastRow() >= 2) {
+    const spValues = spSheet.getDataRange().getValues();
+    for (let i = 1; i < spValues.length; i++) {
+      if (String(spValues[i][COL_ID] || '').trim() === sid) {
+        return {
+          sheet:     spSheet,
+          sheetName: SHEET_SPECIAL_ACCOUNTS,
+          rowIdx:    i,
+          rowValues: spValues[i]
+        };
+      }
+    }
+  }
+  return { error: '指定された生徒が見つかりません: ' + sid };
+}
+
+// ---- 内部ヘルパー：教育日 dateStr の前日（JST 文字列）を返す ----
+function _streakPrevDateStr(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00+09:00');
+  d.setDate(d.getDate() - 1);
+  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
+// ---- 内部ヘルパー：指定 sid の過去 N 日分の HPLog 日別集計 ----
+// 戻り値: { byDate: { 'yyyy-MM-dd': { hasLogin, activities: {type: count}, hasOtherActivity } }, dates: ['yyyy-MM-dd', ...] }
+// dates は新→旧（降順）。教育日基準の「今日」から N 日分（過去 N-1 日まで）を含む配列。
+function _readHpLogByDateForSid(sid, numDays) {
+  const today = _todayEducationalJST();
+  // 日付列を新→旧で先に作る（今日含めて numDays 日分）
+  const dates = [];
+  let cur = today;
+  for (let i = 0; i < numDays; i++) {
+    dates.push(cur);
+    cur = _streakPrevDateStr(cur);
+  }
+  const earliest = dates[dates.length - 1];
+
+  const byDate = {};
+  for (let i = 0; i < dates.length; i++) {
+    byDate[dates[i]] = { hasLogin: false, activities: {}, hasOtherActivity: false };
+  }
+
+  const sh = _ss().getSheetByName(SHEET_HPLOG);
+  if (!sh || sh.getLastRow() < 2) return { byDate: byDate, dates: dates };
+
+  // ヘッダー駆動で列インデックスを取得（_ensureHpLogMessageColumn と同じ列構造前提）
+  const lastCol = sh.getLastColumn();
+  const header  = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  const iTs   = header.indexOf('timestamp');
+  const iSid  = header.indexOf('studentId');
+  const iType = header.indexOf('type');
+  if (iTs < 0 || iSid < 0 || iType < 0) return { byDate: byDate, dates: dates };
+
+  // 全件スキャン（過去 N 日に該当する行だけ採用）。HPLog は数千〜数万行を想定し、
+  // 1 回のフルスキャンで完結させる（個別 sid のフィルタは行単位）。
+  const values = sh.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][iSid] || '').trim() !== sid) continue;
+    const ds = _toDateStr(values[i][iTs]);
+    if (!ds) continue;
+    // 範囲外（earliest より古い）はスキップ
+    if (ds < earliest) continue;
+    if (!byDate[ds]) continue;  // 今日より未来（理論上発生しない）も無視
+    const t = String(values[i][iType] || '').trim();
+    if (!t) continue;
+    if (t === 'login' || t === 'login_recovery') {
+      byDate[ds].hasLogin = true;
+      // login / login_recovery は activities には積まない（純粋なログイン記録のため）
+      continue;
+    }
+    // それ以外は「他活動」としてカウント
+    byDate[ds].activities[t] = (byDate[ds].activities[t] || 0) + 1;
+    byDate[ds].hasOtherActivity = true;
+  }
+  return { byDate: byDate, dates: dates };
+}
+
+// ---- 内部ヘルパー：login 日集合から「今日から逆順に連続する日数」を算出 ----
+// loginDateSet[ds] === true なら「その日 login あり」とみなす。
+// 教育日基準で「今日」を起点に 1 日ずつ遡り、連続している間カウントを +1。
+// 今日 login がなければ streak = 0（仕様）。
+function _calcStreakFromLoginDates(loginDateSet) {
+  let streak = 0;
+  let cur = _todayEducationalJST();
+  // 安全上限（30 日以上連続でも 30 でクリップ：表示範囲と整合）。
+  // 実運用では「過去 30 日分のスキャン範囲を超えた古い連続」は本機能の対象外。
+  for (let i = 0; i < 366; i++) {
+    if (!loginDateSet[cur]) break;
+    streak += 1;
+    cur = _streakPrevDateStr(cur);
+  }
+  return streak;
+}
+
+// =====================================================
+// ① 補完候補抽出 API（読み取り、doGet）
+// =====================================================
+// params: { teacherId, password, studentId }
+// 戻り値:
+//   {
+//     ok: true,
+//     studentId, name, nickname,
+//     currentStreak,                  // Students.STREAK 列の値（参考表示）
+//     today,                          // 教育日基準の今日（'yyyy-MM-dd'）
+//     days: [                         // 過去 30 日（今日含む、新→旧）
+//       { date, hasLogin, activities: [{type, count, label}], activityCount,
+//         isRecoveryCandidate, isConnectedInCurrentSeq }
+//     ],
+//     recoveryCandidates: ['yyyy-MM-dd', ...],   // login なし + 他活動あり
+//     simulatedStreakAll                          // 全候補を補完した場合の streak（参考）
+//   }
+function getStreakRecoveryCandidates(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '対象生徒IDが指定されていません' };
+
+    const target = _findStreakModifyTarget(sid);
+    if (target.error) return { ok: false, message: target.error };
+
+    const currentStreak = Number(target.rowValues[COL_STREAK]) || 0;
+    const name          = String(target.rowValues[COL_NAME]     || '').trim();
+    const nickname      = String(target.rowValues[COL_NICKNAME] || '').trim();
+
+    const NUM_DAYS = 30;  // 過去 30 日分（今日含む）
+    const today    = _todayEducationalJST();
+    const agg      = _readHpLogByDateForSid(sid, NUM_DAYS);
+
+    // 連続性の初期判定：補完を一切しない場合の連続セットを計算
+    const noRecoverySet = {};
+    agg.dates.forEach(function(ds) { if (agg.byDate[ds].hasLogin) noRecoverySet[ds] = true; });
+    const currentSeq = {};
+    {
+      let cur = today;
+      while (noRecoverySet[cur]) {
+        currentSeq[cur] = true;
+        cur = _streakPrevDateStr(cur);
+      }
+    }
+
+    const recoveryCandidates = [];
+    const days = agg.dates.map(function(ds) {
+      const b = agg.byDate[ds];
+      const isCand = (!b.hasLogin && b.hasOtherActivity);
+      if (isCand) recoveryCandidates.push(ds);
+      const acts = Object.keys(b.activities).sort().map(function(t) {
+        return {
+          type:  t,
+          count: b.activities[t],
+          label: _calendarContentName(t)
+        };
+      });
+      let activityCount = 0;
+      for (const k in b.activities) activityCount += b.activities[k];
+      return {
+        date:                    ds,
+        hasLogin:                b.hasLogin,
+        activities:              acts,
+        activityCount:           activityCount,
+        isRecoveryCandidate:     isCand,
+        isConnectedInCurrentSeq: !!currentSeq[ds]
+      };
+    });
+
+    // 全候補を補完した場合の streak（参考表示用）
+    const simAllSet = Object.assign({}, noRecoverySet);
+    recoveryCandidates.forEach(function(ds) { simAllSet[ds] = true; });
+    const simulatedStreakAll = _calcStreakFromLoginDates(simAllSet);
+
+    return {
+      ok:                  true,
+      studentId:           sid,
+      name:                name,
+      nickname:            nickname,
+      sheetName:           target.sheetName,
+      currentStreak:       currentStreak,
+      today:               today,
+      days:                days,
+      recoveryCandidates:  recoveryCandidates,
+      simulatedStreakAll:  simulatedStreakAll
+    };
+  } catch(err) {
+    console.error('[getStreakRecoveryCandidates]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// ② 自動復旧の実行 API（書き込み、doPost 強制）
+// =====================================================
 // params: {
-//   teacherId:   塾長ID
-//   password:    塾長パスワード
-//   studentId:   対象生徒ID（単一）
-//   newStreak:   修正後の連続日数（0 以上の整数）
-//   reason:      修正理由（必須、HPLog の message に保存）
+//   teacherId, password,
+//   studentId,
+//   recoveryDates: ['yyyy-MM-dd', ...],   // 補完する日（複数可、空配列も許容）
+//   reason: '修正理由（必須）'
 // }
 // 処理：
 //   1. 認証 + admin ロール確認（二重防御）
-//   2. Students または SpecialAccounts シートから sid で行を特定（Students 優先）
-//   3. 修正前の連続日数を保存（履歴用）
-//   4. COL_STREAK のみ setValue で書き換え（LAST_LOGIN は触らない＝救済合意）
-//   5. HPLog に 1 行追加：type='manual_streak_modify' / rawHP=0 / hpGained=0 /
-//      message='{old}日 → {new}日｜理由：{reason}（修正者: {teacherId}）'
-//   6. cache invalidate（cache_students_values / cache_special_accounts_values / cache_ranking_last_week）
-//   7. _logTeacherAction で操作ログに集約記録
-// 二重実行防止なし（管理者判断、修正系は冪等で再実行しても結果は最新値で上書き）
+//   2. 行特定（Students 優先 → SpecialAccounts）
+//   3. 補完候補日を再検証（HPLog の最新状態で「他活動あり + login なし」か確認）
+//   4. 各補完候補日に login_recovery レコードを HPLog に追加
+//      - timestamp = 当該日の 12:00:00（JST）
+//      - rawHP=0 / hpGained=0
+//      - message='streak自動復旧による補完（修正者: {teacherId}）'
+//   5. 連続日数を再計算（補完含めて今日から遡る）
+//   6. Students.STREAK を新値に更新（LAST_LOGIN は触らない＝救済合意）
+//   7. HPLog に manual_streak_modify レコードを 1 行追加
+//      - message='{old}日 → {new}日｜理由：{reason}｜補完日: {dates}（修正者: {teacherId}）'
+//   8. cache invalidate
+//   9. _logTeacherAction で操作ログ記録
 function executeManualStreakModify(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
     if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
 
-    const sid          = String((params && params.studentId) || '').trim();
-    const newStreakRaw = Number(params && params.newStreak);
-    const reason       = String((params && params.reason) || '').trim();
+    const sid    = String((params && params.studentId) || '').trim();
+    const reason = String((params && params.reason)    || '').trim();
+    let recoveryDatesRaw = params && params.recoveryDates;
 
     if (!sid) return { ok: false, message: '対象生徒IDが指定されていません' };
-    if (!Number.isFinite(newStreakRaw) || newStreakRaw < 0 || Math.floor(newStreakRaw) !== newStreakRaw) {
-      return { ok: false, message: '新しい連続日数は 0 以上の整数を指定してください' };
-    }
     if (!reason) return { ok: false, message: '修正理由は必須です' };
-    const newStreak = Math.floor(newStreakRaw);
 
-    // cache 経由禁止：書き込み対象行はシートからフレッシュに特定する（rowIdx の安全性）
-    // Step 2：Students + SpecialAccounts の両シートを sid で順次検索（Students 優先）。
-    const ss = _ss();
-    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
-    if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
-    const spSheet  = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
-
-    let targetSheet = null;
-    let targetSheetName = '';
-    let targetRowIdx = -1;
-    let targetRowValues = null;
-
-    // Students 優先
-    const stuValues = stuSheet.getDataRange().getValues();
-    for (let i = 1; i < stuValues.length; i++) {
-      if (String(stuValues[i][COL_ID] || '').trim() === sid) {
-        targetSheet = stuSheet;
-        targetSheetName = SHEET_STUDENTS;
-        targetRowIdx = i;
-        targetRowValues = stuValues[i];
-        break;
-      }
+    // recoveryDates は配列 or JSON 文字列のどちらも許容
+    if (typeof recoveryDatesRaw === 'string') {
+      try { recoveryDatesRaw = JSON.parse(recoveryDatesRaw); } catch(e) { recoveryDatesRaw = []; }
     }
-    // Students に無ければ SpecialAccounts を探す
-    if (!targetSheet && spSheet && spSheet.getLastRow() >= 2) {
-      const spValues = spSheet.getDataRange().getValues();
-      for (let i = 1; i < spValues.length; i++) {
-        if (String(spValues[i][COL_ID] || '').trim() === sid) {
-          targetSheet = spSheet;
-          targetSheetName = SHEET_SPECIAL_ACCOUNTS;
-          targetRowIdx = i;
-          targetRowValues = spValues[i];
-          break;
-        }
-      }
+    if (!Array.isArray(recoveryDatesRaw)) recoveryDatesRaw = [];
+    // 重複排除 + 'yyyy-MM-dd' 形式チェック
+    const seen = {};
+    const recoveryDates = [];
+    for (let i = 0; i < recoveryDatesRaw.length; i++) {
+      const d = String(recoveryDatesRaw[i] || '').trim();
+      if (!d.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
+      if (seen[d]) continue;
+      seen[d] = true;
+      recoveryDates.push(d);
+    }
+    recoveryDates.sort();  // 古→新で並べる（記録の順序を一定化）
+
+    if (recoveryDates.length === 0) {
+      return { ok: false, message: '補完する日が選択されていません' };
     }
 
-    if (!targetSheet) {
-      return { ok: false, message: '指定された生徒が見つかりません: ' + sid };
+    const target = _findStreakModifyTarget(sid);
+    if (target.error) return { ok: false, message: target.error };
+
+    const oldStreak = Number(target.rowValues[COL_STREAK]) || 0;
+    const name      = String(target.rowValues[COL_NAME]     || '').trim();
+    const nickname  = String(target.rowValues[COL_NICKNAME] || '').trim();
+
+    // 補完候補日を再検証（HPLog の最新状態で「他活動あり + login なし」か確認）
+    const NUM_DAYS = 30;
+    const today    = _todayEducationalJST();
+    const earliest = (function() {
+      let cur = today;
+      for (let i = 1; i < NUM_DAYS; i++) cur = _streakPrevDateStr(cur);
+      return cur;
+    })();
+    for (let i = 0; i < recoveryDates.length; i++) {
+      const d = recoveryDates[i];
+      if (d > today)     return { ok: false, message: '未来の日付は補完できません: ' + d };
+      if (d < earliest)  return { ok: false, message: '過去 30 日より前の日付は補完できません: ' + d };
+    }
+    const agg = _readHpLogByDateForSid(sid, NUM_DAYS);
+    for (let i = 0; i < recoveryDates.length; i++) {
+      const d = recoveryDates[i];
+      const b = agg.byDate[d];
+      if (!b)               return { ok: false, message: '範囲外の日付です: ' + d };
+      if (b.hasLogin)       return { ok: false, message: 'login 既存日です（補完不要）: ' + d };
+      if (!b.hasOtherActivity) return { ok: false, message: '他活動がないため補完できません: ' + d };
     }
 
-    const oldStreak = Number(targetRowValues[COL_STREAK]) || 0;
-    const name      = String(targetRowValues[COL_NAME]     || '').trim();
-    const nickname  = String(targetRowValues[COL_NICKNAME] || '').trim();
-
-    // 同じ値が指定された場合も処理は実行する（HPLog に「変更なし」が残る）。
-    // 「N日 → N日」となるが、ふくちさんが意図して再記録するケースを許容するため弾かない。
-
-    // ① STREAK 列を setValue で書き換え（1 セルのみ、LAST_LOGIN は触らない）
-    targetSheet.getRange(targetRowIdx + 1, COL_STREAK + 1).setValue(newStreak);
-
-    // ② HPLog に 1 行追加（_ensureHpLogMessageColumn 経由で 6 列構造を保証）
     const log = _ensureHpLogMessageColumn();
-    const now = _nowJST();
-    const messageStr = oldStreak + '日 → ' + newStreak + '日｜理由：' + reason +
-                       '（修正者: ' + _teacher.teacherId + '）';
-    const row = new Array(log.lastCol).fill('');
-    if (log.cTimestamp >= 0) row[log.cTimestamp] = now;
-    if (log.cSid       >= 0) row[log.cSid]       = sid;
-    if (log.cRawHP     >= 0) row[log.cRawHP]     = 0;
-    if (log.cHpGained  >= 0) row[log.cHpGained]  = 0;
-    if (log.cType      >= 0) row[log.cType]      = 'manual_streak_modify';
-    if (log.cMessage   >= 0) row[log.cMessage]   = messageStr;
-    log.sh.getRange(log.sh.getLastRow() + 1, 1, 1, log.lastCol).setValues([row]);
+    const teacherId = _teacher.teacherId;
 
-    // ③ cache invalidate（書き込んだシート優先 + ランキング）
+    // ③-1. 補完日ごとに login_recovery レコードを 1 行ずつ追加
+    //       timestamp は当該日の 12:00:00（教育日 04:00 区切りで「その日」と確実に判定されるため正午）
+    const recoveryMsg = 'streak自動復旧による補完（修正者: ' + teacherId + '）';
+    const newRows = [];
+    for (let i = 0; i < recoveryDates.length; i++) {
+      const ts = recoveryDates[i] + ' 12:00:00';
+      const row = new Array(log.lastCol).fill('');
+      if (log.cTimestamp >= 0) row[log.cTimestamp] = ts;
+      if (log.cSid       >= 0) row[log.cSid]       = sid;
+      if (log.cRawHP     >= 0) row[log.cRawHP]     = 0;
+      if (log.cHpGained  >= 0) row[log.cHpGained]  = 0;
+      if (log.cType      >= 0) row[log.cType]      = 'login_recovery';
+      if (log.cMessage   >= 0) row[log.cMessage]   = recoveryMsg;
+      newRows.push(row);
+    }
+    log.sh.getRange(log.sh.getLastRow() + 1, 1, newRows.length, log.lastCol).setValues(newRows);
+
+    // ③-2. 補完後の login 日集合を構築 → streak を機械算出
+    const loginSet = {};
+    agg.dates.forEach(function(ds) { if (agg.byDate[ds].hasLogin) loginSet[ds] = true; });
+    recoveryDates.forEach(function(ds) { loginSet[ds] = true; });
+    const newStreak = _calcStreakFromLoginDates(loginSet);
+
+    // ③-3. Students または SpecialAccounts の STREAK 列を setValue で書き換え
+    target.sheet.getRange(target.rowIdx + 1, COL_STREAK + 1).setValue(newStreak);
+
+    // ③-4. manual_streak_modify レコードを 1 行追加
+    const modifyMsg = oldStreak + '日 → ' + newStreak + '日｜理由：' + reason +
+                      '｜補完日: ' + recoveryDates.join(', ') +
+                      '（修正者: ' + teacherId + '）';
+    const modifyRow = new Array(log.lastCol).fill('');
+    if (log.cTimestamp >= 0) modifyRow[log.cTimestamp] = _nowJST();
+    if (log.cSid       >= 0) modifyRow[log.cSid]       = sid;
+    if (log.cRawHP     >= 0) modifyRow[log.cRawHP]     = 0;
+    if (log.cHpGained  >= 0) modifyRow[log.cHpGained]  = 0;
+    if (log.cType      >= 0) modifyRow[log.cType]      = 'manual_streak_modify';
+    if (log.cMessage   >= 0) modifyRow[log.cMessage]   = modifyMsg;
+    log.sh.getRange(log.sh.getLastRow() + 1, 1, 1, log.lastCol).setValues([modifyRow]);
+
+    // ④ cache invalidate
     _invalidateCache('cache_students_values');
-    if (targetSheetName === SHEET_SPECIAL_ACCOUNTS) {
+    if (target.sheetName === SHEET_SPECIAL_ACCOUNTS) {
       _invalidateCache('cache_special_accounts_values');
     }
     _invalidateCache('cache_ranking_last_week');
 
-    // ④ 操作ログ
-    _logTeacherAction(_teacher.teacherId, 'MANUAL_STREAK_MODIFY', '', 'success', {
-      studentId:  sid,
-      name:       name,
-      nickname:   nickname,
-      sheetName:  targetSheetName,
-      oldStreak:  oldStreak,
-      newStreak:  newStreak,
-      delta:      newStreak - oldStreak,
-      reason:     reason
+    // ⑤ 操作ログ
+    _logTeacherAction(teacherId, 'MANUAL_STREAK_MODIFY', '', 'success', {
+      studentId:      sid,
+      name:           name,
+      nickname:       nickname,
+      sheetName:      target.sheetName,
+      oldStreak:      oldStreak,
+      newStreak:      newStreak,
+      delta:          newStreak - oldStreak,
+      recoveryDates:  recoveryDates,
+      reason:         reason
     });
 
     return {
-      ok:        true,
-      studentId: sid,
-      name:      name,
-      nickname:  nickname,
-      oldStreak: oldStreak,
-      newStreak: newStreak,
-      delta:     newStreak - oldStreak,
-      reason:    reason
+      ok:             true,
+      studentId:      sid,
+      name:           name,
+      nickname:       nickname,
+      oldStreak:      oldStreak,
+      newStreak:      newStreak,
+      delta:          newStreak - oldStreak,
+      recoveryDates:  recoveryDates,
+      reason:         reason
     };
   } catch(err) {
     console.error('[executeManualStreakModify]', err);
@@ -9095,6 +9349,7 @@ function _calendarContentName(type) {
   if (t === 'lison')  return '英語リスオン';
   if (t === 'manual_grant') return '手動付与';
   if (t === 'manual_streak_modify') return '連続日数修正';
+  if (t === 'login_recovery') return 'ログイン復旧';
   if (t.indexOf('kiso_')  === 0) return '基礎計算';
   if (t.indexOf('kanji_') === 0) return 'カンジー';
   if (t.indexOf('kobun_') === 0) return 'コブタン';
@@ -17469,6 +17724,8 @@ function _lineNotifyCountableType(type) {
   if (t.indexOf('apology_') === 0) return false;
   // 2026-05-19：連続日数修正は HP 0 のメタデータ書き換えのため「やった子」判定対象外
   if (t === 'manual_streak_modify') return false;
+  // 2026-05-19 リライト：自動復旧で補完された login 相当レコードもメタデータなので除外
+  if (t === 'login_recovery') return false;
   if (t === 'test' || t === 'sango' || t === 'wabun1' || t === 'lison') return true;
   if (t.indexOf('test_')   === 0) return true;
   if (t.indexOf('sango_')  === 0) return true;
@@ -17500,6 +17757,8 @@ function _lineNotifyContentNameFor(type) {
   if (t === 'reserve_release' || t === 'completion_bonus') return '絶対ミッション達成ボーナス';
   // 2026-05-19：連続日数修正は LINE 通知の取組み一覧に出さない（HP 0 のメタデータ書き換えなので「取り組み内容」ではない）
   if (t === 'manual_streak_modify') return null;
+  // 2026-05-19 リライト：自動復旧で補完された login 相当レコードも取組み一覧には出さない
+  if (t === 'login_recovery') return null;
   if (t.indexOf('manual_') === 0 || t === 'manual_grant') return '手動付与';
   return null;
 }
