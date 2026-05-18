@@ -1218,6 +1218,8 @@ function doPost(e) {
     else if (action === 'submitKanjiKaki')          result = submitKanjiKaki(params);
     // 管理画面：HP 手動付与（誤実行防止のため POST 強制、Students.HP と HPLog を直接書き換える）
     else if (action === 'executeManualHpGrant')     result = executeManualHpGrant(params);
+    // 管理画面：連続ログイン日数 手動修正（誤実行防止のため POST 強制、Students.STREAK と HPLog を直接書き換える）
+    else if (action === 'executeManualStreakModify') result = executeManualStreakModify(params);
     // 先生からのメッセージ（管理画面：送信 / 生徒画面：既読化）
     // ※ 管理者認証必須の sendTeacherMessage は POST 強制（誤送信防止）。
     //   markMessageAsRead は誤書き込みリスクが極小だが POST に統一（doGet にも登録すると
@@ -1463,13 +1465,15 @@ function _getPrevDayCount(studentId, yesterday) {
 //   完全一致:    'test' / 'sango' / 'wabun1' / 'lison'
 //   プレフィックス: 'kiso_*' / 'kanji_*'
 // 除外対象:
-//   完全一致:    'login' / 'manual_grant'
+//   完全一致:    'login' / 'manual_grant' / 'manual_streak_modify'
 //   プレフィックス: 'apology_*'（apology_streak_bonus / apology_kiso / apology_wabun1）
 //   サフィックス:  '*_practice'（カンジー HP 上限到達後の練習モード）
 function _isCountableActivityType(type) {
   if (!type) return false;
   if (type === 'login') return false;
   if (type === 'manual_grant') return false;
+  // 2026-05-19：連続日数修正は HP 0 のメタデータ書き換えなのでマイカツ君 Stage 計算から除外
+  if (type === 'manual_streak_modify') return false;
   if (type.indexOf('apology_') === 0) return false;
   // _practice 接尾の判定（カンジー練習モード等）
   const PRACTICE_SUFFIX = '_practice';
@@ -8093,6 +8097,144 @@ function executeManualHpGrant(params) {
 }
 
 // =====================================================
+// 連続ログイン日数 手動修正（2026-05-19、管理画面）
+// =====================================================
+// 管理者認証必須。doPost 経由のみ（誤実行防止）。
+// params: {
+//   teacherId:   塾長ID
+//   password:    塾長パスワード
+//   studentId:   対象生徒ID（単一）
+//   newStreak:   修正後の連続日数（0 以上の整数）
+//   reason:      修正理由（必須、HPLog の message に保存）
+// }
+// 処理：
+//   1. 認証 + admin ロール確認（二重防御）
+//   2. Students または SpecialAccounts シートから sid で行を特定（Students 優先）
+//   3. 修正前の連続日数を保存（履歴用）
+//   4. COL_STREAK のみ setValue で書き換え（LAST_LOGIN は触らない＝救済合意）
+//   5. HPLog に 1 行追加：type='manual_streak_modify' / rawHP=0 / hpGained=0 /
+//      message='{old}日 → {new}日｜理由：{reason}（修正者: {teacherId}）'
+//   6. cache invalidate（cache_students_values / cache_special_accounts_values / cache_ranking_last_week）
+//   7. _logTeacherAction で操作ログに集約記録
+// 二重実行防止なし（管理者判断、修正系は冪等で再実行しても結果は最新値で上書き）
+function executeManualStreakModify(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    const sid          = String((params && params.studentId) || '').trim();
+    const newStreakRaw = Number(params && params.newStreak);
+    const reason       = String((params && params.reason) || '').trim();
+
+    if (!sid) return { ok: false, message: '対象生徒IDが指定されていません' };
+    if (!Number.isFinite(newStreakRaw) || newStreakRaw < 0 || Math.floor(newStreakRaw) !== newStreakRaw) {
+      return { ok: false, message: '新しい連続日数は 0 以上の整数を指定してください' };
+    }
+    if (!reason) return { ok: false, message: '修正理由は必須です' };
+    const newStreak = Math.floor(newStreakRaw);
+
+    // cache 経由禁止：書き込み対象行はシートからフレッシュに特定する（rowIdx の安全性）
+    // Step 2：Students + SpecialAccounts の両シートを sid で順次検索（Students 優先）。
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
+    const spSheet  = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+
+    let targetSheet = null;
+    let targetSheetName = '';
+    let targetRowIdx = -1;
+    let targetRowValues = null;
+
+    // Students 優先
+    const stuValues = stuSheet.getDataRange().getValues();
+    for (let i = 1; i < stuValues.length; i++) {
+      if (String(stuValues[i][COL_ID] || '').trim() === sid) {
+        targetSheet = stuSheet;
+        targetSheetName = SHEET_STUDENTS;
+        targetRowIdx = i;
+        targetRowValues = stuValues[i];
+        break;
+      }
+    }
+    // Students に無ければ SpecialAccounts を探す
+    if (!targetSheet && spSheet && spSheet.getLastRow() >= 2) {
+      const spValues = spSheet.getDataRange().getValues();
+      for (let i = 1; i < spValues.length; i++) {
+        if (String(spValues[i][COL_ID] || '').trim() === sid) {
+          targetSheet = spSheet;
+          targetSheetName = SHEET_SPECIAL_ACCOUNTS;
+          targetRowIdx = i;
+          targetRowValues = spValues[i];
+          break;
+        }
+      }
+    }
+
+    if (!targetSheet) {
+      return { ok: false, message: '指定された生徒が見つかりません: ' + sid };
+    }
+
+    const oldStreak = Number(targetRowValues[COL_STREAK]) || 0;
+    const name      = String(targetRowValues[COL_NAME]     || '').trim();
+    const nickname  = String(targetRowValues[COL_NICKNAME] || '').trim();
+
+    // 同じ値が指定された場合も処理は実行する（HPLog に「変更なし」が残る）。
+    // 「N日 → N日」となるが、ふくちさんが意図して再記録するケースを許容するため弾かない。
+
+    // ① STREAK 列を setValue で書き換え（1 セルのみ、LAST_LOGIN は触らない）
+    targetSheet.getRange(targetRowIdx + 1, COL_STREAK + 1).setValue(newStreak);
+
+    // ② HPLog に 1 行追加（_ensureHpLogMessageColumn 経由で 6 列構造を保証）
+    const log = _ensureHpLogMessageColumn();
+    const now = _nowJST();
+    const messageStr = oldStreak + '日 → ' + newStreak + '日｜理由：' + reason +
+                       '（修正者: ' + _teacher.teacherId + '）';
+    const row = new Array(log.lastCol).fill('');
+    if (log.cTimestamp >= 0) row[log.cTimestamp] = now;
+    if (log.cSid       >= 0) row[log.cSid]       = sid;
+    if (log.cRawHP     >= 0) row[log.cRawHP]     = 0;
+    if (log.cHpGained  >= 0) row[log.cHpGained]  = 0;
+    if (log.cType      >= 0) row[log.cType]      = 'manual_streak_modify';
+    if (log.cMessage   >= 0) row[log.cMessage]   = messageStr;
+    log.sh.getRange(log.sh.getLastRow() + 1, 1, 1, log.lastCol).setValues([row]);
+
+    // ③ cache invalidate（書き込んだシート優先 + ランキング）
+    _invalidateCache('cache_students_values');
+    if (targetSheetName === SHEET_SPECIAL_ACCOUNTS) {
+      _invalidateCache('cache_special_accounts_values');
+    }
+    _invalidateCache('cache_ranking_last_week');
+
+    // ④ 操作ログ
+    _logTeacherAction(_teacher.teacherId, 'MANUAL_STREAK_MODIFY', '', 'success', {
+      studentId:  sid,
+      name:       name,
+      nickname:   nickname,
+      sheetName:  targetSheetName,
+      oldStreak:  oldStreak,
+      newStreak:  newStreak,
+      delta:      newStreak - oldStreak,
+      reason:     reason
+    });
+
+    return {
+      ok:        true,
+      studentId: sid,
+      name:      name,
+      nickname:  nickname,
+      oldStreak: oldStreak,
+      newStreak: newStreak,
+      delta:     newStreak - oldStreak,
+      reason:    reason
+    };
+  } catch(err) {
+    console.error('[executeManualStreakModify]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
 // 塾長権限：LINE 通知管理 + 絶対ミッション設定（2026-05-18）
 // =====================================================
 // 設計：
@@ -8952,6 +9094,7 @@ function _calendarContentName(type) {
   if (t === 'wabun1') return '和文英訳①';
   if (t === 'lison')  return '英語リスオン';
   if (t === 'manual_grant') return '手動付与';
+  if (t === 'manual_streak_modify') return '連続日数修正';
   if (t.indexOf('kiso_')  === 0) return '基礎計算';
   if (t.indexOf('kanji_') === 0) return 'カンジー';
   if (t.indexOf('kobun_') === 0) return 'コブタン';
@@ -17324,6 +17467,8 @@ function _lineNotifyCountableType(type) {
   var t = String(type);
   if (t === 'login') return false;
   if (t.indexOf('apology_') === 0) return false;
+  // 2026-05-19：連続日数修正は HP 0 のメタデータ書き換えのため「やった子」判定対象外
+  if (t === 'manual_streak_modify') return false;
   if (t === 'test' || t === 'sango' || t === 'wabun1' || t === 'lison') return true;
   if (t.indexOf('test_')   === 0) return true;
   if (t.indexOf('sango_')  === 0) return true;
@@ -17353,6 +17498,8 @@ function _lineNotifyContentNameFor(type) {
   if (t.indexOf('kanji_') === 0) return 'カンジー';
   if (t.indexOf('kobun_') === 0) return 'コブタン';
   if (t === 'reserve_release' || t === 'completion_bonus') return '絶対ミッション達成ボーナス';
+  // 2026-05-19：連続日数修正は LINE 通知の取組み一覧に出さない（HP 0 のメタデータ書き換えなので「取り組み内容」ではない）
+  if (t === 'manual_streak_modify') return null;
   if (t.indexOf('manual_') === 0 || t === 'manual_grant') return '手動付与';
   return null;
 }
