@@ -5125,22 +5125,32 @@
   }
 
   // チェック状態に応じて修正後 streak（推定）をプレビュー表示
-  // GAS 側と同じロジック：教育日「今日」から 1 日ずつ遡って login 集合に含まれる間カウント
+  // GAS 側と同じロジック（2026-05-19 修正版）：
+  //   - login 日集合は GAS が返す allLoginDates（過去 400 日のフル期間）をベースに、
+  //     チェック済みの補完候補日を加える（30 日表示窓を超えた連続起点も拾うため必須）
+  //   - 起点：教育日今日に login あれば今日、なければ昨日（連続維持のため）
+  //   - 1 日ずつ遡って login 集合に含まれる間カウント
   function _calcStreakPreview() {
     var d = _streakModifyData;
     if (!d) return 0;
-    // login 日集合 = HPLog 既存 login + チェックされた補完候補
     var loginSet = {};
-    (d.days || []).forEach(function(day) { if (day.hasLogin) loginSet[day.date] = true; });
+    // フル期間の login 日（GAS から渡される allLoginDates、過去 400 日分）
+    (d.allLoginDates || []).forEach(function(ds) { loginSet[ds] = true; });
+    // チェックされた補完候補日（30 日窓内）
     for (var ds in _streakModifyChecked) {
       if (_streakModifyChecked[ds]) loginSet[ds] = true;
     }
-    var streak = 0;
+    // 起点：today に login あれば today、なければ yesterday から
     var cur = d.today;
+    if (!loginSet[cur]) {
+      var t0 = new Date(cur + 'T12:00:00+09:00');
+      t0.setDate(t0.getDate() - 1);
+      cur = _streakFormatYmdJST(t0);
+    }
+    var streak = 0;
     for (var i = 0; i < 400; i++) {
       if (!loginSet[cur]) break;
       streak += 1;
-      // cur の前日を計算
       var t = new Date(cur + 'T12:00:00+09:00');
       t.setDate(t.getDate() - 1);
       cur = _streakFormatYmdJST(t);

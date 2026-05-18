@@ -8210,16 +8210,58 @@ function _readHpLogByDateForSid(sid, numDays) {
   return { byDate: byDate, dates: dates };
 }
 
-// ---- 内部ヘルパー：login 日集合から「今日から逆順に連続する日数」を算出 ----
+// ---- 内部ヘルパー：指定 sid の過去 N 日分（既定 400 日）の login + login_recovery 日付集合 ----
+// 戻り値: { 'yyyy-MM-dd': true, ... }
+// 用途：streak 算出時に「30 日表示ウィンドウ外」の連続起点も拾うため、フル期間スキャン。
+// 笹川夏鈴のような「4月初旬から 47 日連続」のケースで、4 月起点がウィンドウ外で見えず
+// streak が誤算出される問題（2026-05-19 報告）への対処。
+function _readAllLoginDatesForSid(sid, lookbackDays) {
+  const set = {};
+  const sh = _ss().getSheetByName(SHEET_HPLOG);
+  if (!sh || sh.getLastRow() < 2) return set;
+  const lastCol = sh.getLastColumn();
+  const header  = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  const iTs   = header.indexOf('timestamp');
+  const iSid  = header.indexOf('studentId');
+  const iType = header.indexOf('type');
+  if (iTs < 0 || iSid < 0 || iType < 0) return set;
+
+  let earliest = '';
+  if (lookbackDays && lookbackDays > 0) {
+    let cur = _todayEducationalJST();
+    for (let i = 1; i < lookbackDays; i++) cur = _streakPrevDateStr(cur);
+    earliest = cur;
+  }
+
+  const values = sh.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][iSid] || '').trim() !== sid) continue;
+    const t = String(values[i][iType] || '').trim();
+    if (t !== 'login' && t !== 'login_recovery') continue;
+    const ds = _toDateStr(values[i][iTs]);
+    if (!ds) continue;
+    if (earliest && ds < earliest) continue;
+    set[ds] = true;
+  }
+  return set;
+}
+
+// ---- 内部ヘルパー：login 日集合から「教育日今日から逆順に連続する日数」を算出 ----
 // loginDateSet[ds] === true なら「その日 login あり」とみなす。
-// 教育日基準で「今日」を起点に 1 日ずつ遡り、連続している間カウントを +1。
-// 今日 login がなければ streak = 0（仕様）。
-function _calcStreakFromLoginDates(loginDateSet) {
+// 起点ロジック（2026-05-19 修正）：
+//   - 今日 login あり → 今日から逆順カウント
+//   - 今日 login なし + 昨日 login あり → 昨日から逆順カウント（連続維持）
+//   - 今日も昨日も無し → streak = 0
+// これにより「今日まだログインしていないが昨日まで N 日連続」状態を正しく算出できる。
+// 補完日付（login_recovery）は loginDateSet に予め含めて呼ぶ運用。
+function _calcStreakFromLoginDates(loginDateSet, todayStr) {
+  const today = todayStr || _todayEducationalJST();
+  // 起点：今日 login あれば今日、なければ昨日（連続維持のため）
+  let cur = today;
+  if (!loginDateSet[cur]) cur = _streakPrevDateStr(cur);
   let streak = 0;
-  let cur = _todayEducationalJST();
-  // 安全上限（30 日以上連続でも 30 でクリップ：表示範囲と整合）。
-  // 実運用では「過去 30 日分のスキャン範囲を超えた古い連続」は本機能の対象外。
-  for (let i = 0; i < 366; i++) {
+  // 安全上限 400 日（lookbackDays と同じ）
+  for (let i = 0; i < 400; i++) {
     if (!loginDateSet[cur]) break;
     streak += 1;
     cur = _streakPrevDateStr(cur);
@@ -8260,17 +8302,22 @@ function getStreakRecoveryCandidates(params) {
     const name          = String(target.rowValues[COL_NAME]     || '').trim();
     const nickname      = String(target.rowValues[COL_NICKNAME] || '').trim();
 
-    const NUM_DAYS = 30;  // 過去 30 日分（今日含む）
-    const today    = _todayEducationalJST();
-    const agg      = _readHpLogByDateForSid(sid, NUM_DAYS);
+    const NUM_DAYS      = 30;   // 表示用ウィンドウ（過去 30 日、今日含む）
+    const LOOKBACK_DAYS = 400;  // streak 計算用ウィンドウ（年単位の連続にも対応）
+    const today         = _todayEducationalJST();
+    const agg           = _readHpLogByDateForSid(sid, NUM_DAYS);
+    // 2026-05-19 バグ修正：streak 計算は 30 日窓を超えるフル期間 login 集合で実施。
+    // 旧実装は noRecoverySet を agg（30 日窓）の hasLogin から構築していたため、
+    // 30 日より古い起点を持つ連続日数を 0 として誤算出していた（笹川夏鈴の 47 日連続）。
+    const allLoginDates = _readAllLoginDatesForSid(sid, LOOKBACK_DAYS);
 
-    // 連続性の初期判定：補完を一切しない場合の連続セットを計算
-    const noRecoverySet = {};
-    agg.dates.forEach(function(ds) { if (agg.byDate[ds].hasLogin) noRecoverySet[ds] = true; });
+    // 表示用：30 日ウィンドウ内の各日が「補完なしの連続セット」に含まれるか判定。
+    // 連続セットは allLoginDates（フル期間）から教育日今日（or 昨日）起点で計算。
     const currentSeq = {};
     {
       let cur = today;
-      while (noRecoverySet[cur]) {
+      if (!allLoginDates[cur]) cur = _streakPrevDateStr(cur);
+      while (allLoginDates[cur]) {
         currentSeq[cur] = true;
         cur = _streakPrevDateStr(cur);
       }
@@ -8300,10 +8347,14 @@ function getStreakRecoveryCandidates(params) {
       };
     });
 
-    // 全候補を補完した場合の streak（参考表示用）
-    const simAllSet = Object.assign({}, noRecoverySet);
+    // 全候補を補完した場合の streak（参考表示用、フル期間ベース）
+    const simAllSet = Object.assign({}, allLoginDates);
     recoveryCandidates.forEach(function(ds) { simAllSet[ds] = true; });
-    const simulatedStreakAll = _calcStreakFromLoginDates(simAllSet);
+    const simulatedStreakAll = _calcStreakFromLoginDates(simAllSet, today);
+
+    // フロント側 _calcStreakPreview で同じロジックを再現するため、フル期間 login 日リストを返す。
+    // 配列形式（Object.keys 後 sort）で帯域節約 + JS 側で Set 化しやすい。
+    const allLoginDatesArr = Object.keys(allLoginDates).sort();
 
     return {
       ok:                  true,
@@ -8315,7 +8366,8 @@ function getStreakRecoveryCandidates(params) {
       today:               today,
       days:                days,
       recoveryCandidates:  recoveryCandidates,
-      simulatedStreakAll:  simulatedStreakAll
+      simulatedStreakAll:  simulatedStreakAll,
+      allLoginDates:       allLoginDatesArr   // フロント計算用（過去 400 日の login 日集合）
     };
   } catch(err) {
     console.error('[getStreakRecoveryCandidates]', err);
@@ -8430,10 +8482,14 @@ function executeManualStreakModify(params) {
     log.sh.getRange(log.sh.getLastRow() + 1, 1, newRows.length, log.lastCol).setValues(newRows);
 
     // ③-2. 補完後の login 日集合を構築 → streak を機械算出
-    const loginSet = {};
-    agg.dates.forEach(function(ds) { if (agg.byDate[ds].hasLogin) loginSet[ds] = true; });
+    // 2026-05-19 バグ修正：30 日窓を超えるフル期間（400 日）の login 集合をベースに、
+    // 補完日を加えて再計算する。旧実装は agg（30 日窓）の hasLogin だけだったため、
+    // 30 日より古い連続起点が見えず streak が短く計算される問題があった。
+    const LOOKBACK_DAYS = 400;
+    const allLoginDates = _readAllLoginDatesForSid(sid, LOOKBACK_DAYS);
+    const loginSet = Object.assign({}, allLoginDates);
     recoveryDates.forEach(function(ds) { loginSet[ds] = true; });
-    const newStreak = _calcStreakFromLoginDates(loginSet);
+    const newStreak = _calcStreakFromLoginDates(loginSet, today);
 
     // ③-3. Students または SpecialAccounts の STREAK 列を setValue で書き換え
     target.sheet.getRange(target.rowIdx + 1, COL_STREAK + 1).setValue(newStreak);
