@@ -20,6 +20,8 @@ const SHEET_KISO_SESSIONS  = 'KisoSessions';
 const SHEET_KISO_PHOTOS    = 'KisoPhotos';
 const SHEET_LISON_CONTENTS    = 'LisonContents';
 const SHEET_LISON_SUBMISSIONS = 'LisonSubmissions';
+// 計算タイムトライアル（2026-05-19 新設、トラール）：1 セッション = 1 行
+const SHEET_CALCTRIAL_SESSIONS = 'CalcTrialSessions';
 const SHEET_TEACHERS          = 'Teachers';
 const SHEET_TEACHER_MESSAGES  = 'TeacherMessages';
 const SHEET_MESSAGE_READS     = 'MessageReads';
@@ -1221,6 +1223,8 @@ function doPost(e) {
     else if (action === 'executeManualHpGrant')     result = executeManualHpGrant(params);
     // 管理画面：連続ログイン日数 手動修正（誤実行防止のため POST 強制、Students.STREAK と HPLog を直接書き換える）
     else if (action === 'executeManualStreakModify') result = executeManualStreakModify(params);
+    // 計算タイムトライアル：2 ラウンド完走後の結果送信（POST 強制、CalcTrialSessions と HPLog/Students.HP を更新）
+    else if (action === 'submitCalcTrialResult')     result = submitCalcTrialResult(params);
     // 先生からのメッセージ（管理画面：送信 / 生徒画面：既読化）
     // ※ 管理者認証必須の sendTeacherMessage は POST 強制（誤送信防止）。
     //   markMessageAsRead は誤書き込みリスクが極小だが POST に統一（doGet にも登録すると
@@ -8540,6 +8544,183 @@ function executeManualStreakModify(params) {
     };
   } catch(err) {
     console.error('[executeManualStreakModify]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// 計算タイムトライアル（2026-05-19 新設、コンテンツキャラ：トラール）
+// =====================================================
+// 仕様：2 ラウンド固定（① たし算・ひき算 5分100問 / ② かけ算 5分100問）。
+// 101 問目以降ボーナスステージ（1問正解=1HP、上限なし）。
+// クライアント側で問題生成（200問/ラウンド を一気に乱数生成）、
+// サーバー通信は 2 ラウンド完走後の submit 1 回のみ。
+// HP は倍率なし（rawHp = hpGained）、2 ラウンド合計の小数点以下切上 = totalHp。
+// 絶対ミッション対象外（暫定）、開放フラグ CALCTRIAL_UNLOCKED は将来用に定義のみ。
+//
+// 公開関数：
+//   submitCalcTrialResult(params)  — 2 ラウンド完走後の結果送信（doPost 強制）
+//   ensureCalcTrialSheets()        — シート初期化（GAS エディタから 1 回限り実行）
+
+// 結果集計の列構成（1 セッション = 1 行、KisoSessions と同パターン）
+const CALCTRIAL_SESSIONS_HEADERS = [
+  'sessionId',          // calctrial_{sid}_{ts}_{rand}
+  'studentId',
+  'startedAt',          // ラウンド①開始時刻
+  'completedAt',        // ラウンド②終了時刻
+  'status',             // 'completed'（中断時は submit 自体しない仕様＝案 C）
+  'totalHp',            // 2 ラウンド合計の小数点以下切上後の整数
+  'totalCorrect',       // 全体の正答数（regular + bonus）
+  'totalAnswered',      // 全体の解答数（regular + bonus）
+  'roundsJson',         // 各ラウンド詳細の JSON（regular/bonus/categoryStats/elapsedSec を内包）
+  'clientUserAgent'     // デバッグ用（任意、最大 200 文字に丸める）
+];
+
+const CALCTRIAL_MIN_ROWS_SESSIONS = 1100;
+
+// 開放フラグ列名（Phase 5 で admin UI に配線する予定。絶対ミッション対象外なので
+// _getRequiredContentsForLoc には追加しない。Phase 2 では定数定義のみ）。
+const CALCTRIAL_UNLOCKED_HEADER_NAME = 'CALCTRIAL_UNLOCKED';
+
+function _ensureCalcTrialSessionsSheet() {
+  return _ensureSheetWithHeaders(SHEET_CALCTRIAL_SESSIONS, CALCTRIAL_SESSIONS_HEADERS, CALCTRIAL_MIN_ROWS_SESSIONS).sh;
+}
+
+// シート存在保証（GAS エディタから 1 回限り実行する想定）。
+// db_writer 等の外部書き込みは無いので、ふくちさん側で 1 回実行すれば足りる。
+// 戻り値: { ok: true, created: { sessions: boolean }, headers: { sessions: [...] } }
+function ensureCalcTrialSheets() {
+  try {
+    const s = _ensureSheetWithHeaders(SHEET_CALCTRIAL_SESSIONS, CALCTRIAL_SESSIONS_HEADERS, CALCTRIAL_MIN_ROWS_SESSIONS);
+    return {
+      ok: true,
+      created: { sessions: s.created },
+      headers: { sessions: CALCTRIAL_SESSIONS_HEADERS }
+    };
+  } catch(err) {
+    console.error('[ensureCalcTrialSheets]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 結果送信。doPost 経由のみ（生徒画面から呼ぶ、認証なし、studentId 一致のみ確認）。
+// params:
+//   studentId:        生徒ID
+//   startedAt:        'yyyy-MM-dd HH:mm:ss'（クライアント計測、無ければ now で補完）
+//   completedAt:      同上
+//   totalHp:          クライアント側で小数点以下切上を済ませた整数（必須、0 以上）
+//   rounds:           [{ round, label, regular: {answered, correct, allCorrect, hp},
+//                         bonus: {answered, correct, hp}, categoryStats, elapsedSec, subtotalHp }, ...]
+//                     ※ 2 ラウンド完走分のみを受け付ける（中断時は submit しない＝仕様 ③ 案 C）
+//   clientUserAgent:  任意（最大 200 文字に丸めて保存、デバッグ用）
+//
+// 処理：
+//   1. studentId 検証 + Students または SpecialAccounts から行特定
+//   2. rounds の構造検証（配列で 2 要素必須）
+//   3. totalHp の値域検証（0 以上の整数、上限 100,000 で異常検知）
+//   4. CalcTrialSessions に 1 行 appendRow
+//   5. HPLog に 1 行 _logHP（type='calctrial', rawHp=totalHp, hpGained=totalHp）
+//      ※ 倍率なし（仕様 ②）、両輪システムは通さない（絶対ミッション対象外 + 努力の結果を全肯定）
+//   6. Students.HP に totalHp を加算（in-place setValue + cache 更新）
+//   7. cache invalidate（cache_students_values / cache_special_accounts_values / cache_ranking_last_week）
+//
+// 注意：サーバー検証ガード不要（仕様：努力の結果を全肯定）。
+//      クライアント計算をそのまま採用する。
+function submitCalcTrialResult(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '対象生徒IDが指定されていません' };
+
+    // ① 行特定（cache 経由禁止、書き込み対象の rowIdx 安全性を確保）
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+
+    // ② rounds 構造検証（2 ラウンド完走前提）
+    let rounds = params && params.rounds;
+    if (typeof rounds === 'string') {
+      try { rounds = JSON.parse(rounds); } catch(e) { rounds = null; }
+    }
+    if (!Array.isArray(rounds) || rounds.length !== 2) {
+      return { ok: false, message: 'rounds は 2 ラウンド分の配列である必要があります' };
+    }
+
+    // ③ totalHp 値域検証
+    const totalHpRaw = Number(params && params.totalHp);
+    if (!Number.isFinite(totalHpRaw) || totalHpRaw < 0 || Math.floor(totalHpRaw) !== totalHpRaw) {
+      return { ok: false, message: 'totalHp は 0 以上の整数を指定してください' };
+    }
+    if (totalHpRaw > 100000) {
+      // 異常値検知（1日2ラウンド完走でも常識的に数百〜数千 HP まで）
+      return { ok: false, message: 'totalHp が異常に大きいです（上限 100,000）' };
+    }
+    const totalHp = Math.floor(totalHpRaw);
+
+    // ④ 集計（rounds から totalCorrect / totalAnswered を算出）
+    let totalCorrect  = 0;
+    let totalAnswered = 0;
+    for (let i = 0; i < rounds.length; i++) {
+      const r = rounds[i] || {};
+      const reg = r.regular || {};
+      const bon = r.bonus   || {};
+      totalCorrect  += (Number(reg.correct)  || 0) + (Number(bon.correct)  || 0);
+      totalAnswered += (Number(reg.answered) || 0) + (Number(bon.answered) || 0);
+    }
+
+    const now         = _nowJST();
+    const startedAt   = String((params && params.startedAt)   || now).slice(0, 19);
+    const completedAt = String((params && params.completedAt) || now).slice(0, 19);
+    const sessionId   = 'calctrial_' + sid + '_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    const userAgent   = String((params && params.clientUserAgent) || '').slice(0, 200);
+
+    // ⑤ CalcTrialSessions に 1 行記録（_ensureSheetWithHeaders 経由でシート存在保証）
+    const ses = _ensureCalcTrialSessionsSheet();
+    const roundsJson = JSON.stringify(rounds);
+    ses.appendRow([
+      sessionId,
+      sid,
+      startedAt,
+      completedAt,
+      'completed',
+      totalHp,
+      totalCorrect,
+      totalAnswered,
+      roundsJson,
+      userAgent
+    ]);
+
+    // ⑥ HPLog に 1 行（type='calctrial'、倍率なし＝rawHp=hpGained=totalHp）
+    //    両輪システム（_calculateHpWithReserve）は通さない：絶対ミッション対象外 + 努力全肯定
+    const logRes = _logHP(sid, totalHp, totalHp, 'calctrial');
+    if (!logRes.ok) {
+      // HPLog 失敗時は CalcTrialSessions の行は残るが Students.HP は更新しない。
+      // 再送信すると CalcTrialSessions が二重になるが、HP が二重加算される事故よりは軽微。
+      console.error('[submitCalcTrialResult] HPLog 書き込み失敗、Students.HP 更新スキップ', logRes.error);
+      return { ok: false, message: '内部エラー（HPLog 書き込み失敗）。もう一度送信してください', errorCode: 'HP_LOG_FAILED' };
+    }
+
+    // ⑦ Students または SpecialAccounts の HP に加算（in-place setValue + cache 更新）
+    const currentHP = Number(stuLoc.rowValues[COL_HP]) || 0;
+    const newHP     = currentHP + totalHp;
+    stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
+    const updates = {};
+    updates[COL_HP] = newHP;
+    _updateAccountCacheBySid(sid, updates);
+
+    // ⑧ cache invalidate
+    _invalidateCache('cache_students_values');
+    _invalidateCache('cache_special_accounts_values');
+    _invalidateCache('cache_ranking_last_week');
+
+    return {
+      ok:            true,
+      sessionId:     sessionId,
+      totalHp:       totalHp,
+      totalHpAfter:  newHP,
+      totalCorrect:  totalCorrect,
+      totalAnswered: totalAnswered
+    };
+  } catch(err) {
+    console.error('[submitCalcTrialResult]', err);
     return { ok: false, message: String(err) };
   }
 }
