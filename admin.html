@@ -3419,15 +3419,22 @@
       var displayName = _esc(s.name || s.nickname || s.studentId);
       var nickSub = (s.name && s.nickname) ? '<span class="sub-nick">' + _esc(s.nickname) + '</span>' : '';
       var grade = s.gradeLevel ? '<span class="col-grade">' + _esc(s.gradeLevel) + '</span>' : '<span class="col-grade empty">（未設定）</span>';
-      var parentLineYes = !!s.parentLineId;
-      var studentLineYes = !!s.studentLineId;
+      // 2026-05-18：✅ は「LINE userId 形式（U + 32桁hex = 33文字）を満たす値が入っている」場合のみ。
+      // ダミー値（"未登録" 等）や形式違反は ❌ 表示 + tooltip でその旨を示す。
+      var parentLineYes  = !!s.parentLineId  && !!s.parentLineIdValid;
+      var studentLineYes = !!s.studentLineId && !!s.studentLineIdValid;
+      var parentBadge  = parentLineYes  ? '✅' : '❌';
+      var studentBadge = studentLineYes ? '✅' : '❌';
+      // 形式違反（trim 後に値はあるが正規表現を通らない）は、❌ にホバーで原因が分かるよう title 属性を付与
+      var parentTitle  = (!!s.parentLineId  && !s.parentLineIdValid) ? ' title="形式違反：' + _esc(s.parentLineId)  + '"' : '';
+      var studentTitle = (!!s.studentLineId && !s.studentLineIdValid) ? ' title="形式違反：' + _esc(s.studentLineId) + '"' : '';
       var parentTog  = _renderTriToggle(s.studentId, 'notifyParent',  s.notifyParent);
       var studentTog = _renderTriToggle(s.studentId, 'notifyStudent', s.notifyStudent);
       return '<tr data-sid="' + _esc(s.studentId) + '">' +
         '<td class="col-name">' + displayName + nickSub + '</td>' +
         '<td>' + grade + '</td>' +
-        '<td class="col-toggle"><span class="reg-badge ' + (parentLineYes ? 'yes' : 'no') + '">' + (parentLineYes ? '✅' : '❌') + '</span></td>' +
-        '<td class="col-toggle"><span class="reg-badge ' + (studentLineYes ? 'yes' : 'no') + '">' + (studentLineYes ? '✅' : '❌') + '</span></td>' +
+        '<td class="col-toggle"><span class="reg-badge ' + (parentLineYes  ? 'yes' : 'no') + '"' + parentTitle  + '>' + parentBadge  + '</span></td>' +
+        '<td class="col-toggle"><span class="reg-badge ' + (studentLineYes ? 'yes' : 'no') + '"' + studentTitle + '>' + studentBadge + '</span></td>' +
         '<td class="col-toggle">' + parentTog + '</td>' +
         '<td class="col-toggle">' + studentTog + '</td>' +
       '</tr>';

@@ -8123,18 +8123,32 @@ function _normalizeMissionUnlockValue(raw) {
 
 // 管理画面：LINE 通知管理データ取得（塾長専用）
 // 戻り値: { ok, students: [{ studentId, nickname, gradeLevel,
-//          parentLineId, studentLineId, notifyParent, notifyStudent }, ...] }
+//          parentLineId, studentLineId, parentLineIdValid, studentLineIdValid,
+//          notifyParent, notifyStudent }, ...] }
 //   - 'TRUE' / 'FALSE' / '' の生値で返す（フロント側で 3 状態トグル UI を構築）
-//   - parentLineId / studentLineId は登録済み判定（'U' 始まり 33 文字、空欄なら未登録）
+//   - parentLineId / studentLineId は trim 済みの生文字列を返す（admin 画面の目視用）
+//   - parentLineIdValid / studentLineIdValid は LINE userId 形式（/^U[0-9a-f]{32}$/i = "U" + 32 桁 hex = 33 文字）
+//     を満たすか否かの boolean。空欄なら false。フロントは
+//     `!!parentLineId && parentLineIdValid` を ✅ 表示条件にする
+// 2026-05-18：スプレッドシート直編集（兄弟ケースの保護者IDコピペ等）後に Students /
+// SpecialAccounts キャッシュ（CacheService 6h TTL）が居座って admin 画面で更新が反映され
+// ない問題への対策として、本 API 呼び出しのたびに該当キャッシュを invalidate してから
+// 読む。読み取り 1 回が cache miss 分遅くなるだけで書き込み側への影響なし。
 function getLineNotifyManagementData(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
     if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
 
+    // 直編集ぶんを確実に反映するため、読み取り前にキャッシュを破棄
+    _invalidateCache('cache_students_values');
+    _invalidateCache('cache_special_accounts_values');
+
     const ss = _ss();
     const stuValues = _getStudentsValues();
     const spValues  = _getSpecialAccountsValues();
+
+    const RE_LINE_USER_ID = /^U[0-9a-f]{32}$/i;
 
     function collect(sheetName, values, out, seen) {
       if (!values || values.length < 2) return;
@@ -8156,15 +8170,19 @@ function getLineNotifyManagementData(params) {
         if (!sid) continue;
         if (seen[sid]) continue;  // Students 優先
         seen[sid] = true;
+        const parentLineId  = iLineP >= 0 ? String(row[iLineP] || '').trim() : '';
+        const studentLineId = iLineS >= 0 ? String(row[iLineS] || '').trim() : '';
         out.push({
-          studentId:     sid,
-          nickname:      String(row[COL_NICKNAME] || '').trim(),
-          name:          String(row[COL_NAME]     || '').trim(),
-          gradeLevel:    iGrade        >= 0 ? String(row[iGrade]        || '').trim() : '',
-          parentLineId:  iLineP        >= 0 ? String(row[iLineP]        || '').trim() : '',
-          studentLineId: iLineS        >= 0 ? String(row[iLineS]        || '').trim() : '',
-          notifyParent:  iNotifyParent >= 0 ? String(row[iNotifyParent] || '').trim().toUpperCase() : '',
-          notifyStudent: iNotifyStudent >= 0 ? String(row[iNotifyStudent] || '').trim().toUpperCase() : ''
+          studentId:          sid,
+          nickname:           String(row[COL_NICKNAME] || '').trim(),
+          name:               String(row[COL_NAME]     || '').trim(),
+          gradeLevel:         iGrade        >= 0 ? String(row[iGrade]        || '').trim() : '',
+          parentLineId:       parentLineId,
+          studentLineId:      studentLineId,
+          parentLineIdValid:  !!parentLineId  && RE_LINE_USER_ID.test(parentLineId),
+          studentLineIdValid: !!studentLineId && RE_LINE_USER_ID.test(studentLineId),
+          notifyParent:       iNotifyParent  >= 0 ? String(row[iNotifyParent]  || '').trim().toUpperCase() : '',
+          notifyStudent:      iNotifyStudent >= 0 ? String(row[iNotifyStudent] || '').trim().toUpperCase() : ''
         });
       }
     }
@@ -16666,14 +16684,10 @@ function _readNotifyLineRawFromLoc(loc)             { return _readUnlockFlagFrom
 function _readNotifyLineParentRawFromLoc(loc)       { return _readUnlockFlagFromLoc(loc, NOTIFY_LINE_PARENT_HEADER_NAME); }
 function _readNotifyLineStudentRawFromLoc(loc)      { return _readUnlockFlagFromLoc(loc, NOTIFY_LINE_STUDENT_HEADER_NAME); }
 
-// LINE userId は uppercase 強制 + trim。空欄 / 'FALSE' のような壊れ値は '' とみなす。
-function _normalizeLineUserId(raw) {
-  var s = String(raw == null ? '' : raw).trim();
-  if (!s) return '';
-  // userId 形式（'U' + 32 文字 hex）に近いものだけ通す。それ以外は安全のため空扱い
-  if (!/^U[0-9a-f]{32}$/i.test(s)) return s;  // 形式違反でも raw を返す（admin で目視確認用）
-  return s;
-}
+// 旧 _normalizeLineUserId（trim + 形式 regex があったが、!test → return s で結果を捨てる
+// 実装バグかつコード全体での呼び出し元ゼロ＝デッドコードだった）は 2026-05-18 に撤去。
+// 形式検証は getLineNotifyManagementData（admin 表示）と _pushLineMessage（実配信）に
+// 直接埋め込んだ。新規参照を足したい場合は両所のコードを参考に。
 
 // セットアップ補助：3 列を Students + SpecialAccounts に一括追加（冪等）。
 // GAS エディタから 1 回手動実行する。
@@ -17441,6 +17455,12 @@ function _pushLineMessage(userId, text) {
   if (!token) return { ok: false, error: 'LINE_MESSAGING_CHANNEL_ACCESS_TOKEN 未設定', attempts: 0 };
   var uid = String(userId || '').trim();
   if (!uid) return { ok: false, error: 'userId が空', attempts: 0 };
+  // 2026-05-18：LINE userId は "U" + 32 桁 hex（計 33 文字）。形式違反は LINE API に
+  // 投げると 400 が返ってきて配信枠を 1 件浪費するため、ここで弾いて NotifyLog で
+  // 分類しやすくする。空欄チェックは上の早期 return で済んでいるのでここでは形式のみ。
+  if (!/^U[0-9a-f]{32}$/i.test(uid)) {
+    return { ok: false, error: 'userId 形式違反: ' + uid, attempts: 0 };
+  }
   var body = { to: uid, messages: [{ type: 'text', text: String(text || '') }] };
   var options = {
     method: 'post',
