@@ -875,6 +875,28 @@ function _findAccountRowOnSheet(sid) {
   };
 }
 
+// アカウント種別を解決する（Task 3 追加、2026-05-19）：
+// - Students シートのアカウント → 'student'（通常生徒）
+// - SpecialAccounts シートのアカウント → accountType 列の値（'test' / 'teacher' /
+//   'invited' / 'experience' のいずれか。列が無ければ 'unknown'）
+// loginStudent / getStudentView のレスポンスに含めて、クライアント側で振り返り
+// モーダルのスキップ判定（テスト/講師/招待は振り返り不要）に使う。
+function _resolveAccountTypeFromLoc(stuLoc) {
+  if (!stuLoc) return 'unknown';
+  if (stuLoc.sheetName === SHEET_STUDENTS) return 'student';
+  if (stuLoc.sheetName !== SHEET_SPECIAL_ACCOUNTS) return 'unknown';
+  try {
+    const header = (stuLoc.allValues && stuLoc.allValues[0]) ? stuLoc.allValues[0] : [];
+    const idx = header.indexOf(SPECIAL_ACCOUNT_TYPE_HEADER);
+    if (idx < 0) return 'unknown';
+    const raw = stuLoc.rowValues[idx];
+    const val = String(raw == null ? '' : raw).trim();
+    return val || 'unknown';
+  } catch (e) {
+    return 'unknown';
+  }
+}
+
 // 書き込み後のキャッシュ更新を sid ベースで自動ディスパッチする。
 // Students cache → SpecialAccounts cache の順で sid を再検索し、見つかった
 // 側のキャッシュを in-place 更新する。どちらにも見つからなければ両方を
@@ -1380,7 +1402,8 @@ function loginStudent(studentId) {
       streak,
       stage,
       title,
-      milestone: milestoneInfo
+      milestone:   milestoneInfo,
+      accountType: _resolveAccountTypeFromLoc(stuLoc)  // 'student' / 'test' / 'teacher' / 'invited' / 'experience' / 'unknown'
     };
   } catch (err) {
     console.error('[loginStudent]', err);
@@ -8760,8 +8783,19 @@ const REFLECTIONS_HEADERS = [
 ];
 
 const REFLECTIONS_MIN_ROWS    = 1100;
-const REFLECTION_MIN_LENGTH   = 100;   // ふくちさん追加要件（2026-05-19）
-const REFLECTION_MAX_LENGTH   = 1500;
+const REFLECTION_MIN_LENGTH   = 100;   // ふくちさん追加要件（2026-05-19、実質文字数ベース）
+const REFLECTION_MAX_LENGTH   = 1500;  // 同上
+
+// 実質文字数カウント（Task 2 改善、2026-05-19）：
+// 改行 / タブ / 半角・全角スペース / 連続する空白を**すべて**除外。
+// クライアント側 _effectiveReflectionLen と完全に同じロジック（フロント／GAS 二重防御）。
+// 全角スペース U+3000 + zero-width 系 5 種（U+200B/200C/200D/2060/FEFF）も対象。
+// 規制文字 U+200B-200D の範囲指定を避けるため、明示的に \u エスケープで列挙する
+// （正規表現中の `-` がレンジ区切りに化けるリスクを排除）。
+function _effectiveReflectionLen(s) {
+  if (s == null) return 0;
+  return String(s).replace(/[\s　​‌‍⁠﻿]+/g, '').length;
+}
 
 function _ensureReflectionsSheet() {
   return _ensureSheetWithHeaders(SHEET_REFLECTIONS, REFLECTIONS_HEADERS, REFLECTIONS_MIN_ROWS).sh;
@@ -8837,21 +8871,23 @@ function submitReflection(params) {
     const stuLoc = _findAccountRowOnSheet(sid);
     if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
 
-    // ② content バリデーション（サーバー側二重防御）
+    // ② content バリデーション（サーバー側二重防御、Task 2 改善で実質文字数ベースに統一）
+    // 改行・タブ・半角/全角スペース・zero-width 文字を全削除した文字数で判定。
+    // 「改行連打で 100 文字稼ぐ」抜け道をフロント・サーバー両方で構造的に潰す。
     const contentRaw = (params && params.content);
     if (contentRaw == null) return { ok: false, message: '振り返り本文が指定されていません' };
     const content = String(contentRaw);
-    const len = content.length;
-    if (len < REFLECTION_MIN_LENGTH) {
-      return { ok: false, message: '振り返りは' + REFLECTION_MIN_LENGTH + '文字以上必要です（現在: ' + len + '文字）', errorCode: 'TOO_SHORT' };
+    const effLen = _effectiveReflectionLen(content);
+    if (effLen < REFLECTION_MIN_LENGTH) {
+      return { ok: false, message: '振り返りは' + REFLECTION_MIN_LENGTH + '文字以上必要です（空白・改行を除いて現在: ' + effLen + '文字）', errorCode: 'TOO_SHORT' };
     }
-    if (len > REFLECTION_MAX_LENGTH) {
-      return { ok: false, message: '振り返りは' + REFLECTION_MAX_LENGTH + '文字以内で書いてください（現在: ' + len + '文字）', errorCode: 'TOO_LONG' };
+    if (effLen > REFLECTION_MAX_LENGTH) {
+      return { ok: false, message: '振り返りは' + REFLECTION_MAX_LENGTH + '文字以内で書いてください（空白・改行を除いて現在: ' + effLen + '文字）', errorCode: 'TOO_LONG' };
     }
 
-    // wordCount はクライアント計測の参考値。指定なしなら content.length を保存。
+    // wordCount はクライアント計測の参考値。指定なしなら実質文字数で保存。
     let wordCount = Number(params && params.wordCount);
-    if (!Number.isFinite(wordCount) || wordCount < 0) wordCount = len;
+    if (!Number.isFinite(wordCount) || wordCount < 0) wordCount = effLen;
     wordCount = Math.floor(wordCount);
 
     // ③ Reflections に 1 行 appendRow
@@ -10056,12 +10092,13 @@ function getStudentView(params) {
     const title    = _getTitle(streak);
     return {
       ok: true,
-      studentId: sid,
-      nickname:  nickname,
-      totalHP:   totalHP,
-      streak:    streak,
-      stage:     stage,
-      title:     title
+      studentId:   sid,
+      nickname:    nickname,
+      totalHP:     totalHP,
+      streak:      streak,
+      stage:       stage,
+      title:       title,
+      accountType: _resolveAccountTypeFromLoc(stuLoc)  // view 側でも振り返りスキップ判定の参考用
     };
   } catch(err) {
     console.error('[getStudentView]', err);
@@ -18278,6 +18315,9 @@ function ensureLineNotifySheets() {
 // --- 文面ビルダー（4 パターン） ---
 // ★ 全パターンで {生徒名} 直後に「全角スペース 1 つ」を挟む（仕様）。
 //   「マイカツ 太郎」のような姓名空白入り名でも「マイカツ 太郎 さん」と読みやすくするため。
+// ★ Task 4（2026-05-19）：パラメータ名は `nickname` のまま残しているが、実体は
+//   _extractNotifyTargets で「本名（Students.COL_NAME）優先、空欄時はニックネーム
+//   フォールバック」の displayName が NotifyTargets シート経由で渡される（4 文面とも）。
 var LINE_NOTIFY_TEMPLATE_SIG = '— 春日部アカデミー　講師一同';
 var LINE_NOTIFY_AUTO_TAIL    = '（このメッセージは自動配信です。やむを得ない事情で 取り組めなかった場合はご了承ください）';
 
@@ -18496,6 +18536,9 @@ function _lineNotifyBuildStudentSnapshots() {
       if (seen[sid]) continue;
       seen[sid] = true;
       var nickname = String(row[COL_NICKNAME] || '').trim() || sid;
+      // Task 4（2026-05-19）：LINE 通知文面は本名（氏名、COL_NAME）に統一。
+      // 氏名が空欄ならニックネームへフォールバック、それも無ければ sid を使う。
+      var name = String(row[COL_NAME] || '').trim();
       var hp = Number(row[COL_HP]) || 0;
       var gradeLevel           = iGrade        >= 0 ? String(row[iGrade]        || '').trim() : '';
       var notifyLineParentRaw  = iNotifyParent >= 0 ? String(row[iNotifyParent] || '').trim() : '';
@@ -18515,6 +18558,7 @@ function _lineNotifyBuildStudentSnapshots() {
       snapshots.push({
         sid: sid,
         nickname: nickname,
+        name: name,
         gradeLevel: gradeLevel,
         notifyLineParentRaw: notifyLineParentRaw,
         notifyLineStudentRaw: notifyLineStudentRaw,
@@ -18568,9 +18612,12 @@ function _extractNotifyTargets(opts) {
     var entries = hpScan.bySid[s.sid] || [];
     var summary = _lineNotifySummarizeStudentEntries(entries);
     var status = summary.worked ? 'worked' : 'sabotaged';
+    // Task 4（2026-05-19）：本名（s.name）優先、空欄ならニックネームへフォールバック。
+    // NotifyTargets シートの `nickname` 列にこの値を保存して、配信時はそれをそのまま LINE 文面に使う。
+    var displayName = s.name || s.nickname || s.sid;
     targets.push({
       studentId: s.sid,
-      nickname: s.nickname,
+      nickname: displayName,  // 旧スキーマ名 `nickname` のまま保持。実体は本名優先の表示名。
       date: today,
       status: status,
       contents: summary.worked ? summary.contents : [],

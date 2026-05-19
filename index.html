@@ -3762,6 +3762,10 @@
   var _totalHP = 0;
   // E1: ログインの streak をセッション中保持（HP 予測に使用）
   var _streak = 0;
+  // Task 3（2026-05-19）：accountType をセッション中保持（doLogout で振り返りモーダル
+  // スキップ判定に使う）。'student' / 'test' / 'teacher' / 'invited' / 'experience' /
+  // 'unknown' のいずれか。空文字は「未確定」扱いで通常生徒として扱う。
+  var _accountType = '';
 
   // ========================================================================
   // 両輪システム Phase A フロント（2026-05-16）：
@@ -4405,9 +4409,10 @@
     gasGet({ action:'loginStudent', studentId:sid }).then(function(res){
       document.getElementById('login-btn').disabled = false;
       if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
-      _studentId = res.studentId;
-      _totalHP   = Number(res.totalHP) || 0;
-      _streak    = Number(res.streak) || 0;
+      _studentId   = res.studentId;
+      _totalHP     = Number(res.totalHP) || 0;
+      _streak      = Number(res.streak) || 0;
+      _accountType = String(res.accountType || ''); // Task 3：振り返りモーダルスキップ判定用
       // 初回ログイン（ニックネーム未設定）はサプライズ判定の対象外。先にニックネームを設定させる。
       // 通常ログイン経路：ホーム遷移前に誕生日サプライズ判定を挟む（_maybeShowBirthdaySurprise）。
       if (res.isFirstLogin) {
@@ -5608,13 +5613,28 @@
       if (fo) fo.classList.remove('active');
     } catch(e){}
   }
+  // Task 3（2026-05-19）：テスト / 講師 / 招待アカウントは振り返り不要として判定する。
+  // 動作確認時に毎回 100 文字書くのは非現実的なため。
+  // 'student' / 'experience' / 'unknown' / '' は通常通り振り返りモーダル経由。
+  function _shouldSkipReflectionLogout() {
+    var t = String(_accountType || '').trim().toLowerCase();
+    return (t === 'test' || t === 'teacher' || t === 'invited');
+  }
   function doLogout() {
     // 二重実行ガード（モーダル多重表示防止 / 二重タップ対策）
     if (_logoutInProgress) return;
     _logoutInProgress = true;
     // ログアウト操作トリガーで居残りオーバーレイを必ずクリア（iPad 操作不能対策）
     _clearAllLogoutOverlays();
-    // 振り返りモーダルを開く
+    // Task 3：特殊アカウントは振り返りモーダルをスキップして即ログアウト。
+    // 確認ダイアログも出さない（テスト効率最優先）。_logoutInProgress ガード /
+    // オーバーレイクリアは既に経由済みなので安全に飛ばせる。
+    if (_shouldSkipReflectionLogout()) {
+      try { console.log('[doLogout] skipping reflection modal for accountType=' + _accountType); } catch(e){}
+      _doLogoutFinalize();
+      return;
+    }
+    // 通常生徒：振り返りモーダルを開く
     _openReflectionLogoutModal();
   }
   function _openReflectionLogoutModal() {
@@ -5640,19 +5660,29 @@
     _logoutInProgress = false;
   }
   // 振り返り本文の文字数監視。100文字未満は disabled、100以上で活性化、1500超でエラー表示。
+  // 実質文字数カウント（Task 2 改善）：
+  // 改行 / タブ / 半角・全角スペース / 連続する空白を**すべて**除外して数える。
+  // これにより「改行連打」「全角スペース連打」で 100 文字稼ぐ抜け道を構造的に潰す。
+  // \s は 半角スペース / タブ / 改行 / VT / FF をカバー。全角スペース U+3000 を追加で除去。
+  // 不可視文字対策（zero-width 系 U+200B-200D / U+2060 / U+FEFF）も含める（他コンテンツの
+  // _normalizeWabun1 と同方針）。
+  function _effectiveReflectionLen(s) {
+    if (s == null) return 0;
+    return String(s).replace(/[\s　​‌‍⁠﻿]+/g, '').length;
+  }
   function onReflectionInput() {
     var ta  = document.getElementById('reflection-logout-textarea');
     var cnt = document.getElementById('reflection-logout-counter');
     var btn = document.getElementById('reflection-logout-submit');
     var msg = document.getElementById('reflection-logout-msg');
     if (!ta || !cnt || !btn) return;
-    var len = String(ta.value || '').length;
-    cnt.textContent = len + ' / 100以上 〜 1500';
+    var len = _effectiveReflectionLen(ta.value);
+    cnt.textContent = len + ' / 100以上 〜 1500（空白・改行を除いた実質文字数）';
     cnt.classList.remove('ok', 'over');
     if (len > 1500) {
       cnt.classList.add('over');
       btn.disabled = true;
-      if (msg) { msg.textContent = '⚠️ 1500文字を超えています。少し減らしてね'; msg.classList.remove('ok'); }
+      if (msg) { msg.textContent = '⚠️ 1500文字を超えています。少し減らしてね（空白・改行を除いてカウント）'; msg.classList.remove('ok'); }
     } else if (len >= 100) {
       cnt.classList.add('ok');
       btn.disabled = false;
@@ -5669,14 +5699,14 @@
     var msg = document.getElementById('reflection-logout-msg');
     if (!ta || !btn) return;
     var content = String(ta.value || '');
-    var len = content.length;
-    // クライアント側二重ガード
+    var len = _effectiveReflectionLen(content);
+    // クライアント側二重ガード（実質文字数ベース）
     if (len < 100) {
-      if (msg) { msg.textContent = '⚠️ 100文字以上書いてね（現在 ' + len + '文字）'; msg.classList.remove('ok'); }
+      if (msg) { msg.textContent = '⚠️ 100文字以上書いてね（空白・改行を除いて現在 ' + len + '文字）'; msg.classList.remove('ok'); }
       return;
     }
     if (len > 1500) {
-      if (msg) { msg.textContent = '⚠️ 1500文字以内にしてね（現在 ' + len + '文字）'; msg.classList.remove('ok'); }
+      if (msg) { msg.textContent = '⚠️ 1500文字以内にしてね（空白・改行を除いて現在 ' + len + '文字）'; msg.classList.remove('ok'); }
       return;
     }
     if (!_studentId) {
@@ -5687,6 +5717,7 @@
     btn.textContent = '送信中...';
     if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
     // submitReflection は doPost 強制（gas/Code.js 1237 行）。
+    // wordCount は実質文字数（サーバー側もこの値でバリデーション）。
     gasPost({
       action:    'submitReflection',
       studentId: _studentId,
@@ -5721,6 +5752,7 @@
     _studentId = null; _questions = []; _score = 0; _current = 0;
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
+    _accountType = '';
     _requiredProgress = null;
     _avatarState = { base: '', items: [], equipped: {}, nickname: '' };
     try { _lisonResetState(); } catch(e){}

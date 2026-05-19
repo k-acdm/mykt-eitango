@@ -208,6 +208,12 @@
       <button class="btn-more" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);color:#4a2c6d" onclick="showSangoHistory()">📖 三語短文の提出作品を見る</button>
     </div>
 
+    <!-- お子様の振り返り（ログアウト直前に書いた記録の一覧、Phase D 追加） -->
+    <div class="dash-section">
+      <div class="section-title">📝 お子様の振り返り</div>
+      <button class="btn-more" style="background:linear-gradient(135deg,#86efac,#16a34a);color:#fff" onclick="showChildReflections()">📝 お子様の振り返りを見る</button>
+    </div>
+
     <!-- HP算出方法 -->
     <div class="dash-section">
       <div class="hp-info-card">
@@ -282,6 +288,19 @@
   </div>
 </div>
 
+<!-- お子様の振り返り（Phase D 追加） -->
+<div id="screen-child-reflections" class="screen">
+  <header>
+    <h1>📝 お子様の振り返り</h1>
+    <button class="logout-btn" onclick="showView()">← 戻る</button>
+  </header>
+  <div class="container">
+    <p style="text-align:center;color:#666;font-size:13px;margin:8px 0 14px">お子様がログアウト直前に書いた振り返りです（最新が上、直近 30 件）。</p>
+    <div id="child-reflections-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
+    <button class="btn-back" onclick="showView()">← 閲覧画面に戻る</button>
+  </div>
+</div>
+
 <!-- 過去の連絡事項 -->
 <div id="screen-notice-history" class="screen">
   <header>
@@ -326,6 +345,7 @@
   function showView()           { _showScreen('screen-view'); }
   function showNoticeHistory()  { _showScreen('screen-notice-history'); loadNoticeHistory(); }
   function showSangoHistory()   { _showScreen('screen-sango-history'); loadSangoHistory(); }
+  function showChildReflections() { _showScreen('screen-child-reflections'); loadChildReflections(); }
   function showChildHistory()   { _showScreen('screen-child-history'); loadChildHistory(); }
   function showChildHistoryArchive() { _childArchiveOffset = 1; _showScreen('screen-child-history-archive'); loadChildHistoryArchive(); }
   function jumpToSangoSubmission(ts) { _showScreen('screen-sango-history'); loadSangoHistory(ts); }
@@ -570,6 +590,42 @@
           setTimeout(function(){ el.scrollIntoView({ behavior:'smooth', block:'center' }); el.classList.add('hl'); }, 50);
         }
       }
+    }).catch(function() {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+    });
+  }
+
+  // ============================
+  // お子様の振り返り（Phase D、認証不要 / studentId で絞り込み）
+  // ============================
+  function loadChildReflections() {
+    var listEl = document.getElementById('child-reflections-list');
+    listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">⏳ 読み込み中…</div></div></div>';
+    if (!_studentId) {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">セッション情報が見つかりません。再度ログインしてください。</div></div></div>';
+      return;
+    }
+    gasGet({ action: 'getReflectionsForStudent', studentId: _studentId, limit: 30, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+        return;
+      }
+      var arr = res.reflections || [];
+      if (arr.length === 0) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">まだ振り返りはありません。ログアウト直前に書いた振り返りがここに並びます。</div></div></div>';
+        return;
+      }
+      listEl.innerHTML = arr.map(function(r){
+        var ts  = String(r.timestamp || r.date || '').slice(0, 16);
+        var len = Number(r.wordCount || (r.content ? r.content.length : 0));
+        return '<div class="notice-card" style="background:#fff;border-left:6px solid #16a34a;box-shadow:0 2px 10px rgba(0,0,0,.08)">' +
+                 '<div class="notice-header">' +
+                   '<div class="notice-title" style="color:#14532d">' + _esc(ts) + '</div>' +
+                   '<div class="notice-date" style="color:#888">' + len + ' 文字</div>' +
+                 '</div>' +
+                 '<div style="background:#f0fdf4;border-radius:10px;padding:10px 12px;white-space:pre-wrap;word-wrap:break-word;font-size:14px;line-height:1.75;color:#333">' + _esc(r.content || '') + '</div>' +
+               '</div>';
+      }).join('');
     }).catch(function() {
       listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
     });

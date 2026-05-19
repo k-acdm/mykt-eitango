@@ -75,8 +75,8 @@
   }
 
   /* メイン系画面のヘッダー（ダッシュボード以外） */
-  #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-streak-modify header, #screen-admin-streak-modify-confirm header, #screen-admin-streak-modify-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header, #screen-admin-teachers header, #screen-admin-teacher-edit header, #screen-admin-teacher-add header, #screen-admin-action-log header, #screen-admin-line-notify header, #screen-admin-required-missions header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-  #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1 { font-size: 18px; font-weight: 600; }
+  #screen-admin-dashboard header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-streak-modify header, #screen-admin-streak-modify-confirm header, #screen-admin-streak-modify-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header, #screen-admin-teachers header, #screen-admin-teacher-edit header, #screen-admin-teacher-add header, #screen-admin-action-log header, #screen-admin-line-notify header, #screen-admin-required-missions header, #screen-admin-reflections-students header, #screen-admin-reflections-list header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  #screen-admin-dashboard header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1 { font-size: 18px; font-weight: 600; }
   .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
   .logout-btn:hover { background: rgba(255,255,255,.3); }
 
@@ -409,6 +409,15 @@
   .lison-students-table .name-link:hover { text-decoration: underline; }
   .lison-students-empty { padding: 24px; text-align: center; color: #94a3b8; background: #fff; border-radius: 10px; }
 
+  /* 振り返り閲覧（admin/teacher 両ロール、Phase D 追加） */
+  .refl-adm-list { display: flex; flex-direction: column; gap: 10px; }
+  .refl-adm-card { background: #fff; border: 1px solid #d1fae5; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .refl-adm-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .refl-adm-date { color: #14532d; font-size: 13px; font-weight: 600; min-width: 132px; font-variant-numeric: tabular-nums; }
+  .refl-adm-len { color: #6b7280; font-size: 12px; font-weight: 500; margin-left: auto; }
+  .refl-adm-body { font-size: 14px; line-height: 1.75; color: #333; white-space: pre-wrap; word-wrap: break-word; }
+  .refl-adm-students-empty { padding: 24px; text-align: center; color: #94a3b8; background: #fff; border-radius: 10px; }
+
   /* リスオン問題入力（管理画面） */
   .lison-input-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; border-bottom: 2px solid #e1e5ee; padding-bottom: 0; }
   .lison-input-tab { background: #f4f6fb; border: 1px solid #e1e5ee; border-bottom: 0; padding: 10px 16px; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; border-radius: 8px 8px 0 0; transition: all .15s; font-family: inherit; position: relative; top: 1px; }
@@ -468,7 +477,7 @@
   .tm-result-summary strong { color: #16a34a; }
 
   @media (max-width: 480px) {
-    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1 { font-size: 15px; }
+    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
     .admin-page { padding: 16px 12px 80px; }
     .form-card { padding: 18px; }
@@ -727,6 +736,11 @@
       <div class="dashboard-card-title">リスオン録音データ</div>
       <div class="dashboard-card-desc">生徒の音読録音を確認（保存期間 15 日）</div>
     </button>
+    <button type="button" class="dashboard-card" onclick="goAdminReflections()">
+      <div class="dashboard-card-icon">📝</div>
+      <div class="dashboard-card-title">振り返り閲覧</div>
+      <div class="dashboard-card-desc">生徒がログアウト時に書いた振り返りを確認（admin / teacher 両ロール可）</div>
+    </button>
     <button type="button" id="dash-card-hp-grant" class="dashboard-card admin-only" onclick="goAdminHpGrant()">
       <div class="dashboard-card-icon">💎</div>
       <div class="dashboard-card-title">HP手動付与</div>
@@ -916,6 +930,38 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLisonRecordings()">← 生徒一覧に戻る</button>
     <div class="page-lead">▶️ 再生ボタンで音声プレイヤーを表示します。<br><span style="color:#94a3b8;font-size:13px">※ iPad Safari では過去の webm 形式録音が再生できない場合があります。新規録音から順次対応されます。</span></div>
     <div id="lison-list-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+  </div>
+</div>
+
+<!-- 振り返り閲覧：生徒一覧（Phase D 追加、admin/teacher 両ロール） -->
+<div id="screen-admin-reflections-students" class="screen">
+  <header>
+    <h1>📝 振り返り閲覧 - 生徒一覧</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <div class="page-lead">生徒名をクリックすると、その生徒の振り返り履歴を表示します（最大 50 件）。</div>
+    <div id="refl-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+  </div>
+</div>
+
+<!-- 振り返り閲覧：生徒別 履歴一覧 -->
+<div id="screen-admin-reflections-list" class="screen">
+  <header>
+    <h1 id="refl-list-title">📝 振り返り履歴</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminReflections()">← 生徒一覧に戻る</button>
+    <div class="page-lead">timestamp 降順（最新が上）。本文は提出時のまま表示します。</div>
+    <div id="refl-list-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
   </div>
 </div>
 
@@ -4348,6 +4394,101 @@
   function _lisonLevelLabel(lv) { return LISON_LEVEL_LABELS[String(lv || '').trim()] || (String(lv || '') + '級'); }
 
   // ダッシュボードから生徒一覧画面へ
+  // ===== 振り返り閲覧（Phase D、admin / teacher 両ロール） =====
+  // 既存リスオン録音閲覧と同じパターン。生徒一覧（adminListStudents 流用）→ 個別履歴。
+  function goAdminReflections() {
+    _showScreen('screen-admin-reflections-students');
+    window.scrollTo(0, 0);
+    loadReflectionsStudents();
+  }
+  function goAdminReflectionsList(studentId, studentName) {
+    var sid = String(studentId || '');
+    var name = String(studentName || studentId || '');
+    document.getElementById('refl-list-title').textContent =
+      '📝 ' + name + ' さんの振り返り履歴';
+    _showScreen('screen-admin-reflections-list');
+    window.scrollTo(0, 0);
+    loadReflectionsForStudent(sid);
+  }
+  // 生徒一覧（全生徒、振り返り未提出者も含む。adminListStudents を流用）
+  function loadReflectionsStudents() {
+    var wrap = document.getElementById('refl-students-wrap');
+    wrap.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
+    adminGasGet({ action: 'adminListStudents', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var students = res.students || [];
+      if (students.length === 0) {
+        wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>';
+        return;
+      }
+      var rows = students.map(function(s) {
+        var sidEsc = _esc(s.studentId);
+        var nameEsc = _esc(s.name || '');
+        var nickEsc = _esc(s.nickname || '');
+        var displayName;
+        if (nameEsc && nickEsc)      displayName = nameEsc + '（' + nickEsc + '）';
+        else if (nameEsc)            displayName = nameEsc;
+        else if (nickEsc)            displayName = nickEsc;
+        else                         displayName = '（未登録）';
+        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return '<tr>' +
+                 '<td>' + sidEsc + '</td>' +
+                 '<td><span class="name-link" onclick="goAdminReflectionsList(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
+               '</tr>';
+      }).join('');
+      wrap.innerHTML =
+        '<table class="lison-students-table">' +
+          '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>';
+    }).catch(function() {
+      wrap.innerHTML = '<div class="refl-adm-students-empty">通信エラーが発生しました</div>';
+    });
+  }
+  // 指定生徒の振り返り履歴（getReflectionsForAdmin、認証必須 + 操作ログ）
+  function loadReflectionsForStudent(sid) {
+    var wrap = document.getElementById('refl-list-wrap');
+    wrap.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
+    adminGasGet({
+      action: 'getReflectionsForAdmin',
+      studentId: sid,
+      limit: 50,
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      var arr = res.reflections || [];
+      if (arr.length === 0) {
+        wrap.innerHTML = '<div class="refl-adm-students-empty">この生徒の振り返りはまだありません。</div>';
+        return;
+      }
+      var cards = arr.map(function(r) {
+        var ts = String(r.timestamp || r.date || '').slice(0, 16);
+        var len = Number(r.wordCount || (r.content ? r.content.length : 0));
+        return '<div class="refl-adm-card">' +
+                 '<div class="refl-adm-card-head">' +
+                   '<span class="refl-adm-date">' + _esc(ts) + '</span>' +
+                   '<span class="refl-adm-len">' + len + ' 文字</span>' +
+                 '</div>' +
+                 '<div class="refl-adm-body">' + _esc(r.content || '') + '</div>' +
+               '</div>';
+      }).join('');
+      wrap.innerHTML = '<div class="refl-adm-list">' + cards + '</div>';
+    }).catch(function() {
+      wrap.innerHTML = '<div class="refl-adm-students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
   function goAdminLisonRecordings() {
     _showScreen('screen-admin-lison-students');
     window.scrollTo(0, 0);
