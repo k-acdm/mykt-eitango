@@ -10260,29 +10260,37 @@
     return arr;
   }
 
-  // ラウンド ① の本編 100 問：たし算(2+1)20 + たし算(2+2)30 + ひき算(2-1)20 + ひき算(2-2)30
-  // 全部シャッフルして 1 連続シーケンスに（カテゴリの偏りを避けつつ難易度を散らす）。
+  // ラウンド ① の本編 100 問：カテゴリ順固定（教育的意図：難易度傾斜の維持 + 記憶定着）
+  //   問題  1〜 20：たし算（2桁+1桁）
+  //   問題 21〜 50：たし算（2桁+2桁）
+  //   問題 51〜 70：ひき算（2桁-1桁）
+  //   問題 71〜100：ひき算（2桁-2桁）
+  // 各カテゴリ内の数値はランダムだが、カテゴリの並び順は固定。シャッフルしない。
+  // 2026-05-19 Phase 3 で「本編もシャッフル」と誤実装していたバグの修正。
   function _ctGenRound1Regular() {
     var arr = [];
     for (var i = 0; i < 20; i++) arr.push(_ctGenAdd2_1());
     for (var i = 0; i < 30; i++) arr.push(_ctGenAdd2_2());
     for (var i = 0; i < 20; i++) arr.push(_ctGenSub2_1());
     for (var i = 0; i < 30; i++) arr.push(_ctGenSub2_2());
-    return _ctShuffle(arr);
+    return arr;
   }
-  // ラウンド ① のボーナス：4 カテゴリからランダム
+  // ラウンド ① のボーナス：4 カテゴリからランダム（本編 100 問後の「予測不能」負荷）
   function _ctGenRound1Bonus(n) {
     var gens = [_ctGenAdd2_1, _ctGenAdd2_2, _ctGenSub2_1, _ctGenSub2_2];
     var arr = [];
     for (var i = 0; i < n; i++) arr.push(gens[_ctRandInt(0, 3)]());
     return arr;
   }
-  // ラウンド ② 本編 100 問：1 桁 × 1 桁 40 + 2 桁 × 1 桁 60
+  // ラウンド ② 本編 100 問：カテゴリ順固定
+  //   問題  1〜 40：かけ算（1桁×1桁、九九）
+  //   問題 41〜100：かけ算（2桁×1桁）
+  // 各カテゴリ内の数値はランダム、並びは固定。
   function _ctGenRound2Regular() {
     var arr = [];
     for (var i = 0; i < 40; i++) arr.push(_ctGenMul1_1());
     for (var i = 0; i < 60; i++) arr.push(_ctGenMul2_1());
-    return _ctShuffle(arr);
+    return arr;
   }
   function _ctGenRound2Bonus(n) {
     var gens = [_ctGenMul1_1, _ctGenMul2_1];
