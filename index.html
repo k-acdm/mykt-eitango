@@ -1208,6 +1208,28 @@
       .ct-result-mascot-img { width: 100px; }
     }
 
+    /* ================== 写真撮影フロー reload 注意書きバナー（2026-05-19 バグ1(b) S3） ==================
+       モバイルブラウザがカメラ Intent 起動中にバックグラウンドキル → タブ reload で
+       生徒には「写真撮ったらログイン画面に飛ばされた」と見える事象への注意喚起。
+       S1（sid 自動復元）と併用するが、生徒に予め動線を案内するためのバナー。
+       コンテンツ名は data-content 属性でパラメータ化、文言は CSS ::before / ::after
+       でも、JS で動的注入でもなく、各画面の HTML に直接埋め込む（多言語化は無いため）。
+       2 バリアント：
+         · .recovery（緑系）：基礎計算など「過去のセッション再開」UI があるコンテンツ用
+         · .redo（橙系）：再撮影が必要なコンテンツ用（カンジー / 三語短文 / 和文英訳① / 英単語RUSH 5級）
+    */
+    .reload-warn-banner { border-radius: 10px; padding: 10px 12px; margin: 10px 0; font-size: 12.5px; line-height: 1.7; box-shadow: 0 2px 6px rgba(0,0,0,.04); }
+    .reload-warn-banner .reload-warn-title { font-weight: bold; margin-bottom: 4px; font-size: 13px; }
+    .reload-warn-banner .reload-warn-apology { display: inline-block; margin-left: 4px; font-size: 12px; opacity: .85; }
+    .reload-warn-banner.recovery { background: linear-gradient(135deg,#ecfdf5,#d1fae5); border: 1px solid #6ee7b7; color: #065f46; }
+    .reload-warn-banner.recovery .reload-warn-title { color: #047857; }
+    .reload-warn-banner.recovery strong { color: #047857; }
+    .reload-warn-banner.redo { background: linear-gradient(135deg,#fff7ed,#fef3c7); border: 1px solid #fcd34d; color: #92400e; }
+    .reload-warn-banner.redo .reload-warn-title { color: #b45309; }
+    .reload-warn-banner.redo strong { color: #b45309; }
+    @media (max-width: 480px) {
+      .reload-warn-banner { font-size: 12px; padding: 8px 10px; }
+    }
     .hp-info-card { background: linear-gradient(135deg,#fff7ed,#fef3f2); border: 1px solid #fde4cd; border-radius: 14px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
     .hp-info-title { font-size: 15px; font-weight: bold; color: #b45309; margin-bottom: 8px; }
     .hp-info-line { font-size: 13px; color: #444; margin-bottom: 4px; line-height: 1.55; }
@@ -2635,6 +2657,10 @@
     </div>
     <div class="set-label" id="dictation-set-label"></div>
     <div id="dictation-word-list"></div>
+    <div class="reload-warn-banner redo" data-content="英単語RUSH 書き取り">
+      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
+      もう一度ログインしてから、<strong>同じセットをもう一度撮影し直してね</strong>。<span class="reload-warn-apology">ゴメンナサイ🙇‍♂️💦</span>
+    </div>
     <div class="photo-area">
       <p style="font-size:15px;color:#555;margin-bottom:8px">📷 書き終わったらノートを撮影して送ってください</p>
       <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected(event)"/>
@@ -2775,6 +2801,10 @@
     </div>
     <div class="sango-level-tabs" id="sango-photo-tabs"></div>
     <div id="sango-photo-words"></div>
+    <div class="reload-warn-banner redo" data-content="三語短文">
+      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
+      もう一度ログインしてから、<strong>三語短文の写真提出をもう一度撮影し直してね</strong>。<span class="reload-warn-apology">ゴメンナサイ🙇‍♂️💦</span>
+    </div>
     <div class="photo-area">
       <p style="font-size:15px;color:#555;margin-bottom:8px">📷 作品を書いたノート等を撮影して送ってください</p>
       <input type="file" id="sango-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onSangoPhotoSelected(event)"/>
@@ -2850,6 +2880,10 @@
     <div class="mate-row">
       <img class="mate-img" id="mate-img-wabun1-topic" src="images/nichiei-default.png" alt="ニチエイ">
       <div class="mate-bubble" id="mate-bubble-wabun1-topic">今日の問題だよ！</div>
+    </div>
+    <div class="reload-warn-banner redo" data-content="和文英訳①">
+      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
+      もう一度ログインしてから、<strong>今日の和文英訳①をもう一度撮影し直してね</strong>。<span class="reload-warn-apology">ゴメンナサイ🙇‍♂️💦</span>
     </div>
     <div id="wabun1-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
     <div id="wabun1-camera-msg" class="msg" style="margin-top:10px"></div>
@@ -3109,6 +3143,10 @@
       <button class="kiso-camera-launch-btn" onclick="document.getElementById('kiso-work-photo-input-1').click()">📷 撮影する</button>
       <input type="file" id="kiso-work-photo-input-1" accept="image/*" capture="environment" style="display:none" onchange="onKisoWorkPhotoSelected(event)"/>
     </div>
+    <div class="reload-warn-banner recovery" data-content="基礎計算">
+      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
+      もう一度ログインしてから「📐 基礎計算」→ <strong>同じ単元</strong> →「<strong>過去のセッションを見直す → 1 つ前</strong>」で再開できるよ。<span class="reload-warn-apology">ゴメンナサイ🙇‍♂️💦</span>
+    </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-kiso-pre-confirm')">← 戻る</button>
   </div>
 </div>
@@ -3133,6 +3171,10 @@
       <button class="kiso-camera-launch-btn" onclick="document.getElementById('kiso-photo-input').click()">📷 撮影する</button>
       <input type="file" id="kiso-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKisoPhotoSelected(event)"/>
     </div>
+    <div class="reload-warn-banner recovery" data-content="基礎計算">
+      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
+      もう一度ログインしてから「📐 基礎計算」→ <strong>同じ単元</strong> →「<strong>過去のセッションを見直す → 1 つ前</strong>」で再開できるよ。<span class="reload-warn-apology">ゴメンナサイ🙇‍♂️💦</span>
+    </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -3156,6 +3198,10 @@
         <ul>
           <li>AIが誤って読み取ることがあるよ。違う場合は「もう一度撮る」を押してね（同じ写真でも結果が変わることがあるよ）</li>
         </ul>
+      </div>
+      <div class="reload-warn-banner recovery" data-content="基礎計算">
+        <div class="reload-warn-title">⚠️ 送信後にログイン画面に戻ってしまった場合</div>
+        もう一度ログインしてから「📐 基礎計算」→ <strong>同じ単元</strong> →「<strong>過去のセッションを見直す → 1 つ前</strong>」で再開できるよ。<span class="reload-warn-apology">ゴメンナサイ🙇‍♂️💦</span>
       </div>
       <div class="kiso-confirm-btns">
         <button class="kiso-confirm-retake" onclick="retakeKisoPhoto()">📸 撮り直す</button>
@@ -3464,6 +3510,10 @@
       <div class="kanjii-bubble" id="kanjii-bubble-kaki">ノートに書いてキミの字、見せて〜！</div>
     </div>
     <div id="kanji-kaki-list" class="kanji-kaki-list"></div>
+    <div class="reload-warn-banner redo" data-content="カンジー">
+      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
+      もう一度ログインしてから、<strong>同じ級・同じ問題数でもう一度挑戦してね</strong>。<span class="reload-warn-apology">ゴメンナサイ🙇‍♂️💦</span>
+    </div>
     <input type="file" id="kanji-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKanjiPhotoSelected(event)">
     <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを写真に撮って送る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
@@ -3484,6 +3534,10 @@
         <ul>
           <li>AIが誤って読み取ることがあるよ。違う場合は「もう一度撮る」を押してね（同じ写真でも結果が変わることがあるよ）</li>
         </ul>
+      </div>
+      <div class="reload-warn-banner redo" data-content="カンジー">
+        <div class="reload-warn-title">⚠️ 送信後にログイン画面に戻ってしまった場合</div>
+        もう一度ログインしてから、<strong>同じ級・同じ問題数でもう一度挑戦してね</strong>。<span class="reload-warn-apology">ゴメンナサイ🙇‍♂️💦</span>
       </div>
       <div class="kiso-confirm-btns">
         <button class="kiso-confirm-retake" onclick="retakeKanjiPhoto()">📸 撮り直す</button>
@@ -4654,6 +4708,10 @@
       _totalHP     = Number(res.totalHP) || 0;
       _streak      = Number(res.streak) || 0;
       _accountType = String(res.accountType || ''); // Task 3：振り返りモーダルスキップ判定用
+      // 2026-05-19 バグ1(b) S1：モバイルブラウザのバックグラウンドキル → タブ reload で
+      // クライアント state が失われた場合に DOMContentLoaded で自動復元するための sid 保存。
+      // sessionStorage はタブ単位スコープのため別タブ・別アカウントへの混在リスクは無い。
+      try { sessionStorage.setItem('mykt_sid', _studentId); } catch(e){}
       // 初回ログイン（ニックネーム未設定）はサプライズ判定の対象外。先にニックネームを設定させる。
       // 通常ログイン経路：ホーム遷移前に誕生日サプライズ判定を挟む（_maybeShowBirthdaySurprise）。
       if (res.isFirstLogin) {
@@ -4797,6 +4855,8 @@
     gasGet({ action:'saveNickname', studentId:_studentId, nickname:nn }).then(function(res){
       if (!res.ok) { showMsg('nickname-msg', res.message, 'ng'); return; }
       _totalHP = 10;  // 初回ニックネーム保存 = 初ログインボーナス 10HP
+      // 2026-05-19 バグ1(b) S1：初回ニックネーム保存 = 初ログイン完了。sid 自動復元の対象。
+      try { sessionStorage.setItem('mykt_sid', _studentId); } catch(e){}
       showWelcome(res.nickname, 10, 10, 4, 1, 'マイカツ見習い', null);
     }).catch(function(){ showMsg('nickname-msg','エラーが発生しました。','ng'); });
   }
@@ -5991,6 +6051,10 @@
   }
   // 実ログアウト処理（submit 成功時のみ呼ばれる）。旧 doLogout 後半をそのまま移植。
   function _doLogoutFinalize() {
+    // 2026-05-19 バグ1(b) S1：明示ログアウト時は sid 自動復元の対象から外す。
+    // 通常生徒（振り返り submit 成功経路）/ 特殊アカウント（即時ログアウト経路）
+    // 両方とも _doLogoutFinalize を通るため、ここで一括クリアで漏れなし。
+    try { sessionStorage.removeItem('mykt_sid'); } catch(e){}
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('popstate', popstateHandler);
     _stopAudio();
@@ -10704,6 +10768,69 @@
   function popstateHandler() { try { history.pushState(null, '', location.href); } catch(e){} }
   try { history.pushState(null, '', location.href); } catch(e){}
   window.addEventListener('popstate', popstateHandler);
+
+  // ============================================================
+  // 2026-05-19 バグ1(b) S1：sid 自動復元
+  // ============================================================
+  // モバイルブラウザ（iOS Safari / Android Chrome / Samsung Internet）で
+  // カメラ Intent 起動中にバックグラウンドキル → タブ reload → HTML 初期状態
+  // （screen-login active）に戻る現象への対策。
+  //
+  // 復元範囲：_studentId / _totalHP / _streak / _accountType + ホーム画面遷移。
+  // 復元しない：基礎計算等の進行中セッション（写真データは容量制限で保存不可）。
+  // 生徒が再ログイン後、基礎計算の「過去のセッションを見直す」UI で手動再開する運用。
+  //
+  // 副作用ガード：
+  //   - sessionStorage はタブ単位スコープ → 別タブ / 別アカウント混在しない
+  //   - 明示ログアウトでクリア（_doLogoutFinalize で確実）
+  //   - 復元 API（loginStudent）が ok:false なら sessionStorage クリアして
+  //     ログイン画面のまま（無効化された sid の安全な処理）
+  //   - 特殊アカウント（test/teacher/invited）も同じ動線で動作（accountType 復元）
+  function _tryAutoLogin() {
+    var savedSid;
+    try { savedSid = sessionStorage.getItem('mykt_sid'); } catch(e) { return; }
+    if (!savedSid) return;
+    // 既に明示ログイン済みなら何もしない（doLogin が先に動いたケースの保護）
+    if (_studentId) return;
+    gasGet({ action: 'loginStudent', studentId: savedSid }).then(function(res){
+      if (!res || !res.ok) {
+        // 無効な sid（生徒削除済 / シート移動等）→ 自動復元の対象から外す
+        try { sessionStorage.removeItem('mykt_sid'); } catch(e){}
+        return;
+      }
+      // doLogin と同じ state 復元
+      _studentId   = res.studentId;
+      _totalHP     = Number(res.totalHP) || 0;
+      _streak      = Number(res.streak) || 0;
+      _accountType = String(res.accountType || '');
+      // sessionStorage は念のため上書き保存（auth 通過した sid を確定保存）
+      try { sessionStorage.setItem('mykt_sid', _studentId); } catch(e){}
+      // 初回ログイン（ニックネーム未設定）なら nickname 画面、それ以外はホーム
+      if (res.isFirstLogin) {
+        showScreen('screen-nickname');
+      } else {
+        // 誕生日サプライズ判定はスキップ（reload 復元時にサプライズが暴発しないため）。
+        // サプライズは「明示ログイン」のときに表示する設計を維持。
+        showWelcome(res.nickname, res.totalHP, res.loginBonus, res.stage, res.streak, res.title, res.milestone);
+      }
+    }).catch(function(){
+      // 通信エラー時は sessionStorage は残す（次回起動で再試行）+ ログイン画面のまま
+    });
+  }
+  // DOMContentLoaded：通常 reload / 初回 load の復元
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _tryAutoLogin);
+  } else {
+    // 既にロード完了済みなら即座に試行
+    _tryAutoLogin();
+  }
+  // pageshow：bfcache 復元時の保険。event.persisted=true なら JS state が生きている
+  // 可能性が高いが、Android Chrome では state が部分的に失われるケースもあるため
+  // sessionStorage に sid がある状態で _studentId が空なら復元する。
+  window.addEventListener('pageshow', function(e){
+    if (_studentId) return; // 既にログイン済みなら何もしない
+    _tryAutoLogin();
+  });
 </script>
 <span id="app-version" class="app-version" title="タップで最新版に更新">v----.--.--</span>
 <script>
