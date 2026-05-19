@@ -1059,6 +1059,8 @@ function doGet(e) {
       // 今日のマイ活 振り返り：閲覧系（認証なしの生徒/保護者用 + admin/teacher 認証用の 2 本）
       else if (action === 'getReflectionsForStudent')    result = getReflectionsForStudent(params);
       else if (action === 'getReflectionsForAdmin')      result = getReflectionsForAdmin(params);
+      // 計算タイムトライアル：当日プレイ済み回数（screen-calctrial-intro の事前告知用、認証なし）
+      else if (action === 'getCalcTrialTodayCount')      result = getCalcTrialTodayCount(params);
       else if (action === 'getCalendarMonthSummary') result = getCalendarMonthSummary(params);
       else if (action === 'getCalendarDayDetail')    result = getCalendarDayDetail(params);
       else if (action === 'getStudentView') result = getStudentView(params);  
@@ -1521,6 +1523,9 @@ function _isCountableActivityType(type) {
       type.substring(type.length - PRACTICE_SUFFIX.length) === PRACTICE_SUFFIX) return false;
   // カウント対象（完全一致）
   if (type === 'test' || type === 'sango' || type === 'wabun1' || type === 'lison') return true;
+  // 2026-05-19 Task 2：計算タイムトライアル本番（'calctrial'）はカウント対象。
+  // 練習モード（'calctrial_practice'）は上の _practice 接尾分岐で既に除外済。
+  if (type === 'calctrial') return true;
   // カウント対象（プレフィックス）
   if (type.indexOf('kiso_')  === 0) return true;
   if (type.indexOf('kanji_') === 0) return true;
@@ -8636,6 +8641,101 @@ function ensureCalcTrialSheets() {
   }
 }
 
+// 当日（教育日 = JST 3:00 区切り）の本セッション件数を集計するヘルパー。
+// CalcTrialSessions シートを直接スキャン（末尾 N 行で十分、件数も少ない想定）。
+// 戻り値: { completed: N, practice: N }
+//   - completed: status='completed' の件数（HP 付与対象、本番）
+//   - practice:  status='practice' の件数（3 回目以降、HP 0、練習扱い）
+function _countCalcTrialSessionsToday(sid, todayStr) {
+  const out = { completed: 0, practice: 0 };
+  try {
+    const sh = _ss().getSheetByName(SHEET_CALCTRIAL_SESSIONS);
+    if (!sh || sh.getLastRow() < 2) return out;
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iSid       = header.indexOf('studentId');
+    const iCompleted = header.indexOf('completedAt');
+    const iStatus    = header.indexOf('status');
+    if (iSid < 0 || iCompleted < 0 || iStatus < 0) return out;
+    const targetSid = String(sid || '').trim();
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      if (String(row[iSid] || '').trim() !== targetSid) continue;
+      // completedAt は 'yyyy-MM-dd HH:mm:ss' 文字列または Date 型の可能性あり。
+      // 教育日基準で日付化（_logHP 系の _logEducationalDate と同じ JST 3:00 区切り）。
+      const ds = _toEducationalDateStr(row[iCompleted]);
+      if (ds !== todayStr) continue;
+      const st = String(row[iStatus] || '').trim();
+      if (st === 'completed') out.completed++;
+      else if (st === 'practice') out.practice++;
+    }
+  } catch(e) {
+    console.error('[_countCalcTrialSessionsToday]', e);
+  }
+  return out;
+}
+
+// 完了日時 → 教育日（JST 3:00 区切り） 'yyyy-MM-dd' 文字列に変換。
+// CalcTrialSessions.completedAt は記録時に 'yyyy-MM-dd HH:mm:ss' で書き込んでいるが
+// シート上で Date 型に自動変換されるケースもあるので、両方を吸収する。
+function _toEducationalDateStr(raw) {
+  if (raw == null || raw === '') return '';
+  try {
+    let d;
+    if (raw instanceof Date) {
+      d = raw;
+    } else {
+      const s = String(raw).trim();
+      if (!s) return '';
+      // 'yyyy-MM-dd HH:mm:ss' or 'yyyy-MM-dd' を許容
+      d = new Date(s.replace(' ', 'T') + (s.length === 10 ? 'T00:00:00' : ''));
+      if (isNaN(d.getTime())) return '';
+    }
+    // JST 3:00 区切り（_sangoToday と同じロジック）
+    const jstShifted = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+    return Utilities.formatDate(jstShifted, 'Asia/Tokyo', 'yyyy-MM-dd');
+  } catch(e) {
+    return '';
+  }
+}
+
+// 当日プレイ済み回数を取得（生徒画面の screen-calctrial-intro での事前告知用、doGet）。
+// params: { studentId }
+// 戻り値: { ok, todayCount, todayCompleted, todayPractice, isPracticeNext, accountType, dailyLimit }
+//   - todayCount:       本日の合計プレイ回数（completed + practice）
+//   - todayCompleted:   本番モード（HP 対象）の回数
+//   - todayPractice:    練習モード（HP 対象外）の回数
+//   - isPracticeNext:   次回のセッションが練習扱いになるか（true なら警告表示）
+//   - accountType:      'student' / 'test' / 'teacher' / 'invited' / 'experience' / 'unknown'
+//   - dailyLimit:       本番 HP 付与の上限回数（通常 2、特殊アカウントは Infinity 相当 = 9999）
+function getCalcTrialTodayCount(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません' };
+    const accountType = _resolveAccountTypeFromLoc(stuLoc);
+    const isSpecial = (accountType === 'test' || accountType === 'teacher' || accountType === 'invited');
+    const dailyLimit = isSpecial ? 9999 : 2;
+    const today = _sangoToday();
+    const counts = _countCalcTrialSessionsToday(sid, today);
+    const totalToday = counts.completed + counts.practice;
+    const isPracticeNext = !isSpecial && counts.completed >= dailyLimit;
+    return {
+      ok: true,
+      todayCount: totalToday,
+      todayCompleted: counts.completed,
+      todayPractice: counts.practice,
+      isPracticeNext: isPracticeNext,
+      accountType: accountType,
+      dailyLimit: dailyLimit
+    };
+  } catch(err) {
+    console.error('[getCalcTrialTodayCount]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
 // 結果送信。doPost 経由のみ（生徒画面から呼ぶ、認証なし、studentId 一致のみ確認）。
 // params:
 //   studentId:        生徒ID
@@ -8651,14 +8751,20 @@ function ensureCalcTrialSheets() {
 //   1. studentId 検証 + Students または SpecialAccounts から行特定
 //   2. rounds の構造検証（配列で 2 要素必須）
 //   3. totalHp の値域検証（0 以上の整数、上限 100,000 で異常検知）
-//   4. CalcTrialSessions に 1 行 appendRow
-//   5. HPLog に 1 行 _logHP（type='calctrial', rawHp=totalHp, hpGained=totalHp）
+//   4. 当日プレイ済み回数チェック（2 回/日 上限、特殊アカウントは無制限）
+//   5. CalcTrialSessions に 1 行 appendRow（status は 'completed' or 'practice'）
+//   6. 練習モード以外は HPLog に 1 行 _logHP（type='calctrial' / 'calctrial_practice'）
 //      ※ 倍率なし（仕様 ②）、両輪システムは通さない（絶対ミッション対象外 + 努力の結果を全肯定）
-//   6. Students.HP に totalHp を加算（in-place setValue + cache 更新）
-//   7. cache invalidate（cache_students_values / cache_special_accounts_values / cache_ranking_last_week）
+//   7. 本番モードのみ Students.HP に totalHp を加算（in-place setValue + cache 更新）
+//   8. cache invalidate（cache_students_values / cache_special_accounts_values / cache_ranking_last_week）
 //
 // 注意：サーバー検証ガード不要（仕様：努力の結果を全肯定）。
 //      クライアント計算をそのまま採用する。
+//
+// 2026-05-19 Task 2 追加：
+//   - 本番 HP 付与は 1 日 2 回まで（教育日基準、_sangoToday）。3 回目以降は status='practice'
+//     で記録し HP 0（HPLog 'calctrial_practice' で engagement のみ記録）。
+//   - 特殊アカウント（test / teacher / invited）は上限対象外（無制限本番扱い）。
 function submitCalcTrialResult(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
@@ -8705,7 +8811,20 @@ function submitCalcTrialResult(params) {
     const sessionId   = 'calctrial_' + sid + '_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
     const userAgent   = String((params && params.clientUserAgent) || '').slice(0, 200);
 
-    // ⑤ CalcTrialSessions に 1 行記録（_ensureSheetWithHeaders 経由でシート存在保証）
+    // ④' 当日プレイ済み回数チェック（教育日基準、JST 3:00 区切り）。
+    //   - 通常生徒：当日 completed が 2 件以上なら今回は status='practice'、HP 0
+    //   - 特殊アカウント（test / teacher / invited）：上限対象外（常に本番扱い）
+    const accountType = _resolveAccountTypeFromLoc(stuLoc);
+    const isSpecial   = (accountType === 'test' || accountType === 'teacher' || accountType === 'invited');
+    const today       = _sangoToday();
+    const counts      = _countCalcTrialSessionsToday(sid, today);
+    const isPractice  = !isSpecial && counts.completed >= 2;
+    const status      = isPractice ? 'practice' : 'completed';
+    const effectiveHp = isPractice ? 0 : totalHp;
+    const hpLogType   = isPractice ? 'calctrial_practice' : 'calctrial';
+
+    // ⑤ CalcTrialSessions に 1 行記録（_ensureSheetWithHeaders 経由でシート存在保証）。
+    //   練習モードは totalHp 列に 0 を保存（roundsJson は記録するため練習回数の振り返り可）。
     const ses = _ensureCalcTrialSessionsSheet();
     const roundsJson = JSON.stringify(rounds);
     ses.appendRow([
@@ -8713,17 +8832,19 @@ function submitCalcTrialResult(params) {
       sid,
       startedAt,
       completedAt,
-      'completed',
-      totalHp,
+      status,
+      effectiveHp,
       totalCorrect,
       totalAnswered,
       roundsJson,
       userAgent
     ]);
 
-    // ⑥ HPLog に 1 行（type='calctrial'、倍率なし＝rawHp=hpGained=totalHp）
+    // ⑥ HPLog に 1 行記録：
+    //    本番（completed）: type='calctrial'        / hp=totalHp
+    //    練習（practice）:  type='calctrial_practice' / hp=0（engagement のみ記録、Stage 計算には含めない）
     //    両輪システム（_calculateHpWithReserve）は通さない：絶対ミッション対象外 + 努力全肯定
-    const logRes = _logHP(sid, totalHp, totalHp, 'calctrial');
+    const logRes = _logHP(sid, effectiveHp, effectiveHp, hpLogType);
     if (!logRes.ok) {
       // HPLog 失敗時は CalcTrialSessions の行は残るが Students.HP は更新しない。
       // 再送信すると CalcTrialSessions が二重になるが、HP が二重加算される事故よりは軽微。
@@ -8731,13 +8852,16 @@ function submitCalcTrialResult(params) {
       return { ok: false, message: '内部エラー（HPLog 書き込み失敗）。もう一度送信してください', errorCode: 'HP_LOG_FAILED' };
     }
 
-    // ⑦ Students または SpecialAccounts の HP に加算（in-place setValue + cache 更新）
-    const currentHP = Number(stuLoc.rowValues[COL_HP]) || 0;
-    const newHP     = currentHP + totalHp;
-    stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
-    const updates = {};
-    updates[COL_HP] = newHP;
-    _updateAccountCacheBySid(sid, updates);
+    // ⑦ 本番モードのみ Students または SpecialAccounts の HP に加算（in-place setValue + cache 更新）。
+    //   練習モードは HP 加算をスキップ（生徒には「練習扱い」を明示してモチベ維持しつつ反映なし）。
+    let newHP = Number(stuLoc.rowValues[COL_HP]) || 0;
+    if (!isPractice) {
+      newHP = newHP + totalHp;
+      stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
+      const updates = {};
+      updates[COL_HP] = newHP;
+      _updateAccountCacheBySid(sid, updates);
+    }
 
     // ⑧ cache invalidate
     _invalidateCache('cache_students_values');
@@ -8745,12 +8869,18 @@ function submitCalcTrialResult(params) {
     _invalidateCache('cache_ranking_last_week');
 
     return {
-      ok:            true,
-      sessionId:     sessionId,
-      totalHp:       totalHp,
-      totalHpAfter:  newHP,
-      totalCorrect:  totalCorrect,
-      totalAnswered: totalAnswered
+      ok:              true,
+      sessionId:       sessionId,
+      totalHp:         effectiveHp,           // 実際に付与された HP（練習は 0）
+      totalHpAfter:    newHP,
+      totalCorrect:    totalCorrect,
+      totalAnswered:   totalAnswered,
+      // 2026-05-19 Task 2 追加レスポンス：
+      isPractice:      isPractice,            // 練習モードだったか（フロント側で UI 切替）
+      accountType:     accountType,           // 特殊アカウント判定の参考
+      todayCompleted:  counts.completed + (isPractice ? 0 : 1),  // 本送信反映後の本番回数
+      todayPractice:   counts.practice   + (isPractice ? 1 : 0), // 本送信反映後の練習回数
+      calculatedHp:    totalHp                // クライアント側で計算した「もし本番だったら」の HP（UI 表示用）
     };
   } catch(err) {
     console.error('[submitCalcTrialResult]', err);
@@ -9859,6 +9989,7 @@ function _calendarContentName(type) {
   if (t.indexOf('kiso_')  === 0) return '基礎計算';
   if (t.indexOf('kanji_') === 0) return 'カンジー';
   if (t.indexOf('kobun_') === 0) return 'コブタン';
+  if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
   if (t.indexOf('apology_') === 0) return 'お詫びHP';
   return 'その他（' + t + '）';
 }
@@ -18241,6 +18372,9 @@ function _lineNotifyCountableType(type) {
   if (t.indexOf('kiso_')   === 0) return true;
   if (t.indexOf('kanji_')  === 0) return true;
   if (t.indexOf('kobun_')  === 0) return true;
+  // 2026-05-19 Task 2：計算タイムトライアルは本番（'calctrial'）/ 練習（'calctrial_practice'）
+  // とも engagement として「やった子」扱い（kiso_*_practice 等と同方針）。
+  if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return true;
   if (t === 'reserve_release') return true;
   if (t === 'completion_bonus') return true;
   // 一旦すべての manual_* をカウント対象とする（安全側）。
@@ -18261,6 +18395,7 @@ function _lineNotifyContentNameFor(type) {
   if (t.indexOf('kiso_')  === 0) return '基礎計算';
   if (t.indexOf('kanji_') === 0) return 'カンジー';
   if (t.indexOf('kobun_') === 0) return 'コブタン';
+  if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
   if (t === 'reserve_release' || t === 'completion_bonus') return '絶対ミッション達成ボーナス';
   // 2026-05-19：連続日数修正は LINE 通知の取組み一覧に出さない（HP 0 のメタデータ書き換えなので「取り組み内容」ではない）
   if (t === 'manual_streak_modify') return null;

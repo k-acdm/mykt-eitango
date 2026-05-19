@@ -1051,36 +1051,40 @@
        2026-05-08 夕：古文単語コブタン稼働化に合わせ c-kobun を追加（delay 2.4s）。
        duration 2.4s、各キャラ delay 0/0.4/0.8/1.2/1.6/2.0/2.4s で機械的な同期を回避（半周期内に分散）。 */
     @keyframes wobble-character { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-    .content-btn.c-eitango .ico-mascot,
-    .content-btn.c-sango   .ico-mascot,
-    .content-btn.c-wabun1  .ico-mascot,
-    .content-btn.c-math    .ico-mascot,
-    .content-btn.c-lison   .ico-mascot,
-    .content-btn.c-kanji   .ico-mascot,
-    .content-btn.c-kobun   .ico-mascot { animation: wobble-character 2.4s ease-in-out infinite; will-change: transform; }
-    .content-btn.c-eitango .ico-mascot { animation-delay: 0s; }
-    .content-btn.c-sango   .ico-mascot { animation-delay: 0.4s; }
-    .content-btn.c-wabun1  .ico-mascot { animation-delay: 0.8s; }
-    .content-btn.c-math    .ico-mascot { animation-delay: 1.2s; }
-    .content-btn.c-lison   .ico-mascot { animation-delay: 1.6s; }
-    .content-btn.c-kanji   .ico-mascot { animation-delay: 2.0s; }
-    .content-btn.c-kobun   .ico-mascot { animation-delay: 2.4s; }
+    .content-btn.c-eitango   .ico-mascot,
+    .content-btn.c-sango     .ico-mascot,
+    .content-btn.c-wabun1    .ico-mascot,
+    .content-btn.c-math      .ico-mascot,
+    .content-btn.c-lison     .ico-mascot,
+    .content-btn.c-kanji     .ico-mascot,
+    .content-btn.c-kobun     .ico-mascot,
+    .content-btn.c-calctrial .ico-mascot { animation: wobble-character 2.4s ease-in-out infinite; will-change: transform; }
+    .content-btn.c-eitango   .ico-mascot { animation-delay: 0s; }
+    .content-btn.c-sango     .ico-mascot { animation-delay: 0.4s; }
+    .content-btn.c-wabun1    .ico-mascot { animation-delay: 0.8s; }
+    .content-btn.c-math      .ico-mascot { animation-delay: 1.2s; }
+    .content-btn.c-lison     .ico-mascot { animation-delay: 1.6s; }
+    .content-btn.c-kanji     .ico-mascot { animation-delay: 2.0s; }
+    .content-btn.c-kobun     .ico-mascot { animation-delay: 2.4s; }
+    .content-btn.c-calctrial .ico-mascot { animation-delay: 0.6s; }
     /* hover 中は scale 効果と衝突しないよう揺れを一時停止（既存 :hover ルールの transform を維持） */
-    .content-btn.c-eitango:hover .ico-mascot,
-    .content-btn.c-sango:hover   .ico-mascot,
-    .content-btn.c-wabun1:hover  .ico-mascot,
-    .content-btn.c-math:hover    .ico-mascot,
-    .content-btn.c-lison:hover   .ico-mascot,
-    .content-btn.c-kanji:hover   .ico-mascot,
-    .content-btn.c-kobun:hover   .ico-mascot { animation-play-state: paused; }
+    .content-btn.c-eitango:hover   .ico-mascot,
+    .content-btn.c-sango:hover     .ico-mascot,
+    .content-btn.c-wabun1:hover    .ico-mascot,
+    .content-btn.c-math:hover      .ico-mascot,
+    .content-btn.c-lison:hover     .ico-mascot,
+    .content-btn.c-kanji:hover     .ico-mascot,
+    .content-btn.c-kobun:hover     .ico-mascot,
+    .content-btn.c-calctrial:hover .ico-mascot { animation-play-state: paused; }
     @media (prefers-reduced-motion: reduce) {
-      .content-btn.c-eitango .ico-mascot,
-      .content-btn.c-sango   .ico-mascot,
-      .content-btn.c-wabun1  .ico-mascot,
-      .content-btn.c-math    .ico-mascot,
-      .content-btn.c-lison   .ico-mascot,
-      .content-btn.c-kanji   .ico-mascot,
-      .content-btn.c-kobun   .ico-mascot { animation: none; }
+      .content-btn.c-eitango   .ico-mascot,
+      .content-btn.c-sango     .ico-mascot,
+      .content-btn.c-wabun1    .ico-mascot,
+      .content-btn.c-math      .ico-mascot,
+      .content-btn.c-lison     .ico-mascot,
+      .content-btn.c-kanji     .ico-mascot,
+      .content-btn.c-kobun     .ico-mascot,
+      .content-btn.c-calctrial .ico-mascot { animation: none; }
     }
     /* 「今日の運勢」カード（旧「秘密の扉」、2026-05-13 リブランド）
        薄ラベンダー系（占い感を出しつつ他カードと並んでも浮かないトーン）。
@@ -1095,12 +1099,115 @@
     .content-btn.c-science   { background: linear-gradient(135deg,#43cea2,#185a9d); }
     /* 古文単語「コブタン」（2026-05-08 稼働化）：暖色系（金〜琥珀）で平安らしさ + コブタンの吹き出しと統一感 */
     .content-btn.c-kobun     { background: linear-gradient(135deg,#f6ad55,#b45309); }
+    /* 計算タイムトライアル「トラール」（2026-05-19 稼働化）：暖色系オレンジ〜赤（タイムアタック感、虎のエネルギー） */
+    .content-btn.c-calctrial { background: linear-gradient(135deg,#ff9a3c,#ff5722); }
+    /* 国語長文読解（2026-05-19 新設、準備中スケルトン）：青緑系（読書のしずかさ） */
+    .content-btn.c-longread  { background: linear-gradient(135deg,#26d0ce,#1a9b9b); }
     /* フォニックスゲーム（2026-05-08 新設、準備中スケルトン）：桜色系で子供向けらしさ */
     .content-btn.c-phonics   { background: linear-gradient(135deg,#fbb6ce,#ed64a6); }
     .content-btn.disabled  { opacity: .58; cursor: not-allowed; }
     .content-btn.disabled:hover { transform: none; box-shadow: 0 4px 14px rgba(0,0,0,.12); opacity: .58; }
     .content-btn .badge-soon { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.45); color: #fff; font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; letter-spacing: .5px; }
     .content-btn .badge-hp { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,.95); color: #d97706; font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; letter-spacing: .3px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+    /* ================== 計算タイムトライアル（2026-05-19 Phase 3 新設） ================== */
+    /* イントロ画面：ルール説明 + 本日プレイ済み回数表示 + スタートボタン */
+    .ct-intro-wrap { background: linear-gradient(135deg,#fff8e1,#ffe4c4); border: 2px solid #ff8a3d; border-radius: 18px; padding: 18px 16px; box-shadow: 0 4px 14px rgba(255,138,61,.18); }
+    .ct-intro-title { font-size: 19px; font-weight: bold; color: #b45309; text-align: center; margin-bottom: 10px; line-height: 1.5; }
+    .ct-intro-mascot-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 6px 0 14px; }
+    .ct-intro-mascot-img { width: 90px; height: auto; filter: drop-shadow(0 3px 8px rgba(255,87,34,.25)); }
+    .ct-intro-bubble { background: #fff; border: 2px solid #fcd34d; border-radius: 14px; padding: 10px 14px; font-size: 13px; color: #7c2d12; line-height: 1.6; max-width: 260px; position: relative; }
+    .ct-intro-section { background: rgba(255,255,255,.7); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+    .ct-intro-section-title { font-size: 14px; font-weight: bold; color: #b45309; margin-bottom: 6px; }
+    .ct-intro-section-body { font-size: 13px; color: #4b3000; line-height: 1.75; }
+    .ct-intro-section-body ul { padding-left: 18px; margin: 4px 0; }
+    .ct-intro-today-line { font-size: 14px; font-weight: bold; color: #7c2d12; text-align: center; padding: 8px 10px; background: rgba(255,255,255,.85); border-radius: 10px; margin-bottom: 10px; }
+    .ct-intro-warn-card { background: linear-gradient(135deg,#fef2f2,#fee2e2); border: 2px solid #ef4444; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; color: #7f1d1d; font-size: 13px; line-height: 1.7; font-weight: 600; }
+    .ct-intro-warn-card .ct-warn-title { font-size: 14px; font-weight: bold; color: #b91c1c; margin-bottom: 4px; }
+    .ct-intro-start-btn { width: 100%; padding: 16px 18px; background: linear-gradient(135deg,#ff6a00,#dc2626); color: #fff; border: none; border-radius: 14px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 5px 16px rgba(220,38,38,.4); transition: transform .15s, box-shadow .15s; font-family: inherit; }
+    .ct-intro-start-btn:hover { transform: translateY(-1px); box-shadow: 0 7px 22px rgba(220,38,38,.5); }
+
+    /* ラウンド画面（ラウンド①②共通、.bonus-mode で背景・ヘッダー演出を切替） */
+    .ct-round-wrap { background: linear-gradient(160deg,#fff,#fff5e1); border-radius: 16px; padding: 14px 14px 16px; box-shadow: 0 4px 14px rgba(0,0,0,.08); transition: background .8s ease; }
+    .ct-round-wrap.bonus-mode { background: linear-gradient(160deg,#fff8e1,#ffd9a8); animation: ct-bonus-pulse 2.4s ease-in-out infinite; }
+    @keyframes ct-bonus-pulse { 0%, 100% { box-shadow: 0 4px 14px rgba(255,138,61,.4); } 50% { box-shadow: 0 6px 24px rgba(255,87,34,.65); } }
+    .ct-round-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+    .ct-round-label { font-size: 15px; font-weight: bold; color: #b45309; }
+    .ct-round-wrap.bonus-mode .ct-round-label { color: #c2410c; }
+    .ct-bonus-badge { display: none; background: linear-gradient(135deg,#facc15,#f97316); color: #fff; font-size: 12px; font-weight: bold; padding: 4px 10px; border-radius: 999px; box-shadow: 0 2px 6px rgba(249,115,22,.4); animation: ct-bonus-pulse-badge 1.2s ease-in-out infinite; }
+    .ct-round-wrap.bonus-mode .ct-bonus-badge { display: inline-block; }
+    @keyframes ct-bonus-pulse-badge { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+    .ct-round-timer { font-size: 18px; font-weight: bold; color: #1f2937; font-variant-numeric: tabular-nums; min-width: 70px; text-align: center; }
+    .ct-round-timer.urgent { color: #dc2626; animation: ct-timer-blink 0.6s ease-in-out infinite; }
+    @keyframes ct-timer-blink { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+    .ct-round-progress { font-size: 13px; color: #555; }
+    .ct-round-hp { font-size: 14px; font-weight: bold; color: #b45309; font-variant-numeric: tabular-nums; }
+    .ct-round-wrap.bonus-mode .ct-round-hp { color: #c2410c; }
+    .ct-round-hp .ct-hp-flash { display: inline-block; animation: ct-hp-flash 0.5s ease-out; }
+    @keyframes ct-hp-flash { 0% { color: #16a34a; transform: scale(1.3); } 100% { color: inherit; transform: scale(1); } }
+
+    .ct-prev-row { background: rgba(255,255,255,.7); border-radius: 10px; padding: 8px 12px; margin-bottom: 10px; min-height: 28px; font-size: 13px; color: #4b3000; }
+    .ct-prev-row.empty { background: transparent; color: #aaa; font-size: 12px; font-style: italic; }
+    .ct-prev-row .ct-prev-mark { font-weight: bold; margin-left: 6px; }
+    .ct-prev-row .ct-prev-mark.ok { color: #16a34a; }
+    .ct-prev-row .ct-prev-mark.ng { color: #dc2626; }
+
+    .ct-q-block { background: #fff; border: 2px solid #fcd34d; border-radius: 14px; padding: 16px 14px; margin-bottom: 12px; text-align: center; }
+    .ct-round-wrap.bonus-mode .ct-q-block { border-color: #f97316; }
+    .ct-q-expr { font-size: 30px; font-weight: bold; color: #1f2937; letter-spacing: 1px; font-variant-numeric: tabular-nums; line-height: 1.3; }
+    .ct-q-input-row { margin-top: 10px; }
+    .ct-q-input { width: 70%; padding: 10px 12px; font-size: 24px; text-align: center; border: 2px solid #cbd5e1; border-radius: 10px; box-sizing: border-box; font-variant-numeric: tabular-nums; font-family: inherit; background: #fafdfb; min-height: 44px; }
+    .ct-q-input:focus { outline: none; border-color: #f97316; box-shadow: 0 0 0 3px rgba(249,115,22,.18); }
+
+    .ct-mascot-row { display: flex; justify-content: center; margin: 6px 0 10px; }
+    .ct-mascot-img { width: 70px; height: auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,.15)); }
+
+    .ct-tenkey { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 360px; margin: 0 auto; }
+    .ct-tenkey button { padding: 16px 0; font-size: 22px; font-weight: bold; background: linear-gradient(135deg,#fff,#fef3c7); border: 2px solid #fcd34d; border-radius: 12px; color: #7c2d12; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,.06); font-family: inherit; transition: transform .08s, box-shadow .12s; min-height: 56px; }
+    .ct-tenkey button:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0,0,0,.08); background: linear-gradient(135deg,#fef3c7,#fde68a); }
+    .ct-tenkey button.ct-key-bs { background: linear-gradient(135deg,#fff,#fee2e2); border-color: #f87171; color: #991b1b; }
+    .ct-tenkey button.ct-key-enter { background: linear-gradient(135deg,#fff,#dcfce7); border-color: #4ade80; color: #166534; }
+    .ct-round-wrap.bonus-mode .ct-tenkey button { border-color: #f97316; }
+    .ct-round-wrap.bonus-mode .ct-tenkey button.ct-key-bs { border-color: #f87171; }
+    .ct-round-wrap.bonus-mode .ct-tenkey button.ct-key-enter { border-color: #4ade80; }
+
+    /* ラウンド①→② 中間モーダル */
+    .ct-between-wrap { background: linear-gradient(135deg,#fff8e1,#ffd9a8); border-radius: 18px; padding: 22px 18px; text-align: center; box-shadow: 0 6px 22px rgba(0,0,0,.15); }
+    .ct-between-title { font-size: 22px; font-weight: bold; color: #b45309; line-height: 1.5; margin-bottom: 12px; }
+    .ct-between-sub { font-size: 14px; color: #7c2d12; line-height: 1.7; margin-bottom: 14px; }
+    .ct-between-mascot-img { width: 110px; height: auto; margin: 6px auto 12px; display: block; filter: drop-shadow(0 4px 10px rgba(255,138,61,.4)); }
+    .ct-between-summary { background: rgba(255,255,255,.78); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; font-size: 14px; color: #4b3000; line-height: 1.8; text-align: left; }
+    .ct-between-start-btn { width: 100%; padding: 14px 18px; background: linear-gradient(135deg,#ff6a00,#dc2626); color: #fff; border: none; border-radius: 14px; font-size: 17px; font-weight: bold; cursor: pointer; box-shadow: 0 5px 16px rgba(220,38,38,.4); font-family: inherit; }
+
+    /* リザルト画面 */
+    .ct-result-wrap { background: linear-gradient(135deg,#fff8e1,#ffe4c4); border: 2px solid #ff8a3d; border-radius: 18px; padding: 22px 18px; text-align: center; box-shadow: 0 6px 22px rgba(0,0,0,.12); }
+    .ct-result-wrap.perfect { background: linear-gradient(135deg,#fef3c7,#fcd34d,#f59e0b); border-color: #b45309; animation: ct-result-glow 1.8s ease-in-out infinite; }
+    @keyframes ct-result-glow { 0%,100% { box-shadow: 0 6px 22px rgba(180,83,9,.4); } 50% { box-shadow: 0 12px 40px rgba(245,158,11,.7); } }
+    .ct-result-title { font-size: 22px; font-weight: bold; color: #7c2d12; margin-bottom: 10px; line-height: 1.5; }
+    .ct-result-mascot-img { width: 130px; height: auto; margin: 8px auto 14px; display: block; filter: drop-shadow(0 4px 12px rgba(255,138,61,.4)); }
+    .ct-result-mascot-img.dance { animation: ct-result-dance 1.2s ease-in-out infinite; }
+    @keyframes ct-result-dance { 0%,100% { transform: translateX(-6px) rotate(-4deg); } 50% { transform: translateX(6px) rotate(4deg); } }
+    .ct-result-hp-num { font-size: 48px; font-weight: bold; color: #b45309; font-variant-numeric: tabular-nums; line-height: 1; margin: 8px 0; }
+    .ct-result-hp-label { font-size: 14px; color: #7c2d12; margin-bottom: 14px; }
+    .ct-result-breakdown { background: rgba(255,255,255,.85); border-radius: 12px; padding: 12px 14px; text-align: left; font-size: 13px; color: #4b3000; line-height: 1.85; margin-bottom: 14px; }
+    .ct-result-breakdown .bd-row { display: flex; justify-content: space-between; gap: 8px; }
+    .ct-result-breakdown .bd-row.bd-total { border-top: 1px dashed #b45309; padding-top: 6px; margin-top: 6px; font-weight: bold; color: #7c2d12; }
+    .ct-practice-badge { display: inline-block; padding: 4px 12px; font-size: 13px; font-weight: bold; color: #fff; background: linear-gradient(135deg,#94a3b8,#475569); border-radius: 999px; box-shadow: 0 2px 6px rgba(71,85,105,.35); margin-bottom: 10px; }
+    .ct-practice-note { background: rgba(255,255,255,.85); border: 2px dashed #94a3b8; border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: #475569; line-height: 1.65; text-align: left; }
+    .ct-practice-note strong { color: #1e293b; }
+    .ct-confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+    .ct-confetti span { position: absolute; top: -30px; font-size: 22px; animation: ct-confetti-fall 3s ease-in infinite; }
+    @keyframes ct-confetti-fall { 0% { transform: translateY(-30px) rotate(0); opacity: 1; } 100% { transform: translateY(110vh) rotate(720deg); opacity: 0; } }
+
+    @media (max-width: 480px) {
+      .ct-intro-mascot-img { width: 70px; }
+      .ct-intro-bubble { font-size: 12px; padding: 8px 12px; }
+      .ct-q-expr { font-size: 26px; }
+      .ct-tenkey button { font-size: 19px; padding: 13px 0; min-height: 48px; }
+      .ct-mascot-img { width: 56px; }
+      .ct-result-hp-num { font-size: 38px; }
+      .ct-result-mascot-img { width: 100px; }
+    }
+
     .hp-info-card { background: linear-gradient(135deg,#fff7ed,#fef3f2); border: 1px solid #fde4cd; border-radius: 14px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
     .hp-info-title { font-size: 15px; font-weight: bold; color: #b45309; margin-bottom: 8px; }
     .hp-info-line { font-size: 13px; color: #444; margin-bottom: 4px; line-height: 1.55; }
@@ -2315,6 +2422,16 @@
           <img class="ico-mascot" src="images/kobun-default.png" alt="">古文単語
           <span class="content-btn-sub">対象：高校生</span>
         </button>
+        <button class="content-btn c-calctrial" onclick="showCalcTrialIntro()">
+          <span class="badge-hp">HP＝頑張った分だけ！</span>
+          <img class="ico-mascot" src="images/trial-default.png" alt="">計算タイムトライアル
+          <span class="content-btn-sub">5分×2ラウンド、上限なし</span>
+        </button>
+        <button class="content-btn c-longread disabled" onclick="showComingSoon('国語長文読解')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">📖</span>国語長文読解
+          <span class="content-btn-sub">対象：中学生</span>
+        </button>
         <button class="content-btn c-phonics disabled" onclick="showComingSoon('フォニックスゲーム')">
           <span class="badge-soon">準備中</span>
           <span class="ico">🎵</span>フォニックスゲーム
@@ -3483,6 +3600,126 @@
     <div id="kobun-history-list"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showKobunStart()">← 古文単語のトップに戻る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#94a3b8,#64748b);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- ===== 計算タイムトライアル（2026-05-19 Phase 3 新規） ===== -->
+<!-- イントロ → ラウンド①（5分）→ 中間モーダル → ラウンド②（5分）→ リザルト の固定フロー -->
+<!-- 中断不可 / 中断時は submit しない（仕様 案 C）。本番は 1 日 2 回までで 3 回目以降は練習モード。 -->
+
+<!-- イントロ画面：ルール説明 + 本日プレイ済み回数 + 練習モード警告（条件付き） + スタートボタン -->
+<div id="screen-calctrial-intro" class="screen">
+  <header><h1>📐 計算タイムトライアル</h1></header>
+  <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">← ホームに戻る</button>
+    <div class="ct-intro-wrap">
+      <div class="ct-intro-title">🐯 ようこそ、計算タイムトライアル！</div>
+      <div class="ct-intro-mascot-row">
+        <img class="ct-intro-mascot-img" src="images/trial-default.png" alt="トラール">
+        <div class="ct-intro-bubble">5分2本勝負！集中して頑張ろう！<br>本気の時間が、強さに変わるぜ！</div>
+      </div>
+      <div id="ct-intro-today-line" class="ct-intro-today-line">本日：◯回プレイ済</div>
+      <div id="ct-intro-warn" class="ct-intro-warn-card" style="display:none">
+        <div class="ct-warn-title">⚠️ 本日のHP獲得は2回目までです</div>
+        <div>3回目以降も挑戦できますが、HPには反映されません（練習モード）</div>
+      </div>
+      <div class="ct-intro-section">
+        <div class="ct-intro-section-title">📜 ルール</div>
+        <div class="ct-intro-section-body">
+          <ul>
+            <li><strong>ラウンド①</strong>：たし算・ひき算 100問（5分）</li>
+            <li><strong>ラウンド②</strong>：かけ算 100問（5分）</li>
+            <li>100問正解で 50HP（部分正解は問題数に応じて）</li>
+            <li>残り時間がある間は<strong>ボーナスステージ</strong>に突入！<br>正解1問につき +1HP（上限なし）</li>
+            <li>2ラウンド合計が獲得HP（小数点以下切上）</li>
+            <li>中断はできません。最後まで集中して取り組もう</li>
+          </ul>
+        </div>
+      </div>
+      <button class="ct-intro-start-btn" onclick="startCalcTrial()">🐯 スタート！</button>
+    </div>
+  </div>
+</div>
+
+<!-- ラウンド画面：ラウンド①②共通、.bonus-mode で演出切替 -->
+<div id="screen-calctrial-round" class="screen">
+  <header>
+    <h1 id="ct-round-h1">📐 計算タイムトライアル</h1>
+  </header>
+  <div class="container" style="padding-top:14px">
+    <div id="ct-round-wrap" class="ct-round-wrap">
+      <div class="ct-round-header">
+        <div>
+          <span class="ct-round-label" id="ct-round-label">ラウンド① たし算・ひき算</span>
+          <span class="ct-bonus-badge" id="ct-bonus-badge">🎰 ボーナス</span>
+        </div>
+        <div class="ct-round-timer" id="ct-round-timer">5:00</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;margin-bottom:8px">
+        <span class="ct-round-progress" id="ct-round-progress">問題 1/100</span>
+        <span class="ct-round-hp" id="ct-round-hp">獲得HP: 0</span>
+      </div>
+      <div id="ct-prev-row" class="ct-prev-row empty">（最初の問題です）</div>
+      <div class="ct-q-block">
+        <div class="ct-q-expr" id="ct-q-expr">— + — = ?</div>
+        <div class="ct-q-input-row">
+          <input id="ct-q-input" class="ct-q-input" type="text" inputmode="numeric" pattern="[0-9-]*" autocomplete="off" readonly aria-label="答えを入力">
+        </div>
+      </div>
+      <div class="ct-mascot-row">
+        <img class="ct-mascot-img" id="ct-mascot" src="images/trial-default.png" alt="">
+      </div>
+      <div class="ct-tenkey">
+        <button type="button" onclick="onCtKey('1')">1</button>
+        <button type="button" onclick="onCtKey('2')">2</button>
+        <button type="button" onclick="onCtKey('3')">3</button>
+        <button type="button" onclick="onCtKey('4')">4</button>
+        <button type="button" onclick="onCtKey('5')">5</button>
+        <button type="button" onclick="onCtKey('6')">6</button>
+        <button type="button" onclick="onCtKey('7')">7</button>
+        <button type="button" onclick="onCtKey('8')">8</button>
+        <button type="button" onclick="onCtKey('9')">9</button>
+        <button type="button" class="ct-key-bs" onclick="onCtKey('BS')">←</button>
+        <button type="button" onclick="onCtKey('0')">0</button>
+        <button type="button" class="ct-key-enter" onclick="onCtKey('ENTER')">Enter</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ラウンド①→② 中間画面（モーダル風） -->
+<div id="screen-calctrial-between" class="screen">
+  <header><h1>📐 計算タイムトライアル</h1></header>
+  <div class="container" style="padding-top:20px">
+    <div class="ct-between-wrap">
+      <div class="ct-between-title">🎉 ラウンド１ 終了！<br>次はラウンド２（かけ算）に進むよ！🐯</div>
+      <img class="ct-between-mascot-img" src="images/trial-celebrate.png" alt="トラール">
+      <div class="ct-between-summary" id="ct-between-summary">
+        <!-- 動的に挿入：ラウンド① の本編正答数 / ボーナス正答数 / 小計HP -->
+      </div>
+      <div class="ct-between-sub">準備ができたら、ボタンを押してラウンド２をスタート！</div>
+      <button class="ct-between-start-btn" onclick="startCalcTrialRound2()">🐯 ラウンド２をスタート！</button>
+    </div>
+  </div>
+</div>
+
+<!-- リザルト画面 -->
+<div id="screen-calctrial-result" class="screen">
+  <header><h1>📐 計算タイムトライアル 結果</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div id="ct-result-wrap" class="ct-result-wrap">
+      <div id="ct-confetti" class="ct-confetti" style="display:none"></div>
+      <div class="ct-result-title" id="ct-result-title">お疲れさま！</div>
+      <img id="ct-result-mascot" class="ct-result-mascot-img" src="images/trial-encourage.png" alt="トラール">
+      <div id="ct-practice-badge-wrap"></div>
+      <div class="ct-result-hp-num" id="ct-result-hp-num">0</div>
+      <div class="ct-result-hp-label" id="ct-result-hp-label">獲得HP</div>
+      <div id="ct-practice-note-wrap"></div>
+      <div class="ct-result-breakdown" id="ct-result-breakdown">
+        <!-- 動的に挿入：ラウンド①/② の内訳 + 合計 -->
+      </div>
+      <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:6px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    </div>
   </div>
 </div>
 
@@ -9927,6 +10164,521 @@
       listEl.innerHTML = '<div class="error">読み込みに失敗しました。</div>';
     });
   }
+
+  // ============================================================
+  // 計算タイムトライアル（2026-05-19 Phase 3、フロント本実装）
+  // ============================================================
+  // 仕様要約：
+  //   - 2ラウンド固定（①たし算・ひき算100問 / ②かけ算100問）
+  //   - 各ラウンド5分タイマー、本編100問完答後は残り時間まで「ボーナスステージ」
+  //   - HP：本編は正答1問あたり 0.5HP（100問全正解で 50HP）/ ボーナスは 1問 1HP
+  //   - 2ラウンド合計の小数点以下切上が獲得HP
+  //   - 中断不可、submit は 2 ラウンド完走後の 1 回のみ（中断時は何も書き込まない）
+  //   - 1日2回まで本番扱い、3回目以降は練習モード（HP 0）。特殊アカウントは無制限
+  //   - クライアント側で問題生成＋採点、サーバーは検証ガード不要（仕様：努力全肯定）
+  //
+  // state は _ctState に集約。ラウンド遷移で reset せず、round1Stats を保持しながら
+  // 後半に進む。submitCalcTrialResult 成功で goHome → _ctReset() で完全クリア。
+
+  var _CT_PROBLEMS_REGULAR = 100;
+  var _CT_PROBLEMS_BONUS   = 100;   // 予備バッファ（5 分内で 100 問解けるのは現実的に難しいので余裕として）
+  var _CT_ROUND_SECONDS    = 300;   // 5 分
+
+  var _ctState = null;
+
+  function _ctNewState() {
+    return {
+      round: 1,                           // 1 or 2
+      problems: [],                       // 200 問（0..99 本編 / 100..199 ボーナス）
+      currentIdx: 0,
+      // 集計
+      answeredRegular: 0,
+      correctRegular:  0,
+      answeredBonus:   0,
+      correctBonus:    0,
+      categoryStats:   {},                // 'cat名': { answered, correct }
+      // 入力
+      inputBuffer: '',
+      // 前問フィードバック
+      prevExpr: '', prevUserAnswer: '', prevCorrect: null, prevAnswer: null,
+      // タイマー
+      timerStartedAt: 0, timerEndAt: 0, timerIntervalId: null, timerExpired: false,
+      // モード
+      bonusMode: false, locked: false,
+      // セッション情報
+      sessionStartedAt: '',
+      round1Stats: null,                  // 完走後に { regular, bonus, elapsedSec, subtotalHp }
+      // 練習モード（GAS の getCalcTrialTodayCount で取得、startCalcTrial 時点で確定）
+      isPracticeNext: false,
+      accountType: '',
+      todayCompleted: 0,
+      todayPractice: 0
+    };
+  }
+  function _ctReset() { _ctState = null; }
+
+  // ----- 問題生成 -----
+  function _ctRandInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+  // 2 桁 + 1 桁（10〜99 + 1〜9）
+  function _ctGenAdd2_1() {
+    var a = _ctRandInt(10, 99), b = _ctRandInt(1, 9);
+    return { cat: 'add21', expr: a + ' + ' + b, answer: a + b, op: '+' };
+  }
+  // 2 桁 + 2 桁
+  function _ctGenAdd2_2() {
+    var a = _ctRandInt(10, 99), b = _ctRandInt(10, 99);
+    return { cat: 'add22', expr: a + ' + ' + b, answer: a + b, op: '+' };
+  }
+  // 2 桁 - 1 桁（被減数 ≥ 減数を保証）
+  function _ctGenSub2_1() {
+    var a = _ctRandInt(10, 99), b = _ctRandInt(1, 9);
+    if (a < b) { var t = a; a = b + _ctRandInt(0, 9); b = t; } // フォールバック
+    return { cat: 'sub21', expr: a + ' − ' + b, answer: a - b, op: '-' };
+  }
+  // 2 桁 - 2 桁（被減数 ≥ 減数を保証）
+  function _ctGenSub2_2() {
+    var a = _ctRandInt(10, 99), b = _ctRandInt(10, 99);
+    if (a < b) { var t = a; a = b; b = t; }
+    return { cat: 'sub22', expr: a + ' − ' + b, answer: a - b, op: '-' };
+  }
+  // 1 桁 × 1 桁（1〜9 × 1〜9）
+  function _ctGenMul1_1() {
+    var a = _ctRandInt(1, 9), b = _ctRandInt(1, 9);
+    return { cat: 'mul11', expr: a + ' × ' + b, answer: a * b, op: '×' };
+  }
+  // 2 桁 × 1 桁（10〜99 × 2〜9）
+  function _ctGenMul2_1() {
+    var a = _ctRandInt(10, 99), b = _ctRandInt(2, 9);
+    return { cat: 'mul21', expr: a + ' × ' + b, answer: a * b, op: '×' };
+  }
+  // Fisher-Yates シャッフル
+  function _ctShuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  // ラウンド ① の本編 100 問：たし算(2+1)20 + たし算(2+2)30 + ひき算(2-1)20 + ひき算(2-2)30
+  // 全部シャッフルして 1 連続シーケンスに（カテゴリの偏りを避けつつ難易度を散らす）。
+  function _ctGenRound1Regular() {
+    var arr = [];
+    for (var i = 0; i < 20; i++) arr.push(_ctGenAdd2_1());
+    for (var i = 0; i < 30; i++) arr.push(_ctGenAdd2_2());
+    for (var i = 0; i < 20; i++) arr.push(_ctGenSub2_1());
+    for (var i = 0; i < 30; i++) arr.push(_ctGenSub2_2());
+    return _ctShuffle(arr);
+  }
+  // ラウンド ① のボーナス：4 カテゴリからランダム
+  function _ctGenRound1Bonus(n) {
+    var gens = [_ctGenAdd2_1, _ctGenAdd2_2, _ctGenSub2_1, _ctGenSub2_2];
+    var arr = [];
+    for (var i = 0; i < n; i++) arr.push(gens[_ctRandInt(0, 3)]());
+    return arr;
+  }
+  // ラウンド ② 本編 100 問：1 桁 × 1 桁 40 + 2 桁 × 1 桁 60
+  function _ctGenRound2Regular() {
+    var arr = [];
+    for (var i = 0; i < 40; i++) arr.push(_ctGenMul1_1());
+    for (var i = 0; i < 60; i++) arr.push(_ctGenMul2_1());
+    return _ctShuffle(arr);
+  }
+  function _ctGenRound2Bonus(n) {
+    var gens = [_ctGenMul1_1, _ctGenMul2_1];
+    var arr = [];
+    for (var i = 0; i < n; i++) arr.push(gens[_ctRandInt(0, 1)]());
+    return arr;
+  }
+
+  function _ctGenerateRoundProblems(roundNum) {
+    if (roundNum === 1) {
+      return _ctGenRound1Regular().concat(_ctGenRound1Bonus(_CT_PROBLEMS_BONUS));
+    } else {
+      return _ctGenRound2Regular().concat(_ctGenRound2Bonus(_CT_PROBLEMS_BONUS));
+    }
+  }
+
+  // ----- イントロ画面 -----
+  function showCalcTrialIntro() {
+    if (!_studentId) return;
+    _ctReset();
+    _ctState = _ctNewState();
+    var tline = document.getElementById('ct-intro-today-line');
+    var warn  = document.getElementById('ct-intro-warn');
+    if (tline) tline.textContent = '本日：— 回プレイ済';
+    if (warn)  warn.style.display = 'none';
+    showScreen('screen-calctrial-intro');
+    // 当日プレイ済み回数 + 練習モード予測を取得（認証なし、軽量 doGet）
+    gasGet({ action:'getCalcTrialTodayCount', studentId:_studentId, _ts:Date.now() }).then(function(res){
+      if (!res || !res.ok) return;
+      var total = Number(res.todayCount) || 0;
+      var completed = Number(res.todayCompleted) || 0;
+      var practice  = Number(res.todayPractice) || 0;
+      _ctState.isPracticeNext = !!res.isPracticeNext;
+      _ctState.accountType    = String(res.accountType || '');
+      _ctState.todayCompleted = completed;
+      _ctState.todayPractice  = practice;
+      var msg = '本日：' + total + ' 回プレイ済';
+      if (practice > 0) msg += '（うち練習 ' + practice + ' 回）';
+      if (tline) tline.textContent = msg;
+      if (warn) {
+        warn.style.display = res.isPracticeNext ? 'block' : 'none';
+      }
+    }).catch(function(){ /* 失敗時は次回シルエンス */ });
+  }
+
+  // ----- スタート（ラウンド①開始） -----
+  function startCalcTrial() {
+    if (!_ctState) _ctState = _ctNewState();
+    _ctState.round = 1;
+    _ctState.problems = _ctGenerateRoundProblems(1);
+    _ctResetRoundCounters();
+    _ctState.sessionStartedAt = _ctFormatNowYmdhms();
+    _ctEnterRoundScreen('ラウンド① たし算・ひき算');
+    _ctStartTimer();
+    _ctRenderQuestion();
+  }
+  // ----- ラウンド②開始 -----
+  function startCalcTrialRound2() {
+    _ctState.round = 2;
+    _ctState.problems = _ctGenerateRoundProblems(2);
+    _ctResetRoundCounters();
+    _ctEnterRoundScreen('ラウンド② かけ算');
+    _ctStartTimer();
+    _ctRenderQuestion();
+  }
+  function _ctResetRoundCounters() {
+    _ctState.currentIdx = 0;
+    _ctState.answeredRegular = 0;
+    _ctState.correctRegular  = 0;
+    _ctState.answeredBonus   = 0;
+    _ctState.correctBonus    = 0;
+    _ctState.categoryStats   = {};
+    _ctState.inputBuffer     = '';
+    _ctState.prevExpr        = '';
+    _ctState.prevUserAnswer  = '';
+    _ctState.prevCorrect     = null;
+    _ctState.prevAnswer      = null;
+    _ctState.bonusMode       = false;
+    _ctState.timerExpired    = false;
+    _ctState.locked          = false;
+  }
+  function _ctEnterRoundScreen(label) {
+    var lbl = document.getElementById('ct-round-label');
+    if (lbl) lbl.textContent = label;
+    var wrap = document.getElementById('ct-round-wrap');
+    if (wrap) wrap.classList.remove('bonus-mode');
+    var prev = document.getElementById('ct-prev-row');
+    if (prev) {
+      prev.classList.add('empty');
+      prev.textContent = '（最初の問題です）';
+    }
+    showScreen('screen-calctrial-round');
+  }
+
+  // ----- タイマー -----
+  function _ctStartTimer() {
+    _ctStopTimer();
+    _ctState.timerStartedAt = Date.now();
+    _ctState.timerEndAt     = _ctState.timerStartedAt + _CT_ROUND_SECONDS * 1000;
+    _ctRenderTimer();
+    _ctState.timerIntervalId = setInterval(_ctRenderTimer, 250);
+  }
+  function _ctStopTimer() {
+    if (_ctState && _ctState.timerIntervalId) {
+      clearInterval(_ctState.timerIntervalId);
+      _ctState.timerIntervalId = null;
+    }
+  }
+  function _ctRenderTimer() {
+    if (!_ctState) return;
+    var msLeft = Math.max(0, _ctState.timerEndAt - Date.now());
+    var sLeft = Math.ceil(msLeft / 1000);
+    var m = Math.floor(sLeft / 60);
+    var s = sLeft % 60;
+    var el = document.getElementById('ct-round-timer');
+    if (el) {
+      el.textContent = m + ':' + (s < 10 ? '0' + s : s);
+      if (sLeft <= 10) el.classList.add('urgent'); else el.classList.remove('urgent');
+    }
+    if (msLeft <= 0 && !_ctState.timerExpired) {
+      _ctState.timerExpired = true;
+      _ctOnTimerEnd();
+    }
+  }
+
+  // ----- 問題表示 -----
+  function _ctRenderQuestion() {
+    if (!_ctState) return;
+    var p = _ctState.problems[_ctState.currentIdx];
+    if (!p) return;
+    var expr = document.getElementById('ct-q-expr');
+    if (expr) expr.textContent = p.expr + ' = ?';
+    var input = document.getElementById('ct-q-input');
+    if (input) input.value = '';
+    _ctState.inputBuffer = '';
+    // 進行表示
+    var prog = document.getElementById('ct-round-progress');
+    if (prog) {
+      if (_ctState.bonusMode) {
+        var bonusNo = _ctState.answeredBonus + 1;
+        prog.textContent = 'ボーナス ' + bonusNo + '問目';
+      } else {
+        var no = _ctState.answeredRegular + 1;
+        prog.textContent = '問題 ' + no + '/' + _CT_PROBLEMS_REGULAR;
+      }
+    }
+    var hp = document.getElementById('ct-round-hp');
+    if (hp) hp.textContent = '獲得HP: ' + _ctFormatHp(_ctCurrentSubtotalHp());
+  }
+  function _ctCurrentSubtotalHp() {
+    // ラウンド内累積HP（本編 0.5HP/正答 + ボーナス 1HP/正答）
+    return _ctState.correctRegular * 0.5 + _ctState.correctBonus;
+  }
+  function _ctFormatHp(v) {
+    if (Math.floor(v) === v) return String(v);
+    return v.toFixed(1);
+  }
+  function _ctFormatNowYmdhms() {
+    var d = new Date();
+    var pad = function(n){ return n < 10 ? '0' + n : '' + n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+           ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+
+  // ----- テンキー入力 -----
+  function onCtKey(key) {
+    if (!_ctState || _ctState.locked) return;
+    var input = document.getElementById('ct-q-input');
+    if (!input) return;
+    if (key === 'BS') {
+      _ctState.inputBuffer = _ctState.inputBuffer.slice(0, -1);
+    } else if (key === 'ENTER') {
+      if (_ctState.inputBuffer.length === 0) return;
+      _ctSubmitAnswer();
+      return;
+    } else {
+      if (_ctState.inputBuffer.length >= 5) return; // 5 桁制限（最大 99 × 99 = 9801）
+      _ctState.inputBuffer += key;
+    }
+    input.value = _ctState.inputBuffer;
+  }
+
+  // ----- 解答送信（採点 + 次問） -----
+  function _ctSubmitAnswer() {
+    if (!_ctState || _ctState.locked) return;
+    var idx = _ctState.currentIdx;
+    var p = _ctState.problems[idx];
+    if (!p) return;
+    var userNum = Number(_ctState.inputBuffer);
+    if (!Number.isFinite(userNum)) userNum = NaN;
+    var correct = (userNum === p.answer);
+
+    if (_ctState.bonusMode) {
+      _ctState.answeredBonus++;
+      if (correct) _ctState.correctBonus++;
+    } else {
+      _ctState.answeredRegular++;
+      if (correct) _ctState.correctRegular++;
+    }
+    // カテゴリ統計
+    var cs = _ctState.categoryStats[p.cat] || { answered: 0, correct: 0 };
+    cs.answered++;
+    if (correct) cs.correct++;
+    _ctState.categoryStats[p.cat] = cs;
+
+    // 前問フィードバック更新
+    _ctState.prevExpr       = p.expr;
+    _ctState.prevUserAnswer = String(_ctState.inputBuffer);
+    _ctState.prevCorrect    = correct;
+    _ctState.prevAnswer     = p.answer;
+    _ctUpdatePrevRow();
+    // 累積HP 表示更新（フラッシュ演出付き）
+    var hpEl = document.getElementById('ct-round-hp');
+    if (hpEl) {
+      hpEl.innerHTML = '獲得HP: <span class="ct-hp-flash">' + _ctFormatHp(_ctCurrentSubtotalHp()) + '</span>';
+    }
+
+    // 本編 100 問完答 → ボーナス突入
+    if (!_ctState.bonusMode && _ctState.answeredRegular >= _CT_PROBLEMS_REGULAR) {
+      _ctEnterBonusMode();
+    }
+    // 次問へ
+    _ctState.currentIdx++;
+    _ctState.inputBuffer = '';
+    if (_ctState.currentIdx >= _ctState.problems.length) {
+      // ボーナス問題プール枯渇（理論上 5 分で 100 問は無理だが防衛）→ 100 問追加生成
+      var extra = (_ctState.round === 1)
+        ? _ctGenRound1Bonus(_CT_PROBLEMS_BONUS)
+        : _ctGenRound2Bonus(_CT_PROBLEMS_BONUS);
+      _ctState.problems = _ctState.problems.concat(extra);
+    }
+    _ctRenderQuestion();
+  }
+  function _ctEnterBonusMode() {
+    _ctState.bonusMode = true;
+    var wrap = document.getElementById('ct-round-wrap');
+    if (wrap) wrap.classList.add('bonus-mode');
+  }
+  function _ctUpdatePrevRow() {
+    var prev = document.getElementById('ct-prev-row');
+    if (!prev) return;
+    prev.classList.remove('empty');
+    var mark = _ctState.prevCorrect
+      ? '<span class="ct-prev-mark ok">⭕</span>'
+      : '<span class="ct-prev-mark ng">❌ 正解 ' + _ctState.prevAnswer + '</span>';
+    prev.innerHTML = '前問：' + _ctEscHtml(_ctState.prevExpr) + ' → きみ <strong>' + _ctEscHtml(_ctState.prevUserAnswer) + '</strong> ' + mark;
+  }
+  function _ctEscHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // ----- タイマー切れ -----
+  function _ctOnTimerEnd() {
+    if (!_ctState) return;
+    _ctStopTimer();
+    _ctState.locked = true;
+    // 現ラウンド集計をスナップショット
+    var snapshot = _ctTakeRoundSnapshot();
+    if (_ctState.round === 1) {
+      _ctState.round1Stats = snapshot;
+      _ctShowBetween(snapshot);
+    } else {
+      _ctShowResult(snapshot);
+    }
+  }
+  function _ctTakeRoundSnapshot() {
+    var regularHp = _ctState.correctRegular * 0.5;
+    var bonusHp   = _ctState.correctBonus;
+    var elapsedSec = Math.round((Date.now() - _ctState.timerStartedAt) / 1000);
+    return {
+      round: _ctState.round,
+      label: (_ctState.round === 1) ? 'ラウンド① たし算・ひき算' : 'ラウンド② かけ算',
+      regular: {
+        answered:   _ctState.answeredRegular,
+        correct:    _ctState.correctRegular,
+        allCorrect: (_ctState.correctRegular === _CT_PROBLEMS_REGULAR),
+        hp:         regularHp
+      },
+      bonus: {
+        answered: _ctState.answeredBonus,
+        correct:  _ctState.correctBonus,
+        hp:       bonusHp
+      },
+      categoryStats: _ctState.categoryStats,
+      elapsedSec:    elapsedSec,
+      subtotalHp:    regularHp + bonusHp
+    };
+  }
+
+  // ----- 中間画面（ラウンド①→②） -----
+  function _ctShowBetween(snap) {
+    var box = document.getElementById('ct-between-summary');
+    if (box) {
+      box.innerHTML =
+        '<div>📝 本編：' + snap.regular.correct + ' / ' + snap.regular.answered + ' 問正解（' + _ctFormatHp(snap.regular.hp) + 'HP）</div>' +
+        '<div>🎰 ボーナス：' + snap.bonus.correct + ' / ' + snap.bonus.answered + ' 問正解（' + _ctFormatHp(snap.bonus.hp) + 'HP）</div>' +
+        '<div style="border-top:1px dashed #b45309;padding-top:6px;margin-top:6px;font-weight:bold">ラウンド①小計：' + _ctFormatHp(snap.subtotalHp) + 'HP</div>';
+    }
+    showScreen('screen-calctrial-between');
+  }
+
+  // ----- リザルト画面 -----
+  function _ctShowResult(round2Snap) {
+    var r1 = _ctState.round1Stats || { regular:{correct:0,answered:0,hp:0}, bonus:{correct:0,answered:0,hp:0}, subtotalHp:0 };
+    var r2 = round2Snap;
+    var rawTotal = (r1.subtotalHp || 0) + (r2.subtotalHp || 0);
+    var totalHp = Math.ceil(rawTotal);   // 仕様：2 ラウンド合計の小数点以下切上
+    var totalCorrect  = (r1.regular.correct  || 0) + (r1.bonus.correct  || 0)
+                      + (r2.regular.correct  || 0) + (r2.bonus.correct  || 0);
+    var totalAnswered = (r1.regular.answered || 0) + (r1.bonus.answered || 0)
+                      + (r2.regular.answered || 0) + (r2.bonus.answered || 0);
+    var isPerfect = (r1.regular.allCorrect && r2.regular.allCorrect);
+
+    // リザルト画面表示（送信中は disabled 風表示）
+    var wrap = document.getElementById('ct-result-wrap');
+    if (wrap) {
+      wrap.classList.remove('perfect');
+      if (isPerfect) wrap.classList.add('perfect');
+    }
+    var title = document.getElementById('ct-result-title');
+    if (title) title.textContent = isPerfect ? '🎉 全問正解！すごい！' : 'お疲れさま！';
+    var mascot = document.getElementById('ct-result-mascot');
+    if (mascot) {
+      mascot.src = isPerfect ? 'images/trial-celebrate.png' : 'images/trial-encourage.png';
+      mascot.classList.toggle('dance', isPerfect);
+    }
+    var hpNum = document.getElementById('ct-result-hp-num');
+    var hpLab = document.getElementById('ct-result-hp-label');
+    if (hpNum) hpNum.textContent = totalHp.toLocaleString();
+    if (hpLab) hpLab.textContent = '獲得HP（送信中…）';
+    var bd = document.getElementById('ct-result-breakdown');
+    if (bd) {
+      bd.innerHTML =
+        '<div class="bd-row"><span>📝 ラウンド①本編</span><span>' + r1.regular.correct + ' / ' + r1.regular.answered + ' 問（' + _ctFormatHp(r1.regular.hp) + 'HP）</span></div>' +
+        '<div class="bd-row"><span>🎰 ラウンド①ボーナス</span><span>' + r1.bonus.correct + ' / ' + r1.bonus.answered + ' 問（' + _ctFormatHp(r1.bonus.hp) + 'HP）</span></div>' +
+        '<div class="bd-row"><span>📝 ラウンド②本編</span><span>' + r2.regular.correct + ' / ' + r2.regular.answered + ' 問（' + _ctFormatHp(r2.regular.hp) + 'HP）</span></div>' +
+        '<div class="bd-row"><span>🎰 ラウンド②ボーナス</span><span>' + r2.bonus.correct + ' / ' + r2.bonus.answered + ' 問（' + _ctFormatHp(r2.bonus.hp) + 'HP）</span></div>' +
+        '<div class="bd-row bd-total"><span>🏆 合計（切上）</span><span>' + totalHp.toLocaleString() + ' HP</span></div>';
+    }
+    document.getElementById('ct-practice-badge-wrap').innerHTML = '';
+    document.getElementById('ct-practice-note-wrap').innerHTML = '';
+    showScreen('screen-calctrial-result');
+
+    // サーバー送信
+    var payload = {
+      action:           'submitCalcTrialResult',
+      studentId:        _studentId,
+      startedAt:        _ctState.sessionStartedAt,
+      completedAt:      _ctFormatNowYmdhms(),
+      totalHp:          totalHp,
+      rounds:           JSON.stringify([r1, r2]),
+      clientUserAgent:  (navigator && navigator.userAgent || '').slice(0, 200)
+    };
+    gasPost(payload).then(function(res){
+      if (!res || !res.ok) {
+        // 失敗時はリザルト画面はそのまま、HP ラベルにエラー注記
+        if (hpLab) hpLab.innerHTML = '<span style="color:#dc2626">⚠️ 送信に失敗しました：' + _ctEscHtml((res && res.message) || 'もう一度ホームに戻ってお試しください') + '</span>';
+        return;
+      }
+      var isPractice = !!res.isPractice;
+      if (isPractice) {
+        // 練習モードリザルト：HP は 0 表示 + 「練習」バッジ + 注記
+        document.getElementById('ct-practice-badge-wrap').innerHTML = '<div class="ct-practice-badge">📌 練習モード</div>';
+        if (hpNum) hpNum.textContent = '0';
+        if (hpLab) hpLab.textContent = '獲得HP（練習扱い）';
+        document.getElementById('ct-practice-note-wrap').innerHTML =
+          '<div class="ct-practice-note">' +
+            '本日3回目以降の挑戦は<strong>練習扱い</strong>となるため、HPには反映されません。<br>' +
+            '計算した結果（' + Number(res.calculatedHp || totalHp).toLocaleString() + 'HP）は参考までに記録されますが、累計HPには加算されません。' +
+          '</div>';
+      } else {
+        // 本番リザルト：HP 加算演出
+        if (hpLab) hpLab.textContent = '獲得HP（+' + Number(res.totalHp || totalHp).toLocaleString() + ' HP 加算済）';
+        if (typeof _totalHP === 'number') _totalHP += Number(res.totalHp || totalHp);
+        if (isPerfect) _ctConfetti();
+      }
+    }).catch(function(err){
+      if (hpLab) hpLab.innerHTML = '<span style="color:#dc2626">⚠️ 通信エラー：' + _ctEscHtml((err && err.message) || 'ネットワークをご確認ください') + '</span>';
+    });
+  }
+  function _ctConfetti() {
+    var box = document.getElementById('ct-confetti');
+    if (!box) return;
+    box.style.display = 'block';
+    var marks = ['🎉','✨','⭐','🐯','💪','🏆'];
+    var html = '';
+    for (var i = 0; i < 24; i++) {
+      var left = Math.floor(Math.random() * 100);
+      var delay = (Math.random() * 2).toFixed(2);
+      var ch = marks[i % marks.length];
+      html += '<span style="left:' + left + '%;animation-delay:' + delay + 's">' + ch + '</span>';
+    }
+    box.innerHTML = html;
+    setTimeout(function(){ box.style.display = 'none'; box.innerHTML = ''; }, 4500);
+  }
+  // ============================================================
+  // 計算タイムトライアル ここまで
+  // ============================================================
 
   function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
   window.addEventListener('beforeunload', beforeUnloadHandler);
