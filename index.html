@@ -4708,10 +4708,6 @@
       _totalHP     = Number(res.totalHP) || 0;
       _streak      = Number(res.streak) || 0;
       _accountType = String(res.accountType || ''); // Task 3：振り返りモーダルスキップ判定用
-      // 2026-05-19 バグ1(b) S1：モバイルブラウザのバックグラウンドキル → タブ reload で
-      // クライアント state が失われた場合に DOMContentLoaded で自動復元するための sid 保存。
-      // sessionStorage はタブ単位スコープのため別タブ・別アカウントへの混在リスクは無い。
-      try { sessionStorage.setItem('mykt_sid', _studentId); } catch(e){}
       // 初回ログイン（ニックネーム未設定）はサプライズ判定の対象外。先にニックネームを設定させる。
       // 通常ログイン経路：ホーム遷移前に誕生日サプライズ判定を挟む（_maybeShowBirthdaySurprise）。
       if (res.isFirstLogin) {
@@ -4855,8 +4851,6 @@
     gasGet({ action:'saveNickname', studentId:_studentId, nickname:nn }).then(function(res){
       if (!res.ok) { showMsg('nickname-msg', res.message, 'ng'); return; }
       _totalHP = 10;  // 初回ニックネーム保存 = 初ログインボーナス 10HP
-      // 2026-05-19 バグ1(b) S1：初回ニックネーム保存 = 初ログイン完了。sid 自動復元の対象。
-      try { sessionStorage.setItem('mykt_sid', _studentId); } catch(e){}
       showWelcome(res.nickname, 10, 10, 4, 1, 'マイカツ見習い', null);
     }).catch(function(){ showMsg('nickname-msg','エラーが発生しました。','ng'); });
   }
@@ -6051,10 +6045,6 @@
   }
   // 実ログアウト処理（submit 成功時のみ呼ばれる）。旧 doLogout 後半をそのまま移植。
   function _doLogoutFinalize() {
-    // 2026-05-19 バグ1(b) S1：明示ログアウト時は sid 自動復元の対象から外す。
-    // 通常生徒（振り返り submit 成功経路）/ 特殊アカウント（即時ログアウト経路）
-    // 両方とも _doLogoutFinalize を通るため、ここで一括クリアで漏れなし。
-    try { sessionStorage.removeItem('mykt_sid'); } catch(e){}
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('popstate', popstateHandler);
     _stopAudio();
@@ -10768,69 +10758,6 @@
   function popstateHandler() { try { history.pushState(null, '', location.href); } catch(e){} }
   try { history.pushState(null, '', location.href); } catch(e){}
   window.addEventListener('popstate', popstateHandler);
-
-  // ============================================================
-  // 2026-05-19 バグ1(b) S1：sid 自動復元
-  // ============================================================
-  // モバイルブラウザ（iOS Safari / Android Chrome / Samsung Internet）で
-  // カメラ Intent 起動中にバックグラウンドキル → タブ reload → HTML 初期状態
-  // （screen-login active）に戻る現象への対策。
-  //
-  // 復元範囲：_studentId / _totalHP / _streak / _accountType + ホーム画面遷移。
-  // 復元しない：基礎計算等の進行中セッション（写真データは容量制限で保存不可）。
-  // 生徒が再ログイン後、基礎計算の「過去のセッションを見直す」UI で手動再開する運用。
-  //
-  // 副作用ガード：
-  //   - sessionStorage はタブ単位スコープ → 別タブ / 別アカウント混在しない
-  //   - 明示ログアウトでクリア（_doLogoutFinalize で確実）
-  //   - 復元 API（loginStudent）が ok:false なら sessionStorage クリアして
-  //     ログイン画面のまま（無効化された sid の安全な処理）
-  //   - 特殊アカウント（test/teacher/invited）も同じ動線で動作（accountType 復元）
-  function _tryAutoLogin() {
-    var savedSid;
-    try { savedSid = sessionStorage.getItem('mykt_sid'); } catch(e) { return; }
-    if (!savedSid) return;
-    // 既に明示ログイン済みなら何もしない（doLogin が先に動いたケースの保護）
-    if (_studentId) return;
-    gasGet({ action: 'loginStudent', studentId: savedSid }).then(function(res){
-      if (!res || !res.ok) {
-        // 無効な sid（生徒削除済 / シート移動等）→ 自動復元の対象から外す
-        try { sessionStorage.removeItem('mykt_sid'); } catch(e){}
-        return;
-      }
-      // doLogin と同じ state 復元
-      _studentId   = res.studentId;
-      _totalHP     = Number(res.totalHP) || 0;
-      _streak      = Number(res.streak) || 0;
-      _accountType = String(res.accountType || '');
-      // sessionStorage は念のため上書き保存（auth 通過した sid を確定保存）
-      try { sessionStorage.setItem('mykt_sid', _studentId); } catch(e){}
-      // 初回ログイン（ニックネーム未設定）なら nickname 画面、それ以外はホーム
-      if (res.isFirstLogin) {
-        showScreen('screen-nickname');
-      } else {
-        // 誕生日サプライズ判定はスキップ（reload 復元時にサプライズが暴発しないため）。
-        // サプライズは「明示ログイン」のときに表示する設計を維持。
-        showWelcome(res.nickname, res.totalHP, res.loginBonus, res.stage, res.streak, res.title, res.milestone);
-      }
-    }).catch(function(){
-      // 通信エラー時は sessionStorage は残す（次回起動で再試行）+ ログイン画面のまま
-    });
-  }
-  // DOMContentLoaded：通常 reload / 初回 load の復元
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', _tryAutoLogin);
-  } else {
-    // 既にロード完了済みなら即座に試行
-    _tryAutoLogin();
-  }
-  // pageshow：bfcache 復元時の保険。event.persisted=true なら JS state が生きている
-  // 可能性が高いが、Android Chrome では state が部分的に失われるケースもあるため
-  // sessionStorage に sid がある状態で _studentId が空なら復元する。
-  window.addEventListener('pageshow', function(e){
-    if (_studentId) return; // 既にログイン済みなら何もしない
-    _tryAutoLogin();
-  });
 </script>
 <span id="app-version" class="app-version" title="タップで最新版に更新">v----.--.--</span>
 <script>
