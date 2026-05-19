@@ -82,6 +82,14 @@
 
   /* タブ */
   #admin-tabs { background: #fff; border-bottom: 1px solid #e1e5ee; padding: 0 12px; display: flex; gap: 2px; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,.03); }
+  /* 集約ページの section divider（タブ式ページ内のナビカード群とフォームタブの区切り） */
+  .admin-section-divider { max-width: 680px; margin: 0 auto; padding: 14px 16px 6px; font-size: 13px; font-weight: bold; color: #475569; letter-spacing: .3px; }
+  /* タブ式ページ内に挿入するナビカード群（dashboard-wrap よりタイトな余白） */
+  .admin-inpage-nav { max-width: 680px; margin: 0 auto 8px; padding: 0 16px; }
+  .admin-inpage-nav .dashboard-card { margin-bottom: 10px; padding: 18px 22px; }
+  .admin-inpage-nav .dashboard-card-icon { font-size: 28px; margin-bottom: 4px; }
+  .admin-inpage-nav .dashboard-card-title { font-size: 17px; }
+  .admin-inpage-nav .dashboard-card-desc  { font-size: 13px; }
   #admin-tabs button { background: none; border: none; padding: 14px 16px; font-size: 14px; font-weight: 500; color: #666; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; transition: all .15s; font-family: inherit; }
   #admin-tabs button:hover { color: #4f7df0; }
   #admin-tabs button.active { color: #4f7df0; border-bottom-color: #4f7df0; font-weight: bold; }
@@ -721,26 +729,12 @@
       <div class="dashboard-card-title">週間HPランキング</div>
       <div class="dashboard-card-desc">週間ランキングの確認・画像保存</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminKisoStudents()">
-      <div class="dashboard-card-icon">📷</div>
-      <div class="dashboard-card-title">基礎計算・答案写真</div>
-      <div class="dashboard-card-desc">生徒が提出した答案写真を確認（保存期間 15 日）</div>
-    </button>
-    <button type="button" id="dash-card-lison-input" class="dashboard-card admin-only" onclick="goAdminLisonInput()">
-      <div class="dashboard-card-icon">🎧</div>
-      <div class="dashboard-card-title">リスオン問題入力</div>
-      <div class="dashboard-card-desc">週ごとの問題を作成・編集</div>
-    </button>
-    <button type="button" class="dashboard-card" onclick="goAdminLisonRecordings()">
-      <div class="dashboard-card-icon">🎤</div>
-      <div class="dashboard-card-title">リスオン録音データ</div>
-      <div class="dashboard-card-desc">生徒の音読録音を確認（保存期間 15 日）</div>
-    </button>
-    <button type="button" class="dashboard-card" onclick="goAdminReflections()">
-      <div class="dashboard-card-icon">📝</div>
-      <div class="dashboard-card-title">振り返り閲覧</div>
-      <div class="dashboard-card-desc">生徒がログアウト時に書いた振り返りを確認（admin / teacher 両ロール可）</div>
-    </button>
+    <!-- 2026-05-19 ダッシュボード集約化：以下 4 カードを各サブページ内に移動した。
+         · 基礎計算・答案写真 / リスオン問題入力 / リスオン録音データ
+              → 「問題等の入力と解答確認」ページ（screen-admin-tabs）の冒頭ナビ
+         · 振り返り閲覧（タイトルを「生徒の振り返りコメント」に変更）
+              → 「生徒の実施状況」ページ（screen-admin-activity-select）の末尾
+         機能・遷移・権限制御は維持。カードの場所だけ移動。 -->
     <button type="button" id="dash-card-hp-grant" class="dashboard-card admin-only" onclick="goAdminHpGrant()">
       <div class="dashboard-card-icon">💎</div>
       <div class="dashboard-card-title">HP手動付与</div>
@@ -834,6 +828,27 @@
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
     </div>
   </header>
+  <!-- 2026-05-19 集約化：ダッシュボードから移動した 3 カード（個別画面への遷移用）。
+       フォーム入力（タブ）とは別動線として上部に配置。機能・遷移は元のまま。 -->
+  <div class="admin-section-divider">📂 個別画面へ移動</div>
+  <div class="admin-inpage-nav">
+    <button type="button" class="dashboard-card admin-only" onclick="goAdminKisoStudents()">
+      <div class="dashboard-card-icon">📷</div>
+      <div class="dashboard-card-title">基礎計算・答案写真</div>
+      <div class="dashboard-card-desc">生徒が提出した答案写真を確認（保存期間 15 日）</div>
+    </button>
+    <button type="button" class="dashboard-card admin-only" onclick="goAdminLisonInput()">
+      <div class="dashboard-card-icon">🎧</div>
+      <div class="dashboard-card-title">リスオン問題入力</div>
+      <div class="dashboard-card-desc">週ごとの問題を作成・編集</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminLisonRecordings()">
+      <div class="dashboard-card-icon">🎤</div>
+      <div class="dashboard-card-title">リスオン録音データ</div>
+      <div class="dashboard-card-desc">生徒の音読録音を確認（保存期間 15 日）</div>
+    </button>
+  </div>
+  <div class="admin-section-divider">✏️ フォーム入力</div>
   <nav id="admin-tabs"></nav>
   <main id="admin-content"></main>
 </div>
@@ -1032,6 +1047,14 @@
       <div class="dashboard-card-icon">📅</div>
       <div class="dashboard-card-title">カレンダーから選ぶ</div>
       <div class="dashboard-card-desc">日付から、その日に学習した生徒を確認</div>
+    </button>
+    <!-- 2026-05-19 集約化：ダッシュボードから移動。タイトルは admin 側で「振り返りコメント」に統一
+         （生徒画面「📝 自分の振り返り」/ 保護者画面「📝 お子様の振り返り」と表現を分ける）。
+         遷移先・機能・権限制御（admin/teacher 両ロール可、認証付き）は元のまま。 -->
+    <button type="button" class="dashboard-card" onclick="goAdminReflections()">
+      <div class="dashboard-card-icon">📝</div>
+      <div class="dashboard-card-title">生徒の振り返りコメント</div>
+      <div class="dashboard-card-desc">生徒がログアウト時に書いた振り返りコメントを確認（admin / teacher 両ロール可）</div>
     </button>
   </div>
 </div>
