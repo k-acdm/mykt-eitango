@@ -3064,11 +3064,12 @@
   <header><h1>🧮 問題</h1><span id="kiso-problem-meta-label"></span></header>
   <div class="container" style="padding-top:16px">
     <div id="kiso-resume-banner" class="kiso-resume-banner" style="display:none">📂 未送信のセッションを再開しています。<br>もう一度写真を撮影して提出してね。</div>
-    <!-- 2026-05-20 過去セッション復元プロモバナー：未送信の前回セッションがあるときだけ表示 -->
-    <div id="kiso-resume-promo" class="kiso-resume-promo" style="display:none">
+    <!-- 2026-05-20 過去セッション復元プロモバナー：未送信の前回セッションがあるときだけ表示
+         data-resume-session-id 属性に対象 sessionId を保持し、ボタンタップで該当エントリを直接 resume -->
+    <div id="kiso-resume-promo" class="kiso-resume-promo" style="display:none" data-resume-session-id="">
       <div class="kiso-resume-promo-note">📂（撮影前にログイン画面に戻ってしまった場合）</div>
       <div class="kiso-resume-promo-title">前回の続きから再開できます！</div>
-      <button class="kiso-resume-promo-btn" onclick="onKisoPastBtnClick(1)">👉 ログイン画面に戻る直前の問題を再表示する</button>
+      <button class="kiso-resume-promo-btn" onclick="onKisoResumePromoClick()">👉 ログイン画面に戻る直前の問題を再表示する</button>
     </div>
     <div class="kiso-problem-header">
       <span class="kiso-problem-title" id="kiso-problem-title"></span>
@@ -7666,11 +7667,22 @@
     var past = arr.filter(function(e){ return e.sessionId !== current; });
     var hasAny = past.length > 0;
     section.style.display = hasAny ? 'block' : 'none';
-    // 2026-05-20 プロモバナー：past[0]（= 「1つ前」）が未送信 (submission===null) の時のみ表示。
-    // モバイル reload で写真撮影前にキャンセル/中断した直後の救済導線。
+    // 2026-05-20 プロモバナー：past の中で「最初に見つかった未送信エントリ」を対象に表示。
+    // 直近の past[0] が採点済でも、past[1]/past[2] に未送信があれば救済する（reload 直後の
+    // 中断セッションが採点済セッションの裏に隠れているケースに対応）。
+    // ボタンタップ時の resume 対象は data-resume-session-id 属性で promo 要素に保持。
     if (promo) {
-      var firstPast = past[0] || null;
-      promo.style.display = (firstPast && !firstPast.submission) ? 'block' : 'none';
+      var unsentEntry = null;
+      for (var i = 0; i < past.length; i++) {
+        if (past[i] && !past[i].submission) { unsentEntry = past[i]; break; }
+      }
+      if (unsentEntry) {
+        promo.setAttribute('data-resume-session-id', String(unsentEntry.sessionId || ''));
+        promo.style.display = 'block';
+      } else {
+        promo.setAttribute('data-resume-session-id', '');
+        promo.style.display = 'none';
+      }
     }
     if (!hasAny) return;
     [1, 2].forEach(function(pos){
@@ -7705,6 +7717,30 @@
       _showKisoReview(entry, pos);
     } else {
       _resumeKisoSession(entry);
+    }
+  }
+  // 2026-05-20 プロモバナー専用：data-resume-session-id で指定された未送信セッションを resume
+  // _kisoRenderPastButtons で past 中の最初の未送信エントリを特定して属性にセットしているため、
+  // 「採点済の裏に隠れている未送信」も含めて確実にそのセッションを再開できる。
+  function onKisoResumePromoClick() {
+    var promo = document.getElementById('kiso-resume-promo');
+    if (!promo) return;
+    var targetSid = String(promo.getAttribute('data-resume-session-id') || '').trim();
+    if (!targetSid) return;
+    var rank = _kisoState.rank;
+    if (!rank) return;
+    var arr = _kisoLoadRecentSessions(rank);
+    var current = _kisoState.sessionId;
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i] && arr[i].sessionId === targetSid && arr[i].sessionId !== current) {
+        if (arr[i].submission) {
+          // 万一 promo 表示中にバックグラウンドで採点済化された場合は閲覧フローへ
+          _showKisoReview(arr[i], '履歴');
+        } else {
+          _resumeKisoSession(arr[i]);
+        }
+        return;
+      }
     }
   }
 
