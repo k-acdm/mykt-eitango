@@ -4364,7 +4364,11 @@
     u.onend  = function(){ clearTimeout(timer); onDone && onDone(); };
     u.onerror = function(){ clearTimeout(timer); onDone && onDone(); };
     window.speechSynthesis.cancel();
-    setTimeout(function(){ window.speechSynthesis.speak(u); }, 100);
+    // 2026-05-19 バグ2 F2：100ms → 200ms に延長。
+    //   Android Chrome / Samsung Internet で cancel() が完全に効くまでに
+    //   100ms では足りないケース（Chromium issue #41374681 系として知られる）
+    //   への対策。再生開始の体感遅延 +100ms のみで、副作用ゼロ。
+    setTimeout(function(){ window.speechSynthesis.speak(u); }, 200);
   }
 
   // ============================================================
@@ -5656,6 +5660,12 @@
   }
   function showTest() { _current = 0; _score = 0; _finishing = false; _setContentMascot('mate-img-eitan-test', 'thinking', 'mate-bubble-eitan-test', _pickBubble(RUSHKUN_BUBBLES.test), 'rushkun'); showScreen('screen-test'); renderQuestion(); }
   function renderQuestion() {
+    // 2026-05-19 バグ2 F1：問題遷移時に前 utterance のキャンセル取りこぼしを保険的にクリア。
+    //   Android Chrome / Samsung Internet で speechSynthesis.cancel() が
+    //   完全には効かないケースの既知問題への対策。
+    //   仕様「音声完全終了まで選択肢ボタンを押せない」は維持しつつ、
+    //   ブラウザ内部 queue に取り残された前 utterance が新問題で再生される事象を防ぐ。
+    _stopAudio();
     var total = _questions.length; if (_current >= total) { finishTest(); return; }
     var q = _questions[_current], labels = ['①','②','③','④'], choices = [q.choiceA,q.choiceB,q.choiceC,q.choiceD], is5 = (_level==='5級');
     document.getElementById('test-prog-text').textContent = (_current+1)+' / '+total;
