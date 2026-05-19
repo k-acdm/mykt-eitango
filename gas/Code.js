@@ -3205,6 +3205,324 @@ function apologyKisoBonus(opts) {
 }
 
 // =============================================
+// HP 分析（アバター + HP景品交換 設計用データ収集）
+// =============================================
+// 用途: 過去 N 日（既定 90 日）の HPLog から、学齢別 / コンテンツ別 / 個人別の
+//       HP 獲得分布を集計してアバターアイテム価格・Amazon 券達成基準の設計に
+//       使う前提データを返す。
+//
+// 実行方法（管理者専用、GAS エディタからのみ）:
+//   1. GAS エディタの関数ドロップダウンから `analyzeHpLog90Days` を選択
+//   2. ▶ 実行ボタンを押下
+//   3. 「実行ログ」（View → Executions、または ⌘+Enter で開く Logger 出力）の
+//      「===== analyzeHpLog90Days RESULT (copy below) =====」〜「===== END =====」
+//      の間にある JSON を全選択コピー
+//   4. Claude に貼り戻して整形レポート化を依頼
+//
+// 引数（任意）:
+//   opts.days           : 集計日数（既定 90、実行日から N 日前を起点）
+//   opts.heavyMinStreak : ヘビーユーザー閾値（既定 30 日）
+//   opts.heavyN         : ヘビーユーザー上位 N（既定 5）
+//   opts.shortBurstN    : 短期集中型上位 N（既定 2）
+//   opts.includeSpecial : true なら SpecialAccounts シートも対象（既定 false）
+//
+// 集計対象外:
+//   - reserve_release / completion_bonus（両輪システム 2026-05-25 起動前のため
+//     現時点では 0 件確定、起動後は別途集計関数を用意する想定）
+//
+// type 集約規則:
+//   - 完全一致: login / test / sango / wabun1 / lison / manual_grant / unknown
+//   - プレフィックス集約: kiso_* → 'kiso'、kanji_* → 'kanji'、kobun_* → 'kobun'、
+//     apology_* → 'apology'
+//
+// 学齢区分:
+//   - Students.GRADE_LEVEL 列を読み、'小1'-'小6' → '小'、'中1'-'中3' → '中'、
+//     '高1'-'高3' → '高'、それ以外 → '未設定'
+//
+// ヘビーユーザー抽出:
+//   - 全生徒を hp90Days 降順ソート
+//   - streak >= heavyMinStreak のうち上位 heavyN 名を heavy として採用
+//   - 残りから上位 shortBurstN 名を shortBurst として採用（streak 短くても獲得 HP 多い子）
+//   - 両方とも kind フィールドで識別可能
+//
+// 戻り値構造:
+//   {
+//     meta: { 実行時刻 / 範囲 / 設定 / 統計件数 },
+//     byGrade: {
+//       '小'|'中'|'高'|'未設定': {
+//         count, sum, mean, median, p25, p75,
+//         top5: [{ sid, nick, grade, streak, hp90 }, ...],
+//         bottom5: [...]
+//       }
+//     },
+//     byContent: {
+//       'login'|'test'|'sango'|...: { sum, byGrade: { '小':N, '中':N, '高':N, '未設定':N } }
+//     },
+//     heavyUsers: [
+//       { kind:'heavy'|'shortBurst', sid, name, nickname, grade, streak, totalHP,
+//         hp90Days, hpPerDay, byContent: {...} }
+//     ],
+//     rawDistribution: { '小': [hp90 降順配列], '中': [...], '高': [...], '未設定': [...] }
+//   }
+function analyzeHpLog90Days(opts) {
+  try {
+    opts = opts || {};
+    const DAYS              = Number(opts.days || 90);
+    const HEAVY_MIN_STREAK  = Number(opts.heavyMinStreak || 30);
+    const HEAVY_N           = Number(opts.heavyN || 5);
+    const SHORT_BURST_N     = Number(opts.shortBurstN || 2);
+    const INCLUDE_SPECIAL   = !!opts.includeSpecial;
+
+    const tz = 'Asia/Tokyo';
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - DAYS * 24 * 60 * 60 * 1000);
+    const cutoffStr = Utilities.formatDate(cutoff, tz, 'yyyy-MM-dd');
+    const nowStr    = Utilities.formatDate(now,    tz, 'yyyy-MM-dd');
+
+    const ss = _ss();
+    const logSheet = ss.getSheetByName(SHEET_HPLOG);
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!logSheet) return { ok: false, message: 'HPLog シートが見つかりません' };
+    if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
+
+    // ----- Students 読み込み（任意で SpecialAccounts も） -----
+    function readSheetToMap(sheet, map) {
+      const values = sheet.getDataRange().getValues();
+      if (values.length < 2) return;
+      const gradeColIdx = _findGradeLevelColIdx(values);
+      for (let i = 1; i < values.length; i++) {
+        const row = values[i];
+        const sid = String(row[COL_ID] || '').trim();
+        if (!sid) continue;
+        if (map[sid]) continue; // Students 優先（先勝ち）
+        map[sid] = {
+          name:     String(row[COL_NAME] || '').trim(),
+          nickname: String(row[COL_NICKNAME] || '').trim(),
+          grade:    gradeColIdx >= 0 ? String(row[gradeColIdx] || '').trim() : '',
+          streak:   Number(row[COL_STREAK]) || 0,
+          totalHP:  Number(row[COL_HP]) || 0,
+          hp90:     0,
+          byContent: {}
+        };
+      }
+    }
+    const stuMap = {};
+    readSheetToMap(stuSheet, stuMap);
+    if (INCLUDE_SPECIAL) {
+      const spSheet = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+      if (spSheet) readSheetToMap(spSheet, stuMap);
+    }
+
+    // ----- HPLog 走査 -----
+    // ヘッダー解決：旧 5 列 / 新 6 列（message 付き）の両方に対応
+    const logValues = logSheet.getDataRange().getValues();
+    const logHeader = logValues.length ? logValues[0] : [];
+    const cTs = logHeader.indexOf('timestamp');
+    const cSid = logHeader.indexOf('studentId');
+    const cHp  = logHeader.indexOf('hpGained');
+    const cTy  = logHeader.indexOf('type');
+    const iTs  = cTs >= 0 ? cTs : 0;
+    const iSid = cSid >= 0 ? cSid : 1;
+    const iHp  = cHp  >= 0 ? cHp  : 3;
+    const iTy  = cTy  >= 0 ? cTy  : 4;
+
+    const EXCLUDE_TYPES = { reserve_release: 1, completion_bonus: 1 };
+
+    function normalizeType(t) {
+      t = String(t || '').trim();
+      if (!t) return 'unknown';
+      if (t.indexOf('kiso_')    === 0) return 'kiso';
+      if (t.indexOf('kanji_')   === 0) return 'kanji';
+      if (t.indexOf('kobun_')   === 0) return 'kobun';
+      if (t.indexOf('apology_') === 0) return 'apology';
+      return t;
+    }
+    function gradeBucket(grade) {
+      const g = String(grade || '').trim();
+      if (!g) return '未設定';
+      if (g.indexOf('小') === 0) return '小';
+      if (g.indexOf('中') === 0) return '中';
+      if (g.indexOf('高') === 0) return '高';
+      return '未設定';
+    }
+
+    let scanned = 0, inRange = 0, excluded = 0, unknownSid = 0;
+    for (let i = 1; i < logValues.length; i++) {
+      scanned++;
+      const row = logValues[i];
+      const ts = row[iTs];
+      if (!ts) continue;
+      let dateStr = '';
+      if (ts instanceof Date) {
+        dateStr = Utilities.formatDate(ts, tz, 'yyyy-MM-dd');
+      } else {
+        const m = String(ts).match(/^\d{4}-\d{2}-\d{2}/);
+        if (m) dateStr = m[0];
+      }
+      if (!dateStr || dateStr < cutoffStr) continue;
+      inRange++;
+      const type = String(row[iTy] || '').trim();
+      if (EXCLUDE_TYPES[type]) { excluded++; continue; }
+      const sid = String(row[iSid] || '').trim();
+      if (!sid || !stuMap[sid]) { unknownSid++; continue; }
+      const hpG = Number(row[iHp]) || 0;
+      const ct = normalizeType(type);
+      stuMap[sid].hp90 += hpG;
+      stuMap[sid].byContent[ct] = (stuMap[sid].byContent[ct] || 0) + hpG;
+    }
+
+    // ----- 集計：byGrade -----
+    const buckets = { '小': [], '中': [], '高': [], '未設定': [] };
+    const sids = Object.keys(stuMap);
+    for (let i = 0; i < sids.length; i++) {
+      const sid = sids[i];
+      const s = stuMap[sid];
+      // 過去 90 日に 1 件も活動が無く streak も 0 の生徒は完全な未稼働として除外
+      if (s.hp90 === 0 && s.streak === 0) continue;
+      const bucket = gradeBucket(s.grade);
+      buckets[bucket].push({ sid: sid, name: s.name, nickname: s.nickname,
+                             grade: s.grade, streak: s.streak,
+                             totalHP: s.totalHP, hp90: s.hp90,
+                             byContent: s.byContent });
+    }
+
+    function stats(arr) {
+      if (!arr.length) return { count: 0, sum: 0, mean: 0, median: 0,
+                                p25: 0, p75: 0, top5: [], bottom5: [] };
+      const vals = arr.map(function(x){ return x.hp90; })
+                      .sort(function(a, b){ return a - b; });
+      const n = vals.length;
+      function pct(p) {
+        const idx = Math.min(Math.floor(n * p), n - 1);
+        return vals[Math.max(0, idx)];
+      }
+      const sum = vals.reduce(function(a, b){ return a + b; }, 0);
+      const desc = arr.slice().sort(function(a, b){ return b.hp90 - a.hp90; });
+      const compact = function(x){
+        return { sid: x.sid, nick: x.nickname || x.name, grade: x.grade,
+                 streak: x.streak, hp90: x.hp90 };
+      };
+      return {
+        count: n,
+        sum: sum,
+        mean: Math.round(sum / n),
+        median: pct(0.5),
+        p25: pct(0.25),
+        p75: pct(0.75),
+        top5: desc.slice(0, 5).map(compact),
+        bottom5: desc.slice(-5).reverse().map(compact)
+      };
+    }
+    const byGrade = {
+      '小':     stats(buckets['小']),
+      '中':     stats(buckets['中']),
+      '高':     stats(buckets['高']),
+      '未設定': stats(buckets['未設定'])
+    };
+
+    // ----- 集計：byContent -----
+    const byContent = {};
+    for (let i = 0; i < sids.length; i++) {
+      const s = stuMap[sids[i]];
+      const bucket = gradeBucket(s.grade);
+      const cts = Object.keys(s.byContent);
+      for (let j = 0; j < cts.length; j++) {
+        const ct = cts[j];
+        const val = s.byContent[ct];
+        if (!byContent[ct]) {
+          byContent[ct] = { sum: 0, byGrade: { '小': 0, '中': 0, '高': 0, '未設定': 0 } };
+        }
+        byContent[ct].sum += val;
+        byContent[ct].byGrade[bucket] += val;
+      }
+    }
+
+    // ----- ヘビーユーザー抽出 -----
+    const activeSorted = [];
+    for (let i = 0; i < sids.length; i++) {
+      const sid = sids[i];
+      const s = stuMap[sid];
+      if (s.hp90 <= 0) continue;
+      activeSorted.push({ sid: sid, name: s.name, nickname: s.nickname,
+                          grade: s.grade, streak: s.streak,
+                          totalHP: s.totalHP, hp90: s.hp90,
+                          byContent: s.byContent });
+    }
+    activeSorted.sort(function(a, b){ return b.hp90 - a.hp90; });
+
+    const heavy = [];
+    const shortBurst = [];
+    const usedSid = {};
+    for (let i = 0; i < activeSorted.length && heavy.length < HEAVY_N; i++) {
+      const x = activeSorted[i];
+      if (x.streak >= HEAVY_MIN_STREAK) { heavy.push(x); usedSid[x.sid] = true; }
+    }
+    for (let i = 0; i < activeSorted.length && shortBurst.length < SHORT_BURST_N; i++) {
+      const x = activeSorted[i];
+      if (usedSid[x.sid]) continue;
+      if (x.streak < HEAVY_MIN_STREAK) { shortBurst.push(x); usedSid[x.sid] = true; }
+    }
+    function fmtUser(x, kind) {
+      return {
+        kind: kind,
+        sid: x.sid,
+        name: x.name,
+        nickname: x.nickname,
+        grade: x.grade,
+        streak: x.streak,
+        totalHP: x.totalHP,
+        hp90Days: x.hp90,
+        hpPerDay: Math.round(x.hp90 / DAYS),
+        byContent: x.byContent
+      };
+    }
+    const heavyUsers = heavy.map(function(x){ return fmtUser(x, 'heavy'); })
+      .concat(shortBurst.map(function(x){ return fmtUser(x, 'shortBurst'); }));
+
+    // ----- rawDistribution -----
+    const rawDistribution = {};
+    ['小', '中', '高', '未設定'].forEach(function(g){
+      rawDistribution[g] = buckets[g].map(function(x){ return x.hp90; })
+                                     .sort(function(a, b){ return b - a; });
+    });
+
+    const result = {
+      ok: true,
+      meta: {
+        executedAt: Utilities.formatDate(now, tz, 'yyyy-MM-dd HH:mm:ss'),
+        rangeStart: cutoffStr,
+        rangeEnd:   nowStr,
+        days: DAYS,
+        heavyMinStreak: HEAVY_MIN_STREAK,
+        heavyN: HEAVY_N,
+        shortBurstN: SHORT_BURST_N,
+        includeSpecial: INCLUDE_SPECIAL,
+        excludedTypes: Object.keys(EXCLUDE_TYPES),
+        totalStudentsInMap: sids.length,
+        totalActiveStudents: activeSorted.length,
+        hpLogRowsScanned: scanned,
+        hpLogRowsInRange: inRange,
+        hpLogRowsExcludedByType: excluded,
+        hpLogRowsUnknownSid: unknownSid
+      },
+      byGrade: byGrade,
+      byContent: byContent,
+      heavyUsers: heavyUsers,
+      rawDistribution: rawDistribution
+    };
+
+    Logger.log('===== analyzeHpLog90Days RESULT (copy below) =====');
+    Logger.log(JSON.stringify(result, null, 2));
+    Logger.log('===== END =====');
+    return result;
+  } catch (err) {
+    console.error('[analyzeHpLog90Days]', err);
+    Logger.log('[analyzeHpLog90Days] エラー: ' + String(err));
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
 // 基礎計算 Phase 4-1：シート整備
 // =============================================
 // 用途: KisoQuestions / KisoSessions / KisoPhotos の 3 シートを存在保証する。
