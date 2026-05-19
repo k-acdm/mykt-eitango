@@ -1143,6 +1143,41 @@
     .msg-card-date { font-size: 12px; color: #888; font-weight: 600; }
     .msg-card-body { font-size: 14px; line-height: 1.75; color: #333; white-space: pre-wrap; word-wrap: break-word; }
     .msg-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 16px; background: #fafbff; border-radius: 12px; }
+    /* 今日のマイ活 振り返り：ホーム画面の「📝 自分の振り返り」ボタン（先生メッセージと色違いの緑系） */
+    .refl-home-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#e6fff2,#c8f7d6); border: 2px solid #16a34a; border-radius: 14px; box-shadow: 0 3px 12px rgba(22,163,74,.2); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; font-size: 16px; font-weight: bold; color: #14532d; }
+    .refl-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(22,163,74,.28); }
+    /* 振り返り履歴一覧（msg-list 系を踏襲、緑系に差し替え） */
+    .refl-list { display: flex; flex-direction: column; gap: 12px; }
+    .refl-card { background: #fff; border: 2px solid #d1fae5; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+    .refl-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .refl-card-date { font-size: 14px; font-weight: bold; color: #14532d; }
+    .refl-card-len  { font-size: 12px; color: #888; font-weight: 600; }
+    .refl-card-body { font-size: 14px; line-height: 1.75; color: #333; white-space: pre-wrap; word-wrap: break-word; }
+    .refl-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 16px; background: #fafbff; border-radius: 12px; }
+    /* 振り返りモーダル（ログアウト直前の必須記録）。z-index 10000 で他オーバーレイの上に常駐。 */
+    .refl-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 10000; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+    .refl-modal-overlay.active { display: flex; }
+    .refl-modal-card { background: #fff; border-radius: 18px; padding: 22px 22px 20px; max-width: 520px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: 0 18px 48px rgba(0,0,0,.45); box-sizing: border-box; }
+    .refl-modal-title { font-size: 19px; font-weight: bold; color: #14532d; text-align: center; margin-bottom: 6px; line-height: 1.5; }
+    .refl-modal-sub   { font-size: 13px; color: #555; text-align: center; line-height: 1.7; margin-bottom: 12px; }
+    .refl-modal-textarea { width: 100%; min-height: 180px; max-height: 50vh; padding: 12px; font-size: 15px; line-height: 1.7; border: 2px solid #d1fae5; border-radius: 10px; resize: vertical; font-family: inherit; box-sizing: border-box; background: #fafdfb; }
+    .refl-modal-textarea:focus { outline: none; border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.15); }
+    .refl-modal-counter { font-size: 13px; color: #6b7280; text-align: right; margin-top: 6px; }
+    .refl-modal-counter.ok    { color: #16a34a; font-weight: bold; }
+    .refl-modal-counter.over  { color: #dc2626; font-weight: bold; }
+    .refl-modal-msg { font-size: 13px; color: #dc2626; text-align: center; min-height: 18px; margin: 8px 0 6px; line-height: 1.6; }
+    .refl-modal-msg.ok { color: #16a34a; }
+    .refl-modal-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+    .refl-modal-btn-submit { width: 100%; padding: 14px 18px; font-size: 16px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; background: linear-gradient(135deg,#16a34a,#15803d); color: #fff; box-shadow: 0 4px 12px rgba(22,163,74,.35); transition: transform .15s, box-shadow .15s, opacity .15s; font-family: inherit; }
+    .refl-modal-btn-submit:disabled { background: linear-gradient(135deg,#cbd5e1,#94a3b8); box-shadow: none; cursor: not-allowed; opacity: .75; }
+    .refl-modal-btn-submit:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(22,163,74,.45); }
+    .refl-modal-btn-cancel { width: 100%; padding: 12px 18px; font-size: 14px; font-weight: bold; border: 2px solid #cbd5e1; border-radius: 12px; cursor: pointer; background: #fff; color: #475569; font-family: inherit; transition: background .15s; }
+    .refl-modal-btn-cancel:hover { background: #f1f5f9; }
+    @media (max-width: 480px) {
+      .refl-modal-card { padding: 18px 16px 16px; border-radius: 14px; }
+      .refl-modal-title { font-size: 17px; }
+      .refl-modal-textarea { min-height: 150px; font-size: 14px; }
+    }
     /* キャラクター紹介ページ */
     .char-intro-home-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#fff0f5,#f3e5ff); border: 2px solid #b24bf3; border-radius: 14px; box-shadow: 0 3px 12px rgba(178,75,243,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; font-size: 16px; font-weight: bold; color: #6a1b9a; }
     .char-intro-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(178,75,243,.26); }
@@ -1996,6 +2031,30 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 </head>
 <body>
+<!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
+<div id="reflection-logout-modal" class="refl-modal-overlay">
+  <div class="refl-modal-card">
+    <div class="refl-modal-title">📝 今日のマイ活 振り返り</div>
+    <div class="refl-modal-sub">
+      ログアウトする前に、今日やったことを振り返ろう。<br>
+      何ができた？何が難しかった？明日はどうしたい？
+    </div>
+    <textarea id="reflection-logout-textarea" class="refl-modal-textarea"
+              placeholder="例：今日は基礎計算の14級の分数を5問やりました。途中で約分を忘れてミスしたので、明日は気をつけたい。和文英訳①はちょっと難しかった..."
+              maxlength="1500"
+              oninput="onReflectionInput()"></textarea>
+    <div id="reflection-logout-counter" class="refl-modal-counter">0 / 100以上 〜 1500</div>
+    <div id="reflection-logout-msg" class="refl-modal-msg"></div>
+    <div class="refl-modal-actions">
+      <button id="reflection-logout-submit" class="refl-modal-btn-submit" onclick="doReflectionSubmitAndLogout()" disabled>
+        振り返って送信＆ログアウト
+      </button>
+      <button class="refl-modal-btn-cancel" onclick="cancelReflectionLogout()">
+        キャンセル（ログアウトしない）
+      </button>
+    </div>
+  </div>
+</div>
 <div class="flash-overlay" id="flash-overlay">
   <div class="flash-content">
     <div class="flash-emoji" id="flash-emoji">🎉</div>
@@ -2193,6 +2252,13 @@
       </button>
     </div>
 
+    <!-- ②-2.5 自分の振り返り（ログアウト直前に書いた記録の一覧） -->
+    <div class="dash-section">
+      <button type="button" class="refl-home-btn" onclick="showStudentReflections()">
+        📝 自分の振り返り
+      </button>
+    </div>
+
     <!-- ②-3 両輪システム Phase A：絶対ミッション進捗 + 保留 HP（学齢 / 開放フラグから動的表示、
          予告期間中 〜5/24 は非表示） -->
     <div class="dash-section" id="required-section" style="display:none">
@@ -2342,6 +2408,16 @@
     <p style="text-align:center;color:#666;font-size:13px;margin-bottom:14px">タップすると既読になります</p>
     <div id="student-messages-list" class="msg-list">
       <div class="msg-empty">⏳ 読み込み中...</div>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホームに戻る</button>
+  </div>
+</div>
+<div id="screen-student-reflections" class="screen">
+  <header><h1>📝 自分の振り返り</h1><span id="student-reflections-sid"></span></header>
+  <div class="container" style="padding-top:20px">
+    <p style="text-align:center;color:#666;font-size:13px;margin-bottom:14px">ログアウト直前に書いた振り返りの一覧（最新が上）</p>
+    <div id="student-reflections-list" class="refl-list">
+      <div class="refl-empty">⏳ 読み込み中...</div>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホームに戻る</button>
   </div>
@@ -5497,31 +5573,146 @@
     // 両輪 Phase A：ホーム戻り時にも絶対ミッション進捗を再ロード（提出後の reserved / 達成を反映）
     try { loadRequiredProgress(); } catch(e){ console.error('[goHome] loadRequiredProgress', e); }
   }
-  function doLogout() {
-    // 2026-05-11 バグ② 修正：iPad ログアウト不能対策（防御層）。
-    // 「特定操作後にログアウトボタンが効かない（Windows では再現せず）」報告に対し、
-    // 以下 3 件の複合原因が想定される：
-    //   (a) mykt-grading-overlay / mykt-error-overlay / kiso-grading-overlay / submit-pending-ind
-    //       が z-index 9000-9500 で居残り、画面が押せない（操作不能）状態
-    //   (b) iOS Safari の confirm() が「ダイアログをブロック」状態で常に false 即返
-    //   (c) 二重タップでハンドラが衝突
-    // 対策：confirm 前にオーバーレイを強制クリア、二重実行ガード、診断ログ。
-    if (_logoutInProgress) return;
-    _hideSubmitPending(); _hideSubmitError(); _hideWabun1Grading();
+  // ================= ログアウト（振り返り必須化、2026-05-19 Phase C 全面リファクタ） =================
+  // 旧 doLogout は confirm() ベース + 4 オーバーレイクリアだった。今回 Phase C で以下を変更：
+  //   (1) confirm() を完全廃止 → 振り返り必須モーダル経由に統一（iPad ログアウト不能対策の本命解決）
+  //   (2) クリアするオーバーレイを 4 → 8 に拡張（lison-submit / sango-starred /
+  //       wabun1-answers / flash-overlay を追加）
+  //   (3) submit 成功時のみ実ログアウト（_doLogoutFinalize）を実行。
+  //       beforeunload/popstate removeEventListener も成功後のみ。
+  //   (4) キャンセル時は state を何も触らない（モーダルを閉じるだけ）。
+  //   (5) 二重実行ガード _logoutInProgress は維持（モーダル多重表示防止）。
+  function _clearAllLogoutOverlays() {
+    try { _hideSubmitPending(); } catch(e){}
+    try { _hideSubmitError();   } catch(e){}
+    try { _hideWabun1Grading(); } catch(e){}
     try {
       var ko = document.getElementById('kiso-grading-overlay');
       if (ko) ko.classList.remove('active');
     } catch(e){}
+    // 新規追加 4 件
+    try {
+      var ls = document.getElementById('lison-submit-overlay');
+      if (ls) ls.classList.remove('active');
+    } catch(e){}
+    try {
+      var ss = document.getElementById('sango-starred-overlay');
+      if (ss) ss.style.display = 'none';
+    } catch(e){}
+    try {
+      var wa = document.getElementById('wabun1-answers-overlay');
+      if (wa) wa.style.display = 'none';
+    } catch(e){}
+    try {
+      var fo = document.getElementById('flash-overlay');
+      if (fo) fo.classList.remove('active');
+    } catch(e){}
+  }
+  function doLogout() {
+    // 二重実行ガード（モーダル多重表示防止 / 二重タップ対策）
+    if (_logoutInProgress) return;
     _logoutInProgress = true;
-    var ok;
-    try { ok = confirm('今日もよく頑張りました！ログアウトしますか？'); }
-    catch(e){ ok = false; }
+    // ログアウト操作トリガーで居残りオーバーレイを必ずクリア（iPad 操作不能対策）
+    _clearAllLogoutOverlays();
+    // 振り返りモーダルを開く
+    _openReflectionLogoutModal();
+  }
+  function _openReflectionLogoutModal() {
+    var ov = document.getElementById('reflection-logout-modal');
+    var ta = document.getElementById('reflection-logout-textarea');
+    var btn = document.getElementById('reflection-logout-submit');
+    var msg = document.getElementById('reflection-logout-msg');
+    if (ta) ta.value = '';
+    if (btn) { btn.disabled = true; btn.textContent = '振り返って送信＆ログアウト'; }
+    if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
+    onReflectionInput();
+    if (ov) ov.classList.add('active');
+    // textarea にフォーカス（iOS で virtual keyboard が即時起動するのは UX 上 OK）
+    setTimeout(function(){ try { if (ta) ta.focus(); } catch(e){} }, 50);
+  }
+  function _closeReflectionLogoutModal() {
+    var ov = document.getElementById('reflection-logout-modal');
+    if (ov) ov.classList.remove('active');
+  }
+  function cancelReflectionLogout() {
+    // キャンセル時は state を一切触らない。モーダルを閉じてガードを解除するだけ。
+    _closeReflectionLogoutModal();
     _logoutInProgress = false;
-    if (!ok) {
-      // iPad で confirm が suppress された場合のための診断ログ（Mac WebInspector で確認可）
-      console.log('[doLogout] confirm() returned false — user cancelled, or iOS Safari suppressed the dialog.');
+  }
+  // 振り返り本文の文字数監視。100文字未満は disabled、100以上で活性化、1500超でエラー表示。
+  function onReflectionInput() {
+    var ta  = document.getElementById('reflection-logout-textarea');
+    var cnt = document.getElementById('reflection-logout-counter');
+    var btn = document.getElementById('reflection-logout-submit');
+    var msg = document.getElementById('reflection-logout-msg');
+    if (!ta || !cnt || !btn) return;
+    var len = String(ta.value || '').length;
+    cnt.textContent = len + ' / 100以上 〜 1500';
+    cnt.classList.remove('ok', 'over');
+    if (len > 1500) {
+      cnt.classList.add('over');
+      btn.disabled = true;
+      if (msg) { msg.textContent = '⚠️ 1500文字を超えています。少し減らしてね'; msg.classList.remove('ok'); }
+    } else if (len >= 100) {
+      cnt.classList.add('ok');
+      btn.disabled = false;
+      if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
+    } else {
+      btn.disabled = true;
+      if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
+    }
+  }
+  // 「振り返って送信＆ログアウト」ボタン押下：submit 成功時のみ実ログアウト実行
+  function doReflectionSubmitAndLogout() {
+    var ta  = document.getElementById('reflection-logout-textarea');
+    var btn = document.getElementById('reflection-logout-submit');
+    var msg = document.getElementById('reflection-logout-msg');
+    if (!ta || !btn) return;
+    var content = String(ta.value || '');
+    var len = content.length;
+    // クライアント側二重ガード
+    if (len < 100) {
+      if (msg) { msg.textContent = '⚠️ 100文字以上書いてね（現在 ' + len + '文字）'; msg.classList.remove('ok'); }
       return;
     }
+    if (len > 1500) {
+      if (msg) { msg.textContent = '⚠️ 1500文字以内にしてね（現在 ' + len + '文字）'; msg.classList.remove('ok'); }
+      return;
+    }
+    if (!_studentId) {
+      if (msg) { msg.textContent = '⚠️ ログイン状態が確認できません。一度キャンセルしてやり直してください'; msg.classList.remove('ok'); }
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+    if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
+    // submitReflection は doPost 強制（gas/Code.js 1237 行）。
+    gasPost({
+      action:    'submitReflection',
+      studentId: _studentId,
+      content:   content,
+      wordCount: len
+    }).then(function(res){
+      if (res && res.ok) {
+        // 成功 → 実ログアウトを実行（state クリア + イベントリスナー削除）
+        _doLogoutFinalize();
+      } else {
+        var em = (res && res.message) ? String(res.message) : '送信に失敗しました。電波の良い場所でもう一度お試しください';
+        if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
+        btn.disabled = false;
+        btn.textContent = '振り返って送信＆ログアウト';
+        onReflectionInput();
+      }
+    }).catch(function(err){
+      var em = (err && err.message) ? String(err.message) : 'ネットワークエラーが発生しました';
+      if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
+      btn.disabled = false;
+      btn.textContent = '振り返って送信＆ログアウト';
+      onReflectionInput();
+    });
+  }
+  // 実ログアウト処理（submit 成功時のみ呼ばれる）。旧 doLogout 後半をそのまま移植。
+  function _doLogoutFinalize() {
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('popstate', popstateHandler);
     _stopAudio();
@@ -5531,15 +5722,58 @@
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
     _requiredProgress = null;
-    // アバター state も明示的にリセット（古い値が別生徒のセッションに漏れないように）
     _avatarState = { base: '', items: [], equipped: {}, nickname: '' };
     try { _lisonResetState(); } catch(e){}
-    _hideSubmitPending(); _hideSubmitError(); _hideWabun1Grading();
+    _clearAllLogoutOverlays();
+    _closeReflectionLogoutModal();
     try { document.getElementById('login-id').value = ''; } catch(e){}
     showScreen('screen-login');
-    // ログイン画面の内部ステート（Step 2 = 生徒/保護者用 ID 入力）を Step 1（役割選択）に戻す。
-    // ここを呼ばないとログイン直前の Step 2 のままで再表示されてしまう。
     try { backToRoleSelect(); } catch(e){}
+    _logoutInProgress = false;
+  }
+  // ================= 自分の振り返り 履歴画面（ホーム「📝 自分の振り返り」ボタンから） =================
+  function _reflEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function _reflFormatDate(ts) {
+    if (!ts) return '';
+    var s = String(ts);
+    // GAS から 'yyyy-MM-dd HH:mm:ss' で来る想定。分まで表示。
+    if (s.length >= 16) return s.substring(0, 16);
+    return s;
+  }
+  function showStudentReflections() {
+    if (!_studentId) return;
+    var sidLabel = document.getElementById('student-reflections-sid');
+    if (sidLabel) sidLabel.textContent = _studentId + ' さん';
+    var list = document.getElementById('student-reflections-list');
+    if (list) list.innerHTML = '<div class="refl-empty">⏳ 読み込み中...</div>';
+    showScreen('screen-student-reflections');
+    gasGet({ action:'getReflectionsForStudent', studentId:_studentId, limit:30, _ts:Date.now() }).then(function(res){
+      var box = document.getElementById('student-reflections-list');
+      if (!box) return;
+      if (!res || !res.ok) {
+        box.innerHTML = '<div class="refl-empty">⚠️ 振り返りの読み込みに失敗しました</div>';
+        return;
+      }
+      var arr = res.reflections || [];
+      if (arr.length === 0) {
+        box.innerHTML = '<div class="refl-empty">📭 まだ振り返りはありません。ログアウト時に書いた振り返りがここに並びます</div>';
+        return;
+      }
+      box.innerHTML = arr.map(function(r){
+        var dateLabel = _reflEscHtml(_reflFormatDate(r.timestamp || r.date));
+        var lenLabel  = _reflEscHtml(String(r.wordCount || (r.content ? r.content.length : 0)) + ' 文字');
+        return '<div class="refl-card">' +
+                 '<div class="refl-card-head">' +
+                   '<div class="refl-card-date">' + dateLabel + '</div>' +
+                   '<div class="refl-card-len">'  + lenLabel  + '</div>' +
+                 '</div>' +
+                 '<div class="refl-card-body">' + _reflEscHtml(r.content || '') + '</div>' +
+               '</div>';
+      }).join('');
+    }).catch(function(){
+      var box = document.getElementById('student-reflections-list');
+      if (box) box.innerHTML = '<div class="refl-empty">⚠️ 振り返りの読み込みに失敗しました</div>';
+    });
   }
   // ================= マイ活アプリ キャラクター紹介 =================
   // 副キャプション（caption フィールド）は今は空欄。ふくちさんが各キャラの
