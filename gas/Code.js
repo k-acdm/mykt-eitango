@@ -2158,6 +2158,165 @@ function _grantHpErr(errorCode, message, rawHp, curHp, streak, week, isReserveAc
 }
 
 // =============================================
+// 当日重複判定の共通ヘルパー（Phase 3 Step 2 / 2026-05-20）
+// =============================================
+// 設計意図：
+//   各 submit 関数に散らばっていた 5 種類の「当日 HP 加算済み判定」を 1 関数に集約。
+//   サーバ HPLog を唯一信頼源とする（フロント localStorage は Phase 3 Step 4〜9 で廃止）。
+//
+// strategy パラメータで分岐：
+//   'none'         : 常に false（英単語RUSH のような無制限コンテンツ）
+//   'oncePerDay'   : HPLog 末尾 200 行に sid+type+JST3am今日の行が 1 件でもあれば true
+//                    （sango / wabun1 / lison など 1 日 1 回ボーナス制のコンテンツ用）
+//   'dailyCap'     : HPLog 末尾 200 行で sid+type前方一致+教育日今日(JST4am) の rawHP 合計
+//                    が params.cap（既定 100）以上なら true（kiso / kanji / kobun の練習モード判定）
+//   'sessionCount' : CalcTrialSessions の今日（JST3am）の completed セッション数が
+//                    params.limit（既定 2）以上なら true（calctrial の練習モード判定）
+//
+// 戻り値：
+//   {
+//     alreadyGranted: boolean,
+//     reason: ''|'already_granted_today'|'daily_cap_reached'|'session_limit_reached'|'unknown_strategy',
+//     todayRawHP:    number,    // dailyCap 戦略時のみ：今日既に獲得した rawHP 合計
+//     todaySessions: number     // sessionCount 戦略時のみ：今日の completed セッション数
+//   }
+//
+// 既存ヘルパーとの関係：
+//   _kisoTodayRawHP / _kanjiTodayRawHP / _kobunTodayRawHP は内部実装が
+//   _sumHpLogTodayByPrefix と等価のため、Step 4〜7 の各 submit 移行時に
+//   _isAlreadyGrantedToday(sid, 'kiso', 'dailyCap', {cap:100}) 経由に置換予定。
+//   それまでは温存（後方互換）。
+//
+// 注意：
+//   - cutover の差異は意図的に維持：oncePerDay は _sangoToday（3 AM）、
+//     dailyCap は _todayEducationalJST（4 AM）。既存 submit 関数の挙動と整合させる。
+//   - ログイン（type='login'）は LAST_LOGIN セル比較のため、本関数の対象外。
+function _isAlreadyGrantedToday(sid, type, strategy, params) {
+  params = params || {};
+  const sidNorm = String(sid || '').trim();
+  if (!sidNorm) {
+    return { alreadyGranted: false, reason: 'invalid_sid', todayRawHP: 0, todaySessions: 0 };
+  }
+
+  if (strategy === 'none') {
+    return { alreadyGranted: false, reason: '', todayRawHP: 0, todaySessions: 0 };
+  }
+
+  if (strategy === 'oncePerDay') {
+    const typeNorm = String(type || '').trim();
+    if (!typeNorm) return { alreadyGranted: false, reason: 'invalid_type', todayRawHP: 0, todaySessions: 0 };
+    const found = _scanHpLogTodayByType(sidNorm, typeNorm);
+    return {
+      alreadyGranted: !!found,
+      reason: found ? 'already_granted_today' : '',
+      todayRawHP: 0,
+      todaySessions: 0
+    };
+  }
+
+  if (strategy === 'dailyCap') {
+    const typeNorm = String(type || '').trim();
+    if (!typeNorm) return { alreadyGranted: false, reason: 'invalid_type', todayRawHP: 0, todaySessions: 0 };
+    const cap = Number(params.cap) || 100;
+    const todayRaw = _sumHpLogTodayByPrefix(sidNorm, typeNorm);
+    const alreadyGranted = (todayRaw >= cap);
+    return {
+      alreadyGranted: alreadyGranted,
+      reason: alreadyGranted ? 'daily_cap_reached' : '',
+      todayRawHP: todayRaw,
+      todaySessions: 0
+    };
+  }
+
+  if (strategy === 'sessionCount') {
+    const limit = Number(params.limit) || 2;
+    let completed = 0;
+    try {
+      const counts = _countCalcTrialSessionsToday(sidNorm, _sangoToday());
+      completed = Number(counts && counts.completed) || 0;
+    } catch (e) {
+      console.error('[_isAlreadyGrantedToday] _countCalcTrialSessionsToday 失敗', e);
+    }
+    const alreadyGranted = (completed >= limit);
+    return {
+      alreadyGranted: alreadyGranted,
+      reason: alreadyGranted ? 'session_limit_reached' : '',
+      todayRawHP: 0,
+      todaySessions: completed
+    };
+  }
+
+  console.warn('[_isAlreadyGrantedToday] 未知の strategy:', strategy);
+  return { alreadyGranted: false, reason: 'unknown_strategy', todayRawHP: 0, todaySessions: 0 };
+}
+
+// 内部ヘルパー：HPLog 末尾 200 行から sid+type+JST3am今日 の行を探す（true/false）。
+// 'oncePerDay' strategy で使用。submitSango / submitWabun1 / submitLison の既存
+// インライン判定と等価のロジック（_sangoToday の 3 AM 区切り）。
+// 末尾 200 行で十分（提出ボーナスは 1 日 1 件 × 数百生徒 ≪ 200）。
+function _scanHpLogTodayByType(sid, type) {
+  try {
+    const sh = _ss().getSheetByName(SHEET_HPLOG);
+    if (!sh) return false;
+    const todayStr = _sangoToday();
+    const data = _readLastNRows(sh, 200);
+    // HPLog 列: timestamp(0) / studentId(1) / rawHP(2) / hpGained(3) / type(4) / message(5)
+    const sidNorm = String(sid).trim();
+    const typeNorm = String(type).trim();
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      if (String(row[1] || '').trim() !== sidNorm) continue;
+      if (String(row[4] || '').trim() !== typeNorm) continue;
+      const ts = row[0];
+      if (!ts) continue;
+      // _sangoToday と同じ 3 AM 区切りで日付化
+      const dt = new Date(ts);
+      dt.setHours(dt.getHours() - 3);
+      const dStr = Utilities.formatDate(dt, 'Asia/Tokyo', 'yyyy-MM-dd');
+      if (dStr === todayStr) return true;
+    }
+    return false;
+  } catch (e) {
+    console.error('[_scanHpLogTodayByType]', e);
+    return false;
+  }
+}
+
+// 内部ヘルパー：HPLog 末尾 200 行から sid+type前方一致+教育日今日 の rawHP を合計。
+// '_practice' 接尾 type は除外（練習モードは Daily Cap 集計の対象外）。
+// 'dailyCap' strategy で使用。_kisoTodayRawHP / _kanjiTodayRawHP / _kobunTodayRawHP と
+// 等価のロジック（_todayEducationalJST の 4 AM 区切り）。
+// typePrefix は 'kiso' / 'kanji' / 'kobun' 等の short label を渡すと内部で 'kiso_' に正規化する。
+function _sumHpLogTodayByPrefix(sid, typePrefix) {
+  try {
+    const sh = _ss().getSheetByName(SHEET_HPLOG);
+    if (!sh) return 0;
+    const today = _todayEducationalJST();
+    const data = _readLastNRows(sh, 200);
+    const sidNorm = String(sid).trim();
+    // 前方一致は '<prefix>_' まで含めると安全（'kanji' で 'kanji_' を期待する）。
+    // 既に '_' で終わっていればそのまま使う。
+    let prefix = String(typePrefix).trim();
+    if (prefix && prefix.charAt(prefix.length - 1) !== '_') prefix = prefix + '_';
+    let total = 0;
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      if (String(row[1] || '').trim() !== sidNorm) continue;
+      const type = String(row[4] || '');
+      if (type.indexOf(prefix) !== 0) continue;
+      if (type.length >= 9 && type.lastIndexOf('_practice') === type.length - 9) continue;
+      const dateStr = _toEducationalDateStr(row[0]);
+      if (dateStr !== today) continue;
+      total += Number(row[2]) || 0;
+    }
+    return total;
+  } catch (e) {
+    console.error('[_sumHpLogTodayByPrefix]', e);
+    return 0;
+  }
+}
+
+// =============================================
 // 連続日数の一括復旧（4/24 Day 2 Stage 2 バグ対策）
 // =============================================
 // 用途: 各生徒の "実際にログインした日" を全活動ログから推定し、Students.STREAK を再計算。
