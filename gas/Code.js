@@ -1767,8 +1767,20 @@ const SHEET_HPLOG_WRITE_ATTEMPTS = 'HPLogWriteAttempts';
 //   行われる（verify + retry でレースも軽減）。
 //   主な用途：loginStudent の +10HP 書き込み。重い submitSango / submitKanji が
 //   ロックを握っている間、ログイン応答全体が 5 秒待たされる問題を回避する。
-function _logHP(studentId, rawHP, hpGained, type, lockTimeoutMs) {
+//
+// 2026-05-20 Phase 3 Step 1（HP加算フロー共通化リファクタリング）：
+//   第 6 引数 message を optional で追加。HPLog の message 列に書き込む。
+//   apology* / executeManualHpGrant も _logHP 経由に統一するための準備として、
+//   従来「直接 setValues で HPLog 一括書き込み」していた経路を _logHP に集約する。
+//   既存呼び出し（5 引数まで）は message='' として動作するため完全な後方互換。
+//   書き込み側は _ensureHpLogMessageColumn() 経由でヘッダー駆動に変更したが、
+//   verify 側の固定列インデックス（1=sid, 4=type）は変えていない（既存挙動互換）。
+//   _ensureHpLogMessageColumn は message 列を末尾追加するため [0]ts [1]sid [2]rawHP
+//   [3]hpGained [4]type [5]message の列順は不変。
+function _logHP(studentId, rawHP, hpGained, type, lockTimeoutMs, message) {
   const sid = String(studentId).trim();
+  // 2026-05-20 Phase 3 Step 1：message 引数（後方互換のため未指定なら '' 扱い）
+  const msg = String(message == null ? '' : message);
 
   // テレメトリ flag（PropertiesService 読み取りは 1 関数呼び出しで 1 回のみ）
   let debug = false;
@@ -1804,15 +1816,21 @@ function _logHP(studentId, rawHP, hpGained, type, lockTimeoutMs) {
   try {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const ss = _ss();
-        let sh   = ss.getSheetByName(SHEET_HPLOG);
-        if (!sh) {
-          sh = ss.insertSheet(SHEET_HPLOG);
-          sh.getRange(1, 1, 1, 5).setValues([['timestamp', 'studentId', 'rawHP', 'hpGained', 'type']]);
-        }
+        // 2026-05-20 Phase 3 Step 1：_ensureHpLogMessageColumn 経由でヘッダー駆動に。
+        // 既存運用シートには message 列が既に追加されている（apology*/手動付与から呼ばれ済）。
+        // 新規シート作成時も message を含む 6 列で初期化されるため、書き込み列順は不変。
+        const log = _ensureHpLogMessageColumn();
+        const sh = log.sh;
         const beforeLastRow = sh.getLastRow();
         const writeTs = _nowJST();
-        sh.appendRow([writeTs, sid, rawHP, hpGained, type]);
+        const rowArr = new Array(log.lastCol).fill('');
+        if (log.cTimestamp >= 0) rowArr[log.cTimestamp] = writeTs;
+        if (log.cSid       >= 0) rowArr[log.cSid]       = sid;
+        if (log.cRawHP     >= 0) rowArr[log.cRawHP]     = rawHP;
+        if (log.cHpGained  >= 0) rowArr[log.cHpGained]  = hpGained;
+        if (log.cType      >= 0) rowArr[log.cType]      = type;
+        if (log.cMessage   >= 0) rowArr[log.cMessage]   = msg;
+        sh.appendRow(rowArr);
         SpreadsheetApp.flush();  // v12 教訓踏襲：appendRow 直後の flush で確実に永続化
 
         // 2026-05-15 防御層：書き込み verify
@@ -1958,6 +1976,185 @@ function migrateHpLogAddRawHp() {
     console.error('[migrateHpLogAddRawHp]', err);
     return { ok: false, message: String(err) };
   }
+}
+
+// =============================================
+// HP 加算の共通エントリ関数（Phase 3 Step 1 / 2026-05-20）
+// =============================================
+// 設計意図：
+//   submit 系（saveAttempt / submitSango / submitWabun1 / submitKisoAnswer /
+//   submitKanjiKaki / submitKobunSet / submitLison / submitCalcTrialResult /
+//   loginStudent）、apology 系（apologyStreakBonus / apologyWabun1Bonus /
+//   apologyKisoBonus）、手動付与（executeManualHpGrant）— すべての HP 加算経路を
+//   この 1 関数に集約する。
+//
+//   従来は各 submit 関数で「rawHp 計算 → reserveCalc → _logHP → Students.HP 更新」
+//   の 30〜50 行が反復されており、新コンテンツ追加のたびに同じバグを量産していた。
+//   _grantHP に集約することで、_logHP の防御層（LockService + verify + retry +
+//   HPLogWriteAttempts テレメトリ）を全経路に強制適用できる。
+//
+// 呼び出し側の責務：
+//   ① 採点・OCR・提出ログ append（コンテンツ固有処理）
+//   ② alreadyGranted = _isAlreadyGrantedToday(sid, type, strategy)
+//   ③ if (!alreadyGranted) { grant = _grantHP({sid, type, rawHp, stuLoc, ...}); }
+//      if (!grant.ok) return { ok:false, errorCode: grant.errorCode, message: grant.message };
+//   ④ レスポンス組み立て（hpGained / hpReserved / justCompleted / ... は grant.* から）
+//
+// 引数（opts オブジェクト）：
+//   sid                     必須：生徒ID
+//   type                    必須：HPLog の type（'sango' / 'kiso_15_5' / 'manual_grant' 等）
+//   rawHp                   必須：素点HP（倍率前。0 でも呼べる＝練習モード）
+//   stuLoc                  必須：_findAccountRowOnSheet(sid) の結果（呼び出し元が事前取得）
+//   message                 任意：HPLog.message 列に書く文字列（既定 ''）
+//   applyWeekMultiplier     任意 bool（既定 true）：true なら hpGained = rawHp × week²
+//   applyReserveSystem      任意 bool（既定 true）：true なら Phase A 60%/40% 分割を適用
+//   lockTimeoutMs           任意 number（既定 5000）：_logHP のロックタイムアウト
+//   checkCompletion         任意 bool（既定 true）：末尾で _checkAndReleaseReserveIfCompleted を呼ぶか
+//
+// 戻り値：
+//   {
+//     ok:               boolean,
+//     errorCode:        '' | 'INVALID_PARAMS' | 'STUDENT_NOT_FOUND' | 'HP_LOG_FAILED',
+//     message:          string,           // エラー時の人間向けメッセージ
+//     rawHp:            number,           // 素点（入力をそのまま）
+//     hpGained:         number,           // 実加算された即時 HP（reserve 分は除く）
+//     hpReserved:       number,           // 保留分（reserve_active 時のみ > 0）
+//     newHP:            number,           // 加算後の Students.HP（completion bonus 込み）
+//     streak:           number,
+//     week:             number,
+//     isReserveActive:  boolean,
+//     justCompleted:    boolean,
+//     releasedHp:       number,
+//     bonusHp:          number
+//   }
+//
+// 注意：
+//   - HP=0 の練習モード（rawHp=0 など）の場合、_logHP 失敗は警告のみで続行する。
+//     呼び出し元は type を 'kiso_5_5_practice' のような _practice 接尾で呼ぶこと。
+//   - reserve pool 追記の失敗（_appendHpReservePool）は警告のみで続行（致命的でない）。
+//   - _checkAndReleaseReserveIfCompleted 内部の release/bonus _logHP 失敗時の処理は
+//     既存挙動のまま（警告のみ）。案 R1（完全な一貫性）は Phase 4 で別タスクとして実施。
+//   - Phase 3 Step 1 時点では _grantHP は新設のみで、呼び出し元の移行は Step 4〜9 で実施。
+function _grantHP(opts) {
+  // ─── 引数ガード ───
+  opts = opts || {};
+  const sid = String(opts.sid || '').trim();
+  const type = String(opts.type || '').trim();
+  const rawHp_in = Number(opts.rawHp) || 0;
+  if (!sid || !type) {
+    return _grantHpErr('INVALID_PARAMS', 'sid/type が必須です', rawHp_in, 0, 1, 1, false);
+  }
+  if (!opts.stuLoc) {
+    return _grantHpErr('STUDENT_NOT_FOUND', '生徒が見つかりません: ' + sid, rawHp_in, 0, 1, 1, false);
+  }
+  const stuLoc = opts.stuLoc;
+
+  // ─── ① week² 倍率計算 ───
+  const streak = Math.max(1, Number(stuLoc.rowValues[COL_STREAK]) || 1);
+  const week = Math.ceil(streak / 7);
+  const applyMult = (opts.applyWeekMultiplier !== false);  // 既定 true
+  const fullHpGained = applyMult ? (rawHp_in * week * week) : rawHp_in;
+
+  // ─── ② Phase A reserve 分割 ───
+  const applyReserve = (opts.applyReserveSystem !== false);  // 既定 true
+  let granted = fullHpGained;
+  let reserved = 0;
+  let isReserveActive = false;
+  if (applyReserve) {
+    const rc = _calculateHpWithReserve(stuLoc, fullHpGained);
+    granted = rc.granted;
+    reserved = rc.reserved;
+    isReserveActive = rc.isReserveActive;
+  }
+
+  // ─── ③ _logHP（最優先で書く、失敗時は即終了）───
+  // HP=0 の練習モード等では _logHP 失敗を許容する（呼び出し元で type='*_practice' を指定）。
+  const lockMs = (typeof opts.lockTimeoutMs === 'number' && opts.lockTimeoutMs > 0) ? opts.lockTimeoutMs : 5000;
+  const msg = String(opts.message == null ? '' : opts.message);
+  const logRes = _logHP(sid, rawHp_in, granted, type, lockMs, msg);
+  const isZeroGrant = (granted === 0);
+  if (!logRes.ok && !isZeroGrant) {
+    // HP > 0 のときの _logHP 失敗 → Students 更新せず即終了
+    console.error('[_grantHP] _logHP 失敗', { sid: sid, type: type, rawHp: rawHp_in, granted: granted, error: logRes.error });
+    const curHP = Number(stuLoc.rowValues[COL_HP]) || 0;
+    return _grantHpErr('HP_LOG_FAILED', '内部エラーが発生しました。もう一度試してください。',
+                       rawHp_in, curHP, streak, week, isReserveActive);
+  }
+  // HP=0 の練習モードで _logHP 失敗なら警告のみで続行（HPLogWriteAttempts に痕跡が残る）
+
+  // ─── ④ reserve pool 追記（失敗しても続行、警告のみ）───
+  if (reserved > 0) {
+    try {
+      _appendHpReservePool(sid, _sangoToday(), type, fullHpGained, reserved);
+    } catch (e) {
+      console.error('[_grantHP] _appendHpReservePool 失敗（続行）', e);
+    }
+  }
+
+  // ─── ⑤ Students.HP / SpecialAccounts.HP 更新 ───
+  const curHP = Number(stuLoc.rowValues[COL_HP]) || 0;
+  let newHP = curHP;
+  if (granted > 0) {
+    newHP = curHP + granted;
+    stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
+    const upd = {};
+    upd[COL_HP] = newHP;
+    _updateAccountCacheBySid(sid, upd);
+    _invalidateCache('cache_ranking_last_week');
+  }
+
+  // ─── ⑥ 完走チェック（reserve_release / completion_bonus）───
+  // 案 R1（release/bonus の _logHP 失敗時にも一貫性を保つ）は Phase 4 で実施。
+  // 現状（Phase 3 Step 1）では既存挙動を維持：内部で _logHP 失敗時は警告のみ。
+  let comp = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+  const doCheckCompletion = (opts.checkCompletion !== false) && isReserveActive;
+  if (doCheckCompletion) {
+    try {
+      comp = _checkAndReleaseReserveIfCompleted(sid, type);
+      if (comp.justCompleted) {
+        // _checkAndReleaseReserveIfCompleted 内部で Students.HP は加算済み（フレッシュ再読み込み経路）。
+        // ここでは戻り値の releasedHp + bonusHp を加算して newHP の表示用合計だけ更新する。
+        newHP = newHP + (Number(comp.releasedHp) || 0) + (Number(comp.bonusHp) || 0);
+      }
+    } catch (e) {
+      console.error('[_grantHP] _checkAndReleaseReserveIfCompleted 失敗（続行）', e);
+    }
+  }
+
+  return {
+    ok: true,
+    errorCode: '',
+    message: '',
+    rawHp: rawHp_in,
+    hpGained: granted,
+    hpReserved: reserved,
+    newHP: newHP,
+    streak: streak,
+    week: week,
+    isReserveActive: isReserveActive,
+    justCompleted: comp.justCompleted,
+    releasedHp: Number(comp.releasedHp) || 0,
+    bonusHp: Number(comp.bonusHp) || 0
+  };
+}
+
+// _grantHP 内部のエラー応答ビルダ（重複削減）
+function _grantHpErr(errorCode, message, rawHp, curHp, streak, week, isReserveActive) {
+  return {
+    ok: false,
+    errorCode: errorCode,
+    message: message,
+    rawHp: rawHp || 0,
+    hpGained: 0,
+    hpReserved: 0,
+    newHP: curHp || 0,
+    streak: streak || 1,
+    week: week || 1,
+    isReserveActive: !!isReserveActive,
+    justCompleted: false,
+    releasedHp: 0,
+    bonusHp: 0
+  };
 }
 
 // =============================================
