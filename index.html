@@ -3753,16 +3753,19 @@
       <div class="ct-mascot-row">
         <img class="ct-mascot-img" id="ct-mascot" src="images/trial-default.png" alt="">
       </div>
+      <!-- 2026-05-20：プッシュホン式（1上）→ 電卓式（7上）に並び替え。生徒要望。
+           CSS は 3 列 grid のまま無修正。DOM 順序のみ変更。
+           onclick の値は 1〜9 で不変、バックスペース（←）と Enter の左右配置も維持。 -->
       <div class="ct-tenkey">
-        <button type="button" onclick="onCtKey('1')">1</button>
-        <button type="button" onclick="onCtKey('2')">2</button>
-        <button type="button" onclick="onCtKey('3')">3</button>
-        <button type="button" onclick="onCtKey('4')">4</button>
-        <button type="button" onclick="onCtKey('5')">5</button>
-        <button type="button" onclick="onCtKey('6')">6</button>
         <button type="button" onclick="onCtKey('7')">7</button>
         <button type="button" onclick="onCtKey('8')">8</button>
         <button type="button" onclick="onCtKey('9')">9</button>
+        <button type="button" onclick="onCtKey('4')">4</button>
+        <button type="button" onclick="onCtKey('5')">5</button>
+        <button type="button" onclick="onCtKey('6')">6</button>
+        <button type="button" onclick="onCtKey('1')">1</button>
+        <button type="button" onclick="onCtKey('2')">2</button>
+        <button type="button" onclick="onCtKey('3')">3</button>
         <button type="button" class="ct-key-bs" onclick="onCtKey('BS')">←</button>
         <button type="button" onclick="onCtKey('0')">0</button>
         <button type="button" class="ct-key-enter" onclick="onCtKey('ENTER')">Enter</button>
