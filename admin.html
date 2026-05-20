@@ -6481,7 +6481,9 @@
       render: function(d) {
         if (!d.kanji || !d.kanji.done) return CHILD_NG;
         var hp = Number(d.kanji.hpGained || 0);
-        var ord = { '5':1, '4':2, '3':3, '準2':4, '2':5 };
+        // 2026-05-20：8 級（小3）/ 7 級（小4）を追加し、ついでに 6 級（小5、追加時の漏れ）も追加。
+        // 難易度低→高の順（級が大きいほど易しい）でソートする。
+        var ord = { '8':1, '7':2, '6':3, '5':4, '4':5, '3':6, '準2':7, '2':8 };
         var sessions = (d.kanji.sessions || []).slice().sort(function(a, b){
           var ra = ord[a.level] || 99, rb = ord[b.level] || 99;
           if (ra !== rb) return ra - rb;

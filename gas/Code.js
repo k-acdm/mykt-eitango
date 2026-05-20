@@ -14648,14 +14648,17 @@ function apologyWabun1MonyoBug_20260502() {
 //     ふくちさん 36 年経験「漢字は英単語と同様に『知識』なので、全問正解が理にかなってる。
 //     基礎計算は思考系なので 8 割で良し」の教育的判断に基づく。英単語RUSH と同じく満点合格。
 // HPLog type: 'kanji_<level>_<count>' or 'kanji_<level>_<count>_practice'
-//   level は '6' / '5' / '4' / '3' / '準2' / '2'（'準' を含むため _ で区切ると 'kanji_準2_10' になる点に注意）
+//   level は '8' / '7' / '6' / '5' / '4' / '3' / '準2' / '2'（'準' を含むため _ で区切ると 'kanji_準2_10' になる点に注意）
+//   2026-05-20 追加：8 級（小3）/ 7 級（小4）
 const SHEET_KANJI_YOMI = 'KanjiYomi';
 const SHEET_KANJI_KAKI = 'KanjiKaki';
 // 2026-05-12 バグ⑤ Phase B（案A）：書き判定結果の永続化用シート。軽量版F'。
 // 1 提出ごとに各問 1 行ずつ appendRow（5 問セットで 5 行、10 問セットで 10 行）。
 // 「正しく書いたのに ❌」報告時の事後検証 / プロンプト調整評価の基盤。
 const SHEET_KANJI_SUBMISSIONS = 'KanjiSubmissions';
-const KANJI_VALID_LEVELS = ['6', '5', '4', '3', '準2', '2'];
+// 2026-05-20：8 級（小3）/ 7 級（小4）を追加。順序は KanjiYomi / KanjiKaki シートの級表記とは
+// 無関係（このリストは indexOf による存在チェック専用）。
+const KANJI_VALID_LEVELS = ['8', '7', '6', '5', '4', '3', '準2', '2'];
 const KANJI_DAILY_RAWHP_CAP = 100;
 const KANJI_PASS_RATIO = 1.0;  // 2026-05-08 0.8 → 1.0（全問正解で合格）。知識系コンテンツとしての英単語RUSH 整合
 const KANJI_YOMI_HEADERS = ['セット番号', '問番号', '漢字ID', '漢字', '問題', '選A', '選B', '選C', '選D', '正解', '級'];
@@ -14757,7 +14760,7 @@ function getKanjiTodayRawHP(params) {
 //   - 級の最終セットを超えたら 1 に戻す（無限ループ可能）
 //
 // params: { studentId, level, count }
-//   - level: '5' / '4' / '3' / '準2' / '2'（bare 表記）
+//   - level: '8' / '7' / '6' / '5' / '4' / '3' / '準2' / '2'（bare 表記、2026-05-20 に 8/7 追加）
 //   - count: 5 or 10（読みの問題数。書きも同数）
 //   - count=5  → 1 セット = 読み 5 + 書き 5
 //   - count=10 → 連続する 2 セット = 読み 10 + 書き 10
