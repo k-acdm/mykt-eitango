@@ -9448,6 +9448,148 @@ function ensureReflectionsSheets() {
   }
 }
 
+// 2026-05-20 バグ修正：既存 Reflections レコードの date / timestamp 列を一括正規化する
+// ワンタイム関数。Sheets が文字列を Date 型に自動変換してしまった既存データを修復。
+//
+// GAS エディタから手動実行：
+//   関数ドロップダウンで `migrateReflectionsDateColumn` を選択 → ▶ 実行
+//   実行ログに「dateFixed: N, tsFixed: N, total: M」が出力される。
+//
+// 動作：
+//   - date 列のセル：Date オブジェクト or 'yyyy/MM/dd ...' 表示書式を 'yyyy-MM-dd' に書き換え
+//   - timestamp 列のセル：Date オブジェクトなら 'yyyy-MM-dd HH:mm:ss' 文字列に書き換え
+//   - 両列とも setNumberFormat('@') で以後の自動変換を防ぐ
+//   - 全月キャッシュ（cache_refl_month_*）をクリア（呼び出し側で対応するため、本関数では
+//     具体的なキー指定でなく全クリアの安全策）
+// 冪等性：既に 'yyyy-MM-dd' 形式の行は変更なし（dateFixed カウントに含めない）。何度実行しても安全。
+function migrateReflectionsDateColumn() {
+  try {
+    const sh = _ss().getSheetByName(SHEET_REFLECTIONS);
+    if (!sh) return { ok: false, message: 'Reflections シートが見つかりません' };
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) return { ok: true, message: 'データなし', dateFixed: 0, tsFixed: 0, total: 0 };
+
+    const lastCol = sh.getLastColumn();
+    const header  = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    const iDate   = header.indexOf('date');
+    const iTs     = header.indexOf('timestamp');
+    if (iDate < 0) return { ok: false, message: 'date 列が見つかりません' };
+
+    const range  = sh.getRange(2, 1, lastRow - 1, lastCol);
+    const values = range.getValues();
+    let dateFixed = 0;
+    let tsFixed   = 0;
+
+    for (let i = 0; i < values.length; i++) {
+      const origDate = values[i][iDate];
+      const newDate  = _reflectionToDateStr(origDate);
+      // 文字列で '2026-05-19' が既に入っていれば newDate と同じになり書き換え不要
+      // ただし Date 型なら必ず書き換え必要（文字列化が目的）
+      const origIsString = (typeof origDate === 'string');
+      const origStringSliced = origIsString ? origDate.slice(0, 10) : '';
+      if (newDate && (!origIsString || origStringSliced !== newDate || origDate.length > 10)) {
+        values[i][iDate] = newDate;
+        dateFixed++;
+      } else if (!newDate && origDate != null && String(origDate).trim() !== '') {
+        // パース不能だが値はある → 安全のため空欄にする（後でふくちさんが確認）
+        // ただしこのケースは稀なので警告ログのみ、値は保持
+        Logger.log('[migrateReflectionsDateColumn] row ' + (i + 2) + ': 解析不能な date 値: ' + String(origDate));
+      }
+
+      if (iTs >= 0) {
+        const origTs = values[i][iTs];
+        const newTs  = _reflectionToTimestampStr(origTs);
+        const origIsStringTs = (typeof origTs === 'string');
+        // Date 型なら必ず書き換え、文字列で区切りが '/' のスラッシュ形式なら '-' に統一
+        if (origTs instanceof Date || (origIsStringTs && origTs !== newTs)) {
+          values[i][iTs] = newTs;
+          tsFixed++;
+        }
+      }
+    }
+
+    // セル書式を文字列に固定してから値を一括書き込み
+    sh.getRange(2, iDate + 1, lastRow - 1, 1).setNumberFormat('@');
+    if (iTs >= 0) {
+      sh.getRange(2, iTs + 1, lastRow - 1, 1).setNumberFormat('@');
+    }
+    range.setValues(values);
+
+    // 月単位サマリキャッシュを全クリア（修復後に古いキャッシュが返らないように）
+    try {
+      const sciCache = CacheService.getScriptCache();
+      // 過去 2 年分のキーを安全側で削除（_invalidateCache はキー単発のため、明示的に範囲列挙）
+      const now = new Date();
+      const keysToRemove = [];
+      for (let dy = -2; dy <= 1; dy++) {
+        for (let dm = 0; dm < 12; dm++) {
+          const t = new Date(now.getFullYear() + dy, dm, 1);
+          const yk = Utilities.formatDate(t, 'Asia/Tokyo', 'yyyy-MM');
+          keysToRemove.push('cache_refl_month_' + yk);
+        }
+      }
+      sciCache.removeAll(keysToRemove);
+    } catch(_e) {}
+
+    Logger.log('[migrateReflectionsDateColumn] 完了: dateFixed=' + dateFixed + ', tsFixed=' + tsFixed + ', total=' + values.length);
+    return { ok: true, dateFixed: dateFixed, tsFixed: tsFixed, total: values.length };
+  } catch (err) {
+    console.error('[migrateReflectionsDateColumn]', err);
+    Logger.log('[migrateReflectionsDateColumn] エラー: ' + String(err));
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 2026-05-20 バグ修正：Reflections.date 列の値を 'yyyy-MM-dd' に正規化するヘルパー。
+// Sheets が文字列 '2026-05-19' を Date 型として自動変換するため、シートから読み出すと
+// Date オブジェクト or 表示書式適用済の '2026/05/19 17:16:36' 形式になることがある。
+// 全パターンに対応：
+//   - Date オブジェクト → 'yyyy-MM-dd'（Asia/Tokyo）
+//   - 'yyyy-MM-dd...' 先頭マッチ → そのまま 'yyyy-MM-dd'
+//   - 'yyyy/M/d ...' or 'yyyy/MM/dd ...' 先頭マッチ → 'yyyy-MM-dd'（ゼロ埋め）
+//   - その他 / 空 → ''
+function _reflectionToDateStr(v) {
+  if (v == null) return '';
+  if (v instanceof Date) {
+    return Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy-MM-dd');
+  }
+  const s = String(v).trim();
+  if (!s) return '';
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[1] + '-' + m[2] + '-' + m[3];
+  m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+  if (m) {
+    const mm = (m[2].length === 1 ? '0' + m[2] : m[2]);
+    const dd = (m[3].length === 1 ? '0' + m[3] : m[3]);
+    return m[1] + '-' + mm + '-' + dd;
+  }
+  return '';
+}
+
+// 2026-05-20 バグ修正：Reflections.timestamp 列を 'yyyy-MM-dd HH:mm:ss' に正規化するヘルパー。
+// 全パターンに対応：
+//   - Date オブジェクト → 'yyyy-MM-dd HH:mm:ss'（Asia/Tokyo）
+//   - 'yyyy/M/d HH:mm:ss' or 'yyyy/MM/dd HH:mm:ss' → 'yyyy-MM-dd HH:mm:ss'（区切り統一・ゼロ埋め）
+//   - 'yyyy-MM-dd HH:mm:ss' → そのまま
+//   - その他 / 空 → ''
+// 表示側（admin.html 生徒別履歴 ts.slice(0,16) / 日付別一覧 ts.slice(11,16)）の表示一貫性のため、
+// 区切り文字も '-' に統一する。
+function _reflectionToTimestampStr(v) {
+  if (v == null) return '';
+  if (v instanceof Date) {
+    return Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+  }
+  const s = String(v).trim();
+  if (!s) return '';
+  const m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})(.*)$/);
+  if (m) {
+    const mm = (m[2].length === 1 ? '0' + m[2] : m[2]);
+    const dd = (m[3].length === 1 ? '0' + m[3] : m[3]);
+    return m[1] + '-' + mm + '-' + dd + m[4];
+  }
+  return s;
+}
+
 // 内部ヘルパー：指定 sid の振り返り履歴を timestamp 降順で返す
 // limit は呼び出し側で clamp 済の値を渡す（1 以上の整数）
 function _readReflectionsForSid(sid, limit) {
@@ -9466,10 +9608,13 @@ function _readReflectionsForSid(sid, limit) {
   const out = [];
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][iSid] || '').trim() !== sid) continue;
+    // 2026-05-20 バグ修正：date/timestamp が Date 型 / 'yyyy/MM/dd ...' 等になっていても
+    // 正規化して返す。生徒別履歴の表示は r.timestamp.slice(0,16) なので 'yyyy-MM-dd HH:mm:ss'
+    // 形式で揃える必要がある。
     out.push({
       reflectionId: String((iId      >= 0 ? values[i][iId]      : '') || ''),
-      date:         String((iDate    >= 0 ? values[i][iDate]    : '') || ''),
-      timestamp:    String((iTs      >= 0 ? values[i][iTs]      : '') || ''),
+      date:         iDate    >= 0 ? _reflectionToDateStr(values[i][iDate])         : '',
+      timestamp:    iTs      >= 0 ? _reflectionToTimestampStr(values[i][iTs])      : '',
       content:      String((iContent >= 0 ? values[i][iContent] : '') || ''),
       wordCount:    Number((iWc      >= 0 ? values[i][iWc]      : 0)) || 0
     });
@@ -9537,6 +9682,29 @@ function submitReflection(params) {
       wordCount,
       stuLoc.sheetName
     ]);
+
+    // 2026-05-20 バグ修正：Sheets が文字列 'yyyy-MM-dd' を Date 型に自動変換して
+    // セル値が「2026/05/19 17:16:36」のような表示書式付き Date になる問題を解消する。
+    // appendRow 直後に date / timestamp 列をテキスト形式（'@'）に設定してから
+    // 文字列として再書き込みする。これで日付推測パースを打ち消せる。
+    // best-effort：書式調整エラーで提出処理を巻き戻すのは過剰なので silent。
+    try {
+      const writtenRow = sh.getLastRow();
+      const lastCol = sh.getLastColumn();
+      const header  = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+      const iDateCol = header.indexOf('date') + 1;       // 1-indexed（0 は見つからなかった = column 0 ではない）
+      const iTsCol   = header.indexOf('timestamp') + 1;
+      if (iDateCol >= 1) {
+        const dCell = sh.getRange(writtenRow, iDateCol);
+        dCell.setNumberFormat('@');
+        dCell.setValue(date);
+      }
+      if (iTsCol >= 1) {
+        const tCell = sh.getRange(writtenRow, iTsCol);
+        tCell.setNumberFormat('@');
+        tCell.setValue(timestamp);
+      }
+    } catch(_e) {}
 
     // 2026-05-20：振り返りカレンダーの月単位サマリキャッシュを無効化
     //   - date は教育日基準 'yyyy-MM-dd'、yearMonth はその先頭 7 文字
@@ -10689,7 +10857,8 @@ function getReflectionMonthSummary(params) {
         }
         for (let i = 1; i < values.length; i++) {
           const r = values[i];
-          const ds = String(r[iDate] || '').trim();
+          // 2026-05-20 バグ修正：date 列が Date 型 / 'yyyy/MM/dd ...' / 'yyyy-MM-dd' のいずれでも正規化
+          const ds = _reflectionToDateStr(r[iDate]);
           if (!ds || !days[ds]) continue;
           const sid = String(r[iSid] || '').trim();
           if (!sid) continue;
@@ -10769,7 +10938,8 @@ function getReflectionDayDetail(params) {
       if (iSid >= 0 && iDate >= 0) {
         for (let i = 1; i < values.length; i++) {
           const r = values[i];
-          if (String(r[iDate] || '').trim() !== date) continue;
+          // 2026-05-20 バグ修正：date 列が Date 型 / 'yyyy/MM/dd ...' / 'yyyy-MM-dd' のいずれでも正規化してから比較
+          if (_reflectionToDateStr(r[iDate]) !== date) continue;
           const sid = String(r[iSid] || '').trim();
           const info = stuMap[sid] || { name: '', nickname: '', grade: '' };
           out.push({
@@ -10778,7 +10948,8 @@ function getReflectionDayDetail(params) {
             studentName:  info.name,
             nickname:     info.nickname,
             grade:        info.grade,
-            timestamp:    String((iTs      >= 0 ? r[iTs]      : '') || ''),
+            // timestamp も同じく Date 型対応の正規化を通す
+            timestamp:    iTs      >= 0 ? _reflectionToTimestampStr(r[iTs])      : '',
             content:      String((iContent >= 0 ? r[iContent] : '') || ''),
             wordCount:    Number((iWc      >= 0 ? r[iWc]      : 0)) || 0
           });
