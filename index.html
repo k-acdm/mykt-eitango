@@ -1885,12 +1885,16 @@
     .mykt-overlay-bubble { position: relative; flex: 1; padding: 12px 14px; border-radius: 14px; font-size: 14px; line-height: 1.6; }
     .mykt-overlay-bubble.error { background: #fff7ed; border: 2px solid #fb923c; color: #9a3412; }
     .mykt-overlay-bubble.grading { background: #eff6ff; border: 2px solid #60a5fa; color: #1e3a8a; }
+    /* Phase 3 Step 3：HP 加算確認 overlay（楽観的UI 廃止後の「処理中…」用、暖色系） */
+    .mykt-overlay-bubble.hp-confirming { background: #fff8e1; border: 2px solid #ffb84d; color: #6b3410; font-weight: bold; }
     .mykt-overlay-bubble::before { content: ''; position: absolute; left: -10px; top: 28px; border: 8px solid transparent; }
     .mykt-overlay-bubble.error::before { border-right-color: #fb923c; }
     .mykt-overlay-bubble.grading::before { border-right-color: #60a5fa; }
+    .mykt-overlay-bubble.hp-confirming::before { border-right-color: #ffb84d; }
     .mykt-overlay-bubble::after { content: ''; position: absolute; left: -7px; top: 28px; border: 8px solid transparent; }
     .mykt-overlay-bubble.error::after { border-right-color: #fff7ed; }
     .mykt-overlay-bubble.grading::after { border-right-color: #eff6ff; }
+    .mykt-overlay-bubble.hp-confirming::after { border-right-color: #fff8e1; }
     .mykt-overlay-btns { display: flex; gap: 8px; margin-top: 16px; }
     .mykt-overlay-btns button { flex: 1; padding: 11px 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: bold; cursor: pointer; }
     .mykt-overlay-btns .btn-retry { background: linear-gradient(135deg, #fb923c, #f97316); color: #fff; }
@@ -4018,6 +4022,22 @@
   </div>
 </div>
 
+<!-- HP 加算確認 overlay（Phase 3 Step 3 / 2026-05-20 追加）
+     楽観的UI 廃止後、サーバ ok 確認までこの overlay でキャラ + セリフを見せる。
+     _showHpConfirmingOverlay(charId) で表示、_hideHpConfirmingOverlay() で非表示。
+     使い始めは Step 4（calctrial）以降。Step 3 時点では呼び出し元なし。 -->
+<div id="hp-confirming-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img id="hp-confirming-mascot" class="chara-img" src="" alt="">
+      <div class="mykt-overlay-bubble hp-confirming">
+        <span id="hp-confirming-text"></span><span id="hp-confirming-dots" class="grading-dots">...</span><br>
+        <span style="font-size:12px;color:#6b3410">少しだけ待ってね</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 切り抜きモーダル：4 コンテンツ共通の OCR 救済画面（2026-05-02 追加）
      openCropForReOcr({ sourceDataUrl, returnScreen, onCropped }) で呼び出す。 -->
 <div id="screen-crop-modal" class="screen">
@@ -4445,6 +4465,81 @@
     var fn = _pendingDismiss; _pendingRetry = null; _pendingDismiss = null;
     if (typeof fn === 'function') fn();
   }
+
+  // ===========================================================================
+  // HP 加算確認 overlay（Phase 3 Step 3 / 2026-05-20 追加）
+  // ===========================================================================
+  // 楽観的UI 廃止後の「処理中…」演出：サーバが HPLog 書き込み完了を返すまで、
+  // コンテンツ担当キャラ（RUSH君 / サンゴタン / ニチエイ / キソ"K"サン /
+  // カンジー博士 / リスオン / コブタン / トラール）の画像 + セリフを表示する。
+  //
+  // 使い方（Step 4 以降）：
+  //   _showHpConfirmingOverlay('rushkun');   // 英単語RUSH 提出時
+  //   gasGetWithTimeout({ ... }).then(function(res){
+  //     _hideHpConfirmingOverlay();
+  //     if (!res.ok) { _showSubmitError(); return; }
+  //     showResult(true, res);   // サーバ ok 後にだけ HP獲得画面へ
+  //   });
+  //
+  // Step 3 時点ではコード追加のみ、呼び出し元はまだない（既存挙動への影響ゼロ）。
+  var HP_CONFIRMING_BY_CHAR = {
+    'rushkun':  { img: 'images/rushkun-thinking.png',  text: '現在マイカツ君が獲得HPを最終確認中だよ！' },
+    'sangotan': { img: 'images/sangotan-thinking.png', text: '現在マイカツ君が獲得HPを最終確認中なのだ' },
+    'nichiei':  { img: 'images/nichiei-thinking.png',  text: '只今マイカツ君が獲得HPを最終確認中です' },
+    'kisoK':    { img: 'images/kisoK-thinking.png',    text: '只今マイカツ君が獲得HPを最終確認中！' },
+    'kanjii':   { img: 'images/kanjii-thinking.png',   text: '現在マイカツ君が獲得HPを最終確認中じゃ' },
+    'lison':    { img: 'images/lison-thinking.png',    text: '現在マイカツ君が獲得HPを最終確認中です' },
+    'kobun':    { img: 'images/kobun-thinking.png',    text: '現在マイカツ君が獲得HPを最終確認中なり' },
+    'trial':    { img: 'images/trial-thinking.png',    text: '只今マイカツ君が獲得HPを最終確認中だぞ' }
+  };
+  var _hpConfirmingDotsTimer = null;
+  function _showHpConfirmingOverlay(charId) {
+    var meta = HP_CONFIRMING_BY_CHAR[charId] || HP_CONFIRMING_BY_CHAR['rushkun'];
+    var ov  = document.getElementById('hp-confirming-overlay');
+    var img = document.getElementById('hp-confirming-mascot');
+    var txt = document.getElementById('hp-confirming-text');
+    if (!ov || !img || !txt) return;
+    img.src = meta.img;
+    img.alt = charId;
+    txt.textContent = meta.text;
+    ov.classList.add('active');
+    // dots アニメ（既存 _showWabun1Grading と同じ仕組みで独立タイマー）
+    var dotsEl = document.getElementById('hp-confirming-dots');
+    if (dotsEl) dotsEl.textContent = '...';
+    var n = 3;
+    if (_hpConfirmingDotsTimer) clearInterval(_hpConfirmingDotsTimer);
+    _hpConfirmingDotsTimer = setInterval(function(){
+      n = (n % 3) + 1;
+      if (dotsEl) dotsEl.textContent = n === 1 ? '.' : (n === 2 ? '..' : '...');
+    }, 380);
+  }
+  function _hideHpConfirmingOverlay() {
+    var ov = document.getElementById('hp-confirming-overlay');
+    if (ov) ov.classList.remove('active');
+    if (_hpConfirmingDotsTimer) { clearInterval(_hpConfirmingDotsTimer); _hpConfirmingDotsTimer = null; }
+  }
+
+  // gasGet にタイムアウトを付けたラッパー（Phase 3 Step 4 以降で使う想定、Step 3 時点ではユーティリティ追加のみ）。
+  // 採用根拠：_logHP の LockService(5s) + verify retry(500ms) + 通常処理(数秒) で
+  // 最悪 10〜15 秒。25 秒なら 1.5 倍余裕。タイムアウト時は reject('timeout')。
+  // 注：gasPost は既にタイムアウト機能を内蔵しているため、POST 用ラッパーは新設しない。
+  //     Step 4 以降の POST 経路は gasPost(params, 25000) と明示的に渡す。
+  function gasGetWithTimeout(params, timeoutMs) {
+    return new Promise(function(resolve, reject) {
+      var done = false;
+      var t = setTimeout(function(){
+        if (done) return;
+        done = true;
+        reject(new Error('timeout'));
+      }, (typeof timeoutMs === 'number' && timeoutMs > 0) ? timeoutMs : 25000);
+      gasGet(params).then(function(res){
+        if (done) return; done = true; clearTimeout(t); resolve(res);
+      }).catch(function(err){
+        if (done) return; done = true; clearTimeout(t); reject(err);
+      });
+    });
+  }
+
   // 和文英訳①: マイカツ君が採点中… overlay（点々アニメ付き）
   var _gradingDotsTimer = null;
   function _showWabun1Grading() {
