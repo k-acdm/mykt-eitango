@@ -131,6 +131,47 @@
     .kanji-level-btn-3  { background: linear-gradient(135deg, #5499c7, #2874a6); }
     .kanji-level-btn-j2 { background: linear-gradient(135deg, #a569bd, #7d3c98); }
     .kanji-level-btn-2  { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+    /* 2026-05-21 カンジー Recovery バリアント（基礎計算 commit 9b90177/076e64b と完全パラレル）。
+       カメラ撮影中の強制リロード → 再ログイン後に「前回の続きから再開」を実現するための UI 一式。
+       設計：localStorage mykt_kanji_recent_<level> に当日+前日の最新 5 セッションを保存。
+       past を線形走査して最初の未送信エントリを救済（採点済の裏に隠れる未送信を確実に拾う）。 */
+    /* 再開バナー（resume 中の表示、読み問題画面の上部） */
+    .kanji-resume-banner { background: linear-gradient(135deg,#fef3c7,#fde68a); border: 2px solid #f59e0b; border-radius: 10px; padding: 10px 14px; margin: 0 0 12px; color: #92400e; font-weight: bold; font-size: 14px; text-align: center; line-height: 1.5; }
+    /* プロモバナー（撮影前のログイン画面戻り後の救済導線、未送信エントリがある時のみ表示） */
+    .kanji-resume-promo { background: linear-gradient(135deg,#fff7ed,#ffedd5); border: 2.5px solid #f97316; border-radius: 14px; padding: 14px 16px 16px; margin: 0 0 16px; text-align: center; box-shadow: 0 4px 14px rgba(249,115,22,.18); animation: kanjiResumePromoPulse 1.8s ease-in-out infinite; }
+    .kanji-resume-promo-note { font-size: 11.5px; color: #9a3412; opacity: .85; margin-bottom: 4px; line-height: 1.4; }
+    .kanji-resume-promo-title { font-size: 18px; font-weight: 900; color: #c2410c; line-height: 1.4; margin-bottom: 6px; letter-spacing: .3px; }
+    .kanji-resume-promo-apology { font-size: 12px; color: #9a3412; line-height: 1.5; margin-bottom: 12px; }
+    .kanji-resume-promo-btn { display: inline-block; width: 100%; padding: 14px 16px; background: linear-gradient(135deg,#f97316,#ea580c); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(234,88,12,.35); transition: transform .12s, box-shadow .12s; line-height: 1.4; }
+    .kanji-resume-promo-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(234,88,12,.45); }
+    .kanji-resume-promo-btn:active { transform: translateY(0); box-shadow: 0 2px 6px rgba(234,88,12,.35); }
+    @keyframes kanjiResumePromoPulse { 0%, 100% { box-shadow: 0 4px 14px rgba(249,115,22,.18); } 50% { box-shadow: 0 4px 22px rgba(249,115,22,.45); } }
+    /* 過去セッションセクション（読み問題画面の下部） */
+    .kanji-past-section { margin-top: 24px; padding: 16px 14px 18px; background: #f5f3ff; border: 2px solid #c4b5fd; border-radius: 12px; }
+    .kanji-past-section-title { font-size: 14px; font-weight: bold; color: #5b21b6; margin-bottom: 4px; }
+    .kanji-past-section-desc { font-size: 12px; color: #6d28d9; opacity: .85; line-height: 1.5; margin-bottom: 12px; }
+    .kanji-past-section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .kanji-past-btn { padding: 12px 10px; border: 2px solid; border-radius: 10px; background: #fff; font-family: inherit; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; flex-direction: column; gap: 4px; align-items: center; transition: transform .1s, box-shadow .1s; }
+    .kanji-past-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,.08); }
+    .kanji-past-btn:disabled { cursor: not-allowed; opacity: .6; }
+    .kanji-past-btn .kanji-past-btn-label { color: #374151; }
+    .kanji-past-btn .kanji-past-btn-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold; }
+    .kanji-past-btn.unsent { border-color: #f97316; background: #fff7ed; }
+    .kanji-past-btn.unsent .kanji-past-btn-badge { background: #f97316; color: #fff; }
+    .kanji-past-btn.graded { border-color: #10b981; background: #ecfdf5; }
+    .kanji-past-btn.graded .kanji-past-btn-badge { background: #10b981; color: #fff; }
+    .kanji-past-btn.empty { border-color: #d1d5db; background: #f9fafb; color: #9ca3af; }
+    .kanji-past-btn.empty .kanji-past-btn-badge { background: #9ca3af; color: #fff; }
+    @media (max-width: 480px) {
+      .kanji-resume-promo { padding: 12px 14px 14px; }
+      .kanji-resume-promo-note { font-size: 11px; }
+      .kanji-resume-promo-title { font-size: 17px; margin-bottom: 6px; }
+      .kanji-resume-promo-apology { font-size: 11.5px; margin-bottom: 10px; }
+      .kanji-resume-promo-btn { font-size: 14.5px; padding: 13px 14px; }
+      .kanji-past-section { padding: 14px 12px 16px; }
+      .kanji-past-btn { font-size: 12.5px; padding: 11px 8px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .kanji-resume-promo { animation: none; } }
     .kanji-yomi-q-card { background: #fff; border: 2px solid #fcd34d; border-radius: 14px; padding: 18px 16px; margin: 10px 0; box-shadow: 0 3px 10px rgba(0,0,0,.06); font-size: 18px; line-height: 1.8; color: #1f2937; }
     .kanji-yomi-q-num { display: inline-block; background: #f97316; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
     .kanji-yomi-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
@@ -3510,6 +3551,15 @@
 <div id="screen-kanji-yomi" class="screen">
   <header><h1>🖌️ 読み問題</h1><span id="kanji-yomi-prog">0 / 0</span></header>
   <div class="container" style="padding-top:14px">
+    <!-- 2026-05-21 Recovery バリアント：再開バナー（resume 中の表示） -->
+    <div id="kanji-resume-banner" class="kanji-resume-banner" style="display:none">📂 未送信のセッションを再開しました。<br>もう一度「読み」テストからで、ゴメンナサイ！🙇‍♂️💦</div>
+    <!-- 2026-05-21 Recovery バリアント：プロモバナー（未送信の前回セッションがあるときだけ表示） -->
+    <div id="kanji-resume-promo" class="kanji-resume-promo" style="display:none">
+      <div class="kanji-resume-promo-note">📂（撮影前にログイン画面に戻ってしまった場合）</div>
+      <div class="kanji-resume-promo-title">前回の続きから再開できます！</div>
+      <div class="kanji-resume-promo-apology">※もう一度「読み」テストからで、ゴメンナサイ！🙇‍♂️💦</div>
+      <button class="kanji-resume-promo-btn" onclick="onKanjiResumePromoClick()">👉 ログイン画面に戻る直前の問題を再表示する</button>
+    </div>
     <div class="kanjii-mate-row">
       <img class="kanjii-img" id="kanjii-img-yomi" src="images/kanjii-thinking.png" alt="カンジー">
       <div class="kanjii-bubble" id="kanjii-bubble-yomi">まずは読み方をテストしよう！</div>
@@ -3517,6 +3567,15 @@
     <div id="kanji-yomi-q-area"></div>
     <div id="kanji-yomi-feedback" class="kanji-yomi-feedback"></div>
     <button class="btn-wide" id="kanji-yomi-next-btn" style="display:none" onclick="kanjiYomiNext()">次の問題へ →</button>
+    <!-- 2026-05-21 Recovery バリアント：過去セッションセクション（当日+前日の直近 1-2 件） -->
+    <div id="kanji-past-section" class="kanji-past-section" style="display:none">
+      <div class="kanji-past-section-title">📚 過去のセッションを見直す</div>
+      <div class="kanji-past-section-desc">当日 + 前日の直近セッションを再表示できます。<br>「未送信」をタップ → 同じ問題で再開（読みからやり直し）。</div>
+      <div class="kanji-past-section-grid">
+        <button class="kanji-past-btn empty" id="kanji-past-btn-1" disabled onclick="onKanjiPastBtnClick(1)"><span class="kanji-past-btn-label">1つ前</span><span class="kanji-past-btn-badge">該当なし</span></button>
+        <button class="kanji-past-btn empty" id="kanji-past-btn-2" disabled onclick="onKanjiPastBtnClick(2)"><span class="kanji-past-btn-label">2つ前</span><span class="kanji-past-btn-badge">該当なし</span></button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -9316,15 +9375,189 @@
     kakiResults: [],
     kakiPassed: false,
     isKakiRetry: false,
-    retryAnswers: []      // 再挑戦時に渡す対象のみ [{kanjiId, no, answer}]
+    retryAnswers: [],     // 再挑戦時に渡す対象のみ [{kanjiId, no, answer}]
+    isResumed: false      // 2026-05-21 Recovery バリアント：localStorage から resume された場合 true
   };
   function _kanjiResetState() {
     _kanjiState = {
       level: '', count: 0, sessionId: '', questions: [],
       yomiCurrent: 0, yomiAnswers: [], yomiScore: 0, yomiPassed: false,
       kakiPhotoDataUrl: '', kakiPhotoBase64: '', kakiResults: [], kakiPassed: false,
-      isKakiRetry: false, retryAnswers: []
+      isKakiRetry: false, retryAnswers: [],
+      isResumed: false
     };
+  }
+
+  // =====================================================
+  // カンジー Recovery バリアント（2026-05-21、基礎計算 commit 9b90177/076e64b と完全パラレル）
+  // =====================================================
+  // 単元（level）ごとに直近セッションを localStorage に保存。
+  // - mykt_kanji_recent_<level> = [ { sessionId, level, count, seenAt, seenDateKey,
+  //                                    questions:[...], submission:null|{...} } ]
+  // - 新しい順で arr[0] = 「現在進行中のセッション」、arr[1] = 「1つ前」、arr[2] = 「2つ前」
+  // - 当日 + 前日のエントリのみ残す（古いものは破棄）。上限 5 件で安全側
+  // - submission === null → 未送信、submission !== null → 採点済み
+  // - 再開時は読み問題からやり直し（書き合格未確定状態の復元は複雑度回避のため不採用）
+  var KANJI_RECENT_MAX = 5;
+  function _kanjiRecentKey(level) { return 'mykt_kanji_recent_' + String(level || ''); }
+  function _kanjiLoadRecentSessions(level) {
+    if (!level) return [];
+    try {
+      var raw = localStorage.getItem(_kanjiRecentKey(level));
+      var arr = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(arr)) return [];
+      var today = _todayKeyJST3am();
+      var yest  = _yesterdayKeyJST3am();
+      arr = arr.filter(function(e){ return e && (e.seenDateKey === today || e.seenDateKey === yest); });
+      if (arr.length > KANJI_RECENT_MAX) arr = arr.slice(0, KANJI_RECENT_MAX);
+      return arr;
+    } catch(e) { return []; }
+  }
+  function _kanjiSaveRecentSessions(level, arr) {
+    try { localStorage.setItem(_kanjiRecentKey(level), JSON.stringify(arr || [])); } catch(e){}
+  }
+  // セッション開始直後に呼ぶ：localStorage の先頭に 1 件追加（submission は null）
+  function _kanjiSaveSessionStart(sessionMeta) {
+    if (!sessionMeta || !sessionMeta.level || !sessionMeta.sessionId) return;
+    var arr = _kanjiLoadRecentSessions(sessionMeta.level);
+    // 同じ sessionId が既にあれば差し替え（resume 時の重複防止）
+    arr = arr.filter(function(e){ return e.sessionId !== sessionMeta.sessionId; });
+    arr.unshift({
+      sessionId:   sessionMeta.sessionId,
+      level:       sessionMeta.level,
+      count:       sessionMeta.count || 0,
+      seenAt:      Date.now(),
+      seenDateKey: _todayKeyJST3am(),
+      questions:   sessionMeta.questions || [],
+      submission:  null
+    });
+    if (arr.length > KANJI_RECENT_MAX) arr = arr.slice(0, KANJI_RECENT_MAX);
+    _kanjiSaveRecentSessions(sessionMeta.level, arr);
+  }
+  // 採点完了時に呼ぶ：該当 sessionId の submission を更新（合格/不合格どちらも採点済として記録）
+  function _kanjiUpdateSessionSubmission(level, sessionId, submissionData) {
+    if (!level || !sessionId) return;
+    var arr = _kanjiLoadRecentSessions(level);
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i].sessionId === sessionId) {
+        arr[i].submission = submissionData;
+        break;
+      }
+    }
+    _kanjiSaveRecentSessions(level, arr);
+  }
+  // 読み問題画面で過去セッションボタン群を描画 + プロモバナーを判定
+  // 表示条件：past を線形走査して最初の未送信エントリがあれば promo を表示
+  // （076e64b で基礎計算に適用した「採点済の裏に隠れる未送信を救済」ロジックと同じ）
+  function _kanjiRenderPastButtons() {
+    var section = document.getElementById('kanji-past-section');
+    var promo   = document.getElementById('kanji-resume-promo');
+    if (!section) return;
+    var level = _kanjiState.level;
+    if (!level) {
+      section.style.display = 'none';
+      if (promo) promo.style.display = 'none';
+      return;
+    }
+    var arr = _kanjiLoadRecentSessions(level);
+    var current = _kanjiState.sessionId;
+    var past = arr.filter(function(e){ return e.sessionId !== current; });
+    var hasAny = past.length > 0;
+    section.style.display = hasAny ? 'block' : 'none';
+    if (promo) {
+      var unsentEntry = null;
+      for (var i = 0; i < past.length; i++) {
+        if (past[i] && !past[i].submission) { unsentEntry = past[i]; break; }
+      }
+      if (unsentEntry) {
+        promo.setAttribute('data-resume-session-id', String(unsentEntry.sessionId || ''));
+        promo.style.display = 'block';
+      } else {
+        promo.setAttribute('data-resume-session-id', '');
+        promo.style.display = 'none';
+      }
+    }
+    if (!hasAny) return;
+    [1, 2].forEach(function(pos){
+      var btn = document.getElementById('kanji-past-btn-' + pos);
+      if (!btn) return;
+      var entry = past[pos - 1] || null;
+      btn.classList.remove('unsent', 'graded', 'empty');
+      btn.disabled = false;
+      if (!entry) {
+        btn.classList.add('empty');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="kanji-past-btn-label">' + pos + 'つ前</span>'
+                      + '<span class="kanji-past-btn-badge">該当なし</span>';
+        return;
+      }
+      var graded = !!entry.submission;
+      btn.classList.add(graded ? 'graded' : 'unsent');
+      btn.innerHTML = '<span class="kanji-past-btn-label">' + pos + 'つ前</span>'
+                    + '<span class="kanji-past-btn-badge">' + (graded ? '採点済み' : '未送信') + '</span>';
+    });
+  }
+  // 過去セッション再開：localStorage entry から _kanjiState を復元し、読み問題からやり直す
+  function _resumeKanjiSession(entry) {
+    if (!entry || !entry.sessionId) return;
+    _kanjiResetState();
+    _kanjiState.sessionId   = entry.sessionId;
+    _kanjiState.level       = entry.level || '';
+    _kanjiState.count       = entry.count || (entry.questions ? entry.questions.length : 0);
+    _kanjiState.questions   = entry.questions || [];
+    _kanjiState.yomiCurrent = 0;
+    _kanjiState.yomiAnswers = [];
+    _kanjiState.yomiScore   = 0;
+    _kanjiState.isResumed   = true;
+    // localStorage の先頭に再 unshift（順序を最新化、submission は null のままリセット扱い）
+    _kanjiSaveSessionStart({
+      sessionId: entry.sessionId,
+      level:     entry.level,
+      count:     entry.count,
+      questions: entry.questions
+    });
+    showScreen('screen-kanji-yomi');
+    // 再開バナー表示
+    var banner = document.getElementById('kanji-resume-banner');
+    if (banner) banner.style.display = 'block';
+    // 最初の読み問題を描画
+    _renderKanjiYomiQuestion();
+    // 過去セクション再描画
+    _kanjiRenderPastButtons();
+  }
+  // ボタン押下：1つ前 / 2つ前のセッションを再開
+  function onKanjiPastBtnClick(pos) {
+    var level = _kanjiState.level;
+    if (!level) return;
+    var arr = _kanjiLoadRecentSessions(level);
+    var current = _kanjiState.sessionId;
+    var past = arr.filter(function(e){ return e.sessionId !== current; });
+    var entry = past[pos - 1];
+    if (!entry) return;
+    var msg = entry.submission
+      ? '「採点済み」のセッションを再表示しますか？\n（同じ問題で「読み」から、もう一度挑戦できます）'
+      : '「未送信」のセッションを再開しますか？\n（同じ問題で「読み」から再開します）';
+    if (!confirm(msg)) return;
+    _resumeKanjiSession(entry);
+  }
+  // プロモバナー専用：data-resume-session-id で指定された未送信セッションを resume
+  // _kanjiRenderPastButtons で past 中の最初の未送信エントリを特定して属性にセットしているため、
+  // 「採点済の裏に隠れている未送信」も含めて確実にそのセッションを再開できる。
+  function onKanjiResumePromoClick() {
+    var promo = document.getElementById('kanji-resume-promo');
+    if (!promo) return;
+    var targetSid = String(promo.getAttribute('data-resume-session-id') || '').trim();
+    if (!targetSid) return;
+    var level = _kanjiState.level;
+    if (!level) return;
+    var arr = _kanjiLoadRecentSessions(level);
+    var current = _kanjiState.sessionId;
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i] && arr[i].sessionId === targetSid && arr[i].sessionId !== current) {
+        _resumeKanjiSession(arr[i]);
+        return;
+      }
+    }
   }
   // 問題文の {xxx} を <span class="kanji-emphasis">xxx</span> に変換
   function _kanjiRenderEmphasis(text) {
@@ -9494,8 +9727,21 @@
       _kanjiState.yomiCurrent = 0;
       _kanjiState.yomiAnswers = [];
       _kanjiState.yomiScore = 0;
+      _kanjiState.isResumed = false;  // 2026-05-21：新規セッションなので resume 状態を解除
+      // 2026-05-21 Recovery バリアント：localStorage 先頭に新セッションを記録
+      _kanjiSaveSessionStart({
+        sessionId: _kanjiState.sessionId,
+        level:     _kanjiState.level,
+        count:     _kanjiState.count,
+        questions: _kanjiState.questions
+      });
+      // 再開バナーは新規開始では非表示
+      var resumeBn = document.getElementById('kanji-resume-banner');
+      if (resumeBn) resumeBn.style.display = 'none';
       _renderKanjiYomiQuestion();
       showScreen('screen-kanji-yomi');
+      // 過去セッションボタン + プロモバナーの表示判定
+      _kanjiRenderPastButtons();
     }).catch(function(){
       alert('通信に失敗しました。もう一度お試しください。');
     });
@@ -9760,6 +10006,17 @@
       }
       _kanjiState.kakiResults = res.results || [];
       _kanjiState.kakiPassed = !!res.passed;
+      // 2026-05-21 Recovery バリアント：採点完了 → localStorage の submission を更新
+      // 合格/不合格どちらも「採点済」として記録（過去セッション UI で「採点済み」バッジ表示）
+      try {
+        _kanjiUpdateSessionSubmission(_kanjiState.level, _kanjiState.sessionId, {
+          passed:       !!res.passed,
+          correctCount: Number(res.correctCount || 0),
+          total:        Number(res.total || 0),
+          hpGained:     Number(res.hpGained || 0),
+          gradedAt:     Date.now()
+        });
+      } catch(_e) {}
       _showKanjiKakiResult(res);
     }).catch(function(err){
       submitBtn.disabled = false;
