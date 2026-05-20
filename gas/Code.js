@@ -1063,6 +1063,9 @@ function doGet(e) {
       else if (action === 'getCalcTrialTodayCount')      result = getCalcTrialTodayCount(params);
       else if (action === 'getCalendarMonthSummary') result = getCalendarMonthSummary(params);
       else if (action === 'getCalendarDayDetail')    result = getCalendarDayDetail(params);
+      // 振り返りカレンダー（2026-05-20）：学習カレンダーと同パターン、admin/teacher 両ロール
+      else if (action === 'getReflectionMonthSummary') result = getReflectionMonthSummary(params);
+      else if (action === 'getReflectionDayDetail')    result = getReflectionDayDetail(params);
       else if (action === 'getStudentView') result = getStudentView(params);  
       else if (action === 'getSangoTopic')             result = getSangoTopic();
       else if (action === 'submitSango')               result = submitSango(params);
@@ -9535,6 +9538,15 @@ function submitReflection(params) {
       stuLoc.sheetName
     ]);
 
+    // 2026-05-20：振り返りカレンダーの月単位サマリキャッシュを無効化
+    //   - date は教育日基準 'yyyy-MM-dd'、yearMonth はその先頭 7 文字
+    //   - 学習カレンダー（getCalendarMonthSummary）と同パターンのキャッシュ運用
+    //   - 万一のキャッシュ層エラーで提出処理を巻き戻すのは過剰なので silent
+    try {
+      const ymKey = date.slice(0, 7);
+      _invalidateCache('cache_refl_month_' + ymKey);
+    } catch(_e) {}
+
     return {
       ok:           true,
       reflectionId: reflectionId,
@@ -10620,6 +10632,173 @@ function getCalendarDayDetail(params) {
     return { ok: true, date: date, students: students };
   } catch(err) {
     console.error('[getCalendarDayDetail]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// 振り返りカレンダー（2026-05-20 新設、admin/teacher 両ロール）
+// =====================================================
+// 仕様：学習カレンダー（getCalendarMonthSummary / getCalendarDayDetail）と同パターン。
+// データソース：Reflections シート（HPLog ではなく振り返り提出記録）。
+//
+// 公開関数：
+//   getReflectionMonthSummary(params)  — 月単位サマリ（CacheService 5 分 TTL、操作ログ）
+//   getReflectionDayDetail(params)     — 日付別一覧（リアルタイム反映、操作ログ）
+//
+// キャッシュ無効化：submitReflection 内で対応する月のキー（cache_refl_month_<YYYY-MM>）を
+//                  invalidate（学習カレンダーが saveAttempt 等で invalidate するのと同パターン）。
+// 操作ログ：admin/teacher の閲覧監査用、_logTeacherAction で REFLECTION_CALENDAR_VIEW /
+//          REFLECTION_DAY_VIEW を記録（既存 REFLECTION_VIEW と同構造）。
+
+// 指定月の各日付の振り返り件数 + 投稿者数を返す。
+// params: { yearMonth: 'YYYY-MM' }（admin/teacher 認証必須）
+// 戻り値: { ok, yearMonth, days: [{ date: 'YYYY-MM-DD', count, studentCount }] }
+//          count        = その日の振り返り総件数
+//          studentCount = その日のユニーク投稿者数
+// キャッシュ: cache_refl_month_<yearMonth>（5 分 TTL、書き込み時に invalidate）
+function getReflectionMonthSummary(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const ym = String((params && params.yearMonth) || '').trim();
+    if (!/^\d{4}-\d{2}$/.test(ym)) return { ok: false, message: 'yearMonth は YYYY-MM 形式で指定してください' };
+
+    const cacheKey = 'cache_refl_month_' + ym;
+    const result = _getCachedValues(cacheKey, 300, function() {
+      const ss = _ss();
+      const sh = ss.getSheetByName(SHEET_REFLECTIONS);
+      const days = {};
+      // 月初〜月末の枠を空オブジェクトで初期化
+      const year  = parseInt(ym.slice(0, 4), 10);
+      const month = parseInt(ym.slice(5, 7), 10);
+      const lastDay = new Date(year, month, 0).getDate();
+      for (let d = 1; d <= lastDay; d++) {
+        const ds = ym + '-' + (d < 10 ? '0' + d : String(d));
+        days[ds] = { count: 0, sids: {} };
+      }
+      if (sh && sh.getLastRow() >= 2) {
+        const values = sh.getDataRange().getValues();
+        const header = values[0];
+        const iSid  = header.indexOf('studentId');
+        const iDate = header.indexOf('date');
+        if (iSid < 0 || iDate < 0) {
+          return { yearMonth: ym, days: Object.keys(days).sort().map(function(ds){
+            return { date: ds, count: 0, studentCount: 0 };
+          })};
+        }
+        for (let i = 1; i < values.length; i++) {
+          const r = values[i];
+          const ds = String(r[iDate] || '').trim();
+          if (!ds || !days[ds]) continue;
+          const sid = String(r[iSid] || '').trim();
+          if (!sid) continue;
+          days[ds].count += 1;
+          days[ds].sids[sid] = true;
+        }
+      }
+      const list = [];
+      Object.keys(days).sort().forEach(function(ds){
+        list.push({
+          date:         ds,
+          count:        days[ds].count,
+          studentCount: Object.keys(days[ds].sids).length
+        });
+      });
+      return { yearMonth: ym, days: list };
+    });
+
+    // 操作ログ（学習カレンダーには無いが、振り返りは「個人情報＋心情吐露」を含むため
+    // 閲覧の事実を必ず記録する。cache hit でもログ記録）
+    try {
+      _logTeacherAction(_teacher.teacherId, 'REFLECTION_CALENDAR_VIEW', '', 'success', {
+        yearMonth: ym
+      });
+    } catch(_e) {}
+
+    return { ok: true, yearMonth: result.yearMonth, days: result.days };
+  } catch (err) {
+    console.error('[getReflectionMonthSummary]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 指定日の全 Reflections を時刻昇順で返す。
+// params: { date: 'YYYY-MM-DD' }（admin/teacher 認証必須）
+// 戻り値: { ok, date, reflections: [
+//   { reflectionId, studentId, studentName, nickname, grade,
+//     timestamp, content, wordCount }, ...
+// ] }
+// 学齢（grade）は Students/SpecialAccounts の GRADE_LEVEL 列。未設定なら空文字。
+// キャッシュなし（リアルタイム反映優先、本文が動的に追加される可能性あり）
+function getReflectionDayDetail(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const date = String((params && params.date) || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, message: 'date は YYYY-MM-DD 形式で指定してください' };
+
+    // sid → 氏名 / ニックネーム / 学年（Students + SpecialAccounts join、学習カレンダーと同パターン）
+    const stuValues = _getAllAccountsValues();
+    const stuMap = {};
+    if (stuValues && stuValues.length >= 2) {
+      const gradeColIdx = _findGradeLevelColIdx(stuValues);
+      for (let i = 1; i < stuValues.length; i++) {
+        const sid = String(stuValues[i][COL_ID] || '').trim();
+        if (!sid) continue;
+        stuMap[sid] = {
+          name:     String(stuValues[i][COL_NAME]     || '').trim(),
+          nickname: String(stuValues[i][COL_NICKNAME] || '').trim(),
+          grade:    gradeColIdx >= 0 ? String(stuValues[i][gradeColIdx] || '').trim() : ''
+        };
+      }
+    }
+
+    // Reflections シート走査（指定日のみ）
+    const sh = _ss().getSheetByName(SHEET_REFLECTIONS);
+    const out = [];
+    if (sh && sh.getLastRow() >= 2) {
+      const values  = sh.getDataRange().getValues();
+      const header  = values[0];
+      const iId      = header.indexOf('reflectionId');
+      const iSid     = header.indexOf('studentId');
+      const iDate    = header.indexOf('date');
+      const iTs      = header.indexOf('timestamp');
+      const iContent = header.indexOf('content');
+      const iWc      = header.indexOf('wordCount');
+      if (iSid >= 0 && iDate >= 0) {
+        for (let i = 1; i < values.length; i++) {
+          const r = values[i];
+          if (String(r[iDate] || '').trim() !== date) continue;
+          const sid = String(r[iSid] || '').trim();
+          const info = stuMap[sid] || { name: '', nickname: '', grade: '' };
+          out.push({
+            reflectionId: String((iId      >= 0 ? r[iId]      : '') || ''),
+            studentId:    sid,
+            studentName:  info.name,
+            nickname:     info.nickname,
+            grade:        info.grade,
+            timestamp:    String((iTs      >= 0 ? r[iTs]      : '') || ''),
+            content:      String((iContent >= 0 ? r[iContent] : '') || ''),
+            wordCount:    Number((iWc      >= 0 ? r[iWc]      : 0)) || 0
+          });
+        }
+      }
+    }
+    // 時刻昇順（朝→夜の流れで生徒の様子が見える、ふくちさん 2026-05-20 確定）
+    out.sort(function(a, b) { return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; });
+
+    // 操作ログ（生徒指導の文脈で重要：「誰が」「何月何日の振り返りを」「何件」見たか）
+    try {
+      _logTeacherAction(_teacher.teacherId, 'REFLECTION_DAY_VIEW', '', 'success', {
+        date:     date,
+        returned: out.length
+      });
+    } catch(_e) {}
+
+    return { ok: true, date: date, reflections: out };
+  } catch (err) {
+    console.error('[getReflectionDayDetail]', err);
     return { ok: false, message: String(err) };
   }
 }
