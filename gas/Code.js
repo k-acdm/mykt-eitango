@@ -3214,10 +3214,18 @@ function apologyKisoBonus(opts) {
 // 実行方法（管理者専用、GAS エディタからのみ）:
 //   1. GAS エディタの関数ドロップダウンから `analyzeHpLog90Days` を選択
 //   2. ▶ 実行ボタンを押下
-//   3. 「実行ログ」（View → Executions、または ⌘+Enter で開く Logger 出力）の
-//      「===== analyzeHpLog90Days RESULT (copy below) =====」〜「===== END =====」
-//      の間にある JSON を全選択コピー
-//   4. Claude に貼り戻して整形レポート化を依頼
+//   3. スプレッドシートを開き、新しく作成された
+//      `HpAnalysisResult_YYYY-MM-DD-HHmmss` シートを参照
+//      （実行ログにも「結果はシート XXX に書き出しました」と表示される）
+//   4. シート上部の構造化テーブル（メタ / byGrade / byContent / heavyUsers / rawDistribution）
+//      で人間が確認、最下部の「JSON 全文」チャンクを B 列縦に連結すれば
+//      完全な JSON を再構築可能
+//   5. Claude に貼り戻して整形レポート化を依頼
+//
+// 履歴管理: 毎回新規シートを作成（日付サフィックス式）。不要になったら手動で削除。
+//
+// 補足: 旧仕様（Logger.log への JSON ダンプ）が必要な場合は opts.skipSheetWrite=true を渡す。
+//       ただし大規模 result は Logger.log の 8000 文字制限で truncate されるため非推奨。
 //
 // 引数（任意）:
 //   opts.days           : 集計日数（既定 90、実行日から N 日前を起点）
@@ -3511,15 +3519,186 @@ function analyzeHpLog90Days(opts) {
       rawDistribution: rawDistribution
     };
 
-    Logger.log('===== analyzeHpLog90Days RESULT (copy below) =====');
-    Logger.log(JSON.stringify(result, null, 2));
-    Logger.log('===== END =====');
+    // ===== 結果出力 =====
+    // 既定: スプレッドシートに HpAnalysisResult_YYYY-MM-DD-HHmmss シートを新規作成して書き出し
+    //       （Logger.log は 8000 文字程度で切れるため大規模 result を保持できない問題への対応）
+    // opts.skipSheetWrite=true なら従来通り Logger.log のみ
+    if (!opts.skipSheetWrite) {
+      try {
+        const writtenSheetName = _writeHpAnalysisToSheet(result);
+        Logger.log('===== analyzeHpLog90Days 完了 =====');
+        Logger.log('結果はシート「' + writtenSheetName + '」に書き出しました。');
+        Logger.log('構造化テーブル（メタ / byGrade / byContent / heavyUsers / rawDistribution）');
+        Logger.log('+ JSON 全文（チャンク分割）の両方を含みます。');
+        result.meta = result.meta || {};
+        result.meta.writtenSheetName = writtenSheetName;
+      } catch (writeErr) {
+        console.error('[analyzeHpLog90Days writeSheet]', writeErr);
+        Logger.log('[analyzeHpLog90Days] シート書き出しエラー: ' + String(writeErr));
+        Logger.log('フォールバックで Logger.log に出力します（途中で切れる可能性あり）:');
+        Logger.log('===== analyzeHpLog90Days RESULT (copy below) =====');
+        Logger.log(JSON.stringify(result, null, 2));
+        Logger.log('===== END =====');
+      }
+    } else {
+      Logger.log('===== analyzeHpLog90Days RESULT (copy below) =====');
+      Logger.log(JSON.stringify(result, null, 2));
+      Logger.log('===== END =====');
+    }
     return result;
   } catch (err) {
     console.error('[analyzeHpLog90Days]', err);
     Logger.log('[analyzeHpLog90Days] エラー: ' + String(err));
     return { ok: false, message: String(err) };
   }
+}
+
+// =============================================
+// HP 分析結果のスプレッドシート書き出しヘルパー
+// =============================================
+// analyzeHpLog90Days() の result を `HpAnalysisResult_YYYY-MM-DD-HHmmss` シートに
+// 書き出す。Logger.log の 8000 文字制限を回避するため。
+//
+// 出力構造（A3 ハイブリッド方式）:
+//   Section 1: メタ情報
+//   Section 2: byGrade サマリ表
+//   Section 3: byGrade Top5 / Bottom5
+//   Section 4: byContent
+//   Section 5: heavyUsers 詳細
+//   Section 6: rawDistribution
+//   Section 7: JSON 全文（40000 文字ごとのチャンクに分割、コピペで完全復元可能）
+//
+// 履歴管理: 毎回新規シート作成（日付サフィックス式）。手動で古いシートを削除する運用。
+function _writeHpAnalysisToSheet(result) {
+  const tz = 'Asia/Tokyo';
+  const now = new Date();
+  const suffix = Utilities.formatDate(now, tz, 'yyyy-MM-dd-HHmmss');
+  const sheetName = 'HpAnalysisResult_' + suffix;
+  const ss = _ss();
+
+  // ほぼ衝突しない命名だが念のため
+  const existing = ss.getSheetByName(sheetName);
+  if (existing) ss.deleteSheet(existing);
+  const sheet = ss.insertSheet(sheetName);
+
+  const rows = [];
+  function add(row) { rows.push(row); }
+  function blank() { rows.push(['']); }
+
+  // ===== Section 1: Meta =====
+  add(['===== HP分析結果 (analyzeHpLog90Days) =====']);
+  const meta = result.meta || {};
+  add(['実行日時', meta.executedAt || '']);
+  add(['集計範囲', (meta.rangeStart || '') + ' 〜 ' + (meta.rangeEnd || '')]);
+  add(['集計日数', meta.days || '']);
+  add(['ヘビーユーザー閾値（連続日数）', meta.heavyMinStreak || '']);
+  add(['ヘビーユーザー上位N', meta.heavyN || '']);
+  add(['短期集中型上位N', meta.shortBurstN || '']);
+  add(['SpecialAccounts含む', meta.includeSpecial ? 'TRUE' : 'FALSE']);
+  add(['除外type', (meta.excludedTypes || []).join(', ')]);
+  add(['Studentsマップ件数', meta.totalStudentsInMap || 0]);
+  add(['アクティブ生徒数', meta.totalActiveStudents || 0]);
+  add(['HPLog 走査行数', meta.hpLogRowsScanned || 0]);
+  add(['HPLog 範囲内行数', meta.hpLogRowsInRange || 0]);
+  add(['HPLog type除外行数', meta.hpLogRowsExcludedByType || 0]);
+  add(['HPLog 未知sid行数', meta.hpLogRowsUnknownSid || 0]);
+  blank();
+
+  // ===== Section 2: byGrade サマリ =====
+  add(['===== byGrade サマリ =====']);
+  add(['学齢', '件数', '合計HP', '平均', '中央値', 'p25', 'p75']);
+  ['小', '中', '高', '未設定'].forEach(function(g) {
+    const st = (result.byGrade && result.byGrade[g]) || {};
+    add([g, st.count || 0, st.sum || 0, st.mean || 0, st.median || 0, st.p25 || 0, st.p75 || 0]);
+  });
+  blank();
+
+  // ===== Section 3: byGrade Top5 / Bottom5 =====
+  ['小', '中', '高', '未設定'].forEach(function(g) {
+    const st = (result.byGrade && result.byGrade[g]) || {};
+    add(['----- ' + g + ' Top5 -----']);
+    if (st.top5 && st.top5.length) {
+      add(['sid', 'nick', 'grade', 'streak', 'hp90']);
+      st.top5.forEach(function(u) {
+        add([u.sid || '', u.nick || '', u.grade || '', u.streak || 0, u.hp90 || 0]);
+      });
+    } else {
+      add(['（該当なし）']);
+    }
+    add(['----- ' + g + ' Bottom5 -----']);
+    if (st.bottom5 && st.bottom5.length) {
+      add(['sid', 'nick', 'grade', 'streak', 'hp90']);
+      st.bottom5.forEach(function(u) {
+        add([u.sid || '', u.nick || '', u.grade || '', u.streak || 0, u.hp90 || 0]);
+      });
+    } else {
+      add(['（該当なし）']);
+    }
+    blank();
+  });
+
+  // ===== Section 4: byContent =====
+  add(['===== byContent =====']);
+  add(['type', '合計HP', '小', '中', '高', '未設定']);
+  const contentKeys = Object.keys(result.byContent || {}).sort(function(a, b) {
+    return (result.byContent[b].sum || 0) - (result.byContent[a].sum || 0);
+  });
+  contentKeys.forEach(function(ct) {
+    const c = result.byContent[ct] || {};
+    const bg = c.byGrade || {};
+    add([ct, c.sum || 0, bg['小'] || 0, bg['中'] || 0, bg['高'] || 0, bg['未設定'] || 0]);
+  });
+  blank();
+
+  // ===== Section 5: heavyUsers 詳細 =====
+  add(['===== heavyUsers 詳細 =====']);
+  add(['kind', 'sid', 'name', 'nickname', 'grade', 'streak', 'totalHP', 'hp90Days', 'hpPerDay', 'byContent (JSON)']);
+  (result.heavyUsers || []).forEach(function(u) {
+    add([u.kind || '', u.sid || '', u.name || '', u.nickname || '', u.grade || '',
+         u.streak || 0, u.totalHP || 0, u.hp90Days || 0, u.hpPerDay || 0,
+         JSON.stringify(u.byContent || {})]);
+  });
+  blank();
+
+  // ===== Section 6: rawDistribution =====
+  add(['===== rawDistribution（HP90降順）=====']);
+  ['小', '中', '高', '未設定'].forEach(function(g) {
+    const arr = (result.rawDistribution && result.rawDistribution[g]) || [];
+    add([g + '（' + arr.length + '件）', arr.join(', ')]);
+  });
+  blank();
+
+  // ===== Section 7: JSON 全文（チャンク分割）=====
+  add(['===== JSON 全文（コピペで完全復元可能）=====']);
+  add(['※ 下の B 列セルを上から順に連結すれば JSON が再構築できます']);
+  const json = JSON.stringify(result, null, 2);
+  const CHUNK = 40000; // Google Sheets セル上限 50000 文字に対する余裕枠
+  let pos = 0;
+  let chunkIdx = 1;
+  while (pos < json.length) {
+    const chunk = json.substring(pos, pos + CHUNK);
+    add(['chunk-' + chunkIdx, chunk]);
+    pos += CHUNK;
+    chunkIdx++;
+  }
+  add(['===== END =====']);
+
+  // 列数を揃えて一括書き込み
+  let maxCols = 0;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].length > maxCols) maxCols = rows[i].length;
+  }
+  const padded = rows.map(function(r) {
+    const out = r.slice();
+    while (out.length < maxCols) out.push('');
+    return out;
+  });
+  sheet.getRange(1, 1, padded.length, maxCols).setValues(padded);
+
+  // 列幅をラベル列だけ広めに（JSON 列は 40KB セルがあるため autoResize は使わない）
+  sheet.setColumnWidth(1, 280);
+
+  return sheetName;
 }
 
 // =============================================
