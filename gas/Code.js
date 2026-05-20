@@ -3586,7 +3586,9 @@ function _writeHpAnalysisToSheet(result) {
   function blank() { rows.push(['']); }
 
   // ===== Section 1: Meta =====
-  add(['===== HP分析結果 (analyzeHpLog90Days) =====']);
+  // セル先頭が = / + / - で始まる文字列は Sheets が数式として解釈して #ERROR! になるため
+  // セクション見出しは 【】 で囲む（2026-05-20 修正）
+  add(['【HP分析結果】 (analyzeHpLog90Days)']);
   const meta = result.meta || {};
   add(['実行日時', meta.executedAt || '']);
   add(['集計範囲', (meta.rangeStart || '') + ' 〜 ' + (meta.rangeEnd || '')]);
@@ -3605,7 +3607,7 @@ function _writeHpAnalysisToSheet(result) {
   blank();
 
   // ===== Section 2: byGrade サマリ =====
-  add(['===== byGrade サマリ =====']);
+  add(['【byGrade サマリ】']);
   add(['学齢', '件数', '合計HP', '平均', '中央値', 'p25', 'p75']);
   ['小', '中', '高', '未設定'].forEach(function(g) {
     const st = (result.byGrade && result.byGrade[g]) || {};
@@ -3616,7 +3618,7 @@ function _writeHpAnalysisToSheet(result) {
   // ===== Section 3: byGrade Top5 / Bottom5 =====
   ['小', '中', '高', '未設定'].forEach(function(g) {
     const st = (result.byGrade && result.byGrade[g]) || {};
-    add(['----- ' + g + ' Top5 -----']);
+    add(['【' + g + ' Top5】']);
     if (st.top5 && st.top5.length) {
       add(['sid', 'nick', 'grade', 'streak', 'hp90']);
       st.top5.forEach(function(u) {
@@ -3625,7 +3627,7 @@ function _writeHpAnalysisToSheet(result) {
     } else {
       add(['（該当なし）']);
     }
-    add(['----- ' + g + ' Bottom5 -----']);
+    add(['【' + g + ' Bottom5】']);
     if (st.bottom5 && st.bottom5.length) {
       add(['sid', 'nick', 'grade', 'streak', 'hp90']);
       st.bottom5.forEach(function(u) {
@@ -3638,7 +3640,7 @@ function _writeHpAnalysisToSheet(result) {
   });
 
   // ===== Section 4: byContent =====
-  add(['===== byContent =====']);
+  add(['【byContent】']);
   add(['type', '合計HP', '小', '中', '高', '未設定']);
   const contentKeys = Object.keys(result.byContent || {}).sort(function(a, b) {
     return (result.byContent[b].sum || 0) - (result.byContent[a].sum || 0);
@@ -3651,7 +3653,7 @@ function _writeHpAnalysisToSheet(result) {
   blank();
 
   // ===== Section 5: heavyUsers 詳細 =====
-  add(['===== heavyUsers 詳細 =====']);
+  add(['【heavyUsers 詳細】']);
   add(['kind', 'sid', 'name', 'nickname', 'grade', 'streak', 'totalHP', 'hp90Days', 'hpPerDay', 'byContent (JSON)']);
   (result.heavyUsers || []).forEach(function(u) {
     add([u.kind || '', u.sid || '', u.name || '', u.nickname || '', u.grade || '',
@@ -3661,7 +3663,7 @@ function _writeHpAnalysisToSheet(result) {
   blank();
 
   // ===== Section 6: rawDistribution =====
-  add(['===== rawDistribution（HP90降順）=====']);
+  add(['【rawDistribution】（HP90降順）']);
   ['小', '中', '高', '未設定'].forEach(function(g) {
     const arr = (result.rawDistribution && result.rawDistribution[g]) || [];
     add([g + '（' + arr.length + '件）', arr.join(', ')]);
@@ -3669,7 +3671,7 @@ function _writeHpAnalysisToSheet(result) {
   blank();
 
   // ===== Section 7: JSON 全文（チャンク分割）=====
-  add(['===== JSON 全文（コピペで完全復元可能）=====']);
+  add(['【JSON 全文】（コピペで完全復元可能）']);
   add(['※ 下の B 列セルを上から順に連結すれば JSON が再構築できます']);
   const json = JSON.stringify(result, null, 2);
   const CHUNK = 40000; // Google Sheets セル上限 50000 文字に対する余裕枠
@@ -3681,7 +3683,7 @@ function _writeHpAnalysisToSheet(result) {
     pos += CHUNK;
     chunkIdx++;
   }
-  add(['===== END =====']);
+  add(['【END】']);
 
   // 列数を揃えて一括書き込み
   let maxCols = 0;
