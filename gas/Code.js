@@ -9322,7 +9322,20 @@ function submitCalcTrialResult(params) {
     const counts      = _countCalcTrialSessionsToday(sid, today);
     const isPractice  = !isSpecial && counts.completed >= 2;
     const status      = isPractice ? 'practice' : 'completed';
-    const effectiveHp = isPractice ? 0 : totalHp;
+    // 2026-05-21：本番モードのみ週²倍率を適用（他コンテンツと同期、青天井で「ハマり状態」を作る設計）。
+    //   - 練習モードは 0 のまま（既存仕様維持）
+    //   - streak は Students/SpecialAccounts の STREAK 列、最低 1 でクランプ
+    //   - week = ceil(streak / 7)、倍率 = week²
+    //   - 例：連続  1〜7 日（week=1）→ 1 倍 / 連続  8〜14 日（week=2）→ 4 倍
+    //         連続 15〜21 日（week=3）→ 9 倍 / 連続 22〜28 日（week=4）→ 16 倍
+    //   - rawHp（素点） = クライアント計算の totalHp、HPLog の rawHP 列に保存
+    //   - effectiveHp（実 HP） = totalHp × week²、HPLog の hpGained 列 + Students.HP に加算
+    const streakRaw   = Number(stuLoc.rowValues[COL_STREAK]) || 1;
+    const streak      = streakRaw > 0 ? streakRaw : 1;
+    const week        = Math.ceil(streak / 7);
+    const weekMult    = week * week;
+    const rawHp       = isPractice ? 0 : totalHp;
+    const effectiveHp = isPractice ? 0 : (totalHp * weekMult);
     const hpLogType   = isPractice ? 'calctrial_practice' : 'calctrial';
 
     // ⑤ CalcTrialSessions に 1 行記録（_ensureSheetWithHeaders 経由でシート存在保証）。
@@ -9343,10 +9356,10 @@ function submitCalcTrialResult(params) {
     ]);
 
     // ⑥ HPLog に 1 行記録：
-    //    本番（completed）: type='calctrial'        / hp=totalHp
-    //    練習（practice）:  type='calctrial_practice' / hp=0（engagement のみ記録、Stage 計算には含めない）
+    //    本番（completed）: type='calctrial'         / rawHP=totalHp（素点） / hpGained=effectiveHp（倍率込）
+    //    練習（practice）:  type='calctrial_practice' / rawHP=0 / hpGained=0（engagement のみ記録、Stage 計算には含めない）
     //    両輪システム（_calculateHpWithReserve）は通さない：絶対ミッション対象外 + 努力全肯定
-    const logRes = _logHP(sid, effectiveHp, effectiveHp, hpLogType);
+    const logRes = _logHP(sid, rawHp, effectiveHp, hpLogType);
     if (!logRes.ok) {
       // HPLog 失敗時は CalcTrialSessions の行は残るが Students.HP は更新しない。
       // 再送信すると CalcTrialSessions が二重になるが、HP が二重加算される事故よりは軽微。
@@ -9358,7 +9371,8 @@ function submitCalcTrialResult(params) {
     //   練習モードは HP 加算をスキップ（生徒には「練習扱い」を明示してモチベ維持しつつ反映なし）。
     let newHP = Number(stuLoc.rowValues[COL_HP]) || 0;
     if (!isPractice) {
-      newHP = newHP + totalHp;
+      // 2026-05-21：週²倍率込の effectiveHp を加算（旧版は totalHp を直接加算していた）
+      newHP = newHP + effectiveHp;
       stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
       const updates = {};
       updates[COL_HP] = newHP;
@@ -9373,7 +9387,7 @@ function submitCalcTrialResult(params) {
     return {
       ok:              true,
       sessionId:       sessionId,
-      totalHp:         effectiveHp,           // 実際に付与された HP（練習は 0）
+      totalHp:         effectiveHp,           // 実際に付与された HP（倍率込、練習は 0）
       totalHpAfter:    newHP,
       totalCorrect:    totalCorrect,
       totalAnswered:   totalAnswered,
@@ -9382,7 +9396,12 @@ function submitCalcTrialResult(params) {
       accountType:     accountType,           // 特殊アカウント判定の参考
       todayCompleted:  counts.completed + (isPractice ? 0 : 1),  // 本送信反映後の本番回数
       todayPractice:   counts.practice   + (isPractice ? 1 : 0), // 本送信反映後の練習回数
-      calculatedHp:    totalHp                // クライアント側で計算した「もし本番だったら」の HP（UI 表示用）
+      calculatedHp:    totalHp,               // クライアント側で計算した素点 HP（倍率前、UI 表示用）
+      // 2026-05-21 追加：週²倍率の透明化（フロント側で「連続3週×素点XX = YY HP」表示に活用可）
+      rawHp:           rawHp,                 // 素点（クライアント計算の totalHp と一致、練習は 0）
+      streak:          streak,                // サーバー側で参照した連続日数（最低 1）
+      week:            week,                  // ceil(streak / 7)
+      weekMult:        weekMult               // week² = 倍率
     };
   } catch(err) {
     console.error('[submitCalcTrialResult]', err);

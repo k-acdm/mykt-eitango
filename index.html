@@ -1147,6 +1147,11 @@
     .content-btn.c-kobun     { background: linear-gradient(135deg,#f6ad55,#b45309); }
     /* 計算タイムトライアル「トラール」（2026-05-19 稼働化）：暖色系オレンジ〜赤（タイムアタック感、虎のエネルギー） */
     .content-btn.c-calctrial { background: linear-gradient(135deg,#ff9a3c,#ff5722); }
+    /* 2026-05-21：週²倍率適用に伴うアテンション獲得バナー（calctrial ボタン内、副題の下）。
+       橙赤グラデ背景に映える明黄色 + 軽い脈動。「青天井ハマり状態」設計の入口訴求。 */
+    .content-btn.c-calctrial .content-btn-hot { display: block; font-size: 13px; font-weight: 900; color: #fde047; margin-top: 4px; letter-spacing: .3px; text-shadow: 0 1px 2px rgba(0,0,0,.3); animation: ctHotPulse 1.6s ease-in-out infinite; }
+    @keyframes ctHotPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .88; transform: scale(1.04); } }
+    @media (prefers-reduced-motion: reduce) { .content-btn.c-calctrial .content-btn-hot { animation: none; } }
     /* 国語長文読解（2026-05-19 新設、準備中スケルトン）：青緑系（読書のしずかさ） */
     .content-btn.c-longread  { background: linear-gradient(135deg,#26d0ce,#1a9b9b); }
     /* フォニックスゲーム（2026-05-08 新設、準備中スケルトン）：桜色系で子供向けらしさ */
@@ -2510,6 +2515,7 @@
           <span class="badge-hp">HP＝頑張った分だけ！</span>
           <img class="ico-mascot" src="images/trial-default.png" alt="">計算タイムトライアル
           <span class="content-btn-sub">5分×2ラウンド、上限なし</span>
+          <span class="content-btn-hot">🔥 HP大量GETのチャンス！</span>
         </button>
         <button class="content-btn c-longread disabled" onclick="showComingSoon('国語長文読解')">
           <span class="badge-soon">準備中</span>
