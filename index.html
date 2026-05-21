@@ -1106,11 +1106,19 @@
       0%, 100% { opacity: 0.45; }
       50%      { opacity: 1; }
     }
+    /* 左端アイコン：白半透明の丸背景で暖色グラデに対するコントラストを確保（2026-05-21 改善） */
     .logout-reminder-icon {
+      flex-shrink: 0;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-size: 28px;
       line-height: 1;
-      flex-shrink: 0;
-      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.20), inset 0 1px 2px rgba(255,255,255,0.5);
       position: relative;
       z-index: 1;
     }
@@ -1132,6 +1140,36 @@
       opacity: 0.94;
       line-height: 1.45;
     }
+    /* バナー右端のログアウトボタン（2026-05-21 追加）：
+       ホーム画面の情報が増えて最下部ログアウトボタンへのスクロールが必要になった問題への対応。
+       バナーで動機付けしつつ即座にログアウトできる導線を併設する。既存最下部ボタンは温存。 */
+    .logout-reminder-btn {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.96);
+      border: 2px solid rgba(255, 255, 255, 0.92);
+      border-radius: 10px;
+      color: #c2410c;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.20);
+      position: relative;
+      z-index: 1;
+      transition: transform .12s, box-shadow .12s, background .12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .logout-reminder-btn:hover, .logout-reminder-btn:active {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.24);
+      background: #fff;
+    }
+    .logout-reminder-btn-icon  { font-size: 20px; line-height: 1; }
+    .logout-reminder-btn-label { font-size: 11px; letter-spacing: 0.3px; line-height: 1; margin-top: 2px; }
     /* 減速設定（prefers-reduced-motion）の生徒には脈動を無効化 */
     @media (prefers-reduced-motion: reduce) {
       .logout-reminder-banner::before { animation: none; opacity: 0.5; }
@@ -1139,9 +1177,12 @@
     /* レスポンシブ：480px 以下では文字を小さく + padding 縮小 */
     @media (max-width: 480px) {
       .logout-reminder-banner { padding: 10px 12px; gap: 10px; border-radius: 10px; margin-bottom: 14px; }
-      .logout-reminder-icon { font-size: 24px; }
+      .logout-reminder-icon { width: 42px; height: 42px; font-size: 24px; }
       .logout-reminder-main { font-size: 14px; }
       .logout-reminder-sub  { font-size: 11px; }
+      .logout-reminder-btn { padding: 6px 9px; }
+      .logout-reminder-btn-icon  { font-size: 18px; }
+      .logout-reminder-btn-label { font-size: 10px; }
     }
     .quote-card { background: linear-gradient(135deg,#a2e4ff 0%, #ffd3e8 100%); border-radius: 18px; padding: 18px 20px; color: #1a1a2e; box-shadow: 0 4px 16px rgba(162,228,255,.5); }
     .quote-label { font-size: 13px; font-weight: bold; color: #4f7df0; letter-spacing: 1px; margin-bottom: 6px; }
@@ -2467,6 +2508,11 @@
         <div class="logout-reminder-main">終わったら必ずログアウトしてね！</div>
         <div class="logout-reminder-sub">ログアウトしないと連続日数が途切れるよ！</div>
       </div>
+      <!-- バナー右端ログアウトボタン（2026-05-21 追加）：最下部ボタンは温存し、両方からアクセス可能に -->
+      <button type="button" class="logout-reminder-btn" onclick="doLogout()" aria-label="ログアウトする">
+        <span class="logout-reminder-btn-icon" aria-hidden="true">🚪</span>
+        <span class="logout-reminder-btn-label">ログアウト</span>
+      </button>
     </div>
 
     <!-- ① 今日の一言 -->
