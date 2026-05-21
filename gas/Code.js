@@ -8942,6 +8942,15 @@ function executeManualHpGrant(params) {
       }
     }
 
+    // 対象生徒の対象行特定（updates 配列を組み立て、HP 加算は _grantHP に委譲）
+    // 2026-05-20 Phase 3 Step 8-4：_grantHP 経由に統一
+    //   - 旧版：updates で hpGained / newHP を事前計算 → per-sid HP setValue → HPLog バルク appendRow
+    //   - 新版：updates は対象行特定のみ → per-sid _grantHP で _logHP + HP 更新を直列実行
+    //   - applyWeekMultiplier: applyBonus（チェックボックス値で week² 倍率の適用/非適用を切替）
+    //   - applyReserveSystem:false / checkCompletion:false … 手動付与は両輪 Phase A 対象外
+    //   - lockTimeoutMs:2000 で通常運用への影響を抑える
+    //   - message: reason 入力をそのまま HPLog.message 列に記録
+    //   - stuLoc 互換オブジェクトは rowBySid から構築（Students / SpecialAccounts 両対応）
     const updates = [];
     const notFound = [];
     let touchedSpecial = false;
@@ -8949,24 +8958,21 @@ function executeManualHpGrant(params) {
       if (!(sid in rowBySid)) { notFound.push(sid); return; }
       const r = rowBySid[sid];
       if (r.sheetName === SHEET_SPECIAL_ACCOUNTS) touchedSpecial = true;
-      const name   = String(r.values[COL_NAME]     || '').trim();
-      const streak = Math.max(1, Number(r.values[COL_STREAK]) || 1);
-      const week   = Math.ceil(streak / 7);
-      const mult   = applyBonus ? (week * week) : 1;
-      const hpGained = rawHp * mult;
-      const curHP    = Number(r.values[COL_HP]) || 0;
+      const name = String(r.values[COL_NAME] || '').trim();
       updates.push({
         sid:        sid,
         name:       name,
         sheet:      r.sheet,
         sheetName:  r.sheetName,
         rowIdx:     r.rowIdx,
-        streak:     streak,
-        week:       week,
-        multiplier: mult,
+        values:     r.values,
         rawHp:      rawHp,
-        hpGained:   hpGained,
-        newHP:      curHP + hpGained
+        // streak / week / multiplier / hpGained / newHP は _grantHP 呼び出し後に grant.* から取得
+        streak:     0,
+        week:       0,
+        multiplier: 0,
+        hpGained:   0,
+        newHP:      0
       });
     });
 
@@ -8974,29 +8980,48 @@ function executeManualHpGrant(params) {
       return { ok: false, message: '指定された生徒が見つかりません: ' + notFound.join(', ') };
     }
 
-    // Students / SpecialAccounts の HP 列を 1 件ずつ書き込み（行 index は事前に各シートで構築済）
+    // per-sid _grantHP 呼び出し：_logHP + Students.HP / SpecialAccounts.HP 更新を直列実行
+    let failedLogs = 0;
     for (let k = 0; k < updates.length; k++) {
       const u = updates[k];
-      u.sheet.getRange(u.rowIdx + 1, COL_HP + 1).setValue(u.newHP);
+      const stuLocAdapter = {
+        sheet:     u.sheet,
+        rowIdx:    u.rowIdx,
+        rowValues: u.values
+      };
+      const grant = _grantHP({
+        sid:                 u.sid,
+        type:                'manual_grant',
+        rawHp:               u.rawHp,
+        stuLoc:              stuLocAdapter,
+        message:             reason,
+        applyWeekMultiplier: applyBonus,        // 旧版互換：applyBonus=true → week² 倍率、false → 1 倍
+        applyReserveSystem:  false,             // 手動付与は両輪 Phase A 対象外
+        checkCompletion:     false,
+        lockTimeoutMs:       2000               // 通常運用への影響を抑える
+      });
+      if (grant.ok) {
+        // grant.* から実値を取得（旧版互換のフィールドを埋める）
+        u.streak     = grant.streak;
+        u.week       = grant.week;
+        u.multiplier = applyBonus ? (grant.week * grant.week) : 1;
+        u.hpGained   = grant.hpGained;
+        u.newHP      = grant.newHP;
+      } else {
+        // _grantHP 失敗時は HP 加算なし。失敗記録を u に追記し、表示用に旧版互換の値を埋める
+        failedLogs += 1;
+        u.logFailed  = true;
+        u.errorCode  = grant.errorCode || '';
+        u.streak     = Math.max(1, Number(u.values[COL_STREAK]) || 1);
+        u.week       = Math.ceil(u.streak / 7);
+        u.multiplier = applyBonus ? (u.week * u.week) : 1;
+        u.hpGained   = 0;
+        u.newHP      = Number(u.values[COL_HP]) || 0;
+      }
     }
 
-    // HPLog に 1 行ずつ記録（既存の 6 列構造を _ensureHpLogMessageColumn 経由で保証）
-    const log = _ensureHpLogMessageColumn();
-    const now = _nowJST();
-    const rowsToAppend = updates.map(function(u){
-      const row = new Array(log.lastCol).fill('');
-      if (log.cTimestamp >= 0) row[log.cTimestamp] = now;
-      if (log.cSid       >= 0) row[log.cSid]       = u.sid;
-      if (log.cRawHP     >= 0) row[log.cRawHP]     = u.rawHp;
-      if (log.cHpGained  >= 0) row[log.cHpGained]  = u.hpGained;
-      if (log.cType      >= 0) row[log.cType]      = 'manual_grant';
-      if (log.cMessage   >= 0) row[log.cMessage]   = reason;
-      return row;
-    });
-    log.sh.getRange(log.sh.getLastRow() + 1, 1, rowsToAppend.length, log.lastCol)
-          .setValues(rowsToAppend);
-
-    // cache invalidate（書き込みが行われたシートの cache を破棄。SpecialAccounts も touched なら同様）
+    // cache invalidate（_grantHP は per-sid で cache_ranking_last_week を invalidate するが、
+    // cache_students_values / cache_special_accounts_values は in-place 更新のみのため明示的に invalidate）
     _invalidateCache('cache_students_values');
     if (touchedSpecial) _invalidateCache('cache_special_accounts_values');
     _invalidateCache('cache_ranking_last_week');
@@ -9010,6 +9035,7 @@ function executeManualHpGrant(params) {
       reason:        reason,
       count:         updates.length,
       notFoundCount: notFound.length,
+      failedLogs:    failedLogs,
       totalHp:       updates.reduce(function(s,u){return s + u.hpGained;}, 0)
     });
 
@@ -9023,16 +9049,18 @@ function executeManualHpGrant(params) {
         week:       u.week,
         multiplier: u.multiplier,
         rawHp:      u.rawHp,
-        hpGained:   u.hpGained
+        hpGained:   u.hpGained,
+        logFailed:  !!u.logFailed
       };
     });
 
     return {
       ok: true,
-      results:  results,
-      totalHp:  totalHp,
-      notFound: notFound,
-      reason:   reason,
+      results:    results,
+      totalHp:    totalHp,
+      notFound:   notFound,
+      failedLogs: failedLogs,
+      reason:     reason,
       applyBonus: applyBonus
     };
   } catch(err) {
