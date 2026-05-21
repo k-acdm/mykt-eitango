@@ -2914,30 +2914,51 @@ function apologyStreakBonus(opts) {
       };
     }
 
-    // 本番実行: STREAK 列の一括書き込み
+    // 本番実行（2026-05-20 Phase 3 Step 8-1：_grantHP 経由に統一）
+    //   - 旧版：STREAK 列の一括 setValue → HPLog バルク appendRow（setValues 一括）
+    //   - 新版：STREAK 列の一括 setValue → per-sid loop で _grantHP({rawHp:0, ...})
+    //     ・rawHp=0 なので _grantHP 内部で _logHP 失敗を許容（HP=0、致命的でない）
+    //     ・applyWeekMultiplier:false / applyReserveSystem:false / checkCompletion:false
+    //     ・lockTimeoutMs:2000 で通常運用への影響を抑える（運用中の他 _logHP 呼び出しと長く競合しない）
+    //     ・stuLoc 互換オブジェクトは stuValues 配列から構築（_findAccountRowOnSheet を都度呼ばない）
+    //     ・_logHP 失敗時は failedLogs カウント、updates の対応行に logFailed フラグを追記
+    //   per-sid 呼び出しで N 回 LockService を取り直すコストは生徒数 100 名程度で許容範囲（数秒〜10秒程度）。
+    //   _logHP 防御層（verify + retry + HPLogWriteAttempts テレメトリ）の恩恵を全 sid に均等に効かせる利得が大きい。
+    let failedLogs = 0;
     if (updates.length > 0) {
-      // 連続範囲で setValues できないので 1 件ずつ setValue
-      // （生徒数 100 名程度なら数秒で終わる）
+      // STREAK 列の一括書き込み（_grantHP の責務外なので別途実行）
       for (let k = 0; k < updates.length; k++) {
         const u = updates[k];
         stuSheet.getRange(u.rowIdx + 1, COL_STREAK + 1).setValue(u.newStreak);
       }
 
-      // HPLog にお詫び記録を追加
-      const log = _ensureHpLogMessageColumn();
-      const now = _nowJST();
-      const rowsToAppend = updates.map(function(u){
-        const row = new Array(log.lastCol).fill('');
-        if (log.cTimestamp >= 0) row[log.cTimestamp] = now;
-        if (log.cSid       >= 0) row[log.cSid]       = u.sid;
-        if (log.cRawHP     >= 0) row[log.cRawHP]     = 0;
-        if (log.cHpGained  >= 0) row[log.cHpGained]  = 0;
-        if (log.cType      >= 0) row[log.cType]      = APOLOGY_TYPE;
-        if (log.cMessage   >= 0) row[log.cMessage]   = APOLOGY_MESSAGE;
-        return row;
-      });
-      log.sh.getRange(log.sh.getLastRow() + 1, 1, rowsToAppend.length, log.lastCol)
-            .setValues(rowsToAppend);
+      // HPLog 記録は per-sid _grantHP に集約
+      for (let k = 0; k < updates.length; k++) {
+        const u = updates[k];
+        const stuLocAdapter = {
+          sheet:     stuSheet,
+          rowIdx:    u.rowIdx,
+          rowValues: stuValues[u.rowIdx]
+        };
+        const grant = _grantHP({
+          sid:                 u.sid,
+          type:                APOLOGY_TYPE,
+          rawHp:               0,
+          stuLoc:              stuLocAdapter,
+          message:             APOLOGY_MESSAGE,
+          applyWeekMultiplier: false,
+          applyReserveSystem:  false,
+          checkCompletion:     false,
+          lockTimeoutMs:       2000
+        });
+        // HP=0 の練習モード扱いのため、_logHP 失敗でも grant.ok は true で返る（_grantHP の設計）。
+        // ただし HPLogWriteAttempts シートには失敗痕跡が残るため、本関数の戻り値にも記録する。
+        if (!grant.ok) {
+          failedLogs += 1;
+          u.logFailed = true;
+          u.errorCode = grant.errorCode || '';
+        }
+      }
 
       // cache invalidate（書き込み済みの STREAK が cache 経由で stale にならないように）
       _invalidateCache('cache_students_values');
@@ -2954,6 +2975,7 @@ function apologyStreakBonus(opts) {
       forced: flagged && force,
       totalStudents: totalStudents,
       updated: updates.length,
+      failedLogs: failedLogs,
       skipped: skipped,
       updates: updates
     };
