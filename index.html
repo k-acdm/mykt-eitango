@@ -11096,7 +11096,16 @@
     showScreen('screen-calctrial-between');
   }
 
-  // ----- リザルト画面 -----
+  // ----- リザルト画面（Phase 3 Step 4 / 2026-05-20：楽観的UI 廃止） -----
+  // 旧版：result 画面を即表示 → gasPost → 失敗時はラベルにエラー表示
+  // 新版：hp-confirming-overlay でキャラ+セリフを見せながら待機 → サーバ ok 確認後に result 画面表示
+  //       失敗時は mykt-error-overlay（_showSubmitError）でリトライ可能（_pendingRetry 経由）
+  //
+  // 設計判断：
+  //   ・タイムアウト 25 秒（_logHP の LockService 5s + verify retry 500ms + 通常処理を含む最悪 10-15s を 1.5 倍の余裕）
+  //   ・リトライは doSubmit を再呼び出し（_pendingRetry を doSubmit 自身に再設定）
+  //   ・キャンセル時は goHome（ホームへ戻る）
+  //   ・成功時 _ctRenderResultUI でリザルト画面遷移＋UI 描画（旧コードの後半部を関数化）
   function _ctShowResult(round2Snap) {
     var r1 = _ctState.round1Stats || { regular:{correct:0,answered:0,hp:0}, bonus:{correct:0,answered:0,hp:0}, subtotalHp:0 };
     var r2 = round2Snap;
@@ -11108,7 +11117,56 @@
                       + (r2.regular.answered || 0) + (r2.bonus.answered || 0);
     var isPerfect = (r1.regular.allCorrect && r2.regular.allCorrect);
 
-    // リザルト画面表示（送信中は disabled 風表示）
+    // サーバー送信ペイロード（リトライでも同じものを使うため事前構築）
+    var payload = {
+      action:           'submitCalcTrialResult',
+      studentId:        _studentId,
+      startedAt:        _ctState.sessionStartedAt,
+      completedAt:      _ctFormatNowYmdhms(),
+      totalHp:          totalHp,
+      rounds:           JSON.stringify([r1, r2]),
+      clientUserAgent:  (navigator && navigator.userAgent || '').slice(0, 200)
+    };
+
+    // doSubmit：オーバーレイ表示 → POST → 成功で UI 描画 / 失敗でエラーオーバーレイ
+    // リトライ時も同関数を再呼び出しする（_pendingRetry を再帰的に設定する形）
+    function doSubmit() {
+      _showHpConfirmingOverlay('trial');
+      _pendingRetry = function(){ doSubmit(); };
+      _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
+      gasPost(payload, 25000).then(function(res){
+        _hideHpConfirmingOverlay();
+        if (!res || !res.ok) {
+          // サーバが ok:false を返した（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
+          // _pendingRetry / _pendingDismiss は引き続き有効、リトライで doSubmit が再走
+          _showSubmitError();
+          return;
+        }
+        // 成功：pending ハンドラをクリアして result 画面を描画
+        _pendingRetry = null;
+        _pendingDismiss = null;
+        _ctRenderResultUI(r1, r2, totalHp, isPerfect, res);
+      }).catch(function(err){
+        // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
+        // _logHP は防御層（LockService + verify retry + テレメトリ）で大半が成功するため、
+        // 同一ペイロードでのリトライは通常安全。ただし応答ロスト時の二重加算は完全には防げない
+        // （CalcTrialSessions は 2 行になり HP も 2 回加算される可能性あり）。これは既知の
+        // トレードオフで、submitSango / submitWabun1 等の既存パターンと同じ運用とする。
+        _hideHpConfirmingOverlay();
+        _showSubmitError();
+      });
+    }
+
+    doSubmit();
+  }
+
+  // サーバ ok 後の result 画面描画（旧 _ctShowResult のレンダリング部分を抽出）。
+  // 引数：
+  //   r1, r2     … 2 ラウンドのスナップショット（breakdown 表示用）
+  //   totalHp    … クライアント計算の素点 HP（倍率前、ヒーロー数字表示用）
+  //   isPerfect  … 2 ラウンドとも本編全問正解か（紙吹雪トリガー）
+  //   res        … サーバレスポンス（isPractice / totalHp（倍率込）/ calculatedHp など）
+  function _ctRenderResultUI(r1, r2, totalHp, isPerfect, res) {
     var wrap = document.getElementById('ct-result-wrap');
     if (wrap) {
       wrap.classList.remove('perfect');
@@ -11123,8 +11181,6 @@
     }
     var hpNum = document.getElementById('ct-result-hp-num');
     var hpLab = document.getElementById('ct-result-hp-label');
-    if (hpNum) hpNum.textContent = totalHp.toLocaleString();
-    if (hpLab) hpLab.textContent = '獲得HP（送信中…）';
     var bd = document.getElementById('ct-result-breakdown');
     if (bd) {
       bd.innerHTML =
@@ -11136,44 +11192,30 @@
     }
     document.getElementById('ct-practice-badge-wrap').innerHTML = '';
     document.getElementById('ct-practice-note-wrap').innerHTML = '';
-    showScreen('screen-calctrial-result');
 
-    // サーバー送信
-    var payload = {
-      action:           'submitCalcTrialResult',
-      studentId:        _studentId,
-      startedAt:        _ctState.sessionStartedAt,
-      completedAt:      _ctFormatNowYmdhms(),
-      totalHp:          totalHp,
-      rounds:           JSON.stringify([r1, r2]),
-      clientUserAgent:  (navigator && navigator.userAgent || '').slice(0, 200)
-    };
-    gasPost(payload).then(function(res){
-      if (!res || !res.ok) {
-        // 失敗時はリザルト画面はそのまま、HP ラベルにエラー注記
-        if (hpLab) hpLab.innerHTML = '<span style="color:#dc2626">⚠️ 送信に失敗しました：' + _ctEscHtml((res && res.message) || 'もう一度ホームに戻ってお試しください') + '</span>';
-        return;
-      }
-      var isPractice = !!res.isPractice;
-      if (isPractice) {
-        // 練習モードリザルト：HP は 0 表示 + 「練習」バッジ + 注記
-        document.getElementById('ct-practice-badge-wrap').innerHTML = '<div class="ct-practice-badge">📌 練習モード</div>';
-        if (hpNum) hpNum.textContent = '0';
-        if (hpLab) hpLab.textContent = '獲得HP（練習扱い）';
-        document.getElementById('ct-practice-note-wrap').innerHTML =
-          '<div class="ct-practice-note">' +
-            '本日3回目以降の挑戦は<strong>練習扱い</strong>となるため、HPには反映されません。<br>' +
-            '計算した結果（' + Number(res.calculatedHp || totalHp).toLocaleString() + 'HP）は参考までに記録されますが、累計HPには加算されません。' +
-          '</div>';
-      } else {
-        // 本番リザルト：HP 加算演出
-        if (hpLab) hpLab.textContent = '獲得HP（+' + Number(res.totalHp || totalHp).toLocaleString() + ' HP 加算済）';
-        if (typeof _totalHP === 'number') _totalHP += Number(res.totalHp || totalHp);
-        if (isPerfect) _ctConfetti();
-      }
-    }).catch(function(err){
-      if (hpLab) hpLab.innerHTML = '<span style="color:#dc2626">⚠️ 通信エラー：' + _ctEscHtml((err && err.message) || 'ネットワークをご確認ください') + '</span>';
-    });
+    // ヒーロー数字はクライアント計算の素点（倍率前）。ラベルでサーバ確定値（倍率込）を見せる。
+    if (hpNum) hpNum.textContent = totalHp.toLocaleString();
+
+    var isPractice = !!res.isPractice;
+    if (isPractice) {
+      // 練習モードリザルト：HP は 0 表示 + 「練習」バッジ + 注記
+      document.getElementById('ct-practice-badge-wrap').innerHTML = '<div class="ct-practice-badge">📌 練習モード</div>';
+      if (hpNum) hpNum.textContent = '0';
+      if (hpLab) hpLab.textContent = '獲得HP（練習扱い）';
+      document.getElementById('ct-practice-note-wrap').innerHTML =
+        '<div class="ct-practice-note">' +
+          '本日3回目以降の挑戦は<strong>練習扱い</strong>となるため、HPには反映されません。<br>' +
+          '計算した結果（' + Number(res.calculatedHp || totalHp).toLocaleString() + 'HP）は参考までに記録されますが、累計HPには加算されません。' +
+        '</div>';
+      showScreen('screen-calctrial-result');
+    } else {
+      // 本番リザルト：サーバ確定の獲得 HP（倍率込）でラベル更新＋累計 HP 加算
+      var grantedHp = Number(res.totalHp || totalHp);
+      if (hpLab) hpLab.textContent = '獲得HP（+' + grantedHp.toLocaleString() + ' HP 加算済）';
+      if (typeof _totalHP === 'number') _totalHP += grantedHp;
+      showScreen('screen-calctrial-result');
+      if (isPerfect) _ctConfetti();
+    }
   }
   function _ctConfetti() {
     var box = document.getElementById('ct-confetti');

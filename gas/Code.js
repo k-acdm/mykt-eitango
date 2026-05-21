@@ -9609,12 +9609,12 @@ function getCalcTrialTodayCount(params) {
 //   1. studentId 検証 + Students または SpecialAccounts から行特定
 //   2. rounds の構造検証（配列で 2 要素必須）
 //   3. totalHp の値域検証（0 以上の整数、上限 100,000 で異常検知）
-//   4. 当日プレイ済み回数チェック（2 回/日 上限、特殊アカウントは無制限）
+//   4. 当日重複判定（_isAlreadyGrantedToday の sessionCount strategy、2 回/日 上限、特殊アカウントは無制限）
 //   5. CalcTrialSessions に 1 行 appendRow（status は 'completed' or 'practice'）
-//   6. 練習モード以外は HPLog に 1 行 _logHP（type='calctrial' / 'calctrial_practice'）
-//      ※ 倍率なし（仕様 ②）、両輪システムは通さない（絶対ミッション対象外 + 努力の結果を全肯定）
-//   7. 本番モードのみ Students.HP に totalHp を加算（in-place setValue + cache 更新）
-//   8. cache invalidate（cache_students_values / cache_special_accounts_values / cache_ranking_last_week）
+//   6. _grantHP に HP 加算経路を集約（applyReserveSystem:false で両輪システム除外）
+//      ※ 倍率は _grantHP 内部で適用（applyWeekMultiplier:true 既定）。絶対ミッション対象外 + 努力の結果を全肯定
+//   7. cache invalidate（cache_students_values / cache_special_accounts_values）
+//      ※ cache_ranking_last_week は _grantHP 内部で invalidate 済（granted > 0 時のみ）
 //
 // 注意：サーバー検証ガード不要（仕様：努力の結果を全肯定）。
 //      クライアント計算をそのまま採用する。
@@ -9623,6 +9623,14 @@ function getCalcTrialTodayCount(params) {
 //   - 本番 HP 付与は 1 日 2 回まで（教育日基準、_sangoToday）。3 回目以降は status='practice'
 //     で記録し HP 0（HPLog 'calctrial_practice' で engagement のみ記録）。
 //   - 特殊アカウント（test / teacher / invited）は上限対象外（無制限本番扱い）。
+//
+// 2026-05-20 Phase 3 Step 4：HP 加算経路を _grantHP に集約。
+//   - 旧版：_logHP → Students.HP 更新 を直接呼び出す 30 行のインライン処理
+//   - 新版：_grantHP({ applyReserveSystem:false, applyWeekMultiplier:true, checkCompletion:false }) に集約
+//   - 練習モード（rawHp=0）：_grantHP 内部で _logHP 失敗を許容（HP=0 のため engagement 記録だけが失敗しても続行）
+//   - 本番モード（rawHp=totalHp）：_grantHP 内部で _logHP → Students.HP 更新を直列実行
+//   - CalcTrialSessions の effectiveHp（倍率込み）は _grantHP より先に書く必要があるため事前算出
+//     （_grantHP 内部の計算と同じロジック、stuLoc.rowValues を共用するため値は一致する）
 function submitCalcTrialResult(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
@@ -9669,32 +9677,39 @@ function submitCalcTrialResult(params) {
     const sessionId   = 'calctrial_' + sid + '_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
     const userAgent   = String((params && params.clientUserAgent) || '').slice(0, 200);
 
-    // ④' 当日プレイ済み回数チェック（教育日基準、JST 3:00 区切り）。
-    //   - 通常生徒：当日 completed が 2 件以上なら今回は status='practice'、HP 0
+    // ④' 当日重複判定（Phase 3 Step 2 の共通ヘルパー _isAlreadyGrantedToday を使用）：
     //   - 特殊アカウント（test / teacher / invited）：上限対象外（常に本番扱い）
+    //   - それ以外：sessionCount strategy で completed >= 2 なら練習扱い
+    //   レスポンス用の今日の practice 件数は _isAlreadyGrantedToday からは取れないため
+    //   _countCalcTrialSessionsToday を別途呼ぶ（両者とも CalcTrialSessions シートを読むが、
+    //   GAS の per-request 実行時間内であれば数 ms 程度のオーバーヘッド）。
     const accountType = _resolveAccountTypeFromLoc(stuLoc);
     const isSpecial   = (accountType === 'test' || accountType === 'teacher' || accountType === 'invited');
     const today       = _sangoToday();
-    const counts      = _countCalcTrialSessionsToday(sid, today);
-    const isPractice  = !isSpecial && counts.completed >= 2;
-    const status      = isPractice ? 'practice' : 'completed';
-    // 2026-05-21：本番モードのみ週²倍率を適用（他コンテンツと同期、青天井で「ハマり状態」を作る設計）。
-    //   - 練習モードは 0 のまま（既存仕様維持）
-    //   - streak は Students/SpecialAccounts の STREAK 列、最低 1 でクランプ
-    //   - week = ceil(streak / 7)、倍率 = week²
+    let isPractice    = false;
+    if (!isSpecial) {
+      const dupCheck = _isAlreadyGrantedToday(sid, 'calctrial', 'sessionCount', { limit: 2 });
+      isPractice = !!(dupCheck && dupCheck.alreadyGranted);
+    }
+    const counts = _countCalcTrialSessionsToday(sid, today);
+    const status = isPractice ? 'practice' : 'completed';
+
+    // ⑤ 週²倍率の事前算出（CalcTrialSessions 行に書く effectiveHp 用）。
+    //   _grantHP 内部の計算と同じロジック（stuLoc.rowValues 共用なので値は一致）：
+    //     streak = max(1, COL_STREAK)、week = ceil(streak/7)、倍率 = week²
     //   - 例：連続  1〜7 日（week=1）→ 1 倍 / 連続  8〜14 日（week=2）→ 4 倍
     //         連続 15〜21 日（week=3）→ 9 倍 / 連続 22〜28 日（week=4）→ 16 倍
-    //   - rawHp（素点） = クライアント計算の totalHp、HPLog の rawHP 列に保存
-    //   - effectiveHp（実 HP） = totalHp × week²、HPLog の hpGained 列 + Students.HP に加算
+    //   - 練習モードは 0（_grantHP も rawHp=0 で fullHpGained=0）
     const streakRaw   = Number(stuLoc.rowValues[COL_STREAK]) || 1;
     const streak      = streakRaw > 0 ? streakRaw : 1;
     const week        = Math.ceil(streak / 7);
     const weekMult    = week * week;
-    const rawHp       = isPractice ? 0 : totalHp;
     const effectiveHp = isPractice ? 0 : (totalHp * weekMult);
     const hpLogType   = isPractice ? 'calctrial_practice' : 'calctrial';
 
-    // ⑤ CalcTrialSessions に 1 行記録（_ensureSheetWithHeaders 経由でシート存在保証）。
+    // ⑥ CalcTrialSessions に 1 行記録（_ensureSheetWithHeaders 経由でシート存在保証）。
+    //   _grantHP より先に書く理由：HP 加算失敗時にセッション行は残るが HP 二重加算は防げる。
+    //   再送信すると CalcTrialSessions が二重になるが、HP が二重加算される事故よりは軽微（既存仕様維持）。
     //   練習モードは totalHp 列に 0 を保存（roundsJson は記録するため練習回数の振り返り可）。
     const ses = _ensureCalcTrialSessionsSheet();
     const roundsJson = JSON.stringify(rounds);
@@ -9711,53 +9726,56 @@ function submitCalcTrialResult(params) {
       userAgent
     ]);
 
-    // ⑥ HPLog に 1 行記録：
-    //    本番（completed）: type='calctrial'         / rawHP=totalHp（素点） / hpGained=effectiveHp（倍率込）
-    //    練習（practice）:  type='calctrial_practice' / rawHP=0 / hpGained=0（engagement のみ記録、Stage 計算には含めない）
-    //    両輪システム（_calculateHpWithReserve）は通さない：絶対ミッション対象外 + 努力全肯定
-    const logRes = _logHP(sid, rawHp, effectiveHp, hpLogType);
-    if (!logRes.ok) {
-      // HPLog 失敗時は CalcTrialSessions の行は残るが Students.HP は更新しない。
-      // 再送信すると CalcTrialSessions が二重になるが、HP が二重加算される事故よりは軽微。
-      console.error('[submitCalcTrialResult] HPLog 書き込み失敗、Students.HP 更新スキップ', logRes.error);
-      return { ok: false, message: '内部エラー（HPLog 書き込み失敗）。もう一度送信してください', errorCode: 'HP_LOG_FAILED' };
+    // ⑦ HP 加算（Phase 3 Step 4 / 2026-05-20）：_grantHP に集約。
+    //   - applyReserveSystem:false … 計算タイムトライアルは両輪システム対象外（絶対ミッション除外）
+    //   - applyWeekMultiplier:true … _grantHP 内部で fullHpGained = rawHp × week² を計算
+    //   - checkCompletion:false   … applyReserveSystem:false なので完走チェック不要
+    //   - 練習モード（isPractice=true）は rawHp=0 + type='calctrial_practice' で呼び、
+    //     _grantHP 内部で _logHP 失敗を許容（HP=0 のため engagement 記録だけが失敗しても続行）。
+    //   - 本番モード（isPractice=false）は rawHp=totalHp + type='calctrial' で呼び、
+    //     grant.hpGained === effectiveHp（事前算出値）、grant.newHP === curHP + effectiveHp となる。
+    const rawHpForGrant = isPractice ? 0 : totalHp;
+    const grant = _grantHP({
+      sid:                 sid,
+      type:                hpLogType,
+      rawHp:               rawHpForGrant,
+      stuLoc:              stuLoc,
+      applyWeekMultiplier: true,
+      applyReserveSystem:  false,
+      checkCompletion:     false
+    });
+    if (!grant.ok) {
+      // _grantHP 失敗時：CalcTrialSessions 行は残るが Students.HP は未更新（既存挙動と同等）。
+      console.error('[submitCalcTrialResult] _grantHP 失敗', { sid: sid, type: hpLogType, errorCode: grant.errorCode });
+      return {
+        ok:        false,
+        message:   grant.message || '内部エラー（HP 加算失敗）。もう一度送信してください',
+        errorCode: grant.errorCode || 'HP_LOG_FAILED'
+      };
     }
 
-    // ⑦ 本番モードのみ Students または SpecialAccounts の HP に加算（in-place setValue + cache 更新）。
-    //   練習モードは HP 加算をスキップ（生徒には「練習扱い」を明示してモチベ維持しつつ反映なし）。
-    let newHP = Number(stuLoc.rowValues[COL_HP]) || 0;
-    if (!isPractice) {
-      // 2026-05-21：週²倍率込の effectiveHp を加算（旧版は totalHp を直接加算していた）
-      newHP = newHP + effectiveHp;
-      stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
-      const updates = {};
-      updates[COL_HP] = newHP;
-      _updateAccountCacheBySid(sid, updates);
-    }
-
-    // ⑧ cache invalidate
+    // ⑧ cache invalidate（_grantHP 内部で cache_ranking_last_week は granted > 0 時に invalidate 済）
     _invalidateCache('cache_students_values');
     _invalidateCache('cache_special_accounts_values');
-    _invalidateCache('cache_ranking_last_week');
 
     return {
       ok:              true,
       sessionId:       sessionId,
-      totalHp:         effectiveHp,           // 実際に付与された HP（倍率込、練習は 0）
-      totalHpAfter:    newHP,
+      totalHp:         grant.hpGained,                                  // 実際に付与された HP（倍率込、練習は 0）
+      totalHpAfter:    grant.newHP,                                     // 加算後 Students.HP（_grantHP が返す最新値）
       totalCorrect:    totalCorrect,
       totalAnswered:   totalAnswered,
       // 2026-05-19 Task 2 追加レスポンス：
-      isPractice:      isPractice,            // 練習モードだったか（フロント側で UI 切替）
-      accountType:     accountType,           // 特殊アカウント判定の参考
-      todayCompleted:  counts.completed + (isPractice ? 0 : 1),  // 本送信反映後の本番回数
-      todayPractice:   counts.practice   + (isPractice ? 1 : 0), // 本送信反映後の練習回数
-      calculatedHp:    totalHp,               // クライアント側で計算した素点 HP（倍率前、UI 表示用）
+      isPractice:      isPractice,                                       // 練習モードだったか（フロント側で UI 切替）
+      accountType:     accountType,                                      // 特殊アカウント判定の参考
+      todayCompleted:  counts.completed + (isPractice ? 0 : 1),          // 本送信反映後の本番回数
+      todayPractice:   counts.practice   + (isPractice ? 1 : 0),         // 本送信反映後の練習回数
+      calculatedHp:    totalHp,                                          // クライアント側で計算した素点 HP（倍率前、UI 表示用）
       // 2026-05-21 追加：週²倍率の透明化（フロント側で「連続3週×素点XX = YY HP」表示に活用可）
-      rawHp:           rawHp,                 // 素点（クライアント計算の totalHp と一致、練習は 0）
-      streak:          streak,                // サーバー側で参照した連続日数（最低 1）
-      week:            week,                  // ceil(streak / 7)
-      weekMult:        weekMult               // week² = 倍率
+      rawHp:           grant.rawHp,                                      // 素点（_grantHP 戻り値、練習は 0）
+      streak:          grant.streak,                                     // _grantHP で参照した連続日数（最低 1）
+      week:            grant.week,                                       // ceil(streak / 7)
+      weekMult:        grant.week * grant.week                           // week² = 倍率
     };
   } catch(err) {
     console.error('[submitCalcTrialResult]', err);
