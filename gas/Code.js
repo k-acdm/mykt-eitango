@@ -11850,64 +11850,49 @@ function submitSango(params) {
     // appendRow は同期実行のため、直後の getLastRow() は自分が append した行を指す。
     const submissionRowIdx = subSheet.getLastRow();
 
-    // HPLog の type='sango' で当日分チェック（末尾 200 行のみ走査、3時基準で日付判定）
-    // HPLog 列構成（rawHP 追加後）：[0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type
-    const todayStr = _sangoToday();
-    let alreadyGranted = false;
-    const logSheet = ss.getSheetByName(SHEET_HPLOG);
-    if (logSheet) {
-      const logRows = _readLastNRows(logSheet, 200);
-      for (let i = 0; i < logRows.length; i++) {
-        if (String(logRows[i][1]).trim() !== sid) continue;
-        if (logRows[i][4] !== 'sango') continue;
-        const todayForLog = (function(ts){
-          const t = new Date(ts); t.setHours(t.getHours() - 3);
-          return Utilities.formatDate(t, 'Asia/Tokyo', 'yyyy-MM-dd');
-        })(logRows[i][0]);
-        if (todayForLog === todayStr) { alreadyGranted = true; break; }
-      }
-    }
+    // 2026-05-20 Phase 3 Step 6：当日重複判定 + HP 加算経路を _grantHP に集約。
+    //   - 旧版：HPLog 末尾 200 行スキャン → _calculateHpWithReserve → _logHP → reserve pool →
+    //          Students.HP 更新 → 完走チェック の 40 行
+    //   - 新版：oncePerDay strategy で alreadyGranted 判定（_scanHpLogTodayByType 経由で一本化）→
+    //          !alreadyGranted のとき _grantHP 1 関数呼び出し
+    //   - 両輪 Phase A 対応（applyReserveSystem:true・applyWeekMultiplier:true・checkCompletion:true 既定値）
+    //   - rawHp は素点 200 を渡す（旧版は 200 * week² を rawHp として _logHP に渡していたが、
+    //     _grantHP では rawHp=素点・hpGained=倍率込みの仕様に合わせる。HPLog の rawHP 列値が
+    //     旧版「実 HP」→ 新版「素点 HP」に変わる挙動変更だが、Step 4/5 と一貫した修正）。
+    const dupCheck = _isAlreadyGrantedToday(sid, 'sango', 'oncePerDay');
+    const alreadyGranted = !!(dupCheck && dupCheck.alreadyGranted);
 
     let hpGained = 0;
-    let rawHp_sango = 0;
     let reservedHp_sango = 0;
-    let reserveActive_sango = false;
-    if (!alreadyGranted) {
-      // streak ベースの週数計算で 200 × week²
-      const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
-      const week = Math.ceil(streak / 7);
-      rawHp_sango = 200 * week * week;
-      // 両輪 Phase A：絶対ミッション未達成なら 60%/40% に分割
-      const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_sango);
-      hpGained = reserveCalc.granted;
-      reservedHp_sango = reserveCalc.reserved;
-      reserveActive_sango = reserveCalc.isReserveActive;
-
-      // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
-      // HPLog 書き込み失敗時は Students.HP を加算せず、提出は受理した状態でエラー応答を返す。
-      // SangoSubmissions は appendRow 済み（提出記録は保持）。
-      const logRes = _logHP(sid, rawHp_sango, hpGained, 'sango');
-      if (!logRes.ok) {
-        console.error('[submitSango] HPLog 書き込みに失敗しました。HP を加算せず終了。', logRes.error);
-        return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
-      }
-      if (reservedHp_sango > 0) {
-        _appendHpReservePool(sid, _sangoToday(), 'sango', rawHp_sango, reservedHp_sango);
-      }
-
-      const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
-      const newHP = cur + hpGained;
-      stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
-      const upd = {};
-      upd[COL_HP] = newHP;
-      _updateAccountCacheBySid(sid, upd);
-      _invalidateCache('cache_ranking_last_week');
-    }
-    // 両輪 Phase A：達成チェック（HP 付与なし日でも絶対ミッションのリスト次第で起動する可能性あり）
     let completion_sango = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
-    if (reserveActive_sango) {
-      completion_sango = _checkAndReleaseReserveIfCompleted(sid, 'sango');
+    if (!alreadyGranted) {
+      const grant = _grantHP({
+        sid:    sid,
+        type:   'sango',
+        rawHp:  200,
+        stuLoc: stuLoc
+        // applyWeekMultiplier / applyReserveSystem / checkCompletion はすべて既定値 true
+      });
+      if (!grant.ok) {
+        console.error('[submitSango] _grantHP 失敗', { sid: sid, errorCode: grant.errorCode });
+        return {
+          ok:        false,
+          message:   grant.message || '内部エラーが発生しました。もう一度試してください。',
+          errorCode: grant.errorCode || 'HP_LOG_FAILED'
+        };
+      }
+      hpGained = grant.hpGained;
+      reservedHp_sango = grant.hpReserved;
+      completion_sango = {
+        justCompleted: grant.justCompleted,
+        releasedHp:    grant.releasedHp,
+        bonusHp:       grant.bonusHp
+      };
     }
+    // 注：旧版では alreadyGranted=true の場合でも reserveActive_sango が true なら完走チェックが
+    //   呼ばれる経路があったが、reserveActive_sango は !alreadyGranted のときしか true にならない
+    //   ため、実質的に呼ばれていなかった（dead code）。新版は !alreadyGranted のときだけ _grantHP
+    //   内部で完走チェックを実行する旧挙動と一致。
 
     // 2026-05-12 サンゴタンAIフィードバック：HP 付与完了後に AI を呼び出す。
     // alreadyGranted=true（本日 2 回目以降）でも AI は呼ぶ（生徒は何度も書きたいので

@@ -6503,6 +6503,17 @@
     var val = document.getElementById('sango-text-input').value.trim();
     document.getElementById('sango-text-submit-btn').disabled = (val.length === 0);
   }
+  // Phase 3 Step 6 / 2026-05-20：楽観的UI 廃止 + hp-confirming-overlay でサーバ ok 待機。
+  //   - 旧版：_isHpGrantedToday('sango') で当日初回判定 → _predictHp(200) で HP 予測加算
+  //          → screen-sango-thinking 表示 → サーバ ok 後 _waitThinkingThenFeedback（1.8 秒待ち）
+  //          → 失敗時はロールバック（_totalHP -= predictedHp、_unmarkHpGrantedToday）
+  //   - 新版：_showHpConfirmingOverlay('sangotan') でサンゴタン + セリフを見せながら待機
+  //          サーバ ok 後にサーバ確定 HP（actualHp）で _totalHP 更新 → _showSangoFeedback
+  //          失敗 / タイムアウト時は _showSubmitError() でリトライ可（_pendingRetry 経由）
+  //   - サーバ HPLog を唯一信頼源とするため localStorage の _isHpGrantedToday 系は呼ばない
+  //     （関数本体は saveAttempt（英単語RUSH）がまだ使うため Step 7 まで温存）
+  //   - thinking 画面（screen-sango-thinking）は使わなくなる：DOM は残置（_waitThinkingThenFeedback
+  //     を呼ぶ箇所が他にないか念のため保守上残す）
   function submitSangoText() {
     var val = document.getElementById('sango-text-input').value.trim();
     if (!val || !_sangoCurrentLevel) return;
@@ -6510,48 +6521,46 @@
     var words = topic ? (topic.words || []).join(' / ') : '';
     var btn = document.getElementById('sango-text-submit-btn'); btn.disabled = true;
     var levelSnap = _sangoCurrentLevel, sidSnap = _studentId;
-    // 2026-05-12 改善1：画面遷移順序を thinking → feedback → done に変更。
-    // HP 予測加算は内部のみ（_totalHP / localStorage）。画面は thinking 直行。
-    var isFirst = !_isHpGrantedToday('sango');
-    var predictedHp = isFirst ? _predictHp(200) : 0;
-    if (predictedHp > 0) { _totalHP += predictedHp; _markHpGrantedToday('sango'); }
     document.getElementById('sango-text-msg').style.display = 'none';
-    _showSangoThinkingScreen();
-    _showSubmitPending();
-    _pendingRetry = function(){ submitSangoText(); };
-    _pendingDismiss = function(){ btn.disabled = false; showScreen('screen-sango-text'); };
-    gasGet({ action:'submitSango', studentId:sidSnap, level:levelSnap, words:words, work:val, method:'text' }).then(function(res) {
-      _hideSubmitPending();
-      if (!res || !res.ok) {
-        if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
+
+    var payload = { action:'submitSango', studentId:sidSnap, level:levelSnap, words:words, work:val, method:'text' };
+    function doSubmit() {
+      _showHpConfirmingOverlay('sangotan');
+      btn.disabled = true;
+      _pendingRetry = function(){ doSubmit(); };
+      _pendingDismiss = function(){ _hideHpConfirmingOverlay(); btn.disabled = false; showScreen('screen-sango-text'); };
+      gasGetWithTimeout(payload, 25000).then(function(res) {
+        _hideHpConfirmingOverlay();
+        if (!res || !res.ok) {
+          // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
+          _showSubmitError();
+          return;
+        }
+        // 成功：pending ハンドラをクリアして feedback 画面へ
+        _pendingRetry = null; _pendingDismiss = null;
+        _invalidateCacheByAction('getSangoSubmissions');
+        var actualHp = Number(res.hpGained || 0);
+        if (typeof _totalHP === 'number' && actualHp > 0) _totalHP += actualHp;
+        document.getElementById('sango-text-input').value = '';
+        btn.disabled = false;
+        // HP 情報を保存して、後で feedback 画面の「HP獲得演出を見る」ボタンで使う。
+        // 両輪 Phase A：hpReserved / justCompleted / releasedHp / bonusHp も保持して done 画面で表示。
+        _pendingSangoHp = {
+          hp: actualHp, alreadyGranted: actualHp === 0,
+          hpReserved: Number(res.hpReserved) || 0,
+          justCompleted: !!res.justCompleted,
+          releasedHp: Number(res.releasedHp) || 0,
+          bonusHp: Number(res.bonusHp) || 0
+        };
+        // サーバ ok 確認後に feedback 画面へ直接遷移（旧版の 1.8 秒待ちは overlay 表示時間で代替）
+        _showSangoFeedback(res.aiFeedback || null);
+      }).catch(function(){
+        // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
+        _hideHpConfirmingOverlay();
         _showSubmitError();
-        return;
-      }
-      _pendingRetry = null; _pendingDismiss = null;
-      _invalidateCacheByAction('getSangoSubmissions');
-      var actualHp = Number(res.hpGained || 0);
-      if (actualHp !== predictedHp) {
-        _totalHP += (actualHp - predictedHp);
-        if (actualHp === 0) _unmarkHpGrantedToday('sango'); else _markHpGrantedToday('sango');
-      }
-      document.getElementById('sango-text-input').value = '';
-      btn.disabled = false;
-      // HP 情報を保存して、後で feedback 画面の「HP獲得演出を見る」ボタンで使う。
-      // 両輪 Phase A：hpReserved / justCompleted / releasedHp / bonusHp も保持して done 画面で表示。
-      _pendingSangoHp = {
-        hp: actualHp, alreadyGranted: actualHp === 0,
-        hpReserved: Number(res.hpReserved) || 0,
-        justCompleted: !!res.justCompleted,
-        releasedHp: Number(res.releasedHp) || 0,
-        bonusHp: Number(res.bonusHp) || 0
-      };
-      // thinking を最低 1.8 秒見せてから feedback 画面へ
-      _waitThinkingThenFeedback(res.aiFeedback || null);
-    }).catch(function(){
-      _hideSubmitPending();
-      if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
-      _showSubmitError();
-    });
+      });
+    }
+    doSubmit();
   }
   function startSangoPhotoSubmit() {
     if (!_sangoTopics || _sangoTopics.length === 0) { alert('まだお題が登録されていません。'); return; }
@@ -6633,46 +6642,44 @@
     var levelSnap = _sangoCurrentLevel, sidSnap = _studentId, ocrSnap = _sangoOcrText;
     document.getElementById('sango-photo-msg').style.display = 'none';
     document.getElementById('sango-ocr-confirm').style.display = 'none';
-    // 2026-05-12 改善1：画面遷移順序を thinking → feedback → done に変更。
-    // HP 予測加算は内部のみ（_totalHP / localStorage）。画面は thinking 直行。
-    var isFirst = !_isHpGrantedToday('sango');
-    var predictedHp = isFirst ? _predictHp(200) : 0;
-    if (predictedHp > 0) { _totalHP += predictedHp; _markHpGrantedToday('sango'); }
-    _showSangoThinkingScreen();
-    _showSubmitPending();
-    _pendingRetry = function(){ _sangoOcrText = ocrSnap; _sangoCurrentLevel = levelSnap; confirmSangoPhoto(true); };
-    _pendingDismiss = function(){ showScreen('screen-sango-photo'); };
-    gasGet({ action:'submitSango', studentId:sidSnap, level:levelSnap, words:words, work:ocrSnap, method:'photo' }).then(function(res) {
-      _hideSubmitPending();
-      if (!res || !res.ok) {
-        if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
+
+    // Phase 3 Step 6 / 2026-05-20：楽観的UI 廃止 + hp-confirming-overlay でサーバ ok 待機（text 経路と同パターン）
+    var payload = { action:'submitSango', studentId:sidSnap, level:levelSnap, words:words, work:ocrSnap, method:'photo' };
+    function doSubmit() {
+      _showHpConfirmingOverlay('sangotan');
+      // retry 時にも ocrText / level スナップショットを復元（旧版踏襲）
+      _pendingRetry = function(){ _sangoOcrText = ocrSnap; _sangoCurrentLevel = levelSnap; doSubmit(); };
+      _pendingDismiss = function(){ _hideHpConfirmingOverlay(); showScreen('screen-sango-photo'); };
+      gasGetWithTimeout(payload, 25000).then(function(res) {
+        _hideHpConfirmingOverlay();
+        if (!res || !res.ok) {
+          // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
+          _showSubmitError();
+          return;
+        }
+        // 成功：pending ハンドラをクリアして feedback 画面へ
+        _pendingRetry = null; _pendingDismiss = null;
+        _invalidateCacheByAction('getSangoSubmissions');
+        var actualHp = Number(res.hpGained || 0);
+        if (typeof _totalHP === 'number' && actualHp > 0) _totalHP += actualHp;
+        _resetSangoPhoto();
+        // HP 情報を保存して、後で feedback 画面の「HP獲得演出を見る」ボタンで使う。
+        // 両輪 Phase A：hpReserved / justCompleted / releasedHp / bonusHp も保持して done 画面で表示。
+        _pendingSangoHp = {
+          hp: actualHp, alreadyGranted: actualHp === 0,
+          hpReserved: Number(res.hpReserved) || 0,
+          justCompleted: !!res.justCompleted,
+          releasedHp: Number(res.releasedHp) || 0,
+          bonusHp: Number(res.bonusHp) || 0
+        };
+        _showSangoFeedback(res.aiFeedback || null);
+      }).catch(function(){
+        // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
+        _hideHpConfirmingOverlay();
         _showSubmitError();
-        return;
-      }
-      _pendingRetry = null; _pendingDismiss = null;
-      _invalidateCacheByAction('getSangoSubmissions');
-      var actualHp = Number(res.hpGained || 0);
-      if (actualHp !== predictedHp) {
-        _totalHP += (actualHp - predictedHp);
-        if (actualHp === 0) _unmarkHpGrantedToday('sango'); else _markHpGrantedToday('sango');
-      }
-      _resetSangoPhoto();
-      // HP 情報を保存して、後で feedback 画面の「HP獲得演出を見る」ボタンで使う。
-      // 両輪 Phase A：hpReserved / justCompleted / releasedHp / bonusHp も保持して done 画面で表示。
-      _pendingSangoHp = {
-        hp: actualHp, alreadyGranted: actualHp === 0,
-        hpReserved: Number(res.hpReserved) || 0,
-        justCompleted: !!res.justCompleted,
-        releasedHp: Number(res.releasedHp) || 0,
-        bonusHp: Number(res.bonusHp) || 0
-      };
-      // thinking を最低 1.8 秒見せてから feedback 画面へ
-      _waitThinkingThenFeedback(res.aiFeedback || null);
-    }).catch(function(){
-      _hideSubmitPending();
-      if (predictedHp > 0) { _totalHP -= predictedHp; _unmarkHpGrantedToday('sango'); }
-      _showSubmitError();
-    });
+      });
+    }
+    doSubmit();
   }
 
   // 第3引数 extra（任意）: { hpReserved, justCompleted, releasedHp, bonusHp }
