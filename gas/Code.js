@@ -15878,69 +15878,73 @@ function submitKanjiKaki(params) {
 
     let hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: false, alreadyAtCap: false };
     if (passed) {
+      // 2026-05-20 Phase 3 Step 5：当日重複判定 + HP 加算経路を _grantHP に集約。
+      //   - 旧版：_kanjiTodayRawHP → _calculateHpWithReserve → _logHP → Students.HP 更新 → reserve pool → 完走チェック の 45 行
+      //   - 新版：dailyCap strategy で残量取得（_isAlreadyGrantedToday）→ _grantHP 1 関数呼び出し
+      //   - 両輪 Phase A 対応（applyReserveSystem:true・checkCompletion:true 既定値）。
+      //     kanji は絶対ミッションのリスト対象に含まれるため、_grantHP 内部で 60/40 split +
+      //     完走チェックが正しく実行される（旧版と同等の挙動）。
       const baseRawHP = (count === 10) ? 100 : 50;
-      const todayRawHP = _kanjiTodayRawHP(sid);
+      const dupCheck = _isAlreadyGrantedToday(sid, 'kanji', 'dailyCap', { cap: KANJI_DAILY_RAWHP_CAP });
+      const todayRawHP = Number((dupCheck && dupCheck.todayRawHP)) || 0;
       const remaining = Math.max(0, KANJI_DAILY_RAWHP_CAP - todayRawHP);
       const grantedRawHP = Math.min(baseRawHP, remaining);
       const isPractice = (remaining === 0);
       const alreadyAtCap = (remaining === 0);
 
       if (grantedRawHP > 0 && stuLoc) {
-        const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
-        const week = Math.ceil(streak / 7);
-        const fullHpGained_kanji = grantedRawHP * week * week;
-        // 両輪 Phase A：絶対ミッション未達成なら 60%/40% に分割
-        const reserveCalc_kanji = _calculateHpWithReserve(stuLoc, fullHpGained_kanji);
-        const hpGained = reserveCalc_kanji.granted;
-        const reservedHp_kanji = reserveCalc_kanji.reserved;
-        var __reserveActive_kanji = reserveCalc_kanji.isReserveActive;
+        // 本番モード：_grantHP に集約（_logHP → reserve → Students.HP → 完走チェックを内部で直列実行）
         const logType_kanji = 'kanji_' + level + '_' + count;
-
-        // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
-        // HPLog 書き込み失敗時は Students.HP / 進捗（kanji_next）更新をスキップして
-        // エラー応答を返す。KanjiSubmissions は既に appendRow 済み（事後検証に有用）。
-        // 同じセットを再挑戦すれば次回成功で救済される。
-        const logRes = _logHP(sid, grantedRawHP, hpGained, logType_kanji);
-        if (!logRes.ok) {
-          console.error('[submitKanjiKaki] HPLog 書き込みに失敗しました。HP/進捗を更新せず終了。', logRes.error);
-          return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+        const grant = _grantHP({
+          sid:    sid,
+          type:   logType_kanji,
+          rawHp:  grantedRawHP,
+          stuLoc: stuLoc
+          // applyWeekMultiplier / applyReserveSystem / checkCompletion はすべて既定値 true
+        });
+        if (!grant.ok) {
+          console.error('[submitKanjiKaki] _grantHP 失敗', { sid: sid, type: logType_kanji, errorCode: grant.errorCode });
+          return {
+            ok:        false,
+            message:   grant.message || '内部エラーが発生しました。もう一度試してください。',
+            errorCode: grant.errorCode || 'HP_LOG_FAILED'
+          };
         }
-        if (reservedHp_kanji > 0) {
-          _appendHpReservePool(sid, _sangoToday(), logType_kanji, fullHpGained_kanji, reservedHp_kanji);
-        }
-
-        const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
-        const newHP = cur + hpGained;
-        stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
-        const upd = {}; upd[COL_HP] = newHP;
-        _updateAccountCacheBySid(sid, upd);
-        _invalidateCache('cache_ranking_last_week');
-        hpInfo = { rawHP: grantedRawHP, hpGained: hpGained, hpReserved: reservedHp_kanji, granted: true, isPractice: false, alreadyAtCap: false, streak: streak, week: week };
-        // 両輪 Phase A：完走チェック
-        if (__reserveActive_kanji) {
-          const comp_kanji = _checkAndReleaseReserveIfCompleted(sid, logType_kanji);
-          hpInfo.justCompleted = comp_kanji.justCompleted;
-          hpInfo.releasedHp = comp_kanji.releasedHp;
-          hpInfo.bonusHp = comp_kanji.bonusHp;
-        }
-      } else if (isPractice) {
-        // 練習モード（既に上限到達）：HPLog にも記録するが _practice 接尾で除外可能に。
-        // 練習モードは付与する HP がないため、_logHP 失敗時も警告ログのみで処理を継続する
-        // （戻り値を無視）。進捗更新は実施される。
+        hpInfo = {
+          rawHP:         grantedRawHP,
+          hpGained:      grant.hpGained,
+          hpReserved:    grant.hpReserved,
+          granted:       true,
+          isPractice:    false,
+          alreadyAtCap:  false,
+          streak:        grant.streak,
+          week:          grant.week,
+          justCompleted: grant.justCompleted,
+          releasedHp:    grant.releasedHp,
+          bonusHp:       grant.bonusHp
+        };
+      } else if (isPractice && stuLoc) {
+        // 練習モード（既に上限到達）：rawHp=0 で _grantHP を呼ぶ。
+        //   - _grantHP 内部で _logHP 失敗を許容（HP=0 のため engagement 記録だけが失敗しても続行）
+        //   - granted=0 で Students.HP 更新はスキップ、reserve_active なら完走チェック実行
+        //     （kanji が絶対ミッション達成の最後のピースになり得るため：旧版でも実施されていた挙動）
         const logType_kanji_p = 'kanji_' + level + '_' + count + '_practice';
-        _logHP(sid, 0, 0, logType_kanji_p);
-        hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: true, alreadyAtCap: true };
-        // 両輪 Phase A：練習モードでも絶対ミッション達成の最後の 1 ピースになり得る（kanji が絶対ミッションのリストに含まれる場合）
-        // _calculateHpWithReserve(rawHp=0) は isReserveActive=true を返すので完走チェックを試みる。
-        if (stuLoc) {
-          const reserveCalc_kanji_p = _calculateHpWithReserve(stuLoc, 0);
-          if (reserveCalc_kanji_p.isReserveActive) {
-            const comp_kanji_p = _checkAndReleaseReserveIfCompleted(sid, logType_kanji_p);
-            hpInfo.justCompleted = comp_kanji_p.justCompleted;
-            hpInfo.releasedHp = comp_kanji_p.releasedHp;
-            hpInfo.bonusHp = comp_kanji_p.bonusHp;
-          }
-        }
+        const grantP = _grantHP({
+          sid:    sid,
+          type:   logType_kanji_p,
+          rawHp:  0,
+          stuLoc: stuLoc
+        });
+        hpInfo = {
+          rawHP:         0,
+          hpGained:      0,
+          granted:       false,
+          isPractice:    true,
+          alreadyAtCap:  true,
+          justCompleted: grantP.justCompleted,
+          releasedHp:    grantP.releasedHp,
+          bonusHp:       grantP.bonusHp
+        };
       }
 
       // 進捗追跡：合格時のみ「次にやるセット番号」をインクリメント

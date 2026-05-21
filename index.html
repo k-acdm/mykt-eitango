@@ -10081,13 +10081,22 @@
       }
     });
   }
+  // Phase 3 Step 5 / 2026-05-20：楽観的UI 廃止 + hp-confirming-overlay でサーバ ok 待機。
+  //   - 旧版：msgEl で「AIが文字を読み取り中…」と画面内表示、失敗時 alert
+  //   - 新版：_showHpConfirmingOverlay('kanjii') でカンジー博士キャラ + セリフを見せながら待機
+  //          サーバ ok 後に 3 分岐：
+  //            ① needsRetake=true → 撮り直し画面（_showKanjiKakiRetake）
+  //            ② passed=true → 結果画面（_showKanjiKakiResult → _showKanjiDone 演出）
+  //            ③ passed=false → 不合格画面（_showKanjiKakiResult、答え合わせ表示）
+  //   - 失敗 / タイムアウト時は _showSubmitError() でリトライ可（_pendingRetry 経由）
+  //   - Gemini Vision OCR + 採点で 10〜30 秒かかるため、25 秒タイムアウトは短すぎる可能性あり。
+  //     gasPost のデフォルト 90 秒を維持しつつ、_logHP 防御層のリトライを信頼する。
   function submitKanjiKakiPhoto() {
     if (!_kanjiState.kakiPhotoBase64) return;
     var submitBtn = document.getElementById('kanji-kaki-submit-btn');
     submitBtn.disabled = true;
     var msgEl = document.getElementById('kanji-kaki-msg');
-    msgEl.textContent = '⏳ AIが文字を読み取り中（数秒〜十数秒）...';
-    msgEl.className = 'msg ok'; msgEl.style.display = 'block';
+    msgEl.style.display = 'none';  // 旧版の画面内 msg は非表示、overlay 表示に置換
     // 期待解答リスト：通常時は全問、再挑戦時は不正解だった問題のみ
     var expected;
     if (_kanjiState.isKakiRetry && _kanjiState.retryAnswers.length > 0) {
@@ -10097,7 +10106,7 @@
         return { kanjiId: q.kanjiId, no: i + 1, answer: q.kaki.answer };
       });
     }
-    gasPost({
+    var payload = {
       action: 'submitKanjiKaki',
       studentId: _studentId,
       level: _kanjiState.level,
@@ -10106,47 +10115,68 @@
       count: _kanjiState.count,
       expectedAnswers: expected,
       isRetry: _kanjiState.isKakiRetry
-    }, 90000).then(function(res){
-      submitBtn.disabled = false;
-      if (!res || !res.ok) {
-        if (res && res.retake) {
-          alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
-          showScreen('screen-kanji-kaki');
+    };
+    function doSubmit() {
+      _showHpConfirmingOverlay('kanjii');
+      submitBtn.disabled = true;
+      _pendingRetry = function(){ doSubmit(); };
+      _pendingDismiss = function(){
+        _hideHpConfirmingOverlay();
+        submitBtn.disabled = false;
+        // 撮影確認画面に留まり、生徒が「もう一度撮る」or「ホームに戻る」を選べるようにする
+      };
+      gasPost(payload, 90000).then(function(res){
+        _hideHpConfirmingOverlay();
+        submitBtn.disabled = false;
+        if (!res || !res.ok) {
+          if (res && res.retake) {
+            // 旧 retake フロー：OCR 信頼度低 → 撮り直し誘導（既存挙動維持）
+            _pendingRetry = null;
+            _pendingDismiss = null;
+            alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
+            showScreen('screen-kanji-kaki');
+            return;
+          }
+          // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
+          _showSubmitError();
           return;
         }
-        alert('⚠️ 採点中にエラーが発生しました。\n' + ((res && res.message) || '通信エラー') + '\n\nネットワークが不安定な可能性があります。\n少し待ってから再送信してください。');
-        msgEl.style.display = 'none';
-        return;
-      }
-      msgEl.style.display = 'none';
-      // 2026-05-12 バグ⑤ Phase B：再撮影誘導（採点保留）。
-      // readable='no' の問が 1 件以上あるとサーバ側で needsRetake:true で返却される。
-      // 結果画面に進まず、撮り直し画面に遷移して生徒に再撮影を促す。
-      // この時点では不合格扱いではないため、_kanjiState.kakiResults / kakiPassed は
-      // 更新せず、答案ノートはそのまま使える状態を維持する。
-      if (res.needsRetake) {
-        _showKanjiKakiRetake(res);
-        return;
-      }
-      _kanjiState.kakiResults = res.results || [];
-      _kanjiState.kakiPassed = !!res.passed;
-      // 2026-05-21 Recovery バリアント：採点完了 → localStorage の submission を更新
-      // 合格/不合格どちらも「採点済」として記録（過去セッション UI で「採点済み」バッジ表示）
-      try {
-        _kanjiUpdateSessionSubmission(_kanjiState.level, _kanjiState.sessionId, {
-          passed:       !!res.passed,
-          correctCount: Number(res.correctCount || 0),
-          total:        Number(res.total || 0),
-          hpGained:     Number(res.hpGained || 0),
-          gradedAt:     Date.now()
-        });
-      } catch(_e) {}
-      _showKanjiKakiResult(res);
-    }).catch(function(err){
-      submitBtn.disabled = false;
-      msgEl.style.display = 'none';
-      alert('⚠️ 通信エラーが発生しました：' + String(err && err.message ? err.message : err) + '\n\nネットワークが不安定な可能性があります。\n少し待ってから再送信してください。');
-    });
+        // 2026-05-12 バグ⑤ Phase B：再撮影誘導（採点保留）。
+        // readable='no' の問が 1 件以上あるとサーバ側で needsRetake:true で返却される。
+        // 結果画面に進まず、撮り直し画面に遷移して生徒に再撮影を促す。
+        // この時点では不合格扱いではないため、_kanjiState.kakiResults / kakiPassed は
+        // 更新せず、答案ノートはそのまま使える状態を維持する。
+        if (res.needsRetake) {
+          _pendingRetry = null;
+          _pendingDismiss = null;
+          _showKanjiKakiRetake(res);
+          return;
+        }
+        // 成功：pending ハンドラをクリアして結果画面を描画
+        _pendingRetry = null;
+        _pendingDismiss = null;
+        _kanjiState.kakiResults = res.results || [];
+        _kanjiState.kakiPassed = !!res.passed;
+        // 2026-05-21 Recovery バリアント：採点完了 → localStorage の submission を更新
+        // 合格/不合格どちらも「採点済」として記録（過去セッション UI で「採点済み」バッジ表示）
+        try {
+          _kanjiUpdateSessionSubmission(_kanjiState.level, _kanjiState.sessionId, {
+            passed:       !!res.passed,
+            correctCount: Number(res.correctCount || 0),
+            total:        Number(res.total || 0),
+            hpGained:     Number(res.hpGained || 0),
+            gradedAt:     Date.now()
+          });
+        } catch(_e) {}
+        _showKanjiKakiResult(res);
+      }).catch(function(err){
+        // 通信エラー / 90 秒タイムアウト → エラーオーバーレイでリトライ誘導
+        _hideHpConfirmingOverlay();
+        submitBtn.disabled = false;
+        _showSubmitError();
+      });
+    }
+    doSubmit();
   }
   function _showKanjiKakiResult(res) {
     var passed = !!res.passed;
