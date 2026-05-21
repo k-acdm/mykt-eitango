@@ -6670,70 +6670,61 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
     const newStatus = passed ? 'passed' : 'failed_retry';
     let hpInfo = { rawHP: 0, hpGained: 0, isPractice: false, todayTotalAfter: 0, week: 1, streak: 1 };
 
-    // 合格時の HP 計算
+    // 合格時の HP 計算（2026-05-20 Phase 3 Step 7-1：_grantHP に集約）
+    //   - 旧版：_kisoTodayRawHP → effectiveRawHP 計算 → _calculateHpWithReserve → _logHP →
+    //          reserve pool → Students.HP 更新 → 完走チェック の 50 行
+    //   - 新版：dailyCap strategy で残量取得（_isAlreadyGrantedToday）→ effectiveRawHP 計算 →
+    //          _grantHP 1 関数呼び出し
+    //   - 両輪 Phase A 対応（applyReserveSystem:true・applyWeekMultiplier:true・checkCompletion:true 既定値）
+    //   - 練習モード（effectiveRawHP=0）でも _grantHP を呼ぶ：_logHP 失敗を許容、reserve_active なら
+    //     完走チェックは実行される（kiso が絶対ミッション達成の最後のピースになり得るため）
+    //   - rawHP=effectiveRawHP（素点）は旧版と同じ（仕様書 §8.7 通り、意味変更なし type）
     if (passed) {
       // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行はシートから sid で
       // フレッシュに特定する。streak / 現在 HP もここから読む。
       const stuLoc = _findAccountRowOnSheet(studentId);
-      const streakValue = stuLoc ? (Number(stuLoc.rowValues[COL_STREAK]) || 1) : 1;
-      const currentHP   = stuLoc ? (Number(stuLoc.rowValues[COL_HP])     || 0) : 0;
-      const week = Math.ceil(streakValue / 7);
       const baseRawHP = (count === 5) ? 50 : 100;       // 仕様書 §8.1
-      const todayTotalBefore = _kisoTodayRawHP(studentId);
+      // 残量取得：_isAlreadyGrantedToday の dailyCap strategy 経由（共通ヘルパー一本化）
+      const dupCheck = _isAlreadyGrantedToday(studentId, 'kiso', 'dailyCap', { cap: 100 });
+      const todayTotalBefore = Number((dupCheck && dupCheck.todayRawHP)) || 0;
       const remaining = Math.max(0, 100 - todayTotalBefore);
       const effectiveRawHP = Math.min(baseRawHP, remaining);   // 仕様書 §8.5 ケース 2
       const isPractice = (effectiveRawHP === 0);
-      const fullHpGained = effectiveRawHP * week * week;
-      // 両輪 Phase A：絶対ミッション未達成なら 60%/40% に分割（練習モードは rawHp=0 で reserveActive のみ true）
-      const reserveCalc_kiso = _calculateHpWithReserve(stuLoc, fullHpGained);
-      const hpGained = reserveCalc_kiso.granted;
-      const reservedHp_kiso = reserveCalc_kiso.reserved;
-      var __reserveActive_kiso = reserveCalc_kiso.isReserveActive;
-
-      // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
-      // 非練習モード（hpGained > 0）で HPLog 書き込みに失敗した場合は Students.HP /
-      // KisoSessions 更新をスキップし、セッションを in_progress のまま残してエラー応答を
-      // 返す（生徒は同じ写真で再提出すれば次回成功する）。
-      // 練習モード（hpGained === 0）の場合は付与する HP がないため、_logHP 失敗は警告
-      // ログのみで処理を継続する（KisoSessions / 写真保存は実行）。
       const logType = 'kiso_' + rank + '_' + count + (isPractice ? '_practice' : '');
-      const logRes  = _logHP(studentId, effectiveRawHP, hpGained, logType);
-      if (!logRes.ok && !isPractice && hpGained > 0) {
-        console.error('[submitKisoAnswer] HPLog 書き込みに失敗しました。HP/KisoSessions 更新せず終了。', logRes.error);
-        return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
-      }
-      if (reservedHp_kiso > 0) {
-        _appendHpReservePool(studentId, _sangoToday(), logType, fullHpGained, reservedHp_kiso);
-      }
 
-      // Students.HP 更新（in-place）
-      if (!isPractice && stuLoc && hpGained > 0) {
-        const newHP = currentHP + hpGained;
-        stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
-        const upd = {};
-        upd[COL_HP] = newHP;
-        _updateAccountCacheBySid(studentId, upd);
-      }
-
-      _invalidateCache('cache_ranking_last_week');
-
-      hpInfo = {
-        rawHP: effectiveRawHP,
-        hpGained: hpGained,
-        hpReserved: reservedHp_kiso,
-        isPractice: isPractice,
-        todayTotalAfter: todayTotalBefore + effectiveRawHP,
-        week: week,
-        streak: streakValue,
-        baseRawHP: baseRawHP,
-        sessionType: logType
-      };
-      // 両輪 Phase A：達成チェック（kiso 練習モードでも、絶対ミッションのリストに kiso 含めば達成の最後の 1 ピースになり得る）
-      if (__reserveActive_kiso) {
-        const comp_kiso = _checkAndReleaseReserveIfCompleted(studentId, logType);
-        hpInfo.justCompleted = comp_kiso.justCompleted;
-        hpInfo.releasedHp = comp_kiso.releasedHp;
-        hpInfo.bonusHp = comp_kiso.bonusHp;
+      if (stuLoc) {
+        const grant = _grantHP({
+          sid:    studentId,
+          type:   logType,
+          rawHp:  effectiveRawHP,
+          stuLoc: stuLoc
+          // applyWeekMultiplier / applyReserveSystem / checkCompletion はすべて既定値 true
+        });
+        if (!grant.ok) {
+          // _grantHP 失敗時：KisoSessions / 写真保存 もスキップしてセッションを in_progress
+          // のまま残す（生徒は同じ写真で再提出すれば次回成功する）。
+          // 練習モードは _grantHP 内部で失敗を許容するため、ここに来るのは本番モードのみ。
+          console.error('[submitKisoAnswer] _grantHP 失敗', { sid: studentId, type: logType, errorCode: grant.errorCode });
+          return {
+            ok:        false,
+            message:   grant.message || '内部エラーが発生しました。もう一度試してください。',
+            errorCode: grant.errorCode || 'HP_LOG_FAILED'
+          };
+        }
+        hpInfo = {
+          rawHP:           effectiveRawHP,
+          hpGained:        grant.hpGained,
+          hpReserved:      grant.hpReserved,
+          isPractice:      isPractice,
+          todayTotalAfter: todayTotalBefore + effectiveRawHP,
+          week:            grant.week,
+          streak:          grant.streak,
+          baseRawHP:       baseRawHP,
+          sessionType:     logType,
+          justCompleted:   grant.justCompleted,
+          releasedHp:      grant.releasedHp,
+          bonusHp:         grant.bonusHp
+        };
       }
     }
 

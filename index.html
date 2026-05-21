@@ -8466,61 +8466,90 @@
   }
 
   // §4.6 → §4.7 提出 → 採点
+  // Phase 3 Step 7-1 / 2026-05-20：楽観的UI 廃止 + hp-confirming-overlay でサーバ ok 待機。
+  //   - 旧版：_kisoShowGrading（独自「マイカツ君が照合中…」 overlay）→ サーバ ok → result 画面
+  //          失敗時は alert で生徒に手動再送を促す
+  //   - 新版：_showHpConfirmingOverlay('kisoK') でキソ"K"サンキャラ + セリフを見せながら待機
+  //          サーバ ok 後に _renderKisoResult（既存実装）
+  //          失敗 / タイムアウト時は _showSubmitError() でリトライ可（_pendingRetry 経由）
+  //   - res.retake（OCR 信頼度低）/ res.retake==true は既存の撮り直しフロー温存（_pendingRetry クリア）
+  //   - Gemini Vision OCR + 採点で 10〜30 秒かかるため、タイムアウトは 90 秒を維持
+  //     （25 秒では OCR + 採点で短すぎる可能性あり、_logHP 防御層のリトライを信頼）
+  //   - _kisoShowGrading 関数本体は途中式写真送信フロー（submitKisoWorkPhoto）と
+  //     ログアウト cleanup から参照されるため温存
   function submitKisoPhoto() {
     if (!_kisoState.sessionId || !_kisoState.photoBase64) return;
-    document.getElementById('kiso-confirm-submit-btn').disabled = true;
-    _kisoShowGrading(true);
-    // 同期 throw（ReferenceError 等）でも「照合中」が固まらないよう try/catch でラップ
-    try {
-      gasPost({
-        action: 'submitKisoAnswer',
-        sessionId: _kisoState.sessionId,
-        imageBase64: _kisoState.photoBase64,
-        hasWorkPhoto: !!_kisoState.hasWorkPhoto
-      }).then(function(res){
-        _kisoShowGrading(false);
-        document.getElementById('kiso-confirm-submit-btn').disabled = false;
-        if (!res || !res.ok) {
-          if (res && res.retake) {
-            alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
-            showScreen('screen-kiso-problem');
+    var btn = document.getElementById('kiso-confirm-submit-btn');
+    btn.disabled = true;
+    var payload = {
+      action: 'submitKisoAnswer',
+      sessionId: _kisoState.sessionId,
+      imageBase64: _kisoState.photoBase64,
+      hasWorkPhoto: !!_kisoState.hasWorkPhoto
+    };
+    function doSubmit() {
+      _showHpConfirmingOverlay('kisoK');
+      btn.disabled = true;
+      _pendingRetry = function(){ doSubmit(); };
+      _pendingDismiss = function(){ _hideHpConfirmingOverlay(); btn.disabled = false; };
+      // 同期 throw（ReferenceError 等）でも overlay が固まらないよう try/catch でラップ
+      try {
+        gasPost(payload, 90000).then(function(res){
+          _hideHpConfirmingOverlay();
+          btn.disabled = false;
+          if (!res || !res.ok) {
+            if (res && res.retake) {
+              // 旧 retake フロー：OCR 信頼度低 → 撮り直し誘導（既存挙動維持）
+              _pendingRetry = null;
+              _pendingDismiss = null;
+              alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
+              showScreen('screen-kiso-problem');
+              return;
+            }
+            // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
+            _showSubmitError();
             return;
           }
-          alert('⚠️ 採点中にエラーが発生しました。\n' + ((res && res.message) || '通信エラー') + '\n\nネットワークが不安定な可能性があります。\n少し待ってから再送信してください。');
-          return;
-        }
-        _kisoState.attempts = res.attempts || (_kisoState.attempts + 1);
-        // 提出に使った base64 はもう保持しなくて OK（メモリ節約）
-        _kisoState.photoBase64 = '';
-        _kisoState.photoDataUrl = '';
-        // 過去セッション再表示用に submission を localStorage に保存
-        // （初回提出のみ photoInfo に shareUrl/fileId が入る。再挑戦時は前回の写真を維持するため上書きしない）
-        if (res.isFirstAttempt) {
-          _kisoUpdateSessionSubmission(_kisoState.rank, _kisoState.sessionId, {
-            submittedAt:    Date.now(),
-            attempts:       res.attempts,
-            isFirstAttempt: !!res.isFirstAttempt,
-            passed:         !!res.passed,
-            total:          res.total || 0,
-            correctCount:   res.correctCount || 0,
-            results:        res.results || [],   // [{no, questionId, problemLatex, answerCanonical, studentAnswer, correct}]
-            hpInfo:         res.hpInfo || null,
-            photoFileId:    (res.photoInfo && res.photoInfo.ok) ? res.photoInfo.fileId  : '',
-            photoShareUrl:  (res.photoInfo && res.photoInfo.ok) ? res.photoInfo.shareUrl : '',
-            ocrPreview:     String(res.ocrPreview || '').slice(0, 600)
-          });
-        }
-        _renderKisoResult(res);
-      }).catch(function(err){
-        _kisoShowGrading(false);
-        document.getElementById('kiso-confirm-submit-btn').disabled = false;
-        alert('⚠️ 通信エラーが発生しました：' + String(err && err.message ? err.message : err) + '\n\nネットワークが不安定な可能性があります。\n少し待ってから再送信してください。');
-      });
-    } catch (err) {
-      _kisoShowGrading(false);
-      document.getElementById('kiso-confirm-submit-btn').disabled = false;
-      alert('⚠️ 送信を開始できませんでした：' + String(err && err.message ? err.message : err) + '\nアプリを再読み込みしてもう一度お試しください。');
+          // 成功：pending ハンドラをクリアして結果画面を描画
+          _pendingRetry = null;
+          _pendingDismiss = null;
+          _kisoState.attempts = res.attempts || (_kisoState.attempts + 1);
+          // 提出に使った base64 はもう保持しなくて OK（メモリ節約）
+          _kisoState.photoBase64 = '';
+          _kisoState.photoDataUrl = '';
+          // 過去セッション再表示用に submission を localStorage に保存
+          // （初回提出のみ photoInfo に shareUrl/fileId が入る。再挑戦時は前回の写真を維持するため上書きしない）
+          if (res.isFirstAttempt) {
+            _kisoUpdateSessionSubmission(_kisoState.rank, _kisoState.sessionId, {
+              submittedAt:    Date.now(),
+              attempts:       res.attempts,
+              isFirstAttempt: !!res.isFirstAttempt,
+              passed:         !!res.passed,
+              total:          res.total || 0,
+              correctCount:   res.correctCount || 0,
+              results:        res.results || [],   // [{no, questionId, problemLatex, answerCanonical, studentAnswer, correct}]
+              hpInfo:         res.hpInfo || null,
+              photoFileId:    (res.photoInfo && res.photoInfo.ok) ? res.photoInfo.fileId  : '',
+              photoShareUrl:  (res.photoInfo && res.photoInfo.ok) ? res.photoInfo.shareUrl : '',
+              ocrPreview:     String(res.ocrPreview || '').slice(0, 600)
+            });
+          }
+          _renderKisoResult(res);
+        }).catch(function(err){
+          // 通信エラー / タイムアウト → エラーオーバーレイでリトライ誘導
+          _hideHpConfirmingOverlay();
+          btn.disabled = false;
+          _showSubmitError();
+        });
+      } catch (err) {
+        _hideHpConfirmingOverlay();
+        btn.disabled = false;
+        _pendingRetry = null;
+        _pendingDismiss = null;
+        alert('⚠️ 送信を開始できませんでした：' + String(err && err.message ? err.message : err) + '\nアプリを再読み込みしてもう一度お試しください。');
+      }
     }
+    doSubmit();
   }
 
   // §4.7 採点結果画面（合格/不合格 共通レイアウト）
