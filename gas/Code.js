@@ -1327,7 +1327,9 @@ function loginStudent(studentId) {
     let loginBonus = 0;
     if (lastLogin !== today) {
       loginBonus = 10;
-      currentHP += loginBonus;
+      // 注：currentHP の +loginBonus は _grantHP 内部で実行されるため、ここでは触らない
+      //   （旧版は `currentHP += loginBonus;` を _logHP 前に実行していたが、新版は
+      //    _grantHP 戻り値の grant.newHP に同じ値が入っているのでそれを採用する）
 
       if (missedDays === 1) {
         streak += 1;    // 昨日から連続
@@ -1337,26 +1339,41 @@ function loginStudent(studentId) {
         streak = 1;     // 2日以上空いたのでリセット
       }
 
-      // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
-      // 旧: Students 更新（HP / STREAK / LAST_LOGIN）→ _logHP（失敗してもサイレント）
-      // 新: _logHP（戻り値で成否確認）→ 成功時のみ Students 更新
+      // 2026-05-20 Phase 3 Step 9：HP 加算経路を _grantHP に統一（Phase 3 ラスト 1 ピース）
+      //   - 旧版：_logHP(studentId, loginBonus, loginBonus, 'login', 500) → Students.HP / STREAK / LAST_LOGIN を別途 setValues 更新
+      //   - 新版：_grantHP({rawHp:10, applyWeekMultiplier:false, applyReserveSystem:false, checkCompletion:false, lockTimeoutMs:500})
+      //     ・rawHp:10 固定（ログインボーナス、_grantHP 内部で hpGained=10 が確定）
+      //     ・applyWeekMultiplier:false（週²倍率なし、固定 10HP の旧仕様維持）
+      //     ・applyReserveSystem:false（ログインは両輪 Phase A 対象外）
+      //     ・checkCompletion:false（完走チェック不要）
+      //     ・lockTimeoutMs:500（2026-05-16 で設定された短いタイムアウトを維持。
+      //        重い submitSango 等がロックを握っていてもログイン全体が 5 秒待たされない。
+      //        タイムアウト時はロック無しで書き込み続行（verify + retry でレース緩和あり））
+      //   - _grantHP 内部の処理順序：_logHP → Students.HP 更新 → cache_ranking_last_week invalidate
+      //   - _grantHP 失敗時は HP/STREAK/LAST_LOGIN を更新せず終了
+      //     → lastLogin が今日に書き換わらないので、生徒が再ログインすれば +10HP が再試行される
+      //        （自動救済機構、旧版と同じ挙動）
       //
-      // _logHP が失敗した場合は Students.HP / STREAK / LAST_LOGIN を一切更新せずに
-      // エラー応答を返す。これにより lastLogin が今日に書き換わらないので、生徒が
-      // 再ログインすれば +10HP がもう一度試行され、自動救済される。
-      //
-      // 2026-05-16：lockTimeoutMs=500 を渡してロック取得待ちを 5s → 0.5s に短縮。
-      //   ab1b99c で _logHP に LockService.tryLock(5000) を入れたが、重い submitSango
-      //   等がロックを握っていると login 全体が 5 秒以上待たされる症状が観測された。
-      //   ログイン HP 書き込みは 10HP の単発で、レース時の二重加算リスクも上記の自動
-      //   救済機構（lastLogin 未更新 → 再ログインで再試行）で軽減できるため、待ち時間
-      //   を犠牲にしてレスポンスを優先する。タイムアウト時はロック無しで書き込み続行
-      //   （verify + retry でレース緩和あり）。
-      const logRes = _logHP(studentId, loginBonus, loginBonus, 'login', 500);
-      if (!logRes.ok) {
-        console.error('[loginStudent] HPLog 書き込みに失敗しました。HP/STREAK/LAST_LOGIN を更新せず終了。', logRes.error);
-        return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+      // 全生徒のログイン経路に影響するため Phase 3 ラスト 1 ピースとして慎重に実装。
+      const grant = _grantHP({
+        sid:                 studentId,
+        type:                'login',
+        rawHp:               loginBonus,
+        stuLoc:              stuLoc,
+        applyWeekMultiplier: false,
+        applyReserveSystem:  false,
+        checkCompletion:     false,
+        lockTimeoutMs:       500
+      });
+      if (!grant.ok) {
+        console.error('[loginStudent] _grantHP 失敗', { sid: studentId, errorCode: grant.errorCode });
+        return {
+          ok:        false,
+          message:   grant.message || '内部エラーが発生しました。もう一度試してください。',
+          errorCode: grant.errorCode || 'HP_LOG_FAILED'
+        };
       }
+      currentHP = grant.newHP;  // _grantHP 内部で書き込まれた最新値（旧 HP + 10）と同期
 
       // 4/26 修正: 連続日数バグ対策で LAST_TEST 列を含む 5 列 setValues を廃止
       //   旧: setValues E-I（UPDATED, HP, STREAK, LAST_TEST=preserved, LAST_LOGIN）
@@ -1364,6 +1381,11 @@ function loginStudent(studentId) {
       //   新: setValues E-G（UPDATED, HP, STREAK）+ setValue I（LAST_LOGIN）
       //       LAST_TEST には触らない（saveAttempt が必要に応じて自分で書く）
       // 2026-05-09 Step 0：書き込み行は stuLoc.rowIdx（フレッシュ）を使う
+      //
+      // 2026-05-20 Phase 3 Step 9：_grantHP が COL_HP を既に setValue 済みのため、
+      //   この setValues は COL_HP に同じ値を再書き込みする（grant.newHP と一致）。
+      //   API call 数を旧版と同等の 2 回（setValues + setValue）に保つため、敢えて
+      //   UPDATED-HP-STREAK の 3 列範囲を維持（個別 setValue にすると 3 回になる）。
       stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_UPDATED + 1, 1, COL_STREAK - COL_UPDATED + 1)
            .setValues([[now, currentHP, streak]]);
       stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_LAST_LOGIN + 1).setValue(today);
