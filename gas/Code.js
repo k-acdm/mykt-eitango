@@ -13341,66 +13341,51 @@ function submitWabun1(params) {
     const skipJson = appliedSkips.length > 0 ? JSON.stringify(appliedSkips) : '';
     subSheet.appendRow([now, sid, studentName, workText, 'photo', '', skipJson]);
 
-    // HPLog type='wabun1' で当日分既に付与済みか確認（末尾 200 行のみ走査）
-    // HPLog 列構成（rawHP 追加後）：[0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type
-    let alreadyGranted = false;
-    const logSheet = ss.getSheetByName(SHEET_HPLOG);
-    if (logSheet) {
-      const logRows = _readLastNRows(logSheet, 200);
-      for (let i = 0; i < logRows.length; i++) {
-        if (String(logRows[i][1]).trim() !== sid) continue;
-        if (logRows[i][4] !== 'wabun1') continue;
-        const todayForLog = (function(ts){
-          const dt = new Date(ts); dt.setHours(dt.getHours() - 3);
-          return Utilities.formatDate(dt, 'Asia/Tokyo', 'yyyy-MM-dd');
-        })(logRows[i][0]);
-        if (todayForLog === todayStr) { alreadyGranted = true; break; }
-      }
-    }
+    // 2026-05-20 Phase 3 Step 6：当日重複判定 + HP 加算経路を _grantHP に集約。
+    //   - 旧版：HPLog 末尾 200 行スキャン → 4/29 境界 baseHp 判定 → _calculateHpWithReserve →
+    //          _logHP → reserve pool → Students.HP 更新 → 完走チェック の 45 行
+    //   - 新版：oncePerDay strategy で alreadyGranted 判定（_scanHpLogTodayByType 経由で一本化）→
+    //          allCorrect && !alreadyGranted のとき _grantHP 1 関数呼び出し
+    //   - 4/29 境界（100/200HP 切替）は維持：todayStr（_sangoToday、JST 3 時区切り）で判定
+    //   - 両輪 Phase A 対応（applyReserveSystem:true・applyWeekMultiplier:true・checkCompletion:true 既定値）
+    //   - rawHp は素点 baseHp（100 or 200）を渡す。_grantHP 内部で fullHpGained = baseHp × week² を計算
+    //     （Step 4/5/6-1 と一貫：HPLog の rawHP 列値が旧版「実 HP」→ 新版「素点 HP」に変わる）
+    const dupCheck = _isAlreadyGrantedToday(sid, 'wabun1', 'oncePerDay');
+    const alreadyGranted = !!(dupCheck && dupCheck.alreadyGranted);
 
     let hpGained = 0;
-    let rawHp_wabun1 = 0;
     let reservedHp_wabun1 = 0;
-    let reserveActive_wabun1 = false;
+    let completion_wabun1 = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
     if (allCorrect && !alreadyGranted) {
-      const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
-      const week = Math.ceil(streak / 7);
       // 素点HP は 2026-04-29 以降の教育日から 100 → 200 に変更（4/29 当日含む、過去分は遡及しない）
       // todayStr は _sangoToday() の JST 3 時区切り。問題の日替わり・alreadyGranted 判定と同じ基準で揃える
       const baseHp = (todayStr >= '2026-04-29') ? 200 : 100;
-      rawHp_wabun1 = baseHp * week * week;
-      // 両輪 Phase A：絶対ミッション未達成なら 60%/40% に分割
-      const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_wabun1);
-      hpGained = reserveCalc.granted;
-      reservedHp_wabun1 = reserveCalc.reserved;
-      reserveActive_wabun1 = reserveCalc.isReserveActive;
-
-      // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
-      // HPLog 書き込み失敗時は Students.HP を加算せず、提出は受理した状態でエラー応答を返す。
-      // Wabun1Submissions は appendRow 済み（提出記録は保持）。
-      const logRes = _logHP(sid, rawHp_wabun1, hpGained, 'wabun1');
-      if (!logRes.ok) {
-        console.error('[submitWabun1] HPLog 書き込みに失敗しました。HP を加算せず終了。', logRes.error);
-        return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+      const grant = _grantHP({
+        sid:    sid,
+        type:   'wabun1',
+        rawHp:  baseHp,
+        stuLoc: stuLoc
+        // applyWeekMultiplier / applyReserveSystem / checkCompletion はすべて既定値 true
+      });
+      if (!grant.ok) {
+        console.error('[submitWabun1] _grantHP 失敗', { sid: sid, errorCode: grant.errorCode });
+        return {
+          ok:        false,
+          message:   grant.message || '内部エラーが発生しました。もう一度試してください。',
+          errorCode: grant.errorCode || 'HP_LOG_FAILED'
+        };
       }
-      if (reservedHp_wabun1 > 0) {
-        _appendHpReservePool(sid, _sangoToday(), 'wabun1', rawHp_wabun1, reservedHp_wabun1);
-      }
-
-      const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
-      const newHP = cur + hpGained;
-      stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
-      const upd = {};
-      upd[COL_HP] = newHP;
-      _updateAccountCacheBySid(sid, upd);
-      _invalidateCache('cache_ranking_last_week');
+      hpGained = grant.hpGained;
+      reservedHp_wabun1 = grant.hpReserved;
+      completion_wabun1 = {
+        justCompleted: grant.justCompleted,
+        releasedHp:    grant.releasedHp,
+        bonusHp:       grant.bonusHp
+      };
     }
-
-    // 両輪 Phase A：完走チェック
-    let completion_wabun1 = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
-    if (reserveActive_wabun1) {
-      completion_wabun1 = _checkAndReleaseReserveIfCompleted(sid, 'wabun1');
-    }
+    // 注：旧版では allCorrect && !alreadyGranted のときだけ reserveActive_wabun1 が true になり、
+    //   完走チェックが呼ばれる経路だった。それ以外（不正解 / alreadyGranted）では reserveActive_wabun1=false
+    //   のままなので完走チェックは呼ばれなかった（dead code）。新版もこの挙動と一致する。
     return {
       ok: true,
       allCorrect: allCorrect,

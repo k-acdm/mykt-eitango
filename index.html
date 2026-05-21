@@ -7452,6 +7452,15 @@
     setTimeout(function(){ if (input) input.click(); }, 50);
   }
 
+  // Phase 3 Step 6 / 2026-05-20：楽観的UI 廃止 + hp-confirming-overlay でサーバ ok 待機。
+  //   - 旧版：_showWabun1Grading（独自「マイカツ君が採点中…」 overlay）→ サーバ ok → result 画面
+  //   - 新版：_showHpConfirmingOverlay('nichiei') でニチエイ + セリフを見せながら待機
+  //          サーバ ok 後に _showWabun1Result（既存実装）
+  //          失敗 / タイムアウト時は _showSubmitError() でリトライ可（_pendingRetry 経由）
+  //   - 和文英訳① はもともと楽観的UI 対象外（HP 予測加算なし）だったため、_isHpGrantedToday 系の
+  //     呼び出しは元々存在しない。サーバ HPLog を唯一信頼源とする方針は元から一致。
+  //   - _showWabun1Grading は使わなくなるが、_hideWabun1Grading はログアウト cleanup から
+  //     参照されるため関数本体は温存
   function submitWabun1Answer() {
     if (_wabun1State.submitting) return;
     if (!_wabun1State.ocrText) return;
@@ -7463,32 +7472,40 @@
       var shown = (document.getElementById('wabun1-ocr-text') || {}).textContent || '';
       console.log('[wabun1 submit] stateOcrText=', JSON.stringify(_wabun1State.ocrText), ' shownOnScreen=', JSON.stringify(shown), ' match=', shown === _wabun1State.ocrText, ' parsedAnswers=', JSON.stringify(_wabun1State.parsedAnswers));
     } catch(e){}
-    // 楽観的UI 対象外: マイカツ君が「採点中…」演出を出してから結果待ち
-    _showWabun1Grading();
-    _pendingRetry = function(){ _wabun1State.submitting = false; submitWabun1Answer(); };
-    _pendingDismiss = function(){ btn.disabled = false; };
     var skipNums = _wabun1AppliedSkipNums();
     var skipParam = skipNums.length > 0 ? JSON.stringify(skipNums) : '';
     // 案C：フロントでパース済みの問題別答えを JSON で同梱。GAS は parsedAnswers を優先採用。
     var parsedJson = _wabun1State.parsedAnswers ? JSON.stringify(_wabun1State.parsedAnswers) : '';
-    gasGet({ action:'submitWabun1', studentId:_studentId, workText:_wabun1State.ocrText, parsedAnswers: parsedJson, skipQuestions: skipParam }).then(function(res){
-      _hideWabun1Grading();
-      _wabun1State.submitting = false;
-      if (!res || !res.ok) {
+    var payload = { action:'submitWabun1', studentId:_studentId, workText:_wabun1State.ocrText, parsedAnswers: parsedJson, skipQuestions: skipParam };
+    function doSubmit() {
+      _showHpConfirmingOverlay('nichiei');
+      _wabun1State.submitting = true;
+      btn.disabled = true;
+      _pendingRetry = function(){ _wabun1State.submitting = false; doSubmit(); };
+      _pendingDismiss = function(){ _hideHpConfirmingOverlay(); _wabun1State.submitting = false; btn.disabled = false; };
+      gasGetWithTimeout(payload, 25000).then(function(res){
+        _hideHpConfirmingOverlay();
+        _wabun1State.submitting = false;
+        if (!res || !res.ok) {
+          // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
+          btn.disabled = false;
+          _showSubmitError();
+          return;
+        }
+        // 成功：pending ハンドラをクリアして result 画面を描画
+        _pendingRetry = null; _pendingDismiss = null;
+        _wabun1State.hasSubmitted = true;
+        _invalidateCacheByAction('getWabun1AnswersAfterSubmit');
+        _showWabun1Result(res);
+      }).catch(function(){
+        // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
+        _hideHpConfirmingOverlay();
+        _wabun1State.submitting = false;
         btn.disabled = false;
         _showSubmitError();
-        return;
-      }
-      _pendingRetry = null; _pendingDismiss = null;
-      _wabun1State.hasSubmitted = true;
-      _invalidateCacheByAction('getWabun1AnswersAfterSubmit');
-      _showWabun1Result(res);
-    }).catch(function(){
-      _hideWabun1Grading();
-      _wabun1State.submitting = false;
-      btn.disabled = false;
-      _showSubmitError();
-    });
+      });
+    }
+    doSubmit();
   }
 
   function _showWabun1Result(res) {
