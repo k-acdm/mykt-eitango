@@ -1054,6 +1054,8 @@ function doGet(e) {
       else if (action === 'adminAddQuote')     result = adminAddQuote(params);
       else if (action === 'adminAddNotice')    result = adminAddNotice(params);
       else if (action === 'adminListStudents') result = adminListStudents(params);
+      // 2026-05-21：HP 書き込みテレメトリ閲覧（admin 限定、Phase 3 _logHP 防御層の silent failure 早期発見用）
+      else if (action === 'adminListHpLogWriteAttempts') result = adminListHpLogWriteAttempts(params);
       else if (action === 'getStudentsListForGrant') result = getStudentsListForGrant(params);
       else if (action === 'getStreakRecoveryCandidates') result = getStreakRecoveryCandidates(params);
       // 今日のマイ活 振り返り：閲覧系（認証なしの生徒/保護者用 + admin/teacher 認証用の 2 本）
@@ -8870,6 +8872,120 @@ function adminListStudents(params) {
     return { ok: true, students: students };
   } catch(err) {
     console.error('[adminListStudents]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// HPLogWriteAttempts 閲覧（2026-05-21 新設、admin 限定）
+// =============================================
+// 背景：Phase 3 全 9 ステップ完走（commit 5e2be27）により、全コンテンツの HP 加算が
+//   _logHP 防御層（LockService + verify + retry + HPLogWriteAttempts テレメトリ）を
+//   通る。塾長が毎日この試行ログを確認することで silent failure（HP 反映されたつもりが
+//   HPLog 本体に書かれていない等）を早期発見する。
+//
+// アクセス権：admin（塾長）のみ。teacher は閲覧不可（_requireAdmin で弾く）。
+//
+// 戻り値：{
+//   ok:           boolean,
+//   attempts:     [{timestamp, sid, nickname, type, rawHP, hpGained, attempts, status, errorMsg}, ...],
+//                 ※ timestamp 降順（新しい順）
+//   total:        スキャンした行数
+//   failedCount:  status='failed' の件数
+//   scannedRows:  シートから読んだ末尾行数（500 固定）
+// }
+//
+// パフォーマンス：
+//   - HPLogWriteAttempts は全 _logHP 呼び出しで append されるため成長が早い
+//     （全生徒 × 全コンテンツ × 1 日数十回 → 数千行/日）
+//   - 末尾 500 行のみ読む（直近半日〜数日分カバー）
+//   - CacheService 5 分 TTL でダッシュボード連打時の負荷軽減
+//   - sid → nickname マップは _getAllAccountsValues（Students + SpecialAccounts）から構築
+function adminListHpLogWriteAttempts(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この機能は管理者（admin）のみ利用できます' };
+
+    // CacheService 5 分 TTL（ダッシュボード連打 / リロード時の負荷軽減）
+    // キャッシュは admin 全員で共有（生徒個別ではないため）
+    const cacheKey = 'cache_admin_hp_attempts_v1';
+    try {
+      const cached = CacheService.getScriptCache().get(cacheKey);
+      if (cached !== null) {
+        return JSON.parse(cached);
+      }
+    } catch(_e) { /* キャッシュ失敗時は続行 */ }
+
+    const ss = _ss();
+    const sh = ss.getSheetByName(SHEET_HPLOG_WRITE_ATTEMPTS);
+    if (!sh || sh.getLastRow() < 2) {
+      return { ok: true, attempts: [], total: 0, failedCount: 0, scannedRows: 0 };
+    }
+
+    // sid → nickname マップ（Students + SpecialAccounts、Students 優先）
+    const nicknameBySid = {};
+    try {
+      const accValues = _getAllAccountsValues();
+      if (accValues && accValues.length > 1) {
+        for (let i = 1; i < accValues.length; i++) {
+          const sid = String(accValues[i][COL_ID] || '').trim();
+          if (!sid) continue;
+          if (sid in nicknameBySid) continue;  // Students 優先（先勝ち、_getAllAccountsValues の dedup ルール踏襲）
+          nicknameBySid[sid] = String(accValues[i][COL_NICKNAME] || '').trim();
+        }
+      }
+    } catch(e) {
+      console.error('[adminListHpLogWriteAttempts] accounts read', e);
+      // 続行：nickname 空文字で返す
+    }
+
+    // 末尾 500 行をスキャン。HPLogWriteAttempts 列:
+    //   [0]timestamp [1]sid [2]type [3]rawHP [4]hpGained [5]attempts [6]status [7]errorMsg
+    const SCAN_ROWS = 500;
+    const rows = _readLastNRows(sh, SCAN_ROWS);
+    const attempts = [];
+    let failedCount = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r[0]) continue;
+      const tsRaw = r[0];
+      const tsStr = (tsRaw instanceof Date)
+        ? Utilities.formatDate(tsRaw, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(tsRaw || '').trim();
+      const sid    = String(r[1] || '').trim();
+      const status = String(r[6] || '').trim();
+      if (status === 'failed') failedCount++;
+      attempts.push({
+        timestamp: tsStr,
+        sid:       sid,
+        nickname:  nicknameBySid[sid] || '',
+        type:      String(r[2] || '').trim(),
+        rawHP:     Number(r[3]) || 0,
+        hpGained:  Number(r[4]) || 0,
+        attempts:  Number(r[5]) || 0,
+        status:    status,
+        errorMsg:  String(r[7] || '').trim()
+      });
+    }
+    // timestamp 降順（新しい順、文字列辞書順 = 'yyyy-MM-dd HH:mm:ss' なら時系列順）
+    attempts.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+
+    const result = {
+      ok:          true,
+      attempts:    attempts,
+      total:       attempts.length,
+      failedCount: failedCount,
+      scannedRows: rows.length
+    };
+    try {
+      // 5 分キャッシュ。キャッシュサイズ上限（100KB）を超える可能性は低いが、
+      // 念のため try 内で catch（put 失敗時はキャッシュ無しで戻す）
+      CacheService.getScriptCache().put(cacheKey, JSON.stringify(result), 300);
+    } catch(_e) { /* 失敗しても戻り値はそのまま返す */ }
+    return result;
+  } catch(err) {
+    console.error('[adminListHpLogWriteAttempts]', err);
     return { ok: false, message: String(err) };
   }
 }
