@@ -3218,31 +3218,49 @@ function apologyWabun1Bonus(opts) {
       };
     }
 
+    // 本番実行（2026-05-20 Phase 3 Step 8-2：_grantHP 経由に統一）
+    //   - 旧版：HP 列の per-sid setValue → HPLog バルク appendRow（setValues 一括）
+    //   - 新版：per-sid loop で _grantHP({rawHp: hpAmount, applyWeekMultiplier:false, ...}) 1 関数に集約
+    //     ・_grantHP が _logHP + Students.HP 更新を直列実行（防御層適用）
+    //     ・applyWeekMultiplier:false … hpAmount をそのまま hpGained とする（旧版と同じ：倍率なし一律付与）
+    //     ・applyReserveSystem:false / checkCompletion:false … お詫び付与は両輪 Phase A 対象外
+    //     ・lockTimeoutMs:2000 で通常運用への影響を抑える
+    //     ・message=APOLOGY_WABUN1_MESSAGE_TEMPLATE 適用後の文字列を HPLog.message 列に記録
+    //     ・stuLoc 互換オブジェクトは stuValues 配列から構築（_findAccountRowOnSheet を都度呼ばない）
+    //     ・updates の oldHP / newHP は事前計算済み（旧版互換、grant.newHP と一致）
+    //   per-sid 呼び出しコスト：生徒 12 名規模で 1〜2 秒程度（許容範囲、手動実行）
+    let failedLogs = 0;
     if (updates.length > 0) {
-      // HP 列を 1 件ずつ書き込み（連続範囲ではないため setValues 不可）
+      const message = APOLOGY_WABUN1_MESSAGE_TEMPLATE.replace('{date}', date);
       for (let k = 0; k < updates.length; k++) {
         const u = updates[k];
-        stuSheet.getRange(u.rowIdx + 1, COL_HP + 1).setValue(u.newHP);
+        const stuLocAdapter = {
+          sheet:     stuSheet,
+          rowIdx:    u.rowIdx,
+          rowValues: stuValues[u.rowIdx]
+        };
+        const grant = _grantHP({
+          sid:                 u.sid,
+          type:                APOLOGY_WABUN1_TYPE,
+          rawHp:               u.hpAdded,
+          stuLoc:              stuLocAdapter,
+          message:             message,
+          applyWeekMultiplier: false,  // お詫びは一律 hpAmount（旧版同等）
+          applyReserveSystem:  false,
+          checkCompletion:     false,
+          lockTimeoutMs:       2000
+        });
+        if (!grant.ok) {
+          failedLogs += 1;
+          u.logFailed = true;
+          u.errorCode = grant.errorCode || '';
+          // _grantHP 失敗時は Students.HP も更新されていない。updates の newHP を旧値に戻す
+          u.newHP = u.oldHP;
+        }
       }
 
-      // HPLog にお詫び記録（ログ由来も手動追加も同じ type='apology_wabun1' で統一）
-      const log = _ensureHpLogMessageColumn();
-      const now = _nowJST();
-      const message = APOLOGY_WABUN1_MESSAGE_TEMPLATE.replace('{date}', date);
-      const rowsToAppend = updates.map(function(u){
-        const row = new Array(log.lastCol).fill('');
-        if (log.cTimestamp >= 0) row[log.cTimestamp] = now;
-        if (log.cSid       >= 0) row[log.cSid]       = u.sid;
-        if (log.cRawHP     >= 0) row[log.cRawHP]     = u.hpAdded;
-        if (log.cHpGained  >= 0) row[log.cHpGained]  = u.hpAdded;
-        if (log.cType      >= 0) row[log.cType]      = APOLOGY_WABUN1_TYPE;
-        if (log.cMessage   >= 0) row[log.cMessage]   = message;
-        return row;
-      });
-      log.sh.getRange(log.sh.getLastRow() + 1, 1, rowsToAppend.length, log.lastCol)
-            .setValues(rowsToAppend);
-
-      // cache invalidate
+      // cache invalidate（_grantHP は per-sid で cache_ranking_last_week を invalidate するが、
+      // cache_students_values は in-place 更新のみのため明示的に invalidate）
       _invalidateCache('cache_students_values');
       _invalidateCache('cache_ranking_last_week');
 
@@ -3264,6 +3282,7 @@ function apologyWabun1Bonus(opts) {
       excludeApplied: excludeApplied,
       totalTargets: allTargetIds.length,
       updated: updates.length,
+      failedLogs: failedLogs,
       skipped: skipped,
       updates: updates
     };
