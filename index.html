@@ -2912,21 +2912,9 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
   </div>
 </div>
-<!-- 2026-05-12 サンゴタンAIフィードバック：演出 + フィードバック表示画面 -->
-<div id="screen-sango-thinking" class="screen">
-  <header><h1>🐠 サンゴタンが考え中…</h1></header>
-  <div class="container" style="padding-top:24px">
-    <div class="sango-thinking-wrap">
-      <img class="sango-thinking-img" src="images/sangotan-thinking.png" alt="サンゴタン">
-      <div class="sango-thinking-bubble" id="sango-thinking-bubble">サンゴタンがキミの作品を読んでるよ〜</div>
-      <div class="sango-thinking-dots" aria-hidden="true">
-        <span class="sango-thinking-dot"></span>
-        <span class="sango-thinking-dot"></span>
-        <span class="sango-thinking-dot"></span>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- 2026-05-12 サンゴタンAIフィードバック：feedback 表示画面（screen-sango-thinking は Step 7-2 で削除） -->
+<!-- 旧 screen-sango-thinking DOM は楽観的UI 廃止に伴い不要となり削除（Phase 3 Step 7-2 / 2026-05-20）。
+     hp-confirming-overlay でサンゴタン演出を表示しサーバ ok 後に直接 screen-sango-feedback へ遷移する設計。 -->
 <div id="screen-sango-feedback" class="screen">
   <header><h1>🐠 サンゴタンからのコメント</h1></header>
   <div class="container" style="padding-top:16px">
@@ -4412,16 +4400,13 @@
   }
   // ========================================================================
 
-  // E1: 楽観的UI のリトライ / キャンセル用クロージャ
+  // 楽観的UI のリトライ / キャンセル用クロージャ（Phase 3 全 Step で使用）
+  //   各 submit 関数が doSubmit を再帰呼び出しするパターンで _pendingRetry を再設定する。
+  //   _showSubmitError → _retryPendingSubmit でディスパッチされる。
   var _pendingRetry = null;
   var _pendingDismiss = null;
-  // E1: HP 予測（base × ceil(streak/7)²）
-  function _predictHp(base) {
-    var s = Math.max(_streak || 0, 1);
-    var w = Math.ceil(s / 7);
-    return base * w * w;
-  }
-  // E1: 当日（JST 3 時切替）に該当コンテンツで HP 獲得済みかを localStorage で予測
+
+  // JST 3 時切替の今日キー（"yyyy-MM-dd"）。和文英訳①バッジ判定 / 基礎計算 過去セッション再表示で使用。
   function _todayKeyJST3am() {
     var now = new Date();
     var jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
@@ -4429,7 +4414,6 @@
     var y = jst.getFullYear(), m = jst.getMonth() + 1, d = jst.getDate();
     return y + '-' + (m < 10 ? '0' + m : m) + '-' + (d < 10 ? '0' + d : d);
   }
-  function _hpFlagKey(type) { return 'mykt_hp_' + (_studentId || '') + '_' + type + '_' + _todayKeyJST3am(); }
   // 昨日の日付キー（_todayKeyJST3am と同じ JST 3 時境界）。基礎計算 過去セッション再表示で使う
   function _yesterdayKeyJST3am() {
     var now = new Date();
@@ -4446,9 +4430,16 @@
     var el = document.getElementById('badge-wabun1-hp');
     if (el) el.textContent = _wabun1BaseHp() + 'HP/日';
   }
-  function _isHpGrantedToday(type) { try { return !!localStorage.getItem(_hpFlagKey(type)); } catch(e) { return false; } }
-  function _markHpGrantedToday(type)   { try { localStorage.setItem(_hpFlagKey(type), '1'); } catch(e){} }
-  function _unmarkHpGrantedToday(type) { try { localStorage.removeItem(_hpFlagKey(type)); } catch(e){} }
+  // 【廃止済関数の記録（Phase 3 Step 7-2 / 2026-05-20）】
+  //   楽観的UI 完全廃止に伴い以下の関数を削除：
+  //   - _predictHp(base)                : base × ceil(streak/7)² の HP 予測（楽観的加算用）
+  //   - _hpFlagKey(type)                : localStorage キー生成（'mykt_hp_<sid>_<type>_<yyyy-MM-dd>'）
+  //   - _isHpGrantedToday(type)         : 当日 HP 獲得フラグの読み取り
+  //   - _markHpGrantedToday(type)       : 同 書き込み
+  //   - _unmarkHpGrantedToday(type)     : 同 削除（楽観的加算ロールバック時）
+  //   サーバ HPLog を唯一信頼源とする方針に統一（_grantHP + _isAlreadyGrantedToday 経由）。
+  //   過去の localStorage キー 'mykt_hp_*' は次回ログイン以降は読まれないが、生徒のブラウザに
+  //   残留するため将来的なクリーンアップは任意（ストレージ容量への影響は微小）。
   // E1: 送信中インジケーター
   function _showSubmitPending() { var el = document.getElementById('submit-pending-ind'); if (el) el.style.display = 'flex'; }
   function _hideSubmitPending() { var el = document.getElementById('submit-pending-ind'); if (el) el.style.display = 'none'; }
@@ -5949,7 +5940,7 @@
     _finishing = true;
     var total = _questions.length;
     if (_score === total) {
-      _submitAttemptOptimistic(total);
+      _submitAttempt(total);
     } else {
       var lastScore = _score; _questions = _questions.sort(function(){ return Math.random()-.5; }); _current = 0; _score = 0; _finishing = false;
       document.getElementById('test-feedback').textContent = ''; document.getElementById('test-feedback').className = 'feedback';
@@ -5964,41 +5955,85 @@
       }, 2500);
     }
   }
-  // E1: 英単語RUSH 楽観的UI（即座に結果画面表示 → 裏で saveAttempt → 差分があれば再描画）
-  function _submitAttemptOptimistic(total) {
+  // Phase 3 Step 7-2 / 2026-05-20：楽観的UI 完全廃止、_submitAttemptOptimistic を置換。
+  //   - 旧版：predictedHp = _predictHp(50) を _totalHP に予測加算 → showResult 即表示
+  //          → 裏で saveAttempt → 差分があれば再描画 / 失敗時は予測分ロールバック
+  //   - 新版：_showHpConfirmingOverlay('rushkun') で RUSH君 + セリフを見せながら待機
+  //          サーバ ok 後にサーバ確定値で showResult（result 画面遷移）
+  //          失敗 / タイムアウト時は _showSubmitError() でリトライ可（_pendingRetry 経由）
+  //   - サーバ HPLog を唯一信頼源とするため _isHpGrantedToday / _predictHp は呼ばない（本コミットで関数本体も完全削除）
+  //
+  // 【英単語RUSH 特有：リトライ二重加算リスク】
+  //   strategy='none'（1 日 2 セット自由 + 翌日リセット）のため、通信タイムアウト後の
+  //   リトライで saveAttempt が二重実行されると HP も二重加算される可能性あり。
+  //   Phase 2 設計で合意済みの暫定対策：エラー overlay の「もう一度送信する」ボタンを
+  //   5 秒 disable し、サーバ側の処理完了をある程度待たせてからリトライさせる
+  //   （根本対策は idempotency key 導入だが、本 Step では対象外）。
+  function _submitAttempt(total) {
     var sidSnap = _studentId, setNoSnap = _setNo, scoreSnap = _score, levelSnap = _level, sessionNoSnap = _sessionNo;
-    var streakSnap = _streak;
-    var predictedHp = _predictHp(50);
-    _totalHP += predictedHp;
-    var optimisticRes = { ok: true, totalHP: _totalHP, streak: streakSnap, clearHP: predictedHp, hpGained: predictedHp };
-    showResult(true, optimisticRes);
-    _showSubmitPending();
-    _pendingRetry = function(){ _finishing = true; _submitAttemptOptimistic(total); };
-    _pendingDismiss = function(){ goHome(); };
-    gasGet({ action:'saveAttempt', studentId:sidSnap, setNo:setNoSnap, score:scoreSnap, total:total, passed:true, level:levelSnap, sessionNo:sessionNoSnap })
-      .then(function(res){
-        _hideSubmitPending();
+    var payload = {
+      action:    'saveAttempt',
+      studentId: sidSnap,
+      setNo:     setNoSnap,
+      score:     scoreSnap,
+      total:     total,
+      passed:    true,
+      level:     levelSnap,
+      sessionNo: sessionNoSnap
+    };
+    function doSubmit() {
+      _showHpConfirmingOverlay('rushkun');
+      _pendingRetry = function(){ _finishing = true; doSubmit(); };
+      _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
+      gasGetWithTimeout(payload, 25000).then(function(res){
+        _hideHpConfirmingOverlay();
         if (!res || !res.ok) {
-          _totalHP -= predictedHp;
-          _showSubmitError();
+          // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
+          _showSubmitErrorWithRetryGuard(5000);
           return;
         }
+        // 成功：pending ハンドラをクリアして結果画面を描画
         _pendingRetry = null; _pendingDismiss = null;
         _invalidateCacheByAction('getHistory');
         _invalidateCacheByAction('getWeeklyRanking');
         if (Number(res.streak) > 0) _streak = Number(res.streak);
-        var actualHp = Number(res.clearHP || res.hpGained || 0);
-        var actualTotal = Number(res.totalHP || 0);
-        if (actualHp !== predictedHp || actualTotal !== _totalHP) {
-          _totalHP = actualTotal;
-          showResult(true, res);
-        }
-      })
-      .catch(function(){
-        _hideSubmitPending();
-        _totalHP -= predictedHp;
-        _showSubmitError();
+        // サーバ確定値で showResult（_totalHP は showResult 内部で res.totalHP に同期される）
+        showResult(true, res);
+      }).catch(function(){
+        // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
+        _hideHpConfirmingOverlay();
+        _showSubmitErrorWithRetryGuard(5000);
       });
+    }
+    doSubmit();
+  }
+
+  // 英単語RUSH 特有の二重加算対策ヘルパー：
+  //   _showSubmitError() を呼んだあと、「もう一度送信する」ボタンを ms ミリ秒 disable する。
+  //   strategy='none' で当日重複判定がないため、通信タイムアウト直後の即リトライで
+  //   サーバ処理（10〜15 秒）と被ると HP 二重加算が起きうる。5 秒待たせることで
+  //   リスクを大きく減らす（根本対策は idempotency key、別タスク）。
+  function _showSubmitErrorWithRetryGuard(ms) {
+    _showSubmitError();
+    var retryBtn = document.querySelector('#mykt-error-overlay .btn-retry');
+    if (!retryBtn) return;
+    retryBtn.disabled = true;
+    var originalOpacity = retryBtn.style.opacity;
+    var originalText = retryBtn.textContent;
+    var remaining = Math.ceil(ms / 1000);
+    retryBtn.style.opacity = '0.5';
+    retryBtn.textContent = 'もう一度送信する（あと ' + remaining + ' 秒）';
+    var countdown = setInterval(function(){
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(countdown);
+        retryBtn.disabled = false;
+        retryBtn.style.opacity = originalOpacity || '';
+        retryBtn.textContent = originalText;
+      } else {
+        retryBtn.textContent = 'もう一度送信する（あと ' + remaining + ' 秒）';
+      }
+    }, 1000);
   }
   function showResult(passed, saveRes) {
     showScreen('screen-result');
@@ -6721,26 +6756,17 @@
       } catch(e){}
     }
   }
-  // 2026-05-12 改善1：画面遷移順序の入れ替え（thinking → feedback → done）
-  // 旧フロー：HP 演出（done）2.5 秒 + thinking 1.8 秒 + feedback
-  // 新フロー：thinking（即座、AI 待ち）+ feedback（生徒操作）+ HP 演出（done）
+  // 三語短文 feedback → done の画面遷移用 state。
+  //   _pendingSangoHp は submitSango の .then 内でセットされる：
+  //     { hp: actualHp, alreadyGranted: bool, hpReserved, justCompleted, releasedHp, bonusHp }
+  //   feedback 画面の「HP獲得演出を見る」ボタンから _showSangoFinalDone() を呼ぶ。
   //
-  // _pendingSangoHp は submitSango の .then 内でセットされる：
-  //   { hp: actualHp, alreadyGranted: bool }
-  // feedback 画面の「HP獲得演出を見る」ボタンから _showSangoFinalDone() を呼ぶ。
+  // 【Phase 3 Step 7-2 / 2026-05-20 で削除した関数】
+  //   - _showSangoThinkingScreen()  : screen-sango-thinking 表示（楽観的UI 時代の演出画面）
+  //   - _waitThinkingThenFeedback() : 1.8 秒 thinking 待ち → _showSangoFeedback
+  //   非楽観UI 化で hp-confirming-overlay 表示 → サーバ ok → _showSangoFeedback への直接遷移に統一。
+  //   screen-sango-thinking DOM も同時削除済み。
   var _pendingSangoHp = null;
-  function _showSangoThinkingScreen() {
-    var bubble = document.getElementById('sango-thinking-bubble');
-    if (bubble) bubble.textContent = _pickBubble(SANGOTAN_BUBBLES.thinking);
-    showScreen('screen-sango-thinking');
-  }
-  function _waitThinkingThenFeedback(aiFeedback) {
-    // thinking を最低 1.8 秒見せてから feedback へ。submitSango のレスポンスが
-    // 既に届いているこの時点でも、サンゴタンが読んでる演出として最低時間は確保する。
-    setTimeout(function() {
-      _showSangoFeedback(aiFeedback);
-    }, 1800);
-  }
   function _showSangoFinalDone() {
     // feedback 画面の「HP獲得演出を見る」ボタンから呼ばれる。
     // _pendingSangoHp に actual HP + 両輪 Phase A の reserve/completion 情報が入っている。

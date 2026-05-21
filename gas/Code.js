@@ -1660,33 +1660,32 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     const clearedSets = parseInt(props.getProperty(clearKey) || '0', 10);
     if (setNo > clearedSets) props.setProperty(clearKey, String(setNo));
 
-    // HP計算（streak ベース：ログイン連続日数 × week²）
-    //   1セットクリアにつき 50 × (連続週数)² HPを加算
-    //   → 1日2セット完了で合計 100 × (連続週数)² HP
+    // HP 加算（2026-05-20 Phase 3 Step 7-2：_grantHP に集約）
+    //   - 旧版：rawHp_ = 50 * week² を rawHp として _logHP に渡していた（仕様違反、実 HP）
+    //   - 新版：rawHp=50（素点）を _grantHP に渡す。_grantHP 内部で hpGained = 50 × week² を計算
+    //   - 両輪 Phase A 対応（applyReserveSystem:true・applyWeekMultiplier:true・checkCompletion:true 既定値）
+    //   - HPLog の rawHP 列値が「実 HP（50×week²）」→「素点（50）」に変更（仕様書 §8.7 整合、CLAUDE.md 運用メモ参照）
+    //   - test type は当日重複判定なし（strategy='none' 相当、1 日 2 セット自由 + 翌日リセット）
+    //     → _isAlreadyGrantedToday は呼ばず、_grantHP を直接呼ぶ
     if (!stuLoc) return { ok: false };
-    const sRow      = stuLoc.rowValues;
-    const currentHP = Number(sRow[COL_HP]) || 0;
-    const streak    = Number(sRow[COL_STREAK]) || 1;  // 最低1
-    const week      = Math.ceil(streak / 7);
-    const rawHp_    = 50 * week * week;
-    // 両輪システム Phase A：絶対ミッション未達成なら 60%/40% に分割（既存挙動：絶対ミッションなし or 達成済なら 100%）
-    const reserveCalc = _calculateHpWithReserve(stuLoc, rawHp_);
-    const hpGained    = reserveCalc.granted;   // 即時付与分（フロント既存互換のためフィールド名は維持）
-    const reservedHp  = reserveCalc.reserved;
-    const newHP       = currentHP + hpGained;
-
-    // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
-    // HPLog 書き込みに失敗した場合は Students.HP / CLEARED / LAST_TEST を更新せずに
-    // エラー応答を返す。Attempts シートと PropertiesService（pass1/pass2/cleared_*）の
-    // 更新はそのまま残す（合格記録自体は有効、HP だけが付与されなかった状態）。
-    const logRes = _logHP(sid, rawHp_, hpGained, 'test');
-    if (!logRes.ok) {
-      console.error('[saveAttempt] HPLog 書き込みに失敗しました。HP/CLEARED/LAST_TEST を更新せず終了。', logRes.error);
-      return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
-    }
-    // 保留分を Pool に追記（reserve_active のときのみ実行、失敗しても HP 付与は完了済み）
-    if (reservedHp > 0) {
-      _appendHpReservePool(sid, _sangoToday(), 'test', rawHp_, reservedHp);
+    const sRow = stuLoc.rowValues;
+    const grant = _grantHP({
+      sid:    sid,
+      type:   'test',
+      rawHp:  50,     // 素点（仕様書 §8.7、_grantHP 内部で week² 適用）
+      stuLoc: stuLoc
+      // applyWeekMultiplier / applyReserveSystem / checkCompletion はすべて既定値 true
+    });
+    if (!grant.ok) {
+      // _grantHP 失敗時は CLEARED / LAST_TEST 列を更新せずにエラー応答を返す。
+      // Attempts シートと PropertiesService（pass1/pass2/cleared_*）の更新はそのまま残す
+      //（合格記録自体は有効、HP だけが付与されなかった状態）。
+      console.error('[saveAttempt] _grantHP 失敗', { sid: sid, errorCode: grant.errorCode });
+      return {
+        ok:        false,
+        message:   grant.message || '内部エラーが発生しました。もう一度試してください。',
+        errorCode: grant.errorCode || 'HP_LOG_FAILED'
+      };
     }
 
     // 4/26 修正: 連続日数バグ対策で STREAK 列を含む 5 列 setValues を廃止
@@ -1694,36 +1693,32 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
     //       → preservedStreak が cache 経由（stale な値の可能性）→ シートの STREAK を破壊するリスク
     //   新: setValues D-F（CLEARED, UPDATED, HP）+ setValue H（LAST_TEST）
     //       STREAK には絶対に触らない（loginStudent のみが書き込む列）
-    // 2026-05-09 Step 0：書き込み行は stuLoc.rowIdx（フレッシュ）を使う
+    // 2026-05-20 Phase 3 Step 7-2：_grantHP が COL_HP を既に更新しているため、
+    //   ここでは CLEARED / UPDATED のみ setValues + LAST_TEST を別途 setValue とする。
+    //   _grantHP の in-place cache 更新が COL_HP のみのため、CLEARED / UPDATED / LAST_TEST も追加 cache 更新が必要。
     const currentCleared = Number(sRow[COL_CLEARED]) || 0;
     const newCleared = (setNo > currentCleared) ? setNo : currentCleared;
-    stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_CLEARED + 1, 1, COL_HP - COL_CLEARED + 1)
-          .setValues([[newCleared, now, newHP]]);
+    stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_CLEARED + 1, 1, COL_UPDATED - COL_CLEARED + 1)
+          .setValues([[newCleared, now]]);
     stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_LAST_TEST + 1).setValue(today);
     const updates = {};
     updates[COL_CLEARED]   = newCleared;
     updates[COL_UPDATED]   = now;
-    updates[COL_HP]        = newHP;
     updates[COL_LAST_TEST] = today;
     _updateAccountCacheBySid(sid, updates);
-    _invalidateCache('cache_ranking_last_week');
 
-    // 両輪 Phase A：絶対ミッション達成チェック（reserve_active のときのみ呼ぶ）
-    let completion = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
-    if (reserveCalc.isReserveActive) {
-      completion = _checkAndReleaseReserveIfCompleted(sid, 'test');
-    }
-    const finalTotalHP = completion.justCompleted ? newHP + completion.releasedHp + completion.bonusHp : newHP;
     return {
-      ok: true,
-      clearHP: hpGained, bonusHP: 0,
-      hpGained: hpGained,            // 即時付与分（絶対ミッション未達成なら 60%、それ以外なら 100%）
-      hpReserved: reservedHp,        // 保留分（絶対ミッション未達成時のみ > 0）
-      justCompleted: completion.justCompleted,
-      releasedHp: completion.releasedHp,
-      bonusHp: completion.bonusHp,
-      totalHP: finalTotalHP,
-      streak: streak, week: week
+      ok:            true,
+      clearHP:       grant.hpGained,     // フロント既存互換（_submitAttempt が clearHP を見る）
+      bonusHP:       0,                  // 旧版互換（常に 0、bonus は両輪 Phase A の justCompleted で別途返却）
+      hpGained:      grant.hpGained,     // 即時付与分（絶対ミッション未達成なら 60%、それ以外なら 100%）
+      hpReserved:    grant.hpReserved,   // 保留分（絶対ミッション未達成時のみ > 0）
+      justCompleted: grant.justCompleted,
+      releasedHp:    grant.releasedHp,
+      bonusHp:       grant.bonusHp,
+      totalHP:       grant.newHP,        // 加算後 Students.HP（completion bonus 込み）
+      streak:        grant.streak,
+      week:          grant.week
     };
   } catch (err) {
     console.error('[saveAttempt]', err);
