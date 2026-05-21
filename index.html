@@ -1072,6 +1072,77 @@
     /* ===== ダッシュボード各セクション ===== */
     .dash-section { margin-top: 16px; }
     .dash-section:first-child { margin-top: 0; }
+
+    /* ===== ログアウト忘れ防止バナー（2026-05-21 追加） =====
+       振り返り機能の応急対策。学習活動しても振り返り画面まで到達しない生徒（ログアウトせず
+       ブラウザを閉じる等）が大半という現場確認を受けて、ホーム画面の最上部に常時表示する
+       注意喚起バナー。学習を始める前にも、終わってホームに戻ったときにも視認できる位置に置く。
+       配色：他のカード（白背景 + 紫青グラデ h2）と差別化するためオレンジ系の警告色を採用。
+       強すぎる赤は他要素と競合し景色化リスクがあるため、暖色グラデで「気付き」を狙う。 */
+    .logout-reminder-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #fb923c 0%, #f97316 55%, #ea580c 100%);
+      border: 2px solid #c2410c;
+      border-radius: 12px;
+      color: #fff;
+      box-shadow: 0 3px 12px rgba(234, 88, 12, 0.28);
+      position: relative;
+      overflow: hidden;
+    }
+    /* 軽い光沢の脈動（subtle、景色化リスクを抑える程度のさりげない動き） */
+    .logout-reminder-banner::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 20% 50%, rgba(255,255,255,0.18) 0%, transparent 60%);
+      pointer-events: none;
+      animation: logoutReminderShine 6s ease-in-out infinite;
+    }
+    @keyframes logoutReminderShine {
+      0%, 100% { opacity: 0.45; }
+      50%      { opacity: 1; }
+    }
+    .logout-reminder-icon {
+      font-size: 28px;
+      line-height: 1;
+      flex-shrink: 0;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+      position: relative;
+      z-index: 1;
+    }
+    .logout-reminder-text {
+      flex: 1;
+      min-width: 0;
+      position: relative;
+      z-index: 1;
+    }
+    .logout-reminder-main {
+      font-size: 16px;
+      font-weight: bold;
+      line-height: 1.4;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .logout-reminder-sub {
+      font-size: 12px;
+      margin-top: 3px;
+      opacity: 0.94;
+      line-height: 1.45;
+    }
+    /* 減速設定（prefers-reduced-motion）の生徒には脈動を無効化 */
+    @media (prefers-reduced-motion: reduce) {
+      .logout-reminder-banner::before { animation: none; opacity: 0.5; }
+    }
+    /* レスポンシブ：480px 以下では文字を小さく + padding 縮小 */
+    @media (max-width: 480px) {
+      .logout-reminder-banner { padding: 10px 12px; gap: 10px; border-radius: 10px; margin-bottom: 14px; }
+      .logout-reminder-icon { font-size: 24px; }
+      .logout-reminder-main { font-size: 14px; }
+      .logout-reminder-sub  { font-size: 11px; }
+    }
     .quote-card { background: linear-gradient(135deg,#a2e4ff 0%, #ffd3e8 100%); border-radius: 18px; padding: 18px 20px; color: #1a1a2e; box-shadow: 0 4px 16px rgba(162,228,255,.5); }
     .quote-label { font-size: 13px; font-weight: bold; color: #4f7df0; letter-spacing: 1px; margin-bottom: 6px; }
     .quote-text  { font-size: 17px; line-height: 1.7; font-weight: 600; color: #2b2b46; }
@@ -2384,6 +2455,19 @@
 <div id="screen-welcome" class="screen">
   <div class="top-card">
     <h2 style="text-align:center;background:linear-gradient(135deg,#ff6ea0,#b24bf3,#4f7df0);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px">マイ活アプリ</h2>
+
+    <!-- 🚪 ログアウト忘れ防止バナー（2026-05-21 追加）
+         振り返り機能の応急対策。5/20 時点で学習活動 24 名中 22 名が振り返りを書いていない
+         状況を受けた動機付けバナー。ホーム画面の最上部に常時表示し、学習を始める前にも
+         終わってホームに戻った後にも視認できる位置に配置。Phase 5 で「HP 留保 → 振り返り
+         送信で付与」の根本対策を検討中、それまでの応急処置。 -->
+    <div class="logout-reminder-banner" role="status" aria-live="polite">
+      <div class="logout-reminder-icon">🚪</div>
+      <div class="logout-reminder-text">
+        <div class="logout-reminder-main">終わったら必ずログアウトしてね！</div>
+        <div class="logout-reminder-sub">ログアウトしないと連続日数が途切れるよ！</div>
+      </div>
+    </div>
 
     <!-- ① 今日の一言 -->
     <div class="dash-section">
