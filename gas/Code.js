@@ -3544,29 +3544,43 @@ function apologyKisoBonus(opts) {
       };
     }
 
+    // 本番実行（2026-05-20 Phase 3 Step 8-3：_grantHP 経由に統一、apologyWabun1Bonus と完全同パターン）
+    //   - 旧版：HP 列の per-sid setValue → HPLog バルク appendRow（setValues 一括）
+    //   - 新版：per-sid loop で _grantHP({rawHp: hpAmount, applyWeekMultiplier:false, ...}) 1 関数に集約
+    //     ・applyWeekMultiplier:false … 旧版と同じ「倍率なし一律付与」
+    //     ・applyReserveSystem:false / checkCompletion:false … お詫びは両輪 Phase A 対象外
+    //     ・lockTimeoutMs:2000 で通常運用への影響を抑える
+    //     ・message=APOLOGY_KISO_MESSAGE_TEMPLATE 適用後の文字列を HPLog.message 列に記録
+    //   per-sid 呼び出しコスト：生徒 9 名規模で 1〜2 秒程度（許容範囲、手動実行）
+    let failedLogs = 0;
     if (updates.length > 0) {
-      // HP 列を 1 件ずつ書き込み
+      const message = APOLOGY_KISO_MESSAGE_TEMPLATE.replace('{date}', date);
       for (let k = 0; k < updates.length; k++) {
         const u = updates[k];
-        stuSheet.getRange(u.rowIdx + 1, COL_HP + 1).setValue(u.newHP);
+        const stuLocAdapter = {
+          sheet:     stuSheet,
+          rowIdx:    u.rowIdx,
+          rowValues: stuValues[u.rowIdx]
+        };
+        const grant = _grantHP({
+          sid:                 u.sid,
+          type:                APOLOGY_KISO_TYPE,
+          rawHp:               u.hpAdded,
+          stuLoc:              stuLocAdapter,
+          message:             message,
+          applyWeekMultiplier: false,
+          applyReserveSystem:  false,
+          checkCompletion:     false,
+          lockTimeoutMs:       2000
+        });
+        if (!grant.ok) {
+          failedLogs += 1;
+          u.logFailed = true;
+          u.errorCode = grant.errorCode || '';
+          // _grantHP 失敗時は Students.HP も更新されていない。updates の newHP を旧値に戻す
+          u.newHP = u.oldHP;
+        }
       }
-
-      // HPLog にお詫び記録（全 updates 同じ type='apology_kiso'）
-      const log = _ensureHpLogMessageColumn();
-      const now = _nowJST();
-      const message = APOLOGY_KISO_MESSAGE_TEMPLATE.replace('{date}', date);
-      const rowsToAppend = updates.map(function(u){
-        const row = new Array(log.lastCol).fill('');
-        if (log.cTimestamp >= 0) row[log.cTimestamp] = now;
-        if (log.cSid       >= 0) row[log.cSid]       = u.sid;
-        if (log.cRawHP     >= 0) row[log.cRawHP]     = u.hpAdded;
-        if (log.cHpGained  >= 0) row[log.cHpGained]  = u.hpAdded;
-        if (log.cType      >= 0) row[log.cType]      = APOLOGY_KISO_TYPE;
-        if (log.cMessage   >= 0) row[log.cMessage]   = message;
-        return row;
-      });
-      log.sh.getRange(log.sh.getLastRow() + 1, 1, rowsToAppend.length, log.lastCol)
-            .setValues(rowsToAppend);
 
       // cache invalidate
       _invalidateCache('cache_students_values');
@@ -3590,6 +3604,7 @@ function apologyKisoBonus(opts) {
       excludeApplied: excludeApplied,
       totalTargets: allTargetIds.length,
       updated: updates.length,
+      failedLogs: failedLogs,
       skipped: skipped,
       updates: updates
     };
