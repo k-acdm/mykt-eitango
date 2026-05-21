@@ -1592,16 +1592,6 @@
     .wabun1-period-warn li small { display: block; font-size: 12px; font-weight: normal; color: #991b1b; margin-top: 2px; }
     .sango-ocr-actions { display:flex; gap:10px; }
     .sango-ocr-actions .btn-wide { margin-top:0; flex:1; }
-    /* 2026-05-12 サンゴタンAIフィードバック：考え中演出 */
-    .sango-thinking-wrap { text-align:center; padding:30px 20px; background:linear-gradient(135deg,#e0f7fa,#fff5e1); border-radius:18px; border:3px solid #5ec8c8; }
-    .sango-thinking-img { width:140px; height:auto; animation: sango-thinking-bob 1.4s ease-in-out infinite; filter: drop-shadow(0 4px 10px rgba(94,200,200,.3)); }
-    @keyframes sango-thinking-bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-10px) rotate(2deg); } }
-    .sango-thinking-bubble { margin-top:18px; padding:14px 18px; background:#fff; border:2px solid #5ec8c8; border-radius:14px; color:#0e7490; font-size:17px; font-weight:bold; line-height:1.6; display:inline-block; max-width:90%; }
-    .sango-thinking-dots { margin-top:18px; display:flex; gap:8px; justify-content:center; }
-    .sango-thinking-dot { width:14px; height:14px; border-radius:50%; background:#5ec8c8; animation: sango-thinking-dot 1.2s ease-in-out infinite; }
-    .sango-thinking-dot:nth-child(2) { animation-delay: .2s; }
-    .sango-thinking-dot:nth-child(3) { animation-delay: .4s; }
-    @keyframes sango-thinking-dot { 0%, 80%, 100% { opacity: .3; transform: scale(.8); } 40% { opacity: 1; transform: scale(1.2); } }
     /* サンゴタンAIフィードバック：結果表示カード */
     .sango-fb-card { padding:22px 18px; border-radius:18px; box-shadow:0 4px 14px rgba(0,0,0,.08); }
     .sango-fb-card.excellent          { background:linear-gradient(135deg,#fef3c7,#fde68a); border:3px solid #f59e0b; }
@@ -1619,8 +1609,6 @@
     /* sango-fb-card の padding（22px 18px）を打ち消してフチまで広げる */
     .sango-fb-excuse { margin:14px -18px -22px; padding:10px 18px; background:rgba(0,0,0,.10); border-top:1px solid rgba(0,0,0,.10); border-radius:0 0 15px 15px; font-size:12px; color:#4a6fa5; line-height:1.6; text-align:center; }
     @media (max-width:480px) {
-      .sango-thinking-img { width:110px; }
-      .sango-thinking-bubble { font-size:15px; padding:12px 14px; }
       .sango-fb-mate img { width:72px; }
       .sango-fb-title { font-size:16px; }
       .sango-fb-body { font-size:15px; padding:12px 14px; }
