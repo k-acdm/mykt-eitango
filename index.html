@@ -5022,6 +5022,14 @@
       _totalHP     = Number(res.totalHP) || 0;
       _streak      = Number(res.streak) || 0;
       _accountType = String(res.accountType || ''); // Task 3：振り返りモーダルスキップ判定用
+      // 2026-05-21：翌日キャッチアップ。pendingReflectionDate が返ってきたら、ホーム遷移後に
+      // 強制振り返りモーダルを起動する（_openCatchupReflectionModal）。
+      //   - GAS 側で accountType skip / 7 日範囲制限 / 30 分キャッシュは処理済み
+      //   - null の場合は通常フロー（何もしない）
+      //   - 通常のホーム遷移と競合しないよう setTimeout で 600ms 遅らせる（誕生日サプライズと同じ間合い）
+      _pendingCatchupDate = (res.pendingReflectionDate && String(res.pendingReflectionDate).match(/^\d{4}-\d{2}-\d{2}$/))
+                            ? String(res.pendingReflectionDate)
+                            : null;
       // 初回ログイン（ニックネーム未設定）はサプライズ判定の対象外。先にニックネームを設定させる。
       // 通常ログイン経路：ホーム遷移前に誕生日サプライズ判定を挟む（_maybeShowBirthdaySurprise）。
       if (res.isFirstLogin) {
@@ -5029,6 +5037,11 @@
       } else {
         _maybeShowBirthdaySurprise(function(){
           showWelcome(res.nickname, res.totalHP, res.loginBonus, res.stage, res.streak, res.title, res.milestone);
+          // ホーム描画後にキャッチアップ振り返りモーダル起動（初回ログインは Skip：その日ニックネーム
+          // 入力フローへ進むため、未提出日も存在しない）
+          if (_pendingCatchupDate) {
+            setTimeout(function(){ _openCatchupReflectionModal(_pendingCatchupDate); }, 600);
+          }
         });
       }
     }).catch(function(){ document.getElementById('login-btn').disabled = false; showMsg('login-msg','エラーが発生しました。','ng'); });
@@ -6297,17 +6310,137 @@
     _openReflectionLogoutModal();
   }
   function _openReflectionLogoutModal() {
+    // 通常 logout モード：catchup 状態から戻ってくる可能性があるためデフォルト UI を復元
+    _restoreReflectionModalDefaults();
     var ov = document.getElementById('reflection-logout-modal');
     var ta = document.getElementById('reflection-logout-textarea');
     var btn = document.getElementById('reflection-logout-submit');
     var msg = document.getElementById('reflection-logout-msg');
     if (ta) ta.value = '';
-    if (btn) { btn.disabled = true; btn.textContent = '振り返って送信＆ログアウト'; }
+    if (btn) { btn.disabled = true; }
     if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
     onReflectionInput();
     if (ov) ov.classList.add('active');
     // textarea にフォーカス（iOS で virtual keyboard が即時起動するのは UX 上 OK）
     setTimeout(function(){ try { if (ta) ta.focus(); } catch(e){} }, 50);
+  }
+
+  // 2026-05-21：翌日キャッチアップ用 state（昨日 or 直近未提出日 'yyyy-MM-dd'、null なら未起動）
+  var _pendingCatchupDate = null;
+
+  // 翌日キャッチアップ：強制振り返りモーダル起動。
+  //   - 既存 #reflection-logout-modal を流用し、タイトル/説明文/ボタン挙動を catchup 用に動的差し替え
+  //   - キャンセルボタン非表示（書かない限り閉じられない）
+  //   - 送信成功 → モーダル閉じる + UI 復元（ログアウトしない、ホームに戻る）
+  //   - 送信失敗 → エラー表示 + 再試行可能
+  //   - 既存の onReflectionInput / _effectiveReflectionLen / 100〜1500 字制約は流用
+  function _openCatchupReflectionModal(dateStr) {
+    var ov = document.getElementById('reflection-logout-modal');
+    var ta = document.getElementById('reflection-logout-textarea');
+    var btn = document.getElementById('reflection-logout-submit');
+    var msg = document.getElementById('reflection-logout-msg');
+    var titleEl  = document.querySelector('#reflection-logout-modal .refl-modal-title');
+    var subEl    = document.querySelector('#reflection-logout-modal .refl-modal-sub');
+    var cancelEl = document.querySelector('#reflection-logout-modal .refl-modal-btn-cancel');
+    if (ta) ta.value = '';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '振り返って送信する';
+      btn.onclick = function(){ _doCatchupReflectionSubmit(); };
+    }
+    if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
+    // タイトル・説明文を catchup 用に差し替え
+    if (titleEl) titleEl.textContent = '📝 ' + dateStr + ' の振り返りがまだだよ';
+    if (subEl) {
+      subEl.innerHTML =
+        '昨日（または直近）に学習したのに、振り返りが書かれていないよ。<br>' +
+        '今日のうちに、その日の振り返りを書いてね。<br>' +
+        '<span style="color:#c2410c;font-weight:bold">※ 振り返らないと閉じられないよ</span>';
+    }
+    // キャンセルボタン非表示（catchup ではキャンセル不可、書くまで閉じられない）
+    if (cancelEl) cancelEl.style.display = 'none';
+    onReflectionInput();
+    if (ov) ov.classList.add('active');
+    setTimeout(function(){ try { if (ta) ta.focus(); } catch(e){} }, 50);
+  }
+
+  // モーダル状態を logout モードのデフォルトに戻す
+  //   - submit ボタンの onclick / 文言 / タイトル / 説明文 / キャンセル表示を復元
+  //   - catchup → 通常 logout への切り替え、catchup 送信成功時、_openReflectionLogoutModal 起動時に呼ぶ
+  function _restoreReflectionModalDefaults() {
+    var btn = document.getElementById('reflection-logout-submit');
+    if (btn) {
+      btn.textContent = '振り返って送信＆ログアウト';
+      btn.onclick = function(){ doReflectionSubmitAndLogout(); };
+    }
+    var titleEl  = document.querySelector('#reflection-logout-modal .refl-modal-title');
+    var subEl    = document.querySelector('#reflection-logout-modal .refl-modal-sub');
+    var cancelEl = document.querySelector('#reflection-logout-modal .refl-modal-btn-cancel');
+    if (titleEl) titleEl.textContent = '📝 今日のマイ活 振り返り';
+    if (subEl) {
+      subEl.innerHTML =
+        'ログアウトする前に、今日やったことを振り返ろう。<br>' +
+        '何ができた？何が難しかった？明日はどうしたい？';
+    }
+    if (cancelEl) cancelEl.style.display = '';
+  }
+
+  // 翌日キャッチアップの振り返り送信：submitReflection に reflectionDate を渡して
+  // 「昨日（or 直近未提出日）」として記録する。成功時はモーダル閉じるだけ（ログアウトしない）。
+  function _doCatchupReflectionSubmit() {
+    var ta  = document.getElementById('reflection-logout-textarea');
+    var btn = document.getElementById('reflection-logout-submit');
+    var msg = document.getElementById('reflection-logout-msg');
+    if (!ta || !btn) return;
+    var content = String(ta.value || '');
+    var len = _effectiveReflectionLen(content);
+    if (len < 100) {
+      if (msg) { msg.textContent = '⚠️ 100文字以上書いてね（空白・改行を除いて現在 ' + len + '文字）'; msg.classList.remove('ok'); }
+      return;
+    }
+    if (len > 1500) {
+      if (msg) { msg.textContent = '⚠️ 1500文字以内にしてね（空白・改行を除いて現在 ' + len + '文字）'; msg.classList.remove('ok'); }
+      return;
+    }
+    if (!_studentId) {
+      if (msg) { msg.textContent = '⚠️ ログイン状態が確認できません。'; msg.classList.remove('ok'); }
+      return;
+    }
+    if (!_pendingCatchupDate) {
+      // 異常ケース：state 喪失。通常の振り返りとして送信（reflectionDate 省略で今日扱い）
+      console.warn('[_doCatchupReflectionSubmit] _pendingCatchupDate が空です。通常の振り返り送信にフォールバック');
+    }
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+    if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
+    gasPost({
+      action:         'submitReflection',
+      studentId:      _studentId,
+      content:        content,
+      wordCount:      len,
+      reflectionDate: _pendingCatchupDate || ''  // GAS 側で 7 日範囲外 / 不正値は無視されて _sangoToday() にフォールバック
+    }).then(function(res){
+      if (res && res.ok) {
+        // 成功 → モーダルを閉じる + UI を logout モードに戻す（次回の正常 doLogout のため）
+        var ov = document.getElementById('reflection-logout-modal');
+        if (ov) ov.classList.remove('active');
+        _pendingCatchupDate = null;
+        _restoreReflectionModalDefaults();
+        // ホームには既に居る（doLogin 後の遷移済）ので追加の画面遷移は不要
+      } else {
+        var em = (res && res.message) ? String(res.message) : '送信に失敗しました。電波の良い場所でもう一度お試しください';
+        if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
+        btn.disabled = false;
+        btn.textContent = '振り返って送信する';
+        onReflectionInput();
+      }
+    }).catch(function(err){
+      var em = (err && err.message) ? String(err.message) : 'ネットワークエラーが発生しました';
+      if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
+      btn.disabled = false;
+      btn.textContent = '振り返って送信する';
+      onReflectionInput();
+    });
   }
   function _closeReflectionLogoutModal() {
     var ov = document.getElementById('reflection-logout-modal');
@@ -6412,11 +6545,13 @@
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
     _accountType = '';
+    _pendingCatchupDate = null;  // 2026-05-21：翌日キャッチアップ state も同時クリア
     _requiredProgress = null;
     _avatarState = { base: '', items: [], equipped: {}, nickname: '' };
     try { _lisonResetState(); } catch(e){}
     _clearAllLogoutOverlays();
     _closeReflectionLogoutModal();
+    _restoreReflectionModalDefaults();  // catchup → logout モード UI を戻す（次回ログイン時の混乱防止）
     try { document.getElementById('login-id').value = ''; } catch(e){}
     showScreen('screen-login');
     try { backToRoleSelect(); } catch(e){}

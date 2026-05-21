@@ -1418,6 +1418,12 @@ function loginStudent(studentId) {
       }
     }
 
+    // 2026-05-21：翌日キャッチアップ用、振り返り未提出日を検出（昨日〜7 日前）
+    //   accountType による skip（test/teacher/invited）と CacheService（30 分 TTL）を
+    //   内部で処理。null（未提出なし or skip）or 'yyyy-MM-dd' を返す。
+    const accountType = _resolveAccountTypeFromLoc(stuLoc);
+    const pendingReflectionDate = _getPendingReflectionDate(studentId, accountType);
+
     return {
       ok:          true,
       studentId:   String(row[COL_ID]).trim(),
@@ -1430,7 +1436,8 @@ function loginStudent(studentId) {
       stage,
       title,
       milestone:   milestoneInfo,
-      accountType: _resolveAccountTypeFromLoc(stuLoc)  // 'student' / 'test' / 'teacher' / 'invited' / 'experience' / 'unknown'
+      accountType: accountType,             // 'student' / 'test' / 'teacher' / 'invited' / 'experience' / 'unknown'
+      pendingReflectionDate: pendingReflectionDate  // null or 'yyyy-MM-dd'（翌日キャッチアップ用、フロントが強制振り返りモーダルを起動）
     };
   } catch (err) {
     console.error('[loginStudent]', err);
@@ -10109,19 +10116,173 @@ function _readReflectionsForSid(sid, limit) {
   return out.slice(0, limit);
 }
 
+// =============================================
+// 翌日キャッチアップ：振り返り未提出日を検出（2026-05-21 新設）
+// =============================================
+// 背景：5/20 に学習活動 24 名のうち振り返り提出が 2 名のみ（91.7% 未提出）。
+//   真因は「振り返りモーダルは doLogout からのみ起動 → 生徒の大半はログアウトを押さない」。
+//   応急バナー（commit 8dbd128 / 50d1274）に加えて、翌日再ログイン時に
+//   「昨日の振り返り未提出」を検知して強制起動する 2 重対策。
+//
+// 戻り値：null（未提出日なし or skip 対象）or 'yyyy-MM-dd'（最も古い未提出日）
+//
+// 判定ロジック：
+//   1. accountType が test/teacher/invited なら null（skip、本番運用外のため）
+//   2. CacheService（30 分 TTL）でキャッシュヒットなら即返却
+//   3. Reflections シート末尾 200 行から sid の提出日セットを構築
+//   4. HPLog 末尾 500 行から sid の学習活動日セット（_isCountableActivityType 経由）
+//   5. 教育日基準で昨日〜7 日前を走査し「学習あり・振り返り未提出」の最も古い日を返す
+//   6. 結果をキャッシュ（30 分 TTL、submitReflection 時に明示的にクリア）
+//
+// パフォーマンス：
+//   - ログイン経路はレイテンシ敏感。末尾 200/500 行スキャン + キャッシュで 100ms 程度。
+//   - 30 分キャッシュにより同一生徒の連続ログインで負荷増を抑制。
+//   - キャッシュキー：'cache_pending_refl_' + sid（生徒単位、シート全体ではない）
+//
+// 副作用：submitReflection 末尾で _invalidatePendingReflectionCache(sid) を呼ぶ。
+//   これにより振り返り送信直後の再ログインでキャッシュが古いまま「まだ未提出」と表示
+//   される事故を防ぐ。
+function _getPendingReflectionDate(sid, accountType) {
+  try {
+    const sidNorm = String(sid || '').trim();
+    if (!sidNorm) return null;
+
+    // test / teacher / invited はスキップ（本番運用対象外）
+    if (accountType === 'test' || accountType === 'teacher' || accountType === 'invited') {
+      return null;
+    }
+
+    // CacheService（30 分 TTL）
+    const cacheKey = 'cache_pending_refl_' + sidNorm;
+    try {
+      const cached = CacheService.getScriptCache().get(cacheKey);
+      if (cached !== null) {
+        return cached === '__none__' ? null : cached;
+      }
+    } catch(e) { /* キャッシュ失敗時は続行 */ }
+
+    // 教育日基準の「昨日〜7 日前」候補日リスト
+    const todayStr = _todayEducationalJST();
+    const candidateDates = [];
+    try {
+      // todayStr 'yyyy-MM-dd' をベースに 1 日前〜7 日前を生成
+      // JST 12:00 を基準にして DST 等の影響を回避
+      const tBase = new Date(todayStr + 'T12:00:00+09:00');
+      for (let i = 1; i <= 7; i++) {
+        const d = new Date(tBase.getTime());
+        d.setDate(d.getDate() - i);
+        candidateDates.push(Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd'));
+      }
+    } catch(e) {
+      console.error('[_getPendingReflectionDate] candidate dates', e);
+      return null;
+    }
+    // candidateDates = [昨日, 2日前, 3日前, ..., 7日前]
+    // 「最も古い未提出日」を探すため、末尾から走査する
+
+    // Reflections シートから sid の提出日セット
+    const reflectionDates = {};
+    try {
+      const sh = _ss().getSheetByName(SHEET_REFLECTIONS);
+      if (sh && sh.getLastRow() >= 2) {
+        const lastCol = sh.getLastColumn();
+        const header  = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+        const iSid    = header.indexOf('studentId');
+        const iDate   = header.indexOf('date');
+        if (iSid >= 0 && iDate >= 0) {
+          const rows = _readLastNRows(sh, 200);
+          for (let i = 0; i < rows.length; i++) {
+            if (String(rows[i][iSid] || '').trim() !== sidNorm) continue;
+            // date 列は Sheets 自動変換で Date 型 / 'yyyy/MM/dd' の可能性あり
+            //（_reflectionToDateStr 同等ロジックで 'yyyy-MM-dd' に正規化）
+            const raw = rows[i][iDate];
+            let ds = '';
+            if (raw instanceof Date) {
+              ds = Utilities.formatDate(raw, 'Asia/Tokyo', 'yyyy-MM-dd');
+            } else if (raw != null) {
+              const s = String(raw).trim();
+              // 'yyyy-MM-dd' or 'yyyy/MM/dd' or 'yyyy-MM-dd HH:mm:ss' 等を吸収
+              const m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})/);
+              if (m) ds = m[1] + '-' + m[2] + '-' + m[3];
+            }
+            if (ds) reflectionDates[ds] = true;
+          }
+        }
+      }
+    } catch(e) {
+      console.error('[_getPendingReflectionDate] Reflections read', e);
+      // 読み込み失敗時は安全側で null（強制起動しない）
+      return null;
+    }
+
+    // HPLog から sid の学習活動日セット（_isCountableActivityType でフィルタ）
+    const activityDates = {};
+    try {
+      const sh = _ss().getSheetByName(SHEET_HPLOG);
+      if (sh && sh.getLastRow() >= 2) {
+        const rows = _readLastNRows(sh, 500);
+        // HPLog 列: [0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type [5]message
+        for (let i = 0; i < rows.length; i++) {
+          if (String(rows[i][1] || '').trim() !== sidNorm) continue;
+          if (!_isCountableActivityType(String(rows[i][4] || ''))) continue;
+          const ds = _toDateStr(rows[i][0]);
+          if (ds) activityDates[ds] = true;
+        }
+      }
+    } catch(e) {
+      console.error('[_getPendingReflectionDate] HPLog read', e);
+      return null;
+    }
+
+    // 古い順に走査（candidateDates[6]=7 日前 → candidateDates[0]=昨日）
+    let result = null;
+    for (let i = candidateDates.length - 1; i >= 0; i--) {
+      const dateStr = candidateDates[i];
+      if (activityDates[dateStr] && !reflectionDates[dateStr]) {
+        result = dateStr;
+        break;
+      }
+    }
+
+    // 結果をキャッシュ（30 分 TTL）
+    try {
+      CacheService.getScriptCache().put(cacheKey, result === null ? '__none__' : result, 1800);
+    } catch(e) { /* キャッシュ失敗は無害 */ }
+
+    return result;
+  } catch(err) {
+    console.error('[_getPendingReflectionDate]', err);
+    return null;
+  }
+}
+
+// submitReflection 成功時に該当 sid のキャッシュをクリア（古い「未提出あり」が残らないように）
+function _invalidatePendingReflectionCache(sid) {
+  try {
+    const sidNorm = String(sid || '').trim();
+    if (!sidNorm) return;
+    CacheService.getScriptCache().remove('cache_pending_refl_' + sidNorm);
+  } catch(e) { /* キャッシュ失敗は無害 */ }
+}
+
 // 振り返り送信。doPost 経由のみ（誤実行防止 + base64 等の大データ送信余地）。
 // params:
 //   studentId:  生徒ID（必須、行特定）
 //   content:    振り返り本文（必須、100 〜 1500 文字、サーバー側で reject）
 //   wordCount:  クライアント計測の文字数（任意、参考保存。サーバー側は content.length で再判定）
+//   reflectionDate: 任意。'yyyy-MM-dd' を指定すると Reflections.date 列にその日付を書き込む。
+//                   未指定または不正な値の場合は _sangoToday()（教育日基準の今日）。
+//                   翌日キャッチアップ（pendingReflectionDate 経由の強制起動）で「昨日の分」
+//                   として書きたい場合に使う。サーバー側で過去 7 日範囲のみ受理。
 //
 // 処理：
 //   1. studentId 検証 + 行特定（Students 優先 → SpecialAccounts、cache 経由禁止）
 //   2. content の長さチェック（100 〜 1500 文字、サーバー側二重防御）
 //   3. Reflections シートに 1 行 appendRow
-//      date = _sangoToday()（教育日基準）
+//      date = reflectionDate（指定あり・有効な過去 7 日範囲）or _sangoToday()
 //      timestamp = _nowJST()（実時刻）
-//   4. 戻り値: { ok, reflectionId, date, timestamp, wordCount }
+//   4. _invalidatePendingReflectionCache(sid) でキャッシュクリア
+//   5. 戻り値: { ok, reflectionId, date, timestamp, wordCount }
 //
 // HP 付与は v1 では実施しない（_logHP を呼ばない）。v2 で継続ボーナス案 Z を検討。
 function submitReflection(params) {
@@ -10153,7 +10314,25 @@ function submitReflection(params) {
     wordCount = Math.floor(wordCount);
 
     // ③ Reflections に 1 行 appendRow
-    const date         = _sangoToday();   // 教育日基準（JST 3:00 区切り）
+    // 2026-05-21 追加：翌日キャッチアップ用に params.reflectionDate を受け付ける。
+    //   形式 'yyyy-MM-dd' で、教育日基準の今日〜7 日前の範囲のみ受理。
+    //   範囲外 / 不正な値 / 未指定 → _sangoToday()（既定の今日）にフォールバック。
+    //   これにより通常運用（当日のログアウト時振り返り）の挙動は無変更。
+    let date = _sangoToday();   // 教育日基準（JST 3:00 区切り）
+    const reqDate = String((params && params.reflectionDate) || '').trim();
+    if (reqDate && /^\d{4}-\d{2}-\d{2}$/.test(reqDate)) {
+      try {
+        const todayStr = _todayEducationalJST();
+        const tBase = new Date(todayStr + 'T12:00:00+09:00');
+        const validDates = { [todayStr]: true };
+        for (let i = 1; i <= 7; i++) {
+          const d = new Date(tBase.getTime());
+          d.setDate(d.getDate() - i);
+          validDates[Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd')] = true;
+        }
+        if (validDates[reqDate]) date = reqDate;
+      } catch(_e) { /* date は既定値のまま */ }
+    }
     const timestamp    = _nowJST();
     const reflectionId = 'refl_' + sid + '_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
 
@@ -10199,6 +10378,10 @@ function submitReflection(params) {
       const ymKey = date.slice(0, 7);
       _invalidateCache('cache_refl_month_' + ymKey);
     } catch(_e) {}
+
+    // 2026-05-21：翌日キャッチアップ用キャッシュをクリア（送信直後の再ログインで
+    // 古い「未提出あり」が返らないように）
+    _invalidatePendingReflectionCache(sid);
 
     return {
       ok:           true,
