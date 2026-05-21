@@ -9356,6 +9356,12 @@
       if (_lisonSubmitDotsTimer) { clearInterval(_lisonSubmitDotsTimer); _lisonSubmitDotsTimer = null; }
     }
   }
+  // Phase 3 Step 5 / 2026-05-20：楽観的UI 廃止 + hp-confirming-overlay でサーバ ok 待機。
+  //   - 旧版：_lisonShowSubmitOverlay（送信中…独自 overlay）、失敗時は alert
+  //   - 新版：_showHpConfirmingOverlay('lison') でリスオンキャラ + セリフを見せながら待機
+  //          失敗 / タイムアウト時は _showSubmitError() でリトライ可（_pendingRetry 経由）
+  //   - base64 化は最初の 1 回だけ実行し、リトライ時は同じ payload を使い回す
+  //     （録音 blob が大きい場合の重複変換コストを回避、エラー時の即時 retry に重要）
   function submitLisonRecording() {
     if (!_lisonState.recordingBlob) {
       alert('録音データが見つかりません。もう一度録音してください。');
@@ -9365,26 +9371,43 @@
       alert('ログイン情報が見つかりません。一度ログインし直してください。');
       return;
     }
-    _lisonShowSubmitOverlay(true);
+    // 旧 _lisonShowSubmitOverlay は廃止し、共通 hp-confirming-overlay に統一
+    _showHpConfirmingOverlay('lison');
     _lisonBlobToBase64(_lisonState.recordingBlob).then(function(b64){
-      return gasPost({
+      var payload = {
         action: 'submitLison',
         sid: _studentId,
         level: _lisonState.level,
         quizAnswers: JSON.stringify(_lisonState.quizAnswers),
         recordingBase64: b64,
         recordingMime: _lisonState.recordingMime || 'audio/webm'
-      });
-    }).then(function(res){
-      _lisonShowSubmitOverlay(false);
-      if (!res || !res.ok) {
-        alert('送信に失敗しました：' + ((res && res.message) || '不明なエラー') + '\n\nネットワークが不安定な可能性があります。少し待ってからもう一度お試しください。');
-        return;
+      };
+      function doSubmit() {
+        _showHpConfirmingOverlay('lison');
+        _pendingRetry = function(){ doSubmit(); };
+        _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
+        gasPost(payload, 25000).then(function(res){
+          _hideHpConfirmingOverlay();
+          if (!res || !res.ok) {
+            // サーバが ok:false を返した → エラーオーバーレイでリトライ誘導
+            _showSubmitError();
+            return;
+          }
+          // 成功：pending ハンドラをクリアして完了画面を描画
+          _pendingRetry = null;
+          _pendingDismiss = null;
+          _lisonShowDone(res);
+        }).catch(function(err){
+          // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
+          _hideHpConfirmingOverlay();
+          _showSubmitError();
+        });
       }
-      _lisonShowDone(res);
+      doSubmit();
     }).catch(function(err){
-      _lisonShowSubmitOverlay(false);
-      alert('送信に失敗しました。\nネットワークが不安定な可能性があります。少し待ってからもう一度お試しください。\n\n（' + ((err && err.message) || err) + '）');
+      // base64 化失敗（FileReader 等）：リトライ不可、エラー alert で誘導
+      _hideHpConfirmingOverlay();
+      alert('録音データの読み込みに失敗しました。\nもう一度録音してください。\n\n（' + ((err && err.message) || err) + '）');
     });
   }
   function _lisonShowDone(res) {

@@ -15136,48 +15136,42 @@ function submitLison(params) {
       return { ok: false, message: '録音保存に失敗しました：' + (saveRes.message || '') };
     }
 
-    // HP 計算（連続週²倍率は他コンテンツと同じ）
+    // 2026-05-20 Phase 3 Step 5：HP 加算経路を _grantHP に集約。
+    //   - 旧版：_calculateHpWithReserve → _logHP → reserve pool → Students.HP 更新 → 完走チェック の 35 行
+    //   - 新版：!alreadyGranted のとき _grantHP 1 関数で本番処理を直列実行
+    //   - alreadyGranted=true（同日 2 回目以降）の場合は HP 加算なし。完走チェックは
+    //     旧版でも __reserveActive_lison=false のため呼ばれない（リスオンは絶対ミッション対象外）。
+    //     新版でも _grantHP を skip して旧挙動を維持。
+    //   - Drive に保存済みの録音ファイルは _grantHP 失敗時も残るが、再提出時に
+    //     alreadyGranted=false のまま再度 HP 付与経路に入る（LisonSubmissions に未追記のため）→
+    //     次回成功で救済される（既存挙動と同じ）。
     let hpGained = 0;
-    let rawHp_lison = 0;
     let reservedHp_lison = 0;
-    var __reserveActive_lison = false;
-    if (!alreadyGranted) {
-      const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
-      const week = Math.ceil(streak / 7);
-      const baseHp = _lisonBaseHpForLevel(level);
-      rawHp_lison = baseHp * week * week;
-      // 両輪 Phase A：絶対ミッション未達成なら 60%/40% に分割（リスオンは絶対ミッションのリスト対象外なので通常 100%）
-      const reserveCalc_lison = _calculateHpWithReserve(stuLoc, rawHp_lison);
-      hpGained = reserveCalc_lison.granted;
-      reservedHp_lison = reserveCalc_lison.reserved;
-      __reserveActive_lison = reserveCalc_lison.isReserveActive;
-
-      // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
-      // HPLog 書き込み失敗時は Students.HP / LisonSubmissions 追記をスキップしてエラー応答
-      // を返す。Drive に保存済みの録音ファイルは残るが、再提出時に alreadyGranted=false
-      // のまま再度 HP 付与経路に入る（LisonSubmissions に未追記のため）→ 次回成功で救済。
-      const logRes = _logHP(sid, rawHp_lison, hpGained, 'lison');
-      if (!logRes.ok) {
-        console.error('[submitLison] HPLog 書き込みに失敗しました。HP/LisonSubmissions を更新せず終了。', logRes.error);
-        return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
-      }
-      if (reservedHp_lison > 0) {
-        _appendHpReservePool(sid, _sangoToday(), 'lison', rawHp_lison, reservedHp_lison);
-      }
-
-      // Students シート HP 加算（書き込みはフレッシュ rowIdx + setValue、in-place キャッシュ更新）
-      const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
-      const newHP = cur + hpGained;
-      stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
-      const upd = {};
-      upd[COL_HP] = newHP;
-      _updateAccountCacheBySid(sid, upd);
-      _invalidateCache('cache_ranking_last_week');
-    }
-    // 両輪 Phase A：完走チェック
     let completion_lison = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
-    if (__reserveActive_lison) {
-      completion_lison = _checkAndReleaseReserveIfCompleted(sid, 'lison');
+    if (!alreadyGranted) {
+      const baseHp = _lisonBaseHpForLevel(level);
+      const grant = _grantHP({
+        sid:    sid,
+        type:   'lison',
+        rawHp:  baseHp,
+        stuLoc: stuLoc
+        // applyWeekMultiplier / applyReserveSystem / checkCompletion はすべて既定値 true
+      });
+      if (!grant.ok) {
+        console.error('[submitLison] _grantHP 失敗', { sid: sid, errorCode: grant.errorCode });
+        return {
+          ok:        false,
+          message:   grant.message || '内部エラーが発生しました。もう一度試してください。',
+          errorCode: grant.errorCode || 'HP_LOG_FAILED'
+        };
+      }
+      hpGained = grant.hpGained;
+      reservedHp_lison = grant.hpReserved;
+      completion_lison = {
+        justCompleted: grant.justCompleted,
+        releasedHp:    grant.releasedHp,
+        bonusHp:       grant.bonusHp
+      };
     }
 
     // LisonSubmissions に追記（alreadyGranted のときも recordingUrl と quizScore は残す）
