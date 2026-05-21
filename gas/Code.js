@@ -16817,58 +16817,73 @@ function submitKobunSet(params) {
 
     let hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: false, alreadyAtCap: false };
     if (passed) {
+      // 2026-05-20 Phase 3 Step 5：当日重複判定 + HP 加算経路を _grantHP に集約。
+      //   - 旧版：_kobunTodayRawHP → _calculateHpWithReserve → _logHP → Students.HP 更新 → reserve pool → 完走チェック の 40 行
+      //   - 新版：dailyCap strategy で残量取得（_isAlreadyGrantedToday）→ _grantHP 1 関数呼び出し
+      //   - 両輪 Phase A 対応（applyReserveSystem:true・checkCompletion:true 既定値）。
+      //     kobun は絶対ミッションのリスト対象外だが、他コンテンツで reserve_active 状態の生徒に対しては
+      //     _grantHP 内部で 60/40 split + 完走チェックが正しく実行される。
       const baseRawHP = 100;  // 1 学習回（2 セット = 10 問）完走 = 100 rawHP（仕様書通り）
-      const todayRawHP = _kobunTodayRawHP(sid);
+      const dupCheck = _isAlreadyGrantedToday(sid, 'kobun', 'dailyCap', { cap: KOBUN_DAILY_RAWHP_CAP });
+      const todayRawHP = Number((dupCheck && dupCheck.todayRawHP)) || 0;
       const remaining = Math.max(0, KOBUN_DAILY_RAWHP_CAP - todayRawHP);
       const grantedRawHP = Math.min(baseRawHP, remaining);
       const isPractice = (remaining === 0);
       const alreadyAtCap = (remaining === 0);
 
       if (grantedRawHP > 0 && stuLoc) {
-        const streak = Number(stuLoc.rowValues[COL_STREAK]) || 1;
-        const week = Math.ceil(streak / 7);
-        const fullHpGained_kobun = grantedRawHP * week * week;
-        // 両輪 Phase A：kobun は絶対ミッションのリスト対象外だが、生徒の学齢が他コンテンツの reserve を
-        // 起動している場合、kobun 提出は granted 100% で問題なし（_calculateHpWithReserve は
-        // 通常 isReserveActive=false を返すため reserve は発生しない）。
-        const reserveCalc_kobun = _calculateHpWithReserve(stuLoc, fullHpGained_kobun);
-        const hpGained = reserveCalc_kobun.granted;
-        const reservedHp_kobun = reserveCalc_kobun.reserved;
-        var __reserveActive_kobun = reserveCalc_kobun.isReserveActive;
+        // 本番モード：_grantHP に集約（_logHP → reserve → Students.HP → 完走チェックを内部で直列実行）
         const logType_kobun = 'kobun_' + round + '_' + total;
-
-        // 2026-05-12 バグ④-本質 Phase B（案 A）：書き込み順序を _logHP → Students に変更。
-        // HPLog 書き込み失敗時は Students.HP / 進捗（kobun_next）更新をスキップして
-        // エラー応答を返す。同じ周を再挑戦すれば次回成功で救済される。
-        const logRes = _logHP(sid, grantedRawHP, hpGained, logType_kobun);
-        if (!logRes.ok) {
-          console.error('[submitKobunSet] HPLog 書き込みに失敗しました。HP/進捗を更新せず終了。', logRes.error);
-          return { ok: false, message: '内部エラーが発生しました。もう一度試してください。', errorCode: 'HP_LOG_FAILED' };
+        const grant = _grantHP({
+          sid:    sid,
+          type:   logType_kobun,
+          rawHp:  grantedRawHP,
+          stuLoc: stuLoc
+          // applyWeekMultiplier / applyReserveSystem / checkCompletion はすべて既定値 true
+        });
+        if (!grant.ok) {
+          console.error('[submitKobunSet] _grantHP 失敗', { sid: sid, type: logType_kobun, errorCode: grant.errorCode });
+          return {
+            ok:        false,
+            message:   grant.message || '内部エラーが発生しました。もう一度試してください。',
+            errorCode: grant.errorCode || 'HP_LOG_FAILED'
+          };
         }
-        if (reservedHp_kobun > 0) {
-          _appendHpReservePool(sid, _sangoToday(), logType_kobun, fullHpGained_kobun, reservedHp_kobun);
-        }
-
-        const cur = Number(stuLoc.rowValues[COL_HP]) || 0;
-        const newHP = cur + hpGained;
-        stuLoc.sheet.getRange(stuLoc.rowIdx + 1, COL_HP + 1).setValue(newHP);
-        const upd = {}; upd[COL_HP] = newHP;
-        _updateAccountCacheBySid(sid, upd);
-        _invalidateCache('cache_ranking_last_week');
-        hpInfo = { rawHP: grantedRawHP, hpGained: hpGained, hpReserved: reservedHp_kobun, granted: true, isPractice: false, alreadyAtCap: false, streak: streak, week: week };
-        // 両輪 Phase A：完走チェック（kobun 提出が他コンテンツの完走後に発生する場合は no-op）
-        if (__reserveActive_kobun) {
-          const comp_kobun = _checkAndReleaseReserveIfCompleted(sid, logType_kobun);
-          hpInfo.justCompleted = comp_kobun.justCompleted;
-          hpInfo.releasedHp = comp_kobun.releasedHp;
-          hpInfo.bonusHp = comp_kobun.bonusHp;
-        }
-      } else if (isPractice) {
-        // 練習モード（既に上限到達）：HPLog にも記録するが _practice 接尾で除外可能に。
-        // 練習モードは付与する HP がないため、_logHP 失敗時も警告ログのみで処理を継続する
-        // （戻り値を無視）。進捗更新は実施される。
-        _logHP(sid, 0, 0, 'kobun_' + round + '_' + total + '_practice');
-        hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: true, alreadyAtCap: true };
+        hpInfo = {
+          rawHP:         grantedRawHP,
+          hpGained:      grant.hpGained,
+          hpReserved:    grant.hpReserved,
+          granted:       true,
+          isPractice:    false,
+          alreadyAtCap:  false,
+          streak:        grant.streak,
+          week:          grant.week,
+          justCompleted: grant.justCompleted,
+          releasedHp:    grant.releasedHp,
+          bonusHp:       grant.bonusHp
+        };
+      } else if (isPractice && stuLoc) {
+        // 練習モード（既に上限到達）：rawHp=0 で _grantHP を呼ぶ。
+        //   - _grantHP 内部で _logHP 失敗を許容（HP=0 のため engagement 記録だけが失敗しても続行）
+        //   - granted=0 で Students.HP 更新はスキップ、reserve_active なら完走チェックは実行される
+        //     （kobun が他コンテンツ達成の最後の引き金になる可能性はあるため）
+        const logType_kobun_p = 'kobun_' + round + '_' + total + '_practice';
+        const grantP = _grantHP({
+          sid:    sid,
+          type:   logType_kobun_p,
+          rawHp:  0,
+          stuLoc: stuLoc
+        });
+        hpInfo = {
+          rawHP:         0,
+          hpGained:      0,
+          granted:       false,
+          isPractice:    true,
+          alreadyAtCap:  true,
+          justCompleted: grantP.justCompleted,
+          releasedHp:    grantP.releasedHp,
+          bonusHp:       grantP.bonusHp
+        };
       }
 
       // 進捗追跡：合格時のみ「次にやるセット番号」をインクリメント

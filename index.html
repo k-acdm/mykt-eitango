@@ -10511,35 +10511,51 @@
     _renderKobunQuestion(nextIdx);
   }
   // ----- 終了：GAS で採点して結果画面へ -----
+  // Phase 3 Step 5 / 2026-05-20：楽観的UI 廃止 + hp-confirming-overlay でサーバ ok 待機。
+  //   - 旧版：gasGet 直呼び、失敗時はクライアントスコアでフォールバック（HP 不明時は空 hpInfo）
+  //   - 新版：_showHpConfirmingOverlay('kobun') でコブタンキャラ + セリフを見せながら待機
+  //          サーバ ok 後に _showKobunDone（合格）/ _showKobunResult（不合格）に遷移
+  //          失敗時は mykt-error-overlay（_showSubmitError）でリトライ可能（_pendingRetry 経由）
+  //   - kobun は GAS 側で正解再ルックアップ（採点はサーバ）するため、クライアント側
+  //     フォールバック判定は信頼度が低い → リトライ誘導の方が教育的に正しい。
   function _finishKobunSet() {
-    gasGet({
+    var payload = {
       action: 'submitKobunSet',
       studentId: _studentId,
       round: _kobunState.round,
       sessionId: _kobunState.sessionId,
       answers: JSON.stringify(_kobunState.answers)
-    }).then(function(res){
-      var passed = !!(res && res.ok && res.passed);
-      _kobunState.passed = passed;
-      var correctCount = (res && res.correctCount) || _kobunState.score;
-      var total = (res && res.total) || _kobunState.questions.length;
-      if (passed) {
-        // HP 獲得演出（カンジー流用）
-        _showKobunDone(res && res.hpInfo);
-      } else {
-        _showKobunResult(passed, correctCount, total);
-      }
-    }).catch(function(){
-      // 通信失敗時はクライアント側のスコアでフォールバック判定（全問正解で合格）
-      var total = _kobunState.questions.length;
-      var passed = total > 0 && _kobunState.score === total;
-      _kobunState.passed = passed;
-      if (passed) {
-        _showKobunDone({});  // hpInfo 不明時は空オブジェクト → 「HP既に獲得済み」表示
-      } else {
-        _showKobunResult(passed, _kobunState.score, total);
-      }
-    });
+    };
+    function doSubmit() {
+      _showHpConfirmingOverlay('kobun');
+      _pendingRetry = function(){ doSubmit(); };
+      _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
+      gasGetWithTimeout(payload, 25000).then(function(res){
+        _hideHpConfirmingOverlay();
+        if (!res || !res.ok) {
+          // サーバが ok:false を返した → エラーオーバーレイでリトライ誘導
+          _showSubmitError();
+          return;
+        }
+        // 成功：pending ハンドラをクリアして結果画面を描画
+        _pendingRetry = null;
+        _pendingDismiss = null;
+        var passed = !!res.passed;
+        _kobunState.passed = passed;
+        var correctCount = (res.correctCount != null) ? res.correctCount : _kobunState.score;
+        var total = (res.total != null) ? res.total : _kobunState.questions.length;
+        if (passed) {
+          _showKobunDone(res.hpInfo);
+        } else {
+          _showKobunResult(passed, correctCount, total);
+        }
+      }).catch(function(err){
+        // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
+        _hideHpConfirmingOverlay();
+        _showSubmitError();
+      });
+    }
+    doSubmit();
   }
   function _showKobunResult(passed, correctCount, total) {
     var banner = document.getElementById('kobun-result-banner');
