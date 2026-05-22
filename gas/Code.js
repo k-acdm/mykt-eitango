@@ -1191,6 +1191,17 @@ function doGet(e) {
       // 塾からの連絡：LINE 配信機能（2026-05-18 新規、admin-only）
       //   - 一覧 read は doGet、追加 / キャンセル write は doPost に登録（誤実行防止 + 画像 base64）。
       else if (action === 'getNoticeListWithLineStatus')        result = getNoticeListWithLineStatus(params);
+      // 国語長文読解（2026-05-23 新規）：出題 / 着手中検出 / 採点 / TTS は doGet。
+      //   感想文提出は本文サイズが大きくなる可能性があるため doPost 強制（後段に登録）。
+      //   ensureKokugoSheets は GAS エディタからの 1 回限りセットアップで、ここには登録しない。
+      else if (action === 'getKokugoQuestion')           result = getKokugoQuestion(params);
+      else if (action === 'getCurrentKokugoAttempt')     result = getCurrentKokugoAttempt(params);
+      else if (action === 'submitKokugoAnswers')         result = submitKokugoAnswers(params);
+      else if (action === 'getKokugoAudioUrl')           result = getKokugoAudioUrl(params);
+      // 管理 API：問題追加は admin のみ（adminAddKokugoQuestion 内で role 検証）。
+      //   履歴閲覧は admin/teacher 両ロール許可（adminListKokugoAttempts 内で _verifyTeacher のみ）。
+      else if (action === 'adminAddKokugoQuestion')      result = adminAddKokugoQuestion(params);
+      else if (action === 'adminListKokugoAttempts')     result = adminListKokugoAttempts(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1291,6 +1302,13 @@ function doPost(e) {
     // 塾からの連絡：LINE 配信機能（2026-05-18 新規、admin-only、画像 base64 のため POST 必須）
     else if (action === 'addNoticeWithLine')                result = addNoticeWithLine(params);
     else if (action === 'cancelScheduledNoticeLine')        result = cancelScheduledNoticeLine(params);
+    // 国語長文読解（2026-05-23 新規）：感想文（最大 3000 字）は POST 強制。
+    //   submitKokugoAnswers は doGet 側にも登録済み（base64 ではないため両対応で OK）。
+    //   POST 側にも保護登録：将来クライアントが POST で送る場合の備え（CLAUDE.md #148 教訓）。
+    else if (action === 'submitKokugoAnswers')              result = submitKokugoAnswers(params);
+    else if (action === 'submitKokugoImpression')           result = submitKokugoImpression(params);
+    // 管理 API：問題追加（4 選択肢 + 解説 = 本文サイズ大、admin-only）
+    else if (action === 'adminAddKokugoQuestion')           result = adminAddKokugoQuestion(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -21245,6 +21263,1079 @@ function clearNotifyTargets(params) {
     return { ok: true, cleared: cleared };
   } catch (err) {
     console.error('[clearNotifyTargets]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 国語長文読解（Kokugo）— 2026-05-23 新規実装
+// =============================================
+// 文学的文章 / 説明的文章 × 800 字 / 1,200 字 の 4 区分。
+// 流れ：① カテゴリ自動切替（前回と反対）→ ② 2 問 4 択回答 → ③ 採点 + 解説 →
+//       ④ 100 字以上の感想文 → ⑤ AI フィードバック + HP 加算（_grantHP 経由）
+//
+// シート構成：
+//   QuestionsBunkaku / QuestionsSetsumei  問題マスター（同構造、14 列。N列 audioUrl は TTS 生成後にキャッシュ）
+//   KokugoAttempts                        生徒の挑戦履歴（13 列、仕様書通り）
+//   Students / SpecialAccounts            末尾に LAST_KOKUGO_CATEGORY 列を追加
+//
+// HP：仕様書 5 節「100HP / 150HP/日」を素点と見なし、_grantHP で週²倍率を自動適用。
+//   ・KOKUGO_RAW_HP[800]=100  / KOKUGO_RAW_HP[1200]=150
+//   ・type='kokugo_800' / 'kokugo_1200'（_isAlreadyGrantedToday('oncePerDay') 対応の命名）
+//   ・1 日 1 回ボーナス制（同じ charCount で 2 回目以降は hpGained=0、ただし感想文と AI フィードバックは保存）
+//
+// 着手中フロー（仕様書 5 節）：
+//   submitKokugoAnswers で KokugoAttempts に「着手中行（impressionText 空）」を append。
+//   submitKokugoImpression で同行を update（impressionText / aiFeedback / hpGained）。
+//   getCurrentKokugoAttempt で着手中行（impressionText 空）を検出 → 中断再開を可能にする。
+//
+// AI フィードバック：Gemini 2.5 Flash（_kisoOcrWithGemini と同パターン）。
+//   失敗時は固定文言「ありがとう。よく書けています。次もがんばろう。」を返し、HP 加算をブロックしない。
+//
+// Cloud TTS（任意機能）：bodyText → MP3 → Drive 保存（フォルダ「マイ活_国語長文_音声」）。
+//   問題マスター N 列 audioUrl にキャッシュ → 次回以降は再生成しない（コスト削減）。
+//   API キーは CLOUD_TTS_API_KEY → VISION_API_KEY → GEMINI_API_KEY のフォールバック
+//   （仕様書「新規キー追加はしない」原則。GCP プロジェクトキーで texttospeech.googleapis.com を有効化済の前提）。
+
+const SHEET_KOKUGO_BUNKAKU  = 'QuestionsBunkaku';
+const SHEET_KOKUGO_SETSUMEI = 'QuestionsSetsumei';
+const SHEET_KOKUGO_ATTEMPTS = 'KokugoAttempts';
+
+// 問題マスター 14 列（仕様書 13 列 + N 列 audioUrl）
+const KOKUGO_QUESTIONS_HEADERS = [
+  'id',              // A: BK_001 / SM_001 ...
+  'charCount',       // B: 800 / 1200
+  'title',           // C
+  'bodyText',        // D
+  'q1_text',         // E
+  'q1_choices',      // F: 'ア.〜|イ.〜|ウ.〜|エ.〜'
+  'q1_answer',       // G: 'ア' / 'イ' / 'ウ' / 'エ'
+  'q1_explanation',  // H
+  'q2_text',         // I
+  'q2_choices',      // J
+  'q2_answer',       // K
+  'q2_explanation',  // L
+  'status',          // M: 'active' / 'inactive'
+  'audioUrl'         // N: Cloud TTS 生成後にキャッシュ
+];
+
+// KokugoAttempts 13 列（仕様書通り）
+const KOKUGO_ATTEMPTS_HEADERS = [
+  'timestamp',           // A
+  'studentId',           // B
+  'questionId',          // C
+  'category',            // D: 'bunkaku' / 'setsumei'
+  'charCount',           // E
+  'q1_selected',         // F
+  'q1_correct',          // G: TRUE / FALSE
+  'q2_selected',         // H
+  'q2_correct',          // I: TRUE / FALSE
+  'impressionText',      // J: 着手中は空、submitKokugoImpression で更新
+  'aiFeedback',          // K: 同上
+  'hpGained',            // L: 同上
+  'attemptCountSoFar'    // M: その生徒がこの問題を解いた累計回数（今回を含む）
+];
+
+// Students / SpecialAccounts に追加する列
+const KOKUGO_LAST_CATEGORY_HEADER = 'LAST_KOKUGO_CATEGORY';
+
+// 設定定数
+const KOKUGO_CATEGORIES = ['bunkaku', 'setsumei'];
+const KOKUGO_CHAR_COUNTS = [800, 1200];
+const KOKUGO_IMPRESSION_MIN_LENGTH = 100;   // 実質文字数（_effectiveReflectionLen と同じロジック）
+const KOKUGO_IMPRESSION_MAX_LENGTH = 3000;  // 上限（暴走防止）
+const KOKUGO_REPEAT_INTERVAL = 10;          // 同じ問題が再登場するまでの最低題数
+const KOKUGO_QUESTIONS_MIN_ROWS = 500;
+const KOKUGO_ATTEMPTS_MIN_ROWS  = 2000;
+
+// HP 素点（_grantHP で週²倍率を自動適用）
+const KOKUGO_RAW_HP = { 800: 100, 1200: 150 };
+
+// Cloud TTS 設定（GCP texttospeech.googleapis.com）
+const KOKUGO_TTS_AUDIO_FOLDER  = 'マイ活_国語長文_音声';
+const KOKUGO_TTS_VOICE_DEFAULT = 'ja-JP-Neural2-B';  // 女性。'ja-JP-Neural2-C' で男性。
+const KOKUGO_TTS_SPEAKING_RATE = 1.0;
+const KOKUGO_TTS_PITCH         = 0;
+
+// AI フィードバック プロンプト雛形（ふくちさんが GAS エディタで定数を書き換えてチューニング可能）
+const GEMINI_PROMPT_KOKUGO_FEEDBACK =
+  'あなたは中学生の国語学習をサポートする先生です。以下の生徒の感想文に対して、\n' +
+  '2文〜4文程度の短いフィードバックをしてください。\n\n' +
+  '【ルール】\n' +
+  '- まず感想文の良いところを1つ具体的に褒める\n' +
+  '- 次に「もう一歩深める問いかけ」を1つ添える（押し付けにならないよう、優しい言葉で）\n' +
+  '- 説教調・評価調にならないこと\n' +
+  '- 一人称は使わない（先生 / クロ / 私などを名乗らない）\n' +
+  '- 150字以内\n\n' +
+  '【感想文】\n' +
+  '{impressionText}\n\n' +
+  '【参考：生徒が読んだ文章のタイトル】\n' +
+  '{title}';
+
+const KOKUGO_AI_FEEDBACK_FALLBACK = 'ありがとう。よく書けています。次もがんばろう。';
+
+// -------------------------------------------------
+// シート初期化
+// -------------------------------------------------
+// ふくちさん側で GAS エディタから 1 回だけ手動実行する想定（冪等）。
+function ensureKokugoSheets() {
+  try {
+    const b = _ensureSheetWithHeaders(SHEET_KOKUGO_BUNKAKU,  KOKUGO_QUESTIONS_HEADERS, KOKUGO_QUESTIONS_MIN_ROWS);
+    const s = _ensureSheetWithHeaders(SHEET_KOKUGO_SETSUMEI, KOKUGO_QUESTIONS_HEADERS, KOKUGO_QUESTIONS_MIN_ROWS);
+    const a = _ensureSheetWithHeaders(SHEET_KOKUGO_ATTEMPTS, KOKUGO_ATTEMPTS_HEADERS,  KOKUGO_ATTEMPTS_MIN_ROWS);
+    const colRes = ensureKokugoStudentsColumn();
+    return {
+      ok: true,
+      created: {
+        bunkaku:  b.created,
+        setsumei: s.created,
+        attempts: a.created
+      },
+      lastCategoryColumn: colRes
+    };
+  } catch (err) {
+    console.error('[ensureKokugoSheets]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// Students / SpecialAccounts に LAST_KOKUGO_CATEGORY 列を追加（無ければ末尾追記）。
+// 既存データは一切触らない（schema migration、冪等）。
+function ensureKokugoStudentsColumn() {
+  const ss = _ss();
+  const sheets = [SHEET_STUDENTS, SHEET_SPECIAL_ACCOUNTS];
+  const results = {};
+  sheets.forEach(function(name) {
+    const sh = ss.getSheetByName(name);
+    if (!sh) { results[name] = 'sheet_not_found'; return; }
+    const lastCol = Math.max(1, sh.getLastColumn());
+    const header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    if (header.indexOf(KOKUGO_LAST_CATEGORY_HEADER) >= 0) {
+      results[name] = 'already_exists';
+      return;
+    }
+    sh.getRange(1, lastCol + 1).setValue(KOKUGO_LAST_CATEGORY_HEADER);
+    results[name] = 'added_col_' + (lastCol + 1);
+  });
+  return results;
+}
+
+// -------------------------------------------------
+// 内部ヘルパー
+// -------------------------------------------------
+function _kokugoSheetForCategory(category) {
+  return category === 'setsumei' ? SHEET_KOKUGO_SETSUMEI : SHEET_KOKUGO_BUNKAKU;
+}
+
+function _kokugoCategoryFromQuestionId(questionId) {
+  const id = String(questionId || '').trim().toUpperCase();
+  if (id.indexOf('SM_') === 0) return 'setsumei';
+  if (id.indexOf('BK_') === 0) return 'bunkaku';
+  return '';
+}
+
+// 実質文字数（_effectiveReflectionLen と同じロジック、振り返りと整合）
+function _kokugoEffectiveLen(s) {
+  if (s == null) return 0;
+  return String(s).replace(/[\s　​‌‍⁠﻿]+/g, '').length;
+}
+
+// LAST_KOKUGO_CATEGORY 列の 0-based index
+function _kokugoLastCategoryColIdx(sheet) {
+  if (!sheet) return -1;
+  const lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return -1;
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  return header.indexOf(KOKUGO_LAST_CATEGORY_HEADER);
+}
+
+function _readKokugoLastCategory(stuLoc) {
+  if (!stuLoc) return '';
+  const colIdx = _kokugoLastCategoryColIdx(stuLoc.sheet);
+  if (colIdx < 0) return '';
+  return String(stuLoc.rowValues[colIdx] || '').trim();
+}
+
+function _writeKokugoLastCategory(stuLoc, category) {
+  if (!stuLoc) return;
+  const colIdx = _kokugoLastCategoryColIdx(stuLoc.sheet);
+  if (colIdx < 0) {
+    // 列が存在しない場合は何もしない（ensureKokugoSheets 未実行）
+    console.error('[_writeKokugoLastCategory] LAST_KOKUGO_CATEGORY 列が見つかりません。ensureKokugoSheets() を実行してください。');
+    return;
+  }
+  stuLoc.sheet.getRange(stuLoc.rowIdx + 1, colIdx + 1).setValue(category);
+}
+
+// 問題マスターから 1 行取得（id で検索）。category 指定なしなら id の prefix で自動判定。
+function _readKokugoQuestionRow(questionId, category) {
+  const cat = category || _kokugoCategoryFromQuestionId(questionId);
+  if (!cat) return null;
+  const sh = _ss().getSheetByName(_kokugoSheetForCategory(cat));
+  if (!sh || sh.getLastRow() < 2) return null;
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iId = header.indexOf('id');
+  if (iId < 0) return null;
+  const idNorm = String(questionId || '').trim();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][iId] || '').trim() === idNorm) {
+      const obj = { _category: cat, _rowIdx: i };
+      for (let c = 0; c < header.length; c++) {
+        obj[header[c]] = values[i][c];
+      }
+      return obj;
+    }
+  }
+  return null;
+}
+
+// 問題マスター行を { id, category, charCount, title, bodyText, q1: {...}, q2: {...}, status, audioUrl }
+// の構造に整形（採点に必要な answer は呼び出し側で q1_answer / q2_answer を別途参照）。
+function _kokugoRowToQuestion(row, opts) {
+  opts = opts || {};
+  const includeAnswerForGrading = !!opts.includeAnswer;
+  const parseChoices = function(raw) {
+    const s = String(raw || '');
+    // '|' or '｜' 区切りで 4 つ。空欄は空文字。
+    return s.split(/[|｜]/).map(function(x){ return String(x || '').trim(); });
+  };
+  const q = {
+    id:        String(row.id || '').trim(),
+    category:  row._category,
+    charCount: Number(row.charCount) || 0,
+    title:     String(row.title || ''),
+    bodyText:  String(row.bodyText || ''),
+    status:    String(row.status || '').trim(),
+    audioUrl:  String(row.audioUrl || '').trim(),
+    q1: {
+      text:    String(row.q1_text || ''),
+      choices: parseChoices(row.q1_choices)
+    },
+    q2: {
+      text:    String(row.q2_text || ''),
+      choices: parseChoices(row.q2_choices)
+    }
+  };
+  if (includeAnswerForGrading) {
+    q.q1.answer      = String(row.q1_answer || '').trim();
+    q.q1.explanation = String(row.q1_explanation || '');
+    q.q2.answer      = String(row.q2_answer || '').trim();
+    q.q2.explanation = String(row.q2_explanation || '');
+  }
+  return q;
+}
+
+// 該当生徒の KokugoAttempts 全行を取得（古い → 新しい順）
+//   filterFn が指定されれば適用、各要素は { rowIdx (1-based), values: [...], obj: {...} }
+function _readKokugoAttemptsForSid(sid, filterFn) {
+  const sh = _ss().getSheetByName(SHEET_KOKUGO_ATTEMPTS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iSid = header.indexOf('studentId');
+  if (iSid < 0) return [];
+  const sidNorm = String(sid || '').trim();
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][iSid] || '').trim() !== sidNorm) continue;
+    const obj = {};
+    for (let c = 0; c < header.length; c++) obj[header[c]] = values[i][c];
+    const item = { rowIdx: i + 1, values: values[i], obj: obj };
+    if (!filterFn || filterFn(item)) out.push(item);
+  }
+  return out;
+}
+
+// 着手中（impressionText が空）の行を 1 件返す（最新を優先）
+function _findInProgressKokugoAttempt(sid) {
+  const all = _readKokugoAttemptsForSid(sid);
+  if (!all.length) return null;
+  for (let i = all.length - 1; i >= 0; i--) {
+    const t = String(all[i].obj.impressionText || '').trim();
+    if (!t) return all[i];
+  }
+  return null;
+}
+
+// その生徒がこの問題を解いた累計回数（着手中も完了済もカウント）
+function _countKokugoAttemptsForQuestion(sid, questionId) {
+  const all = _readKokugoAttemptsForSid(sid, function(item){
+    return String(item.obj.questionId || '').trim() === String(questionId || '').trim();
+  });
+  return all.length;
+}
+
+// 出題候補の選定（仕様書 2 節）
+//   1) 該当 charCount × category の active な問題を全て取得
+//   2) 完了済み（impressionText 非空）の挑戦履歴で、最後の完了から KOKUGO_REPEAT_INTERVAL 題以内
+//      にやった問題は除外
+//   3) 着手中の問題は対象外（呼び出し側で先に検出して優先返却している前提）
+//   4) 候補が 0 になったら、最後にやった問題以外を候補とする（フォールバック）
+//
+//   戻り値: questionId（候補から random で 1 件、なければ null）
+function _pickKokugoQuestion(sid, category, charCount) {
+  const sheetName = _kokugoSheetForCategory(category);
+  const sh = _ss().getSheetByName(sheetName);
+  if (!sh || sh.getLastRow() < 2) return null;
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iId  = header.indexOf('id');
+  const iCC  = header.indexOf('charCount');
+  const iSt  = header.indexOf('status');
+  if (iId < 0 || iCC < 0 || iSt < 0) return null;
+
+  const activeIds = [];
+  for (let i = 1; i < values.length; i++) {
+    const id  = String(values[i][iId] || '').trim();
+    const cc  = Number(values[i][iCC]) || 0;
+    const st  = String(values[i][iSt] || '').trim().toLowerCase();
+    if (!id) continue;
+    if (cc !== charCount) continue;
+    if (st !== 'active') continue;
+    activeIds.push(id);
+  }
+  if (!activeIds.length) return null;
+
+  // 該当生徒が完了した挑戦履歴（impressionText 非空）の中で、同 category × charCount のみ抽出。
+  // 新しい順に並べて、直近 KOKUGO_REPEAT_INTERVAL 件分の questionId を「除外候補」とする。
+  const completed = _readKokugoAttemptsForSid(sid, function(item){
+    if (String(item.obj.category || '').trim() !== category) return false;
+    if ((Number(item.obj.charCount) || 0) !== charCount) return false;
+    return String(item.obj.impressionText || '').trim().length > 0;
+  });
+  completed.reverse();  // 新しい順
+  const recentExclusion = {};
+  for (let i = 0; i < Math.min(KOKUGO_REPEAT_INTERVAL, completed.length); i++) {
+    recentExclusion[String(completed[i].obj.questionId || '').trim()] = true;
+  }
+
+  // 1 次候補：直近 10 題に含まれない問題
+  let candidates = activeIds.filter(function(id){ return !recentExclusion[id]; });
+
+  // フォールバック：候補ゼロなら「最後にやった問題以外」を全 active から
+  if (!candidates.length) {
+    const lastQid = completed.length ? String(completed[0].obj.questionId || '').trim() : '';
+    candidates = activeIds.filter(function(id){ return id !== lastQid; });
+    if (!candidates.length) candidates = activeIds.slice();  // 1 題しか無い等の極端ケース
+  }
+
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+// 問題マスター行から「クライアント返却用の question オブジェクト」を組み立てる
+// （answer / explanation は含めない、サーバ側採点を前提とする設計）
+function _buildKokugoQuestionResponse(sid, questionId, category, isResume) {
+  const row = _readKokugoQuestionRow(questionId, category);
+  if (!row) return { ok: false, message: '問題が見つかりません: ' + questionId };
+  const q = _kokugoRowToQuestion(row, { includeAnswer: false });
+  const attemptCountSoFar = _countKokugoAttemptsForQuestion(sid, questionId);
+  return {
+    ok: true,
+    question: q,
+    attemptCountSoFar: attemptCountSoFar,
+    isResume: !!isResume
+  };
+}
+
+// -------------------------------------------------
+// AI フィードバック（Gemini 2.5 Flash）
+// -------------------------------------------------
+// 失敗時は KOKUGO_AI_FEEDBACK_FALLBACK を返す（HP 加算をブロックしない）。
+// 戻り値: { ok, feedback, attempts? }
+function _kokugoAiFeedbackWithGemini(impressionText, title) {
+  const apiKey = _props().getProperty('GEMINI_API_KEY');
+  if (!apiKey) {
+    console.error('[_kokugoAiFeedbackWithGemini] GEMINI_API_KEY 未設定');
+    return { ok: false, feedback: KOKUGO_AI_FEEDBACK_FALLBACK };
+  }
+  const model = 'gemini-2.5-flash';
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+
+  const prompt = GEMINI_PROMPT_KOKUGO_FEEDBACK
+    .replace('{impressionText}', String(impressionText || ''))
+    .replace('{title}', String(title || ''));
+
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 400
+    }
+  };
+  const fetchOpts = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  };
+
+  const MAX_ATTEMPTS  = 2;
+  const RETRY_WAIT_MS = 500;
+  const QUOTA_PATTERN = /quota|rate|limit|exhaust|busy|unavail|帯域/i;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res;
+    try {
+      res = UrlFetchApp.fetch(url, fetchOpts);
+    } catch (e) {
+      console.error('[Kokugo Gemini fetch exception attempt=' + attempt + ']', e);
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, feedback: KOKUGO_AI_FEEDBACK_FALLBACK };
+    }
+    const code = res.getResponseCode();
+    const raw  = res.getContentText();
+    if (code === 429 || (code >= 500 && code < 600)) {
+      console.error('[Kokugo Gemini retryable HTTP attempt=' + attempt + ']', code);
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, feedback: KOKUGO_AI_FEEDBACK_FALLBACK };
+    }
+    let json;
+    try { json = JSON.parse(raw); } catch (e) {
+      console.error('[Kokugo Gemini JSON parse]', code, e);
+      return { ok: false, feedback: KOKUGO_AI_FEEDBACK_FALLBACK };
+    }
+    if (json && json.error) {
+      console.error('[Kokugo Gemini top-level error]', json.error);
+      const errMsg = String(json.error.message || '');
+      if (QUOTA_PATTERN.test(errMsg) && attempt < MAX_ATTEMPTS) {
+        Utilities.sleep(RETRY_WAIT_MS); continue;
+      }
+      return { ok: false, feedback: KOKUGO_AI_FEEDBACK_FALLBACK };
+    }
+    const candidates = json && json.candidates;
+    if (!candidates || !candidates[0]) {
+      return { ok: false, feedback: KOKUGO_AI_FEEDBACK_FALLBACK };
+    }
+    const cand = candidates[0];
+    if (cand.finishReason && cand.finishReason !== 'STOP' && cand.finishReason !== 'MAX_TOKENS') {
+      return { ok: false, feedback: KOKUGO_AI_FEEDBACK_FALLBACK };
+    }
+    const parts = cand.content && cand.content.parts;
+    if (!parts || !parts[0] || typeof parts[0].text !== 'string') {
+      return { ok: false, feedback: KOKUGO_AI_FEEDBACK_FALLBACK };
+    }
+    const feedback = String(parts[0].text || '').trim();
+    if (!feedback) return { ok: false, feedback: KOKUGO_AI_FEEDBACK_FALLBACK };
+    return { ok: true, feedback: feedback, attempts: attempt };
+  }
+  return { ok: false, feedback: KOKUGO_AI_FEEDBACK_FALLBACK };
+}
+
+// -------------------------------------------------
+// Cloud TTS（任意機能、ボタン押下時のみ呼ぶ）
+// -------------------------------------------------
+// API キーのフォールバック：仕様書「新規キー追加はしない」原則に従い、既存キーを順に試す。
+// GCP プロジェクトキー（VISION_API_KEY 等）で texttospeech.googleapis.com が有効化されていれば動く。
+function _kokugoTtsApiKey() {
+  const props = _props();
+  return props.getProperty('CLOUD_TTS_API_KEY')
+      || props.getProperty('VISION_API_KEY')
+      || props.getProperty('GEMINI_API_KEY')
+      || '';
+}
+
+// 音声ファイル保存先 Drive フォルダ（無ければ作成、once-per-run でキャッシュ）
+var _kokugoTtsFolderCache = null;
+function _ensureKokugoTtsFolder() {
+  if (_kokugoTtsFolderCache) return _kokugoTtsFolderCache;
+  const it = DriveApp.getFoldersByName(KOKUGO_TTS_AUDIO_FOLDER);
+  let folder;
+  if (it.hasNext()) {
+    folder = it.next();
+  } else {
+    folder = DriveApp.createFolder(KOKUGO_TTS_AUDIO_FOLDER);
+  }
+  _kokugoTtsFolderCache = folder;
+  return folder;
+}
+
+// Cloud TTS 呼び出し（plain text → MP3 base64）
+// 戻り値: { ok, audioBase64, message? }
+function _kokugoTtsSynthesize(text) {
+  const apiKey = _kokugoTtsApiKey();
+  if (!apiKey) return { ok: false, message: 'TTS API キーが設定されていません（CLOUD_TTS_API_KEY / VISION_API_KEY / GEMINI_API_KEY のいずれかが必要）' };
+  const url = 'https://texttospeech.googleapis.com/v1/text:synthesize?key=' + apiKey;
+  const body = {
+    input: { text: String(text || '') },
+    voice: {
+      languageCode: 'ja-JP',
+      name: KOKUGO_TTS_VOICE_DEFAULT
+    },
+    audioConfig: {
+      audioEncoding: 'MP3',
+      speakingRate: KOKUGO_TTS_SPEAKING_RATE,
+      pitch: KOKUGO_TTS_PITCH
+    }
+  };
+  const fetchOpts = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  };
+  let res;
+  try {
+    res = UrlFetchApp.fetch(url, fetchOpts);
+  } catch (e) {
+    console.error('[Kokugo TTS fetch exception]', e);
+    return { ok: false, message: 'TTS API 通信エラー：' + e };
+  }
+  const code = res.getResponseCode();
+  const raw  = res.getContentText();
+  if (code !== 200) {
+    console.error('[Kokugo TTS HTTP ' + code + ']', raw.substring(0, 600));
+    return { ok: false, message: 'TTS API エラー (HTTP ' + code + ')' };
+  }
+  let json;
+  try { json = JSON.parse(raw); } catch (e) {
+    return { ok: false, message: 'TTS API: 応答 JSON が不正' };
+  }
+  const audioBase64 = json && json.audioContent;
+  if (!audioBase64) return { ok: false, message: 'TTS API: 音声データが返されませんでした' };
+  return { ok: true, audioBase64: audioBase64 };
+}
+
+// MP3 base64 を Drive に保存 → 公開リンクを返す。
+// ファイル名: kokugo_audio_{questionId}.mp3
+function _saveKokugoAudioToDrive(questionId, audioBase64) {
+  const folder = _ensureKokugoTtsFolder();
+  const bytes = Utilities.base64Decode(audioBase64);
+  const blob  = Utilities.newBlob(bytes, 'audio/mpeg', 'kokugo_audio_' + questionId + '.mp3');
+  // 同名の旧ファイルが残っていれば削除（再生成時の Drive ゴミ蓄積を防ぐ）
+  const fileName = 'kokugo_audio_' + questionId + '.mp3';
+  const it = folder.getFilesByName(fileName);
+  while (it.hasNext()) {
+    try { it.next().setTrashed(true); } catch(_e) {}
+  }
+  const file = folder.createFile(blob);
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch(_e) {}
+  // 公開 URL（再生は uc?export=download&id=... ではなく preview を使う）。
+  // <audio> タグから直接ストリーミングできる URL として export=download を採用：
+  //   実機検証で Content-Disposition: attachment が <audio> に対しても再生できることを
+  //   確認済（リスオン録音と異なり MP3 は普通の <audio> で動く）。
+  const fileId = file.getId();
+  const url = 'https://drive.google.com/uc?export=download&id=' + fileId;
+  return { fileId: fileId, url: url };
+}
+
+// 問題マスターの audioUrl 列にキャッシュを書き込み
+function _writeKokugoAudioUrl(category, questionId, url) {
+  const sh = _ss().getSheetByName(_kokugoSheetForCategory(category));
+  if (!sh) return;
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iId  = header.indexOf('id');
+  const iUrl = header.indexOf('audioUrl');
+  if (iId < 0 || iUrl < 0) return;
+  const idNorm = String(questionId || '').trim();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][iId] || '').trim() === idNorm) {
+      sh.getRange(i + 1, iUrl + 1).setValue(url);
+      return;
+    }
+  }
+}
+
+// -------------------------------------------------
+// 公開 API
+// -------------------------------------------------
+
+// 出題（着手中があれば優先返却）。
+// params: { studentId, charCount }（charCount: 800 or 1200）
+// 戻り値: { ok, question, attemptCountSoFar, isResume } or { ok:false, message }
+function getKokugoQuestion(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    const charCount = Number((params && params.charCount) || 0);
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (KOKUGO_CHAR_COUNTS.indexOf(charCount) < 0) {
+      return { ok: false, message: 'charCount は 800 または 1200 を指定してください' };
+    }
+
+    // ① 着手中の問題があれば優先返却（仕様書 5 節リトライ仕様）
+    const inProgress = _findInProgressKokugoAttempt(sid);
+    if (inProgress) {
+      const ipQid = String(inProgress.obj.questionId || '').trim();
+      const ipCat = String(inProgress.obj.category || '').trim();
+      if (ipQid) {
+        return _buildKokugoQuestionResponse(sid, ipQid, ipCat, true);
+      }
+    }
+
+    // ② カテゴリ自動切替（前回と反対、空なら bunkaku から開始）
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+    const lastCategory = _readKokugoLastCategory(stuLoc);
+    let nextCategory;
+    if (lastCategory === 'bunkaku')      nextCategory = 'setsumei';
+    else if (lastCategory === 'setsumei') nextCategory = 'bunkaku';
+    else                                  nextCategory = 'bunkaku';
+
+    // ③ 候補抽出 + ランダム選択
+    const qid = _pickKokugoQuestion(sid, nextCategory, charCount);
+    if (!qid) {
+      // 反対カテゴリに問題が無いケース：同カテゴリでも試す
+      const altCategory = (nextCategory === 'bunkaku') ? 'setsumei' : 'bunkaku';
+      const altQid = _pickKokugoQuestion(sid, altCategory, charCount);
+      if (!altQid) {
+        return { ok: false, message: 'この条件の問題はまだ準備中だよ。先生に確認してね。' };
+      }
+      return _buildKokugoQuestionResponse(sid, altQid, altCategory, false);
+    }
+    return _buildKokugoQuestionResponse(sid, qid, nextCategory, false);
+  } catch (err) {
+    console.error('[getKokugoQuestion]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 着手中の問題があるか確認（仕様書 5 節）。
+// 起動時にホーム画面から呼ぶ → ある場合は確認ダイアログ等で「続きから再開」フローへ。
+// 戻り値: { ok, hasInProgress, question? }
+function getCurrentKokugoAttempt(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const inProgress = _findInProgressKokugoAttempt(sid);
+    if (!inProgress) return { ok: true, hasInProgress: false, question: null };
+    const qid = String(inProgress.obj.questionId || '').trim();
+    const cat = String(inProgress.obj.category || '').trim();
+    if (!qid) return { ok: true, hasInProgress: false, question: null };
+    const resp = _buildKokugoQuestionResponse(sid, qid, cat, true);
+    if (!resp.ok) return { ok: true, hasInProgress: false, question: null };
+    return {
+      ok: true,
+      hasInProgress: true,
+      question: resp.question,
+      attemptCountSoFar: resp.attemptCountSoFar
+    };
+  } catch (err) {
+    console.error('[getCurrentKokugoAttempt]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 採点 + 着手中行 append。
+// params: { studentId, questionId, q1_selected, q2_selected }
+// 戻り値: { ok, q1: {correct, answer, explanation}, q2: {...}, attemptId }
+function submitKokugoAnswers(params) {
+  try {
+    const sid       = String((params && params.studentId) || '').trim();
+    const qid       = String((params && params.questionId) || '').trim();
+    const q1Sel     = String((params && params.q1_selected) || '').trim();
+    const q2Sel     = String((params && params.q2_selected) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (!qid) return { ok: false, message: '問題IDが必要です' };
+    if (!q1Sel || !q2Sel) return { ok: false, message: '両方の問題に回答してください' };
+
+    const row = _readKokugoQuestionRow(qid);
+    if (!row) return { ok: false, message: '問題が見つかりません: ' + qid };
+
+    const category  = row._category;
+    const charCount = Number(row.charCount) || 0;
+    const q1Ans     = String(row.q1_answer || '').trim();
+    const q2Ans     = String(row.q2_answer || '').trim();
+    const q1Correct = !!q1Ans && q1Sel === q1Ans;
+    const q2Correct = !!q2Ans && q2Sel === q2Ans;
+
+    // attemptCountSoFar は「今回を含む」累計回数（既存件数 + 1）
+    const attemptCountSoFar = _countKokugoAttemptsForQuestion(sid, qid) + 1;
+
+    // KokugoAttempts に着手中行を append（J/K/L 列は空、提出時に埋める）
+    const sh = _ss().getSheetByName(SHEET_KOKUGO_ATTEMPTS);
+    if (!sh) return { ok: false, message: 'KokugoAttempts シートが見つかりません。ensureKokugoSheets() を実行してください。' };
+    const timestamp = _nowJST();
+    sh.appendRow([
+      timestamp,
+      sid,
+      qid,
+      category,
+      charCount,
+      q1Sel,
+      q1Correct ? 'TRUE' : 'FALSE',
+      q2Sel,
+      q2Correct ? 'TRUE' : 'FALSE',
+      '',       // impressionText（着手中）
+      '',       // aiFeedback
+      0,        // hpGained
+      attemptCountSoFar
+    ]);
+    const writtenRow = sh.getLastRow();
+    // attemptId は「kg_<rowNum>」形式。submitKokugoImpression で逆引き使用。
+    const attemptId = 'kg_' + writtenRow;
+
+    return {
+      ok: true,
+      attemptId: attemptId,
+      q1: {
+        correct: q1Correct,
+        answer:  q1Ans,
+        explanation: String(row.q1_explanation || '')
+      },
+      q2: {
+        correct: q2Correct,
+        answer:  q2Ans,
+        explanation: String(row.q2_explanation || '')
+      },
+      attemptCountSoFar: attemptCountSoFar
+    };
+  } catch (err) {
+    console.error('[submitKokugoAnswers]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 感想文提出 + AI フィードバック生成 + HP 加算 + 着手中行を完了に更新。
+// params: { studentId, attemptId, impressionText }
+// 戻り値: { ok, aiFeedback, hpGained, ... } or { ok:false, errorCode, message }
+function submitKokugoImpression(params) {
+  try {
+    const sid        = String((params && params.studentId) || '').trim();
+    const attemptId  = String((params && params.attemptId) || '').trim();
+    const impression = String((params && params.impressionText) || '');
+    if (!sid)       return { ok: false, message: '生徒IDが必要です' };
+    if (!attemptId) return { ok: false, message: 'attemptId が必要です' };
+
+    // ① 感想文文字数検証（実質文字数ベース、振り返り Phase 5 と同じロジック）
+    const effLen = _kokugoEffectiveLen(impression);
+    if (effLen < KOKUGO_IMPRESSION_MIN_LENGTH) {
+      return {
+        ok: false,
+        errorCode: 'TOO_SHORT',
+        message: '感想は' + KOKUGO_IMPRESSION_MIN_LENGTH + '文字以上書いてください（空白・改行を除いて現在: ' + effLen + '文字）'
+      };
+    }
+    if (effLen > KOKUGO_IMPRESSION_MAX_LENGTH) {
+      return {
+        ok: false,
+        errorCode: 'TOO_LONG',
+        message: '感想は' + KOKUGO_IMPRESSION_MAX_LENGTH + '文字以内で書いてください（空白・改行を除いて現在: ' + effLen + '文字）'
+      };
+    }
+
+    // ② attemptId から該当行を逆引き（'kg_<rowNum>' 形式）
+    const m = /^kg_(\d+)$/.exec(attemptId);
+    if (!m) return { ok: false, message: 'attemptId の形式が不正です' };
+    const rowNum = parseInt(m[1], 10);
+    if (!rowNum || rowNum < 2) return { ok: false, message: 'attemptId の行番号が不正です' };
+
+    const sh = _ss().getSheetByName(SHEET_KOKUGO_ATTEMPTS);
+    if (!sh) return { ok: false, message: 'KokugoAttempts シートが見つかりません' };
+    if (sh.getLastRow() < rowNum) return { ok: false, message: '挑戦記録が見つかりません' };
+
+    const rowVals = sh.getRange(rowNum, 1, 1, KOKUGO_ATTEMPTS_HEADERS.length).getValues()[0];
+    const header  = KOKUGO_ATTEMPTS_HEADERS;
+    const iSid       = header.indexOf('studentId');
+    const iQid       = header.indexOf('questionId');
+    const iCat       = header.indexOf('category');
+    const iCC        = header.indexOf('charCount');
+    const iImpr      = header.indexOf('impressionText');
+    const iAiFb      = header.indexOf('aiFeedback');
+    const iHpGained  = header.indexOf('hpGained');
+
+    if (String(rowVals[iSid] || '').trim() !== sid) {
+      return { ok: false, message: '挑戦記録の生徒IDが一致しません（別の生徒の attemptId は使えません）' };
+    }
+    const existingImpression = String(rowVals[iImpr] || '').trim();
+    if (existingImpression.length > 0) {
+      return { ok: false, message: 'この挑戦は既に感想文を提出済みです' };
+    }
+    const qid       = String(rowVals[iQid] || '').trim();
+    const category  = String(rowVals[iCat] || '').trim();
+    const charCount = Number(rowVals[iCC]) || 0;
+    if (KOKUGO_CHAR_COUNTS.indexOf(charCount) < 0) {
+      return { ok: false, message: 'charCount が不正な挑戦記録です' };
+    }
+
+    // ③ 問題マスターからタイトル取得（AI プロンプト用）
+    const qRow = _readKokugoQuestionRow(qid, category);
+    const title = qRow ? String(qRow.title || '') : '';
+
+    // ④ AI フィードバック生成（失敗時はフォールバック文言、HP 加算はブロックしない）
+    const fbRes = _kokugoAiFeedbackWithGemini(impression, title);
+    const aiFeedback = (fbRes && fbRes.feedback) ? fbRes.feedback : KOKUGO_AI_FEEDBACK_FALLBACK;
+
+    // ⑤ HP 加算（_grantHP 経由、1 日 1 回ボーナス制）
+    //    type = 'kokugo_800' / 'kokugo_1200'（_isAlreadyGrantedToday('oncePerDay') 命名規約に整合）
+    const type = 'kokugo_' + charCount;
+    const baseRawHP = KOKUGO_RAW_HP[charCount] || 0;
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+
+    const dupCheck = _isAlreadyGrantedToday(sid, type, 'oncePerDay');
+    const alreadyGranted = !!(dupCheck && dupCheck.alreadyGranted);
+
+    let hpInfo = {
+      rawHp: 0,
+      hpGained: 0,
+      hpReserved: 0,
+      streak: Number(stuLoc.rowValues[COL_STREAK]) || 1,
+      week: 1,
+      justCompleted: false,
+      releasedHp: 0,
+      bonusHp: 0,
+      alreadyGranted: alreadyGranted
+    };
+
+    if (!alreadyGranted && baseRawHP > 0) {
+      const grant = _grantHP({
+        sid:    sid,
+        type:   type,
+        rawHp:  baseRawHP,
+        stuLoc: stuLoc
+        // applyWeekMultiplier / applyReserveSystem / checkCompletion はすべて既定値 true
+      });
+      if (!grant.ok) {
+        console.error('[submitKokugoImpression] _grantHP 失敗', { sid: sid, type: type, errorCode: grant.errorCode });
+        return {
+          ok:        false,
+          errorCode: grant.errorCode || 'HP_LOG_FAILED',
+          message:   grant.message || '内部エラーが発生しました。もう一度試してください。'
+        };
+      }
+      hpInfo = {
+        rawHp:         grant.rawHp,
+        hpGained:      grant.hpGained,
+        hpReserved:    grant.hpReserved,
+        streak:        grant.streak,
+        week:          grant.week,
+        justCompleted: grant.justCompleted,
+        releasedHp:    grant.releasedHp,
+        bonusHp:       grant.bonusHp,
+        alreadyGranted: false
+      };
+    }
+
+    // ⑥ KokugoAttempts の該当行を更新（impressionText / aiFeedback / hpGained）
+    sh.getRange(rowNum, iImpr + 1).setValue(impression);
+    sh.getRange(rowNum, iAiFb + 1).setValue(aiFeedback);
+    sh.getRange(rowNum, iHpGained + 1).setValue(hpInfo.hpGained);
+
+    // ⑦ Students.LAST_KOKUGO_CATEGORY を今回のカテゴリで更新
+    _writeKokugoLastCategory(stuLoc, category);
+
+    return {
+      ok: true,
+      aiFeedback:     aiFeedback,
+      hpGained:       hpInfo.hpGained,
+      hpReserved:     hpInfo.hpReserved,
+      newHP:          (Number(stuLoc.rowValues[COL_HP]) || 0) + hpInfo.hpGained + (hpInfo.releasedHp || 0) + (hpInfo.bonusHp || 0),
+      streak:         hpInfo.streak,
+      week:           hpInfo.week,
+      alreadyGranted: hpInfo.alreadyGranted,
+      justCompleted:  hpInfo.justCompleted,
+      releasedHp:     hpInfo.releasedHp,
+      bonusHp:        hpInfo.bonusHp,
+      category:       category,
+      charCount:      charCount
+    };
+  } catch (err) {
+    console.error('[submitKokugoImpression]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 音声 URL を返す（無ければ Cloud TTS で生成 → Drive 保存 → URL キャッシュ）。
+// params: { questionId }
+// 戻り値: { ok, audioUrl, cached? } or { ok:false, message }
+function getKokugoAudioUrl(params) {
+  try {
+    const qid = String((params && params.questionId) || '').trim();
+    if (!qid) return { ok: false, message: 'questionId が必要です' };
+    const row = _readKokugoQuestionRow(qid);
+    if (!row) return { ok: false, message: '問題が見つかりません: ' + qid };
+
+    const existingUrl = String(row.audioUrl || '').trim();
+    if (existingUrl) {
+      return { ok: true, audioUrl: existingUrl, cached: true };
+    }
+
+    const body = String(row.bodyText || '').trim();
+    if (!body) return { ok: false, message: '本文が空です' };
+
+    // 本文末尾にタイトルを付け足すと長くなるので、シンプルに本文のみを TTS する
+    const tts = _kokugoTtsSynthesize(body);
+    if (!tts.ok) return { ok: false, message: tts.message || 'TTS 生成に失敗しました' };
+
+    const saved = _saveKokugoAudioToDrive(qid, tts.audioBase64);
+    _writeKokugoAudioUrl(row._category, qid, saved.url);
+    return { ok: true, audioUrl: saved.url, cached: false };
+  } catch (err) {
+    console.error('[getKokugoAudioUrl]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// -------------------------------------------------
+// 管理 API
+// -------------------------------------------------
+
+// 管理画面：問題を 1 問追加（admin/teacher → teacher は不可、admin のみ）
+// params: { teacherId, password, category, charCount, title, bodyText,
+//           q1_text, q1_choices_a..d, q1_answer, q1_explanation,
+//           q2_text, q2_choices_a..d, q2_answer, q2_explanation,
+//           status }
+// 戻り値: { ok, id }
+function adminAddKokugoQuestion(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (_teacher.role !== 'admin') {
+      return { ok: false, message: '問題投入は塾長権限が必要です' };
+    }
+
+    const category = String((params && params.category) || '').trim();
+    if (KOKUGO_CATEGORIES.indexOf(category) < 0) {
+      return { ok: false, message: 'category は bunkaku / setsumei のいずれかを指定してください' };
+    }
+    const charCount = Number((params && params.charCount) || 0);
+    if (KOKUGO_CHAR_COUNTS.indexOf(charCount) < 0) {
+      return { ok: false, message: 'charCount は 800 / 1200 のいずれかを指定してください' };
+    }
+    const title = String((params && params.title) || '').trim();
+    const bodyText = String((params && params.bodyText) || '').trim();
+    if (!title || !bodyText) return { ok: false, message: 'title / bodyText は必須です' };
+
+    // 4 選択肢を '|' で連結
+    const q1Choices = [params.q1_choice_a, params.q1_choice_b, params.q1_choice_c, params.q1_choice_d]
+      .map(function(x){ return String(x || '').trim(); }).join('|');
+    const q2Choices = [params.q2_choice_a, params.q2_choice_b, params.q2_choice_c, params.q2_choice_d]
+      .map(function(x){ return String(x || '').trim(); }).join('|');
+
+    const q1Text  = String(params.q1_text || '').trim();
+    const q1Ans   = String(params.q1_answer || '').trim();
+    const q1Expl  = String(params.q1_explanation || '').trim();
+    const q2Text  = String(params.q2_text || '').trim();
+    const q2Ans   = String(params.q2_answer || '').trim();
+    const q2Expl  = String(params.q2_explanation || '').trim();
+    if (!q1Text || !q1Ans || !q2Text || !q2Ans) {
+      return { ok: false, message: '問題文と正解は必須です' };
+    }
+    if (['ア','イ','ウ','エ'].indexOf(q1Ans) < 0 || ['ア','イ','ウ','エ'].indexOf(q2Ans) < 0) {
+      return { ok: false, message: '正解は ア/イ/ウ/エ のいずれかを指定してください' };
+    }
+
+    const status = String((params && params.status) || 'active').trim().toLowerCase();
+    if (['active','inactive'].indexOf(status) < 0) {
+      return { ok: false, message: 'status は active / inactive のいずれかを指定してください' };
+    }
+
+    // ID 自動採番：シート内の最大連番 + 1
+    const sheetName = _kokugoSheetForCategory(category);
+    const sh = _ss().getSheetByName(sheetName);
+    if (!sh) return { ok: false, message: sheetName + ' シートが見つかりません。ensureKokugoSheets() を実行してください。' };
+    const prefix = (category === 'bunkaku') ? 'BK_' : 'SM_';
+    let maxN = 0;
+    if (sh.getLastRow() >= 2) {
+      const values = sh.getDataRange().getValues();
+      const header = values[0];
+      const iId = header.indexOf('id');
+      for (let i = 1; i < values.length; i++) {
+        const idStr = String(values[i][iId] || '').trim();
+        if (idStr.indexOf(prefix) !== 0) continue;
+        const n = parseInt(idStr.substring(prefix.length), 10);
+        if (n && n > maxN) maxN = n;
+      }
+    }
+    const nextN = maxN + 1;
+    const idStr = prefix + ('000' + nextN).slice(-3);
+
+    sh.appendRow([
+      idStr,
+      charCount,
+      title,
+      bodyText,
+      q1Text,
+      q1Choices,
+      q1Ans,
+      q1Expl,
+      q2Text,
+      q2Choices,
+      q2Ans,
+      q2Expl,
+      status,
+      ''  // audioUrl
+    ]);
+
+    // 監査ログ
+    try {
+      _logTeacherAction(_teacher.teacherId, 'KOKUGO_ADD_QUESTION', '', 'success', {
+        id: idStr,
+        category: category,
+        charCount: charCount,
+        title: title
+      });
+    } catch(_e) {}
+
+    return { ok: true, id: idStr };
+  } catch (err) {
+    console.error('[adminAddKokugoQuestion]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：挑戦履歴の閲覧（admin/teacher 両ロール許可）
+// params: { teacherId, password, studentId, limit }
+// 戻り値: { ok, studentId, name, nickname, attempts: [...] } — timestamp 降順
+function adminListKokugoAttempts(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    // 仕様書 5 節「権限：admin = 問題投入 + 履歴閲覧両方 / teacher = 履歴閲覧のみ」→ 両ロール許可
+
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+    let limit = Number((params && params.limit));
+    if (!Number.isFinite(limit) || limit < 1) limit = 50;
+    limit = Math.min(200, Math.floor(limit));
+
+    const all = _readKokugoAttemptsForSid(sid);
+    // 完了済 + 着手中の両方を返す。timestamp 降順で limit 件。
+    const reversed = all.slice().reverse();
+    const items = reversed.slice(0, limit).map(function(item){
+      return {
+        timestamp:         String(item.obj.timestamp || ''),
+        questionId:        String(item.obj.questionId || ''),
+        category:          String(item.obj.category || ''),
+        charCount:         Number(item.obj.charCount) || 0,
+        q1_selected:       String(item.obj.q1_selected || ''),
+        q1_correct:        String(item.obj.q1_correct || '').toUpperCase() === 'TRUE',
+        q2_selected:       String(item.obj.q2_selected || ''),
+        q2_correct:        String(item.obj.q2_correct || '').toUpperCase() === 'TRUE',
+        impressionText:    String(item.obj.impressionText || ''),
+        aiFeedback:        String(item.obj.aiFeedback || ''),
+        hpGained:          Number(item.obj.hpGained) || 0,
+        attemptCountSoFar: Number(item.obj.attemptCountSoFar) || 0,
+        inProgress:        String(item.obj.impressionText || '').trim().length === 0
+      };
+    });
+
+    // 生徒情報（管理画面の見出し用）
+    const stuLoc = _findAccountRowOnSheet(sid);
+    let name = '', nickname = '';
+    if (stuLoc) {
+      name     = String(stuLoc.rowValues[COL_NAME] || '').trim();
+      nickname = String(stuLoc.rowValues[COL_NICKNAME] || '').trim();
+    }
+
+    // 監査ログ
+    try {
+      _logTeacherAction(_teacher.teacherId, 'KOKUGO_HISTORY_VIEW', '', 'success', {
+        studentId: sid,
+        returned:  items.length
+      });
+    } catch(_e) {}
+
+    return {
+      ok: true,
+      studentId: sid,
+      name: name,
+      nickname: nickname,
+      attempts: items
+    };
+  } catch (err) {
+    console.error('[adminListKokugoAttempts]', err);
     return { ok: false, message: String(err) };
   }
 }
