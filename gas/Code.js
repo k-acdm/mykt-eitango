@@ -18888,9 +18888,11 @@ const REFLECTION_GATE_START_DATE = '2026-05-25';
 //   true  : 5/25 以降の本番運用（_calculateHpWithReserve に Gate 1 適用、
 //           _checkAndReleaseReserveIfCompleted も振り返りゲートで block）
 //   false : Phase 3 完了時点と完全に等価な挙動（Gate 1 全スキップ）
-// Step 1〜5 投入中は false のまま、Step 6 で true に切替予定。
+// 2026-05-22 Step 6：Phase 5 本番起動。
+//   5/25 までは REFLECTION_GATE_START_DATE による起動日ガードで実質スキップ、
+//   5/25 以降に Gate 1 ロジックが起動する。緊急時は false に戻して clasp push + デプロイで即座にロールバック可能（所要 5 分）。
 // 本番運用 1〜2 週間安定後に定数自体を削除予定（次フェーズ）。
-const REFLECTION_GATE_ENABLED = false;
+const REFLECTION_GATE_ENABLED = true;
 
 // HpReservePool シートのヘッダー（8 列、Phase 5 / 2026-05-22 で reserveReason 追加）
 //   studentId | date | type | rawHp | reservedHp | resolved | resolvedAt | reserveReason
