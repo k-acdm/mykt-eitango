@@ -2436,10 +2436,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-0553"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-0626"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-0553">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-0553"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-0626">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-0626"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10800,18 +10800,26 @@
   function playKokugoAudio() {
     var btn = document.getElementById('kokugo-audio-btn');
     if (!_kokugoState.question || !_kokugoState.question.id) return;
+    // 2 回目以降は state にキャッシュした data URL を使う（同じセッション内で再 fetch しない）
     if (_kokugoState.audioUrl) { _kokugoPlayWithUrl(_kokugoState.audioUrl); return; }
     if (btn) { btn.disabled = true; btn.textContent = '🔊 音声を準備中…'; }
+    // 2026-05-23 修正：旧版は { audioUrl } を受け取って <audio src=URL> で再生していたが、
+    //   Drive の uc?export=download URL は Content-Disposition: attachment 付きで返るため
+    //   media stream として読み込めない（CLAUDE.md #177 リスオン録音と同根、再発防止）。
+    //   → GAS から { audioBase64, mimeType } を受け取り、data URL 化して再生する方式に統一。
     gasGet({ action: 'getKokugoAudioUrl', questionId: _kokugoState.question.id, _ts: Date.now() }).then(function(res){
-      if (!res || !res.ok || !res.audioUrl) {
+      if (!res || !res.ok || !res.audioBase64) {
         if (btn) { btn.disabled = false; btn.textContent = '🔊 音声で聴く'; }
         var msg = (res && res.message) ? res.message : '音声の取得に失敗しました';
         console.error('[playKokugoAudio] server returned not ok', res);
         alert('音声の取得に失敗：' + msg);
         return;
       }
-      _kokugoState.audioUrl = res.audioUrl;
-      _kokugoPlayWithUrl(res.audioUrl);
+      var mime = String(res.mimeType || 'audio/mpeg');
+      // base64 を data URL 化。<audio src> がそのまま受け付け、Content-Disposition 問題を回避できる。
+      var dataUrl = 'data:' + mime + ';base64,' + res.audioBase64;
+      _kokugoState.audioUrl = dataUrl;
+      _kokugoPlayWithUrl(dataUrl);
     }).catch(function(err){
       if (btn) { btn.disabled = false; btn.textContent = '🔊 音声で聴く'; }
       console.error('[playKokugoAudio] gasGet rejected', err);
@@ -12568,7 +12576,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-0553</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-0626</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

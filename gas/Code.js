@@ -21796,8 +21796,18 @@ function _kokugoTtsSynthesize(text) {
   return { ok: true, audioBase64: audioBase64 };
 }
 
-// MP3 base64 を Drive に保存 → 公開リンクを返す。
+// MP3 base64 を Drive に保存 → fileId を返す。
 // ファイル名: kokugo_audio_{questionId}.mp3
+//
+// 2026-05-23 修正：
+//   旧版は `https://drive.google.com/uc?export=download&id=...` の URL を返していたが、
+//   この URL は Drive が Content-Disposition: attachment ヘッダーを返すため、
+//   フロントの <audio src=...> 経由では media stream として読み込まれない
+//   （CLAUDE.md #177 で既に判明していた問題が国語長文 TTS で再発）。
+//   → fileId のみ返し、getKokugoAudioUrl 側で Drive から base64 を読み出して
+//     JSON レスポンスで返す方式（リスオン録音 _verifyTeacherAndGetDriveBlob と同パターン）に統一。
+//   setSharing は GAS オーナー権限でアクセスするため不要だが、将来のリストア／ふくちさんが
+//   GAS エディタから直接 Drive を開く運用を想定して残置（実害なし）。
 function _saveKokugoAudioToDrive(questionId, audioBase64) {
   const folder = _ensureKokugoTtsFolder();
   const bytes = Utilities.base64Decode(audioBase64);
@@ -21810,17 +21820,12 @@ function _saveKokugoAudioToDrive(questionId, audioBase64) {
   }
   const file = folder.createFile(blob);
   try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch(_e) {}
-  // 公開 URL（再生は uc?export=download&id=... ではなく preview を使う）。
-  // <audio> タグから直接ストリーミングできる URL として export=download を採用：
-  //   実機検証で Content-Disposition: attachment が <audio> に対しても再生できることを
-  //   確認済（リスオン録音と異なり MP3 は普通の <audio> で動く）。
-  const fileId = file.getId();
-  const url = 'https://drive.google.com/uc?export=download&id=' + fileId;
-  return { fileId: fileId, url: url };
+  return { fileId: file.getId() };
 }
 
-// 問題マスターの audioUrl 列にキャッシュを書き込み
-function _writeKokugoAudioUrl(category, questionId, url) {
+// 問題マスターの audioUrl 列に「fileId（または旧 URL 形式）」を書き込み。
+// 列名は audioUrl のまま温存（schema 互換）。中身は 2026-05-23 から fileId のみに統一。
+function _writeKokugoAudioUrl(category, questionId, fileIdOrUrl) {
   const sh = _ss().getSheetByName(_kokugoSheetForCategory(category));
   if (!sh) return;
   const values = sh.getDataRange().getValues();
@@ -21831,9 +21836,39 @@ function _writeKokugoAudioUrl(category, questionId, url) {
   const idNorm = String(questionId || '').trim();
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][iId] || '').trim() === idNorm) {
-      sh.getRange(i + 1, iUrl + 1).setValue(url);
+      sh.getRange(i + 1, iUrl + 1).setValue(fileIdOrUrl);
       return;
     }
+  }
+}
+
+// audioUrl 列の値から fileId を抽出する（前方互換ヘルパー）。
+//   - 'XXXXXXXX-...' のような fileId 文字列（英数字 + - _、20 文字以上）はそのまま返す
+//   - 'https://drive.google.com/uc?export=download&id=XXXX' のような旧 URL 形式は ?id=/&id= を抽出
+//   - 抽出できない場合は ''
+function _kokugoExtractAudioFileId(value) {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  // fileId 形式（Drive の id は base64url 文字 + ハイフン、通常 25-44 文字）
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(s)) return s;
+  // URL から id を抽出
+  const m = s.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+  return '';
+}
+
+// Drive ファイルを base64 で読み取り。失敗時 null。
+// GAS オーナー権限で動作するため setSharing 設定の有無に関わらずアクセス可能。
+function _kokugoReadDriveAsBase64(fileId) {
+  try {
+    const file = DriveApp.getFileById(fileId);
+    if (!file) return null;
+    const blob = file.getBlob();
+    const bytes = blob.getBytes();
+    return Utilities.base64Encode(bytes);
+  } catch (e) {
+    console.error('[_kokugoReadDriveAsBase64] failed for fileId=' + fileId, e);
+    return null;
   }
 }
 
@@ -22190,9 +22225,18 @@ function submitKokugoImpression(params) {
   }
 }
 
-// 音声 URL を返す（無ければ Cloud TTS で生成 → Drive 保存 → URL キャッシュ）。
+// 音声 base64 を返す（無ければ Cloud TTS で生成 → Drive 保存 → base64 を返却）。
 // params: { questionId }
-// 戻り値: { ok, audioUrl, cached? } or { ok:false, message }
+// 戻り値: { ok, audioBase64, mimeType, cached? } or { ok:false, message }
+//
+// 2026-05-23 修正：旧版は Drive 公開 URL（uc?export=download&id=...）を返していたが、
+// Drive が Content-Disposition: attachment ヘッダー付きで返すため <audio src=...> 経由では
+// media stream として読めない（CLAUDE.md #177 で既に判明していた問題が国語長文 TTS で再発）。
+// → base64 を JSON で返し、フロントで data URL 化して <audio> 再生する方式に統一
+//   （リスオン録音 _verifyTeacherAndGetDriveBlob と同パターン）。
+// Drive 保存は次回以降のキャッシュ（TTS 再呼び出し抑制）として温存。
+//
+// 関数名は getKokugoAudioUrl のまま温存（フロント / ルーティングの後方互換のため）。
 function getKokugoAudioUrl(params) {
   try {
     const qid = String((params && params.questionId) || '').trim();
@@ -22200,21 +22244,37 @@ function getKokugoAudioUrl(params) {
     const row = _readKokugoQuestionRow(qid);
     if (!row) return { ok: false, message: '問題が見つかりません: ' + qid };
 
-    const existingUrl = String(row.audioUrl || '').trim();
-    if (existingUrl) {
-      return { ok: true, audioUrl: existingUrl, cached: true };
+    // ① キャッシュ判定：audioUrl 列に fileId（新形式）or 旧 URL 形式が入っていれば、
+    //    Drive から base64 を読み出して即返却。Cloud TTS の再呼び出しを避ける。
+    const existing = String(row.audioUrl || '').trim();
+    if (existing) {
+      const fileId = _kokugoExtractAudioFileId(existing);
+      if (fileId) {
+        const b64 = _kokugoReadDriveAsBase64(fileId);
+        if (b64) {
+          // 旧 URL 形式で保存されていた場合、fileId に正規化して書き戻す（後続呼び出しの軽量化）
+          if (existing !== fileId) {
+            try { _writeKokugoAudioUrl(row._category, qid, fileId); } catch(_e) {}
+          }
+          return { ok: true, audioBase64: b64, mimeType: 'audio/mpeg', cached: true };
+        }
+        // ファイル消失している可能性（手動削除など）→ 再生成にフォールバック
+        console.warn('[getKokugoAudioUrl] fileId not readable, regenerating', fileId);
+      }
     }
 
+    // ② Cloud TTS で生成（初回 or キャッシュ消失時）
     const body = String(row.bodyText || '').trim();
     if (!body) return { ok: false, message: '本文が空です' };
-
-    // 本文末尾にタイトルを付け足すと長くなるので、シンプルに本文のみを TTS する
     const tts = _kokugoTtsSynthesize(body);
     if (!tts.ok) return { ok: false, message: tts.message || 'TTS 生成に失敗しました' };
 
+    // ③ Drive 保存（キャッシュ用）+ audioUrl 列に fileId をキャッシュ
     const saved = _saveKokugoAudioToDrive(qid, tts.audioBase64);
-    _writeKokugoAudioUrl(row._category, qid, saved.url);
-    return { ok: true, audioUrl: saved.url, cached: false };
+    try { _writeKokugoAudioUrl(row._category, qid, saved.fileId); } catch(_e) {}
+
+    // ④ Cloud TTS のレスポンス base64 をそのまま返す（Drive を再読込しない、初回最速）
+    return { ok: true, audioBase64: tts.audioBase64, mimeType: 'audio/mpeg', cached: false };
   } catch (err) {
     console.error('[getKokugoAudioUrl]', err);
     return { ok: false, message: String(err) };
