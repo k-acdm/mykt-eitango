@@ -10373,12 +10373,89 @@ function _getPendingReflectionDate(sid, accountType) {
 }
 
 // submitReflection 成功時に該当 sid のキャッシュをクリア（古い「未提出あり」が残らないように）
+//
+// 2026-05-22 Phase 5 Step 2：当日キャッシュ（_isReflectionSubmittedToday 用）も同時にクリア。
+//   翌日キャッチアップで昨日分が提出された場合に備え、今日 + 昨日の 2 日分を消す（ベストエフォート）。
+//   そのほかの日付キャッシュは TTL 30 分で自然死するため明示削除は不要。
 function _invalidatePendingReflectionCache(sid) {
   try {
     const sidNorm = String(sid || '').trim();
     if (!sidNorm) return;
-    CacheService.getScriptCache().remove('cache_pending_refl_' + sidNorm);
+    const cache = CacheService.getScriptCache();
+    cache.remove('cache_pending_refl_' + sidNorm);
+    // Phase 5：_isReflectionSubmittedToday のキャッシュも消す（今日 + 昨日の 2 日分）
+    try {
+      const todayStr = _sangoToday();
+      cache.remove('cache_refl_today_' + sidNorm + '_' + todayStr);
+      cache.remove('cache_refl_today_' + sidNorm + '_' + _sangoPrevDate(todayStr));
+    } catch(_e) { /* キャッシュ失敗は無害 */ }
   } catch(e) { /* キャッシュ失敗は無害 */ }
+}
+
+// 今日（_sangoToday() = JST 3:00 区切り）の振り返り提出済みかを判定（Phase 5 / 2026-05-22）。
+//
+// 設計：
+//   - キャッシュキー 'cache_refl_today_<sid>_<yyyy-MM-dd>'（TTL 30 分）
+//   - キャッシュミスなら Reflections シート末尾 200 行スキャン
+//     （_getPendingReflectionDate と同じ走査幅で I/O コストを揃える）
+//   - 結果値は '1'（提出済）/ '0'（未提出）の文字列で保存
+//
+// 使用箇所（Step 3 以降）：
+//   - _calculateHpWithReserve の Gate 1（振り返り未提出なら 100% 保留）
+//   - _checkAndReleaseReserveIfCompleted の Gate（振り返り未提出時はボーナス再発火を保留）
+//
+// accountType フィルタは呼び出し側（Gate 1）で実施するため、本関数は素直にシートを見る。
+// テスト枠でも誤動作しないよう、シート参照失敗時は安全側で false（未提出扱い）を返す。
+function _isReflectionSubmittedToday(sid) {
+  const sidNorm = String(sid || '').trim();
+  if (!sidNorm) return false;
+  const todayStr = _sangoToday();
+  const cacheKey = 'cache_refl_today_' + sidNorm + '_' + todayStr;
+  try {
+    const cached = CacheService.getScriptCache().get(cacheKey);
+    if (cached !== null) return cached === '1';
+  } catch(_e) { /* キャッシュ失敗時は続行 */ }
+
+  let found = false;
+  try {
+    const sh = _ss().getSheetByName(SHEET_REFLECTIONS);
+    if (sh && sh.getLastRow() >= 2) {
+      const lastCol = sh.getLastColumn();
+      const header  = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+      const iSid    = header.indexOf('studentId');
+      const iDate   = header.indexOf('date');
+      if (iSid >= 0 && iDate >= 0) {
+        const rows = _readLastNRows(sh, 200);
+        for (let i = 0; i < rows.length; i++) {
+          if (String(rows[i][iSid] || '').trim() !== sidNorm) continue;
+          // date 列は Sheets 自動変換で Date 型 / 'yyyy-MM-dd' / 'yyyy/MM/dd' などの可能性あり
+          // _getPendingReflectionDate と同じ正規化ロジックを採用
+          const raw = rows[i][iDate];
+          let ds = '';
+          if (raw instanceof Date) {
+            ds = Utilities.formatDate(raw, 'Asia/Tokyo', 'yyyy-MM-dd');
+          } else if (raw != null) {
+            const s = String(raw).trim();
+            const m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})/);
+            if (m) ds = m[1] + '-' + m[2] + '-' + m[3];
+          }
+          if (ds === todayStr) { found = true; break; }
+        }
+      }
+    }
+  } catch(e) {
+    console.error('[_isReflectionSubmittedToday]', e);
+    // シート読込失敗時は安全側で false（=未提出扱い）。
+    // 「未提出」を返すと Gate 1 が起動して 100% 保留になるが、これは生徒の HP を「失う」のではなく
+    // 「振り返り提出で取り戻せる」状態なので、誤検知の被害は最小限。
+    return false;
+  }
+
+  try {
+    CacheService.getScriptCache().put(cacheKey, found ? '1' : '0', 1800);
+  } catch(_e) { /* キャッシュ失敗は無害 */ }
+
+  return found;
 }
 
 // 振り返り送信。doPost 経由のみ（誤実行防止 + base64 等の大データ送信余地）。
@@ -18761,6 +18838,23 @@ const REQUIRED_COMPLETION_BONUS_BASE = 200;   // 絶対ミッション達成ボ�
 // この日以降に初めて _calculateHpWithReserve が「絶対ミッション未達成 → 保留」分岐に入る。
 // 5/16〜5/24 は予告期間（フロントの予告モーダルだけ表示、HP は従来通り 100% 即時付与）。
 const REQUIRED_SYSTEM_START_DATE     = '2026-05-25';
+
+// ========================================================================
+// Phase 5（振り返り連動 HP 付与システム）/ 2026-05-22 投入予定
+// ========================================================================
+// 振り返り未提出時の 100% 保留ゲートの起動日。Phase A と同日（2026-05-25）。
+// 両輪 Phase A の起動と同タイミングで振り返りゲートも開始 → 告知が一回で済む（ふくちさん判断）。
+// Phase A と独立した定数として保持することで、将来 Phase 5 だけ前倒し・後倒しが必要になった
+// 場合にも片方だけ調整可能。
+const REFLECTION_GATE_START_DATE = '2026-05-25';
+
+// 振り返りゲートのフィーチャーフラグ（緊急ロールバック用）。
+//   true  : 5/25 以降の本番運用（_calculateHpWithReserve に Gate 1 適用、
+//           _checkAndReleaseReserveIfCompleted も振り返りゲートで block）
+//   false : Phase 3 完了時点と完全に等価な挙動（Gate 1 全スキップ）
+// Step 1〜5 投入中は false のまま、Step 6 で true に切替予定。
+// 本番運用 1〜2 週間安定後に定数自体を削除予定（次フェーズ）。
+const REFLECTION_GATE_ENABLED = false;
 
 // HpReservePool シートのヘッダー（8 列、Phase 5 / 2026-05-22 で reserveReason 追加）
 //   studentId | date | type | rawHp | reservedHp | resolved | resolvedAt | reserveReason
