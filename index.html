@@ -2343,10 +2343,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260522-2244"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260522-2244">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260522-2244"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -11752,17 +11752,28 @@
   try { history.pushState(null, '', location.href); } catch(e){}
   window.addEventListener('popstate', popstateHandler);
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">v----.--.--</span>
+<!-- 左下バージョンバッジ。テキストは scripts/stamp-version.js が commit/push 前に
+     YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
+     2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
+     stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260522-2244</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
     if (!el) return;
-    var d = new Date(document.lastModified);
-    var pad = function(n){ return n < 10 ? '0'+n : ''+n; };
-    el.textContent = 'v' + d.getFullYear() + '.' + pad(d.getMonth()+1) + '.' + pad(d.getDate());
     el.addEventListener('click', function(){
-      var base = window.location.origin + window.location.pathname;
-      window.location.href = base + '?v=' + Date.now();
+      // 「このサイトを離れますか？」ダイアログを完全抑制してから強制リロード。
+      //   - addEventListener('beforeunload', ...) で登録されたハンドラは removeEventListener で外す必要あり
+      //     （window.onbeforeunload = null だけでは消えない）
+      //   - 念のため onbeforeunload プロパティ側も null 化（古いブラウザ互換）
+      //   - 実際の beforeUnloadHandler は本ファイル末尾でグローバル登録されている
+      try { window.removeEventListener('beforeunload', beforeUnloadHandler); } catch(e){}
+      try { window.onbeforeunload = null; } catch(e){}
+      // location.reload(true) でキャッシュバイパス。
+      // 引数 true は最新ブラウザでは無視されるが、index.html の <head> にある
+      // no-cache 系メタタグ 3 行（Cache-Control / Pragma / Expires）の効果で
+      // ブラウザは必ずサーバから最新の HTML を取得し直す。
+      location.reload(true);
     });
   })();
 </script>
