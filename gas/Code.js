@@ -18762,15 +18762,18 @@ const REQUIRED_COMPLETION_BONUS_BASE = 200;   // 絶対ミッション達成ボ�
 // 5/16〜5/24 は予告期間（フロントの予告モーダルだけ表示、HP は従来通り 100% 即時付与）。
 const REQUIRED_SYSTEM_START_DATE     = '2026-05-25';
 
-// HpReservePool シートのヘッダー（7 列、仕様書準拠）
-//   studentId | date | type | rawHp | reservedHp | resolved | resolvedAt
+// HpReservePool シートのヘッダー（8 列、Phase 5 / 2026-05-22 で reserveReason 追加）
+//   studentId | date | type | rawHp | reservedHp | resolved | resolvedAt | reserveReason
 //   - date: '_sangoToday()' 形式の 'yyyy-MM-dd' 文字列（JST 3:00 区切り）
 //   - type: 元の HPLog type（'sango', 'kiso_15_5' 等）
 //   - rawHp: 倍率適用後の総 HP（元の hpGained）
 //   - reservedHp: 保留分（rawHp - 即時付与分）
 //   - resolved: 'TRUE' / 'FALSE'（文字列）
 //   - resolvedAt: 解放時の '_nowJST()'、未解放なら ''
-const HP_RESERVE_POOL_HEADERS = ['studentId', 'date', 'type', 'rawHp', 'reservedHp', 'resolved', 'resolvedAt'];
+//   - reserveReason: Phase 5 で追加。'reflection_pending' / 'required_mission' / 空欄（レガシー互換）
+//                    空欄は 'required_mission' と等価扱い（Phase 3 投入済の既存行を救済）。
+//                    _ensureSheetWithHeaders の schema migration で自動末尾追記される。
+const HP_RESERVE_POOL_HEADERS = ['studentId', 'date', 'type', 'rawHp', 'reservedHp', 'resolved', 'resolvedAt', 'reserveReason'];
 
 // --- 列インデックス検出ヘルパー（_findBirthdayColIdx / _findAvatarBaseColIdx と同パターン） ---
 
@@ -18959,12 +18962,19 @@ function _ensureHpReservePoolSheet() {
 }
 
 // 保留分を Pool に追記。失敗しても submit 全体は止めない（ベストエフォート）。
-function _appendHpReservePool(sid, dateStr, type, rawHp, reservedHp) {
+// 2026-05-22 Phase 5 Step 1：reserveReason 引数追加（既定 '' で後方互換）。
+//   'reflection_pending' / 'required_mission' / 空欄（レガシー＝required_mission 互換扱い）。
+//   Step 3 で _grantHP 側が値を渡すまでは既定 '' のままなので挙動変化なし。
+function _appendHpReservePool(sid, dateStr, type, rawHp, reservedHp, reserveReason) {
   try {
     if (!sid || !dateStr || !type) return { ok: false, message: 'invalid args' };
     if (reservedHp == null || reservedHp <= 0) return { ok: false, message: 'no reserve' };
+    const reasonNorm = String(reserveReason == null ? '' : reserveReason).trim();
     const sh = _ensureHpReservePoolSheet();
-    sh.appendRow([sid, dateStr, type, rawHp, reservedHp, 'FALSE', '']);
+    // 8 列構造（reserveReason を末尾に追加）。シート側に列が無くてもベストエフォートで appendRow 可能：
+    // _ensureSheetWithHeaders の schema migration が初回 ensure 時に列を末尾追記しているため、
+    // ここでは常に 8 列分の値を渡す。
+    sh.appendRow([sid, dateStr, type, rawHp, reservedHp, 'FALSE', '', reasonNorm]);
     SpreadsheetApp.flush();
     return { ok: true };
   } catch (e) {
@@ -18974,35 +18984,46 @@ function _appendHpReservePool(sid, dateStr, type, rawHp, reservedHp) {
 }
 
 // 指定生徒の today の未解放 Pool 行を一括 resolved=TRUE 化し、合計 reservedHp を返す。
-// 戻り値: { ok, totalReleased, count }
+// 戻り値: { ok, totalReleased, count, byReason: {reflection_pending: N, required_mission: M, '': L} }
 // 注意：完走判定の race を防ぐため、呼び出し側で PropertiesService フラグで gate すること。
+//
+// 2026-05-22 Phase 5 Step 1：reserveReason 列を集計に追加（既存解放動作は無変更、全 reason を解放）。
+//   ・Step 4 で _checkAndReleaseReserveIfCompleted から呼ばれる際は reserveReason='required_mission'
+//     のみを対象にしたい → 内部フィルタは Step 4 で別関数として実装予定。本関数は無変更で全 reason 解放。
+//   ・byReason は監視用（HPLog message やログに添えるため）。
 function _markReservePoolEntriesResolved(sid, dateStr) {
   try {
     const sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
-    if (!sh || sh.getLastRow() < 2) return { ok: true, totalReleased: 0, count: 0 };
+    if (!sh || sh.getLastRow() < 2) return { ok: true, totalReleased: 0, count: 0, byReason: {} };
     const values = sh.getDataRange().getValues();
-    // header: studentId(0) date(1) type(2) rawHp(3) reservedHp(4) resolved(5) resolvedAt(6)
+    // header: studentId(0) date(1) type(2) rawHp(3) reservedHp(4) resolved(5) resolvedAt(6) reserveReason(7)
+    const header = values[0];
+    const iReason = header.indexOf('reserveReason');  // -1 ならレガシー（全て空欄扱い）
     const targets = [];
     let totalReleased = 0;
+    const byReason = {};
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
       if (String(r[0] || '').trim() !== sid) continue;
       if (String(r[1] || '').trim() !== dateStr) continue;
       if (String(r[5] || '').trim().toUpperCase() === 'TRUE') continue;
       targets.push(i + 1);  // 1-based row index
-      totalReleased += Number(r[4]) || 0;
+      const hp = Number(r[4]) || 0;
+      totalReleased += hp;
+      const reason = (iReason >= 0) ? String(r[iReason] || '').trim() : '';
+      byReason[reason] = (byReason[reason] || 0) + hp;
     }
-    if (targets.length === 0) return { ok: true, totalReleased: 0, count: 0 };
+    if (targets.length === 0) return { ok: true, totalReleased: 0, count: 0, byReason: {} };
     const now = _nowJST();
     // setValues で 1 行ずつ更新（バッチ最適化より単純さ優先：完走は 1 日 1 回の rare path）
     for (let k = 0; k < targets.length; k++) {
       sh.getRange(targets[k], 6, 1, 2).setValues([['TRUE', now]]);
     }
     SpreadsheetApp.flush();
-    return { ok: true, totalReleased: totalReleased, count: targets.length };
+    return { ok: true, totalReleased: totalReleased, count: targets.length, byReason: byReason };
   } catch (e) {
     console.error('[_markReservePoolEntriesResolved]', e);
-    return { ok: false, totalReleased: 0, count: 0, message: String(e) };
+    return { ok: false, totalReleased: 0, count: 0, byReason: {}, message: String(e) };
   }
 }
 
