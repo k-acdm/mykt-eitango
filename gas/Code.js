@@ -2082,15 +2082,19 @@ function _grantHP(opts) {
   const fullHpGained = applyMult ? (rawHp_in * week * week) : rawHp_in;
 
   // ─── ② Phase A reserve 分割 ───
+  // 2026-05-22 Phase 5 Step 3：_calculateHpWithReserve 戻り値の reserveReason を保持し、
+  //   _appendHpReservePool 呼び出し時にそのまま渡す（reflection_pending / required_mission の判別）。
   const applyReserve = (opts.applyReserveSystem !== false);  // 既定 true
   let granted = fullHpGained;
   let reserved = 0;
   let isReserveActive = false;
+  let reserveReason = '';  // Phase 5：Pool に書き込む reason（reflection_pending / required_mission / ''）
   if (applyReserve) {
     const rc = _calculateHpWithReserve(stuLoc, fullHpGained);
     granted = rc.granted;
     reserved = rc.reserved;
     isReserveActive = rc.isReserveActive;
+    reserveReason = rc.reserveReason || '';
   }
 
   // ─── ③ _logHP（最優先で書く、失敗時は即終了）───
@@ -2109,9 +2113,10 @@ function _grantHP(opts) {
   // HP=0 の練習モードで _logHP 失敗なら警告のみで続行（HPLogWriteAttempts に痕跡が残る）
 
   // ─── ④ reserve pool 追記（失敗しても続行、警告のみ）───
+  // Phase 5 Step 3：reserveReason を渡す。'reflection_pending' or 'required_mission' or ''（レガシー）。
   if (reserved > 0) {
     try {
-      _appendHpReservePool(sid, _sangoToday(), type, fullHpGained, reserved);
+      _appendHpReservePool(sid, _sangoToday(), type, fullHpGained, reserved, reserveReason);
     } catch (e) {
       console.error('[_grantHP] _appendHpReservePool 失敗（続行）', e);
     }
@@ -19124,12 +19129,54 @@ function _markReservePoolEntriesResolved(sid, dateStr) {
 // --- 中核：保留分計算 ---
 // loc: _findAccountRowOnSheet(sid) の戻り値
 // rawHp: 元の獲得 HP（倍率適用後、_logHP の hpGained に渡そうとしていた値）
-// 戻り値: { granted, reserved, isReserveActive, requiredList, completedSet }
+// 戻り値: { granted, reserved, isReserveActive, requiredList, completedSet, reserveReason }
 //   isReserveActive=true なら granted=floor(rawHp * 0.6), reserved=rawHp - granted
 //   isReserveActive=false なら granted=rawHp, reserved=0（従来挙動と完全同等）
+//
+// 2026-05-22 Phase 5 Step 3：Gate 1（振り返り未提出 → 100% 保留）を Gate 2（Phase A 40% 保留）の前に追加。
+//   Gate 1 は全生徒対象（テスト/講師/招待/体験を除く）、Phase A と同じ起動日（2026-05-25）。
+//   REFLECTION_GATE_ENABLED=false の間は Gate 1 が無条件スキップされ、Phase 3 完了時点と完全に等価な挙動になる。
+//
+// 戻り値の reserveReason は Pool 行の reserveReason 列に書き込まれる：
+//   - 'reflection_pending' : Gate 1 ヒット時（振り返り未提出）
+//   - 'required_mission'   : Gate 2 ヒット時（Phase A 40% 保留）
+//   - ''                   : 保留なし（passthrough、または rawHp=0 の練習モード）
 function _calculateHpWithReserve(loc, rawHp) {
-  const safe = { granted: rawHp || 0, reserved: 0, isReserveActive: false, requiredList: [], completedSet: {} };
+  const safe = { granted: rawHp || 0, reserved: 0, isReserveActive: false, requiredList: [], completedSet: {}, reserveReason: '' };
   if (!loc) return safe;
+
+  // ─── Gate 1（NEW Phase 5）: 振り返り未提出 → 100% 保留 ─────────────────────────
+  // 適用範囲：5/25 以降 + 本番アカウント（'student'、または 'unknown' フォールバック）
+  // スキップ対象：'test' / 'teacher' / 'invited' / 'experience'
+  // フラグ OFF（Step 1〜5 投入中）の間はこのブロック全体がスキップされる。
+  if (REFLECTION_GATE_ENABLED && _sangoToday() >= REFLECTION_GATE_START_DATE) {
+    const accountType = _resolveAccountTypeFromLoc(loc);
+    const isReflectionTarget = (
+      accountType !== 'test' &&
+      accountType !== 'teacher' &&
+      accountType !== 'invited' &&
+      accountType !== 'experience'
+    );
+    if (isReflectionTarget) {
+      const sidForGate1 = String(loc.rowValues[COL_ID] || '').trim();
+      if (sidForGate1 && !_isReflectionSubmittedToday(sidForGate1)) {
+        // 振り返り未提出 → 100% 保留（Gate 2 までは進まない）。
+        // rawHp=0（練習モード）でも reserveReason は付与するが reservedHp=0 のため Pool には書き込まれない
+        // （_appendHpReservePool 内の reservedHp<=0 ガードで no-op）。
+        const reservedHp = (rawHp && rawHp > 0) ? rawHp : 0;
+        return {
+          granted: 0,
+          reserved: reservedHp,
+          isReserveActive: true,
+          requiredList: [],
+          completedSet: {},
+          reserveReason: 'reflection_pending'
+        };
+      }
+    }
+  }
+
+  // ─── Gate 2（既存 Phase A）: 絶対ミッション未完走 → 40% 保留 ────────────────────
   // 予告期間中（〜5/24）は両輪非起動：従来挙動と完全に同じ granted=rawHp / reserved=0 を返す。
   // 5/25 以降に初めて分割ロジックが動く。フロントの予告モーダルとセットで「お知らせ → 開始」の体験を作る。
   if (_sangoToday() < REQUIRED_SYSTEM_START_DATE) return safe;
@@ -19137,19 +19184,19 @@ function _calculateHpWithReserve(loc, rawHp) {
   if (!requiredList || requiredList.length === 0) return safe;
   // rawHp=0（練習モード等）は分割しない（granted=0, reserved=0、ただし isReserveActive は true）
   if (!rawHp || rawHp <= 0) {
-    return { granted: 0, reserved: 0, isReserveActive: true, requiredList: requiredList, completedSet: {} };
+    return { granted: 0, reserved: 0, isReserveActive: true, requiredList: requiredList, completedSet: {}, reserveReason: '' };
   }
   const sid = String(loc.rowValues[COL_ID] || '').trim();
   const completedSet = _getTodayCompletedRequired(sid, requiredList);
   // 絶対ミッション全達成済 → 既に release 済 or release は別経路で実施。100% 即時付与
   const allDone = requiredList.every(function(rc) { return !!completedSet[rc]; });
   if (allDone) {
-    return { granted: rawHp, reserved: 0, isReserveActive: false, requiredList: requiredList, completedSet: completedSet };
+    return { granted: rawHp, reserved: 0, isReserveActive: false, requiredList: requiredList, completedSet: completedSet, reserveReason: '' };
   }
   // 未完走 → 60%/40% 分割
   const granted = Math.floor(rawHp * (1 - REQUIRED_RESERVE_RATIO));
   const reserved = rawHp - granted;
-  return { granted: granted, reserved: reserved, isReserveActive: true, requiredList: requiredList, completedSet: completedSet };
+  return { granted: granted, reserved: reserved, isReserveActive: true, requiredList: requiredList, completedSet: completedSet, reserveReason: 'required_mission' };
 }
 
 // --- 完走チェック & 解放 + ボーナス付与 ---
