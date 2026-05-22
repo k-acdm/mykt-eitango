@@ -2436,10 +2436,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-0544"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-0553"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-0544">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-0544"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-0553">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-0553"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10739,15 +10739,18 @@
   function _kokugoBuildQuestionHtml(qNo, q) {
     if (!q) return '';
     var letters = ['ア','イ','ウ','エ'];
+    // HTML エスケープは既存の汎用関数 _sangoEscHtml を流用（命名は sango だが
+    // 中身は & / < / > を単純置換するだけの汎用関数、コンテンツ依存なし）。
+    // 以下、国語長文の innerHTML 生成では同じ _sangoEscHtml に統一する。
     var html = '<div class="q-label">問題 ' + qNo + '</div>'
-            + '<div class="q-text">' + escH(q.text || '') + '</div>';
+            + '<div class="q-text">' + _sangoEscHtml(q.text || '') + '</div>';
     (q.choices || []).forEach(function(choice, i) {
       if (i >= 4) return;
       var letter = letters[i] || '';
       html += '<label class="kokugo-choice-row" data-qno="' + qNo + '" data-letter="' + letter + '">'
            +    '<input type="radio" name="kokugo-q' + qNo + '-choice" value="' + letter + '" onchange="_kokugoOnChoiceChange(' + qNo + ', this.value)">'
            +    '<span class="choice-label">' + letter + '.</span>'
-           +    '<span class="choice-text">' + escH(choice || '') + '</span>'
+           +    '<span class="choice-text">' + _sangoEscHtml(choice || '') + '</span>'
            +  '</label>';
     });
     return html;
@@ -10897,9 +10900,9 @@
             + '<span class="res-mark">' + (ok ? '◯' : '✕') + '</span>'
             + '<span class="res-label">問題 ' + qNo + ' ' + (ok ? '正解！' : '不正解') + '</span>'
             + '</div>'
-            + '<div class="res-answer">✅ 正解：' + escH(ansLetter) + '. ' + escH(ansText) + '</div>';
+            + '<div class="res-answer">✅ 正解：' + _sangoEscHtml(ansLetter) + '. ' + _sangoEscHtml(ansText) + '</div>';
     if (qRes.explanation) {
-      html += '<div class="res-expl">' + escH(qRes.explanation) + '</div>';
+      html += '<div class="res-expl">' + _sangoEscHtml(qRes.explanation) + '</div>';
     }
     return html;
   }
@@ -10983,12 +10986,12 @@
     var html = '';
     html += '<div class="kokugo-mate-row">'
          +   '<img class="kokugo-img" src="images/japanin-celebrate.png" alt="ジャパニン">'
-         +   '<div class="kokugo-bubble">' + escH(_pickBubble(JAPANIN_BUBBLES.done)) + '</div>'
+         +   '<div class="kokugo-bubble">' + _sangoEscHtml(_pickBubble(JAPANIN_BUBBLES.done)) + '</div>'
          + '</div>';
     if (feedback) {
       html += '<div class="kokugo-feedback-box">'
            +    '<div class="fb-label">🤖 AIからのフィードバック</div>'
-           +    '<div class="fb-text">' + escH(feedback) + '</div>'
+           +    '<div class="fb-text">' + _sangoEscHtml(feedback) + '</div>'
            +  '</div>';
     }
     if (hp > 0) {
@@ -12565,7 +12568,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-0544</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-0553</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
