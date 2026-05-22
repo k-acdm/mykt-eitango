@@ -1161,6 +1161,8 @@ function doGet(e) {
       //   セットアップ用で、ここには登録しない（CLAUDE.md の運用ルール準拠）。
       else if (action === 'getMessagesForStudent')   result = getMessagesForStudent(params);
       else if (action === 'getUnreadMessageCount')   result = getUnreadMessageCount(params);
+      // 管理画面: 振り返り返信スレッドの再取得（マイ活アプリ_11、2026-05-22、認証必須）
+      else if (action === 'getRepliesForReflection') result = getRepliesForReflection(params);
       // 管理画面: リスオン問題入力（getLisonLevels は無認証、他 2 つは _verifyTeacher で teacherId+password 検証）
       else if (action === 'getLisonLevels')                  result = getLisonLevels();
       else if (action === 'getLisonContentsWeek')            result = getLisonContentsWeek(params);
@@ -10990,7 +10992,12 @@ function updateRequiredMission(params) {
 // ⚠️ Phase 1（講師ログイン機能）で G 列 firstLoginCompleted を追加。
 // 既存シートが 6 列（〜active）の場合は ensureTeachersSheet() で末尾追記マイグレーションを行う。
 const TEACHERS_HEADERS         = ['teacherId','teacherName','password','role','displayNickname','active','firstLoginCompleted'];
-const TEACHER_MESSAGES_HEADERS = ['timestamp','messageId','senderId','senderNickname','targetType','targetIds','content','createdAt'];
+// TeacherMessages：2026-05-22 で I/J 列を追加（振り返りコメントへの返信機能、マイ活アプリ_11）
+//   replyToReflectionId: 振り返り元 reflectionId（通常メッセージなら空文字）
+//   replyThreadId:       同一振り返りへの返信群をグループ化する UUID（通常メッセージなら空文字）
+// ensureTeacherMessagesSheets() の _ensureSheetWithHeaders が schema migration を実施し、
+// 既存 8 列シートに対して I/J 列を自動末尾追記する（後方互換）。
+const TEACHER_MESSAGES_HEADERS = ['timestamp','messageId','senderId','senderNickname','targetType','targetIds','content','createdAt','replyToReflectionId','replyThreadId'];
 const MESSAGE_READS_HEADERS    = ['studentId','messageId','readAt'];
 const TEACHER_MESSAGE_MAX_LEN  = 500;
 const TEACHER_INITIAL_PASSWORD = 'TEMP_PASSWORD_CHANGE_ME';
@@ -11234,14 +11241,92 @@ function ensureTeachersSheet() {
 // GAS エディタから 1 回だけ実行するセットアップ関数。冪等：既存ならスキップ。
 // TeacherMessages / MessageReads の 2 シートをまとめて初期化。
 // 戻り値: { ok, created: { messages, reads } }
+// TeacherMessages / MessageReads シートの存在保証 + 列マイグレーション。
+// 2026-05-22 拡張：_ensureSheetWithHeaders は schema migration（既存シートに不足列を末尾追記）
+// を自動実施するため、既存 8 列の TeacherMessages に対しても I/J 列（replyToReflectionId /
+// replyThreadId）が自動で追加される。ふくちさんが手動で 1 回実行するだけで OK。
+//
+// 戻り値:
+//   {
+//     ok: true,
+//     created: { messages: bool, reads: bool },
+//     headers: { messages: [...], reads: [...] }  // 確認用
+//   }
 function ensureTeacherMessagesSheets() {
   try {
     const m = _ensureSheetWithHeaders(SHEET_TEACHER_MESSAGES, TEACHER_MESSAGES_HEADERS);
     const r = _ensureSheetWithHeaders(SHEET_MESSAGE_READS,    MESSAGE_READS_HEADERS);
-    return { ok: true, created: { messages: m.created, reads: r.created } };
+    return {
+      ok: true,
+      created: { messages: m.created, reads: r.created },
+      headers: { messages: TEACHER_MESSAGES_HEADERS, reads: MESSAGE_READS_HEADERS }
+    };
   } catch (err) {
     console.error('[ensureTeacherMessagesSheets]', err);
     return { ok: false, message: String(err) };
+  }
+}
+
+// 振り返りコメント返信機能（マイ活アプリ_11、2026-05-22）：
+// reflectionId から振り返り元を引く。返信モードの sendTeacherMessage 内で
+// targetIds（生徒ID）と relatedReflection（date / content）の解決に使う。
+//
+// 戻り値: { studentId, date, content, timestamp } または null（見つからない）
+function _findReflectionByIdForReply(reflectionId) {
+  try {
+    const rid = String(reflectionId || '').trim();
+    if (!rid) return null;
+    const sh = _ss().getSheetByName(SHEET_REFLECTIONS);
+    if (!sh || sh.getLastRow() < 2) return null;
+    const lastCol = sh.getLastColumn();
+    const header  = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    const iId      = header.indexOf('reflectionId');
+    const iSid     = header.indexOf('studentId');
+    const iDate    = header.indexOf('date');
+    const iTs      = header.indexOf('timestamp');
+    const iContent = header.indexOf('content');
+    if (iId < 0 || iSid < 0) return null;
+    // 末尾から走査（最近の振り返りが見つかりやすい）
+    const values = sh.getDataRange().getValues();
+    for (let i = values.length - 1; i >= 1; i--) {
+      if (String(values[i][iId] || '').trim() !== rid) continue;
+      return {
+        studentId: String(values[i][iSid] || '').trim(),
+        date:      iDate    >= 0 ? _reflectionToDateStr(values[i][iDate])      : '',
+        timestamp: iTs      >= 0 ? _reflectionToTimestampStr(values[i][iTs])   : '',
+        content:   String((iContent >= 0 ? values[i][iContent] : '') || '')
+      };
+    }
+    return null;
+  } catch (e) {
+    console.error('[_findReflectionByIdForReply]', e);
+    return null;
+  }
+}
+
+// 同一 reflectionId への既存返信から replyThreadId を継承（初回返信なら null を返す）。
+// TeacherMessages 全体を走査して、replyToReflectionId が一致する最新行の replyThreadId を返す。
+// 件数が増えても日次レベルでは数百件程度なので、全件スキャンで十分。
+function _findExistingReplyThreadId(reflectionId) {
+  try {
+    const rid = String(reflectionId || '').trim();
+    if (!rid) return null;
+    const sh = _ss().getSheetByName(SHEET_TEACHER_MESSAGES);
+    if (!sh || sh.getLastRow() < 2) return null;
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iRefId  = header.indexOf('replyToReflectionId');
+    const iThread = header.indexOf('replyThreadId');
+    if (iRefId < 0 || iThread < 0) return null;
+    for (let i = values.length - 1; i >= 1; i--) {
+      if (String(values[i][iRefId] || '').trim() !== rid) continue;
+      const thr = String(values[i][iThread] || '').trim();
+      if (thr) return thr;
+    }
+    return null;
+  } catch (e) {
+    console.error('[_findExistingReplyThreadId]', e);
+    return null;
   }
 }
 
@@ -11276,28 +11361,34 @@ function _parseIndividualTargetIds(targetIdsStr) {
 }
 
 // 管理画面：メッセージ送信。認証必須・doPost 経由のみ。
-// params: { teacherId, password, targetType, targetIds, content }
+// params: { teacherId, password, targetType, targetIds, content,
+//           replyToReflectionId?, replyThreadId? }
 //   teacherId/password: _verifyTeacher で認証。送信者の表示名は Teachers シートの
 //                       displayNickname を送信時点でスナップショット保存。
 //                       ⚠️ params.senderId は受け付けない（なりすまし防止 / Phase 1）。
-//                          認証された teacherId を強制的に senderId として使用する。
 //   targetType: 'individual' | 'all' （'group' は明示的にエラー）
-//                'all' は admin（塾長）のみ可能（Phase 2 で _requireAdmin ガード）。
-//                'individual' は admin / teacher 両方可能。
+//                'all' は admin（塾長）のみ可能。'individual' は admin / teacher 両方可能。
 //   targetIds:  individual 時は studentId 配列 or カンマ区切り文字列。all 時は無視。
 //   content:    メッセージ本文（TEACHER_MESSAGE_MAX_LEN = 500 文字まで）。
-// 戻り値: { ok, messageId, senderNickname, recipientCount, targetType }
-//         または { ok:false, message }
-// シート自動初期化：冒頭で ensureTeacherMessagesSheets() を呼ぶため事前セットアップ不要（Phase 5）。
-// 操作ログ：成功時に _logTeacherAction で MESSAGE_SEND を記録（Phase 5、本文全文を含む）。
+//   replyToReflectionId: 【マイ活アプリ_11 / 2026-05-22 追加】振り返りコメントへの返信時に
+//                        対応する reflectionId を指定。指定された場合：
+//                          - targetType は強制的に 'individual' に書き換え
+//                          - targetIds は reflection の studentId に強制上書き
+//                            （クライアント指定は無視、なりすまし防止）
+//                          - replyThreadId が未指定なら、既存スレッドがあれば継承、
+//                            無ければ新規 UUID（'THR_' + getUuid()）を発行
+//                          - 認証は admin/teacher どちらでも可（振り返り指導は両ロール共通）
+//   replyThreadId:       同一 reflectionId への 2 回目以降の返信時に既存値を指定可能。
+//                        未指定でもサーバー側で自動継承（クライアントが追従不要）。
+// 戻り値: { ok, messageId, senderNickname, recipientCount, targetType,
+//          replyToReflectionId?, replyThreadId? } または { ok:false, message }
 function sendTeacherMessage(params) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
 
-    // Phase 5：TeacherMessages / MessageReads の自動初期化（冪等）。
-    // Phase 4 の _ensureSheetWithHeaders 思想と統一して、手動セットアップ工程を不要にする。
-    // 初期化失敗はログのみ。後段の getSheetByName で検出して安全弁が働く。
+    // TeacherMessages / MessageReads の自動初期化（冪等）。Phase 5 時点で I/J 列の
+    // schema migration も _ensureSheetWithHeaders 内で完了する。
     try {
       ensureTeacherMessagesSheets();
     } catch (e) {
@@ -11305,59 +11396,79 @@ function sendTeacherMessage(params) {
     }
 
     // ⚠️ なりすまし防止：params.senderId は受け付けず、認証された teacherId を強制使用する。
-    //    クライアントから渡された senderId は完全に無視する。
     const senderId   = _teacher.teacherId;
-    const targetType = String((params && params.targetType) || '').trim();
     const content    = String((params && params.content) || '').trim();
 
-    if (targetType === 'group') {
-      return { ok: false, message: 'グループ送信は準備中です' };
-    }
-    if (targetType !== 'individual' && targetType !== 'all') {
-      return { ok: false, message: '送信先タイプが不正です' };
-    }
-    // Phase 2：全員送信は admin（塾長）のみ可能。teacher は個別送信のみ。
-    if (targetType === 'all' && !_requireAdmin(_teacher)) {
-      return { ok: false, message: 'この操作は管理者のみ可能です' };
-    }
     if (!content) return { ok: false, message: 'メッセージ本文を入力してください' };
     if (content.length > TEACHER_MESSAGE_MAX_LEN) {
       return { ok: false, message: 'メッセージは ' + TEACHER_MESSAGE_MAX_LEN + ' 文字以内で入力してください' };
     }
 
+    // ────────────────────────────────────────────────────────
+    // 返信モード判定（マイ活アプリ_11、2026-05-22）
+    // replyToReflectionId が指定されたら振り返り返信としてのモードに切替：
+    //   - Reflections シートから振り返り元を引き、その studentId を targetIds に強制セット
+    //   - targetType は 'individual' に強制
+    //   - replyThreadId は params 指定 → 既存スレッド継承 → 新規発行 の順で解決
+    // ────────────────────────────────────────────────────────
+    const replyToReflectionId = String((params && params.replyToReflectionId) || '').trim();
+    let replyThreadId         = String((params && params.replyThreadId)       || '').trim();
+    let targetType = String((params && params.targetType) || '').trim();
     let targetIdsCsv = '';
     let recipientCount = 0;
-    if (targetType === 'individual') {
-      // params.targetIds は配列 or カンマ区切り文字列のどちらでも受け付ける
-      let arr = [];
-      if (Array.isArray(params.targetIds)) arr = params.targetIds.slice();
-      else if (params.targetIds) arr = _parseIndividualTargetIds(params.targetIds);
-      // 重複除去 + 空除去
-      const seen = {};
-      const uniq = [];
-      arr.forEach(function(s){
-        const v = String(s || '').trim();
-        if (v && !seen[v]) { seen[v] = true; uniq.push(v); }
-      });
-      if (uniq.length === 0) return { ok: false, message: '宛先生徒を 1 人以上選択してください' };
-      targetIdsCsv = uniq.join(',');
-      recipientCount = uniq.length;
+
+    if (replyToReflectionId) {
+      // 返信モード
+      const refl = _findReflectionByIdForReply(replyToReflectionId);
+      if (!refl || !refl.studentId) {
+        return { ok: false, message: '返信対象の振り返りが見つかりません: ' + replyToReflectionId };
+      }
+      targetType     = 'individual';
+      targetIdsCsv   = refl.studentId;
+      recipientCount = 1;
+      // replyThreadId の解決順序：params 指定 → 既存スレッド継承 → 新規発行
+      if (!replyThreadId) {
+        const existing = _findExistingReplyThreadId(replyToReflectionId);
+        replyThreadId = existing || ('THR_' + Utilities.getUuid());
+      }
     } else {
-      // 'all'
-      targetIdsCsv = 'ALL';
-      // 件数表示用に全アカウント（Students + SpecialAccounts）の ID 数を集計
-      // Step 2：テスト枠もメッセージを受け取るため対象に含む（_readMessagesForStudent 側で
-      //   targetType='all' は全 sid 一致なので、テスト枠でも届く＝集計対象に含めるのが整合）
-      try {
-        const stuValues = _getAllAccountsValues();
-        if (stuValues && stuValues.length >= 2) {
-          let n = 0;
-          for (let i = 1; i < stuValues.length; i++) {
-            if (String(stuValues[i][COL_ID] || '').trim()) n++;
+      // 通常メッセージモード（既存挙動を維持）
+      if (targetType === 'group') {
+        return { ok: false, message: 'グループ送信は準備中です' };
+      }
+      if (targetType !== 'individual' && targetType !== 'all') {
+        return { ok: false, message: '送信先タイプが不正です' };
+      }
+      if (targetType === 'all' && !_requireAdmin(_teacher)) {
+        return { ok: false, message: 'この操作は管理者のみ可能です' };
+      }
+      if (targetType === 'individual') {
+        let arr = [];
+        if (Array.isArray(params.targetIds)) arr = params.targetIds.slice();
+        else if (params.targetIds) arr = _parseIndividualTargetIds(params.targetIds);
+        const seen = {};
+        const uniq = [];
+        arr.forEach(function(s){
+          const v = String(s || '').trim();
+          if (v && !seen[v]) { seen[v] = true; uniq.push(v); }
+        });
+        if (uniq.length === 0) return { ok: false, message: '宛先生徒を 1 人以上選択してください' };
+        targetIdsCsv = uniq.join(',');
+        recipientCount = uniq.length;
+      } else {
+        // 'all'
+        targetIdsCsv = 'ALL';
+        try {
+          const stuValues = _getAllAccountsValues();
+          if (stuValues && stuValues.length >= 2) {
+            let n = 0;
+            for (let i = 1; i < stuValues.length; i++) {
+              if (String(stuValues[i][COL_ID] || '').trim()) n++;
+            }
+            recipientCount = n;
           }
-          recipientCount = n;
-        }
-      } catch (e) { recipientCount = 0; }
+        } catch (e) { recipientCount = 0; }
+      }
     }
 
     // 表示用ニックネームを送信時点でスナップショット
@@ -11369,13 +11480,14 @@ function sendTeacherMessage(params) {
 
     const sh = _ss().getSheetByName(SHEET_TEACHER_MESSAGES);
     if (!sh) return { ok: false, message: 'TeacherMessages シートが見つかりません' };
-    sh.appendRow([now, messageId, senderId, senderNickname, targetType, targetIdsCsv, content, now]);
+    // 10 列構造で appendRow（最後の 2 列が replyToReflectionId / replyThreadId）。
+    // 通常メッセージは両方空文字。返信は両方セット済み。
+    sh.appendRow([
+      now, messageId, senderId, senderNickname, targetType, targetIdsCsv,
+      content, now, replyToReflectionId, replyThreadId
+    ]);
 
-    // Phase 5：操作ログ記録（教育者の振り返り用、本文全文を含む）。
-    //   ふくちさん判断：「思い出す必要がある時は正確に思い出さなくてはいけない。
-    //   『たしかこうだったはず』はコミュニケーションのズレの原因になる」
-    //   → details に content 全文 + targetType='individual' なら studentIds 配列も含める。
-    //   targetType='all' の場合は studentIds は省略（'ALL' は受信者数で表現）。
+    // 操作ログ記録（教育者の振り返り用、本文全文を含む）
     const _logDetails = {
       targetType:     targetType,
       recipientCount: recipientCount,
@@ -11386,15 +11498,28 @@ function sendTeacherMessage(params) {
     if (targetType === 'individual') {
       _logDetails.studentIds = _parseIndividualTargetIds(targetIdsCsv);
     }
-    _logTeacherAction(_teacher.teacherId, 'MESSAGE_SEND', '', 'success', _logDetails);
+    if (replyToReflectionId) {
+      _logDetails.replyToReflectionId = replyToReflectionId;
+      _logDetails.replyThreadId       = replyThreadId;
+    }
+    _logTeacherAction(_teacher.teacherId,
+                      replyToReflectionId ? 'MESSAGE_REPLY_SEND' : 'MESSAGE_SEND',
+                      '', 'success', _logDetails);
 
-    return {
+    const ret = {
       ok: true,
       messageId:      messageId,
       senderNickname: senderNickname,
       recipientCount: recipientCount,
-      targetType:     targetType
+      targetType:     targetType,
+      createdAt:      now
     };
+    if (replyToReflectionId) {
+      ret.replyToReflectionId = replyToReflectionId;
+      ret.replyThreadId       = replyThreadId;
+      ret.senderId            = senderId;  // 管理画面が即時表示に使う
+    }
+    return ret;
   } catch (err) {
     console.error('[sendTeacherMessage]', err);
     return { ok: false, message: String(err) };
@@ -11422,6 +11547,9 @@ function _readMessageIdsForStudent(studentId) {
 
 // 内部ヘルパー：指定生徒宛のメッセージ行を抽出（targetType=all + individual 該当のみ）。
 // timestamp 降順で返す。各 row はオブジェクト。
+//
+// 2026-05-22 拡張：I/J 列（replyToReflectionId / replyThreadId）も読み出して返却に含める。
+// 列が存在しないレガシーシートでも安全に動作するよう、indexOf < 0 のときは空文字を返す。
 function _readMessagesForStudent(studentId) {
   const out = [];
   const sh = _ss().getSheetByName(SHEET_TEACHER_MESSAGES);
@@ -11436,6 +11564,9 @@ function _readMessagesForStudent(studentId) {
   const iTids = header.indexOf('targetIds');
   const iCont = header.indexOf('content');
   const iCre  = header.indexOf('createdAt');
+  // 新規 2 列（後方互換、見つからなければ -1 で空文字フォールバック）
+  const iRefId  = header.indexOf('replyToReflectionId');
+  const iThread = header.indexOf('replyThreadId');
   if (iMid < 0) return out;
 
   const target = String(studentId || '').trim();
@@ -11459,13 +11590,16 @@ function _readMessagesForStudent(studentId) {
     // 'group' その他は今回の生徒画面では表示しない（将来用）
     if (!matched) continue;
     out.push({
-      timestamp:      r[iTs]  ? Utilities.formatDate(new Date(r[iTs]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : '',
-      messageId:      mid,
-      senderId:       String(r[iSid] || '').trim(),
-      senderNickname: String(r[iNick] || '').trim() || '先生',
-      targetType:     tType,
-      content:        String(r[iCont] || ''),
-      createdAt:      r[iCre] ? Utilities.formatDate(new Date(r[iCre]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : ''
+      timestamp:           r[iTs]  ? Utilities.formatDate(new Date(r[iTs]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : '',
+      messageId:           mid,
+      senderId:            String(r[iSid] || '').trim(),
+      senderNickname:      String(r[iNick] || '').trim() || '先生',
+      targetType:          tType,
+      content:             String(r[iCont] || ''),
+      createdAt:           r[iCre] ? Utilities.formatDate(new Date(r[iCre]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : '',
+      // 振り返り返信機能（2026-05-22）：通常メッセージは両方空文字
+      replyToReflectionId: iRefId  >= 0 ? String(r[iRefId]  || '').trim() : '',
+      replyThreadId:       iThread >= 0 ? String(r[iThread] || '').trim() : ''
     });
   }
   // timestamp 降順
@@ -11473,8 +11607,51 @@ function _readMessagesForStudent(studentId) {
   return out;
 }
 
+// 内部ヘルパー：与えられた messages 配列から replyToReflectionId のセットを抽出し、
+// 1 回の Reflections シートスキャンで relatedReflection（{ date, content }）の dict を返す。
+// 振り返り返信メッセージのみ relatedReflection が解決される。通常メッセージは null。
+function _resolveRelatedReflectionsForMessages(messages) {
+  const out = {};
+  if (!messages || messages.length === 0) return out;
+  // ユニークな reflectionId を集める
+  const ridSet = {};
+  for (let i = 0; i < messages.length; i++) {
+    const rid = String(messages[i].replyToReflectionId || '').trim();
+    if (rid) ridSet[rid] = true;
+  }
+  const ridList = Object.keys(ridSet);
+  if (ridList.length === 0) return out;
+
+  const sh = _ss().getSheetByName(SHEET_REFLECTIONS);
+  if (!sh || sh.getLastRow() < 2) return out;
+  const lastCol = sh.getLastColumn();
+  const header  = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  const iId      = header.indexOf('reflectionId');
+  const iDate    = header.indexOf('date');
+  const iContent = header.indexOf('content');
+  if (iId < 0) return out;
+  const values = sh.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    const id = String(values[i][iId] || '').trim();
+    if (!id || !ridSet[id]) continue;
+    out[id] = {
+      date:    iDate    >= 0 ? _reflectionToDateStr(values[i][iDate])    : '',
+      content: String((iContent >= 0 ? values[i][iContent] : '') || '')
+    };
+  }
+  return out;
+}
+
 // 生徒画面：自分宛メッセージ一覧（既読フラグ付き、新しい順）
 // params: { studentId }
+//
+// 2026-05-22 拡張：振り返り返信機能のため戻り値の各メッセージに以下を追加：
+//   - replyToReflectionId: 振り返り元 ID（通常メッセージなら空）
+//   - replyThreadId:       同一振り返りへの返信群をグループ化（通常メッセージなら空）
+//   - relatedReflection:   replyToReflectionId から引いた振り返り情報 { date, content }
+//                          （見つからない場合は null）
+// これによりフロント側で「○月○日の振り返りコメントへの返事」として表示でき、
+// 自分の振り返り本文も一緒に表示できる。
 function getMessagesForStudent(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
@@ -11482,7 +11659,13 @@ function getMessagesForStudent(params) {
     const messages = _readMessagesForStudent(sid);
     if (messages.length === 0) return { ok: true, messages: [] };
     const readSet = _readMessageIdsForStudent(sid);
-    messages.forEach(function(m){ m.isRead = !!readSet[m.messageId]; });
+    // 関連振り返りを 1 回のシートスキャンでまとめて解決
+    const reflMap = _resolveRelatedReflectionsForMessages(messages);
+    messages.forEach(function(m){
+      m.isRead = !!readSet[m.messageId];
+      const rid = String(m.replyToReflectionId || '').trim();
+      m.relatedReflection = rid && reflMap[rid] ? reflMap[rid] : null;
+    });
     return { ok: true, messages: messages };
   } catch (err) {
     console.error('[getMessagesForStudent]', err);
@@ -11492,6 +11675,12 @@ function getMessagesForStudent(params) {
 
 // 生徒画面：未読件数のみ取得（ホーム画面の赤バッジ用、軽量）
 // params: { studentId }
+//
+// 2026-05-22 拡張：振り返り返信のスレッド集約表示に対応するため、カウント単位を
+// 「未読メッセージ件数」から「未読スレッド数」に変更。
+//   - 通常メッセージ（replyThreadId が空）：1 メッセージ = 1 単位
+//   - 振り返り返信（replyThreadId が非空）：同一 replyThreadId のグループ = 1 単位
+//     （スレッド内に未読が 1 件でも含まれれば +1、複数あっても 1 とカウント）
 function getUnreadMessageCount(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
@@ -11499,9 +11688,20 @@ function getUnreadMessageCount(params) {
     const messages = _readMessagesForStudent(sid);
     if (messages.length === 0) return { ok: true, count: 0 };
     const readSet = _readMessageIdsForStudent(sid);
+    // スレッド単位で未読を集約
+    const unreadThreads = {};  // key: replyThreadId（通常メッセージは messageId 単位で別 key）
     let count = 0;
     for (let i = 0; i < messages.length; i++) {
-      if (!readSet[messages[i].messageId]) count++;
+      const m = messages[i];
+      if (readSet[m.messageId]) continue;  // 既読はスキップ
+      const thr = String(m.replyThreadId || '').trim();
+      if (thr) {
+        // 振り返り返信：同一スレッドは 1 単位
+        if (!unreadThreads[thr]) { unreadThreads[thr] = true; count++; }
+      } else {
+        // 通常メッセージ：1 メッセージ = 1 単位
+        count++;
+      }
     }
     return { ok: true, count: count };
   } catch (err) {
@@ -11541,6 +11741,68 @@ function markMessageAsRead(params) {
     return { ok: true, alreadyRead: false };
   } catch (err) {
     console.error('[markMessageAsRead]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：指定 reflectionId に対する全返信を時系列で取得（マイ活アプリ_11、2026-05-22）。
+// admin / teacher 両ロール可（振り返り指導は両ロール共通の責務）。
+// 主用途：管理画面で返信送信直後にスレッドを再描画するための再取得。
+//
+// params: { teacherId, password, reflectionId }
+// 戻り値:
+//   {
+//     ok: true,
+//     reflectionId,
+//     replies: [
+//       { messageId, senderId, senderNickname, content, createdAt, timestamp, replyThreadId },
+//       ...
+//     ]
+//   }
+//   または { ok: false, message }
+function getRepliesForReflection(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const rid = String((params && params.reflectionId) || '').trim();
+    if (!rid) return { ok: false, message: 'reflectionId が指定されていません' };
+
+    const sh = _ss().getSheetByName(SHEET_TEACHER_MESSAGES);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, reflectionId: rid, replies: [] };
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iTs    = header.indexOf('timestamp');
+    const iMid   = header.indexOf('messageId');
+    const iSid   = header.indexOf('senderId');
+    const iNick  = header.indexOf('senderNickname');
+    const iCont  = header.indexOf('content');
+    const iCre   = header.indexOf('createdAt');
+    const iRefId  = header.indexOf('replyToReflectionId');
+    const iThread = header.indexOf('replyThreadId');
+    if (iRefId < 0) {
+      // I 列が無いシート（マイグレーション未実行）→ 返信ゼロで返す
+      return { ok: true, reflectionId: rid, replies: [] };
+    }
+
+    const out = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (String(r[iRefId] || '').trim() !== rid) continue;
+      out.push({
+        timestamp:      r[iTs]  ? Utilities.formatDate(new Date(r[iTs]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : '',
+        messageId:      String(r[iMid]  || '').trim(),
+        senderId:       String(r[iSid]  || '').trim(),
+        senderNickname: String(r[iNick] || '').trim() || '先生',
+        content:        String(r[iCont] || ''),
+        createdAt:      r[iCre] ? Utilities.formatDate(new Date(r[iCre]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : '',
+        replyThreadId:  iThread >= 0 ? String(r[iThread] || '').trim() : ''
+      });
+    }
+    // 時系列昇順（古い返信が上、最新が下）
+    out.sort(function(a, b){ return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; });
+    return { ok: true, reflectionId: rid, replies: out };
+  } catch (err) {
+    console.error('[getRepliesForReflection]', err);
     return { ok: false, message: String(err) };
   }
 }
@@ -11855,6 +12117,59 @@ function getReflectionDayDetail(params) {
     }
     // 時刻昇順（朝→夜の流れで生徒の様子が見える、ふくちさん 2026-05-20 確定）
     out.sort(function(a, b) { return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; });
+
+    // ─── マイ活アプリ_11 / 2026-05-22：各 reflection に返信スレッドを埋め込み ───
+    // TeacherMessages を 1 回スキャンして、replyToReflectionId が out のいずれかに一致する
+    // 行を集約。これにより admin 振り返り日付別画面は 1 リクエストで完結（N+1 を回避）。
+    try {
+      const ridSet = {};
+      out.forEach(function(r){ if (r.reflectionId) ridSet[r.reflectionId] = []; });
+      const ridList = Object.keys(ridSet);
+      if (ridList.length > 0) {
+        const tmSh = _ss().getSheetByName(SHEET_TEACHER_MESSAGES);
+        if (tmSh && tmSh.getLastRow() >= 2) {
+          const tmValues = tmSh.getDataRange().getValues();
+          const tmHeader = tmValues[0];
+          const iTs    = tmHeader.indexOf('timestamp');
+          const iMid   = tmHeader.indexOf('messageId');
+          const iSid   = tmHeader.indexOf('senderId');
+          const iNick  = tmHeader.indexOf('senderNickname');
+          const iCont  = tmHeader.indexOf('content');
+          const iCre   = tmHeader.indexOf('createdAt');
+          const iRefId  = tmHeader.indexOf('replyToReflectionId');
+          const iThread = tmHeader.indexOf('replyThreadId');
+          if (iRefId >= 0) {  // I 列がある場合のみ集約処理
+            for (let i = 1; i < tmValues.length; i++) {
+              const tr = tmValues[i];
+              const rid = String(tr[iRefId] || '').trim();
+              if (!rid || !ridSet.hasOwnProperty(rid)) continue;
+              ridSet[rid].push({
+                timestamp:      tr[iTs]  ? Utilities.formatDate(new Date(tr[iTs]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : '',
+                messageId:      String(tr[iMid]  || '').trim(),
+                senderId:       String(tr[iSid]  || '').trim(),
+                senderNickname: String(tr[iNick] || '').trim() || '先生',
+                content:        String(tr[iCont] || ''),
+                createdAt:      tr[iCre] ? Utilities.formatDate(new Date(tr[iCre]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : '',
+                replyThreadId:  iThread >= 0 ? String(tr[iThread] || '').trim() : ''
+              });
+            }
+            // スレッド内を時系列昇順にソート（古い → 新しい）
+            ridList.forEach(function(rid){
+              ridSet[rid].sort(function(a, b){ return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; });
+            });
+          }
+        }
+        // out に replies を埋め込む
+        out.forEach(function(r){
+          r.replies = (r.reflectionId && ridSet[r.reflectionId]) ? ridSet[r.reflectionId] : [];
+        });
+      } else {
+        out.forEach(function(r){ r.replies = []; });
+      }
+    } catch (replyErr) {
+      console.error('[getReflectionDayDetail] replies 集約失敗（続行、空配列で返す）', replyErr);
+      out.forEach(function(r){ if (!r.replies) r.replies = []; });
+    }
 
     // 操作ログ（生徒指導の文脈で重要：「誰が」「何月何日の振り返りを」「何件」見たか）
     try {
