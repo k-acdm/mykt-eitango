@@ -1470,6 +1470,24 @@
       .refl-modal-title { font-size: 17px; }
       .refl-modal-textarea { min-height: 150px; font-size: 14px; }
     }
+    /* Phase 5 / 2026-05-22：振り返り提出後の保留 HP 解放演出 */
+    .refl-release-card { text-align: center; background: linear-gradient(160deg,#fff7ed,#fef3f2); border: 2px solid #fb923c; padding: 28px 24px 24px; }
+    .refl-release-title { font-size: 22px; font-weight: bold; color: #c2410c; margin-bottom: 6px; }
+    .refl-release-sub { font-size: 14px; color: #9a3412; margin-bottom: 14px; }
+    .refl-release-body { display: flex; flex-direction: column; gap: 8px; }
+    .refl-release-line { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 12px; background: rgba(255,255,255,.7); border-radius: 8px; font-size: 14px; }
+    .refl-release-line .rl-label { color: #475569; }
+    .refl-release-line .rl-value { color: #c2410c; font-weight: bold; font-size: 16px; }
+    .refl-release-line.rl-total { background: linear-gradient(135deg,#fed7aa,#fdba74); border: 2px solid #ea580c; padding: 10px 14px; }
+    .refl-release-line.rl-total .rl-label, .refl-release-line.rl-total .rl-value { color: #7c2d12; font-size: 17px; }
+    .refl-release-bonus-note { font-size: 12px; color: #92400e; margin-top: 4px; line-height: 1.5; }
+    @media (max-width: 480px) {
+      .refl-release-card { padding: 22px 16px 18px; }
+      .refl-release-title { font-size: 18px; }
+      .refl-release-line { font-size: 13px; padding: 7px 10px; }
+      .refl-release-line .rl-value { font-size: 14px; }
+      .refl-release-line.rl-total .rl-value { font-size: 15px; }
+    }
     /* キャラクター紹介ページ */
     .char-intro-home-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#fff0f5,#f3e5ff); border: 2px solid #b24bf3; border-radius: 14px; box-shadow: 0 3px 12px rgba(178,75,243,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; font-size: 16px; font-weight: bold; color: #6a1b9a; }
     .char-intro-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(178,75,243,.26); }
@@ -2355,6 +2373,16 @@
     </div>
   </div>
 </div>
+
+<!-- Phase 5 / 2026-05-22：振り返り提出後の保留 HP 解放演出モーダル -->
+<!-- _showReflectionReleaseModal() から起動、2.8 秒後に自動で onComplete を呼んで閉じる -->
+<div id="reflection-release-modal" class="refl-modal-overlay">
+  <div class="refl-modal-card refl-release-card">
+    <div class="refl-release-title">📝 振り返りを送信したよ！</div>
+    <div class="refl-release-sub">今日も一日おつかれさま</div>
+    <div id="refl-release-body" class="refl-release-body"></div>
+  </div>
+</div>
 <div class="flash-overlay" id="flash-overlay">
   <div class="flash-content">
     <div class="flash-emoji" id="flash-emoji">🎉</div>
@@ -2721,6 +2749,10 @@
         <div class="ranking-title">🏆 先週の週間HPランキング</div>
         <div class="ranking-period" id="ranking-period">読み込み中...</div>
         <div id="ranking-list"><div class="ranking-loading">⏳ 集計中...</div></div>
+        <!-- Phase 5 / 2026-05-22：保留 HP との関係を生徒が混同しないよう、簡単な注記を追加 -->
+        <div class="ranking-note" style="margin-top:10px; font-size:11px; color:rgba(255,255,255,.85); text-align:center; line-height:1.5;">
+          ※ ランキングは先週の HP を集計しているよ。<br>今日の HP は確定すれば来週反映されるよ。
+        </div>
       </div>
     </div>
 
@@ -4405,8 +4437,18 @@
     var todayReserved = Number(res.todayReservedHp || 0);
     if (resvLine) {
       if (todayReserved > 0) {
+        // Phase 5 / 2026-05-22：振り返り保留分があれば文言を「振り返りを書くと解放」に切替。
+        // Gate 1 が Gate 2 より上位のため reflection_pending と required_mission は同居しない。
+        // reflection_pending > 0 なら振り返り促し、そうでなければ従来文言。
+        var reflectionReserved = Number(res.todayReservedReflection || 0);
+        var subText;
+        if (reflectionReserved > 0) {
+          subText = '（振り返りを書くと解放されるよ！）';
+        } else {
+          subText = '（絶対ミッション達成で解放！）';
+        }
         resvLine.style.display = '';
-        resvLine.innerHTML = '💰 今日の保留 HP：<strong>' + todayReserved.toLocaleString() + ' HP</strong>（絶対ミッション達成で解放！）';
+        resvLine.innerHTML = '💰 今日の保留 HP：<strong>' + todayReserved.toLocaleString() + ' HP</strong>' + subText;
       } else {
         resvLine.style.display = 'none';
       }
@@ -6415,6 +6457,16 @@
         _pendingCatchupDate = null;
         _restoreReflectionModalDefaults();
         // ホームには既に居る（doLogin 後の遷移済）ので追加の画面遷移は不要
+        // Phase 5：release 演出を挟み、終了時にホーム画面の保留 HP 表示を再取得（今日分の状態反映）
+        _showReflectionReleaseModal(res, function(){
+          try {
+            // welcome-hp の表示を _totalHP（演出中で加算済み）に合わせる
+            var hpEl = document.getElementById('welcome-hp');
+            if (hpEl) hpEl.textContent = (Number(_totalHP) || 0).toLocaleString();
+            // 保留 HP / 絶対ミッション進捗を再取得
+            loadRequiredProgress();
+          } catch(_e){}
+        });
       } else {
         var em = (res && res.message) ? String(res.message) : '送信に失敗しました。電波の良い場所でもう一度お試しください';
         if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
@@ -6505,8 +6557,12 @@
       wordCount: len
     }).then(function(res){
       if (res && res.ok) {
-        // 成功 → 実ログアウトを実行（state クリア + イベントリスナー削除）
-        _doLogoutFinalize();
+        // 成功 → Phase 5 release 演出を 2.8 秒挟んでから実ログアウト
+        // 演出対象がない（releasedHp=0 && !justCompleted）場合は内部で即時 onComplete を呼ぶ
+        // → 既存挙動と等価（演出なしで即ログアウト）
+        var ov = document.getElementById('reflection-logout-modal');
+        if (ov) ov.classList.remove('active');
+        _showReflectionReleaseModal(res, _doLogoutFinalize);
       } else {
         var em = (res && res.message) ? String(res.message) : '送信に失敗しました。電波の良い場所でもう一度お試しください';
         if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
@@ -6522,6 +6578,58 @@
       onReflectionInput();
     });
   }
+
+  // Phase 5 / 2026-05-22：振り返り提出後の保留 HP 解放演出。
+  // submitReflection のレスポンス（releasedHp / justCompleted / completionReleasedHp / completionBonusHp）
+  // を読み取り、付与 HP があれば 2.8 秒のモーダル表示後に onComplete を呼ぶ。
+  // 付与 HP がゼロ（テスト枠 / フラグ OFF / 当日リザーブなし / キャッチアップ等）の場合は
+  // モーダルを出さずに即 onComplete を呼ぶ（既存挙動と等価）。
+  //
+  // _totalHP の同期：演出表示時に合計分を加算してホーム画面 HP 表示と整合させる。
+  // ログアウト経路では即ログアウトのため不要だが、catchup（ホーム継続）では必須。
+  function _showReflectionReleaseModal(res, onComplete) {
+    var releasedHp = Number(res && res.releasedHp) || 0;
+    var compRel    = Number(res && res.completionReleasedHp) || 0;
+    var bonusHp    = Number(res && res.completionBonusHp) || 0;
+    var justComp   = !!(res && res.justCompleted);
+    var totalAdded = releasedHp + compRel + bonusHp;
+    if (totalAdded <= 0 && !justComp) {
+      // 演出不要：そのまま onComplete を呼んで終了
+      if (typeof onComplete === 'function') onComplete();
+      return;
+    }
+    // _totalHP 同期（ホーム継続時のために必要）
+    try { _totalHP = (Number(_totalHP) || 0) + totalAdded; } catch(_e) {}
+    // 演出本体構築
+    var body = document.getElementById('refl-release-body');
+    if (body) {
+      var lines = '';
+      if (releasedHp > 0) {
+        lines += '<div class="refl-release-line"><span class="rl-label">💰 保留 HP 解放</span><span class="rl-value">+' + releasedHp.toLocaleString() + ' HP</span></div>';
+      }
+      if (justComp) {
+        if (compRel > 0) {
+          lines += '<div class="refl-release-line"><span class="rl-label">✨ ミッション保留分</span><span class="rl-value">+' + compRel.toLocaleString() + ' HP</span></div>';
+        }
+        if (bonusHp > 0) {
+          lines += '<div class="refl-release-line"><span class="rl-label">🎉 完走ボーナス</span><span class="rl-value">+' + bonusHp.toLocaleString() + ' HP</span></div>';
+        }
+        lines += '<div class="refl-release-bonus-note">絶対ミッション全達成おめでとう！</div>';
+      }
+      if (totalAdded > 0) {
+        lines += '<div class="refl-release-line rl-total"><span class="rl-label">合計</span><span class="rl-value">+' + totalAdded.toLocaleString() + ' HP</span></div>';
+      }
+      body.innerHTML = lines;
+    }
+    var ov = document.getElementById('reflection-release-modal');
+    if (ov) ov.classList.add('active');
+    try { playSfx('chime'); } catch(_e) {}
+    setTimeout(function(){
+      if (ov) ov.classList.remove('active');
+      if (typeof onComplete === 'function') onComplete();
+    }, 2800);
+  }
+
   // 実ログアウト処理（submit 成功時のみ呼ばれる）。旧 doLogout 後半をそのまま移植。
   function _doLogoutFinalize() {
     window.removeEventListener('beforeunload', beforeUnloadHandler);

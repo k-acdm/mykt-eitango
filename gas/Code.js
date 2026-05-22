@@ -19392,10 +19392,20 @@ function _checkAndReleaseReserveIfCompleted(sid, justLoggedType) {
 // 公開 API：絶対ミッション達成進捗（フロント UI 表示用、認証不要 = 自分の情報）
 // params: { studentId }
 // 戻り値: { ok, grade, required, completed, remaining, isAllCompleted, completedCount, totalCount,
-//          todayReservedHp, todayBonusHp, systemActive }
-//   - todayReservedHp : HpReservePool の今日 + resolved=FALSE の reservedHp 合計（保留 HP 表示用）
+//          todayReservedHp, todayBonusHp, systemActive, systemStartDate,
+//          reflectionRequired, todayReservedReflection, todayReservedRequired,
+//          reflectionGateActive, reflectionGateStartDate }
+//   - todayReservedHp : HpReservePool の今日 + resolved=FALSE の reservedHp 合計（全 reason 合算、保留 HP 表示用）
 //   - todayBonusHp    : 今日の HPLog の completion_bonus を 1 件だけ拾った hpGained（未完走なら 0）
 //   - systemActive    : 今日が REQUIRED_SYSTEM_START_DATE 以降なら true（フロントで予告 vs 本番を区別）
+// Phase 5 / 2026-05-22 で追加：
+//   - reflectionRequired       : フロントで「振り返り促し」を出すべきか（boolean）
+//                                テスト/講師/招待/体験アカウントは常に false
+//                                それ以外は !_isReflectionSubmittedToday(sid)
+//   - todayReservedReflection  : 今日の reservedHp のうち reserveReason='reflection_pending' の合計
+//   - todayReservedRequired    : 今日の reservedHp のうち reserveReason='required_mission' or '' の合計
+//   - reflectionGateActive     : 今日が REFLECTION_GATE_START_DATE 以降 + フラグ true なら true
+//   - reflectionGateStartDate  : 起動日（フロント予告用）
 function getRequiredProgress(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
@@ -19408,6 +19418,20 @@ function getRequiredProgress(params) {
     const completed = required.filter(function(rc){ return !!completedMap[rc]; });
     const remaining = required.filter(function(rc){ return !completedMap[rc]; });
     const todayStr = _sangoToday();
+
+    // Phase 5：accountType でテスト枠等を除外、reflectionRequired を判定
+    const accountType = _resolveAccountTypeFromLoc(loc);
+    const isReflectionAccountTarget = (
+      accountType !== 'test' &&
+      accountType !== 'teacher' &&
+      accountType !== 'invited' &&
+      accountType !== 'experience'
+    );
+    const reflectionRequired = isReflectionAccountTarget && !_isReflectionSubmittedToday(sid);
+
+    // Phase 5：reason 別の保留 HP 内訳（フロント表示文言の分岐に使用）
+    const reservedByReason = _getTodayReservedHpByReasonForSid(sid);
+
     return {
       ok: true,
       grade: grade,
@@ -19420,11 +19444,49 @@ function getRequiredProgress(params) {
       todayReservedHp: _getTodayReservedHpForSid(sid),
       todayBonusHp: _getTodayCompletionBonusForSid(sid),
       systemActive: todayStr >= REQUIRED_SYSTEM_START_DATE,
-      systemStartDate: REQUIRED_SYSTEM_START_DATE
+      systemStartDate: REQUIRED_SYSTEM_START_DATE,
+      // Phase 5 追加
+      reflectionRequired:       reflectionRequired,
+      todayReservedReflection:  reservedByReason.reflection,
+      todayReservedRequired:    reservedByReason.required,
+      reflectionGateActive:     REFLECTION_GATE_ENABLED && todayStr >= REFLECTION_GATE_START_DATE,
+      reflectionGateStartDate:  REFLECTION_GATE_START_DATE
     };
   } catch (e) {
     console.error('[getRequiredProgress]', e);
     return { ok: false, message: String(e) };
+  }
+}
+
+// Phase 5 / 2026-05-22：HpReservePool から reason 別の今日 + 未解放 reservedHp 合計を返す。
+// 戻り値: { reflection: number, required: number, total: number }
+//   - reflection : reserveReason='reflection_pending' の合計
+//   - required   : reserveReason='required_mission' または空欄（レガシー）の合計
+//   - total      : 上 2 つの和（= _getTodayReservedHpForSid と同値）
+function _getTodayReservedHpByReasonForSid(sid) {
+  const out = { reflection: 0, required: 0, total: 0 };
+  try {
+    const sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+    if (!sh || sh.getLastRow() < 2) return out;
+    const todayStr = _sangoToday();
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iReason = header.indexOf('reserveReason');  // -1 ならレガシー（全て required 扱い）
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (String(r[0] || '').trim() !== sid) continue;
+      if (String(r[1] || '').trim() !== todayStr) continue;
+      if (String(r[5] || '').trim().toUpperCase() === 'TRUE') continue;
+      const hp = Number(r[4]) || 0;
+      const reason = (iReason >= 0) ? String(r[iReason] || '').trim() : '';
+      if (reason === 'reflection_pending') out.reflection += hp;
+      else out.required += hp;
+    }
+    out.total = out.reflection + out.required;
+    return out;
+  } catch (e) {
+    console.error('[_getTodayReservedHpByReasonForSid]', e);
+    return out;
   }
 }
 
