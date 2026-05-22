@@ -1435,6 +1435,23 @@
     .msg-card-date { font-size: 12px; color: #888; font-weight: 600; }
     .msg-card-body { font-size: 14px; line-height: 1.75; color: #333; white-space: pre-wrap; word-wrap: break-word; }
     .msg-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 16px; background: #fafbff; border-radius: 12px; }
+    /* 振り返り返信スレッドカード（マイ活アプリ_11、2026-05-22）：通常 .msg-card と並存する別系統スタイル */
+    .msg-thread-card { background: #fff; border: 2px solid #e0d4ff; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(124,58,237,.08); cursor: pointer; transition: transform .12s, box-shadow .12s; }
+    .msg-thread-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(124,58,237,.16); }
+    .msg-thread-card.unread { background: linear-gradient(135deg,#fff9c4,#fffacd); border-color: #f59e0b; box-shadow: 0 3px 10px rgba(245,158,11,.18); }
+    .msg-thread-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .msg-thread-title { font-size: 14px; font-weight: bold; color: #5b21b6; line-height: 1.5; }
+    .msg-thread-title .new-tag { display: inline-block; margin-left: 8px; font-size: 11px; font-weight: bold; color: #fff; background: #ef4444; padding: 2px 8px; border-radius: 999px; vertical-align: middle; }
+    /* 自分の振り返り引用 */
+    .msg-thread-quote { background: #f8f7fc; border-left: 4px solid #c4b5fd; padding: 10px 12px; border-radius: 4px; margin-bottom: 12px; font-size: 13px; color: #555; line-height: 1.65; white-space: pre-wrap; word-wrap: break-word; max-height: 200px; overflow-y: auto; }
+    .msg-thread-quote-label { font-size: 11px; font-weight: bold; color: #7c3aed; margin-bottom: 4px; }
+    /* 先生からの返信群 */
+    .msg-thread-replies-label { font-size: 12px; font-weight: bold; color: #5b21b6; margin-bottom: 6px; }
+    .msg-thread-reply { background: #f5f3ff; border-left: 3px solid #a78bfa; padding: 8px 10px; border-radius: 4px; margin-bottom: 6px; }
+    .msg-thread-reply-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+    .msg-thread-reply-sender { font-size: 13px; font-weight: bold; color: #5b21b6; }
+    .msg-thread-reply-time { font-size: 11px; color: #888; white-space: nowrap; }
+    .msg-thread-reply-body { font-size: 14px; color: #333; line-height: 1.7; white-space: pre-wrap; word-wrap: break-word; }
     /* 今日のマイ活 振り返り：ホーム画面の「📝 自分の振り返り」ボタン（先生メッセージと色違いの緑系） */
     .refl-home-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#e6fff2,#c8f7d6); border: 2px solid #16a34a; border-radius: 14px; box-shadow: 0 3px 12px rgba(22,163,74,.2); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; font-size: 16px; font-weight: bold; color: #14532d; }
     .refl-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(22,163,74,.28); }
@@ -2343,10 +2360,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260522-2244"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-0009"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260522-2244">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260522-2244"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-0009">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-0009"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6755,6 +6772,16 @@
     if (s.length >= 16) return s.substring(0, 16);
     return s;
   }
+  // 振り返り返信機能（マイ活アプリ_11、2026-05-22）：
+  // 'yyyy-MM-dd' から「○月○日」形式の表示用ラベルを生成（時刻なし）。
+  function _formatReflectionDateLabel(ymd) {
+    if (!ymd) return '';
+    var s = String(ymd);
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return s;
+    return (Number(m[2])) + '月' + (Number(m[3])) + '日';
+  }
+
   function showStudentMessages() {
     if (!_studentId) return;
     document.getElementById('student-messages-sid').textContent = _studentId + ' さん';
@@ -6771,22 +6798,122 @@
         list.innerHTML = '<div class="msg-empty">📭 まだメッセージはありません</div>';
         return;
       }
-      list.innerHTML = msgs.map(function(m){
-        var unreadCls = m.isRead ? '' : ' unread';
-        var newTag = m.isRead ? '' : '<span class="new-tag">NEW</span>';
-        var midEsc = esc(m.messageId);  // JS 文字列としてエスケープ（onclick の引数）
-        return '<div class="msg-card' + unreadCls + '" data-mid="' + _msgEscHtml(m.messageId) + '" onclick="markMessageRead(\'' + midEsc + '\')">' +
-                 '<div class="msg-card-head">' +
-                   '<div class="msg-card-sender">' + _msgEscHtml(m.senderNickname) + newTag + '</div>' +
-                   '<div class="msg-card-date">' + _msgEscHtml(_formatMsgDate(m.timestamp)) + '</div>' +
-                 '</div>' +
-                 '<div class="msg-card-body">' + _msgEscHtml(m.content) + '</div>' +
-               '</div>';
+      // マイ活アプリ_11：通常メッセージとスレッドメッセージを分離してから一つの並び順に統合
+      var units = _groupMessagesIntoUnits(msgs);
+      list.innerHTML = units.map(function(u){
+        if (u.type === 'thread') return _renderThreadCard(u);
+        return _renderNormalCard(u.message);
       }).join('');
     }).catch(function(){
       document.getElementById('student-messages-list').innerHTML = '<div class="msg-empty">⚠️ 通信エラーが発生しました</div>';
     });
   }
+
+  // 振り返り返信機能（マイ活アプリ_11、2026-05-22）：
+  // messages 配列を「通常メッセージ単位」「スレッド単位」のユニットに集約。
+  //   - replyThreadId が空 → 通常メッセージ（1 メッセージ = 1 ユニット）
+  //   - replyThreadId がある → 同一 threadId のメッセージ群を 1 スレッドユニットに集約
+  // 各ユニットの sortKey は内部の最新 timestamp、これで全体を降順ソート（最新が上）。
+  function _groupMessagesIntoUnits(msgs) {
+    var threadMap = {};
+    var units = [];
+    msgs.forEach(function(m){
+      var thr = String(m.replyThreadId || '').trim();
+      if (thr) {
+        if (!threadMap[thr]) {
+          threadMap[thr] = {
+            type: 'thread',
+            threadId: thr,
+            reflectionId: m.replyToReflectionId || '',
+            relatedReflection: m.relatedReflection || null,
+            messages: [],
+            sortKey: ''
+          };
+          units.push(threadMap[thr]);
+        }
+        threadMap[thr].messages.push(m);
+        if (m.timestamp > threadMap[thr].sortKey) threadMap[thr].sortKey = m.timestamp;
+      } else {
+        units.push({ type: 'normal', message: m, sortKey: m.timestamp || '' });
+      }
+    });
+    // スレッド内のメッセージは古い順（時系列昇順）に並べる
+    units.forEach(function(u){
+      if (u.type === 'thread') {
+        u.messages.sort(function(a, b){ return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; });
+        // relatedReflection を最新の値で確定（全メッセージ同じはずだが念のため）
+        if (!u.relatedReflection) {
+          for (var i = u.messages.length - 1; i >= 0; i--) {
+            if (u.messages[i].relatedReflection) { u.relatedReflection = u.messages[i].relatedReflection; break; }
+          }
+        }
+      }
+    });
+    // 全体は最新が上（降順）
+    units.sort(function(a, b){ return a.sortKey < b.sortKey ? 1 : a.sortKey > b.sortKey ? -1 : 0; });
+    return units;
+  }
+
+  // 通常メッセージカード（既存と同じ HTML 構造を維持）
+  function _renderNormalCard(m) {
+    var unreadCls = m.isRead ? '' : ' unread';
+    var newTag = m.isRead ? '' : '<span class="new-tag">NEW</span>';
+    var midEsc = esc(m.messageId);
+    return '<div class="msg-card' + unreadCls + '" data-mid="' + _msgEscHtml(m.messageId) + '" onclick="markMessageRead(\'' + midEsc + '\')">' +
+             '<div class="msg-card-head">' +
+               '<div class="msg-card-sender">' + _msgEscHtml(m.senderNickname) + newTag + '</div>' +
+               '<div class="msg-card-date">' + _msgEscHtml(_formatMsgDate(m.timestamp)) + '</div>' +
+             '</div>' +
+             '<div class="msg-card-body">' + _msgEscHtml(m.content) + '</div>' +
+           '</div>';
+  }
+
+  // 振り返り返信スレッドカード（マイ活アプリ_11、2026-05-22）：
+  //   ・見出し：「○月○日の振り返りコメントへの返事」
+  //   ・自分の振り返り引用（薄紫背景 + 紫左ボーダー）
+  //   ・先生・講師からの返信群（時系列昇順、ニックネーム / 日時 / 本文）
+  //   ・未読：スレッド内に未読が 1 件でもあれば unread クラス。タップで全 messageId を既読化
+  function _renderThreadCard(u) {
+    // スレッド内に未読が 1 件でもあれば未読扱い
+    var unreadIds = [];
+    u.messages.forEach(function(m){ if (!m.isRead) unreadIds.push(m.messageId); });
+    var hasUnread = unreadIds.length > 0;
+    var unreadCls = hasUnread ? ' unread' : '';
+    var newTag = hasUnread ? '<span class="new-tag">NEW</span>' : '';
+    var dateLabel = u.relatedReflection ? _formatReflectionDateLabel(u.relatedReflection.date) : '';
+    var titleText = dateLabel ? (dateLabel + 'の振り返りコメントへの返事') : '振り返りコメントへの返事';
+    // 引用：自分の振り返り本文（500 字超は折り畳み可能だが、ここではスクロール表示で対応）
+    var quoteHtml = '';
+    if (u.relatedReflection && u.relatedReflection.content) {
+      quoteHtml =
+        '<div class="msg-thread-quote">' +
+          '<div class="msg-thread-quote-label">📝 あなたの振り返り</div>' +
+          _msgEscHtml(u.relatedReflection.content) +
+        '</div>';
+    }
+    // 返信群（古い順）
+    var repliesHtml = u.messages.map(function(m){
+      return '<div class="msg-thread-reply">' +
+               '<div class="msg-thread-reply-head">' +
+                 '<span class="msg-thread-reply-sender">' + _msgEscHtml(m.senderNickname) + '</span>' +
+                 '<span class="msg-thread-reply-time">' + _msgEscHtml(_formatMsgDate(m.timestamp)) + '</span>' +
+               '</div>' +
+               '<div class="msg-thread-reply-body">' + _msgEscHtml(m.content) + '</div>' +
+             '</div>';
+    }).join('');
+    // 既読化 onclick：未読 messageId 配列を JSON 文字列で渡す
+    var unreadIdsJson = JSON.stringify(unreadIds).replace(/"/g, '&quot;');
+    var threadIdEsc = _msgEscHtml(u.threadId);
+    return '<div class="msg-thread-card' + unreadCls + '" data-thread-id="' + threadIdEsc + '" data-unread-ids="' + unreadIdsJson + '" onclick="markThreadRead(\'' + esc(u.threadId) + '\')">' +
+             '<div class="msg-thread-head">' +
+               '<div class="msg-thread-title">' + _msgEscHtml(titleText) + newTag + '</div>' +
+             '</div>' +
+             quoteHtml +
+             '<div class="msg-thread-replies-label">💬 先生・講師からのお返事（' + u.messages.length + '件）</div>' +
+             repliesHtml +
+           '</div>';
+  }
+
   function markMessageRead(messageId) {
     if (!messageId || !_studentId) return;
     // 即時 UI 反映：unread クラスと NEW タグを取り除く
@@ -6799,6 +6926,30 @@
     }
     // サーバーに記録（失敗しても UI はそのまま：再ログインで真の状態に同期される）
     gasPost({ action:'markMessageAsRead', studentId:_studentId, messageId:messageId }).catch(function(){});
+  }
+
+  // 振り返り返信スレッドの一括既読化（マイ活アプリ_11、2026-05-22）：
+  // 未読の messageId を data 属性から取得 → 各々を順次 markMessageAsRead で記録。
+  // UI は即時に unread クラス + NEW タグを外す（楽観的、失敗時も再ログインで真の状態に同期）。
+  function markThreadRead(threadId) {
+    if (!threadId || !_studentId) return;
+    var card = document.querySelector('#student-messages-list .msg-thread-card[data-thread-id="' + threadId + '"]');
+    if (!card) return;
+    if (!card.classList.contains('unread')) return;  // 既に全既読なら何もしない（冪等）
+    // 未読 ID リストを取得
+    var idsRaw = card.getAttribute('data-unread-ids') || '[]';
+    var unreadIds = [];
+    try { unreadIds = JSON.parse(idsRaw); } catch(e) { unreadIds = []; }
+    // UI 即時反映
+    card.classList.remove('unread');
+    var tag = card.querySelector('.new-tag');
+    if (tag) tag.remove();
+    card.setAttribute('data-unread-ids', '[]');
+    // サーバーに記録（複数 messageId を逐次 POST、失敗はサイレント）
+    unreadIds.forEach(function(mid){
+      if (!mid) return;
+      gasPost({ action:'markMessageAsRead', studentId:_studentId, messageId:mid }).catch(function(){});
+    });
   }
 
   // ================= 三語短文 =================
@@ -11756,7 +11907,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260522-2244</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-0009</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
