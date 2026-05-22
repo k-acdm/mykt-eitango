@@ -232,6 +232,74 @@
       .kobun-bubble::before { left: 50%; top: -11px; transform: translateX(-50%); border: 9px solid transparent; border-right-color: transparent; border-bottom-color: #d97706; }
       .kobun-bubble::after  { left: 50%; top: -8px;  transform: translateX(-50%); border: 8px solid transparent; border-right-color: transparent; border-bottom-color: #fef3c7; }
     }
+    /* ===== 国語長文読解（2026-05-23 新規） ===== */
+    /* ジャパニン用マスコット行 + 吹き出し（コブタンと同パターン、薄紅系） */
+    .kokugo-mate-row { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; }
+    .kokugo-mate-row .kokugo-img { width: 88px; height: 88px; object-fit: contain; flex-shrink: 0; background: rgba(255,255,255,.18); border-radius: 16px; padding: 6px; }
+    .kokugo-bubble { position: relative; flex: 1; background: #fff0f6; border: 2px solid #ec4899; border-radius: 18px; padding: 12px 16px; font-size: 15px; color: #831843; line-height: 1.6; box-shadow: 0 3px 10px rgba(236,72,153,.18); }
+    .kokugo-bubble::before { content: ''; position: absolute; left: -11px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: #ec4899; }
+    .kokugo-bubble::after  { content: ''; position: absolute; left: -8px;  top: 50%; transform: translateY(-50%); border: 8px solid transparent; border-right-color: #fff0f6; }
+    @media (max-width: 480px) {
+      .kokugo-mate-row { flex-direction: column; gap: 8px; }
+      .kokugo-bubble { width: 100%; }
+      .kokugo-bubble::before { left: 50%; top: -11px; transform: translateX(-50%); border: 9px solid transparent; border-right-color: transparent; border-bottom-color: #ec4899; }
+      .kokugo-bubble::after  { left: 50%; top: -8px;  transform: translateX(-50%); border: 8px solid transparent; border-right-color: transparent; border-bottom-color: #fff0f6; }
+    }
+    /* 着手中の再開バッジ */
+    .kokugo-resume-badge { display: inline-block; padding: 4px 10px; background: #fef3c7; color: #b45309; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+    .kokugo-attempt-count-badge { display: inline-block; padding: 4px 10px; background: #e0f2fe; color: #0369a1; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+    /* 文字数選択画面 */
+    .kokugo-charcount-card { background: #fff; border: 2px solid #ec4899; border-radius: 18px; padding: 20px 16px; margin-top: 14px; text-align: center; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+    .kokugo-charcount-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(236,72,153,.2); }
+    .kokugo-charcount-card .cc-title { font-size: 22px; font-weight: bold; color: #c2185b; margin-bottom: 4px; }
+    .kokugo-charcount-card .cc-hp    { font-size: 14px; color: #e65100; font-weight: 600; }
+    .kokugo-charcount-card .cc-desc  { font-size: 12px; color: #64748b; margin-top: 6px; line-height: 1.6; }
+    /* 本文表示 */
+    .kokugo-title-bar { font-size: 18px; font-weight: bold; color: #c2185b; padding: 10px 14px; background: linear-gradient(135deg,#fff0f6,#fce7f3); border-radius: 10px; margin-bottom: 14px; border-left: 4px solid #ec4899; }
+    .kokugo-bodytext { font-size: 16px; line-height: 1.95; color: #1f2937; padding: 18px 18px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; white-space: pre-wrap; margin-bottom: 18px; }
+    /* 音声ボタン */
+    .kokugo-audio-row { margin: 0 0 16px; padding: 12px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; }
+    .kokugo-audio-btn { width: 100%; padding: 10px 14px; background: linear-gradient(135deg,#38bdf8,#0284c7); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; font-family: inherit; }
+    .kokugo-audio-btn:hover:not(:disabled) { filter: brightness(1.05); }
+    .kokugo-audio-btn:disabled { opacity: .6; cursor: not-allowed; }
+    .kokugo-audio-note { display: block; margin-top: 6px; font-size: 11px; color: #0369a1; line-height: 1.5; }
+    .kokugo-audio-controls { display: none; gap: 8px; margin-top: 8px; }
+    .kokugo-audio-controls.active { display: flex; }
+    .kokugo-audio-controls audio { flex: 1; }
+    /* 問題ブロック */
+    .kokugo-q-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
+    .kokugo-q-section .q-label { font-weight: bold; color: #c2185b; margin-bottom: 8px; font-size: 15px; }
+    .kokugo-q-section .q-text  { color: #1f2937; line-height: 1.7; margin-bottom: 12px; white-space: pre-wrap; }
+    .kokugo-choice-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 2px solid #e5e7eb; border-radius: 10px; margin-bottom: 8px; cursor: pointer; transition: all .15s; background: #fff; }
+    .kokugo-choice-row:hover { border-color: #ec4899; background: #fff0f6; }
+    .kokugo-choice-row.selected { border-color: #ec4899; background: #fce7f3; }
+    .kokugo-choice-row input[type=radio] { margin-top: 3px; flex-shrink: 0; }
+    .kokugo-choice-row .choice-label { font-weight: bold; color: #c2185b; margin-right: 4px; flex-shrink: 0; }
+    .kokugo-choice-row .choice-text  { flex: 1; line-height: 1.6; color: #334155; }
+    /* 採点結果（◯/✕ 表示 + 解説） */
+    .kokugo-result-block { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
+    .kokugo-result-block.correct  { border-left: 4px solid #16a34a; }
+    .kokugo-result-block.incorrect { border-left: 4px solid #dc2626; }
+    .kokugo-result-block .res-mark  { font-size: 20px; font-weight: bold; margin-right: 8px; }
+    .kokugo-result-block.correct .res-mark { color: #16a34a; }
+    .kokugo-result-block.incorrect .res-mark { color: #dc2626; }
+    .kokugo-result-block .res-row   { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .kokugo-result-block .res-label { font-weight: bold; color: #1f2937; }
+    .kokugo-result-block .res-detail { display: block; font-size: 13px; color: #64748b; margin-top: 6px; }
+    .kokugo-result-block .res-answer { padding: 8px 12px; background: #f0fdf4; border-radius: 6px; color: #166534; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+    .kokugo-result-block .res-expl  { font-size: 14px; color: #334155; line-height: 1.7; padding: 10px 12px; background: #f8fafc; border-left: 3px solid #94a3b8; border-radius: 4px; white-space: pre-wrap; }
+    /* 感想文 textarea */
+    .kokugo-impr-textarea { width: 100%; min-height: 180px; padding: 12px 14px; font-size: 15px; line-height: 1.7; border: 2px solid #e5e7eb; border-radius: 10px; font-family: inherit; resize: vertical; box-sizing: border-box; }
+    .kokugo-impr-textarea:focus { border-color: #ec4899; outline: 0; }
+    .kokugo-impr-counter { font-size: 12px; color: #64748b; margin-top: 6px; text-align: right; }
+    .kokugo-impr-counter.short { color: #dc2626; font-weight: 600; }
+    .kokugo-impr-counter.ok { color: #16a34a; font-weight: 600; }
+    .kokugo-impr-hint { font-size: 13px; color: #475569; line-height: 1.7; margin: 6px 0 12px; padding: 10px 12px; background: #fefce8; border-left: 3px solid #facc15; border-radius: 4px; }
+    /* HP獲得画面の AI フィードバックボックス */
+    .kokugo-feedback-box { background: #eff6ff; border: 2px solid #60a5fa; border-radius: 12px; padding: 14px 16px; margin: 14px 0; }
+    .kokugo-feedback-box .fb-label { font-size: 13px; color: #2563eb; font-weight: 600; margin-bottom: 6px; }
+    .kokugo-feedback-box .fb-text  { font-size: 15px; line-height: 1.8; color: #1e3a8a; white-space: pre-wrap; }
+
     /* ===== 今日の運勢（2026-05-13 新規） =====
        薄ラベンダー系の背景、紫の枠線でホーム画面カードのトーンと統一。 */
     #screen-fortune { background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%); }
@@ -2360,10 +2428,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-0009"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-0402"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-0009">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-0009"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-0402">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-0402"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -2684,9 +2752,9 @@
           <span class="content-btn-sub">5分×2ラウンド、上限なし</span>
           <span class="content-btn-hot">🔥 HP大量GETのチャンス！</span>
         </button>
-        <button class="content-btn c-longread disabled" onclick="showComingSoon('国語長文読解')">
-          <span class="badge-soon">準備中</span>
-          <span class="ico">📖</span>国語長文読解
+        <button class="content-btn c-longread" onclick="showKokugoStart()">
+          <span class="badge-hp">100〜150HP/日</span>
+          <img class="ico-mascot" src="images/japanin-default.png" alt="">国語長文読解
           <span class="content-btn-sub">対象：中学生</span>
         </button>
         <button class="content-btn c-phonics disabled" onclick="showComingSoon('フォニックスゲーム')">
@@ -3911,6 +3979,104 @@
   </div>
 </div>
 
+<!-- ===== 国語長文読解（2026-05-23 新規） =====
+     5 画面構成：
+       1. screen-kokugo-charcount-select  文字数選択（800 / 1,200）
+       2. screen-kokugo-question          本文 + 4択 × 2 問
+       3. screen-kokugo-result            採点結果（◯/✕ + 正解 + 解説）
+       4. screen-kokugo-impression        感想文入力（100字以上必須）
+       5. screen-kokugo-hp-grant          AIフィードバック + HP獲得演出
+     着手中フロー：startKokugo() → getCurrentKokugoAttempt → 着手中あれば再開、なければ画面1へ。 -->
+
+<!-- ① 文字数選択画面 -->
+<div id="screen-kokugo-charcount-select" class="screen">
+  <header><h1>📖 国語長文読解</h1></header>
+  <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">← ホームに戻る</button>
+    <div class="kokugo-mate-row">
+      <img class="kokugo-img" id="kokugo-img-charcount" src="images/japanin-default.png" alt="ジャパニン">
+      <div class="kokugo-bubble" id="kokugo-bubble-charcount">どちらに挑むでござるか？</div>
+    </div>
+    <button type="button" class="kokugo-charcount-card" onclick="startKokugoSession(800)">
+      <div class="cc-title">📖 800字版</div>
+      <div class="cc-hp">💎 100HP（1日1回）</div>
+      <div class="cc-desc">手応えある読解にちょうどよい長さ</div>
+    </button>
+    <button type="button" class="kokugo-charcount-card" onclick="startKokugoSession(1200)">
+      <div class="cc-title">📖 1,200字版</div>
+      <div class="cc-hp">💎 150HP（1日1回）</div>
+      <div class="cc-desc">じっくり読み込みたい人向け</div>
+    </button>
+  </div>
+</div>
+
+<!-- ② 文章 + 問題 画面 -->
+<div id="screen-kokugo-question" class="screen">
+  <header><h1>📖 国語長文読解</h1></header>
+  <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="_kokugoConfirmBackToHome()">← ホームに戻る（途中保存）</button>
+    <div id="kokugo-question-resume-badge" style="display:none"></div>
+    <div id="kokugo-question-attemptcount-badge" style="display:none"></div>
+    <div class="kokugo-mate-row">
+      <img class="kokugo-img" id="kokugo-img-question" src="images/japanin-thinking.png" alt="ジャパニン">
+      <div class="kokugo-bubble" id="kokugo-bubble-question">よく読んでみるでござる</div>
+    </div>
+    <div id="kokugo-question-title" class="kokugo-title-bar"></div>
+    <div class="kokugo-audio-row" id="kokugo-audio-row">
+      <button type="button" class="kokugo-audio-btn" id="kokugo-audio-btn" onclick="playKokugoAudio()">🔊 音声で聴く</button>
+      <span class="kokugo-audio-note">※ AI音声なのでおかしな読み方をすることもあります🙇‍♂️ 初回再生時は数秒お待ちください。</span>
+      <div class="kokugo-audio-controls" id="kokugo-audio-controls">
+        <audio id="kokugo-audio-player" controls preload="none"></audio>
+      </div>
+    </div>
+    <div id="kokugo-question-body" class="kokugo-bodytext"></div>
+    <div id="kokugo-question-q1" class="kokugo-q-section"></div>
+    <div id="kokugo-question-q2" class="kokugo-q-section"></div>
+    <button type="button" class="btn-wide" id="kokugo-grade-btn" style="background:linear-gradient(135deg,#ec4899,#c2185b);opacity:.55;cursor:not-allowed" disabled onclick="submitKokugoAnswerForGrading()">✅ 採点する</button>
+  </div>
+</div>
+
+<!-- ③ 採点結果 画面 -->
+<div id="screen-kokugo-result" class="screen">
+  <header><h1>📖 採点結果</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kokugo-mate-row">
+      <img class="kokugo-img" id="kokugo-img-result" src="images/japanin-default.png" alt="ジャパニン">
+      <div class="kokugo-bubble" id="kokugo-bubble-result">結果を見るでござる</div>
+    </div>
+    <div id="kokugo-result-q1" class="kokugo-result-block"></div>
+    <div id="kokugo-result-q2" class="kokugo-result-block"></div>
+    <button type="button" class="btn-wide" style="background:linear-gradient(135deg,#ec4899,#c2185b);margin-top:14px" onclick="showKokugoImpressionScreen()">📝 感想を書く</button>
+  </div>
+</div>
+
+<!-- ④ 感想文入力 画面 -->
+<div id="screen-kokugo-impression" class="screen">
+  <header><h1>📝 感想を書こう</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div class="kokugo-mate-row">
+      <img class="kokugo-img" id="kokugo-img-impression" src="images/japanin-default.png" alt="ジャパニン">
+      <div class="kokugo-bubble" id="kokugo-bubble-impression">言葉にすると見えてくるものがあるでござる</div>
+    </div>
+    <div class="kokugo-impr-hint">
+      📌 「文章を読んだ感想」や「問題を解いてみての感想」など、自由に書いてみよう。<br>
+      ※ 100字以上書けたら「提出する」が押せるようになります（空白・改行は文字数に含みません）。
+    </div>
+    <textarea id="kokugo-impression-text" class="kokugo-impr-textarea" placeholder="例：この文章を読んで、主人公の気持ちがすごく伝わってきました。なぜなら..."></textarea>
+    <div id="kokugo-impression-counter" class="kokugo-impr-counter">0 / 100 文字以上</div>
+    <button type="button" class="btn-wide" id="kokugo-impression-submit" style="background:linear-gradient(135deg,#ec4899,#c2185b);margin-top:14px;opacity:.55;cursor:not-allowed" disabled onclick="submitKokugoImpressionToServer()">📨 提出する</button>
+  </div>
+</div>
+
+<!-- ⑤ HP獲得 / 完了 画面 -->
+<div id="screen-kokugo-hp-grant" class="screen">
+  <header><h1>✅ 提出完了</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div id="kokugo-hp-grant-body"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
 <!-- ===== 計算タイムトライアル（2026-05-19 Phase 3 新規） ===== -->
 <!-- イントロ → ラウンド①（5分）→ 中間モーダル → ラウンド②（5分）→ リザルト の固定フロー -->
 <!-- 中断不可 / 中断時は submit しない（仕様 案 C）。本番は 1 日 2 回までで 3 回目以降は練習モード。 -->
@@ -4658,7 +4824,8 @@
     'kanjii':   { img: 'images/kanjii-thinking.png',   text: '現在マイカツ君が獲得HPを最終確認中じゃ' },
     'lison':    { img: 'images/lison-thinking.png',    text: '現在マイカツ君が獲得HPを最終確認中です' },
     'kobun':    { img: 'images/kobun-thinking.png',    text: '現在マイカツ君が獲得HPを最終確認中なり' },
-    'trial':    { img: 'images/trial-thinking.png',    text: '只今マイカツ君が獲得HPを最終確認中だぞ' }
+    'trial':    { img: 'images/trial-thinking.png',    text: '只今マイカツ君が獲得HPを最終確認中だぞ' },
+    'japanin':  { img: 'images/japanin-thinking.png',  text: '只今マイカツ君が獲得HPを最終確認中でござる' }
   };
   var _hpConfirmingDotsTimer = null;
   function _showHpConfirmingOverlay(charId) {
@@ -10386,6 +10553,439 @@
     done:        ['天晴れじゃ！', 'みごとなり！', '平安の知恵、その手に'],
     history:     ['過去の学びをふり返ろう', '復習はみやびじゃ']
   };
+  // ジャパニン（国語長文読解、和風武士口調）。2026-05-23 採用。
+  var JAPANIN_BUBBLES = {
+    category:    ['どちらに挑むでござるか？', 'いざ、文章を読まんとす', '今日もよう励まれた'],
+    reading:     ['よく読んでみるでござる', 'じっくり味わってみよ', '行間を読みとくでござる'],
+    confirm:     ['答えを選び終えたら採点じゃ', '迷ったら本文に戻ってよかろう', '自分の直感も大事ぞ'],
+    grading:     ['しばし待たれよ…', '答え合わせの時間でござる'],
+    correct:     ['天晴れでござる！', 'ようできた！', 'みごとな読解じゃ'],
+    incorrect:   ['惜しいでござる', 'もう一度本文を見てみよ', '次は当てなされ'],
+    perfect:     ['全問正解、天晴れでござる！', '完璧な読みじゃ！'],
+    impression:  ['言葉にすると見えてくるものがあるでござる', '感じたままに書くがよかろう', '心に映ったものをそのままに'],
+    done:        ['よう書けた！', '読みも書きもみごとなり', 'いとをかし、いとあはれ'],
+    resume:      ['続きから始めるでござる', 'お主の挑戦、まだ終わっておらぬぞ']
+  };
+
+  // ============================================================================
+  // 国語長文読解 — 2026-05-23 新規実装
+  // ============================================================================
+  // 状態管理：選択中の問題 / 採点結果 / attemptId / 音声 URL を保持。
+  // ホーム → showKokugoStart() → getCurrentKokugoAttempt → 着手中ありなら復帰、なければ
+  // screen-kokugo-charcount-select → startKokugoSession(charCount) → getKokugoQuestion → ②画面 →
+  // submitKokugoAnswerForGrading → ③画面 → showKokugoImpressionScreen → ④画面 →
+  // submitKokugoImpressionToServer → ⑤画面（AI フィードバック + HP 獲得演出）。
+  var _kokugoState = {
+    question: null,
+    attemptCountSoFar: 0,
+    isResume: false,
+    charCount: 0,
+    attemptId: null,
+    gradingResult: null,
+    audioUrl: ''
+  };
+
+  function _kokugoResetState() {
+    _kokugoState = {
+      question: null,
+      attemptCountSoFar: 0,
+      isResume: false,
+      charCount: 0,
+      attemptId: null,
+      gradingResult: null,
+      audioUrl: ''
+    };
+  }
+
+  // エントリポイント：ホーム画面の「📖 国語長文読解」カードから呼ぶ
+  function showKokugoStart() {
+    if (!_studentId) { alert('ログインしてください'); return; }
+    _kokugoResetState();
+    // 着手中チェック（仕様書 5 節リトライ仕様）
+    gasGet({ action: 'getCurrentKokugoAttempt', studentId: _studentId, _ts: Date.now() }).then(function(res) {
+      if (res && res.ok && res.hasInProgress && res.question) {
+        // 着手中 → 即座に再開（同じ問題で screen-kokugo-question）
+        _kokugoState.question = res.question;
+        _kokugoState.attemptCountSoFar = Number(res.attemptCountSoFar) || 1;
+        _kokugoState.isResume = true;
+        _kokugoState.charCount = Number(res.question.charCount) || 800;
+        // attemptId は再開時には未取得（submitKokugoAnswers してないため）。
+        // → 再採点が必要。「続きから」UI で警告を出してそのまま採点フローに戻す。
+        _kokugoRenderQuestionScreen();
+        return;
+      }
+      // 着手中なし → 文字数選択画面
+      _setContentMascot('kokugo-img-charcount', 'default', 'kokugo-bubble-charcount', _pickBubble(JAPANIN_BUBBLES.category), 'japanin');
+      showScreen('screen-kokugo-charcount-select');
+    }).catch(function(){
+      // 通信エラー → 文字数選択画面にフォールバック（ユーザーが再選択できる）
+      _setContentMascot('kokugo-img-charcount', 'default', 'kokugo-bubble-charcount', _pickBubble(JAPANIN_BUBBLES.category), 'japanin');
+      showScreen('screen-kokugo-charcount-select');
+    });
+  }
+
+  // 文字数選択 → 問題取得
+  function startKokugoSession(charCount) {
+    if (!_studentId) { alert('ログインしてください'); return; }
+    var cc = Number(charCount) || 800;
+    gasGet({ action: 'getKokugoQuestion', studentId: _studentId, charCount: cc, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) { alert(res && res.message || '問題の取得に失敗しました'); return; }
+      _kokugoState.question = res.question;
+      _kokugoState.attemptCountSoFar = Number(res.attemptCountSoFar) || 1;
+      _kokugoState.isResume = !!res.isResume;
+      _kokugoState.charCount = cc;
+      _kokugoRenderQuestionScreen();
+    }).catch(function(){
+      alert('通信エラーが発生しました');
+    });
+  }
+
+  // 途中で「ホームに戻る」を押した時の確認
+  function _kokugoConfirmBackToHome() {
+    // 採点済（attemptId あり）かつ感想未提出の場合だけ確認ダイアログ。
+    // 採点前なら state が消えても問題ない（着手中行はサーバに残らない）。
+    if (_kokugoState.attemptId) {
+      if (!confirm('感想文がまだだよ。ホームに戻ると、次回続きから再開できるよ。戻る？')) return;
+    }
+    goHome();
+  }
+
+  function _kokugoRenderQuestionScreen() {
+    var q = _kokugoState.question;
+    if (!q) { goHome(); return; }
+    var titleEl = document.getElementById('kokugo-question-title');
+    if (titleEl) titleEl.textContent = q.title || '';
+    var bodyEl = document.getElementById('kokugo-question-body');
+    if (bodyEl) bodyEl.textContent = q.bodyText || '';
+
+    // 再開バッジ
+    var resumeBadge = document.getElementById('kokugo-question-resume-badge');
+    if (resumeBadge) {
+      if (_kokugoState.isResume) {
+        resumeBadge.innerHTML = '<span class="kokugo-resume-badge">📌 続きからの再開だよ</span>';
+        resumeBadge.style.display = '';
+      } else {
+        resumeBadge.style.display = 'none';
+      }
+    }
+    // 挑戦回数バッジ（2 回目以降のみ表示）
+    var countBadge = document.getElementById('kokugo-question-attemptcount-badge');
+    if (countBadge) {
+      var n = Number(_kokugoState.attemptCountSoFar) || 1;
+      if (n >= 2) {
+        countBadge.innerHTML = '<span class="kokugo-attempt-count-badge">📊 今までに ' + (n - 1) + ' 回解いたことがあるよ</span>';
+        countBadge.style.display = '';
+      } else {
+        countBadge.style.display = 'none';
+      }
+    }
+    // 問題 1 / 2
+    var q1El = document.getElementById('kokugo-question-q1');
+    if (q1El) q1El.innerHTML = _kokugoBuildQuestionHtml(1, q.q1);
+    var q2El = document.getElementById('kokugo-question-q2');
+    if (q2El) q2El.innerHTML = _kokugoBuildQuestionHtml(2, q.q2);
+
+    _kokugoState.audioUrl = q.audioUrl || '';
+    _kokugoSetupAudioRow();
+    _kokugoUpdateGradeBtn();
+    _setContentMascot('kokugo-img-question', 'thinking', 'kokugo-bubble-question', _pickBubble(JAPANIN_BUBBLES.reading), 'japanin');
+    showScreen('screen-kokugo-question');
+    window.scrollTo(0, 0);
+  }
+
+  function _kokugoBuildQuestionHtml(qNo, q) {
+    if (!q) return '';
+    var letters = ['ア','イ','ウ','エ'];
+    var html = '<div class="q-label">問題 ' + qNo + '</div>'
+            + '<div class="q-text">' + escH(q.text || '') + '</div>';
+    (q.choices || []).forEach(function(choice, i) {
+      if (i >= 4) return;
+      var letter = letters[i] || '';
+      html += '<label class="kokugo-choice-row" data-qno="' + qNo + '" data-letter="' + letter + '">'
+           +    '<input type="radio" name="kokugo-q' + qNo + '-choice" value="' + letter + '" onchange="_kokugoOnChoiceChange(' + qNo + ', this.value)">'
+           +    '<span class="choice-label">' + letter + '.</span>'
+           +    '<span class="choice-text">' + escH(choice || '') + '</span>'
+           +  '</label>';
+    });
+    return html;
+  }
+
+  function _kokugoOnChoiceChange(qNo, letter) {
+    var rows = document.querySelectorAll('.kokugo-choice-row[data-qno="' + qNo + '"]');
+    rows.forEach(function(r) {
+      r.classList.toggle('selected', r.getAttribute('data-letter') === letter);
+    });
+    _kokugoUpdateGradeBtn();
+  }
+
+  function _kokugoGetSelectedChoice(qNo) {
+    var inputs = document.querySelectorAll('input[name="kokugo-q' + qNo + '-choice"]');
+    for (var i = 0; i < inputs.length; i++) {
+      if (inputs[i].checked) return inputs[i].value;
+    }
+    return '';
+  }
+
+  function _kokugoUpdateGradeBtn() {
+    var btn = document.getElementById('kokugo-grade-btn');
+    if (!btn) return;
+    var q1Sel = _kokugoGetSelectedChoice(1);
+    var q2Sel = _kokugoGetSelectedChoice(2);
+    var ready = !!(q1Sel && q2Sel);
+    btn.disabled = !ready;
+    btn.style.opacity = ready ? '1' : '.55';
+    btn.style.cursor  = ready ? 'pointer' : 'not-allowed';
+  }
+
+  // 音声ボタン関連
+  function _kokugoSetupAudioRow() {
+    var btn = document.getElementById('kokugo-audio-btn');
+    var ctrl = document.getElementById('kokugo-audio-controls');
+    var player = document.getElementById('kokugo-audio-player');
+    if (btn) { btn.disabled = false; btn.textContent = '🔊 音声で聴く'; }
+    if (ctrl) ctrl.classList.remove('active');
+    if (player) {
+      try { player.pause(); } catch(_e) {}
+      player.removeAttribute('src');
+      try { player.load(); } catch(_e) {}
+    }
+  }
+
+  function playKokugoAudio() {
+    var btn = document.getElementById('kokugo-audio-btn');
+    if (!_kokugoState.question || !_kokugoState.question.id) return;
+    if (_kokugoState.audioUrl) { _kokugoPlayWithUrl(_kokugoState.audioUrl); return; }
+    if (btn) { btn.disabled = true; btn.textContent = '🔊 音声を準備中…'; }
+    gasGet({ action: 'getKokugoAudioUrl', questionId: _kokugoState.question.id, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok || !res.audioUrl) {
+        if (btn) { btn.disabled = false; btn.textContent = '🔊 音声で聴く'; }
+        alert((res && res.message) || '音声の取得に失敗しました');
+        return;
+      }
+      _kokugoState.audioUrl = res.audioUrl;
+      _kokugoPlayWithUrl(res.audioUrl);
+    }).catch(function(){
+      if (btn) { btn.disabled = false; btn.textContent = '🔊 音声で聴く'; }
+      alert('音声の取得に失敗しました');
+    });
+  }
+
+  function _kokugoPlayWithUrl(url) {
+    var btn = document.getElementById('kokugo-audio-btn');
+    var ctrl = document.getElementById('kokugo-audio-controls');
+    var player = document.getElementById('kokugo-audio-player');
+    if (!btn || !ctrl || !player) return;
+    ctrl.classList.add('active');
+    if (player.getAttribute('src') !== url) {
+      player.src = url;
+      try { player.load(); } catch(_e) {}
+    }
+    try {
+      var p = player.play();
+      if (p && p.catch) p.catch(function(){});
+    } catch(_e) {}
+    btn.disabled = false;
+    btn.textContent = '🔊 もう一度聴く';
+  }
+
+  // 採点送信
+  function submitKokugoAnswerForGrading() {
+    var q1Sel = _kokugoGetSelectedChoice(1);
+    var q2Sel = _kokugoGetSelectedChoice(2);
+    if (!q1Sel || !q2Sel) { alert('両方の問題に答えてください'); return; }
+    var btn = document.getElementById('kokugo-grade-btn');
+    if (btn) btn.disabled = true;
+    _showHpConfirmingOverlay('japanin');
+    gasPost({
+      action: 'submitKokugoAnswers',
+      studentId: _studentId,
+      questionId: _kokugoState.question.id,
+      q1_selected: q1Sel,
+      q2_selected: q2Sel
+    }).then(function(res){
+      _hideHpConfirmingOverlay();
+      if (btn) btn.disabled = false;
+      if (!res || !res.ok) { alert((res && res.message) || '採点に失敗しました'); return; }
+      _kokugoState.attemptId = res.attemptId;
+      _kokugoState.gradingResult = res;
+      _kokugoRenderResultScreen();
+    }).catch(function(){
+      _hideHpConfirmingOverlay();
+      if (btn) btn.disabled = false;
+      alert('通信エラーが発生しました');
+    });
+  }
+
+  function _kokugoRenderResultScreen() {
+    var r = _kokugoState.gradingResult;
+    if (!r) { goHome(); return; }
+    var q1El = document.getElementById('kokugo-result-q1');
+    if (q1El) q1El.innerHTML = _kokugoBuildResultHtml(1, r.q1);
+    var q2El = document.getElementById('kokugo-result-q2');
+    if (q2El) q2El.innerHTML = _kokugoBuildResultHtml(2, r.q2);
+    var bothCorrect = !!(r.q1 && r.q2 && r.q1.correct && r.q2.correct);
+    if (bothCorrect) {
+      _setContentMascot('kokugo-img-result', 'celebrate', 'kokugo-bubble-result', _pickBubble(JAPANIN_BUBBLES.perfect), 'japanin');
+    } else {
+      _setContentMascot('kokugo-img-result', 'encourage', 'kokugo-bubble-result', _pickBubble(JAPANIN_BUBBLES.incorrect), 'japanin');
+    }
+    showScreen('screen-kokugo-result');
+    window.scrollTo(0, 0);
+  }
+
+  function _kokugoBuildResultHtml(qNo, qRes) {
+    if (!qRes) return '';
+    var ok = !!qRes.correct;
+    var letterMap = {'ア': 0, 'イ': 1, 'ウ': 2, 'エ': 3};
+    var ansLetter = String(qRes.answer || '');
+    var qDef = (qNo === 1) ? _kokugoState.question.q1 : _kokugoState.question.q2;
+    var idx = letterMap[ansLetter];
+    var ansText = (idx !== undefined && qDef && qDef.choices && qDef.choices[idx]) ? qDef.choices[idx] : '';
+    var html = '<div class="res-row">'
+            + '<span class="res-mark">' + (ok ? '◯' : '✕') + '</span>'
+            + '<span class="res-label">問題 ' + qNo + ' ' + (ok ? '正解！' : '不正解') + '</span>'
+            + '</div>'
+            + '<div class="res-answer">✅ 正解：' + escH(ansLetter) + '. ' + escH(ansText) + '</div>';
+    if (qRes.explanation) {
+      html += '<div class="res-expl">' + escH(qRes.explanation) + '</div>';
+    }
+    return html;
+  }
+
+  function showKokugoImpressionScreen() {
+    var ta = document.getElementById('kokugo-impression-text');
+    if (ta) {
+      ta.value = '';
+      // 重複登録防止のため一度 remove してから add
+      ta.removeEventListener('input', _kokugoOnImpressionInput);
+      ta.addEventListener('input', _kokugoOnImpressionInput);
+    }
+    _kokugoUpdateImpressionCounter();
+    _setContentMascot('kokugo-img-impression', 'default', 'kokugo-bubble-impression', _pickBubble(JAPANIN_BUBBLES.impression), 'japanin');
+    showScreen('screen-kokugo-impression');
+    window.scrollTo(0, 0);
+    try { if (ta) ta.focus(); } catch(_e) {}
+  }
+
+  function _kokugoOnImpressionInput() {
+    _kokugoUpdateImpressionCounter();
+  }
+
+  function _kokugoUpdateImpressionCounter() {
+    var ta = document.getElementById('kokugo-impression-text');
+    var counter = document.getElementById('kokugo-impression-counter');
+    var btn = document.getElementById('kokugo-impression-submit');
+    if (!ta || !counter || !btn) return;
+    var len = _effectiveReflectionLen(ta.value || '');
+    var ok = len >= 100;
+    counter.textContent = len + ' / 100 文字以上';
+    counter.classList.toggle('short', !ok);
+    counter.classList.toggle('ok', ok);
+    btn.disabled = !ok;
+    btn.style.opacity = ok ? '1' : '.55';
+    btn.style.cursor  = ok ? 'pointer' : 'not-allowed';
+  }
+
+  function submitKokugoImpressionToServer() {
+    var ta = document.getElementById('kokugo-impression-text');
+    if (!ta) return;
+    var imp = String(ta.value || '');
+    if (_effectiveReflectionLen(imp) < 100) {
+      alert('感想を100字以上書いてください'); return;
+    }
+    if (!_kokugoState.attemptId) {
+      alert('挑戦記録が見つかりません'); return;
+    }
+    var btn = document.getElementById('kokugo-impression-submit');
+    if (btn) btn.disabled = true;
+    _showHpConfirmingOverlay('japanin');
+    gasPost({
+      action: 'submitKokugoImpression',
+      studentId: _studentId,
+      attemptId: _kokugoState.attemptId,
+      impressionText: imp
+    }, 120000).then(function(res){
+      _hideHpConfirmingOverlay();
+      if (btn) btn.disabled = false;
+      if (!res || !res.ok) { alert((res && res.message) || '送信に失敗しました'); return; }
+      _kokugoRenderHpGrantScreen(res);
+    }).catch(function(){
+      _hideHpConfirmingOverlay();
+      if (btn) btn.disabled = false;
+      alert('通信エラーが発生しました');
+    });
+  }
+
+  function _kokugoRenderHpGrantScreen(res) {
+    var hp = Number(res.hpGained) || 0;
+    var feedback = String(res.aiFeedback || '');
+    var alreadyGranted = !!res.alreadyGranted;
+    var releasedHp = Number(res.releasedHp) || 0;
+    var bonusHp = Number(res.bonusHp) || 0;
+    var html = '';
+    html += '<div class="kokugo-mate-row">'
+         +   '<img class="kokugo-img" src="images/japanin-celebrate.png" alt="ジャパニン">'
+         +   '<div class="kokugo-bubble">' + escH(_pickBubble(JAPANIN_BUBBLES.done)) + '</div>'
+         + '</div>';
+    if (feedback) {
+      html += '<div class="kokugo-feedback-box">'
+           +    '<div class="fb-label">🤖 AIからのフィードバック</div>'
+           +    '<div class="fb-text">' + escH(feedback) + '</div>'
+           +  '</div>';
+    }
+    if (hp > 0) {
+      var confetti = '<div class="completion-confetti-wrap">';
+      var emojis = ['🎉','✨','🌸','📖','💎','🎊','⭐','💫'];
+      for (var i = 0; i < 12; i++) {
+        var left = (Math.random() * 100).toFixed(0);
+        var delay = (Math.random() * 0.8).toFixed(2);
+        confetti += '<span class="completion-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i % emojis.length] + '</span>';
+      }
+      confetti += '</div>';
+      html += '<div class="wabun1-result-success">'
+           +    confetti
+           +    '<div style="font-size:18px;color:#92400e;font-weight:bold;margin-bottom:8px">📖 国語長文 ' + (_kokugoState.charCount || '') + '字 クリア！</div>'
+           +    '<div style="font-size:28px;font-weight:bold;color:#c2185b">+<span id="kokugo-hp-num">0</span> HP</div>'
+           +  '</div>';
+      if (res.justCompleted && (releasedHp + bonusHp) > 0) {
+        html += '<div style="margin-top:12px;padding:12px 14px;background:linear-gradient(135deg,#fef3c7,#fde68a);border:2px solid #f59e0b;border-radius:10px;text-align:center">'
+             +    '<div style="font-size:14px;color:#78350f;font-weight:bold">🎯 絶対ミッション 完走ボーナス！</div>'
+             +    '<div style="font-size:13px;color:#92400e;margin-top:4px">+' + (releasedHp + bonusHp).toLocaleString() + ' HP（保留解放 + 完走ボーナス）</div>'
+             +  '</div>';
+      }
+    } else if (alreadyGranted) {
+      html += '<div class="wabun1-result-success" style="background:linear-gradient(135deg,#e0e7ff,#c7d2fe);border-color:#6366f1;color:#3730a3;animation:none">'
+           +    '<div style="font-size:18px;font-weight:bold">本日のHPは既に獲得済みだよ</div>'
+           +    '<div style="font-size:13px;margin-top:6px;color:#4338ca">感想と AI フィードバックは保存したよ。明日また挑戦してね！</div>'
+           +  '</div>';
+    }
+    var body = document.getElementById('kokugo-hp-grant-body');
+    if (body) body.innerHTML = html;
+    showScreen('screen-kokugo-hp-grant');
+    window.scrollTo(0, 0);
+    if (hp > 0) {
+      try { playSfx && playSfx('chime'); } catch(_e) {}
+      _kokugoAnimateHp(hp);
+    }
+    // state リセット（次回のために）。次回 showKokugoStart で getCurrentKokugoAttempt が
+    // 「着手中なし」を返すので、自動的に文字数選択画面に戻る。
+    _kokugoState.attemptId = null;
+  }
+
+  function _kokugoAnimateHp(target) {
+    var el = document.getElementById('kokugo-hp-num');
+    if (!el) return;
+    var duration = 1000;
+    var startTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    function tick(now) {
+      var t = (now - startTime) / duration;
+      if (t >= 1) { el.textContent = target.toLocaleString(); return; }
+      var eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = Math.floor(target * eased).toLocaleString();
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
   // ----- レベル選択 -----
   function showKanjiLevelSelect() {
     _kanjiResetState();
@@ -11907,7 +12507,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-0009</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-0402</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
