@@ -248,12 +248,20 @@
     /* 着手中の再開バッジ */
     .kokugo-resume-badge { display: inline-block; padding: 4px 10px; background: #fef3c7; color: #b45309; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
     .kokugo-attempt-count-badge { display: inline-block; padding: 4px 10px; background: #e0f2fe; color: #0369a1; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
-    /* 文字数選択画面 */
-    .kokugo-charcount-card { background: #fff; border: 2px solid #ec4899; border-radius: 18px; padding: 20px 16px; margin-top: 14px; text-align: center; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+    /* 文字数選択画面：2 ボタンを横並び・均等幅・中央配置（PC / タブレット / スマホ全環境で同じ見た目） */
+    .kokugo-charcount-row { display: flex; gap: 12px; justify-content: center; align-items: stretch; flex-wrap: nowrap; margin-top: 14px; }
+    .kokugo-charcount-card { flex: 1 1 0; min-width: 0; background: #fff; border: 2px solid #ec4899; border-radius: 18px; padding: 20px 12px; text-align: center; cursor: pointer; transition: transform .15s, box-shadow .15s; box-sizing: border-box; font-family: inherit; }
     .kokugo-charcount-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(236,72,153,.2); }
     .kokugo-charcount-card .cc-title { font-size: 22px; font-weight: bold; color: #c2185b; margin-bottom: 4px; }
     .kokugo-charcount-card .cc-hp    { font-size: 14px; color: #e65100; font-weight: 600; }
     .kokugo-charcount-card .cc-desc  { font-size: 12px; color: #64748b; margin-top: 6px; line-height: 1.6; }
+    @media (max-width: 480px) {
+      .kokugo-charcount-row { gap: 8px; }
+      .kokugo-charcount-card { padding: 16px 8px; }
+      .kokugo-charcount-card .cc-title { font-size: 18px; }
+      .kokugo-charcount-card .cc-hp { font-size: 12px; }
+      .kokugo-charcount-card .cc-desc { font-size: 11px; }
+    }
     /* 本文表示 */
     .kokugo-title-bar { font-size: 18px; font-weight: bold; color: #c2185b; padding: 10px 14px; background: linear-gradient(135deg,#fff0f6,#fce7f3); border-radius: 10px; margin-bottom: 14px; border-left: 4px solid #ec4899; }
     .kokugo-bodytext { font-size: 16px; line-height: 1.95; color: #1f2937; padding: 18px 18px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; white-space: pre-wrap; margin-bottom: 18px; }
@@ -2428,10 +2436,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-0402"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-0537"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-0402">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-0402"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-0537">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-0537"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3997,16 +4005,18 @@
       <img class="kokugo-img" id="kokugo-img-charcount" src="images/japanin-default.png" alt="ジャパニン">
       <div class="kokugo-bubble" id="kokugo-bubble-charcount">どちらに挑むでござるか？</div>
     </div>
-    <button type="button" class="kokugo-charcount-card" onclick="startKokugoSession(800)">
-      <div class="cc-title">📖 800字版</div>
-      <div class="cc-hp">💎 100HP（1日1回）</div>
-      <div class="cc-desc">手応えある読解にちょうどよい長さ</div>
-    </button>
-    <button type="button" class="kokugo-charcount-card" onclick="startKokugoSession(1200)">
-      <div class="cc-title">📖 1,200字版</div>
-      <div class="cc-hp">💎 150HP（1日1回）</div>
-      <div class="cc-desc">じっくり読み込みたい人向け</div>
-    </button>
+    <div class="kokugo-charcount-row">
+      <button type="button" class="kokugo-charcount-card" onclick="startKokugoSession(800)">
+        <div class="cc-title">📖 800字版</div>
+        <div class="cc-hp">💎 100HP（1日1回）</div>
+        <div class="cc-desc">手応えある読解にちょうどよい長さ</div>
+      </button>
+      <button type="button" class="kokugo-charcount-card" onclick="startKokugoSession(1200)">
+        <div class="cc-title">📖 1,200字版</div>
+        <div class="cc-hp">💎 150HP（1日1回）</div>
+        <div class="cc-desc">より実戦に近いトレーニング</div>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -10597,6 +10607,27 @@
     };
   }
 
+  // 通信エラー時に、できるだけ生徒・先生に意味のあるメッセージを出すヘルパー。
+  // err.message があれば「(コンテキスト)：詳細」形式で表示。
+  // よくある fetch 例外メッセージ（Failed to fetch / NetworkError / Load failed）は
+  // 「電波の良い場所で…」のような優しい言い換えに変換する。
+  function _kokugoFormatErr(context, err) {
+    var raw = '';
+    if (err) {
+      if (typeof err === 'string') raw = err;
+      else if (err.message) raw = String(err.message);
+      else raw = String(err);
+    }
+    if (!raw) return context + '：原因不明のエラーが発生しました';
+    if (/Failed to fetch|NetworkError|Load failed|aborted|abort/i.test(raw)) {
+      return context + '：ネットワークに繋がっていません。電波の良い場所で、もう一度試してください。\n（' + raw + '）';
+    }
+    if (/Unexpected token|JSON|SyntaxError/i.test(raw)) {
+      return context + '：サーバから不正な応答が返りました（GAS のデプロイが最新版か、ふくちさんに確認してください）。\n（' + raw + '）';
+    }
+    return context + '：' + raw;
+  }
+
   // エントリポイント：ホーム画面の「📖 国語長文読解」カードから呼ぶ
   function showKokugoStart() {
     if (!_studentId) { alert('ログインしてください'); return; }
@@ -10617,8 +10648,10 @@
       // 着手中なし → 文字数選択画面
       _setContentMascot('kokugo-img-charcount', 'default', 'kokugo-bubble-charcount', _pickBubble(JAPANIN_BUBBLES.category), 'japanin');
       showScreen('screen-kokugo-charcount-select');
-    }).catch(function(){
-      // 通信エラー → 文字数選択画面にフォールバック（ユーザーが再選択できる）
+    }).catch(function(err){
+      // 着手中チェックの通信エラーは致命的ではない → 文字数選択画面に進ませる
+      // ただしコンソールには詳細を残す（GAS Executions / 開発者ツールで追跡可能）
+      console.error('[showKokugoStart] getCurrentKokugoAttempt failed', err);
       _setContentMascot('kokugo-img-charcount', 'default', 'kokugo-bubble-charcount', _pickBubble(JAPANIN_BUBBLES.category), 'japanin');
       showScreen('screen-kokugo-charcount-select');
     });
@@ -10629,14 +10662,24 @@
     if (!_studentId) { alert('ログインしてください'); return; }
     var cc = Number(charCount) || 800;
     gasGet({ action: 'getKokugoQuestion', studentId: _studentId, charCount: cc, _ts: Date.now() }).then(function(res){
-      if (!res || !res.ok) { alert(res && res.message || '問題の取得に失敗しました'); return; }
+      if (!res || !res.ok) {
+        // サーバから {ok:false, message:'...'} が返るケース。
+        // 例: 「この条件の問題はまだ準備中だよ」「生徒IDが見つかりません」「charCount は 800 または 1200 ...」等
+        console.error('[startKokugoSession] server returned not ok', res);
+        var msg = (res && res.message) ? res.message : '問題の取得に失敗しました（サーバが応答していません）';
+        alert('データ取得に失敗：' + msg);
+        return;
+      }
       _kokugoState.question = res.question;
       _kokugoState.attemptCountSoFar = Number(res.attemptCountSoFar) || 1;
       _kokugoState.isResume = !!res.isResume;
       _kokugoState.charCount = cc;
       _kokugoRenderQuestionScreen();
-    }).catch(function(){
-      alert('通信エラーが発生しました');
+    }).catch(function(err){
+      // fetch 自体が失敗 / r.json() で JSON パース失敗 のいずれか。
+      // err.message を表示し、開発者ツールにも詳細を残す。
+      console.error('[startKokugoSession] gasGet rejected', err);
+      alert(_kokugoFormatErr('問題の取得に失敗しました', err));
     });
   }
 
@@ -10759,14 +10802,17 @@
     gasGet({ action: 'getKokugoAudioUrl', questionId: _kokugoState.question.id, _ts: Date.now() }).then(function(res){
       if (!res || !res.ok || !res.audioUrl) {
         if (btn) { btn.disabled = false; btn.textContent = '🔊 音声で聴く'; }
-        alert((res && res.message) || '音声の取得に失敗しました');
+        var msg = (res && res.message) ? res.message : '音声の取得に失敗しました';
+        console.error('[playKokugoAudio] server returned not ok', res);
+        alert('音声の取得に失敗：' + msg);
         return;
       }
       _kokugoState.audioUrl = res.audioUrl;
       _kokugoPlayWithUrl(res.audioUrl);
-    }).catch(function(){
+    }).catch(function(err){
       if (btn) { btn.disabled = false; btn.textContent = '🔊 音声で聴く'; }
-      alert('音声の取得に失敗しました');
+      console.error('[playKokugoAudio] gasGet rejected', err);
+      alert(_kokugoFormatErr('音声の取得に失敗しました', err));
     });
   }
 
@@ -10805,14 +10851,20 @@
     }).then(function(res){
       _hideHpConfirmingOverlay();
       if (btn) btn.disabled = false;
-      if (!res || !res.ok) { alert((res && res.message) || '採点に失敗しました'); return; }
+      if (!res || !res.ok) {
+        console.error('[submitKokugoAnswerForGrading] server returned not ok', res);
+        var msg = (res && res.message) ? res.message : '採点に失敗しました';
+        alert('採点に失敗：' + msg);
+        return;
+      }
       _kokugoState.attemptId = res.attemptId;
       _kokugoState.gradingResult = res;
       _kokugoRenderResultScreen();
-    }).catch(function(){
+    }).catch(function(err){
       _hideHpConfirmingOverlay();
       if (btn) btn.disabled = false;
-      alert('通信エラーが発生しました');
+      console.error('[submitKokugoAnswerForGrading] gasPost rejected', err);
+      alert(_kokugoFormatErr('採点送信に失敗しました', err));
     });
   }
 
@@ -10907,12 +10959,18 @@
     }, 120000).then(function(res){
       _hideHpConfirmingOverlay();
       if (btn) btn.disabled = false;
-      if (!res || !res.ok) { alert((res && res.message) || '送信に失敗しました'); return; }
+      if (!res || !res.ok) {
+        console.error('[submitKokugoImpressionToServer] server returned not ok', res);
+        var msg = (res && res.message) ? res.message : '送信に失敗しました';
+        alert('送信に失敗：' + msg);
+        return;
+      }
       _kokugoRenderHpGrantScreen(res);
-    }).catch(function(){
+    }).catch(function(err){
       _hideHpConfirmingOverlay();
       if (btn) btn.disabled = false;
-      alert('通信エラーが発生しました');
+      console.error('[submitKokugoImpressionToServer] gasPost rejected', err);
+      alert(_kokugoFormatErr('感想文の送信に失敗しました', err));
     });
   }
 
@@ -12507,7 +12565,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-0402</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-0537</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

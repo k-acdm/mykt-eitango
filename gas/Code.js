@@ -21843,51 +21843,105 @@ function _writeKokugoAudioUrl(category, questionId, url) {
 
 // 出題（着手中があれば優先返却）。
 // params: { studentId, charCount }（charCount: 800 or 1200）
-// 戻り値: { ok, question, attemptCountSoFar, isResume } or { ok:false, message }
+// 戻り値: { ok, question, attemptCountSoFar, isResume } or { ok:false, message, stage? }
+//   - stage は失敗箇所の識別子（'no_sid' / 'invalid_charcount' / 'no_student' /
+//     'no_questions_for_category' / 'caught_exception' 等）。
+//     2026-05-23 不具合調査用に追加。エラー切り分けに役立つ。
 function getKokugoQuestion(params) {
+  let stage = 'init';
   try {
     const sid = String((params && params.studentId) || '').trim();
     const charCount = Number((params && params.charCount) || 0);
-    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    console.log('[getKokugoQuestion] start', JSON.stringify({ sid: sid, charCount: charCount }));
+    if (!sid) {
+      return { ok: false, message: '生徒IDが必要です', stage: 'no_sid' };
+    }
     if (KOKUGO_CHAR_COUNTS.indexOf(charCount) < 0) {
-      return { ok: false, message: 'charCount は 800 または 1200 を指定してください' };
+      return { ok: false, message: 'charCount は 800 または 1200 を指定してください', stage: 'invalid_charcount', received: charCount };
     }
 
     // ① 着手中の問題があれば優先返却（仕様書 5 節リトライ仕様）
+    stage = 'find_in_progress';
     const inProgress = _findInProgressKokugoAttempt(sid);
     if (inProgress) {
       const ipQid = String(inProgress.obj.questionId || '').trim();
       const ipCat = String(inProgress.obj.category || '').trim();
+      console.log('[getKokugoQuestion] in_progress found', JSON.stringify({ qid: ipQid, cat: ipCat }));
       if (ipQid) {
         return _buildKokugoQuestionResponse(sid, ipQid, ipCat, true);
       }
     }
 
     // ② カテゴリ自動切替（前回と反対、空なら bunkaku から開始）
+    stage = 'find_student';
     const stuLoc = _findAccountRowOnSheet(sid);
-    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+    if (!stuLoc) {
+      console.error('[getKokugoQuestion] student not found', sid);
+      return { ok: false, message: '生徒が見つかりません: ' + sid, stage: 'no_student' };
+    }
+    stage = 'read_last_category';
     const lastCategory = _readKokugoLastCategory(stuLoc);
     let nextCategory;
     if (lastCategory === 'bunkaku')      nextCategory = 'setsumei';
     else if (lastCategory === 'setsumei') nextCategory = 'bunkaku';
     else                                  nextCategory = 'bunkaku';
+    console.log('[getKokugoQuestion] category select', JSON.stringify({ last: lastCategory, next: nextCategory }));
 
     // ③ 候補抽出 + ランダム選択
+    stage = 'pick_primary';
     const qid = _pickKokugoQuestion(sid, nextCategory, charCount);
     if (!qid) {
       // 反対カテゴリに問題が無いケース：同カテゴリでも試す
+      console.log('[getKokugoQuestion] no candidate in', nextCategory, '→ try opposite');
+      stage = 'pick_fallback';
       const altCategory = (nextCategory === 'bunkaku') ? 'setsumei' : 'bunkaku';
       const altQid = _pickKokugoQuestion(sid, altCategory, charCount);
       if (!altQid) {
-        return { ok: false, message: 'この条件の問題はまだ準備中だよ。先生に確認してね。' };
+        // ★ 両カテゴリ共に問題が無い → どちらのシートにデータがあるかの内訳をエラーに含めて運用支援
+        const counts = _kokugoActiveCountsByCategory(charCount);
+        console.error('[getKokugoQuestion] no questions in either category', JSON.stringify(counts));
+        return {
+          ok: false,
+          message: 'この条件（' + charCount + '字）の問題はまだ準備中だよ。先生に確認してね。',
+          stage: 'no_questions_for_category',
+          activeCounts: counts
+        };
       }
       return _buildKokugoQuestionResponse(sid, altQid, altCategory, false);
     }
+    stage = 'build_response';
     return _buildKokugoQuestionResponse(sid, qid, nextCategory, false);
   } catch (err) {
-    console.error('[getKokugoQuestion]', err);
-    return { ok: false, message: String(err) };
+    console.error('[getKokugoQuestion] caught', { stage: stage, error: String(err), stack: err && err.stack });
+    return {
+      ok: false,
+      message: '内部エラーが発生しました（stage=' + stage + '）：' + String(err),
+      stage: 'caught_exception',
+      caughtAt: stage
+    };
   }
+}
+
+// 指定 charCount で active な問題数を category 別に数える（diagnose 用）
+function _kokugoActiveCountsByCategory(charCount) {
+  const out = { bunkaku: 0, setsumei: 0 };
+  KOKUGO_CATEGORIES.forEach(function(cat) {
+    const sh = _ss().getSheetByName(_kokugoSheetForCategory(cat));
+    if (!sh || sh.getLastRow() < 2) return;
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iCC = header.indexOf('charCount');
+    const iSt = header.indexOf('status');
+    if (iCC < 0 || iSt < 0) return;
+    let n = 0;
+    for (let i = 1; i < values.length; i++) {
+      const cc = Number(values[i][iCC]) || 0;
+      const st = String(values[i][iSt] || '').trim().toLowerCase();
+      if (cc === charCount && st === 'active') n++;
+    }
+    out[cat] = n;
+  });
+  return out;
 }
 
 // 着手中の問題があるか確認（仕様書 5 節）。
@@ -22337,5 +22391,144 @@ function adminListKokugoAttempts(params) {
   } catch (err) {
     console.error('[adminListKokugoAttempts]', err);
     return { ok: false, message: String(err) };
+  }
+}
+
+// -------------------------------------------------
+// 診断関数（GAS エディタから手動実行）
+// -------------------------------------------------
+// 2026-05-23 新規：「通信エラー」報告を受けて、真因切り分け用に追加。
+// GAS エディタの関数ドロップダウンから引数なしで実行できるよう、
+// 「テスト生徒 1004（テスト4号）× 800 字」と「× 1200 字」の 2 ラッパーを用意。
+// 別の生徒で試したい場合は _diagnoseKokugoQuestionImpl(sid, charCount) を直接呼ぶ。
+//
+// 実行ログ（View → Logs）と戻り値の両方で、各ステップの状況を確認できる：
+//   ステップ 1: 3 シートの存在 + 行数 + 列数
+//   ステップ 2: QuestionsBunkaku / QuestionsSetsumei のヘッダー（期待値と一致するか）
+//   ステップ 3: 該当 charCount で active な問題数（カテゴリ別）と最初の 5 件の id
+//   ステップ 4: 生徒の検索結果（Students/SpecialAccounts どちらに居るか、行 index、列数）
+//   ステップ 5: LAST_KOKUGO_CATEGORY 列の存在 + 現在値
+//   ステップ 6: 実際に getKokugoQuestion を呼んだ結果
+function diagnoseKokugoQuestion_800() {
+  return _diagnoseKokugoQuestionImpl('1004', 800);
+}
+function diagnoseKokugoQuestion_1200() {
+  return _diagnoseKokugoQuestionImpl('1004', 1200);
+}
+
+function _diagnoseKokugoQuestionImpl(sid, charCount) {
+  const report = {
+    sid: String(sid || ''),
+    charCount: Number(charCount) || 0,
+    timestamp: _nowJST(),
+    steps: []
+  };
+  try {
+    // Step 1: シート存在確認
+    const ss = _ss();
+    const bunSh = ss.getSheetByName(SHEET_KOKUGO_BUNKAKU);
+    const setSh = ss.getSheetByName(SHEET_KOKUGO_SETSUMEI);
+    const attSh = ss.getSheetByName(SHEET_KOKUGO_ATTEMPTS);
+    report.steps.push({
+      step: '1_sheets',
+      bunkaku:  bunSh ? { exists: true, lastRow: bunSh.getLastRow(), lastCol: bunSh.getLastColumn() } : { exists: false },
+      setsumei: setSh ? { exists: true, lastRow: setSh.getLastRow(), lastCol: setSh.getLastColumn() } : { exists: false },
+      attempts: attSh ? { exists: true, lastRow: attSh.getLastRow(), lastCol: attSh.getLastColumn() } : { exists: false }
+    });
+    if (!bunSh || !setSh || !attSh) {
+      report.message = 'シートが揃っていません。ensureKokugoSheets() を実行してください。';
+      Logger.log(JSON.stringify(report, null, 2));
+      return report;
+    }
+
+    // Step 2: ヘッダー確認（実際の列名 と 期待ヘッダー）
+    const bunHeader = bunSh.getRange(1, 1, 1, bunSh.getLastColumn() || 1).getValues()[0];
+    const setHeader = setSh.getRange(1, 1, 1, setSh.getLastColumn() || 1).getValues()[0];
+    const attHeader = attSh.getRange(1, 1, 1, attSh.getLastColumn() || 1).getValues()[0];
+    const headersMatch = function(actual, expected) {
+      if (actual.length < expected.length) return { ok: false, missing: expected.slice(actual.length) };
+      const mismatches = [];
+      for (let i = 0; i < expected.length; i++) {
+        if (String(actual[i] || '') !== expected[i]) {
+          mismatches.push({ idx: i, expected: expected[i], actual: String(actual[i] || '') });
+        }
+      }
+      return mismatches.length ? { ok: false, mismatches: mismatches } : { ok: true };
+    };
+    report.steps.push({
+      step: '2_headers',
+      bunkaku:  { actual: bunHeader, check: headersMatch(bunHeader, KOKUGO_QUESTIONS_HEADERS) },
+      setsumei: { actual: setHeader, check: headersMatch(setHeader, KOKUGO_QUESTIONS_HEADERS) },
+      attempts: { actual: attHeader, check: headersMatch(attHeader, KOKUGO_ATTEMPTS_HEADERS) }
+    });
+
+    // Step 3: active な問題数（該当 charCount × 各カテゴリ）
+    const counts = _kokugoActiveCountsByCategory(report.charCount);
+    const sampleByCategory = {};
+    KOKUGO_CATEGORIES.forEach(function(cat) {
+      const sh = ss.getSheetByName(_kokugoSheetForCategory(cat));
+      if (!sh || sh.getLastRow() < 2) { sampleByCategory[cat] = []; return; }
+      const values = sh.getDataRange().getValues();
+      const header = values[0];
+      const iId = header.indexOf('id');
+      const iCC = header.indexOf('charCount');
+      const iSt = header.indexOf('status');
+      const sample = [];
+      if (iId >= 0 && iCC >= 0 && iSt >= 0) {
+        for (let i = 1; i < values.length && sample.length < 5; i++) {
+          const cc = Number(values[i][iCC]) || 0;
+          const st = String(values[i][iSt] || '').trim().toLowerCase();
+          if (cc === report.charCount && st === 'active') {
+            sample.push(String(values[i][iId] || '').trim());
+          }
+        }
+      }
+      sampleByCategory[cat] = sample;
+    });
+    report.steps.push({ step: '3_active_counts', counts: counts, sample_ids: sampleByCategory });
+
+    // Step 4: 生徒の検索
+    const stuLoc = _findAccountRowOnSheet(report.sid);
+    report.steps.push({
+      step: '4_find_student',
+      found: !!stuLoc,
+      sheetName: stuLoc ? stuLoc.sheetName : null,
+      rowIdx: stuLoc ? stuLoc.rowIdx : null,
+      rowValuesLen: stuLoc ? stuLoc.rowValues.length : null,
+      nickname: stuLoc ? String(stuLoc.rowValues[COL_NICKNAME] || '') : null
+    });
+
+    // Step 5: LAST_KOKUGO_CATEGORY 列の存在 + 現在値
+    if (stuLoc) {
+      const colIdx = _kokugoLastCategoryColIdx(stuLoc.sheet);
+      const lastCat = _readKokugoLastCategory(stuLoc);
+      report.steps.push({
+        step: '5_last_category',
+        colIdx: colIdx,
+        columnExists: colIdx >= 0,
+        currentValue: lastCat
+      });
+    } else {
+      report.steps.push({ step: '5_last_category', skipped: 'no_student' });
+    }
+
+    // Step 6: 実際に getKokugoQuestion を呼ぶ
+    const actual = getKokugoQuestion({ studentId: report.sid, charCount: report.charCount });
+    // question.bodyText が長いと Logger / レポートが見づらいので、診断では先頭 80 字に切る
+    if (actual && actual.question && actual.question.bodyText) {
+      const head = String(actual.question.bodyText).substring(0, 80);
+      actual.question.bodyText = head + (actual.question.bodyText.length > 80 ? '...(' + actual.question.bodyText.length + '字)' : '');
+    }
+    report.steps.push({ step: '6_actual_call', result: actual });
+
+    report.ok = true;
+    Logger.log(JSON.stringify(report, null, 2));
+    return report;
+  } catch (err) {
+    report.steps.push({ step: 'caught_exception', error: String(err), stack: err && err.stack });
+    report.ok = false;
+    report.message = String(err);
+    Logger.log(JSON.stringify(report, null, 2));
+    return report;
   }
 }
