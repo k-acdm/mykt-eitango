@@ -333,6 +333,31 @@
   .refl-day-card .refl-content { font-size: 14px; color: #333; line-height: 1.7; white-space: pre-wrap; word-break: break-word; padding-top: 8px; border-top: 1px dashed #eef1f7; }
   .refl-day-card .refl-len { font-size: 11px; color: #888; text-align: right; margin-top: 6px; }
   .refl-day-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; background: #fff; border-radius: 8px; border: 2px dashed #e1e5ee; }
+  /* 振り返り返信機能（マイ活アプリ_11、2026-05-22）：各 refl-day-card 下部のスレッド + 返信フォーム */
+  .reply-thread { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #eef1f7; }
+  .reply-thread-title { font-size: 12px; color: #6d28d9; font-weight: 700; margin-bottom: 8px; }
+  .reply-item { background: #f5f3ff; border-left: 3px solid #a78bfa; padding: 8px 10px; border-radius: 4px; margin-bottom: 6px; }
+  .reply-item-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+  .reply-item-sender { font-size: 13px; font-weight: 700; color: #5b21b6; }
+  .reply-item-time { font-size: 11px; color: #888; white-space: nowrap; }
+  .reply-item-body { font-size: 13px; color: #333; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+  .reply-thread-empty { font-size: 12px; color: #aaa; font-style: italic; padding: 4px 0; }
+  /* 返信フォーム（折り畳み式） */
+  .reply-form-toggle { margin-top: 10px; padding: 8px 16px; background: linear-gradient(135deg,#8b5cf6,#7c3aed); color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 13px; transition: transform .12s, box-shadow .12s; }
+  .reply-form-toggle:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(124,58,237,.3); }
+  .reply-form { margin-top: 10px; display: none; }
+  .reply-form.active { display: block; }
+  .reply-form textarea { width: 100%; min-height: 80px; padding: 10px; border: 2px solid #c4b5fd; border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box; resize: vertical; line-height: 1.6; }
+  .reply-form textarea:focus { outline: none; border-color: #7c3aed; }
+  .reply-form-counter { font-size: 11px; color: #888; text-align: right; margin-top: 4px; }
+  .reply-form-counter.over { color: #dc2626; font-weight: 700; }
+  .reply-form-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .reply-form-submit { padding: 8px 16px; background: linear-gradient(135deg,#16a34a,#15803d); color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; transition: transform .12s, box-shadow .12s; }
+  .reply-form-submit:disabled { background: linear-gradient(135deg,#cbd5e1,#94a3b8); cursor: not-allowed; opacity: .8; }
+  .reply-form-submit:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(22,163,74,.3); }
+  .reply-form-cancel { padding: 8px 16px; background: #fff; color: #475569; border: 2px solid #cbd5e1; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; }
+  .reply-form-cancel:hover { background: #f1f5f9; }
+  .reply-form-msg { font-size: 12px; color: #dc2626; min-height: 16px; margin-top: 4px; }
 
   @media (max-width: 480px) {
     .cal-cell { min-height: 48px; padding: 4px 2px; gap: 2px; }
@@ -5208,7 +5233,11 @@
         var len      = Number(r.wordCount || (r.content ? r.content.length : 0));
         var gradeBadge = gradeEsc ? '<span class="head-grade">' + gradeEsc + '</span>' : '';
         var nickHtml   = nickEsc ? '<span class="head-nick">（' + nickEsc + '）</span>' : '';
-        return '<div class="refl-day-card">' +
+        // マイ活アプリ_11 / 2026-05-22：reflectionId をカードに埋め込み + 返信スレッド表示
+        var ridEsc = _esc(r.reflectionId || '');
+        var replies = Array.isArray(r.replies) ? r.replies : [];
+        var threadHtml = _renderReplyThread(replies);
+        return '<div class="refl-day-card" data-rid="' + ridEsc + '">' +
                  '<div class="head-row">' +
                    '<div>' +
                      '<span class="head-name">' + nameEsc + '</span>' +
@@ -5219,11 +5248,157 @@
                  '</div>' +
                  '<div class="refl-content">' + _esc(r.content || '') + '</div>' +
                  '<div class="refl-len">' + len + ' 文字</div>' +
+                 '<div class="reply-thread" id="reply-thread-' + ridEsc + '">' + threadHtml + '</div>' +
+                 '<button class="reply-form-toggle" onclick="toggleReplyForm(\'' + ridEsc + '\')">💬 返信を書く</button>' +
+                 _renderReplyForm(ridEsc) +
                '</div>';
       }).join('');
       wrapEl.innerHTML = cards;
     }).catch(function() {
       wrapEl.innerHTML = '<div class="refl-day-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  // 振り返り返信機能（マイ活アプリ_11、2026-05-22）
+  // 返信スレッド HTML を生成（時系列昇順、書き手 / 日時 / 本文）
+  function _renderReplyThread(replies) {
+    if (!replies || replies.length === 0) {
+      return '<div class="reply-thread-title">💬 返信スレッド</div>' +
+             '<div class="reply-thread-empty">まだ返信はありません</div>';
+    }
+    var items = replies.map(function(p){
+      var ts = String(p.timestamp || p.createdAt || '');
+      var tsShort = ts.length >= 16 ? ts.slice(0, 16) : ts;
+      return '<div class="reply-item">' +
+               '<div class="reply-item-head">' +
+                 '<span class="reply-item-sender">' + _esc(p.senderNickname || '先生') + '</span>' +
+                 '<span class="reply-item-time">' + _esc(tsShort) + '</span>' +
+               '</div>' +
+               '<div class="reply-item-body">' + _esc(p.content || '') + '</div>' +
+             '</div>';
+    }).join('');
+    return '<div class="reply-thread-title">💬 返信スレッド（' + replies.length + '件）</div>' + items;
+  }
+
+  // 返信フォーム HTML（最初は display:none、toggleReplyForm で開閉）
+  function _renderReplyForm(rid) {
+    var ridEsc = _esc(rid);
+    return '<div class="reply-form" id="reply-form-' + ridEsc + '">' +
+             '<textarea id="reply-text-' + ridEsc + '" maxlength="500" placeholder="返信を書いてね（500 文字以内）" oninput="onReplyInput(\'' + ridEsc + '\')"></textarea>' +
+             '<div class="reply-form-counter" id="reply-counter-' + ridEsc + '">0 / 500</div>' +
+             '<div class="reply-form-msg" id="reply-msg-' + ridEsc + '"></div>' +
+             '<div class="reply-form-actions">' +
+               '<button class="reply-form-submit" id="reply-submit-' + ridEsc + '" onclick="submitReflectionReply(\'' + ridEsc + '\')" disabled>送信する</button>' +
+               '<button class="reply-form-cancel" onclick="toggleReplyForm(\'' + ridEsc + '\')">キャンセル</button>' +
+             '</div>' +
+           '</div>';
+  }
+
+  // 返信フォームの開閉
+  function toggleReplyForm(rid) {
+    var form = document.getElementById('reply-form-' + rid);
+    if (!form) return;
+    var isActive = form.classList.contains('active');
+    if (isActive) {
+      form.classList.remove('active');
+    } else {
+      form.classList.add('active');
+      // フォーカスを textarea に
+      var ta = document.getElementById('reply-text-' + rid);
+      if (ta) setTimeout(function(){ ta.focus(); }, 50);
+    }
+  }
+
+  // textarea 入力監視（文字数表示 + 送信ボタン活性制御）
+  function onReplyInput(rid) {
+    var ta = document.getElementById('reply-text-' + rid);
+    var cnt = document.getElementById('reply-counter-' + rid);
+    var btn = document.getElementById('reply-submit-' + rid);
+    var msg = document.getElementById('reply-msg-' + rid);
+    if (!ta || !cnt || !btn) return;
+    var len = ta.value.length;
+    cnt.textContent = len + ' / 500';
+    cnt.classList.remove('over');
+    if (len > 500) {
+      cnt.classList.add('over');
+      btn.disabled = true;
+      if (msg) msg.textContent = '⚠️ 500 文字以内にしてください';
+    } else if (len === 0 || !ta.value.trim()) {
+      btn.disabled = true;
+      if (msg) msg.textContent = '';
+    } else {
+      btn.disabled = false;
+      if (msg) msg.textContent = '';
+    }
+  }
+
+  // 返信送信（確認ダイアログ → sendTeacherMessage → 成功時にスレッドに追加）
+  function submitReflectionReply(rid) {
+    var ta = document.getElementById('reply-text-' + rid);
+    var btn = document.getElementById('reply-submit-' + rid);
+    var msg = document.getElementById('reply-msg-' + rid);
+    if (!ta || !btn) return;
+    var content = String(ta.value || '').trim();
+    if (!content) { if (msg) msg.textContent = '⚠️ 返信内容を入力してください'; return; }
+    if (content.length > 500) { if (msg) msg.textContent = '⚠️ 500 文字以内にしてください'; return; }
+    // 確認ダイアログ（編集・削除不可の念押し）
+    if (!window.confirm('この返信は編集・削除できません。送信しますか？')) return;
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+    if (msg) msg.textContent = '';
+    adminGasPost({
+      action: 'sendTeacherMessage',
+      replyToReflectionId: rid,
+      content: content
+      // targetType / targetIds はサーバー側が reflectionId から強制決定する
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '送信に失敗しました';
+        if (/認証|パスワード/.test(em)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        if (msg) msg.textContent = '⚠️ ' + em;
+        btn.disabled = false;
+        btn.textContent = '送信する';
+        return;
+      }
+      // 成功 → スレッドに新規返信カードを追加 + フォームクリア&閉じる
+      var threadWrap = document.getElementById('reply-thread-' + rid);
+      if (threadWrap) {
+        // 「まだ返信はありません」の placeholder があれば置き換える
+        var empty = threadWrap.querySelector('.reply-thread-empty');
+        if (empty) {
+          threadWrap.innerHTML = '<div class="reply-thread-title">💬 返信スレッド（1件）</div>';
+        } else {
+          // 既存スレッドの場合は件数を 1 増やす（タイトル書き換え）
+          var title = threadWrap.querySelector('.reply-thread-title');
+          if (title) {
+            var existingCount = threadWrap.querySelectorAll('.reply-item').length;
+            title.textContent = '💬 返信スレッド（' + (existingCount + 1) + '件）';
+          }
+        }
+        var newTs = String(res.createdAt || res.timestamp || '').slice(0, 16);
+        var newSender = _esc(res.senderNickname || 'あなた');
+        var item = document.createElement('div');
+        item.className = 'reply-item';
+        item.innerHTML =
+          '<div class="reply-item-head">' +
+            '<span class="reply-item-sender">' + newSender + '</span>' +
+            '<span class="reply-item-time">' + _esc(newTs) + '</span>' +
+          '</div>' +
+          '<div class="reply-item-body">' + _esc(content) + '</div>';
+        threadWrap.appendChild(item);
+      }
+      // フォームを閉じてクリア
+      ta.value = '';
+      onReplyInput(rid);
+      toggleReplyForm(rid);
+      btn.disabled = true;
+      btn.textContent = '送信する';
+      showToast('返信を送信しました', 'success');
+    }).catch(function(err) {
+      var em = (err && err.message) ? err.message : 'ネットワークエラーが発生しました';
+      if (msg) msg.textContent = '⚠️ ' + em;
+      btn.disabled = false;
+      btn.textContent = '送信する';
     });
   }
 
