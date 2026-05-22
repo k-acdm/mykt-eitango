@@ -1542,6 +1542,8 @@ function _getPrevDayCount(studentId, yesterday) {
 //   完全一致:    'login' / 'manual_grant' / 'manual_streak_modify' / 'login_recovery'
 //   プレフィックス: 'apology_*'（apology_streak_bonus / apology_kiso / apology_wabun1）
 //   サフィックス:  '*_practice'（カンジー HP 上限到達後の練習モード）
+//   その他:      'reserve_release' / 'completion_bonus' / 'reflection_release' （Phase A/5 メタログ、
+//                許可リスト未登録のためデフォルト分岐の return false で自動除外）
 function _isCountableActivityType(type) {
   if (!type) return false;
   if (type === 'login') return false;
@@ -10578,15 +10580,44 @@ function submitReflection(params) {
     } catch(_e) {}
 
     // 2026-05-21：翌日キャッチアップ用キャッシュをクリア（送信直後の再ログインで
-    // 古い「未提出あり」が返らないように）
+    // 古い「未提出あり」が返らないように）。Phase 5 では _isReflectionSubmittedToday の
+    // 当日キャッシュ（cache_refl_today_*）も同時クリアされる（_invalidatePendingReflectionCache 拡張）。
     _invalidatePendingReflectionCache(sid);
+
+    // ─── Phase 5 / 2026-05-22：保留 HP 解放 + 完走ボーナス再発火 ───────────────────
+    // フィーチャーフラグ OFF（〜Step 5 完了まで）の間は _releaseReflectionReserves が
+    // 「対象 reflection_pending エントリなし」で no-op を返し、_checkAndReleaseReserveIfCompleted
+    // も Phase A 起動日前 or 振り返りゲート OFF で何もしない。
+    // Step 6 でフラグ ON になった瞬間に、両処理が連動して動き始める。
+    let releasedHp = 0;
+    let bonusInfo = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    try {
+      // ① reflection_pending エントリの解放（date は params.reflectionDate or _sangoToday()）
+      const releaseRes = _releaseReflectionReserves(sid, date);
+      releasedHp = releaseRes.releasedHp || 0;
+
+      // ② 振り返り対象日が「今日」かつ絶対ミッション完走済なら完走ボーナス発火
+      //    （reflection_pending ゲートで以前ブロックされていた _checkAndReleaseReserveIfCompleted の再試行）
+      //    キャッチアップ（昨日分）の場合はボーナス再発火しない：完走判定は当日 HPLog 走査のため。
+      if (date === _sangoToday()) {
+        bonusInfo = _checkAndReleaseReserveIfCompleted(sid, 'reflection_release');
+      }
+    } catch(relErr) {
+      // 解放失敗でも振り返り提出自体は成功扱い（後から手動修復可能）
+      console.error('[submitReflection] release/bonus 失敗（続行）', relErr);
+    }
 
     return {
       ok:           true,
       reflectionId: reflectionId,
       date:         date,
       timestamp:    timestamp,
-      wordCount:    wordCount
+      wordCount:    wordCount,
+      // Phase 5 で追加：フロント演出用
+      releasedHp:           releasedHp,                          // reflection_pending 解放分
+      justCompleted:        !!bonusInfo.justCompleted,           // 完走ボーナス発火フラグ
+      completionReleasedHp: Number(bonusInfo.releasedHp) || 0,   // required_mission 解放分（通常 0）
+      completionBonusHp:    Number(bonusInfo.bonusHp) || 0       // 完走ボーナス HP
     };
   } catch(err) {
     console.error('[submitReflection]', err);
@@ -19126,6 +19157,80 @@ function _markReservePoolEntriesResolved(sid, dateStr) {
   }
 }
 
+// 指定 (sid, dateStr) の reflection_pending 保留分だけを解放し、Students.HP に加算 + HPLog 記録。
+// Phase 5 / 2026-05-22 で新設。
+//
+// 設計：
+//   - reserveReason='reflection_pending' のみフィルタ。required_mission 行や空欄レガシー行には触れない
+//   - 振り返り提出（submitReflection）の末尾から呼ばれる
+//   - 翌日キャッチアップで過去日付（昨日〜7日前）が指定されても、その日付の reflection_pending 行を解放
+//   - 解放分は HPLog に type='reflection_release' で 1 行記録（_isCountableActivityType では false なので
+//     マイカツ君 Stage 計算 / ランキング集計には影響しない、apology_* と同方針）
+//   - Students.HP は _findAccountRowOnSheet でフレッシュ読みしてから加算（race 回避）
+//
+// 戻り値: { ok, releasedHp, count }
+function _releaseReflectionReserves(sid, dateStr) {
+  try {
+    const sidNorm = String(sid || '').trim();
+    const ds = String(dateStr || '').trim();
+    if (!sidNorm || !ds) return { ok: false, releasedHp: 0, count: 0, message: 'invalid args' };
+    const sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, releasedHp: 0, count: 0 };
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iReason = header.indexOf('reserveReason');
+    // reserveReason 列が無いシート（極めて稀、Step 1 投入前の状態）では誤動作を避けるため何もしない
+    if (iReason < 0) {
+      console.warn('[_releaseReflectionReserves] reserveReason 列が見つかりません。シーマ未移行の可能性');
+      return { ok: true, releasedHp: 0, count: 0 };
+    }
+    const targets = [];
+    let totalReleased = 0;
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (String(r[0] || '').trim() !== sidNorm) continue;
+      if (String(r[1] || '').trim() !== ds) continue;
+      if (String(r[5] || '').trim().toUpperCase() === 'TRUE') continue;
+      const reason = String(r[iReason] || '').trim();
+      if (reason !== 'reflection_pending') continue;  // 必ず reflection_pending のみ
+      targets.push(i + 1);
+      totalReleased += Number(r[4]) || 0;
+    }
+    if (targets.length === 0) return { ok: true, releasedHp: 0, count: 0 };
+
+    // 一括 resolved=TRUE 化
+    const now = _nowJST();
+    for (let k = 0; k < targets.length; k++) {
+      sh.getRange(targets[k], 6, 1, 2).setValues([['TRUE', now]]);
+    }
+    SpreadsheetApp.flush();
+
+    // HPLog 記録 + Students.HP 加算
+    if (totalReleased > 0) {
+      const msg = '振り返り提出による保留解放（' + ds + ' 分、' + targets.length + ' 件）';
+      _logHP(sidNorm, totalReleased, totalReleased, 'reflection_release', 5000, msg);
+      // Students.HP は _logHP には含まれないので別途加算（フレッシュ読み）
+      try {
+        const loc = _findAccountRowOnSheet(sidNorm);
+        if (loc) {
+          const curHP = Number(loc.rowValues[COL_HP]) || 0;
+          const newHP = curHP + totalReleased;
+          loc.sheet.getRange(loc.rowIdx + 1, COL_HP + 1).setValue(newHP);
+          const upd = {}; upd[COL_HP] = newHP;
+          _updateAccountCacheBySid(sidNorm, upd);
+          _invalidateCache('cache_ranking_last_week');
+        }
+      } catch (hpErr) {
+        console.error('[_releaseReflectionReserves] Students.HP 加算失敗（HPLog は記録済み）', hpErr);
+      }
+    }
+    return { ok: true, releasedHp: totalReleased, count: targets.length };
+  } catch (e) {
+    console.error('[_releaseReflectionReserves]', e);
+    return { ok: false, releasedHp: 0, count: 0, message: String(e) };
+  }
+}
+
 // --- 中核：保留分計算 ---
 // loc: _findAccountRowOnSheet(sid) の戻り値
 // rawHp: 元の獲得 HP（倍率適用後、_logHP の hpGained に渡そうとしていた値）
@@ -19231,10 +19336,23 @@ function _checkAndReleaseReserveIfCompleted(sid, justLoggedType) {
     const allDone = requiredList.every(function(rc) { return !!completedSet[rc]; });
     if (!allDone) return { justCompleted: false, releasedHp: 0, bonusHp: 0 };
 
+    // ★ Phase 5 / 2026-05-22：振り返り未提出中は完走ボーナスも保留 ★
+    // フラグは立てない（後の submitReflection 内から再度呼ばれた時に通過可能にするため）。
+    // 振り返り提出 → submitReflection が _checkAndReleaseReserveIfCompleted を再呼び出し →
+    //   このゲートを通過 → flagKey セット → 通常ルートでボーナス確定。
+    if (REFLECTION_GATE_ENABLED && !_isReflectionSubmittedToday(sid)) {
+      return { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    }
+
     // 完走の瞬間：フラグを先に立てる（race 防止）
     props.setProperty(flagKey, '1');
 
     // Pool 解放
+    // 注意：Phase 5 では振り返り未提出中は上のゲートでブロックされるため、ここに到達した時点で
+    //   reflection_pending エントリは _releaseReflectionReserves により既に解放済（resolved=TRUE）。
+    //   _markReservePoolEntriesResolved は resolved!='TRUE' のみを対象にするので、結果的に
+    //   required_mission エントリ + レガシー空欄行のみが解放対象になる（reflection_pending と
+    //   required_mission の同居は発生しない）。
     const releaseRes = _markReservePoolEntriesResolved(sid, todayStr);
     const releasedHp = releaseRes.totalReleased || 0;
 
