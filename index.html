@@ -2481,10 +2481,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-2357"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260524-0047"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-2357">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-2357"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260524-0047">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260524-0047"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -2782,21 +2782,26 @@
           <span class="content-btn-sub">英語長文リスニング＆音読</span>
         </button>
         <!-- 2026-05-23 新規：理社重要語句（中学理科・社会）。問題データはふくちさんが順次投入。
-             問題未投入時は単元選択画面で「準備中です」の旨を表示。 -->
+             問題未投入時は単元選択画面で「準備中です」の旨を表示。
+             2026-05-24 修正：カード表記を「○○重要語句」に統一（screen-risha-* の見出しと整合）+
+             対象学年を「小学校高学年〜中学生」に修正（和文英訳①・基礎計算と揃える）。 -->
         <button class="content-btn c-social" onclick="showRishaStart('shakai')">
           <span class="badge-hp">100HP×2/日</span>
-          <img class="ico-mascot" src="images/shakaneki-default.png" alt="">社会の重要用語
-          <span class="content-btn-sub">対象：中学生</span>
+          <img class="ico-mascot" src="images/shakaneki-default.png" alt="">社会重要語句
+          <span class="content-btn-sub">対象：小学校高学年〜中学生</span>
         </button>
         <button class="content-btn c-science" onclick="showRishaStart('rika')">
           <span class="badge-hp">100HP×2/日</span>
-          <img class="ico-mascot" src="images/rika-default.png" alt="">理科の重要用語
-          <span class="content-btn-sub">対象：中学生</span>
+          <img class="ico-mascot" src="images/rika-default.png" alt="">理科重要語句
+          <span class="content-btn-sub">対象：小学校高学年〜中学生</span>
         </button>
+        <!-- 2026-05-24 修正：カンジー本体の機能名・キャラ名は据え置き（カードの見た目だけの変更）。
+             1 行目を「漢字の読み書き」（機能名）に昇格、2 行目を対象学年に変更。「カンジー」キャラ名は
+             本体（screen-kanji-level の h1 等）では引き続き使用。 -->
         <button class="content-btn c-kanji" onclick="showKanjiLevelSelect()">
           <span class="badge-hp">50〜100HP/日</span>
-          <img class="ico-mascot" src="images/kanjii-default.png" alt="">カンジー
-          <span class="content-btn-sub">漢字の読み書き</span>
+          <img class="ico-mascot" src="images/kanjii-default.png" alt="">漢字の読み書き
+          <span class="content-btn-sub">対象：小学校3年生〜高校生</span>
         </button>
         <button class="content-btn c-kobun" onclick="showKobunStart()">
           <span class="badge-hp">100HP/日</span>
@@ -10714,31 +10719,35 @@
     done:        ['よう書けた！', '読みも書きもみごとなり', 'いとをかし、いとあはれ'],
     resume:      ['続きから始めるでござる', 'お主の挑戦、まだ終わっておらぬぞ']
   };
-  // リーカ（理科重要語句、クール・知的・ほんのり微笑む口調）。2026-05-23 採用。
+  // リーカ（理科重要語句）。2026-05-24 採用「やや上から目線のタメ口」。
+  // 設計：頼れる姉的存在、クールだが温度はある。生徒を見下す感じにはしない。
+  // 他キャラとの差別化：カンジー博士「じゃ」、トラール「だぞ」とは別系統の「〜なさい」「〜わよ」「〜の」。
   var RIKA_BUBBLES = {
-    selectMajor:  ['論理で解き明かしましょう', '観察を始めますか？', 'どの学年から？'],
-    selectMinor:  ['分野を選んでください', 'どこから取りかかる？', '集中していきましょう'],
-    selectUnit:   ['小区分を選んでね', 'どのテーマにしましょうか', '挑むセットを選んで'],
-    question:     ['データを照合中…', '冷静に分析しましょう', '焦らず、論理的に'],
-    correct:      ['素晴らしい観察眼です', '正解です、よく考えられました', 'お見事'],
-    incorrect:    ['もう一度、視点を変えて', '焦らず、論理的に', '惜しい'],
-    grading:      ['結果を確認しています…', '判定中…'],
-    done:         ['見事に習得しましたね', '次の単元に進みましょう', '素晴らしい'],
-    practice:     ['今日の上限です。練習として続けますか？', 'HPは付きませんが、力にはなりますよ'],
-    cooldown:     ['同じセットを続けて挑むのは推奨しません', '別のセットを 2 つ完了してから戻りましょう']
+    selectMajor:  ['観察、始めるわよ', '論理で挑むの', '現象を見極めなさい', 'どの学年から行く？'],
+    selectMinor:  ['分野を選びなさい', 'どこから取りかかる？', '集中していくわよ'],
+    selectUnit:   ['小区分を選んで', 'どのテーマにする？', '挑むセットを決めなさい'],
+    question:     ['ふむ、データ照合中', 'ちょっと待って、計算するから', '冷静にね', '焦らず、論理的にね'],
+    correct:      ['正解。よくできたわね', 'やるじゃない', '見事な観察眼ね', 'お見事'],
+    incorrect:    ['もう一度、視点を変えて考えなさい', '焦らないの', '次は当てるわよ', '惜しい、もう一回ね'],
+    grading:      ['結果を確認するから、待ってて', '判定中、ちょっと待ちなさい'],
+    done:         ['見事に習得したわね', '次の単元へ進みましょ', 'なかなかやるじゃない'],
+    practice:     ['今日の上限よ。練習として続ける？', 'HPは付かないけど、力にはなるわよ'],
+    cooldown:     ['同じセットを続けるのは推奨しないわよ', '別のセットを 2 つ完了してから戻ってきなさい']
   };
-  // シャカネキ（社会重要語句、歴史を旅する・視野を広く・温かい口調）。2026-05-23 採用。
+  // シャカネキ（社会重要語句）。2026-05-24 採用「やや上から目線のタメ口」。
+  // 設計：歴史と地理を語る頼れる姉、世界を見渡す視野の広さ。リーカと同じ系統だが、
+  // 「地図」「年表」「世界」「時代」など社会科の語彙でテイストを差別化。
   var SHAKANEKI_BUBBLES = {
-    selectMajor:  ['歴史を旅しましょう', '時代を見渡してみましょうか', 'どの大区分にしますか？'],
-    selectMinor:  ['中区分を選んでください', 'どこから掘り下げましょうか', '視野を広げていきましょう'],
-    selectUnit:   ['小区分を選んでね', 'どのテーマから？', '挑むセットを選んで'],
-    question:     ['年表を確認中…', '時間と空間を整理して', 'よく見渡してみよう'],
-    correct:      ['見事です', '視野が広がりましたね', '素晴らしい'],
-    incorrect:    ['もう一度、地図を見て', '歴史の流れを思い出して', '惜しい'],
-    grading:      ['結果を整えています…', '判定中…'],
-    done:         ['ひとつの時代を旅しましたね', '次の地へ参りましょう', 'お疲れさま'],
-    practice:     ['今日の上限です。練習として続けますか？', 'HPは付きませんが、知識は積もります'],
-    cooldown:     ['同じセットを続けるのは控えましょう', '別のセットを 2 つ完了してから戻りましょう']
+    selectMajor:  ['歴史を旅するわよ', '時代を見渡しましょうか', '世界を覗いてみて', 'どの大区分から？'],
+    selectMinor:  ['中区分を選びなさい', 'どこから掘り下げる？', '視野を広げていくわよ'],
+    selectUnit:   ['小区分を選んで', 'どのテーマから？', '挑むセットを決めなさい'],
+    question:     ['年表を確認中…', 'ちょっと待って、思い出すから', '時間と空間を整理するわね', 'よく見渡してみなさい'],
+    correct:      ['正解。視野が広がったわね', 'お見事', '歴史を制したわね', 'やるじゃない'],
+    incorrect:    ['もう一度、地図を見なさい', '歴史の流れを思い出すの', '焦らないで', '次は当てるわよ'],
+    grading:      ['結果を整えるから、待ってて', '判定中、少し待ちなさい'],
+    done:         ['ひとつの時代を旅したわね', '次の地へ参りましょ', 'お疲れさま'],
+    practice:     ['今日の上限よ。練習として続ける？', 'HPは付かないけど、知識は積もるわよ'],
+    cooldown:     ['同じセットを続けるのは控えなさい', '別のセットを 2 つ完了してから戻ってきて']
   };
 
   // ============================================================================
@@ -13139,9 +13148,14 @@
     if (isCorrect) {
       _rishaState.correctCount += 1;
       _setContentMascot('risha-q-img', 'celebrate', 'risha-q-bubble', _pickBubble(bubbles.correct), prefix);
+      // 2026-05-24：英単語RUSH と同じ効果音系統（correct/wrong）を理社にも適用。
+      //   仕様書「英単語RUSHと同じ効果音を使う」確定済（CLAUDE.md 該当記載）。
+      //   try/catch は SFX 未初期化や iOS Safari 未 unlock 時のフォールバック（既存 6 コンテンツと同パターン）。
+      try { playSfx('correct'); } catch(e) {}
     } else {
       _rishaState.errorIds.push(q.id);
       _setContentMascot('risha-q-img', 'encourage', 'risha-q-bubble', _pickBubble(bubbles.incorrect), prefix);
+      try { playSfx('wrong'); } catch(e) {}
     }
     // 選択肢にハイライト
     var labels = document.querySelectorAll('#risha-q-choices label');
@@ -13183,8 +13197,14 @@
     if (_rishaState.submittedFinish) return;
     var allCorrect = _rishaState.errorIds.length === 0;
     if (allCorrect) {
+      // 2026-05-24：英単語RUSH と同じ効果音系統。10 問終了時点で合格 → pass.mp3。
+      // submitRishaAnswer 個別の correct/wrong に加えて、セット単位のファンファーレを鳴らす。
+      try { playSfx('pass'); } catch(e) {}
       _rishaSubmitFinish();
     } else {
+      // 2026-05-24：不合格（誤答あり）でセット 10 問終了 → fail.mp3（英単語RUSH の finishTest と同じ）。
+      // 再挑戦のリトライ前に「外した」シグナルとして鳴らす。
+      try { playSfx('fail'); } catch(e) {}
       // 不合格：誤答問題のみで再挑戦できることを伝え、エラーIDのみを残してリトライ
       // 仕様：「全問正解するまで繰り返す」→ 誤答だけ再出題（順序維持、シャッフルしない）
       var errIds = _rishaState.errorIds.slice();
@@ -13333,7 +13353,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-2357</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260524-0047</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
