@@ -20627,10 +20627,43 @@ function _handleLineWebhook(e) {
     var events = (parsed && Array.isArray(parsed.events)) ? parsed.events : [];
     // Phase B-2 で各イベントタイプ（follow / unfollow / message / postback）に応じた処理を追加予定
     console.log('[LINE webhook] events=' + events.length + ' (Phase B-1 stub)');
+    
+    // === billing-line への転送（2026-05-23 追加）===
+    // billing-line も同じLINE公式アカウントを共有しているため、
+    // 受信イベントを billing-line GAS に転送して IncomingMessages に記録させる
+    try {
+      _forwardWebhookToBillingLine(e);
+    } catch (forwardErr) {
+      console.error('[billing-line転送エラー]', forwardErr);
+      // 転送失敗してもマイ活側のWebhook応答には影響させない
+    }
+    
   } catch (err) {
     console.error('[LINE webhook]', err);
   }
   return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * billing-line GAS への Webhook転送
+ * （2026-05-23 追加）
+ */
+function _forwardWebhookToBillingLine(e) {
+  var BILLING_LINE_URL = 'https://script.google.com/macros/s/AKfycbyWqIdWCDoj9QY0FDtX5YaiuhSKyf57NyEpmranwzOhAww73bk4VDs6RF2IukFpDw7k/exec';
+  
+  // 元のリクエストボディをそのまま転送
+  var payload = e.postData.contents;
+  
+  // 非同期的に転送（fire-and-forget）
+  // muteHttpExceptions: true でエラーが出てもマイ活側に影響させない
+  UrlFetchApp.fetch(BILLING_LINE_URL, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: payload,
+    muteHttpExceptions: true,
+    followRedirects: true,
+    validateHttpsCertificates: true
+  });
 }
 
 // =============================================
