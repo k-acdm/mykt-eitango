@@ -1207,6 +1207,25 @@ function doGet(e) {
       //   生徒別 / カレンダーの 2 モード UI に揃えるため。admin/teacher 両ロール許可。
       else if (action === 'getKokugoMonthSummary')       result = getKokugoMonthSummary(params);
       else if (action === 'getKokugoDayDetail')          result = getKokugoDayDetail(params);
+      // ─── 理社重要語句（2026-05-23 新規実装、仕様書「マイ活アプリ_理社重要語句_完全版仕様書_2026-05-23.docx」）───
+      //   生徒側 API：出題（getRishaQuestionSet）/ 1 問採点（submitRishaAnswer）/ セット終了（finishRishaSet）/
+      //              小区分一覧（getRishaUnitList）/ 今日のクリア数（getRishaSubjectCounts）
+      //   管理 API：問題追加は admin のみ（adminAddRikaQuestion / adminAddShakaiQuestion 内で role 検証）。
+      //            履歴閲覧（adminList*Attempts）/ 月次サマリー（get*MonthSummary）/ 日付詳細（get*DayDetail）は
+      //            admin/teacher 両ロール許可。ensureRishaSheets は GAS エディタ手動実行（ここには登録しない）。
+      else if (action === 'getRishaQuestionSet')         result = getRishaQuestionSet(params);
+      else if (action === 'submitRishaAnswer')           result = submitRishaAnswer(params);
+      else if (action === 'finishRishaSet')              result = finishRishaSet(params);
+      else if (action === 'getRishaUnitList')            result = getRishaUnitList(params);
+      else if (action === 'getRishaSubjectCounts')       result = getRishaSubjectCounts(params);
+      else if (action === 'adminAddRikaQuestion')        result = adminAddRikaQuestion(params);
+      else if (action === 'adminAddShakaiQuestion')      result = adminAddShakaiQuestion(params);
+      else if (action === 'adminListRikaAttempts')       result = adminListRikaAttempts(params);
+      else if (action === 'adminListShakaiAttempts')     result = adminListShakaiAttempts(params);
+      else if (action === 'getRikaMonthSummary')         result = getRikaMonthSummary(params);
+      else if (action === 'getShakaiMonthSummary')       result = getShakaiMonthSummary(params);
+      else if (action === 'getRikaDayDetail')            result = getRikaDayDetail(params);
+      else if (action === 'getShakaiDayDetail')          result = getShakaiDayDetail(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1314,6 +1333,11 @@ function doPost(e) {
     else if (action === 'submitKokugoImpression')           result = submitKokugoImpression(params);
     // 管理 API：問題追加（4 選択肢 + 解説 = 本文サイズ大、admin-only）
     else if (action === 'adminAddKokugoQuestion')           result = adminAddKokugoQuestion(params);
+    // 理社重要語句（2026-05-23 新規）：TSV 一括投入は容易に 8KB を超えるため POST 必須。
+    //   adminAddRikaQuestion / adminAddShakaiQuestion は doGet 側にも保護登録済み（両対応）。
+    //   finishRishaSet 等の生徒側 API は文字数小（sessionToken + errorIds 配列）のため doGet のみ。
+    else if (action === 'adminAddRikaQuestion')             result = adminAddRikaQuestion(params);
+    else if (action === 'adminAddShakaiQuestion')           result = adminAddShakaiQuestion(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -22775,3 +22799,1133 @@ function _diagnoseKokugoQuestionImpl(sid, charCount) {
     return report;
   }
 }
+
+// ====================================================================================
+// 理社重要語句（中学理科 + 中学社会）— 2026-05-23 新規実装
+// ====================================================================================
+// 設計の骨子（仕様書「マイ活アプリ_理社重要語句_完全版仕様書_2026-05-23.docx」準拠）：
+//
+// データシート 4 つ（理科・社会で対称）：
+//   RikaQuestions     : 問題マスター（14 列、grade/field 系）
+//   ShakaiQuestions   : 問題マスター（14 列、majorField/minorField 系）
+//   RikaAttempts      : 挑戦履歴（9 列、合格時のみ append）
+//   ShakaiAttempts    : 挑戦履歴（9 列、合格時のみ append）
+//
+// Students / SpecialAccounts に列を 2 つ追加（_ensureSheetWithHeaders では追加できないため
+// 専用関数 ensureRishaStudentsColumns で末尾追記、冪等）：
+//   RIKA_RECENT_SETS    : 直近 10 件のセット履歴（カンマ区切り）。クールダウン判定に使う
+//   SHAKAI_RECENT_SETS  : 同上（社会用）
+//
+// セットID 形式：`{unitName}#{setNo}`（例：'光と音#1'）。教科を跨いでも衝突しないよう、
+// 教科ごとに独立した RECENT_SETS 列を持つ（理科をやっても SHAKAI_RECENT_SETS は不変）。
+//
+// クールダウン仕様：合格直後の 2 セット内で同じセットID は再出題不可。
+// 例：[光と音#1 を合格] → RIKA_RECENT_SETS の先頭に追加 → 同じ '光と音#1' は別の 2 セットを
+// 完了するまでロック。これにより「同じセットを連続で何度も解いてHPを荒稼ぎ」を防ぐ。
+//
+// セキュリティ：getRishaQuestionSet は answer/explanation を返さない（クライアントには
+// id/questionType/questionText/choices のみ）。submitRishaAnswer の採点はサーバ側で
+// シートを再読み込みして比較。sessionToken で 1 セッション 1 トークンを ScriptCache に保存し、
+// 別生徒からの偽装リクエストを排除。
+//
+// HP 加算：1 日 2 セットまで（合計）_grantHP 経由で加算（Phase 5 reserve/release も連動）。
+// 3 セット目以降は hpGained=0 で Attempts には記録（学習履歴は残す）。
+
+// -------------------------------------------------
+// 定数
+// -------------------------------------------------
+const SHEET_RIKA_QUESTIONS   = 'RikaQuestions';
+const SHEET_SHAKAI_QUESTIONS = 'ShakaiQuestions';
+const SHEET_RIKA_ATTEMPTS    = 'RikaAttempts';
+const SHEET_SHAKAI_ATTEMPTS  = 'ShakaiAttempts';
+
+const RIKA_QUESTIONS_HEADERS = [
+  'id',             // A: RK_0001 形式
+  'grade',          // B: 中1 / 中2 / 中3
+  'field',          // C: 物理 / 化学 / 生物 / 地学
+  'unitName',       // D: 小区分名
+  'setNo',          // E: セット番号
+  'questionType',   // F: A / B / C
+  'questionText',   // G
+  'choiceA',        // H
+  'choiceB',        // I
+  'choiceC',        // J
+  'choiceD',        // K
+  'answer',         // L: ア / イ / ウ / エ
+  'explanation',    // M
+  'status'          // N: active / inactive
+];
+const SHAKAI_QUESTIONS_HEADERS = [
+  'id',             // A: SH_0001 形式
+  'majorField',     // B: 地理 / 歴史 / 公民
+  'minorField',     // C: 世界地理 / 日本地理 / 歴史導入 / 歴史前半 / 歴史後半 / 現代社会 / 政治 / 経済 / 国際社会
+  'unitName',       // D
+  'setNo',          // E
+  'questionType',   // F: A / B
+  'questionText',   // G
+  'choiceA',        // H
+  'choiceB',        // I
+  'choiceC',        // J
+  'choiceD',        // K
+  'answer',         // L
+  'explanation',    // M
+  'status'          // N
+];
+const RISHA_ATTEMPTS_HEADERS = [
+  'timestamp',           // A
+  'studentId',           // B
+  'unitName',            // C
+  'setNo',               // D
+  'result',              // E: pass / fail
+  'attemptCount',        // F: その生徒×そのセットの累計挑戦回数
+  'clearCount',          // G: 累計クリア回数
+  'hpGained',            // H
+  'errorQuestionIds'     // I: カンマ区切り
+];
+
+// Students / SpecialAccounts への追加列名
+const RISHA_RECENT_SETS_HEADER  = { rika: 'RIKA_RECENT_SETS', shakai: 'SHAKAI_RECENT_SETS' };
+
+// セット定数
+const RISHA_QUESTIONS_PER_SET   = 10;   // 1 セット = 10 問固定（仕様書 4.x）
+const RISHA_COOLDOWN_WINDOW     = 2;    // 直近 2 セット内は再挑戦不可
+const RISHA_RECENT_SETS_MAX     = 10;   // RECENT_SETS に保持する最大件数
+const RISHA_DAILY_SET_LIMIT     = 2;    // 1 日 2 セットまで HP 加算
+const RISHA_RAW_HP_PER_SET      = 100;  // 1 セット合格で 100HP（baseRawHP）
+const RISHA_SESSION_TTL_SEC     = 1800; // sessionToken の有効期間（30 分）
+
+const RISHA_QUESTIONS_MIN_ROWS  = 5100;  // 将来拡張用バッファ
+const RISHA_ATTEMPTS_MIN_ROWS   = 2100;
+
+// シート初期化（GAS エディタから 1 回手動実行する想定。冪等）
+function ensureRishaSheets() {
+  try {
+    const r = _ensureSheetWithHeaders(SHEET_RIKA_QUESTIONS,    RIKA_QUESTIONS_HEADERS,    RISHA_QUESTIONS_MIN_ROWS);
+    const s = _ensureSheetWithHeaders(SHEET_SHAKAI_QUESTIONS,  SHAKAI_QUESTIONS_HEADERS,  RISHA_QUESTIONS_MIN_ROWS);
+    const ra = _ensureSheetWithHeaders(SHEET_RIKA_ATTEMPTS,    RISHA_ATTEMPTS_HEADERS,    RISHA_ATTEMPTS_MIN_ROWS);
+    const sa = _ensureSheetWithHeaders(SHEET_SHAKAI_ATTEMPTS,  RISHA_ATTEMPTS_HEADERS,    RISHA_ATTEMPTS_MIN_ROWS);
+    const colRes = ensureRishaStudentsColumns();
+    return {
+      ok: true,
+      created: {
+        rikaQuestions:    r.created,
+        shakaiQuestions:  s.created,
+        rikaAttempts:     ra.created,
+        shakaiAttempts:   sa.created
+      },
+      recentSetsColumns: colRes
+    };
+  } catch (err) {
+    console.error('[ensureRishaSheets]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// Students / SpecialAccounts に RIKA_RECENT_SETS / SHAKAI_RECENT_SETS 列を末尾追記（冪等）
+function ensureRishaStudentsColumns() {
+  const ss = _ss();
+  const sheets = [SHEET_STUDENTS, SHEET_SPECIAL_ACCOUNTS];
+  const results = {};
+  sheets.forEach(function(name) {
+    const sh = ss.getSheetByName(name);
+    if (!sh) { results[name] = 'sheet_not_found'; return; }
+    const lastCol = Math.max(1, sh.getLastColumn());
+    const header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    const addedCols = [];
+    [RISHA_RECENT_SETS_HEADER.rika, RISHA_RECENT_SETS_HEADER.shakai].forEach(function(h) {
+      if (header.indexOf(h) >= 0) return;  // already exists
+      const newColIdx = sh.getLastColumn() + 1;  // re-fetch each iteration
+      sh.getRange(1, newColIdx).setValue(h);
+      addedCols.push({ col: newColIdx, name: h });
+    });
+    results[name] = (addedCols.length === 0) ? 'all_already_exist' : addedCols;
+  });
+  return results;
+}
+
+// -------------------------------------------------
+// 内部ヘルパー
+// -------------------------------------------------
+function _rishaQuestionsSheetForSubject(subject) {
+  return subject === 'shakai' ? SHEET_SHAKAI_QUESTIONS : SHEET_RIKA_QUESTIONS;
+}
+function _rishaAttemptsSheetForSubject(subject) {
+  return subject === 'shakai' ? SHEET_SHAKAI_ATTEMPTS : SHEET_RIKA_ATTEMPTS;
+}
+function _rishaQuestionsHeadersForSubject(subject) {
+  return subject === 'shakai' ? SHAKAI_QUESTIONS_HEADERS : RIKA_QUESTIONS_HEADERS;
+}
+function _rishaIdPrefixForSubject(subject) {
+  return subject === 'shakai' ? 'SH_' : 'RK_';
+}
+function _rishaRecentSetsHeaderForSubject(subject) {
+  return subject === 'shakai' ? RISHA_RECENT_SETS_HEADER.shakai : RISHA_RECENT_SETS_HEADER.rika;
+}
+function _rishaSetId(unitName, setNo) {
+  return String(unitName || '').trim() + '#' + (Number(setNo) || 0);
+}
+function _rishaIsValidSubject(s) {
+  return s === 'rika' || s === 'shakai';
+}
+
+// Students / SpecialAccounts シートの RECENT_SETS 列インデックス（0-based）
+// stuLoc.allValues[0] にヘッダーがあるため、これを見て探す。なければ -1。
+function _rishaFindRecentSetsColIdx(allValues, subject) {
+  if (!allValues || !allValues.length) return -1;
+  return allValues[0].indexOf(_rishaRecentSetsHeaderForSubject(subject));
+}
+
+// 生徒×教科 の RECENT_SETS を取得（配列）。列が無ければ空配列。
+function _rishaReadRecentSets(stuLoc, subject) {
+  if (!stuLoc) return [];
+  const colIdx = _rishaFindRecentSetsColIdx(stuLoc.allValues, subject);
+  if (colIdx < 0) return [];
+  const raw = String(stuLoc.rowValues[colIdx] || '').trim();
+  if (!raw) return [];
+  return raw.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
+}
+
+// 生徒×教科 の RECENT_SETS を更新（先頭に setId を追加、重複は除き、最大 RISHA_RECENT_SETS_MAX 件保持）。
+// 失敗時は警告のみで続行（履歴の更新失敗で HP 加算がブロックされるのを避ける）。
+function _rishaPushRecentSet(stuLoc, subject, setId) {
+  try {
+    if (!stuLoc) return false;
+    const colIdx = _rishaFindRecentSetsColIdx(stuLoc.allValues, subject);
+    if (colIdx < 0) {
+      console.error('[_rishaPushRecentSet] 列が見つかりません', { subject: subject });
+      return false;
+    }
+    const cur = _rishaReadRecentSets(stuLoc, subject);
+    // 既に先頭にある場合は何もしない。先頭以外にある場合は除いて先頭に追加。
+    const filtered = cur.filter(function(s){ return s !== setId; });
+    const next = [setId].concat(filtered).slice(0, RISHA_RECENT_SETS_MAX);
+    const joined = next.join(',');
+    stuLoc.sheet.getRange(stuLoc.rowIdx + 1, colIdx + 1).setValue(joined);
+    // キャッシュ無効化（次回 _findAccountRowOnSheet が新値を返すように）
+    try { _invalidateCache('cache_students_values'); } catch(_e) {}
+    return true;
+  } catch (err) {
+    console.error('[_rishaPushRecentSet]', err);
+    return false;
+  }
+}
+
+// クールダウン判定：先頭 RISHA_COOLDOWN_WINDOW (=2) 件に setId が含まれていれば cooldown 中
+function _rishaIsInCooldown(stuLoc, subject, setId) {
+  const recent = _rishaReadRecentSets(stuLoc, subject);
+  const windowed = recent.slice(0, RISHA_COOLDOWN_WINDOW);
+  return windowed.indexOf(setId) >= 0;
+}
+
+// 「今日（教育日 4 時境界）」その生徒×教科で合格したセット数を返す
+function _rishaTodayClearedCount(sid, subject) {
+  const sh = _ss().getSheetByName(_rishaAttemptsSheetForSubject(subject));
+  if (!sh || sh.getLastRow() < 2) return 0;
+  const todayStr = _sangoToday();
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iTs   = header.indexOf('timestamp');
+  const iSid  = header.indexOf('studentId');
+  const iRes  = header.indexOf('result');
+  if (iTs < 0 || iSid < 0 || iRes < 0) return 0;
+  let count = 0;
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][iSid] || '').trim() !== sid) continue;
+    if (String(values[i][iRes] || '').trim() !== 'pass') continue;
+    // 教育日（_sangoToday）と同じ 4 時境界で比較するため reflection 流のヘルパーを流用
+    const ds = _reflectionToDateStr(values[i][iTs]);
+    if (ds !== todayStr) continue;
+    count++;
+  }
+  return count;
+}
+
+// その生徒×教科×セット の累計挑戦回数 / 累計クリア回数
+function _rishaCountAttemptsAndClears(sid, subject, unitName, setNo) {
+  const sh = _ss().getSheetByName(_rishaAttemptsSheetForSubject(subject));
+  if (!sh || sh.getLastRow() < 2) return { attemptCount: 0, clearCount: 0 };
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iSid  = header.indexOf('studentId');
+  const iUnit = header.indexOf('unitName');
+  const iSet  = header.indexOf('setNo');
+  const iRes  = header.indexOf('result');
+  if (iSid < 0 || iUnit < 0 || iSet < 0 || iRes < 0) return { attemptCount: 0, clearCount: 0 };
+  const setNoNum = Number(setNo) || 0;
+  let attempts = 0, clears = 0;
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][iSid] || '').trim() !== sid) continue;
+    if (String(values[i][iUnit] || '').trim() !== unitName) continue;
+    if (Number(values[i][iSet]) !== setNoNum) continue;
+    attempts++;
+    if (String(values[i][iRes] || '').trim() === 'pass') clears++;
+  }
+  return { attemptCount: attempts, clearCount: clears };
+}
+
+// 指定セットの 10 問を取得（status='active' のみ、order を保ったまま配列で返す）
+function _rishaReadQuestionsForSet(subject, unitName, setNo) {
+  const sh = _ss().getSheetByName(_rishaQuestionsSheetForSubject(subject));
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iId    = header.indexOf('id');
+  const iUnit  = header.indexOf('unitName');
+  const iSet   = header.indexOf('setNo');
+  const iType  = header.indexOf('questionType');
+  const iQ     = header.indexOf('questionText');
+  const iA     = header.indexOf('choiceA');
+  const iB     = header.indexOf('choiceB');
+  const iC     = header.indexOf('choiceC');
+  const iD     = header.indexOf('choiceD');
+  const iAns   = header.indexOf('answer');
+  const iExpl  = header.indexOf('explanation');
+  const iSt    = header.indexOf('status');
+  if (iId < 0 || iUnit < 0 || iSet < 0) return [];
+  const setNoNum = Number(setNo) || 0;
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][iUnit] || '').trim() !== unitName) continue;
+    if (Number(values[i][iSet]) !== setNoNum) continue;
+    const st = String(values[i][iSt] || '').trim().toLowerCase();
+    if (st && st !== 'active') continue;
+    out.push({
+      id:           String(values[i][iId] || '').trim(),
+      questionType: iType >= 0 ? String(values[i][iType] || '').trim() : '',
+      questionText: iQ    >= 0 ? String(values[i][iQ]    || '')        : '',
+      choiceA:      iA    >= 0 ? String(values[i][iA]    || '')        : '',
+      choiceB:      iB    >= 0 ? String(values[i][iB]    || '')        : '',
+      choiceC:      iC    >= 0 ? String(values[i][iC]    || '')        : '',
+      choiceD:      iD    >= 0 ? String(values[i][iD]    || '')        : '',
+      answer:       iAns  >= 0 ? String(values[i][iAns]  || '').trim() : '',
+      explanation:  iExpl >= 0 ? String(values[i][iExpl] || '')        : ''
+    });
+  }
+  return out;
+}
+
+// 1 問を id で逆引き（採点時に answer/explanation を権威ソースとして取得するため）
+function _rishaReadQuestionById(subject, questionId) {
+  const sh = _ss().getSheetByName(_rishaQuestionsSheetForSubject(subject));
+  if (!sh || sh.getLastRow() < 2) return null;
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iId = header.indexOf('id');
+  if (iId < 0) return null;
+  const idNorm = String(questionId || '').trim();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][iId] || '').trim() !== idNorm) continue;
+    const obj = {};
+    for (let c = 0; c < header.length; c++) obj[header[c]] = values[i][c];
+    return obj;
+  }
+  return null;
+}
+
+// 問題マスター全件から「subject の全小区分一覧 + 各小区分のセット番号一覧」を構築
+//   戻り値の生のデータ部分（クリア回数はここでは付けない）。
+//   { units: [{ unitName, grade?, field?, majorField?, minorField?, totalQuestions, sets: [setNo,...] }, ...] }
+function _rishaBuildUnitsIndex(subject) {
+  const sh = _ss().getSheetByName(_rishaQuestionsSheetForSubject(subject));
+  if (!sh || sh.getLastRow() < 2) return { units: [] };
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const iUnit  = header.indexOf('unitName');
+  const iSet   = header.indexOf('setNo');
+  const iSt    = header.indexOf('status');
+  if (iUnit < 0 || iSet < 0) return { units: [] };
+  // 教科別の付加カラム
+  const isShakai = (subject === 'shakai');
+  const iGrade  = isShakai ? -1 : header.indexOf('grade');
+  const iField  = isShakai ? -1 : header.indexOf('field');
+  const iMajor  = isShakai ?  header.indexOf('majorField') : -1;
+  const iMinor  = isShakai ?  header.indexOf('minorField') : -1;
+  const map = {};   // unitName -> { ..., setSet: { setNo: true, ... }, totalQuestions }
+  const order = []; // unitName の登場順を保持
+  for (let i = 1; i < values.length; i++) {
+    const unit = String(values[i][iUnit] || '').trim();
+    if (!unit) continue;
+    const st = String(values[i][iSt] || '').trim().toLowerCase();
+    if (st && st !== 'active') continue;
+    const setNo = Number(values[i][iSet]) || 0;
+    if (!map[unit]) {
+      map[unit] = {
+        unitName:        unit,
+        grade:           iGrade >= 0 ? String(values[i][iGrade] || '').trim() : '',
+        field:           iField >= 0 ? String(values[i][iField] || '').trim() : '',
+        majorField:      iMajor >= 0 ? String(values[i][iMajor] || '').trim() : '',
+        minorField:      iMinor >= 0 ? String(values[i][iMinor] || '').trim() : '',
+        totalQuestions:  0,
+        _setSet:         {}
+      };
+      order.push(unit);
+    }
+    map[unit].totalQuestions += 1;
+    if (setNo > 0) map[unit]._setSet[setNo] = true;
+  }
+  const units = order.map(function(name) {
+    const u = map[name];
+    const sets = Object.keys(u._setSet).map(Number).sort(function(a, b){ return a - b; });
+    return {
+      unitName:       u.unitName,
+      grade:          u.grade,
+      field:          u.field,
+      majorField:     u.majorField,
+      minorField:     u.minorField,
+      totalQuestions: u.totalQuestions,
+      sets:           sets
+    };
+  });
+  return { units: units };
+}
+
+// 内部用：シャッフルヘルパー（Fisher-Yates）
+function _rishaShuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
+// 4 択をシャッフルし、新しい正解ラベルを返す。
+//   入力：row 風 { choiceA, choiceB, choiceC, choiceD, answer }
+//   戻り値：{ choices: [{ label, text }...], correctLabel }
+//   ※ クライアントには choices だけ送り、サーバ側は correctLabel を sessionToken と共に
+//     ScriptCache に保持して採点に使う。
+function _rishaShuffleChoices(row) {
+  const LABELS = ['ア','イ','ウ','エ'];
+  const ORIG_KEYS = ['choiceA','choiceB','choiceC','choiceD'];
+  const ORIG_LABELS = ['ア','イ','ウ','エ'];
+  const items = ORIG_KEYS.map(function(k, idx) {
+    return { origLabel: ORIG_LABELS[idx], text: String(row[k] || '') };
+  });
+  const shuffled = _rishaShuffleArray(items);
+  const ansOrig = String(row.answer || '').trim();
+  let correctLabel = '';
+  const choices = shuffled.map(function(it, i) {
+    const newLabel = LABELS[i];
+    if (it.origLabel === ansOrig) correctLabel = newLabel;
+    return { label: newLabel, text: it.text };
+  });
+  return { choices: choices, correctLabel: correctLabel };
+}
+
+// sessionToken の payload を ScriptCache に保存・取り出し。
+// セッション内で「どの問題に対してどの正解ラベルか」を保持する。
+function _rishaSessionCacheKey(token) {
+  return 'risha_sess_' + String(token || '');
+}
+function _rishaSaveSession(token, payload) {
+  try {
+    CacheService.getScriptCache().put(
+      _rishaSessionCacheKey(token),
+      JSON.stringify(payload),
+      RISHA_SESSION_TTL_SEC
+    );
+  } catch (e) {
+    console.error('[_rishaSaveSession]', e);
+  }
+}
+function _rishaLoadSession(token) {
+  try {
+    const raw = CacheService.getScriptCache().get(_rishaSessionCacheKey(token));
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+function _rishaInvalidateSession(token) {
+  try { CacheService.getScriptCache().remove(_rishaSessionCacheKey(token)); } catch(_e) {}
+}
+
+// -------------------------------------------------
+// 公開 API
+// -------------------------------------------------
+
+// セット出題：クールダウン判定 → 10 問取得 → 問題順序シャッフル → 各問題の選択肢順序シャッフル →
+//   answer/explanation はクライアントに送らず sessionToken と共に ScriptCache に保存。
+// params: { studentId, subject, unitName, setNo }
+// 戻り値:
+//   ok:true → { ok, subject, unitName, setNo, questions:[{id, questionType, questionText, choices}], sessionToken, clearCount }
+//   cooldown → { ok:false, errorCode:'cooldown', recentSets, requiredCleared }
+//   no questions → { ok:false, errorCode:'no_questions', message }
+//   その他 → { ok:false, message }
+function getRishaQuestionSet(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    const subject = String((params && params.subject) || '').trim();
+    const unitName = String((params && params.unitName) || '').trim();
+    const setNo = Number((params && params.setNo) || 0);
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (!_rishaIsValidSubject(subject)) return { ok: false, message: 'subject は rika / shakai を指定してください' };
+    if (!unitName) return { ok: false, message: 'unitName が必要です' };
+    if (!setNo || setNo < 1) return { ok: false, message: 'setNo が不正です' };
+
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+
+    const setId = _rishaSetId(unitName, setNo);
+
+    // ① クールダウン判定（教科ごと独立）
+    if (_rishaIsInCooldown(stuLoc, subject, setId)) {
+      const recent = _rishaReadRecentSets(stuLoc, subject).slice(0, RISHA_COOLDOWN_WINDOW);
+      return {
+        ok: false,
+        errorCode: 'cooldown',
+        message: 'このセットは直近のクールダウン期間中です。先に別のセットを 2 つクリアしてください。',
+        recentSets: recent,
+        requiredCleared: RISHA_COOLDOWN_WINDOW
+      };
+    }
+
+    // ② 問題 10 問取得（status='active' のみ）
+    const rawQs = _rishaReadQuestionsForSet(subject, unitName, setNo);
+    if (rawQs.length === 0) {
+      return {
+        ok: false,
+        errorCode: 'no_questions',
+        message: 'この単元・セットの問題はまだ準備中です（管理画面から問題を投入してください）。'
+      };
+    }
+
+    // ③ 問題順序シャッフル
+    const orderedQs = _rishaShuffleArray(rawQs);
+
+    // ④ 各問題の選択肢順序シャッフル + sessionToken 用 answerMap 構築
+    const sessionToken = 'risha_' + Utilities.getUuid();
+    const answerMap = {};   // questionId → 新しい正解ラベル（ア/イ/ウ/エ）
+    const explainMap = {};  // questionId → 解説
+    const clientQs = orderedQs.map(function(q) {
+      const shuf = _rishaShuffleChoices(q);
+      answerMap[q.id] = shuf.correctLabel;
+      explainMap[q.id] = q.explanation || '';
+      return {
+        id:           q.id,
+        questionType: q.questionType,
+        questionText: q.questionText,
+        choices:      shuf.choices   // [{label, text}...]
+      };
+    });
+
+    // sessionToken の payload：採点・解説表示のサーバ権威ソース
+    _rishaSaveSession(sessionToken, {
+      sid:        sid,
+      subject:    subject,
+      unitName:   unitName,
+      setNo:      setNo,
+      setId:      setId,
+      answerMap:  answerMap,
+      explainMap: explainMap,
+      questionIds: clientQs.map(function(q){ return q.id; }),
+      createdAt:  Date.now()
+    });
+
+    // ⑤ 累計クリア回数（小区分選択画面に戻る前の参考情報として、合わせて返す）
+    const stats = _rishaCountAttemptsAndClears(sid, subject, unitName, setNo);
+
+    return {
+      ok:          true,
+      subject:     subject,
+      unitName:    unitName,
+      setNo:       setNo,
+      questions:   clientQs,
+      sessionToken: sessionToken,
+      clearCount:  stats.clearCount
+    };
+  } catch (err) {
+    console.error('[getRishaQuestionSet]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 1 問の採点：sessionToken の answerMap と比較。正解時は解説も返す。
+// params: { sessionToken, questionId, selectedChoice }
+//   selectedChoice はクライアントが表示している「シャッフル後のラベル」（ア/イ/ウ/エ）
+// 戻り値: { ok, isCorrect, correctChoice, explanation }
+function submitRishaAnswer(params) {
+  try {
+    const token = String((params && params.sessionToken) || '').trim();
+    const qid   = String((params && params.questionId) || '').trim();
+    const sel   = String((params && params.selectedChoice) || '').trim();
+    if (!token) return { ok: false, message: 'sessionToken が必要です' };
+    if (!qid)   return { ok: false, message: 'questionId が必要です' };
+    if (!sel)   return { ok: false, message: 'selectedChoice が必要です' };
+
+    const sess = _rishaLoadSession(token);
+    if (!sess) {
+      return { ok: false, errorCode: 'session_expired', message: 'セッションが期限切れです。最初からやり直してください。' };
+    }
+    if (sess.questionIds.indexOf(qid) < 0) {
+      return { ok: false, errorCode: 'bad_question', message: 'このセッションに含まれない問題IDです。' };
+    }
+    const correctLabel = String(sess.answerMap[qid] || '').trim();
+    const isCorrect = (sel === correctLabel);
+    return {
+      ok:            true,
+      isCorrect:     isCorrect,
+      correctChoice: correctLabel,
+      explanation:   String(sess.explainMap[qid] || '')
+    };
+  } catch (err) {
+    console.error('[submitRishaAnswer]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// セット終了処理：合格判定（クライアント主張 + サーバ整合チェック）→ Attempts 追記 → RECENT_SETS 更新 → HP 加算
+// params: { studentId, subject, sessionToken, errorQuestionIds }
+//   errorQuestionIds : 間違えた問題IDの配列（最後に間違えたまま終わったセットの場合に渡す。
+//                       全問正解時は空配列）
+// 戻り値：
+//   { ok, result, hpGained, hpReserved, alreadyGranted, todayClearedSets, attemptCount, clearCount,
+//     reachedDailyLimit, isPractice, message? }
+function finishRishaSet(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    const subject = String((params && params.subject) || '').trim();
+    const token = String((params && params.sessionToken) || '').trim();
+    let errorIds = [];
+    if (params && Array.isArray(params.errorQuestionIds)) {
+      errorIds = params.errorQuestionIds.map(function(x){ return String(x || '').trim(); }).filter(Boolean);
+    } else if (params && typeof params.errorQuestionIds === 'string') {
+      errorIds = params.errorQuestionIds.split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+    }
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (!_rishaIsValidSubject(subject)) return { ok: false, message: 'subject は rika / shakai を指定してください' };
+    if (!token) return { ok: false, message: 'sessionToken が必要です' };
+
+    const sess = _rishaLoadSession(token);
+    if (!sess) {
+      return { ok: false, errorCode: 'session_expired', message: 'セッションが期限切れです。最初からやり直してください。' };
+    }
+    if (sess.sid !== sid)         return { ok: false, errorCode: 'sid_mismatch',     message: 'sessionToken の生徒IDが一致しません' };
+    if (sess.subject !== subject) return { ok: false, errorCode: 'subject_mismatch', message: 'sessionToken の subject が一致しません' };
+
+    const unitName = sess.unitName;
+    const setNo    = sess.setNo;
+    const setId    = sess.setId;
+    const isPass   = (errorIds.length === 0);
+
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+
+    // 合格時のみ Attempts に記録（仕様書「合格時のみ append」）
+    // ※ 不合格時にも記録したい場合は後日 isPass を外す。今は仕様書通りの最小実装。
+    let hpInfo = { hpGained: 0, hpReserved: 0, alreadyGranted: false, justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    let todayClearedAfter = _rishaTodayClearedCount(sid, subject);
+    let reachedDailyLimit = false;
+    let isPractice = false;
+    let writtenAttempt = false;
+    const statsBefore = _rishaCountAttemptsAndClears(sid, subject, unitName, setNo);
+    const newAttemptCount = statsBefore.attemptCount + 1;
+    const newClearCount   = statsBefore.clearCount + (isPass ? 1 : 0);
+
+    if (isPass) {
+      // 1 日上限判定：合格時点での today count が上限未満なら HP 加算、それ以外は practice 扱い
+      const beforeClearedToday = _rishaTodayClearedCount(sid, subject);
+      const willGrantHP = (beforeClearedToday < RISHA_DAILY_SET_LIMIT);
+      isPractice = !willGrantHP;
+      const baseType = subject === 'shakai' ? 'shakai' : 'rika';
+      const typeStr = willGrantHP ? baseType : (baseType + '_practice');
+      let hpGainedForRow = 0;
+      if (willGrantHP) {
+        const grant = _grantHP({
+          sid:    sid,
+          type:   typeStr,
+          rawHp:  RISHA_RAW_HP_PER_SET,
+          stuLoc: stuLoc,
+          message: '理社重要語句 ' + (subject === 'shakai' ? '社会' : '理科') + ' / ' + unitName + ' / セット' + setNo
+        });
+        if (!grant.ok) {
+          // HP 加算失敗：Attempts には書かず（不整合回避）即エラー返却
+          console.error('[finishRishaSet] _grantHP 失敗', { sid: sid, errorCode: grant.errorCode });
+          return {
+            ok:        false,
+            errorCode: grant.errorCode || 'HP_LOG_FAILED',
+            message:   grant.message || '内部エラーが発生しました。もう一度試してください。'
+          };
+        }
+        hpInfo = {
+          hpGained:       grant.hpGained,
+          hpReserved:     grant.hpReserved,
+          alreadyGranted: false,
+          justCompleted:  grant.justCompleted,
+          releasedHp:     grant.releasedHp,
+          bonusHp:        grant.bonusHp
+        };
+        hpGainedForRow = grant.hpGained;
+      } else {
+        // 練習モード：HP 加算なし
+        hpInfo.alreadyGranted = true;  // フロントで「今日のセットは全て完了」表示する材料
+      }
+
+      // Attempts シートに追記（合格時のみ）
+      try {
+        const ash = _ss().getSheetByName(_rishaAttemptsSheetForSubject(subject));
+        if (ash) {
+          ash.appendRow([
+            _nowJST(),
+            sid,
+            unitName,
+            setNo,
+            'pass',
+            newAttemptCount,
+            newClearCount,
+            hpGainedForRow,
+            ''   // errorQuestionIds（合格なので空）
+          ]);
+          writtenAttempt = true;
+        }
+      } catch (e) {
+        console.error('[finishRishaSet] Attempts append failed', e);
+        // 書き込み失敗しても HP は加算済 → 続行（戻り値で writtenAttempt=false を返す）
+      }
+
+      // RECENT_SETS を更新（クールダウン管理用、合格時のみ）
+      try {
+        // stuLoc を最新で取り直す（_grantHP で Students.HP が書き換わったため）
+        const freshStuLoc = _findAccountRowOnSheet(sid);
+        if (freshStuLoc) _rishaPushRecentSet(freshStuLoc, subject, setId);
+      } catch (e) {
+        console.error('[finishRishaSet] _rishaPushRecentSet failed', e);
+      }
+
+      // 今日のクリア数（更新後）
+      todayClearedAfter = beforeClearedToday + 1;
+      reachedDailyLimit = (todayClearedAfter >= RISHA_DAILY_SET_LIMIT);
+    } else {
+      // 不合格時：仕様書「合格時のみ Attempts に append」に従い、ここでは記録しない。
+      // ただしフロントの「再挑戦」フローは生かす（誤答問題のみのリトライ）。
+    }
+
+    // sessionToken は合格時は失効（再利用防止）。不合格時は再挑戦に備えて残す。
+    if (isPass) _rishaInvalidateSession(token);
+
+    return {
+      ok:                true,
+      result:            isPass ? 'pass' : 'fail',
+      subject:           subject,
+      unitName:          unitName,
+      setNo:             setNo,
+      hpGained:          hpInfo.hpGained,
+      hpReserved:        hpInfo.hpReserved,
+      alreadyGranted:    hpInfo.alreadyGranted,
+      justCompleted:     hpInfo.justCompleted,
+      releasedHp:        hpInfo.releasedHp,
+      bonusHp:           hpInfo.bonusHp,
+      todayClearedSets:  todayClearedAfter,
+      reachedDailyLimit: reachedDailyLimit,
+      isPractice:        isPractice,
+      attemptCount:      newAttemptCount,
+      clearCount:        newClearCount,
+      writtenAttempt:    writtenAttempt
+    };
+  } catch (err) {
+    console.error('[finishRishaSet]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 小区分選択画面用：教科の全小区分 + 各小区分の各セットのクリア回数
+// params: { studentId, subject }
+function getRishaUnitList(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    const subject = String((params && params.subject) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (!_rishaIsValidSubject(subject)) return { ok: false, message: 'subject は rika / shakai を指定してください' };
+
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+    const recentSets = _rishaReadRecentSets(stuLoc, subject);
+    const cooldownSet = {};
+    recentSets.slice(0, RISHA_COOLDOWN_WINDOW).forEach(function(s){ cooldownSet[s] = true; });
+
+    const idx = _rishaBuildUnitsIndex(subject);
+    // 既存 Attempts を 1 度だけスキャンして per-set clearCount を集計
+    const sh = _ss().getSheetByName(_rishaAttemptsSheetForSubject(subject));
+    const clearMap = {};   // setId -> clearCount
+    if (sh && sh.getLastRow() >= 2) {
+      const values = sh.getDataRange().getValues();
+      const header = values[0];
+      const iSid  = header.indexOf('studentId');
+      const iUnit = header.indexOf('unitName');
+      const iSet  = header.indexOf('setNo');
+      const iRes  = header.indexOf('result');
+      if (iSid >= 0 && iUnit >= 0 && iSet >= 0 && iRes >= 0) {
+        for (let i = 1; i < values.length; i++) {
+          if (String(values[i][iSid] || '').trim() !== sid) continue;
+          if (String(values[i][iRes] || '').trim() !== 'pass') continue;
+          const u = String(values[i][iUnit] || '').trim();
+          const n = Number(values[i][iSet]) || 0;
+          if (!u || !n) continue;
+          const id = _rishaSetId(u, n);
+          clearMap[id] = (clearMap[id] || 0) + 1;
+        }
+      }
+    }
+    // units に clearCount + inCooldown を載せる
+    const units = idx.units.map(function(u) {
+      const sets = u.sets.map(function(n) {
+        const id = _rishaSetId(u.unitName, n);
+        return {
+          setNo:      n,
+          clearCount: clearMap[id] || 0,
+          inCooldown: !!cooldownSet[id]
+        };
+      });
+      return {
+        unitName:       u.unitName,
+        grade:          u.grade,
+        field:          u.field,
+        majorField:     u.majorField,
+        minorField:     u.minorField,
+        totalQuestions: u.totalQuestions,
+        sets:           sets
+      };
+    });
+    return {
+      ok:         true,
+      subject:    subject,
+      units:      units,
+      recentSets: recentSets,
+      cooldownWindow: RISHA_COOLDOWN_WINDOW
+    };
+  } catch (err) {
+    console.error('[getRishaUnitList]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 今日合格したセット数（1 日 2 セット制限のフロント表示用）
+// params: { studentId, subject }
+function getRishaSubjectCounts(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    const subject = String((params && params.subject) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (!_rishaIsValidSubject(subject)) return { ok: false, message: 'subject は rika / shakai を指定してください' };
+    const cnt = _rishaTodayClearedCount(sid, subject);
+    return {
+      ok:                true,
+      subject:           subject,
+      todayClearedSets:  cnt,
+      dailyLimit:        RISHA_DAILY_SET_LIMIT,
+      reachedDailyLimit: cnt >= RISHA_DAILY_SET_LIMIT
+    };
+  } catch (err) {
+    console.error('[getRishaSubjectCounts]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// -------------------------------------------------
+// 管理 API（TSV 投入）
+// -------------------------------------------------
+// TSV を 1 行 1 問でパースして問題マスターに append。
+// 行フォーマット（理科 / 社会で共通、教科ごとに前半メタ列が違う）：
+//
+//   理科：grade<TAB>field<TAB>unitName<TAB>setNo<TAB>questionType<TAB>questionText<TAB>
+//         choiceA<TAB>choiceB<TAB>choiceC<TAB>choiceD<TAB>answer<TAB>explanation<TAB>status
+//   社会：majorField<TAB>minorField<TAB>unitName<TAB>setNo<TAB>questionType<TAB>questionText<TAB>
+//         choiceA<TAB>choiceB<TAB>choiceC<TAB>choiceD<TAB>answer<TAB>explanation<TAB>status
+//
+// id は自動採番（RK_0001 / SH_0001 から既存最大 +1 ずつ）。status を省略した場合は 'active'。
+// 戻り値: { ok, added, ids: [...], errors: [{ line, message }, ...] }
+function _adminAddRishaQuestionsCommon(params, subject) {
+  const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+  if (!_teacher) return { ok: false, message: '認証エラー' };
+  if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+  const tsvText = String((params && params.tsvText) || '');
+  if (!tsvText.trim()) return { ok: false, message: 'TSV が空です' };
+
+  const headers = _rishaQuestionsHeadersForSubject(subject);
+  const idPrefix = _rishaIdPrefixForSubject(subject);
+  const sh = _ss().getSheetByName(_rishaQuestionsSheetForSubject(subject));
+  if (!sh) {
+    return { ok: false, message: _rishaQuestionsSheetForSubject(subject) + ' が見つかりません。ensureRishaSheets() を実行してください。' };
+  }
+
+  // 既存 id の最大連番を求める（'RK_0001' / 'SH_0001' から）
+  const lastRow = sh.getLastRow();
+  let maxNum = 0;
+  if (lastRow >= 2) {
+    const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (let i = 0; i < ids.length; i++) {
+      const s = String(ids[i][0] || '').trim();
+      const m = s.match(/^([A-Z]{2})_(\d{1,8})$/);
+      if (m && m[1] + '_' === idPrefix) {
+        const n = parseInt(m[2], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    }
+  }
+
+  const lines = tsvText.split(/\r?\n/);
+  const errors = [];
+  const rowsToAppend = [];
+  const newIds = [];
+  // headers は 14 列（id, ..., status）。TSV は id を含まないので 13 列入力（=headers.length - 1）。
+  const EXPECTED_COLS_MIN = headers.length - 2;  // status を省略可
+  const EXPECTED_COLS_MAX = headers.length - 1;  // status まで含む
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (!raw || !raw.trim()) continue;
+    const cols = raw.split('\t');
+    if (cols.length < EXPECTED_COLS_MIN || cols.length > EXPECTED_COLS_MAX) {
+      errors.push({ line: i + 1, message: '列数が不正です（期待: ' + EXPECTED_COLS_MIN + '〜' + EXPECTED_COLS_MAX + ' 列、実際: ' + cols.length + ' 列）' });
+      continue;
+    }
+    // padding: status まで揃える
+    while (cols.length < EXPECTED_COLS_MAX) cols.push('active');
+    // 採番
+    maxNum += 1;
+    const idStr = idPrefix + String(maxNum).padStart(4, '0');
+    // 行を組み立てる（headers と対応、id は先頭、cols は id を除いた残り）
+    const row = [idStr].concat(cols.map(function(c){ return String(c || '').trim(); }));
+    // setNo は数値化
+    const iSet = headers.indexOf('setNo');
+    if (iSet >= 0) row[iSet] = Number(row[iSet]) || 0;
+    // status 既定値
+    const iSt = headers.indexOf('status');
+    if (iSt >= 0 && !row[iSt]) row[iSt] = 'active';
+    // 簡易バリデーション：必須セルが空でないか
+    const iAns = headers.indexOf('answer');
+    if (iAns >= 0 && ['ア','イ','ウ','エ'].indexOf(String(row[iAns] || '').trim()) < 0) {
+      errors.push({ line: i + 1, message: 'answer は ア/イ/ウ/エ のいずれかを指定してください（実際: "' + row[iAns] + '"）' });
+      maxNum -= 1;  // 採番を戻す
+      continue;
+    }
+    rowsToAppend.push(row);
+    newIds.push(idStr);
+  }
+
+  if (rowsToAppend.length === 0) {
+    return { ok: false, message: '有効な行がありません', errors: errors };
+  }
+  const startRow = sh.getLastRow() + 1;
+  sh.getRange(startRow, 1, rowsToAppend.length, rowsToAppend[0].length).setValues(rowsToAppend);
+
+  try {
+    _logTeacherAction(_teacher.teacherId, 'RISHA_QUESTION_ADD', '', 'success', {
+      subject: subject,
+      added:   rowsToAppend.length,
+      sampleIds: newIds.slice(0, 5)
+    });
+  } catch(_e) {}
+
+  return { ok: true, added: rowsToAppend.length, ids: newIds, errors: errors };
+}
+function adminAddRikaQuestion(params)   { return _adminAddRishaQuestionsCommon(params, 'rika'); }
+function adminAddShakaiQuestion(params) { return _adminAddRishaQuestionsCommon(params, 'shakai'); }
+
+// -------------------------------------------------
+// 管理 API（履歴閲覧、国語長文と同パターン）
+// -------------------------------------------------
+// 共通実装：subject 切替版 adminListKokugoAttempts
+function _adminListRishaAttempts(params, subject) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    // admin/teacher 両ロール許可
+
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+    let limit = Number((params && params.limit));
+    if (!Number.isFinite(limit) || limit < 1) limit = 50;
+    limit = Math.min(200, Math.floor(limit));
+
+    const sh = _ss().getSheetByName(_rishaAttemptsSheetForSubject(subject));
+    let items = [];
+    if (sh && sh.getLastRow() >= 2) {
+      const values = sh.getDataRange().getValues();
+      const header = values[0];
+      const iTs   = header.indexOf('timestamp');
+      const iSid  = header.indexOf('studentId');
+      const iUnit = header.indexOf('unitName');
+      const iSet  = header.indexOf('setNo');
+      const iRes  = header.indexOf('result');
+      const iAt   = header.indexOf('attemptCount');
+      const iCl   = header.indexOf('clearCount');
+      const iHp   = header.indexOf('hpGained');
+      const iErr  = header.indexOf('errorQuestionIds');
+      const all = [];
+      for (let i = 1; i < values.length; i++) {
+        if (String(values[i][iSid] || '').trim() !== sid) continue;
+        all.push({
+          timestamp:         iTs   >= 0 ? _reflectionToTimestampStr(values[i][iTs]) : '',
+          unitName:          iUnit >= 0 ? String(values[i][iUnit] || '').trim() : '',
+          setNo:             iSet  >= 0 ? (Number(values[i][iSet]) || 0) : 0,
+          result:            iRes  >= 0 ? String(values[i][iRes] || '').trim() : '',
+          attemptCount:      iAt   >= 0 ? (Number(values[i][iAt]) || 0) : 0,
+          clearCount:        iCl   >= 0 ? (Number(values[i][iCl]) || 0) : 0,
+          hpGained:          iHp   >= 0 ? (Number(values[i][iHp]) || 0) : 0,
+          errorQuestionIds:  iErr  >= 0 ? String(values[i][iErr] || '').trim() : ''
+        });
+      }
+      // 降順（最新が先頭）
+      items = all.slice().reverse().slice(0, limit);
+    }
+    const stuLoc = _findAccountRowOnSheet(sid);
+    let name = '', nickname = '';
+    if (stuLoc) {
+      name     = String(stuLoc.rowValues[COL_NAME] || '').trim();
+      nickname = String(stuLoc.rowValues[COL_NICKNAME] || '').trim();
+    }
+    try {
+      _logTeacherAction(_teacher.teacherId, (subject === 'shakai' ? 'SHAKAI_HISTORY_VIEW' : 'RIKA_HISTORY_VIEW'), '', 'success', {
+        studentId: sid, returned: items.length
+      });
+    } catch(_e) {}
+    return {
+      ok: true,
+      subject: subject,
+      studentId: sid,
+      name: name,
+      nickname: nickname,
+      attempts: items
+    };
+  } catch (err) {
+    console.error('[_adminListRishaAttempts]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+function adminListRikaAttempts(params)   { return _adminListRishaAttempts(params, 'rika'); }
+function adminListShakaiAttempts(params) { return _adminListRishaAttempts(params, 'shakai'); }
+
+// 月次サマリー（カレンダー用、getKokugoMonthSummary と同パターン）
+function _getRishaMonthSummary(params, subject) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const ym = String((params && params.yearMonth) || '').trim();
+    if (!/^\d{4}-\d{2}$/.test(ym)) return { ok: false, message: 'yearMonth は YYYY-MM 形式で指定してください' };
+
+    const cacheKey = 'cache_risha_' + subject + '_month_' + ym;
+    const result = _getCachedValues(cacheKey, 300, function() {
+      const sh = _ss().getSheetByName(_rishaAttemptsSheetForSubject(subject));
+      const days = {};
+      const year  = parseInt(ym.slice(0, 4), 10);
+      const month = parseInt(ym.slice(5, 7), 10);
+      const lastDay = new Date(year, month, 0).getDate();
+      for (let d = 1; d <= lastDay; d++) {
+        const ds = ym + '-' + (d < 10 ? '0' + d : String(d));
+        days[ds] = { count: 0, sids: {} };
+      }
+      if (sh && sh.getLastRow() >= 2) {
+        const values = sh.getDataRange().getValues();
+        const header = values[0];
+        const iSid = header.indexOf('studentId');
+        const iTs  = header.indexOf('timestamp');
+        if (iSid >= 0 && iTs >= 0) {
+          for (let i = 1; i < values.length; i++) {
+            const ds = _reflectionToDateStr(values[i][iTs]);
+            if (!ds || !days[ds]) continue;
+            const sid = String(values[i][iSid] || '').trim();
+            if (!sid) continue;
+            days[ds].count += 1;
+            days[ds].sids[sid] = true;
+          }
+        }
+      }
+      const list = [];
+      Object.keys(days).sort().forEach(function(ds){
+        list.push({ date: ds, count: days[ds].count, studentCount: Object.keys(days[ds].sids).length });
+      });
+      return { yearMonth: ym, days: list };
+    });
+
+    try {
+      _logTeacherAction(_teacher.teacherId, (subject === 'shakai' ? 'SHAKAI_CALENDAR_VIEW' : 'RIKA_CALENDAR_VIEW'), '', 'success', {
+        yearMonth: ym
+      });
+    } catch(_e) {}
+
+    return { ok: true, subject: subject, yearMonth: result.yearMonth, days: result.days };
+  } catch (err) {
+    console.error('[_getRishaMonthSummary]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+function getRikaMonthSummary(params)   { return _getRishaMonthSummary(params, 'rika'); }
+function getShakaiMonthSummary(params) { return _getRishaMonthSummary(params, 'shakai'); }
+
+// 日付別詳細（getKokugoDayDetail と同パターン）
+function _getRishaDayDetail(params, subject) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const date = String((params && params.date) || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, message: 'date は YYYY-MM-DD 形式で指定してください' };
+
+    // sid → 氏名 / ニックネーム / 学年（Students + SpecialAccounts join）
+    const stuValues = _getAllAccountsValues();
+    const stuMap = {};
+    if (stuValues && stuValues.length >= 2) {
+      const gradeColIdx = _findGradeLevelColIdx(stuValues);
+      for (let i = 1; i < stuValues.length; i++) {
+        const sid = String(stuValues[i][COL_ID] || '').trim();
+        if (!sid) continue;
+        stuMap[sid] = {
+          name:     String(stuValues[i][COL_NAME]     || '').trim(),
+          nickname: String(stuValues[i][COL_NICKNAME] || '').trim(),
+          grade:    gradeColIdx >= 0 ? String(stuValues[i][gradeColIdx] || '').trim() : ''
+        };
+      }
+    }
+
+    const sh = _ss().getSheetByName(_rishaAttemptsSheetForSubject(subject));
+    const out = [];
+    if (sh && sh.getLastRow() >= 2) {
+      const values = sh.getDataRange().getValues();
+      const header = values[0];
+      const iTs   = header.indexOf('timestamp');
+      const iSid  = header.indexOf('studentId');
+      const iUnit = header.indexOf('unitName');
+      const iSet  = header.indexOf('setNo');
+      const iRes  = header.indexOf('result');
+      const iAt   = header.indexOf('attemptCount');
+      const iCl   = header.indexOf('clearCount');
+      const iHp   = header.indexOf('hpGained');
+      const iErr  = header.indexOf('errorQuestionIds');
+      if (iSid >= 0 && iTs >= 0) {
+        for (let i = 1; i < values.length; i++) {
+          if (_reflectionToDateStr(values[i][iTs]) !== date) continue;
+          const sid = String(values[i][iSid] || '').trim();
+          const info = stuMap[sid] || { name: '', nickname: '', grade: '' };
+          out.push({
+            timestamp:        iTs   >= 0 ? _reflectionToTimestampStr(values[i][iTs]) : '',
+            studentId:        sid,
+            studentName:      info.name,
+            nickname:         info.nickname,
+            grade:            info.grade,
+            unitName:         iUnit >= 0 ? String(values[i][iUnit] || '').trim() : '',
+            setNo:            iSet  >= 0 ? (Number(values[i][iSet]) || 0) : 0,
+            result:           iRes  >= 0 ? String(values[i][iRes] || '').trim() : '',
+            attemptCount:     iAt   >= 0 ? (Number(values[i][iAt]) || 0) : 0,
+            clearCount:       iCl   >= 0 ? (Number(values[i][iCl]) || 0) : 0,
+            hpGained:         iHp   >= 0 ? (Number(values[i][iHp]) || 0) : 0,
+            errorQuestionIds: iErr  >= 0 ? String(values[i][iErr] || '').trim() : ''
+          });
+        }
+      }
+    }
+    out.sort(function(a, b){ return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; });
+
+    try {
+      _logTeacherAction(_teacher.teacherId, (subject === 'shakai' ? 'SHAKAI_DAY_VIEW' : 'RIKA_DAY_VIEW'), '', 'success', {
+        date: date, returned: out.length
+      });
+    } catch(_e) {}
+
+    return { ok: true, subject: subject, date: date, attempts: out };
+  } catch (err) {
+    console.error('[_getRishaDayDetail]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+function getRikaDayDetail(params)   { return _getRishaDayDetail(params, 'rika'); }
+function getShakaiDayDetail(params) { return _getRishaDayDetail(params, 'shakai'); }

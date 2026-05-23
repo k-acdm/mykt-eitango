@@ -1335,6 +1335,51 @@
     .content-btn.c-kobun     { background: linear-gradient(135deg,#f6ad55,#b45309); }
     /* 計算タイムトライアル「トラール」（2026-05-19 稼働化）：暖色系オレンジ〜赤（タイムアタック感、虎のエネルギー） */
     .content-btn.c-calctrial { background: linear-gradient(135deg,#ff9a3c,#ff5722); }
+    /* 理社重要語句（2026-05-23 稼働化）：c-social / c-science はホームカードの background を残し、
+       内部画面のレイアウト用クラス risha-* を別途定義する。 */
+    .risha-btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    @media (max-width: 480px) { .risha-btn-grid { grid-template-columns: 1fr; gap: 8px; } }
+    .risha-btn-grid button { padding: 16px 12px; border: 2px solid #6366f1; border-radius: 14px; background: #fff; color: #312e81; font-size: 16px; font-weight: bold; cursor: pointer; font-family: inherit; transition: transform .12s, box-shadow .12s; }
+    .risha-btn-grid button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,.2); }
+    .risha-btn-grid button small { display: block; font-size: 12px; font-weight: normal; color: #64748b; margin-top: 4px; }
+    .risha-unit-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+    .risha-unit-btn { width: 100%; padding: 14px 16px; border: 2px solid #6366f1; border-radius: 14px; background: #fff; color: #312e81; font-size: 16px; font-weight: bold; cursor: pointer; font-family: inherit; text-align: left; transition: transform .12s, box-shadow .12s; }
+    .risha-unit-btn:hover:not(.disabled):not(.cooldown) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,.2); }
+    .risha-unit-btn.cooldown { background: #f1f5f9; border-color: #cbd5e1; color: #94a3b8; cursor: not-allowed; }
+    .risha-unit-btn.cooldown .risha-unit-name { color: #94a3b8; }
+    .risha-unit-btn .risha-unit-name { font-size: 16px; font-weight: bold; color: #312e81; }
+    .risha-unit-btn .risha-unit-meta { display: block; font-size: 12px; color: #64748b; margin-top: 6px; font-weight: normal; line-height: 1.6; }
+    .risha-unit-btn .risha-unit-meta .clear-count { color: #16a34a; font-weight: bold; }
+    .risha-unit-btn .risha-unit-meta .clear-zero  { color: #94a3b8; }
+    .risha-unit-btn .risha-unit-meta .cooldown-badge { display: inline-block; padding: 2px 8px; background: #fee2e2; color: #991b1b; border-radius: 999px; font-size: 11px; font-weight: bold; margin-top: 4px; }
+    .risha-daily-banner { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 10px 14px; border-radius: 6px; color: #92400e; font-size: 13px; line-height: 1.6; margin-bottom: 10px; }
+    .risha-daily-banner.limit-reached { background: #fee2e2; border-left-color: #ef4444; color: #991b1b; }
+    .risha-q-meta { font-size: 13px; color: #64748b; margin-bottom: 10px; padding: 8px 12px; background: #f8fafc; border-radius: 8px; }
+    .risha-q-text { font-size: 17px; line-height: 1.7; color: #1f2937; padding: 14px 16px; background: #fff; border: 2px solid #c4b5fd; border-radius: 12px; margin-bottom: 14px; }
+    .risha-q-choices { display: flex; flex-direction: column; gap: 8px; }
+    .risha-q-choices label { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: #fff; border: 2px solid #e5e7eb; border-radius: 10px; cursor: pointer; font-size: 15px; line-height: 1.6; transition: border-color .12s, background .12s; }
+    .risha-q-choices label:hover { border-color: #6366f1; background: #eef2ff; }
+    .risha-q-choices label.selected { border-color: #6366f1; background: #eef2ff; }
+    .risha-q-choices label.disabled { cursor: not-allowed; opacity: .85; }
+    .risha-q-choices label.correct { border-color: #16a34a; background: #dcfce7; }
+    .risha-q-choices label.incorrect { border-color: #dc2626; background: #fee2e2; }
+    .risha-q-choices label .label-mark { font-weight: bold; color: #4338ca; min-width: 22px; }
+    .risha-q-choices label.correct .label-mark { color: #166534; }
+    .risha-q-choices label.incorrect .label-mark { color: #991b1b; }
+    .risha-q-feedback { padding: 12px 14px; border-radius: 10px; margin-top: 10px; font-size: 14px; line-height: 1.7; }
+    .risha-q-feedback.correct { background: #dcfce7; border-left: 4px solid #16a34a; color: #166534; }
+    .risha-q-feedback.incorrect { background: #fee2e2; border-left: 4px solid #dc2626; color: #991b1b; }
+    .risha-q-feedback .feedback-label { display: block; font-weight: bold; font-size: 13px; margin-bottom: 4px; }
+    .risha-q-feedback .feedback-explanation { font-size: 13px; line-height: 1.7; color: #1f2937; margin-top: 6px; }
+    .risha-done-success { background: linear-gradient(135deg,#fef3c7,#fde68a); border: 3px solid #f59e0b; border-radius: 18px; padding: 24px 18px; text-align: center; }
+    .risha-done-success .done-title { font-size: 22px; font-weight: bold; color: #92400e; margin-bottom: 10px; }
+    .risha-done-success .done-hp { font-size: 36px; font-weight: bold; color: #c2410c; margin: 10px 0; }
+    .risha-done-success .done-hp-label { font-size: 14px; color: #92400e; }
+    .risha-done-success .done-hp-pending { font-size: 12px; color: #b45309; margin-top: 6px; }
+    .risha-done-success .done-daily { font-size: 13px; color: #475569; margin-top: 12px; padding: 8px 14px; background: rgba(255,255,255,.6); border-radius: 8px; }
+    .risha-done-practice { background: #f1f5f9; border: 2px solid #94a3b8; border-radius: 14px; padding: 18px 14px; text-align: center; color: #475569; }
+    .risha-done-practice .practice-title { font-size: 18px; font-weight: bold; color: #1e293b; margin-bottom: 8px; }
+    .risha-done-practice .practice-note { font-size: 13px; color: #475569; margin-top: 8px; }
     /* 2026-05-21：週²倍率適用に伴うアテンション獲得バナー（calctrial ボタン内、副題の下）。
        橙赤グラデ背景に映える明黄色 + 軽い脈動。「青天井ハマり状態」設計の入口訴求。 */
     .content-btn.c-calctrial .content-btn-hot { display: block; font-size: 13px; font-weight: 900; color: #fde047; margin-top: 4px; letter-spacing: .3px; text-shadow: 0 1px 2px rgba(0,0,0,.3); animation: ctHotPulse 1.6s ease-in-out infinite; }
@@ -2436,10 +2481,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-1535"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-2357"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-1535">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-1535"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-2357">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-2357"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -2736,13 +2781,17 @@
           <img class="ico-mascot" src="images/lison-default.png" alt="">英語リスオン
           <span class="content-btn-sub">英語長文リスニング＆音読</span>
         </button>
-        <button class="content-btn c-social disabled" onclick="showComingSoon('社会の重要用語')">
-          <span class="badge-soon">準備中</span>
-          <span class="ico">🌏</span>社会の重要用語
+        <!-- 2026-05-23 新規：理社重要語句（中学理科・社会）。問題データはふくちさんが順次投入。
+             問題未投入時は単元選択画面で「準備中です」の旨を表示。 -->
+        <button class="content-btn c-social" onclick="showRishaStart('shakai')">
+          <span class="badge-hp">100HP×2/日</span>
+          <img class="ico-mascot" src="images/shakaneki-default.png" alt="">社会の重要用語
+          <span class="content-btn-sub">対象：中学生</span>
         </button>
-        <button class="content-btn c-science disabled" onclick="showComingSoon('理科の重要用語')">
-          <span class="badge-soon">準備中</span>
-          <span class="ico">🔬</span>理科の重要用語
+        <button class="content-btn c-science" onclick="showRishaStart('rika')">
+          <span class="badge-hp">100HP×2/日</span>
+          <img class="ico-mascot" src="images/rika-default.png" alt="">理科の重要用語
+          <span class="content-btn-sub">対象：中学生</span>
         </button>
         <button class="content-btn c-kanji" onclick="showKanjiLevelSelect()">
           <span class="badge-hp">50〜100HP/日</span>
@@ -4087,6 +4136,92 @@
   </div>
 </div>
 
+<!-- ============================================================================
+     理社重要語句 — 生徒画面 6 画面（2026-05-23 新規）
+     subject パラメータ（'rika' / 'shakai'）で両教科を 1 セットの画面で対応。
+     ホーム → showRishaStart(subject) → 画面1 大区分 → 画面2 中区分 → 画面3 小区分 →
+     画面4 出題（1問ずつ採点）→ 画面5 HP最終計算中 → 画面6 HP獲得演出 → ホーム
+     ============================================================================ -->
+
+<!-- 画面1：大区分選択（理科=学年 3 つ / 社会=大区分 3 つ） -->
+<div id="screen-risha-major" class="screen">
+  <header><h1 id="risha-major-h1">📕 理科重要語句</h1><span id="risha-major-sub">大区分を選んでね</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="risha-major-img" src="images/rika-default.png" alt="">
+      <div class="mate-bubble" id="risha-major-bubble">論理で解き明かしましょう</div>
+    </div>
+    <div id="risha-major-buttons" class="risha-btn-grid"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- 画面2：中区分選択（理科=分野 4 つ / 社会=中区分 数個、大区分により異なる） -->
+<div id="screen-risha-minor" class="screen">
+  <header><h1 id="risha-minor-h1">📕 理科重要語句</h1><span id="risha-minor-sub">中区分を選んでね</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="risha-minor-img" src="images/rika-default.png" alt="">
+      <div class="mate-bubble" id="risha-minor-bubble">分野を選んでください</div>
+    </div>
+    <div id="risha-minor-buttons" class="risha-btn-grid"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="_rishaBackToMajor()">← 大区分選択に戻る</button>
+  </div>
+</div>
+
+<!-- 画面3：小区分選択（unit ボタン、各ボタンに「N問 / 1セット目:Mクリア / 2セット目:Lクリア」を表示） -->
+<div id="screen-risha-unit" class="screen">
+  <header><h1 id="risha-unit-h1">📕 理科重要語句</h1><span id="risha-unit-sub">小区分を選んでね</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="risha-unit-img" src="images/rika-default.png" alt="">
+      <div class="mate-bubble" id="risha-unit-bubble">挑むセットを選んで</div>
+    </div>
+    <div id="risha-unit-daily-banner" class="risha-daily-banner" style="display:none"></div>
+    <div id="risha-unit-buttons" class="risha-unit-list"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="_rishaBackToMinor()">← 中区分選択に戻る</button>
+  </div>
+</div>
+
+<!-- 画面4：問題（1 問ずつ、決定 → 採点 → 解説 → 次へ） -->
+<div id="screen-risha-question" class="screen">
+  <header><h1 id="risha-q-h1">📕 理科重要語句</h1><span id="risha-q-progress">1 / 10</span></header>
+  <div class="container" style="padding-top:14px">
+    <div class="mate-row">
+      <img class="mate-img" id="risha-q-img" src="images/rika-thinking.png" alt="">
+      <div class="mate-bubble" id="risha-q-bubble">データを照合中…</div>
+    </div>
+    <div id="risha-q-meta" class="risha-q-meta"></div>
+    <div id="risha-q-text" class="risha-q-text"></div>
+    <div id="risha-q-choices" class="risha-q-choices"></div>
+    <div id="risha-q-feedback" class="risha-q-feedback" style="display:none"></div>
+    <button class="btn-wide" id="risha-q-submit-btn" style="margin-top:14px" onclick="onRishaAnswerSubmit()">決定する</button>
+    <button class="btn-wide" id="risha-q-next-btn" style="display:none;margin-top:8px;background:linear-gradient(135deg,#10b981,#059669)" onclick="onRishaNextQuestion()">次へ →</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="_rishaConfirmAbort()">🏠 やめてホームに戻る</button>
+  </div>
+</div>
+
+<!-- 画面5：HP最終計算中（hp-confirming-overlay を利用するため画面は薄め、保険として残す） -->
+<div id="screen-risha-grading" class="screen">
+  <header><h1>⏳ 採点中…</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="risha-grading-img" src="images/rika-thinking.png" alt="">
+      <div class="mate-bubble" id="risha-grading-bubble">結果を確認しています…</div>
+    </div>
+  </div>
+</div>
+
+<!-- 画面6：HP獲得（合格時）/ 提出完了（不合格時の表示はここには来ない、画面4でループ） -->
+<div id="screen-risha-done" class="screen">
+  <header><h1>✅ セット完了！</h1></header>
+  <div class="container" style="padding-top:16px">
+    <div id="risha-done-body"></div>
+    <button class="btn-wide" id="risha-done-again-btn" style="display:none;margin-top:14px;background:linear-gradient(135deg,#10b981,#059669)" onclick="_rishaContinueAnother()">📚 別のセットに挑戦する</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
 <!-- ===== 計算タイムトライアル（2026-05-19 Phase 3 新規） ===== -->
 <!-- イントロ → ラウンド①（5分）→ 中間モーダル → ラウンド②（5分）→ リザルト の固定フロー -->
 <!-- 中断不可 / 中断時は submit しない（仕様 案 C）。本番は 1 日 2 回までで 3 回目以降は練習モード。 -->
@@ -4835,7 +4970,10 @@
     'lison':    { img: 'images/lison-thinking.png',    text: '現在マイカツ君が獲得HPを最終確認中です' },
     'kobun':    { img: 'images/kobun-thinking.png',    text: '現在マイカツ君が獲得HPを最終確認中なり' },
     'trial':    { img: 'images/trial-thinking.png',    text: '只今マイカツ君が獲得HPを最終確認中だぞ' },
-    'japanin':  { img: 'images/japanin-thinking.png',  text: '只今マイカツ君が獲得HPを最終確認中でござる' }
+    'japanin':  { img: 'images/japanin-thinking.png',  text: '只今マイカツ君が獲得HPを最終確認中でござる' },
+    // 2026-05-23 新規：理社重要語句（中学理科・社会）
+    'rika':      { img: 'images/rika-thinking.png',      text: '只今マイカツ君が獲得HPを最終確認中…' },
+    'shakaneki': { img: 'images/shakaneki-thinking.png', text: '只今マイカツ君が獲得HPを最終確認中…' }
   };
   var _hpConfirmingDotsTimer = null;
   function _showHpConfirmingOverlay(charId) {
@@ -10576,6 +10714,32 @@
     done:        ['よう書けた！', '読みも書きもみごとなり', 'いとをかし、いとあはれ'],
     resume:      ['続きから始めるでござる', 'お主の挑戦、まだ終わっておらぬぞ']
   };
+  // リーカ（理科重要語句、クール・知的・ほんのり微笑む口調）。2026-05-23 採用。
+  var RIKA_BUBBLES = {
+    selectMajor:  ['論理で解き明かしましょう', '観察を始めますか？', 'どの学年から？'],
+    selectMinor:  ['分野を選んでください', 'どこから取りかかる？', '集中していきましょう'],
+    selectUnit:   ['小区分を選んでね', 'どのテーマにしましょうか', '挑むセットを選んで'],
+    question:     ['データを照合中…', '冷静に分析しましょう', '焦らず、論理的に'],
+    correct:      ['素晴らしい観察眼です', '正解です、よく考えられました', 'お見事'],
+    incorrect:    ['もう一度、視点を変えて', '焦らず、論理的に', '惜しい'],
+    grading:      ['結果を確認しています…', '判定中…'],
+    done:         ['見事に習得しましたね', '次の単元に進みましょう', '素晴らしい'],
+    practice:     ['今日の上限です。練習として続けますか？', 'HPは付きませんが、力にはなりますよ'],
+    cooldown:     ['同じセットを続けて挑むのは推奨しません', '別のセットを 2 つ完了してから戻りましょう']
+  };
+  // シャカネキ（社会重要語句、歴史を旅する・視野を広く・温かい口調）。2026-05-23 採用。
+  var SHAKANEKI_BUBBLES = {
+    selectMajor:  ['歴史を旅しましょう', '時代を見渡してみましょうか', 'どの大区分にしますか？'],
+    selectMinor:  ['中区分を選んでください', 'どこから掘り下げましょうか', '視野を広げていきましょう'],
+    selectUnit:   ['小区分を選んでね', 'どのテーマから？', '挑むセットを選んで'],
+    question:     ['年表を確認中…', '時間と空間を整理して', 'よく見渡してみよう'],
+    correct:      ['見事です', '視野が広がりましたね', '素晴らしい'],
+    incorrect:    ['もう一度、地図を見て', '歴史の流れを思い出して', '惜しい'],
+    grading:      ['結果を整えています…', '判定中…'],
+    done:         ['ひとつの時代を旅しましたね', '次の地へ参りましょう', 'お疲れさま'],
+    practice:     ['今日の上限です。練習として続けますか？', 'HPは付きませんが、知識は積もります'],
+    cooldown:     ['同じセットを続けるのは控えましょう', '別のセットを 2 つ完了してから戻りましょう']
+  };
 
   // ============================================================================
   // 国語長文読解 — 2026-05-23 新規実装
@@ -12571,6 +12735,593 @@
   // 計算タイムトライアル ここまで
   // ============================================================
 
+  // ============================================================
+  // 理社重要語句（中学理科・社会、2026-05-23 新規実装）
+  // ============================================================
+  // 生徒画面 6 画面構成。subject パラメータ（'rika' / 'shakai'）で両教科対応。
+  // ホーム → showRishaStart(subject) → 画面1 大区分 → 画面2 中区分 → 画面3 小区分 →
+  // 画面4 出題（1問ずつ採点）→ 画面5 HP最終計算中（hp-confirming-overlay 流用）→ 画面6 HP獲得演出
+  //
+  // 設計判断（仕様書「マイ活アプリ_理社重要語句_完全版仕様書_2026-05-23.docx」準拠）：
+  //   - サーバ採点：answer/explanation はクライアントに送らず GAS で照合
+  //   - sessionToken：1 セット = 1 トークン、ScriptCache に 30 分保持
+  //   - クールダウン：合格直後の 2 セット内は再挑戦不可
+  //   - 1 日 2 セット制限：3 セット目以降は練習モード（HP=0、記録は残す）
+  //   - キャラ：理科=リーカ、社会=シャカネキ（4 mood 画像 × 4 場面）
+
+  // ──── 状態管理 ────
+  var _rishaState = {
+    subject:   '',          // 'rika' or 'shakai'
+    major:     '',          // 画面1 で選んだ大区分（理科=grade、社会=majorField）
+    minor:     '',          // 画面2 で選んだ中区分（理科=field、社会=minorField）
+    units:     [],          // getRishaUnitList のキャッシュ
+    unitName:  '',          // 画面3 で選んだ小区分
+    setNo:     0,           // 画面3 で選んだセット番号
+    sessionToken: '',
+    questions: [],          // getRishaQuestionSet で取得した 10 問
+    qIdx:      0,           // 現在の問題インデックス
+    selected:  null,        // 現在問題の選択中ラベル
+    locked:    false,       // 採点済（次へ ボタン表示中）
+    errorIds:  [],          // 不正解の問題 ID 集約
+    correctCount: 0,        // 当該セットでの正解数（10 問中）
+    submittedFinish: false  // finishRishaSet を呼んだ後の二重送信ガード
+  };
+
+  function _rishaResetState() {
+    _rishaState = {
+      subject: '', major: '', minor: '', units: [], unitName: '', setNo: 0,
+      sessionToken: '', questions: [], qIdx: 0, selected: null, locked: false,
+      errorIds: [], correctCount: 0, submittedFinish: false
+    };
+  }
+
+  // 教科ごとのキャラプレフィックス / Bubbles / HP overlay charId
+  function _rishaMascotPrefix(subject) { return subject === 'shakai' ? 'shakaneki' : 'rika'; }
+  function _rishaBubbles(subject)      { return subject === 'shakai' ? SHAKANEKI_BUBBLES : RIKA_BUBBLES; }
+  function _rishaHpOverlayId(subject)  { return subject === 'shakai' ? 'shakaneki' : 'rika'; }
+  function _rishaSubjectLabel(subject) { return subject === 'shakai' ? '社会重要語句' : '理科重要語句'; }
+  function _rishaSubjectIcon(subject)  { return subject === 'shakai' ? '📗' : '📕'; }
+
+  // ──── 大区分の定義（理科は学年 / 社会は majorField） ────
+  var RISHA_MAJORS_RIKA = ['中1','中2','中3'];
+  var RISHA_MAJORS_SHAKAI = ['地理','歴史','公民'];
+
+  // 理科：学年 → 想定される分野（仕様書 4.1 から導出。データ実態に依らず常に 4 候補表示するが、
+  //   getRishaUnitList の units に存在する field のみ画面に出すことで「中3 化学が無い場合は表示しない」など
+  //   実データに追従する）。
+  // 社会：大区分 → 中区分の関係はデータの minorField を元に動的に組み立てる（仕様書 4.2）。
+  // 静的マッピングは「想定される中区分の表示順」を制御する用途のみ：
+  var RISHA_MINOR_ORDER_SHAKAI = {
+    '地理': ['世界地理','日本地理'],
+    '歴史': ['歴史導入','歴史前半','歴史後半'],
+    '公民': ['現代社会','政治','経済','国際社会']
+  };
+  // 理科の分野は学年共通でこの 4 種から（実データに存在するもののみ表示）
+  var RISHA_FIELDS_RIKA = ['物理','化学','生物','地学'];
+
+  // ──── ホームから開始 ────
+  function showRishaStart(subject) {
+    if (!_studentId) { alert('ログインしてください'); return; }
+    if (subject !== 'rika' && subject !== 'shakai') { alert('subject が不正です'); return; }
+    _rishaResetState();
+    _rishaState.subject = subject;
+    // 単元一覧を取得（クリア回数 + クールダウン情報も含む、画面1〜3 で使い回す）
+    gasGet({ action: 'getRishaUnitList', studentId: _studentId, subject: subject, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : 'データ取得に失敗しました';
+        console.error('[showRishaStart] getRishaUnitList not ok', res);
+        alert('データ取得に失敗：' + msg);
+        return;
+      }
+      _rishaState.units = res.units || [];
+      _rishaRenderMajorScreen();
+    }).catch(function(err){
+      console.error('[showRishaStart] gasGet rejected', err);
+      alert('通信エラー：' + (err && err.message ? err.message : '不明なエラー') + '\n（インターネット接続を確認して、もう一度試してください）');
+    });
+  }
+
+  // ──── 画面1：大区分選択 ────
+  function _rishaRenderMajorScreen() {
+    var subject = _rishaState.subject;
+    var prefix = _rishaMascotPrefix(subject);
+    var bubbles = _rishaBubbles(subject);
+    document.getElementById('risha-major-h1').textContent = _rishaSubjectIcon(subject) + ' ' + _rishaSubjectLabel(subject);
+    document.getElementById('risha-major-sub').textContent = (subject === 'rika') ? '学年を選んでね' : '大区分を選んでね';
+    _setContentMascot('risha-major-img', 'default', 'risha-major-bubble', _pickBubble(bubbles.selectMajor), prefix);
+    // ボタン構築
+    var btnWrap = document.getElementById('risha-major-buttons');
+    var majors = (subject === 'rika') ? RISHA_MAJORS_RIKA : RISHA_MAJORS_SHAKAI;
+    // 実データに存在する大区分のみ表示（問題未投入の単元は隠す）
+    var presentSet = {};
+    _rishaState.units.forEach(function(u) {
+      var key = (subject === 'rika') ? u.grade : u.majorField;
+      if (key) presentSet[key] = true;
+    });
+    var present = majors.filter(function(m){ return presentSet[m]; });
+    if (present.length === 0) {
+      btnWrap.innerHTML = '<div class="risha-daily-banner" style="display:block">⚠️ この教科の問題はまだ準備中です。ふくちさんが順次投入しています。</div>';
+    } else {
+      btnWrap.innerHTML = present.map(function(m) {
+        return '<button type="button" onclick="_rishaSelectMajor(\'' + _rishaEscJs(m) + '\')">' + _esc(m) + '</button>';
+      }).join('');
+    }
+    showScreen('screen-risha-major');
+  }
+  function _rishaSelectMajor(major) {
+    _rishaState.major = major;
+    _rishaRenderMinorScreen();
+  }
+  function _rishaBackToMajor() { _rishaRenderMajorScreen(); }
+
+  // ──── 画面2：中区分選択 ────
+  function _rishaRenderMinorScreen() {
+    var subject = _rishaState.subject;
+    var major = _rishaState.major;
+    var prefix = _rishaMascotPrefix(subject);
+    var bubbles = _rishaBubbles(subject);
+    document.getElementById('risha-minor-h1').textContent = _rishaSubjectIcon(subject) + ' ' + _rishaSubjectLabel(subject) + ' / ' + _esc(major);
+    document.getElementById('risha-minor-sub').textContent = (subject === 'rika') ? '分野を選んでね' : '中区分を選んでね';
+    _setContentMascot('risha-minor-img', 'default', 'risha-minor-bubble', _pickBubble(bubbles.selectMinor), prefix);
+    var btnWrap = document.getElementById('risha-minor-buttons');
+    // 実データに存在する中区分のみ表示
+    var presentSet = {};
+    _rishaState.units.forEach(function(u) {
+      var matchMajor = (subject === 'rika') ? (u.grade === major) : (u.majorField === major);
+      if (!matchMajor) return;
+      var minor = (subject === 'rika') ? u.field : u.minorField;
+      if (minor) presentSet[minor] = true;
+    });
+    // 表示順：教科ごとに静的順序を適用、未定義は末尾
+    var preferOrder = (subject === 'rika')
+      ? RISHA_FIELDS_RIKA
+      : (RISHA_MINOR_ORDER_SHAKAI[major] || []);
+    var ordered = preferOrder.filter(function(m){ return presentSet[m]; });
+    Object.keys(presentSet).forEach(function(m){ if (ordered.indexOf(m) < 0) ordered.push(m); });
+    if (ordered.length === 0) {
+      btnWrap.innerHTML = '<div class="risha-daily-banner" style="display:block">⚠️ この大区分の問題はまだ準備中です。</div>';
+    } else {
+      btnWrap.innerHTML = ordered.map(function(m) {
+        return '<button type="button" onclick="_rishaSelectMinor(\'' + _rishaEscJs(m) + '\')">' + _esc(m) + '</button>';
+      }).join('');
+    }
+    showScreen('screen-risha-minor');
+  }
+  function _rishaSelectMinor(minor) {
+    _rishaState.minor = minor;
+    _rishaRenderUnitScreen();
+  }
+  function _rishaBackToMinor() { _rishaRenderMinorScreen(); }
+
+  // ──── 画面3：小区分選択 ────
+  function _rishaRenderUnitScreen() {
+    var subject = _rishaState.subject;
+    var prefix = _rishaMascotPrefix(subject);
+    var bubbles = _rishaBubbles(subject);
+    document.getElementById('risha-unit-h1').textContent = _rishaSubjectIcon(subject) + ' ' + _rishaSubjectLabel(subject) + ' / ' + _esc(_rishaState.major) + ' / ' + _esc(_rishaState.minor);
+    document.getElementById('risha-unit-sub').textContent = '小区分を選んでね';
+    _setContentMascot('risha-unit-img', 'default', 'risha-unit-bubble', _pickBubble(bubbles.selectUnit), prefix);
+    // 1 日上限の表示（今日のクリア数を再取得）
+    var bannerEl = document.getElementById('risha-unit-daily-banner');
+    bannerEl.style.display = 'none';
+    bannerEl.className = 'risha-daily-banner';
+    gasGet({ action: 'getRishaSubjectCounts', studentId: _studentId, subject: subject, _ts: Date.now() }).then(function(r) {
+      if (r && r.ok) {
+        var cnt = Number(r.todayClearedSets) || 0;
+        var lim = Number(r.dailyLimit) || 2;
+        if (cnt >= lim) {
+          bannerEl.style.display = 'block';
+          bannerEl.className = 'risha-daily-banner limit-reached';
+          bannerEl.textContent = '今日のセットはすべて完了しました（' + lim + ' / ' + lim + '）。3 セット目以降は練習モード（HP獲得なし）です。';
+        } else if (cnt > 0) {
+          bannerEl.style.display = 'block';
+          bannerEl.textContent = '今日は ' + cnt + ' セット完了。あと ' + (lim - cnt) + ' セット挑戦できます。';
+        }
+      }
+    }).catch(function(){ /* バナーは付加情報なのでエラー時はスキップ */ });
+
+    // 該当大区分・中区分の単元のみ抽出してボタン化
+    var subject2 = _rishaState.subject;
+    var matching = _rishaState.units.filter(function(u) {
+      var matchMajor = (subject2 === 'rika') ? (u.grade === _rishaState.major) : (u.majorField === _rishaState.major);
+      var matchMinor = (subject2 === 'rika') ? (u.field === _rishaState.minor) : (u.minorField === _rishaState.minor);
+      return matchMajor && matchMinor;
+    });
+    var btnWrap = document.getElementById('risha-unit-buttons');
+    if (matching.length === 0) {
+      btnWrap.innerHTML = '<div class="risha-daily-banner" style="display:block">⚠️ この中区分の単元はまだ準備中です。</div>';
+      showScreen('screen-risha-unit');
+      return;
+    }
+    btnWrap.innerHTML = matching.map(function(u) {
+      var totalQs = Number(u.totalQuestions) || 0;
+      var sets = Array.isArray(u.sets) ? u.sets : [];
+      // 各セットのメタを文字列化
+      var setLines = sets.map(function(s) {
+        var cc = Number(s.clearCount) || 0;
+        var ccStr = cc > 0
+          ? '<span class="clear-count">' + cc + '回クリア</span>'
+          : '<span class="clear-zero">未挑戦</span>';
+        var cdStr = s.inCooldown ? ' <span class="cooldown-badge">⏳ クールダウン中</span>' : '';
+        var setLabel = (sets.length >= 2) ? ('セット' + s.setNo + '：') : '';
+        return setLabel + ccStr + cdStr;
+      }).join('<br>');
+      // すべてのセットがクールダウン中ならボタン全体を disabled 風に
+      var allCooldown = sets.length > 0 && sets.every(function(s){ return s.inCooldown; });
+      // ボタンクリック時：複数セットなら一旦 modal っぽい簡易選択（confirm でも可）
+      var unitJs = _rishaEscJs(u.unitName);
+      var onclickHtml;
+      if (sets.length === 1) {
+        var setNo = sets[0].setNo;
+        if (sets[0].inCooldown) {
+          onclickHtml = ' onclick="_rishaShowCooldownMsg()"';
+        } else {
+          onclickHtml = ' onclick="_rishaStartSet(\'' + unitJs + '\', ' + setNo + ')"';
+        }
+      } else {
+        // 複数セット：簡易ピッカー（最初に挑戦可能なセットを選ぶ。または confirm でセット番号を選ぶ）
+        // クールダウン中以外のセットだけリスト化
+        var pickable = sets.filter(function(s){ return !s.inCooldown; });
+        if (pickable.length === 0) {
+          onclickHtml = ' onclick="_rishaShowCooldownMsg()"';
+        } else if (pickable.length === 1) {
+          onclickHtml = ' onclick="_rishaStartSet(\'' + unitJs + '\', ' + pickable[0].setNo + ')"';
+        } else {
+          // 複数セットあるとき：プロンプトでセット選択（最小実装）
+          onclickHtml = ' onclick="_rishaPickAndStartSet(\'' + unitJs + '\')"';
+        }
+      }
+      return '<button type="button" class="risha-unit-btn' + (allCooldown ? ' cooldown' : '') + '"' + onclickHtml + '>' +
+               '<span class="risha-unit-name">' + _esc(u.unitName) + '</span>' +
+               '<span class="risha-unit-meta">全' + totalQs + '問' + (sets.length > 0 ? ' / ' + sets.length + 'セット<br>' + setLines : '') + '</span>' +
+             '</button>';
+    }).join('');
+    showScreen('screen-risha-unit');
+  }
+
+  function _rishaShowCooldownMsg() {
+    alert('このセットは直近 ' + 2 + ' 回のクールダウン中です。\n別のセットを 2 つ完了してから再挑戦してください。');
+  }
+  function _rishaPickAndStartSet(unitName) {
+    // 該当 unit を units から探してセット候補を出す
+    var subject = _rishaState.subject;
+    var unit = _rishaState.units.filter(function(u) { return u.unitName === unitName; })[0];
+    if (!unit) { alert('単元が見つかりません'); return; }
+    var pickable = (unit.sets || []).filter(function(s){ return !s.inCooldown; });
+    if (pickable.length === 0) { _rishaShowCooldownMsg(); return; }
+    var lines = pickable.map(function(s) {
+      return s.setNo + '（' + ((Number(s.clearCount) > 0) ? s.clearCount + '回クリア済' : '未挑戦') + '）';
+    }).join('\n');
+    var ans = prompt('どのセットに挑戦しますか？セット番号を入力してね。\n\n候補：\n' + lines, String(pickable[0].setNo));
+    if (ans == null) return;
+    var n = Number(String(ans).trim());
+    if (!n || pickable.filter(function(s){ return s.setNo === n; }).length === 0) {
+      alert('そのセット番号は選べません。');
+      return;
+    }
+    _rishaStartSet(unitName, n);
+  }
+
+  // ──── 画面3 → 4：セット開始（getRishaQuestionSet を呼んで問題を取得） ────
+  function _rishaStartSet(unitName, setNo) {
+    var subject = _rishaState.subject;
+    _rishaState.unitName = unitName;
+    _rishaState.setNo = setNo;
+    _rishaState.qIdx = 0;
+    _rishaState.errorIds = [];
+    _rishaState.correctCount = 0;
+    _rishaState.submittedFinish = false;
+    gasGet({
+      action: 'getRishaQuestionSet',
+      studentId: _studentId,
+      subject:   subject,
+      unitName:  unitName,
+      setNo:     setNo,
+      _ts:       Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        if (res && res.errorCode === 'cooldown') {
+          _rishaShowCooldownMsg();
+          return;
+        }
+        if (res && res.errorCode === 'no_questions') {
+          alert(res.message || 'この単元の問題はまだ準備中です。');
+          return;
+        }
+        var msg = (res && res.message) ? res.message : 'セット開始に失敗しました';
+        console.error('[_rishaStartSet] not ok', res);
+        alert('セット開始に失敗：' + msg);
+        return;
+      }
+      _rishaState.sessionToken = res.sessionToken;
+      _rishaState.questions = res.questions || [];
+      if (_rishaState.questions.length === 0) {
+        alert('この単元の問題はまだ準備中です。');
+        return;
+      }
+      _rishaRenderQuestion();
+    }).catch(function(err) {
+      console.error('[_rishaStartSet] gasGet rejected', err);
+      alert('通信エラー：' + (err && err.message ? err.message : '不明なエラー'));
+    });
+  }
+
+  // ──── 画面4：問題表示 ────
+  function _rishaRenderQuestion() {
+    var subject = _rishaState.subject;
+    var prefix = _rishaMascotPrefix(subject);
+    var bubbles = _rishaBubbles(subject);
+    var qIdx = _rishaState.qIdx;
+    var q = _rishaState.questions[qIdx];
+    if (!q) {
+      // 全問終了 → 結果へ（合格なら HP 加算、不合格なら誤答問題のみ再挑戦）
+      _rishaOnSetComplete();
+      return;
+    }
+    document.getElementById('risha-q-h1').textContent = _rishaSubjectIcon(subject) + ' ' + _esc(_rishaState.unitName) + ' / セット' + _rishaState.setNo;
+    document.getElementById('risha-q-progress').textContent = (qIdx + 1) + ' / ' + _rishaState.questions.length;
+    _setContentMascot('risha-q-img', 'thinking', 'risha-q-bubble', _pickBubble(bubbles.question), prefix);
+    // メタ（問題タイプ等）
+    document.getElementById('risha-q-meta').innerHTML = '問題タイプ: ' + _esc(q.questionType || '?') + '　|　ID: ' + _esc(q.id || '?');
+    document.getElementById('risha-q-text').textContent = q.questionText || '';
+    // 選択肢
+    var choicesEl = document.getElementById('risha-q-choices');
+    choicesEl.innerHTML = (q.choices || []).map(function(c, i) {
+      var lbl = _esc(c.label);
+      var txt = _esc(c.text);
+      var inputId = 'risha-choice-' + i;
+      return '<label for="' + inputId + '" data-label="' + lbl + '">' +
+               '<input type="radio" name="risha-choice" id="' + inputId + '" value="' + lbl + '" onchange="_rishaOnChoiceChange(\'' + lbl + '\')">' +
+               '<span class="label-mark">' + lbl + '</span>' +
+               '<span class="label-text">' + txt + '</span>' +
+             '</label>';
+    }).join('');
+    _rishaState.selected = null;
+    _rishaState.locked = false;
+    document.getElementById('risha-q-submit-btn').style.display = '';
+    document.getElementById('risha-q-submit-btn').disabled = true;
+    document.getElementById('risha-q-next-btn').style.display = 'none';
+    document.getElementById('risha-q-feedback').style.display = 'none';
+    showScreen('screen-risha-question');
+  }
+  function _rishaOnChoiceChange(label) {
+    if (_rishaState.locked) return;
+    _rishaState.selected = label;
+    document.getElementById('risha-q-submit-btn').disabled = false;
+    // ハイライト
+    var labels = document.querySelectorAll('#risha-q-choices label');
+    labels.forEach(function(el) {
+      if (el.getAttribute('data-label') === label) el.classList.add('selected');
+      else el.classList.remove('selected');
+    });
+  }
+  function onRishaAnswerSubmit() {
+    if (_rishaState.locked) return;
+    var sel = _rishaState.selected;
+    if (!sel) { alert('選択肢を選んでね'); return; }
+    var q = _rishaState.questions[_rishaState.qIdx];
+    if (!q) return;
+    _rishaState.locked = true;
+    document.getElementById('risha-q-submit-btn').disabled = true;
+    gasGet({
+      action: 'submitRishaAnswer',
+      sessionToken: _rishaState.sessionToken,
+      questionId:   q.id,
+      selectedChoice: sel,
+      _ts: Date.now()
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        if (res && res.errorCode === 'session_expired') {
+          alert('セッションが切れました。最初からやり直してください。');
+          goHome();
+          return;
+        }
+        var msg = (res && res.message) ? res.message : '採点に失敗しました';
+        alert('採点エラー：' + msg);
+        _rishaState.locked = false;
+        document.getElementById('risha-q-submit-btn').disabled = false;
+        return;
+      }
+      _rishaRenderFeedback(res);
+    }).catch(function(err) {
+      console.error('[onRishaAnswerSubmit] rejected', err);
+      alert('通信エラー：' + (err && err.message ? err.message : '不明なエラー'));
+      _rishaState.locked = false;
+      document.getElementById('risha-q-submit-btn').disabled = false;
+    });
+  }
+  function _rishaRenderFeedback(res) {
+    var subject = _rishaState.subject;
+    var prefix = _rishaMascotPrefix(subject);
+    var bubbles = _rishaBubbles(subject);
+    var q = _rishaState.questions[_rishaState.qIdx];
+    var isCorrect = !!res.isCorrect;
+    if (isCorrect) {
+      _rishaState.correctCount += 1;
+      _setContentMascot('risha-q-img', 'celebrate', 'risha-q-bubble', _pickBubble(bubbles.correct), prefix);
+    } else {
+      _rishaState.errorIds.push(q.id);
+      _setContentMascot('risha-q-img', 'encourage', 'risha-q-bubble', _pickBubble(bubbles.incorrect), prefix);
+    }
+    // 選択肢にハイライト
+    var labels = document.querySelectorAll('#risha-q-choices label');
+    labels.forEach(function(el) {
+      el.classList.add('disabled');
+      var input = el.querySelector('input');
+      if (input) input.disabled = true;
+      var lab = el.getAttribute('data-label');
+      if (lab === res.correctChoice) el.classList.add('correct');
+      else if (lab === _rishaState.selected && !isCorrect) el.classList.add('incorrect');
+    });
+    // フィードバック表示
+    var fbEl = document.getElementById('risha-q-feedback');
+    fbEl.style.display = '';
+    fbEl.className = 'risha-q-feedback ' + (isCorrect ? 'correct' : 'incorrect');
+    var head = isCorrect
+      ? '<span class="feedback-label">⭕ 正解！</span>'
+      : '<span class="feedback-label">❌ 不正解（正解：' + _esc(res.correctChoice || '?') + '）</span>';
+    var expl = res.explanation
+      ? '<div class="feedback-explanation"><strong>解説：</strong>' + _esc(res.explanation) + '</div>'
+      : '';
+    fbEl.innerHTML = head + expl;
+    // 「次へ」ボタンを表示
+    document.getElementById('risha-q-submit-btn').style.display = 'none';
+    document.getElementById('risha-q-next-btn').style.display = '';
+  }
+  function onRishaNextQuestion() {
+    _rishaState.qIdx += 1;
+    if (_rishaState.qIdx >= _rishaState.questions.length) {
+      // 全 10 問終了
+      _rishaOnSetComplete();
+    } else {
+      _rishaRenderQuestion();
+    }
+  }
+
+  // ──── 全問終了：合格なら HP 加算、不合格なら誤答問題のみ再挑戦 ────
+  function _rishaOnSetComplete() {
+    if (_rishaState.submittedFinish) return;
+    var allCorrect = _rishaState.errorIds.length === 0;
+    if (allCorrect) {
+      _rishaSubmitFinish();
+    } else {
+      // 不合格：誤答問題のみで再挑戦できることを伝え、エラーIDのみを残してリトライ
+      // 仕様：「全問正解するまで繰り返す」→ 誤答だけ再出題（順序維持、シャッフルしない）
+      var errIds = _rishaState.errorIds.slice();
+      var retryQs = _rishaState.questions.filter(function(q){ return errIds.indexOf(q.id) >= 0; });
+      if (retryQs.length === 0) {
+        // 念のためのガード（理論上ここには来ない）
+        _rishaSubmitFinish();
+        return;
+      }
+      // セット内 state を再構成（同じ sessionToken / 同じ正解配置で再採点）
+      _rishaState.questions = retryQs;
+      _rishaState.qIdx = 0;
+      _rishaState.errorIds = [];
+      _rishaState.correctCount = 0;
+      // 一旦結果画面っぽい中間表示はせず、すぐ次の問題へ
+      alert('不正解の ' + retryQs.length + ' 問を、もう一度挑戦しよう！');
+      _rishaRenderQuestion();
+    }
+  }
+
+  // ──── finishRishaSet を呼ぶ（合格 1 セット分の確定処理） ────
+  function _rishaSubmitFinish() {
+    _rishaState.submittedFinish = true;
+    var subject = _rishaState.subject;
+    _showHpConfirmingOverlay(_rishaHpOverlayId(subject));
+    // 念のため screen-risha-grading も表示しておく（overlay が消えても背景に残るように）
+    var prefix = _rishaMascotPrefix(subject);
+    var bubbles = _rishaBubbles(subject);
+    _setContentMascot('risha-grading-img', 'thinking', 'risha-grading-bubble', _pickBubble(bubbles.grading), prefix);
+    showScreen('screen-risha-grading');
+    gasGet({
+      action: 'finishRishaSet',
+      studentId: _studentId,
+      subject:   subject,
+      sessionToken: _rishaState.sessionToken,
+      errorQuestionIds: [],   // ここに来る時点で全問正解
+      _ts: Date.now()
+    }).then(function(res) {
+      _hideHpConfirmingOverlay();
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : 'セット完了の記録に失敗しました';
+        console.error('[_rishaSubmitFinish] not ok', res);
+        alert('エラー：' + msg);
+        return;
+      }
+      _rishaRenderDoneScreen(res);
+    }).catch(function(err) {
+      _hideHpConfirmingOverlay();
+      console.error('[_rishaSubmitFinish] rejected', err);
+      alert('通信エラー：' + (err && err.message ? err.message : '不明なエラー'));
+    });
+  }
+
+  // ──── 画面6：HP獲得 / 練習モード ────
+  function _rishaRenderDoneScreen(res) {
+    var subject = _rishaState.subject;
+    var prefix = _rishaMascotPrefix(subject);
+    var bubbles = _rishaBubbles(subject);
+    var bodyEl = document.getElementById('risha-done-body');
+    var isPractice = !!res.isPractice;
+    var hp = Number(res.hpGained) || 0;
+    var hpReserved = Number(res.hpReserved) || 0;
+    var today = Number(res.todayClearedSets) || 0;
+    var html = '';
+    if (isPractice) {
+      html += '<div class="risha-done-practice">' +
+                '<div class="practice-title">📝 セット完了（練習モード）</div>' +
+                '<div>HP は今日の上限（2 セット）に達しているため付与されません。</div>' +
+                '<div class="practice-note">学習を続けるのは素晴らしいことです！明日また HP を獲得できます。</div>' +
+              '</div>';
+      _setContentMascot('risha-grading-img', 'default', null, '', prefix);
+    } else {
+      // HP 獲得演出
+      var hpAvailable = hp - hpReserved;
+      var hpLine = hp.toLocaleString() + ' HP獲得';
+      var pendingLine = '';
+      if (hpReserved > 0) {
+        pendingLine = '<div class="done-hp-pending">うち ' + hpReserved.toLocaleString() + ' HP は振り返り提出で確定（保留中）</div>';
+      }
+      var dailyLine = res.reachedDailyLimit
+        ? '今日のセットはすべて完了しました（' + today + ' / 2）'
+        : '今日はあと ' + (2 - today) + ' セット挑戦できます（' + today + ' / 2）';
+      html += '<div class="risha-done-success">' +
+                '<div class="done-title">🎉 全問正解！</div>' +
+                '<div class="done-hp">' + hp.toLocaleString() + '</div>' +
+                '<div class="done-hp-label">HP獲得</div>' +
+                pendingLine +
+                '<div class="done-daily">' + dailyLine + '</div>' +
+              '</div>';
+    }
+    bodyEl.innerHTML = html;
+    // 「別のセットに挑戦する」ボタンの表示制御：今日の上限未達のときのみ表示
+    var againBtn = document.getElementById('risha-done-again-btn');
+    if (!isPractice && !res.reachedDailyLimit) {
+      againBtn.style.display = '';
+    } else {
+      againBtn.style.display = 'none';
+    }
+    // 完了画面のマスコット（成功時は祝う、練習時は default）
+    if (!isPractice) {
+      // すでに hp-confirming-overlay の祝賀演出があるので、画面6 のマスコットは小さくは持たない設計。
+      // 必要なら done-body 内に mate-row を別途追加して celebrate を出してもよい。
+    }
+    showScreen('screen-risha-done');
+  }
+  function _rishaContinueAnother() {
+    // 単元一覧を最新で取り直してから画面3 に戻る（クリア回数の増分を反映するため）
+    var subject = _rishaState.subject;
+    var major = _rishaState.major, minor = _rishaState.minor;
+    gasGet({ action: 'getRishaUnitList', studentId: _studentId, subject: subject, _ts: Date.now() }).then(function(res) {
+      if (res && res.ok) {
+        _rishaState.units = res.units || [];
+      }
+      _rishaState.major = major; _rishaState.minor = minor;
+      _rishaRenderUnitScreen();
+    }).catch(function(){
+      // 失敗時もとりあえず画面3 へ
+      _rishaRenderUnitScreen();
+    });
+  }
+
+  // ──── 中断確認 ────
+  function _rishaConfirmAbort() {
+    if (confirm('途中でやめると、このセットの記録は残りません。ホームに戻りますか？')) {
+      goHome();
+    }
+  }
+
+  // ──── ユーティリティ ────
+  function _rishaEscJs(s) {
+    return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  }
+
+  // ============================================================
+  // 理社重要語句 ここまで
+  // ============================================================
+
   function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = '本当にこのページを離れますか？'; return e.returnValue; }
   window.addEventListener('beforeunload', beforeUnloadHandler);
   // 「戻る」ボタンを無効化：popstate をフックして直前のエントリに再 push し続ける
@@ -12582,7 +13333,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-1535</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-2357</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
