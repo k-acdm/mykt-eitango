@@ -871,17 +871,15 @@
       <div class="dashboard-card-title">先生からのメッセージ</div>
       <div class="dashboard-card-desc">生徒へのメッセージを作成・送信（個別 / 全員）</div>
     </button>
-    <!-- 国語長文読解（2026-05-23 新規）：問題投入は admin のみ、挑戦履歴閲覧は admin/teacher 両ロール -->
-    <button type="button" id="dash-card-kokugo-input" class="dashboard-card admin-only" onclick="goAdminKokugoInput()">
-      <div class="dashboard-card-icon">📖</div>
-      <div class="dashboard-card-title">国語長文 問題投入</div>
-      <div class="dashboard-card-desc">文学的文章 / 説明的文章 × 800字 / 1,200字 の 4 区分で問題を追加</div>
-    </button>
-    <button type="button" class="dashboard-card" onclick="goAdminKokugoStudents()">
-      <div class="dashboard-card-icon">📚</div>
-      <div class="dashboard-card-title">国語長文 挑戦履歴</div>
-      <div class="dashboard-card-desc">生徒の挑戦履歴・感想文・AIフィードバックを確認</div>
-    </button>
+    <!-- 国語長文読解（2026-05-23 新規 → 同日中に集約化）：
+         以下 2 カードをサブページへ移動し、ダッシュボードからは外した（既存集約パターン踏襲）。
+         · 📖 国語長文 問題投入（admin-only）
+              → 「問題等の入力と解答確認」ページ（screen-admin-tabs）の冒頭ナビ
+                 リスオン問題入力と同列（問題投入系として集約）
+         · 📚 国語長文 挑戦履歴（admin/teacher 両ロール）
+              → 「生徒の実施状況」ページ（screen-admin-activity-select）の末尾
+                 生徒の振り返りコメントと同列（生徒の活動閲覧系として集約）
+         機能・遷移・権限制御は維持。カードの場所だけ移動。 -->
     <button type="button" id="dash-card-teacher-mgmt" class="dashboard-card admin-only" onclick="goAdminTeachers()">
       <div class="dashboard-card-icon">👨‍🏫</div>
       <div class="dashboard-card-title">講師管理</div>
@@ -984,6 +982,13 @@
       <div class="dashboard-card-icon">🎤</div>
       <div class="dashboard-card-title">リスオン録音データ</div>
       <div class="dashboard-card-desc">生徒の音読録音を確認（保存期間 15 日）</div>
+    </button>
+    <!-- 2026-05-23 集約化：ダッシュボードから移動。リスオン問題入力と同列（問題投入系として集約）。
+         権限制御（admin-only）と遷移先 goAdminKokugoInput() は元のまま。 -->
+    <button type="button" id="dash-card-kokugo-input" class="dashboard-card admin-only" onclick="goAdminKokugoInput()">
+      <div class="dashboard-card-icon">📖</div>
+      <div class="dashboard-card-title">国語長文 問題投入</div>
+      <div class="dashboard-card-desc">文学的文章 / 説明的文章 × 800字 / 1,200字 の 4 区分で問題を追加</div>
     </button>
   </div>
   <!-- 2026-05-19 タブ → カード化：6 モジュール（quote / notice / sango-topic /
@@ -1520,6 +1525,13 @@
       <div class="dashboard-card-icon">📝</div>
       <div class="dashboard-card-title">生徒の振り返りコメント</div>
       <div class="dashboard-card-desc">生徒がログアウト時に書いた振り返りコメントを確認（admin / teacher 両ロール可）</div>
+    </button>
+    <!-- 2026-05-23 集約化：ダッシュボードから移動。生徒の振り返りコメントと同列（生徒の活動閲覧系として集約）。
+         権限制御（admin / teacher 両ロール可）と遷移先 goAdminKokugoStudents() は元のまま。 -->
+    <button type="button" class="dashboard-card" onclick="goAdminKokugoStudents()">
+      <div class="dashboard-card-icon">📚</div>
+      <div class="dashboard-card-title">国語長文 挑戦履歴</div>
+      <div class="dashboard-card-desc">生徒の挑戦履歴・感想文・AIフィードバックを確認（admin / teacher 両ロール可）</div>
     </button>
   </div>
 </div>

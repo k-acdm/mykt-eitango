@@ -21490,8 +21490,16 @@ function _readKokugoQuestionRow(questionId, category) {
   return null;
 }
 
-// 問題マスター行を { id, category, charCount, title, bodyText, q1: {...}, q2: {...}, status, audioUrl }
+// 問題マスター行を { id, category, charCount, title, bodyText, q1: {...}, q2: {...}, status }
 // の構造に整形（採点に必要な answer は呼び出し側で q1_answer / q2_answer を別途参照）。
+//
+// 2026-05-23 修正：audioUrl フィールドはクライアント返却用 question から削除した。
+//   旧版はシート N列の値（旧 URL or fileId）をそのまま q.audioUrl で渡していたが、
+//   フロントが state にコピーして playKokugoAudio() の早期 return を誤発火させ、
+//   getKokugoAudioUrl（base64 配信プロキシ）を呼ばず旧 URL を <audio src> にセット →
+//   Content-Disposition で再生失敗 → 書き戻しも走らない 二重バグの真因だった。
+//   音声は常に getKokugoAudioUrl 経由で取得する設計に統一するため、サーバ側からも
+//   audioUrl の漏出を遮断する（再発防止）。シートの audioUrl 列はキャッシュ用途として温存。
 function _kokugoRowToQuestion(row, opts) {
   opts = opts || {};
   const includeAnswerForGrading = !!opts.includeAnswer;
@@ -21507,7 +21515,6 @@ function _kokugoRowToQuestion(row, opts) {
     title:     String(row.title || ''),
     bodyText:  String(row.bodyText || ''),
     status:    String(row.status || '').trim(),
-    audioUrl:  String(row.audioUrl || '').trim(),
     q1: {
       text:    String(row.q1_text || ''),
       choices: parseChoices(row.q1_choices)

@@ -2436,10 +2436,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-0626"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260523-1448"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-0626">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-0626"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260523-1448">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260523-1448"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10728,7 +10728,13 @@
     var q2El = document.getElementById('kokugo-question-q2');
     if (q2El) q2El.innerHTML = _kokugoBuildQuestionHtml(2, q.q2);
 
-    _kokugoState.audioUrl = q.audioUrl || '';
+    // 2026-05-23 修正：以前は q.audioUrl（シート N列の旧 URL/fileId）を state に
+    //   直接コピーしていたが、これが playKokugoAudio() の早期 return パスを誤発火させ、
+    //   getKokugoAudioUrl API（base64 配信プロキシ）が呼ばれず、旧 URL が <audio src> に
+    //   セットされて再生失敗 → かつ N列の自動書き戻しも走らない 二重バグの真因だった。
+    //   state.audioUrl は「getKokugoAudioUrl の成功レスポンスから生成した data URL」のみを
+    //   キャッシュする用途に限定する（同セッション 2 回目以降の再生で再 fetch 回避）。
+    _kokugoState.audioUrl = '';
     _kokugoSetupAudioRow();
     _kokugoUpdateGradeBtn();
     _setContentMascot('kokugo-img-question', 'thinking', 'kokugo-bubble-question', _pickBubble(JAPANIN_BUBBLES.reading), 'japanin');
@@ -12576,7 +12582,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-0626</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260523-1448</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
