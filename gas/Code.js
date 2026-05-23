@@ -1202,6 +1202,11 @@ function doGet(e) {
       //   履歴閲覧は admin/teacher 両ロール許可（adminListKokugoAttempts 内で _verifyTeacher のみ）。
       else if (action === 'adminAddKokugoQuestion')      result = adminAddKokugoQuestion(params);
       else if (action === 'adminListKokugoAttempts')     result = adminListKokugoAttempts(params);
+      // 2026-05-23 新設：振り返りカレンダー（getReflectionMonthSummary / getReflectionDayDetail）と
+      //   同パターンの 2 API。「📚 国語長文 挑戦履歴」を「生徒の振り返りコメント」と同じ
+      //   生徒別 / カレンダーの 2 モード UI に揃えるため。admin/teacher 両ロール許可。
+      else if (action === 'getKokugoMonthSummary')       result = getKokugoMonthSummary(params);
+      else if (action === 'getKokugoDayDetail')          result = getKokugoDayDetail(params);
       else if (action === 'ping')             result = { ok: true };
       else result = { ok: false, message: 'unknown action: ' + action };
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -22457,6 +22462,177 @@ function adminListKokugoAttempts(params) {
     };
   } catch (err) {
     console.error('[adminListKokugoAttempts]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：国語長文挑戦カレンダー用 月次サマリー（admin/teacher 両ロール許可）
+// 2026-05-23 新設：振り返りカレンダー（getReflectionMonthSummary）と同じパターン。
+// カレンダー UI で「挑戦があった日に色を付ける」「件数・人数バッジを表示」用。
+// params: { teacherId, password, yearMonth: 'YYYY-MM' }
+// 戻り値: { ok, yearMonth, days: [{ date, count, studentCount }] }
+//   count        = その日の挑戦総件数（着手中も含む。「挑戦」シグナルとしてはどちらも一票）
+//   studentCount = その日のユニーク挑戦生徒数
+// キャッシュ: cache_kokugo_month_<yearMonth>（5 分 TTL）
+// 注：書き込み（startKokugoAttempt / submitKokugoImpression）時の invalidate は今回入れない。
+//   5 分以内の最新化は cache_ts 更新で自然に再取得される（振り返り月次サマリーと同じ運用）。
+function getKokugoMonthSummary(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const ym = String((params && params.yearMonth) || '').trim();
+    if (!/^\d{4}-\d{2}$/.test(ym)) return { ok: false, message: 'yearMonth は YYYY-MM 形式で指定してください' };
+
+    const cacheKey = 'cache_kokugo_month_' + ym;
+    const result = _getCachedValues(cacheKey, 300, function() {
+      const sh = _ss().getSheetByName(SHEET_KOKUGO_ATTEMPTS);
+      const days = {};
+      // 月初〜月末の枠を空オブジェクトで初期化（getReflectionMonthSummary と同パターン）
+      const year  = parseInt(ym.slice(0, 4), 10);
+      const month = parseInt(ym.slice(5, 7), 10);
+      const lastDay = new Date(year, month, 0).getDate();
+      for (let d = 1; d <= lastDay; d++) {
+        const ds = ym + '-' + (d < 10 ? '0' + d : String(d));
+        days[ds] = { count: 0, sids: {} };
+      }
+      if (sh && sh.getLastRow() >= 2) {
+        const values = sh.getDataRange().getValues();
+        const header = values[0];
+        const iSid = header.indexOf('studentId');
+        const iTs  = header.indexOf('timestamp');
+        if (iSid >= 0 && iTs >= 0) {
+          for (let i = 1; i < values.length; i++) {
+            const r = values[i];
+            // timestamp 列から日付部分を取り出す。Date 型 / 'yyyy-MM-dd HH:mm:ss' / 'yyyy/M/d ...' に対応
+            // ヘルパー名は reflection 由来だが中身は汎用なので流用（CLAUDE.md：機能横断ヘルパーは命名に縛られず再利用）
+            const ds = _reflectionToDateStr(r[iTs]);
+            if (!ds || !days[ds]) continue;
+            const sid = String(r[iSid] || '').trim();
+            if (!sid) continue;
+            days[ds].count += 1;
+            days[ds].sids[sid] = true;
+          }
+        }
+      }
+      const list = [];
+      Object.keys(days).sort().forEach(function(ds){
+        list.push({
+          date:         ds,
+          count:        days[ds].count,
+          studentCount: Object.keys(days[ds].sids).length
+        });
+      });
+      return { yearMonth: ym, days: list };
+    });
+
+    // 監査ログ（振り返りと同等の扱い：閲覧の事実を記録、cache hit でもログ）
+    try {
+      _logTeacherAction(_teacher.teacherId, 'KOKUGO_CALENDAR_VIEW', '', 'success', {
+        yearMonth: ym
+      });
+    } catch(_e) {}
+
+    return { ok: true, yearMonth: result.yearMonth, days: result.days };
+  } catch (err) {
+    console.error('[getKokugoMonthSummary]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：指定日の国語長文挑戦一覧（admin/teacher 両ロール許可）
+// 2026-05-23 新設：振り返り日付別一覧（getReflectionDayDetail）と同じパターン。
+// params: { teacherId, password, date: 'YYYY-MM-DD' }
+// 戻り値: { ok, date, attempts: [
+//   { timestamp, studentId, studentName, nickname, grade,
+//     category, charCount,
+//     q1_selected, q1_correct, q2_selected, q2_correct,
+//     impressionText, aiFeedback, attemptCountSoFar, inProgress }, ...
+// ] }（時刻昇順、朝→夜）
+// 注：表示ポリシー（CLAUDE.md：本タスクのふくちさん指示）に従い、questionId / 問題タイトル / hpGained は
+//   レスポンスから外す。inProgress フラグは UI 側で着手中バッジ表示に使うため残す。
+// キャッシュなし（リアルタイム反映優先、当日中に新規提出が増える可能性あり）
+function getKokugoDayDetail(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const date = String((params && params.date) || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, message: 'date は YYYY-MM-DD 形式で指定してください' };
+
+    // sid → 氏名 / ニックネーム / 学年（Students + SpecialAccounts join、振り返り日付別一覧と同パターン）
+    const stuValues = _getAllAccountsValues();
+    const stuMap = {};
+    if (stuValues && stuValues.length >= 2) {
+      const gradeColIdx = _findGradeLevelColIdx(stuValues);
+      for (let i = 1; i < stuValues.length; i++) {
+        const sid = String(stuValues[i][COL_ID] || '').trim();
+        if (!sid) continue;
+        stuMap[sid] = {
+          name:     String(stuValues[i][COL_NAME]     || '').trim(),
+          nickname: String(stuValues[i][COL_NICKNAME] || '').trim(),
+          grade:    gradeColIdx >= 0 ? String(stuValues[i][gradeColIdx] || '').trim() : ''
+        };
+      }
+    }
+
+    // KokugoAttempts シート走査（指定日のみ、timestamp 列から日付部分を抽出して比較）
+    const sh = _ss().getSheetByName(SHEET_KOKUGO_ATTEMPTS);
+    const out = [];
+    if (sh && sh.getLastRow() >= 2) {
+      const values = sh.getDataRange().getValues();
+      const header = values[0];
+      const iTs    = header.indexOf('timestamp');
+      const iSid   = header.indexOf('studentId');
+      const iCat   = header.indexOf('category');
+      const iCc    = header.indexOf('charCount');
+      const iQ1s   = header.indexOf('q1_selected');
+      const iQ1c   = header.indexOf('q1_correct');
+      const iQ2s   = header.indexOf('q2_selected');
+      const iQ2c   = header.indexOf('q2_correct');
+      const iImpr  = header.indexOf('impressionText');
+      const iFb    = header.indexOf('aiFeedback');
+      const iAcsf  = header.indexOf('attemptCountSoFar');
+      if (iSid >= 0 && iTs >= 0) {
+        for (let i = 1; i < values.length; i++) {
+          const r = values[i];
+          if (_reflectionToDateStr(r[iTs]) !== date) continue;
+          const sid  = String(r[iSid] || '').trim();
+          const info = stuMap[sid] || { name: '', nickname: '', grade: '' };
+          const impr = iImpr >= 0 ? String(r[iImpr] || '') : '';
+          out.push({
+            // 時刻部分の正規化は reflection と同じヘルパーを使う
+            timestamp:         iTs   >= 0 ? _reflectionToTimestampStr(r[iTs]) : '',
+            studentId:         sid,
+            studentName:       info.name,
+            nickname:          info.nickname,
+            grade:             info.grade,
+            category:          iCat  >= 0 ? String(r[iCat]  || '') : '',
+            charCount:         iCc   >= 0 ? (Number(r[iCc])  || 0) : 0,
+            q1_selected:       iQ1s  >= 0 ? String(r[iQ1s] || '') : '',
+            q1_correct:        iQ1c  >= 0 ? String(r[iQ1c] || '').toUpperCase() === 'TRUE' : false,
+            q2_selected:       iQ2s  >= 0 ? String(r[iQ2s] || '') : '',
+            q2_correct:        iQ2c  >= 0 ? String(r[iQ2c] || '').toUpperCase() === 'TRUE' : false,
+            impressionText:    impr,
+            aiFeedback:        iFb   >= 0 ? String(r[iFb] || '')   : '',
+            attemptCountSoFar: iAcsf >= 0 ? (Number(r[iAcsf]) || 0) : 0,
+            inProgress:        impr.trim().length === 0
+          });
+        }
+      }
+    }
+    // 時刻昇順（朝→夜、振り返り日付別一覧と同じ並び。本タスクのふくちさん指示）
+    out.sort(function(a, b) { return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; });
+
+    // 監査ログ
+    try {
+      _logTeacherAction(_teacher.teacherId, 'KOKUGO_DAY_VIEW', '', 'success', {
+        date:     date,
+        returned: out.length
+      });
+    } catch(_e) {}
+
+    return { ok: true, date: date, attempts: out };
+  } catch (err) {
+    console.error('[getKokugoDayDetail]', err);
     return { ok: false, message: String(err) };
   }
 }
