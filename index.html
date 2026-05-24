@@ -2481,10 +2481,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260524-0047"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260525-0017"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260524-0047">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260524-0047"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260525-0017">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260525-0017"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -12852,7 +12852,7 @@
       btnWrap.innerHTML = '<div class="risha-daily-banner" style="display:block">⚠️ この教科の問題はまだ準備中です。ふくちさんが順次投入しています。</div>';
     } else {
       btnWrap.innerHTML = present.map(function(m) {
-        return '<button type="button" onclick="_rishaSelectMajor(\'' + _rishaEscJs(m) + '\')">' + _esc(m) + '</button>';
+        return '<button type="button" onclick="_rishaSelectMajor(\'' + _rishaEscJs(m) + '\')">' + _sangoEscHtml(m) + '</button>';
       }).join('');
     }
     showScreen('screen-risha-major');
@@ -12869,7 +12869,7 @@
     var major = _rishaState.major;
     var prefix = _rishaMascotPrefix(subject);
     var bubbles = _rishaBubbles(subject);
-    document.getElementById('risha-minor-h1').textContent = _rishaSubjectIcon(subject) + ' ' + _rishaSubjectLabel(subject) + ' / ' + _esc(major);
+    document.getElementById('risha-minor-h1').textContent = _rishaSubjectIcon(subject) + ' ' + _rishaSubjectLabel(subject) + ' / ' + _sangoEscHtml(major);
     document.getElementById('risha-minor-sub').textContent = (subject === 'rika') ? '分野を選んでね' : '中区分を選んでね';
     _setContentMascot('risha-minor-img', 'default', 'risha-minor-bubble', _pickBubble(bubbles.selectMinor), prefix);
     var btnWrap = document.getElementById('risha-minor-buttons');
@@ -12891,7 +12891,7 @@
       btnWrap.innerHTML = '<div class="risha-daily-banner" style="display:block">⚠️ この大区分の問題はまだ準備中です。</div>';
     } else {
       btnWrap.innerHTML = ordered.map(function(m) {
-        return '<button type="button" onclick="_rishaSelectMinor(\'' + _rishaEscJs(m) + '\')">' + _esc(m) + '</button>';
+        return '<button type="button" onclick="_rishaSelectMinor(\'' + _rishaEscJs(m) + '\')">' + _sangoEscHtml(m) + '</button>';
       }).join('');
     }
     showScreen('screen-risha-minor');
@@ -12907,7 +12907,7 @@
     var subject = _rishaState.subject;
     var prefix = _rishaMascotPrefix(subject);
     var bubbles = _rishaBubbles(subject);
-    document.getElementById('risha-unit-h1').textContent = _rishaSubjectIcon(subject) + ' ' + _rishaSubjectLabel(subject) + ' / ' + _esc(_rishaState.major) + ' / ' + _esc(_rishaState.minor);
+    document.getElementById('risha-unit-h1').textContent = _rishaSubjectIcon(subject) + ' ' + _rishaSubjectLabel(subject) + ' / ' + _sangoEscHtml(_rishaState.major) + ' / ' + _sangoEscHtml(_rishaState.minor);
     document.getElementById('risha-unit-sub').textContent = '小区分を選んでね';
     _setContentMascot('risha-unit-img', 'default', 'risha-unit-bubble', _pickBubble(bubbles.selectUnit), prefix);
     // 1 日上限の表示（今日のクリア数を再取得）
@@ -12981,7 +12981,7 @@
         }
       }
       return '<button type="button" class="risha-unit-btn' + (allCooldown ? ' cooldown' : '') + '"' + onclickHtml + '>' +
-               '<span class="risha-unit-name">' + _esc(u.unitName) + '</span>' +
+               '<span class="risha-unit-name">' + _sangoEscHtml(u.unitName) + '</span>' +
                '<span class="risha-unit-meta">全' + totalQs + '問' + (sets.length > 0 ? ' / ' + sets.length + 'セット<br>' + setLines : '') + '</span>' +
              '</button>';
     }).join('');
@@ -13067,17 +13067,17 @@
       _rishaOnSetComplete();
       return;
     }
-    document.getElementById('risha-q-h1').textContent = _rishaSubjectIcon(subject) + ' ' + _esc(_rishaState.unitName) + ' / セット' + _rishaState.setNo;
+    document.getElementById('risha-q-h1').textContent = _rishaSubjectIcon(subject) + ' ' + _sangoEscHtml(_rishaState.unitName) + ' / セット' + _rishaState.setNo;
     document.getElementById('risha-q-progress').textContent = (qIdx + 1) + ' / ' + _rishaState.questions.length;
     _setContentMascot('risha-q-img', 'thinking', 'risha-q-bubble', _pickBubble(bubbles.question), prefix);
     // メタ（問題タイプ等）
-    document.getElementById('risha-q-meta').innerHTML = '問題タイプ: ' + _esc(q.questionType || '?') + '　|　ID: ' + _esc(q.id || '?');
+    document.getElementById('risha-q-meta').innerHTML = '問題タイプ: ' + _sangoEscHtml(q.questionType || '?') + '　|　ID: ' + _sangoEscHtml(q.id || '?');
     document.getElementById('risha-q-text').textContent = q.questionText || '';
     // 選択肢
     var choicesEl = document.getElementById('risha-q-choices');
     choicesEl.innerHTML = (q.choices || []).map(function(c, i) {
-      var lbl = _esc(c.label);
-      var txt = _esc(c.text);
+      var lbl = _sangoEscHtml(c.label);
+      var txt = _sangoEscHtml(c.text);
       var inputId = 'risha-choice-' + i;
       return '<label for="' + inputId + '" data-label="' + lbl + '">' +
                '<input type="radio" name="risha-choice" id="' + inputId + '" value="' + lbl + '" onchange="_rishaOnChoiceChange(\'' + lbl + '\')">' +
@@ -13173,9 +13173,9 @@
     fbEl.className = 'risha-q-feedback ' + (isCorrect ? 'correct' : 'incorrect');
     var head = isCorrect
       ? '<span class="feedback-label">⭕ 正解！</span>'
-      : '<span class="feedback-label">❌ 不正解（正解：' + _esc(res.correctChoice || '?') + '）</span>';
+      : '<span class="feedback-label">❌ 不正解（正解：' + _sangoEscHtml(res.correctChoice || '?') + '）</span>';
     var expl = res.explanation
-      ? '<div class="feedback-explanation"><strong>解説：</strong>' + _esc(res.explanation) + '</div>'
+      ? '<div class="feedback-explanation"><strong>解説：</strong>' + _sangoEscHtml(res.explanation) + '</div>'
       : '';
     fbEl.innerHTML = head + expl;
     // 「次へ」ボタンを表示
@@ -13353,7 +13353,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260524-0047</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260525-0017</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
