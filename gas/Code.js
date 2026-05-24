@@ -1061,6 +1061,9 @@ function doGet(e) {
       // 今日のマイ活 振り返り：閲覧系（認証なしの生徒/保護者用 + admin/teacher 認証用の 2 本）
       else if (action === 'getReflectionsForStudent')    result = getReflectionsForStudent(params);
       else if (action === 'getReflectionsForAdmin')      result = getReflectionsForAdmin(params);
+      // 国語長文 挑戦履歴：保護者画面（view.html）用 read-only。studentId で絞り込み、認証なし。
+      //   admin/teacher 用は adminListKokugoAttempts（doGet 既登録、後段）を引き続き利用。
+      else if (action === 'getKokugoAttemptsForStudent') result = getKokugoAttemptsForStudent(params);
       // 計算タイムトライアル：当日プレイ済み回数（screen-calctrial-intro の事前告知用、認証なし）
       else if (action === 'getCalcTrialTodayCount')      result = getCalcTrialTodayCount(params);
       else if (action === 'getCalendarMonthSummary') result = getCalendarMonthSummary(params);
@@ -22519,6 +22522,49 @@ function adminListKokugoAttempts(params) {
     };
   } catch (err) {
     console.error('[adminListKokugoAttempts]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 保護者画面（view.html）：国語長文 挑戦履歴の読み取り（認証なし / studentId で絞り込み）
+//   - getReflectionsForStudent と同パターン（保護者は自分の子どもの履歴のみ閲覧可）
+//   - studentId は params から受け取り、サーバ側で _readKokugoAttemptsForSid に渡す
+//     ことでこの sid 以外の行は構造上絶対に返らない（_readKokugoAttemptsForSid は sid 一致行のみ走査）
+//   - 管理画面向けの adminListKokugoAttempts と違い、操作ログ（_logTeacherAction）は記録しない
+//   - 表示に必要なフィールドだけを返す。questionId / title は意図的に含めない（次回出題時のネタバレ回避）
+//
+// params: { studentId, limit? }
+// 戻り値: { ok, studentId, attempts: [...] }（timestamp 降順、最大 limit 件、デフォルト 50 / 上限 200）
+function getKokugoAttemptsForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '対象生徒IDが指定されていません' };
+    let limit = Number((params && params.limit));
+    if (!Number.isFinite(limit) || limit < 1) limit = 50;
+    limit = Math.min(200, Math.floor(limit));
+
+    const all = _readKokugoAttemptsForSid(sid);
+    // 完了済 + 着手中の両方を返す。timestamp 降順で limit 件。
+    const reversed = all.slice().reverse();
+    const items = reversed.slice(0, limit).map(function(item){
+      return {
+        timestamp:         String(item.obj.timestamp || ''),
+        category:          String(item.obj.category || ''),
+        charCount:         Number(item.obj.charCount) || 0,
+        q1_selected:       String(item.obj.q1_selected || ''),
+        q1_correct:        String(item.obj.q1_correct || '').toUpperCase() === 'TRUE',
+        q2_selected:       String(item.obj.q2_selected || ''),
+        q2_correct:        String(item.obj.q2_correct || '').toUpperCase() === 'TRUE',
+        impressionText:    String(item.obj.impressionText || ''),
+        aiFeedback:        String(item.obj.aiFeedback || ''),
+        hpGained:          Number(item.obj.hpGained) || 0,
+        attemptCountSoFar: Number(item.obj.attemptCountSoFar) || 0,
+        inProgress:        String(item.obj.impressionText || '').trim().length === 0
+      };
+    });
+    return { ok: true, studentId: sid, attempts: items };
+  } catch (err) {
+    console.error('[getKokugoAttemptsForStudent]', err);
     return { ok: false, message: String(err) };
   }
 }

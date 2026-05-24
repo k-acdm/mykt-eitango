@@ -214,6 +214,12 @@
       <button class="btn-more" style="background:linear-gradient(135deg,#86efac,#16a34a);color:#fff" onclick="showChildReflections()">📝 お子様の振り返りを見る</button>
     </div>
 
+    <!-- お子様の国語長文の取り組み（getKokugoAttemptsForStudent、認証なし / studentId 絞り込み） -->
+    <div class="dash-section">
+      <div class="section-title">📖 お子様の国語長文の取り組み</div>
+      <button class="btn-more" style="background:linear-gradient(135deg,#fdba74,#ea580c);color:#fff" onclick="showChildKokugo()">📖 国語長文の取り組みを見る</button>
+    </div>
+
     <!-- HP算出方法 -->
     <div class="dash-section">
       <div class="hp-info-card">
@@ -301,6 +307,19 @@
   </div>
 </div>
 
+<!-- お子様の国語長文の取り組み（最新が上、直近 50 件） -->
+<div id="screen-child-kokugo" class="screen">
+  <header>
+    <h1>📖 お子様の国語長文の取り組み</h1>
+    <button class="logout-btn" onclick="showView()">← 戻る</button>
+  </header>
+  <div class="container">
+    <p style="text-align:center;color:#666;font-size:13px;margin:8px 0 14px">お子様の国語長文 挑戦履歴です（最新が上、直近 50 件）。<br>感想文と AI からのフィードバックも一緒に見られます。</p>
+    <div id="child-kokugo-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
+    <button class="btn-back" onclick="showView()">← 閲覧画面に戻る</button>
+  </div>
+</div>
+
 <!-- 過去の連絡事項 -->
 <div id="screen-notice-history" class="screen">
   <header>
@@ -346,6 +365,7 @@
   function showNoticeHistory()  { _showScreen('screen-notice-history'); loadNoticeHistory(); }
   function showSangoHistory()   { _showScreen('screen-sango-history'); loadSangoHistory(); }
   function showChildReflections() { _showScreen('screen-child-reflections'); loadChildReflections(); }
+  function showChildKokugo()    { _showScreen('screen-child-kokugo'); loadChildKokugo(); }
   function showChildHistory()   { _showScreen('screen-child-history'); loadChildHistory(); }
   function showChildHistoryArchive() { _childArchiveOffset = 1; _showScreen('screen-child-history-archive'); loadChildHistoryArchive(); }
   function jumpToSangoSubmission(ts) { _showScreen('screen-sango-history'); loadSangoHistory(ts); }
@@ -624,6 +644,84 @@
                    '<div class="notice-date" style="color:#888">' + len + ' 文字</div>' +
                  '</div>' +
                  '<div style="background:#f0fdf4;border-radius:10px;padding:10px 12px;white-space:pre-wrap;word-wrap:break-word;font-size:14px;line-height:1.75;color:#333">' + _esc(r.content || '') + '</div>' +
+               '</div>';
+      }).join('');
+    }).catch(function() {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+    });
+  }
+
+  // ============================
+  // お子様の国語長文の取り組み（getKokugoAttemptsForStudent、認証なし / studentId で絞り込み）
+  //   - サーバ側で _readKokugoAttemptsForSid(_studentId) を通すため、ここ以外の生徒の行は構造上絶対に返らない
+  //   - 問題タイトル / questionId は意図的に表示しない（次回出題時のネタバレ回避、ふくちさん教育判断）
+  // ============================
+  function loadChildKokugo() {
+    var listEl = document.getElementById('child-kokugo-list');
+    listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">⏳ 読み込み中…</div></div></div>';
+    if (!_studentId) {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">セッション情報が見つかりません。再度ログインしてください。</div></div></div>';
+      return;
+    }
+    gasGet({ action: 'getKokugoAttemptsForStudent', studentId: _studentId, limit: 50, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+        return;
+      }
+      var arr = res.attempts || [];
+      if (arr.length === 0) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">まだ国語長文の取り組みはありません。お子様が挑戦するとここに記録されます。</div></div></div>';
+        return;
+      }
+      listEl.innerHTML = arr.map(function(a){
+        var ts        = String(a.timestamp || '').slice(0, 16);
+        var catLabel  = (String(a.category || '') === 'setsumei') ? '📑 説明的' : '📖 文学的';
+        var ccLabel   = (Number(a.charCount) === 1200) ? '1,200字' : '800字';
+        var attempts  = Number(a.attemptCountSoFar) || 0;
+        var inProgress = !!a.inProgress;
+        var q1Mark = a.q1_correct ? '◯' : '✕';
+        var q2Mark = a.q2_correct ? '◯' : '✕';
+        var q1Cls  = a.q1_correct ? 'ok' : 'ng';
+        var q2Cls  = a.q2_correct ? 'ok' : 'ng';
+        var hp     = Number(a.hpGained || 0);
+
+        var bodyHtml = '';
+        if (inProgress) {
+          bodyHtml = '<div style="color:#b45309;font-weight:600;font-size:12px;padding:4px 10px;background:#fef3c7;border-radius:4px;display:inline-block;margin-top:6px">⏳ 着手中（感想文未提出）</div>';
+        } else {
+          var impr = String(a.impressionText || '');
+          var fb   = String(a.aiFeedback || '');
+          if (impr) {
+            bodyHtml += '<div style="background:#f8fafc;border-left:3px solid #94a3b8;padding:10px 14px;margin-top:8px;border-radius:4px;font-size:13px;line-height:1.7;color:#334155;white-space:pre-wrap;word-wrap:break-word">' +
+                          '<span style="display:block;font-size:11px;color:#475569;font-weight:600;margin-bottom:4px">📝 感想文</span>' +
+                          _esc(impr) +
+                        '</div>';
+          }
+          if (fb) {
+            bodyHtml += '<div style="background:#eff6ff;border-left:3px solid #60a5fa;padding:10px 14px;margin-top:8px;border-radius:4px;font-size:13px;line-height:1.7;color:#1e40af;white-space:pre-wrap;word-wrap:break-word">' +
+                          '<span style="display:block;font-size:11px;color:#2563eb;font-weight:600;margin-bottom:4px">🤖 AI フィードバック</span>' +
+                          _esc(fb) +
+                        '</div>';
+          }
+          if (hp > 0) {
+            bodyHtml += '<div style="font-size:13px;color:#e65100;font-weight:600;margin-top:10px">✨ ' + hp.toLocaleString() + ' HP 獲得</div>';
+          }
+        }
+
+        return '<div class="notice-card" style="background:#fff;border-left:6px solid ' + (inProgress ? '#fb923c' : '#ea580c') + ';box-shadow:0 2px 10px rgba(0,0,0,.08);padding:14px 16px;margin-bottom:14px">' +
+                 '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">' +
+                   '<div style="font-weight:600;color:#7c2d12">' + _esc(ts) + '</div>' +
+                   '<div style="font-size:12px;color:#92400e">' + attempts + '回目の挑戦</div>' +
+                 '</div>' +
+                 '<div style="display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:#64748b;margin-bottom:10px">' +
+                   '<span><strong style="color:#1f2937">' + catLabel + '</strong></span>' +
+                   '<span><strong style="color:#1f2937">' + ccLabel + '</strong></span>' +
+                 '</div>' +
+                 '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:13px">' +
+                   '<span style="padding:4px 10px;border-radius:6px;font-weight:600;background:' + (q1Cls === 'ok' ? '#dcfce7' : '#fee2e2') + ';color:' + (q1Cls === 'ok' ? '#166534' : '#b91c1c') + '">問題1：' + q1Mark + '（選択: ' + _esc(String(a.q1_selected || '-')) + '）</span>' +
+                   '<span style="padding:4px 10px;border-radius:6px;font-weight:600;background:' + (q2Cls === 'ok' ? '#dcfce7' : '#fee2e2') + ';color:' + (q2Cls === 'ok' ? '#166534' : '#b91c1c') + '">問題2：' + q2Mark + '（選択: ' + _esc(String(a.q2_selected || '-')) + '）</span>' +
+                 '</div>' +
+                 bodyHtml +
                '</div>';
       }).join('');
     }).catch(function() {
