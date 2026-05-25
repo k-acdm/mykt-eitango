@@ -1260,6 +1260,82 @@
       .logout-reminder-btn-icon  { font-size: 18px; }
       .logout-reminder-btn-label { font-size: 10px; }
     }
+    /* 📢 アバターリニューアル告知バナー（2026-05-26 追加）
+       2026-05-30（土）にベースアバター画像を ChatGPT 4o 生成の新画像にリニューアル予定。
+       事前告知としてホーム画面のアバター直下にタップ展開式のお知らせボタンを配置。
+       配色：注意を引く暖色グラデ（黄→ピンク）。logout-reminder の暖色オレンジとは差別化し、
+       「警告」ではなく「楽しいお知らせ」のニュアンスに。
+       表示期間：本実装反映後〜2026-05-30 00:00 JST、以降は JS で要素ごと非表示。 */
+    .announcement-banner {
+      width: 100%;
+      margin: 4px 0 14px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #fde68a 0%, #fbcfe8 55%, #f9a8d4 100%);
+      border: 2px solid #db2777;
+      box-shadow: 0 4px 14px rgba(219, 39, 119, 0.22);
+      overflow: hidden;
+    }
+    .announcement-banner-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 14px;
+      min-height: 48px;
+      background: transparent;
+      border: none;
+      color: #9d174d;
+      font-size: 15px;
+      font-weight: bold;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.45);
+      animation: announcementPulse 2.4s ease-in-out infinite;
+    }
+    .announcement-banner-btn:hover, .announcement-banner-btn:active {
+      filter: brightness(1.04);
+    }
+    .announcement-banner-arrow {
+      display: inline-block;
+      transition: transform .25s ease;
+      font-size: 13px;
+      opacity: 0.85;
+    }
+    .announcement-banner.open .announcement-banner-arrow {
+      transform: rotate(180deg);
+    }
+    .announcement-banner-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height .28s ease;
+      background: rgba(255, 255, 255, 0.78);
+    }
+    .announcement-banner.open .announcement-banner-body {
+      max-height: 600px;
+    }
+    .announcement-banner-body-inner {
+      padding: 14px 16px 16px;
+      color: #4a044e;
+      font-size: 14px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+    @keyframes announcementPulse {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.015); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .announcement-banner-btn { animation: none; }
+      .announcement-banner-body { transition: none; }
+    }
+    @media (max-width: 480px) {
+      .announcement-banner { border-radius: 12px; margin-bottom: 12px; }
+      .announcement-banner-btn { font-size: 13px; padding: 10px 12px; min-height: 44px; gap: 4px; }
+      .announcement-banner-arrow { font-size: 12px; }
+      .announcement-banner-body-inner { font-size: 13px; padding: 12px 14px 14px; line-height: 1.65; }
+    }
     .quote-card { background: linear-gradient(135deg,#a2e4ff 0%, #ffd3e8 100%); border-radius: 18px; padding: 18px 20px; color: #1a1a2e; box-shadow: 0 4px 16px rgba(162,228,255,.5); }
     .quote-label { font-size: 13px; font-weight: bold; color: #4f7df0; letter-spacing: 1px; margin-bottom: 6px; }
     .quote-text  { font-size: 17px; line-height: 1.7; font-weight: 600; color: #2b2b46; }
@@ -2481,10 +2557,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260525-0017"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260526-0251"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260525-0017">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260525-0017"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260526-0251">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260526-0251"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -2715,6 +2791,27 @@
             </div>
             <div class="avatar-name" id="avatar-name">アバターを選ぶ</div>
           </div>
+        </div>
+      </div>
+      <!-- 📢 アバターリニューアル告知バナー（2026-05-26 追加）
+           2026-05-30（土）のアバター画像リニューアルの事前告知。アバター直下に配置し、
+           ふだんアバターを見ている生徒の視線に自然に届くようにする。タップで詳細展開、
+           再タップで折りたたみ。表示期間は JS 側で 2026-05-30 00:00 JST まで制御し、
+           以降は要素自体を非表示。 -->
+      <div id="avatar-announcement-banner" class="announcement-banner" style="display:none">
+        <button type="button" class="announcement-banner-btn" onclick="toggleAvatarAnnouncement()" aria-expanded="false" aria-controls="avatar-announcement-body">
+          <span>📢 【お知らせ】アバター画像がリニューアルします！</span>
+          <span class="announcement-banner-arrow" aria-hidden="true">▼</span>
+        </button>
+        <div id="avatar-announcement-body" class="announcement-banner-body" role="region" aria-label="アバターリニューアルのお知らせ詳細">
+          <div class="announcement-banner-body-inner">5月30日（土）より、皆さんのアバター画像を新しいバージョンに変更します。
+
+新しいアバターは、これから少しずつ追加していく「着せ替えアイテム」（メイク、髪型、服、小物、背景など）に対応した、よりキレイで洗練された画像になっています。
+
+選んでいるアバターの種類（男の子・女の子・どちらでもない）はそのまま引き継がれるので安心してください。
+
+これから楽しいアイテムをたくさん追加していく予定です。
+お楽しみに！🎉✨</div>
         </div>
       </div>
       <div class="welcome-name" id="welcome-name"></div>
@@ -6022,6 +6119,34 @@
     // 両輪システム Phase A：5/25 以降の進捗 UI + 5/16〜5/24 の予告モーダル
     try { loadRequiredProgress();           } catch(e){ console.error('[showWelcome] loadRequiredProgress',           e); }
     try { showRequiredPreviewIfNeeded();    } catch(e){ console.error('[showWelcome] showRequiredPreviewIfNeeded',    e); }
+    // 📢 アバターリニューアル告知バナーの表示制御（2026-05-26 追加、2026-05-30 00:00 JST 以降は要素ごと非表示）
+    try { _applyAvatarAnnouncementVisibility(); } catch(e){ console.error('[showWelcome] _applyAvatarAnnouncementVisibility', e); }
+  }
+  // 📢 アバターリニューアル告知バナー（2026-05-26 追加）
+  //   2026-05-30（土）00:00 JST 以降は要素自体を非表示にする。それまではホーム画面表示時に
+  //   display:flex 相当（block）で出し、初期状態は折りたたみ。タップで展開/折りたたみトグル。
+  //   表示期間が終わったら本ブロックと HTML / CSS を素直に削除すれば後片付け完了。
+  var _AVATAR_ANNOUNCEMENT_END = new Date('2026-05-30T00:00:00+09:00').getTime();
+  function _applyAvatarAnnouncementVisibility() {
+    var el = document.getElementById('avatar-announcement-banner');
+    if (!el) return;
+    if (Date.now() >= _AVATAR_ANNOUNCEMENT_END) {
+      el.style.display = 'none';
+      el.classList.remove('open');
+    } else {
+      el.style.display = 'block';
+      // 折りたたみ状態でリセット（ページ再表示時は初期状態に戻す）
+      el.classList.remove('open');
+      var btn = el.querySelector('.announcement-banner-btn');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+  }
+  function toggleAvatarAnnouncement() {
+    var el = document.getElementById('avatar-announcement-banner');
+    if (!el) return;
+    var opened = el.classList.toggle('open');
+    var btn = el.querySelector('.announcement-banner-btn');
+    if (btn) btn.setAttribute('aria-expanded', opened ? 'true' : 'false');
   }
   function toggleChangeArea() { var area = document.getElementById('change-area'); area.style.display = area.style.display === 'none' ? 'block' : 'none'; }
   function openModal()  { document.getElementById('img-modal').classList.add('active'); }
@@ -13353,7 +13478,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260525-0017</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260526-0251</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
