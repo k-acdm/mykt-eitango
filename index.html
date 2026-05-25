@@ -1268,7 +1268,7 @@
        表示期間：本実装反映後〜2026-05-30 00:00 JST、以降は JS で要素ごと非表示。 */
     .announcement-banner {
       width: 100%;
-      margin: 4px 0 14px;
+      margin: 4px 0 24px;
       border-radius: 14px;
       background: linear-gradient(135deg, #fde68a 0%, #fbcfe8 55%, #f9a8d4 100%);
       border: 2px solid #db2777;
@@ -1331,7 +1331,7 @@
       .announcement-banner-body { transition: none; }
     }
     @media (max-width: 480px) {
-      .announcement-banner { border-radius: 12px; margin-bottom: 12px; }
+      .announcement-banner { border-radius: 12px; margin-bottom: 20px; }
       .announcement-banner-btn { font-size: 13px; padding: 10px 12px; min-height: 44px; gap: 4px; }
       .announcement-banner-arrow { font-size: 12px; }
       .announcement-banner-body-inner { font-size: 13px; padding: 12px 14px 14px; line-height: 1.65; }
@@ -2557,10 +2557,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260526-0251"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260526-0332"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260526-0251">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260526-0251"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260526-0332">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260526-0332"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -2800,7 +2800,7 @@
            以降は要素自体を非表示。 -->
       <div id="avatar-announcement-banner" class="announcement-banner" style="display:none">
         <button type="button" class="announcement-banner-btn" onclick="toggleAvatarAnnouncement()" aria-expanded="false" aria-controls="avatar-announcement-body">
-          <span>📢 【お知らせ】アバター画像がリニューアルします！</span>
+          <span>📢 【お知らせ】アバター画像をリニューアルします！</span>
           <span class="announcement-banner-arrow" aria-hidden="true">▼</span>
         </button>
         <div id="avatar-announcement-body" class="announcement-banner-body" role="region" aria-label="アバターリニューアルのお知らせ詳細">
@@ -13478,7 +13478,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260526-0251</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260526-0332</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
