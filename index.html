@@ -1115,6 +1115,13 @@
     .login-mascot.mascot-10 { top: 54%;  right: 14%; transform: rotate(-9deg);  animation-delay: 1.15s; width: 56px; }
     .login-mascot.mascot-11 { bottom: 26%; left: 22%; transform: rotate(8deg);  animation-delay: 1.4s;  width: 56px; }
     .login-mascot.mascot-12 { bottom: 24%; right: 24%; transform: rotate(-5deg); animation-delay: 1.7s; width: 56px; }
+    /* 2026-05-26 追加 4 キャラ（リーカ / シャカネキ / ジャパニン / トラール）：
+       既存マスコットが配置されていない中段（top 32〜44% 帯）と上下の中央寄りに
+       散らす。サイズは 50px（mascot-7..12 の 56px より一回り小さく、密集を避ける）。 */
+    .login-mascot.mascot-13 { top: 8%;    left: 38%;  transform: rotate(-6deg); animation-delay: .25s;  width: 50px; }
+    .login-mascot.mascot-14 { top: 9%;    right: 36%; transform: rotate(8deg);  animation-delay: .9s;   width: 50px; }
+    .login-mascot.mascot-15 { bottom: 6%; left: 38%;  transform: rotate(12deg); animation-delay: 1.85s; width: 50px; }
+    .login-mascot.mascot-16 { bottom: 4%; right: 36%; transform: rotate(-10deg); animation-delay: 2.1s; width: 50px; }
     @keyframes loginBob {
       0%, 100% { translate: 0 0; }
       50%      { translate: 0 -4px; }
@@ -1139,6 +1146,11 @@
       .login-mascot.mascot-10 { width: 32px; top: auto; bottom: 23%; left: 30%;  transform: rotate(-8deg); }
       .login-mascot.mascot-11 { width: 32px; top: auto; bottom: 23%; right: 30%; transform: rotate(7deg); }
       .login-mascot.mascot-12 { width: 32px; top: auto; bottom: 23%; right: 6%;  transform: rotate(-12deg); }
+      /* 2026-05-26 追加 4 キャラ：モバイルでは下段リボンの上にもう 1 列追加 */
+      .login-mascot.mascot-13 { width: 30px; top: auto; bottom: 12%; left: 12%;  transform: rotate(-6deg); }
+      .login-mascot.mascot-14 { width: 30px; top: auto; bottom: 12%; left: 36%;  transform: rotate(7deg); }
+      .login-mascot.mascot-15 { width: 30px; top: auto; bottom: 12%; right: 36%; transform: rotate(-9deg); }
+      .login-mascot.mascot-16 { width: 30px; top: auto; bottom: 12%; right: 12%; transform: rotate(11deg); }
     }
 
     /* アクセシビリティ：揺れアニメを無効化したいユーザー向け */
@@ -2557,10 +2569,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260526-1404"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260526-1831"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260526-1404">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260526-1404"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260526-1831">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260526-1831"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -2626,7 +2638,11 @@
 <div id="screen-login" class="screen active">
   <div class="login-body">
     <!-- ============================================================ -->
-    <!-- ジャグラー風キャラクター装飾（6 キャラ × 2 表情 = 12 枚）     -->
+    <!-- ジャグラー風キャラクター装飾                                  -->
+    <!--   - 既存 12 枚 = 6 キャラ × 2 表情（default + celebrate）     -->
+    <!--   - 追加 4 枚 = 引き継ぎ漏れ修正（2026-05-26）：               -->
+    <!--       リーカ / シャカネキ / ジャパニン / トラール（各 default のみ） -->
+    <!--   - 合計 16 枚                                                -->
     <!--   - login-mascot は position:absolute で散りばめ              -->
     <!--   - alt="" で読み上げソフトから除外                          -->
     <!--   - pointer-events:none でクリック干渉防止（CSS 側）          -->
@@ -2644,6 +2660,11 @@
     <img class="login-mascot mascot-10" src="images/kisoK-celebrate.png"   alt=""/>
     <img class="login-mascot mascot-11" src="images/lison-celebrate.png"   alt=""/>
     <img class="login-mascot mascot-12" src="images/kanjii-celebrate.png"  alt=""/>
+    <!-- 追加 4 キャラ（default のみ、2026-05-26 引き継ぎ漏れ対応） -->
+    <img class="login-mascot mascot-13" src="images/rika-default.png"      alt=""/>
+    <img class="login-mascot mascot-14" src="images/shakaneki-default.png" alt=""/>
+    <img class="login-mascot mascot-15" src="images/japanin-default.png"   alt=""/>
+    <img class="login-mascot mascot-16" src="images/trial-default.png"     alt=""/>
 
     <div class="flex-fill">
       <div class="login-card">
@@ -7173,18 +7194,26 @@
   // 副キャプション（caption フィールド）は今は空欄。ふくちさんが各キャラの
   // 性格説明を入れるとカード下部に表示される。空のままなら枠だけ確保される。
   // インデックス: 0=マイカツ君 / 1=RUSH君 / 2=サンゴタン / 3=ニチエイ /
-  //              4=キソ"K"さん / 5=リスオン / 6=カンジー / 7=コブタン
+  //              4=キソ"K"さん / 5=リスオン / 6=カンジー / 7=コブタン /
+  //              8=リーカ / 9=シャカネキ / 10=ジャパニン / 11=トラール
   // 注：character.jpg はリポジトリルートに存在（他のキャラ画像のように images/
   // 配下ではない）。ふくちさんが将来 images/ に移動した場合は image パスを更新。
+  // 2026-05-26: 引き継ぎ漏れ対応で 4 キャラ追加（リーカ / シャカネキ / ジャパニン / トラール）。
+  //   - 順序は「重要語句系 → 長文読解 → タイムトライアル」の教科性質順
+  //   - 各コンテンツは既に本番稼働中、画像も images/ に既存（default/celebrate/encourage/thinking 各 4 表情）
   var CHARACTER_INTRO_DATA = [
-    { name: 'マイカツ君',     content: 'マイ活アプリの親分', image: './character.jpg',              caption: '' },
-    { name: 'RUSH君',         content: '英単語RUSH',         image: 'images/rushkun-default.png',   caption: '' },
-    { name: 'サンゴタン',     content: '三語短文',           image: 'images/sangotan-default.png',  caption: '' },
-    { name: 'ニチエイ',       content: '和文英訳①',          image: 'images/nichiei-default.png',   caption: '' },
-    { name: 'キソ"K"さん',    content: '基礎計算',           image: 'images/kisoK-default.png',     caption: '' },
-    { name: 'リスオン',       content: '英語リスオン',       image: 'images/lison-default.png',     caption: '' },
-    { name: 'カンジー',       content: 'カンジー',           image: 'images/kanjii-default.png',    caption: '' },
-    { name: 'コブタン',       content: '古文単語',           image: 'images/kobun-default.png',     caption: '' },
+    { name: 'マイカツ君',     content: 'マイ活アプリの親分', image: './character.jpg',                caption: '' },
+    { name: 'RUSH君',         content: '英単語RUSH',         image: 'images/rushkun-default.png',     caption: '' },
+    { name: 'サンゴタン',     content: '三語短文',           image: 'images/sangotan-default.png',    caption: '' },
+    { name: 'ニチエイ',       content: '和文英訳①',          image: 'images/nichiei-default.png',     caption: '' },
+    { name: 'キソ"K"さん',    content: '基礎計算',           image: 'images/kisoK-default.png',       caption: '' },
+    { name: 'リスオン',       content: '英語リスオン',       image: 'images/lison-default.png',       caption: '' },
+    { name: 'カンジー',       content: 'カンジー',           image: 'images/kanjii-default.png',      caption: '' },
+    { name: 'コブタン',       content: '古文単語',           image: 'images/kobun-default.png',       caption: '' },
+    { name: 'リーカ',         content: '理科の重要語句',     image: 'images/rika-default.png',        caption: '' },
+    { name: 'シャカネキ',     content: '社会の重要語句',     image: 'images/shakaneki-default.png',   caption: '' },
+    { name: 'ジャパニン',     content: '国語長文読解',       image: 'images/japanin-default.png',     caption: '' },
+    { name: 'トラール',       content: '計算タイムトライアル', image: 'images/trial-default.png',     caption: '' },
   ];
   function _charIntroEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function showCharacterIntro() {
@@ -13488,7 +13517,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260526-1404</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260526-1831</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
