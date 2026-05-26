@@ -166,7 +166,17 @@ def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict
             raise NotImplementedError(kind)
         problem_latex, canonical, info = built
 
-        allowed = av.variants_for_polynomial(canonical)
+        # 2026-05-26：因子順序入替バリエーション対応（rank_03 採点バグ修正）
+        # canonical 形が `(f1)(f2)` の Band（trinomial_simple / diff_squares）は
+        # `variants_for_factored_pair` を使い、`(f2)(f1)` 形も含めて生成。
+        # `(x ± a)²`（perfect_square_*）と `a(bx + cy)`（common_factor）は単一因子・
+        # 多項式構造なので既存の `variants_for_polynomial` をそのまま流用。
+        # 詳細：CLAUDE.md 該当セクション、common/answer_variants.py の docstring 参照。
+        kind_for_variants = info.get("kind", "")
+        if kind_for_variants in ("trinomial_simple", "diff_squares"):
+            allowed = av.variants_for_factored_pair(canonical)
+        else:
+            allowed = av.variants_for_polynomial(canonical)
         return {
             "problemLatex": problem_latex,
             "answerCanonical": canonical,

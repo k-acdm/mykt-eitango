@@ -206,6 +206,55 @@ def canonical_for_xy_solution(x_val: sp.Rational, y_val: sp.Rational) -> str:
     return f"x = {canonical_for_rational(x_val)}, y = {canonical_for_rational(y_val)}"
 
 
+def variants_for_factored_pair(canonical: str) -> List[str]:
+    """因数分解の答え `(f1)(f2)` 形式の許容バリエーション（rank_03 Band B / Band C diff_squares 用）。
+
+    canonical 例：``(x - 5)(x + 2)``、``(x + 4)(x + 6)``、``(x + 10)(x - 10)``。
+    `factored_pair_latex(m, n)` の出力（必ず `(x ± a)(x ± b)` 形）を前提とする。
+
+    Phase 1 から Phase 2 Wave 2 まで、`canonical` は `sorted([m, n])` で数値昇順固定だったため、
+    生徒が教科書的慣習（正の項を先に書く、絶対値小さい順）で書いた答えが不正解判定される
+    バグが発生していた（例：canonical `(x - 5)(x + 8)` ⇔ 生徒 `(x + 8)(x - 5)`）。
+    本関数は `(f1)(f2)` ⇔ `(f2)(f1)` の入替バリエーションを機械的に追加し、
+    さらに既存の表記揺れ（空白なし、マイナス各種記号）展開を適用する。
+
+    対象：
+      - rank_03 Band B (trinomial_simple): (x + m)(x + n) 形
+      - rank_03 Band C diff_squares: (x + a)(x - a) 形
+
+    対象外（呼び出し側で別関数を使う）：
+      - rank_03 Band C perfect_square_pos/neg: (x ± a)² 単一因子なので順序問題なし
+      - rank_03 Band A common_factor: a(bx + cy) 形（外側因子 × 内側多項式の構造、本関数の対象外）
+
+    重複排除の最終結果を sorted 順で返す。
+    """
+    import re
+
+    # `(x ± a)(x ± b)` を 2 つの因子 `(x ± a)` と `(x ± b)` に厳密分解。
+    # factored_pair_latex の出力仕様：内側は `var` / `var + k` / `var - |k|` のいずれか。
+    pattern = re.compile(r"^\(([^()]+)\)\(([^()]+)\)$")
+    m = pattern.match(canonical)
+    if not m:
+        # 想定外の形式：従来の variants_for_polynomial にフォールバック（安全側）
+        return variants_for_polynomial(canonical)
+
+    f1, f2 = m.group(1), m.group(2)
+    # canonical 順 + 入替順の 2 形を基底にする
+    # 同一因子（理論的には起こらない、`_gen_trinomial_simple` は m != n を強制）でも
+    # set による重複排除で `(x + a)(x + a)` のみとして扱う
+    seeds: Set[str] = {f"({f1})({f2})", f"({f2})({f1})"}
+
+    # 各 seed に既存の表記揺れ展開（空白なし、マイナス variant）を適用
+    # 空白なし：`(x - 5)(x + 2)` → `(x-5)(x+2)`
+    no_space_seeds: Set[str] = set()
+    for s in seeds:
+        no_space_seeds.add(s)
+        no_space_seeds.add(s.replace(" + ", "+").replace(" - ", "-"))
+
+    # マイナス記号 variant（U+2212、U+30FC）：`(x - 5)` → `(x − 5)` / `(x ー 5)`
+    return _cross_expand(sorted(no_space_seeds), [_expand_minus_variants])
+
+
 def variants_for_polynomial(canonical: str) -> List[str]:
     """多項式の許容表記（9級用）。
 
