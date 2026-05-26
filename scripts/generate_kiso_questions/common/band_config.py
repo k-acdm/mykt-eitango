@@ -69,16 +69,19 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     # TODO_PHASE3: 4 項以上、3 桁同位、帯分数・分数混在は Phase 3 以降。
     # 後半カッコ（3.5 - (1.2 + 0.5)）は rank_09 Band D paren_addsub の領域として
     # rank_19 では入れない方針（rank_14/16 と同方針）。
+    # Phase 2 Wave 1（2026-05-26）: 50→100 題化、単純倍化（各 Band count 2 倍 + 全 subcounts 2 倍）。
+    # 事前 probe で 9.7-15.0x unique margin が確認できたため安全。
+    # Band A の int_ans は 2→4 に倍増（slot 0-3 で整数答え強制、教育的訴求を維持）。
     19: {
-        "A": {"count": 15, "int_max": 9, "decimals": 1, "terms": 2,
-              "subcounts": {"add": 8, "sub": 7, "int_ans": 2}},
-        "B": {"count": 15, "int_max": 9, "decimals": 2, "terms": 2,
-              "subcounts": {"add": 8, "sub": 7}},
-        "C": {"count": 10, "int_max": 9,
+        "A": {"count": 30, "int_max": 9, "decimals": 1, "terms": 2,
+              "subcounts": {"add": 16, "sub": 14, "int_ans": 4}},
+        "B": {"count": 30, "int_max": 9, "decimals": 2, "terms": 2,
+              "subcounts": {"add": 16, "sub": 14}},
+        "C": {"count": 20, "int_max": 9,
               "decimals_options": [(0, 3), (3, 0), (1, 3), (2, 1)], "terms": 2,
-              "subcounts": {"int_minus_dec": 5, "rest_diff": 5}},
-        "D": {"count": 10, "kind": "three_term_addsub", "int_max": 9, "decimals": 1,
-              "subcounts": {"all_add": 5, "add_sub_mix": 5}},
+              "subcounts": {"int_minus_dec": 10, "rest_diff": 10}},
+        "D": {"count": 20, "kind": "three_term_addsub", "int_max": 9, "decimals": 1,
+              "subcounts": {"all_add": 10, "add_sub_mix": 10}},
     },
     # 18級：小数 乗除
     # Phase 1（2026-05-07 夜）: 30→50 題化、Band D 新設で 4 Band 構成に。
@@ -96,16 +99,18 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     # rank_15（分数乗除）Band D（答えが整数 muldiv）と完全対称、教育的に映える。
     # TODO_PHASE3: 4 項以上、小数 × 分数の混在は Phase 3 以降。
     # 「割り切れない割り算」（小数の循環）は仕様書 §6.5 厳密値原則のため入れない。
+    # Phase 2 Wave 1（2026-05-26）: 50→100 題化、単純倍化（各 Band count 2 倍 + 全 subcounts 2 倍）。
+    # 事前 probe で 8.4-14.8x unique margin が確認できたため安全。
     18: {
-        "A": {"count": 15, "kind": "int_x_dec", "int_max": 9, "decimals": 1,
-              "subcounts": {"mul": 8, "div": 7}},
-        "B": {"count": 15, "kind": "dec_x_dec", "int_max": 5, "decimals": 1,
-              "subcounts": {"mul": 8, "div": 7}},
-        "C": {"count": 10, "kind": "dec_x_dec", "int_max": 9, "decimals": 1,
-              "subcounts": {"mul": 5, "div": 5}},
-        "D": {"count": 10, "kind": "int_ans_muldiv", "int_max": 50,
+        "A": {"count": 30, "kind": "int_x_dec", "int_max": 9, "decimals": 1,
+              "subcounts": {"mul": 16, "div": 14}},
+        "B": {"count": 30, "kind": "dec_x_dec", "int_max": 5, "decimals": 1,
+              "subcounts": {"mul": 16, "div": 14}},
+        "C": {"count": 20, "kind": "dec_x_dec", "int_max": 9, "decimals": 1,
+              "subcounts": {"mul": 10, "div": 10}},
+        "D": {"count": 20, "kind": "int_ans_muldiv", "int_max": 50,
               "decimals_options": [1, 2],
-              "subcounts": {"mul_int_ans": 5, "div_int_ans": 5}},
+              "subcounts": {"mul_int_ans": 10, "div_int_ans": 10}},
     },
     # 17級：小数 四則混合
     # Phase 1（2026-05-07 夜）: 30→50 題化、Band D 新設で 4 Band 構成に。
@@ -122,17 +127,19 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     # TODO_PHASE3: 4 項以上、二重カッコ、Band B/C で ÷ を含む 3 項は Phase 3 以降。
     # 帯分数・分数混在は rank_14 領域。後半カッコは rank_09 領域として
     # Phase 3 にも入れない（rank_14/16/19 と同方針）。
+    # Phase 2 Wave 1（2026-05-26）: 50→100 題化、単純倍化（各 Band count 2 倍 + 全 subcounts 2 倍）。
+    # 事前 probe で 10.7-12.5x unique margin が確認できたため安全。
     17: {
-        "A": {"count": 12, "terms": 2, "ops": ["+", "-", "*", "/"], "parens": False,
+        "A": {"count": 24, "terms": 2, "ops": ["+", "-", "*", "/"], "parens": False,
               "int_max": 5, "decimals": 1,
-              "subcounts": {"add": 3, "sub": 3, "mul": 3, "div": 3}},
-        "B": {"count": 14, "terms": 3, "ops": ["+", "-", "*"], "parens": False,
+              "subcounts": {"add": 6, "sub": 6, "mul": 6, "div": 6}},
+        "B": {"count": 28, "terms": 3, "ops": ["+", "-", "*"], "parens": False,
               "int_max": 5, "decimals": 1},
-        "C": {"count": 12, "terms": 3, "ops": ["+", "-", "*"], "parens": True,
+        "C": {"count": 24, "terms": 3, "ops": ["+", "-", "*"], "parens": True,
               "int_max": 5, "decimals": 1},
-        "D": {"count": 12, "kind": "int_ans_three_term",
+        "D": {"count": 24, "kind": "int_ans_three_term",
               "int_max": 5, "decimals": 1,
-              "subcounts": {"no_paren": 6, "with_paren": 6}},
+              "subcounts": {"no_paren": 12, "with_paren": 12}},
     },
     # 15級：分数 乗除
     # Phase 1（2026-05-07）: 30→50題化、Band D を新設して 4 Band 構成に。
@@ -179,27 +186,29 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     },
     # 14級：分数 四則混合
     # Phase 1（2026-05-07）: 30→50題化、Band D を新設して 4 Band 構成に。
+    # Phase 2 Wave 1（2026-05-26）: 50→100 題化、単純倍化（各 Band count 2 倍 + Band D subcounts 2 倍）。
+    # 事前 probe で 10.7-12.5x unique margin が確認できたため安全。
     # ふくちさん教育的判断（36年塾長経験）:
-    #   - A: 2項 四則混合 12 問（既存ロジック踏襲）
-    #   - B: 3項 四則混合 括弧なし 14 問（既存ロジック踏襲、単元の主役）
-    #   - C: 3項 四則混合 括弧あり（先頭カッコのみ）12 問（既存ロジック踏襲）
-    #   - D: 整数を含む混合 12 問（新設、小学校算数の核心パターン補完）
+    #   - A: 2項 四則混合 24 問（既存ロジック踏襲）
+    #   - B: 3項 四則混合 括弧なし 28 問（既存ロジック踏襲、単元の主役）
+    #   - C: 3項 四則混合 括弧あり（先頭カッコのみ）24 問（既存ロジック踏襲）
+    #   - D: 整数を含む混合 24 問（小学校算数の核心パターン補完）
     # 「分数の四則混合は中学数学の躓きの根本原因」哲学に基づき、
     # 小学校算数で必須の「整数 ± 分数」「整数 × 分数」「整数 ÷ 分数」を
     # Band D として量で確保（rank_15 Band A frac_int との整合性も改善）。
     14: {
-        "A": {"count": 12, "kind": "two_term", "denom_max": 10},
-        "B": {"count": 14, "kind": "three_term_no_parens", "denom_max": 8},
-        "C": {"count": 12, "kind": "three_term_parens", "denom_max": 8},
+        "A": {"count": 24, "kind": "two_term", "denom_max": 10},
+        "B": {"count": 28, "kind": "three_term_no_parens", "denom_max": 8},
+        "C": {"count": 24, "kind": "three_term_parens", "denom_max": 8},
         # Band D: 整数を含む混合。slot_index 駆動で 3 サブパターンを決定論的に分離。
-        #   int_addsub: 整数 ± 分数（4 問）— 例 3 - 5/6 = 13/6
-        #   int_mul:    整数 × 分数（4 問）— 例 6 × 2/3 = 4（約分が活きる組を多めに）
-        #   int_div:    整数 ÷ 分数（4 問）— 例 3 ÷ 1/4 = 12（逆数倍の理解）
+        #   int_addsub: 整数 ± 分数（8 問）— 例 3 - 5/6 = 13/6
+        #   int_mul:    整数 × 分数（8 問）— 例 6 × 2/3 = 4（約分が活きる組を多めに）
+        #   int_div:    整数 ÷ 分数（8 問）— 例 3 ÷ 1/4 = 12（逆数倍の理解）
         # 整数の位置（先頭/末尾）は両方含む。
         "D": {
-            "count": 12, "kind": "int_with_frac",
+            "count": 24, "kind": "int_with_frac",
             "denom_max": 8, "int_max_addsub": 10, "int_max_muldiv": 12,
-            "subcounts": {"int_addsub": 4, "int_mul": 4, "int_div": 4},
+            "subcounts": {"int_addsub": 8, "int_mul": 8, "int_div": 8},
         },
     },
     # 16級：分数加減
@@ -249,19 +258,21 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     },
     # 13級：正負の数 加減
     # Phase 1（2026-05-05）: 30→50 題に拡充、Band D を新設して 4 Band 構成に。
+    # Phase 2 Wave 1（2026-05-26）: 50→100 題化、単純倍化（パラメータ無修正、count のみ 2 倍）。
+    # 事前 probe で 7.5-13.6x unique margin が確認できたため安全。
     # ふくちさん教育的判断（36 年塾長経験、中1 1学期前半の最入門単元）:
-    #   - A: 括弧付き同符号 12 問（既存ロジック踏襲）
-    #   - B: 括弧付き混合符号 12 問（既存ロジック踏襲、躓きポイント）
-    #   - C: 括弧なし 11 問（既存ロジック踏襲、max_abs=99 で 2 桁同士の暗算）
-    #   - D: 3 項加減（新設、紙教材で扱う中1 加減の最終形）15 問
+    #   - A: 括弧付き同符号 24 問（既存ロジック踏襲）
+    #   - B: 括弧付き混合符号 24 問（既存ロジック踏襲、躓きポイント）
+    #   - C: 括弧なし 22 問（既存ロジック踏襲、max_abs=99 で 2 桁同士の暗算）
+    #   - D: 3 項加減 30 問（紙教材で扱う中1 加減の最終形）
     # 中1 加減の山場「3 項計算」が旧構成では完全に欠落していたため Phase 1 で
     # Band D を新設（rank_05/06/08/01 と同じ Band D 新設パターン）。
     # TODO_PHASE3: 小数・分数の混合、カッコ + カッコなし混在は Phase 3 で導入。
     13: {
-        "A": {"count": 12, "kind": "paren",   "max_abs": 9,  "terms": 2, "same_sign_only": True},
-        "B": {"count": 12, "kind": "paren",   "max_abs": 9,  "terms": 2, "same_sign_only": False},
-        "C": {"count": 11, "kind": "noparen", "max_abs": 99, "terms": 2, "same_sign_only": False},
-        "D": {"count": 15, "kind": "three_term_addsub", "max_abs": 9},
+        "A": {"count": 24, "kind": "paren",   "max_abs": 9,  "terms": 2, "same_sign_only": True},
+        "B": {"count": 24, "kind": "paren",   "max_abs": 9,  "terms": 2, "same_sign_only": False},
+        "C": {"count": 22, "kind": "noparen", "max_abs": 99, "terms": 2, "same_sign_only": False},
+        "D": {"count": 30, "kind": "three_term_addsub", "max_abs": 9},
     },
     # 12級：正負の数 乗除
     # Phase 1（2026-05-05）: 30→50 題に拡充、Band B を構造改革（unique pool 24→48）。
@@ -286,20 +297,22 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     },
     # 11級：正負の数 四則混合（最難関級）
     # Phase 1（2026-05-05）: 30→50 題に拡充、Band C を slot_index 駆動化。
+    # Phase 2 Wave 1（2026-05-26）: 50→100 題化、単純倍化（各 Band count 2 倍 + Band C subcounts 2 倍）。
+    # 事前 probe で 6.8-8.0x unique margin が確認できたため安全。
     # ふくちさん教育的判断（36 年塾長経験）:
-    #   - A: 2 項四則混合 15 問（既存ロジック踏襲、両正排除で 11 級らしさ維持）
-    #   - B: 累乗を含む 2 項 15 問（既存ロジック踏襲）
-    #   - C: 3 項 + 括弧 + 累乗 20 問（**slot_index 駆動の 2 サブパターン分離**）
-    #     - subcounts={"inner_paren_x_power":10, "power_op_term_op_term":10}
+    #   - A: 2 項四則混合 30 問（既存ロジック踏襲、両正排除で 11 級らしさ維持）
+    #   - B: 累乗を含む 2 項 30 問（既存ロジック踏襲）
+    #   - C: 3 項 + 括弧 + 累乗 40 問（**slot_index 駆動の 2 サブパターン分離**）
+    #     - subcounts={"inner_paren_x_power":20, "power_op_term_op_term":20}
     #     - 既存 P1/P2 を slot_index で決定論分離（rng.choice の偶然依存を解消）
     # 中1 1 学期後半の集大成、3 単元の最難関。
     # TODO_PHASE3: 4 項以上、分数係数、二重括弧は Phase 3 で導入。
     11: {
-        "A": {"count": 15, "kind": "two_term_mixed",        "max_abs": 9},
-        "B": {"count": 15, "kind": "with_power",            "max_abs": 5, "exp_max": 3},
+        "A": {"count": 30, "kind": "two_term_mixed",        "max_abs": 9},
+        "B": {"count": 30, "kind": "with_power",            "max_abs": 5, "exp_max": 3},
         "C": {
-            "count": 20, "kind": "three_term_paren_power", "max_abs": 5, "exp_max": 2,
-            "subcounts": {"inner_paren_x_power": 10, "power_op_term_op_term": 10},
+            "count": 40, "kind": "three_term_paren_power", "max_abs": 5, "exp_max": 2,
+            "subcounts": {"inner_paren_x_power": 20, "power_op_term_op_term": 20},
         },
     },
     # 8級：一次方程式・比例式
@@ -329,22 +342,24 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     # 7級：式の計算 中2
     7: {
         # Phase 1（2026-04-30）: 30→50題化、Band C を 3 サブパターン分離
-        # A: 多項式の加減
-        # B: 多項式 × 整数 or 多項式 ÷ 整数
-        # C: 単項式の乗除と累乗（slot_index 駆動の決定論的サブパターン分離）
-        #    subcounts={"power":5, "mono_mul":6, "mono_div":5}（ふくちさん教育的判断、
-        #    mono_mul を 1 問多めに）
+        # Phase 2 Wave 1（2026-05-26）: 50→100 題化、単純倍化（各 Band count 2 倍 + Band C subcounts 2 倍）。
+        # 事前 probe で 8x unique margin が確認できたため安全。
+        # A: 多項式の加減 34 問
+        # B: 多項式 × 整数 or 多項式 ÷ 整数 34 問
+        # C: 単項式の乗除と累乗 32 問（slot_index 駆動の決定論的サブパターン分離）
+        #    subcounts={"power":10, "mono_mul":12, "mono_div":10}（Phase 1 比率維持、
+        #    mono_mul を 2 問多めに）
         #      - power     : 既存の (coef·var)^exp 単項式の累乗
         #      - mono_mul  : 単項式×単項式（同変数 / 異変数 両対応）
         #      - mono_div  : 単項式÷単項式（整数結果と分数結果両方）
         # 教育的拡充: 旧構成では中2 文字式の核「単項式の乗除」が抜けていたため Phase 1 で網羅。
-        "A": {"count": 17, "kind": "poly_addsub", "coef_max": 6, "const_max": 8},
-        "B": {"count": 17, "kind": "poly_int_muldiv", "coef_max": 5, "const_max": 8, "factor_max": 6},
+        "A": {"count": 34, "kind": "poly_addsub", "coef_max": 6, "const_max": 8},
+        "B": {"count": 34, "kind": "poly_int_muldiv", "coef_max": 5, "const_max": 8, "factor_max": 6},
         "C": {
-            "count": 16,
+            "count": 32,
             "kind": "mono_mixed",
             "coef_max": 5, "exp_max": 3,  # power サブパターン用に保持
-            "subcounts": {"power": 5, "mono_mul": 6, "mono_div": 5},
+            "subcounts": {"power": 10, "mono_mul": 12, "mono_div": 10},
         },
     },
     # 5級：式の計算 中3（多項式の展開）
@@ -464,34 +479,41 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     # 6級：連立方程式
     6: {
         # Phase 1（2026-05-04）: 30→50題化、Band D を新設して 4 Band 構成に。
+        # Phase 2 Wave 1（2026-05-26）: 50→100 題化、単純倍化（パラメータ無修正、count のみ 2 倍）。
+        # 事前 probe で 5-30x unique margin が確認できたため安全。
         # ふくちさん教育的判断（36年塾長経験）:
-        #   - A: 最易レベル導入 5 問（rank_08 と同思想）coef_max を 3→4 に拡張、整数解
-        #   - B: 標準加減法 20 問（単元の主役、既存ロジック踏襲）
-        #   - C: 分数解 10 問（sol_denom_max 4→5 で 1/5, 2/5 を追加）
-        #   - D: 代入法向け 15 問（新設、単元の山場の半分）
+        #   - A: 最易レベル導入 10 問（rank_08 と同思想）coef_max を 3→4 に拡張、整数解
+        #   - B: 標準加減法 40 問（単元の主役、既存ロジック踏襲）
+        #   - C: 分数解 20 問（sol_denom_max 4→5 で 1/5, 2/5 を追加）
+        #   - D: 代入法向け 30 問（新設、単元の山場の半分）
         # 中2連立方程式の核心は「加減法 vs 代入法 を選び分ける訓練」。
         # 旧構成は加減法しか練習できなかったため Phase 1 で代入法 Band D を新設し、
         # 教育的ギャップを解消する（rank_05 で Band D 新設したのと同パターン）。
-        "A": {"count": 5,  "kind": "simple_int",     "coef_max": 4, "sol_max": 5},
-        "B": {"count": 20, "kind": "general_int",    "coef_max": 6, "sol_max": 8},
-        "C": {"count": 10, "kind": "frac_solution",  "coef_max": 5, "sol_denom_max": 5},
-        "D": {"count": 15, "kind": "substitution_form", "coef_max": 5, "sol_max": 6},
+        "A": {"count": 10, "kind": "simple_int",     "coef_max": 4, "sol_max": 5},
+        "B": {"count": 40, "kind": "general_int",    "coef_max": 6, "sol_max": 8},
+        "C": {"count": 20, "kind": "frac_solution",  "coef_max": 5, "sol_denom_max": 5},
+        "D": {"count": 30, "kind": "substitution_form", "coef_max": 5, "sol_max": 6},
     },
     # 10級：単位・比・割合（10 問固定スロット構造）
     # Phase 1（2026-05-06）: 30 → 50 題に拡充（10 スロット維持 + count 増加 + 弱 slot 補強）。
+    # Phase 2 Wave 1（2026-05-26）: 50 → 100 題化、10 スロット構造維持（CLAUDE.md #211 教訓）。
+    # 単純倍化（slot rotation で自動的に各 slot のカバレッジが約 2 倍に）。
     # ふくちさん教育的判断（36 年塾長経験）+ 事前調査で確定（案 A 採用）:
-    #   - 10 スロット固定構造は Phase 2 グループ③で確立した教育設計（slot 順 = 教科書順）
-    #   - count=17/17/16 で main.py の slot rotation により以下のように展開:
-    #       count=17 → slot 1..10, 1..7（slot 1..7 が 2 問、slot 8..10 が 1 問）
-    #       count=16 → slot 1..10, 1..6（slot 1..6 が 2 問、slot 7..10 が 1 問）
+    #   - 10 スロット固定構造は Phase 2 グループ③で確立した教育設計（slot 順 = 教科書順）。
+    #     **再編せず、count 倍化のみで対応**（CLAUDE.md #211 「rank_10 のような N 問固定スロット
+    #     構造は教育設計の核心、無闇に Band 構造へ再編しない」）
+    #   - count=34/34/32 で main.py の slot rotation により以下のように展開:
+    #       count=34 → slot 1..10 × 3, 1..4（slot 1..4 が 4 問、slot 5..10 が 3 問）
+    #       count=32 → slot 1..10 × 3, 1..2（slot 1..2 が 4 問、slot 3..10 が 3 問）
     #   - slot 6 (時間) は Band C で時刻表記「1 時間 30 分 = 90 分」を新規追加（unique 16+）
     #   - slot 7 (速さ) は Band B/C の cases リスト拡張で構造的バグ修正
     #     （旧 unique=3, 4 → 拡張後 unique 10+、教育的に時速 240km まで含める）
     # 既存生徒側機能への影響なし（generator のロジック本体は無修正、cases リストの拡張のみ）。
+    # 事前 probe（dedup retry 込み）で 100% unique 達成を確認。
     10: {
-        "A": {"count": 17, "complexity": "easy"},
-        "B": {"count": 17, "complexity": "medium"},
-        "C": {"count": 16, "complexity": "hard"},
+        "A": {"count": 34, "complexity": "easy"},
+        "B": {"count": 34, "complexity": "medium"},
+        "C": {"count": 32, "complexity": "hard"},
     },
     # 9級：式の計算 中1
     # 9級：式の計算 中1

@@ -106,12 +106,13 @@ from google.oauth2.service_account import Credentials
 
 
 # 期待値（CLAUDE.md #171 + rank_01/08/09/11/12/13 + rank_10 + rank_14/15/16 +
-# rank_18/19 + rank_17/20 Phase 1 拡充の Phase 4 投入仕様）
-# ★ Phase 1 完全制覇 ★：全 20 単元 50 題化、合計 1000 問達成。
-EXPECTED_TOTAL = 1000
-RANKS_30 = []  # 全 rank が 50 題化、Phase 1 完全制覇後は RANKS_30 空
-RANKS_50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-EXPECTED_RANK_06_BANDS = {"A": 5, "B": 20, "C": 10, "D": 15}
+# rank_18/19 + rank_17/20 Phase 1 拡充 + Phase 2 Wave 1（2026-05-26）の Phase 4 投入仕様）
+# ★ Phase 2 Wave 1：9 単元（rank_06/07/10/11/13/14/17/18/19）を 50→100 題化、計 1450 問。
+EXPECTED_TOTAL = 1450
+RANKS_30 = []  # 全 rank が 50 題以上、Phase 1 完全制覇以降は RANKS_30 空
+RANKS_50 = [1, 2, 3, 4, 5, 8, 9, 12, 15, 16, 20]  # Phase 2 Wave 1 で倍化されない 11 単元
+RANKS_100 = [6, 7, 10, 11, 13, 14, 17, 18, 19]   # Phase 2 Wave 1 で 100 題化された 9 単元
+EXPECTED_RANK_06_BANDS = {"A": 10, "B": 40, "C": 20, "D": 30}  # Phase 2 Wave 1 で倍化
 EXPECTED_RANK_08_BANDS = {"A": 5, "B": 25, "C": 10, "D": 10}
 # Band D の slot_index 駆動サブパターン配分（_resolve_band_d_subkind 由来）
 EXPECTED_RANK_08_BAND_D_SUBPATTERNS = {"light": 2, "standard": 6, "heavy": 2}
@@ -119,25 +120,25 @@ EXPECTED_RANK_01_BANDS = {"A": 15, "B": 5, "C": 15, "D": 15}
 EXPECTED_RANK_01_BAND_C_SUBPATTERNS = {"k_eq_1": 10, "k_gt_1": 5}
 EXPECTED_RANK_01_BAND_D_SUBPATTERNS = {"with_p": 7, "ax2_eq_c": 8}
 # 正負の数 3 単元（Phase 1、2026-05-05 拡充）
-EXPECTED_RANK_11_BANDS = {"A": 15, "B": 15, "C": 20}
+EXPECTED_RANK_11_BANDS = {"A": 30, "B": 30, "C": 40}  # Phase 2 Wave 1 で倍化
 EXPECTED_RANK_12_BANDS = {"A": 15, "B": 15, "C": 20}
 # rank_12 Band B の slot_index 駆動 3 サブパターン（_resolve_band_b_subkind 由来、interleave 方式）
 EXPECTED_RANK_12_BAND_B_SUBPATTERNS = {"paren_neg": 5, "leading_minus": 5, "positive": 5}
 EXPECTED_RANK_12_BAND_B_MAX_RESULT_ABS = 1000
-EXPECTED_RANK_13_BANDS = {"A": 12, "B": 12, "C": 11, "D": 15}
+EXPECTED_RANK_13_BANDS = {"A": 24, "B": 24, "C": 22, "D": 30}  # Phase 2 Wave 1 で倍化
 # 式の計算 中1（Phase 1、2026-05-06 拡充）
 EXPECTED_RANK_09_BANDS = {"A": 13, "B": 13, "C": 11, "D": 13}
 # rank_09 Band A の slot_index 駆動 3 サブパターン（_resolve_band_a_subkind 由来）
 EXPECTED_RANK_09_BAND_A_SUBPATTERNS = {"two_term": 7, "three_term": 3, "with_const": 3}
 # 単位・比・割合 中1（Phase 1、2026-05-06 拡充、10 スロット維持 + count 増加）
-EXPECTED_RANK_10_BANDS = {"A": 17, "B": 17, "C": 16}
+EXPECTED_RANK_10_BANDS = {"A": 34, "B": 34, "C": 32}  # Phase 2 Wave 1 で倍化（10 スロット維持）
 # slot 7 Band B/C cases 拡張（構造的バグ修正の証拠、ふくちさん指定の時速 240km まで）
 EXPECTED_RANK_10_SLOT7_B_VALUES = {60, 72, 90, 120, 144, 150, 180, 240}     # 時速 km
 EXPECTED_RANK_10_SLOT7_C_VALUES = {60, 120, 180, 240, 300, 360, 420, 480, 540, 600}  # 分速 m
 # 分数四則混合 無学年（Phase 1、2026-05-07 拡充、Band D 整数を含む混合 新設）
-EXPECTED_RANK_14_BANDS = {"A": 12, "B": 14, "C": 12, "D": 12}
+EXPECTED_RANK_14_BANDS = {"A": 24, "B": 28, "C": 24, "D": 24}  # Phase 2 Wave 1 で倍化
 # rank_14 Band D の slot_index 駆動 3 サブパターン（_resolve_band_d_subkind 由来、cumulative dispatch）
-EXPECTED_RANK_14_BAND_D_SUBPATTERNS = {"int_addsub": 4, "int_mul": 4, "int_div": 4}
+EXPECTED_RANK_14_BAND_D_SUBPATTERNS = {"int_addsub": 8, "int_mul": 8, "int_div": 8}  # Phase 2 Wave 1 で倍化
 # 分数乗除 無学年（Phase 1、2026-05-07 拡充、4 Band 全て slot_index 駆動 + Band D 整数答え muldiv 新設）
 EXPECTED_RANK_15_BANDS = {"A": 12, "B": 18, "C": 12, "D": 8}
 # rank_15 各 Band の slot_index 駆動 サブパターン（cumulative dispatch）
@@ -161,36 +162,36 @@ EXPECTED_RANK_16_BAND_C_SUBPATTERNS = {"medium_lcm": 5, "hard_lcm": 5}
 # rank_16 Band D サブパターン配分（slot_index 駆動）
 EXPECTED_RANK_16_BAND_D_SUBPATTERNS = {"all_add": 5, "add_sub_mix": 5}
 # 小数乗除 無学年（Phase 1、2026-05-07 夜 拡充、Band D 答えが整数 muldiv 新設、slot_index 駆動）
-EXPECTED_RANK_18_BANDS = {"A": 15, "B": 15, "C": 10, "D": 10}
-# Band A/B/C 演算子配分（slot 0-(mul-1)=mul, 残り=div）
-EXPECTED_RANK_18_BAND_A_MUL = 8
-EXPECTED_RANK_18_BAND_A_DIV = 7
-EXPECTED_RANK_18_BAND_B_MUL = 8
-EXPECTED_RANK_18_BAND_B_DIV = 7
-EXPECTED_RANK_18_BAND_C_MUL = 5
-EXPECTED_RANK_18_BAND_C_DIV = 5
+EXPECTED_RANK_18_BANDS = {"A": 30, "B": 30, "C": 20, "D": 20}  # Phase 2 Wave 1 で倍化
+# Band A/B/C 演算子配分（slot 0-(mul-1)=mul, 残り=div）— Phase 2 Wave 1 で倍化
+EXPECTED_RANK_18_BAND_A_MUL = 16
+EXPECTED_RANK_18_BAND_A_DIV = 14
+EXPECTED_RANK_18_BAND_B_MUL = 16
+EXPECTED_RANK_18_BAND_B_DIV = 14
+EXPECTED_RANK_18_BAND_C_MUL = 10
+EXPECTED_RANK_18_BAND_C_DIV = 10
 # Band D サブパターン配分（slot_index 駆動）
-EXPECTED_RANK_18_BAND_D_SUBPATTERNS = {"mul_int_ans": 5, "div_int_ans": 5}
+EXPECTED_RANK_18_BAND_D_SUBPATTERNS = {"mul_int_ans": 10, "div_int_ans": 10}  # Phase 2 Wave 1 で倍化
 # 小数加減 無学年（Phase 1、2026-05-07 夜 拡充、Band D 3 項加減新設、slot_index 駆動）
-EXPECTED_RANK_19_BANDS = {"A": 15, "B": 15, "C": 10, "D": 10}
-# rank_19 Band A 演算子配分（subcounts {"add":8,"sub":7,"int_ans":2}, int_ans は add 含む）
-# slot 0-1=int_ans (+), slot 2-7=add 通常 (+), slot 8-14=sub (-)
-EXPECTED_RANK_19_BAND_A_PLUS = 8  # int_ans 2 + add 通常 6
-EXPECTED_RANK_19_BAND_A_MINUS = 7
-EXPECTED_RANK_19_BAND_A_INT_ANS = 2  # slot 0-1 が整数答え強制
+EXPECTED_RANK_19_BANDS = {"A": 30, "B": 30, "C": 20, "D": 20}  # Phase 2 Wave 1 で倍化
+# rank_19 Band A 演算子配分（Phase 2 Wave 1：subcounts {"add":16,"sub":14,"int_ans":4}, int_ans は add 含む）
+# slot 0-3=int_ans (+), slot 4-15=add 通常 (+), slot 16-29=sub (-)
+EXPECTED_RANK_19_BAND_A_PLUS = 16  # int_ans 4 + add 通常 12
+EXPECTED_RANK_19_BAND_A_MINUS = 14
+EXPECTED_RANK_19_BAND_A_INT_ANS = 4  # slot 0-3 が整数答え強制（Phase 2 Wave 1 で倍化）
 # rank_19 Band B 演算子配分
-EXPECTED_RANK_19_BAND_B_ADD = 8
-EXPECTED_RANK_19_BAND_B_SUB = 7
+EXPECTED_RANK_19_BAND_B_ADD = 16
+EXPECTED_RANK_19_BAND_B_SUB = 14
 # rank_19 Band C サブパターン配分（int_minus_dec / rest_diff）
-EXPECTED_RANK_19_BAND_C_SUBPATTERNS = {"int_minus_dec": 5, "rest_diff": 5}
+EXPECTED_RANK_19_BAND_C_SUBPATTERNS = {"int_minus_dec": 10, "rest_diff": 10}
 # rank_19 Band D サブパターン配分
-EXPECTED_RANK_19_BAND_D_SUBPATTERNS = {"all_add": 5, "add_sub_mix": 5}
+EXPECTED_RANK_19_BAND_D_SUBPATTERNS = {"all_add": 10, "add_sub_mix": 10}
 # 小数四則混合 無学年（Phase 1、2026-05-07 夜 拡充、Band D 答え整数 3 項小数四則 新設）
-EXPECTED_RANK_17_BANDS = {"A": 12, "B": 14, "C": 12, "D": 12}
-# Band A 演算子配分（slot 0-2 add, 3-5 sub, 6-8 mul, 9-11 div、各 3 問均等）
-EXPECTED_RANK_17_BAND_A_SUBPATTERNS = {"add": 3, "sub": 3, "mul": 3, "div": 3}
+EXPECTED_RANK_17_BANDS = {"A": 24, "B": 28, "C": 24, "D": 24}  # Phase 2 Wave 1 で倍化
+# Band A 演算子配分（slot 0-5 add, 6-11 sub, 12-17 mul, 18-23 div、各 6 問均等）
+EXPECTED_RANK_17_BAND_A_SUBPATTERNS = {"add": 6, "sub": 6, "mul": 6, "div": 6}  # Phase 2 Wave 1 で倍化
 # Band D サブパターン配分（slot_index 駆動）
-EXPECTED_RANK_17_BAND_D_SUBPATTERNS = {"no_paren": 6, "with_paren": 6}
+EXPECTED_RANK_17_BAND_D_SUBPATTERNS = {"no_paren": 12, "with_paren": 12}  # Phase 2 Wave 1 で倍化
 # 整数四則混合 無学年（Phase 1、2026-05-07 夜 拡充、digits=1 化 + Band D カッコあり 新設）
 EXPECTED_RANK_20_BANDS = {"A": 5, "B": 5, "C": 20, "D": 20}
 # Band A/B 配分（入門編、自明問題許容）
@@ -621,8 +622,13 @@ def main() -> int:
         except (ValueError, IndexError):
             pass
 
-    for rk in sorted(set(RANKS_30 + RANKS_50)):
-        expected = 30 if rk in RANKS_30 else 50
+    for rk in sorted(set(RANKS_30 + RANKS_50 + RANKS_100)):
+        if rk in RANKS_30:
+            expected = 30
+        elif rk in RANKS_100:
+            expected = 100
+        else:
+            expected = 50
         actual = rank_counts.get(rk, 0)
         check(
             f"T2 rank {rk:2d} 行数 == {expected}",
@@ -1219,7 +1225,7 @@ def main() -> int:
             f"actual={actual}",
         )
 
-    # rank=14 Band D 全 12 問のサブパターン配分
+    # rank=14 Band D 全問のサブパターン配分
     band_d_rows_14 = [r for r in rank14_rows if r[i_band] == "D"]
     sub_counts_14: Counter = Counter()
     for r in band_d_rows_14:
@@ -1233,7 +1239,7 @@ def main() -> int:
             f"actual={actual}",
         )
 
-    # rank=14 Band D 全 12 問が「整数項 + 分数項」両方含む
+    # rank=14 Band D 全問が「整数項 + 分数項」両方含む
     def _has_standalone_int(lx: str) -> bool:
         # \frac{...}{...} を伏せた残りに整数が出ればOK
         stripped = _re.sub(r"\\frac\{[^}]*\}\{[^}]*\}", "", lx)
@@ -1242,35 +1248,45 @@ def main() -> int:
     def _has_fraction(lx: str) -> bool:
         return bool(_re.search(r"\\frac\{", lx))
 
+    d14_total = EXPECTED_RANK_14_BANDS["D"]
     band_d_structure_ok_14 = sum(
         1 for r in band_d_rows_14
         if _has_standalone_int(r[i_latex]) and _has_fraction(r[i_latex])
     )
     check(
-        "T20 rank=14 Band D 全 12 問に整数項と分数項の両方が含まれる",
-        band_d_structure_ok_14 == 12,
-        f"actual={band_d_structure_ok_14}/12",
+        f"T20 rank=14 Band D 全 {d14_total} 問に整数項と分数項の両方が含まれる",
+        band_d_structure_ok_14 == d14_total,
+        f"actual={band_d_structure_ok_14}/{d14_total}",
     )
 
-    # rank=14 Band D の slot 配置順が決定論的（先頭4=addsub, 中4=mul, 末4=div）
+    # rank=14 Band D の slot 配置順が決定論的（先頭=addsub, 中=mul, 末=div）— Phase 2 Wave 1 で subcounts 倍化対応
+    n_addsub_14 = EXPECTED_RANK_14_BAND_D_SUBPATTERNS["int_addsub"]
+    n_mul_14 = EXPECTED_RANK_14_BAND_D_SUBPATTERNS["int_mul"]
+    n_div_14 = EXPECTED_RANK_14_BAND_D_SUBPATTERNS["int_div"]
+    boundary_14_mul = n_addsub_14
+    boundary_14_div = n_addsub_14 + n_mul_14
     slot_order_ok_14 = True
     for i, r in enumerate(band_d_rows_14):
         sub = classify_rank14_band_d_subkind(r[i_latex])
-        if i < 4 and sub != "int_addsub":
+        if i < boundary_14_mul and sub != "int_addsub":
             slot_order_ok_14 = False
-        if 4 <= i < 8 and sub != "int_mul":
+        if boundary_14_mul <= i < boundary_14_div and sub != "int_mul":
             slot_order_ok_14 = False
-        if i >= 8 and sub != "int_div":
+        if i >= boundary_14_div and sub != "int_div":
             slot_order_ok_14 = False
     check(
-        "T20 rank=14 Band D 配置順 slot 0-3=addsub, 4-7=mul, 8-11=div（決定論的）",
+        f"T20 rank=14 Band D 配置順 slot 0-{boundary_14_mul - 1}=addsub, "
+        f"{boundary_14_mul}-{boundary_14_div - 1}=mul, {boundary_14_div}-{d14_total - 1}=div（決定論的）",
         slot_order_ok_14,
     )
 
     # ============================================================
     # rank=14 Band D サンプル表示（実機目視用）
     # ============================================================
-    print("\n--- rank=14 Band D サンプル（slot_index 順、int_addsub/int_mul/int_div 各 4 問） ---")
+    print(
+        f"\n--- rank=14 Band D サンプル（slot_index 順、"
+        f"int_addsub/int_mul/int_div 各 {n_addsub_14}/{n_mul_14}/{n_div_14} 問） ---"
+    )
     for i, r in enumerate(band_d_rows_14):
         sub = classify_rank14_band_d_subkind(r[i_latex])
         print(f"  D[{i+1:2d}] ({sub:10s}): {r[i_latex]:42s}  =>  {r[i_canonical]}")
@@ -1768,42 +1784,46 @@ def main() -> int:
         f"actual={c_div}",
     )
 
-    # Band A 決定論的配置：slot 0-7 mul、slot 8-14 div
-    a_0to7_mul = all("\\times" in r[i_latex] for r in band_a_rows_18[:8])
-    a_8to14_div = all("\\div" in r[i_latex] for r in band_a_rows_18[8:])
+    # Band A 決定論的配置：先頭 MUL 個が mul、残り DIV 個が div（Phase 2 Wave 1：16/14）
+    a_mul_n = EXPECTED_RANK_18_BAND_A_MUL
+    a_0_to_mul_all_mul = all("\\times" in r[i_latex] for r in band_a_rows_18[:a_mul_n])
+    a_rest_all_div = all("\\div" in r[i_latex] for r in band_a_rows_18[a_mul_n:])
     check(
-        "T23 rank=18 Band A slot 0-7 が mul（決定論的）",
-        a_0to7_mul,
+        f"T23 rank=18 Band A slot 0-{a_mul_n - 1} が mul（決定論的）",
+        a_0_to_mul_all_mul,
     )
     check(
-        "T23 rank=18 Band A slot 8-14 が div（決定論的）",
-        a_8to14_div,
+        f"T23 rank=18 Band A slot {a_mul_n}-{a_mul_n + EXPECTED_RANK_18_BAND_A_DIV - 1} が div（決定論的）",
+        a_rest_all_div,
     )
 
     # Band D サブパターン配分
     d_mul = sum(1 for r in band_d_rows_18 if "\\times" in r[i_latex])
     d_div = sum(1 for r in band_d_rows_18 if "\\div" in r[i_latex])
     check(
-        "T23 rank=18 Band D mul_int_ans == 5",
+        f"T23 rank=18 Band D mul_int_ans == {EXPECTED_RANK_18_BAND_D_SUBPATTERNS['mul_int_ans']}",
         d_mul == EXPECTED_RANK_18_BAND_D_SUBPATTERNS["mul_int_ans"],
         f"actual={d_mul}",
     )
     check(
-        "T23 rank=18 Band D div_int_ans == 5",
+        f"T23 rank=18 Band D div_int_ans == {EXPECTED_RANK_18_BAND_D_SUBPATTERNS['div_int_ans']}",
         d_div == EXPECTED_RANK_18_BAND_D_SUBPATTERNS["div_int_ans"],
         f"actual={d_div}",
     )
 
-    # Band D 全 10 問の答えが整数
+    # Band D 全問の答えが整数
     import re as _re_d18
     d18_int_count = sum(1 for r in band_d_rows_18 if _re_d18.match(r"^-?\d+$", r[i_canonical]))
+    d18_total = EXPECTED_RANK_18_BANDS["D"]
     check(
-        "T23 rank=18 Band D 全 10 問の答えが整数",
-        d18_int_count == 10,
-        f"actual={d18_int_count}/10",
+        f"T23 rank=18 Band D 全 {d18_total} 問の答えが整数",
+        d18_int_count == d18_total,
+        f"actual={d18_int_count}/{d18_total}",
     )
 
-    # Band D mul_int_ans 全 5 問に整数項 + 小数項
+    # Band D mul_int_ans 全問に整数項 + 小数項（Phase 2 Wave 1：subcounts 倍化対応）
+    n_mul_ia_18 = EXPECTED_RANK_18_BAND_D_SUBPATTERNS["mul_int_ans"]
+    n_div_ia_18 = EXPECTED_RANK_18_BAND_D_SUBPATTERNS["div_int_ans"]
     band_d_mul_18 = [r for r in band_d_rows_18 if "\\times" in r[i_latex]]
     mul_struct_ok = 0
     for r in band_d_mul_18:
@@ -1815,12 +1835,12 @@ def main() -> int:
             if t0_int != t1_int:
                 mul_struct_ok += 1
     check(
-        "T23 rank=18 Band D mul_int_ans 全 5 問に整数項 + 小数項",
-        mul_struct_ok == 5,
-        f"actual={mul_struct_ok}/5",
+        f"T23 rank=18 Band D mul_int_ans 全 {n_mul_ia_18} 問に整数項 + 小数項",
+        mul_struct_ok == n_mul_ia_18,
+        f"actual={mul_struct_ok}/{n_mul_ia_18}",
     )
 
-    # Band D div_int_ans 全 5 問が「整数 ÷ 小数」（先頭整数、第 2 項小数）
+    # Band D div_int_ans 全問が「整数 ÷ 小数」（先頭整数、第 2 項小数）
     band_d_div_18 = [r for r in band_d_rows_18 if "\\div" in r[i_latex]]
     div_struct_ok = 0
     for r in band_d_div_18:
@@ -1828,15 +1848,18 @@ def main() -> int:
         if len(toks) == 2 and "." not in toks[0] and "." in toks[1]:
             div_struct_ok += 1
     check(
-        "T23 rank=18 Band D div_int_ans 全 5 問が「整数 ÷ 小数」形式",
-        div_struct_ok == 5,
-        f"actual={div_struct_ok}/5",
+        f"T23 rank=18 Band D div_int_ans 全 {n_div_ia_18} 問が「整数 ÷ 小数」形式",
+        div_struct_ok == n_div_ia_18,
+        f"actual={div_struct_ok}/{n_div_ia_18}",
     )
 
     # ============================================================
     # rank=18 Band D サンプル表示（実機目視用）
     # ============================================================
-    print("\n--- rank=18 Band D サンプル（slot_index 順、mul_int_ans 5 / div_int_ans 5、答え全て整数） ---")
+    print(
+        f"\n--- rank=18 Band D サンプル（slot_index 順、mul_int_ans {n_mul_ia_18} / "
+        f"div_int_ans {n_div_ia_18}、答え全て整数） ---"
+    )
     for i, r in enumerate(band_d_rows_18):
         sub = "mul_int_ans" if "\\times" in r[i_latex] else "div_int_ans"
         print(f"  D[{i+1:2d}] ({sub:11s}): {r[i_latex]:34s}  =>  {r[i_canonical]}")
@@ -1878,14 +1901,21 @@ def main() -> int:
         f"actual={a_minus}",
     )
 
-    # Band A slot 0-1 が int_ans 強制（整数答え）
-    if len(band_a_rows_19) >= 2:
-        slot0_int_19 = bool(_re.match(r"^-?\d+$", band_a_rows_19[0][i_canonical]))
-        slot1_int_19 = bool(_re.match(r"^-?\d+$", band_a_rows_19[1][i_canonical]))
+    # Band A 先頭 EXPECTED_RANK_19_BAND_A_INT_ANS スロットが int_ans 強制（整数答え）
+    # Phase 2 Wave 1：slot 0-3（4 問）が int_ans 強制
+    n_int_ans_19 = EXPECTED_RANK_19_BAND_A_INT_ANS
+    if len(band_a_rows_19) >= n_int_ans_19:
+        all_int = all(
+            bool(_re.match(r"^-?\d+$", band_a_rows_19[i][i_canonical]))
+            for i in range(n_int_ans_19)
+        )
+        slot_summary = ", ".join(
+            f"slot{i}={band_a_rows_19[i][i_canonical]}" for i in range(n_int_ans_19)
+        )
         check(
-            "T24 rank=19 Band A slot 0-1 が int_ans 強制（整数答え）",
-            slot0_int_19 and slot1_int_19,
-            f"slot0={band_a_rows_19[0][i_canonical]}, slot1={band_a_rows_19[1][i_canonical]}",
+            f"T24 rank=19 Band A slot 0-{n_int_ans_19 - 1} が int_ans 強制（整数答え）",
+            all_int,
+            slot_summary,
         )
 
     # Band B 演算子配分
@@ -1904,27 +1934,34 @@ def main() -> int:
     )
 
     # Band C サブパターン配分（int_minus_dec / rest_diff）
+    # Phase 2 Wave 1（2026-05-26）：rest_diff の decimals_options (1,3) などが
+    # 偶発的に "整数 - 小数" 構造になることがあり、純粋な latex pattern 分類だけだと
+    # int_minus_dec として誤計上される（例：slot 13 の `7 - 5.624`）。これは dispatcher
+    # 側の決定論的配置が正しいことを別途下の「slot 0-{N-1} が int_minus_dec」テストで
+    # 担保しているため、ここでは slot ベースの分類（dispatch 由来）を採用する。
     band_c_rows_19 = [r for r in rank19_rows if r[i_band] == "C"]
-    c_subs_19: Counter = Counter()
-    for r in band_c_rows_19:
-        c_subs_19[_rank19_classify_band_c_subkind(r[i_latex])] += 1
+    n_imd_19_expected = EXPECTED_RANK_19_BAND_C_SUBPATTERNS["int_minus_dec"]
+    c_subs_19_by_slot: Counter = Counter()
+    for slot_i, _ in enumerate(band_c_rows_19):
+        c_subs_19_by_slot["int_minus_dec" if slot_i < n_imd_19_expected else "rest_diff"] += 1
     for sub, expected in EXPECTED_RANK_19_BAND_C_SUBPATTERNS.items():
-        actual = c_subs_19.get(sub, 0)
+        actual = c_subs_19_by_slot.get(sub, 0)
         check(
-            f"T24 rank=19 Band C {sub} == {expected}",
+            f"T24 rank=19 Band C {sub} == {expected}（slot ベース）",
             actual == expected,
             f"actual={actual}",
         )
 
-    # Band C int_minus_dec が slot 0-4 配置
-    if len(band_c_rows_19) >= 5:
-        c_0to4_imd = all(
+    # Band C int_minus_dec が先頭スロットに配置（Phase 2 Wave 1：slot 0-9 = 10 問）
+    n_imd_19 = EXPECTED_RANK_19_BAND_C_SUBPATTERNS["int_minus_dec"]
+    if len(band_c_rows_19) >= n_imd_19:
+        c_head_imd = all(
             _rank19_classify_band_c_subkind(band_c_rows_19[i][i_latex]) == "int_minus_dec"
-            for i in range(5)
+            for i in range(n_imd_19)
         )
         check(
-            "T24 rank=19 Band C slot 0-4 が int_minus_dec（決定論的）",
-            c_0to4_imd,
+            f"T24 rank=19 Band C slot 0-{n_imd_19 - 1} が int_minus_dec（決定論的）",
+            c_head_imd,
         )
 
     # Band D サブパターン配分
@@ -1946,14 +1983,15 @@ def main() -> int:
         f"minus_minus={minus_minus_19}",
     )
 
-    # Band D 全 10 問が 3 項
+    # Band D 全問が 3 項
     def _count_ops_19(latex):
         return len(_re.findall(r"\s[+\-]\s", latex))
+    d19_total = EXPECTED_RANK_19_BANDS["D"]
     d_3term = sum(1 for r in band_d_rows_19 if _count_ops_19(r[i_latex]) == 2)
     check(
-        "T24 rank=19 Band D 全 10 問が 3 項",
-        d_3term == 10,
-        f"actual={d_3term}/10",
+        f"T24 rank=19 Band D 全 {d19_total} 問が 3 項",
+        d_3term == d19_total,
+        f"actual={d_3term}/{d19_total}",
     )
 
     # Band D slot 0（all_add）が整数答え強制
@@ -1968,9 +2006,9 @@ def main() -> int:
     # ============================================================
     # rank=19 サンプル表示（実機目視用）
     # ============================================================
-    print("\n--- rank=19 Band A サンプル（slot 0-1 が int_ans 強制） ---")
-    for i, r in enumerate(band_a_rows_19[:8]):
-        sub = "int_ans" if i < 2 else "add"
+    print(f"\n--- rank=19 Band A サンプル（slot 0-{n_int_ans_19 - 1} が int_ans 強制） ---")
+    for i, r in enumerate(band_a_rows_19[: max(8, n_int_ans_19 + 4)]):
+        sub = "int_ans" if i < n_int_ans_19 else "add"
         print(f"  A[{i+1:2d}] ({sub:7s}): {r[i_latex]:24s}  =>  {r[i_canonical]}")
 
     print("\n--- rank=19 Band C int_minus_dec 5 問（中学算数の躓きポイント） ---")
@@ -2016,15 +2054,28 @@ def main() -> int:
             f"actual={actual}",
         )
 
-    # Band A 演算子配置（slot 0-2 add, 3-5 sub, 6-8 mul, 9-11 div）
-    expected_slot_ops_17 = ["add", "add", "add", "sub", "sub", "sub",
-                             "mul", "mul", "mul", "div", "div", "div"]
+    # Band A 演算子配置（Phase 2 Wave 1：slot 0-5 add / 6-11 sub / 12-17 mul / 18-23 div、各 6 問）
+    # subcounts から自動的にスロット配置を組み立てる（add → sub → mul → div の順）
+    n_add_17 = EXPECTED_RANK_17_BAND_A_SUBPATTERNS["add"]
+    n_sub_17 = EXPECTED_RANK_17_BAND_A_SUBPATTERNS["sub"]
+    n_mul_17 = EXPECTED_RANK_17_BAND_A_SUBPATTERNS["mul"]
+    n_div_17 = EXPECTED_RANK_17_BAND_A_SUBPATTERNS["div"]
+    expected_slot_ops_17 = (
+        ["add"] * n_add_17
+        + ["sub"] * n_sub_17
+        + ["mul"] * n_mul_17
+        + ["div"] * n_div_17
+    )
     a_slot_ok_17 = all(
         _rank17_classify_band_a_op(band_a_rows_17[i][i_latex]) == expected_slot_ops_17[i]
-        for i in range(min(12, len(band_a_rows_17)))
+        for i in range(min(len(expected_slot_ops_17), len(band_a_rows_17)))
     )
     check(
-        "T25 rank=17 Band A 演算子配置（slot 0-2 add / 3-5 sub / 6-8 mul / 9-11 div）",
+        f"T25 rank=17 Band A 演算子配置"
+        f"（slot 0-{n_add_17 - 1} add / "
+        f"{n_add_17}-{n_add_17 + n_sub_17 - 1} sub / "
+        f"{n_add_17 + n_sub_17}-{n_add_17 + n_sub_17 + n_mul_17 - 1} mul / "
+        f"{n_add_17 + n_sub_17 + n_mul_17}-{len(expected_slot_ops_17) - 1} div）",
         a_slot_ok_17,
     )
 
@@ -2055,23 +2106,26 @@ def main() -> int:
     d_int_count_17 = sum(
         1 for r in band_d_rows_17 if _re_d_int_17.match(r"^-?\d+$", r[i_canonical])
     )
+    d17_total = EXPECTED_RANK_17_BANDS["D"]
     check(
-        "T25 rank=17 Band D 全 12 問の答えが整数",
-        d_int_count_17 == 12,
-        f"actual={d_int_count_17}/12",
+        f"T25 rank=17 Band D 全 {d17_total} 問の答えが整数",
+        d_int_count_17 == d17_total,
+        f"actual={d_int_count_17}/{d17_total}",
     )
 
     # ============================================================
     # rank=17 サンプル表示
     # ============================================================
-    print("\n--- rank=17 Band A サンプル（slot 0-2 add / 3-5 sub / 6-8 mul / 9-11 div） ---")
-    for i, r in enumerate(band_a_rows_17):
+    print(f"\n--- rank=17 Band A サンプル（add={n_add_17}, sub={n_sub_17}, mul={n_mul_17}, div={n_div_17}） ---")
+    for i, r in enumerate(band_a_rows_17[: min(len(band_a_rows_17), 12)]):
         sub = expected_slot_ops_17[i] if i < len(expected_slot_ops_17) else "?"
         print(f"  A[{i+1:2d}] ({sub:3s}): {r[i_latex]:28s}  =>  {r[i_canonical]}")
 
-    print("\n--- rank=17 Band D サンプル（no_paren 6 / with_paren 6、全問整数答え） ---")
-    for i, r in enumerate(band_d_rows_17):
-        sub = "no_paren" if i < 6 else "with_paren"
+    n_np_17 = EXPECTED_RANK_17_BAND_D_SUBPATTERNS["no_paren"]
+    n_wp_17 = EXPECTED_RANK_17_BAND_D_SUBPATTERNS["with_paren"]
+    print(f"\n--- rank=17 Band D サンプル（no_paren={n_np_17} / with_paren={n_wp_17}、全問整数答え） ---")
+    for i, r in enumerate(band_d_rows_17[: min(len(band_d_rows_17), 12)]):
+        sub = "no_paren" if i < n_np_17 else "with_paren"
         print(f"  D[{i+1:2d}] ({sub:10s}): {r[i_latex]:34s}  =>  {r[i_canonical]}")
 
     # ============================================================
