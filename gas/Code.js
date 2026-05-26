@@ -20291,6 +20291,9 @@ function _renderLineLayoutHtml(title, bodyHtml) {
     '.line-card input:focus { border-color: #06c755; }' +
     '.line-card .btn-line { display: block; width: 100%; margin-top: 16px; padding: 14px; background: linear-gradient(135deg, #06c755, #04a64b); color: #fff; border: 0; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(6,199,85,.3); text-decoration: none; }' +
     '.line-card .btn-line:active { transform: translateY(1px); }' +
+    '.line-card .btn-line-hero { margin-top: 22px; padding: 20px; font-size: 19px; letter-spacing: .5px; box-shadow: 0 6px 18px rgba(6,199,85,.4); }' +
+    '.line-card .line-step-title { font-size: 24px; margin: 0 0 18px; }' +
+    '.line-card .line-step-lead  { font-size: 16px; line-height: 1.9; margin: 14px 0 6px; color: #444; }' +
     '.line-card .btn-back { display: inline-block; margin-top: 12px; color: #92400e; font-size: 13px; text-decoration: underline; }' +
     '.line-card .role-pill { display: inline-block; background: linear-gradient(135deg, #fef3c7, #fcd34d); color: #92400e; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-bottom: 8px; }' +
     '.line-card .small-note { font-size: 12px; color: #888; margin-top: 14px; }';
@@ -20397,15 +20400,15 @@ function _handleLineLoginStart(params) {
     + '&state=' + encodeURIComponent(state)
     + '&scope=' + encodeURIComponent('profile openid')
     + '&bot_prompt=aggressive';  // 友だち追加を促進（公式アカウントが設定されていれば）
+  // 2026-05-26：自動遷移を完全廃止し、最初から手動タップ方式に統一。
+  // 旧版では setTimeout で window.top.location.replace を試みていたが、GAS Web App の
+  // サンドボックス挙動により実環境ではほぼ機能せず、「画面が変わらない＝エラーと思い込み登録離脱」
+  // という実害が複数発生していた。ボタンが主役のレイアウトで誰でも迷わない設計にする。
   var body =
-    '<h1>📲 LINE に接続中…</h1>' +
-    '<p>LINE の認可画面に移動します。<br>少々お待ちください。</p>' +
-    '<a class="btn-line" id="line-jump" target="_top" href="' + _escapeHtmlMinimal(authorizeUrl) + '">手動で LINE を開く</a>' +
-    // 2026-05-17：GAS Web App は iframe で配信されるため、window.location.replace では
-    // 親フレーム外（access.line.me）への遷移が X-Frame-Options: DENY でブロックされる。
-    // window.top を使って親ウィンドウ全体を遷移させる必要がある。
-    '<script>setTimeout(function(){ (window.top || window).location.replace(' + JSON.stringify(authorizeUrl) + '); }, 200);<' + '/script>';
-  return _renderLineLayoutHtml('LINE に接続中', body);
+    '<h1 class="line-step-title">📲 LINE 連携の最終ステップ</h1>' +
+    '<p class="line-step-lead">下のボタンをタップして、<br>LINE の認可画面に進んでください。</p>' +
+    '<a class="btn-line btn-line-hero" id="line-jump" target="_top" href="' + _escapeHtmlMinimal(authorizeUrl) + '">LINE を開く</a>';
+  return _renderLineLayoutHtml('LINE 連携の最終ステップ', body);
 }
 
 // --- Handler: lineLoginCallback（LINE から code を受け取る） ---
