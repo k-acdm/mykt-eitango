@@ -20337,15 +20337,35 @@ function _renderLineSuccessHtml(role, sid, displayName) {
   var safeRole = (role === 'parent') ? 'parent' : 'student';
   var sep = appUrl.indexOf('?') < 0 ? '?' : '&';
   var returnUrl = appUrl + sep + 'lineRegistered=' + safeRole;
+
+  // 2026-05-26：「誰の LINE がどの生徒に紐付いたか」をひと目で確認できるよう、生徒氏名を併記。
+  // Students / SpecialAccounts 双方を見る統合ヘルパー（_findAccountRowOnSheet）を使うため、
+  // テスト枠（1001〜1010）などの SpecialAccounts シート側のアカウントでも氏名表示可能。
+  // 氏名は表示の補助情報なので、取得失敗時は氏名なしで画面継続（致命的でないため throw しない）。
+  var studentName = '';
+  try {
+    var loc = _findAccountRowOnSheet(sid);
+    if (loc && loc.rowValues) {
+      studentName = String(loc.rowValues[COL_NAME] || '').trim();
+    }
+  } catch (e) {
+    console.warn('[lineSuccess] failed to lookup studentName for sid=' + sid + ' :', e);
+  }
+  var sidLabel = studentName
+    ? _escapeHtmlMinimal(sid) + '（' + _escapeHtmlMinimal(studentName) + '）'
+    : _escapeHtmlMinimal(sid);
+
+  // 2026-05-26：旧版の「これからは前日に何も提出してない日があると正午に〜」と
+  // 「※ 通知の有効/無効は塾の先生にお伝えください」の説明文を削除。
+  // 通知ルールは将来変更される可能性があるため、画面に固定で書かない方針。
+  // 個別配信ルールは塾長が別途案内する形に統一。
   var body =
     '<h1>✅ 登録完了！</h1>' +
     '<span class="role-pill">' + _escapeHtmlMinimal(roleLabel) + 'として登録</span>' +
     '<div class="line-msg success">' +
-      '<strong>' + _escapeHtmlMinimal(displayName || 'LINE') + '</strong> さんの LINE と<br>' +
-      '生徒ID <strong>' + _escapeHtmlMinimal(sid) + '</strong> をひも付けました。' +
+      '<strong>' + _escapeHtmlMinimal(displayName || 'LINE') + '</strong> さんの LINE を<br>' +
+      '生徒ID <strong>' + sidLabel + '</strong> にリンクしました。' +
     '</div>' +
-    '<p>これからは前日に何も提出してない日があると、<br>正午（12:00）に LINE でお知らせが届きます。</p>' +
-    '<p class="small-note">※ 通知の有効/無効は塾の先生にお伝えください。</p>' +
     '<a class="btn-line" target="_top" href="' + _escapeHtmlMinimal(returnUrl) + '">マイ活アプリに戻る</a>';
   return _renderLineLayoutHtml('登録完了', body);
 }

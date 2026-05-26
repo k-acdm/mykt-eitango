@@ -2557,10 +2557,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260526-0332"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260526-1404"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260526-0332">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260526-0332"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260526-1404">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260526-1404"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5531,6 +5531,16 @@
     try {
       if (localStorage.getItem('lineRegistered_' + role) === 'true') return;
     } catch(e){}
+    // 2026-05-26：外部 URL（GAS Web App）へ遷移するため、グローバル登録された
+    // beforeunload / popstate ハンドラを先に外す。
+    // 外さないと「このサイトを離れますか？ 行った変更が保存されない可能性があります」
+    // 確認ダイアログが出て、IT に詳しくない利用者を不安にさせ登録離脱の原因となる。
+    // 全画面共通の beforeUnloadHandler はフォーム入力途中の保護等の意図でグローバル登録
+    // されているが、ここは「ボタンを押して LINE 連携フローに進む」という明示的な外部遷移
+    // なので抑制する。既存パターン：保護者ログイン経路 doRoleLogin の view.html 遷移
+    // ([index.html:5630-5631]) と同じ（CLAUDE.md 運用ルール #183 準拠）。
+    try { window.removeEventListener('beforeunload', beforeUnloadHandler); } catch(e){}
+    try { window.removeEventListener('popstate', popstateHandler); } catch(e){}
     var url = GAS_URL + '?action=lineLoginStart&role=' + encodeURIComponent(role);
     window.location.href = url;
   }
@@ -13478,7 +13488,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260526-0332</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260526-1404</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
