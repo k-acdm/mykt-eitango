@@ -34,15 +34,40 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     # 体感が入門としての本質）。
     # TODO_PHASE3: 4 項以上、二重カッコ、digits=2 の 3 項は Phase 3 以降。
     # 負の数は rank_11/12/13 領域として rank_20 に入れない。
+    # Phase 2 Wave 3（2026-05-26）: 50→100題化、★ Band E 新設（digits=2、|result| 上限なし） ★
+    # ふくちさん教育原則「rank_20 は暗算演習コンテンツではない、上限不要」
+    # （CLAUDE.md「マイ活アプリの教育設計原則」追記済）。
+    # Band A/B/C/D は据え置き or 倍化、Band E で digits=2 拡張（TODO_PHASE3 消化）。
+    #   A: 10 問（自明問題保持、subcounts add=6/sub=4）
+    #   B: 10 問（自明問題保持、subcounts mul=6/div=4）
+    #   C: 30 問（digits=1 維持、subcounts スケール plus_dom=11/minus_dom=9/mul_dom=10）
+    #   D: 30 問（digits=1 維持、subcounts スケール add_outer=11/mul_outer=10/div_outer=9）
+    #   E: 20 問（digits=2、|result| 上限なし）
+    #     - subcounts: np_plus=4/np_minus=3/np_mul=3（no_paren）+ wp_add=4/wp_mul=3/wp_div=3（with_paren）
+    #     - 例：97 × 89 = 8633、(67 + 28) × 5 = 475 等、暗算範囲外も意図的に含む
+    #     - 教育目的：筆算する習慣を強制（CLAUDE.md「マイ活アプリの教育設計原則」参照）
+    # ❌ TODO_PHASE3 から「digits=2 の 3 項」を消化（Band E で復活）
+    # TODO_PHASE3 残：4 項以上、二重カッコは Phase 3 で導入予定
     20: {
-        "A": {"count": 5, "digits": 1, "terms": 2, "ops": ["+", "-"], "parens": False,
-              "subcounts": {"add": 3, "sub": 2}},
-        "B": {"count": 5, "digits": 1, "terms": 2, "ops": ["*", "/"], "parens": False,
-              "subcounts": {"mul": 3, "div": 2}},
-        "C": {"count": 20, "digits": 1, "terms": 3, "ops": ["+", "-", "*", "/"], "parens": False,
-              "subcounts": {"plus_dom": 7, "minus_dom": 6, "mul_dom": 7}},
-        "D": {"count": 20, "kind": "three_term_paren", "digits": 1,
-              "subcounts": {"add_outer": 7, "mul_outer": 7, "div_outer": 6}},
+        "A": {"count": 10, "digits": 1, "terms": 2, "ops": ["+", "-"], "parens": False,
+              "subcounts": {"add": 6, "sub": 4}},
+        "B": {"count": 10, "digits": 1, "terms": 2, "ops": ["*", "/"], "parens": False,
+              "subcounts": {"mul": 6, "div": 4}},
+        "C": {"count": 30, "digits": 1, "terms": 3, "ops": ["+", "-", "*", "/"], "parens": False,
+              "subcounts": {"plus_dom": 11, "minus_dom": 9, "mul_dom": 10}},
+        "D": {"count": 30, "kind": "three_term_paren", "digits": 1,
+              "subcounts": {"add_outer": 11, "mul_outer": 10, "div_outer": 9}},
+        "E": {
+            "count": 20, "kind": "digits2_three_term", "digits": 2,
+            "subcounts": {
+                "np_plus":  4,  # no_paren plus_dom
+                "np_minus": 3,  # no_paren minus_dom
+                "np_mul":   3,  # no_paren mul_dom
+                "wp_add":   4,  # with_paren add_outer
+                "wp_mul":   3,  # with_paren mul_outer
+                "wp_div":   3,  # with_paren div_outer
+            },
+        },
     },
     # 19級：小数 加減
     # Phase 1（2026-05-07 夜）: 30→50 題化、Band D 新設で 4 Band 構成に。
@@ -404,61 +429,93 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         "C": {"count": 24, "kind": "trinomial_by_binomial", "coef_max": 3, "const_max": 5},
         "D": {"count": 24, "kind": "square_with_coef", "coef_max": 7, "const_max": 6},
     },
-    # 4級：乗法公式（フェーズ1: 50題化、2026-04-30）
-    # A: (x+a)(x+b) — Band A の (a,b) は数値昇順に正規化済（rank_04_expansion._gen_type_xab）
-    # B: (x+a)^2 / (x-a)^2
-    # C: (x+a)(x-a)
-    # const_max=12 は中3 乗法公式の典型範囲（紙教材準拠）。
-    # unique pool: A 全 24*23/2=276（順序統一後）、B 24、C 12。
-    # 配分は紙教材の難易度比率に沿って A=45% / B=35% / C=20%。
-    # TODO_PHASE2: 100題化。const_max=15 や Band D 新設で対応。
+    # 4級：乗法公式
+    # Phase 1（2026-04-30）: 30→50題化、3 Band 構成。const_max=12（紙教材準拠）。
+    # Phase 2 Wave 3（2026-05-26）: 50→100題化、★ Band D 新設（多変数化 4 パターン）★
+    #   ふくちさん指示「rank_04 Band D は候補 A（多変数化）」
+    #   完全に中3 教科書範囲内、2 変数 (x, y) の乗法公式：
+    #     - (x+y)(x-y) → x² - y²              （xy_basic、slot 0 固定、最も基本）
+    #     - (x+ay)(x-ay) → x² - a²y²          （xy_diff_coef、a∈[2..5]、4 問）
+    #     - (ax+by)² → a²x² + 2abxy + b²y²    （xy_square、a∈[2..5], b∈±[1..5]、7 問）
+    #     - (ax+by)(ax-by) → a²x² - b²y²      （xy_diff_double、a∈[2..5], b∈[1..5]、8 問）
+    # const_max は 12→15 に拡張：
+    #   B (type_square) unique 24→30、C (type_diff_squares) unique 12→15
+    #   配分 A=45/B=20/C=15/D=20 = 100
+    #   - A=45 (probe 大量 unique、十分)
+    #   - B=20 (margin 1.5x、dedup retry でカバー可能)
+    #   - C=15 (margin 1.0x、各 a に対し 1 問のみ = unique 限界)
+    #   - D=20 (Pattern 1=1 固定 + 2=4 + 3=7 + 4=8)
+    # TODO_PHASE2 → 消化済（Band D 新設で 100 題化達成）
     4: {
-        "A": {"count": 23, "kind": "type_xab", "const_max": 12},
-        "B": {"count": 17, "kind": "type_square", "const_max": 12},
-        "C": {"count": 10, "kind": "type_diff_squares", "const_max": 12},
+        "A": {"count": 45, "kind": "type_xab", "const_max": 15},
+        "B": {"count": 20, "kind": "type_square", "const_max": 15},
+        "C": {"count": 15, "kind": "type_diff_squares", "const_max": 15},
+        "D": {
+            "count": 20,
+            "kind": "type_multivar",
+            "subcounts": {
+                "xy_basic": 1,           # (x+y)(x-y) — slot 0 固定、教科書最基本形
+                "xy_diff_coef": 4,       # (x+ay)(x-ay) a∈[2..5]
+                "xy_square": 7,          # (ax+by)² a∈[2..5], b∈±[1..5]
+                "xy_diff_double": 8,     # (ax+by)(ax-by) a∈[2..5], b∈[1..5]
+            },
+        },
     },
-    # 3級：因数分解（フェーズ1: 50題化、2026-04-30）
+    # 3級：因数分解
+    # Phase 1（2026-04-30）: 30→50題化、Band C を 3 サブパターン分離
+    # Phase 2 Wave 3（2026-05-26）: 50→100題化、param 拡張のみ（新 Band なし）
+    #   ふくちさん指示「たすき掛けは高校範囲なので、たすき掛け自体をここでは出題しない」
+    #   （CLAUDE.md でも「中学範囲外として永久温存」明記）→ Band D 新設は中止。
+    #   Band A/B/C を param 拡張で対応：
+    #     A: factor_max 9→12, term_max 6→8（unique 1886, margin 62.9x）
+    #     B: root_max 9→12（unique 276, margin 9.2x）
+    #     C: const_max 12→20（unique 各 sub 20、計画提示の 15 では subcounts 不足のため拡張）
+    #        中3 因数分解で a∈[1..20]、a²=400 までは紙教材範囲内（教育的妥当性 OK）
     # A: 共通因数のみ：ax + ay = a(x + y)
     # B: x² + bx + c → (x + m)(x + n)
     # C: x² - a² または x² ± 2ax + a²（完全平方、3 サブパターン）
-    # TODO_PHASE3: ax² + bx + c のたすき掛けは Phase 3 の Band D 以降で導入
-    # const_max=12 は中3 因数分解の典型範囲（紙教材準拠、rank_04 と整合）。
-    # Band C の subcounts: ふくちさんの教育的判断「差の平方は見分けが簡単で
-    # 思考量が少ない」を反映し diff を少なめ。perfect_pos/neg はそれなりに
-    # 思考が必要なため均等。
-    # unique pool（const_max=12 のとき）:
-    #   A common_factor: 数百〜千単位（factor/term 組合せ豊富）
-    #   B trinomial_simple: C(24,2) = 276
-    #   C diff: 12 / perfect_pos: 12 / perfect_neg: 12（合計 36）
-    # TODO_PHASE2: 100題化。const_max=15 や Band D（たすき掛け）追加で対応。
+    # ❌ TODO_PHASE3 から「たすき掛け」を削除（ふくちさん 2026-05-26 確定、中学範囲外として永久温存）
+    # Band C の subcounts: ふくちさん教育的判断「差の平方は見分けが簡単で思考量が少ない」を反映し
+    #   diff を少なめ、perfect_pos/neg は均等。
+    #   比率 6:11:11 を維持して 9:15:16 = 40 にスケール（各 margin 1.25x 以上）
     3: {
-        "A": {"count": 11, "kind": "common_factor", "factor_max": 9, "term_max": 6},
-        "B": {"count": 11, "kind": "trinomial_simple", "root_max": 9},
+        "A": {"count": 30, "kind": "common_factor", "factor_max": 12, "term_max": 8},
+        "B": {"count": 30, "kind": "trinomial_simple", "root_max": 12},
         "C": {
-            "count": 28,
+            "count": 40,
             "kind": "diff_or_perfect_square",
-            "const_max": 12,
-            "subcounts": {"diff": 6, "perfect_pos": 11, "perfect_neg": 11},
+            "const_max": 20,
+            "subcounts": {"diff": 9, "perfect_pos": 15, "perfect_neg": 16},
         },
     },
-    # 2級：平方根（Phase 1: 30→50題化、2026-04-30）
+    # 2級：平方根
+    # Phase 1（2026-04-30）: 30→50題化、Band C を 3 サブパターン分離
+    # Phase 2 Wave 3（2026-05-26）: 50→100題化、param 拡張のみ（新 Band なし）
+    #   ふくちさん指示「複雑な有理化（1/(√3+1) 等）は埼玉県高校入試の『学校選択問題』
+    #   レベルなので、ここでは出題しない」→ Band D 新設は中止。
+    #   Band A/B/C を count 拡張で対応：
+    #     A: n_max=200 維持、unique 65 で count 25（margin 2.6x、入門段階）
+    #     B: coef_max=5, n_max=50 で unique 5484、count 35（margin 156x、余裕大）
+    #     C: subcounts を mul:16, rationalize:12, div:12 にスケール、count 40
+    #        各 sub の unique pool: mul=166, rationalize=56, div=426（全 sub 4x+ margin）
+    # A: 簡約のみ √n → a√b
+    # B: 簡約 + 加減 (a√b ± c√d → 同じ b に統一)
+    # C: 乗除 と 有理化（subcounts={mul:16, rationalize:12, div:12} = 40）
+    #    教育的引き締め（rank_02_sqrt.py の各 generator に実装）:
+    #      - mul: subslot=5 のみ a,b ∈ [16,30] の刺激範囲。Wave 3 拡大後も subslot 5 のみ刺激維持
+    #      - rationalize: b ∈ {2,3,5,6,7,10}（square-free）/ a ∈ [1,12]
+    #      - div: 答えの denom ≤ 12 を制約、極端な radicand を排除
+    # ❌ TODO_PHASE3 から「複雑な分子分母 1/(√3+1)」を削除
+    #    （ふくちさん 2026-05-26 確定、学校選択問題レベルなので中学範囲外として永久温存）
+    # TODO_PHASE3 残：二重根号 √(5+2√6) は高校範囲のため Phase 3 でも導入しない可能性あり
     2: {
-        # A: 簡約のみ √n → a√b
-        # B: 簡約 + 加減 (a√b ± c√d → 同じ b に統一)
-        # C: 乗除 と 有理化（rank_03 と同じ slot_index 駆動の 3 サブパターン分離）
-        #    subcounts={"mul": 6, "rationalize": 5, "div": 5}（ふくちさん教育的判断、ほぼ均等）
-        #    教育的引き締めは rank_02_sqrt.py 内の各 generator に実装：
-        #      - mul: 5 問は a,b ∈ [2,15] / 1 問だけ [16,30] で中堅レベルの刺激を残す
-        #      - rationalize: b ∈ {2,3,5,6,7,10}（square-free）/ a ∈ [1,12]
-        #      - div: 答えの denom ≤ 12 を制約、極端な radicand を排除
-        # TODO_PHASE3: 二重根号、複雑な分子分母（1/(√3+1) 等）は Phase 3 の Band D 以降で導入
-        "A": {"count": 17, "kind": "simplify_only", "n_max": 200},
-        "B": {"count": 17, "kind": "addsub_with_simplify", "coef_max": 5, "n_max": 50},
+        "A": {"count": 25, "kind": "simplify_only", "n_max": 200},
+        "B": {"count": 35, "kind": "addsub_with_simplify", "coef_max": 5, "n_max": 50},
         "C": {
-            "count": 16,
+            "count": 40,
             "kind": "muldiv_rationalize",
             "n_max": 30,
-            "subcounts": {"mul": 6, "rationalize": 5, "div": 5},
+            "subcounts": {"mul": 16, "rationalize": 12, "div": 12},
         },
     },
     # 1級：二次方程式
@@ -480,24 +537,44 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     # （k=1 部分は max_bc=5 のまま「易しめ」を維持、DESIGN_PRINCIPLES.md 原則 2）。
     # TODO_PHASE3: 解の公式 a >= 3 の問題、(x-p)²=q で q が square-free（無理数解）、
     # ax²+bx+c=0 のたすき掛けは Phase 3 の Band E 以降で導入。
+    # Phase 2 Wave 3（2026-05-26）: 50→100 題化、★ Band E 新設（解の公式 a∈[2..7]） ★
+    # ふくちさん指示「解の公式にぶっこんで解く問題なので、a はいくつでも良い」
+    # → 既存 Band C は a∈[1..2]（易しめ）を維持、Band E で a∈[2..7] に拡張して
+    #   解の公式の計算負荷を体感させる教育目的。
+    # 各 Band の probe 結果（margin、target 比）：
+    #   A double_root=1 margin 18x / with_zero=1 margin 18x / normal=23 margin 6.7x
+    #   B x2_eq_c=10 margin 3.0x
+    #   C k_eq_1=17 margin 5.9x / k_gt_1=8 margin 13.4x
+    #   D with_p=10 margin 4.0x / ax2_eq_c=10 margin 2.0x
+    #   E k_eq_1=13 margin 15x+ / k_gt_1=7 margin 28x+（a∈[2..7] で unique 大幅増）
     1: {
         "A": {
-            "count": 15,
+            "count": 25,
             "kind": "factorable_int",
-            "max_root": 7,
-            "subcounts": {"double_root": 1, "with_zero": 1, "normal": 13},
+            "max_root": 9,
+            "subcounts": {"double_root": 1, "with_zero": 1, "normal": 23},
         },
-        "B": {"count": 5, "kind": "x2_eq_c"},
+        "B": {"count": 10, "kind": "x2_eq_c"},
         "C": {
-            "count": 15,
+            "count": 25,
             "kind": "irrational",
             "max_a": 2, "max_bc": 5, "max_bc_kgt1": 12,
-            "subcounts": {"k_eq_1": 10, "k_gt_1": 5},
+            "subcounts": {"k_eq_1": 17, "k_gt_1": 8},
         },
         "D": {
-            "count": 15,
+            "count": 20,
             "kind": "sqrt_method",
-            "subcounts": {"with_p": 7, "ax2_eq_c": 8},
+            "subcounts": {"with_p": 10, "ax2_eq_c": 10},
+        },
+        # Band E（Phase 2 Wave 3 新設）：解の公式 a∈[2..7]。
+        # 既存 _gen_irrational に min_a=2 オプションを追加して流用。
+        # 教育目的：a≥2 の二次方程式は中3 受験対策で頻出、解の公式の計算負荷を体感させる。
+        # TODO_PHASE3 消化：「解の公式 a >= 3」を 1 つ消化（a∈[2..7] で網羅）。
+        "E": {
+            "count": 20,
+            "kind": "irrational",
+            "min_a": 2, "max_a": 7, "max_bc": 5, "max_bc_kgt1": 12,
+            "subcounts": {"k_eq_1": 13, "k_gt_1": 7},
         },
     },
     # 6級：連立方程式

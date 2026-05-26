@@ -293,6 +293,37 @@ def _resolve_band_d_subkind(slot_index: int, subcounts: Dict[str, int]) -> str:
     return "div_outer"
 
 
+# --- Band E（Phase 2 Wave 3 新設、2026-05-26）------------------------------
+# digits=2 の 3 項四則混合（no_paren + with_paren の混合）、`|result|` 上限なし。
+# ふくちさん教育原則（2026-05-26 確定、CLAUDE.md「マイ活アプリの教育設計原則」追記済）:
+#   「rank_20 は暗算演習コンテンツではない。暗算をさせないためにも、上限など不要。」
+# Band E は意図的に大きな結果（例：97 × 89 = 8633）も含め、生徒に筆算習慣を強制する。
+# サブパターン（6 種、cumulative dispatch）:
+#   np_plus  : no_paren plus_dom   4 問
+#   np_minus : no_paren minus_dom  3 問
+#   np_mul   : no_paren mul_dom    3 問
+#   wp_add   : with_paren add_outer 4 問
+#   wp_mul   : with_paren mul_outer 3 問
+#   wp_div   : with_paren div_outer 3 問
+
+_BAND_E_PATTERN_ORDER = ("np_plus", "np_minus", "np_mul", "wp_add", "wp_mul", "wp_div")
+_BAND_E_NP_TO_DOM = {"np_plus": "plus_dom", "np_minus": "minus_dom", "np_mul": "mul_dom"}
+_BAND_E_WP_TO_OUTER = {"wp_add": "add_outer", "wp_mul": "mul_outer", "wp_div": "div_outer"}
+
+
+def _resolve_band_e_subkind(slot_index: int, subcounts: Dict[str, int]) -> str:
+    """Band E: cumulative dispatch で 6 種サブパターンを決定論的に分離。"""
+    cumulative = 0
+    for subkind in _BAND_E_PATTERN_ORDER:
+        c = subcounts.get(subkind, 0)
+        if c == 0:
+            continue
+        if slot_index < cumulative + c:
+            return subkind
+        cumulative += c
+    return _BAND_E_PATTERN_ORDER[-1]  # フォールバック
+
+
 # --- generate_problem -------------------------------------------------------
 
 def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict[str, Any]:
@@ -320,6 +351,9 @@ def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict
         forced_subkind = _resolve_band_c_subkind(slot_index, subcounts)
     elif band == "D":
         forced_subkind = _resolve_band_d_subkind(slot_index, subcounts)
+    elif band == "E":
+        # Phase 2 Wave 3 新設：digits=2 の 3 項、|result| 上限なし
+        forced_subkind = _resolve_band_e_subkind(slot_index, subcounts)
     else:
         raise NotImplementedError(f"rank 20 band {band}")
 
@@ -349,6 +383,23 @@ def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict
                 latex = _build_paren_latex(terms, ops)
                 meta_kind = forced_subkind
                 parens = True
+            elif band == "E":
+                # Phase 2 Wave 3 新設：digits=2 の 3 項、|result| 上限なし。
+                # ふくちさん教育原則「rank_20 は暗算演習コンテンツではない」を反映、
+                # 97 × 89 = 8633 のような大きな結果も意図的に出題、筆算習慣を強制。
+                if forced_subkind in _BAND_E_NP_TO_DOM:
+                    dom = _BAND_E_NP_TO_DOM[forced_subkind]
+                    terms, ops = _gen_three_term_with_dom(rng, digits, dom)
+                    value = _evaluate(terms, ops)
+                    latex = _terms_to_latex(terms, ops)
+                    parens = False
+                else:
+                    outer = _BAND_E_WP_TO_OUTER[forced_subkind]
+                    terms, ops = _gen_three_term_paren(rng, digits, outer)
+                    value = _eval_with_paren_int(terms, ops)
+                    latex = _build_paren_latex(terms, ops)
+                    parens = True
+                meta_kind = forced_subkind
             else:
                 raise NotImplementedError(band)
 
@@ -361,8 +412,9 @@ def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict
             # Band C/D は結果値域 100 以下に抑える（小学校算数の暗算範囲）
             if band in ("C", "D") and abs(value) > 100:
                 continue
-            # rank_20 全体ガード
-            if abs(value) > 1000:
+            # rank_20 全体ガード（Band A/B/C/D は 1000 以下）
+            # ★ Band E は意図的にガードなし（ふくちさん教育原則：暗算演習ではない、筆算強制）
+            if band != "E" and abs(value) > 1000:
                 continue
         except ZeroDivisionError:
             continue

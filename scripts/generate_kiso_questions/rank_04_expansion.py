@@ -90,7 +90,157 @@ def _gen_type_diff_squares(rng, const_max):
     }
 
 
-def generate_problem(band: str, rng: random.Random) -> Dict[str, Any]:
+# --- Band D（Phase 2 Wave 3 新設、2026-05-26）------------------------------
+# 多変数化（2 変数 x, y を使う中3 教科書範囲の乗法公式 4 パターン）。
+# ふくちさん教育的判断：「多変数の乗法公式は中3 教科書範囲、必ずカバーすべき」。
+#
+# サブパターン（slot_index で決定論的 dispatch）:
+#   xy_basic         : (x+y)(x-y) → x² - y²              （最も基本、slot 0 で必ず出題）
+#   xy_diff_coef     : (x+ay)(x-ay) → x² - a²y²          a∈[2..5]、4 問
+#   xy_square        : (ax+by)² → a²x² + 2abxy + b²y²    a∈[2..5], b∈±[1..5]、7 問
+#   xy_diff_double   : (ax+by)(ax-by) → a²x² - b²y²      a∈[2..5], b∈[1..5]\(1,1)、8 問
+# 計 20 問。
+#
+# Pattern 1 と 2 を統合せず分離した理由：教育上「(x+y)(x-y) 単独」を最初に 1 問必ず
+# 体験させたい（最も基本形、スロット 0 固定）。Pattern 2 以降は係数付きで展開。
+
+
+def _multivar_canonical(c_x2: int, c_xy: int, c_y2: int) -> str:
+    """``c_x2·x² + c_xy·xy + c_y2·y²`` 形の canonical LaTeX を構築。
+
+    各係数が 0 / ±1 / 他の場合を整形：
+    - c=0 の項は省略
+    - c=1 / -1 は係数を省略（先頭以外でも符号は項間 op で表現）
+    - x² は ``x^{2}``、y² は ``y^{2}``、xy はそのまま
+    """
+    def _term(coef: int, var_part: str, leading: bool) -> str:
+        if coef == 0:
+            return ""
+        if leading:
+            sign = "" if coef > 0 else "-"
+            mag = abs(coef)
+            mag_str = "" if mag == 1 and var_part else str(mag)
+            return f"{sign}{mag_str}{var_part}"
+        # 中間／末尾項：op を後付けで足すため、ここでは絶対値のみ返す
+        mag = abs(coef)
+        mag_str = "" if mag == 1 and var_part else str(mag)
+        return mag_str + var_part
+
+    terms = [
+        (c_x2, "x^{2}"),
+        (c_xy, "xy"),
+        (c_y2, "y^{2}"),
+    ]
+    # 先頭の非零項を見つける
+    first_idx = next((i for i, (c, _) in enumerate(terms) if c != 0), None)
+    if first_idx is None:
+        return "0"
+
+    parts = [_term(terms[first_idx][0], terms[first_idx][1], leading=True)]
+    for i in range(first_idx + 1, len(terms)):
+        coef, var_part = terms[i]
+        if coef == 0:
+            continue
+        op = " + " if coef > 0 else " - "
+        parts.append(op + _term(coef, var_part, leading=False))
+    return "".join(parts)
+
+
+def _gen_xy_basic(rng):
+    """slot 0 固定: (x+y)(x-y) → x² - y²。最も基本の多変数公式。"""
+    problem_latex = "(x + y)(x - y)"
+    canonical = _multivar_canonical(1, 0, -1)
+    return problem_latex, canonical, {
+        "kind": "type_multivar", "subkind": "xy_basic",
+        "c_x2": 1, "c_xy": 0, "c_y2": -1,
+    }
+
+
+def _gen_xy_diff_coef(rng):
+    """(x + ay)(x - ay) → x² - a²y²、a∈[2..5]。"""
+    a = rng.randint(2, 5)
+    problem_latex = f"(x + {a}y)(x - {a}y)"
+    c_y2 = -(a * a)
+    canonical = _multivar_canonical(1, 0, c_y2)
+    return problem_latex, canonical, {
+        "kind": "type_multivar", "subkind": "xy_diff_coef",
+        "a": a, "c_x2": 1, "c_xy": 0, "c_y2": c_y2,
+    }
+
+
+def _coef_var_str(coef: int, var: str) -> str:
+    """係数付き変数の表記。coef=1 / -1 は係数省略。
+
+    例: 1, 'y' → 'y'、3, 'y' → '3y'、-1, 'y' → '-y'。
+    """
+    if coef == 1:
+        return var
+    if coef == -1:
+        return f"-{var}"
+    return f"{coef}{var}"
+
+
+def _gen_xy_square(rng):
+    """(ax + by)² → a²x² + 2abxy + b²y²、a∈[2..5], b∈±[1..5]\\{0}。
+
+    b の符号で中央項符号が変わるため (a, b) と (a, -b) は別問題。
+    """
+    a = rng.randint(2, 5)
+    b = _signed(rng, 5, min_abs=1)
+    c_x2 = a * a
+    c_xy = 2 * a * b
+    c_y2 = b * b
+    # 問題式: (ax + by)² または (ax - |b|y)²
+    # b=±1 のときは係数を省略して "y" / "-y" 表記
+    ax_str = f"{a}x"  # a >= 2 なので必ず係数付き
+    by_abs = abs(b)
+    if by_abs == 1:
+        by_str = "y"
+    else:
+        by_str = f"{by_abs}y"
+    if b > 0:
+        problem_latex = f"({ax_str} + {by_str})^{{2}}"
+    else:
+        problem_latex = f"({ax_str} - {by_str})^{{2}}"
+    canonical = _multivar_canonical(c_x2, c_xy, c_y2)
+    return problem_latex, canonical, {
+        "kind": "type_multivar", "subkind": "xy_square",
+        "a": a, "b": b, "c_x2": c_x2, "c_xy": c_xy, "c_y2": c_y2,
+    }
+
+
+def _gen_xy_diff_double(rng):
+    """(ax + by)(ax - by) → a²x² - b²y²、a∈[2..5], b∈[1..5]。
+
+    a∈[2..5] に固定（a=1 は Pattern 1/2 の領域）。
+    b=1 のときは "y" 単独表記（"1y" は教育上不自然なので回避）。
+    """
+    a = rng.randint(2, 5)
+    b = rng.randint(1, 5)
+    c_x2 = a * a
+    c_y2 = -(b * b)
+    ax_str = f"{a}x"
+    by_str = "y" if b == 1 else f"{b}y"
+    problem_latex = f"({ax_str} + {by_str})({ax_str} - {by_str})"
+    canonical = _multivar_canonical(c_x2, 0, c_y2)
+    return problem_latex, canonical, {
+        "kind": "type_multivar", "subkind": "xy_diff_double",
+        "a": a, "b": b, "c_x2": c_x2, "c_xy": 0, "c_y2": c_y2,
+    }
+
+
+def _resolve_band_d_subkind(slot_index: int, subcounts: Dict[str, int]) -> str:
+    """slot_index → サブパターン名。cumulative dispatch（rank_03/02/07/08 と同方式）。"""
+    cumulative = 0
+    for subkind in ("xy_basic", "xy_diff_coef", "xy_square", "xy_diff_double"):
+        n = int(subcounts.get(subkind, 0))
+        if slot_index < cumulative + n:
+            return subkind
+        cumulative += n
+    return "xy_diff_double"  # フォールバック
+
+
+def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict[str, Any]:
     cfg = get_band(4, band)
     kind = cfg["kind"]
 
@@ -101,6 +251,19 @@ def generate_problem(band: str, rng: random.Random) -> Dict[str, Any]:
             built = _gen_type_square(rng, cfg["const_max"])
         elif kind == "type_diff_squares":
             built = _gen_type_diff_squares(rng, cfg["const_max"])
+        elif kind == "type_multivar":
+            # Band D（Phase 2 Wave 3 新設）：多変数化 4 パターン
+            sub = _resolve_band_d_subkind(slot_index, cfg.get("subcounts", {}))
+            if sub == "xy_basic":
+                built = _gen_xy_basic(rng)
+            elif sub == "xy_diff_coef":
+                built = _gen_xy_diff_coef(rng)
+            elif sub == "xy_square":
+                built = _gen_xy_square(rng)
+            elif sub == "xy_diff_double":
+                built = _gen_xy_diff_double(rng)
+            else:
+                raise NotImplementedError(f"unknown subkind: {sub}")
         else:
             raise NotImplementedError(kind)
         problem_latex, canonical, info = built
@@ -129,6 +292,9 @@ def self_check(problem: Dict[str, Any]) -> bool:
         expr = (x + meta["a"]) ** 2
     elif meta["kind"] == "type_diff_squares":
         expr = (x + meta["a"]) * (x - meta["a"])
+    elif meta["kind"] == "type_multivar":
+        # Band D（Phase 2 Wave 3 新設）：多変数 (x, y) の乗法公式
+        return _self_check_multivar(meta, problem)
     else:
         return False
     expanded = sp.expand(expr)
@@ -140,6 +306,40 @@ def self_check(problem: Dict[str, Any]) -> bool:
     if [int(c) for c in coeffs] != expected:
         return False
     if poly_latex(expected) != problem["answerCanonical"]:
+        return False
+    try:
+        assert_problem_fractions_in_lowest_terms(problem["problemLatex"])
+    except AssertionError:
+        return False
+    return True
+
+
+def _self_check_multivar(meta: Dict[str, Any], problem: Dict[str, Any]) -> bool:
+    """Band D（type_multivar）の self_check。SymPy で 2 変数展開を厳密検証。"""
+    x, y = sp.symbols("x y")
+    sub = meta["subkind"]
+    if sub == "xy_basic":
+        expr = (x + y) * (x - y)
+    elif sub == "xy_diff_coef":
+        a = meta["a"]
+        expr = (x + a * y) * (x - a * y)
+    elif sub == "xy_square":
+        a, b = meta["a"], meta["b"]
+        expr = (a * x + b * y) ** 2
+    elif sub == "xy_diff_double":
+        a, b = meta["a"], meta["b"]
+        expr = (a * x + b * y) * (a * x - b * y)
+    else:
+        return False
+    expanded = sp.expand(expr)
+    # 期待係数：x², xy, y²
+    c_x2_actual = int(expanded.coeff(x, 2).coeff(y, 0))
+    c_xy_actual = int(expanded.coeff(x, 1).coeff(y, 1))
+    c_y2_actual = int(expanded.coeff(x, 0).coeff(y, 2))
+    if (c_x2_actual, c_xy_actual, c_y2_actual) != (meta["c_x2"], meta["c_xy"], meta["c_y2"]):
+        return False
+    # canonical の再構築一致確認
+    if _multivar_canonical(meta["c_x2"], meta["c_xy"], meta["c_y2"]) != problem["answerCanonical"]:
         return False
     try:
         assert_problem_fractions_in_lowest_terms(problem["problemLatex"])

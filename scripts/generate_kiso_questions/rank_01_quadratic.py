@@ -178,7 +178,7 @@ def _gen_x2_eq_c(rng):
 
 # --- Band C: 解の公式が必要な無理数解 -------------------------------------
 
-def _gen_irrational(rng, max_a, max_bc, k_constraint=None):
+def _gen_irrational(rng, max_a, max_bc, k_constraint=None, min_a=1):
     """ax² + bx + c = 0 の解の公式：x = (-b ± √D) / (2a)、D = b² - 4ac。
 
     条件：D > 0 かつ D は完全平方でない（無理数解）。
@@ -190,10 +190,14 @@ def _gen_irrational(rng, max_a, max_bc, k_constraint=None):
 
     k_gt_1 は max_bc=5 では組合せ的にほぼ出ないため、呼び出し側で max_bc を
     拡張する（band_config の max_bc_kgt1）。retry 上限も増やす。
+
+    min_a（Phase 2 Wave 3、2026-05-26 追加）:
+      - 1（既定）: 任意の a ∈ [1, max_a]（既存挙動、後方互換）
+      - 2: Band E 用、a ∈ [2, max_a] のみ（解の公式の計算負荷を体感させる教育目的）
     """
     max_attempts = 500 if k_constraint is None else 3000
     for _ in range(max_attempts):
-        a = rng.randint(1, max_a)
+        a = rng.randint(min_a, max_a)
         b = rng.randint(-max_bc, max_bc)
         c = rng.randint(-max_bc, max_bc)
         D = b * b - 4 * a * c
@@ -386,7 +390,10 @@ def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict
             sub = _resolve_band_c_subkind(slot_index, cfg.get("subcounts", {}))
             # k_gt_1 のときは max_bc を拡張する（max_bc=5 では k>1 がほぼ出ない）
             max_bc = cfg["max_bc"] if sub == "k_eq_1" else cfg.get("max_bc_kgt1", cfg["max_bc"])
-            built = _gen_irrational(rng, cfg["max_a"], max_bc, k_constraint=sub)
+            # min_a：Band C (a∈[1..2]) と Band E (a∈[2..7]) を同 generator で区別。
+            # band_config に min_a が指定されていなければ 1（既存挙動、後方互換）。
+            min_a = cfg.get("min_a", 1)
+            built = _gen_irrational(rng, cfg["max_a"], max_bc, k_constraint=sub, min_a=min_a)
         elif kind == "sqrt_method":
             sub = _resolve_band_d_subkind(slot_index, cfg.get("subcounts", {}))
             if sub == "with_p":
