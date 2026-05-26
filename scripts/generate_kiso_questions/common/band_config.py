@@ -143,45 +143,48 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     },
     # 15級：分数 乗除
     # Phase 1（2026-05-07）: 30→50題化、Band D を新設して 4 Band 構成に。
+    # Phase 2 Wave 2（2026-05-26）: 50→100 題化、Band D の denom_max 8→10、int_max 12→15 拡張。
+    # 拡張後 Band D unique pool 340（mul 130 + div 210）= 21x margin。A/B/C は 26x〜161x margin 確認済、単純倍化。
+    # 約分強制も倍化（A: 3→6、B: 5→10）。
     # ふくちさん教育的判断（36年塾長経験）:
-    #   - A: 分数 op 整数 12 問（既存ロジック踏襲、slot_index 駆動で × 6 / ÷ 6 均等保証）
-    #   - B: 分数 op 分数 18 問（単元の主役、slot_index 駆動で × 9 / ÷ 9 均等保証）
-    #   - C: 3 項乗除 12 問（slot_index 駆動で 4 通り組み合わせ均等：×× / ×÷ / ÷× / ÷÷ 各 3 問）
-    #   - D: 答えが整数になる muldiv 8 問（新設、subcounts 4/4）
+    #   - A: 分数 op 整数 24 問（slot_index 駆動で × 12 / ÷ 12 均等保証）
+    #   - B: 分数 op 分数 36 問（単元の主役、slot_index 駆動で × 18 / ÷ 18 均等保証）
+    #   - C: 3 項乗除 24 問（slot_index 駆動で 4 通り組み合わせ均等：×× / ×÷ / ÷× / ÷÷ 各 6 問）
+    #   - D: 答えが整数になる muldiv 16 問（subcounts 8/8、Phase 2 で denom_max 10/int_max 15）
     # 「演算子配分の偶然依存を解消、約分の感覚を意図的に体験させる」設計。
     # rank_14 Band D との部分重複（末尾整数 muldiv）は Phase 1 では許容、
     # Phase 3 の 100 題化時に位置で完全分離する方針。
     15: {
         "A": {
-            "count": 12, "kind": "frac_int",
+            "count": 24, "kind": "frac_int",
             "denom_max": 10, "int_max": 12,
-            "subcounts": {"mul": 6, "div": 6},
-            # 「約分が活きる組」を最低半数（mul/div 各 3 問以上）強制：
+            "subcounts": {"mul": 12, "div": 12},
+            # 「約分が活きる組」を最低半数（mul/div 各 6 問以上）強制：
             # mul は 分子と整数の gcd > 1、div は 同左 で判定
-            "force_cancel_min_per_op": 3,
+            "force_cancel_min_per_op": 6,
         },
         "B": {
-            "count": 18, "kind": "frac_frac",
+            "count": 36, "kind": "frac_frac",
             "denom_max": 10,
-            "subcounts": {"mul": 9, "div": 9},
-            # 「約分が活きる組」を最低半数（mul/div 各 5 問以上）強制：
+            "subcounts": {"mul": 18, "div": 18},
+            # 「約分が活きる組」を最低半数（mul/div 各 10 問以上）強制：
             # mul は 分子分母の積の gcd > 1、div は 分子分母クロス積の gcd > 1
-            "force_cancel_min_per_op": 5,
+            "force_cancel_min_per_op": 10,
         },
         "C": {
-            "count": 12, "kind": "three_term",
+            "count": 24, "kind": "three_term",
             "denom_max": 8,
-            # 3 項演算子組み合わせ均等：mm=×× / md=×÷ / dm=÷× / dd=÷÷ 各 3 問
-            "subcounts": {"mm": 3, "md": 3, "dm": 3, "dd": 3},
+            # 3 項演算子組み合わせ均等：mm=×× / md=×÷ / dm=÷× / dd=÷÷ 各 6 問
+            "subcounts": {"mm": 6, "md": 6, "dm": 6, "dd": 6},
         },
-        # Band D: 答えが整数になる muldiv 8 問（新設）。
+        # Band D: 答えが整数になる muldiv 16 問（Phase 2 Wave 2 で 8→16 倍化 + param 拡張）。
         #   mul_int_ans: 整数 × 分数 = 整数 形（位置：先頭/末尾を均等）
         #   div_int_ans: 整数 ÷ 分数 = 整数 形（位置：先頭/末尾を均等）
-        # 整数値範囲 2..12（rank_14 Band D と整合）。
+        # 整数値範囲 2..15（Phase 2 で 12→15 拡張、rank_14 Band D と整合）。
         "D": {
-            "count": 8, "kind": "int_ans_muldiv",
-            "denom_max": 8, "int_max": 12,
-            "subcounts": {"mul_int_ans": 4, "div_int_ans": 4},
+            "count": 16, "kind": "int_ans_muldiv",
+            "denom_max": 10, "int_max": 15,
+            "subcounts": {"mul_int_ans": 8, "div_int_ans": 8},
         },
     },
     # 14級：分数 四則混合
@@ -238,22 +241,25 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     # TODO_PHASE3: 帯分数表記、小数混在、4 項以上、後半カッコは Phase 3 以降。
     # 後半カッコ（3/4 - (1/2 + 1/4)）は rank_09 Band D paren_addsub の領域として
     # rank_16 では入れない方針（ふくちさん 2026-05-07 判断、rank_14 と同方針）。
+    # Phase 2 Wave 2（2026-05-26）: 50→100 題化、Band A の denom_max 10→14 拡張で unique 184→672（22.4x margin）。
+    # 既存 Band B/C/D は probe で 72x〜196x margin 確認済、単純倍化のみ。
+    # subcounts も倍化。
     16: {
         "A": {
-            "count": 15, "same_denom": True, "terms": 2, "denom_max": 10,
-            "subcounts": {"add": 8, "sub": 7, "int_ans": 2},
+            "count": 30, "same_denom": True, "terms": 2, "denom_max": 14,
+            "subcounts": {"add": 16, "sub": 14, "int_ans": 4},
         },
         "B": {
-            "count": 15, "same_denom": False, "terms": 2, "denom_max": 12,
-            "subcounts": {"easy_lcm": 5, "medium_lcm": 5, "hard_lcm": 5},
+            "count": 30, "same_denom": False, "terms": 2, "denom_max": 12,
+            "subcounts": {"easy_lcm": 10, "medium_lcm": 10, "hard_lcm": 10},
         },
         "C": {
-            "count": 10, "same_denom": False, "terms": 2, "denom_max": 15,
-            "subcounts": {"medium_lcm": 5, "hard_lcm": 5},
+            "count": 20, "same_denom": False, "terms": 2, "denom_max": 15,
+            "subcounts": {"medium_lcm": 10, "hard_lcm": 10},
         },
         "D": {
-            "count": 10, "kind": "three_term_addsub", "terms": 3, "denom_max": 8,
-            "subcounts": {"all_add": 5, "add_sub_mix": 5},
+            "count": 20, "kind": "three_term_addsub", "terms": 3, "denom_max": 8,
+            "subcounts": {"all_add": 10, "add_sub_mix": 10},
         },
     },
     # 13級：正負の数 加減
@@ -276,24 +282,38 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     },
     # 12級：正負の数 乗除
     # Phase 1（2026-05-05）: 30→50 題に拡充、Band B を構造改革（unique pool 24→48）。
+    # Phase 2 Wave 2（2026-05-26）: 50→100 題化、Band B param 拡張 + ★ Band D 新設（累乗 + 乗除の混合）★
+    # ふくちさん 2026-05-26 セッション明示判断：「累乗 + 乗除の混合を追加するのは大賛成。
+    # なかなかこの手のものを練習できるものは無いけれど地味に大事な部分。
+    # あくまでこれは中1範囲のカテゴリー。全体の中でこのタイプが1割くらいあると嬉しい。」
     # ふくちさん教育的判断（36 年塾長経験）:
-    #   - A: 1 桁 2 項 ×/÷ 15 問（既存ロジック踏襲）
-    #   - B: 累乗 15 問（**構造改革必須**、slot_index 駆動の 3 サブパターン分離）
-    #     - subcounts={"paren_neg":5, "leading_minus":5, "positive":5}
-    #     - 教育的並び: slot 0/1/2 で (-3)²/-3²/3² が並ぶ interleave 方式で違いを認識させる
-    #     - max_abs=5→9、exp_max=3 維持、結果ガード |result|≤1000
-    #     - unique pool: 3 sub × 8 base × 2 exp = 48（旧 24 から倍増）
-    #   - C: 3 項 ×/÷ 20 問（既存ロジック踏襲、count のみ +10）
+    #   - A: 1 桁 2 項 ×/÷ 30 問（既存ロジック踏襲、probe 10x margin 確認済）
+    #   - B: 累乗 30 問（slot_index 駆動 3 サブパターン、max_abs 9→13、exp_max 3→4、max_result 1000→2000）
+    #     - subcounts={"paren_neg":10, "leading_minus":10, "positive":10}
+    #     - 教育的並び: slot 0/1/2 で (-3)²/-3²/3² が並ぶ interleave 方式
+    #     - 拡張後 unique pool ≈ 28/pattern × 3 = 84 (2.8x margin)
+    #   - C: 3 項 ×/÷ 30 問（既存ロジック踏襲、probe 147x margin 確認済）
+    #   - ★ D: 累乗 + 乗除の混合 10 問（新設、ふくちさん 2026-05-26 教育判断）
+    #     - subcounts={"pow_op_int":6, "pow_op_int_op_int":4}
+    #     - 中1範囲のみ（中2 式計算と地続きにしない）、累乗 → 乗除 の二段階を意識的に練習
+    #     - 累乗形式は 3 形式（paren_neg/leading_minus/positive）を slot_index で interleave
+    #     - 答えは整数を保証（÷ の右辺は被除数を割り切る整数）
     # 中1 乗除の山場「(-3)² と -3² の違い」を slot 駆動で意識的に並べることで
     # 教育効果を最大化する（生徒の 8 割が間違える典型ミス）。
-    # TODO_PHASE3: 累乗と乗除の混合（(-3)²×4）、4 項以上、分数乗除は Phase 3 で導入。
+    # TODO_PHASE3 消化（2026-05-26）：「累乗と乗除の混合（(-3)²×4）」を Phase 2 Wave 2 の Band D で実装済。
+    # TODO_PHASE3 残：4 項以上、分数乗除は Phase 3 で導入。
     12: {
-        "A": {"count": 15, "kind": "muldiv", "max_abs": 9, "terms": 2, "powers": False},
+        "A": {"count": 30, "kind": "muldiv", "max_abs": 9, "terms": 2, "powers": False},
         "B": {
-            "count": 15, "kind": "powers", "max_abs": 9, "exp_max": 3, "max_result_abs": 1000,
-            "subcounts": {"paren_neg": 5, "leading_minus": 5, "positive": 5},
+            "count": 30, "kind": "powers", "max_abs": 13, "exp_max": 4, "max_result_abs": 2000,
+            "subcounts": {"paren_neg": 10, "leading_minus": 10, "positive": 10},
         },
-        "C": {"count": 20, "kind": "muldiv", "max_abs": 9, "terms": 3, "powers": False},
+        "C": {"count": 30, "kind": "muldiv", "max_abs": 9, "terms": 3, "powers": False},
+        "D": {
+            "count": 10, "kind": "power_muldiv",
+            "max_abs_power": 5, "exp_max": 3, "max_abs_int": 9, "max_result_abs": 500,
+            "subcounts": {"pow_op_int": 6, "pow_op_int_op_int": 4},
+        },
     },
     # 11級：正負の数 四則混合（最難関級）
     # Phase 1（2026-05-05）: 30→50 題に拡充、Band C を slot_index 駆動化。
@@ -317,11 +337,13 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     },
     # 8級：一次方程式・比例式
     # Phase 1（2026-05-05）: 30→50 題に拡充、Band D を新設して 4 Band 構成に。
+    # Phase 2 Wave 2（2026-05-26）: 50→100 題化、単純倍化（既存 param で全 Band probe 43x〜9000x margin 確認済）。
+    # Band D subcounts も倍化（light=4 / standard=12 / heavy=4）。
     # ふくちさん教育的判断（36年塾長経験）:
-    #   - A: ax=b の最易レベル 5 問（x_max を 9→12 に拡張、coef_max=10）
-    #   - B: ax+b=cx+d の標準（移項の脱落ポイント）20→25 問に増量。パラメータ無修正
-    #   - C: 比例式 10 問（value_max を 12→15 に拡張）
-    #   - D: カッコ付き 10 問（新設、軽め2 / 標準6 / 重め2 を slot_index 駆動で決定論的分離）
+    #   - A: ax=b の最易レベル 10 問（x_max=12、coef_max=10、unique 432 pool）
+    #   - B: ax+b=cx+d の標準（移項の脱落ポイント）50 問（unique 9208 pool）
+    #   - C: 比例式 20 問（value_max=15、unique 582 pool）
+    #   - D: カッコ付き 20 問（軽め4 / 標準12 / 重め4 を slot_index 駆動で決定論的分離）
     # 中1 一次方程式の核心は「移項」と「カッコの展開」。旧構成は B のパターンしかなく、
     # カッコ付きの問題（中1 単元の山場）が一切なかったため Phase 1 で Band D を新設し、
     # 教育的ギャップを解消する（rank_05 / rank_06 で Band D 新設したのと同パターン）。
@@ -329,14 +351,14 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     # 重め (a(x+b)-c(x+d)=e) は応用として少量という塾長判断。
     # TODO_PHASE3: 小数係数・分数係数の方程式は Phase 3 の Band E 以降で導入。
     8: {
-        "A": {"count": 5,  "kind": "ax_eq_b", "coef_max": 10, "x_max": 12},
-        "B": {"count": 25, "kind": "ax_b_eq_cx_d", "coef_max": 6, "const_max": 12},
-        "C": {"count": 10, "kind": "proportion", "value_max": 15},
+        "A": {"count": 10, "kind": "ax_eq_b", "coef_max": 10, "x_max": 12},
+        "B": {"count": 50, "kind": "ax_b_eq_cx_d", "coef_max": 6, "const_max": 12},
+        "C": {"count": 20, "kind": "proportion", "value_max": 15},
         "D": {
-            "count": 10,
+            "count": 20,
             "kind": "paren_form",
             "coef_max": 6, "const_max": 8, "x_max": 8,
-            "subcounts": {"light": 2, "standard": 6, "heavy": 2},
+            "subcounts": {"light": 4, "standard": 12, "heavy": 4},
         },
     },
     # 7級：式の計算 中2
@@ -363,22 +385,24 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
         },
     },
     # 5級：式の計算 中3（多項式の展開）
+    # Phase 1（2026-04-30）: 30→50題化、Band D を新設して 4 Band 構成に。
+    # Phase 2 Wave 2（2026-05-26）: 50→100 題化、Band D の coef_max 5→7 拡張で unique 48→72（3.0x margin）。
+    # A/B/C は probe で 31x〜365x margin 確認済、単純倍化で安全。
     5: {
-        # Phase 1（2026-04-30）: 30→50題化、Band D を新設して 4 Band 構成に
         # A: (ax+b)(cx+d) — 基本展開（a, c は ±1〜±2）。Band A のみ (a,b)<=(c,d) 辞書順正規化
         # B: (ax+b)(cx+d) — 一般係数（a, c, b, d は ±1〜±5）
         # C: 3項 × 2項（trinomial × binomial）
-        # D: (ax+b)² — 係数付き平方公式の直接展開（a >= 2 で rank_04 (x+a)² と差別化）
+        # D: (ax+b)² — 係数付き平方公式の直接展開（a ∈ [2,7]、Phase 2 で a の上限拡張）
         # 教育的根拠（ふくちさん 36 年の塾長経験）：
         #   (ax+b)² は中3生がミスしやすい典型パターン
         #   - (2x)² を 2x² と書く（正しくは 4x²）
         #   - 中央項の係数倍を忘れる（2·2x·3 = 12x）
         #   - 係数の二乗処理を忘れる
         #   公式記憶の rank_04 (x+a)² と差別化し、直接展開で量を確保する単元
-        "A": {"count": 13, "kind": "two_by_two_simple", "coef_max": 2, "const_max": 5},
-        "B": {"count": 13, "kind": "two_by_two_general", "coef_max": 5, "const_max": 6},
-        "C": {"count": 12, "kind": "trinomial_by_binomial", "coef_max": 3, "const_max": 5},
-        "D": {"count": 12, "kind": "square_with_coef", "coef_max": 5, "const_max": 6},
+        "A": {"count": 26, "kind": "two_by_two_simple", "coef_max": 2, "const_max": 5},
+        "B": {"count": 26, "kind": "two_by_two_general", "coef_max": 5, "const_max": 6},
+        "C": {"count": 24, "kind": "trinomial_by_binomial", "coef_max": 3, "const_max": 5},
+        "D": {"count": 24, "kind": "square_with_coef", "coef_max": 7, "const_max": 6},
     },
     # 4級：乗法公式（フェーズ1: 50題化、2026-04-30）
     # A: (x+a)(x+b) — Band A の (a,b) は数値昇順に正規化済（rank_04_expansion._gen_type_xab）
@@ -534,14 +558,19 @@ BAND_PLAN: Dict[int, Dict[str, Dict[str, Any]]] = {
     # TODO_PHASE3: distribute_addsub（2(x+3) + 3(x-1) 系）は中2 rank_07 範囲のため
     # rank_09 では Phase 1 で導入しない。100 題化時に rank_07 への含有を確認すること。
     # 4 項以上の同類項、二重括弧、分数係数、複数文字は Phase 3 の Band E 以降で導入。
+    # Phase 2 Wave 2（2026-05-26）: 50→100 題化、B/C の param 拡張で unique pool 不足解消。
+    #   - Band A: subcounts 倍化（two_term=14, three_term=6, with_const=6）、probe 56x margin
+    #   - Band B: coef_max 5→7、const_max 5→8 拡張（100→224 unique、8.6x margin）
+    #   - Band C: coef_max 6→9 拡張（160→400 unique、18x margin）
+    #   - Band D: 単純倍化（probe 183x margin）
     9: {
         "A": {
-            "count": 13, "kind": "like_terms", "coef_max": 9, "const_max": 7,
-            "subcounts": {"two_term": 7, "three_term": 3, "with_const": 3},
+            "count": 26, "kind": "like_terms", "coef_max": 9, "const_max": 7,
+            "subcounts": {"two_term": 14, "three_term": 6, "with_const": 6},
         },
-        "B": {"count": 13, "kind": "distribute",      "coef_max": 5, "const_max": 5},
-        "C": {"count": 11, "kind": "monomial_muldiv", "coef_max": 6},
-        "D": {"count": 13, "kind": "paren_addsub",    "coef_max": 5, "const_max": 7},
+        "B": {"count": 26, "kind": "distribute",      "coef_max": 7, "const_max": 8},
+        "C": {"count": 22, "kind": "monomial_muldiv", "coef_max": 9},
+        "D": {"count": 26, "kind": "paren_addsub",    "coef_max": 5, "const_max": 7},
     },
 }
 

@@ -106,30 +106,35 @@ from google.oauth2.service_account import Credentials
 
 
 # 期待値（CLAUDE.md #171 + rank_01/08/09/11/12/13 + rank_10 + rank_14/15/16 +
-# rank_18/19 + rank_17/20 Phase 1 拡充 + Phase 2 Wave 1（2026-05-26）の Phase 4 投入仕様）
-# ★ Phase 2 Wave 1：9 単元（rank_06/07/10/11/13/14/17/18/19）を 50→100 題化、計 1450 問。
-EXPECTED_TOTAL = 1450
+# rank_18/19 + rank_17/20 Phase 1 拡充 + Phase 2 Wave 1（2026-05-26 朝）+ Phase 2 Wave 2（2026-05-26 昼））
+# ★ Phase 2 Wave 2：6 単元（rank_05/08/09/12/15/16）を 50→100 題化、計 1750 問。
+# Wave 1 で 9 単元 + Wave 2 で 6 単元 = 計 15 単元が 100 題化、残り 5 単元（rank_01/02/03/04/20）が 50 題のまま。
+EXPECTED_TOTAL = 1750
 RANKS_30 = []  # 全 rank が 50 題以上、Phase 1 完全制覇以降は RANKS_30 空
-RANKS_50 = [1, 2, 3, 4, 5, 8, 9, 12, 15, 16, 20]  # Phase 2 Wave 1 で倍化されない 11 単元
-RANKS_100 = [6, 7, 10, 11, 13, 14, 17, 18, 19]   # Phase 2 Wave 1 で 100 題化された 9 単元
+RANKS_50 = [1, 2, 3, 4, 20]  # Phase 2 Wave 1/2 で倍化されない 5 単元（Wave 3 対象）
+RANKS_100 = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]  # Wave 1 + Wave 2 で 100 題化された 15 単元
 EXPECTED_RANK_06_BANDS = {"A": 10, "B": 40, "C": 20, "D": 30}  # Phase 2 Wave 1 で倍化
-EXPECTED_RANK_08_BANDS = {"A": 5, "B": 25, "C": 10, "D": 10}
+EXPECTED_RANK_08_BANDS = {"A": 10, "B": 50, "C": 20, "D": 20}  # Phase 2 Wave 2 で倍化
 # Band D の slot_index 駆動サブパターン配分（_resolve_band_d_subkind 由来）
-EXPECTED_RANK_08_BAND_D_SUBPATTERNS = {"light": 2, "standard": 6, "heavy": 2}
+EXPECTED_RANK_08_BAND_D_SUBPATTERNS = {"light": 4, "standard": 12, "heavy": 4}  # Phase 2 Wave 2 で倍化
 EXPECTED_RANK_01_BANDS = {"A": 15, "B": 5, "C": 15, "D": 15}
 EXPECTED_RANK_01_BAND_C_SUBPATTERNS = {"k_eq_1": 10, "k_gt_1": 5}
 EXPECTED_RANK_01_BAND_D_SUBPATTERNS = {"with_p": 7, "ax2_eq_c": 8}
 # 正負の数 3 単元（Phase 1、2026-05-05 拡充）
 EXPECTED_RANK_11_BANDS = {"A": 30, "B": 30, "C": 40}  # Phase 2 Wave 1 で倍化
-EXPECTED_RANK_12_BANDS = {"A": 15, "B": 15, "C": 20}
+EXPECTED_RANK_12_BANDS = {"A": 30, "B": 30, "C": 30, "D": 10}  # Phase 2 Wave 2 で 100 題化 + Band D 新設
 # rank_12 Band B の slot_index 駆動 3 サブパターン（_resolve_band_b_subkind 由来、interleave 方式）
-EXPECTED_RANK_12_BAND_B_SUBPATTERNS = {"paren_neg": 5, "leading_minus": 5, "positive": 5}
-EXPECTED_RANK_12_BAND_B_MAX_RESULT_ABS = 1000
+# Phase 2 Wave 2 で倍化（5→10）+ param 拡張（max_abs 9→13, exp_max 3→4, max_result 1000→2000）
+EXPECTED_RANK_12_BAND_B_SUBPATTERNS = {"paren_neg": 10, "leading_minus": 10, "positive": 10}
+EXPECTED_RANK_12_BAND_B_MAX_RESULT_ABS = 2000
+# rank_12 Band D（Phase 2 Wave 2 新設、累乗 + 乗除の混合、中1範囲）
+# ふくちさん 2026-05-26 教育的判断：累乗 → 乗除 二段階を意識的に練習
+EXPECTED_RANK_12_BAND_D_SUBPATTERNS = {"pow_op_int": 6, "pow_op_int_op_int": 4}
 EXPECTED_RANK_13_BANDS = {"A": 24, "B": 24, "C": 22, "D": 30}  # Phase 2 Wave 1 で倍化
-# 式の計算 中1（Phase 1、2026-05-06 拡充）
-EXPECTED_RANK_09_BANDS = {"A": 13, "B": 13, "C": 11, "D": 13}
-# rank_09 Band A の slot_index 駆動 3 サブパターン（_resolve_band_a_subkind 由来）
-EXPECTED_RANK_09_BAND_A_SUBPATTERNS = {"two_term": 7, "three_term": 3, "with_const": 3}
+# 式の計算 中1（Phase 1、2026-05-06 拡充 + Phase 2 Wave 2、2026-05-26 倍化）
+EXPECTED_RANK_09_BANDS = {"A": 26, "B": 26, "C": 22, "D": 26}  # Phase 2 Wave 2 で倍化
+# rank_09 Band A の slot_index 駆動 3 サブパターン（Phase 2 Wave 2 で倍化）
+EXPECTED_RANK_09_BAND_A_SUBPATTERNS = {"two_term": 14, "three_term": 6, "with_const": 6}
 # 単位・比・割合 中1（Phase 1、2026-05-06 拡充、10 スロット維持 + count 増加）
 EXPECTED_RANK_10_BANDS = {"A": 34, "B": 34, "C": 32}  # Phase 2 Wave 1 で倍化（10 スロット維持）
 # slot 7 Band B/C cases 拡張（構造的バグ修正の証拠、ふくちさん指定の時速 240km まで）
@@ -139,28 +144,29 @@ EXPECTED_RANK_10_SLOT7_C_VALUES = {60, 120, 180, 240, 300, 360, 420, 480, 540, 6
 EXPECTED_RANK_14_BANDS = {"A": 24, "B": 28, "C": 24, "D": 24}  # Phase 2 Wave 1 で倍化
 # rank_14 Band D の slot_index 駆動 3 サブパターン（_resolve_band_d_subkind 由来、cumulative dispatch）
 EXPECTED_RANK_14_BAND_D_SUBPATTERNS = {"int_addsub": 8, "int_mul": 8, "int_div": 8}  # Phase 2 Wave 1 で倍化
-# 分数乗除 無学年（Phase 1、2026-05-07 拡充、4 Band 全て slot_index 駆動 + Band D 整数答え muldiv 新設）
-EXPECTED_RANK_15_BANDS = {"A": 12, "B": 18, "C": 12, "D": 8}
-# rank_15 各 Band の slot_index 駆動 サブパターン（cumulative dispatch）
-EXPECTED_RANK_15_BAND_A_SUBPATTERNS = {"mul": 6, "div": 6}
-EXPECTED_RANK_15_BAND_B_SUBPATTERNS = {"mul": 9, "div": 9}
-EXPECTED_RANK_15_BAND_C_SUBPATTERNS = {"mm": 3, "md": 3, "dm": 3, "dd": 3}
-EXPECTED_RANK_15_BAND_D_SUBPATTERNS = {"mul_int_ans": 4, "div_int_ans": 4}
-# rank_15 約分強制：Band A は各演算子 3 問以上、Band B は各演算子 5 問以上が「約分が活きる組」
-EXPECTED_RANK_15_BAND_A_FORCE_CANCEL_MIN_PER_OP = 3
-EXPECTED_RANK_15_BAND_B_FORCE_CANCEL_MIN_PER_OP = 5
-# 分数加減 無学年（Phase 1、2026-05-07 拡充、Band D 3 項加減新設、4 Band 全て slot_index 駆動）
-EXPECTED_RANK_16_BANDS = {"A": 15, "B": 15, "C": 10, "D": 10}
-# rank_16 Band A 演算子配分（slot 0-1=int_ans, 2-7=add 通常, 8-14=sub）
-EXPECTED_RANK_16_BAND_A_ADD_TOTAL = 8  # int_ans (2) + add 通常 (6)
-EXPECTED_RANK_16_BAND_A_SUB_TOTAL = 7
-EXPECTED_RANK_16_BAND_A_INT_ANS = 2  # slot 0-1 が答え=1
-# rank_16 Band B サブパターン配分（lcm 範囲）
-EXPECTED_RANK_16_BAND_B_SUBPATTERNS = {"easy_lcm": 5, "medium_lcm": 5, "hard_lcm": 5}
-# rank_16 Band C サブパターン配分（easy_lcm を含まない）
-EXPECTED_RANK_16_BAND_C_SUBPATTERNS = {"medium_lcm": 5, "hard_lcm": 5}
-# rank_16 Band D サブパターン配分（slot_index 駆動）
-EXPECTED_RANK_16_BAND_D_SUBPATTERNS = {"all_add": 5, "add_sub_mix": 5}
+# 分数乗除 無学年（Phase 1、2026-05-07 拡充 + Phase 2 Wave 2、2026-05-26 倍化）
+EXPECTED_RANK_15_BANDS = {"A": 24, "B": 36, "C": 24, "D": 16}  # Phase 2 Wave 2 で倍化
+# rank_15 各 Band の slot_index 駆動 サブパターン（Phase 2 Wave 2 で倍化）
+EXPECTED_RANK_15_BAND_A_SUBPATTERNS = {"mul": 12, "div": 12}
+EXPECTED_RANK_15_BAND_B_SUBPATTERNS = {"mul": 18, "div": 18}
+EXPECTED_RANK_15_BAND_C_SUBPATTERNS = {"mm": 6, "md": 6, "dm": 6, "dd": 6}
+EXPECTED_RANK_15_BAND_D_SUBPATTERNS = {"mul_int_ans": 8, "div_int_ans": 8}
+# rank_15 約分強制：Band A は各演算子 6 問以上、Band B は各演算子 10 問以上が「約分が活きる組」（Phase 2 Wave 2 で倍化）
+EXPECTED_RANK_15_BAND_A_FORCE_CANCEL_MIN_PER_OP = 6
+EXPECTED_RANK_15_BAND_B_FORCE_CANCEL_MIN_PER_OP = 10
+# 分数加減 無学年（Phase 1、2026-05-07 拡充 + Phase 2 Wave 2、2026-05-26 倍化）
+# Phase 2 Wave 2 で Band A の denom_max 10→14 拡張（unique 184→672）
+EXPECTED_RANK_16_BANDS = {"A": 30, "B": 30, "C": 20, "D": 20}
+# rank_16 Band A 演算子配分（Phase 2 Wave 2 で倍化、slot 0-3=int_ans, 4-15=add 通常, 16-29=sub）
+EXPECTED_RANK_16_BAND_A_ADD_TOTAL = 16  # int_ans (4) + add 通常 (12)
+EXPECTED_RANK_16_BAND_A_SUB_TOTAL = 14
+EXPECTED_RANK_16_BAND_A_INT_ANS = 4  # slot 0-3 が答え=1（Phase 2 Wave 2 で倍化）
+# rank_16 Band B サブパターン配分（lcm 範囲、Phase 2 Wave 2 で倍化）
+EXPECTED_RANK_16_BAND_B_SUBPATTERNS = {"easy_lcm": 10, "medium_lcm": 10, "hard_lcm": 10}
+# rank_16 Band C サブパターン配分（easy_lcm を含まない、Phase 2 Wave 2 で倍化）
+EXPECTED_RANK_16_BAND_C_SUBPATTERNS = {"medium_lcm": 10, "hard_lcm": 10}
+# rank_16 Band D サブパターン配分（slot_index 駆動、Phase 2 Wave 2 で倍化）
+EXPECTED_RANK_16_BAND_D_SUBPATTERNS = {"all_add": 10, "add_sub_mix": 10}
 # 小数乗除 無学年（Phase 1、2026-05-07 夜 拡充、Band D 答えが整数 muldiv 新設、slot_index 駆動）
 EXPECTED_RANK_18_BANDS = {"A": 30, "B": 30, "C": 20, "D": 20}  # Phase 2 Wave 1 で倍化
 # Band A/B/C 演算子配分（slot 0-(mul-1)=mul, 残り=div）— Phase 2 Wave 1 で倍化
@@ -985,7 +991,7 @@ def main() -> int:
         f"unknown={unknown_count_12_b}",
     )
 
-    # rank=12 Band B 結果ガード |result| ≤ 1000
+    # rank=12 Band B 結果ガード |result| ≤ MAX_RESULT_ABS（Phase 2 Wave 2 で 2000）
     result_violations = []
     for r in band_b_rows_12:
         try:
@@ -1001,6 +1007,83 @@ def main() -> int:
     )
     for latex, v in result_violations[:3]:
         print(f"      [WARN] {latex} = {v}")
+
+    # ============================================================
+    # T16+: rank=12 Band D 検証（Phase 2 Wave 2 新設）
+    #   - Band D 全 10 問が「累乗項を含む」（^{N} を含む LaTeX）
+    #   - サブパターン配分（pow_op_int 6 / pow_op_int_op_int 4）— LaTeX の op 数で分類
+    #   - 答えは全問整数
+    #   - 結果ガード |result| ≤ 500（中1範囲、暗算可能サイズ）
+    #   - 累乗形式 3 種類（paren_neg / leading_minus / positive）が全て含まれる
+    # ============================================================
+    band_d_rows_12 = [
+        r for r in rows
+        if len(r) > i_canonical
+        and r[i_rank].strip().isdigit()
+        and int(r[i_rank]) == 12
+        and r[i_band] == "D"
+    ]
+    # 全問が累乗項（^{N}）を含む
+    import re as _re_d12
+    has_power_count = sum(1 for r in band_d_rows_12 if _re_d12.search(r"\^\{[0-9]+\}", r[i_latex]))
+    check(
+        f"T16+ rank=12 Band D 全 {len(band_d_rows_12)} 問が累乗項を含む（^{{N}}）",
+        has_power_count == len(band_d_rows_12),
+        f"actual={has_power_count}/{len(band_d_rows_12)}",
+    )
+    # サブパターン分類：累乗項 1 個 + op 1 個 = pow_op_int（2項）／ op 2 個 = pow_op_int_op_int（3項）
+    # LaTeX の \times / \div の出現数で 2項/3項を判定
+    def _count_ops_d12(latex):
+        return latex.count("\\times") + latex.count("\\div")
+    pow_op_int_count = sum(1 for r in band_d_rows_12 if _count_ops_d12(r[i_latex]) == 1)
+    pow_op_int_op_int_count = sum(1 for r in band_d_rows_12 if _count_ops_d12(r[i_latex]) == 2)
+    check(
+        f"T16+ rank=12 Band D pow_op_int (2項) == {EXPECTED_RANK_12_BAND_D_SUBPATTERNS['pow_op_int']}",
+        pow_op_int_count == EXPECTED_RANK_12_BAND_D_SUBPATTERNS["pow_op_int"],
+        f"actual={pow_op_int_count}",
+    )
+    check(
+        f"T16+ rank=12 Band D pow_op_int_op_int (3項) == {EXPECTED_RANK_12_BAND_D_SUBPATTERNS['pow_op_int_op_int']}",
+        pow_op_int_op_int_count == EXPECTED_RANK_12_BAND_D_SUBPATTERNS["pow_op_int_op_int"],
+        f"actual={pow_op_int_op_int_count}",
+    )
+    # 答えは全問整数
+    int_ans_count_d12 = sum(1 for r in band_d_rows_12 if _re_d12.match(r"^-?\d+$", r[i_canonical]))
+    check(
+        f"T16+ rank=12 Band D 全 {len(band_d_rows_12)} 問の答えが整数",
+        int_ans_count_d12 == len(band_d_rows_12),
+        f"actual={int_ans_count_d12}/{len(band_d_rows_12)}",
+    )
+    # 結果ガード |result| ≤ 500（中1範囲）
+    d12_result_violations = []
+    for r in band_d_rows_12:
+        try:
+            v = int(r[i_canonical])
+            if abs(v) > 500:
+                d12_result_violations.append((r[i_latex], v))
+        except (ValueError, TypeError):
+            pass
+    check(
+        "T16+ rank=12 Band D 結果ガード |result| ≤ 500（中1範囲）",
+        not d12_result_violations,
+        f"違反 {len(d12_result_violations)} 件" if d12_result_violations else "全問 OK",
+    )
+    # 累乗形式 3 種類が全て含まれる
+    has_paren_neg = any(_re_d12.search(r"\(-\d+\)\^\{", r[i_latex]) for r in band_d_rows_12)
+    has_leading_minus = any(r[i_latex].startswith("-") and not r[i_latex].startswith("-(") for r in band_d_rows_12)
+    has_positive = any(_re_d12.match(r"^\d+\^\{", r[i_latex]) for r in band_d_rows_12)
+    check(
+        "T16+ rank=12 Band D 累乗形式 3 種類が全て含まれる（paren_neg/leading_minus/positive）",
+        has_paren_neg and has_leading_minus and has_positive,
+        f"paren_neg={has_paren_neg}, leading_minus={has_leading_minus}, positive={has_positive}",
+    )
+
+    # rank=12 Band D サンプル表示（実機目視用、新設 Band の確認）
+    print("\n--- rank=12 Band D サンプル（Phase 2 Wave 2 新設、累乗 + 乗除 の混合） ---")
+    for i, r in enumerate(band_d_rows_12):
+        ops_n = _count_ops_d12(r[i_latex])
+        sub = "pow_op_int" if ops_n == 1 else "pow_op_int_op_int" if ops_n == 2 else "unknown"
+        print(f"  D[{i+1:2d}] ({sub:18s}): {r[i_latex]:42s}  =>  {r[i_canonical]}")
 
     # ============================================================
     # T17: rank=13 Band 配分 + Band D が 3 項計算
@@ -1381,10 +1464,11 @@ def main() -> int:
         1 for r in band_d_rows_15
         if _re_d_int.match(r"^\d+$", r[i_canonical])
     )
+    d15_total = EXPECTED_RANK_15_BANDS["D"]
     check(
-        "T21 rank=15 Band D 全 8 問の答えが整数",
-        d_int_answers == 8,
-        f"actual={d_int_answers}/8",
+        f"T21 rank=15 Band D 全 {d15_total} 問の答えが整数",
+        d_int_answers == d15_total,
+        f"actual={d_int_answers}/{d15_total}",
     )
 
     # rank=15 Band A/B 約分強制（最低半数：A は各演算子 3 問以上、B は各演算子 5 問以上）
@@ -1544,15 +1628,16 @@ def main() -> int:
         f"minus_minus={minus_minus_count}",
     )
 
-    # rank=16 Band D 全 10 問が 3 項
+    # rank=16 Band D 全問が 3 項
     d_three_term_count = sum(
         1 for r in band_d_rows_16
         if len(_rank16_extract_fractions(r[i_latex])) == 3
     )
+    d16_total = EXPECTED_RANK_16_BANDS["D"]
     check(
-        "T22 rank=16 Band D 全 10 問が 3 項",
-        d_three_term_count == 10,
-        f"actual={d_three_term_count}/10",
+        f"T22 rank=16 Band D 全 {d16_total} 問が 3 項",
+        d_three_term_count == d16_total,
+        f"actual={d_three_term_count}/{d16_total}",
     )
 
     # rank=16 Band D に整数答えが 1 問以上（all_add の slot 0 が force_int_ans）
@@ -1572,11 +1657,17 @@ def main() -> int:
     #  かつ subcounts と一致することで間接的に保証されている）
 
     # ============================================================
-    # rank=16 Band A サンプル表示（実機目視用）
+    # rank=16 Band A サンプル表示（実機目視用、Phase 2 Wave 2 で倍化対応）
     # ============================================================
-    print("\n--- rank=16 Band A サンプル（slot_index 順、int_ans 2 / add 6 / sub 7） ---")
-    for i, r in enumerate(band_a_rows_16):
-        if i < 2:
+    n_int_ans_16 = EXPECTED_RANK_16_BAND_A_INT_ANS
+    n_add_16 = EXPECTED_RANK_16_BAND_A_ADD_TOTAL - n_int_ans_16
+    n_sub_16 = EXPECTED_RANK_16_BAND_A_SUB_TOTAL
+    print(
+        f"\n--- rank=16 Band A サンプル（slot_index 順、int_ans {n_int_ans_16} / "
+        f"add 通常 {n_add_16} / sub {n_sub_16}） ---"
+    )
+    for i, r in enumerate(band_a_rows_16[: min(len(band_a_rows_16), 12)]):
+        if i < n_int_ans_16:
             sub = "int_ans"
         elif " + " in r[i_latex]:
             sub = "add"
@@ -1584,22 +1675,29 @@ def main() -> int:
             sub = "sub"
         print(f"  A[{i+1:2d}] ({sub:7s}): {r[i_latex]:34s}  =>  {r[i_canonical]}")
 
-    print("\n--- rank=16 Band B サンプル（easy/medium/hard 各 5、lcm 表示） ---")
-    for i, r in enumerate(band_b_rows_16):
+    n_easy_16 = EXPECTED_RANK_16_BAND_B_SUBPATTERNS["easy_lcm"]
+    n_med_16 = EXPECTED_RANK_16_BAND_B_SUBPATTERNS["medium_lcm"]
+    n_hard_16 = EXPECTED_RANK_16_BAND_B_SUBPATTERNS["hard_lcm"]
+    print(f"\n--- rank=16 Band B サンプル（easy={n_easy_16}/medium={n_med_16}/hard={n_hard_16}、lcm 表示） ---")
+    for i, r in enumerate(band_b_rows_16[: min(len(band_b_rows_16), 12)]):
         sub = classify_rank16_band_bc_subkind(r[i_latex])
         pairs = _rank16_extract_fractions(r[i_latex])
         l = _rank16_lcm(pairs[0][1], pairs[1][1]) if len(pairs) == 2 else 0
         print(f"  B[{i+1:2d}] ({sub:11s} lcm={l:3d}): {r[i_latex]:36s}  =>  {r[i_canonical]}")
 
-    print("\n--- rank=16 Band C サンプル（medium/hard 各 5、easy_lcm 含まず） ---")
-    for i, r in enumerate(band_c_rows_16):
+    n_cmed_16 = EXPECTED_RANK_16_BAND_C_SUBPATTERNS["medium_lcm"]
+    n_chard_16 = EXPECTED_RANK_16_BAND_C_SUBPATTERNS["hard_lcm"]
+    print(f"\n--- rank=16 Band C サンプル（medium={n_cmed_16}/hard={n_chard_16}、easy_lcm 含まず） ---")
+    for i, r in enumerate(band_c_rows_16[: min(len(band_c_rows_16), 12)]):
         sub = classify_rank16_band_bc_subkind(r[i_latex])
         pairs = _rank16_extract_fractions(r[i_latex])
         l = _rank16_lcm(pairs[0][1], pairs[1][1]) if len(pairs) == 2 else 0
         print(f"  C[{i+1:2d}] ({sub:11s} lcm={l:3d}): {r[i_latex]:36s}  =>  {r[i_canonical]}")
 
-    print("\n--- rank=16 Band D サンプル（all_add 5 / add_sub_mix 5、3 項加減） ---")
-    for i, r in enumerate(band_d_rows_16):
+    n_aa_16 = EXPECTED_RANK_16_BAND_D_SUBPATTERNS["all_add"]
+    n_asm_16 = EXPECTED_RANK_16_BAND_D_SUBPATTERNS["add_sub_mix"]
+    print(f"\n--- rank=16 Band D サンプル（all_add={n_aa_16}/add_sub_mix={n_asm_16}、3 項加減） ---")
+    for i, r in enumerate(band_d_rows_16[: min(len(band_d_rows_16), 12)]):
         sub = classify_rank16_band_d_subkind(r[i_latex])
         print(f"  D[{i+1:2d}] ({sub:11s}): {r[i_latex]:48s}  =>  {r[i_canonical]}")
 

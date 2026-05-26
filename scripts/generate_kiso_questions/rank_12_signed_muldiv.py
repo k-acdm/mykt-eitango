@@ -201,15 +201,153 @@ def _resolve_band_b_subkind(slot_index: int, subcounts: Dict[str, int]) -> str:
     return order[slot_index % len(order)]
 
 
+# --- Band D 新設（Phase 2 Wave 2、2026-05-26）---------------------------------
+# ふくちさん 2026-05-26 セッションで明示的に教育的価値を支持：
+#   「累乗 + 乗除の混合を追加するのは大賛成。なかなかこの手のものを練習できる
+#    ものは無いけれど地味に大事な部分。あくまでこれは中1範囲のカテゴリー。
+#    全体の中でこのタイプが1割くらいあると嬉しい。」
+#
+# 教育的設計指針：
+#   - 中1範囲のみ（中2 の式計算とは地続きにしない、純粋に「正負の数 + 累乗 + 乗除」）
+#   - 累乗 → 乗除 という二段階を意識的に練習させる
+#   - 答えは整数（分数答えは避ける、中1の正負範囲を維持）
+#   - 累乗の base/exp は小さめ（base ∈ [2..5]、exp ∈ [2..3]）で結果の暗算可能性を保つ
+#   - 乗除の項は ±[2..9]（小さめ）
+#
+# サブパターン（slot_index で決定論的に dispatch）：
+#   pow_op_int        : 2項   power × int  or  power ÷ int       例: (-2)³ × (-3) = 24
+#   pow_op_int_op_int : 3項   power × int ÷ int  or  power ÷ int × int  例: (-2)² × (-5) ÷ 4 = -5
+#
+# 累乗形式は Band B と同じ 3 形式（paren_neg / leading_minus / positive）を
+# slot_index 順に interleave して並べる：
+#   slot 0,3,6,9 → paren_neg    例: (-2)³ × 3
+#   slot 1,4,7   → leading_minus 例: -3² ÷ 9
+#   slot 2,5,8   → positive      例: 2³ × (-5)
+# これにより同 base/exp で形式が違うバリエーションが並び、教育効果が最大化される。
+
+
+def _gen_band_d_power_muldiv(
+    rng: random.Random, slot_index: int,
+    max_abs_power: int, exp_max: int, max_abs_int: int, max_result_abs: int,
+    n_2term: int,
+):
+    """Band D（Phase 2 Wave 2 新設）：累乗 + 乗除 の混合（中1範囲）。
+
+    slot_index < n_2term なら 2項（power op int）、それ以上なら 3項（power op int op int）。
+    累乗形式は slot_index % 3 で決定（paren_neg/leading_minus/positive を interleave）。
+    """
+    # 項数（2 or 3）を決定
+    terms_n = 2 if slot_index < n_2term else 3
+    # 累乗形式を slot_index 順に interleave
+    pow_forms = ["paren_neg", "leading_minus", "positive"]
+    form = pow_forms[slot_index % 3]
+
+    for _ in range(500):
+        # 累乗項を生成
+        base_abs = rng.randint(2, max_abs_power)
+        exp = rng.randint(2, exp_max)
+        if form == "paren_neg":
+            pow_value = (-base_abs) ** exp
+            pow_latex = power_latex(
+                signed_int_latex_leading(-base_abs), exp, base_is_signed=True
+            )
+        elif form == "leading_minus":
+            pow_value = -(base_abs ** exp)
+            pow_latex = "-" + power_latex(str(base_abs), exp)
+        else:  # positive
+            pow_value = base_abs ** exp
+            pow_latex = power_latex(str(base_abs), exp)
+
+        # 累乗の結果を初期値として乗除を組み立てる
+        cur = pow_value
+        ops: List[str] = []
+        nums: List[int] = []
+        ok = True
+        for _ in range(terms_n - 1):
+            op = rng.choice(["*", "/"])
+            if op == "*":
+                t = _signed_int(rng, max_abs_int, min_abs=2)
+                cur = cur * t
+            else:
+                # ÷：cur を割り切る整数 t を選ぶ（±1 を除外）
+                divisors = [
+                    d for d in range(-max_abs_int, max_abs_int + 1)
+                    if abs(d) >= 2 and cur % d == 0
+                ]
+                if not divisors:
+                    ok = False
+                    break
+                t = rng.choice(divisors)
+                cur = cur // t
+            ops.append(op)
+            nums.append(t)
+
+        if not ok:
+            continue
+        if cur == 0 or abs(cur) > max_result_abs:
+            continue
+
+        # 自明な ÷1 や ×1 は _signed_int min_abs=2 で除外済み
+
+        # 完全 LaTeX を構築：累乗項 op1 num1 [op2 num2]
+        parts = [pow_latex]
+        for op, n in zip(ops, nums):
+            parts.append(OP_LATEX[op])
+            parts.append(signed_int_latex_paren(n))
+        latex = " ".join(parts)
+
+        return latex, cur, {
+            "kind": "power_muldiv",
+            "form": form,
+            "base_abs": base_abs,
+            "exp": exp,
+            "pow_value": pow_value,
+            "ops": ops,
+            "nums": nums,
+            "terms_n": terms_n,
+        }
+    return None
+
+
 def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict[str, Any]:
     """generate_problem は ``slot_index`` キーワードを受け取る（main.py の inspect 機構）。
 
-    Band B（powers）のみ slot_index 駆動で 3 サブパターン（paren_neg / leading_minus
-    / positive）を decision-deterministic に dispatch する。A/C は slot_index を無視。
+    Band B（powers）と Band D（power_muldiv）は slot_index 駆動でサブパターンを
+    決定論的に dispatch する。A/C は slot_index を無視（既存挙動温存）。
     """
     cfg = get_band(12, band)
     kind = cfg["kind"]
-    max_abs = cfg["max_abs"]
+    max_abs = cfg.get("max_abs", 9)
+
+    # Band D（Phase 2 Wave 2 新設）
+    if kind == "power_muldiv":
+        subcounts = cfg.get("subcounts", {})
+        n_2term = subcounts.get("pow_op_int", 6)
+        res = _gen_band_d_power_muldiv(
+            rng,
+            slot_index=slot_index,
+            max_abs_power=cfg.get("max_abs_power", 5),
+            exp_max=cfg.get("exp_max", 3),
+            max_abs_int=cfg.get("max_abs_int", 9),
+            max_result_abs=cfg.get("max_result_abs", 500),
+            n_2term=n_2term,
+        )
+        if res is None:
+            raise RuntimeError(f"rank 12 band {band}: power_muldiv gen exhausted (slot {slot_index})")
+        latex, result, info = res
+        canonical = av.canonical_for_rational(sp.Rational(result))
+        allowed = av.variants_for_rational(sp.Rational(result))
+        return {
+            "problemLatex": latex,
+            "answerCanonical": canonical,
+            "answerAllowed": allowed,
+            "_meta": {
+                "rank": 12,
+                "band": band,
+                "result": result,
+                **info,
+            },
+        }
 
     if kind == "powers":
         max_result_abs = cfg.get("max_result_abs", 1000)
@@ -292,11 +430,49 @@ def _eval_power(info):
     return base_abs ** exp
 
 
+def _eval_power_muldiv(meta):
+    """Band D（Phase 2 Wave 2 新設）の累乗 + 乗除 結果を検証。"""
+    base_abs = meta["base_abs"]
+    exp = meta["exp"]
+    form = meta["form"]
+    if form == "paren_neg":
+        cur = (-base_abs) ** exp
+    elif form == "leading_minus":
+        cur = -(base_abs ** exp)
+    else:  # positive
+        cur = base_abs ** exp
+    if cur != meta["pow_value"]:
+        return None
+    for op, n in zip(meta["ops"], meta["nums"]):
+        if op == "*":
+            cur = cur * n
+        else:
+            if n == 0 or cur % n != 0:
+                return None  # 整数答えになる前提が破れている
+            cur = cur // n
+    return cur
+
+
 def self_check(problem: Dict[str, Any]) -> bool:
     meta = problem["_meta"]
     expected = meta["result"]
     if meta["kind"] == "muldiv":
         if _eval_muldiv(meta["terms"], meta["ops"]) != expected:
+            return False
+    elif meta["kind"] == "power_muldiv":
+        # Band D（Phase 2 Wave 2 新設）：累乗 + 乗除 の混合
+        recomputed = _eval_power_muldiv(meta)
+        if recomputed is None or recomputed != expected:
+            return False
+        # 中1範囲ガード：base/exp/答えのサイズ・項数
+        if meta["base_abs"] < 2 or meta["base_abs"] > 9:  # max_abs_power の上限と整合
+            return False
+        if meta["exp"] < 2 or meta["exp"] > 4:
+            return False
+        if meta["terms_n"] not in (2, 3):
+            return False
+        # 答えは整数（既に Rational(int) なので canonical の数字部分が分数記号を含まない）
+        if "/" in str(expected):
             return False
     else:
         recomputed = _eval_power(meta)
