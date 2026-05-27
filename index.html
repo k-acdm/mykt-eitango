@@ -1790,6 +1790,20 @@
       .refl-release-bd-row .rbd-value { font-size: 13px; }
       .refl-release-close-btn { padding: 12px 16px; font-size: 15px; }
     }
+    /* 2026-05-27 Phase 5：特殊アカウント（test/teacher/invited）の「書く/書かない」選択モーダル */
+    .refl-choice-card { background: #fff; border-radius: 18px; padding: 24px 22px 20px; max-width: 460px; width: 100%; box-shadow: 0 18px 48px rgba(0,0,0,.45); box-sizing: border-box; }
+    .refl-choice-title { font-size: 18px; font-weight: bold; color: #14532d; text-align: center; margin-bottom: 8px; line-height: 1.5; }
+    .refl-choice-sub { font-size: 13px; color: #555; text-align: center; line-height: 1.7; margin-bottom: 16px; }
+    .refl-choice-actions { display: flex; flex-direction: column; gap: 10px; }
+    .refl-choice-btn-yes { width: 100%; padding: 14px 18px; font-size: 16px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; background: linear-gradient(135deg,#16a34a,#15803d); color: #fff; box-shadow: 0 4px 12px rgba(22,163,74,.35); font-family: inherit; transition: transform .15s, box-shadow .15s; }
+    .refl-choice-btn-yes:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(22,163,74,.45); }
+    .refl-choice-btn-no { width: 100%; padding: 14px 18px; font-size: 16px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; background: linear-gradient(135deg,#94a3b8,#64748b); color: #fff; box-shadow: 0 4px 12px rgba(100,116,139,.30); font-family: inherit; transition: transform .15s, box-shadow .15s; }
+    .refl-choice-btn-no:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(100,116,139,.40); }
+    @media (max-width: 480px) {
+      .refl-choice-card { padding: 20px 16px 18px; border-radius: 14px; }
+      .refl-choice-title { font-size: 16px; }
+      .refl-choice-btn-yes, .refl-choice-btn-no { padding: 12px 16px; font-size: 15px; }
+    }
     /* キャラクター紹介ページ */
     .char-intro-home-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#fff0f5,#f3e5ff); border: 2px solid #b24bf3; border-radius: 14px; box-shadow: 0 3px 12px rgba(178,75,243,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; font-size: 16px; font-weight: bold; color: #6a1b9a; }
     .char-intro-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(178,75,243,.26); }
@@ -2689,6 +2703,23 @@
     <div class="refl-release-title">📝 振り返りを送信したよ！</div>
     <div class="refl-release-sub">今日も一日おつかれさま</div>
     <div id="refl-release-body" class="refl-release-body"></div>
+  </div>
+</div>
+
+<!-- 2026-05-27 Phase 5：特殊アカウント（test/teacher/invited）専用の選択モーダル -->
+<!-- 「書く」→ 通常の振り返り入力モーダルへ / 「書かない」→ skipReflection → 受信後アニメへ -->
+<div id="reflection-choice-modal" class="refl-modal-overlay">
+  <div class="refl-modal-card refl-choice-card">
+    <div class="refl-choice-title">📝 振り返りコメントを書きますか？</div>
+    <div class="refl-choice-sub">
+      テスト / 講師 / 招待アカウントの方は、<br>
+      振り返りを書くか書かないか選べます。
+    </div>
+    <div class="refl-choice-actions">
+      <button class="refl-choice-btn-yes" onclick="onChoiceWriteReflection()">✍️ 書く</button>
+      <button class="refl-choice-btn-no" onclick="onChoiceSkipReflection()">スキップする（書かない）</button>
+      <button class="refl-modal-btn-cancel" onclick="cancelReflectionChoice()">キャンセル（ログアウトしない）</button>
+    </div>
   </div>
 </div>
 
@@ -6907,6 +6938,15 @@
       var fo = document.getElementById('flash-overlay');
       if (fo) fo.classList.remove('active');
     } catch(e){}
+    // 2026-05-27 Phase 4/5：新規振り返り関連オーバーレイも忘れずクリア
+    try {
+      var rs = document.getElementById('reflection-sending-overlay');
+      if (rs) rs.classList.remove('active');
+    } catch(e){}
+    try {
+      var rc = document.getElementById('reflection-choice-modal');
+      if (rc) rc.classList.remove('active');
+    } catch(e){}
   }
   // Task 3（2026-05-19）：テスト / 講師 / 招待アカウントは振り返り不要として判定する。
   // 動作確認時に毎回 100 文字書くのは非現実的なため。
@@ -6921,12 +6961,13 @@
     _logoutInProgress = true;
     // ログアウト操作トリガーで居残りオーバーレイを必ずクリア（iPad 操作不能対策）
     _clearAllLogoutOverlays();
-    // Task 3：特殊アカウントは振り返りモーダルをスキップして即ログアウト。
-    // 確認ダイアログも出さない（テスト効率最優先）。_logoutInProgress ガード /
-    // オーバーレイクリアは既に経由済みなので安全に飛ばせる。
+    // 2026-05-27 Phase 5：特殊アカウントは「書く / 書かない」を選択できる選択モーダルを表示。
+    // 旧 Task 3（特殊アカウント = 即ログアウト）を廃止。ふくちさん本来フロー 8 に整合：
+    //   - 「書く」を選んだ場合 → 通常生徒と同じ振り返り入力フロー
+    //   - 「書かない」を選んだ場合 → skipReflection API → 受信確認後アニメ画面 → ログアウト
     if (_shouldSkipReflectionLogout()) {
-      try { console.log('[doLogout] skipping reflection modal for accountType=' + _accountType); } catch(e){}
-      _doLogoutFinalize();
+      try { console.log('[doLogout] opening choice modal for accountType=' + _accountType); } catch(e){}
+      _openReflectionChoiceModal();
       return;
     }
     // 通常生徒：振り返りモーダルを開く
@@ -7409,6 +7450,63 @@
         if (typeof onComplete === 'function') onComplete();
       };
     }
+  }
+
+  // ================== Phase 5（2026-05-27）：特殊アカウント選択モーダル ==================
+  // ふくちさん本来フロー 8：accountType=test/teacher/invited は「書く / 書かない」を選択可能。
+  // 旧 Task 3（特殊アカウント = 即ログアウト）を置き換え。
+  //   - 「書く」: 通常生徒と同じ振り返り入力モーダルへ
+  //   - 「書かない」: skipReflection API でサーバー受信確認 → アニメ画面 → ログアウト
+  //   - 「キャンセル」: モーダル閉じる + _logoutInProgress 解除（ログアウトしない）
+
+  function _openReflectionChoiceModal() {
+    var ov = document.getElementById('reflection-choice-modal');
+    if (ov) ov.classList.add('active');
+  }
+  function _closeReflectionChoiceModal() {
+    var ov = document.getElementById('reflection-choice-modal');
+    if (ov) ov.classList.remove('active');
+  }
+  function cancelReflectionChoice() {
+    _closeReflectionChoiceModal();
+    _logoutInProgress = false;
+  }
+  function onChoiceWriteReflection() {
+    // 通常生徒と同じ振り返り入力フローへ
+    _closeReflectionChoiceModal();
+    _openReflectionLogoutModal();
+  }
+  function onChoiceSkipReflection() {
+    // 「書かない」選択：サーバーに通知 → 受信確認後アニメ画面 → ログアウト。
+    // 重要：ふくちさん明示要件「サーバー受信確認後にアニメ画面遷移」を厳守。送信前の即遷移は絶対にしない。
+    _closeReflectionChoiceModal();
+    if (!_studentId) {
+      alert('⚠️ ログイン状態が確認できません。一度キャンセルしてやり直してください');
+      _logoutInProgress = false;
+      return;
+    }
+    // 送信中オーバーレイを表示（通常生徒の振り返り送信と UX 統一）
+    _showReflectionSendingOverlay();
+    gasPost({
+      action:    'skipReflection',
+      studentId: _studentId
+    }).then(function(res){
+      if (res && res.ok) {
+        // 成功 → 受信確認 → アニメ画面（_showReflectionReleaseModal が hpBreakdown を読んで描画）→ ログアウト
+        _showReflectionReleaseModal(res, _doLogoutFinalize);
+      } else {
+        _hideReflectionSendingOverlay();
+        var em = (res && res.message) ? String(res.message) : 'スキップ処理に失敗しました。もう一度試してください';
+        alert('⚠️ ' + em);
+        // 失敗時はガード解除（再度ログアウトボタンを押せるように）
+        _logoutInProgress = false;
+      }
+    }).catch(function(err){
+      _hideReflectionSendingOverlay();
+      var em = (err && err.message) ? String(err.message) : 'ネットワークエラーが発生しました';
+      alert('⚠️ ' + em);
+      _logoutInProgress = false;
+    });
   }
 
   // 実ログアウト処理（submit 成功時のみ呼ばれる）。旧 doLogout 後半をそのまま移植。

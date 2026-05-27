@@ -1304,6 +1304,9 @@ function doPost(e) {
     else if (action === 'submitCalcTrialResult')     result = submitCalcTrialResult(params);
     // 今日のマイ活 振り返り：ログアウト前の必須記録（POST 強制、Reflections シートに 1 行記録）
     else if (action === 'submitReflection')          result = submitReflection(params);
+    // 2026-05-27 Phase 5：特殊アカウント（test/teacher/invited）の「振り返りを書かない」選択用 API
+    //   POST 強制（誤実行防止）。Pool の当日未解放分を全付与 + HPLog に reflection_skip_release で記録。
+    else if (action === 'skipReflection')            result = skipReflection(params);
     // 先生からのメッセージ（管理画面：送信 / 生徒画面：既読化）
     // ※ 管理者認証必須の sendTeacherMessage は POST 強制（誤送信防止）。
     //   markMessageAsRead は誤書き込みリスクが極小だが POST に統一（doGet にも登録すると
@@ -10757,6 +10760,98 @@ function _todayHpBreakdownForSid(sid) {
   return out;
 }
 
+// 2026-05-27 Phase 5：特殊アカウント（test/teacher/invited）の「書かない」フロー用。
+// 指定生徒の当日 + 全 reason の未解放 Pool 行を一括 resolved=TRUE 化し、totalReleased を返す。
+// _markReservePoolEntriesResolved の薄いラッパー：完走判定ロジック / PropertiesService フラグの
+// race 防御は不要（特殊アカウントは絶対ミッション対象外）なので、シンプルに全解放のみ実行。
+// 戻り値: { ok, totalReleased, count, byReason }
+function _releaseAllReservesForToday(sid, dateStr) {
+  try {
+    const sidNorm = String(sid || '').trim();
+    const ds = String(dateStr || _sangoToday()).trim();
+    if (!sidNorm || !ds) return { ok: false, totalReleased: 0, count: 0, byReason: {}, message: 'invalid args' };
+    // 既存ヘルパーをそのまま呼ぶ（_normalizePoolDate で date 列の Date 型自動変換も吸収済）。
+    return _markReservePoolEntriesResolved(sidNorm, ds);
+  } catch (e) {
+    console.error('[_releaseAllReservesForToday]', e);
+    return { ok: false, totalReleased: 0, count: 0, byReason: {}, message: String(e) };
+  }
+}
+
+// 2026-05-27 Phase 5：特殊アカウント（test/teacher/invited）の「振り返りを書かない」選択用 API。
+// ふくちさん本来フロー 8：「書かない」を選んだら、サーバー受信確認後にアニメ画面へ。
+//   1. accountType を再検証（test/teacher/invited のみ受理）
+//   2. Pool の当日未解放分を全付与（reflection_pending / required_mission どちらも一括）
+//   3. HPLog に type='reflection_skip_release' で 1 行記録（_isCountableActivityType は false）
+//   4. Students.HP に加算（フレッシュ読み）
+//   5. 戻り値に hpBreakdown を含める（フロント受信後アニメ画面で使用）
+// doPost 強制（誤実行防止）。
+function skipReflection(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '対象生徒IDが指定されていません' };
+
+    // 行特定（書き込み対象 rowIdx の安全性 + accountType 取得）
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+
+    // accountType 再検証：test/teacher/invited 以外は弾く
+    const accountType = _resolveAccountTypeFromLoc(stuLoc);
+    const isSpecial = (accountType === 'test' || accountType === 'teacher' || accountType === 'invited');
+    if (!isSpecial) {
+      return { ok: false, message: 'この機能は test/teacher/invited アカウント専用です（accountType=' + accountType + '）', errorCode: 'NOT_ELIGIBLE' };
+    }
+
+    const todayStr = _sangoToday();
+
+    // ① Pool の当日未解放分を全付与
+    const releaseRes = _releaseAllReservesForToday(sid, todayStr);
+    const releasedHp = Number(releaseRes && releaseRes.totalReleased) || 0;
+    const byReason = (releaseRes && releaseRes.byReason) || {};
+
+    // ② HPLog 記録 + Students.HP 加算（releasedHp > 0 の時のみ）
+    if (releasedHp > 0) {
+      const msg = '振り返りスキップによる保留解放（' + todayStr + ' 分、'
+                + (releaseRes.count || 0) + ' 件、byReason='
+                + JSON.stringify(byReason) + '）';
+      _logHP(sid, releasedHp, releasedHp, 'reflection_skip_release', 5000, msg);
+      try {
+        const loc2 = _findAccountRowOnSheet(sid);
+        if (loc2) {
+          const curHP = Number(loc2.rowValues[COL_HP]) || 0;
+          const newHP = curHP + releasedHp;
+          loc2.sheet.getRange(loc2.rowIdx + 1, COL_HP + 1).setValue(newHP);
+          const upd = {}; upd[COL_HP] = newHP;
+          _updateAccountCacheBySid(sid, upd);
+          _invalidateCache('cache_ranking_last_week');
+        }
+      } catch (hpErr) {
+        console.error('[skipReflection] Students.HP 加算失敗（HPLog は記録済み）', hpErr);
+      }
+    }
+
+    // ③ hpBreakdown（フロント受信後アニメ画面用）
+    let hpBreakdown = null;
+    try {
+      hpBreakdown = _todayHpBreakdownForSid(sid);
+    } catch (bdErr) {
+      console.error('[skipReflection] hpBreakdown 集計失敗（続行）', bdErr);
+    }
+
+    return {
+      ok:          true,
+      accountType: accountType,
+      releasedHp:  releasedHp,
+      count:       Number(releaseRes && releaseRes.count) || 0,
+      byReason:    byReason,
+      hpBreakdown: hpBreakdown
+    };
+  } catch (err) {
+    console.error('[skipReflection]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
 // 自分の振り返り履歴を取得（生徒画面 / 保護者画面共通、認証なし）。
 // params:
 //   studentId:  生徒ID（必須、自分の履歴のみ取得可能）
@@ -11960,9 +12055,10 @@ function _calendarContentName(type) {
   if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
   if (t.indexOf('apology_') === 0) return 'お詫びHP';
   // 2026-05-27：両輪システム/振り返り連動の HPLog メタログを分かりやすく表示
-  if (t === 'completion_bonus')   return '絶対ミッション達成ボーナス';
-  if (t === 'reserve_release')    return '保留HP解放';
-  if (t === 'reflection_release') return '振り返り提出による解放';
+  if (t === 'completion_bonus')        return '絶対ミッション達成ボーナス';
+  if (t === 'reserve_release')         return '保留HP解放';
+  if (t === 'reflection_release')      return '振り返り提出による解放';
+  if (t === 'reflection_skip_release') return '振り返りスキップによる解放（特殊アカウント）';
   return 'その他（' + t + '）';
 }
 
