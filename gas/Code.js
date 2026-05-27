@@ -1806,7 +1806,11 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
       bonusHp:       grant.bonusHp,
       totalHP:       grant.newHP,        // 加算後 Students.HP（completion bonus 込み）
       streak:        grant.streak,
-      week:          grant.week
+      week:          grant.week,
+      // 2026-05-27 修正1：表示用「Gate 2 view」（達成時=全付与 / 未達成時=60/40 分割）
+      displayedImmediate:        grant.displayedImmediate,
+      displayedReserved:         grant.displayedReserved,
+      isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
     };
   } catch (err) {
     console.error('[saveAttempt]', err);
@@ -2209,6 +2213,22 @@ function _grantHP(opts) {
     }
   }
 
+  // 2026-05-27 修正1：表示用「Gate 2 view」を計算。
+  // Gate 1（reflection_pending）が起動して granted=0 / reserved=full になっていても、
+  // クライアント完了画面では「ふくちさん本来フロー（達成時=全付与 / 未達成時=60/40 分割）」
+  // の見せ方をしたい。Gate 1 のロジック自体は温存し、表示用フィールドだけ並列に返す。
+  let displayedImmediate = granted;
+  let displayedReserved = reserved;
+  let isAbsoluteMissionComplete = !isReserveActive;
+  try {
+    const g2 = _calculateGate2OnlyView(stuLoc, fullHpGained);
+    displayedImmediate = g2.granted;
+    displayedReserved  = g2.reserved;
+    isAbsoluteMissionComplete = !!g2.isComplete;
+  } catch (e) {
+    console.error('[_grantHP] Gate 2 view 計算失敗（フォールバック：actual granted/reserved を表示）', e);
+  }
+
   return {
     ok: true,
     errorCode: '',
@@ -2222,7 +2242,11 @@ function _grantHP(opts) {
     isReserveActive: isReserveActive,
     justCompleted: comp.justCompleted,
     releasedHp: Number(comp.releasedHp) || 0,
-    bonusHp: Number(comp.bonusHp) || 0
+    bonusHp: Number(comp.bonusHp) || 0,
+    // 2026-05-27 修正1：表示用「Gate 2 view」
+    displayedImmediate: displayedImmediate,
+    displayedReserved:  displayedReserved,
+    isAbsoluteMissionComplete: isAbsoluteMissionComplete
   };
 }
 
@@ -2241,7 +2265,11 @@ function _grantHpErr(errorCode, message, rawHp, curHp, streak, week, isReserveAc
     isReserveActive: !!isReserveActive,
     justCompleted: false,
     releasedHp: 0,
-    bonusHp: 0
+    bonusHp: 0,
+    // 2026-05-27 修正1：エラー時も表示用フィールドはゼロで返す
+    displayedImmediate: 0,
+    displayedReserved: 0,
+    isAbsoluteMissionComplete: !isReserveActive
   };
 }
 
@@ -7072,7 +7100,11 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
           sessionType:     logType,
           justCompleted:   grant.justCompleted,
           releasedHp:      grant.releasedHp,
-          bonusHp:         grant.bonusHp
+          bonusHp:         grant.bonusHp,
+          // 2026-05-27 修正1：表示用「Gate 2 view」
+          displayedImmediate:        grant.displayedImmediate,
+          displayedReserved:         grant.displayedReserved,
+          isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
         };
       }
     }
@@ -10257,7 +10289,11 @@ function submitCalcTrialResult(params) {
       rawHp:           grant.rawHp,                                      // 素点（_grantHP 戻り値、練習は 0）
       streak:          grant.streak,                                     // _grantHP で参照した連続日数（最低 1）
       week:            grant.week,                                       // ceil(streak / 7)
-      weekMult:        grant.week * grant.week                           // week² = 倍率
+      weekMult:        grant.week * grant.week,                          // week² = 倍率
+      // 2026-05-27 修正1：表示用「Gate 2 view」（計算TTは applyReserveSystem:false のため事実上 displayedImmediate=hpGained）
+      displayedImmediate:        grant.displayedImmediate,
+      displayedReserved:         grant.displayedReserved,
+      isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
     };
   } catch(err) {
     console.error('[submitCalcTrialResult]', err);
@@ -10897,11 +10933,15 @@ function submitReflection(params) {
   }
 }
 
-// 2026-05-27 Phase 4：指定生徒の今日（_sangoToday 基準）の HPLog 行を集計し、
-// カテゴリ別 + コンテンツ別の獲得 HP 内訳を返す。
+// 2026-05-27 Phase 4 + 修正3：指定生徒の今日（_sangoToday 基準）の HPLog 行を集計し、
+// カテゴリ別 + コンテンツ別の獲得 HP 内訳を返す。修正3 で連続日数 / 週²倍率 / 絶対ミッション
+// 達成状態 / 預かり分合計を追加。
 //   - byCategory: login_bonus / reflection_release / reserve_release / completion_bonus / immediate
 //   - byContent : 即時付与分のコンテンツ別合計（eitango / sango / wabun1 / kiso / kanji / kobun / lison / calctrial 等）
 //   - total     : 全カテゴリの合計（apology_* / *_practice / hpGained<=0 は除外）
+//   - consecutiveDays / weekStreak / weekMultiplier : 連続日数ヘッダー表示用
+//   - isAbsoluteMissionComplete : 絶対ミッション全達成判定（預かり分行の表示判定用）
+//   - reservedTotal : HpReservePool の今日 + 未解放分の合計（mission 未達成時のみ表示）
 // 振り返り送信後のアニメ画面で「今日の獲得HP」を内訳付きで表示するために使う。
 function _todayHpBreakdownForSid(sid) {
   const out = {
@@ -10913,14 +10953,51 @@ function _todayHpBreakdownForSid(sid) {
       completion_bonus: 0,
       immediate: 0
     },
-    byContent: {}
+    byContent: {},
+    // 2026-05-27 修正3 で追加
+    consecutiveDays: 0,
+    weekStreak: 1,
+    weekMultiplier: 1,
+    isAbsoluteMissionComplete: true,  // デフォルト：絶対ミッション無し or 達成 → 預かり分行非表示
+    reservedTotal: 0
   };
   try {
+    // 修正3：連続日数 + 週²倍率 + 絶対ミッション達成状態を取得
+    const sidNorm = String(sid || '').trim();
+    if (sidNorm) {
+      try {
+        const stuLoc = _findAccountRowOnSheet(sidNorm);
+        if (stuLoc) {
+          const streakRaw = Number(stuLoc.rowValues[COL_STREAK]) || 0;
+          const streak = Math.max(1, streakRaw);
+          const week = Math.ceil(streak / 7);
+          out.consecutiveDays = streakRaw;  // 表示は実値（0 でも OK、× 倍率の説明用には week を使う）
+          out.weekStreak = week;
+          out.weekMultiplier = week * week;
+          // 絶対ミッション達成判定（_calculateGate2OnlyView と同じ判定ロジックで一貫性確保）
+          const requiredList = _getRequiredContentsForLoc(stuLoc);
+          if (requiredList && requiredList.length > 0) {
+            const completedSet = _getTodayCompletedRequired(sidNorm, requiredList);
+            out.isAbsoluteMissionComplete = requiredList.every(function(rc) { return !!completedSet[rc]; });
+          }
+          // requiredList が空（必須なし）の生徒は true 維持
+        }
+      } catch (locErr) {
+        console.error('[_todayHpBreakdownForSid] stuLoc 取得失敗（既定値維持）', locErr);
+      }
+      // 預かり分（HpReservePool の今日 + 未解放分の合計）
+      try {
+        out.reservedTotal = Number(_getTodayReservedHpForSid(sidNorm)) || 0;
+      } catch (poolErr) {
+        console.error('[_todayHpBreakdownForSid] reservedTotal 取得失敗（0 維持）', poolErr);
+      }
+    }
+
     const sh = _ss().getSheetByName(SHEET_HPLOG);
     if (!sh) return out;
     const rows = _readLastNRows(sh, 500);
     const todayStr = _sangoToday();
-    const sidNorm = String(sid || '').trim();
+    // sidNorm は冒頭で既に宣言済（修正3 で追加した連続日数取得ブロックで使用）。再宣言不要。
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       if (String(r[1] || '').trim() !== sidNorm) continue;
@@ -13140,7 +13217,11 @@ function submitSango(params) {
       completion_sango = {
         justCompleted: grant.justCompleted,
         releasedHp:    grant.releasedHp,
-        bonusHp:       grant.bonusHp
+        bonusHp:       grant.bonusHp,
+        // 2026-05-27 修正1：表示用「Gate 2 view」
+        displayedImmediate:        grant.displayedImmediate,
+        displayedReserved:         grant.displayedReserved,
+        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
       };
     }
     // 注：旧版では alreadyGranted=true の場合でも reserveActive_sango が true なら完走チェックが
@@ -13197,6 +13278,10 @@ function submitSango(params) {
       justCompleted: completion_sango.justCompleted,
       releasedHp: completion_sango.releasedHp,
       bonusHp: completion_sango.bonusHp,
+      // 2026-05-27 修正1：表示用「Gate 2 view」
+      displayedImmediate:        completion_sango.displayedImmediate || 0,
+      displayedReserved:         completion_sango.displayedReserved  || 0,
+      isAbsoluteMissionComplete: !!completion_sango.isAbsoluteMissionComplete,
       aiFeedback: aiFeedbackForFrontend
     };
   } catch(err) {
@@ -14634,7 +14719,11 @@ function submitWabun1(params) {
       completion_wabun1 = {
         justCompleted: grant.justCompleted,
         releasedHp:    grant.releasedHp,
-        bonusHp:       grant.bonusHp
+        bonusHp:       grant.bonusHp,
+        // 2026-05-27 修正1：表示用「Gate 2 view」
+        displayedImmediate:        grant.displayedImmediate,
+        displayedReserved:         grant.displayedReserved,
+        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
       };
     }
     // 注：旧版では allCorrect && !alreadyGranted のときだけ reserveActive_wabun1 が true になり、
@@ -14649,6 +14738,10 @@ function submitWabun1(params) {
       justCompleted: completion_wabun1.justCompleted,
       releasedHp: completion_wabun1.releasedHp,
       bonusHp: completion_wabun1.bonusHp,
+      // 2026-05-27 修正1：表示用「Gate 2 view」
+      displayedImmediate:        completion_wabun1.displayedImmediate || 0,
+      displayedReserved:         completion_wabun1.displayedReserved  || 0,
+      isAbsoluteMissionComplete: !!completion_wabun1.isAbsoluteMissionComplete,
       alreadyGranted: alreadyGranted,
       appliedSkips: appliedSkips
     };
@@ -16394,7 +16487,11 @@ function submitLison(params) {
       completion_lison = {
         justCompleted: grant.justCompleted,
         releasedHp:    grant.releasedHp,
-        bonusHp:       grant.bonusHp
+        bonusHp:       grant.bonusHp,
+        // 2026-05-27 修正1：表示用「Gate 2 view」
+        displayedImmediate:        grant.displayedImmediate,
+        displayedReserved:         grant.displayedReserved,
+        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
       };
     }
 
@@ -16423,6 +16520,10 @@ function submitLison(params) {
       justCompleted: completion_lison.justCompleted,
       releasedHp: completion_lison.releasedHp,
       bonusHp: completion_lison.bonusHp,
+      // 2026-05-27 修正1：表示用「Gate 2 view」
+      displayedImmediate:        completion_lison.displayedImmediate || 0,
+      displayedReserved:         completion_lison.displayedReserved  || 0,
+      isAbsoluteMissionComplete: !!completion_lison.isAbsoluteMissionComplete,
       alreadyGranted: alreadyGranted,
       quizScore: quizScore,
       recordingUrl: saveRes.shareUrl
@@ -17145,7 +17246,11 @@ function submitKanjiKaki(params) {
           week:          grant.week,
           justCompleted: grant.justCompleted,
           releasedHp:    grant.releasedHp,
-          bonusHp:       grant.bonusHp
+          bonusHp:       grant.bonusHp,
+          // 2026-05-27 修正1：表示用「Gate 2 view」（カンジー）
+          displayedImmediate:        grant.displayedImmediate,
+          displayedReserved:         grant.displayedReserved,
+          isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
         };
       } else if (isPractice && stuLoc) {
         // 練習モード（既に上限到達）：rawHp=0 で _grantHP を呼ぶ。
@@ -18082,7 +18187,11 @@ function submitKobunSet(params) {
           week:          grant.week,
           justCompleted: grant.justCompleted,
           releasedHp:    grant.releasedHp,
-          bonusHp:       grant.bonusHp
+          bonusHp:       grant.bonusHp,
+          // 2026-05-27 修正1：表示用「Gate 2 view」（コブタン）
+          displayedImmediate:        grant.displayedImmediate,
+          displayedReserved:         grant.displayedReserved,
+          isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
         };
       } else if (isPractice && stuLoc) {
         // 練習モード（既に上限到達）：rawHp=0 で _grantHP を呼ぶ。
@@ -20040,6 +20149,30 @@ function _releaseReflectionReserves(sid, dateStr) {
 //   - 'reflection_pending' : Gate 1 ヒット時（振り返り未提出）
 //   - 'required_mission'   : Gate 2 ヒット時（Phase A 40% 保留）
 //   - ''                   : 保留なし（passthrough、または rawHp=0 の練習モード）
+// 2026-05-27 修正1：「Gate 2 のみを適用した view」を計算するヘルパー。
+// _calculateHpWithReserve が Gate 1（reflection_pending、100% 保留）を返す場合でも、
+// クライアント完了画面では「ふくちさん本来フロー（絶対ミッション達成時は全付与 / 未達成時は 60%
+// 即時付与 + 40% 保留）」の見せ方をしたい。Gate 1 のロジックは温存しつつ、表示用に Gate 2
+// view を別計算して並列で返す。
+// 戻り値: { granted, reserved, isComplete }
+//   - isComplete=true  : 絶対ミッション全達成 or 必須なし → granted=rawHp, reserved=0
+//   - isComplete=false : 未達成 → granted=floor(rawHp*0.6), reserved=rawHp-granted
+function _calculateGate2OnlyView(loc, rawHp) {
+  const base = { granted: rawHp || 0, reserved: 0, isComplete: true };
+  if (!loc) return base;
+  // Phase A 起動前は完全パススルー（達成扱い）。
+  if (_sangoToday() < REQUIRED_SYSTEM_START_DATE) return base;
+  const requiredList = _getRequiredContentsForLoc(loc);
+  if (!requiredList || requiredList.length === 0) return base;
+  if (!rawHp || rawHp <= 0) return { granted: 0, reserved: 0, isComplete: true };
+  const sid = String(loc.rowValues[COL_ID] || '').trim();
+  const completedSet = _getTodayCompletedRequired(sid, requiredList);
+  const allDone = requiredList.every(function(rc) { return !!completedSet[rc]; });
+  if (allDone) return { granted: rawHp, reserved: 0, isComplete: true };
+  const granted = Math.floor(rawHp * (1 - REQUIRED_RESERVE_RATIO));
+  return { granted: granted, reserved: rawHp - granted, isComplete: false };
+}
+
 function _calculateHpWithReserve(loc, rawHp) {
   const safe = { granted: rawHp || 0, reserved: 0, isReserveActive: false, requiredList: [], completedSet: {}, reserveReason: '' };
   if (!loc) return safe;
@@ -22716,7 +22849,11 @@ function submitKokugoImpression(params) {
         justCompleted: grant.justCompleted,
         releasedHp:    grant.releasedHp,
         bonusHp:       grant.bonusHp,
-        alreadyGranted: false
+        alreadyGranted: false,
+        // 2026-05-27 修正1：表示用「Gate 2 view」（kokugo）
+        displayedImmediate:        grant.displayedImmediate,
+        displayedReserved:         grant.displayedReserved,
+        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
       };
     }
 
@@ -22740,6 +22877,10 @@ function submitKokugoImpression(params) {
       justCompleted:  hpInfo.justCompleted,
       releasedHp:     hpInfo.releasedHp,
       bonusHp:        hpInfo.bonusHp,
+      // 2026-05-27 修正1：表示用「Gate 2 view」
+      displayedImmediate:        hpInfo.displayedImmediate || 0,
+      displayedReserved:         hpInfo.displayedReserved  || 0,
+      isAbsoluteMissionComplete: !!hpInfo.isAbsoluteMissionComplete,
       category:       category,
       charCount:      charCount
     };

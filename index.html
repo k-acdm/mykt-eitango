@@ -1770,10 +1770,18 @@
     .refl-release-hp-big { font-size: 44px; font-weight: bold; color: #c2410c; line-height: 1.1; margin: 6px 0 18px; text-shadow: 0 2px 6px rgba(194,65,12,.22); letter-spacing: .5px; }
     .refl-release-hp-big .rl-suffix { font-size: 22px; margin-left: 6px; vertical-align: 4px; }
     .refl-release-breakdown { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 12px; max-height: 42vh; overflow-y: auto; padding-right: 2px; }
-    .refl-release-section-title { font-size: 12px; color: #9a3412; font-weight: bold; text-align: left; margin: 8px 0 4px; letter-spacing: .5px; padding-left: 4px; }
-    .refl-release-bd-row { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 11px; background: rgba(255,255,255,.78); border-radius: 8px; font-size: 13px; }
-    .refl-release-bd-row .rbd-label { color: #475569; }
+    .refl-release-section-title { font-size: 13px; color: #9a3412; font-weight: bold; text-align: left; margin: 8px 0 2px; letter-spacing: .5px; padding-left: 4px; }
+    /* 2026-05-27 修正3：内訳ヘッダーのサブ行（連続日数 / 連続週数ボーナス）+ 預かり分の朱色強調 */
+    .refl-release-section-sub { font-size: 11px; color: #78350f; text-align: left; margin: 0 0 6px; padding-left: 4px; letter-spacing: .3px; opacity: .85; }
+    .refl-release-bd-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 11px; background: rgba(255,255,255,.78); border-radius: 8px; font-size: 13px; }
+    .refl-release-bd-row .rbd-label { color: #475569; display: flex; align-items: center; gap: 6px; }
     .refl-release-bd-row .rbd-value { color: #c2410c; font-weight: bold; font-size: 14px; }
+    /* 修正3：キャラクターアイコン（24px、丸枠） */
+    .refl-release-bd-row .rbd-char-icon { width: 24px; height: 24px; object-fit: cover; border-radius: 50%; border: 1.5px solid #fed7aa; flex-shrink: 0; vertical-align: middle; }
+    /* 修正3：「💀 預かり分」行（朱色系で控えめに、達成できなかった残念さを表現） */
+    .refl-release-bd-row.refl-release-reserved-row { background: rgba(254, 215, 170, .35); border: 1.5px dashed #d97706; }
+    .refl-release-bd-row.refl-release-reserved-row .rbd-label { color: #92400e; font-weight: bold; }
+    .refl-release-bd-row.refl-release-reserved-row .rbd-value { color: #92400e; opacity: .85; }
     .refl-release-close-btn { width: 100%; padding: 14px 18px; font-size: 16px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; background: linear-gradient(135deg,#16a34a,#15803d); color: #fff; box-shadow: 0 4px 12px rgba(22,163,74,.35); transition: transform .15s, box-shadow .15s; font-family: inherit; margin-top: 10px; }
     .refl-release-close-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(22,163,74,.45); }
     .refl-release-close-note { font-size: 12px; color: #65a30d; margin-top: 10px; font-weight: bold; }
@@ -2696,12 +2704,13 @@
 </div>
 
 <!-- Phase 5 / 2026-05-22：振り返り提出後の保留 HP 解放演出モーダル -->
-<!-- 2026-05-27 Phase 4-3：hpBreakdown 受信時は HP カウントアップ + 内訳 + 手動閉じるボタンの新フロー -->
+<!-- 2026-05-27 Phase 4-3 + 修正2：hpBreakdown 受信時は HP カウントアップ + 内訳 + 手動閉じるボタンの新フロー -->
 <!-- レガシー経路（hpBreakdown が無い catchup 等）は旧 _showReflectionReleaseModal の 2.8 秒自動閉じを維持 -->
+<!-- ふくちさん教育観：「努力したことを能動的に称える」方向で「振り返りを受け取ったよ！」「今日も頑張りました！💪」に変更 -->
 <div id="reflection-release-modal" class="refl-modal-overlay">
   <div class="refl-modal-card refl-release-card">
-    <div class="refl-release-title">📝 振り返りを送信したよ！</div>
-    <div class="refl-release-sub">今日も一日おつかれさま</div>
+    <div class="refl-release-title">📝 振り返りを受け取ったよ！</div>
+    <div class="refl-release-sub">今日も頑張りました！💪</div>
     <div id="refl-release-body" class="refl-release-body"></div>
   </div>
 </div>
@@ -2723,12 +2732,13 @@
   </div>
 </div>
 
-<!-- 2026-05-27 Phase 4-2：振り返り送信中オーバーレイ（マイカツ君イラスト + 警告メッセージ） -->
+<!-- 2026-05-27 Phase 4-2 + 修正4：振り返り送信中オーバーレイ（マイカツ君イラスト + 警告メッセージ） -->
 <!-- gasPost 開始時に show、応答受信または失敗時に hide -->
+<!-- 修正4：1 行目は「書く」フローと「書かない」フローで文言を出し分ける（_showReflectionSendingOverlay の引数で制御） -->
 <div id="reflection-sending-overlay" class="refl-sending-overlay">
   <div class="refl-sending-card">
     <img class="refl-sending-mascot" src="character.jpg" alt="マイカツ君">
-    <div class="refl-sending-title">現在マイカツ君がコメント送信中<span class="refl-sending-dots"></span></div>
+    <div class="refl-sending-title" id="refl-sending-title-text">現在マイカツ君がコメント送信中<span class="refl-sending-dots"></span></div>
     <div class="refl-sending-warn">
       画面を閉じると<span class="rsw-strong">今日のHPがもらえない</span>ので、<br>
       このまま閉じずに<span class="rsw-strong">待っててね</span>。
@@ -5077,13 +5087,20 @@
     }
   }
 
-  // HP獲得画面の末尾に「保留通知」「完走演出」HTML を追記する共通ヘルパー。
+  // HP獲得画面の末尾に「権利ゲット通知」「完走演出」HTML を追記する共通ヘルパー。
   // bodyEl: 結果カードを innerHTML 設定済のコンテナ
   // res:    submit レスポンス（または hpInfo）。hpGained / hpReserved / justCompleted /
-  //         releasedHp / bonusHp を期待。
+  //         releasedHp / bonusHp / displayedImmediate / displayedReserved /
+  //         isAbsoluteMissionComplete を期待。
   // 戻り値: { addedReserve, addedCompletion, bonusHp, releasedHp }
   //   呼び出し側は完走時に _totalHP += releasedHp + bonusHp を必要に応じて行うこと。
   //   （saveAttempt は server 由来 totalHP で上書きされるため不要、それ以外は加算が必要）
+  //
+  // 2026-05-27 修正1：表示用「Gate 2 view」に対応。
+  //   - 達成時：「X HP獲得の権利ゲット！」のみ（残りは表示しない）
+  //   - 未達成時：「X HP獲得の権利ゲット！」+「残りの Y HP の権利は、絶対ミッションを全部やった後にゲットできるよ」
+  //   - サーバーから displayedImmediate / displayedReserved が来なければ、クライアント側で
+  //     fullEarnedRight × 0.6 / 0.4 を計算してフォールバック
   function _appendReserveAndCompletionBlock(bodyEl, res) {
     var result = { addedReserve: false, addedCompletion: false, bonusHp: 0, releasedHp: 0 };
     if (!bodyEl || !res) return result;
@@ -5092,17 +5109,41 @@
     var releasedHp   = Number(res.releasedHp)   || 0;
     var bonusHp      = Number(res.bonusHp)      || 0;
     var hpGained     = Number(res.hpGained)     || 0;
-    if (!hpReserved && !justCompleted) return result;
+
+    // 修正1：表示用フィールドを優先採用、無ければクライアント側で 60/40 フォールバック計算
+    var fullEarnedRight = hpGained + hpReserved;
+    var displayedImmediate, displayedReserved, isMissionComplete;
+    if (res.displayedImmediate != null || res.displayedReserved != null) {
+      displayedImmediate = Number(res.displayedImmediate) || 0;
+      displayedReserved  = Number(res.displayedReserved)  || 0;
+      isMissionComplete  = (res.isAbsoluteMissionComplete !== false);
+    } else {
+      // フォールバック（古いレスポンス互換）：hpReserved > 0 → 未達成扱いで 60/40 表示
+      if (hpReserved > 0 && !justCompleted) {
+        displayedImmediate = Math.floor(fullEarnedRight * 0.6);
+        displayedReserved  = fullEarnedRight - displayedImmediate;
+        isMissionComplete  = false;
+      } else {
+        displayedImmediate = hpGained;
+        displayedReserved  = 0;
+        isMissionComplete  = true;
+      }
+    }
+
+    // 表示判定：fullEarnedRight=0 + !justCompleted なら何も追記しない
+    if (fullEarnedRight <= 0 && !justCompleted) return result;
 
     var html = '';
-    // 保留通知（完走と同時には出さない＝完走時は内訳で見せる）
-    if (hpReserved > 0 && !justCompleted) {
+    // 修正1：📦 ブロック（完走時は別途 celebration が出るため、ここでは未完走時のみ）
+    if (!justCompleted && fullEarnedRight > 0) {
       html += '<div class="reserve-notice">' +
                 '<div class="reserve-notice-icon">📦</div>' +
-                '<div class="reserve-notice-main">まずは <strong>' + hpGained.toLocaleString() + ' HP</strong> だけあげるね。</div>' +
-                '<div class="reserve-notice-sub">残りの <strong>' + hpReserved.toLocaleString() + ' HP</strong> は、<br>「絶対ミッション」を全部やった後にまとめてあげるよ。</div>' +
-              '</div>';
-      result.addedReserve = true;
+                '<div class="reserve-notice-main"><strong>' + displayedImmediate.toLocaleString() + ' HP</strong> 獲得の権利ゲット！</div>';
+      if (displayedReserved > 0) {
+        html += '<div class="reserve-notice-sub">残りの <strong>' + displayedReserved.toLocaleString() + ' HP</strong> の権利は、<br>「絶対ミッション」を全部やった後にゲットできるよ。</div>';
+      }
+      html += '</div>';
+      result.addedReserve = (displayedReserved > 0);
     }
     // 完走演出（紙吹雪 + 内訳）
     if (justCompleted) {
@@ -6834,7 +6875,11 @@
   }
   function showResult(passed, saveRes) {
     showScreen('screen-result');
-    var total = _questions.length, totalHP = saveRes?(saveRes.totalHP||0):0, streak = saveRes?(saveRes.streak||0):0, clearHP = saveRes?(saveRes.clearHP||0):0, isSession1 = (_sessionNo===1);
+    // 2026-05-27 修正1：クリアボーナス値は displayedImmediate（Gate 2 view）を優先。
+    // 旧 clearHP（grant.hpGained）は Gate 1 起動時に 0 になり「+0」と表示されていた問題を解消。
+    var total = _questions.length, totalHP = saveRes?(saveRes.totalHP||0):0, streak = saveRes?(saveRes.streak||0):0;
+    var clearHP = saveRes ? (saveRes.displayedImmediate != null ? saveRes.displayedImmediate : (saveRes.clearHP || 0)) : 0;
+    var isSession1 = (_sessionNo===1);
     if (saveRes && saveRes.totalHP) _totalHP = saveRes.totalHP;  // 次回ホーム表示のために最新HPを保持
     var msgs = ['🎉 完璧！満点合格おめでとう！','✨ 素晴らしい！全問正解！','🏆 やったね！満点クリア！'];
     document.getElementById('result-container').innerHTML =
@@ -7222,10 +7267,21 @@
     });
   }
 
-  // 2026-05-27 Phase 4-2：振り返り送信中オーバーレイの show/hide。
-  function _showReflectionSendingOverlay() {
+  // 2026-05-27 Phase 4-2 + 修正4：振り返り送信中オーバーレイの show/hide。
+  //   mode 'comment'（既定）：「現在マイカツ君がコメント送信中…」 — 通常生徒 + 特殊アカウント「書く」選択時
+  //   mode 'calculate'      ：「現在マイカツ君が獲得HPを最終計算中…」 — 特殊アカウント「書かない」選択時
+  // ふくちさん指摘：「書かない」のに「コメント送信中」と表示されるのは矛盾。1 行目だけ条件分岐。
+  function _showReflectionSendingOverlay(mode) {
     var ov = document.getElementById('reflection-sending-overlay');
-    if (ov) ov.classList.add('active');
+    if (!ov) return;
+    var titleEl = document.getElementById('refl-sending-title-text');
+    if (titleEl) {
+      var titleText = (mode === 'calculate')
+        ? '現在マイカツ君が獲得HPを最終計算中'
+        : '現在マイカツ君がコメント送信中';
+      titleEl.innerHTML = titleText + '<span class="refl-sending-dots"></span>';
+    }
+    ov.classList.add('active');
   }
   function _hideReflectionSendingOverlay() {
     var ov = document.getElementById('reflection-sending-overlay');
@@ -7276,8 +7332,41 @@
       case 'kobun':    return 'コブタン';
       case 'lison':    return '英語リスオン';
       case 'calctrial':return '計算タイムトライアル';
+      case 'kokugo_800':  return '国語長文読解';
+      case 'kokugo_1200': return '国語長文読解';
       default:         return key;
     }
+  }
+
+  // 2026-05-27 修正3：HPLog type → キャラクターアイコン HTML（24px 丸枠、images/ 配下に既存画像）
+  // 存在しないファイルは onerror で絵文字フォールバック（理科 🔬 / 社会 🗺️）
+  function _reflContentIconHtml(key) {
+    var fileMap = {
+      'eitango':    'images/rushkun-default.png',
+      'sango':      'images/sangotan-default.png',
+      'wabun1':     'images/nichiei-default.png',
+      'kiso':       'images/kisoK-default.png',
+      'kanji':      'images/kanjii-default.png',
+      'kobun':      'images/kobun-default.png',
+      'lison':      'images/lison-default.png',
+      'calctrial':  'images/trial-default.png',
+      'kokugo_800':  'images/japanin-default.png',
+      'kokugo_1200': 'images/japanin-default.png'
+    };
+    var emojiFallback = {
+      'rika':   '🔬',
+      'shakai': '🗺️'
+    };
+    var path = fileMap[key];
+    if (path) {
+      // onerror で alt 表示にフォールバック（画像が無いケース、軽量に処理）
+      return '<img class="rbd-char-icon" src="' + path + '" alt="" onerror="this.style.display=\'none\'">';
+    }
+    if (emojiFallback[key]) {
+      return '<span style="font-size:20px;line-height:1;width:24px;display:inline-block;text-align:center">' + emojiFallback[key] + '</span>';
+    }
+    // 未知キー：絵文字なし、ラベルだけ
+    return '';
   }
 
   // Phase 5 / 2026-05-22：振り返り提出後の保留 HP 解放演出。
@@ -7344,9 +7433,11 @@
     }, 2800);
   }
 
-  // 2026-05-27 Phase 4-3：新アニメ画面の本体（hpBreakdown を表示）
+  // 2026-05-27 Phase 4-3 + 修正3：新アニメ画面の本体（hpBreakdown を表示）
   //   - 今日の獲得 HP を大きく + カウントアップ表示
-  //   - カテゴリ別（ログインボーナス / 振り返り解放 / 完走ボーナス / 即時付与）+ コンテンツ別の内訳
+  //   - 「💰 獲得HPの内訳（連続日数 ○日 / 連続週数ボーナス ×N (=K²)）」ヘッダー
+  //   - ログインボーナス（10HP固定）+ コンテンツ別（キャラクターアイコン + HP）
+  //   - 絶対ミッション未達成時のみ「💀 預かり分」行を表示（reservedTotal > 0）
   //   - 手動「閉じる」ボタン（押されたら onComplete を呼ぶ）
   //   - 「画面を閉じても大丈夫です」明示
   //   - 紙吹雪 + chime SFX
@@ -7368,46 +7459,72 @@
     var compBonus   = Number(byCategory.completion_bonus)   || 0;
     var immediate   = Number(byCategory.immediate)          || 0;
 
+    // 修正3 新フィールド
+    var consecutiveDays = Number(breakdown.consecutiveDays) || 0;
+    var weekStreak      = Number(breakdown.weekStreak)      || 1;
+    var weekMultiplier  = Number(breakdown.weekMultiplier)  || 1;
+    var isAbsCompl      = (breakdown.isAbsoluteMissionComplete !== false);
+    var reservedTotal   = Number(breakdown.reservedTotal)   || 0;
+
     // 描画
     var html = '';
     html += '<div class="refl-release-hp-headline">今日の獲得HP</div>';
     html += '<div class="refl-release-hp-big"><span id="refl-release-hp-num">0</span><span class="rl-suffix">HP</span></div>';
 
+    // 修正3：ヘッダーに連続日数 + 連続週数ボーナス
+    var headerSub = '連続日数 ' + consecutiveDays + '日 / 連続週数ボーナス ×' + weekMultiplier
+                  + ' (=' + weekStreak + '²)';
+    html += '<div class="refl-release-section-title">💰 獲得HPの内訳</div>';
+    html += '<div class="refl-release-section-sub">' + headerSub + '</div>';
+
     html += '<div class="refl-release-breakdown">';
 
-    // ▼ ボーナス系（ログイン / 振り返り解放 / 完走）
-    var hasBonus = (loginBonus > 0) || (reflRelease > 0) || (resvRelease > 0) || (compBonus > 0);
-    if (hasBonus) {
-      html += '<div class="refl-release-section-title">🎁 ボーナス</div>';
-      if (loginBonus > 0) {
-        html += '<div class="refl-release-bd-row"><span class="rbd-label">🌅 ログインボーナス</span><span class="rbd-value">+' + loginBonus.toLocaleString() + ' HP</span></div>';
-      }
-      if (reflRelease > 0) {
-        html += '<div class="refl-release-bd-row"><span class="rbd-label">📝 振り返り提出による解放</span><span class="rbd-value">+' + reflRelease.toLocaleString() + ' HP</span></div>';
-      }
-      if (resvRelease > 0) {
-        html += '<div class="refl-release-bd-row"><span class="rbd-label">✨ 保留HP解放</span><span class="rbd-value">+' + resvRelease.toLocaleString() + ' HP</span></div>';
-      }
-      if (compBonus > 0) {
-        html += '<div class="refl-release-bd-row"><span class="rbd-label">🎉 絶対ミッション達成ボーナス</span><span class="rbd-value">+' + compBonus.toLocaleString() + ' HP</span></div>';
-      }
+    // ▼ ログインボーナス（固定 10HP、loginBonus > 0 のとき）
+    if (loginBonus > 0) {
+      html += '<div class="refl-release-bd-row"><span class="rbd-label">🌅 ログインボーナス</span><span class="rbd-value">' + loginBonus.toLocaleString() + ' HP</span></div>';
     }
 
-    // ▼ コンテンツ別（即時付与分）
+    // ▼ コンテンツ別（即時付与分） — キャラクターアイコン付き
     var contentKeys = Object.keys(byContent).filter(function(k){ return Number(byContent[k]) > 0; });
     if (contentKeys.length > 0) {
-      html += '<div class="refl-release-section-title">📚 コンテンツ別</div>';
       contentKeys.sort();
       for (var i = 0; i < contentKeys.length; i++) {
         var k = contentKeys[i];
         var hp = Number(byContent[k]) || 0;
-        html += '<div class="refl-release-bd-row"><span class="rbd-label">' + _reflContentNameJa(k) + '</span><span class="rbd-value">+' + hp.toLocaleString() + ' HP</span></div>';
+        var iconHtml = _reflContentIconHtml(k);
+        html += '<div class="refl-release-bd-row">' +
+                  '<span class="rbd-label">' + iconHtml + _reflContentNameJa(k) + '</span>' +
+                  '<span class="rbd-value">' + hp.toLocaleString() + ' HP</span>' +
+                '</div>';
       }
     }
 
-    // 即時付与で内訳が空のとき（コンテンツ別が出ない経路）でも immediate を表示
+    // ▼ 即時付与で内訳が空のとき（古いレスポンス互換）
     if (contentKeys.length === 0 && immediate > 0) {
-      html += '<div class="refl-release-bd-row"><span class="rbd-label">📚 今日の学習HP</span><span class="rbd-value">+' + immediate.toLocaleString() + ' HP</span></div>';
+      html += '<div class="refl-release-bd-row"><span class="rbd-label">📚 今日の学習HP</span><span class="rbd-value">' + immediate.toLocaleString() + ' HP</span></div>';
+    }
+
+    // ▼ 振り返り解放分 / 完走ボーナス / 保留解放（meta-HPLog 系、コンテンツ完了で既に表示済の分なので
+    //    内訳ヘッダー直下とは分けて、ボーナス枠として末尾に追記）
+    var hasMetaBonus = (reflRelease > 0) || (resvRelease > 0) || (compBonus > 0);
+    if (hasMetaBonus) {
+      if (reflRelease > 0) {
+        html += '<div class="refl-release-bd-row"><span class="rbd-label">📝 振り返り提出による解放</span><span class="rbd-value">' + reflRelease.toLocaleString() + ' HP</span></div>';
+      }
+      if (resvRelease > 0) {
+        html += '<div class="refl-release-bd-row"><span class="rbd-label">✨ 保留HP解放</span><span class="rbd-value">' + resvRelease.toLocaleString() + ' HP</span></div>';
+      }
+      if (compBonus > 0) {
+        html += '<div class="refl-release-bd-row"><span class="rbd-label">🎉 絶対ミッション達成ボーナス</span><span class="rbd-value">' + compBonus.toLocaleString() + ' HP</span></div>';
+      }
+    }
+
+    // ▼ 修正3：絶対ミッション未達成 + 預かり分 > 0 のときのみ「💀 預かり分」行
+    if (!isAbsCompl && reservedTotal > 0) {
+      html += '<div class="refl-release-bd-row refl-release-reserved-row">' +
+                '<span class="rbd-label">💀 「絶対ミッション」未達成によるHP預かり分</span>' +
+                '<span class="rbd-value">' + reservedTotal.toLocaleString() + ' HP</span>' +
+              '</div>';
     }
 
     html += '</div>'; // .refl-release-breakdown
@@ -7485,8 +7602,8 @@
       _logoutInProgress = false;
       return;
     }
-    // 送信中オーバーレイを表示（通常生徒の振り返り送信と UX 統一）
-    _showReflectionSendingOverlay();
+    // 2026-05-27 修正4：「書かない」フローは送信中文言を「獲得HPを最終計算中…」に切替
+    _showReflectionSendingOverlay('calculate');
     gasPost({
       action:    'skipReflection',
       studentId: _studentId
@@ -7967,7 +8084,11 @@
           hpReserved: Number(res.hpReserved) || 0,
           justCompleted: !!res.justCompleted,
           releasedHp: Number(res.releasedHp) || 0,
-          bonusHp: Number(res.bonusHp) || 0
+          bonusHp: Number(res.bonusHp) || 0,
+          // 2026-05-27 修正1：表示用「Gate 2 view」も保持
+          displayedImmediate: res.displayedImmediate,
+          displayedReserved:  res.displayedReserved,
+          isAbsoluteMissionComplete: res.isAbsoluteMissionComplete
         };
         // サーバ ok 確認後に feedback 画面へ直接遷移（旧版の 1.8 秒待ちは overlay 表示時間で代替）
         _showSangoFeedback(res.aiFeedback || null);
@@ -8087,7 +8208,11 @@
           hpReserved: Number(res.hpReserved) || 0,
           justCompleted: !!res.justCompleted,
           releasedHp: Number(res.releasedHp) || 0,
-          bonusHp: Number(res.bonusHp) || 0
+          bonusHp: Number(res.bonusHp) || 0,
+          // 2026-05-27 修正1：表示用「Gate 2 view」（写真フロー）
+          displayedImmediate: res.displayedImmediate,
+          displayedReserved:  res.displayedReserved,
+          isAbsoluteMissionComplete: res.isAbsoluteMissionComplete
         };
         _showSangoFeedback(res.aiFeedback || null);
       }).catch(function(){
@@ -8110,6 +8235,8 @@
       var delay = (Math.random() * 0.6).toFixed(2);
       confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i] + '</span>';
     }
+    // 2026-05-27 修正1：メイン HP 表示は displayedImmediate を優先（Gate 2 view、達成時=全付与/未達成時=60%）
+    var displayedHp = (extra && extra.displayedImmediate != null) ? Number(extra.displayedImmediate) : hp;
     var hpBlock = alreadyGranted
       ? '<div class="wabun1-result-already">（本日のHPは既に獲得済みです）</div>'
       : '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="sango-done-hp-num">0</span> HP 獲得！</div>';
@@ -8122,14 +8249,22 @@
         hpBlock +
       '</div>';
     showScreen('screen-sango-done');
-    if (!alreadyGranted && hp > 0) {
+    if (!alreadyGranted && displayedHp > 0) {
       var numEl = document.getElementById('sango-done-hp-num');
-      if (numEl) _wabun1AnimateHp(numEl, hp, 1000);
+      // 2026-05-27 修正1：アニメ表示も displayedImmediate に揃える
+      if (numEl) _wabun1AnimateHp(numEl, displayedHp, 1000);
     }
     try { playSfx('chime'); } catch(e){}
     // 両輪 Phase A：保留通知 + 完走演出を追記
     if (extra) {
-      var resvRes = { hpGained: hp, hpReserved: extra.hpReserved, justCompleted: extra.justCompleted, releasedHp: extra.releasedHp, bonusHp: extra.bonusHp };
+      var resvRes = {
+        hpGained: hp, hpReserved: extra.hpReserved,
+        justCompleted: extra.justCompleted, releasedHp: extra.releasedHp, bonusHp: extra.bonusHp,
+        // 2026-05-27 修正1：表示用フィールドを伝播
+        displayedImmediate: extra.displayedImmediate,
+        displayedReserved:  extra.displayedReserved,
+        isAbsoluteMissionComplete: extra.isAbsoluteMissionComplete
+      };
       try {
         var apnd = _appendReserveAndCompletionBlock(bodyEl, resvRes);
         if (apnd.addedCompletion) {
@@ -8157,7 +8292,11 @@
       hpReserved: info.hpReserved || 0,
       justCompleted: !!info.justCompleted,
       releasedHp: info.releasedHp || 0,
-      bonusHp: info.bonusHp || 0
+      bonusHp: info.bonusHp || 0,
+      // 2026-05-27 修正1：表示用フィールドを伝播
+      displayedImmediate: info.displayedImmediate,
+      displayedReserved:  info.displayedReserved,
+      isAbsoluteMissionComplete: info.isAbsoluteMissionComplete
     });
     _pendingSangoHp = null;  // 一度きりの状態なのでリセット
   }
@@ -8920,6 +9059,8 @@
     var bodyEl = document.getElementById('wabun1-result-body');
     var hp = Number(res.hpGained || 0);
     if (hp > 0) _totalHP += hp;  // 次回ホーム表示のために最新HPを追従
+    // 2026-05-27 修正1：メイン HP 表示は displayedImmediate を優先
+    var displayedHp = (res && res.displayedImmediate != null) ? Number(res.displayedImmediate) : hp;
     if (res.allCorrect) {
       var confetti = '';
       var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
@@ -8944,9 +9085,10 @@
         '</div>' +
         '<button class="btn-wide" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);margin-top:14px" onclick="showWabun1Answers()">💡 正解を表示する</button>';
       showScreen('screen-wabun1-result');
-      if (!res.alreadyGranted && hp > 0) {
+      if (!res.alreadyGranted && displayedHp > 0) {
         var numEl = document.getElementById('wabun1-hp-num');
-        if (numEl) _wabun1AnimateHp(numEl, hp, 1000);
+        // 2026-05-27 修正1：アニメ表示も displayedImmediate に揃える
+        if (numEl) _wabun1AnimateHp(numEl, displayedHp, 1000);
       }
       try { playSfx('chime'); } catch(e){}
       // 両輪 Phase A：保留通知 + 完走演出
@@ -10097,6 +10239,8 @@
       confetti += '</div>';
       var hpGained = Number(info.hpGained) || 0;
       var rawHP    = Number(info.rawHP) || 0;
+      // 2026-05-27 修正1：メイン HP 表示は displayedImmediate を優先（Gate 2 view）
+      var displayedHp = (info.displayedImmediate != null) ? Number(info.displayedImmediate) : hpGained;
       var weekStr  = info.week ? '（連続' + (info.streak || 0) + '日目・倍率 ×' + (info.week * info.week) + '）' : '';
       bodyEl.innerHTML =
         '<div class="mate-row"><img class="mate-img" src="images/kisoK-celebrate.png" alt="キソKさん"><div class="mate-bubble">'+_pickBubble(KISOK_BUBBLES.pass)+'</div></div>' +
@@ -10108,9 +10252,9 @@
         '</div>';
       // HP カウントアップ + chime
       var hpEl = document.getElementById('kiso-done-hp-num');
-      if (hpEl) _wabun1AnimateHp(hpEl, hpGained, 1000);
+      if (hpEl) _wabun1AnimateHp(hpEl, displayedHp, 1000);
       try { playSfx('chime'); } catch(e){}
-      // セッション中の合計 HP に反映
+      // セッション中の合計 HP に反映（_totalHP は実際付与 hpGained で加算、表示は Gate 2 view）
       if (typeof _totalHP === 'number') _totalHP += hpGained;
     }
 
@@ -10874,6 +11018,8 @@
   function _lisonShowDone(res) {
     var bodyEl = document.getElementById('lison-done-body');
     var hpGained = Number(res && res.hpGained) || 0;
+    // 2026-05-27 修正1：メイン HP 表示は displayedImmediate を優先（Gate 2 view）
+    var displayedHp = (res && res.displayedImmediate != null) ? Number(res.displayedImmediate) : hpGained;
     var alreadyGranted = !!(res && res.alreadyGranted);
     var quizScore = Number(res && res.quizScore) || 0;
     var def = _lisonState.levelDef || {};
@@ -10917,11 +11063,12 @@
     bodyEl.innerHTML = html;
 
     // HP カウントアップ + chime
-    if (!alreadyGranted && hpGained > 0) {
+    if (!alreadyGranted && displayedHp > 0) {
       var hpEl = document.getElementById('lison-done-hp-num');
-      if (hpEl) _wabun1AnimateHp(hpEl, hpGained, 1000);
+      // 2026-05-27 修正1：アニメ表示も displayedImmediate に揃える
+      if (hpEl) _wabun1AnimateHp(hpEl, displayedHp, 1000);
       try { playSfx('chime'); } catch(e){}
-      // セッション中の合計 HP に反映してホームに戻ったとき表示が追いつくように
+      // セッション中の合計 HP に反映（_totalHP は実 hpGained で加算）
       if (typeof _totalHP === 'number') _totalHP += hpGained;
     }
 
@@ -12341,6 +12488,8 @@
   function _showKanjiDone(hpInfo) {
     var bodyEl = document.getElementById('kanji-done-body');
     var hp = Number((hpInfo && hpInfo.hpGained) || 0);
+    // 2026-05-27 修正1：メイン HP 表示は displayedImmediate を優先（Gate 2 view）
+    var displayedHp = (hpInfo && hpInfo.displayedImmediate != null) ? Number(hpInfo.displayedImmediate) : hp;
     var alreadyAtCap = !!(hpInfo && hpInfo.alreadyAtCap);
     var isPractice   = !!(hpInfo && hpInfo.isPractice);
     var confetti = '';
@@ -12370,7 +12519,8 @@
     showScreen('screen-kanji-done');
     if (hp > 0 && !isPractice && !alreadyAtCap) {
       var numEl = document.getElementById('kanji-done-hp-num');
-      if (numEl) _wabun1AnimateHp(numEl, hp, 1000);
+      // 2026-05-27 修正1：アニメ表示も displayedImmediate に揃える（_totalHP は実 hp で加算）
+      if (numEl) _wabun1AnimateHp(numEl, displayedHp, 1000);
       _totalHP += hp;
     }
     try { playSfx('chime'); } catch(e){}
@@ -12649,6 +12799,8 @@
   function _showKobunDone(hpInfo) {
     var bodyEl = document.getElementById('kobun-done-body');
     var hp = Number((hpInfo && hpInfo.hpGained) || 0);
+    // 2026-05-27 修正1：メイン HP 表示は displayedImmediate を優先（Gate 2 view）
+    var displayedHp = (hpInfo && hpInfo.displayedImmediate != null) ? Number(hpInfo.displayedImmediate) : hp;
     var alreadyAtCap = !!(hpInfo && hpInfo.alreadyAtCap);
     var isPractice   = !!(hpInfo && hpInfo.isPractice);
     var confetti = '';
@@ -12676,7 +12828,8 @@
     showScreen('screen-kobun-done');
     if (hp > 0 && !isPractice && !alreadyAtCap) {
       var numEl = document.getElementById('kobun-done-hp-num');
-      if (numEl) _wabun1AnimateHp(numEl, hp, 1000);
+      // 2026-05-27 修正1：アニメ表示も displayedImmediate に揃える（_totalHP は実 hp で加算）
+      if (numEl) _wabun1AnimateHp(numEl, displayedHp, 1000);
       _totalHP += hp;
     }
     try { playSfx('chime'); } catch(e){}
