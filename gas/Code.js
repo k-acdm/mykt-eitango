@@ -10659,6 +10659,16 @@ function submitReflection(params) {
       console.error('[submitReflection] release/bonus 失敗（続行）', relErr);
     }
 
+    // 2026-05-27 Phase 4：振り返り受信後アニメ画面用に「今日の獲得 HP 内訳」を集計して返す。
+    // HPLog から当日（_sangoToday 基準）の sid 行を type 別に集計。
+    // 失敗時はベストエフォート（空 breakdown で続行）。
+    let hpBreakdown = null;
+    try {
+      hpBreakdown = _todayHpBreakdownForSid(sid);
+    } catch (bdErr) {
+      console.error('[submitReflection] hpBreakdown 集計失敗（続行）', bdErr);
+    }
+
     return {
       ok:           true,
       reflectionId: reflectionId,
@@ -10669,12 +10679,82 @@ function submitReflection(params) {
       releasedHp:           releasedHp,                          // reflection_pending 解放分
       justCompleted:        !!bonusInfo.justCompleted,           // 完走ボーナス発火フラグ
       completionReleasedHp: Number(bonusInfo.releasedHp) || 0,   // required_mission 解放分（通常 0）
-      completionBonusHp:    Number(bonusInfo.bonusHp) || 0       // 完走ボーナス HP
+      completionBonusHp:    Number(bonusInfo.bonusHp) || 0,      // 完走ボーナス HP
+      // 2026-05-27 Phase 4：今日獲得した全 HP の内訳（フロント受信後アニメ画面用）
+      hpBreakdown:          hpBreakdown
     };
   } catch(err) {
     console.error('[submitReflection]', err);
     return { ok: false, message: String(err) };
   }
+}
+
+// 2026-05-27 Phase 4：指定生徒の今日（_sangoToday 基準）の HPLog 行を集計し、
+// カテゴリ別 + コンテンツ別の獲得 HP 内訳を返す。
+//   - byCategory: login_bonus / reflection_release / reserve_release / completion_bonus / immediate
+//   - byContent : 即時付与分のコンテンツ別合計（eitango / sango / wabun1 / kiso / kanji / kobun / lison / calctrial 等）
+//   - total     : 全カテゴリの合計（apology_* / *_practice / hpGained<=0 は除外）
+// 振り返り送信後のアニメ画面で「今日の獲得HP」を内訳付きで表示するために使う。
+function _todayHpBreakdownForSid(sid) {
+  const out = {
+    total: 0,
+    byCategory: {
+      login_bonus: 0,
+      reflection_release: 0,
+      reserve_release: 0,
+      completion_bonus: 0,
+      immediate: 0
+    },
+    byContent: {}
+  };
+  try {
+    const sh = _ss().getSheetByName(SHEET_HPLOG);
+    if (!sh) return out;
+    const rows = _readLastNRows(sh, 500);
+    const todayStr = _sangoToday();
+    const sidNorm = String(sid || '').trim();
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (String(r[1] || '').trim() !== sidNorm) continue;
+      const ts = r[0];
+      if (!ts) continue;
+      // 教育日基準（JST 3 時区切り）
+      const t = new Date(ts);
+      t.setHours(t.getHours() - 3);
+      const ds = Utilities.formatDate(t, 'Asia/Tokyo', 'yyyy-MM-dd');
+      if (ds !== todayStr) continue;
+      const type = String(r[4] || '').trim();
+      const hp = Number(r[3]) || 0;
+      if (hp <= 0) continue;
+      // apology_* / *_practice はアニメ表示から除外（学習由来でないため）
+      if (type.indexOf('apology_') === 0) continue;
+      if (type.length >= 9 && type.substring(type.length - 9) === '_practice') continue;
+
+      out.total += hp;
+      if (type === 'login') {
+        out.byCategory.login_bonus += hp;
+      } else if (type === 'reflection_release') {
+        out.byCategory.reflection_release += hp;
+      } else if (type === 'reserve_release') {
+        out.byCategory.reserve_release += hp;
+      } else if (type === 'completion_bonus') {
+        out.byCategory.completion_bonus += hp;
+      } else {
+        out.byCategory.immediate += hp;
+        // コンテンツ別キー（type プレフィックスを正規化）
+        let key = type;
+        if (type === 'test') key = 'eitango';
+        else if (type.indexOf('kiso_')  === 0) key = 'kiso';
+        else if (type.indexOf('kanji_') === 0) key = 'kanji';
+        else if (type.indexOf('kobun_') === 0) key = 'kobun';
+        else if (type === 'calctrial' || type.indexOf('calctrial_') === 0) key = 'calctrial';
+        out.byContent[key] = (out.byContent[key] || 0) + hp;
+      }
+    }
+  } catch (e) {
+    console.error('[_todayHpBreakdownForSid]', e);
+  }
+  return out;
 }
 
 // 自分の振り返り履歴を取得（生徒画面 / 保護者画面共通、認証なし）。

@@ -1740,6 +1740,56 @@
       .refl-release-line .rl-value { font-size: 14px; }
       .refl-release-line.rl-total .rl-value { font-size: 15px; }
     }
+    /* 2026-05-27 Phase 4-1：振り返り入力中の常時表示バナー */
+    .refl-input-hp-banner { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 0 0 12px; background: linear-gradient(135deg,#fff7ed,#fed7aa); border: 2px solid #fb923c; border-radius: 12px; font-size: 14px; font-weight: bold; color: #9a3412; line-height: 1.5; box-shadow: 0 2px 8px rgba(251,146,60,.15); }
+    .refl-input-hp-banner .rib-icon { font-size: 24px; flex-shrink: 0; }
+    .refl-input-hp-banner .rib-text { flex: 1; }
+    @media (max-width: 480px) {
+      .refl-input-hp-banner { font-size: 13px; padding: 10px 12px; gap: 8px; }
+      .refl-input-hp-banner .rib-icon { font-size: 20px; }
+    }
+    /* 2026-05-27 Phase 4-2：振り返り送信中オーバーレイ（マイカツ君イラスト + 警告メッセージ） */
+    .refl-sending-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.82); z-index: 10100; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+    .refl-sending-overlay.active { display: flex; }
+    .refl-sending-card { background: #fff; border-radius: 20px; padding: 28px 24px; max-width: 420px; width: 100%; box-shadow: 0 24px 60px rgba(0,0,0,.55); text-align: center; box-sizing: border-box; }
+    .refl-sending-mascot { width: 140px; height: 140px; object-fit: cover; border-radius: 50%; margin: 0 auto 16px; display: block; border: 4px solid #fef3c7; box-shadow: 0 6px 20px rgba(0,0,0,.18); animation: reflSendingBob 1.4s ease-in-out infinite; }
+    @keyframes reflSendingBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    .refl-sending-title { font-size: 17px; font-weight: bold; color: #c2410c; margin-bottom: 10px; }
+    .refl-sending-dots::after { content: '…'; display: inline-block; width: 1.2em; text-align: left; animation: reflSendingDots 1.4s steps(4, end) infinite; }
+    @keyframes reflSendingDots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '…'; } 100% { content: ''; } }
+    .refl-sending-warn { font-size: 14px; color: #475569; line-height: 1.7; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 14px; text-align: left; }
+    .refl-sending-warn .rsw-strong { color: #c2410c; font-weight: bold; }
+    @media (max-width: 480px) {
+      .refl-sending-card { padding: 22px 18px; border-radius: 16px; }
+      .refl-sending-mascot { width: 110px; height: 110px; margin-bottom: 12px; }
+      .refl-sending-title { font-size: 15px; }
+      .refl-sending-warn { font-size: 13px; padding: 10px 12px; }
+    }
+    /* 2026-05-27 Phase 4-3：受信確認後のアニメ演出画面（HP数字カウントアップ + 内訳 + 閉じるボタン） */
+    .refl-release-hp-headline { font-size: 14px; color: #92400e; margin: 2px 0 4px; letter-spacing: .5px; }
+    .refl-release-hp-big { font-size: 44px; font-weight: bold; color: #c2410c; line-height: 1.1; margin: 6px 0 18px; text-shadow: 0 2px 6px rgba(194,65,12,.22); letter-spacing: .5px; }
+    .refl-release-hp-big .rl-suffix { font-size: 22px; margin-left: 6px; vertical-align: 4px; }
+    .refl-release-breakdown { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 12px; max-height: 42vh; overflow-y: auto; padding-right: 2px; }
+    .refl-release-section-title { font-size: 12px; color: #9a3412; font-weight: bold; text-align: left; margin: 8px 0 4px; letter-spacing: .5px; padding-left: 4px; }
+    .refl-release-bd-row { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 11px; background: rgba(255,255,255,.78); border-radius: 8px; font-size: 13px; }
+    .refl-release-bd-row .rbd-label { color: #475569; }
+    .refl-release-bd-row .rbd-value { color: #c2410c; font-weight: bold; font-size: 14px; }
+    .refl-release-close-btn { width: 100%; padding: 14px 18px; font-size: 16px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; background: linear-gradient(135deg,#16a34a,#15803d); color: #fff; box-shadow: 0 4px 12px rgba(22,163,74,.35); transition: transform .15s, box-shadow .15s; font-family: inherit; margin-top: 10px; }
+    .refl-release-close-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(22,163,74,.45); }
+    .refl-release-close-note { font-size: 12px; color: #65a30d; margin-top: 10px; font-weight: bold; }
+    /* 紙吹雪（既存 wabun1-confetti と独立） */
+    .refl-confetti { position: absolute; top: -20px; font-size: 22px; pointer-events: none; animation: reflConfettiFall 2.6s linear forwards; }
+    @keyframes reflConfettiFall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(110vh) rotate(540deg); opacity: 0; }
+    }
+    @media (max-width: 480px) {
+      .refl-release-hp-big { font-size: 36px; margin: 4px 0 14px; }
+      .refl-release-hp-big .rl-suffix { font-size: 18px; vertical-align: 3px; }
+      .refl-release-bd-row { font-size: 12px; padding: 6px 9px; }
+      .refl-release-bd-row .rbd-value { font-size: 13px; }
+      .refl-release-close-btn { padding: 12px 16px; font-size: 15px; }
+    }
     /* キャラクター紹介ページ */
     .char-intro-home-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#fff0f5,#f3e5ff); border: 2px solid #b24bf3; border-radius: 14px; box-shadow: 0 3px 12px rgba(178,75,243,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; font-size: 16px; font-weight: bold; color: #6a1b9a; }
     .char-intro-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(178,75,243,.26); }
@@ -2609,6 +2659,11 @@
       ログアウトする前に、今日やったことを振り返ろう。<br>
       何ができた？何が難しかった？明日はどうしたい？
     </div>
+    <!-- 2026-05-27 Phase 4-1：振り返り入力中の常時表示バナー -->
+    <div class="refl-input-hp-banner">
+      <span class="rib-icon">💎</span>
+      <span class="rib-text">今日の振り返りを書いて<br>今日のHPをゲットしよう！</span>
+    </div>
     <textarea id="reflection-logout-textarea" class="refl-modal-textarea"
               placeholder="例：今日は基礎計算の14級の分数を5問やりました。途中で約分を忘れてミスしたので、明日は気をつけたい。和文英訳①はちょっと難しかった..."
               maxlength="1500"
@@ -2627,12 +2682,26 @@
 </div>
 
 <!-- Phase 5 / 2026-05-22：振り返り提出後の保留 HP 解放演出モーダル -->
-<!-- _showReflectionReleaseModal() から起動、2.8 秒後に自動で onComplete を呼んで閉じる -->
+<!-- 2026-05-27 Phase 4-3：hpBreakdown 受信時は HP カウントアップ + 内訳 + 手動閉じるボタンの新フロー -->
+<!-- レガシー経路（hpBreakdown が無い catchup 等）は旧 _showReflectionReleaseModal の 2.8 秒自動閉じを維持 -->
 <div id="reflection-release-modal" class="refl-modal-overlay">
   <div class="refl-modal-card refl-release-card">
     <div class="refl-release-title">📝 振り返りを送信したよ！</div>
     <div class="refl-release-sub">今日も一日おつかれさま</div>
     <div id="refl-release-body" class="refl-release-body"></div>
+  </div>
+</div>
+
+<!-- 2026-05-27 Phase 4-2：振り返り送信中オーバーレイ（マイカツ君イラスト + 警告メッセージ） -->
+<!-- gasPost 開始時に show、応答受信または失敗時に hide -->
+<div id="reflection-sending-overlay" class="refl-sending-overlay">
+  <div class="refl-sending-card">
+    <img class="refl-sending-mascot" src="character.jpg" alt="マイカツ君">
+    <div class="refl-sending-title">現在マイカツ君がコメント送信中<span class="refl-sending-dots"></span></div>
+    <div class="refl-sending-warn">
+      画面を閉じると<span class="rsw-strong">今日のHPがもらえない</span>ので、<br>
+      このまま閉じずに<span class="rsw-strong">待っててね</span>。
+    </div>
   </div>
 </div>
 <div class="flash-overlay" id="flash-overlay">
@@ -6967,6 +7036,8 @@
     btn.disabled = true;
     btn.textContent = '送信中...';
     if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
+    // 2026-05-27 Phase 4-2：catchup フローでも送信中オーバーレイを表示（通常 logout フローと UX 統一）
+    _showReflectionSendingOverlay();
     gasPost({
       action:         'submitReflection',
       studentId:      _studentId,
@@ -6992,6 +7063,7 @@
           } catch(_e){}
         });
       } else {
+        _hideReflectionSendingOverlay();
         var em = (res && res.message) ? String(res.message) : '送信に失敗しました。電波の良い場所でもう一度お試しください';
         if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
         btn.disabled = false;
@@ -6999,6 +7071,7 @@
         onReflectionInput();
       }
     }).catch(function(err){
+      _hideReflectionSendingOverlay();
       var em = (err && err.message) ? String(err.message) : 'ネットワークエラーが発生しました';
       if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
       btn.disabled = false;
@@ -7072,6 +7145,9 @@
     btn.disabled = true;
     btn.textContent = '送信中...';
     if (msg) { msg.textContent = ''; msg.classList.remove('ok'); }
+    // 2026-05-27 Phase 4-2：送信中オーバーレイを表示（マイカツ君イラスト + 警告メッセージ）。
+    // サーバー応答を受け取るまで画面操作を物理的にブロックする狙い。
+    _showReflectionSendingOverlay();
     // submitReflection は doPost 強制（gas/Code.js 1237 行）。
     // wordCount は実質文字数（サーバー側もこの値でバリデーション）。
     gasPost({
@@ -7080,14 +7156,15 @@
       content:   content,
       wordCount: len
     }).then(function(res){
+      // 送信中オーバーレイは _showReflectionReleaseModal 内で hide（成功時は新アニメ画面へ）。
+      // 失敗時は明示的に hide。
       if (res && res.ok) {
-        // 成功 → Phase 5 release 演出を 2.8 秒挟んでから実ログアウト
-        // 演出対象がない（releasedHp=0 && !justCompleted）場合は内部で即時 onComplete を呼ぶ
-        // → 既存挙動と等価（演出なしで即ログアウト）
+        // 成功 → 新アニメ画面（手動閉じる、count-up + breakdown）を経由してログアウト
         var ov = document.getElementById('reflection-logout-modal');
         if (ov) ov.classList.remove('active');
         _showReflectionReleaseModal(res, _doLogoutFinalize);
       } else {
+        _hideReflectionSendingOverlay();
         var em = (res && res.message) ? String(res.message) : '送信に失敗しました。電波の良い場所でもう一度お試しください';
         if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
         btn.disabled = false;
@@ -7095,6 +7172,7 @@
         onReflectionInput();
       }
     }).catch(function(err){
+      _hideReflectionSendingOverlay();
       var em = (err && err.message) ? String(err.message) : 'ネットワークエラーが発生しました';
       if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
       btn.disabled = false;
@@ -7103,28 +7181,99 @@
     });
   }
 
+  // 2026-05-27 Phase 4-2：振り返り送信中オーバーレイの show/hide。
+  function _showReflectionSendingOverlay() {
+    var ov = document.getElementById('reflection-sending-overlay');
+    if (ov) ov.classList.add('active');
+  }
+  function _hideReflectionSendingOverlay() {
+    var ov = document.getElementById('reflection-sending-overlay');
+    if (ov) ov.classList.remove('active');
+  }
+
+  // 2026-05-27 Phase 4-3：HP 数字カウントアップアニメ。target 値まで duration ms でアニメ。
+  function _animateReflectionHp(el, target, duration) {
+    if (!el) return;
+    var t = Math.max(0, Number(target) || 0);
+    var d = Math.max(400, Number(duration) || 1400);
+    var start = performance.now();
+    var step = function(now){
+      var prog = Math.min(1, (now - start) / d);
+      // easeOutCubic
+      var ease = 1 - Math.pow(1 - prog, 3);
+      el.textContent = Math.floor(t * ease).toLocaleString();
+      if (prog < 1) requestAnimationFrame(step);
+      else el.textContent = t.toLocaleString();
+    };
+    el.textContent = '0';
+    requestAnimationFrame(step);
+  }
+
+  // 2026-05-27 Phase 4-3：紙吹雪エフェクト（既存 wabun1-confetti と独立）。
+  // カードの内側に絶対配置で 12 個の絵文字を散らす。CSS で 2.6 秒のアニメ。
+  function _showReflectionConfetti(parent) {
+    if (!parent) return;
+    var emojis = ['🎉','✨','⭐','💎','🌟','🎊'];
+    for (var i = 0; i < 12; i++) {
+      var s = document.createElement('span');
+      s.className = 'refl-confetti';
+      s.textContent = emojis[i % emojis.length];
+      s.style.left = (Math.random() * 100) + '%';
+      s.style.animationDelay = (Math.random() * 0.4) + 's';
+      parent.appendChild(s);
+    }
+  }
+
+  // 2026-05-27 Phase 4-3：HPLog type → 日本語コンテンツ名（フロント側、_calendarContentName と同方針）
+  function _reflContentNameJa(key) {
+    switch (key) {
+      case 'eitango':  return '英単語RUSH';
+      case 'sango':    return '三語短文';
+      case 'wabun1':   return '和文英訳①';
+      case 'kiso':     return '基礎計算';
+      case 'kanji':    return 'カンジー';
+      case 'kobun':    return 'コブタン';
+      case 'lison':    return '英語リスオン';
+      case 'calctrial':return '計算タイムトライアル';
+      default:         return key;
+    }
+  }
+
   // Phase 5 / 2026-05-22：振り返り提出後の保留 HP 解放演出。
-  // submitReflection のレスポンス（releasedHp / justCompleted / completionReleasedHp / completionBonusHp）
-  // を読み取り、付与 HP があれば 2.8 秒のモーダル表示後に onComplete を呼ぶ。
-  // 付与 HP がゼロ（テスト枠 / フラグ OFF / 当日リザーブなし / キャッチアップ等）の場合は
-  // モーダルを出さずに即 onComplete を呼ぶ（既存挙動と等価）。
-  //
-  // _totalHP の同期：演出表示時に合計分を加算してホーム画面 HP 表示と整合させる。
-  // ログアウト経路では即ログアウトのため不要だが、catchup（ホーム継続）では必須。
+  // 2026-05-27 Phase 4-3：hpBreakdown 受信時はカウントアップ + 内訳 + 手動閉じるボタンの新フロー。
+  //   - hpBreakdown が無い経路（古い catchup レスポンス等）は旧 2.8 秒自動閉じフロー（後方互換）
+  //   - 新フロー：onComplete はユーザーが「閉じる」ボタンを押した時に呼ばれる
+  //   - 「画面を閉じても大丈夫です」を明示してユーザーの不安を解消
+  //   - 紙吹雪 + chime SFX + HP 数字カウントアップで達成感を演出
   function _showReflectionReleaseModal(res, onComplete) {
     var releasedHp = Number(res && res.releasedHp) || 0;
     var compRel    = Number(res && res.completionReleasedHp) || 0;
     var bonusHp    = Number(res && res.completionBonusHp) || 0;
     var justComp   = !!(res && res.justCompleted);
-    var totalAdded = releasedHp + compRel + bonusHp;
-    if (totalAdded <= 0 && !justComp) {
-      // 演出不要：そのまま onComplete を呼んで終了
+    var breakdown  = res && res.hpBreakdown;
+    var totalAddedFromRelease = releasedHp + compRel + bonusHp;
+
+    // 送信中オーバーレイを必ず閉じる
+    _hideReflectionSendingOverlay();
+
+    // 演出不要判定：hpBreakdown が無い + リリース系もゼロ + justComp 無し → 即 onComplete
+    var hasBreakdown = breakdown && Number(breakdown.total) > 0;
+    if (!hasBreakdown && totalAddedFromRelease <= 0 && !justComp) {
       if (typeof onComplete === 'function') onComplete();
       return;
     }
-    // _totalHP 同期（ホーム継続時のために必要）
-    try { _totalHP = (Number(_totalHP) || 0) + totalAdded; } catch(_e) {}
-    // 演出本体構築
+
+    // _totalHP 同期（ホーム継続時のために必要）：今回の振り返りで解放された分を加算
+    // 既存ロジック：releasedHp + compRel + bonusHp は今回追加分なので加算（即時付与分は submit 時に既に加算済）
+    try { _totalHP = (Number(_totalHP) || 0) + totalAddedFromRelease; } catch(_e) {}
+
+    // hpBreakdown がある場合は新フロー（推奨経路）
+    if (hasBreakdown) {
+      _renderReflectionReleaseModalNew(res, breakdown, onComplete);
+      return;
+    }
+
+    // ─── 後方互換：hpBreakdown が無い古い経路（catchup 等）の旧 2.8 秒フロー ───
     var body = document.getElementById('refl-release-body');
     if (body) {
       var lines = '';
@@ -7140,8 +7289,8 @@
         }
         lines += '<div class="refl-release-bonus-note">絶対ミッション全達成おめでとう！</div>';
       }
-      if (totalAdded > 0) {
-        lines += '<div class="refl-release-line rl-total"><span class="rl-label">合計</span><span class="rl-value">+' + totalAdded.toLocaleString() + ' HP</span></div>';
+      if (totalAddedFromRelease > 0) {
+        lines += '<div class="refl-release-line rl-total"><span class="rl-label">合計</span><span class="rl-value">+' + totalAddedFromRelease.toLocaleString() + ' HP</span></div>';
       }
       body.innerHTML = lines;
     }
@@ -7152,6 +7301,114 @@
       if (ov) ov.classList.remove('active');
       if (typeof onComplete === 'function') onComplete();
     }, 2800);
+  }
+
+  // 2026-05-27 Phase 4-3：新アニメ画面の本体（hpBreakdown を表示）
+  //   - 今日の獲得 HP を大きく + カウントアップ表示
+  //   - カテゴリ別（ログインボーナス / 振り返り解放 / 完走ボーナス / 即時付与）+ コンテンツ別の内訳
+  //   - 手動「閉じる」ボタン（押されたら onComplete を呼ぶ）
+  //   - 「画面を閉じても大丈夫です」明示
+  //   - 紙吹雪 + chime SFX
+  function _renderReflectionReleaseModalNew(res, breakdown, onComplete) {
+    var body = document.getElementById('refl-release-body');
+    var ov   = document.getElementById('reflection-release-modal');
+    if (!body || !ov) {
+      if (typeof onComplete === 'function') onComplete();
+      return;
+    }
+
+    var total = Number(breakdown.total) || 0;
+    var byCategory = breakdown.byCategory || {};
+    var byContent  = breakdown.byContent  || {};
+
+    var loginBonus  = Number(byCategory.login_bonus)        || 0;
+    var reflRelease = Number(byCategory.reflection_release) || 0;
+    var resvRelease = Number(byCategory.reserve_release)    || 0;
+    var compBonus   = Number(byCategory.completion_bonus)   || 0;
+    var immediate   = Number(byCategory.immediate)          || 0;
+
+    // 描画
+    var html = '';
+    html += '<div class="refl-release-hp-headline">今日の獲得HP</div>';
+    html += '<div class="refl-release-hp-big"><span id="refl-release-hp-num">0</span><span class="rl-suffix">HP</span></div>';
+
+    html += '<div class="refl-release-breakdown">';
+
+    // ▼ ボーナス系（ログイン / 振り返り解放 / 完走）
+    var hasBonus = (loginBonus > 0) || (reflRelease > 0) || (resvRelease > 0) || (compBonus > 0);
+    if (hasBonus) {
+      html += '<div class="refl-release-section-title">🎁 ボーナス</div>';
+      if (loginBonus > 0) {
+        html += '<div class="refl-release-bd-row"><span class="rbd-label">🌅 ログインボーナス</span><span class="rbd-value">+' + loginBonus.toLocaleString() + ' HP</span></div>';
+      }
+      if (reflRelease > 0) {
+        html += '<div class="refl-release-bd-row"><span class="rbd-label">📝 振り返り提出による解放</span><span class="rbd-value">+' + reflRelease.toLocaleString() + ' HP</span></div>';
+      }
+      if (resvRelease > 0) {
+        html += '<div class="refl-release-bd-row"><span class="rbd-label">✨ 保留HP解放</span><span class="rbd-value">+' + resvRelease.toLocaleString() + ' HP</span></div>';
+      }
+      if (compBonus > 0) {
+        html += '<div class="refl-release-bd-row"><span class="rbd-label">🎉 絶対ミッション達成ボーナス</span><span class="rbd-value">+' + compBonus.toLocaleString() + ' HP</span></div>';
+      }
+    }
+
+    // ▼ コンテンツ別（即時付与分）
+    var contentKeys = Object.keys(byContent).filter(function(k){ return Number(byContent[k]) > 0; });
+    if (contentKeys.length > 0) {
+      html += '<div class="refl-release-section-title">📚 コンテンツ別</div>';
+      contentKeys.sort();
+      for (var i = 0; i < contentKeys.length; i++) {
+        var k = contentKeys[i];
+        var hp = Number(byContent[k]) || 0;
+        html += '<div class="refl-release-bd-row"><span class="rbd-label">' + _reflContentNameJa(k) + '</span><span class="rbd-value">+' + hp.toLocaleString() + ' HP</span></div>';
+      }
+    }
+
+    // 即時付与で内訳が空のとき（コンテンツ別が出ない経路）でも immediate を表示
+    if (contentKeys.length === 0 && immediate > 0) {
+      html += '<div class="refl-release-bd-row"><span class="rbd-label">📚 今日の学習HP</span><span class="rbd-value">+' + immediate.toLocaleString() + ' HP</span></div>';
+    }
+
+    html += '</div>'; // .refl-release-breakdown
+
+    // 手動閉じるボタン + 安心メッセージ
+    html += '<button id="refl-release-close-btn" class="refl-release-close-btn">画面を閉じる</button>';
+    html += '<div class="refl-release-close-note">✅ サーバーで受信確認しました。画面を閉じても大丈夫です。</div>';
+
+    body.innerHTML = html;
+
+    // モーダル表示
+    ov.classList.add('active');
+
+    // 紙吹雪
+    var card = ov.querySelector('.refl-modal-card');
+    if (card) {
+      // overflow を一時的に hidden に（紙吹雪を card 内に閉じる必要はないので body に直挿し）
+      _showReflectionConfetti(document.body);
+    }
+
+    // HP 数字カウントアップ
+    var hpEl = document.getElementById('refl-release-hp-num');
+    _animateReflectionHp(hpEl, total, 1400);
+
+    // SFX
+    try { playSfx('chime'); } catch(_e) {}
+
+    // 手動閉じるボタン
+    var btn = document.getElementById('refl-release-close-btn');
+    if (btn) {
+      btn.onclick = function(){
+        ov.classList.remove('active');
+        // 紙吹雪要素を掃除（アニメ完了済みでも残骸がある可能性）
+        try {
+          var confettiNodes = document.querySelectorAll('.refl-confetti');
+          for (var i = 0; i < confettiNodes.length; i++) {
+            confettiNodes[i].parentNode && confettiNodes[i].parentNode.removeChild(confettiNodes[i]);
+          }
+        } catch(_e) {}
+        if (typeof onComplete === 'function') onComplete();
+      };
+    }
   }
 
   // 実ログアウト処理（submit 成功時のみ呼ばれる）。旧 doLogout 後半をそのまま移植。
