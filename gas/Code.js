@@ -3707,6 +3707,211 @@ function apologyKisoBonus(opts) {
   }
 }
 
+// ========================================================================
+// 2026-05-27 緊急救済：HpReservePool date 列 Date 型化バグによる宙吊り HP 補填
+// ========================================================================
+// 背景：5/25 の Phase A / Phase 5 ゲート起動以降、_appendHpReservePool が dateStr を
+// 文字列で書き込んだつもりが Sheets の自動変換で Date 型になっていた。読み取り側
+// _releaseReflectionReserves / _markReservePoolEntriesResolved が String 比較で全行
+// skip → 32 名 / 約 1,098,520 HP が宙吊り（5/27 ふくちさん診断 diagnoseHpReservePool
+// で確証）。Phase 1/2 で修正済だが、既存の resolved=FALSE 行は別途救済が必要。
+//
+// 設計：
+//   - 全 HpReservePool 行を走査し、resolved≠TRUE の行を sid 別に集計
+//   - dryRun=true なら集計結果のみ返却（必ず先に dryRun で確認 → ふくちさん承認後に本実行）
+//   - 本実行：sid 1 件につき HPLog に 1 行（type='apology_pool_recovery'、合計額）+ Students.HP 加算
+//             + 集計対象の Pool 行を resolved=TRUE 化（resolvedAt=現在時刻）
+//   - 冪等性：PropertiesService フラグ 'apology_pool_recovery_executed' で再実行をガード
+//             force:true で上書き可能。さらに Pool 行を resolved=TRUE 化するため、たとえ
+//             フラグ無視して再実行しても二重加算は構造的に防がれる（既に解放済の行は対象外）
+//   - 日付処理：_normalizePoolDate を使い Date 型 / 文字列 / Date 風オブジェクトを吸収
+//   - 部分失敗許容：Students.HP 加算失敗 / HPLog 書込失敗時もログ出力して継続
+//
+// 関数名に日付を埋め込み（'_20260527'）して、本問題専用の 1 回限り救済関数であることを明示。
+// 過去の apologyKisoBonus / apologyWabun1Bonus とは別系統（テンプレートは流用しない、
+// Pool 由来の動的金額のため）。
+const APOLOGY_POOL_RECOVERY_TYPE          = 'apology_pool_recovery';
+const APOLOGY_POOL_RECOVERY_FLAG_KEY      = 'apology_pool_recovery_executed_20260527';
+const APOLOGY_POOL_RECOVERY_MESSAGE_TPL   = 'HpReservePool date列Date型化バグによる宙吊りHPの救済補填（{count}行解放、{reasons}）';
+
+function apologyPoolReleaseRecovery_20260527(dryRun) {
+  try {
+    // dryRun 引数：boolean / undefined / false で本実行、それ以外（true）でドライラン。
+    // 互換性のため { dryRun: true, force: true } も受け付ける（オブジェクト引数）。
+    let isDryRun = false;
+    let force = false;
+    if (dryRun === true) {
+      isDryRun = true;
+    } else if (dryRun && typeof dryRun === 'object') {
+      isDryRun = !!dryRun.dryRun;
+      force = !!dryRun.force;
+    }
+
+    const props = _props();
+    const flagged = props.getProperty(APOLOGY_POOL_RECOVERY_FLAG_KEY) === '1';
+    if (flagged && !force && !isDryRun) {
+      return {
+        ok: false,
+        alreadyExecuted: true,
+        message: '既に実行済みです（' + APOLOGY_POOL_RECOVERY_FLAG_KEY + '）。' +
+                 '再実行する場合は apologyPoolReleaseRecovery_20260527({ force: true }) を使ってください。'
+      };
+    }
+
+    // ① HpReservePool 走査
+    const sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+    if (!sh || sh.getLastRow() < 2) {
+      return { ok: true, dryRun: isDryRun, totalReleased: 0, sidCount: 0, rowCount: 0, message: 'HpReservePool が空' };
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iSid        = header.indexOf('studentId');
+    const iDate       = header.indexOf('date');
+    const iType       = header.indexOf('type');
+    const iReservedHp = header.indexOf('reservedHp');
+    const iResolved   = header.indexOf('resolved');
+    const iReason     = header.indexOf('reserveReason');
+    if (iSid < 0 || iDate < 0 || iReservedHp < 0 || iResolved < 0) {
+      return { ok: false, message: 'HpReservePool のヘッダー構造が想定外（studentId/date/reservedHp/resolved のいずれかが欠落）' };
+    }
+
+    // sid 別集計：{ totalHp, rowIndices: [1-based], byReason: {reason: hp}, byDate: {date: hp}, types: [type] }
+    const bySid = {};
+    let grandTotal = 0;
+    let grandRows = 0;
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      // resolved=TRUE はスキップ（救済対象外）
+      if (String(r[iResolved] || '').trim().toUpperCase() === 'TRUE') continue;
+      const sid = String(r[iSid] || '').trim();
+      if (!sid) continue;
+      const hp = Number(r[iReservedHp]) || 0;
+      if (hp <= 0) continue;  // ゼロ HP 行は無視（書込失敗ガード）
+      const reason = (iReason >= 0) ? String(r[iReason] || '').trim() : '';
+      const dateStr = _normalizePoolDate(r[iDate]);
+      const typeStr = (iType >= 0) ? String(r[iType] || '').trim() : '';
+
+      if (!bySid[sid]) {
+        bySid[sid] = { totalHp: 0, rowIndices: [], byReason: {}, byDate: {}, types: {} };
+      }
+      bySid[sid].totalHp += hp;
+      bySid[sid].rowIndices.push(i + 1);  // 1-based row index
+      bySid[sid].byReason[reason || '(empty)'] = (bySid[sid].byReason[reason || '(empty)'] || 0) + hp;
+      if (dateStr) bySid[sid].byDate[dateStr] = (bySid[sid].byDate[dateStr] || 0) + hp;
+      if (typeStr) bySid[sid].types[typeStr] = (bySid[sid].types[typeStr] || 0) + 1;
+      grandTotal += hp;
+      grandRows  += 1;
+    }
+
+    const sidList = Object.keys(bySid).sort();
+    const sidCount = sidList.length;
+
+    // dryRun：集計結果のみ返却
+    if (isDryRun) {
+      console.log('[apologyPoolReleaseRecovery dryRun] sidCount=' + sidCount + ' rowCount=' + grandRows + ' grandTotal=' + grandTotal);
+      sidList.forEach(function(sid){
+        const info = bySid[sid];
+        console.log('  sid=' + sid + ' totalHp=' + info.totalHp + ' rows=' + info.rowIndices.length
+          + ' byReason=' + JSON.stringify(info.byReason)
+          + ' byDate=' + JSON.stringify(info.byDate));
+      });
+      return {
+        ok: true, dryRun: true,
+        sidCount: sidCount, rowCount: grandRows, totalReleased: grandTotal,
+        bySid: bySid
+      };
+    }
+
+    // ② 本実行
+    // 安全のため、まず Pool 行を resolved=TRUE 化（HPLog/Students.HP 更新前に確定させる）
+    // ※ Pool 行が解放されていれば、たとえ後段の HPLog/Students.HP 更新が失敗しても二重加算は起きない。
+    //   代わりに「HP は付与されないが Pool は解放済」の片肺状態になり得るが、これは _logHP の HPLogWriteAttempts で検出可能。
+    const now = _nowJST();
+    let resolvedCount = 0;
+    sidList.forEach(function(sid){
+      const info = bySid[sid];
+      info.rowIndices.forEach(function(rowIdx){
+        try {
+          sh.getRange(rowIdx, iResolved + 1, 1, 2).setValues([['TRUE', now]]);
+          resolvedCount += 1;
+        } catch (e) {
+          console.error('[apologyPoolReleaseRecovery] Pool 行 resolved 化失敗', sid, rowIdx, e);
+        }
+      });
+    });
+    SpreadsheetApp.flush();
+
+    // ③ sid 別に HPLog + Students.HP 更新
+    let logSuccess = 0, logFail = 0, hpUpdateSuccess = 0, hpUpdateFail = 0;
+    const updates = [];
+    sidList.forEach(function(sid){
+      const info = bySid[sid];
+      const totalHp = info.totalHp;
+      if (totalHp <= 0) return;
+
+      // HPLog 記録
+      const reasonsStr = Object.keys(info.byReason).map(function(k){ return k + ':' + info.byReason[k]; }).join(', ');
+      const msg = APOLOGY_POOL_RECOVERY_MESSAGE_TPL
+                    .replace('{count}', String(info.rowIndices.length))
+                    .replace('{reasons}', reasonsStr);
+      try {
+        const logRes = _logHP(sid, totalHp, totalHp, APOLOGY_POOL_RECOVERY_TYPE, 5000, msg);
+        if (logRes && logRes.ok) logSuccess += 1;
+        else logFail += 1;
+      } catch (logErr) {
+        console.error('[apologyPoolReleaseRecovery] _logHP 失敗', sid, logErr);
+        logFail += 1;
+      }
+
+      // Students.HP 更新（フレッシュ読みで race 回避）
+      try {
+        const loc = _findAccountRowOnSheet(sid);
+        if (loc) {
+          const curHP = Number(loc.rowValues[COL_HP]) || 0;
+          const newHP = curHP + totalHp;
+          loc.sheet.getRange(loc.rowIdx + 1, COL_HP + 1).setValue(newHP);
+          const upd = {}; upd[COL_HP] = newHP;
+          _updateAccountCacheBySid(sid, upd);
+          hpUpdateSuccess += 1;
+          updates.push({ sid: sid, prevHP: curHP, newHP: newHP, addedHp: totalHp, rows: info.rowIndices.length });
+        } else {
+          console.error('[apologyPoolReleaseRecovery] sid 行が見つかりません（HPLog は記録済）', sid);
+          hpUpdateFail += 1;
+        }
+      } catch (hpErr) {
+        console.error('[apologyPoolReleaseRecovery] Students.HP 加算失敗（HPLog は記録済の可能性あり）', sid, hpErr);
+        hpUpdateFail += 1;
+      }
+    });
+
+    _invalidateCache('cache_ranking_last_week');
+
+    // ④ フラグセット（再実行ガード）
+    if (!force) {
+      try { props.setProperty(APOLOGY_POOL_RECOVERY_FLAG_KEY, '1'); } catch (_e) {}
+    }
+
+    console.log('[apologyPoolReleaseRecovery] DONE sidCount=' + sidCount + ' resolved=' + resolvedCount
+      + ' logSuccess=' + logSuccess + ' logFail=' + logFail
+      + ' hpUpdateSuccess=' + hpUpdateSuccess + ' hpUpdateFail=' + hpUpdateFail
+      + ' totalReleased=' + grandTotal);
+
+    return {
+      ok: true, dryRun: false, force: force,
+      sidCount: sidCount, rowCount: grandRows,
+      totalReleased: grandTotal,
+      resolvedRows: resolvedCount,
+      logSuccess: logSuccess, logFail: logFail,
+      hpUpdateSuccess: hpUpdateSuccess, hpUpdateFail: hpUpdateFail,
+      flagKey: APOLOGY_POOL_RECOVERY_FLAG_KEY,
+      updates: updates
+    };
+  } catch (err) {
+    console.error('[apologyPoolReleaseRecovery_20260527]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
 // =============================================
 // HP 分析（アバター + HP景品交換 設計用データ収集）
 // =============================================
