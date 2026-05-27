@@ -11879,6 +11879,10 @@ function _calendarContentName(type) {
   if (t.indexOf('kobun_') === 0) return 'コブタン';
   if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
   if (t.indexOf('apology_') === 0) return 'お詫びHP';
+  // 2026-05-27：両輪システム/振り返り連動の HPLog メタログを分かりやすく表示
+  if (t === 'completion_bonus')   return '絶対ミッション達成ボーナス';
+  if (t === 'reserve_release')    return '保留HP解放';
+  if (t === 'reflection_release') return '振り返り提出による解放';
   return 'その他（' + t + '）';
 }
 
@@ -19458,10 +19462,38 @@ function _ensureHpReservePoolSheet() {
   return _ensureSheetWithHeaders(SHEET_HP_RESERVE_POOL, HP_RESERVE_POOL_HEADERS, 0).sh;
 }
 
+// 2026-05-27 緊急修正：HpReservePool の date 列読み取り用の正規化ヘルパー。
+//
+// 背景：_appendHpReservePool が `sh.appendRow([..., dateStr, ...])` で 'yyyy-MM-dd' 文字列を
+// 書き込んでいたが、Sheets のデフォルト列フォーマット（Automatic）が自動的に Date 型に変換
+// していた。このため、後段の `_releaseReflectionReserves` / `_markReservePoolEntriesResolved`
+// / `_getTodayReservedHp*ForSid` が以下のような単純な String 比較で全行 skip していた：
+//   String(new Date('2026-05-26')) === 'Tue May 26 2026 ...'  ← '2026-05-26' と一致しない
+//
+// 結果として 5/25〜5/27 の間で 32 名 / 約 110 万 HP が宙に浮く事故が発生（CLAUDE.md 参照）。
+//
+// 本ヘルパーは Date オブジェクト / 'yyyy-MM-dd' / 'yyyy/MM/dd' のいずれの形式でも
+// 'yyyy-MM-dd' 文字列に正規化して返す。`_isReflectionSubmittedToday` と同パターン。
+function _normalizePoolDate(v) {
+  if (v instanceof Date) {
+    return Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy-MM-dd');
+  }
+  const s = String(v == null ? '' : v).trim();
+  const m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})/);
+  return m ? m[1] + '-' + m[2] + '-' + m[3] : '';
+}
+
 // 保留分を Pool に追記。失敗しても submit 全体は止めない（ベストエフォート）。
 // 2026-05-22 Phase 5 Step 1：reserveReason 引数追加（既定 '' で後方互換）。
 //   'reflection_pending' / 'required_mission' / 空欄（レガシー＝required_mission 互換扱い）。
 //   Step 3 で _grantHP 側が値を渡すまでは既定 '' のままなので挙動変化なし。
+//
+// 2026-05-27 緊急修正：date 列を文字列で強制保存する 2 段階書き込みパターンを採用。
+//   旧版は appendRow に dateStr をそのまま渡していたが、Sheets が 'yyyy-MM-dd' を Date 型に
+//   自動変換するため、後段の文字列比較が全行失敗していた（5/25〜5/27 で 32 名 / 約 110 万 HP の
+//   宙吊り事故）。submitReflection と同じ「appendRow で date 列を空にしておく → '@' フォーマット
+//   指定 → setValue で文字列再書込」パターンで Date 型化を確実に防ぐ。
+//   既存の Date 型行は本修正で書き換えない（読み取り側 _normalizePoolDate で吸収）。
 function _appendHpReservePool(sid, dateStr, type, rawHp, reservedHp, reserveReason) {
   try {
     if (!sid || !dateStr || !type) return { ok: false, message: 'invalid args' };
@@ -19471,7 +19503,17 @@ function _appendHpReservePool(sid, dateStr, type, rawHp, reservedHp, reserveReas
     // 8 列構造（reserveReason を末尾に追加）。シート側に列が無くてもベストエフォートで appendRow 可能：
     // _ensureSheetWithHeaders の schema migration が初回 ensure 時に列を末尾追記しているため、
     // ここでは常に 8 列分の値を渡す。
-    sh.appendRow([sid, dateStr, type, rawHp, reservedHp, 'FALSE', '', reasonNorm]);
+    // date 列（2 列目）は一旦空で append → 直後に '@' フォーマット指定 → setValue で文字列強制書込。
+    sh.appendRow([sid, '', type, rawHp, reservedHp, 'FALSE', '', reasonNorm]);
+    try {
+      const writtenRow = sh.getLastRow();
+      const dCell = sh.getRange(writtenRow, 2);  // date は B 列（2 列目）
+      dCell.setNumberFormat('@');
+      dCell.setValue(String(dateStr));
+    } catch (formatErr) {
+      // 文字列強制書込が失敗した場合は警告のみ。読み取り側 _normalizePoolDate で吸収可能なため致命的でない。
+      console.warn('[_appendHpReservePool] date 列の文字列強制書込で失敗（続行）', formatErr);
+    }
     SpreadsheetApp.flush();
     return { ok: true };
   } catch (e) {
@@ -19502,7 +19544,9 @@ function _markReservePoolEntriesResolved(sid, dateStr) {
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
       if (String(r[0] || '').trim() !== sid) continue;
-      if (String(r[1] || '').trim() !== dateStr) continue;
+      // 2026-05-27 緊急修正：r[1]（date 列）が Sheets の自動変換で Date 型になっている場合があるため
+      // _normalizePoolDate で 'yyyy-MM-dd' 文字列に正規化してから比較する（旧 String() 直比較は全行 skip していた）。
+      if (_normalizePoolDate(r[1]) !== dateStr) continue;
       if (String(r[5] || '').trim().toUpperCase() === 'TRUE') continue;
       targets.push(i + 1);  // 1-based row index
       const hp = Number(r[4]) || 0;
@@ -19556,7 +19600,9 @@ function _releaseReflectionReserves(sid, dateStr) {
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
       if (String(r[0] || '').trim() !== sidNorm) continue;
-      if (String(r[1] || '').trim() !== ds) continue;
+      // 2026-05-27 緊急修正：r[1]（date 列）が Sheets の自動変換で Date 型になっている場合があるため
+      // _normalizePoolDate で 'yyyy-MM-dd' 文字列に正規化してから比較する（旧 String() 直比較は全行 skip していた）。
+      if (_normalizePoolDate(r[1]) !== ds) continue;
       if (String(r[5] || '').trim().toUpperCase() === 'TRUE') continue;
       const reason = String(r[iReason] || '').trim();
       if (reason !== 'reflection_pending') continue;  // 必ず reflection_pending のみ
@@ -19842,7 +19888,8 @@ function _getTodayReservedHpByReasonForSid(sid) {
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
       if (String(r[0] || '').trim() !== sid) continue;
-      if (String(r[1] || '').trim() !== todayStr) continue;
+      // 2026-05-27 緊急修正：date 列の Date 型自動変換に対応（_normalizePoolDate で文字列正規化）。
+      if (_normalizePoolDate(r[1]) !== todayStr) continue;
       if (String(r[5] || '').trim().toUpperCase() === 'TRUE') continue;
       const hp = Number(r[4]) || 0;
       const reason = (iReason >= 0) ? String(r[iReason] || '').trim() : '';
@@ -19869,7 +19916,8 @@ function _getTodayReservedHpForSid(sid) {
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
       if (String(r[0] || '').trim() !== sid) continue;
-      if (String(r[1] || '').trim() !== todayStr) continue;
+      // 2026-05-27 緊急修正：date 列の Date 型自動変換に対応（_normalizePoolDate で文字列正規化）。
+      if (_normalizePoolDate(r[1]) !== todayStr) continue;
       if (String(r[5] || '').trim().toUpperCase() === 'TRUE') continue;
       total += Number(r[4]) || 0;
     }
