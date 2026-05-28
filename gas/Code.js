@@ -10991,6 +10991,42 @@ function _todayHpBreakdownForSid(sid) {
       } catch (poolErr) {
         console.error('[_todayHpBreakdownForSid] reservedTotal 取得失敗（0 維持）', poolErr);
       }
+      // 2026-05-28：HpReservePool の当日 resolved=TRUE で reserveReason='reflection_pending' のレコードを
+      // type 別に集計し、byContent に加算する。これにより振り返り提出で解放された保留分が
+      // 「英単語RUSH 50HP / 三語短文 30HP」のようにコンテンツ別に表示される（旧「振り返り提出による解放 一括」を解消）。
+      // resolvedAt が当日（教育日基準）のレコードのみを拾うことで、過去日付の reflection_pending（昨日キャッチアップで解放分）と混在しない。
+      try {
+        const poolSh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+        if (poolSh && poolSh.getLastRow() >= 2) {
+          const poolValues = poolSh.getDataRange().getValues();
+          const poolHeader = poolValues[0];
+          const iReason = poolHeader.indexOf('reserveReason');
+          const todayStr0 = _sangoToday();
+          for (let pi = 1; pi < poolValues.length; pi++) {
+            const pr = poolValues[pi];
+            if (String(pr[0] || '').trim() !== sidNorm) continue;
+            if (String(pr[5] || '').trim().toUpperCase() !== 'TRUE') continue;  // 未解放はスキップ
+            if (iReason >= 0 && String(pr[iReason] || '').trim() !== 'reflection_pending') continue;
+            // resolvedAt 列（r[6]）が当日かチェック。Date 型 / 文字列のどちらでも安全に処理。
+            const rAt = pr[6];
+            if (!rAt) continue;
+            let rAtStr;
+            try {
+              const d = new Date(rAt);
+              d.setHours(d.getHours() - 3);
+              rAtStr = Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+            } catch (_eAt) { continue; }
+            if (rAtStr !== todayStr0) continue;
+            const contentKey = _normalizeHpReservePoolTypeForContent(pr[2]);
+            const reservedHp = Number(pr[4]) || 0;
+            if (contentKey && reservedHp > 0) {
+              out.byContent[contentKey] = (out.byContent[contentKey] || 0) + reservedHp;
+            }
+          }
+        }
+      } catch (poolByContentErr) {
+        console.error('[_todayHpBreakdownForSid] HpReservePool type 別集計失敗（byContent への加算なしで続行）', poolByContentErr);
+      }
     }
 
     const sh = _ss().getSheetByName(SHEET_HPLOG);
@@ -20058,6 +20094,25 @@ function _markReservePoolEntriesResolved(sid, dateStr) {
   }
 }
 
+// 2026-05-28：HpReservePool の type 列を、振り返りアニメ画面の byContent キーに正規化する共通ヘルパー。
+// 戻り値が null のとき：そのレコードはコンテンツ別集計の対象外（required_mission / login / apology_* など、
+// 学習コンテンツに由来しないシステム枠）。
+// マッピングは index.html の _reflContentNameJa / _reflContentIconHtml と整合させる。
+function _normalizeHpReservePoolTypeForContent(type) {
+  const t = String(type || '').trim();
+  if (!t) return null;
+  if (t === 'test') return 'eitango';
+  if (t.indexOf('kiso_')   === 0) return 'kiso';
+  if (t.indexOf('kanji_')  === 0) return 'kanji';
+  if (t.indexOf('kobun_')  === 0) return 'kobun';
+  if (t.indexOf('kokugo_') === 0) return 'kokugo';
+  if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return 'calctrial';
+  // sango / wabun1 / lison / shakai / rika はそのまま byContent キーとして使う
+  if (t === 'sango' || t === 'wabun1' || t === 'lison' || t === 'shakai' || t === 'rika') return t;
+  // required_mission / login / apology_* / reserve_release / completion_bonus / reflection_release などはコンテンツ別表示の対象外
+  return null;
+}
+
 // 指定 (sid, dateStr) の reflection_pending 保留分だけを解放し、Students.HP に加算 + HPLog 記録。
 // Phase 5 / 2026-05-22 で新設。
 //
@@ -20069,7 +20124,8 @@ function _markReservePoolEntriesResolved(sid, dateStr) {
 //     マイカツ君 Stage 計算 / ランキング集計には影響しない、apology_* と同方針）
 //   - Students.HP は _findAccountRowOnSheet でフレッシュ読みしてから加算（race 回避）
 //
-// 戻り値: { ok, releasedHp, count }
+// 戻り値: { ok, releasedHp, count, releasedByType }
+//   - releasedByType: { eitango: 50, sango: 30, ... } のコンテンツ別解放額（2026-05-28 追加、UI 内訳分解用）
 function _releaseReflectionReserves(sid, dateStr) {
   try {
     const sidNorm = String(sid || '').trim();
@@ -20087,6 +20143,7 @@ function _releaseReflectionReserves(sid, dateStr) {
     }
     const targets = [];
     let totalReleased = 0;
+    const releasedByType = {};  // 2026-05-28：コンテンツ別解放額（UI 内訳分解用）
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
       if (String(r[0] || '').trim() !== sidNorm) continue;
@@ -20097,9 +20154,15 @@ function _releaseReflectionReserves(sid, dateStr) {
       const reason = String(r[iReason] || '').trim();
       if (reason !== 'reflection_pending') continue;  // 必ず reflection_pending のみ
       targets.push(i + 1);
-      totalReleased += Number(r[4]) || 0;
+      const reservedHp = Number(r[4]) || 0;
+      totalReleased += reservedHp;
+      // type 列（r[2]）→ コンテンツキーに正規化して集計
+      const contentKey = _normalizeHpReservePoolTypeForContent(r[2]);
+      if (contentKey && reservedHp > 0) {
+        releasedByType[contentKey] = (releasedByType[contentKey] || 0) + reservedHp;
+      }
     }
-    if (targets.length === 0) return { ok: true, releasedHp: 0, count: 0 };
+    if (targets.length === 0) return { ok: true, releasedHp: 0, count: 0, releasedByType: {} };
 
     // 一括 resolved=TRUE 化
     const now = _nowJST();
@@ -20127,10 +20190,10 @@ function _releaseReflectionReserves(sid, dateStr) {
         console.error('[_releaseReflectionReserves] Students.HP 加算失敗（HPLog は記録済み）', hpErr);
       }
     }
-    return { ok: true, releasedHp: totalReleased, count: targets.length };
+    return { ok: true, releasedHp: totalReleased, count: targets.length, releasedByType: releasedByType };
   } catch (e) {
     console.error('[_releaseReflectionReserves]', e);
-    return { ok: false, releasedHp: 0, count: 0, message: String(e) };
+    return { ok: false, releasedHp: 0, count: 0, releasedByType: {}, message: String(e) };
   }
 }
 

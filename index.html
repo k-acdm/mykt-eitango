@@ -2667,10 +2667,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260526-2313"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260528-1546"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260526-2313">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260526-2313"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260528-1546">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260528-1546"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7454,7 +7454,7 @@
     var byContent  = breakdown.byContent  || {};
 
     var loginBonus  = Number(byCategory.login_bonus)        || 0;
-    var reflRelease = Number(byCategory.reflection_release) || 0;
+    // 2026-05-28：reflection_release は廃止（コンテンツ別に分解されて byContent に加算されるため）
     var resvRelease = Number(byCategory.reserve_release)    || 0;
     var compBonus   = Number(byCategory.completion_bonus)   || 0;
     var immediate   = Number(byCategory.immediate)          || 0;
@@ -7504,13 +7504,13 @@
       html += '<div class="refl-release-bd-row"><span class="rbd-label">📚 今日の学習HP</span><span class="rbd-value">' + immediate.toLocaleString() + ' HP</span></div>';
     }
 
-    // ▼ 振り返り解放分 / 完走ボーナス / 保留解放（meta-HPLog 系、コンテンツ完了で既に表示済の分なので
+    // ▼ 完走ボーナス / 保留解放（meta-HPLog 系、コンテンツ完了で既に表示済の分なので
     //    内訳ヘッダー直下とは分けて、ボーナス枠として末尾に追記）
-    var hasMetaBonus = (reflRelease > 0) || (resvRelease > 0) || (compBonus > 0);
+    // 2026-05-28：「📝 振り返り提出による解放」一括行は廃止。GAS 側で byContent に
+    // HpReservePool の reflection_pending 解放分が type 別に加算されるため、上の
+    // 「コンテンツ別」セクションで既にコンテンツ別に分解表示済み（生徒の努力が見える）。
+    var hasMetaBonus = (resvRelease > 0) || (compBonus > 0);
     if (hasMetaBonus) {
-      if (reflRelease > 0) {
-        html += '<div class="refl-release-bd-row"><span class="rbd-label">📝 振り返り提出による解放</span><span class="rbd-value">' + reflRelease.toLocaleString() + ' HP</span></div>';
-      }
       if (resvRelease > 0) {
         html += '<div class="refl-release-bd-row"><span class="rbd-label">✨ 保留HP解放</span><span class="rbd-value">' + resvRelease.toLocaleString() + ' HP</span></div>';
       }
@@ -14056,7 +14056,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260526-2313</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260528-1546</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
