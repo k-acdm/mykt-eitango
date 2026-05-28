@@ -1,0 +1,3 @@
+# Git hooks: shebang スクリプトは必ず LF 改行（Git Bash の `#!/bin/sh` が CRLF だと
+# 起動失敗するため）。2026-05-28 pre-commit hook 新設時に追加。
+.githooks/* text eol=lf
