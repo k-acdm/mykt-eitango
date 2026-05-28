@@ -1183,6 +1183,84 @@
     @media (prefers-reduced-motion: reduce) {
       .login-mascot { animation: none; }
     }
+
+    /* ===== ニックネーム登録画面（screen-nickname、2026-05-28 刷新） =====
+       ログイン画面（.login-body / .login-card / .login-mascot）のスタイルを流用しつつ、
+       タイトルが長文（2 行）なのでフォントサイズを 30→22px に縮小。入力欄は中央寄せで
+       子供が見やすく、ボタンは全幅のピンク〜紫グラデで全体トーンと統一。 */
+    .nickname-title {
+      font-size: 22px;
+      letter-spacing: 1px;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+    .nickname-subtitle {
+      color: #777;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 22px;
+    }
+    .nickname-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .nickname-row input {
+      flex: 1;
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 18px;
+      padding: 14px;
+      border: 2px solid #f0d9ff;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .nickname-row input:focus {
+      outline: none;
+      border-color: #b24bf3;
+    }
+    .btn-login-nickname {
+      display: block;
+      width: 100%;
+      padding: 14px 22px;
+      background: linear-gradient(135deg,#ff6ea0,#b24bf3);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(178,75,243,.4);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn-login-nickname:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 22px rgba(178,75,243,.5);
+    }
+    .btn-login-nickname:active {
+      transform: translateY(0);
+    }
+    @media (max-width: 480px) {
+      .nickname-title {
+        font-size: 18px;
+        letter-spacing: 0.5px;
+        line-height: 1.55;
+        margin-bottom: 12px;
+      }
+      .nickname-subtitle {
+        font-size: 12px;
+        margin-bottom: 18px;
+      }
+      .nickname-row input {
+        font-size: 16px;
+        padding: 12px;
+      }
+      .btn-login-nickname {
+        padding: 13px 18px;
+        font-size: 15px;
+      }
+    }
     /* ===== ダッシュボード各セクション ===== */
     .dash-section { margin-top: 16px; }
     .dash-section:first-child { margin-top: 0; }
@@ -2667,10 +2745,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260528-1546"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260528-1652"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260528-1546">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260528-1546"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260528-1652">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260528-1652"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -2876,13 +2954,36 @@
   </div>
 </div>
 <div id="screen-nickname" class="screen">
-  <div class="top-card">
-    <h2>マイ活アプリ</h2>
-    <p class="sub">ようこそ！ニックネームを登録してください</p>
-    <p style="color:#888;margin-bottom:16px">ランキング等はニックネームで表示されます（あとで変更できます）</p>
-    <input class="full" id="nickname-input" placeholder="例：タロウ、はなちゃん" maxlength="20"/>
-    <button class="btn-wide" onclick="doSaveNickname()">✅ 登録して学習をはじめる</button>
-    <div id="nickname-msg" class="msg"></div>
+  <!-- 2026-05-28：ログイン画面と同じ世界観に統一（オレンジ〜ピンクグラデ + マイ活キャラ装飾）。
+       初回ログイン時の「ようこそ」感を演出。マスコットは控えめに 10 体（ログイン画面は 20 体）に
+       絞り、配置はカードから離れた外周中心（中央 mascot-7〜12 は省略）にして、中央のカードの
+       視認性を最優先にしている。 -->
+  <div class="login-body">
+    <img class="login-mascot mascot-1"  src="images/rushkun-default.png"   alt=""/>
+    <img class="login-mascot mascot-2"  src="images/sangotan-default.png"  alt=""/>
+    <img class="login-mascot mascot-5"  src="images/lison-default.png"     alt=""/>
+    <img class="login-mascot mascot-6"  src="images/kanjii-default.png"    alt=""/>
+    <img class="login-mascot mascot-13" src="images/rika-default.png"      alt=""/>
+    <img class="login-mascot mascot-14" src="images/shakaneki-default.png" alt=""/>
+    <img class="login-mascot mascot-15" src="images/japanin-default.png"   alt=""/>
+    <img class="login-mascot mascot-16" src="images/trial-default.png"     alt=""/>
+    <img class="login-mascot mascot-19" src="images/nichiei-default.png"   alt=""/>
+    <img class="login-mascot mascot-20" src="images/kisoK-default.png"     alt=""/>
+
+    <div class="flex-fill">
+      <div class="login-card">
+        <h1 class="login-title nickname-title">ようこそ、マイ活あぷりへ！🎉<br>まずはニックネームを決めよう</h1>
+        <p class="login-subtitle nickname-subtitle">ランキング等はニックネームで表示されます<br>（あとで変更できます）</p>
+        <div class="nickname-row">
+          <input id="nickname-input" placeholder="例：タロウ⚽、はなちゃん🌸" maxlength="20"/>
+        </div>
+        <button class="btn-login-nickname" onclick="doSaveNickname()">✨ 登録して学習をはじめる</button>
+        <div id="nickname-msg" class="msg"></div>
+      </div>
+    </div>
+    <div class="login-logo-wrap">
+      <img class="login-logo" src="./logo.png" alt="春日部アカデミー"/>
+    </div>
   </div>
 </div>
 <div id="screen-welcome" class="screen">
@@ -14056,7 +14157,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260528-1546</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260528-1652</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
