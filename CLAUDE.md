@@ -65,6 +65,12 @@
 - **★ インフラ完備の場合、機能拡張は劇的に早く完了できる**（2026-05-08 確立）: 6 キャラ登場演出強化が事前見積もり 4-6 時間 → 実績**約 20 分で実装完了**（コミット/push 含めて 1 時間 15 分）。共通ヘルパー `_setContentMascot`、共通 CSS `.mate-row / .mate-img / .mate-bubble`、5 キャラ × 4 mood 画像配置がすべて事前に整備されていた結果、新機能追加は「呼び出し点を増やす + ID 付与する」だけで済んだ。**設計時のインフラ整備投資の重要性**を示す好例。今後の新キャラ・新コンテンツ追加でも、共通基盤（ヘルパー / CSS / 画像規約）を最初に固めてから個別実装に進めば、後の拡張が劇的に楽になる
 - **★ 演出ランダム化と操作指示は競合する、指示の正確さを優先**（2026-05-08 確立）: キャラ演出のランダム化（マンネリ防止）と、画面初回入場時の操作必須指示（「番号は丸囲み数字で…」「3 問とも答えてから次へ」等）は同じ吹き出し UI を奪い合う。**教育コンテンツでは指示の正確さが演出より優先**。具体例：基礎計算 `screen-kiso-problem` の指示用マスコット（番号書式の必須指示）はランダム化対象から除外。リスオン `step4` の点数依存メッセージ（既存ロジック）は温存し、画像のみ動的切替に止める。**「演出は装飾的場面で、指示は必須場面で」のすみ分けを設計時に決める**
 - **★ index.html を変更したら commit/push 前に必ず `node scripts/stamp-version.js` を実行**（2026-05-22 確立）: 生徒側ブラウザのキャッシュバスティング自動化の運用ルール。`index.html` を編集した Claude Code セッションでは、ステージング前に必ず本スクリプトを 1 回実行する。スクリプトは ① 外部 JS/CSS（MathJax / Cropper 等）の `?v=` を `YYYYMMDD-HHMM` (JST) で書き換え、② 左下バージョンバッジ `<span id="app-version">` の中身を同値で書き換える。冪等。手動運用は不要だがふくちさん側でも `node scripts/stamp-version.js` で同じことができる。**ふくちさんの 4 ステップ運用は変更なし**（Claude Code 側の責務として完結）。`gas/Code.js` のみ変更でフロント未変更の場合は実行不要
+- **★ pre-commit hook で stamp-version 自動実行**（2026-05-28 確立）: 上記 stamp 実行忘れによる「バージョンが古いまま」事故を構造的に防ぐため、`.githooks/pre-commit` を新設。**初回セットアップで各 PC（自宅PC・塾PC）で 1 回だけ以下を実行する必要がある**：
+  ```bash
+  cd C:\Users\Manager\mykt-eitango
+  git config core.hooksPath .githooks
+  ```
+  これで以降、`index.html` を含む commit のたびに自動で `scripts/stamp-version.js` が走り、stamp 後の `index.html` が再 stage に追加される。Git for Windows 同梱の Git Bash で `#!/bin/sh` が動作するため、PowerShell からの `git commit` でも自動発火する。手動 `node scripts/stamp-version.js` は引き続き可（冪等）。`gas/Code.js` のみの commit では発火しない
 - **★ HPLog の rawHP 列の意味変更**（2026-05-20、Phase 3 Step 5-2/6-1/6-2 で発生）: sango / wabun1 / lison の 3 type のみ rawHP 列値が変更。
   - 過去：実 HP（baseHp × week² 倍率込み）
   - 新規：素点 HP（baseHp = 200 / 100 等の固定値）
