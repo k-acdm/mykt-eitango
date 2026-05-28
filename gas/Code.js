@@ -41,6 +41,18 @@ const SHEET_TEACHER_ACTIONS   = 'TeacherActions';
 // 専用シート（基盤機能：「やったら得 + やらないと損」の両輪を作るためのデータ層）。
 // _ensureHpReservePoolSheet() で初回 _appendHpReservePool 呼び出し時に自動作成される。
 const SHEET_HP_RESERVE_POOL   = 'HpReservePool';
+// 2026-05-28：アプリ内アンケート（単一選択、2〜4 択）。生徒の声を集めて機能開発の優先順位や
+// 満足度把握に活用する。回答すると HP がもらえることで回答率を高める設計。
+//   - Surveys：アンケート定義（surveyId / question / option1〜4 / active / hpReward / createdAt）
+//   - SurveyResponses：回答記録（surveyId / studentId / selectedOption / selectedText / timestamp）
+//   - 1 人 1 アンケート 1 回（冪等性は SurveyResponses 検索で担保）
+//   - HP は即時固定（ログインボーナスと同じく applyWeekMultiplier:false / applyReserveSystem:false）
+const SHEET_SURVEYS          = 'Surveys';
+const SHEET_SURVEY_RESPONSES = 'SurveyResponses';
+const SURVEYS_HEADERS          = ['surveyId', 'question', 'option1', 'option2', 'option3', 'option4', 'active', 'hpReward', 'createdAt'];
+const SURVEY_RESPONSES_HEADERS = ['surveyId', 'studentId', 'selectedOption', 'selectedText', 'timestamp'];
+const SURVEY_REWARD_TYPE       = 'survey_reward';
+const SURVEY_REWARD_HP_DEFAULT = 50;
 
 // LINE 通知 Phase B-1（2026-05-16）：LINE Login OAuth + Messaging API 連携用列。
 // Students / SpecialAccounts の両シートに追加（ensureLineNotifyColumns() で 1 回手動投入）。
@@ -1147,6 +1159,14 @@ function doGet(e) {
       //   markBirthdayGreetShown : サプライズ画面の「ありがとう」ボタン押下で年フラグを書き込む。
       else if (action === 'checkBirthdayGreet')       result = checkBirthdayGreet(params);
       else if (action === 'markBirthdayGreetShown')   result = markBirthdayGreetShown(params);
+      // アンケート機能（2026-05-28 新設、生徒の声収集 + 回答 HP 報酬）
+      //   - getActiveSurveyForStudent : 生徒画面用、ログイン後ポップアップで使う（未回答の active アンケートを返す）
+      //   - listSurveys / getSurveyResults / setSurveyActive : admin 認証必須、管理画面の一覧 / 結果 / 公開停止用
+      //   - createSurvey / submitSurveyResponse は副作用が大きいので doPost 側のみに登録
+      else if (action === 'getActiveSurveyForStudent') result = getActiveSurveyForStudent(params);
+      else if (action === 'listSurveys')               result = listSurveys(params);
+      else if (action === 'getSurveyResults')          result = getSurveyResults(params);
+      else if (action === 'setSurveyActive')           result = setSurveyActive(params);
       // アバター機能 Phase α（2026-05-15 新規）：ベース選択 + 所持機能のみ。
       //   getAvatarState : ホーム表示 / アバターコーナー画面で呼ぶ（base + items + equipped + nickname）。
       //   saveAvatarBase : アバター選択画面の「決定」押下で呼ぶ（base のみ書き換え）。
@@ -1304,6 +1324,11 @@ function doPost(e) {
     else if (action === 'submitCalcTrialResult')     result = submitCalcTrialResult(params);
     // 今日のマイ活 振り返り：ログアウト前の必須記録（POST 強制、Reflections シートに 1 行記録）
     else if (action === 'submitReflection')          result = submitReflection(params);
+    // 2026-05-28 アンケート機能：HP 付与と SurveyResponses への書き込みがあるため POST 強制（誤実行 / 二重回答防止）。
+    //   submitSurveyResponse : 生徒の回答（冪等チェック後 +50HP 即時付与）
+    //   createSurvey         : admin 認証必須、Surveys シートに新規行追加
+    else if (action === 'submitSurveyResponse')      result = submitSurveyResponse(params);
+    else if (action === 'createSurvey')              result = createSurvey(params);
     // 2026-05-27 Phase 5：特殊アカウント（test/teacher/invited）の「振り返りを書かない」選択用 API
     //   POST 強制（誤実行防止）。Pool の当日未解放分を全付与 + HPLog に reflection_skip_release で記録。
     else if (action === 'skipReflection')            result = skipReflection(params);
@@ -24664,3 +24689,388 @@ function _getRishaDayDetail(params, subject) {
 }
 function getRikaDayDetail(params)   { return _getRishaDayDetail(params, 'rika'); }
 function getShakaiDayDetail(params) { return _getRishaDayDetail(params, 'shakai'); }
+
+// =====================================================================
+// アンケート機能（2026-05-28 新設）
+//   - Surveys / SurveyResponses 2 シートを使う
+//   - HP 付与は _grantHP({ applyWeekMultiplier:false, applyReserveSystem:false, checkCompletion:false })
+//     で即時固定（ログインボーナス・お詫び HP と同じパターン）
+//   - 冪等性は SurveyResponses での (surveyId, studentId) 重複チェックで担保
+//   - 1 日 1 回制御の「あとで答える」は localStorage 側で（GAS は未回答なら毎回返す）
+// =====================================================================
+
+// シート初期化（GAS エディタから 1 回限り手動実行用、冪等）。
+// 自動的に submitSurveyResponse / createSurvey などからも内部で呼ぶので、
+// 明示的な実行は必須ではないが、ふくちさん側で初回セットアップ確認用に提供。
+function ensureSurveysSheets() {
+  try {
+    const s1 = _ensureSheetWithHeaders(SHEET_SURVEYS,          SURVEYS_HEADERS,          50);
+    const s2 = _ensureSheetWithHeaders(SHEET_SURVEY_RESPONSES, SURVEY_RESPONSES_HEADERS, 500);
+    return { ok: true, created: { surveys: s1.created, responses: s2.created } };
+  } catch (err) {
+    console.error('[ensureSurveysSheets]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// surveyId 採番：'survey_YYYYMMDD_NNN'（NNN は当日連番、3 桁ゼロ埋め）
+function _generateSurveyId() {
+  const today = _sangoToday(); // 'yyyy-MM-dd'
+  const dateKey = today.replace(/-/g, '');
+  try {
+    const sh = _ensureSheetWithHeaders(SHEET_SURVEYS, SURVEYS_HEADERS, 50).sh;
+    if (sh.getLastRow() < 2) {
+      return 'survey_' + dateKey + '_001';
+    }
+    const values = sh.getDataRange().getValues();
+    const prefix = 'survey_' + dateKey + '_';
+    let maxSeq = 0;
+    for (let i = 1; i < values.length; i++) {
+      const sid = String(values[i][0] || '').trim();
+      if (sid.indexOf(prefix) !== 0) continue;
+      const seq = parseInt(sid.substring(prefix.length), 10);
+      if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+    }
+    const next = maxSeq + 1;
+    return prefix + String(next).padStart(3, '0');
+  } catch (_e) {
+    // フォールバック：タイムスタンプ
+    return 'survey_' + dateKey + '_' + new Date().getTime();
+  }
+}
+
+// 指定生徒がこの surveyId に既に回答済みか
+function _hasStudentRespondedToSurvey(sid, surveyId) {
+  try {
+    const sh = _ss().getSheetByName(SHEET_SURVEY_RESPONSES);
+    if (!sh || sh.getLastRow() < 2) return false;
+    const values = sh.getDataRange().getValues();
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][0] || '').trim() !== surveyId) continue;
+      if (String(values[i][1] || '').trim() !== sid) continue;
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error('[_hasStudentRespondedToSurvey]', e);
+    return false;  // エラー時は再送許可（HP 二重付与は _grantHP 側で発生しないため OK）
+  }
+}
+
+// Surveys シートの全行を { surveyId, question, options[], active, hpReward, createdAt } 配列で返すヘルパー。
+// options は option1〜4 のうち non-empty のみを順序保持で取得。
+function _readAllSurveys() {
+  const sh = _ss().getSheetByName(SHEET_SURVEYS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    const surveyId = String(r[0] || '').trim();
+    if (!surveyId) continue;
+    const opts = [];
+    for (let k = 2; k <= 5; k++) {  // option1..option4
+      const v = String(r[k] || '').trim();
+      if (v) opts.push(v);
+    }
+    out.push({
+      surveyId:  surveyId,
+      question:  String(r[1] || ''),
+      options:   opts,
+      active:    String(r[6] || '').toString().toUpperCase() === 'TRUE',
+      hpReward:  Number(r[7]) || SURVEY_REWARD_HP_DEFAULT,
+      createdAt: r[8] ? Utilities.formatDate(new Date(r[8]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : ''
+    });
+  }
+  return out;
+}
+
+// 生徒画面：未回答の active アンケートを 1 つ返す（複数あれば最も新しいものを優先）。
+// 認証不要（誤情報リークなし、未公開・回答済みのものは返さない）。
+function getActiveSurveyForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const all = _readAllSurveys();
+    const candidates = all.filter(function(s){
+      return s.active && s.options.length >= 2 && !_hasStudentRespondedToSurvey(sid, s.surveyId);
+    });
+    if (candidates.length === 0) return { ok: true, survey: null };
+    // 新しいもの優先：createdAt の降順、空欄は最後尾扱い
+    candidates.sort(function(a, b){
+      const da = a.createdAt || '';
+      const db = b.createdAt || '';
+      if (db !== da) return db < da ? -1 : 1;
+      return 0;
+    });
+    return { ok: true, survey: candidates[0] };
+  } catch (err) {
+    console.error('[getActiveSurveyForStudent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 生徒画面：回答送信。冪等性 + 50HP 即時固定付与（HpReservePool 経由なし、倍率なし）。
+function submitSurveyResponse(params) {
+  try {
+    const sid       = String((params && params.studentId)      || '').trim();
+    const surveyId  = String((params && params.surveyId)       || '').trim();
+    const optionNum = parseInt((params && params.selectedOption), 10);
+    if (!sid)      return { ok: false, message: '生徒IDが必要です' };
+    if (!surveyId) return { ok: false, message: 'surveyId が必要です' };
+    if (isNaN(optionNum) || optionNum < 1 || optionNum > 4) {
+      return { ok: false, message: '選択肢が不正です（1〜4）' };
+    }
+
+    // アンケートの存在確認 + active 確認 + 選択肢範囲確認
+    const all = _readAllSurveys();
+    const survey = all.find(function(s){ return s.surveyId === surveyId; });
+    if (!survey) return { ok: false, message: 'アンケートが見つかりません' };
+    if (!survey.active) return { ok: false, message: 'このアンケートは現在停止中です' };
+    if (optionNum > survey.options.length) {
+      return { ok: false, message: '選択肢が範囲外です' };
+    }
+    const selectedText = survey.options[optionNum - 1] || '';
+
+    // 冪等性チェック（既回答ならスキップ）
+    if (_hasStudentRespondedToSurvey(sid, surveyId)) {
+      return { ok: true, alreadyResponded: true, hpGained: 0, message: '既に回答済みです' };
+    }
+
+    // HP 付与（即時固定、ログインボーナスと同じパターン）
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません' };
+    const hpReward = Number(survey.hpReward) || SURVEY_REWARD_HP_DEFAULT;
+    const grant = _grantHP({
+      sid:                 sid,
+      type:                SURVEY_REWARD_TYPE,
+      rawHp:               hpReward,
+      stuLoc:              stuLoc,
+      message:             'アンケート回答 ' + surveyId,
+      applyWeekMultiplier: false,
+      applyReserveSystem:  false,
+      checkCompletion:     false,
+      lockTimeoutMs:       2000
+    });
+    if (!grant.ok) {
+      console.error('[submitSurveyResponse] _grantHP 失敗', grant);
+      return { ok: false, message: 'HP 付与に失敗しました：' + (grant.message || '不明') };
+    }
+
+    // SurveyResponses に書き込み（HP 付与成功後）
+    const sh = _ensureSheetWithHeaders(SHEET_SURVEY_RESPONSES, SURVEY_RESPONSES_HEADERS, 500).sh;
+    const now = _nowJST();
+    sh.appendRow([surveyId, sid, optionNum, selectedText, now]);
+
+    return {
+      ok: true,
+      hpGained:      grant.hpGained || hpReward,
+      newHP:         grant.newHP,
+      selectedText:  selectedText
+    };
+  } catch (err) {
+    console.error('[submitSurveyResponse]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// admin：アンケート全件一覧（active / 非 active 両方、回答数も付与）。
+function listSurveys(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+
+    const all = _readAllSurveys();
+    // 各 survey の回答数を集計
+    const respSh = _ss().getSheetByName(SHEET_SURVEY_RESPONSES);
+    const respCount = {};
+    if (respSh && respSh.getLastRow() >= 2) {
+      const rvs = respSh.getDataRange().getValues();
+      for (let i = 1; i < rvs.length; i++) {
+        const sid = String(rvs[i][0] || '').trim();
+        if (!sid) continue;
+        respCount[sid] = (respCount[sid] || 0) + 1;
+      }
+    }
+    const enriched = all.map(function(s){
+      return Object.assign({}, s, { responseCount: respCount[s.surveyId] || 0 });
+    });
+    // 新しい順（createdAt 降順、空欄は後ろ）
+    enriched.sort(function(a, b){
+      const da = a.createdAt || '';
+      const db = b.createdAt || '';
+      if (db !== da) return db < da ? -1 : 1;
+      return 0;
+    });
+    return { ok: true, surveys: enriched };
+  } catch (err) {
+    console.error('[listSurveys]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// admin：新規アンケート作成（active=TRUE で即公開）。
+function createSurvey(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const question = String((params && params.question) || '').trim();
+    const opts = [
+      String((params && params.option1) || '').trim(),
+      String((params && params.option2) || '').trim(),
+      String((params && params.option3) || '').trim(),
+      String((params && params.option4) || '').trim()
+    ];
+    if (!question)             return { ok: false, message: '質問文を入力してください' };
+    if (question.length > 200) return { ok: false, message: '質問文は 200 文字以下にしてください' };
+    if (!opts[0] || !opts[1])  return { ok: false, message: '選択肢 1・2 は必須です' };
+    for (let k = 0; k < 4; k++) {
+      if (opts[k].length > 100) return { ok: false, message: '選択肢は 100 文字以下にしてください' };
+    }
+    const hpReward = (function(){
+      const n = Number((params && params.hpReward));
+      if (isNaN(n) || n < 0 || n > 500) return SURVEY_REWARD_HP_DEFAULT;
+      return Math.floor(n);
+    })();
+
+    const sh = _ensureSheetWithHeaders(SHEET_SURVEYS, SURVEYS_HEADERS, 50).sh;
+    const surveyId = _generateSurveyId();
+    const now = _nowJST();
+    sh.appendRow([surveyId, question, opts[0], opts[1], opts[2], opts[3], 'TRUE', hpReward, now]);
+
+    try {
+      _logTeacherAction(_teacher.teacherId, 'SURVEY_CREATE', surveyId, 'success', {
+        question: question.substring(0, 50),
+        optionCount: opts.filter(function(o){ return !!o; }).length,
+        hpReward: hpReward
+      });
+    } catch(_e) {}
+
+    return { ok: true, surveyId: surveyId, hpReward: hpReward };
+  } catch (err) {
+    console.error('[createSurvey]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// admin：公開 / 停止の切替。
+function setSurveyActive(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const surveyId = String((params && params.surveyId) || '').trim();
+    const active   = (String((params && params.active) || '').toLowerCase() === 'true');
+    if (!surveyId) return { ok: false, message: 'surveyId が必要です' };
+
+    const sh = _ensureSheetWithHeaders(SHEET_SURVEYS, SURVEYS_HEADERS, 50).sh;
+    if (sh.getLastRow() < 2) return { ok: false, message: 'アンケートが存在しません' };
+    const values = sh.getDataRange().getValues();
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][0] || '').trim() === surveyId) {
+        sh.getRange(i + 1, 7).setValue(active ? 'TRUE' : 'FALSE');  // 7 列目 = active
+        try {
+          _logTeacherAction(_teacher.teacherId, 'SURVEY_SET_ACTIVE', surveyId, 'success', { active: active });
+        } catch(_e) {}
+        return { ok: true, surveyId: surveyId, active: active };
+      }
+    }
+    return { ok: false, message: 'アンケートが見つかりません' };
+  } catch (err) {
+    console.error('[setSurveyActive]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// admin：結果集計。選択肢別回答数・パーセント・回答率・個別回答リストを返す。
+function getSurveyResults(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const surveyId = String((params && params.surveyId) || '').trim();
+    if (!surveyId) return { ok: false, message: 'surveyId が必要です' };
+
+    const all = _readAllSurveys();
+    const survey = all.find(function(s){ return s.surveyId === surveyId; });
+    if (!survey) return { ok: false, message: 'アンケートが見つかりません' };
+
+    // 全生徒数（実生徒のみ、特殊アカウント除外。listSurveys の回答数と整合）
+    const stuSh = _ss().getSheetByName(SHEET_STUDENTS);
+    let totalStudents = 0;
+    if (stuSh && stuSh.getLastRow() >= 2) {
+      const sv = stuSh.getDataRange().getValues();
+      for (let i = 1; i < sv.length; i++) {
+        const sid = String(sv[i][COL_ID] || '').trim();
+        if (sid) totalStudents++;
+      }
+    }
+
+    // 回答集計
+    const respSh = _ss().getSheetByName(SHEET_SURVEY_RESPONSES);
+    const optionCounts = [0, 0, 0, 0];  // option1〜4 のカウント
+    const responses = [];                // 個別回答リスト
+    if (respSh && respSh.getLastRow() >= 2) {
+      const rvs = respSh.getDataRange().getValues();
+      for (let i = 1; i < rvs.length; i++) {
+        if (String(rvs[i][0] || '').trim() !== surveyId) continue;
+        const opt = parseInt(rvs[i][2], 10);
+        if (!isNaN(opt) && opt >= 1 && opt <= 4) optionCounts[opt - 1]++;
+        responses.push({
+          studentId:      String(rvs[i][1] || ''),
+          selectedOption: opt,
+          selectedText:   String(rvs[i][3] || ''),
+          timestamp:      rvs[i][4] ? Utilities.formatDate(new Date(rvs[i][4]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : ''
+        });
+      }
+    }
+
+    // 生徒のニックネーム / 氏名を付与（管理画面で誰が何を選んだか見えるように）
+    const accValues = _getAllAccountsValues();
+    const nameMap = {};
+    if (accValues && accValues.length > 0) {
+      for (let i = 0; i < accValues.length; i++) {
+        const sid = String(accValues[i][COL_ID] || '').trim();
+        if (!sid) continue;
+        nameMap[sid] = {
+          nickname: String(accValues[i][COL_NICKNAME] || '').trim(),
+          name:     String(accValues[i][COL_NAME] || '').trim()
+        };
+      }
+    }
+    responses.forEach(function(r){
+      const m = nameMap[r.studentId] || {};
+      r.nickname = m.nickname || '';
+      r.name     = m.name     || '';
+    });
+    // 新しい順
+    responses.sort(function(a, b){
+      return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
+    });
+
+    const responseCount = responses.length;
+    const optionStats = survey.options.map(function(text, idx){
+      const count = optionCounts[idx] || 0;
+      const pct = responseCount > 0 ? Math.round((count / responseCount) * 100) : 0;
+      return { optionNum: idx + 1, text: text, count: count, percent: pct };
+    });
+    const responseRate = totalStudents > 0 ? Math.round((responseCount / totalStudents) * 100) : 0;
+
+    try {
+      _logTeacherAction(_teacher.teacherId, 'SURVEY_RESULTS_VIEW', surveyId, 'success', {
+        responseCount: responseCount, totalStudents: totalStudents
+      });
+    } catch(_e) {}
+
+    return {
+      ok: true,
+      survey:        survey,
+      optionStats:   optionStats,
+      responses:     responses,
+      responseCount: responseCount,
+      totalStudents: totalStudents,
+      responseRate:  responseRate
+    };
+  } catch (err) {
+    console.error('[getSurveyResults]', err);
+    return { ok: false, message: String(err) };
+  }
+}
