@@ -1828,6 +1828,89 @@
       .refl-input-hp-banner { font-size: 13px; padding: 10px 12px; gap: 8px; }
       .refl-input-hp-banner .rib-icon { font-size: 20px; }
     }
+    /* 2026-05-28 アンケート機能：ログイン後ポップアップ（既存ポップアップ群の後に表示）
+       温かいオレンジ〜ピンクトーンで全体トーンに統一。z-index は refl-modal-overlay(10000)
+       より低めに設定し、振り返りモーダルが上に来ても被らないよう調整。 */
+    .survey-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9800; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+    .survey-modal-overlay.active { display: flex; animation: surveyFadeIn .3s ease-out; }
+    @keyframes surveyFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .survey-modal-card {
+      background: linear-gradient(165deg, #fff8ef 0%, #fff0f8 60%, #fce7f3 100%);
+      border-radius: 22px;
+      padding: 26px 22px 22px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 18px 50px rgba(80,30,120,.35);
+      box-sizing: border-box;
+      text-align: center;
+      animation: surveyCardPop .35s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes surveyCardPop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .survey-modal-title { font-size: 20px; font-weight: 800; color: #b45309; margin-bottom: 12px; letter-spacing: .5px; }
+    .survey-modal-question { font-size: 16px; font-weight: 600; color: #333; background: #fff; border: 2px solid #fbcfe8; border-radius: 14px; padding: 14px 16px; margin-bottom: 18px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+    .survey-modal-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .survey-option-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 16px;
+      background: #fff;
+      border: 2px solid #fbcfe8;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #4a154b;
+      cursor: pointer;
+      text-align: left;
+      transition: transform .12s, box-shadow .15s, border-color .15s, background .15s;
+      box-shadow: 0 2px 6px rgba(178,75,243,.08);
+      word-break: break-word;
+    }
+    .survey-option-btn:hover { border-color: #ec4899; background: #fff5fa; transform: translateY(-1px); box-shadow: 0 6px 14px rgba(236,72,153,.18); }
+    .survey-option-btn:active { transform: translateY(0); }
+    .survey-option-btn:disabled { opacity: .55; cursor: wait; pointer-events: none; }
+    .survey-option-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; background: linear-gradient(135deg,#ff9f7a,#ff6ea0); color: #fff; font-weight: 800; font-size: 14px; }
+    .survey-option-text { flex: 1; }
+    .survey-modal-reward { font-size: 14px; color: #047857; font-weight: 600; margin-bottom: 14px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; padding: 8px 12px; }
+    .survey-modal-actions { display: flex; justify-content: center; }
+    .survey-modal-later-btn {
+      padding: 10px 22px;
+      background: transparent;
+      border: 1.5px solid #d4a3c7;
+      color: #6b21a8;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .survey-modal-later-btn:hover { background: #fdf4ff; border-color: #b24bf3; }
+    /* 回答後の thanks 表示 */
+    .survey-modal-thanks { padding: 8px 4px 4px; }
+    .survey-modal-thanks-icon { font-size: 56px; margin-bottom: 8px; animation: surveyThanksPop .5s cubic-bezier(.34,1.56,.64,1); }
+    @keyframes surveyThanksPop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .survey-modal-thanks-title { font-size: 17px; font-weight: 700; color: #b45309; margin-bottom: 8px; }
+    .survey-modal-thanks-hp { font-size: 22px; font-weight: 800; color: #047857; margin-bottom: 18px; }
+    .survey-modal-thanks-hp #survey-modal-thanks-hp-num { font-size: 28px; }
+    .survey-modal-close-btn {
+      padding: 12px 28px;
+      background: linear-gradient(135deg, #43a047, #26a69a);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(38,166,154,.4);
+    }
+    .survey-modal-close-btn:hover { box-shadow: 0 8px 20px rgba(38,166,154,.5); }
+    @media (max-width: 480px) {
+      .survey-modal-card { padding: 22px 18px 18px; border-radius: 18px; }
+      .survey-modal-title { font-size: 18px; }
+      .survey-modal-question { font-size: 14px; padding: 12px 14px; }
+      .survey-option-btn { font-size: 14px; padding: 12px 14px; }
+      .survey-option-num { width: 26px; height: 26px; flex-basis: 26px; font-size: 13px; }
+      .survey-modal-reward { font-size: 13px; }
+    }
+
     /* 2026-05-27 Phase 4-2：振り返り送信中オーバーレイ（マイカツ君イラスト + 警告メッセージ） */
     .refl-sending-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.82); z-index: 10100; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
     .refl-sending-overlay.active { display: flex; }
@@ -2747,10 +2830,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260528-1850"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260528-2341"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260528-1850">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260528-1850"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260528-2341">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260528-2341"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -2808,6 +2891,30 @@
       <button class="refl-choice-btn-yes" onclick="onChoiceWriteReflection()">✍️ 書く</button>
       <button class="refl-choice-btn-no" onclick="onChoiceSkipReflection()">スキップする（書かない）</button>
       <button class="refl-modal-btn-cancel" onclick="cancelReflectionChoice()">キャンセル（ログアウトしない）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2026-05-28 アンケート機能：ログイン後ポップアップ（既存ポップアップ群がすべて閉じた後、一番最後に表示）。
+     生徒の声を集めて機能開発の優先順位や満足度把握に活用。回答すると即時 50HP 付与（倍率なし）。
+     - 1 人 1 アンケート 1 回（GAS getActiveSurveyForStudent で既回答を除外）
+     - 「あとで答える」は localStorage 'mykt_survey_dismissed_<sid>_<today>_<surveyId>' で当日制御
+     - 「答えないとどうなる」のような圧をかけないポジティブ設計 -->
+<div id="survey-popup-modal" class="survey-modal-overlay">
+  <div class="survey-modal-card">
+    <div class="survey-modal-title">📋 みんなの声を聞かせて！</div>
+    <div class="survey-modal-question" id="survey-modal-question"></div>
+    <div class="survey-modal-options" id="survey-modal-options"></div>
+    <div class="survey-modal-reward" id="survey-modal-reward">✨ 答えると 50 HP もらえるよ！</div>
+    <div class="survey-modal-actions">
+      <button type="button" class="survey-modal-later-btn" id="survey-modal-later-btn">あとで答える</button>
+    </div>
+    <!-- 回答後の確認表示（display:none で隠し、_doSubmitSurvey 成功時に切替） -->
+    <div class="survey-modal-thanks" id="survey-modal-thanks" style="display:none">
+      <div class="survey-modal-thanks-icon">✅</div>
+      <div class="survey-modal-thanks-title">ありがとう！回答を受け取ったよ</div>
+      <div class="survey-modal-thanks-hp"><span id="survey-modal-thanks-hp-num">+50</span> HP ゲット！</div>
+      <button type="button" class="survey-modal-close-btn" id="survey-modal-close-btn">閉じる</button>
     </div>
   </div>
 </div>
@@ -6425,8 +6532,12 @@
     // 両輪システム Phase A：5/25 以降の進捗 UI + 5/16〜5/24 の予告モーダル
     try { loadRequiredProgress();           } catch(e){ console.error('[showWelcome] loadRequiredProgress',           e); }
     try { showRequiredPreviewIfNeeded();    } catch(e){ console.error('[showWelcome] showRequiredPreviewIfNeeded',    e); }
-    // 📢 アバターリニューアル告知バナーの表示制御（2026-05-26 追加、2026-05-30 00:00 JST 以降は要素ごと非表示）
+    // 📢 アバターリニューアル告知バナーの表示制御（2026-05-26 追加、2026-05-30 00:00 JST 以降は要素ごと非表示)
     try { _applyAvatarAnnouncementVisibility(); } catch(e){ console.error('[showWelcome] _applyAvatarAnnouncementVisibility', e); }
+    // 📋 アンケート機能ポップアップ（2026-05-28 追加、既存ポップアップ群がすべて閉じた後に最後に表示）
+    //   1.5 秒遅延で起動。_maybeShowSurveyPopup 内で他モーダル（誕生日サプライズ / 必須予告 / 振り返り等）の
+    //   active 状態を判定し、開いていれば最大 3 回までリトライ。すべて閉じていれば未回答 active アンケートを取得 → 表示。
+    try { setTimeout(_maybeShowSurveyPopup, 1500); } catch(e){ console.error('[showWelcome] _maybeShowSurveyPopup', e); }
   }
   // 📢 アバターリニューアル告知バナー（2026-05-26 追加）
   //   2026-05-30（土）00:00 JST 以降は要素自体を非表示にする。それまではホーム画面表示時に
@@ -6453,6 +6564,183 @@
     var opened = el.classList.toggle('open');
     var btn = el.querySelector('.announcement-banner-btn');
     if (btn) btn.setAttribute('aria-expanded', opened ? 'true' : 'false');
+  }
+
+  // ============================================================
+  // 📋 アンケート機能（2026-05-28 新設）
+  //   - ログイン後ポップアップ、既存ポップアップ群がすべて閉じた後に最後に表示
+  //   - 1 人 1 アンケート 1 回（GAS 側で _hasStudentRespondedToSurvey によって既回答除外）
+  //   - 「あとで答える」は localStorage 当日キーで再表示防止
+  //   - 回答すると即時 50HP（倍率なし、_grantHP で即時固定付与）
+  // ============================================================
+  var _SURVEY_RETRY_MAX     = 3;
+  var _SURVEY_RETRY_DELAYMS = 1500;
+  var _surveyRetryCount     = 0;
+  var _surveyCurrent        = null;  // 表示中のアンケート
+
+  // 当日キー（教育日基準ではなく単純な JST 日付。ふくちさん運用では十分）
+  function _surveyDismissedKey(sid, surveyId) {
+    var d = (typeof _todayKeyJSTPlain === 'function') ? _todayKeyJSTPlain() : _todayKeyJST3am();
+    return 'mykt_survey_dismissed_' + sid + '_' + d + '_' + surveyId;
+  }
+
+  // 「他のポップアップが今開いているか」判定（誕生日サプライズ / 必須予告 / 振り返り系 / マイルストーン）
+  function _hasOtherActivePopup() {
+    var SELECTORS = [
+      '#screen-birthday-surprise.active',           // 誕生日サプライズ画面（screen）
+      '#required-preview-modal',                    // 必須予告モーダル（display:flex で表示）
+      '.refl-modal-overlay.active',                  // 振り返り系全般
+      '.refl-sending-overlay.active',                // 振り返り送信中
+      '#flash-overlay.active',                       // マイルストーンフラッシュ
+      '.bsurprise-overlay.active'                    // 誕生日サプライズオーバーレイ（存在すれば）
+    ];
+    for (var i = 0; i < SELECTORS.length; i++) {
+      var el = document.querySelector(SELECTORS[i]);
+      if (!el) continue;
+      // display:none じゃないかチェック
+      var cs = window.getComputedStyle(el);
+      if (cs.display !== 'none' && cs.visibility !== 'hidden') return true;
+    }
+    return false;
+  }
+
+  // showWelcome 末尾から setTimeout 1500ms で起動。他モーダル開いていればリトライ。
+  function _maybeShowSurveyPopup() {
+    try {
+      if (!_studentId) return;  // 未ログインなら何もしない
+      if (_hasOtherActivePopup()) {
+        if (_surveyRetryCount < _SURVEY_RETRY_MAX) {
+          _surveyRetryCount++;
+          setTimeout(_maybeShowSurveyPopup, _SURVEY_RETRY_DELAYMS);
+        }
+        // 3 回リトライしても閉じなければ今日は諦める（翌日また showWelcome で起動）
+        return;
+      }
+      _surveyRetryCount = 0;
+      // 未回答 active アンケートを取得
+      gasGet({ action: 'getActiveSurveyForStudent', studentId: _studentId, _ts: Date.now() })
+        .then(function(res){
+          if (!res || !res.ok || !res.survey) return;
+          var s = res.survey;
+          // 「あとで答える」当日スキップ判定
+          try {
+            if (localStorage.getItem(_surveyDismissedKey(_studentId, s.surveyId)) === '1') return;
+          } catch(_e) {}
+          _renderSurveyPopup(s);
+        })
+        .catch(function(err){ console.error('[_maybeShowSurveyPopup] fetch', err); });
+    } catch (e) { console.error('[_maybeShowSurveyPopup]', e); }
+  }
+
+  function _renderSurveyPopup(survey) {
+    _surveyCurrent = survey;
+    var modal       = document.getElementById('survey-popup-modal');
+    var qEl         = document.getElementById('survey-modal-question');
+    var optsEl      = document.getElementById('survey-modal-options');
+    var rewardEl    = document.getElementById('survey-modal-reward');
+    var thanksEl    = document.getElementById('survey-modal-thanks');
+    var actionsEl   = modal && modal.querySelector('.survey-modal-actions');
+    var optionsBoxA = modal && modal.querySelector('.survey-modal-options');
+    var optionsBoxQ = modal && modal.querySelector('.survey-modal-question');
+    if (!modal || !qEl || !optsEl) return;
+    // 初期化（回答済 thanks 表示を隠してフォーム表示）
+    thanksEl.style.display = 'none';
+    if (qEl)         qEl.style.display = '';
+    if (optsEl)      optsEl.style.display = '';
+    if (rewardEl)    rewardEl.style.display = '';
+    if (actionsEl)   actionsEl.style.display = '';
+
+    qEl.textContent = survey.question || '';
+    var hp = Number(survey.hpReward) || 50;
+    if (rewardEl) rewardEl.textContent = '✨ 答えると ' + hp + ' HP もらえるよ！';
+    // 選択肢ボタン生成（最大 4、空欄は非表示）
+    optsEl.innerHTML = '';
+    var options = survey.options || [];
+    for (var i = 0; i < options.length; i++) {
+      var txt = (options[i] == null) ? '' : String(options[i]);
+      if (!txt.trim()) continue;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'survey-option-btn';
+      btn.dataset.optionNum = (i + 1);
+      btn.innerHTML = '<span class="survey-option-num">' + (i + 1) + '</span><span class="survey-option-text"></span>';
+      btn.querySelector('.survey-option-text').textContent = txt;
+      (function(num){
+        btn.addEventListener('click', function(){ _doSubmitSurvey(survey.surveyId, num, btn); });
+      })(i + 1);
+      optsEl.appendChild(btn);
+    }
+    // 「あとで答える」
+    var laterBtn = document.getElementById('survey-modal-later-btn');
+    if (laterBtn) {
+      laterBtn.onclick = function(){ _dismissSurveyPopup(survey.surveyId); };
+    }
+    modal.classList.add('active');
+  }
+
+  function _doSubmitSurvey(surveyId, optionNum, sourceBtn) {
+    // 全ボタン disable（多重送信防止）
+    var btns = document.querySelectorAll('#survey-modal-options .survey-option-btn');
+    for (var i = 0; i < btns.length; i++) btns[i].disabled = true;
+    gasPost({
+      action:          'submitSurveyResponse',
+      studentId:       _studentId,
+      surveyId:        surveyId,
+      selectedOption:  optionNum
+    }).then(function(res){
+      if (!res || !res.ok) {
+        // エラー時は disable 解除して再選択可能に
+        for (var i = 0; i < btns.length; i++) btns[i].disabled = false;
+        alert('回答の送信に失敗しました：' + ((res && res.message) || '通信エラー'));
+        return;
+      }
+      // _totalHP を加算 + ホーム画面の HP 表示を更新
+      var gained = Number(res.hpGained) || 0;
+      if (gained > 0) {
+        try {
+          _totalHP = (typeof _totalHP === 'number') ? (_totalHP + gained) : gained;
+          var welHp = document.getElementById('welcome-hp');
+          if (welHp) welHp.textContent = _totalHP.toLocaleString();
+        } catch(_e) {}
+      }
+      // thanks 表示に切替
+      var qEl       = document.getElementById('survey-modal-question');
+      var optsEl    = document.getElementById('survey-modal-options');
+      var rewardEl  = document.getElementById('survey-modal-reward');
+      var actionsEl = document.querySelector('#survey-popup-modal .survey-modal-actions');
+      var thanksEl  = document.getElementById('survey-modal-thanks');
+      var hpNum     = document.getElementById('survey-modal-thanks-hp-num');
+      if (qEl)       qEl.style.display = 'none';
+      if (optsEl)    optsEl.style.display = 'none';
+      if (rewardEl)  rewardEl.style.display = 'none';
+      if (actionsEl) actionsEl.style.display = 'none';
+      if (hpNum)     hpNum.textContent = '+' + gained;
+      if (thanksEl)  thanksEl.style.display = '';
+      // 閉じるボタン
+      var closeBtn = document.getElementById('survey-modal-close-btn');
+      if (closeBtn) closeBtn.onclick = _closeSurveyPopup;
+      // SFX（chime）
+      try { if (typeof playSfx === 'function') playSfx('chime'); } catch(_e) {}
+    }).catch(function(err){
+      console.error('[_doSubmitSurvey]', err);
+      for (var i = 0; i < btns.length; i++) btns[i].disabled = false;
+      alert('回答の送信に失敗しました。電波の良い場所で再度お試しください。');
+    });
+  }
+
+  function _dismissSurveyPopup(surveyId) {
+    try {
+      if (_studentId && surveyId) {
+        localStorage.setItem(_surveyDismissedKey(_studentId, surveyId), '1');
+      }
+    } catch(_e) {}
+    _closeSurveyPopup();
+  }
+
+  function _closeSurveyPopup() {
+    var modal = document.getElementById('survey-popup-modal');
+    if (modal) modal.classList.remove('active');
+    _surveyCurrent = null;
   }
   function toggleChangeArea() { var area = document.getElementById('change-area'); area.style.display = area.style.display === 'none' ? 'block' : 'none'; }
   function openModal()  { document.getElementById('img-modal').classList.add('active'); }
@@ -14159,7 +14447,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260528-1850</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260528-2341</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
