@@ -1224,19 +1224,21 @@
       display: block;
       width: 100%;
       padding: 14px 22px;
-      background: linear-gradient(135deg,#ff6ea0,#b24bf3);
+      /* 2026-05-28 微修正：ピンク〜紫 → 緑系（.role-btn-parent / 保護者用 .btn-login の配色を流用）。
+         「登録して学習を始める」という前向きアクションを緑（GO 色）で表現。 */
+      background: linear-gradient(135deg, #43a047, #26a69a);
       color: #fff;
       border: none;
       border-radius: 12px;
       font-size: 16px;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 6px 18px rgba(178,75,243,.4);
+      box-shadow: 0 6px 18px rgba(38,166,154,.45);
       transition: transform .15s, box-shadow .15s;
     }
     .btn-login-nickname:hover {
       transform: translateY(-1px);
-      box-shadow: 0 8px 22px rgba(178,75,243,.5);
+      box-shadow: 0 8px 22px rgba(38,166,154,.55);
     }
     .btn-login-nickname:active {
       transform: translateY(0);
@@ -2745,10 +2747,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260528-1652"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260528-1850"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260528-1652">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260528-1652"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260528-1850">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260528-1850"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -2977,7 +2979,7 @@
         <div class="nickname-row">
           <input id="nickname-input" placeholder="例：タロウ⚽、はなちゃん🌸" maxlength="20"/>
         </div>
-        <button class="btn-login-nickname" onclick="doSaveNickname()">✨ 登録して学習をはじめる</button>
+        <button class="btn-login-nickname" onclick="doSaveNickname()">✨ 登録して学習を始める</button>
         <div id="nickname-msg" class="msg"></div>
       </div>
     </div>
@@ -14157,7 +14159,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260528-1652</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260528-1850</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
