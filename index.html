@@ -2830,10 +2830,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260528-2341"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260529-0135"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260528-2341">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260528-2341"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260529-0135">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260529-0135"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3064,20 +3064,32 @@
 </div>
 <div id="screen-nickname" class="screen">
   <!-- 2026-05-28：ログイン画面と同じ世界観に統一（オレンジ〜ピンクグラデ + マイ活キャラ装飾）。
-       初回ログイン時の「ようこそ」感を演出。マスコットは控えめに 10 体（ログイン画面は 20 体）に
-       絞り、配置はカードから離れた外周中心（中央 mascot-7〜12 は省略）にして、中央のカードの
-       視認性を最優先にしている。 -->
+       2026-05-29：キャラ配置をログイン画面と完全に同一（20 体）に揃えた。
+       ログイン画面 → ニックネーム登録画面の遷移でキャラ数が変わって不自然だった問題を解消。
+       マスコット 20 体（6 キャラ × default + celebrate = 12 + 追加 4 キャラ × 2 枚 = 8）。
+       既存の .login-mascot CSS（PC 配置 + モバイル配置 + 揺れアニメ + reduced-motion 対応）を
+       そのまま流用しているため、ログイン画面と配置・サイズ・回転・遅延すべて完全一致。 -->
   <div class="login-body">
     <img class="login-mascot mascot-1"  src="images/rushkun-default.png"   alt=""/>
     <img class="login-mascot mascot-2"  src="images/sangotan-default.png"  alt=""/>
+    <img class="login-mascot mascot-3"  src="images/nichiei-default.png"   alt=""/>
+    <img class="login-mascot mascot-4"  src="images/kisoK-default.png"     alt=""/>
     <img class="login-mascot mascot-5"  src="images/lison-default.png"     alt=""/>
     <img class="login-mascot mascot-6"  src="images/kanjii-default.png"    alt=""/>
+    <img class="login-mascot mascot-7"  src="images/rushkun-celebrate.png" alt=""/>
+    <img class="login-mascot mascot-8"  src="images/sangotan-celebrate.png" alt=""/>
+    <img class="login-mascot mascot-9"  src="images/nichiei-celebrate.png" alt=""/>
+    <img class="login-mascot mascot-10" src="images/kisoK-celebrate.png"   alt=""/>
+    <img class="login-mascot mascot-11" src="images/lison-celebrate.png"   alt=""/>
+    <img class="login-mascot mascot-12" src="images/kanjii-celebrate.png"  alt=""/>
     <img class="login-mascot mascot-13" src="images/rika-default.png"      alt=""/>
     <img class="login-mascot mascot-14" src="images/shakaneki-default.png" alt=""/>
     <img class="login-mascot mascot-15" src="images/japanin-default.png"   alt=""/>
     <img class="login-mascot mascot-16" src="images/trial-default.png"     alt=""/>
-    <img class="login-mascot mascot-19" src="images/nichiei-default.png"   alt=""/>
-    <img class="login-mascot mascot-20" src="images/kisoK-default.png"     alt=""/>
+    <img class="login-mascot mascot-17" src="images/rika-default.png"      alt=""/>
+    <img class="login-mascot mascot-18" src="images/shakaneki-default.png" alt=""/>
+    <img class="login-mascot mascot-19" src="images/japanin-default.png"   alt=""/>
+    <img class="login-mascot mascot-20" src="images/trial-default.png"     alt=""/>
 
     <div class="flex-fill">
       <div class="login-card">
@@ -14447,7 +14459,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260528-2341</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260529-0135</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
