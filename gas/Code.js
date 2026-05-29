@@ -21447,7 +21447,9 @@ var NOTIFY_TARGETS_HEADERS = [
   'studentId', 'nickname', 'date', 'status', 'contents',
   'totalHp', 'cumulativeHp', 'parentUserId', 'studentUserId',
   // 2026-05-29 追加（末尾追記。既存列は不変＝後方互換）：絶対ミッション達成状況
-  'missionAchieved', 'missionTotal'
+  'missionAchieved', 'missionTotal',
+  // 2026-05-29 追加：絶対ミッション達成ボーナス（completion_bonus 当日付与額）
+  'completionBonus'
 ];
 var NOTIFY_LOG_HEADERS = [
   'timestamp', 'studentId', 'nickname', 'date',
@@ -21687,23 +21689,32 @@ function _buildLineMessage_workedStudent(nickname) {
 
 // contents: [{ name: '英単語RUSH', hp: 30 }, ...]、totalHp / cumulativeHp は number
 // missionStatus: { achieved, total } または null（絶対ミッション未設定なら表示しない）
-function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp, missionStatus) {
+// completionBonus: 当日の絶対ミッション達成ボーナス額（completion_bonus、0 なら行を出さない）
+// 表示順：取り組み内容 → 達成状況 → 達成ボーナス → 獲得HP → 累計HP
+// 【獲得 HP】 = コンテンツHP合計(totalHp) + 達成ボーナス(completionBonus)（内訳と整合）
+function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp, missionStatus, completionBonus) {
   var name = String(nickname || '').trim() || '生徒';
   var lines = [];
   for (var i = 0; i < contents.length; i++) {
     lines.push('・' + contents[i].name + '（' + Number(contents[i].hp || 0).toLocaleString() + 'HP 獲得）');
   }
   var contentBlock = lines.length ? lines.join('\n') : '・（取組みなし）';
+  var bonus = Number(completionBonus || 0);
+  var grandTotal = Number(totalHp || 0) + bonus;
   var msg = name + ' さんの保護者様\n'
        + '昨日のマイ活、' + name + ' さんは以下に取り組みました。\n'
-       + '【取り組み内容】\n' + contentBlock + '\n'
-       + '【獲得 HP】 ' + Number(totalHp || 0).toLocaleString() + 'HP\n'
-       + '【累計 HP】 ' + Number(cumulativeHp || 0).toLocaleString() + 'HP\n';
+       + '【取り組み内容】\n' + contentBlock + '\n';
   // 絶対ミッション達成状況（total > 0 の生徒のみ表示。未設定の生徒には出さない）
   if (missionStatus && Number(missionStatus.total) > 0) {
     msg += '【絶対ミッション達成状況】 ' + Number(missionStatus.achieved) + '/' + Number(missionStatus.total) + '\n';
   }
-  msg += '引き続き応援していきましょう。\n'
+  // 絶対ミッション達成ボーナス（completion_bonus が付与された日のみ表示）
+  if (bonus > 0) {
+    msg += '【絶対ミッション達成ボーナス】 ' + bonus.toLocaleString() + 'HP\n';
+  }
+  msg += '【獲得 HP】 ' + grandTotal.toLocaleString() + 'HP\n'
+       + '【累計 HP】 ' + Number(cumulativeHp || 0).toLocaleString() + 'HP\n'
+       + '引き続き応援していきましょう。\n'
        + LINE_NOTIFY_TEMPLATE_SIG;
   return msg;
 }
@@ -21830,17 +21841,25 @@ var LINE_NOTIFY_CONTENT_DISPLAY_ORDER = [
 // 2026-05-29 改修：コンテンツ別 HP = 「即時付与分（HPLog）」+「当日解放された Pool 分（reflection_pending）」。
 //   - 即時付与：HPLog の content type hpGained（_lineNotifyContentNameFor が name を返すもの）
 //   - 解放分  ：HpReservePool の reflection_pending で resolvedAt が dateStr の reservedHp
-//   - reserve_release / completion_bonus / reflection_release は「取り組み内容」に出さない
-//     （達成状況は別途 _lineNotifyAbsoluteMissionStatus で「○/△」表示）
+//   - reserve_release / reflection_release は「取り組み内容」に出さない
+//   - completion_bonus（絶対ミッション達成ボーナス）は当日付与額を別集計し、
+//     completionBonus / grandTotalHp として返す（文面では独立行 + 獲得HPに合算）
+//   - 達成状況は別途 _lineNotifyAbsoluteMissionStatus で「○/△」表示
 //   - totalHp はコンテンツ別 HP の合計（= 表示される内訳の総和。内訳と一致する）
+//   - grandTotalHp = totalHp + completionBonus（= 文面の【獲得 HP】）
 function _lineNotifySummarizeStudentEntries(sid, entries, dateStr) {
   var worked = false;
   var byName = {};
+  var completionBonus = 0;
   var list = entries || [];
   // 1. HPLog 即時付与分を type 別に集計（worked 判定は従来通り _lineNotifyCountableType）
   for (var i = 0; i < list.length; i++) {
     var e = list[i];
     if (_lineNotifyCountableType(e.type)) worked = true;
+    // 当日の完走ボーナスは別行表示用に集計（取り組み内容には出さない）
+    if (String(e.type || '').trim() === 'completion_bonus') {
+      completionBonus += Number(e.hpGained || 0);
+    }
     var name = _lineNotifyContentNameFor(e.type);
     if (!name) continue;
     if (!byName[name]) byName[name] = 0;
@@ -21867,7 +21886,13 @@ function _lineNotifySummarizeStudentEntries(sid, entries, dateStr) {
       totalHp += Number(byName[nm] || 0);
     }
   }
-  return { worked: worked, contents: contents, totalHp: totalHp };
+  return {
+    worked: worked,
+    contents: contents,
+    totalHp: totalHp,
+    completionBonus: completionBonus,
+    grandTotalHp: totalHp + completionBonus
+  };
 }
 
 // --- 取得対象生徒のスナップショット構築 ---
@@ -21996,7 +22021,8 @@ function _extractNotifyTargets(opts) {
       parentUserId: effectiveParentUserId,
       studentUserId: effectiveStudentUserId,
       missionAchieved: (missionStatus && Number(missionStatus.total) > 0) ? Number(missionStatus.achieved) : '',
-      missionTotal:    (missionStatus && Number(missionStatus.total) > 0) ? Number(missionStatus.total)    : ''
+      missionTotal:    (missionStatus && Number(missionStatus.total) > 0) ? Number(missionStatus.total)    : '',
+      completionBonus: summary.worked ? Number(summary.completionBonus || 0) : 0
     });
   }
   if (opts.persist) {
@@ -22012,7 +22038,8 @@ function _extractNotifyTargets(opts) {
           JSON.stringify(t.contents || []),
           t.totalHp, t.cumulativeHp,
           t.parentUserId, t.studentUserId,
-          t.missionAchieved, t.missionTotal
+          t.missionAchieved, t.missionTotal,
+          t.completionBonus
         ];
       });
       sh.getRange(2, 1, rows.length, NOTIFY_TARGETS_HEADERS.length).setValues(rows);
@@ -22082,6 +22109,8 @@ function runDailyNotifyDelivery() {
       var missionStatus = missionTotalNum > 0
         ? { achieved: Number(row[9]) || 0, total: missionTotalNum }
         : null;
+      // 2026-05-29：絶対ミッション達成ボーナス（旧スキーマの行は row[11] が空 → 0）
+      var completionBonus = Number(row[11]) || 0;
       if (!sid) continue;
 
       // 4 パターン文面の構築
@@ -22090,7 +22119,7 @@ function runDailyNotifyDelivery() {
         : _buildLineMessage_workedStudent(nickname);
       var parentMsg = (status === 'sabotaged')
         ? _buildLineMessage_sabotagedParent(nickname)
-        : _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp, missionStatus);
+        : _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp, missionStatus, completionBonus);
 
       // 生徒本人へ
       if (studentUserId) {
@@ -22175,7 +22204,7 @@ function sendTestNotification(params) {
     } else {
       msg = (status === 'sabotaged')
         ? _buildLineMessage_sabotagedParent(snap.nickname)
-        : _buildLineMessage_workedParent(snap.nickname, summary.contents, summary.totalHp, snap.cumulativeHp, missionStatus);
+        : _buildLineMessage_workedParent(snap.nickname, summary.contents, summary.totalHp, snap.cumulativeHp, missionStatus, summary.completionBonus);
     }
     var push = _pushLineMessage(userId, msg);
     _appendNotifyLog(sid, snap.nickname, today, targetType, userId, status,
