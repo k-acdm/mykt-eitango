@@ -81,6 +81,7 @@
   .child-row:last-child { border-bottom: none; }
   .child-row-label { font-size: 13px; font-weight: bold; color: #555; min-width: 100px; padding-top: 2px; }
   .child-row-value { flex: 1; font-size: 14px; line-height: 1.6; }
+  .child-row-section { display: block; margin-top: 8px; padding: 6px 8px; font-size: 12px; font-weight: bold; color: #6a1b9a; background: #f3e5f5; border-radius: 6px; border-bottom: none; }
   .child-status-ok  { color: #10b981; font-weight: bold; }
   .child-status-ng  { color: #b8b8b8; }
   .child-detail     { display: block; color: #555; font-size: 12px; margin-top: 2px; }
@@ -805,16 +806,13 @@
       }
     },
     {
-      label: '英語リスオン',
+      label: '計算タイムトライアル',
       render: function(d) {
-        if (!d.lison || !d.lison.done) return CHILD_NG;
-        var hp = Number(d.lison.hpGained || 0);
-        var levels = (d.lison.levels || []).map(function(lv){
-          return LISON_LEVEL_LABEL[lv] || lv;
-        }).join('・');
+        if (!d.calctrial || !d.calctrial.done) return CHILD_NG;
+        var hp = Number(d.calctrial.hpGained || 0);
         var hpLabel = hp > 0
-          ? ' <span style="color:#555;font-size:13px">' + _esc(levels) + (levels ? '：' : '') + hp.toLocaleString() + 'HP獲得</span>'
-          : (levels ? ' <span style="color:#555;font-size:13px">' + _esc(levels) + '</span>' : '');
+          ? ' <span style="color:#555;font-size:13px">' + hp.toLocaleString() + 'HP獲得</span>'
+          : ' <span style="color:#555;font-size:13px">練習</span>';
         return CHILD_OK + hpLabel;
       }
     },
@@ -857,6 +855,57 @@
           : (detail ? ' <span style="color:#555;font-size:13px">' + _esc(detail) + '</span>' : '');
         return CHILD_OK + hpLabel;
       }
+    },
+    {
+      label: '英語リスオン',
+      render: function(d) {
+        if (!d.lison || !d.lison.done) return CHILD_NG;
+        var hp = Number(d.lison.hpGained || 0);
+        var levels = (d.lison.levels || []).map(function(lv){
+          return LISON_LEVEL_LABEL[lv] || lv;
+        }).join('・');
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">' + _esc(levels) + (levels ? '：' : '') + hp.toLocaleString() + 'HP獲得</span>'
+          : (levels ? ' <span style="color:#555;font-size:13px">' + _esc(levels) + '</span>' : '');
+        return CHILD_OK + hpLabel;
+      }
+    },
+    {
+      label: '国語長文読解',
+      render: function(d) {
+        if (!d.kokugo || !d.kokugo.done) return CHILD_NG;
+        var hp = Number(d.kokugo.hpGained || 0);
+        var variants = (d.kokugo.variants || []).join('・');
+        var parts = [];
+        if (variants) parts.push(variants);
+        if (hp > 0) parts.push(hp.toLocaleString() + 'HP獲得');
+        var hpLabel = parts.length
+          ? ' <span style="color:#555;font-size:13px">' + _esc(parts.join('：')) + '</span>'
+          : '';
+        return CHILD_OK + hpLabel;
+      }
+    },
+    {
+      label: '理科重要語句',
+      render: function(d) {
+        if (!d.rika || !d.rika.done) return CHILD_NG;
+        var hp = Number(d.rika.hpGained || 0);
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">' + hp.toLocaleString() + 'HP獲得</span>'
+          : '';
+        return CHILD_OK + hpLabel;
+      }
+    },
+    {
+      label: '社会重要語句',
+      render: function(d) {
+        if (!d.shakai || !d.shakai.done) return CHILD_NG;
+        var hp = Number(d.shakai.hpGained || 0);
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">' + hp.toLocaleString() + 'HP獲得</span>'
+          : '';
+        return CHILD_OK + hpLabel;
+      }
     }
   ];
 
@@ -880,6 +929,24 @@
     }).join('');
   }
 
+  // HP事後調整ログ（お詫び補填 / 達成ボーナス / 振り返り解放 / 手動付与 等）。
+  // 「なぜ HP が増えたか」を保護者に透明化するため、学習活動とは区切って表示する。
+  function _renderChildHpAdjustments(adjustments) {
+    if (!adjustments || !adjustments.length) return '';
+    var rows = adjustments.map(function(a){
+      var hp = Number(a.hp) || 0;
+      var sign = hp > 0 ? '+' : '';
+      var hpLabel = hp !== 0
+        ? ' <span style="color:#555;font-size:13px">' + sign + hp.toLocaleString() + 'HP</span>'
+        : '';
+      return '<div class="child-row">' +
+               '<div class="child-row-label">' + _esc(a.label || a.type || 'その他') + '</div>' +
+               '<div class="child-row-value">💎' + hpLabel + '</div>' +
+             '</div>';
+    }).join('');
+    return '<div class="child-row child-row-section">HPの動き</div>' + rows;
+  }
+
   function _renderChildDays(days) {
     if (!days || !days.length) {
       return '<div class="child-history-empty">この期間の記録はありません。</div>';
@@ -894,7 +961,7 @@
                  '<div class="child-row-label">' + _esc(cfg.label) + '</div>' +
                  '<div class="child-row-value">' + cfg.render(d) + '</div>' +
                '</div>';
-      }).join('') + _renderChildExtraRows(d.extras);
+      }).join('') + _renderChildExtraRows(d.extras) + _renderChildHpAdjustments(d.hpAdjustments);
 
       return '<div class="child-day-card">' +
                '<div class="child-day-header">' + _esc(header) + '</div>' +
