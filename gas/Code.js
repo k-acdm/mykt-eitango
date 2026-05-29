@@ -12395,7 +12395,11 @@ function _calendarContentName(type) {
   if (t.indexOf('kiso_')  === 0) return '基礎計算';
   if (t.indexOf('kanji_') === 0) return 'カンジー';
   if (t.indexOf('kobun_') === 0) return 'コブタン';
+  if (t.indexOf('kokugo_') === 0) return '国語長文読解';
+  if (t === 'rika')   return '理科重要語句';
+  if (t === 'shakai') return '社会重要語句';
   if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
+  if (t === 'survey_reward') return 'アンケート回答報酬';
   if (t.indexOf('apology_') === 0) return 'お詫びHP';
   // 2026-05-27：両輪システム/振り返り連動の HPLog メタログを分かりやすく表示
   if (t === 'completion_bonus')        return '絶対ミッション達成ボーナス';
@@ -13954,6 +13958,27 @@ function getSangoPastTopicsPaged(params) {
 //     本日学習した生徒の活動が翌日 JST 4:00（教育日切替）まで表示されない
 //     リアルタイム反映バグがあった。本日を含めるよう修正済み。
 // =============================================
+// HP事後調整ログ（学習活動ではない HP 増減記録）の日本語表示ラベル。
+// getChildActivityRecent の hpAdjustments で使用。_calendarContentName と表記を整合させる。
+function _hpAdjustmentLabel(type) {
+  if (!type) return 'その他';
+  const t = String(type).trim();
+  if (t === 'apology_pool_recovery')      return 'お詫び補填（HP救済）';
+  if (t === 'apology_streak_bonus')       return 'お詫び補填（連続日数）';
+  if (t === 'apology_wabun1')             return 'お詫び補填（和文英訳①）';
+  if (t === 'apology_kiso')               return 'お詫び補填（基礎計算）';
+  if (t.indexOf('apology_') === 0)        return 'お詫び補填';
+  if (t === 'completion_bonus')           return '絶対ミッション達成ボーナス';
+  if (t === 'reserve_release')            return '保留HP解放';
+  if (t === 'reflection_release')         return '振り返り提出によるHP解放';
+  if (t === 'reflection_skip_release')    return '振り返りスキップによるHP解放';
+  if (t === 'manual_grant')               return '手動付与';
+  if (t === 'manual_streak_modify')       return '連続日数修正';
+  if (t === 'login_recovery')             return 'ログイン復旧';
+  if (t === 'survey_reward')              return 'アンケート回答報酬';
+  return 'その他（' + t + '）';
+}
+
 function getChildActivityRecent(params) {
   try {
     const sid = String((params && params.studentId) || '').trim();
@@ -13980,6 +14005,11 @@ function getChildActivityRecent(params) {
         lison:   { done: false, hpGained: 0, levels: [] },
         kanji:   { done: false, hpGained: 0, rawHP: 0, sessions: [] },
         kobun:   { done: false, hpGained: 0, rawHP: 0, sessions: [] },
+        calctrial: { done: false, hpGained: 0 },                 // 計算タイムトライアル
+        kokugo:    { done: false, hpGained: 0, variants: [] },   // 国語長文読解（variants = ['800字版'] / ['1200字版']）
+        rika:      { done: false, hpGained: 0 },                 // 理科重要語句
+        shakai:    { done: false, hpGained: 0 },                 // 社会重要語句
+        hpAdjustments: [],  // HP事後調整ログ（apology_* / completion_bonus / reflection_release / manual_grant 等）
         extras:  []  // 未知の HPLog type は自動でここに集約（将来コンテンツの自動対応）
       };
     }
@@ -14010,9 +14040,14 @@ function getChildActivityRecent(params) {
         if (ds > endStr) continue;
         if (!byDate[ds]) continue;
         const type = String(r[4] || '').trim();
-        if (APOLOGY_TYPES[type]) continue;  // 学習履歴には反映しない
         const hp  = Number(r[3]) || 0;
         const raw = Number(r[2]) || 0;
+        if (APOLOGY_TYPES[type]) {
+          // 学習活動の done 判定からは除外（既存仕様）。ただし HP の動きは
+          // hpAdjustments に集約して「なぜ HP が増えたか」を透明化する。
+          byDate[ds].hpAdjustments.push({ type: type, label: _hpAdjustmentLabel(type), hp: hp });
+          continue;
+        }
         if      (type === 'login') byDate[ds].login = true;
         else if (type === 'test')  byDate[ds].eitango.done = true;
         else if (type === 'sango') byDate[ds].sango.done   = true;
@@ -14074,9 +14109,48 @@ function getChildActivityRecent(params) {
             });
           }
         }
+        else if (type === 'calctrial' || type.indexOf('calctrial_') === 0) {
+          // 計算タイムトライアル（本番 'calctrial' / 練習 'calctrial_practice'）。
+          // 練習モードは HP 0 なので done は立つが hpGained には寄与しない。
+          byDate[ds].calctrial.done = true;
+          byDate[ds].calctrial.hpGained += hp;
+        }
+        else if (type.indexOf('kokugo_') === 0) {
+          // 国語長文読解：'kokugo_800' / 'kokugo_1200'。バリアントを区別して保持。
+          byDate[ds].kokugo.done = true;
+          byDate[ds].kokugo.hpGained += hp;
+          const km = /^kokugo_(\d+)/.exec(type);
+          if (km) {
+            const variant = km[1] + '字版';  // '800字版' / '1200字版'
+            if (byDate[ds].kokugo.variants.indexOf(variant) < 0) {
+              byDate[ds].kokugo.variants.push(variant);
+            }
+          }
+        }
+        else if (type === 'rika') {
+          byDate[ds].rika.done = true;
+          byDate[ds].rika.hpGained += hp;
+        }
+        else if (type === 'shakai') {
+          byDate[ds].shakai.done = true;
+          byDate[ds].shakai.hpGained += hp;
+        }
+        else if (type === 'completion_bonus'
+              || type === 'reserve_release'
+              || type === 'reflection_release'
+              || type === 'reflection_skip_release'
+              || type === 'manual_grant'
+              || type === 'manual_streak_modify'
+              || type === 'login_recovery'
+              || type === 'survey_reward'
+              || type.indexOf('apology_') === 0) {
+          // HP事後調整ログ（学習活動ではない、HP の増減記録）。
+          // done 判定には影響させず、hpAdjustments に集約して透明化する。
+          byDate[ds].hpAdjustments.push({ type: type, label: _hpAdjustmentLabel(type), hp: hp });
+        }
         else {
-          // 未知の type は extras に集約（将来 wabun2/kanji/social/science/kobun 等が
-          // 追加されたとき HPLog に新 type を流すだけで自動表示される）
+          // 未知の type は extras に集約（将来コンテンツが追加されたとき
+          // HPLog に新 type を流すだけで自動表示される）
           byDate[ds].extras.push({ type: type, hpGained: hp });
         }
       }
@@ -14262,11 +14336,14 @@ function getChildActivityRecent(params) {
     Object.keys(byDate).forEach(function(ds){
       const d = byDate[ds];
       if (d.login) return;  // 既に true ならスキップ
-      if (d.eitango.done || d.sango.done || d.wabun1.done || d.kiso.done || d.lison.done || d.kanji.done || d.kobun.done) {
+      if (d.eitango.done || d.sango.done || d.wabun1.done || d.kiso.done
+          || d.lison.done || d.kanji.done || d.kobun.done
+          || d.calctrial.done || d.kokugo.done || d.rika.done || d.shakai.done) {
         d.login = true;
       } else if (d.extras && d.extras.length > 0) {
         d.login = true;
       }
+      // hpAdjustments のみ（実際の学習活動なし）の日は login=true にしない
     });
 
     // 新しい順に配列化
