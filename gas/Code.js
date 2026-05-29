@@ -20196,6 +20196,114 @@ function _markReservePoolEntriesResolved(sid, dateStr) {
   }
 }
 
+// ============================================================================
+// 未解放保留分の forfeit（失効）処理 / 2026-05-29 新設
+// ----------------------------------------------------------------------------
+// ふくちさん仕様：「その日に絶対ミッションを達成できなかったら、保留分は没収」。
+// 現状の実装では「達成しなかった日の保留行（resolved=FALSE）」が Pool に永久滞留する
+// （解放経路 _markReservePoolEntriesResolved / _releaseReflectionReserves はいずれも
+//  date==当日でしかヒットしないため、過去日の未解放行は誰も触らず宙吊りになる）。
+// 将来の一括解放系処理（apology_pool_recovery 等）が走ると、本来「没収」のはずの
+// 過去保留分まで誤って返却されるリスクがあるため、日跨ぎ（教育日 04:00 切替）時点で
+// 過去日の未解放分を明示的に「失効済」としてマークする。
+//
+// 失効方法（行は削除せず履歴として残す）：
+//   - resolved      = 'TRUE'（処理済みマーク。以降の解放/救済対象から外れる）
+//   - resolvedAt    = now（失効時刻）
+//   - reserveReason = '<元の値>_forfeited'（例：'required_mission_forfeited'）
+//     → 正規解放（reserve_release）と失効（forfeit）を後から区別可能にする。
+//       元の値が空欄なら 'forfeited'。
+//
+// ★ Students.HP には一切加算しない（没収なので当然）。HPLog にも HP は記録しない
+//   （HP の移動が無いため）。失効はあくまで Pool 行のステータス遷移のみ。
+//
+// 対象：date < 今日（_sangoToday、教育日 04:00 区切り）かつ resolved != 'TRUE' の全行
+//   （reason は問わない：required_mission / reflection_pending / 空欄レガシー すべて）。
+//   当日（date == 今日）の未解放行は対象外（まだ達成のチャンスがあるため）。
+//
+// ★ 既存解放経路（_markReservePoolEntriesResolved / _releaseReflectionReserves）は無変更。
+//   forfeit はこの独立関数のみが行う。シートへの書き込みは「resolved=TRUE 化」だけで削除なし。
+//
+// ★ apology_pool_recovery（過去日含む一括解放）との関係（将来タスク・本関数では未対応）：
+//   apology_pool_recovery は現状 resolved!='TRUE' の全行を date/reason 問わず解放するため、
+//   forfeit 後の行（resolved=TRUE）は自動的に対象外になり二重処理されない。ただし将来
+//   apology 系を「resolved=TRUE でも対象に含める」方向に変えるなら、reserveReason が
+//   '%_forfeited' の行を除外するロジックが別途必要（本関数のサフィックスで判別可能）。
+//
+// 毎日 04:00〜05:00 の Time-based Trigger で起動する想定（ふくちさん側で UI から設定）。
+// 戻り値: { ok, today, forfeitedRowCount, forfeitedTotalHp, byReason }
+function runDailyForfeitExpiredReserves() {
+  try {
+    const todayStr = _sangoToday();  // 教育日 04:00 区切り
+    const sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+    if (!sh || sh.getLastRow() < 2) {
+      console.log('[runDailyForfeitExpiredReserves] HpReservePool が空 / 行なし');
+      return { ok: true, today: todayStr, forfeitedRowCount: 0, forfeitedTotalHp: 0, byReason: {} };
+    }
+    const values = sh.getDataRange().getValues();
+    // header: studentId(0) date(1) type(2) rawHp(3) reservedHp(4) resolved(5) resolvedAt(6) reserveReason(7)
+    const header = values[0];
+    const iResolved = header.indexOf('resolved');
+    const iResolvedAt = header.indexOf('resolvedAt');
+    const iReason = header.indexOf('reserveReason');  // -1 ならレガシー（reason 列なし）
+    if (iResolved < 0 || iResolvedAt < 0) {
+      console.warn('[runDailyForfeitExpiredReserves] resolved / resolvedAt 列が見つかりません（シーマ未移行）');
+      return { ok: false, today: todayStr, forfeitedRowCount: 0, forfeitedTotalHp: 0, byReason: {}, message: 'schema 未移行' };
+    }
+
+    const now = _nowJST();
+    let forfeitedRowCount = 0;
+    let forfeitedTotalHp = 0;
+    const byReason = {};
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      // resolved=TRUE はスキップ（既に解放済 or 失効済）
+      if (String(r[iResolved] || '').trim().toUpperCase() === 'TRUE') continue;
+      // date < 今日 のみ対象（当日分は達成チャンスが残っているので除外）
+      const ds = _normalizePoolDate(r[1]);
+      if (!ds || ds >= todayStr) continue;
+
+      const rowIdx = i + 1;  // 1-based
+      const hp = Number(r[4]) || 0;
+      const origReason = (iReason >= 0) ? String(r[iReason] || '').trim() : '';
+      const newReason = (origReason ? origReason : '') + (origReason ? '_forfeited' : 'forfeited');
+
+      // resolved=TRUE / resolvedAt=now を書き込み（2 列が隣接していれば 1 回で）
+      if (iResolvedAt === iResolved + 1) {
+        sh.getRange(rowIdx, iResolved + 1, 1, 2).setValues([['TRUE', now]]);
+      } else {
+        sh.getRange(rowIdx, iResolved + 1).setValue('TRUE');
+        sh.getRange(rowIdx, iResolvedAt + 1).setValue(now);
+      }
+      // reserveReason に _forfeited サフィックスを付与（reason 列があるときのみ）
+      if (iReason >= 0) {
+        sh.getRange(rowIdx, iReason + 1).setValue(newReason);
+      }
+
+      forfeitedRowCount++;
+      forfeitedTotalHp += hp;
+      const rkey = origReason || '(empty)';
+      byReason[rkey] = (byReason[rkey] || 0) + hp;
+    }
+    if (forfeitedRowCount > 0) SpreadsheetApp.flush();
+
+    console.log('[runDailyForfeitExpiredReserves] today=' + todayStr
+      + ' forfeitedRowCount=' + forfeitedRowCount
+      + ' forfeitedTotalHp=' + forfeitedTotalHp
+      + ' byReason=' + JSON.stringify(byReason));
+    return {
+      ok: true,
+      today: todayStr,
+      forfeitedRowCount: forfeitedRowCount,
+      forfeitedTotalHp: forfeitedTotalHp,
+      byReason: byReason
+    };
+  } catch (e) {
+    console.error('[runDailyForfeitExpiredReserves]', e);
+    return { ok: false, forfeitedRowCount: 0, forfeitedTotalHp: 0, byReason: {}, message: String(e) };
+  }
+}
+
 // 2026-05-28：HpReservePool の type 列を、振り返りアニメ画面の byContent キーに正規化する共通ヘルパー。
 // 戻り値が null のとき：そのレコードはコンテンツ別集計の対象外（required_mission / login / apology_* など、
 // 学習コンテンツに由来しないシステム枠）。
