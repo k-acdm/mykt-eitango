@@ -21445,7 +21445,9 @@ var SHEET_NOTIFY_LOG     = 'NotifyLog';
 
 var NOTIFY_TARGETS_HEADERS = [
   'studentId', 'nickname', 'date', 'status', 'contents',
-  'totalHp', 'cumulativeHp', 'parentUserId', 'studentUserId'
+  'totalHp', 'cumulativeHp', 'parentUserId', 'studentUserId',
+  // 2026-05-29 追加（末尾追記。既存列は不変＝後方互換）：絶対ミッション達成状況
+  'missionAchieved', 'missionTotal'
 ];
 var NOTIFY_LOG_HEADERS = [
   'timestamp', 'studentId', 'nickname', 'date',
@@ -21495,7 +21497,10 @@ function _lineNotifyCountableType(type) {
 }
 
 // 取組み内容の日本語表記マッピング（保護者向け「やった子」メッセージ用）。
-// reserve_release + completion_bonus は同じ「絶対ミッション達成ボーナス」に集約する。
+// 2026-05-29：reserve_release / completion_bonus（絶対ミッション達成ボーナス）の表記を廃止。
+//   両輪システムの保留解放 HP は「取り組み内容」には出さず、コンテンツ別 HP に
+//   按分する（reflection_pending 分は HpReservePool から、_lineNotifySummarizeStudentEntries
+//   で各コンテンツに加算）。達成状況は「【絶対ミッション達成状況】 ○/△」で別途表示する。
 function _lineNotifyContentNameFor(type) {
   if (!type) return null;
   var t = String(type);
@@ -21507,13 +21512,101 @@ function _lineNotifyContentNameFor(type) {
   if (t.indexOf('kanji_') === 0) return 'カンジー';
   if (t.indexOf('kobun_') === 0) return 'コブタン';
   if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
-  if (t === 'reserve_release' || t === 'completion_bonus') return '絶対ミッション達成ボーナス';
+  if (t.indexOf('kokugo_') === 0) return '国語長文読解';  // 2026-05-29 追加
+  if (t === 'rika')   return '理科重要語句';                // 2026-05-29 追加
+  if (t === 'shakai') return '社会重要語句';                // 2026-05-29 追加
+  // 2026-05-29：reserve_release / completion_bonus は「取り組み内容」に出さない（達成状況で別表示）
   // 2026-05-19：連続日数修正は LINE 通知の取組み一覧に出さない（HP 0 のメタデータ書き換えなので「取り組み内容」ではない）
   if (t === 'manual_streak_modify') return null;
   // 2026-05-19 リライト：自動復旧で補完された login 相当レコードも取組み一覧には出さない
   if (t === 'login_recovery') return null;
   if (t.indexOf('manual_') === 0 || t === 'manual_grant') return '手動付与';
   return null;
+}
+
+// 抽象コンテンツキー（_normalizeHpReservePoolTypeForContent の戻り値）→ 保護者向け日本語表記。
+function _lineNotifyContentKeyToName(key) {
+  switch (String(key || '')) {
+    case 'eitango':   return '英単語RUSH';
+    case 'sango':     return '三語短文';
+    case 'wabun1':    return '和文英訳①';
+    case 'kiso':      return '基礎計算';
+    case 'calctrial': return '計算タイムトライアル';
+    case 'kanji':     return 'カンジー';
+    case 'kobun':     return 'コブタン';
+    case 'lison':     return '英語リスオン';
+    case 'kokugo':    return '国語長文読解';
+    case 'rika':      return '理科重要語句';
+    case 'shakai':    return '社会重要語句';
+  }
+  return null;
+}
+
+// 指定 (sid, dateStr) に「解放された（resolvedAt が dateStr）」reflection_pending の
+// HpReservePool 保留分を、コンテンツキー別に合算して返す。
+//   戻り値: { eitango: 50, sango: 30, ... }（該当なしは {}）
+// 即時付与分（HPLog の content type hpGained）と合算して「当日のコンテンツ別 最終獲得 HP」を作る。
+function _lineNotifyReleasedReflectionByContent(sid, dateStr) {
+  var out = {};
+  try {
+    var sidNorm = String(sid || '').trim();
+    var ds = String(dateStr || '').trim();
+    if (!sidNorm || !ds) return out;
+    var sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+    if (!sh || sh.getLastRow() < 2) return out;
+    var values = sh.getDataRange().getValues();
+    var header = values[0];
+    var iReason     = header.indexOf('reserveReason');
+    var iResolved   = header.indexOf('resolved');
+    var iResolvedAt = header.indexOf('resolvedAt');
+    // 列構成: [0]studentId [1]date [2]type [3]rawHp [4]reservedHp [5]resolved [6]resolvedAt [7]reserveReason
+    for (var i = 1; i < values.length; i++) {
+      var r = values[i];
+      if (String(r[0] || '').trim() !== sidNorm) continue;
+      if (iResolved >= 0 && String(r[iResolved] || '').trim().toUpperCase() !== 'TRUE') continue;
+      if (iReason >= 0 && String(r[iReason] || '').trim() !== 'reflection_pending') continue;
+      var resolvedDs = (iResolvedAt >= 0) ? _normalizePoolDate(r[iResolvedAt]) : '';
+      if (resolvedDs !== ds) continue;
+      var key = _normalizeHpReservePoolTypeForContent(r[2]);
+      if (!key) continue;
+      var hp = Number(r[4]) || 0;
+      if (hp <= 0) continue;
+      out[key] = (out[key] || 0) + hp;
+    }
+  } catch (e) {
+    console.error('[_lineNotifyReleasedReflectionByContent]', e);
+  }
+  return out;
+}
+
+// 生徒 sid の dateStr における絶対ミッション達成状況を返す。
+//   戻り値: { achieved, total } または null（絶対ミッション未設定 = total 0 の生徒）
+// 判定は両輪システムの達成判定（_getRequiredContentsForLoc + _isHpLogTypeForRequired）と
+// 完全に同じ条件を流用。entries は _lineNotifyScanHpLogForYesterday の該当生徒分（HPLog 当日行）。
+function _lineNotifyAbsoluteMissionStatus(sid, entries) {
+  try {
+    var loc = _findAccountRowOnSheet(sid);
+    if (!loc) return null;
+    var requiredList = _getRequiredContentsForLoc(loc);
+    if (!requiredList || requiredList.length === 0) return null;  // 絶対ミッション未設定 → 表示しない
+    var completed = {};
+    var list = entries || [];
+    for (var i = 0; i < list.length; i++) {
+      var type = String(list[i].type || '').trim();
+      for (var j = 0; j < requiredList.length; j++) {
+        var rc = requiredList[j];
+        if (!completed[rc] && _isHpLogTypeForRequired(type, rc)) completed[rc] = true;
+      }
+    }
+    var achieved = 0;
+    for (var k = 0; k < requiredList.length; k++) {
+      if (completed[requiredList[k]]) achieved++;
+    }
+    return { achieved: achieved, total: requiredList.length };
+  } catch (e) {
+    console.error('[_lineNotifyAbsoluteMissionStatus]', e);
+    return null;
+  }
 }
 
 // NOTIFY_LINE_* 列の値と GRADE_LEVEL から「保護者向け」または「生徒向け」の
@@ -21593,20 +21686,26 @@ function _buildLineMessage_workedStudent(nickname) {
 }
 
 // contents: [{ name: '英単語RUSH', hp: 30 }, ...]、totalHp / cumulativeHp は number
-function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp) {
+// missionStatus: { achieved, total } または null（絶対ミッション未設定なら表示しない）
+function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp, missionStatus) {
   var name = String(nickname || '').trim() || '生徒';
   var lines = [];
   for (var i = 0; i < contents.length; i++) {
     lines.push('・' + contents[i].name + '（' + Number(contents[i].hp || 0).toLocaleString() + 'HP 獲得）');
   }
   var contentBlock = lines.length ? lines.join('\n') : '・（取組みなし）';
-  return name + ' さんの保護者様\n'
+  var msg = name + ' さんの保護者様\n'
        + '昨日のマイ活、' + name + ' さんは以下に取り組みました。\n'
        + '【取り組み内容】\n' + contentBlock + '\n'
        + '【獲得 HP】 ' + Number(totalHp || 0).toLocaleString() + 'HP\n'
-       + '【累計 HP】 ' + Number(cumulativeHp || 0).toLocaleString() + 'HP\n'
-       + '引き続き応援していきましょう。\n'
+       + '【累計 HP】 ' + Number(cumulativeHp || 0).toLocaleString() + 'HP\n';
+  // 絶対ミッション達成状況（total > 0 の生徒のみ表示。未設定の生徒には出さない）
+  if (missionStatus && Number(missionStatus.total) > 0) {
+    msg += '【絶対ミッション達成状況】 ' + Number(missionStatus.achieved) + '/' + Number(missionStatus.total) + '\n';
+  }
+  msg += '引き続き応援していきましょう。\n'
        + LINE_NOTIFY_TEMPLATE_SIG;
+  return msg;
 }
 
 // --- LINE Messaging API: push ---
@@ -21722,28 +21821,51 @@ function _lineNotifyScanHpLogForYesterday(yesterdayStr) {
 //   { worked: boolean, contents: [{name, hp}], totalHp: number }
 // contents は表記順を「英単語RUSH → 三語短文 → 和文英訳① → 基礎計算 → カンジー → コブタン
 // → 英語リスオン → 絶対ミッション達成ボーナス → 手動付与」で固定（読みやすさ重視）。
+// 2026-05-29：「絶対ミッション達成ボーナス」を削除、新規コンテンツ 4 種を追加。
 var LINE_NOTIFY_CONTENT_DISPLAY_ORDER = [
-  '英単語RUSH', '三語短文', '和文英訳①', '基礎計算', 'カンジー',
-  'コブタン', '英語リスオン', '絶対ミッション達成ボーナス', '手動付与'
+  '英単語RUSH', '三語短文', '和文英訳①', '基礎計算', '計算タイムトライアル',
+  'カンジー', 'コブタン', '英語リスオン', '国語長文読解', '理科重要語句',
+  '社会重要語句', '手動付与'
 ];
-function _lineNotifySummarizeStudentEntries(entries) {
+// 2026-05-29 改修：コンテンツ別 HP = 「即時付与分（HPLog）」+「当日解放された Pool 分（reflection_pending）」。
+//   - 即時付与：HPLog の content type hpGained（_lineNotifyContentNameFor が name を返すもの）
+//   - 解放分  ：HpReservePool の reflection_pending で resolvedAt が dateStr の reservedHp
+//   - reserve_release / completion_bonus / reflection_release は「取り組み内容」に出さない
+//     （達成状況は別途 _lineNotifyAbsoluteMissionStatus で「○/△」表示）
+//   - totalHp はコンテンツ別 HP の合計（= 表示される内訳の総和。内訳と一致する）
+function _lineNotifySummarizeStudentEntries(sid, entries, dateStr) {
   var worked = false;
   var byName = {};
-  var totalHp = 0;
-  for (var i = 0; i < entries.length; i++) {
-    var e = entries[i];
-    if (!_lineNotifyCountableType(e.type)) continue;
-    worked = true;
-    totalHp += Number(e.hpGained || 0);
+  var list = entries || [];
+  // 1. HPLog 即時付与分を type 別に集計（worked 判定は従来通り _lineNotifyCountableType）
+  for (var i = 0; i < list.length; i++) {
+    var e = list[i];
+    if (_lineNotifyCountableType(e.type)) worked = true;
     var name = _lineNotifyContentNameFor(e.type);
     if (!name) continue;
     if (!byName[name]) byName[name] = 0;
     byName[name] += Number(e.hpGained || 0);
   }
+  // 2. 当日解放された reflection_pending Pool 分をコンテンツ別に加算
+  if (sid && dateStr) {
+    var released = _lineNotifyReleasedReflectionByContent(sid, dateStr);
+    for (var key in released) {
+      if (!Object.prototype.hasOwnProperty.call(released, key)) continue;
+      var nm2 = _lineNotifyContentKeyToName(key);
+      if (!nm2) continue;
+      if (!byName[nm2]) byName[nm2] = 0;
+      byName[nm2] += Number(released[key] || 0);
+    }
+  }
+  // 3. 表示順に配列化 + totalHp = 内訳の合計
   var contents = [];
+  var totalHp = 0;
   for (var k = 0; k < LINE_NOTIFY_CONTENT_DISPLAY_ORDER.length; k++) {
     var nm = LINE_NOTIFY_CONTENT_DISPLAY_ORDER[k];
-    if (byName[nm] != null) contents.push({ name: nm, hp: byName[nm] });
+    if (byName[nm] != null) {
+      contents.push({ name: nm, hp: byName[nm] });
+      totalHp += Number(byName[nm] || 0);
+    }
   }
   return { worked: worked, contents: contents, totalHp: totalHp };
 }
@@ -21856,8 +21978,10 @@ function _extractNotifyTargets(opts) {
       continue;
     }
     var entries = hpScan.bySid[s.sid] || [];
-    var summary = _lineNotifySummarizeStudentEntries(entries);
+    var summary = _lineNotifySummarizeStudentEntries(s.sid, entries, yesterday);
     var status = summary.worked ? 'worked' : 'sabotaged';
+    // 2026-05-29：絶対ミッション達成状況（worked のときのみ算出。未設定生徒は null）。
+    var missionStatus = summary.worked ? _lineNotifyAbsoluteMissionStatus(s.sid, entries) : null;
     // Task 4（2026-05-19）：本名（s.name）優先、空欄ならニックネームへフォールバック。
     // NotifyTargets シートの `nickname` 列にこの値を保存して、配信時はそれをそのまま LINE 文面に使う。
     var displayName = s.name || s.nickname || s.sid;
@@ -21870,7 +21994,9 @@ function _extractNotifyTargets(opts) {
       totalHp: summary.worked ? summary.totalHp : 0,
       cumulativeHp: summary.worked ? s.cumulativeHp : 0,
       parentUserId: effectiveParentUserId,
-      studentUserId: effectiveStudentUserId
+      studentUserId: effectiveStudentUserId,
+      missionAchieved: (missionStatus && Number(missionStatus.total) > 0) ? Number(missionStatus.achieved) : '',
+      missionTotal:    (missionStatus && Number(missionStatus.total) > 0) ? Number(missionStatus.total)    : ''
     });
   }
   if (opts.persist) {
@@ -21885,7 +22011,8 @@ function _extractNotifyTargets(opts) {
           t.studentId, t.nickname, t.date, t.status,
           JSON.stringify(t.contents || []),
           t.totalHp, t.cumulativeHp,
-          t.parentUserId, t.studentUserId
+          t.parentUserId, t.studentUserId,
+          t.missionAchieved, t.missionTotal
         ];
       });
       sh.getRange(2, 1, rows.length, NOTIFY_TARGETS_HEADERS.length).setValues(rows);
@@ -21950,6 +22077,11 @@ function runDailyNotifyDelivery() {
       var cumulativeHp = Number(row[6]) || 0;
       var parentUserId  = String(row[7] || '').trim();
       var studentUserId = String(row[8] || '').trim();
+      // 2026-05-29：絶対ミッション達成状況（旧スキーマの行は row[9]/row[10] が空 → null 扱い＝表示なし）
+      var missionTotalNum = Number(row[10]) || 0;
+      var missionStatus = missionTotalNum > 0
+        ? { achieved: Number(row[9]) || 0, total: missionTotalNum }
+        : null;
       if (!sid) continue;
 
       // 4 パターン文面の構築
@@ -21958,7 +22090,7 @@ function runDailyNotifyDelivery() {
         : _buildLineMessage_workedStudent(nickname);
       var parentMsg = (status === 'sabotaged')
         ? _buildLineMessage_sabotagedParent(nickname)
-        : _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp);
+        : _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp, missionStatus);
 
       // 生徒本人へ
       if (studentUserId) {
@@ -22032,8 +22164,9 @@ function sendTestNotification(params) {
     var yesterday = _sangoPrevDate(today);
     var hpScan = _lineNotifyScanHpLogForYesterday(yesterday);
     var entries = hpScan.bySid[sid] || [];
-    var summary = _lineNotifySummarizeStudentEntries(entries);
+    var summary = _lineNotifySummarizeStudentEntries(sid, entries, yesterday);
     var status = summary.worked ? 'worked' : 'sabotaged';
+    var missionStatus = summary.worked ? _lineNotifyAbsoluteMissionStatus(sid, entries) : null;
     var msg;
     if (targetType === 'student') {
       msg = (status === 'sabotaged')
@@ -22042,7 +22175,7 @@ function sendTestNotification(params) {
     } else {
       msg = (status === 'sabotaged')
         ? _buildLineMessage_sabotagedParent(snap.nickname)
-        : _buildLineMessage_workedParent(snap.nickname, summary.contents, summary.totalHp, snap.cumulativeHp);
+        : _buildLineMessage_workedParent(snap.nickname, summary.contents, summary.totalHp, snap.cumulativeHp, missionStatus);
     }
     var push = _pushLineMessage(userId, msg);
     _appendNotifyLog(sid, snap.nickname, today, targetType, userId, status,
