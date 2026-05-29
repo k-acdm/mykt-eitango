@@ -20019,22 +20019,20 @@ function _isUnlockFlagTrue(rawValue) {
   return s === 'TRUE' || s === '1' || s === 'YES';
 }
 
-// 学齢 + 開放フラグから、その生徒の絶対ミッション配列を返す。
+// 開放フラグから、その生徒の絶対ミッション配列を返す。
 // 2026-05-18：全コンテンツが個別の開放フラグで制御される設計に変更。
-// 学齢制約（教科内容上の妥当性ガード）：
-//   - eitango / sango : 学齢関係なく TEST_UNLOCKED / SANGO_UNLOCKED で判定（高校生も opt-in 可）
-//   - wabun1 / kanji  : 小・中限定（高校生は flag を立てても無視）
-//   - kiso            : 中のみ限定（小学生 / 高校生は flag を立てても無視）
+// 2026-05-30：学齢ゲートを撤廃。wabun1 / kiso / kanji も TEST / SANGO と同じく
+//   開放フラグ（TRUE）のみで判定する形に統一（学年に関係なく必須ミッションに含める）。
+//   管理画面で ON にした項目がそのまま絶対ミッションになる。
 // デフォルト（全フラグ空欄）の生徒は絶対ミッションのリスト [] になり、両輪システム非起動 = 従来挙動と同等。
 function _getRequiredContentsForLoc(loc) {
   if (!loc) return [];
-  const grade = _readGradeLevelFromLoc(loc);
   const out = [];
-  if (_isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, TEST_UNLOCKED_HEADER_NAME)))  out.push('eitango');
-  if (_isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, SANGO_UNLOCKED_HEADER_NAME))) out.push('sango');
-  if (_isElemOrJunior(grade) && _isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, WABUN1_UNLOCKED_HEADER_NAME))) out.push('wabun1');
-  if (_isJunior(grade)       && _isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, KISO_UNLOCKED_HEADER_NAME)))   out.push('kiso');
-  if (_isElemOrJunior(grade) && _isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, KANJI_UNLOCKED_HEADER_NAME))) out.push('kanji');
+  if (_isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, TEST_UNLOCKED_HEADER_NAME)))   out.push('eitango');
+  if (_isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, SANGO_UNLOCKED_HEADER_NAME)))  out.push('sango');
+  if (_isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, WABUN1_UNLOCKED_HEADER_NAME))) out.push('wabun1');
+  if (_isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, KISO_UNLOCKED_HEADER_NAME)))   out.push('kiso');
+  if (_isUnlockFlagTrue(_readUnlockFlagFromLoc(loc, KANJI_UNLOCKED_HEADER_NAME)))  out.push('kanji');
   return out;
 }
 
