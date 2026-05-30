@@ -21593,6 +21593,10 @@ function _lineNotifyCountableType(type) {
   if (t.indexOf('kiso_')   === 0) return true;
   if (t.indexOf('kanji_')  === 0) return true;
   if (t.indexOf('kobun_')  === 0) return true;
+  // 2026-05-30：理科重要語句 / 社会重要語句。HPLog の type は接尾辞無しの完全一致
+  // （'rika' / 'shakai'）。_lineNotifyContentNameFor 側には 2026-05-29 に追加済みだったが
+  // 判定側に追加漏れがあり、理科・社会だけ実施した生徒が誤って「やってない子」判定されていた。
+  if (t === 'rika' || t === 'shakai') return true;
   // 2026-05-19 Task 2：計算タイムトライアルは本番（'calctrial'）/ 練習（'calctrial_practice'）
   // とも engagement として「やった子」扱い（kiso_*_practice 等と同方針）。
   if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return true;
