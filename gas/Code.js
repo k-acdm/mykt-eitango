@@ -22078,8 +22078,19 @@ function _lineNotifyBuildStudentSnapshots() {
     }
   }
 
-  try { processSheet(SHEET_STUDENTS, _getStudentsValues()); } catch (e) { console.error('[snapshots Students]', e); }
-  try { processSheet(SHEET_SPECIAL_ACCOUNTS, _getSpecialAccountsValues()); } catch (e) { console.error('[snapshots SpecialAccounts]', e); }
+  // 2026-05-30：LINE 配信は誤配信リスクが重いため、キャッシュ（_getStudentsValues /
+  // _getSpecialAccountsValues は 21600 秒=6h TTL）を経由せず、毎回シートの最新値を直接読む。
+  // 正午配信時にシート変更前の古い値（残った userId / 空欄のままの NOTIFY_LINE_STUDENT 等）で
+  // 判定がズレる事故を防ぐ。影響を LINE 配信に限定するため clearAllCache は使わず、本関数内
+  // のみフレッシュ読み（816-821 / 855-888 行の既存フレッシュ読みパターンを踏襲）。
+  // シートが無い / データ行ゼロなら [] 相当（processSheet 側で values.length < 2 を弾く）。
+  function freshSheetValues(sheetName) {
+    var sh = ss.getSheetByName(sheetName);
+    if (!sh || sh.getLastRow() < 2) return [];
+    return sh.getDataRange().getValues();
+  }
+  try { processSheet(SHEET_STUDENTS, freshSheetValues(SHEET_STUDENTS)); } catch (e) { console.error('[snapshots Students]', e); }
+  try { processSheet(SHEET_SPECIAL_ACCOUNTS, freshSheetValues(SHEET_SPECIAL_ACCOUNTS)); } catch (e) { console.error('[snapshots SpecialAccounts]', e); }
   return snapshots;
 }
 
