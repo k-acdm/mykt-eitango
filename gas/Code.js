@@ -23554,7 +23554,12 @@ function adminListKokugoAttempts(params) {
         aiFeedback:        String(item.obj.aiFeedback || ''),
         hpGained:          Number(item.obj.hpGained) || 0,
         attemptCountSoFar: Number(item.obj.attemptCountSoFar) || 0,
-        inProgress:        String(item.obj.impressionText || '').trim().length === 0
+        // 2026-05-30：85dadea で「2問回答済み＝完了」に統一。感想文の提出有無は impressionSubmitted で
+        //   別途返し、inProgress は「2問未回答」基準（通常データでは発生しない安全網）に揃える。
+        //   これにより感想文未提出の完了行が誤って「着手中」表示されず、UI 側で「感想文：未提出」を明示できる。
+        impressionSubmitted: String(item.obj.impressionText || '').trim().length > 0,
+        inProgress:        (String(item.obj.q1_selected || '').trim().length === 0 ||
+                            String(item.obj.q2_selected || '').trim().length === 0)
       };
     });
 
@@ -23620,7 +23625,12 @@ function getKokugoAttemptsForStudent(params) {
         aiFeedback:        String(item.obj.aiFeedback || ''),
         hpGained:          Number(item.obj.hpGained) || 0,
         attemptCountSoFar: Number(item.obj.attemptCountSoFar) || 0,
-        inProgress:        String(item.obj.impressionText || '').trim().length === 0
+        // 2026-05-30：85dadea で「2問回答済み＝完了」に統一。感想文の提出有無は impressionSubmitted で
+        //   別途返し、inProgress は「2問未回答」基準（通常データでは発生しない安全網）に揃える。
+        //   これにより感想文未提出の完了行が誤って「着手中」表示されず、UI 側で「感想文：未提出」を明示できる。
+        impressionSubmitted: String(item.obj.impressionText || '').trim().length > 0,
+        inProgress:        (String(item.obj.q1_selected || '').trim().length === 0 ||
+                            String(item.obj.q2_selected || '').trim().length === 0)
       };
     });
     return { ok: true, studentId: sid, attempts: items };
@@ -23778,7 +23788,10 @@ function getKokugoDayDetail(params) {
             impressionText:    impr,
             aiFeedback:        iFb   >= 0 ? String(r[iFb] || '')   : '',
             attemptCountSoFar: iAcsf >= 0 ? (Number(r[iAcsf]) || 0) : 0,
-            inProgress:        impr.trim().length === 0
+            // 2026-05-30：85dadea 整合。感想文提出有無は impressionSubmitted、inProgress は 2問未回答基準。
+            impressionSubmitted: impr.trim().length > 0,
+            inProgress:        ((iQ1s >= 0 ? String(r[iQ1s] || '').trim().length : 0) === 0 ||
+                                (iQ2s >= 0 ? String(r[iQ2s] || '').trim().length : 0) === 0)
           });
         }
       }

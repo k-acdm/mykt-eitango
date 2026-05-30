@@ -303,6 +303,8 @@
     .kokugo-impr-counter.short { color: #dc2626; font-weight: 600; }
     .kokugo-impr-counter.ok { color: #16a34a; font-weight: 600; }
     .kokugo-impr-hint { font-size: 13px; color: #475569; line-height: 1.7; margin: 6px 0 12px; padding: 10px 12px; background: #fefce8; border-left: 3px solid #facc15; border-radius: 4px; }
+    /* 2026-05-30：感想文を書かずに閉じると HP 権利が消滅する旨の警告（85dadea で再開不可になったため明示） */
+    .kokugo-impr-warn { font-size: 14px; color: #7c2d12; font-weight: 700; line-height: 1.7; margin: 6px 0 14px; padding: 12px 14px; background: #fff7ed; border: 2px solid #f59e0b; border-radius: 10px; box-shadow: 0 2px 8px rgba(245,158,11,.18); }
     /* HP獲得画面の AI フィードバックボックス */
     .kokugo-feedback-box { background: #eff6ff; border: 2px solid #60a5fa; border-radius: 12px; padding: 14px 16px; margin: 14px 0; }
     .kokugo-feedback-box .fb-label { font-size: 13px; color: #2563eb; font-weight: 600; margin-bottom: 6px; }
@@ -2830,10 +2832,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260529-0135"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260530-1831"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260529-0135">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260529-0135"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260530-1831">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260530-1831"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4602,6 +4604,9 @@
     <div class="kokugo-mate-row">
       <img class="kokugo-img" id="kokugo-img-impression" src="images/japanin-default.png" alt="ジャパニン">
       <div class="kokugo-bubble" id="kokugo-bubble-impression">言葉にすると見えてくるものがあるでござる</div>
+    </div>
+    <div class="kokugo-impr-warn">
+      ⚠️ ここで感想文を書かずに画面を閉じると、HP獲得の権利が消滅します。再び戻って書くこともできないので、間違えて閉じてしまわないように注意してください。
     </div>
     <div class="kokugo-impr-hint">
       📌 「文章を読んだ感想」や「問題を解いてみての感想」など、自由に書いてみよう。<br>
@@ -11959,9 +11964,11 @@
   // 途中で「ホームに戻る」を押した時の確認
   function _kokugoConfirmBackToHome() {
     // 採点済（attemptId あり）かつ感想未提出の場合だけ確認ダイアログ。
-    // 採点前なら state が消えても問題ない（着手中行はサーバに残らない）。
+    // 2026-05-30：85dadea で「2問回答済み＝完了」に統一し、再開（resume）は無くなった。
+    //   感想文未提出のままホームに戻ると HP 獲得の権利は消滅し、同じ問題には戻れない。
+    //   旧文言「次回続きから再開できるよ」は誤りなので、消滅する旨に修正。
     if (_kokugoState.attemptId) {
-      if (!confirm('感想文がまだだよ。ホームに戻ると、次回続きから再開できるよ。戻る？')) return;
+      if (!confirm('感想文がまだだよ。ここでホームに戻ると HP 獲得の権利が消えて、もうこの問題には戻れないよ。本当に戻る？')) return;
     }
     goHome();
   }
@@ -14459,7 +14466,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260529-0135</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260530-1831</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

@@ -9033,10 +9033,16 @@
                       '<span class="q-result ' + (a.q2_correct ? 'ok' : 'ng') + '">問題2：' + q2Mark + '（選択: ' + _esc(String(a.q2_selected || '')) + '）</span>' +
                     '</div>';
 
+    // 2026-05-30：85dadea で「2問回答済み＝完了」に統一。感想文未提出でも完了扱いなので、
+    //   inProgress（=2問未回答、通常データでは発生しない安全網）と分けて表示する。
+    //   感想文の提出有無は impressionSubmitted を優先（無ければ impressionText から後方互換判定）。
+    var imprSubmitted = (typeof a.impressionSubmitted !== 'undefined')
+      ? !!a.impressionSubmitted
+      : (String(a.impressionText || '').trim().length > 0);
     var bodyBlock = '';
     if (inProgress) {
-      bodyBlock = '<div class="kokugo-attempt-in-progress-note">⏳ 着手中（感想文未提出）</div>';
-    } else {
+      bodyBlock = '<div class="kokugo-attempt-in-progress-note">⏳ 着手中（2問未回答）</div>';
+    } else if (imprSubmitted) {
       var impr = String(a.impressionText || '');
       var fb   = String(a.aiFeedback || '');
       if (impr) {
@@ -9045,6 +9051,10 @@
       if (fb) {
         bodyBlock += '<div class="kokugo-attempt-feedback"><span class="kokugo-attempt-feedback-label">🤖 AI フィードバック</span>' + _esc(fb) + '</div>';
       }
+    } else {
+      // 2問回答済みだが感想文未提出 → 空欄にせず明示。HP・AI フィードバックも「なし」相当を出す。
+      bodyBlock += '<div class="kokugo-attempt-impression"><span class="kokugo-attempt-feedback-label">📝 感想文</span><span style="color:#b45309;font-weight:600">未提出</span></div>';
+      bodyBlock += '<div class="kokugo-attempt-feedback"><span class="kokugo-attempt-feedback-label">🤖 AI フィードバック</span><span style="color:#64748b">なし（感想文 未提出のため）</span></div>';
     }
 
     return '<div class="kokugo-attempt-card' + (inProgress ? ' in-progress' : '') + '">' +
