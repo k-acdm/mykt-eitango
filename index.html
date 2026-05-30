@@ -919,9 +919,18 @@
     .avatar-stage .avatar-slot { position: relative; z-index: 2; }
     .avatar-slot { flex-shrink: 0; text-align: center; cursor: pointer; }
     .avatar-slot .avatar-wrap { position: relative; height: 240px; display: flex; align-items: flex-end; justify-content: center; }
-    .avatar-slot .avatar-img { width: auto; height: 240px; max-width: 200px; object-fit: contain; transition: transform .2s, filter .2s; border-radius: 16px; }
+    .avatar-slot .avatar-img { position: relative; z-index: 1; width: auto; height: 240px; max-width: 200px; object-fit: contain; transition: transform .2s, filter .2s; border-radius: 16px; }
     .avatar-slot:hover .avatar-img { transform: scale(1.04); filter: drop-shadow(0 2px 6px rgba(124,58,237,.2)); }
-    .avatar-slot .avatar-placeholder { width: 180px; height: 240px; display: none; align-items: center; justify-content: center; background: rgba(200,220,255,.25); border: 2px dashed #b0c0e0; border-radius: 16px; color: #6b7a99; font-size: 96px; font-weight: bold; line-height: 1; transition: transform .2s, background .2s; }
+    .avatar-slot .avatar-placeholder { position: relative; z-index: 1; width: 180px; height: 240px; display: none; align-items: center; justify-content: center; background: rgba(200,220,255,.25); border: 2px dashed #b0c0e0; border-radius: 16px; color: #6b7a99; font-size: 96px; font-weight: bold; line-height: 1; transition: transform .2s, background .2s; }
+    /* HP交換 Phase3-A：中央ゾーンの背景画像（縦合わせcover・中央寄せ・横はみ出しはwrapでクリップ）+ 左右の飾りゾーン置物 */
+    .avatar-bg-img { position: absolute; top: 0; left: 50%; transform: translateX(-50%); height: 100%; width: auto; z-index: 0; border-radius: 16px; pointer-events: none; }
+    .avatar-stage.has-bg .avatar-wrap { overflow: hidden; border-radius: 16px; }
+    .avatar-stage.has-bg .avatar-seasonal,
+    .avatar-stage.has-bg .avatar-stage-light,
+    .avatar-stage.has-bg .avatar-stage-spot { display: none !important; }
+    .avatar-deco { position: absolute; bottom: 12px; width: 46px; height: auto; z-index: 3; opacity: .92; pointer-events: none; filter: drop-shadow(0 2px 4px rgba(0,0,0,.18)); border-radius: 8px; }
+    .avatar-deco.left  { left: 4px;  transform: rotate(-6deg); }
+    .avatar-deco.right { right: 4px; transform: rotate(6deg) scaleX(-1); }
     .avatar-slot:hover .avatar-placeholder { transform: scale(1.04); background: rgba(200,220,255,.4); }
     .avatar-slot .avatar-name { font-size: 13px; color: #666; font-weight: bold; margin-top: 4px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .avatar-slot .avatar-name.placeholder-label { color: #7c3aed; }
@@ -936,6 +945,50 @@
     .avatar-corner-soon { background: rgba(255,255,255,.6); border: 2px dashed #c4b5fd; border-radius: 14px; padding: 18px 14px; text-align: center; color: #6b21a8; }
     .avatar-corner-soon-title { font-size: 16px; font-weight: bold; margin-bottom: 6px; }
     .avatar-corner-soon-msg { font-size: 13px; color: #7c3aed; }
+    /* アバターコーナー：ショップ/クローゼット導線ボタン（着せ替え近日公開プレースホルダの置換） */
+    .avatar-hub-btn { display: block; width: 100%; padding: 14px 18px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; color: #fff; cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,.15); transition: transform .15s, box-shadow .15s; margin-top: 12px; }
+    .avatar-hub-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(0,0,0,.22); }
+    .avatar-hub-btn.shop   { background: linear-gradient(135deg,#f59e0b,#d97706); }
+    .avatar-hub-btn.closet { background: linear-gradient(135deg,#8b5cf6,#7c3aed); }
+    /* ===== HP交換 Phase3-A：ショップ / クローゼット 画面 ===== */
+    .avatar-shop-balance { background: linear-gradient(135deg,#fffbeb,#fef3c7); border: 2px solid #fcd34d; border-radius: 14px; padding: 14px 16px; text-align: center; margin-bottom: 16px; }
+    .avatar-shop-balance .lbl { font-size: 13px; color: #92400e; font-weight: bold; }
+    .avatar-shop-balance .val { font-size: 26px; color: #b45309; font-weight: bold; }
+    .avatar-shop-balance .val small { font-size: 14px; }
+    .avatar-shop-loading { text-align: center; color: #888; padding: 30px 10px; }
+    .avatar-shop-cat { margin-bottom: 18px; }
+    .avatar-shop-cat-head { font-size: 16px; font-weight: bold; color: #5b21b6; margin-bottom: 10px; padding-left: 4px; border-left: 5px solid #a78bfa; }
+    /* カテゴリ表示モード（個別アイテムを出さず、カテゴリ名を「近日公開」的に並べる） */
+    .avatar-cat-soon-card { background: rgba(243,240,255,.7); border: 2px dashed #c4b5fd; border-radius: 14px; padding: 16px 14px; text-align: center; }
+    .avatar-cat-soon-card .ttl { font-size: 16px; font-weight: bold; color: #6b21a8; }
+    .avatar-cat-soon-card .sub { font-size: 12.5px; color: #7c3aed; margin-top: 4px; }
+    /* 品目表示モード：アイテムグリッド */
+    .avatar-item-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .avatar-item-card { background: #fff; border: 2px solid #ede9fe; border-radius: 14px; padding: 12px 10px; text-align: center; box-shadow: 0 2px 8px rgba(124,58,237,.08); display: flex; flex-direction: column; }
+    .avatar-item-card.soon { opacity: .6; }
+    .avatar-item-thumb { width: 100%; height: 110px; object-fit: contain; background: linear-gradient(180deg,#f8f6ff,#efeaff); border-radius: 10px; margin-bottom: 8px; }
+    .avatar-item-thumb-ph { width: 100%; height: 110px; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg,#f8f6ff,#efeaff); border-radius: 10px; margin-bottom: 8px; font-size: 40px; color: #c4b5fd; }
+    .avatar-item-name { font-size: 14px; font-weight: bold; color: #4c1d95; margin-bottom: 4px; min-height: 2.6em; display: flex; align-items: center; justify-content: center; }
+    .avatar-item-price { font-size: 13px; color: #b45309; font-weight: bold; margin-bottom: 8px; }
+    .avatar-item-btn { margin-top: auto; padding: 9px 8px; border: none; border-radius: 9px; font-size: 13px; font-weight: bold; cursor: pointer; }
+    .avatar-item-btn.buy { background: linear-gradient(135deg,#f59e0b,#d97706); color: #fff; }
+    .avatar-item-btn.buy:hover { filter: brightness(1.05); }
+    .avatar-item-btn.owned { background: #e5e7eb; color: #6b7280; cursor: default; }
+    .avatar-item-btn.soon  { background: #e5e7eb; color: #9ca3af; cursor: default; }
+    .avatar-item-rarity { font-size: 11px; color: #7c3aed; margin-bottom: 4px; }
+    /* クローゼット */
+    .avatar-closet-empty { text-align: center; color: #888; padding: 24px 10px; line-height: 1.7; }
+    .avatar-closet-cat { margin-bottom: 18px; }
+    .avatar-closet-cat-head { font-size: 16px; font-weight: bold; color: #5b21b6; margin-bottom: 10px; padding-left: 4px; border-left: 5px solid #a78bfa; }
+    .avatar-closet-item.equipped { border-color: #34d399; box-shadow: 0 0 0 2px rgba(52,211,153,.4), 0 2px 8px rgba(16,185,129,.15); }
+    .avatar-closet-badge { font-size: 11px; font-weight: bold; color: #047857; background: #d1fae5; border-radius: 999px; padding: 2px 8px; margin-bottom: 4px; display: inline-block; }
+    .avatar-item-btn.equip   { background: linear-gradient(135deg,#8b5cf6,#7c3aed); color: #fff; }
+    .avatar-item-btn.unequip { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+    @media (max-width: 480px) {
+      .avatar-deco { width: 34px; bottom: 10px; }
+      .avatar-item-thumb, .avatar-item-thumb-ph { height: 92px; }
+      .avatar-shop-balance .val { font-size: 22px; }
+    }
     /* アバター選択画面 */
     .avatar-select-card { display: block; width: 80%; max-width: 360px; margin: 14px auto; background: #fff; border: 2px solid transparent; border-radius: 18px; padding: 14px; box-shadow: 0 3px 12px rgba(0,0,0,.08); cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s; }
     .avatar-select-card:hover { transform: scale(1.02); box-shadow: 0 5px 18px rgba(0,0,0,.12); }
@@ -2852,10 +2905,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260531-0032"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260531-0637"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260531-0032">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260531-0032"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260531-0637">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260531-0637"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3196,12 +3249,16 @@
            2026-05-15 演出追加：avatar-stage で薄ラベンダー枠 + 楕円スポット + 微光 +
            季節モチーフ（JS で月別生成）を重ねて、アバターに温度感を持たせる。 -->
       <div class="avatar-home-row">
-        <div class="avatar-stage">
+        <div class="avatar-stage" id="avatar-home-stage">
           <div class="avatar-seasonal" id="avatar-seasonal"></div>
           <div class="avatar-stage-light"></div>
           <div class="avatar-stage-spot"></div>
+          <!-- 左右の飾りゾーン置物（将来バッジ/トロフィー置き場、今はマイカツ君） -->
+          <img class="avatar-deco left"  src="./character.jpg" alt="" aria-hidden="true">
+          <img class="avatar-deco right" src="./character.jpg" alt="" aria-hidden="true">
           <div class="avatar-slot" id="avatar-slot" onclick="onAvatarSlotTap()" role="button" tabindex="0">
             <div class="avatar-wrap">
+              <img class="avatar-bg-img" id="avatar-bg-img" alt="" aria-hidden="true" style="display:none">
               <img class="avatar-img" id="avatar-img" alt="アバター" style="display:none">
               <div class="avatar-placeholder" id="avatar-placeholder">？</div>
             </div>
@@ -3465,16 +3522,27 @@
   <div class="container" style="padding-top:20px">
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">← 戻る</button>
     <div class="avatar-corner-wrap">
-      <div class="avatar-corner-pic">
-        <img id="avatar-corner-img" alt="アバター">
+      <!-- 3 分割ステージ（ホームと同じ構造。背景適用時は花吹雪/オーラを隠して背景画像を中央に表示） -->
+      <div class="avatar-home-row" style="margin-bottom:8px">
+        <div class="avatar-stage" id="avatar-corner-stage">
+          <div class="avatar-seasonal" id="avatar-corner-seasonal"></div>
+          <div class="avatar-stage-light"></div>
+          <div class="avatar-stage-spot"></div>
+          <img class="avatar-deco left"  src="./character.jpg" alt="" aria-hidden="true">
+          <img class="avatar-deco right" src="./character.jpg" alt="" aria-hidden="true">
+          <div class="avatar-slot" style="cursor:default">
+            <div class="avatar-wrap">
+              <img class="avatar-bg-img" id="avatar-corner-bg-img" alt="" aria-hidden="true" style="display:none">
+              <img class="avatar-img" id="avatar-corner-img" alt="アバター" style="display:none">
+            </div>
+          </div>
+        </div>
       </div>
       <div class="avatar-corner-name" id="avatar-corner-name"></div>
       <button class="avatar-corner-change-btn" onclick="showAvatarSelect()">アバターを変更する</button>
       <div class="avatar-corner-divider"></div>
-      <div class="avatar-corner-soon">
-        <div class="avatar-corner-soon-title">📦 着せ替えアイテム</div>
-        <div class="avatar-corner-soon-msg">近日公開、お楽しみに</div>
-      </div>
+      <button class="avatar-hub-btn shop"   onclick="showAvatarShop()">🛍 ショップ（HPでアイテム交換）</button>
+      <button class="avatar-hub-btn closet" onclick="showAvatarCloset()">👕 クローゼット（持ち物・きせかえ）</button>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
@@ -3496,6 +3564,29 @@
         <img src="images/avatar/base_neutral.png" alt="中性的なアバター">
       </div>
     </div>
+  </div>
+</div>
+<!-- アバターショップ（HP交換 Phase3-A 新規）：2 段階表示（カテゴリ表示 / 品目表示） -->
+<div id="screen-avatar-shop" class="screen">
+  <header><h1>🛍 ショップ</h1></header>
+  <div class="container" style="padding-top:20px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showAvatarCorner()">← アバターコーナーに戻る</button>
+    <div class="avatar-shop-balance">
+      <div class="lbl">💎 交換できるHP</div>
+      <div class="val" id="avatar-shop-balance-val">―</div>
+    </div>
+    <div id="avatar-shop-body"><div class="avatar-shop-loading">読み込み中…</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+<!-- クローゼット（HP交換 Phase3-A 新規）：所持品をカテゴリ別に。装着 / 取り外し / 背景切替 -->
+<div id="screen-avatar-closet" class="screen">
+  <header><h1>👕 クローゼット</h1></header>
+  <div class="container" style="padding-top:20px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showAvatarCorner()">← アバターコーナーに戻る</button>
+    <div id="avatar-closet-body"><div class="avatar-shop-loading">読み込み中…</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:8px" onclick="showAvatarShop()">🛍 ショップでアイテムを増やす</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-level" class="screen">
@@ -6282,7 +6373,7 @@
   // セッション中のアバター状態（ニックネーム / base / items / equipped）。
   // ホーム表示時に getAvatarState で読み込み、saveAvatarBase 成功時に更新する。
   // items / equipped は Phase β で使う。Phase α では参照しない。
-  var _avatarState = { base: '', items: [], equipped: {}, nickname: '' };
+  var _avatarState = { base: '', items: [], equipped: {}, equippedDetails: {}, nickname: '' };
 
   var AVATAR_BASE_IMG = {
     boy:     'images/avatar/base_boy.png',
@@ -6338,11 +6429,38 @@
   //   未設定者は従来どおり「？」プレースホルダーを表示する。
   //   同じ src で再呼び出しされた場合（goHome 等）はフェードを省略して
   //   既に表示されている画像をちらつかせない。
+  // HP交換 Phase3-A：装着中の背景アイテムの画像パス（無ければ ''）。
+  //   背景カテゴリ規約：category_key='background'。equippedDetails['background'].imagePath を使う。
+  function _avatarBgPath() {
+    var d = _avatarState && _avatarState.equippedDetails;
+    if (d && d.background && d.background.imagePath) return String(d.background.imagePath);
+    return '';
+  }
+  // ステージ（.avatar-stage）に背景画像を適用 / 解除する。
+  //   適用時：has-bg を付与（CSS で花吹雪/オーラ/スポットを非表示）+ 背景 img を表示。
+  //   解除時：has-bg を外し、背景 img を非表示（従来の CSS 演出に戻る）。
+  function _applyStageBackground(stageEl, bgImgEl, bgPath) {
+    if (!stageEl || !bgImgEl) return;
+    if (bgPath) {
+      if ((bgImgEl.getAttribute('src') || '') !== bgPath) bgImgEl.src = bgPath;
+      bgImgEl.style.display = '';
+      stageEl.classList.add('has-bg');
+    } else {
+      bgImgEl.removeAttribute('src');
+      bgImgEl.style.display = 'none';
+      stageEl.classList.remove('has-bg');
+    }
+  }
   function _renderAvatarSlot() {
     var img         = document.getElementById('avatar-img');
     var placeholder = document.getElementById('avatar-placeholder');
     var nameEl      = document.getElementById('avatar-name');
     var newBadge    = document.getElementById('card-avatar-new-badge');
+    // 背景はベース未設定でも適用しうるので、img/placeholder が無くても背景だけは反映する。
+    _applyStageBackground(
+      document.getElementById('avatar-home-stage'),
+      document.getElementById('avatar-bg-img'),
+      _avatarBgPath());
     if (!img || !placeholder || !nameEl) return;
     var base = _avatarState.base;
     if (base && AVATAR_BASE_IMG[base]) {
@@ -6419,6 +6537,7 @@
         _avatarState.base     = serverBase;
         _avatarState.items    = Array.isArray(res.items) ? res.items : [];
         _avatarState.equipped = (res.equipped && typeof res.equipped === 'object') ? res.equipped : {};
+        _avatarState.equippedDetails = (res.equippedDetails && typeof res.equippedDetails === 'object') ? res.equippedDetails : {};
         _avatarState.nickname = String(res.nickname || '');
         // サーバ値で localStorage を更新（空ならクリア、AVATAR_BASE_IMG に無い値もクリア）
         if (serverBase !== cachedBase) _saveCachedAvatarBase(_studentId, serverBase);
@@ -6443,8 +6562,8 @@
   // 2026-05-15 強化版：個数を 8〜12 個に増やし、サイズを 1.3〜1.5 倍程度に拡大。
   //   開始遅延もバラけさせて「常に何かが落ちている」状態を作る。
   //   prefers-reduced-motion は CSS 側で display:none で完全停止。
-  function _renderAvatarSeasonal() {
-    var el = document.getElementById('avatar-seasonal');
+  function _renderAvatarSeasonal(elId) {
+    var el = document.getElementById(elId || 'avatar-seasonal');
     if (!el) return;
     var month = new Date().getMonth() + 1; // 1-12
     var emoji, drift = false, count, dur, sizeMin, sizeMax;
@@ -6490,8 +6609,14 @@
     }
     var img = document.getElementById('avatar-corner-img');
     var nm  = document.getElementById('avatar-corner-name');
-    if (img && AVATAR_BASE_IMG[_avatarState.base]) img.src = AVATAR_BASE_IMG[_avatarState.base];
+    if (img && AVATAR_BASE_IMG[_avatarState.base]) { img.src = AVATAR_BASE_IMG[_avatarState.base]; img.style.display = ''; }
     if (nm)  nm.textContent  = _avatarState.nickname || '';
+    // 3 分割ステージ：季節モチーフ注入 + 背景画像適用（ホームと同じ挙動）
+    _renderAvatarSeasonal('avatar-corner-seasonal');
+    _applyStageBackground(
+      document.getElementById('avatar-corner-stage'),
+      document.getElementById('avatar-corner-bg-img'),
+      _avatarBgPath());
     showScreen('screen-avatar-corner');
   }
 
@@ -6543,6 +6668,160 @@
       _avatarSaveInFlight = false;
       alert('保存に失敗しました：通信エラー');
     });
+  }
+
+  // ================= HP交換 Phase3-A：ショップ / クローゼット / 購入 / 装着 =================
+  function _avEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c];
+    });
+  }
+  function _avNum(n) { return (Number(n) || 0).toLocaleString(); }
+
+  // ---- ショップ（2 段階表示：カテゴリ表示 / 品目表示）----
+  var _avatarShopItemCache = {};
+  function showAvatarShop() {
+    showScreen('screen-avatar-shop');
+    var body  = document.getElementById('avatar-shop-body');
+    var balEl = document.getElementById('avatar-shop-balance-val');
+    if (balEl) balEl.textContent = '―';
+    if (body)  body.innerHTML = '<div class="avatar-shop-loading">読み込み中…</div>';
+    if (!_studentId) { if (body) body.innerHTML = '<div class="avatar-shop-loading">ログイン情報が見つかりません。</div>'; return; }
+    gasGet({ action: 'getAvatarShop', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) { if (body) body.innerHTML = '<div class="avatar-shop-loading">❌ ' + _avEsc((res && res.message) || '取得に失敗しました。') + '</div>'; return; }
+      _renderAvatarShop(res);
+    }).catch(function(){ if (body) body.innerHTML = '<div class="avatar-shop-loading">通信エラーが発生しました。</div>'; });
+  }
+  function _renderAvatarShop(res) {
+    var body  = document.getElementById('avatar-shop-body');
+    var balEl = document.getElementById('avatar-shop-balance-val');
+    if (balEl) balEl.innerHTML = (res.exchangeableHp == null ? '―' : _avNum(res.exchangeableHp) + ' <small>HP</small>');
+    if (!body) return;
+    var cats = Array.isArray(res.categories) ? res.categories : [];
+    if (cats.length === 0) { body.innerHTML = '<div class="avatar-shop-loading">まだアイテムがありません。</div>'; return; }
+    _avatarShopItemCache = {};
+    var html = '';
+    cats.forEach(function(cat){
+      html += '<div class="avatar-shop-cat">';
+      html += '<div class="avatar-shop-cat-head">' + _avEsc(cat.categoryJa) + '</div>';
+      if (cat.displayMode !== 'item') {
+        // カテゴリ表示モード：個別アイテムを出さず、カテゴリ名を「近日公開」的に並べる
+        html += '<div class="avatar-cat-soon-card"><div class="ttl">' + _avEsc(cat.categoryJa) + '</div><div class="sub">🔜 近日公開、お楽しみに</div></div>';
+      } else {
+        var items = Array.isArray(cat.items) ? cat.items : [];
+        if (items.length === 0) {
+          html += '<div class="avatar-cat-soon-card"><div class="sub">準備中…</div></div>';
+        } else {
+          html += '<div class="avatar-item-grid">';
+          items.forEach(function(it){
+            _avatarShopItemCache[it.itemId] = it;
+            var soon = !it.purchasable && !it.owned;
+            html += '<div class="avatar-item-card' + (soon ? ' soon' : '') + '">';
+            if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="">';
+            else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
+            if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
+            html += '<div class="avatar-item-name">' + _avEsc(it.name) + '</div>';
+            html += '<div class="avatar-item-price">' + (Number(it.price) > 0 ? _avNum(it.price) + ' HP' : '—') + '</div>';
+            if (it.owned)            html += '<button class="avatar-item-btn owned" disabled>所持済み</button>';
+            else if (it.purchasable) html += '<button class="avatar-item-btn buy" onclick="buyAvatarItem(\'' + _avEsc(it.itemId) + '\')">交換する</button>';
+            else                     html += '<button class="avatar-item-btn soon" disabled>近日公開</button>';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+      }
+      html += '</div>';
+    });
+    body.innerHTML = html;
+  }
+  var _avatarBuyInFlight = false;
+  function buyAvatarItem(itemId) {
+    if (_avatarBuyInFlight) return;
+    var it = _avatarShopItemCache[itemId];
+    if (!it) return;
+    var ok = confirm(it.name + ' を ' + _avNum(it.price) + ' HP で交換しますか？\n（生涯HPは減りません。「交換できるHP」から引かれます）');
+    if (!ok) return;
+    _avatarBuyInFlight = true;
+    gasPost({ action: 'submitExchange', studentId: _studentId, itemId: itemId }).then(function(res){
+      _avatarBuyInFlight = false;
+      if (!res || !res.ok) { alert('交換できませんでした：' + ((res && res.message) || '通信エラー')); return; }
+      if (Array.isArray(res.owned)) _avatarState.items = res.owned;
+      alert('🎉 ' + (res.message || '交換しました！'));
+      showAvatarShop(); // 残高 + 所持状態の反映のため再取得
+    }).catch(function(){ _avatarBuyInFlight = false; alert('交換できませんでした：通信エラー'); });
+  }
+
+  // ---- クローゼット（所持品 / 装着 / 取り外し）----
+  function showAvatarCloset() {
+    showScreen('screen-avatar-closet');
+    var body = document.getElementById('avatar-closet-body');
+    if (body) body.innerHTML = '<div class="avatar-shop-loading">読み込み中…</div>';
+    if (!_studentId) { if (body) body.innerHTML = '<div class="avatar-shop-loading">ログイン情報が見つかりません。</div>'; return; }
+    gasGet({ action: 'getAvatarCloset', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) { if (body) body.innerHTML = '<div class="avatar-shop-loading">❌ ' + _avEsc((res && res.message) || '取得に失敗しました。') + '</div>'; return; }
+      _renderAvatarCloset(res);
+    }).catch(function(){ if (body) body.innerHTML = '<div class="avatar-shop-loading">通信エラーが発生しました。</div>'; });
+  }
+  function _renderAvatarCloset(res) {
+    var body = document.getElementById('avatar-closet-body');
+    if (!body) return;
+    var cats = Array.isArray(res.categories) ? res.categories : [];
+    if (cats.length === 0) {
+      body.innerHTML = '<div class="avatar-closet-empty">まだ持ち物がありません。<br>ショップでHPを使ってアイテムを増やそう！</div>';
+      return;
+    }
+    var html = '';
+    cats.forEach(function(cat){
+      html += '<div class="avatar-closet-cat">';
+      html += '<div class="avatar-closet-cat-head">' + _avEsc(cat.categoryJa) + '</div>';
+      html += '<div class="avatar-item-grid">';
+      (cat.items || []).forEach(function(it){
+        html += '<div class="avatar-item-card avatar-closet-item' + (it.equipped ? ' equipped' : '') + '">';
+        if (it.equipped) html += '<div class="avatar-closet-badge">✅ 装着中</div>';
+        if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="">';
+        else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
+        if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
+        html += '<div class="avatar-item-name">' + _avEsc(it.name) + '</div>';
+        if (it.equipped) html += '<button class="avatar-item-btn unequip" onclick="unequipAvatarCategory(\'' + _avEsc(cat.categoryKey) + '\')">外す</button>';
+        else             html += '<button class="avatar-item-btn equip" onclick="equipAvatarItem(\'' + _avEsc(it.itemId) + '\')">装着する</button>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
+    body.innerHTML = html;
+  }
+  var _avatarEquipInFlight = false;
+  function equipAvatarItem(itemId) {
+    if (_avatarEquipInFlight) return;
+    _avatarEquipInFlight = true;
+    gasPost({ action: 'setAvatarEquip', studentId: _studentId, itemId: itemId }).then(function(res){
+      _avatarEquipInFlight = false;
+      if (!res || !res.ok) { alert('装着できませんでした：' + ((res && res.message) || '通信エラー')); return; }
+      _applyEquipResult(res);
+      showAvatarCloset();
+    }).catch(function(){ _avatarEquipInFlight = false; alert('装着できませんでした：通信エラー'); });
+  }
+  function unequipAvatarCategory(categoryKey) {
+    if (_avatarEquipInFlight) return;
+    _avatarEquipInFlight = true;
+    gasPost({ action: 'setAvatarEquip', studentId: _studentId, unequip: true, categoryKey: categoryKey }).then(function(res){
+      _avatarEquipInFlight = false;
+      if (!res || !res.ok) { alert('外せませんでした：' + ((res && res.message) || '通信エラー')); return; }
+      _applyEquipResult(res);
+      showAvatarCloset();
+    }).catch(function(){ _avatarEquipInFlight = false; alert('外せませんでした：通信エラー'); });
+  }
+  // 装着結果を _avatarState に反映し、ホーム/コーナーの背景を即時更新。
+  function _applyEquipResult(res) {
+    _avatarState.equipped        = (res.equipped && typeof res.equipped === 'object') ? res.equipped : {};
+    _avatarState.equippedDetails = (res.equippedDetails && typeof res.equippedDetails === 'object') ? res.equippedDetails : {};
+    try { _invalidateCacheByAction('getAvatarState'); } catch(e){}
+    _renderAvatarSlot(); // ホーム側ステージの背景を即時反映
+    // アバターコーナーが表示中なら背景も更新
+    _applyStageBackground(
+      document.getElementById('avatar-corner-stage'),
+      document.getElementById('avatar-corner-bg-img'),
+      _avatarBgPath());
   }
 
   function showWelcome(nickname, totalHP, loginBonus, stage, streak, title, milestone) {
@@ -8193,7 +8472,10 @@
                 '高校生は「学びの総仕上げ」ステージ。最後に勢いをつけるための「×1.6」 の補正がかかっています。' +
               '</div>';
     }
-    html += '<div class="hp-check-soon">🎁 ためたHPでアイテムと交換できる機能は <strong>近日公開</strong> 予定だよ！</div>';
+    html += '<button type="button" class="hp-check-shop-btn" onclick="closeHpCheck(); showAvatarShop();" ' +
+              'style="display:block;width:100%;margin-top:14px;padding:13px 16px;border:none;border-radius:12px;' +
+              'background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-size:15px;font-weight:bold;cursor:pointer;' +
+              'box-shadow:0 3px 10px rgba(217,119,6,.3)">🛍 ショップでアイテムと交換する</button>';
     body.innerHTML = html;
   }
 
@@ -14567,7 +14849,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260531-0032</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260531-0637</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
