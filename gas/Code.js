@@ -22655,13 +22655,22 @@ function _readKokugoAttemptsForSid(sid, filterFn) {
   return out;
 }
 
-// 着手中（impressionText が空）の行を 1 件返す（最新を優先）
+// 着手中（2問のうちどちらかが未回答 = q1_selected / q2_selected のいずれかが空）の行を
+// 1 件返す（最新を優先）。
+// 2026-05-30：旧基準は「impressionText 空」だったが、それだと「2問回答済み・感想文なし」の行が、
+//   _pickKokugoQuestion の除外基準（2問回答済み=完了）と矛盾する（除外側は『完了』、こちらは
+//   『着手中』とダブって扱われ、step① のリトライ表示で同じ問題が翌日以降も再表示され続ける）。
+//   両者を整合させ「2問とも回答済み＝完了（着手中ではない）」に統一。着手中は「2問未回答」のみ。
+//   現状の KokugoAttempts 行は submitKokugoAnswers（両問必須）でのみ生成されるため、通常データでは
+//   この関数は null を返す（＝完了済みを resume 対象にしない）。これにより、感想文未提出でも同じ問題が
+//   翌日以降に再出題されず、除外リスト（_pickKokugoQuestion）経由で新しい問題が選ばれる。
 function _findInProgressKokugoAttempt(sid) {
   const all = _readKokugoAttemptsForSid(sid);
   if (!all.length) return null;
   for (let i = all.length - 1; i >= 0; i--) {
-    const t = String(all[i].obj.impressionText || '').trim();
-    if (!t) return all[i];
+    const q1 = String(all[i].obj.q1_selected || '').trim();
+    const q2 = String(all[i].obj.q2_selected || '').trim();
+    if (!q1 || !q2) return all[i];  // 2問未回答 = 着手中
   }
   return null;
 }
@@ -22676,8 +22685,8 @@ function _countKokugoAttemptsForQuestion(sid, questionId) {
 
 // 出題候補の選定（仕様書 2 節）
 //   1) 該当 charCount × category の active な問題を全て取得
-//   2) 完了済み（impressionText 非空）の挑戦履歴で、最後の完了から KOKUGO_REPEAT_INTERVAL 題以内
-//      にやった問題は除外
+//   2) 完了済み（2問とも回答提出済み = q1_selected / q2_selected が両方非空）の挑戦履歴で、
+//      最後の完了から KOKUGO_REPEAT_INTERVAL 題以内にやった問題は除外
 //   3) 着手中の問題は対象外（呼び出し側で先に検出して優先返却している前提）
 //   4) 候補が 0 になったら、最後にやった問題以外を候補とする（フォールバック）
 //
@@ -22705,12 +22714,20 @@ function _pickKokugoQuestion(sid, category, charCount) {
   }
   if (!activeIds.length) return null;
 
-  // 該当生徒が完了した挑戦履歴（impressionText 非空）の中で、同 category × charCount のみ抽出。
+  // 該当生徒が完了した挑戦履歴の中で、同 category × charCount のみ抽出。
   // 新しい順に並べて、直近 KOKUGO_REPEAT_INTERVAL 件分の questionId を「除外候補」とする。
+  // 2026-05-30：完了基準を「2問とも回答提出済み（q1_selected / q2_selected が両方非空）」に変更。
+  //   旧基準（impressionText 非空）だと、問題を解いたが感想文を提出していない生徒で、その問題が
+  //   除外リストに入らず翌日以降もランダム候補に残り続け、同じ問題が連続出題される不具合があった。
+  //   ふくちさん決定：完了時にカウント・感想文有無は問わない（解き終え＝2問回答提出した時点で完了）。
+  //   ※ KokugoAttempts 行は submitKokugoAnswers（両問必須）でのみ生成されるため、行が存在すれば
+  //     実質 q1/q2 とも非空。明示的にチェックすることで意図を明確化＆将来の部分行混入にも耐性。
   const completed = _readKokugoAttemptsForSid(sid, function(item){
     if (String(item.obj.category || '').trim() !== category) return false;
     if ((Number(item.obj.charCount) || 0) !== charCount) return false;
-    return String(item.obj.impressionText || '').trim().length > 0;
+    const q1 = String(item.obj.q1_selected || '').trim();
+    const q2 = String(item.obj.q2_selected || '').trim();
+    return q1.length > 0 && q2.length > 0;
   });
   completed.reverse();  // 新しい順
   const recentExclusion = {};
