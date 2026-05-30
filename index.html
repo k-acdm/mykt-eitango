@@ -2852,10 +2852,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260531-0015"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260531-0032"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260531-0015">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260531-0015"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260531-0032">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260531-0032"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3232,7 +3232,7 @@
       </div>
       <div class="welcome-name" id="welcome-name"></div>
       <div class="welcome-msg"  id="welcome-msg"></div>
-      <div class="hp-badge">⚡ 現在の春アカポイント <span id="welcome-hp">0</span> HP</div>
+      <div class="hp-badge">⚡ 生涯HP <span id="welcome-hp">0</span></div>
       <button class="btn-link" onclick="toggleChangeArea()">ニックネームを変更する</button>
       <div id="change-area">
         <input class="full" id="change-input" placeholder="新しいニックネーム" maxlength="20" style="margin-top:12px"/>
@@ -5929,7 +5929,7 @@
         var num = i < 3 ? medals[i] : (i+1)+'位';
         return '<div class="'+cls+'"><div class="rank-num">'+num+'</div>' +
           '<div class="rank-nick">'+r.nickname+'<br><span style="font-size:12px;opacity:.85;font-weight:normal;">（'+r.title+'）</span></div>' +
-          '<div class="rank-hp"><div class="rank-weekly">+'+r.weeklyHP.toLocaleString()+' HP</div><div class="rank-total">（累積 '+r.totalHP.toLocaleString()+' HP）</div></div></div>';
+          '<div class="rank-hp"><div class="rank-weekly">+'+r.weeklyHP.toLocaleString()+' HP</div><div class="rank-total">（生涯 '+r.totalHP.toLocaleString()+' HP）</div></div></div>';
       }).join('');
     }).catch(function(){ document.getElementById('ranking-list').innerHTML = '<div class="ranking-empty">読み込みに失敗しました</div>'; });
   }
@@ -7331,7 +7331,7 @@
     document.getElementById('result-container').innerHTML =
       '<div class="mate-row"><img class="mate-img" src="images/rushkun-celebrate.png" alt="RUSH君"><div class="mate-bubble">'+_pickBubble(RUSHKUN_BUBBLES.pass)+'</div></div>' +
       '<div class="result-card"><div class="badge">🏆</div><div class="verdict pass">満点合格！</div><div class="score-display">'+_score+' / '+total+'</div><div class="score-sub">英検'+_level+'レベル｜セット '+_setNo+'（'+(isSession1?'1セット目':'2セット目')+'）</div><div class="result-msg">'+msgs[_score%3]+'</div></div>' +
-      '<div class="hp-card"><div class="hp-title">⚡ 獲得 HP</div><div class="hp-row"><div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+'+clearHP.toLocaleString()+'</div></div></div><div class="hp-total-wrap"><div class="hp-total-label">現在の春アカポイント</div><div class="hp-total-value">⚡ '+totalHP.toLocaleString()+' HP</div></div>'+(streak>=2?'<div class="hp-streak">🔥 '+streak+'日連続継続中！この調子で続けよう！</div>':'')+'</div>' +
+      '<div class="hp-card"><div class="hp-title">⚡ 獲得 HP</div><div class="hp-row"><div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+'+clearHP.toLocaleString()+'</div></div></div><div class="hp-total-wrap"><div class="hp-total-label">生涯HP</div><div class="hp-total-value">⚡ '+totalHP.toLocaleString()+' HP</div></div>'+(streak>=2?'<div class="hp-streak">🔥 '+streak+'日連続継続中！この調子で続けよう！</div>':'')+'</div>' +
       '<div class="btn-wrap">'+(isSession1?'<button class="btn-result" style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;font-size:19px" onclick="goNextSession()">📚 次の10題に進む →</button>':'')+'<button class="btn-result btn-review" onclick="showHistory()">📖 今までの単語をおさらいする</button><button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button><button class="btn-result btn-close" onclick="goHome()">🏠 ホーム画面に戻る</button></div>';
     if (passed) requestAnimationFrame(function(){ requestAnimationFrame(function(){ playSfx('pass'); }); });
     // 両輪 Phase A：保留通知 + 完走演出を追記（saveRes は server レスポンス）
@@ -14567,7 +14567,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260531-0015</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260531-0032</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

@@ -177,7 +177,7 @@
         <div class="chara-wrap">
           <div id="chara-anim"><img class="chara-img" id="chara-img" src="./character.jpg" alt="マイカツ君"></div>
         </div>
-        <div class="hp-badge">⚡ 累積春アカポイント <span id="student-hp">0</span> HP</div>
+        <div class="hp-badge">⚡ 生涯HP <span id="student-hp">0</span></div>
       </div>
     </div>
 
@@ -497,7 +497,7 @@
         var mineHint = isMine ? '<span class="mine-hint">← あなたのお子様</span>' : '';
         return '<div class="'+cls+'"><div class="rank-num">'+num+'</div>' +
           '<div class="rank-nick">'+_esc(r.nickname || '')+mineHint+'<br><span style="font-size:11px;opacity:.85;font-weight:normal;">（'+_esc(r.title || '')+'）</span></div>' +
-          '<div class="rank-hp"><div class="rank-weekly">+'+Number(r.weeklyHP||0).toLocaleString()+' HP</div><div class="rank-total">（累積 '+Number(r.totalHP||0).toLocaleString()+' HP）</div></div></div>';
+          '<div class="rank-hp"><div class="rank-weekly">+'+Number(r.weeklyHP||0).toLocaleString()+' HP</div><div class="rank-total">（生涯 '+Number(r.totalHP||0).toLocaleString()+' HP）</div></div></div>';
       }).join('');
     }).catch(function() {
       document.getElementById('ranking-list').innerHTML = '<div class="ranking-empty">読み込みに失敗しました</div>';
