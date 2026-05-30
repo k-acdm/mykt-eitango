@@ -2832,10 +2832,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260530-1831"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260530-1904"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260530-1831">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260530-1831"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260530-1904">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260530-1904"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9284,11 +9284,16 @@
       var preview = document.getElementById('wabun1-photo-preview'); preview.src = e.target.result; preview.style.display = 'block';
       var img = new Image();
       img.onload = function() {
-        var canvas = document.createElement('canvas'), maxSize = 1200, w = img.width, h = img.height;
+        // 2026-05-30：スマホ撮影の歪んだ画像で、過剰な縮小圧縮（1200px / q0.7）により近接行間
+        //   （1番末尾と2番の語）が潰れ、Gemini が行をまたいで読む混入・重複が発生していた。
+        //   切り抜き再判定経路（openCropForReOcr の getCroppedCanvas）が既に 1600px 上限のため、
+        //   それに揃えて maxSize 1600 / 品質 0.85 に緩める。送信 base64 は増えるが ocrWabun1Photo の
+        //   gasPost タイムアウト 90000ms で余裕あり。※この変更は和文英訳①の撮影経路のみ。
+        var canvas = document.createElement('canvas'), maxSize = 1600, w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } } else { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
         canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         // 切り抜き救済機能用にリサイズ後の dataUrl を保持（base64 と同じ画像）
-        var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         _wabun1State.lastSourceDataUrl = dataUrl;
         sendWabun1Photo(dataUrl.split(',')[1]);
       };
@@ -14466,7 +14471,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260530-1831</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260530-1904</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
