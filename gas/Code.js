@@ -21597,6 +21597,9 @@ function _lineNotifyCountableType(type) {
   // （'rika' / 'shakai'）。_lineNotifyContentNameFor 側には 2026-05-29 に追加済みだったが
   // 判定側に追加漏れがあり、理科・社会だけ実施した生徒が誤って「やってない子」判定されていた。
   if (t === 'rika' || t === 'shakai') return true;
+  // 2026-05-30：国語長文読解。HPLog の type は接尾辞付き 'kokugo_800' / 'kokugo_1200'
+  // （23244 行 type = 'kokugo_' + charCount）。_lineNotifyContentNameFor 側の前方一致判定と揃える。
+  if (t.indexOf('kokugo_') === 0) return true;
   // 2026-05-19 Task 2：計算タイムトライアルは本番（'calctrial'）/ 練習（'calctrial_practice'）
   // とも engagement として「やった子」扱い（kiso_*_practice 等と同方針）。
   if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return true;
