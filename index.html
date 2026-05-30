@@ -1993,6 +1993,26 @@
       .avatar-corner-home-title { font-size: 15px; }
       .avatar-corner-home-sub { font-size: 12px; }
     }
+    /* ---- HP 確認（HP交換 Phase 2 / 2026-05-30。読むだけ・消費なし） ---- */
+    .hp-check-home-btn { position: relative; width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 16px 18px; background: linear-gradient(135deg,#fbbf24,#f59e0b); border: 2px solid #d97706; border-radius: 14px; box-shadow: 0 3px 12px rgba(217,119,6,.3); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; text-align: left; }
+    .hp-check-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(217,119,6,.4); }
+    .hp-check-home-title { font-size: 16px; font-weight: bold; color: #fff; letter-spacing: .3px; text-shadow: 0 1px 2px rgba(0,0,0,.15); }
+    .hp-check-home-sub { font-size: 13px; color: #fff; line-height: 1.5; opacity: .96; }
+    .hp-check-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 10001; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+    .hp-check-overlay.active { display: flex; }
+    .hp-check-card { width: 100%; max-width: 360px; background: linear-gradient(180deg,#fffdf7,#fff7ea); border: 2px solid #f5c66b; border-radius: 18px; padding: 22px 20px; box-shadow: 0 10px 40px rgba(0,0,0,.3); box-sizing: border-box; }
+    .hp-check-card-title { text-align: center; font-size: 19px; font-weight: bold; color: #b45309; margin-bottom: 16px; }
+    .hp-check-loading { text-align: center; color: #92400e; font-size: 14px; padding: 18px 0; }
+    .hp-check-row { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 14px; border-radius: 12px; margin-bottom: 10px; }
+    .hp-check-row.lifetime { background: #fef3c7; }
+    .hp-check-row.exchangeable { background: #ffedd5; border: 1px solid #fdba74; }
+    .hp-check-row .rl { font-size: 14px; font-weight: bold; color: #7c2d12; }
+    .hp-check-row .rv { font-size: 22px; font-weight: 800; color: #c2410c; }
+    .hp-check-row .rv small { font-size: 13px; font-weight: bold; }
+    .hp-check-note { font-size: 12.5px; color: #92400e; line-height: 1.7; background: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 4px; padding: 10px 12px; margin: 4px 0 14px; }
+    .hp-check-soon { text-align: center; font-size: 12.5px; color: #a16207; margin-bottom: 14px; }
+    .hp-check-close { display: block; width: 100%; padding: 13px; background: linear-gradient(135deg,#f59e0b,#d97706); color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: bold; cursor: pointer; font-family: inherit; box-shadow: 0 3px 10px rgba(217,119,6,.3); }
+    .hp-check-close:hover { filter: brightness(1.05); }
     .char-intro-title { text-align: center; font-size: 22px; font-weight: bold; background: linear-gradient(135deg,#ff6ea0,#b24bf3,#4f7df0); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: 1px; margin: 8px 0 18px; }
     .char-intro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .char-intro-card { display: flex; flex-direction: column; align-items: center; background: #fff; border: 2px solid #f0e6ff; border-radius: 16px; padding: 18px 14px 16px; box-shadow: 0 3px 12px rgba(0,0,0,.06); transition: transform .15s, box-shadow .15s; }
@@ -2832,10 +2852,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260530-1947"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260531-0015"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260530-1947">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260530-1947"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260531-0015">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260531-0015"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -2946,6 +2966,16 @@
 </div>
 <div class="modal-overlay" id="img-modal" onclick="closeModal()">
   <img src="./eiken5_sample.jpg" alt="書き取り見本"/>
+</div>
+<!-- HP確認モーダル（HP交換 Phase 2 / 2026-05-30。読むだけ・消費なし） -->
+<div id="hp-check-modal" class="hp-check-overlay">
+  <div class="hp-check-card">
+    <div class="hp-check-card-title">💎 あなたのHP</div>
+    <div id="hp-check-body">
+      <div class="hp-check-loading">読み込み中…</div>
+    </div>
+    <button type="button" class="hp-check-close" onclick="closeHpCheck()">とじる</button>
+  </div>
 </div>
 <!-- 2026-05-12 サンゴタン⭐認定通知オーバーレイ -->
 <div id="sango-starred-overlay" class="sango-starred-overlay" style="display:none">
@@ -3349,6 +3379,14 @@
         <span class="avatar-corner-home-title">✨ アバターコーナー ✨</span>
         <span class="avatar-corner-home-sub">アバターを変更したり、着せ替えで楽しもう（着せ替えは近日公開）</span>
         <span class="avatar-corner-home-badge" id="card-avatar-new-badge" style="display:none">NEW</span>
+      </button>
+    </div>
+
+    <!-- ③-3b HP確認（HP交換 Phase 2 / 2026-05-30。読むだけ・消費なし） -->
+    <div class="dash-section">
+      <button type="button" class="hp-check-home-btn" onclick="showHpCheck()">
+        <span class="hp-check-home-title">💎 HPを確認する</span>
+        <span class="hp-check-home-sub">いまの生涯HPと、交換できるHPを見てみよう（交換は近日公開）</span>
       </button>
     </div>
 
@@ -8101,6 +8139,64 @@
       if (box) box.innerHTML = '<div class="refl-empty">⚠️ 振り返りの読み込みに失敗しました</div>';
     });
   }
+  // ================= HP確認（HP交換 Phase 2 / 2026-05-30。読むだけ・消費なし） =================
+  // getExchangeableHp（サーバ）を呼んで生涯HP / 交換できるHP を表示する。HP は加算も消費もしない。
+  function showHpCheck() {
+    var modal = document.getElementById('hp-check-modal');
+    var body  = document.getElementById('hp-check-body');
+    if (!modal || !body) return;
+    body.innerHTML = '<div class="hp-check-loading">読み込み中…</div>';
+    modal.classList.add('active');
+    if (!_studentId) {
+      body.innerHTML = '<div class="hp-check-loading">ログイン情報が見つかりません。</div>';
+      return;
+    }
+    gasGet({ action: 'getExchangeableHp', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました。';
+        body.innerHTML = '<div class="hp-check-loading">❌ ' + _hpCheckEsc(msg) + '</div>';
+        return;
+      }
+      _renderHpCheck(res);
+    }).catch(function(){
+      body.innerHTML = '<div class="hp-check-loading">通信エラーが発生しました。もう一度お試しください。</div>';
+    });
+  }
+  function closeHpCheck() {
+    var modal = document.getElementById('hp-check-modal');
+    if (modal) modal.classList.remove('active');
+  }
+  function _hpCheckEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+    });
+  }
+  function _renderHpCheck(res) {
+    var body = document.getElementById('hp-check-body');
+    if (!body) return;
+    var lifetime    = Number(res.lifetimeHp)     || 0;
+    var exchangeable = Number(res.exchangeableHp) || 0;
+    var coef        = Number(res.gradeCoef)       || 1.0;
+    var html = '';
+    html += '<div class="hp-check-row lifetime">' +
+              '<span class="rl">生涯HP</span>' +
+              '<span class="rv">' + lifetime.toLocaleString() + ' <small>HP</small></span>' +
+            '</div>';
+    html += '<div class="hp-check-row exchangeable">' +
+              '<span class="rl">交換できるHP</span>' +
+              '<span class="rv">' + exchangeable.toLocaleString() + ' <small>HP</small></span>' +
+            '</div>';
+    // 学年補正の補足（小1.15 / 高1.6 のときのみ。中1.0 は表示しない）。
+    if (coef > 1.0) {
+      html += '<div class="hp-check-note">' +
+                '小学生は「学びの基礎」ステージ。それを応援するための「×1.15」。' +
+                '高校生は「学びの総仕上げ」ステージ。最後に勢いをつけるための「×1.6」 の補正がかかっています。' +
+              '</div>';
+    }
+    html += '<div class="hp-check-soon">🎁 ためたHPでアイテムと交換できる機能は <strong>近日公開</strong> 予定だよ！</div>';
+    body.innerHTML = html;
+  }
+
   // ================= マイ活アプリ キャラクター紹介 =================
   // 副キャプション（caption フィールド）は今は空欄。ふくちさんが各キャラの
   // 性格説明を入れるとカード下部に表示される。空のままなら枠だけ確保される。
@@ -13831,7 +13927,7 @@
       document.getElementById('ct-practice-note-wrap').innerHTML =
         '<div class="ct-practice-note">' +
           '本日3回目以降の挑戦は<strong>練習扱い</strong>となるため、HPには反映されません。<br>' +
-          '計算した結果（' + Number(res.calculatedHp || totalHp).toLocaleString() + 'HP）は参考までに記録されますが、累計HPには加算されません。' +
+          '計算した結果（' + Number(res.calculatedHp || totalHp).toLocaleString() + 'HP）は参考までに記録されますが、生涯HPには加算されません。' +
         '</div>';
       showScreen('screen-calctrial-result');
     } else {
@@ -14471,7 +14567,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260530-1947</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260531-0015</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

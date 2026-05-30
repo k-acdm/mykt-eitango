@@ -1057,6 +1057,8 @@ function doGet(e) {
       else if (action === 'getNoticeHistory') result = getNoticeHistory();
       else if (action === 'submitExchange')    result = submitExchange(params.studentId, params.rank);
       else if (action === 'getExchangeStatus') result = getExchangeStatus(params.studentId);
+      // HP 交換 Phase 2：交換用残高の取得（読み取りのみ。消費は Phase 3）
+      else if (action === 'getExchangeableHp') result = getExchangeableHp(params.studentId);
       else if (action === 'adminLogin')        result = adminLogin(params);
       // Phase 3 講師管理：一覧取得は読み取りなので doGet 経由。書き込み 5 関数は doPost のみ
       else if (action === 'adminListTeachers') result = adminListTeachers(params);
