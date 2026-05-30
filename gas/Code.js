@@ -92,14 +92,8 @@ const COL_LAST_TEST  = 7;
 const COL_LAST_LOGIN = 8;
 
 const LEVEL_ORDER     = ['5級', '4級', '3級', '準2級', '2級', '準1級'];
-const EXCHANGE_RANKS  = {
-  bronze:   { label: 'ブロンズ',   hp: 30000 },
-  silver:   { label: 'シルバー',   hp: 120000 },
-  gold:     { label: 'ゴールド',   hp: 400000 },
-  platinum: { label: 'プラチナ',   hp: 1200000 },
-  diamond:  { label: 'ダイヤ',     hp: 3500000 },
-  legend:   { label: 'レジェンド', hp: 10000000 },
-};
+// 旧 EXCHANGE_RANKS（固定ランク景品交換）は HP 交換システム Phase 3（2026-05-31）で廃止。
+// 新方式は AvatarItems シート（商品マスタ）+ HP_SPENT 列ベースの submitExchange(sid, itemId)。
 
 function _ss()       { return SpreadsheetApp.getActiveSpreadsheet(); }
 function _todayJST() { return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd'); }
@@ -1055,10 +1049,13 @@ function doGet(e) {
       else if (action === 'getQuote')         result = getQuote();
       else if (action === 'getNotice')        result = getNotice();
       else if (action === 'getNoticeHistory') result = getNoticeHistory();
-      else if (action === 'submitExchange')    result = submitExchange(params.studentId, params.rank);
-      else if (action === 'getExchangeStatus') result = getExchangeStatus(params.studentId);
-      // HP 交換 Phase 2：交換用残高の取得（読み取りのみ。消費は Phase 3）
+      // HP 交換 Phase 2：交換用残高の取得（読み取りのみ）
       else if (action === 'getExchangeableHp') result = getExchangeableHp(params.studentId);
+      // HP 交換 Phase 3-A（2026-05-31）：アバターショップ / クローゼットの読み取り。
+      //   購入（submitExchange）・装着切替（setAvatarEquip）は副作用ありのため doPost 側に登録。
+      //   旧 submitExchange/getExchangeStatus（固定ランク方式）は廃止済み。
+      else if (action === 'getAvatarShop')     result = getAvatarShop(params);
+      else if (action === 'getAvatarCloset')   result = getAvatarCloset(params);
       else if (action === 'adminLogin')        result = adminLogin(params);
       // Phase 3 講師管理：一覧取得は読み取りなので doGet 経由。書き込み 5 関数は doPost のみ
       else if (action === 'adminListTeachers') result = adminListTeachers(params);
@@ -1371,6 +1368,11 @@ function doPost(e) {
     //   finishRishaSet 等の生徒側 API は文字数小（sessionToken + errorIds 配列）のため doGet のみ。
     else if (action === 'adminAddRikaQuestion')             result = adminAddRikaQuestion(params);
     else if (action === 'adminAddShakaiQuestion')           result = adminAddShakaiQuestion(params);
+    // HP 交換システム Phase 3-A（2026-05-31）：副作用ありのため POST 強制。
+    //   submitExchange  : アバターアイテム購入（HP_SPENT 加算 + AVATAR_ITEMS 追加 + Exchanges 履歴）
+    //   setAvatarEquip  : 装着 / 取り外し（AVATAR_EQUIPPED 書き換え、カテゴリ内排他）
+    else if (action === 'submitExchange')                   result = submitExchange(params.studentId, params.itemId);
+    else if (action === 'setAvatarEquip')                   result = setAvatarEquip(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -7549,88 +7551,10 @@ function _getWordsQ4(rowsOfLevel, setNo, lv) {
 }
 
 // =============================================
-// 景品交換申請
+// 景品交換申請（旧固定ランク方式）は HP 交換システム Phase 3（2026-05-31）で廃止。
+//   submitExchange / getExchangeStatus / EXCHANGE_RANKS を撤去。
+//   新方式 submitExchange(sid, itemId) は「HP 交換システム Phase 3-A」セクションに新設。
 // =============================================
-function submitExchange(studentId, rank) {
-  try {
-    const ss       = _ss();
-    const exSheet  = ss.getSheetByName(SHEET_EXCHANGES);
-    if (!exSheet) return { ok: false, message: 'シートが見つかりません。' };
-
-    const rankDef = EXCHANGE_RANKS[rank];
-    if (!rankDef) return { ok: false, message: '不明なランクです。' };
-
-    const sid  = String(studentId).trim();
-    // Step 2：全アカウント対象（テスト枠でも景品交換の動作確認ができるように）
-    const rows = _getAllAccountsValues();
-    if (!rows || rows.length < 2) return { ok: false, message: 'シートが見つかりません。' };
-
-    let currentHP = 0, nickname = '';
-    for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][COL_ID]).trim() !== sid) continue;
-      currentHP = Number(rows[i][COL_HP]) || 0;
-      nickname  = String(rows[i][COL_NICKNAME] || '').trim();
-      break;
-    }
-    if (!nickname) return { ok: false, message: '生徒IDが見つかりません。' };
-
-    if (currentHP < rankDef.hp) {
-      return { ok: false, message: rankDef.label + 'の交換には ' + rankDef.hp.toLocaleString() + ' HPが必要です。現在 ' + currentHP.toLocaleString() + ' HP です。' };
-    }
-
-    const exRows = exSheet.getDataRange().getValues();
-    for (let i = 1; i < exRows.length; i++) {
-      if (String(exRows[i][1]).trim() === sid && String(exRows[i][3]) === rank) {
-        return { ok: false, message: rankDef.label + 'はすでに申請・交換済みです。' };
-      }
-    }
-
-    exSheet.appendRow([_nowJST(), sid, nickname, rank, currentHP, '申請中']);
-    return { ok: true, message: rankDef.label + 'の交換申請を受け付けました！先生に声をかけてね。' };
-  } catch(err) {
-    console.error('[submitExchange]', err);
-    return { ok: false, message: '申請に失敗しました。' };
-  }
-}
-
-function getExchangeStatus(studentId) {
-  try {
-    const sid      = String(studentId).trim();
-    const ss       = _ss();
-    const exSheet  = ss.getSheetByName(SHEET_EXCHANGES);
-
-    // Step 2：全アカウント対象（テスト枠でも交換ステータス取得できるように）
-    let currentHP = 0;
-    const stuRows = _getAllAccountsValues();
-    for (let i = 1; i < stuRows.length; i++) {
-      if (String(stuRows[i][COL_ID]).trim() === sid) {
-        currentHP = Number(stuRows[i][COL_HP]) || 0; break;
-      }
-    }
-
-    const exchanged = {};
-    if (exSheet) {
-      const exRows = exSheet.getDataRange().getValues();
-      for (let i = 1; i < exRows.length; i++) {
-        if (String(exRows[i][1]).trim() === sid) {
-          exchanged[String(exRows[i][3])] = String(exRows[i][5]);
-        }
-      }
-    }
-
-    const ranks = Object.keys(EXCHANGE_RANKS).map(key => ({
-      key,
-      label:       EXCHANGE_RANKS[key].label,
-      hp:          EXCHANGE_RANKS[key].hp,
-      canExchange: currentHP >= EXCHANGE_RANKS[key].hp && !exchanged[key],
-      status:      exchanged[key] || null
-    }));
-
-    return { ok: true, currentHP, ranks };
-  } catch(err) {
-    return { ok: false, message: String(err) };
-  }
-}
 
 // =============================================
 // テスト用
@@ -19513,6 +19437,9 @@ function getAvatarState(params) {
       base:     chosen.base || '',
       items:    Array.isArray(chosen.items) ? chosen.items : [],
       equipped: (chosen.equipped && typeof chosen.equipped === 'object') ? chosen.equipped : {},
+      // HP 交換 Phase 3-A：装着中アイテムを画像パス付きで解決（ホームの背景描画用）。
+      //   既存フィールドは無変更。失敗しても {} を返すだけでコア応答は壊さない（try/catch 防御）。
+      equippedDetails: {},
       nickname: chosen.nickname || '',
       _debug: {
         sid:          sid,
@@ -19521,6 +19448,12 @@ function getAvatarState(params) {
         special:      _avatarDbgSummary(spRes)
       }
     };
+    try {
+      result.equippedDetails = _avatarResolveEquippedDetails(
+        result.equipped, _avatarCatalogMapById(_readAvatarItemsCatalog()));
+    } catch (e) {
+      console.error('[getAvatarState] equippedDetails resolve failed', e);
+    }
 
     if (!result.base) {
       console.warn('[getAvatarState] returning empty base after both-sheet check',
@@ -20147,6 +20080,323 @@ function testGetExchangeableHp(sid) {
   const res = getExchangeableHp(target);
   Logger.log('[testGetExchangeableHp] sid=' + target + ' → ' + JSON.stringify(res));
   return res;
+}
+
+// ========================================================================
+// HP 交換システム Phase 3-A：アバターショップ / クローゼット / 購入 / 装着
+//   （2026-05-31。管理画面パネル = カテゴリ表示モードの書き込み UI は Phase 3-B）
+// ========================================================================
+//
+// 用語：
+//   ・生涯HP   = Students/SpecialAccounts COL_HP（減らない）。
+//   ・交換用残高 = getExchangeableHp().exchangeableHp（= floor(生涯HP×校種補正) − HP_SPENT）。
+//   ・「買う」 = AVATAR_ITEMS（所持ID配列）に itemId を追加。HP_SPENT に price 加算。1 回きり（重複購入不可）。
+//   ・「装着」 = AVATAR_EQUIPPED（category_key → itemId のマップ）を書き換え。カテゴリ内排他。
+//
+// ★ 背景カテゴリの規約：AvatarItems シートの背景アイテムは category_key='background' とする。
+//   フロント（index.html）は equippedDetails['background'].imagePath を中央ゾーンの背景として描画する。
+
+// AvatarItems シート（商品マスタ）をヘッダー駆動で読む。欠損 / 空行はスキップ。
+function _readAvatarItemsCatalog() {
+  const sh = _ss().getSheetByName(SHEET_AVATAR_ITEMS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const header = values[0].map(function(h){ return String(h || '').trim(); });
+  const col = {};
+  AVATAR_ITEMS_SHEET_HEADERS.forEach(function(name){ col[name] = header.indexOf(name); });
+  if (col['item_id'] < 0) return [];
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    const itemId = String(r[col['item_id']] || '').trim();
+    if (!itemId) continue;
+    out.push({
+      itemId:        itemId,
+      name:          col['名前']           >= 0 ? String(r[col['名前']] || '').trim() : '',
+      categoryJa:    col['category_ja']    >= 0 ? String(r[col['category_ja']] || '').trim() : '',
+      categoryKey:   col['category_key']   >= 0 ? String(r[col['category_key']] || '').trim() : '',
+      rarity:        col['rarity']         >= 0 ? String(r[col['rarity']] || '').trim() : '',
+      price:         col['price']          >= 0 ? (Number(r[col['price']]) || 0) : 0,
+      imagePath:     col['image_path']     >= 0 ? String(r[col['image_path']] || '').trim() : '',
+      publishStatus: col['publish_status'] >= 0 ? String(r[col['publish_status']] || '').trim() : ''
+    });
+  }
+  return out;
+}
+function _avatarCatalogMapById(catalog) {
+  const m = {};
+  (catalog || []).forEach(function(it){ m[it.itemId] = it; });
+  return m;
+}
+// 購入可能 = publish_status='公開' かつ price>0。それ以外（'予告' / 価格未設定）は近日公開扱い。
+function _avatarItemPurchasable(it) {
+  return !!it && String(it.publishStatus).trim() === '公開' && Number(it.price) > 0;
+}
+
+// カテゴリ表示モード（'category' = カテゴリ名のみ / 'item' = 配下アイテム一覧）を読む。
+// 保存場所は Script Property 'avatar_category_display_modes'（JSON: {category_key:'item'|'category'}）。
+// ★ この値を書き込む UI は Phase 3-B（管理画面）で作る。3-A は読むだけ。
+//   未設定 / パース不能時は {} を返し、呼び出し側で全カテゴリ 'category'（カテゴリ表示）をデフォルトにする。
+function _getAvatarCategoryDisplayModes() {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty('avatar_category_display_modes');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+  } catch (e) {
+    console.error('[_getAvatarCategoryDisplayModes]', e);
+    return {};
+  }
+}
+
+// equipped マップ（category_key → itemId）を、カタログ参照で詳細付きに解決する。
+//   → { category_key: { itemId, name, imagePath, categoryJa, rarity } }
+function _avatarResolveEquippedDetails(equipped, catalogById) {
+  const out = {};
+  if (!equipped || typeof equipped !== 'object') return out;
+  Object.keys(equipped).forEach(function(catKey){
+    const itemId = String(equipped[catKey] || '').trim();
+    if (!itemId) return;
+    const it = catalogById[itemId];
+    if (!it) return;
+    out[catKey] = { itemId: it.itemId, name: it.name, imagePath: it.imagePath, categoryJa: it.categoryJa, rarity: it.rarity };
+  });
+  return out;
+}
+
+// ショップ一覧（2 段階表示用）。
+//   displayMode='category' → items は空（カテゴリ名だけ「近日公開」的に並べる）。
+//   displayMode='item'     → items に配下アイテム（purchasable / owned フラグ付き）。
+function getAvatarShop(params) {
+  try {
+    const sid     = String((params && params.studentId) || '').trim();
+    const catalog = _readAvatarItemsCatalog();
+    const modes   = _getAvatarCategoryDisplayModes();
+
+    let owned = [], exchangeableHp = null;
+    if (sid) {
+      const loc = _findAccountRowOnSheet(sid);
+      if (loc) {
+        owned = _readAvatarItemsFromLoc(loc);
+        const bal = getExchangeableHp(sid);
+        if (bal && bal.ok) exchangeableHp = bal.exchangeableHp;
+      }
+    }
+    const ownedSet = {};
+    owned.forEach(function(id){ ownedSet[String(id)] = true; });
+
+    // カテゴリ単位にグルーピング（シート出現順を維持）
+    const order = [];
+    const byCat = {};
+    catalog.forEach(function(it){
+      const key = it.categoryKey || '(未分類)';
+      if (!byCat[key]) { byCat[key] = { categoryKey: it.categoryKey, categoryJa: it.categoryJa, items: [] }; order.push(key); }
+      if (!byCat[key].categoryJa && it.categoryJa) byCat[key].categoryJa = it.categoryJa;
+      byCat[key].items.push(it);
+    });
+    const categories = order.map(function(key){
+      const g = byCat[key];
+      const displayMode = (modes[g.categoryKey] === 'item') ? 'item' : 'category';
+      const items = (displayMode === 'item') ? g.items.map(function(it){
+        return {
+          itemId: it.itemId, name: it.name, price: it.price, rarity: it.rarity,
+          imagePath: it.imagePath, publishStatus: it.publishStatus,
+          purchasable: _avatarItemPurchasable(it),
+          owned: !!ownedSet[it.itemId]
+        };
+      }) : [];
+      return {
+        categoryKey: g.categoryKey,
+        categoryJa:  g.categoryJa || g.categoryKey || '(未分類)',
+        displayMode: displayMode,
+        itemCount:   g.items.length,
+        items:       items
+      };
+    });
+    return { ok: true, exchangeableHp: exchangeableHp, categories: categories };
+  } catch (err) {
+    console.error('[getAvatarShop]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// クローゼット（生徒の所持品 + 装着状態 + 残高）。カテゴリ別に所持アイテムを返す。
+function getAvatarCloset(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+
+    const owned    = _readAvatarItemsFromLoc(loc);
+    const equipped = _readAvatarEquippedFromLoc(loc) || {};
+    const base     = _readAvatarBaseFromLoc(loc);
+    const catalog  = _readAvatarItemsCatalog();
+    const byId     = _avatarCatalogMapById(catalog);
+
+    let exchangeableHp = null;
+    const bal = getExchangeableHp(sid);
+    if (bal && bal.ok) exchangeableHp = bal.exchangeableHp;
+
+    // 所持品をカテゴリ別にグルーピング（カタログに存在する物のみ）
+    const order = [];
+    const byCat = {};
+    owned.forEach(function(id){
+      const it = byId[String(id).trim()];
+      if (!it) return; // カタログから削除された等で解決不能 → スキップ
+      const key = it.categoryKey || '(未分類)';
+      if (!byCat[key]) { byCat[key] = { categoryKey: it.categoryKey, categoryJa: it.categoryJa, items: [] }; order.push(key); }
+      if (!byCat[key].categoryJa && it.categoryJa) byCat[key].categoryJa = it.categoryJa;
+      byCat[key].items.push({
+        itemId: it.itemId, name: it.name, rarity: it.rarity, imagePath: it.imagePath,
+        equipped: String(equipped[it.categoryKey] || '') === it.itemId
+      });
+    });
+    const categories = order.map(function(key){
+      const g = byCat[key];
+      return { categoryKey: g.categoryKey, categoryJa: g.categoryJa || g.categoryKey || '(未分類)', items: g.items };
+    });
+
+    return {
+      ok: true,
+      base: base || '',
+      exchangeableHp: exchangeableHp,
+      equipped: equipped,
+      equippedDetails: _avatarResolveEquippedDetails(equipped, byId),
+      categories: categories
+    };
+  } catch (err) {
+    console.error('[getAvatarCloset]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// --- 書き込みヘルパー（saveAvatarBase と同じ「sid が存在する全シートに書く」方針） ---
+function _avatarWriteTargets(sid) {
+  const ss = _ss();
+  const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+  const spSheet  = ss.getSheetByName(SHEET_SPECIAL_ACCOUNTS);
+  const targets = [];
+  const stuRes = _avatarReadFromSheetBySid(stuSheet, sid);
+  const spRes  = _avatarReadFromSheetBySid(spSheet, sid);
+  if (stuRes.found) targets.push({ sheet: stuSheet, rowIdx: stuRes.rowIdx, sheetName: SHEET_STUDENTS });
+  if (spRes.found)  targets.push({ sheet: spSheet,  rowIdx: spRes.rowIdx,  sheetName: SHEET_SPECIAL_ACCOUNTS });
+  return targets;
+}
+function _avatarInvalidateAccountCaches() {
+  try { _invalidateCache('cache_students_values'); } catch(_){}
+  try { _invalidateCache('cache_special_accounts_values'); } catch(_){}
+}
+// text 固定（'@'）してから setValue（BIRTHDAY 列が Date 化した事例の同根対策）。
+function _avatarSetCellText(sheet, rowIdx, colIdx0, value) {
+  const cell = sheet.getRange(rowIdx + 1, colIdx0 + 1);
+  cell.setNumberFormat('@');
+  cell.setValue(value);
+}
+
+// アイテム購入（doPost）。生涯HP(COL_HP)は不変。HP_SPENT に price を加算するのみ。
+function submitExchange(studentId, itemId) {
+  try {
+    const sid = String(studentId || '').trim();
+    const iid = String(itemId || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    if (!iid) return { ok: false, message: 'アイテムが指定されていません' };
+
+    const catalog = _readAvatarItemsCatalog();
+    const byId    = _avatarCatalogMapById(catalog);
+    const item    = byId[iid];
+    if (!item) return { ok: false, message: 'アイテムが見つかりません' };
+    if (!_avatarItemPurchasable(item)) return { ok: false, message: 'このアイテムはまだ交換できません（近日公開）' };
+
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+    const nickname = String(loc.rowValues[COL_NICKNAME] || '').trim();
+    const owned    = _readAvatarItemsFromLoc(loc);
+    if (owned.map(String).indexOf(iid) >= 0) {
+      return { ok: false, message: 'このアイテムはすでに持っています' };
+    }
+
+    const bal = getExchangeableHp(sid);
+    if (!bal || !bal.ok) return { ok: false, message: (bal && bal.message) || '残高の取得に失敗しました' };
+    const price = Number(item.price) || 0;
+    if (bal.exchangeableHp < price) {
+      return { ok: false, message: '交換できるHPが足りません（必要 ' + price.toLocaleString() + ' / 残り ' + bal.exchangeableHp.toLocaleString() + '）' };
+    }
+
+    // 永続化：sid が存在する全シートに AVATAR_ITEMS（新所持配列）+ HP_SPENT（+price）を書く。
+    const newOwned = owned.concat([iid]);
+    const targets = _avatarWriteTargets(sid);
+    if (targets.length === 0) return { ok: false, message: '生徒の行が見つかりません' };
+    targets.forEach(function(t){
+      const eItems = _ensureAvatarItemsColOnSheet(t.sheet);
+      _avatarSetCellText(t.sheet, t.rowIdx, eItems.idx, JSON.stringify(newOwned));
+      const eSpent = _ensureHpSpentColOnSheet(t.sheet);
+      const cur = Number(t.sheet.getRange(t.rowIdx + 1, eSpent.idx + 1).getValue()) || 0;
+      t.sheet.getRange(t.rowIdx + 1, eSpent.idx + 1).setValue(cur + price);
+    });
+    _avatarInvalidateAccountCaches();
+
+    // 履歴：Exchanges に [日時, sid, ニックネーム, itemId, price, '完了']（6 列、既存シート流用）
+    const exSheet = _ss().getSheetByName(SHEET_EXCHANGES);
+    if (exSheet) exSheet.appendRow([_nowJST(), sid, nickname, iid, price, '完了']);
+
+    return {
+      ok: true,
+      message: item.name + ' を交換したよ！',
+      item: { itemId: item.itemId, name: item.name, price: price, categoryKey: item.categoryKey, imagePath: item.imagePath },
+      exchangeableHp: bal.exchangeableHp - price,
+      owned: newOwned
+    };
+  } catch (err) {
+    console.error('[submitExchange]', err);
+    return { ok: false, message: '交換に失敗しました：' + String(err) };
+  }
+}
+
+// 装着 / 取り外し（doPost）。カテゴリ内排他（同カテゴリの別アイテムは自動で外れる＝上書き）。
+//   装着   : { studentId, itemId }
+//   取り外し: { studentId, unequip:true, categoryKey }（または unequip:true + itemId でカテゴリ自動判定）
+function setAvatarEquip(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const unequip = !!(params && params.unequip);
+    const iid     = String((params && params.itemId) || '').trim();
+    let   catKey  = String((params && params.categoryKey) || '').trim();
+
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+    const owned    = _readAvatarItemsFromLoc(loc).map(String);
+    const equipped = _readAvatarEquippedFromLoc(loc) || {};
+    const catalog  = _readAvatarItemsCatalog();
+    const byId     = _avatarCatalogMapById(catalog);
+
+    if (unequip) {
+      if (!catKey && iid && byId[iid]) catKey = byId[iid].categoryKey;
+      if (!catKey) return { ok: false, message: '外すカテゴリが特定できません' };
+      delete equipped[catKey];
+    } else {
+      if (!iid) return { ok: false, message: 'アイテムが指定されていません' };
+      const item = byId[iid];
+      if (!item) return { ok: false, message: 'アイテムが見つかりません' };
+      if (owned.indexOf(iid) < 0) return { ok: false, message: 'このアイテムは持っていません' };
+      catKey = item.categoryKey || '(未分類)';
+      equipped[catKey] = iid; // カテゴリ内排他（上書き）
+    }
+
+    const targets = _avatarWriteTargets(sid);
+    if (targets.length === 0) return { ok: false, message: '生徒の行が見つかりません' };
+    targets.forEach(function(t){
+      const eEq = _ensureAvatarEquippedColOnSheet(t.sheet);
+      _avatarSetCellText(t.sheet, t.rowIdx, eEq.idx, JSON.stringify(equipped));
+    });
+    _avatarInvalidateAccountCaches();
+
+    return { ok: true, equipped: equipped, equippedDetails: _avatarResolveEquippedDetails(equipped, byId) };
+  } catch (err) {
+    console.error('[setAvatarEquip]', err);
+    return { ok: false, message: String(err) };
+  }
 }
 
 // 開放フラグの値を読む（'TRUE' / 'FALSE' / 空欄 のいずれか）。
