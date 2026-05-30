@@ -19994,6 +19994,159 @@ function _readGradeLevelFromLoc(loc) {
   return v == null ? '' : String(v).trim();
 }
 
+// ========================================================================
+// HP 交換システム Phase 1：データ基盤（2026-05-30）
+// ========================================================================
+// HP は 2 本立て：
+//   ① 生涯HP    = Students/SpecialAccounts の COL_HP（F列, index 5）。減らない値。流用。
+//   ② 交換用残高 = 保存せず計算する。＝ floor(生涯HP × 校種別補正係数) − 交換で使った総額。
+// 「交換で使った総額」だけを 1 列追加して保存する（HP_SPENT 列）。
+//
+// ★ 列の追加方式について（重要・設計判断）：
+//   Students/SpecialAccounts は COL_ID(0)〜COL_LAST_LOGIN(8) の固定 9 列より右に、
+//   BIRTHDAY / AVATAR_BASE / AVATAR_ITEMS / GRADE_LEVEL / *_UNLOCKED など複数の列が
+//   「ヘッダー名検出」で動的追加されている（固定 index ではない）。そのため
+//   「COL_HP_SPENT = 9」のような固定 index を割り当てると、既に index 9 以降を占有する
+//   これらの列と衝突して別列を読み書きしてしまう。
+//   → 既存の GRADE_LEVEL / BIRTHDAY と同じ「ヘッダー名検出」方式で HP_SPENT 列を扱う。
+//     固定 index 定数は定義しない（既存 COL_* / setValues 範囲には一切影響しない）。
+const HP_SPENT_HEADER_NAME = 'HP_SPENT';
+
+// AvatarItems シート（着せ替えアイテムのカタログ）。
+//   ※ Students の AVATAR_ITEMS 列（生徒の所持アイテム ID 配列）とは別物（こちらは商品マスタ）。
+const SHEET_AVATAR_ITEMS = 'AvatarItems';
+const AVATAR_ITEMS_SHEET_HEADERS = [
+  'item_id', '名前', 'category_ja', 'category_key', 'rarity', 'price', 'image_path', 'publish_status'
+];
+
+// 校種別補正係数（GRADE_LEVEL の先頭文字で判定）。判定不能時は 1.0 + ログ。
+function _hpExchangeGradeCoef(grade) {
+  const g = String(grade || '').trim();
+  if (g.indexOf('小') === 0) return 1.15;
+  if (g.indexOf('中') === 0) return 1.0;
+  if (g.indexOf('高') === 0) return 1.6;
+  console.log('[_hpExchangeGradeCoef] 学齢判定不能 grade="' + g + '" → デフォルト係数 1.0 を使用');
+  return 1.0;
+}
+
+// --- HP_SPENT 列インデックス検出ヘルパー（GRADE_LEVEL / BIRTHDAY と同パターン） ---
+function _findHpSpentColIdx(allValues) {
+  if (!allValues || !allValues.length || !allValues[0] || !allValues[0].length) return -1;
+  const header = allValues[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === HP_SPENT_HEADER_NAME) return i;
+  }
+  return -1;
+}
+
+function _findHpSpentColIdxOnSheet(sheet) {
+  if (!sheet) return -1;
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === HP_SPENT_HEADER_NAME) return i;
+  }
+  return -1;
+}
+
+// HP_SPENT 列が無ければ末尾に追加する（_ensureGradeLevelColOnSheet と同パターン、冪等）。
+function _ensureHpSpentColOnSheet(sheet) {
+  const lastCol = Math.max(1, sheet.getLastColumn());
+  const header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (let i = 0; i < header.length; i++) {
+    if (String(header[i] || '').trim() === HP_SPENT_HEADER_NAME) {
+      return { idx: i, created: false };
+    }
+  }
+  const newCol = lastCol + 1;
+  sheet.getRange(1, newCol).setValue(HP_SPENT_HEADER_NAME);
+  return { idx: newCol - 1, created: true };
+}
+
+// loc から HP_SPENT（交換で使った総額）を数値で読む。列未作成 / 空欄は 0（_readGradeLevelFromLoc と同パターン）。
+function _readHpSpentFromLoc(loc) {
+  if (!loc) return 0;
+  let idx = _findHpSpentColIdx(loc.allValues);
+  if (idx < 0 && loc.sheet) idx = _findHpSpentColIdxOnSheet(loc.sheet);
+  if (idx < 0) return 0;  // 列未作成 → 0 扱い（既存生徒の空欄も 0）
+  let v;
+  if (loc.rowValues && idx < loc.rowValues.length) v = loc.rowValues[idx];
+  if ((v == null || v === '') && loc.sheet && typeof loc.rowIdx === 'number' && loc.rowIdx >= 0) {
+    try {
+      const cellVal = loc.sheet.getRange(loc.rowIdx + 1, idx + 1).getValue();
+      if (cellVal != null && cellVal !== '') v = cellVal;
+    } catch (e) {
+      console.error('[_readHpSpentFromLoc] direct read failed', e);
+    }
+  }
+  const n = Number(v);
+  return isFinite(n) ? n : 0;
+}
+
+// 交換用残高を計算する（読むだけ。消費処理は Phase 3）。
+//   exchangeableHp = floor(lifetimeHp × gradeCoef) − hpSpent
+// 戻り値: { ok, studentId, lifetimeHp, grade, gradeCoef, hpSpent, exchangeableHp }
+function getExchangeableHp(sid) {
+  try {
+    const sidNorm = String(sid || '').trim();
+    if (!sidNorm) return { ok: false, message: '生徒IDが必要です' };
+    // フレッシュ読み（_findAccountRowOnSheet は Students → SpecialAccounts をシート直読み）。
+    const loc = _findAccountRowOnSheet(sidNorm);
+    if (!loc) return { ok: false, message: '生徒が見つかりません: ' + sidNorm };
+    const lifetimeHp = Number(loc.rowValues[COL_HP]) || 0;
+    const grade      = _readGradeLevelFromLoc(loc);
+    const gradeCoef  = _hpExchangeGradeCoef(grade);
+    const hpSpent    = _readHpSpentFromLoc(loc);
+    const exchangeableHp = Math.floor(lifetimeHp * gradeCoef) - hpSpent;
+    return {
+      ok: true,
+      studentId: sidNorm,
+      lifetimeHp: lifetimeHp,
+      grade: grade,
+      gradeCoef: gradeCoef,
+      hpSpent: hpSpent,
+      exchangeableHp: exchangeableHp
+    };
+  } catch (err) {
+    console.error('[getExchangeableHp]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// --- セットアップ関数（GAS エディタから手動 1 回実行。冪等） ---
+
+// Students / SpecialAccounts の両シートに HP_SPENT 列を末尾追加する（既存なら何もしない）。
+// 列追加後はキャッシュに旧列構成が残るため両シートのキャッシュを invalidate。
+function ensureHpSpentColumn() {
+  const ss = _ss();
+  const out = {};
+  [SHEET_STUDENTS, SHEET_SPECIAL_ACCOUNTS].forEach(function(name) {
+    const sh = ss.getSheetByName(name);
+    if (!sh) { out[name] = 'シートが見つかりません'; return; }
+    const r = _ensureHpSpentColOnSheet(sh);
+    out[name] = { colIndex0Based: r.idx, created: r.created };
+  });
+  _invalidateCache('cache_students_values');
+  _invalidateCache('cache_special_accounts_values');
+  Logger.log('[ensureHpSpentColumn] ' + JSON.stringify(out));
+  return out;
+}
+
+// AvatarItems シート（着せ替えカタログ）をヘッダーだけ作成する（データ行は後日ふくちが投入）。
+function ensureAvatarItemsSheet() {
+  const r = _ensureSheetWithHeaders(SHEET_AVATAR_ITEMS, AVATAR_ITEMS_SHEET_HEADERS, 1);
+  Logger.log('[ensureAvatarItemsSheet] created=' + r.created + ' headers=' + JSON.stringify(AVATAR_ITEMS_SHEET_HEADERS));
+  return r.sh;
+}
+
+// 動作確認用（GAS エディタから引数なしで実行可。sid を書き換えて使う）。
+function testGetExchangeableHp(sid) {
+  const target = String(sid || '1').trim();  // デフォルト sid='1'（適宜書き換え）
+  const res = getExchangeableHp(target);
+  Logger.log('[testGetExchangeableHp] sid=' + target + ' → ' + JSON.stringify(res));
+  return res;
+}
+
 // 開放フラグの値を読む（'TRUE' / 'FALSE' / 空欄 のいずれか）。
 // boolean 判定は _isUnlockFlagTrue を別途使う。
 function _readUnlockFlagFromLoc(loc, headerName) {
