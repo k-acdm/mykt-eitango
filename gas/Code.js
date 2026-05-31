@@ -20886,9 +20886,8 @@ function _releaseReflectionReserves(sid, dateStr) {
       console.warn('[_releaseReflectionReserves] reserveReason 列が見つかりません。シーマ未移行の可能性');
       return { ok: true, releasedHp: 0, count: 0 };
     }
-    const targets = [];
-    let totalReleased = 0;
-    const releasedByType = {};  // 2026-05-28：コンテンツ別解放額（UI 内訳分解用）
+    // 解放対象の reflection_pending 行を収集（このスナップショットの行 index は後段の appendRow があっても不変）。
+    const targets = [];  // [{ rowIdx, type, reservedFull }]
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
       if (String(r[0] || '').trim() !== sidNorm) continue;
@@ -20898,35 +20897,77 @@ function _releaseReflectionReserves(sid, dateStr) {
       if (String(r[5] || '').trim().toUpperCase() === 'TRUE') continue;
       const reason = String(r[iReason] || '').trim();
       if (reason !== 'reflection_pending') continue;  // 必ず reflection_pending のみ
-      targets.push(i + 1);
-      const reservedHp = Number(r[4]) || 0;
-      totalReleased += reservedHp;
-      // type 列（r[2]）→ コンテンツキーに正規化して集計
-      const contentKey = _normalizeHpReservePoolTypeForContent(r[2]);
-      if (contentKey && reservedHp > 0) {
-        releasedByType[contentKey] = (releasedByType[contentKey] || 0) + reservedHp;
-      }
+      targets.push({ rowIdx: i + 1, type: String(r[2] || ''), reservedFull: Number(r[4]) || 0 });
     }
     if (targets.length === 0) return { ok: true, releasedHp: 0, count: 0, releasedByType: {} };
 
-    // 一括 resolved=TRUE 化
+    // ─── B案（2026-06-01 バグ2修正）：絶対ミッション未達成なら解放分の 40% を required_mission に積み直す ───
+    // 背景：Gate1（振り返り＝reflection_pending・100%保留）の解放が、Gate2（絶対ミッション・40%保留）を
+    //   バイパスして満額付与していた不具合の修正。「振り返り提出＝全解放」ではなく、絶対ミッション未達成なら
+    //   60% のみ即時付与・40% は完走まで再保留する（ふくち確定の設計意図「未達成＝40%お預けの痛み」）。
+    //   - 達成判定は両輪システムの既存判定（_getRequiredContentsForLoc + _getTodayCompletedRequired）を流用。
+    //     新たな判定基準は作らない（_checkAndReleaseReserveIfCompleted と同一条件）。
+    //   - split 適用は「当日（ds === 今日）分の解放」のみ。キャッチアップ（過去日付）の解放は従来通り 100% 付与
+    //     （完走判定は当日 HPLog 走査のため、過去日付に required_mission を積むと完走解放経路に乗らず宙吊りになる。
+    //      過去分は遡及しない方針＝ふくち確定）。
+    //   - 表示（LINE 文面 / 生徒内訳）は reflection_pending 行の reservedHp を読む実装のため、解放行の reservedHp を
+    //     「実付与した 60%」に上書きすることで、表示コードを変更せず実態と一致させる（A 案・ふくち選択）。
+    //     40% は別途 required_mission 行に保持されるので合計は保全される。
+    //   - 完走時：_grantHP → _checkAndReleaseReserveIfCompleted が required_mission 行を解放 + 完走ボーナスを付与
+    //     （振り返り済みかつミッション全達成が条件）→ 既存経路にそのまま乗る。
+    const loc = _findAccountRowOnSheet(sidNorm);
+    let splitApplies = false;
+    if (loc && ds === _sangoToday() && _sangoToday() >= REQUIRED_SYSTEM_START_DATE) {
+      const requiredList = _getRequiredContentsForLoc(loc);
+      if (requiredList && requiredList.length > 0) {
+        const completedSet = _getTodayCompletedRequired(sidNorm, requiredList);
+        const allDone = requiredList.every(function(rc) { return !!completedSet[rc]; });
+        splitApplies = !allDone;  // 絶対ミッション未達成なら 40% 再保留
+      }
+    }
+
     const now = _nowJST();
+    let totalGranted = 0;            // 実際に Students.HP へ加算する合計（split 時はコンテンツ別 60% の合計）
+    const releasedByType = {};       // コンテンツ別の実付与額（UI 内訳分解用）
+    const reReserveSpecs = [];       // [{ type, rawHpFull, reserved40 }]（split 時のみ）
     for (let k = 0; k < targets.length; k++) {
-      sh.getRange(targets[k], 6, 1, 2).setValues([['TRUE', now]]);
+      const tg = targets[k];
+      const reservedFull = tg.reservedFull;
+      let granted = reservedFull;    // 既定：100% 付与（達成 / 必須なし / 過去日キャッチアップ）
+      if (splitApplies && reservedFull > 0) {
+        granted = Math.floor(reservedFull * (1 - REQUIRED_RESERVE_RATIO));  // 60%（Gate2 と同一式）
+        const reserve40 = reservedFull - granted;                          // 40%
+        if (reserve40 > 0) reReserveSpecs.push({ type: tg.type, rawHpFull: reservedFull, reserved40: reserve40 });
+      }
+      // 解放行を resolved=TRUE 化。reservedHp（列 5）は「実付与した granted」に上書きして、reservedHp を読む
+      // 表示（LINE 文面 / 生徒内訳）を実態に一致させる。列 6=resolved, 7=resolvedAt。
+      sh.getRange(tg.rowIdx, 5, 1, 3).setValues([[granted, 'TRUE', now]]);
+      totalGranted += granted;
+      const contentKey = _normalizeHpReservePoolTypeForContent(tg.type);
+      if (contentKey && granted > 0) {
+        releasedByType[contentKey] = (releasedByType[contentKey] || 0) + granted;
+      }
     }
     SpreadsheetApp.flush();
 
-    // HPLog 記録 + Students.HP 加算
-    if (totalReleased > 0) {
-      const msg = '振り返り提出による保留解放（' + ds + ' 分、' + targets.length + ' 件）';
-      _logHP(sidNorm, totalReleased, totalReleased, 'reflection_release', 5000, msg);
+    // 40% を required_mission として積み直し（完走時に _checkAndReleaseReserveIfCompleted が解放）
+    for (let s = 0; s < reReserveSpecs.length; s++) {
+      const spec = reReserveSpecs[s];
+      _appendHpReservePool(sidNorm, ds, spec.type, spec.rawHpFull, spec.reserved40, 'required_mission');
+    }
+
+    // HPLog 記録 + Students.HP 加算（実付与した totalGranted のみ。40% は Pool に残り Students.HP には未加算）
+    if (totalGranted > 0) {
+      const msg = '振り返り提出による保留解放（' + ds + ' 分、' + targets.length + ' 件）'
+                + (splitApplies ? '／絶対ミッション未達成のため60%付与・40%再保留' : '');
+      _logHP(sidNorm, totalGranted, totalGranted, 'reflection_release', 5000, msg);
       // Students.HP は _logHP には含まれないので別途加算（フレッシュ読み）
       try {
-        const loc = _findAccountRowOnSheet(sidNorm);
-        if (loc) {
-          const curHP = Number(loc.rowValues[COL_HP]) || 0;
-          const newHP = curHP + totalReleased;
-          loc.sheet.getRange(loc.rowIdx + 1, COL_HP + 1).setValue(newHP);
+        const loc2 = _findAccountRowOnSheet(sidNorm);
+        if (loc2) {
+          const curHP = Number(loc2.rowValues[COL_HP]) || 0;
+          const newHP = curHP + totalGranted;
+          loc2.sheet.getRange(loc2.rowIdx + 1, COL_HP + 1).setValue(newHP);
           const upd = {}; upd[COL_HP] = newHP;
           _updateAccountCacheBySid(sidNorm, upd);
           _invalidateCache('cache_ranking_last_week');
@@ -20935,7 +20976,7 @@ function _releaseReflectionReserves(sid, dateStr) {
         console.error('[_releaseReflectionReserves] Students.HP 加算失敗（HPLog は記録済み）', hpErr);
       }
     }
-    return { ok: true, releasedHp: totalReleased, count: targets.length, releasedByType: releasedByType };
+    return { ok: true, releasedHp: totalGranted, count: targets.length, releasedByType: releasedByType, splitApplied: splitApplies };
   } catch (e) {
     console.error('[_releaseReflectionReserves]', e);
     return { ok: false, releasedHp: 0, count: 0, releasedByType: {}, message: String(e) };
