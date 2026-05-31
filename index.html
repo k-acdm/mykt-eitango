@@ -2905,10 +2905,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260531-0637"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260601-0419"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260531-0637">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260531-0637"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260601-0419">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260601-0419"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4167,7 +4167,7 @@
       <img id="kiso-confirm-preview" class="kiso-confirm-preview" alt="撮影画像"/>
       <div class="kiso-confirm-msg">
         ✅ 写真がぼやけていないか・問題番号がはっきり写っているかを確認してください。<br>
-        OK なら「送信して採点」を押してね。
+        OK なら「答えを確認する」を押してね。次の画面で AI が読み取った答えをチェックできるよ。
       </div>
       <div class="wabun1-period-warn">
         <span class="warn-title">⚠️ 提出前に必ず確認してね！</span>
@@ -4181,9 +4181,36 @@
       </div>
       <div class="kiso-confirm-btns">
         <button class="kiso-confirm-retake" onclick="retakeKisoPhoto()">📸 撮り直す</button>
-        <button class="kiso-confirm-submit" id="kiso-confirm-submit-btn" onclick="submitKisoPhoto()">🚀 送信して採点</button>
+        <button class="kiso-confirm-submit" id="kiso-confirm-submit-btn" onclick="ocrKisoPreview()">🔍 答えを確認する</button>
       </div>
       <button class="btn-wide btn-crop-open" style="margin-top:10px" onclick="cropKisoPhoto()">✂️ 切り抜いて再判定</button>
+    </div>
+  </div>
+</div>
+
+<!-- §4.6.5 答え確認（案C 二段階確認：ocrKisoAnswer の読み取り結果を生徒に見せ、採点に使う文字列を確定） -->
+<div id="screen-kiso-answer-confirm" class="screen">
+  <header><h1>🧮 答えの確認</h1><span>AI が読み取った答え</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-kiso-answer-confirm" src="images/kisoK-thinking.png" alt="キソKさん">
+      <div class="mate-bubble" id="mate-bubble-kiso-answer-confirm">これで合ってるかな？</div>
+    </div>
+    <div class="kiso-confirm-card">
+      <div class="kiso-confirm-msg">
+        📝 AI が読み取った「きみの答え」だよ。<strong>この内容がそのまま採点に使われます。</strong>
+      </div>
+      <div id="kiso-answer-confirm-list" class="wabun1-parsed-list"></div>
+      <div class="wabun1-parsed-help">⚠️ ここに表示された答えがそのまま採点に使われます。問題の式（因数分解する前の式など）が答えになっていたり、意図と違う場合は「もう一度撮る」を押してね（同じ写真でも結果が変わることがあるよ）。</div>
+      <details class="wabun1-ocr-raw">
+        <summary>🔎 AI の読み取り（生データ）を見る</summary>
+        <div class="sango-ocr-text" id="kiso-answer-confirm-ocr"></div>
+      </details>
+      <div class="kiso-confirm-btns">
+        <button class="kiso-confirm-retake" onclick="retakeKisoPhoto()">📸 もう一度撮る</button>
+        <button class="kiso-confirm-submit" id="kiso-answer-confirm-submit-btn" onclick="submitKisoPhoto()">🚀 送信して採点</button>
+      </div>
+      <button class="btn-wide btn-crop-open" style="margin-top:10px" onclick="cropKisoPhoto()">✂️ 切り抜いて読み取り直す</button>
     </div>
   </div>
 </div>
@@ -10119,7 +10146,9 @@
     attempts: 0,
     hasWorkPhoto: false,     // 撮影前確認画面で「途中式の写真も送る」を選んだか
     workPhotoBase64: '',     // 途中式写真の撮影バッファ
-    workPhotoIndex: 0        // 送信済み途中式写真の枚数（連番）
+    workPhotoIndex: 0,       // 送信済み途中式写真の枚数（連番）
+    previewAnswers: null,    // 案C 二段階確認：ocrKisoAnswer が読み取った答え（番号順の文字列配列）
+    previewOcrText: ''       // 同上：Gemini 生 JSON（折り畳みで生徒に開示）
   };
   var _kisoGradingDotsTimer = null;
 
@@ -10749,6 +10778,8 @@
         var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         _kisoState.photoBase64 = dataUrl.split(',')[1];
         _kisoState.photoDataUrl = dataUrl;  // 切り抜き救済用にフル dataUrl も保持
+        _kisoState.previewAnswers = null;   // 新しい写真 → 前回の OCR プレビューは破棄
+        _kisoState.previewOcrText = '';
         document.getElementById('kiso-confirm-preview').src = dataUrl;
         document.getElementById('kiso-confirm-submit-btn').disabled = false;
         _setContentMascot('mate-img-kiso-confirm', 'thinking', 'mate-bubble-kiso-confirm', _pickBubble(KISOK_BUBBLES.answer), 'kisoK');
@@ -10769,6 +10800,8 @@
       onCropped: function(croppedDataUrl) {
         _kisoState.photoDataUrl = croppedDataUrl;
         _kisoState.photoBase64  = croppedDataUrl.split(',')[1];
+        _kisoState.previewAnswers = null;   // 切り抜きで画像が変わった → OCR プレビュー破棄
+        _kisoState.previewOcrText = '';
         var preview = document.getElementById('kiso-confirm-preview');
         if (preview) preview.src = croppedDataUrl;
         showScreen('screen-kiso-confirm');
@@ -10779,12 +10812,90 @@
   function retakeKisoPhoto() {
     _kisoState.photoBase64 = '';
     _kisoState.photoDataUrl = '';
+    _kisoState.previewAnswers = null;   // 撮り直し → OCR プレビュー破棄
+    _kisoState.previewOcrText = '';
     document.getElementById('kiso-photo-input').value = '';
     document.getElementById('kiso-confirm-preview').src = '';
     // 解答撮影案内画面に戻ってから input.click()（iOS Safari の onchange 不発対策）
     _renderKisoAnswerIntro();
     showScreen('screen-kiso-answer-intro');
     setTimeout(function(){ document.getElementById('kiso-photo-input').click(); }, 80);
+  }
+
+  // 案C 二段階確認 STEP1：OCR 専用プレビュー。採点・HP・写真保存はせず、AI が読み取った
+  // 答えだけを取得して確認画面に見せる。生徒が確認後に submitKisoPhoto で採点する。
+  // 和文英訳① の OCR → 確認 → 採点フローと同方針（CLAUDE.md #136 案C）。
+  function ocrKisoPreview() {
+    if (!_kisoState.sessionId || !_kisoState.photoBase64) return;
+    var btn = document.getElementById('kiso-confirm-submit-btn');
+    if (btn) btn.disabled = true;
+    _kisoShowGrading(true);   // 「答えをチェック中…」overlay を流用（読み取り中表示）
+    var payload = {
+      action: 'ocrKisoAnswer',
+      sessionId: _kisoState.sessionId,
+      imageBase64: _kisoState.photoBase64
+    };
+    try {
+      gasPost(payload, 90000).then(function(res){
+        _kisoShowGrading(false);
+        if (btn) btn.disabled = false;
+        if (!res || !res.ok) {
+          if (res && res.retake) {
+            // 全部空 → 撮り直し誘導（撮影確認画面に留まる）
+            alert('📸 写真から答えが読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
+            return;
+          }
+          // GAS 未デプロイ（ocrKisoAnswer 未反映）等で「unknown action」が返った場合は
+          // 旧来の単段階採点（submitKisoPhoto が OCR + 採点を一括実行）にフォールバック。
+          // previewAnswers は無いので studentAnswersJson は付かず、サーバ側 OCR で採点される。
+          if (res && /unknown action/i.test(String(res.message || ''))) {
+            _kisoState.previewAnswers = null;
+            _kisoState.previewOcrText = '';
+            submitKisoPhoto();
+            return;
+          }
+          alert('⚠️ 読み取りに失敗しました：' + ((res && res.message) || '通信エラー') + '\nネットワークが不安定な可能性があります。少し待ってからもう一度お試しください。');
+          return;
+        }
+        // 読み取り成功：答えを保持して確認画面へ（採点はまだしない）
+        var rawAnswers = res.answers || [];
+        _kisoState.previewAnswers = rawAnswers.map(function(a){ return String(a && a.text != null ? a.text : ''); });
+        _kisoState.previewOcrText = String(res.ocrText || '');
+        _renderKisoAnswerConfirm(rawAnswers);
+        showScreen('screen-kiso-answer-confirm');
+      }).catch(function(err){
+        _kisoShowGrading(false);
+        if (btn) btn.disabled = false;
+        alert('⚠️ 通信エラー：' + String(err) + '\nネットワークが不安定な可能性があります。少し待ってからもう一度お試しください。');
+      });
+    } catch (err) {
+      _kisoShowGrading(false);
+      if (btn) btn.disabled = false;
+      alert('⚠️ 読み取りを開始できませんでした：' + String(err && err.message ? err.message : err) + '\nアプリを再読み込みしてもう一度お試しください。');
+    }
+  }
+
+  // 案C 二段階確認 STEP2：読み取った答えを番号別に表示
+  function _renderKisoAnswerConfirm(answers) {
+    var listEl = document.getElementById('kiso-answer-confirm-list');
+    if (listEl) {
+      var html = '';
+      for (var i = 0; i < answers.length; i++) {
+        var no = (answers[i] && answers[i].no) ? answers[i].no : (i + 1);
+        var text = String(answers[i] && answers[i].text != null ? answers[i].text : '');
+        var empty = (text.trim() === '');
+        var cls = empty ? ' empty' : '';
+        var display = empty ? '（読み取れませんでした）' : text;
+        html += '<div class="wabun1-parsed-item">' +
+                  '<span class="wabun1-parsed-no">' + no + '.</span>' +
+                  '<span class="wabun1-parsed-text' + cls + '">' + _kisoEsc(display) + '</span>' +
+                '</div>';
+      }
+      listEl.innerHTML = html || '<div class="wabun1-parsed-help">（読み取り結果がありません）</div>';
+    }
+    var ocrEl = document.getElementById('kiso-answer-confirm-ocr');
+    if (ocrEl) ocrEl.textContent = _kisoState.previewOcrText || '（生データなし）';
+    _setContentMascot('mate-img-kiso-answer-confirm', 'thinking', 'mate-bubble-kiso-answer-confirm', _pickBubble(KISOK_BUBBLES.answer), 'kisoK');
   }
 
   function _kisoShowGrading(show) {
@@ -10820,7 +10931,9 @@
   //     ログアウト cleanup から参照されるため温存
   function submitKisoPhoto() {
     if (!_kisoState.sessionId || !_kisoState.photoBase64) return;
-    var btn = document.getElementById('kiso-confirm-submit-btn');
+    // 採点ボタンは答え確認画面（screen-kiso-answer-confirm）側。旧 confirm 画面の
+    // ボタンにもフォールバックして disable する（二重押し防止）。
+    var btn = document.getElementById('kiso-answer-confirm-submit-btn') || document.getElementById('kiso-confirm-submit-btn');
     btn.disabled = true;
     var payload = {
       action: 'submitKisoAnswer',
@@ -10828,6 +10941,11 @@
       imageBase64: _kisoState.photoBase64,
       hasWorkPhoto: !!_kisoState.hasWorkPhoto
     };
+    // 案C：OCR プレビューで生徒が確認した答えがあれば、それを採点に渡す（サーバは再 OCR しない）。
+    // 確認画面の表示と完全一致した文字列で採点 → 「見たものと違う採点」を防ぐ。
+    if (_kisoState.previewAnswers && _kisoState.previewAnswers.length > 0) {
+      payload.studentAnswersJson = JSON.stringify(_kisoState.previewAnswers);
+    }
     function doSubmit() {
       _showHpConfirmingOverlay('kisoK');
       btn.disabled = true;
@@ -10858,6 +10976,8 @@
           // 提出に使った base64 はもう保持しなくて OK（メモリ節約）
           _kisoState.photoBase64 = '';
           _kisoState.photoDataUrl = '';
+          _kisoState.previewAnswers = null;   // 採点完了 → OCR プレビュー破棄
+          _kisoState.previewOcrText = '';
           // 過去セッション再表示用に submission を localStorage に保存
           // （初回提出のみ photoInfo に shareUrl/fileId が入る。再挑戦時は前回の写真を維持するため上書きしない）
           if (res.isFirstAttempt) {
@@ -14849,7 +14969,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260531-0637</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260601-0419</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

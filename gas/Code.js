@@ -1117,6 +1117,9 @@ function doGet(e) {
       else if (action === 'adminSetWabun1Comment')      result = adminSetWabun1Comment(params);
       else if (action === 'startKisoSession')        result = startKisoSession(params.studentId, params.rank, params.count);
       else if (action === 'getKisoRetryQuestions')   result = getKisoRetryQuestions(params.sessionId);
+      // 基礎計算：OCR 専用プレビュー（案C 二段階確認）。本来は doPost 経由だが
+      //   ocrWabun1Photo と同様 doGet にも保護登録（CLAUDE.md #148 原則）。
+      else if (action === 'ocrKisoAnswer')           result = ocrKisoAnswer(params.sessionId, params.imageBase64);
       else if (action === 'getKisoTodayRawHP')       result = getKisoTodayRawHP(params);
       else if (action === 'getKisoPhotosList')       result = getKisoPhotosList(params);
       // 基礎計算 履歴一覧（生徒画面 screen-kiso-history、カンジー方式踏襲）
@@ -1289,7 +1292,10 @@ function doPost(e) {
     // 同上：三語短文の週単位一括登録（28 件で 8KB 超過、CLAUDE.md #93 と同パターン）
     else if (action === 'adminAddSangoTopicsWeek')  result = adminAddSangoTopicsWeek(params);
     // 基礎計算：写真提出（base64 画像が大きいため POST 経由）
-    else if (action === 'submitKisoAnswer')         result = submitKisoAnswer(params.sessionId, params.imageBase64, params.hasWorkPhoto);
+    else if (action === 'submitKisoAnswer')         result = submitKisoAnswer(params.sessionId, params.imageBase64, params.hasWorkPhoto, params.studentAnswersJson);
+    // 基礎計算：OCR 専用プレビュー（案C 二段階確認。base64 画像が大きいため POST 経由必須）。
+    // doGet にも保護として登録済み。両ルーティングはセットで保持すること。
+    else if (action === 'ocrKisoAnswer')            result = ocrKisoAnswer(params.sessionId, params.imageBase64);
     else if (action === 'submitKisoWorkPhoto')      result = submitKisoWorkPhoto(params.sessionId, params.imageBase64, params.photoIndex);
     // ※ 和文英訳① の OCR（ocrWabun1Photo）は base64 画像を送るため doPost 経由必須。
     //   2026-04-30 に Cloud Vision → Gemini Vision 切替時に追加（CLAUDE.md 参照）。
@@ -6956,11 +6962,97 @@ function getKisoRetryQuestions(sessionId) {
   }
 }
 
+// 答案写真の OCR 専用（採点しない・HP 付与しない・写真保存しない・セッション不変）
+// 案C 二段階確認（2026-06-01 導入）：
+//   生徒が「送信して採点」する前に、Gemini が読み取った番号別の答えを確認画面で見せるための
+//   プレビュー専用 action。和文英訳① ocrWabun1Photo と同じ位置づけ。
+//   - 採点対象 ID 数（targetIds.length）を submitKisoAnswer と同じロジックで決め、
+//     その個数で OCR して番号 → 答え の配列を返す。
+//   - ここで返した answers をフロントが保持し、生徒が確認後 submitKisoAnswer に
+//     studentAnswersJson として渡すことで「表示と完全一致した文字列で採点」を保証する。
+function ocrKisoAnswer(sessionId, imageBase64) {
+  try {
+    const sid = String(sessionId || '').trim();
+    if (!sid) return { ok: false, message: 'sessionId が必要です' };
+    if (!imageBase64) return { ok: false, message: '画像が空です' };
+
+    const found = _findKisoSessionRow(sid);
+    if (!found) return { ok: false, message: 'セッションが見つかりません: ' + sid };
+    const header = found.header;
+    const row = found.row;
+
+    const cQids     = header.indexOf('questionIds');
+    const cStatus   = header.indexOf('status');
+    const cAttempts = header.indexOf('attempts');
+    const cWrong    = header.indexOf('wrongIds');
+
+    const status = String(row[cStatus] || '');
+    if (status === 'passed') {
+      return { ok: false, message: 'このセッションは既に合格済みです' };
+    }
+
+    let allQids = [];
+    try { allQids = JSON.parse(String(row[cQids] || '[]')); } catch (e) { allQids = []; }
+    if (!Array.isArray(allQids) || allQids.length === 0) {
+      return { ok: false, message: 'セッションに問題IDが保存されていません' };
+    }
+
+    const prevAttempts = Number(row[cAttempts]) || 0;
+    const isFirstAttempt = (prevAttempts === 0);
+
+    // 採点対象 ID リスト（submitKisoAnswer と完全に同じロジック）
+    let targetIds;
+    if (isFirstAttempt) {
+      targetIds = allQids.slice();
+    } else {
+      let prevWrong = [];
+      try { prevWrong = JSON.parse(String(row[cWrong] || '[]')); } catch (e) { prevWrong = []; }
+      targetIds = (Array.isArray(prevWrong) && prevWrong.length > 0) ? prevWrong : allQids.slice();
+    }
+
+    const geminiRes = _kisoOcrWithGemini(imageBase64, targetIds.length);
+    if (!geminiRes.ok) return geminiRes;   // {ok:false, message, retake?} をそのまま返却
+    const answersMap = geminiRes.answersMap || {};
+
+    // 番号 → 答え の配列（submitKisoAnswer と同じ整形）
+    const answers = [];
+    let nonEmpty = 0;
+    for (let i = 0; i < targetIds.length; i++) {
+      const num = i + 1;
+      const a = (answersMap[String(num)] !== undefined) ? answersMap[String(num)] : answersMap[num];
+      const text = String(a == null ? '' : a);
+      if (text.trim() !== '') nonEmpty += 1;
+      answers.push({ no: num, text: text });
+    }
+
+    // 全部空なら再撮影を促す（submitKisoAnswer と同挙動）
+    if (nonEmpty === 0) {
+      return { ok: false, retake: true, message: '写真から答えが読み取れませんでした。明るい場所で、もう一度はっきり撮影してください。' };
+    }
+
+    return {
+      ok: true,
+      count: targetIds.length,
+      answers: answers,
+      ocrText: String(geminiRes.ocrText || '')
+    };
+  } catch (err) {
+    console.error('[ocrKisoAnswer]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
 // 答案写真の提出（仕様書 §7 採点 + §8 HP 加算）
 // - imageBase64: 生徒のアップロード画像（base64、フロントでリサイズ済み）
 // - 初回 (attempts=0): questionIds 全件を採点。80% 合格判定。初回のみ写真を Drive に保存（Phase 4-3）
 // - 再挑戦 (attempts>=1): wrongIds のみ採点。全問正解で合格。写真は保存しない
-function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
+// studentAnswersJson（案C 二段階確認、2026-06-01 導入）：
+//   フロントが先に ocrKisoAnswer で OCR を済ませ、確認画面で生徒に見せた答えを
+//   そのまま採点に渡すための任意引数（番号順の文字列 JSON 配列）。
+//   渡された場合はサーバ側で再 OCR せず、確認画面の表示と完全一致した文字列で採点する
+//   （和文英訳① submitWabun1 の parsedAnswers と同方針）。
+//   渡されない場合は従来通りこの関数内で OCR する（後方互換）。
+function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto, studentAnswersJson) {
   try {
     const sid = String(sessionId || '').trim();
     if (!sid) return { ok: false, message: 'sessionId が必要です' };
@@ -7012,20 +7104,44 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto) {
       targetIds = (Array.isArray(prevWrong) && prevWrong.length > 0) ? prevWrong : allQids.slice();
     }
 
-    // Gemini Vision で OCR + 番号別に答えを抽出
-    // 旧 Vision API は分数の縦書き・手書き認識精度が低く、本番運用で誤判定が頻発したため
-    // Gemini API（multimodal）に切替。Gemini は番号 → 答え の対応付けまで一括で行う。
-    const geminiRes = _kisoOcrWithGemini(imageBase64, targetIds.length);
-    if (!geminiRes.ok) return geminiRes;   // {ok:false, message, retake?} をそのまま返却
-    const ocrText = geminiRes.ocrText;     // Gemini の生 JSON 応答（管理画面ログ用にプレビューする）
-    const answersMap = geminiRes.answersMap;  // {"1":"1/4", "2":"1", ...}
+    // 案C 二段階確認：確認画面で生徒に見せた答え（studentAnswersJson）があれば
+    // 再 OCR せずそれを採点に使う。無ければ従来通りこの関数内で OCR（後方互換）。
+    let studentAnswers = null;
+    let ocrText = '';
+    let preParsed = null;
+    if (studentAnswersJson != null && studentAnswersJson !== '') {
+      try {
+        const arr = (typeof studentAnswersJson === 'string') ? JSON.parse(studentAnswersJson) : studentAnswersJson;
+        if (Array.isArray(arr)) preParsed = arr;
+      } catch (e) {
+        console.warn('[submitKisoAnswer] studentAnswersJson parse failed, falling back to OCR', e);
+        preParsed = null;
+      }
+    }
+    if (preParsed) {
+      // 番号順に targetIds.length 個へ整形（不足は空文字、超過は切り捨て）
+      studentAnswers = [];
+      for (let i = 0; i < targetIds.length; i++) {
+        const a = preParsed[i];
+        studentAnswers.push(String(a == null ? '' : a));
+      }
+      ocrText = '[confirmed] ' + JSON.stringify(preParsed);  // 管理画面ログ用：確認画面採用を明示
+    } else {
+      // Gemini Vision で OCR + 番号別に答えを抽出
+      // 旧 Vision API は分数の縦書き・手書き認識精度が低く、本番運用で誤判定が頻発したため
+      // Gemini API（multimodal）に切替。Gemini は番号 → 答え の対応付けまで一括で行う。
+      const geminiRes = _kisoOcrWithGemini(imageBase64, targetIds.length);
+      if (!geminiRes.ok) return geminiRes;   // {ok:false, message, retake?} をそのまま返却
+      ocrText = geminiRes.ocrText;     // Gemini の生 JSON 応答（管理画面ログ用にプレビューする）
+      const answersMap = geminiRes.answersMap;  // {"1":"1/4", "2":"1", ...}
 
-    // 番号 → 答え の配列を組み立て
-    const studentAnswers = [];
-    for (let i = 0; i < targetIds.length; i++) {
-      const num = i + 1;
-      const a = (answersMap[String(num)] !== undefined) ? answersMap[String(num)] : answersMap[num];
-      studentAnswers.push(String(a == null ? '' : a));
+      // 番号 → 答え の配列を組み立て
+      studentAnswers = [];
+      for (let i = 0; i < targetIds.length; i++) {
+        const num = i + 1;
+        const a = (answersMap[String(num)] !== undefined) ? answersMap[String(num)] : answersMap[num];
+        studentAnswers.push(String(a == null ? '' : a));
+      }
     }
 
     // 全部空なら再撮影を促す（Gemini が画像を全く読めなかったケース）
