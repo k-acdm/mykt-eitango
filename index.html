@@ -2905,10 +2905,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260601-0419"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260601-0515"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260601-0419">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260601-0419"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260601-0515">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260601-0515"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5895,6 +5895,11 @@
     document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
     document.getElementById(id).classList.add('active');
     window.scrollTo(0, 0);
+    // 強制リロードバッジ（#app-version）はログイン画面でのみ表示する。
+    // ログイン後の画面では非表示にし、解答中の誤タップでログイン画面に戻る事故を防ぐ。
+    // ログアウトで screen-login に戻れば再表示される（全画面遷移が showScreen を通るため確実に切替わる）。
+    var _av = document.getElementById('app-version');
+    if (_av) _av.style.display = (id === 'screen-login') ? '' : 'none';
     if (id === 'screen-settings') {
       for (var i = 0; i < VOICE_LIST.length; i++) {
         var b = document.getElementById('voice-btn-' + i);
@@ -14969,7 +14974,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260601-0419</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260601-0515</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
