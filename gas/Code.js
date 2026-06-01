@@ -11437,8 +11437,10 @@ function getLineNotifyManagementData(params) {
           studentLineId:      studentLineId,
           parentLineIdValid:  !!parentLineId  && RE_LINE_USER_ID.test(parentLineId),
           studentLineIdValid: !!studentLineId && RE_LINE_USER_ID.test(studentLineId),
-          notifyParent:       iNotifyParent  >= 0 ? String(row[iNotifyParent]  || '').trim().toUpperCase() : '',
-          notifyStudent:      iNotifyStudent >= 0 ? String(row[iNotifyStudent] || '').trim().toUpperCase() : ''
+          // ★ row[i] || '' は boolean false を空欄化してしまう（setValue('FALSE') が
+          //   シートで boolean false に自動変換される事故への防御）。null/undefined のみ '' に落とす。
+          notifyParent:       iNotifyParent  >= 0 ? String(row[iNotifyParent]  == null ? '' : row[iNotifyParent]).trim().toUpperCase() : '',
+          notifyStudent:      iNotifyStudent >= 0 ? String(row[iNotifyStudent] == null ? '' : row[iNotifyStudent]).trim().toUpperCase() : ''
         });
       }
     }
@@ -11482,7 +11484,13 @@ function updateLineNotifySetting(params) {
     const headerName = (field === 'notifyParent') ? NOTIFY_LINE_PARENT_HEADER_NAME : NOTIFY_LINE_STUDENT_HEADER_NAME;
     const colInfo = _ensureUnlockFlagColOnSheet(loc.sheet, headerName);
     const colIdx = colInfo.idx;  // 0-based
-    loc.sheet.getRange(loc.rowIdx + 1, colIdx + 1).setValue(value);
+    // ★ 文字列 'FALSE'/'TRUE' を setValue するとシートが boolean に自動変換し、読み取り側の
+    //   `row[i] || ''` で false が空欄化 →「OFF にしたのに未設定に戻る」事故になる
+    //   （BIRTHDAY の Date 化と同根、_avatarSetCellText と同じ対策）。セルを text 形式（'@'）に
+    //   固定してから書き、'FALSE'/'TRUE'/'' を文字列のまま保持する。
+    const _notifyCell = loc.sheet.getRange(loc.rowIdx + 1, colIdx + 1);
+    _notifyCell.setNumberFormat('@');
+    _notifyCell.setValue(value);
 
     // キャッシュ in-place 更新（Students / SpecialAccounts どちらでも自動判別）
     var upd = {};
@@ -23046,8 +23054,10 @@ function _lineNotifyBuildStudentSnapshots() {
       var name = String(row[COL_NAME] || '').trim();
       var hp = Number(row[COL_HP]) || 0;
       var gradeLevel           = iGrade        >= 0 ? String(row[iGrade]        || '').trim() : '';
-      var notifyLineParentRaw  = iNotifyParent >= 0 ? String(row[iNotifyParent] || '').trim() : '';
-      var notifyLineStudentRaw = iNotifyStudent >= 0 ? String(row[iNotifyStudent] || '').trim() : '';
+      // ★ row[i] || '' は boolean false を空欄化し、空欄→学齢基準で小中=ON 扱いになる事故を招く
+      //   （OFF にした小学生が通知 ON に戻る原因）。null/undefined のみ '' に落とす。
+      var notifyLineParentRaw  = iNotifyParent >= 0 ? String(row[iNotifyParent] == null ? '' : row[iNotifyParent]).trim() : '';
+      var notifyLineStudentRaw = iNotifyStudent >= 0 ? String(row[iNotifyStudent] == null ? '' : row[iNotifyStudent]).trim() : '';
       // migrate 前フォールバック：新 2 列が未追加 / 空欄かつ旧 NOTIFY_LINE 列に値があればそれを使う。
       // 新 2 列に値があればそちらを優先（migrate 後の通常運用）。
       if (!notifyLineParentRaw && iNotifyLegacy >= 0) {
