@@ -2937,10 +2937,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260601-1609"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260602-0430"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260601-1609">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260601-1609"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260602-0430">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260602-0430"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3460,14 +3460,23 @@
       </div>
     </div>
 
-    <!-- ③-3 アバターコーナー（2026-05-15 学習コンテンツ群から分離して横長ボタン化）。
+    <!-- ③-3 アバターショップ（2026-05-15 学習コンテンツ群から分離して横長ボタン化）。
          未選択生徒には NEW バッジを表示して導線を強調（_renderAvatarSlot で制御）。
          onclick は内部で「未選択→選択画面 / 選択済→コーナー画面」を分岐する。 -->
     <div class="dash-section">
       <button type="button" class="avatar-corner-home-btn" id="card-avatar-corner" onclick="onAvatarCardTap()">
-        <span class="avatar-corner-home-title">✨ アバターコーナー ✨</span>
+        <span class="avatar-corner-home-title">✨ アバターショップ ✨</span>
         <span class="avatar-corner-home-sub">アバターを変更したり、着せ替えで楽しもう（着せ替えは近日公開）</span>
         <span class="avatar-corner-home-badge" id="card-avatar-new-badge" style="display:none">NEW</span>
+      </button>
+    </div>
+
+    <!-- ③-3a Amazonギフト交換専用ページへの独立導線（2026-06-02 アバターショップから分離）。
+         Amazon ギフトはアバターと無関係な交換のため、ホームから直接入れる独立ボタンに。 -->
+    <div class="dash-section">
+      <button type="button" class="amazon-gift-entry" onclick="showAmazonGift()">
+        <div class="ttl">🎁 Amazonギフトカード5000円分 交換専用ページ</div>
+        <div class="sub">ためたHPで本物のAmazonギフトと交換できる！　必要HPはこちら →</div>
       </button>
     </div>
 
@@ -3550,7 +3559,7 @@
 </div>
 <!-- アバターコーナー画面（2026-05-15 Phase α 新規） -->
 <div id="screen-avatar-corner" class="screen">
-  <header><h1>✨ アバターコーナー</h1></header>
+  <header><h1>✨ アバターショップ</h1></header>
   <div class="container" style="padding-top:20px">
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">← 戻る</button>
     <div class="avatar-corner-wrap">
@@ -3602,15 +3611,11 @@
 <div id="screen-avatar-shop" class="screen">
   <header><h1>🛍 ショップ</h1></header>
   <div class="container" style="padding-top:20px">
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showAvatarCorner()">← アバターコーナーに戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showAvatarCorner()">← アバターショップに戻る</button>
     <div class="avatar-shop-balance">
       <div class="lbl">💎 交換できるHP</div>
       <div class="val" id="avatar-shop-balance-val">―</div>
     </div>
-    <button type="button" class="amazon-gift-entry" onclick="showAmazonGift()">
-      <div class="ttl">🎁 Amazonギフトカード5000円分 交換専用ページ</div>
-      <div class="sub">ためたHPで本物のAmazonギフトと交換できる！　必要HPはこちら →</div>
-    </button>
     <div id="avatar-shop-body"><div class="avatar-shop-loading">読み込み中…</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
@@ -3619,7 +3624,7 @@
 <div id="screen-avatar-closet" class="screen">
   <header><h1>👕 クローゼット</h1></header>
   <div class="container" style="padding-top:20px">
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showAvatarCorner()">← アバターコーナーに戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showAvatarCorner()">← アバターショップに戻る</button>
     <div id="avatar-closet-body"><div class="avatar-shop-loading">読み込み中…</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:8px" onclick="showAvatarShop()">🛍 ショップでアイテムを増やす</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
@@ -3629,7 +3634,6 @@
 <div id="screen-amazon-gift" class="screen">
   <header><h1>🎁 Amazonギフト交換</h1></header>
   <div class="container" style="padding-top:20px">
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showAvatarShop()">← ショップに戻る</button>
     <div id="amazon-gift-body"><div class="avatar-shop-loading">読み込み中…</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
@@ -15092,7 +15096,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260601-1609</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260602-0430</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
