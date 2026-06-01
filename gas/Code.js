@@ -1056,6 +1056,9 @@ function doGet(e) {
       //   旧 submitExchange/getExchangeStatus（固定ランク方式）は廃止済み。
       else if (action === 'getAvatarShop')     result = getAvatarShop(params);
       else if (action === 'getAvatarCloset')   result = getAvatarCloset(params);
+      // HP 交換 Phase 3-B（2026-06-01）：管理画面のアバターアイテム一覧（admin-only、読み取り）。
+      //   価格 / 公開状態 / 表示モードの書き込み 3 関数は副作用ありのため doPost 側に登録。
+      else if (action === 'adminListAvatarItems') result = adminListAvatarItems(params);
       else if (action === 'adminLogin')        result = adminLogin(params);
       // Phase 3 講師管理：一覧取得は読み取りなので doGet 経由。書き込み 5 関数は doPost のみ
       else if (action === 'adminListTeachers') result = adminListTeachers(params);
@@ -1379,6 +1382,13 @@ function doPost(e) {
     //   setAvatarEquip  : 装着 / 取り外し（AVATAR_EQUIPPED 書き換え、カテゴリ内排他）
     else if (action === 'submitExchange')                   result = submitExchange(params.studentId, params.itemId);
     else if (action === 'setAvatarEquip')                   result = setAvatarEquip(params);
+    // HP 交換 Phase 3-B（2026-06-01）：管理画面のアバターアイテム編集（admin-only、副作用ありのため POST 強制）。
+    //   adminSetAvatarItemPrice     : AvatarItems の price 列を書き込み（正の整数のみ）
+    //   adminSetAvatarItemPublish   : publish_status を '公開'/'予告' に切替（公開は price>0 をサーバ再チェック）
+    //   adminSetCategoryDisplayMode : Script Property 'avatar_category_display_modes' に表示モードを書き込み
+    else if (action === 'adminSetAvatarItemPrice')          result = adminSetAvatarItemPrice(params);
+    else if (action === 'adminSetAvatarItemPublish')        result = adminSetAvatarItemPublish(params);
+    else if (action === 'adminSetCategoryDisplayMode')      result = adminSetCategoryDisplayMode(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -20524,6 +20534,183 @@ function setAvatarEquip(params) {
     return { ok: true, equipped: equipped, equippedDetails: _avatarResolveEquippedDetails(equipped, byId) };
   } catch (err) {
     console.error('[setAvatarEquip]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// ========================================================================
+// HP 交換システム Phase 3-B：管理画面のアバターアイテム管理（admin-only）
+//   （2026-06-01。AvatarItems シートの price / publish_status をふくちが管理画面から
+//     編集できるようにする。カテゴリ表示モード（Script Property）も書き込む。）
+// ========================================================================
+//
+// ★ Phase 3-A との整合（壊さないための約束）：
+//   ・publish_status / price のガード規約は _avatarItemPurchasable と一致させる
+//     （= 公開にできるのは price>0 のときだけ。サーバ側でも再チェックしフロント任せにしない）。
+//   ・カテゴリ表示モードの保存先・キー体系は _getAvatarCategoryDisplayModes と完全一致
+//     （Script Property 'avatar_category_display_modes'、キーは category_key、値 'item'|'category'）。
+//   ・getAvatarShop / getAvatarCloset はカタログをシート直読み（_readAvatarItemsCatalog）し、
+//     表示モードも Script Property 直読みのため、AvatarItems / Property への書き込み後に
+//     invalidate すべき CacheService キャッシュは存在しない（＝書いた瞬間に反映される）。
+
+// AvatarItems シートで item_id 一致行を特定する（ヘッダー駆動、1 回スキャン）。
+// 戻り値: { sheet, rowIdx1(1-indexed), col:{ヘッダー名→列index0}, rowValues } / 見つからなければ null。
+function _avatarItemsFindRow(itemId) {
+  const target = String(itemId || '').trim();
+  if (!target) return null;
+  const sh = _ss().getSheetByName(SHEET_AVATAR_ITEMS);
+  if (!sh || sh.getLastRow() < 2) return null;
+  const values = sh.getDataRange().getValues();
+  const header = values[0].map(function(h){ return String(h || '').trim(); });
+  const col = {};
+  AVATAR_ITEMS_SHEET_HEADERS.forEach(function(name){ col[name] = header.indexOf(name); });
+  if (col['item_id'] < 0) return null;
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][col['item_id']] || '').trim() === target) {
+      return { sheet: sh, rowIdx1: i + 1, col: col, rowValues: values[i] };
+    }
+  }
+  return null;
+}
+
+// 管理画面：AvatarItems の全アイテムをカテゴリ別に返す（admin-only、読み取り）。
+//   getAvatarShop と違い displayMode に関係なく全アイテムを返す（管理用一覧のため）。
+//   各アイテムに purchasable（= 公開 かつ price>0）を付けてフロントのガード表示に使う。
+function adminListAvatarItems(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この機能は管理者（admin）のみ利用できます' };
+
+    const catalog = _readAvatarItemsCatalog();
+    const modes   = _getAvatarCategoryDisplayModes();
+
+    const order = [];
+    const byCat = {};
+    catalog.forEach(function(it){
+      const key = it.categoryKey || '(未分類)';
+      if (!byCat[key]) { byCat[key] = { categoryKey: it.categoryKey, categoryJa: it.categoryJa, items: [] }; order.push(key); }
+      if (!byCat[key].categoryJa && it.categoryJa) byCat[key].categoryJa = it.categoryJa;
+      byCat[key].items.push(it);
+    });
+    const categories = order.map(function(key){
+      const g = byCat[key];
+      const displayMode = (modes[g.categoryKey] === 'item') ? 'item' : 'category';
+      return {
+        categoryKey: g.categoryKey,
+        categoryJa:  g.categoryJa || g.categoryKey || '(未分類)',
+        displayMode: displayMode,
+        items: g.items.map(function(it){
+          return {
+            itemId:        it.itemId,
+            name:          it.name,
+            categoryJa:    it.categoryJa,
+            rarity:        it.rarity,
+            price:         it.price,
+            imagePath:     it.imagePath,
+            publishStatus: it.publishStatus,
+            purchasable:   _avatarItemPurchasable(it)
+          };
+        })
+      };
+    });
+    return { ok: true, categories: categories };
+  } catch (err) {
+    console.error('[adminListAvatarItems]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：アバターアイテムの価格を設定（admin-only、doPost）。
+//   price は正の整数のみ（空欄 / 0 / 負数 / 非数値 / 小数は拒否）。
+function adminSetAvatarItemPrice(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この機能は管理者（admin）のみ利用できます' };
+
+    const itemId = String((params && params.itemId) || '').trim();
+    if (!itemId) return { ok: false, message: 'アイテムが指定されていません' };
+
+    const rawPrice = (params && params.price);
+    const priceNum = Number(rawPrice);
+    if (rawPrice === '' || rawPrice == null || !isFinite(priceNum) || priceNum <= 0 || !Number.isInteger(priceNum)) {
+      return { ok: false, message: '価格は正の整数で入力してください' };
+    }
+
+    const row = _avatarItemsFindRow(itemId);
+    if (!row) return { ok: false, message: 'アイテムが見つかりません: ' + itemId };
+    if (row.col['price'] < 0) return { ok: false, message: 'AvatarItems シートに price 列がありません' };
+
+    row.sheet.getRange(row.rowIdx1, row.col['price'] + 1).setValue(priceNum);
+    // カタログ・表示モードは都度シート/Property 直読みのため invalidate 不要（Phase 3-B コメント参照）。
+    return { ok: true, itemId: itemId, price: priceNum };
+  } catch (err) {
+    console.error('[adminSetAvatarItemPrice]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：アバターアイテムの公開状態を設定（admin-only、doPost）。
+//   status は '公開' / '予告' のみ。'公開' にする場合はサーバ側でも price>0 を再チェック
+//   （フロントのガードだけに頼らない＝ _avatarItemPurchasable と同じ規約）。
+function adminSetAvatarItemPublish(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この機能は管理者（admin）のみ利用できます' };
+
+    const itemId = String((params && params.itemId) || '').trim();
+    if (!itemId) return { ok: false, message: 'アイテムが指定されていません' };
+    const status = String((params && params.status) || '').trim();
+    if (status !== '公開' && status !== '予告') {
+      return { ok: false, message: '公開状態は「公開」または「予告」のみ指定できます' };
+    }
+
+    const row = _avatarItemsFindRow(itemId);
+    if (!row) return { ok: false, message: 'アイテムが見つかりません: ' + itemId };
+    if (row.col['publish_status'] < 0) return { ok: false, message: 'AvatarItems シートに publish_status 列がありません' };
+
+    // '公開' にするなら price>0 をサーバ側で再チェック（シートの現在値で判定）。
+    if (status === '公開') {
+      const curPrice = (row.col['price'] >= 0) ? (Number(row.rowValues[row.col['price']]) || 0) : 0;
+      if (!(curPrice > 0)) {
+        return { ok: false, message: '価格を設定してください（価格が未設定のアイテムは公開できません）' };
+      }
+    }
+
+    row.sheet.getRange(row.rowIdx1, row.col['publish_status'] + 1).setValue(status);
+    return { ok: true, itemId: itemId, publishStatus: status };
+  } catch (err) {
+    console.error('[adminSetAvatarItemPublish]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：カテゴリ表示モードを設定（admin-only、doPost）。
+//   保存先・キー体系は _getAvatarCategoryDisplayModes と完全一致：
+//     Script Property 'avatar_category_display_modes'（JSON: { category_key: 'item'|'category' }）。
+//   mode は 'item'（品目表示）/ 'category'（カテゴリ表示）のみ。
+function adminSetCategoryDisplayMode(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この機能は管理者（admin）のみ利用できます' };
+
+    const categoryKey = String((params && params.categoryKey) || '').trim();
+    if (!categoryKey) return { ok: false, message: 'カテゴリが指定されていません' };
+    const mode = String((params && params.mode) || '').trim();
+    if (mode !== 'item' && mode !== 'category') {
+      return { ok: false, message: '表示モードは「item」または「category」のみ指定できます' };
+    }
+
+    const modes = _getAvatarCategoryDisplayModes();  // 既存 JSON を読み（パース不能なら {}）
+    modes[categoryKey] = mode;
+    PropertiesService.getScriptProperties()
+      .setProperty('avatar_category_display_modes', JSON.stringify(modes));
+    return { ok: true, categoryKey: categoryKey, mode: mode, modes: modes };
+  } catch (err) {
+    console.error('[adminSetCategoryDisplayMode]', err);
     return { ok: false, message: String(err) };
   }
 }
