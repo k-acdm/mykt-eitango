@@ -984,10 +984,42 @@
     .avatar-closet-badge { font-size: 11px; font-weight: bold; color: #047857; background: #d1fae5; border-radius: 999px; padding: 2px 8px; margin-bottom: 4px; display: inline-block; }
     .avatar-item-btn.equip   { background: linear-gradient(135deg,#8b5cf6,#7c3aed); color: #fff; }
     .avatar-item-btn.unequip { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+    /* ===== HP交換 Phase4：Amazonギフト交換専用ページへの導線 + 専用ページ ===== */
+    .amazon-gift-entry { display: block; width: 100%; margin: 0 0 16px; padding: 16px 18px; border: none; border-radius: 16px;
+      background: linear-gradient(135deg,#ff9900,#ff6a00); color: #fff; font-weight: bold; cursor: pointer;
+      box-shadow: 0 4px 16px rgba(255,106,0,.35); text-align: left; position: relative; overflow: hidden;
+      animation: amazonGiftPulse 2.2s ease-in-out infinite; }
+    .amazon-gift-entry:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,106,0,.45); }
+    .amazon-gift-entry .ttl { font-size: 17px; line-height: 1.3; }
+    .amazon-gift-entry .sub { font-size: 12.5px; font-weight: 600; opacity: .95; margin-top: 4px; }
+    @keyframes amazonGiftPulse { 0%,100% { box-shadow: 0 4px 16px rgba(255,106,0,.35); } 50% { box-shadow: 0 4px 22px rgba(255,153,0,.6); } }
+    .amazon-gift-hero { background: linear-gradient(135deg,#232f3e,#37475a); color: #fff; border-radius: 16px; padding: 20px 18px; text-align: center; margin-bottom: 16px; }
+    .amazon-gift-hero .badge { display: inline-block; background: #ff9900; color: #232f3e; font-weight: bold; font-size: 12px; padding: 3px 12px; border-radius: 999px; margin-bottom: 10px; }
+    .amazon-gift-hero .title { font-size: 20px; font-weight: bold; line-height: 1.35; }
+    .amazon-gift-hero .req { margin-top: 12px; font-size: 13px; color: #ffd9a0; }
+    .amazon-gift-hero .req b { font-size: 22px; color: #ff9900; }
+    .amazon-gift-card { background: #fff; border: 2px solid #ffe0b2; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+    .amazon-gift-bal { text-align: center; }
+    .amazon-gift-bal .lbl { font-size: 13px; color: #92400e; font-weight: bold; }
+    .amazon-gift-bal .val { font-size: 26px; color: #b45309; font-weight: bold; }
+    .amazon-gift-bal .val small { font-size: 14px; }
+    .amazon-gift-progress-wrap { height: 14px; background: #f1ddc4; border-radius: 999px; overflow: hidden; margin: 12px 0 6px; }
+    .amazon-gift-progress-bar { height: 100%; background: linear-gradient(90deg,#ff9900,#ff6a00); border-radius: 999px; transition: width .4s; }
+    .amazon-gift-status { text-align: center; font-size: 14px; font-weight: bold; margin-top: 8px; }
+    .amazon-gift-status.reached { color: #15803d; }
+    .amazon-gift-status.short   { color: #b45309; }
+    .amazon-gift-status.applied { color: #1d4ed8; }
+    .amazon-gift-howto { background: #fff8ef; border: 1px solid #ffe0b2; border-radius: 12px; padding: 14px; font-size: 13px; color: #6b4a25; line-height: 1.8; margin-bottom: 14px; }
+    .amazon-gift-howto h4 { margin: 0 0 6px; font-size: 14px; color: #b45309; }
+    .amazon-gift-apply-btn { display: block; width: 100%; padding: 16px; border: none; border-radius: 14px; font-size: 18px; font-weight: bold; color: #fff; cursor: pointer; background: linear-gradient(135deg,#ff9900,#ff6a00); box-shadow: 0 4px 14px rgba(255,106,0,.35); }
+    .amazon-gift-apply-btn:disabled { background: #d1d5db; color: #6b7280; cursor: not-allowed; box-shadow: none; }
+    .amazon-gift-applied-box { background: #eff6ff; border: 2px solid #93c5fd; border-radius: 14px; padding: 16px; text-align: center; color: #1e40af; font-weight: bold; line-height: 1.7; }
     @media (max-width: 480px) {
       .avatar-deco { width: 34px; bottom: 10px; }
       .avatar-item-thumb, .avatar-item-thumb-ph { height: 92px; }
       .avatar-shop-balance .val { font-size: 22px; }
+      .amazon-gift-hero .title { font-size: 17px; }
+      .amazon-gift-hero .req b { font-size: 19px; }
     }
     /* アバター選択画面 */
     .avatar-select-card { display: block; width: 80%; max-width: 360px; margin: 14px auto; background: #fff; border: 2px solid transparent; border-radius: 18px; padding: 14px; box-shadow: 0 3px 12px rgba(0,0,0,.08); cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s; }
@@ -2905,10 +2937,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260601-0515"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260601-1609"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260601-0515">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260601-0515"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260601-1609">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260601-1609"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3575,6 +3607,10 @@
       <div class="lbl">💎 交換できるHP</div>
       <div class="val" id="avatar-shop-balance-val">―</div>
     </div>
+    <button type="button" class="amazon-gift-entry" onclick="showAmazonGift()">
+      <div class="ttl">🎁 Amazonギフトカード5000円分 交換専用ページ</div>
+      <div class="sub">ためたHPで本物のAmazonギフトと交換できる！　必要HPはこちら →</div>
+    </button>
     <div id="avatar-shop-body"><div class="avatar-shop-loading">読み込み中…</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
@@ -3587,6 +3623,15 @@
     <div id="avatar-closet-body"><div class="avatar-shop-loading">読み込み中…</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:8px" onclick="showAvatarShop()">🛍 ショップでアイテムを増やす</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+<!-- Amazonギフト交換専用ページ（HP交換 Phase4 新規、2026-06-01） -->
+<div id="screen-amazon-gift" class="screen">
+  <header><h1>🎁 Amazonギフト交換</h1></header>
+  <div class="container" style="padding-top:20px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showAvatarShop()">← ショップに戻る</button>
+    <div id="amazon-gift-body"><div class="avatar-shop-loading">読み込み中…</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-level" class="screen">
@@ -6781,6 +6826,79 @@
       alert('🎉 ' + (res.message || '交換しました！'));
       showAvatarShop(); // 残高 + 所持状態の反映のため再取得
     }).catch(function(){ _avatarBuyInFlight = false; alert('交換できませんでした：通信エラー'); });
+  }
+
+  // ---- Amazonギフト交換専用ページ（HP交換 Phase4）----
+  var _amazonGiftInFlight = false;
+  function showAmazonGift() {
+    showScreen('screen-amazon-gift');
+    var body = document.getElementById('amazon-gift-body');
+    if (body) body.innerHTML = '<div class="avatar-shop-loading">読み込み中…</div>';
+    if (!_studentId) { if (body) body.innerHTML = '<div class="avatar-shop-loading">ログイン情報が見つかりません。</div>'; return; }
+    gasGet({ action: 'getAmazonGiftStatus', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) { if (body) body.innerHTML = '<div class="avatar-shop-loading">❌ ' + _avEsc((res && res.message) || '取得に失敗しました。') + '</div>'; return; }
+      _renderAmazonGift(res);
+    }).catch(function(){ if (body) body.innerHTML = '<div class="avatar-shop-loading">通信エラーが発生しました。</div>'; });
+  }
+  function _renderAmazonGift(res) {
+    var body = document.getElementById('amazon-gift-body');
+    if (!body) return;
+    var required = Number(res.requiredHp) || 0;
+    var bal      = Number(res.exchangeableHp) || 0;
+    var pct      = required > 0 ? Math.min(100, Math.floor(bal / required * 100)) : 0;
+    var shortfall = Math.max(0, (res.shortfall != null ? Number(res.shortfall) : (required - bal)));
+
+    var html = '';
+    // ヒーロー（必要HPを最初から明示）
+    html += '<div class="amazon-gift-hero">';
+    html += '<div class="badge">いちばん大きなごほうび</div>';
+    html += '<div class="title">🎁 Amazonギフトカード<br>5000円分</div>';
+    html += '<div class="req">必要なHP　<b>' + _avNum(required) + '</b> HP</div>';
+    html += '</div>';
+
+    // 残高 + 到達状況
+    html += '<div class="amazon-gift-card">';
+    html += '<div class="amazon-gift-bal"><div class="lbl">💎 いまの交換できるHP</div><div class="val">' + _avNum(bal) + ' <small>HP</small></div></div>';
+    html += '<div class="amazon-gift-progress-wrap"><div class="amazon-gift-progress-bar" style="width:' + pct + '%"></div></div>';
+    if (res.alreadyRequested) {
+      var stLabel = (res.requestStatus === '完了') ? '対応済み（お渡し済み）' : '申請中（先生が確認しています）';
+      html += '<div class="amazon-gift-status applied">📮 申請状況：' + _avEsc(stLabel) + '</div>';
+    } else if (bal >= required) {
+      html += '<div class="amazon-gift-status reached">✅ 必要HPに到達！　申請できます</div>';
+    } else {
+      html += '<div class="amazon-gift-status short">あと <b>' + _avNum(shortfall) + '</b> HP（達成度 ' + pct + '%）</div>';
+    }
+    html += '</div>';
+
+    // どんな頑張りで到達できるか
+    html += '<div class="amazon-gift-howto">';
+    html += '<h4>💡 どうやってためる？</h4>';
+    html += '絶対ミッション＋いくつかのコンテンツを毎日がんばると、<b>1日およそ1000素点HP</b>。<br>';
+    html += 'それを<b>半年ちょっと（約25週）</b>続けると ' + _avNum(required) + ' HP に届きます。<br>';
+    html += '毎日コツコツ＝いちばんの近道！';
+    html += '</div>';
+
+    // 申請ボタン / 申請済み表示
+    if (res.alreadyRequested) {
+      html += '<div class="amazon-gift-applied-box">この特典はすでに申請済みです。<br>Amazonギフトの交換は<b>1回限り</b>です。<br>先生からのお渡しをお待ちください🎁</div>';
+    } else if (bal >= required) {
+      html += '<button type="button" class="amazon-gift-apply-btn" onclick="requestAmazonGift()">🎁 Amazonギフト5000円分を申請する</button>';
+    } else {
+      html += '<button type="button" class="amazon-gift-apply-btn" disabled>あと ' + _avNum(shortfall) + ' HP で申請できます</button>';
+    }
+    body.innerHTML = html;
+  }
+  function requestAmazonGift() {
+    if (_amazonGiftInFlight) return;
+    var ok = confirm('Amazonギフトカード5000円分を申請します。\n\n・交換できるHPから ' + _avNum(38000000) + ' HP を使います（生涯HPは減りません）\n・申請は1回限りです\n・先生が確認して現物をお渡しします\n\n申請しますか？');
+    if (!ok) return;
+    _amazonGiftInFlight = true;
+    gasPost({ action: 'submitAmazonGiftRequest', studentId: _studentId }).then(function(res){
+      _amazonGiftInFlight = false;
+      if (!res || !res.ok) { alert('申請できませんでした：' + ((res && res.message) || '通信エラー')); return; }
+      alert('🎉 ' + (res.message || 'Amazonギフトを申請しました！'));
+      showAmazonGift(); // 残高 + 申請状況の反映のため再取得
+    }).catch(function(){ _amazonGiftInFlight = false; alert('申請できませんでした：通信エラー'); });
   }
 
   // ---- クローゼット（所持品 / 装着 / 取り外し）----
@@ -14974,7 +15092,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260601-0515</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260601-1609</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

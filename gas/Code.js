@@ -1059,6 +1059,11 @@ function doGet(e) {
       // HP 交換 Phase 3-B（2026-06-01）：管理画面のアバターアイテム一覧（admin-only、読み取り）。
       //   価格 / 公開状態 / 表示モードの書き込み 3 関数は副作用ありのため doPost 側に登録。
       else if (action === 'adminListAvatarItems') result = adminListAvatarItems(params);
+      // HP 交換 Phase 4（2026-06-01）：Amazon ギフト申請。
+      //   getAmazonGiftStatus    : 生徒向け（残高 + 必要HP + 申請状況、認証不要）
+      //   getAmazonGiftRequests  : 管理画面の申請一覧（admin-only）。申請 / 完了の書き込みは doPost 側。
+      else if (action === 'getAmazonGiftStatus')   result = getAmazonGiftStatus(params);
+      else if (action === 'getAmazonGiftRequests') result = getAmazonGiftRequests(params);
       else if (action === 'adminLogin')        result = adminLogin(params);
       // Phase 3 講師管理：一覧取得は読み取りなので doGet 経由。書き込み 5 関数は doPost のみ
       else if (action === 'adminListTeachers') result = adminListTeachers(params);
@@ -1389,6 +1394,11 @@ function doPost(e) {
     else if (action === 'adminSetAvatarItemPrice')          result = adminSetAvatarItemPrice(params);
     else if (action === 'adminSetAvatarItemPublish')        result = adminSetAvatarItemPublish(params);
     else if (action === 'adminSetCategoryDisplayMode')      result = adminSetCategoryDisplayMode(params);
+    // HP 交換 Phase 4（2026-06-01）：Amazon ギフト申請（副作用ありのため POST 強制）。
+    //   submitAmazonGiftRequest        : 生徒の申請（HP_SPENT 加算 + Exchanges 申請中行 + 福地LINE通知）
+    //   adminCompleteAmazonGiftRequest : admin が「申請中」→「完了」に更新（対応日時記録）
+    else if (action === 'submitAmazonGiftRequest')          result = submitAmazonGiftRequest(params.studentId);
+    else if (action === 'adminCompleteAmazonGiftRequest')   result = adminCompleteAmazonGiftRequest(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -20711,6 +20721,230 @@ function adminSetCategoryDisplayMode(params) {
     return { ok: true, categoryKey: categoryKey, mode: mode, modes: modes };
   } catch (err) {
     console.error('[adminSetCategoryDisplayMode]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// ========================================================================
+// HP 交換システム Phase 4：Amazon ギフトカード 5000 円の申請（2026-06-01）
+// ========================================================================
+//   ・アマギフは AvatarItems の商品ではなく専用扱い。価格・1 回限りはコード定数で持つ
+//     （AvatarItems シートには混ぜない）。
+//   ・消費はアイテムと同じ A 方式（HP_SPENT に加算、生涯 HP=COL_HP は不変）。
+//     アイテムとアマギフは同じ交換用残高（getExchangeableHp）を取り合う。
+//   ・申請制：成立で Exchanges に '申請中' 行を記録 → ふくちが現物を渡したら '完了' に更新。
+//   ・1 回限り：sid のアマギフ行が既にあれば（申請中 / 完了 問わず）再申請不可。
+//   ・申請時に福地（ID:1）の LINE へ通知（_pushLineMessage 流用、失敗は握りつぶす＝通知は副次的）。
+//
+// Exchanges 行（アマギフ）の列レイアウト（アイテム行の 6 列を拡張）：
+//   [0]日時 [1]sid [2]nickname [3]itemId('amazon_gift_5000') [4]price(38000000)
+//   [5]status('申請中'|'完了') [6]申請時の生涯HP [7]対応日時（完了時のみ）
+const AMAZON_GIFT_ITEM_ID = 'amazon_gift_5000';
+const AMAZON_GIFT_PRICE   = 38000000;   // 3,800 万 HP（中学生が素点 1000HP/日で約 25 週）
+const AMAZON_GIFT_LABEL   = 'Amazonギフトカード5000円分';
+const FUKUCHI_ACCOUNT_ID  = '1';        // 福地（管理者）アカウント。LINE 通知の宛先。
+
+// Exchanges から amazon_gift_5000 行を抽出。{ sheet, rows:[{rowIdx1, timestamp, sid, nickname, price, status, lifetimeHpAtRequest, completedAt}] }
+function _readAmazonGiftRows() {
+  const sh = _ss().getSheetByName(SHEET_EXCHANGES);
+  if (!sh || sh.getLastRow() < 2) return { sheet: sh, rows: [] };
+  const values = sh.getDataRange().getValues();
+  const rows = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    if (String(r[3] || '').trim() !== AMAZON_GIFT_ITEM_ID) continue;
+    rows.push({
+      rowIdx1:   i + 1,
+      timestamp: (r[0] instanceof Date) ? Utilities.formatDate(r[0], 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : String(r[0] || '').trim(),
+      sid:       String(r[1] || '').trim(),
+      nickname:  String(r[2] || '').trim(),
+      price:     Number(r[4]) || 0,
+      status:    String(r[5] || '').trim(),
+      lifetimeHpAtRequest: Number(r[6]) || 0,
+      completedAt: (r[7] instanceof Date) ? Utilities.formatDate(r[7], 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : String(r[7] || '').trim()
+    });
+  }
+  return { sheet: sh, rows: rows };
+}
+
+// 生徒の既存アマギフ申請（あれば最初の 1 件、なければ null）。1 回限り判定に使う。
+function _findAmazonGiftRequestBySid(sid) {
+  const sidNorm = String(sid || '').trim();
+  const data = _readAmazonGiftRows();
+  for (let i = 0; i < data.rows.length; i++) {
+    if (data.rows[i].sid === sidNorm) return data.rows[i];
+  }
+  return null;
+}
+
+// loc から LINE userId を「生のまま」読む（_readLineUserIdStudentFromLoc は toUpperCase するため
+// 通知配信パス（raw 読み）と挙動を合わせる。LINE userId は不透明文字列なので uppercase しない）。
+function _readLineUserIdRawFromLoc(loc, headerName) {
+  if (!loc) return '';
+  let idx = _findUnlockFlagColIdx(loc.allValues, headerName);
+  if (idx < 0 && loc.sheet) idx = _findUnlockFlagColIdxOnSheet(loc.sheet, headerName);
+  if (idx < 0) return '';
+  let v;
+  if (loc.rowValues && idx < loc.rowValues.length) v = loc.rowValues[idx];
+  if ((v == null || v === '') && loc.sheet && typeof loc.rowIdx === 'number' && loc.rowIdx >= 0) {
+    try {
+      const c = loc.sheet.getRange(loc.rowIdx + 1, idx + 1).getValue();
+      if (c != null && c !== '') v = c;
+    } catch (e) { console.error('[_readLineUserIdRawFromLoc]', e); }
+  }
+  return v == null ? '' : String(v).trim();
+}
+
+// 福地（ID:1）の LINE userId を取得（student → parent の順に最初の有効値、なければ生値 or ''）。
+function _getFukuchiLineUserId() {
+  const loc = _findAccountRowOnSheet(FUKUCHI_ACCOUNT_ID);
+  if (!loc) return '';
+  const RE = /^U[0-9a-f]{32}$/i;
+  const s = _readLineUserIdRawFromLoc(loc, LINE_USER_ID_STUDENT_HEADER_NAME);
+  if (RE.test(s)) return s;
+  const p = _readLineUserIdRawFromLoc(loc, LINE_USER_ID_PARENT_HEADER_NAME);
+  if (RE.test(p)) return p;
+  return s || p || '';
+}
+
+// 生徒向け：アマギフ交換ページの状態（残高 + 必要HP + 申請状況）。doGet（認証不要、生徒画面用）。
+function getAmazonGiftStatus(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const bal = getExchangeableHp(sid);
+    if (!bal || !bal.ok) return { ok: false, message: (bal && bal.message) || '残高の取得に失敗しました' };
+    const existing = _findAmazonGiftRequestBySid(sid);
+    return {
+      ok: true,
+      requiredHp:       AMAZON_GIFT_PRICE,
+      exchangeableHp:   bal.exchangeableHp,
+      canRequest:       (bal.exchangeableHp >= AMAZON_GIFT_PRICE) && !existing,
+      alreadyRequested: !!existing,
+      requestStatus:    existing ? existing.status : '',
+      requestedAt:      existing ? existing.timestamp : '',
+      shortfall:        Math.max(0, AMAZON_GIFT_PRICE - bal.exchangeableHp)
+    };
+  } catch (err) {
+    console.error('[getAmazonGiftStatus]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 生徒向け：アマギフ申請（doPost）。残高 ≥ 38,000,000 + 未申請 のときだけ成立。
+function submitAmazonGiftRequest(sid) {
+  try {
+    const sidNorm = String(sid || '').trim();
+    if (!sidNorm) return { ok: false, message: '生徒IDが指定されていません' };
+
+    // 1 回限り：申請中 / 完了 問わず既存があれば拒否
+    const existing = _findAmazonGiftRequestBySid(sidNorm);
+    if (existing) {
+      return { ok: false, message: 'すでに申請済みです（' + (existing.status || '申請中') + '）。Amazonギフトの申請は1回限りです。' };
+    }
+
+    // 残高確認（アイテムと同じ交換用残高）
+    const bal = getExchangeableHp(sidNorm);
+    if (!bal || !bal.ok) return { ok: false, message: (bal && bal.message) || '残高の取得に失敗しました' };
+    if (bal.exchangeableHp < AMAZON_GIFT_PRICE) {
+      return { ok: false, message: '交換できるHPが足りません（必要 ' + AMAZON_GIFT_PRICE.toLocaleString() + ' / 残り ' + bal.exchangeableHp.toLocaleString() + '）' };
+    }
+
+    const loc = _findAccountRowOnSheet(sidNorm);
+    if (!loc) return { ok: false, message: '生徒が見つかりません: ' + sidNorm };
+    const nickname   = String(loc.rowValues[COL_NICKNAME] || '').trim();
+    const realName   = String(loc.rowValues[COL_NAME] || '').trim();
+    const lifetimeHp = Number(loc.rowValues[COL_HP]) || 0;
+
+    // 消費：HP_SPENT に加算（生涯HP不変、submitExchange と同じ A 方式）。sid が存在する全シートに書く。
+    const targets = _avatarWriteTargets(sidNorm);
+    if (targets.length === 0) return { ok: false, message: '生徒の行が見つかりません' };
+    targets.forEach(function(t){
+      const eSpent = _ensureHpSpentColOnSheet(t.sheet);
+      const cur = Number(t.sheet.getRange(t.rowIdx + 1, eSpent.idx + 1).getValue()) || 0;
+      t.sheet.getRange(t.rowIdx + 1, eSpent.idx + 1).setValue(cur + AMAZON_GIFT_PRICE);
+    });
+    _avatarInvalidateAccountCaches();
+
+    // 履歴：Exchanges に申請中行（7 列。対応日時 [7] は空のまま、完了時に埋める）
+    const exSheet = _ss().getSheetByName(SHEET_EXCHANGES);
+    if (exSheet) {
+      exSheet.appendRow([_nowJST(), sidNorm, nickname, AMAZON_GIFT_ITEM_ID, AMAZON_GIFT_PRICE, '申請中', lifetimeHp]);
+    }
+
+    // 福地（ID:1）への LINE 通知（副次的。失敗しても申請は成立させる）
+    try {
+      const fukuchiUid = _getFukuchiLineUserId();
+      if (fukuchiUid) {
+        const nm = nickname || sidNorm;
+        const rn = realName ? ('（' + realName + '）') : '';
+        const txt = '🎁 ' + nm + rn + 'さんが ' + AMAZON_GIFT_LABEL + ' を申請しました。\n対応したら管理画面の「Amazonギフト交換申請」で「対応済みにする」を押してください。';
+        _pushLineMessage(fukuchiUid, txt);
+      } else {
+        console.log('[submitAmazonGiftRequest] 福地 LINE userId 未取得のため通知スキップ');
+      }
+    } catch (e2) {
+      console.error('[submitAmazonGiftRequest] LINE 通知失敗（申請は成立）', e2);
+    }
+
+    return {
+      ok: true,
+      message: AMAZON_GIFT_LABEL + ' を申請しました！先生が確認して現物をお渡しします。',
+      exchangeableHp: bal.exchangeableHp - AMAZON_GIFT_PRICE,
+      status: '申請中'
+    };
+  } catch (err) {
+    console.error('[submitAmazonGiftRequest]', err);
+    return { ok: false, message: '申請に失敗しました：' + String(err) };
+  }
+}
+
+// 管理画面：アマギフ申請一覧（admin-only, doGet）。pendingCount は未対応バッジ用。
+function getAmazonGiftRequests(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この機能は管理者（admin）のみ利用できます' };
+
+    const data = _readAmazonGiftRows();
+    const requests = data.rows.map(function(r){
+      let realName = '';
+      try { const loc = _findAccountRowOnSheet(r.sid); if (loc) realName = String(loc.rowValues[COL_NAME] || '').trim(); } catch (e) {}
+      return {
+        timestamp: r.timestamp, sid: r.sid, nickname: r.nickname, realName: realName,
+        lifetimeHpAtRequest: r.lifetimeHpAtRequest, status: r.status, completedAt: r.completedAt
+      };
+    });
+    requests.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+    const pendingCount = requests.filter(function(x){ return x.status === '申請中'; }).length;
+    return { ok: true, requests: requests, pendingCount: pendingCount };
+  } catch (err) {
+    console.error('[getAmazonGiftRequests]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：アマギフ申請を「完了」に更新（admin-only, doPost）。対応日時も記録。
+function adminCompleteAmazonGiftRequest(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この機能は管理者（admin）のみ利用できます' };
+
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+
+    const data = _readAmazonGiftRows();
+    if (!data.sheet) return { ok: false, message: 'Exchanges シートが見つかりません' };
+    const target = data.rows.filter(function(r){ return r.sid === sid && r.status === '申請中'; })[0];
+    if (!target) return { ok: false, message: '対象の「申請中」データが見つかりません（既に対応済みの可能性）' };
+
+    const completedAt = _nowJST();
+    data.sheet.getRange(target.rowIdx1, 6).setValue('完了');       // col 6（index 5）= status
+    data.sheet.getRange(target.rowIdx1, 8).setValue(completedAt);  // col 8（index 7）= 対応日時
+    return { ok: true, sid: sid, status: '完了', completedAt: completedAt };
+  } catch (err) {
+    console.error('[adminCompleteAmazonGiftRequest]', err);
     return { ok: false, message: String(err) };
   }
 }
