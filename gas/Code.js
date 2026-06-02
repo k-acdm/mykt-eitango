@@ -22833,8 +22833,15 @@ function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeH
     msg += '【絶対ミッション達成ボーナス】 ' + bonus.toLocaleString() + 'HP\n';
   }
   msg += '【獲得 HP】 ' + grandTotal.toLocaleString() + 'HP\n'
-       + '【累計 HP】 ' + Number(cumulativeHp || 0).toLocaleString() + 'HP\n'
-       + '引き続き応援していきましょう。\n'
+       + '【生涯HP】 ' + Number(cumulativeHp || 0).toLocaleString() + 'HP\n';
+  // 振り返り未提出の注記：取り組み内容があるのに獲得HP0 のときだけ穏当に案内する。
+  //   両輪システムで HP は振り返り提出まで 100% 保留（hpGained=0）されるため、
+  //   「取り組みあり AND grandTotal===0」＝振り返り未提出と断定できる。
+  //   contents が空（取り組みなし）や grandTotal>0 の場合は出さない。
+  if (contents.length >= 1 && grandTotal === 0) {
+    msg += '（最後の振り返りを書いて送らないとHPは獲得できません）\n';
+  }
+  msg += '引き続き応援していきましょう。\n'
        + LINE_NOTIFY_TEMPLATE_SIG;
   return msg;
 }
