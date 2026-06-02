@@ -27837,3 +27837,9 @@ function testV2FullFlow(sid, grade, groupType, nTests) {
   Logger.log('===== 終了 =====');
   return { ok: true };
 }
+
+// GAS エディタのドロップダウンから引数なしで実行できるラッパー（2026-06-03）。
+//   runTestV2_serve : 移行済み実生徒で出題のみ確認（読み取りのみ・書き込みなし）
+//   runTestV2_flow  : テストアカウントで種まき→出題→提出を5回（VocabOrder書込＋HP付与あり）
+function runTestV2_serve() { return testGetTodaysSetV2('20014', '準1級', 'word'); }
+function runTestV2_flow()  { return testV2FullFlow('1001', '4級', 'word', 5); }
