@@ -26846,7 +26846,9 @@ function _migScanGradeData() {
     const ready = (col.iWordId >= 0 && col.iRound >= 0 && col.iType >= 0);
     const g = { ready: ready, maxSet: 0, byType: {} };
     ['word', 'idiom'].forEach(function(t) {
-      g.byType[t] = { allWordIds: [], _seen: {}, wordIdsBySetNo: {}, roundsByWordId: {}, incompletePairWids: [] };
+      // setNoByWordIdRound[wid] = { '1': round1のsetNo, '2': round2のsetNo }
+      //   4級+ の「2周完了＝既習」判定の核。1 word_id が round1/round2 で別 setNo を持つ。
+      g.byType[t] = { allWordIds: [], _seen: {}, wordIdsBySetNo: {}, roundsByWordId: {}, setNoByWordIdRound: {}, incompletePairWids: [] };
     });
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
@@ -26859,8 +26861,8 @@ function _migScanGradeData() {
       if (!wid) continue;
       const rd = String(r[col.iRound] || '').trim();
       const bt = g.byType[t];
-      if (!bt._seen[wid]) { bt._seen[wid] = true; bt.allWordIds.push(wid); bt.roundsByWordId[wid] = {}; }
-      if (rd) bt.roundsByWordId[wid][rd] = true;
+      if (!bt._seen[wid]) { bt._seen[wid] = true; bt.allWordIds.push(wid); bt.roundsByWordId[wid] = {}; bt.setNoByWordIdRound[wid] = {}; }
+      if (rd) { bt.roundsByWordId[wid][rd] = true; bt.setNoByWordIdRound[wid][rd] = setNo; }
       if (!bt.wordIdsBySetNo[setNo]) bt.wordIdsBySetNo[setNo] = [];
       if (bt.wordIdsBySetNo[setNo].indexOf(wid) < 0) bt.wordIdsBySetNo[setNo].push(wid);
     }
@@ -26941,7 +26943,19 @@ function _migScanAttempts() {
 }
 
 // 1 生徒 × 1 級の移行を dryRun 計算（word/idiom 両 type を一括処理、書き込みなし）。
-//   返却: { ready, hasProgress, types:{word:{...}, idiom:{...}}, learnedSetCount, oneRoundOnlyCount, warns:[] }
+//   返却: { ready, hasProgress, types:{word:{...}, idiom:{...}}, passedSetCount, oneRoundOnlyCount, warns:[] }
+//
+// ★既習判定の確定仕様（2026-06-03 修正）— 「1周のみ完了の語は2周目をやり直し＝未習」:
+//   - 4級+: word_id 単位で判定。round=1 の setNo と round=2 の setNo の【両方】が
+//           passedSets に含まれる語のみ「2周完了＝既習(done)」。round1 のみ合格は
+//           1周のみ＝未習(remaining、2周目を最初からやり直し)。
+//           （旧実装は「合格セットに属する語を全部 done」としていたため、1周のみの語まで
+//             既習にしてしまっていた。これを word_id × round 単位の判定に修正。）
+//   - 5級: 「1周目=書き取り / 2周目=4択」で形式が周回で変わる別系統。付番が round で
+//          setNo を分けない（同一 setNo を round 列で区別する）方式のため、cleared 累積
+//          （cleared - maxSet）で 2 周完了セットを判定する従来ロジックを維持する。
+//          この方式でも「2周完了セット(1..round2Done)のみ既習 / 1周のみは未習」という
+//          同じ考え方で整合している（round2 到達者ゼロのため実害も無い）。
 function _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap) {
   const gd = gradeData[grade];
   const warns = [];
@@ -26952,58 +26966,73 @@ function _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap
   const cleared = parseInt(clearedStr || '0', 10) || 0;
   const passedSetNos = passedSetMap || {}; // { setNo:true }
   const passedKeys = Object.keys(passedSetNos);
+  const is5 = (grade === '5級');
 
-  // 既習セット（type 非依存・set レベル）
-  const learnedSetNos = {};
-  let oneRoundOnlyCount = 0;
+  // 合格セット集合 passedSets（cleared由来 1..min(cleared,maxSet) ∪ Attempts合格setNo）。
+  //   現状の判定をそのまま流用（4級+ の word×round 判定の「合格済みか」の参照元）。
+  const passedSets = {};
+  const cap = Math.min(cleared, maxSet);
+  for (let s = 1; s <= cap; s++) passedSets[s] = true;
+  let beyondCleared = 0;
+  passedKeys.forEach(function(sStr) {
+    const s = Number(sStr);
+    if (s >= 1 && s <= maxSet && !passedSets[s]) { passedSets[s] = true; if (s > cleared) beyondCleared++; }
+  });
+  if (!is5 && beyondCleared > 0) {
+    warns.push('[' + sid + '/' + grade + '] Attempts 合格 setNo が cleared(' + cleared + ') を超過 ' + beyondCleared + ' 件 → 合格セットに加算（cleared 高水位が遅れている可能性）');
+  }
 
-  if (grade === '5級') {
-    const round2Done = Math.min(Math.max(0, cleared - maxSet), maxSet);
-    const round1Done = Math.min(cleared, maxSet);
-    for (let s = 1; s <= round2Done; s++) learnedSetNos[s] = true;
-    oneRoundOnlyCount = Math.max(0, round1Done - round2Done); // 1周のみ（未習扱い）
-    // 照合：Attempts の distinct 合格 setNo 数は round1 進捗以上であるはず（round 区別不可なので参考）
-    if (passedKeys.length > round1Done && round1Done >= 0) {
-      // 情報レベル（不整合ではない場合も多い）— 大きな乖離のみ警告
-      if (passedKeys.length - round1Done > 0 && cleared === 0 && passedKeys.length > 0) {
-        warns.push('[' + sid + '/5級] cleared=0 だが Attempts に合格 ' + passedKeys.length + ' 件（cleared 欠落の可能性／5級は2周判定不可のため未習扱い）');
-      }
-    }
-  } else {
-    const cap = Math.min(cleared, maxSet);
-    for (let s = 1; s <= cap; s++) learnedSetNos[s] = true;
-    // Attempts 合格 setNo を和集合（cleared 欠落の救済）
-    let beyondCleared = 0;
-    passedKeys.forEach(function(sStr) {
-      const s = Number(sStr);
-      if (s >= 1 && s <= maxSet) {
-        if (!learnedSetNos[s]) { learnedSetNos[s] = true; if (s > cleared) beyondCleared++; }
-      }
-    });
-    if (beyondCleared > 0) {
-      warns.push('[' + sid + '/' + grade + '] Attempts 合格 setNo が cleared(' + cleared + ') を超過 ' + beyondCleared + ' 件 → 既習に加算（cleared 高水位が遅れている可能性）');
+  // 5級専用：cleared 累積から round2 完了セット範囲を算出（set ベースの2周判定）
+  let round2Done = 0, round1Done = 0;
+  if (is5) {
+    round2Done = Math.min(Math.max(0, cleared - maxSet), maxSet);
+    round1Done = Math.min(cleared, maxSet);
+    if (cleared === 0 && passedKeys.length > 0) {
+      warns.push('[' + sid + '/5級] cleared=0 だが Attempts に合格 ' + passedKeys.length + ' 件（5級は2周判定不可のため未習扱い）');
     }
   }
 
-  const learnedSetCount = Object.keys(learnedSetNos).length;
-  let hasProgress = (learnedSetCount > 0) || (passedKeys.length > 0) || (cleared > 0);
+  const passedSetCount = Object.keys(passedSets).length;
+  let oneRoundOnlyCountGrade = 0;
+  const hasProgress = (passedSetCount > 0) || (passedKeys.length > 0) || (cleared > 0);
 
   const types = {};
   ['word', 'idiom'].forEach(function(t) {
     const bt = gd.byType[t];
     const total = bt.allWordIds.length;
-    if (total === 0) { types[t] = { skip: true, total: 0, migrated_done: 0, remaining: 0, blocks: 0, genRows: 0 }; return; }
+    if (total === 0) { types[t] = { skip: true, total: 0, migrated_done: 0, remaining: 0, blocks: 0, genRows: 0, oneRoundOnly: 0 }; return; }
 
-    // 既習 word_id（type 別）= 既習セットに属する word_id の和集合
     const learnedWids = {};
-    Object.keys(learnedSetNos).forEach(function(sStr) {
-      const arr = bt.wordIdsBySetNo[Number(sStr)] || [];
-      for (let k = 0; k < arr.length; k++) learnedWids[arr[k]] = true;
-    });
-    const learnedList = Object.keys(learnedWids);
+    let oneRoundOnly = 0;
 
-    // 未習 = all − 既習
+    if (is5) {
+      // 5級：set ベース（1..round2Done のセットに属する語 = 2周完了 = 既習）
+      for (let s = 1; s <= round2Done; s++) {
+        const arr = bt.wordIdsBySetNo[s] || [];
+        for (let k = 0; k < arr.length; k++) learnedWids[arr[k]] = true;
+      }
+      // 1周のみ語（round2Done+1..round1Done のセットの語で、既習に未到達のもの）
+      const oro = {};
+      for (let s = round2Done + 1; s <= round1Done; s++) {
+        const arr = bt.wordIdsBySetNo[s] || [];
+        for (let k = 0; k < arr.length; k++) if (!learnedWids[arr[k]]) oro[arr[k]] = true;
+      }
+      oneRoundOnly = Object.keys(oro).length;
+    } else {
+      // 4級+：word_id 単位で round1・round2 両方の setNo が合格済みなら 2周完了 = 既習
+      bt.allWordIds.forEach(function(wid) {
+        const sr = bt.setNoByWordIdRound[wid] || {};
+        const s1 = sr['1'], s2 = sr['2'];
+        const r1passed = (s1 !== undefined) && !!passedSets[s1];
+        const r2passed = (s2 !== undefined) && !!passedSets[s2];
+        if (r1passed && r2passed) learnedWids[wid] = true;          // 2周完了＝既習
+        else if (r1passed && !r2passed) oneRoundOnly++;            // 1周のみ＝未習（やり直し）
+      });
+    }
+
+    const learnedList = Object.keys(learnedWids);
     const remaining = bt.allWordIds.filter(function(w) { return !learnedWids[w]; });
+    oneRoundOnlyCountGrade += oneRoundOnly;
 
     // 異常検知（構造上は起こり得ないが防御的に）
     if (learnedList.length > total) {
@@ -27012,7 +27041,7 @@ function _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap
     if (learnedList.length + remaining.length !== total) {
       warns.push('[' + sid + '/' + grade + '/' + t + '] 既習+未習(' + (learnedList.length + remaining.length) + ') ≠ 総語数(' + total + ') の矛盾');
     }
-    // round ペア不完全な語が既習判定された件数（データ整合）
+    // round ペア不完全な語が既習判定された件数（4級+では構造上起きないはず＝整合チェック）
     let pairViolation = 0;
     for (let j = 0; j < learnedList.length; j++) {
       const m = bt.roundsByWordId[learnedList[j]] || {};
@@ -27032,15 +27061,16 @@ function _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap
       migrated_done: learnedList.length,
       remaining: remaining.length,
       blocks: blocks.length,
-      genRows: blocks.length * 2
+      genRows: blocks.length * 2,
+      oneRoundOnly: oneRoundOnly
     };
   });
 
   return {
     ready: true,
     hasProgress: hasProgress,
-    learnedSetCount: learnedSetCount,
-    oneRoundOnlyCount: oneRoundOnlyCount,
+    passedSetCount: passedSetCount,
+    oneRoundOnlyCount: oneRoundOnlyCountGrade,
     types: types,
     warns: warns
   };
@@ -27103,7 +27133,7 @@ function migrateEitangoVocabOrderDryRun(opts) {
         if (res.warns && res.warns.length) Array.prototype.push.apply(allWarnings, res.warns);
 
         const gradeRec = { ready: res.ready, reason: res.reason || '', hasProgress: !!res.hasProgress,
-                           learnedSetCount: res.learnedSetCount || 0, oneRoundOnlyCount: res.oneRoundOnlyCount || 0,
+                           passedSetCount: res.passedSetCount || 0, oneRoundOnlyCount: res.oneRoundOnlyCount || 0,
                            cleared: parseInt(clearedStr || '0', 10) || 0, types: {} };
         if (res.ready) {
           ['word', 'idiom'].forEach(function(t) {
@@ -27170,8 +27200,8 @@ function migrateEitangoVocabOrderDryRun(opts) {
         if (id && !id.skip) parts.push('idiom(done=' + id.migrated_done + '/rem=' + id.remaining + '/rows=' + id.genRows + ')');
         const tag = gr.hasProgress ? '★進捗' : '　新規';
         Logger.log('    ' + tag + ' ' + g + ' cleared=' + gr.cleared
-          + (g === '5級' ? ' 1周のみ=' + gr.oneRoundOnlyCount : '')
-          + ' 既習set=' + gr.learnedSetCount + ' | ' + (parts.join(' ') || '(語データなし)'));
+          + ' 合格set=' + gr.passedSetCount + ' 1周のみ語=' + gr.oneRoundOnlyCount
+          + ' | ' + (parts.join(' ') || '(語データなし)'));
       });
     });
     Logger.log('（全 ' + studentsOut.length + ' 名の明細は戻り値 result.students を参照）');
@@ -27246,23 +27276,26 @@ function debugMigrateStudentGrade(sid, grade) {
   Logger.log('cleared_' + sid + '_' + grade + ' = ' + cleared + ' (raw=' + JSON.stringify(clearedStr) + ')');
   Logger.log('Attempts 合格 distinct setNo 数 = ' + passedKeys.length + ' / 例=' + JSON.stringify(passedKeys.slice(0, 30)));
 
-  // 既習セット集合（_migrateOneStudentGrade と同じロジック）
-  const learnedSetNos = {};
-  if (grade === '5級') {
-    const round2Done = Math.min(Math.max(0, cleared - maxSet), maxSet);
-    for (let s = 1; s <= round2Done; s++) learnedSetNos[s] = true;
-    Logger.log('5級: round2完了セット数 = ' + round2Done + ' → 既習set = 1..' + round2Done);
-  } else {
-    const cap = Math.min(cleared, maxSet);
-    for (let s = 1; s <= cap; s++) learnedSetNos[s] = true;
-    let beyond = 0;
-    passedKeys.forEach(function(s) { if (s >= 1 && s <= maxSet && !learnedSetNos[s]) { learnedSetNos[s] = true; if (s > cleared) beyond++; } });
-    Logger.log('4級+: cleared由来 既習set = 1..' + cap + ' / Attempts和集合で追加 = ' + beyond + ' 件');
-  }
-  const learnedSetList = Object.keys(learnedSetNos).map(Number).sort(function(a, b){ return a - b; });
-  Logger.log('既習セット総数 = ' + learnedSetList.length + ' / setNo一覧=' + JSON.stringify(learnedSetList));
+  const is5 = (grade === '5級');
 
-  // word type の内訳を生データで
+  // 合格セット集合 passedSets（_migrateOneStudentGrade と同じ）
+  const passedSets = {};
+  const cap = Math.min(cleared, maxSet);
+  for (let s = 1; s <= cap; s++) passedSets[s] = true;
+  let beyond = 0;
+  passedKeys.forEach(function(s) { if (s >= 1 && s <= maxSet && !passedSets[s]) { passedSets[s] = true; if (s > cleared) beyond++; } });
+  const passedSetList = Object.keys(passedSets).map(Number).sort(function(a, b){ return a - b; });
+  Logger.log('合格セット passedSets = 1..' + cap + ' ∪ Attempts(超過 ' + beyond + ' 件) → 総数 ' + passedSetList.length);
+  Logger.log('  passedSet 一覧 = ' + JSON.stringify(passedSetList.slice(0, 40)) + (passedSetList.length > 40 ? ' …(先頭40)' : ''));
+
+  let round2Done = 0, round1Done = 0;
+  if (is5) {
+    round2Done = Math.min(Math.max(0, cleared - maxSet), maxSet);
+    round1Done = Math.min(cleared, maxSet);
+    Logger.log('5級: round1完了=' + round1Done + ' / round2完了=' + round2Done + ' → 既習set=1..' + round2Done + ' / 1周のみset=' + (round2Done + 1) + '..' + round1Done);
+  }
+
+  // type 別の内訳を生データで
   ['word', 'idiom'].forEach(function(t) {
     const bt = gd.byType[t];
     const total = bt.allWordIds.length;
@@ -27270,37 +27303,51 @@ function debugMigrateStudentGrade(sid, grade) {
     Logger.log('  級内 total distinct word_id = ' + total);
     if (total === 0) { Logger.log('  （語データなし、スキップ）'); return; }
 
-    // 各既習セットの distinct word_id 数を合算（= 重複なしなら done と一致するはず）
-    let sumPerSet = 0;
-    const perSetCounts = [];
     const learnedWids = {};
-    let setsWithNoWords = 0;
-    learnedSetList.forEach(function(s) {
-      const arr = bt.wordIdsBySetNo[s] || [];
-      if (arr.length === 0) setsWithNoWords++;
-      sumPerSet += arr.length;
-      if (perSetCounts.length < 25) perSetCounts.push(s + ':' + arr.length);
-      for (let k = 0; k < arr.length; k++) learnedWids[arr[k]] = true;
-    });
-    const doneCount = Object.keys(learnedWids).length;        // union（done に積まれる実数）
+    let oneRoundOnly = 0;
+    let bothRoundPassed = 0, r1only = 0, neither = 0, noRoundData = 0;
+    const sampleLearned = [], sampleR1only = [];
+
+    if (is5) {
+      // 5級：set ベース
+      for (let s = 1; s <= round2Done; s++) {
+        const arr = bt.wordIdsBySetNo[s] || [];
+        for (let k = 0; k < arr.length; k++) learnedWids[arr[k]] = true;
+      }
+      const oro = {};
+      for (let s = round2Done + 1; s <= round1Done; s++) {
+        const arr = bt.wordIdsBySetNo[s] || [];
+        for (let k = 0; k < arr.length; k++) if (!learnedWids[arr[k]]) oro[arr[k]] = true;
+      }
+      oneRoundOnly = Object.keys(oro).length;
+      Logger.log('  5級 set ベース判定: 既習set(1..' + round2Done + ')の語=done / 1周のみset の語=未習');
+    } else {
+      // 4級+：word_id × round 判定
+      bt.allWordIds.forEach(function(wid) {
+        const sr = bt.setNoByWordIdRound[wid] || {};
+        const s1 = sr['1'], s2 = sr['2'];
+        if (s1 === undefined || s2 === undefined) noRoundData++;
+        const r1passed = (s1 !== undefined) && !!passedSets[s1];
+        const r2passed = (s2 !== undefined) && !!passedSets[s2];
+        if (r1passed && r2passed) { learnedWids[wid] = true; bothRoundPassed++; if (sampleLearned.length < 5) sampleLearned.push(wid + '(s1=' + s1 + ',s2=' + s2 + ')'); }
+        else if (r1passed && !r2passed) { oneRoundOnly++; r1only++; if (sampleR1only.length < 5) sampleR1only.push(wid + '(s1=' + s1 + ',s2=' + s2 + ')'); }
+        else neither++;
+      });
+      Logger.log('  4級+ word×round 判定: round1とround2の両setが passedSets に入る語のみ既習');
+      Logger.log('  内訳: 2周完了(既習)=' + bothRoundPassed + ' / 1周のみ(未習)=' + r1only + ' / 未着手=' + neither
+        + ' / round列欠落 word_id=' + noRoundData);
+      Logger.log('  既習サンプル=' + JSON.stringify(sampleLearned));
+      Logger.log('  1周のみサンプル=' + JSON.stringify(sampleR1only));
+    }
+
+    const doneCount = Object.keys(learnedWids).length;
     const remaining = bt.allWordIds.filter(function(w) { return !learnedWids[w]; }).length;
 
-    Logger.log('  既習セットの (distinct word_id/セット) = ' + JSON.stringify(perSetCounts) + (learnedSetList.length > 25 ? ' …(先頭25)' : ''));
-    Logger.log('  Σ(セット毎distinct word_id) = ' + sumPerSet + ' / word_idが0個の既習セット数 = ' + setsWithNoWords);
-    Logger.log('  ★ done（既習 word_id の union 実数） = ' + doneCount);
-    Logger.log('  ★ remaining（未習に回る語数） = ' + remaining);
+    Logger.log('  ★ done（2周完了＝既習 word_id 実数） = ' + doneCount);
+    Logger.log('  ★ 1周のみ（未習・2周目やり直し）語数 = ' + oneRoundOnly);
+    Logger.log('  ★ remaining（未習に回る語数・1周のみ＋未着手） = ' + remaining);
     Logger.log('  ★ done + remaining = ' + (doneCount + remaining) + ' / total = ' + total
       + ' → ' + (doneCount + remaining === total ? '一致（取りこぼし無し）' : '★不一致（取りこぼしあり）'));
-    // overlap 判定：Σperset と done(union) の差 = セット間で重複している word_id 数
-    Logger.log('  Σperset(' + sumPerSet + ') vs done union(' + doneCount + ') の差 = ' + (sumPerSet - doneCount)
-      + (sumPerSet === doneCount ? '（セット間で word_id 重複なし）' : '（★セット間で word_id が重複＝同じ語が複数セットに出現）'));
-
-    // word_id のユニーク性ヒント：total が想定語数（級サブタイトル）より極端に小さいなら付番が非ユニーク
-    if (t === 'word') {
-      Logger.log('  ［判定ヒント］既習set数×(セット語数) と done が一致しないなら、'
-        + '(a)setごとword_id数のバラつき/重複 or (b)word_id付番が級内で非ユニーク を疑う。'
-        + ' total が級サブタイトル語数とほぼ一致＝付番OK、極端に小さい＝付番要確認。');
-    }
   });
 
   // buildVocabOrder（dryRun・読み取りのみ）と total を突き合わせ（スキャン整合性）
@@ -27314,7 +27361,7 @@ function debugMigrateStudentGrade(sid, grade) {
   });
 
   Logger.log('===== 【debug】終了 =====');
-  return { sid: sid, grade: grade, maxSet: maxSet, cleared: cleared, learnedSetCount: learnedSetList.length };
+  return { sid: sid, grade: grade, maxSet: maxSet, cleared: cleared, passedSetCount: passedSetList.length };
 }
 
 // 報告された 2 件をワンクリックで（GAS エディタ関数ドロップダウンから実行）。
