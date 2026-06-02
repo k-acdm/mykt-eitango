@@ -27215,3 +27215,108 @@ function testMigrateOneStudent(sid) {
   });
   return s;
 }
+
+// -----------------------------------------------------------------------------
+// 【一時診断】done=100 頭打ちの切り分け（2026-06-03、read-only・既存から呼ばれない）
+// -----------------------------------------------------------------------------
+// _migrateOneStudentGrade と同じ計算を、内部値を全部 Logger に出しながら再現する。
+// 「既習 word_id が何個になり、done に積まれ、remaining に何個回るか」を生データで確認。
+// done+remaining==total（取りこぼし無し）も検証。書き込みは一切しない。
+function debugMigrateStudentGrade(sid, grade) {
+  sid = String(sid || '').trim();
+  grade = String(grade || '').trim();
+  if (!sid || !grade) { Logger.log('[debug] sid と grade を指定してください'); return; }
+
+  const scan = _migScanGradeData();
+  const gd = scan.gradeData[grade];
+  if (!gd) { Logger.log('[debug] grade=' + grade + ' の問題データがありません'); return; }
+  if (!gd.ready) { Logger.log('[debug] grade=' + grade + ' は付番列未投入（ready=false）'); return; }
+
+  const allProps = _props().getProperties();
+  const clearedStr = allProps['cleared_' + sid + '_' + grade];
+  const cleared = parseInt(clearedStr || '0', 10) || 0;
+  const passedAll = _migScanAttempts();
+  const passedSetMap = (passedAll[sid] && passedAll[sid][grade]) ? passedAll[sid][grade] : {};
+  const passedKeys = Object.keys(passedSetMap).map(Number).sort(function(a, b){ return a - b; });
+
+  const maxSet = gd.maxSet;
+
+  Logger.log('===== 【debug】' + sid + ' / ' + grade + ' =====');
+  Logger.log('maxSet(級内最大setNo・type非依存) = ' + maxSet);
+  Logger.log('cleared_' + sid + '_' + grade + ' = ' + cleared + ' (raw=' + JSON.stringify(clearedStr) + ')');
+  Logger.log('Attempts 合格 distinct setNo 数 = ' + passedKeys.length + ' / 例=' + JSON.stringify(passedKeys.slice(0, 30)));
+
+  // 既習セット集合（_migrateOneStudentGrade と同じロジック）
+  const learnedSetNos = {};
+  if (grade === '5級') {
+    const round2Done = Math.min(Math.max(0, cleared - maxSet), maxSet);
+    for (let s = 1; s <= round2Done; s++) learnedSetNos[s] = true;
+    Logger.log('5級: round2完了セット数 = ' + round2Done + ' → 既習set = 1..' + round2Done);
+  } else {
+    const cap = Math.min(cleared, maxSet);
+    for (let s = 1; s <= cap; s++) learnedSetNos[s] = true;
+    let beyond = 0;
+    passedKeys.forEach(function(s) { if (s >= 1 && s <= maxSet && !learnedSetNos[s]) { learnedSetNos[s] = true; if (s > cleared) beyond++; } });
+    Logger.log('4級+: cleared由来 既習set = 1..' + cap + ' / Attempts和集合で追加 = ' + beyond + ' 件');
+  }
+  const learnedSetList = Object.keys(learnedSetNos).map(Number).sort(function(a, b){ return a - b; });
+  Logger.log('既習セット総数 = ' + learnedSetList.length + ' / setNo一覧=' + JSON.stringify(learnedSetList));
+
+  // word type の内訳を生データで
+  ['word', 'idiom'].forEach(function(t) {
+    const bt = gd.byType[t];
+    const total = bt.allWordIds.length;
+    Logger.log('--- type=' + t + ' ---');
+    Logger.log('  級内 total distinct word_id = ' + total);
+    if (total === 0) { Logger.log('  （語データなし、スキップ）'); return; }
+
+    // 各既習セットの distinct word_id 数を合算（= 重複なしなら done と一致するはず）
+    let sumPerSet = 0;
+    const perSetCounts = [];
+    const learnedWids = {};
+    let setsWithNoWords = 0;
+    learnedSetList.forEach(function(s) {
+      const arr = bt.wordIdsBySetNo[s] || [];
+      if (arr.length === 0) setsWithNoWords++;
+      sumPerSet += arr.length;
+      if (perSetCounts.length < 25) perSetCounts.push(s + ':' + arr.length);
+      for (let k = 0; k < arr.length; k++) learnedWids[arr[k]] = true;
+    });
+    const doneCount = Object.keys(learnedWids).length;        // union（done に積まれる実数）
+    const remaining = bt.allWordIds.filter(function(w) { return !learnedWids[w]; }).length;
+
+    Logger.log('  既習セットの (distinct word_id/セット) = ' + JSON.stringify(perSetCounts) + (learnedSetList.length > 25 ? ' …(先頭25)' : ''));
+    Logger.log('  Σ(セット毎distinct word_id) = ' + sumPerSet + ' / word_idが0個の既習セット数 = ' + setsWithNoWords);
+    Logger.log('  ★ done（既習 word_id の union 実数） = ' + doneCount);
+    Logger.log('  ★ remaining（未習に回る語数） = ' + remaining);
+    Logger.log('  ★ done + remaining = ' + (doneCount + remaining) + ' / total = ' + total
+      + ' → ' + (doneCount + remaining === total ? '一致（取りこぼし無し）' : '★不一致（取りこぼしあり）'));
+    // overlap 判定：Σperset と done(union) の差 = セット間で重複している word_id 数
+    Logger.log('  Σperset(' + sumPerSet + ') vs done union(' + doneCount + ') の差 = ' + (sumPerSet - doneCount)
+      + (sumPerSet === doneCount ? '（セット間で word_id 重複なし）' : '（★セット間で word_id が重複＝同じ語が複数セットに出現）'));
+
+    // word_id のユニーク性ヒント：total が想定語数（級サブタイトル）より極端に小さいなら付番が非ユニーク
+    if (t === 'word') {
+      Logger.log('  ［判定ヒント］既習set数×(セット語数) と done が一致しないなら、'
+        + '(a)setごとword_id数のバラつき/重複 or (b)word_id付番が級内で非ユニーク を疑う。'
+        + ' total が級サブタイトル語数とほぼ一致＝付番OK、極端に小さい＝付番要確認。');
+    }
+  });
+
+  // buildVocabOrder（dryRun・読み取りのみ）と total を突き合わせ（スキャン整合性）
+  ['word', 'idiom'].forEach(function(t) {
+    const bv = buildVocabOrder(sid, grade, t, { dryRun: true });
+    if (bv && bv.summary) {
+      Logger.log('  [buildVocabOrder照合] type=' + t + ' uniqueWordCount=' + bv.summary.uniqueWordCount
+        + ' / bothRoundsWordCount=' + bv.summary.bothRoundsWordCount
+        + '（migrate scan total=' + gd.byType[t].allWordIds.length + ' と一致すべき）');
+    }
+  });
+
+  Logger.log('===== 【debug】終了 =====');
+  return { sid: sid, grade: grade, maxSet: maxSet, cleared: cleared, learnedSetCount: learnedSetList.length };
+}
+
+// 報告された 2 件をワンクリックで（GAS エディタ関数ドロップダウンから実行）。
+function debugMig20014Jun1() { return debugMigrateStudentGrade('20014', '準1級'); }
+function debugMig21001Jun1() { return debugMigrateStudentGrade('21001', '準1級'); }
