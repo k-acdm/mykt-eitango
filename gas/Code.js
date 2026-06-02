@@ -1042,6 +1042,9 @@ function doGet(e) {
       else if (action === 'saveNickname')     result = saveNickname(params.studentId, params.nickname);
       else if (action === 'getTodaysSet')     result = getTodaysSet(params.studentId, params.level);
       else if (action === 'saveAttempt')      result = saveAttempt(params.studentId, params.setNo, params.score, params.total, params.passed, params.level, params.sessionNo);
+      // commit 4（並走追加）：VocabOrder 参照の新出題。既存 getTodaysSet は無改修・温存。
+      //   フロントはまだ呼ばない（commit 5 で切替）。submitAttemptV2 は doPost 側に登録。
+      else if (action === 'getTodaysSetV2')   result = getTodaysSetV2(params.studentId, params.grade, params.groupType);
       else if (action === 'getHistory')       result = getHistory(params.studentId);
       else if (action === 'getSetWords')      result = getSetWords(params.setNo, params.level);
       else if (action === 'submitPhoto')      result = submitPhoto(params.studentId, params.setNo, params.imageBase64, params.words);
@@ -1295,6 +1298,9 @@ function doPost(e) {
     const action = params.action;
     let result;
     if      (action === 'submitPhoto')              result = submitPhoto(params.studentId, params.setNo, params.imageBase64, params.words);
+    // commit 4（並走追加）：VocabOrder 出題の提出。VocabOrder へ position/done 書き戻し＋
+    //   既存 _grantHP で HP 付与（saveAttempt は無改修・温存）。フロントはまだ呼ばない（commit 5）。
+    else if (action === 'submitAttemptV2')          result = submitAttemptV2(params.studentId, params.grade, params.groupType, params.blockNo, params.round, params.passed, { expectedPosition: params.expectedPosition });
     // 管理画面の大量データ投入用（GET ではクエリ長制限を超えるため POST 経由）
     else if (action === 'adminAddWabun1TopicsWeek') result = adminAddWabun1TopicsWeek(params);
     // 同上：三語短文の週単位一括登録（28 件で 8KB 超過、CLAUDE.md #93 と同パターン）
@@ -27516,4 +27522,318 @@ function runEitangoMigrationLIVE(opts) {
 // 明示実行用ラッパー（GAS エディタ関数ドロップダウンからこれを選んで実行＝本書き込み）。
 function runEitangoMigrationLIVE_CONFIRM() {
   return runEitangoMigrationLIVE({ confirm: true });
+}
+
+// =============================================================================
+// commit 4：出題側を VocabOrder 参照で【並走追加】（2026-06-03）
+// =============================================================================
+// VocabOrder を参照して「次に出す問題」を返す getTodaysSetV2 と、その結果を
+// VocabOrder に書き戻し＋既存 HP を付与する submitAttemptV2 を新規追加する。
+//
+// ★並走追加であり、既存の出題（getTodaysSet / _getWords / _getWordsQ4）・
+//   saveAttempt・HP 計算・Students・Properties（cleared_等）は一切変更しない。
+//   フロント（index.html）はまだ V2 を呼ばない（呼び出し切替は commit 5、
+//   単語/熟語UIは commit 6）。＝この commit を入れても生徒挙動は不変。
+//
+// 確定仕様（ふくち 2026-06-03）:
+//   - 1回のテスト = 10 語（VOCAB_V2_SET_SIZE）。HP は 1テスト=素点50（既存 saveAttempt と同一）。
+//   - スコープは 4級+（round1/2 とも 4択）。5級（1周目=書き取り/2周目=4択）は次 commit。
+//   - 進捗は VocabOrder の position（消化語数）/ done（round 完走）に書き戻す。
+//     Properties（cleared_/pass1_/pass2_）は新方式では使わない（が温存＝旧方式に戻せる）。
+//   - 1日の出題回数ゲート（旧 pass1/pass2 の「本日分了」）はフロント結線時（commit 5）に
+//     扱う。本 commit では getTodaysSetV2 は常に「次の1テスト」を返す（並走・未結線のため安全）。
+
+const VOCAB_V2_SET_SIZE = 10;  // 1回のテスト語数（ふくち確定）
+
+// done セルの真偽（boolean true / 'TRUE' / 1 等を吸収）
+function _vocabTruthy(v) {
+  if (v === true) return true;
+  const s = String(v).trim().toLowerCase();
+  return s === 'true' || s === '1' || s === 'yes';
+}
+
+// 級 → 問題シート（Q5/Questions）の word_id/round/type 列インデックスを解決（ヘッダー1行読み・キャッシュ）。
+function _vocabQColIdx(grade) {
+  const sheetName = (grade === '5級') ? SHEET_Q5 : SHEET_QUESTIONS;
+  const key = 'cache_vocabqcol_' + sheetName;
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get(key);
+  if (hit) { try { return JSON.parse(hit); } catch (e) { /* 破損は無視 */ } }
+  const sh = _ss().getSheetByName(sheetName);
+  if (!sh || sh.getLastColumn() < 1) return { iWordId: -1, iRound: -1, iType: -1 };
+  const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const col = {
+    iWordId: _vocabFindCol(header, ['word_id', 'wordId', 'wordID', '単語ID']),
+    iRound:  _vocabFindCol(header, ['round', '周回', 'round_no']),
+    iType:   _vocabFindCol(header, ['type', 'groupType', '種別', 'タイプ'])
+  };
+  try { cache.put(key, JSON.stringify(col), 21600); } catch (e) { /* キャッシュ失敗は無視 */ }
+  return col;
+}
+
+// VocabOrder から (sid, eitango, grade, groupType) の行だけを効率的に取得（キー単位キャッシュ）。
+//   ★全行 getDataRange はキャッシュミス時のみ。命中時はキャッシュから返す（8364行規模でも高速）。
+//   返却: [{ rowIdx(1始まりシート行), blockNo, round, order(word_id配列), position, done }]（blockNo→round 昇順）
+function _getVocabRowsForKey(sid, grade, groupType) {
+  const subject = VOCAB_SUBJECT_EITANGO;
+  const cacheKey = 'cache_vocabv2_' + sid + '_' + grade + '_' + groupType;
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get(cacheKey);
+  if (hit) { try { return JSON.parse(hit); } catch (e) { /* 破損は再スキャン */ } }
+
+  const sh = _ss().getSheetByName(SHEET_VOCAB_ORDER);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    if (String(r[0]).trim() !== sid) continue;
+    if (String(r[1]).trim() !== subject) continue;
+    if (String(r[2]).trim() !== grade) continue;
+    if (String(r[3]).trim() !== groupType) continue;
+    let order = [];
+    try { order = JSON.parse(r[6] || '[]'); } catch (e) { order = []; }
+    out.push({
+      rowIdx: i + 1, blockNo: Number(r[4]) || 0, round: Number(r[5]) || 0,
+      order: order, position: Number(r[7]) || 0, done: _vocabTruthy(r[8])
+    });
+  }
+  out.sort(function(a, b) { return (a.blockNo - b.blockNo) || (a.round - b.round); });
+  try {
+    const ser = JSON.stringify(out);
+    if (ser.length < 95000) cache.put(cacheKey, ser, 21600);
+  } catch (e) { /* キャッシュ失敗は無視（毎回スキャンにフォールバック） */ }
+  return out;
+}
+
+// 書き戻し後にキー単位キャッシュを破棄（次回読みで最新を反映）。
+function _invalidateVocabKey(sid, grade, groupType) {
+  try { CacheService.getScriptCache().remove('cache_vocabv2_' + sid + '_' + grade + '_' + groupType); } catch (e) {}
+}
+
+// 4級以上：問題シート1行 → 出題用オブジェクト（_getWordsQ4 と同一フィールド + word_id/round）。
+function _vocabQ4Obj(r, wid, round) {
+  return {
+    setNo: Number(r[0]), qNo: Number(r[1]),
+    word: String(r[2]), meaning: String(r[3]),
+    example: String(r[4] || ''), blank: String(r[5] || ''),
+    choiceA: String(r[6]), choiceB: String(r[7]),
+    choiceC: String(r[8]), choiceD: String(r[9]),
+    answer: String(r[10]), grade: String(r[11]),
+    word_id: wid, round: round
+  };
+}
+
+// word_id 配列（＋round）から実際の問題を引く。返却はシャッフル順（wordIds の順）を維持。
+//   問題シートは _getQuestionRowsForLevel（級別キャッシュ・全列含む）を流用＝追加スキャンなし。
+function _vocabLookupQuestions(grade, groupType, wordIds, round) {
+  if (!wordIds || wordIds.length === 0) return [];
+  if (grade === '5級') return []; // 5級は次 commit（getTodaysSetV2 側で事前にブロック済み）
+  const col = _vocabQColIdx(grade);
+  if (!col || col.iWordId < 0 || col.iRound < 0) return [];
+  const want = {};
+  wordIds.forEach(function(w) { want[w] = true; });
+  const rows = _getQuestionRowsForLevel(grade);
+  const found = {};
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const wid = String(r[col.iWordId] || '').trim();
+    if (!want[wid] || found[wid]) continue;
+    if (Number(r[col.iRound]) !== round) continue;
+    if (col.iType >= 0 && String(r[col.iType] || '').trim() !== groupType) continue;
+    found[wid] = _vocabQ4Obj(r, wid, round);
+  }
+  const out = [];
+  wordIds.forEach(function(w) { if (found[w]) out.push(found[w]); });
+  return out;
+}
+
+// ── 出題（V2）：VocabOrder を参照して「次に出す 10 語」を返す ──────────────
+//   入力: studentId, grade（'4級'〜'準1級'）, groupType（'word'/'idiom'）
+//   出力: { ok, words:[...10語], blockNo, round, position, ... }
+function getTodaysSetV2(studentId, grade, groupType) {
+  try {
+    const sid = String(studentId || '').trim();
+    grade = String(grade || '').trim();
+    groupType = String(groupType || 'word').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (!VOCAB_GRADE_CODE[grade]) return { ok: false, message: '未知の級です: ' + grade };
+    if (groupType !== 'word' && groupType !== 'idiom') return { ok: false, message: "groupType は word/idiom です: " + groupType };
+    if (grade === '5級') return { ok: false, unsupported: true, message: '5級は V2 未対応（次 commit で対応）', words: [] };
+
+    const rows = _getVocabRowsForKey(sid, grade, groupType);
+    if (rows.length === 0) {
+      return { ok: true, noData: true, words: [], message: 'VocabOrder にこの生徒×級×種別の行がありません（移行未実行 or 対象語なし）' };
+    }
+
+    // 次の未完了 (block, round) を blockNo 昇順・round 昇順で特定（done=TRUE はスキップ）
+    let target = null;
+    for (let k = 0; k < rows.length; k++) { if (!rows[k].done) { target = rows[k]; break; } }
+    if (!target) return { ok: true, completed: true, words: [], message: 'この級・種別は全ブロック完了（既習）' };
+
+    const order = target.order || [];
+    const position = target.position || 0;
+    if (position >= order.length) {
+      // done=false なのに消化済み（書き戻し漏れ）→ 防御的に通知
+      return { ok: true, needsAdvance: true, blockNo: target.blockNo, round: target.round, position: position, words: [],
+               message: 'このブロックは消化済みだが done 未更新。submitAttemptV2 を実行してください' };
+    }
+
+    const sliceWids = order.slice(position, position + VOCAB_V2_SET_SIZE);
+    const words = _vocabLookupQuestions(grade, groupType, sliceWids, target.round);
+
+    return {
+      ok: true, version: 'v2', studentId: sid,
+      level: grade, grade: grade, groupType: groupType,
+      blockNo: target.blockNo, round: target.round, position: position,
+      setSize: VOCAB_V2_SET_SIZE, servedCount: words.length,
+      isRound2: (target.round === 2),
+      blockLen: order.length, remainingInRound: order.length - position,
+      words: words
+    };
+  } catch (err) {
+    console.error('[getTodaysSetV2]', err);
+    return { ok: false, message: '問題データの取得に失敗しました。' };
+  }
+}
+
+// ── 提出（V2）：合格なら VocabOrder の position/done を前進＋既存 HP を付与 ──
+//   入力: studentId, grade, groupType, blockNo, round, passed,
+//          opts.expectedPosition（任意：二重送信ガード。getTodaysSetV2 の position を渡す）
+//   ★HP は既存 _grantHP（type='test'/rawHp=50）を流用＝saveAttempt と同一の付与・HPLog 記録。
+//   ★書き込むのは VocabOrder のみ＋_grantHP 経由の HP（Students.HP/HPLog）。
+//     Properties（cleared_/pass1_/pass2_）・Attempts・既存 saveAttempt には触らない。
+function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, opts) {
+  try {
+    const sid = String(studentId || '').trim();
+    grade = String(grade || '').trim();
+    groupType = String(groupType || 'word').trim();
+    blockNo = Number(blockNo) || 0;
+    round = Number(round) || 0;
+    passed = (passed === true || String(passed) === 'true' || passed === 1 || String(passed) === '1');
+    opts = opts || {};
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (!VOCAB_GRADE_CODE[grade]) return { ok: false, message: '未知の級です: ' + grade };
+    if (grade === '5級') return { ok: false, unsupported: true, message: '5級は V2 未対応（次 commit）' };
+    if (groupType !== 'word' && groupType !== 'idiom') return { ok: false, message: 'groupType は word/idiom です' };
+    if (blockNo <= 0 || (round !== 1 && round !== 2)) return { ok: false, message: 'blockNo/round が不正です' };
+
+    const rows = _getVocabRowsForKey(sid, grade, groupType);
+    const target = rows.filter(function(r) { return r.blockNo === blockNo && r.round === round; })[0];
+    if (!target) return { ok: false, message: '該当ブロックが VocabOrder にありません' };
+
+    const order = target.order || [];
+    const position = target.position || 0;
+
+    // 二重送信 / 古いリクエストのガード（expectedPosition が現在位置と一致しなければ拒否）
+    if (opts.expectedPosition !== undefined && opts.expectedPosition !== null
+        && Number(opts.expectedPosition) !== position) {
+      return { ok: false, stale: true, currentPosition: position,
+               message: '進捗が既に更新されています（二重送信／古いリクエスト）' };
+    }
+
+    if (target.done || position >= order.length) {
+      return { ok: true, alreadyDone: true, blockNo: blockNo, round: round, position: position, hpGained: 0 };
+    }
+
+    if (!passed) {
+      // 不合格：進捗も HP も動かさない（既存 saveAttempt と同じく再挑戦可）
+      return { ok: true, passed: false, hpGained: 0, blockNo: blockNo, round: round, position: position };
+    }
+
+    // 合格：position を前進（min SET_SIZE, 残り）→ round 完走で done=TRUE。
+    //   進捗先行（書き戻し→HP）。HP 先行だと失敗時に再挑戦で HP 二重取りの恐れがあるため。
+    const advance = Math.min(VOCAB_V2_SET_SIZE, order.length - position);
+    const newPosition = position + advance;
+    const newDone = newPosition >= order.length;
+
+    const sh = _ss().getSheetByName(SHEET_VOCAB_ORDER);
+    // VOCAB_ORDER_HEADERS: ... position(8列目) / done(9列目)
+    sh.getRange(target.rowIdx, 8, 1, 2).setValues([[newPosition, newDone]]);
+    SpreadsheetApp.flush();
+    _invalidateVocabKey(sid, grade, groupType);
+
+    // HP 付与（既存 _grantHP 流用：type='test' / rawHp=50 → saveAttempt と完全同一の付与）
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid, advanced: true, newPosition: newPosition, roundDone: newDone };
+    const grant = _grantHP({ sid: sid, type: 'test', rawHp: 50, stuLoc: stuLoc });
+    if (!grant.ok) {
+      console.error('[submitAttemptV2] _grantHP 失敗', { sid: sid, errorCode: grant.errorCode });
+      return { ok: false, message: grant.message || 'HP付与に失敗しました', errorCode: grant.errorCode,
+               advanced: true, newPosition: newPosition, roundDone: newDone };
+    }
+
+    // ブロック完了（round1/round2 両方 done か）を最新状態で判定
+    const fresh = _getVocabRowsForKey(sid, grade, groupType);
+    const fr1 = fresh.filter(function(r) { return r.blockNo === blockNo && r.round === 1; })[0];
+    const fr2 = fresh.filter(function(r) { return r.blockNo === blockNo && r.round === 2; })[0];
+    const blockCompleted = !!(fr1 && fr1.done && fr2 && fr2.done);
+
+    return {
+      ok: true, version: 'v2', passed: true,
+      blockNo: blockNo, round: round,
+      newPosition: newPosition, roundDone: newDone, blockCompleted: blockCompleted,
+      hpGained: grant.hpGained, hpReserved: grant.hpReserved, newHP: grant.newHP,
+      streak: grant.streak, week: grant.week
+    };
+  } catch (err) {
+    console.error('[submitAttemptV2]', err);
+    return { ok: false, message: '送信に失敗しました。' };
+  }
+}
+
+// ── テスト（GAS エディタ手動）─────────────────────────────────────────────
+// 単発出題（読み取りのみ）：シャッフル順・blockNo/round/position を目視確認。
+function testGetTodaysSetV2(sid, grade, groupType) {
+  sid = String(sid || '1001').trim();
+  grade = String(grade || '4級').trim();
+  groupType = String(groupType || 'word').trim();
+  const res = getTodaysSetV2(sid, grade, groupType);
+  Logger.log('[getTodaysSetV2] ' + sid + '/' + grade + '/' + groupType
+    + ' → block=' + res.blockNo + ' round=' + res.round + ' position=' + res.position
+    + ' served=' + (res.words ? res.words.length : 0) + (res.completed ? ' (完了)' : '') + (res.noData ? ' (データ無)' : ''));
+  if (res.words) Logger.log('  word_id順: ' + res.words.map(function(w) { return w.word_id + '(' + w.word + ')'; }).join(', '));
+  return res;
+}
+
+// VocabOrder をテストアカウント用に種まき（buildVocabOrder で全語フルブロック生成）。
+//   ★テスト用。指定 sid の VocabOrder を書き込む（テストアカウント 1001〜1010 で使う想定）。
+function testSeedVocabForAccount(sid, grade, groupType) {
+  sid = String(sid || '1001').trim();
+  grade = String(grade || '4級').trim();
+  groupType = String(groupType || 'word').trim();
+  const res = buildVocabOrder(sid, grade, groupType, { dryRun: false });
+  _invalidateVocabKey(sid, grade, groupType);
+  Logger.log('[seed] ' + sid + '/' + grade + '/' + groupType + ' → ' + JSON.stringify(res.summary || res));
+  return res;
+}
+
+// フルフロー検証（書き込みあり）：テストアカウントで「種まき→出題→提出」を N テスト回し、
+//   (a)シャッフル順 (b)round1→round2 順 (c)done スキップ (d)HP 付与 を Logger で確認。
+//   ★HP は付与される（テストアカウントで実行すること）。
+function testV2FullFlow(sid, grade, groupType, nTests) {
+  sid = String(sid || '1001').trim();
+  grade = String(grade || '4級').trim();
+  groupType = String(groupType || 'word').trim();
+  nTests = Number(nTests) || 5;
+
+  Logger.log('===== V2 フルフロー検証 ' + sid + '/' + grade + '/' + groupType + ' =====');
+  const seed = buildVocabOrder(sid, grade, groupType, { dryRun: false });
+  _invalidateVocabKey(sid, grade, groupType);
+  Logger.log('種まき: ' + JSON.stringify(seed.summary || seed));
+
+  for (let n = 1; n <= nTests; n++) {
+    const served = getTodaysSetV2(sid, grade, groupType);
+    if (!served.ok || (served.words && served.words.length === 0)) {
+      Logger.log('  #' + n + ' 出題終了: ' + (served.completed ? '全完了' : served.message || JSON.stringify(served)));
+      break;
+    }
+    Logger.log('  #' + n + ' 出題 block=' + served.blockNo + ' round=' + served.round + ' pos=' + served.position
+      + ' → ' + served.words.map(function(w) { return w.word_id; }).join(','));
+    const sub = submitAttemptV2(sid, grade, groupType, served.blockNo, served.round, true, { expectedPosition: served.position });
+    Logger.log('     提出: passed=' + sub.passed + ' newPos=' + sub.newPosition + ' roundDone=' + sub.roundDone
+      + ' blockDone=' + sub.blockCompleted + ' HP+=' + sub.hpGained + ' newHP=' + sub.newHP);
+  }
+  Logger.log('===== 終了 =====');
+  return { ok: true };
 }
