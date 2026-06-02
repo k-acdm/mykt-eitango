@@ -26523,3 +26523,246 @@ function ensureVocabOrderSheet() {
   Logger.log('[ensureVocabOrderSheet] ' + msg);
   return { ok: true, message: msg, headers: VOCAB_ORDER_HEADERS };
 }
+
+// -----------------------------------------------------------------------------
+// 出題順生成（buildVocabOrder）— commit 2 骨格
+// -----------------------------------------------------------------------------
+// ★この関数群も既存コードからは呼ばれない。GAS エディタからの単体テスト
+//   （testBuildVocabOrder）でのみ動作確認する。出題への接続は後続 Phase。
+//
+// 付番済みデータの前提（ふくちさんが本番公開直前に問題シートへ列追加でコピー予定）:
+//   - 各問題行に word_id（級コード + type + 連番、例 g4_word_0001 / g3_idiom_0081）と
+//     round（1=1周目/問題A、2=2周目/問題B）を付与。type 列（word/idiom）も付与。
+//   - 同じ単語の 1周目・2周目には同じ word_id がつき、round で区別する。
+//   - 級コード: 5級=g5 / 4級=g4 / 3級=g3 / 準2級=jun2 / 準2級プラス=jun2p /
+//               2級=g2 / 準1級=jun1 / 1級=g1
+//   - これらの列が問題シートにまだ無い間は、buildVocabOrder は ready:false を返す
+//     （= 呼べば動くが未接続。クラッシュさせず友好的に「準備待ち」を返す）。
+
+const VOCAB_BLOCK_SIZE = 100;  // 100 語 = 1 ブロック
+const VOCAB_SUBJECT_EITANGO = 'eitango';
+// 級の日本語文字列 → 級コード（word_id の接頭辞と整合。grade 妥当性チェックにも使う）
+const VOCAB_GRADE_CODE = {
+  '5級': 'g5', '4級': 'g4', '3級': 'g3', '準2級': 'jun2',
+  '準2級プラス': 'jun2p', '2級': 'g2', '準1級': 'jun1', '1級': 'g1'
+};
+
+// 文字列 → 32bit uint シード（FNV-1a）。決定論的でシードの分散も良い。
+function _vocabHashSeed(str) {
+  let h = 2166136261 >>> 0;
+  const s = String(str);
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+// mulberry32: 32bit seed から [0,1) の決定論的擬似乱数を返す関数を生成。
+//   同じ seed なら毎回同じ系列 → 「私だけの順番」を再生成しても固定できる。
+function _vocabMulberry32(seed) {
+  let a = seed >>> 0;
+  return function() {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// シード文字列に基づく決定論的 Fisher-Yates シャッフル（元配列は破壊しない）。
+function _vocabSeededShuffle(arr, seedStr) {
+  const rand = _vocabMulberry32(_vocabHashSeed(seedStr));
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+  }
+  return a;
+}
+
+// ヘッダー行から列インデックスを別名候補で探す（見つからなければ -1）。
+function _vocabFindCol(header, names) {
+  for (let n = 0; n < names.length; n++) {
+    const idx = header.indexOf(names[n]);
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+// 配列を size ごとのブロックに分割。
+function _vocabChunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+// 既存の同一キー（studentId × subject × grade × groupType）の行を削除（再生成用）。
+//   非 dryRun 時のみ使用。下から削除して行番号ズレを回避。
+function _vocabDeleteRowsFor(sid, subject, grade, groupType) {
+  const sh = _ss().getSheetByName(SHEET_VOCAB_ORDER);
+  if (!sh || sh.getLastRow() < 2) return 0;
+  const rows = sh.getDataRange().getValues();
+  let deleted = 0;
+  for (let i = rows.length - 1; i >= 1; i--) {
+    const r = rows[i];
+    if (String(r[0]).trim() === sid &&
+        String(r[1]).trim() === subject &&
+        String(r[2]).trim() === grade &&
+        String(r[3]).trim() === groupType) {
+      sh.deleteRow(i + 1);
+      deleted++;
+    }
+  }
+  return deleted;
+}
+
+// 出題順生成本体。
+// params:
+//   sid       : 生徒ID
+//   grade     : 級の日本語文字列（VOCAB_GRADE_CODE のキー）
+//   groupType : 'word' / 'idiom'
+//   opts      : { dryRun(既定 true), subject(既定 'eitango') }
+// 動作:
+//   1. grade に応じて問題シート（5級=Question5 / それ以外=Questions）をヘッダー駆動で読む
+//   2. word_id / round / type / grade 列を探す（無ければ ready:false で friendly 終了）
+//   3. grade + groupType でフィルタ → word_id で名寄せ（1 word_id = 1 エンティティ）
+//   4. シード = sid|grade|groupType で決定論シャッフル
+//   5. 100 語ブロックに分割、各ブロック × round(1,2) の VocabOrder 行を生成
+//      （questionOrder = ブロックの word_id 配列。round1/round2 は同じ並び。A/B は round 列で区別）
+//   6. dryRun=false の時のみ VocabOrder へ書き込み（同一キー既存行を削除してから追記）
+// 戻り値: { ok, ready, dryRun, summary, rows }（rows は VocabOrder へ入れる 2 次元配列）
+function buildVocabOrder(sid, grade, groupType, opts) {
+  try {
+    sid = String(sid || '').trim();
+    grade = String(grade || '').trim();
+    groupType = String(groupType || '').trim();
+    opts = opts || {};
+    const dryRun = (opts.dryRun === undefined) ? true : !!opts.dryRun;
+    const subject = String(opts.subject || VOCAB_SUBJECT_EITANGO).trim();
+
+    if (!sid) return { ok: false, ready: false, message: '生徒IDが必要です' };
+    if (!VOCAB_GRADE_CODE[grade]) {
+      return { ok: false, ready: false, message: '未知の級です: ' + grade + '（有効: ' + Object.keys(VOCAB_GRADE_CODE).join('/') + '）' };
+    }
+    if (groupType !== 'word' && groupType !== 'idiom') {
+      return { ok: false, ready: false, message: "groupType は 'word' か 'idiom' です: " + groupType };
+    }
+
+    const is5 = (grade === '5級');
+    const sheetName = is5 ? SHEET_Q5 : SHEET_QUESTIONS;
+    const sh = _ss().getSheetByName(sheetName);
+    if (!sh || sh.getLastRow() < 2) {
+      return { ok: true, ready: false, message: sheetName + ' に問題データがありません（準備待ち）' };
+    }
+
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iWordId = _vocabFindCol(header, ['word_id', 'wordId', 'wordID', '単語ID']);
+    const iRound  = _vocabFindCol(header, ['round', '周回', 'round_no']);
+    const iType   = _vocabFindCol(header, ['type', 'groupType', '種別', 'タイプ']);
+    const iGrade  = _vocabFindCol(header, ['grade', '級']);
+
+    // 付番済みデータ未投入時：クラッシュさせず「準備待ち」を返す（呼べば動くが未接続）
+    if (iWordId < 0 || iRound < 0 || iType < 0) {
+      return {
+        ok: true, ready: false,
+        message: sheetName + ' に付番列（word_id/round/type）がまだありません。'
+               + 'ふくちさんの列追加後に再実行してください。',
+        missing: {
+          word_id: iWordId < 0, round: iRound < 0, type: iType < 0
+        }
+      };
+    }
+
+    // フィルタ + word_id 名寄せ
+    //   roundsByWordId: word_id → { '1': true, '2': true } 出現周回の記録（診断用）
+    const seenOrder = [];          // word_id の初出順（シャッフル前。診断・安定性用）
+    const seenSet = {};            // 既出 word_id
+    const roundsByWordId = {};
+    let scanned = 0;
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      // grade フィルタ：5級シートは全行 5級扱い。それ以外は grade 列一致を要求。
+      if (!is5 && iGrade >= 0 && String(r[iGrade]).trim() !== grade) continue;
+      if (String(r[iType]).trim() !== groupType) continue;
+      const wid = String(r[iWordId] || '').trim();
+      if (!wid) continue;
+      const rd = String(r[iRound] || '').trim();
+      scanned++;
+      if (!seenSet[wid]) { seenSet[wid] = true; seenOrder.push(wid); roundsByWordId[wid] = {}; }
+      if (rd) roundsByWordId[wid][rd] = true;
+    }
+
+    const uniqueWordIds = seenOrder;
+    if (uniqueWordIds.length === 0) {
+      return { ok: true, ready: false, message: '対象語が 0 件でした（grade=' + grade + ' / type=' + groupType + '）' };
+    }
+
+    // 決定論シャッフル（シード = sid|grade|groupType）
+    const seedStr = sid + '|' + grade + '|' + groupType;
+    const shuffled = _vocabSeededShuffle(uniqueWordIds, seedStr);
+
+    // 100 語ブロック分割 → 各ブロック × round(1,2) の行を生成
+    const blocks = _vocabChunk(shuffled, VOCAB_BLOCK_SIZE);
+    const now = _nowJST();
+    const rows = [];
+    blocks.forEach(function(blockWordIds, idx) {
+      const blockNo = idx + 1;
+      const orderJson = JSON.stringify(blockWordIds);
+      [1, 2].forEach(function(round) {
+        // VOCAB_ORDER_HEADERS の並びに厳密に合わせる:
+        // studentId, subject, grade, groupType, blockNo, round, questionOrder, position, done, generatedAt
+        rows.push([sid, subject, grade, groupType, blockNo, round, orderJson, 0, false, now]);
+      });
+    });
+
+    // round1/round2 両方そろっている語の数（診断）
+    let bothRounds = 0;
+    uniqueWordIds.forEach(function(wid) {
+      const m = roundsByWordId[wid] || {};
+      if (m['1'] && m['2']) bothRounds++;
+    });
+
+    let wrote = 0, deleted = 0;
+    if (!dryRun) {
+      // 書き込み（同一キー既存行を削除してから追記）。シートが無ければ作る。
+      ensureVocabOrderSheet();
+      deleted = _vocabDeleteRowsFor(sid, subject, grade, groupType);
+      const wsh = _ss().getSheetByName(SHEET_VOCAB_ORDER);
+      if (rows.length > 0) {
+        wsh.getRange(wsh.getLastRow() + 1, 1, rows.length, VOCAB_ORDER_HEADERS.length).setValues(rows);
+        wrote = rows.length;
+      }
+    }
+
+    return {
+      ok: true,
+      ready: true,
+      dryRun: dryRun,
+      summary: {
+        studentId: sid, subject: subject, grade: grade, groupType: groupType,
+        scannedRows: scanned,
+        uniqueWordCount: uniqueWordIds.length,
+        bothRoundsWordCount: bothRounds,
+        blockCount: blocks.length,
+        generatedRowCount: rows.length,   // = blockCount × 2（round）
+        wrote: wrote, deleted: deleted,
+        firstBlockSample: (blocks[0] || []).slice(0, 10)  // 並びの目視確認用
+      },
+      rows: rows
+    };
+  } catch (err) {
+    console.error('[buildVocabOrder]', err);
+    return { ok: false, ready: false, message: String(err) };
+  }
+}
+
+// GAS エディタ単体テスト用（既存コードからは呼ばれない）。
+//   付番列が未投入の間は ready:false（準備待ち）が返るのが正常。
+//   付番列投入後は dryRun:true で並び・ブロック数を Logger で確認できる。
+function testBuildVocabOrder() {
+  const res = buildVocabOrder('1004', '4級', 'word', { dryRun: true });
+  Logger.log('[testBuildVocabOrder] ' + JSON.stringify(res.summary || res, null, 2));
+  return res;
+}
