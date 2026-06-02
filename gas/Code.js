@@ -26476,3 +26476,50 @@ function getSurveyResults(params) {
     return { ok: false, message: String(err) };
   }
 }
+
+// =============================================================================
+// 語彙ランダム化（VocabOrder）— Phase 1 土台（2026-06-02 先行実装）
+// =============================================================================
+// 目的: 英単語RUSH / コブタンの出題順を「生徒ごとに完全シャッフル」するための
+//       出題順・進捗管理シート。法的（教材の配列複製リスク回避）＋教育的
+//       （私だけの順番・単語/熟語の自由な行き来）理由による大規模改修の土台。
+//
+// ★重要（このセクション全体の前提）:
+//   - ここに定義する定数・関数は「並走追加」であり、既存の出題ロジック
+//     （getTodaysSet / _getWords / _getWordsQ4 / getKobunSet 等）からは一切呼ばれない。
+//   - doGet / doPost のルーティングにも登録しない（GAS エディタ手動実行 or 後続 Phase で接続）。
+//   - したがって本セクションが本番にデプロイされても、既存挙動を 1 ミリも変えない。
+//
+// VocabOrder シート列構成（設計書 5-2 準拠、10 列）:
+//   studentId     : 生徒ID
+//   subject       : 'eitango' / 'kobun'
+//   grade         : 級の日本語文字列（'5級'〜'準1級'）。コブタンは '' を入れる想定
+//   groupType     : 'word' / 'idiom'
+//   blockNo       : 100 語ブロックの通し番号（1 始まり）
+//   round         : 1（1周目 / 問題A） / 2（2周目 / 問題B）
+//   questionOrder : そのブロックの word_id を生徒ごとシャッフルした順序の JSON 配列
+//                   （round 1 / round 2 で同じブロック・同じ並び。A/B は round 列で区別）
+//   position      : ブロック内で消化済みの問題数（0 始まり、出題時に進める）
+//   done          : そのブロック×round を完走したか（TRUE/FALSE）
+//   generatedAt   : 生成時刻（JST 文字列）
+//
+// 1 行 = 1（生徒 × subject × grade × groupType × blockNo × round）。
+// 「1単語2問が同ブロックに混在しない」要件は、round を列に持ち 1 word_id を
+// 1 エンティティとして扱う（questionOrder は word_id の配列）ことで構造的に保証する。
+const SHEET_VOCAB_ORDER = 'VocabOrder';
+const VOCAB_ORDER_HEADERS = [
+  'studentId', 'subject', 'grade', 'groupType', 'blockNo',
+  'round', 'questionOrder', 'position', 'done', 'generatedAt'
+];
+
+// シート初期化（GAS エディタから手動 1 回実行する想定、冪等・ヘッダーのみ作成）。
+// 既存コードからは呼ばない。読み書きの本処理はまだ持たない（commit 2 以降で追加）。
+function ensureVocabOrderSheet() {
+  const res = _ensureSheetWithHeaders(SHEET_VOCAB_ORDER, VOCAB_ORDER_HEADERS);
+  try { res.sh.setFrozenRows(1); } catch (e) { /* 既存凍結済み等は無視 */ }
+  const msg = res.created
+    ? 'VocabOrder シートを新規作成しました（ヘッダーのみ）'
+    : 'VocabOrder シートは既に存在します（ヘッダーを確認/自己修復しました）';
+  Logger.log('[ensureVocabOrderSheet] ' + msg);
+  return { ok: true, message: msg, headers: VOCAB_ORDER_HEADERS };
+}
