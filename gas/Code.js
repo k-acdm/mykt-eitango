@@ -26773,3 +26773,445 @@ function testBuildVocabOrder() {
   Logger.log('[testBuildVocabOrder] ' + JSON.stringify(res.summary || res, null, 2));
   return res;
 }
+
+// =============================================================================
+// 既習移行（migrate）— commit 3：dryRun 専用（2026-06-03 実装）
+// =============================================================================
+// 目的: 既存の在籍生徒（Students シート）の英単語RUSH 進捗を、新方式（VocabOrder）
+//       に正しく引き継ぐための「移行ロジック」。今回は dryRun のみ。
+//       Students / VocabOrder / Properties には一切書き込まない（読み取りのみ）。
+//
+// ★絶対条件:
+//   - 既存の出題ロジック（getTodaysSet / _getWords / _getWordsQ4）・HP 計算・
+//     Students シート・Properties（cleared_/pass1_/pass2_）には一切書き込まない。
+//   - buildVocabOrder 本体（テスト済み）には手を入れず、その helper
+//     （_vocabSeededShuffle / _vocabChunk / _vocabFindCol / VOCAB_BLOCK_SIZE）だけ流用。
+//   - 本実行（dryRun=false）は、ふくちさんが本サマリを確認後に別途指示する。
+//
+// 移行方針（設計書 4）— Design B「既習は除外し、未習だけ新ブロック構成」:
+//   1. 各生徒・各級について「既習」セットを特定（後述の級別ロジック）。
+//   2. 既習セットに属する word_id（type 別）を「既習＝done」として新ブロックから除外。
+//   3. 残り（未習・1周のみ）の word_id を生徒ごとにシャッフルし新 100 語ブロックに再構成。
+//      → 生成される VocabOrder 行数 = ブロック数 × 2（round1/round2）。
+//
+// 既習判定（級で意味が異なる・調査済み）:
+//   - 5級: 「2周」が実在。cleared_<sid>_'5級' は 2 周通算カウンタ。
+//          round2 完了セット数 = max(0, cleared - maxSet5)。
+//          既習セット = 1..round2完了数。1周のみ（round2未完）= 未習扱い（2周目やり直し）。
+//          ※ Attempts の setNo は round1/round2 で同値にリセットされるため round 区別不可。
+//            → 5級の 2 周判定は cleared のみを正とし、Attempts は照合（警告）専用。
+//   - 4級以上: 級内で構造的に 2 周しない。既習 = 合格済みセットの語。
+//          既習セット = {1..cleared_<sid>_<級>} ∪ {Attempts 合格 setNo（級一致・重複排除）}。
+//          （cleared プロパティ欠落時も Attempts で救済できるよう和集合を採る）。
+//
+// (級, setNo) → word_id 群の逆引きは問題シート（列0=setNo / word_id / type）から構築。
+
+// 問題シートを 1 回ずつスキャンして「級 × type 別の語データ」を構築（生徒非依存・read-only）。
+// 返却: { gradeData, dataWarnings }
+//   gradeData[grade] = {
+//     ready,                       // word_id/round/type 列が揃っているか
+//     maxSet,                      // 級内の最大 setNo（type 非依存。_getMaxSetForLevel と同義）
+//     byType: { word:{...}, idiom:{...} }
+//   }
+//   byType[t] = {
+//     allWordIds:[wid...],         // その級×type の distinct word_id（初出順）
+//     wordIdsBySetNo:{setNo:[wid]},// setNo → distinct word_id（type 別）
+//     roundsByWordId:{wid:{1:true,2:true}},
+//     incompletePairWids:[wid...]  // round1/round2 が揃っていない word_id（データ整合警告用）
+//   }
+function _migScanGradeData() {
+  const dataWarnings = [];
+  const gradeData = {};
+
+  // 1 枚のシートを読んで列インデックスを解決
+  function openSheet(sheetName) {
+    const sh = _ss().getSheetByName(sheetName);
+    if (!sh || sh.getLastRow() < 2) return null;
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    let iSetNo = _vocabFindCol(header, ['setNo', 'setno', 'セット番号', 'セット']);
+    if (iSetNo < 0) iSetNo = 0; // 既存ロジックは常に列0を setNo として扱う
+    return {
+      values: values,
+      iWordId: _vocabFindCol(header, ['word_id', 'wordId', 'wordID', '単語ID']),
+      iRound:  _vocabFindCol(header, ['round', '周回', 'round_no']),
+      iType:   _vocabFindCol(header, ['type', 'groupType', '種別', 'タイプ']),
+      iGrade:  _vocabFindCol(header, ['grade', '級']),
+      iSetNo:  iSetNo
+    };
+  }
+
+  // grade に属する行配列から byType / maxSet を構築
+  function buildGrade(grade, rows, col) {
+    const ready = (col.iWordId >= 0 && col.iRound >= 0 && col.iType >= 0);
+    const g = { ready: ready, maxSet: 0, byType: {} };
+    ['word', 'idiom'].forEach(function(t) {
+      g.byType[t] = { allWordIds: [], _seen: {}, wordIdsBySetNo: {}, roundsByWordId: {}, incompletePairWids: [] };
+    });
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const setNo = Number(r[col.iSetNo]) || 0;
+      if (setNo > g.maxSet) g.maxSet = setNo;       // maxSet は type 非依存
+      if (!ready) continue;
+      const t = String(r[col.iType] || '').trim();
+      if (t !== 'word' && t !== 'idiom') continue;  // 未知 type はスキップ
+      const wid = String(r[col.iWordId] || '').trim();
+      if (!wid) continue;
+      const rd = String(r[col.iRound] || '').trim();
+      const bt = g.byType[t];
+      if (!bt._seen[wid]) { bt._seen[wid] = true; bt.allWordIds.push(wid); bt.roundsByWordId[wid] = {}; }
+      if (rd) bt.roundsByWordId[wid][rd] = true;
+      if (!bt.wordIdsBySetNo[setNo]) bt.wordIdsBySetNo[setNo] = [];
+      if (bt.wordIdsBySetNo[setNo].indexOf(wid) < 0) bt.wordIdsBySetNo[setNo].push(wid);
+    }
+    // round ペア不完全な word_id を洗い出し（データ整合警告）
+    if (ready) {
+      ['word', 'idiom'].forEach(function(t) {
+        const bt = g.byType[t];
+        bt.allWordIds.forEach(function(wid) {
+          const m = bt.roundsByWordId[wid] || {};
+          if (!(m['1'] && m['2'])) bt.incompletePairWids.push(wid);
+        });
+        delete bt._seen;
+        if (bt.incompletePairWids.length > 0) {
+          dataWarnings.push('[' + grade + '/' + t + '] round ペア不完全な word_id が '
+            + bt.incompletePairWids.length + ' 件（既習判定に影響しうる）');
+        }
+      });
+    }
+    return g;
+  }
+
+  // 5級（Question5 シート、全行 5級）
+  const q5 = openSheet(SHEET_Q5);
+  if (q5) {
+    gradeData['5級'] = buildGrade('5級', q5.values.slice(1), q5);
+    if (!gradeData['5級'].ready) dataWarnings.push('[5級] 付番列（word_id/round/type）が未投入');
+  } else {
+    dataWarnings.push('[5級] Question5 シートが空 or 不在');
+  }
+
+  // 4級以上（Questions シート、grade 列で分割）
+  const q = openSheet(SHEET_QUESTIONS);
+  if (q) {
+    const rowsByGrade = {};
+    for (let i = 1; i < q.values.length; i++) {
+      const r = q.values[i];
+      // grade 列が見つからない場合は列11（_getQuestionRowsForLevel と同じ既定）にフォールバック
+      const gi = (q.iGrade >= 0) ? q.iGrade : 11;
+      const g = String(r[gi] || '').trim();
+      if (!g) continue;
+      if (!rowsByGrade[g]) rowsByGrade[g] = [];
+      rowsByGrade[g].push(r);
+    }
+    LEVEL_ORDER.forEach(function(grade) {
+      if (grade === '5級') return; // 5級は Q5 で処理済み
+      const rows = rowsByGrade[grade] || [];
+      if (rows.length === 0) { dataWarnings.push('[' + grade + '] Questions に該当データなし'); return; }
+      gradeData[grade] = buildGrade(grade, rows, q);
+      if (!gradeData[grade].ready) dataWarnings.push('[' + grade + '] 付番列（word_id/round/type）が未投入');
+    });
+  } else {
+    dataWarnings.push('[4級+] Questions シートが空 or 不在');
+  }
+
+  return { gradeData: gradeData, dataWarnings: dataWarnings };
+}
+
+// Attempts を 1 回スキャンして合格 setNo を集計（read-only）。
+//   返却: passed[sid][級] = { setNo:true }（級_setNo で重複排除）
+function _migScanAttempts() {
+  const out = {};
+  const sh = _ss().getSheetByName(SHEET_ATTEMPTS);
+  if (!sh || sh.getLastRow() < 2) return out;
+  const vals = sh.getDataRange().getValues();
+  // 列: 0 日時 / 1 sid / 2 氏名 / 3 setNo / 4 得点 / 5 合否 / 6 級
+  for (let i = 1; i < vals.length; i++) {
+    const r = vals[i];
+    if (String(r[5]).trim() !== '合格') continue;
+    const sid = String(r[1] || '').trim();
+    const lv  = String(r[6] || '').trim();
+    const setNo = Number(r[3]) || 0;
+    if (!sid || !lv || setNo <= 0) continue;
+    if (!out[sid]) out[sid] = {};
+    if (!out[sid][lv]) out[sid][lv] = {};
+    out[sid][lv][setNo] = true;
+  }
+  return out;
+}
+
+// 1 生徒 × 1 級の移行を dryRun 計算（word/idiom 両 type を一括処理、書き込みなし）。
+//   返却: { ready, hasProgress, types:{word:{...}, idiom:{...}}, learnedSetCount, oneRoundOnlyCount, warns:[] }
+function _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap) {
+  const gd = gradeData[grade];
+  const warns = [];
+  if (!gd) return { ready: false, reason: 'no-data', hasProgress: false, types: {}, warns: warns };
+  if (!gd.ready) return { ready: false, reason: 'not-numbered', hasProgress: false, types: {}, warns: warns };
+
+  const maxSet  = gd.maxSet;
+  const cleared = parseInt(clearedStr || '0', 10) || 0;
+  const passedSetNos = passedSetMap || {}; // { setNo:true }
+  const passedKeys = Object.keys(passedSetNos);
+
+  // 既習セット（type 非依存・set レベル）
+  const learnedSetNos = {};
+  let oneRoundOnlyCount = 0;
+
+  if (grade === '5級') {
+    const round2Done = Math.min(Math.max(0, cleared - maxSet), maxSet);
+    const round1Done = Math.min(cleared, maxSet);
+    for (let s = 1; s <= round2Done; s++) learnedSetNos[s] = true;
+    oneRoundOnlyCount = Math.max(0, round1Done - round2Done); // 1周のみ（未習扱い）
+    // 照合：Attempts の distinct 合格 setNo 数は round1 進捗以上であるはず（round 区別不可なので参考）
+    if (passedKeys.length > round1Done && round1Done >= 0) {
+      // 情報レベル（不整合ではない場合も多い）— 大きな乖離のみ警告
+      if (passedKeys.length - round1Done > 0 && cleared === 0 && passedKeys.length > 0) {
+        warns.push('[' + sid + '/5級] cleared=0 だが Attempts に合格 ' + passedKeys.length + ' 件（cleared 欠落の可能性／5級は2周判定不可のため未習扱い）');
+      }
+    }
+  } else {
+    const cap = Math.min(cleared, maxSet);
+    for (let s = 1; s <= cap; s++) learnedSetNos[s] = true;
+    // Attempts 合格 setNo を和集合（cleared 欠落の救済）
+    let beyondCleared = 0;
+    passedKeys.forEach(function(sStr) {
+      const s = Number(sStr);
+      if (s >= 1 && s <= maxSet) {
+        if (!learnedSetNos[s]) { learnedSetNos[s] = true; if (s > cleared) beyondCleared++; }
+      }
+    });
+    if (beyondCleared > 0) {
+      warns.push('[' + sid + '/' + grade + '] Attempts 合格 setNo が cleared(' + cleared + ') を超過 ' + beyondCleared + ' 件 → 既習に加算（cleared 高水位が遅れている可能性）');
+    }
+  }
+
+  const learnedSetCount = Object.keys(learnedSetNos).length;
+  let hasProgress = (learnedSetCount > 0) || (passedKeys.length > 0) || (cleared > 0);
+
+  const types = {};
+  ['word', 'idiom'].forEach(function(t) {
+    const bt = gd.byType[t];
+    const total = bt.allWordIds.length;
+    if (total === 0) { types[t] = { skip: true, total: 0, migrated_done: 0, remaining: 0, blocks: 0, genRows: 0 }; return; }
+
+    // 既習 word_id（type 別）= 既習セットに属する word_id の和集合
+    const learnedWids = {};
+    Object.keys(learnedSetNos).forEach(function(sStr) {
+      const arr = bt.wordIdsBySetNo[Number(sStr)] || [];
+      for (let k = 0; k < arr.length; k++) learnedWids[arr[k]] = true;
+    });
+    const learnedList = Object.keys(learnedWids);
+
+    // 未習 = all − 既習
+    const remaining = bt.allWordIds.filter(function(w) { return !learnedWids[w]; });
+
+    // 異常検知（構造上は起こり得ないが防御的に）
+    if (learnedList.length > total) {
+      warns.push('[' + sid + '/' + grade + '/' + t + '] 既習語数(' + learnedList.length + ') > 総語数(' + total + ') の矛盾');
+    }
+    if (learnedList.length + remaining.length !== total) {
+      warns.push('[' + sid + '/' + grade + '/' + t + '] 既習+未習(' + (learnedList.length + remaining.length) + ') ≠ 総語数(' + total + ') の矛盾');
+    }
+    // round ペア不完全な語が既習判定された件数（データ整合）
+    let pairViolation = 0;
+    for (let j = 0; j < learnedList.length; j++) {
+      const m = bt.roundsByWordId[learnedList[j]] || {};
+      if (!(m['1'] && m['2'])) pairViolation++;
+    }
+    if (pairViolation > 0) {
+      warns.push('[' + sid + '/' + grade + '/' + t + '] round ペア不完全な語が既習判定 ' + pairViolation + ' 件');
+    }
+
+    // 未習を生徒ごとシャッフル → 100 語ブロック → 行数 = ブロック数 × 2
+    const seedStr = sid + '|' + grade + '|' + t;
+    const shuffled = _vocabSeededShuffle(remaining, seedStr);
+    const blocks = _vocabChunk(shuffled, VOCAB_BLOCK_SIZE);
+    types[t] = {
+      skip: false,
+      total: total,
+      migrated_done: learnedList.length,
+      remaining: remaining.length,
+      blocks: blocks.length,
+      genRows: blocks.length * 2
+    };
+  });
+
+  return {
+    ready: true,
+    hasProgress: hasProgress,
+    learnedSetCount: learnedSetCount,
+    oneRoundOnlyCount: oneRoundOnlyCount,
+    types: types,
+    warns: warns
+  };
+}
+
+// 全在籍生徒 × 全級 × {word,idiom} の dryRun 集計（書き込みゼロ）。
+//   opts: { limit(先頭N名のみ。0=全員), detailSample(明細を Logger 出力する先頭生徒数、既定3) }
+//   戻り値に全明細（students[]）を含む。Logger には要約＋警告＋サンプルを出力。
+function migrateEitangoVocabOrderDryRun(opts) {
+  try {
+    opts = opts || {};
+    const limit = Number(opts.limit) || 0;
+    const detailSample = (opts.detailSample === undefined) ? 3 : Number(opts.detailSample);
+
+    // --- 入力収集（各 1 回） ---
+    const stuSh = _ss().getSheetByName(SHEET_STUDENTS);
+    if (!stuSh || stuSh.getLastRow() < 2) {
+      Logger.log('[migrate] Students シートが空です');
+      return { ok: false, message: 'Students シートが空です' };
+    }
+    const stuVals = stuSh.getDataRange().getValues();
+    const students = [];
+    for (let i = 1; i < stuVals.length; i++) {
+      const sid = String(stuVals[i][COL_ID] || '').trim();
+      if (!sid) continue;
+      students.push({ sid: sid, name: String(stuVals[i][COL_NAME] || '').trim() });
+      if (limit > 0 && students.length >= limit) break;
+    }
+
+    const allProps = _props().getProperties();
+    const passed   = _migScanAttempts();
+    const scan     = _migScanGradeData();
+    const gradeData = scan.gradeData;
+
+    // --- 集計器 ---
+    const allWarnings = scan.dataWarnings.slice();
+    const studentsOut = [];
+    // type 別グローバル内訳（全員合算）
+    const globalByGradeType = {};
+    LEVEL_ORDER.forEach(function(g) {
+      globalByGradeType[g] = { word: { studentsWithData: 0, done: 0, remaining: 0, rows: 0 },
+                               idiom: { studentsWithData: 0, done: 0, remaining: 0, rows: 0 } };
+    });
+
+    // 2 系統のグランド合計：
+    //   all      = 全級分（生徒が未到達の級も含めて全部 VocabOrder を作る場合）
+    //   progress = 進捗のある級のみ（既習移行が実際に意味を持つ範囲）
+    const grand = {
+      all:      { done: 0, remaining: 0, rows: 0 },
+      progress: { done: 0, remaining: 0, rows: 0 }
+    };
+
+    students.forEach(function(stu) {
+      const sid = stu.sid;
+      const sOut = { sid: sid, name: stu.name, grades: {}, totals: { done: 0, remaining: 0, rows: 0 }, progressTotals: { done: 0, remaining: 0, rows: 0 } };
+      LEVEL_ORDER.forEach(function(grade) {
+        const clearedStr = allProps['cleared_' + sid + '_' + grade];
+        const passedSetMap = (passed[sid] && passed[sid][grade]) ? passed[sid][grade] : {};
+        const res = _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap);
+        if (res.warns && res.warns.length) Array.prototype.push.apply(allWarnings, res.warns);
+
+        const gradeRec = { ready: res.ready, reason: res.reason || '', hasProgress: !!res.hasProgress,
+                           learnedSetCount: res.learnedSetCount || 0, oneRoundOnlyCount: res.oneRoundOnlyCount || 0,
+                           cleared: parseInt(clearedStr || '0', 10) || 0, types: {} };
+        if (res.ready) {
+          ['word', 'idiom'].forEach(function(t) {
+            const rt = res.types[t];
+            if (!rt || rt.skip) { gradeRec.types[t] = { skip: true }; return; }
+            gradeRec.types[t] = { total: rt.total, migrated_done: rt.migrated_done, remaining: rt.remaining, genRows: rt.genRows };
+            // グローバル内訳
+            const gb = globalByGradeType[grade][t];
+            if (rt.migrated_done > 0 || res.hasProgress) gb.studentsWithData++;
+            gb.done += rt.migrated_done; gb.remaining += rt.remaining; gb.rows += rt.genRows;
+            // グランド：all
+            grand.all.done += rt.migrated_done; grand.all.remaining += rt.remaining; grand.all.rows += rt.genRows;
+            sOut.totals.done += rt.migrated_done; sOut.totals.remaining += rt.remaining; sOut.totals.rows += rt.genRows;
+            // グランド：progress（その級に進捗がある場合のみ）
+            if (res.hasProgress) {
+              grand.progress.done += rt.migrated_done; grand.progress.remaining += rt.remaining; grand.progress.rows += rt.genRows;
+              sOut.progressTotals.done += rt.migrated_done; sOut.progressTotals.remaining += rt.remaining; sOut.progressTotals.rows += rt.genRows;
+            }
+          });
+        }
+        sOut.grades[grade] = gradeRec;
+      });
+      studentsOut.push(sOut);
+    });
+
+    // --- Logger 出力（要約＋内訳＋警告＋サンプル明細） ---
+    Logger.log('===== 英単語RUSH 既習移行 dryRun（書き込みゼロ） =====');
+    Logger.log('対象生徒数: ' + students.length + ' 名 / 対象級: ' + LEVEL_ORDER.join('・'));
+    Logger.log('--- グランド合計 [A] 全級生成する場合 ---');
+    Logger.log('  合計既習語数=' + grand.all.done + ' / 合計未習語数=' + grand.all.remaining + ' / 生成予定行数=' + grand.all.rows);
+    Logger.log('--- グランド合計 [B] 進捗のある級のみ ---');
+    Logger.log('  合計既習語数=' + grand.progress.done + ' / 合計未習語数=' + grand.progress.remaining + ' / 生成予定行数=' + grand.progress.rows);
+
+    Logger.log('--- 級×type 別グローバル内訳（全員合算） ---');
+    LEVEL_ORDER.forEach(function(g) {
+      ['word', 'idiom'].forEach(function(t) {
+        const gb = globalByGradeType[g][t];
+        if (gb.done === 0 && gb.remaining === 0 && gb.rows === 0) return; // データ無しはスキップ
+        Logger.log('  ' + g + '/' + t + ': 進捗あり生徒=' + gb.studentsWithData
+          + ' / 既習=' + gb.done + ' / 未習=' + gb.remaining + ' / 生成行=' + gb.rows);
+      });
+    });
+
+    Logger.log('--- 警告（' + allWarnings.length + ' 件） ---');
+    if (allWarnings.length === 0) {
+      Logger.log('  なし');
+    } else {
+      const showW = allWarnings.slice(0, 60);
+      showW.forEach(function(w) { Logger.log('  ⚠ ' + w); });
+      if (allWarnings.length > showW.length) Logger.log('  …他 ' + (allWarnings.length - showW.length) + ' 件（戻り値 result.warnings を参照）');
+    }
+
+    Logger.log('--- サンプル明細（先頭 ' + Math.min(detailSample, studentsOut.length) + ' 名） ---');
+    studentsOut.slice(0, detailSample).forEach(function(s) {
+      Logger.log('● ' + s.sid + ' ' + s.name + ' | 進捗級のみ: 既習=' + s.progressTotals.done
+        + ' 未習=' + s.progressTotals.remaining + ' 行=' + s.progressTotals.rows);
+      LEVEL_ORDER.forEach(function(g) {
+        const gr = s.grades[g];
+        if (!gr.ready) { return; }
+        if (!gr.hasProgress && gr.types.word && gr.types.word.skip) return;
+        const w = gr.types.word, id = gr.types.idiom;
+        const parts = [];
+        if (w && !w.skip) parts.push('word(done=' + w.migrated_done + '/rem=' + w.remaining + '/rows=' + w.genRows + ')');
+        if (id && !id.skip) parts.push('idiom(done=' + id.migrated_done + '/rem=' + id.remaining + '/rows=' + id.genRows + ')');
+        const tag = gr.hasProgress ? '★進捗' : '　新規';
+        Logger.log('    ' + tag + ' ' + g + ' cleared=' + gr.cleared
+          + (g === '5級' ? ' 1周のみ=' + gr.oneRoundOnlyCount : '')
+          + ' 既習set=' + gr.learnedSetCount + ' | ' + (parts.join(' ') || '(語データなし)'));
+      });
+    });
+    Logger.log('（全 ' + studentsOut.length + ' 名の明細は戻り値 result.students を参照）');
+
+    return {
+      ok: true,
+      dryRun: true,
+      studentCount: students.length,
+      grand: grand,
+      globalByGradeType: globalByGradeType,
+      warnings: allWarnings,
+      students: studentsOut
+    };
+  } catch (err) {
+    console.error('[migrateEitangoVocabOrderDryRun]', err);
+    Logger.log('[migrate] エラー: ' + err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// GAS エディタ単体テスト：全員 dryRun（書き込みゼロ）。
+function testMigrateEitangoDryRun() {
+  return migrateEitangoVocabOrderDryRun({});
+}
+
+// GAS エディタ単体テスト：先頭 5 名だけ dryRun（素早い確認用、明細も 5 名表示）。
+function testMigrateEitangoDryRunSmall() {
+  return migrateEitangoVocabOrderDryRun({ limit: 5, detailSample: 5 });
+}
+
+// 1 生徒だけを詳しく見る（dryRun・全級の word/idiom 明細を Logger 出力）。
+function testMigrateOneStudent(sid) {
+  sid = String(sid || '').trim();
+  if (!sid) { Logger.log('[testMigrateOneStudent] sid を指定してください'); return; }
+  const res = migrateEitangoVocabOrderDryRun({});
+  const s = (res.students || []).filter(function(x) { return x.sid === sid; })[0];
+  if (!s) { Logger.log('[testMigrateOneStudent] sid=' + sid + ' は対象生徒に見つかりません'); return res; }
+  Logger.log('===== 単体確認 ' + s.sid + ' ' + s.name + ' =====');
+  LEVEL_ORDER.forEach(function(g) {
+    Logger.log(g + ': ' + JSON.stringify(s.grades[g]));
+  });
+  return s;
+}
