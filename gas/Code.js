@@ -26956,7 +26956,7 @@ function _migScanAttempts() {
 //          （cleared - maxSet）で 2 周完了セットを判定する従来ロジックを維持する。
 //          この方式でも「2周完了セット(1..round2Done)のみ既習 / 1周のみは未習」という
 //          同じ考え方で整合している（round2 到達者ゼロのため実害も無い）。
-function _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap) {
+function _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap, wantBlocks) {
   const gd = gradeData[grade];
   const warns = [];
   if (!gd) return { ready: false, reason: 'no-data', hasProgress: false, types: {}, warns: warns };
@@ -27064,6 +27064,9 @@ function _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap
       genRows: blocks.length * 2,
       oneRoundOnly: oneRoundOnly
     };
+    // 本書き込み時のみ：実際の未習ブロック（word_id 配列の配列）を添付。
+    //   dryRun（wantBlocks 未指定）では添付しない＝戻り値を肥大化させない。
+    if (wantBlocks) types[t].blocksWids = blocks;
   });
 
   return {
@@ -27367,3 +27370,150 @@ function debugMigrateStudentGrade(sid, grade) {
 // 報告された 2 件をワンクリックで（GAS エディタ関数ドロップダウンから実行）。
 function debugMig20014Jun1() { return debugMigrateStudentGrade('20014', '準1級'); }
 function debugMig21001Jun1() { return debugMigrateStudentGrade('21001', '準1級'); }
+
+// =============================================================================
+// 既習移行【本書き込み】runEitangoMigrationLIVE（2026-06-03、VocabOrder のみ書込）
+// =============================================================================
+// dryRun で検証済みの既習移行を、実際に VocabOrder シートへ書き込む。
+// スコープ [A]：全在籍生徒（Students）× 全6級 × {word,idiom} を生成。
+//   - 進捗のある級：既習(done)は除外、未習(1周のみ＋未着手)を新ブロックに再構成。
+//   - 未到達の級：全語が未習 → フルブロック生成。
+// 既習判定は dryRun と同一の確定ロジック（_migrateOneStudentGrade）を流用。
+//
+// ★冪等性：VocabOrder の subject='eitango' 行を全削除してから書き直す。
+//   （全 eitango スコープを再生成するので「同一キー削除→追記」と等価。kobun 等の
+//     非 eitango 行は保全。再実行しても重複行は増えない。）
+//
+// ★誤実行防止：
+//   - runEitangoMigrationLIVE()             … 引数なし＝プレビュー（書き込みゼロ）
+//   - runEitangoMigrationLIVE({confirm:true}) … 実際に書き込む
+//   - runEitangoMigrationLIVE_CONFIRM()      … 上の confirm 付きラッパー（明示実行用）
+//
+// ★絶対条件：書き込むのは VocabOrder シートのみ。Students / Properties / 問題シート /
+//   出題ロジック / HP / billing-line(64b0f81) には一切書き込まない（既習判定の読み取りのみ）。
+function runEitangoMigrationLIVE(opts) {
+  try {
+    opts = opts || {};
+    const willWrite = (opts.confirm === true);
+    const subject = VOCAB_SUBJECT_EITANGO;
+
+    // --- 入力収集（各 1 回・read-only） ---
+    const stuSh = _ss().getSheetByName(SHEET_STUDENTS);
+    if (!stuSh || stuSh.getLastRow() < 2) { Logger.log('[LIVE] Students シートが空です'); return { ok: false, message: 'Students 空' }; }
+    const stuVals = stuSh.getDataRange().getValues();
+    const students = [];
+    for (let i = 1; i < stuVals.length; i++) {
+      const sid = String(stuVals[i][COL_ID] || '').trim();
+      if (sid) students.push(sid);
+    }
+    const allProps = _props().getProperties();
+    const passed = _migScanAttempts();
+    const scan = _migScanGradeData();
+    const gradeData = scan.gradeData;
+
+    // --- 全行をメモリ上で生成 ---
+    const now = _nowJST();
+    const newRows = [];
+    let aggDone = 0, aggRemaining = 0, aggOneRound = 0;
+    const sampleChecks = [];
+    let mismatchCount = 0;
+
+    students.forEach(function(sid) {
+      LEVEL_ORDER.forEach(function(grade) {
+        const clearedStr = allProps['cleared_' + sid + '_' + grade];
+        const passedSetMap = (passed[sid] && passed[sid][grade]) ? passed[sid][grade] : {};
+        const res = _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap, true); // wantBlocks
+        if (!res.ready) return;
+        ['word', 'idiom'].forEach(function(t) {
+          const rt = res.types[t];
+          if (!rt || rt.skip) return;
+          aggDone += rt.migrated_done; aggRemaining += rt.remaining; aggOneRound += (rt.oneRoundOnly || 0);
+          // 整合チェック（取りこぼしゼロ＝ done+remaining==total）
+          if (rt.migrated_done + rt.remaining !== rt.total) mismatchCount++;
+          if (sampleChecks.length < 10) {
+            sampleChecks.push(sid + '/' + grade + '/' + t + ': done=' + rt.migrated_done
+              + ' rem=' + rt.remaining + ' total=' + rt.total
+              + ((rt.migrated_done + rt.remaining === rt.total) ? ' ✓' : ' ★NG'));
+          }
+          // 未習ブロック → VocabOrder 行（round1/round2）。既習(done)は除外＝行を作らない。
+          (rt.blocksWids || []).forEach(function(blockWids, idx) {
+            const orderJson = JSON.stringify(blockWids);
+            const blockNo = idx + 1;
+            // VOCAB_ORDER_HEADERS: studentId, subject, grade, groupType, blockNo, round, questionOrder, position, done, generatedAt
+            newRows.push([sid, subject, grade, t, blockNo, 1, orderJson, 0, false, now]);
+            newRows.push([sid, subject, grade, t, blockNo, 2, orderJson, 0, false, now]);
+          });
+        });
+      });
+    });
+
+    // --- 実行前ログ ---
+    Logger.log('=====================================================');
+    Logger.log(willWrite
+      ? '★★★ これは【本書き込み】です（VocabOrder へ実際に書き込みます）★★★'
+      : '◇ プレビュー（書き込みなし）。本書き込みは runEitangoMigrationLIVE_CONFIRM() を実行 ◇');
+    Logger.log('対象生徒数 = ' + students.length + ' / 対象級 = ' + LEVEL_ORDER.join('・') + ' / subject = ' + subject);
+    Logger.log('生成行数（newRows） = ' + newRows.length);
+    Logger.log('合計 既習語=' + aggDone + ' / 未習語=' + aggRemaining + ' / うち1周のみ=' + aggOneRound);
+    Logger.log('整合チェック（done+remaining==total）NG件数 = ' + mismatchCount + (mismatchCount === 0 ? '（取りこぼしゼロ）' : '（★要調査）'));
+    Logger.log('サンプル: ' + sampleChecks.join(' | '));
+    if (scan.dataWarnings && scan.dataWarnings.length) {
+      Logger.log('データ警告 ' + scan.dataWarnings.length + ' 件（先頭5）: ' + scan.dataWarnings.slice(0, 5).join(' / '));
+    }
+
+    if (!willWrite) {
+      Logger.log('◇ プレビュー終了（VocabOrder には何も書き込んでいません） ◇');
+      Logger.log('=====================================================');
+      return { ok: true, wrote: false, preview: true, studentCount: students.length,
+               plannedRows: newRows.length, aggDone: aggDone, aggRemaining: aggRemaining, mismatchCount: mismatchCount };
+    }
+
+    if (mismatchCount > 0) {
+      Logger.log('★ 整合 NG が ' + mismatchCount + ' 件あるため、安全のため書き込みを中止しました。');
+      Logger.log('=====================================================');
+      return { ok: false, wrote: false, message: '整合NGのため中止', mismatchCount: mismatchCount };
+    }
+
+    // --- 書き込み（VocabOrder のみ・eitango 行を入れ替え・kobun 等は保全） ---
+    ensureVocabOrderSheet();
+    const sh = _ss().getSheetByName(SHEET_VOCAB_ORDER);
+    const W = VOCAB_ORDER_HEADERS.length;
+    const lastRow = sh.getLastRow();
+    const existing = (lastRow > 1) ? sh.getRange(2, 1, lastRow - 1, W).getValues() : [];
+    const kept = existing.filter(function(r) { return String(r[1]).trim() !== subject; }); // 非 eitango を保全
+    Logger.log('既存データ行=' + existing.length + ' / 保全(非eitango)=' + kept.length + ' / 削除(eitango)=' + (existing.length - kept.length));
+
+    // 既存データ行をクリア（ヘッダーは残す）
+    if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, W).clearContent();
+
+    // 保全行 + 新規行をまとめて 500 行ずつ書き込み（巨大 setValues の payload を分割）
+    const allRows = kept.concat(newRows);
+    const CH = 500;
+    for (let i = 0; i < allRows.length; i += CH) {
+      const part = allRows.slice(i, i + CH);
+      sh.getRange(2 + i, 1, part.length, W).setValues(part);
+    }
+    SpreadsheetApp.flush();
+
+    // --- 書き込み後の検証 ---
+    const afterDataRows = sh.getLastRow() - 1;
+    Logger.log('--- 書き込み完了 ---');
+    Logger.log('VocabOrder データ行数 = ' + afterDataRows + '（保全 ' + kept.length + ' + 新eitango ' + newRows.length + ' = ' + allRows.length + '）');
+    Logger.log('一致チェック: ' + (afterDataRows === allRows.length ? '✓ 一致' : '★不一致（要調査）'));
+    Logger.log('サンプル整合（done+remaining==total）: ' + sampleChecks.join(' | '));
+    Logger.log('=====================================================');
+
+    return { ok: true, wrote: true, studentCount: students.length,
+             writtenEitangoRows: newRows.length, keptRows: kept.length,
+             totalDataRows: afterDataRows, aggDone: aggDone, aggRemaining: aggRemaining, mismatchCount: mismatchCount };
+  } catch (err) {
+    console.error('[runEitangoMigrationLIVE]', err);
+    Logger.log('[LIVE] エラー: ' + err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 明示実行用ラッパー（GAS エディタ関数ドロップダウンからこれを選んで実行＝本書き込み）。
+function runEitangoMigrationLIVE_CONFIRM() {
+  return runEitangoMigrationLIVE({ confirm: true });
+}
