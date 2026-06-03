@@ -1423,6 +1423,7 @@ function doPost(e) {
     else if (action === 'adminSetAvatarItemPrice')          result = adminSetAvatarItemPrice(params);
     else if (action === 'adminSetAvatarItemPublish')        result = adminSetAvatarItemPublish(params);
     else if (action === 'adminSetCategoryDisplayMode')      result = adminSetCategoryDisplayMode(params);
+    else if (action === 'adminSetAllCategoriesDisplayMode') result = adminSetAllCategoriesDisplayMode(params);
     // HP 交換 Phase 4（2026-06-01）：Amazon ギフト申請（副作用ありのため POST 強制）。
     //   submitAmazonGiftRequest        : 生徒の申請（HP_SPENT 加算 + Exchanges 申請中行 + 福地LINE通知）
     //   adminCompleteAmazonGiftRequest : admin が「申請中」→「完了」に更新（対応日時記録）
@@ -20801,6 +20802,44 @@ function adminSetCategoryDisplayMode(params) {
     return { ok: true, categoryKey: categoryKey, mode: mode, modes: modes };
   } catch (err) {
     console.error('[adminSetCategoryDisplayMode]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面：全カテゴリの表示モードを一括設定（admin-only、doPost）。A案（予告一斉プレビュー）用。
+//   AvatarItems の category_key をユニーク収集し、全キーを mode（'item'|'category'）で
+//   avatar_category_display_modes に書く（adminSetCategoryDisplayMode と同じ保存先・キー体系）。
+//   'item' = 全カテゴリで個別アイテム（予告含む）をグレーアウト表示 / 'category' = カテゴリ名のみに戻す。
+function adminSetAllCategoriesDisplayMode(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この機能は管理者（admin）のみ利用できます' };
+
+    const mode = String((params && params.mode) || '').trim();
+    if (mode !== 'item' && mode !== 'category') {
+      return { ok: false, message: '表示モードは「item」または「category」のみ指定できます' };
+    }
+
+    // AvatarItems の category_key をユニーク収集（空は除外、シート出現順を維持）。
+    const catalog = _readAvatarItemsCatalog();
+    const keys = [];
+    const seen = {};
+    catalog.forEach(function(it){
+      const key = String(it.categoryKey || '').trim();
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      keys.push(key);
+    });
+    if (keys.length === 0) return { ok: false, message: 'カテゴリがありません（AvatarItems に category_key が見当たりません）' };
+
+    const modes = _getAvatarCategoryDisplayModes();  // 既存 JSON を読み（パース不能なら {}）
+    keys.forEach(function(key){ modes[key] = mode; });
+    PropertiesService.getScriptProperties()
+      .setProperty('avatar_category_display_modes', JSON.stringify(modes));
+    return { ok: true, mode: mode, updatedCount: keys.length, categoryKeys: keys, modes: modes };
+  } catch (err) {
+    console.error('[adminSetAllCategoriesDisplayMode]', err);
     return { ok: false, message: String(err) };
   }
 }

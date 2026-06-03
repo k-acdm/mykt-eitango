@@ -2939,10 +2939,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260604-0415"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260604-0532"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260604-0415">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260604-0415"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260604-0532">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260604-0532"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6800,7 +6800,9 @@
             _avatarShopItemCache[it.itemId] = it;
             var soon = !it.purchasable && !it.owned;
             html += '<div class="avatar-item-card' + (soon ? ' soon' : '') + '">';
-            if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="">';
+            // 予告アイテム等で image_path のファイル未アップロード時にリンク切れにならないよう、
+            // 読み込み失敗時は空 image_path と同じ 🎁 プレースホルダに差し替える（onerror=null で無限ループ防止）。
+            if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;avatar-item-thumb-ph&quot;>🎁</div>\'">';
             else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
             if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
             html += '<div class="avatar-item-name">' + _avEsc(it.name) + '</div>';
@@ -15106,7 +15108,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260604-0415</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260604-0532</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

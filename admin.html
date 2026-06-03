@@ -2604,6 +2604,8 @@
     </div>
     <div class="admin-mgmt-toolbar">
       <button type="button" class="submit-btn" onclick="loadAvatarItemsManagement()">🔄 最新データ取得</button>
+      <button type="button" class="submit-btn" style="background:linear-gradient(135deg,#7c3aed,#5b21b6)" onclick="onAvatarSetAllMode('item')">🛍️ 全カテゴリ品目表示にする</button>
+      <button type="button" class="submit-btn" style="background:linear-gradient(135deg,#636e72,#2d3436)" onclick="onAvatarSetAllMode('category')">🔙 全カテゴリ カテゴリ表示に戻す</button>
       <span id="avatar-items-msg" class="admin-mgmt-msg"></span>
     </div>
     <div class="admin-mgmt-wrap">
@@ -5063,6 +5065,36 @@
     btn.setAttribute('data-mode', mode);
     var label = isItem ? '品目表示' : 'カテゴリ表示';
     btn.innerHTML = busy ? (_esc(label) + ' <span class="spin"></span>') : _esc(label);
+  }
+
+  // 全カテゴリの表示モードを一括設定（A案：予告一斉プレビュー）。
+  var _avatarSetAllInFlight = false;
+  function onAvatarSetAllMode(mode) {
+    if (_avatarSetAllInFlight) return;
+    if (mode !== 'item' && mode !== 'category') return;
+    var label = (mode === 'item') ? '全カテゴリを「品目表示」' : '全カテゴリを「カテゴリ表示」';
+    var note  = (mode === 'item')
+      ? '\n（予告アイテムも含めて生徒のショップに一斉プレビュー表示されます）'
+      : '\n（個別アイテムは隠れ、カテゴリ名のみの表示に戻ります）';
+    if (!confirm(label + 'に切り替えますか？' + note)) return;
+    _avatarSetAllInFlight = true;
+    _showAvatarItemsMsg('一括切替中…', '');
+    adminGasPost({ action: 'adminSetAllCategoriesDisplayMode', mode: mode }).then(function(res) {
+      _avatarSetAllInFlight = false;
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '保存に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        _showAvatarItemsMsg('保存失敗：' + em, 'ng');
+        showToast('保存失敗：' + em, 'error');
+        return;
+      }
+      _showAvatarItemsMsg('全 ' + (res.updatedCount || 0) + ' カテゴリを「' + (mode === 'item' ? '品目表示' : 'カテゴリ表示') + '」にしました', 'ok');
+      loadAvatarItemsManagement();  // 各カテゴリの displayMode を再取得して見出しトグルへ反映
+    }).catch(function() {
+      _avatarSetAllInFlight = false;
+      _showAvatarItemsMsg('通信エラー', 'ng');
+      showToast('通信エラー', 'error');
+    });
   }
 
   function _showAvatarItemsMsg(text, kind) {
