@@ -5573,6 +5573,23 @@ function getKisoTodayRawHP(params) {
 // 復活時のために残置）。
 const KISO_OCR_CONFIDENCE_THRESHOLD = 0.6;
 
+// rank 番号 → rankName マップ（scripts/generate_kiso_questions/common/db_writer.py の RANK_NAMES と一致）。
+//   KisoSessions シートには rank（1〜20）はあるが rankName 列が無いため、OCR の単元別分岐用に
+//   ここで番号→名前を引く。KisoQuestions シートの rankName 列と同じ文字列。
+const KISO_RANK_NAMES = {
+  1: '二次方程式', 2: '平方根', 3: '因数分解', 4: '乗法公式', 5: '式の計算・中3',
+  6: '連立方程式', 7: '式の計算・中2', 8: '一次方程式・比例式', 9: '式の計算・中1',
+  10: '単位・比・割合', 11: '正負の数 四則混合', 12: '正負の数 乗除', 13: '正負の数 加減',
+  14: '分数四則混合', 15: '分数乗除', 16: '分数加減', 17: '小数四則混合',
+  18: '小数乗除', 19: '小数加減', 20: '整数四則混合'
+};
+// rank（番号 or 数値文字列）→ rankName。不明な rank は '' を返す（呼び出し側は安全側に倒す）。
+function _kisoRankNameForRank(rank) {
+  const n = Number(rank);
+  if (!isFinite(n)) return '';
+  return KISO_RANK_NAMES[n] || '';
+}
+
 // Gemini Vision で答案写真の OCR + 番号別答え抽出を一括実行。
 // - 戻り値（成功）: { ok:true, ocrText:'<JSON 文字列>', answersMap:{"1":"1/4",...}, attempts: 1|2 }
 // - 戻り値（失敗）: { ok:false, message:'...', retake?:true }
@@ -5589,25 +5606,45 @@ const KISO_OCR_CONFIDENCE_THRESHOLD = 0.6;
 //   - リトライ非対象：HTTP 4xx（401/403/404 等の永続エラー） / promptFeedback ブロック /
 //     SAFETY finishReason / 答えの JSON 解析失敗
 //   - リトライ成功時は console.log で初回エラー内容を記録（運用観察用）
-function _kisoOcrWithGemini(imageBase64, numQuestions) {
+//
+// 2026-06-03 修正（単元別ルール化）：
+//   「展開された多項式（x^2+x-6 等）は問題側なので答えにしない」という多項式除外ルールは、
+//   元々 2026-06-01 に因数分解の誤判定対策として【全単元共通】で入れたが、乗法公式（式の展開）
+//   など「答えが多項式そのもの」になる単元では正答（例 x^2-3x-4）を捨ててしまう副作用があった。
+//   そこで多項式除外ルールは【因数分解の単元のときだけ】プロンプトに含めるよう是正。
+//   判定は rankName（呼び出し元から渡す。'因数分解' を含むか）。rankName 不明・判定不能時は
+//   安全側＝除外ルールを適用せず、書かれた答えを素直に抽出する。
+function _kisoOcrWithGemini(imageBase64, numQuestions, rankName) {
   const apiKey = _props().getProperty('GEMINI_API_KEY');
   if (!apiKey) return { ok: false, message: 'GEMINI_API_KEY が設定されていません' };
   const model = 'gemini-2.5-flash';
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
 
+  // 因数分解の単元だけ「多項式は問題側、答えは積の形」という除外ルールを付ける。
+  // rank 3（因数分解）のみ該当。rank 1（二次方程式）等は「因数分解で解く」が答えは x=… の解なので非該当。
+  const isFactorization = String(rankName || '').indexOf('因数分解') >= 0;
+  const factorizationBlock = isFactorization ? (
+    '\n' +
+    '【この単元（因数分解）だけの特別ルール】\n' +
+    '・この単元の答えは「積の形」です（例：12(8x-y)、(x+3)(x-2)）。\n' +
+    '・展開された多項式（96x-12y、x^2+x-6 など）は因数分解する前の問題側なので、答えにしないでください。\n' +
+    '・答案が「問題式 = 答え」（例：96x-12y = 12(8x-y)）の形なら、右辺の積の形「12(8x-y)」だけを答えにしてください。左辺の展開された問題式は答えにしないでください。\n'
+  ) : '';
+
   const prompt =
     'これは数学の解答用紙の写真です。番号（①②③④⑤⑥⑦⑧⑨⑩）の後に書かれた、生徒が導いた「最終的な答え」を抽出してください。\n' +
     '\n' +
-    '【最重要：何を「答え」とするか】\n' +
+    '【最重要：何を「答え」とするか（全単元共通）】\n' +
     '・生徒が書くのは「答えのみ」が原則です。\n' +
-    '・ただし、答案に「問題式 = 答え」の形（左辺に問題式、右辺に答え）で書かれていたり、問題式が紙に写り込んでいる場合があります。その場合は、生徒が導いた【最終的な答え】だけを抽出してください。問題式（因数分解する前の展開された式、計算前の式、途中式）は答えとして採用しないでください。\n' +
-    '  例：答案に「96x-12y = 12(8x-y)」とあれば、答えは "12(8x-y)" です。左辺の「96x-12y」（＝問題式）は答えにしないでください。\n' +
-    '  例：因数分解の答えは積の形（例：12(8x-y)、(x+3)(x-2)）です。展開された多項式（96x-12y、x^2+x-6 など）は問題側なので答えにしないでください。\n' +
-    '・ただし、答えそのものが等式・複数解の場合は、その全体が答えなので、そのまま抽出してください：\n' +
-    '  ・一次方程式 / 比例式：x=5 （等式のまま）\n' +
+    '・答案に問題式・途中式・計算前の式が写り込んでいることがあります。それらは答えにせず、生徒が最後に導いた【最終的な答え】だけを抽出してください。\n' +
+    '・「問題式 = 答え」の形（例：3+4 = 7）で書かれている場合は、= の右側の最終的な答え（この例では 7）を取ってください。\n' +
+    '・【ただし最優先】答えそのものが等式・複数解になる単元では、その等式全体が答えです。= で左右に分割せず、そのまま全体を抽出してください：\n' +
+    '  ・一次方程式 / 比例式：x=5 （「5」ではなく「x=5」のまま）\n' +
     '  ・連立方程式：x=5, y=-2 （両方とも。文字列のまま「x=5, y=-2」）\n' +
     '  ・二次方程式：x=2, x=-3 のような複数解（全部）\n' +
+    '・答えが多項式（例：x^2-3x-4、x^2+5x+6）になる単元（式の展開・乗法公式など）では、その多項式が最終的な答えです。多項式だからといって問題側と決めつけず、書かれた多項式をそのまま抽出してください。\n' +
     '・判断に迷う場合や読み取れない場合は、勝手に補正・推測せず、空文字 "" にしてください。\n' +
+    factorizationBlock +
     '\n' +
     '【書式ルール】\n' +
     '・分数は「分子/分母」の形式（例：3/4）。横線分数も縦書き分数も同じ形式に統一。\n' +
@@ -5626,8 +5663,11 @@ function _kisoOcrWithGemini(imageBase64, numQuestions) {
     '\n' +
     '【出力例】\n' +
     '・通常：{"1": "1/4", "2": "1", "3": "17/30", "4": "2√5", "5": ""}\n' +
-    '・「問題式 = 答え」で書かれている場合：答案「96x-12y = 12(8x-y)」→ {"1": "12(8x-y)"}（左辺の問題式は答えにしない）\n' +
-    '・連立方程式：{"1": "x=5, y=-2"}（等式・複数解はそのまま）';
+    '・多項式が答え（式の展開・乗法公式など）：{"1": "x^2-3x-4"}（多項式をそのまま答えにする）\n' +
+    '・連立方程式：{"1": "x=5, y=-2"}（等式・複数解はそのまま）' +
+    (isFactorization
+      ? '\n・因数分解で「問題式 = 答え」と書かれている場合：答案「96x-12y = 12(8x-y)」→ {"1": "12(8x-y)"}（左辺の展開式は答えにしない）'
+      : '');
 
   const body = {
     contents: [{
@@ -7034,6 +7074,10 @@ function ocrKisoAnswer(sessionId, imageBase64) {
     const cStatus   = header.indexOf('status');
     const cAttempts = header.indexOf('attempts');
     const cWrong    = header.indexOf('wrongIds');
+    const cRank     = header.indexOf('rank');
+
+    // 2026-06-03：OCR の単元別ルール（因数分解のみ多項式除外）に渡す rankName を引く。
+    const rankName = _kisoRankNameForRank(cRank >= 0 ? row[cRank] : '');
 
     const status = String(row[cStatus] || '');
     if (status === 'passed') {
@@ -7059,7 +7103,7 @@ function ocrKisoAnswer(sessionId, imageBase64) {
       targetIds = (Array.isArray(prevWrong) && prevWrong.length > 0) ? prevWrong : allQids.slice();
     }
 
-    const geminiRes = _kisoOcrWithGemini(imageBase64, targetIds.length);
+    const geminiRes = _kisoOcrWithGemini(imageBase64, targetIds.length, rankName);
     if (!geminiRes.ok) return geminiRes;   // {ok:false, message, retake?} をそのまま返却
     const answersMap = geminiRes.answersMap || {};
 
@@ -7179,7 +7223,9 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto, studentAnswersJs
       // Gemini Vision で OCR + 番号別に答えを抽出
       // 旧 Vision API は分数の縦書き・手書き認識精度が低く、本番運用で誤判定が頻発したため
       // Gemini API（multimodal）に切替。Gemini は番号 → 答え の対応付けまで一括で行う。
-      const geminiRes = _kisoOcrWithGemini(imageBase64, targetIds.length);
+      // 2026-06-03：OCR の単元別ルール（因数分解のみ多項式除外）に rankName を渡す。
+      const rankName = _kisoRankNameForRank(rank);
+      const geminiRes = _kisoOcrWithGemini(imageBase64, targetIds.length, rankName);
       if (!geminiRes.ok) return geminiRes;   // {ok:false, message, retake?} をそのまま返却
       ocrText = geminiRes.ocrText;     // Gemini の生 JSON 応答（管理画面ログ用にプレビューする）
       const answersMap = geminiRes.answersMap;  // {"1":"1/4", "2":"1", ...}
