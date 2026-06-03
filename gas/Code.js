@@ -143,6 +143,29 @@ function _yesterdayEducationalJST() {
   return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
 }
 
+// 任意のタイムスタンプ（Date / 文字列 / 数値）を教育日（JST 04:00 区切り）の 'yyyy-MM-dd' に変換する。
+//   _todayEducationalJST が「now」専用なのに対し、こちらは過去の resolvedAt 等を教育日へ写す任意時刻版。
+//   JST 0:00〜3:59 は前日の教育日に属する（24h 前の JST 日付を返す）。
+//   ※ 用途は HpReservePool の resolvedAt（reflection_pending 解放分）の日付判定。これらは
+//     すべて教育日切替（2026-04-27）後に生成されるため、cutover 前互換分岐は不要。
+//   ※ _normalizePoolDate（標準 0 時切替）と異なり、0:00〜3:59 の解放を前日教育日に正しく寄せる。
+function _educationalDayFromTs(ts) {
+  if (ts == null || ts === '') return '';
+  let d;
+  try {
+    d = (ts instanceof Date) ? new Date(ts.getTime()) : new Date(ts);
+  } catch (e) {
+    return '';
+  }
+  if (isNaN(d.getTime())) return '';
+  const jstHour = parseInt(Utilities.formatDate(d, 'Asia/Tokyo', 'H'), 10);
+  if (jstHour < 4) {
+    const prev = new Date(d.getTime() - 86400000);
+    return Utilities.formatDate(prev, 'Asia/Tokyo', 'yyyy-MM-dd');
+  }
+  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+
 function _toDateStr(val) {
   if (!val) return '';
   try {
@@ -11110,22 +11133,19 @@ function _todayHpBreakdownForSid(sid) {
           const poolValues = poolSh.getDataRange().getValues();
           const poolHeader = poolValues[0];
           const iReason = poolHeader.indexOf('reserveReason');
-          const todayStr0 = _sangoToday();
+          // 2026-06-03 修正：当日判定を教育日基準（JST 4:00 切替）に統一（旧 _sangoToday の 3 時切替を是正）。
+          const todayStr0 = _todayEducationalJST();
           for (let pi = 1; pi < poolValues.length; pi++) {
             const pr = poolValues[pi];
             if (String(pr[0] || '').trim() !== sidNorm) continue;
             if (String(pr[5] || '').trim().toUpperCase() !== 'TRUE') continue;  // 未解放はスキップ
             if (iReason >= 0 && String(pr[iReason] || '').trim() !== 'reflection_pending') continue;
-            // resolvedAt 列（r[6]）が当日かチェック。Date 型 / 文字列のどちらでも安全に処理。
+            // resolvedAt 列（r[6]）が当日（教育日基準）かチェック。Date 型 / 文字列のどちらでも安全に処理。
+            // 旧実装は getHours()-3（3 時切替）だったため 3:00〜3:59 の解放分が教育日とずれていた。
             const rAt = pr[6];
             if (!rAt) continue;
-            let rAtStr;
-            try {
-              const d = new Date(rAt);
-              d.setHours(d.getHours() - 3);
-              rAtStr = Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
-            } catch (_eAt) { continue; }
-            if (rAtStr !== todayStr0) continue;
+            const rAtStr = _educationalDayFromTs(rAt);
+            if (!rAtStr || rAtStr !== todayStr0) continue;
             const contentKey = _normalizeHpReservePoolTypeForContent(pr[2]);
             const reservedHp = Number(pr[4]) || 0;
             if (contentKey && reservedHp > 0) {
@@ -22693,7 +22713,10 @@ function _lineNotifyReleasedReflectionByContent(sid, dateStr) {
       if (String(r[0] || '').trim() !== sidNorm) continue;
       if (iResolved >= 0 && String(r[iResolved] || '').trim().toUpperCase() !== 'TRUE') continue;
       if (iReason >= 0 && String(r[iReason] || '').trim() !== 'reflection_pending') continue;
-      var resolvedDs = (iResolvedAt >= 0) ? _normalizePoolDate(r[iResolvedAt]) : '';
+      // 2026-06-03 修正：解放日判定を教育日基準（JST 4:00 切替）に統一。
+      // 旧 _normalizePoolDate は標準 0 時切替のため、0:00〜3:59 に提出→解放された分（例: 川島桃子 0:00 提出）が
+      // 教育日「昨日」の集計とずれて拾えず、コンテンツ別 0HP 表示になっていた。
+      var resolvedDs = (iResolvedAt >= 0) ? _educationalDayFromTs(r[iResolvedAt]) : '';
       if (resolvedDs !== ds) continue;
       var key = _normalizeHpReservePoolTypeForContent(r[2]);
       if (!key) continue;
@@ -22705,6 +22728,115 @@ function _lineNotifyReleasedReflectionByContent(sid, dateStr) {
     console.error('[_lineNotifyReleasedReflectionByContent]', e);
   }
   return out;
+}
+
+// ============================================================================
+// 2026-06-03 読み取り専用診断：reflection_pending 解放分の日付ズレ調査（書き込みゼロ）
+//   GAS エディタから手動実行。引数は sid または ニックネーム/氏名（部分一致）。
+//   例: diagnoseReflectionReleaseDate('川島桃子')  /  diagnoseReflectionReleaseDate('24040')
+//   確認できること：
+//     ① HpReservePool の reflection_pending 解放行（resolved=TRUE）の reservedHp 合計
+//     ② resolvedAt の実値 / _normalizePoolDate（旧 0 時）/ _educationalDayFromTs（新 4 時）の差
+//     ③ HPLog の reflection_release 付与額（= 解放分が生涯 HP へ加算された痕跡）合計
+//     ④ Students.HP（生涯 HP）の現在値
+//   ※ Students.HP 等への書き込みは一切しない。
+// ============================================================================
+function diagnoseReflectionReleaseDate(sidOrName) {
+  const q = String(sidOrName || '').trim();
+  if (!q) { Logger.log('[diagnose] 引数に sid またはニックネーム/氏名を渡してください'); return { ok: false, message: '引数が空です' }; }
+
+  // 1) アカウント解決：まず sid 直引き、ダメなら Students/SpecialAccounts を氏名/ニックネーム部分一致で探す
+  let loc = _findAccountRowOnSheet(q);
+  let sid = q;
+  if (!loc) {
+    const sheets = [SHEET_STUDENTS, SHEET_SPECIAL_ACCOUNTS];
+    for (let s = 0; s < sheets.length && !loc; s++) {
+      const sh = _ss().getSheetByName(sheets[s]);
+      if (!sh || sh.getLastRow() < 2) continue;
+      const vals = sh.getDataRange().getValues();
+      for (let i = 1; i < vals.length; i++) {
+        const nm = String(vals[i][COL_NAME] || '').trim();
+        const nk = String(vals[i][COL_NICKNAME] || '').trim();
+        if ((nm && nm.indexOf(q) >= 0) || (nk && nk.indexOf(q) >= 0)) {
+          sid = String(vals[i][COL_ID] || '').trim();
+          loc = _findAccountRowOnSheet(sid);
+          break;
+        }
+      }
+    }
+  }
+  if (!loc) { Logger.log('[diagnose] 該当生徒が見つかりません: ' + q); return { ok: false, message: '生徒が見つかりません: ' + q }; }
+
+  const name       = String(loc.rowValues[COL_NAME] || '').trim();
+  const nickname   = String(loc.rowValues[COL_NICKNAME] || '').trim();
+  const lifetimeHp = Number(loc.rowValues[COL_HP]) || 0;
+  const eduToday   = _todayEducationalJST();
+  const eduYest    = _yesterdayEducationalJST();
+
+  // 2) HpReservePool の reflection_pending 解放行を走査（読み取りのみ）
+  const poolRows = [];
+  let releasedSum = 0;
+  const sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+  if (sh && sh.getLastRow() >= 2) {
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iReason     = header.indexOf('reserveReason');
+    const iResolved   = header.indexOf('resolved');
+    const iResolvedAt = header.indexOf('resolvedAt');
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (String(r[0] || '').trim() !== sid) continue;
+      const reason   = iReason >= 0 ? String(r[iReason] || '').trim() : '';
+      const resolved = iResolved >= 0 ? String(r[iResolved] || '').trim().toUpperCase() : '';
+      if (reason !== 'reflection_pending') continue;
+      const reservedHp = Number(r[4]) || 0;
+      const rAtRaw     = iResolvedAt >= 0 ? r[iResolvedAt] : '';
+      const rec = {
+        rowDate:        _normalizePoolDate(r[1]),
+        type:           String(r[2] || ''),
+        reservedHp:     reservedHp,
+        resolved:       resolved,
+        resolvedAtRaw:  rAtRaw instanceof Date ? Utilities.formatDate(rAtRaw, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : String(rAtRaw || ''),
+        oldNormalize:   _normalizePoolDate(rAtRaw),     // 旧（0 時切替）
+        newEduDay:      _educationalDayFromTs(rAtRaw)    // 新（4 時切替）
+      };
+      poolRows.push(rec);
+      if (resolved === 'TRUE') releasedSum += reservedHp;
+    }
+  }
+
+  // 3) HPLog の reflection_release 付与痕跡（= 生涯 HP へ加算された証拠）を走査
+  let reflectionReleaseLogSum = 0;
+  const logRows = [];
+  const lsh = _ss().getSheetByName(SHEET_HPLOG);
+  if (lsh) {
+    const rows = _readLastNRows(lsh, 5000);
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (String(r[1] || '').trim() !== sid) continue;
+      if (String(r[4] || '').trim() !== 'reflection_release') continue;
+      const hp = Number(r[3]) || 0;
+      reflectionReleaseLogSum += hp;
+      logRows.push({
+        ts:       r[0] instanceof Date ? Utilities.formatDate(r[0], 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : String(r[0] || ''),
+        eduDay:   _educationalDayFromTs(r[0]),
+        hpGained: hp
+      });
+    }
+  }
+
+  const result = {
+    ok: true,
+    sid: sid, name: name, nickname: nickname,
+    lifetimeHp: lifetimeHp,
+    eduToday: eduToday, eduYesterday: eduYest,
+    pool_reflectionPending_resolvedSum: releasedSum,
+    hpLog_reflectionRelease_sum: reflectionReleaseLogSum,
+    poolRows: poolRows,
+    reflectionReleaseLogRows: logRows
+  };
+  Logger.log('[diagnoseReflectionReleaseDate] ' + JSON.stringify(result, null, 2));
+  return result;
 }
 
 // 生徒 sid の dateStr における絶対ミッション達成状況を返す。
