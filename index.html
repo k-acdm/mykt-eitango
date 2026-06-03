@@ -2939,10 +2939,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260602-0520"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260604-0415"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260602-0520">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260602-0520"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260604-0415">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260604-0415"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10527,7 +10527,7 @@
       var ok = !!r.correct;
       var mark = ok ? '⭕' : '❌';
       var stu = r.studentAnswer != null && String(r.studentAnswer).trim() !== ''
-        ? _kisoEsc(r.studentAnswer)
+        ? _kisoSup(r.studentAnswer)
         : '<span style="color:#94a3b8">（読み取れず）</span>';
       var problemTex   = '\\(' + String(r.problemLatex || '') + '\\)';
       var canonicalTex = r.answerCanonical
@@ -10698,6 +10698,14 @@
     return String(s == null ? '' : s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  // 表示専用（基礎計算限定）：採点・内部データ・サーバ送信文字列は「x^2」のまま保持し、
+  // 画面に描画するときだけ「^」直後の連続数字を上付き(<sup>)に変換する。
+  // 例: 'x^2-3x-4' → 'x<sup>2</sup>-3x-4'、'-12a^3b' → '-12a<sup>3</sup>b'、'^10' も可。
+  // 必ず _kisoEsc でエスケープした後に置換する（^ は HTML 特殊文字でないため XSS 安全）。
+  function _kisoSup(s) {
+    return _kisoEsc(s).replace(/\^(\d+)/g, '<sup>$1</sup>');
   }
 
   // MathJax v3 動的レンダリング
@@ -11017,7 +11025,7 @@
         var display = empty ? '（読み取れませんでした）' : text;
         html += '<div class="wabun1-parsed-item">' +
                   '<span class="wabun1-parsed-no">' + no + '.</span>' +
-                  '<span class="wabun1-parsed-text' + cls + '">' + _kisoEsc(display) + '</span>' +
+                  '<span class="wabun1-parsed-text' + cls + '">' + _kisoSup(display) + '</span>' +
                 '</div>';
       }
       listEl.innerHTML = html || '<div class="wabun1-parsed-help">（読み取り結果がありません）</div>';
@@ -11198,7 +11206,7 @@
     listEl.innerHTML = results.map(function(r){
       var mark = r.correct ? '⭕' : '❌';
       var cls  = r.correct ? 'ok' : 'ng';
-      var stu  = r.studentAnswer ? '<div class="kiso-result-student"><span class="lab">きみの答え：</span>' + _kisoEsc(r.studentAnswer) + '</div>' : '<div class="kiso-result-student"><span class="lab">きみの答え：</span>（読み取れず）</div>';
+      var stu  = r.studentAnswer ? '<div class="kiso-result-student"><span class="lab">きみの答え：</span>' + _kisoSup(r.studentAnswer) + '</div>' : '<div class="kiso-result-student"><span class="lab">きみの答え：</span>（読み取れず）</div>';
       return '<div class="kiso-result-item ' + cls + '">'
            + '<span class="kiso-result-mark">' + mark + '</span>'
            + '<div class="kiso-result-body">'
@@ -15098,7 +15106,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260602-0520</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260604-0415</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
