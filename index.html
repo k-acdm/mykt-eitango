@@ -1071,6 +1071,24 @@
     .voice-btn .voice-check { margin-left: auto; font-size: 18px; display: none; }
     .voice-btn.selected .voice-check { display: block; }
     .voice-sample { font-size: 12px; color: #888; margin-top: 2px; }
+    /* ===== 効果音オン/オフ トグル（2026-06-05）。学習音声は対象外、効果音(playSfx)のみ ===== */
+    .sfx-setting-desc { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 14px; }
+    .sfx-setting-desc .sfx-note { color: #c0392b; font-weight: bold; }
+    .sfx-toggle { width: 100%; display: flex; align-items: center; gap: 14px; padding: 16px 18px; border: 3px solid #ccc; border-radius: 14px; background: #f4f5f7; cursor: pointer; transition: all .18s; }
+    .sfx-toggle .sfx-toggle-label { font-size: 20px; font-weight: bold; flex: 1; text-align: left; }
+    /* スイッチ風つまみ：トラックの中をノブが左右に動く */
+    .sfx-toggle .sfx-toggle-switch { position: relative; width: 64px; height: 34px; border-radius: 999px; background: #b0b6bd; flex: none; transition: background .18s; }
+    .sfx-toggle .sfx-toggle-knob { position: absolute; top: 3px; left: 3px; width: 28px; height: 28px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); transition: left .18s; }
+    /* ON 状態：緑系 */
+    .sfx-toggle.on { border-color: #27ae60; background: #e8f8ee; }
+    .sfx-toggle.on .sfx-toggle-label { color: #1e8449; }
+    .sfx-toggle.on .sfx-toggle-switch { background: #2ecc71; }
+    .sfx-toggle.on .sfx-toggle-knob { left: 33px; }
+    /* OFF 状態：グレー系 */
+    .sfx-toggle.off { border-color: #aeb4ba; background: #eceef0; }
+    .sfx-toggle.off .sfx-toggle-label { color: #707b86; }
+    .sfx-toggle.off .sfx-toggle-switch { background: #b0b6bd; }
+    .sfx-toggle.off .sfx-toggle-knob { left: 3px; }
     /* ===== ログイン画面のヒーロー背景 ===== */
     .login-body { background: linear-gradient(160deg, #ffd86b 0%, #ff9f7a 40%, #ff6ea0 75%, #b24bf3 100%); min-height: 100vh; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     .login-body .flex-fill { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 16px 16px; position: relative; z-index: 2; }
@@ -2939,10 +2957,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260604-0532"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-0521"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260604-0532">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260604-0532"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-0521">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-0521"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3745,6 +3763,14 @@
         </button>
       </div>
       <button class="btn-wide" style="margin-top:14px;background:linear-gradient(135deg,#2ecc71,#27ae60)" onclick="testVoice()">🔊 選択中の音声を試聴する</button>
+    </div>
+    <div class="setting-card">
+      <h3>🔔 効果音</h3>
+      <p class="sfx-setting-desc">クイズの正解・不正解の音や、HPをもらうときの音を、鳴らす/鳴らさないを切り替えられるよ。<br><span class="sfx-note">※英語や国語の読み上げの声は、この設定では消えません。</span></p>
+      <button type="button" id="sfx-toggle-btn" class="sfx-toggle on" onclick="toggleSfx()" aria-pressed="true">
+        <span class="sfx-toggle-label" id="sfx-toggle-label">🔔 効果音：オン</span>
+        <span class="sfx-toggle-switch"><span class="sfx-toggle-knob"></span></span>
+      </button>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:4px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
@@ -5306,7 +5332,12 @@
   ['pointerdown','touchstart','click','keydown'].forEach(function(ev){
     document.addEventListener(ev, _unlockSfx, { once: true, passive: true, capture: true });
   });
+  // 効果音オン/オフ（2026-06-05）。学習音声(doSpeak / 国語<audio>)は対象外、効果音のみ。
+  // 既定ON：未設定や 'off' 以外はすべて鳴らす。maika_voice と同じ localStorage 方式。
+  var _sfxEnabled = true;
+  try { _sfxEnabled = (localStorage.getItem('maika_sfx_enabled') !== 'off'); } catch(e) {}
   function playSfx(name) {
+    if (!_sfxEnabled) return;  // 効果音オフ時は何もしない（学習音声には影響しない）
     var a = SFX[name]; if (!a) return;
     try {
       a.pause(); a.currentTime = 0;
@@ -5942,6 +5973,24 @@
     doSpeak('Hello! This is a test. Nice to meet you.', null, null);
   }
 
+  // 効果音トグル（2026-06-05）：現在の _sfxEnabled を設定画面のボタンに反映する。
+  function _renderSfxToggle() {
+    var btn = document.getElementById('sfx-toggle-btn');
+    var lbl = document.getElementById('sfx-toggle-label');
+    if (!btn) return;
+    btn.classList.toggle('on',  _sfxEnabled);
+    btn.classList.toggle('off', !_sfxEnabled);
+    btn.setAttribute('aria-pressed', _sfxEnabled ? 'true' : 'false');
+    if (lbl) lbl.textContent = _sfxEnabled ? '🔔 効果音：オン' : '🔕 効果音：オフ';
+  }
+
+  // 効果音オン/オフを切り替え、localStorage に保存して表示を即更新する。
+  function toggleSfx() {
+    _sfxEnabled = !_sfxEnabled;
+    try { localStorage.setItem('maika_sfx_enabled', _sfxEnabled ? 'on' : 'off'); } catch(e) {}
+    _renderSfxToggle();
+  }
+
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
     document.getElementById(id).classList.add('active');
@@ -5956,6 +6005,7 @@
         var b = document.getElementById('voice-btn-' + i);
         if (b) b.classList.toggle('selected', i === _voiceIdx);
       }
+      _renderSfxToggle();  // 効果音トグルの現在状態を反映
     }
   }
   // showScreen は音声システム内で定義済み
@@ -15108,7 +15158,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260604-0532</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-0521</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
