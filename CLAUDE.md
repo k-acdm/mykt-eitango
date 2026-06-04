@@ -8,7 +8,7 @@
 
 - フロント: 単一ファイル `index.html`（GitHub Pages で配信）
 - バック: Google Apps Script + Google Spreadsheet
-- GAS_URL: `https://script.google.com/macros/s/AKfycbzmXyF4NVaJ3ji3L2uYA_tYC7Ptg1u62B1oxTOTl14Guk5vJEArHit17lLL-1QaP39UFA/exec`
+- GAS_URL: `https://script.google.com/macros/s/AKfycbyuf6o6RD_FLv4xwNlnYlaoxNmVGNATB5HyAV3rixQU6aSoiW8kP0uNEkf-7Pa2nOY6GQ/exec`
 - リポジトリ内にある画像資産: `logo.png` / `character.jpg` / `eiken5_sample.jpg`（相対パス参照）
 - GASコードは `gas/Code.js` にある（claspで管理）。修正後は `gas/` フォルダで `clasp push` を実行してGAS側に同期する
 
