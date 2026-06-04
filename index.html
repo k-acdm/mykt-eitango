@@ -2132,9 +2132,9 @@
     .sub-action-row.single { grid-template-columns: 1fr; }
     .sub-action-btn { padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: bold; color: #fff; cursor: pointer; }
     .sub-action-btn.review   { background: linear-gradient(135deg,#2ecc71,#27ae60); }
-    /* 音声設定＝明るい青系 / 効果音切替＝オレンジ〜黄系（一目で別ボタンと分かる配色、2026-06-05） */
+    /* 音声設定＝明るい青系 / 効果音切替＝緑系（青と緑で一目で別ボタンと分かる配色、2026-06-05） */
     .sub-action-btn.settings { background: linear-gradient(135deg,#42a5f5,#1e88e5); }
-    .sub-action-btn.sfx-link { background: linear-gradient(135deg,#ffb74d,#fb8c00); }
+    .sub-action-btn.sfx-link { background: linear-gradient(135deg,#66bb6a,#43a047); }
     .sub-action-btn.logout   { background: linear-gradient(135deg,#e74c3c,#c0392b); }
     @media (max-width: 480px) {
       .top-card { margin: 16px; padding: 20px; }
@@ -2959,10 +2959,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-0541"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-0547"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-0541">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-0541"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-0547">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-0547"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -15160,7 +15160,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-0541</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-0547</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
