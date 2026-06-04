@@ -22723,9 +22723,10 @@ function _lineNotifyCountableType(type) {
   if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return true;
   if (t === 'reserve_release') return true;
   if (t === 'completion_bonus') return true;
-  // 一旦すべての manual_* をカウント対象とする（安全側）。
-  // ★ 将来「救済 manual_* はカウント外」にしたい場合はこの 1 行を書き換える。
-  if (t.indexOf('manual_') === 0 || t === 'manual_grant') return true;
+  // 2026-06-04（仕様④）：手動付与（manual_* / manual_grant）は学習の流れと完全に無関係なので
+  //   「やった子（worked）」判定に含めない。手動付与しか無い日は worked=false（sabotaged 扱い）。
+  //   旧実装は「安全側」で manual_* を true にしていたが、仕様④に合わせて false に是正。
+  if (t.indexOf('manual_') === 0 || t === 'manual_grant') return false;
   return false;
 }
 
@@ -22753,7 +22754,10 @@ function _lineNotifyContentNameFor(type) {
   if (t === 'manual_streak_modify') return null;
   // 2026-05-19 リライト：自動復旧で補完された login 相当レコードも取組み一覧には出さない
   if (t === 'login_recovery') return null;
-  if (t.indexOf('manual_') === 0 || t === 'manual_grant') return '手動付与';
+  // 2026-06-04（仕様④）：手動付与（manual_* / manual_grant）は学習の流れと完全に無関係。
+  //   取り組み内容・獲得HP（totalHp/grandTotal）・注意文判定のいずれにも含めないため null を返す。
+  //   （旧実装は '手動付与' を返して内訳・totalHp に合算していた → 福本さん等で注意文が出ない原因だった）
+  if (t.indexOf('manual_') === 0 || t === 'manual_grant') return null;
   return null;
 }
 
@@ -23043,7 +23047,28 @@ function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeH
   }
   var contentBlock = lines.length ? lines.join('\n') : '・（取組みなし）';
   var bonus = Number(completionBonus || 0);
+  // 【獲得HP】= コンテンツHP合計(totalHp) + 達成ボーナス(bonus)。
+  //   手動付与は _lineNotifyContentNameFor が null を返すため totalHp に含まれない（仕様④）。
   var grandTotal = Number(totalHp || 0) + bonus;
+  // ── 注意文の判定分母（noteEligibleHp）＝「振り返りゲート対象の権利HP」のみ ──
+  //   仕様③：振り返り送信がゲート。未送信なら権利HP（gate 対象コンテンツ + completion_bonus 正規ルート）は 0 になる。
+  //   ゲート外HPは判定から除外する：
+  //     ・手動付与（manual_*）… 既に totalHp から除外済（仕様④、_lineNotifyContentNameFor が null）
+  //     ・計算タイムトライアル（calctrial、applyReserveSystem:false の即時付与）… ここで差し引く（仕様③/B）
+  //   ※ 基礎計算(kiso)・カンジー等は applyReserveSystem:true でゲート対象 → 除外しない（権利HP のまま判定に含める）。
+  //   hasGatedContent：ゲート対象コンテンツ（＝計算タイムトライアル以外）を 1 つでもやったか。
+  //     これにより「計算タイムトライアルだけ実施（即時付与済）」の日に誤って注意文を出さない。
+  var calctrialHp = 0;
+  var hasGatedContent = false;
+  for (var ci = 0; ci < contents.length; ci++) {
+    var cName = contents[ci] ? contents[ci].name : '';
+    if (cName === '計算タイムトライアル') {
+      calctrialHp += Number(contents[ci].hp || 0);
+    } else if (cName) {
+      hasGatedContent = true;
+    }
+  }
+  var noteEligibleHp = grandTotal - calctrialHp;
   var msg = name + ' さんの保護者様\n'
        + '昨日のマイ活、' + name + ' さんは以下に取り組みました。\n'
        + '【取り組み内容】\n' + contentBlock + '\n';
@@ -23055,15 +23080,14 @@ function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeH
   if (bonus > 0) {
     msg += '【絶対ミッション達成ボーナス】 ' + bonus.toLocaleString() + 'HP\n';
   }
-  msg += '【獲得 HP】 ' + grandTotal.toLocaleString() + 'HP\n'
-       + '【生涯HP】 ' + Number(cumulativeHp || 0).toLocaleString() + 'HP\n';
-  // 振り返り未提出の注記：取り組み内容があるのに獲得HP0 のときだけ穏当に案内する。
-  //   両輪システムで HP は振り返り提出まで 100% 保留（hpGained=0）されるため、
-  //   「取り組みあり AND grandTotal===0」＝振り返り未提出と断定できる。
-  //   contents が空（取り組みなし）や grandTotal>0 の場合は出さない。
-  if (contents.length >= 1 && grandTotal === 0) {
+  msg += '【獲得 HP】 ' + grandTotal.toLocaleString() + 'HP\n';
+  // 振り返り未提出の注記（仕様⑤）：表示位置は【獲得HP】の直下（仕様D）。
+  //   ゲート対象コンテンツに取り組んだのに権利HP（noteEligibleHp）が 0 ＝振り返り未提出と断定できる。
+  //   noteEligibleHp は手動付与・計算タイムトライアル（ゲート外HP）を除いた値（仕様③④）。
+  if (hasGatedContent && noteEligibleHp === 0) {
     msg += '（最後の振り返りを書いて送らないとHPは獲得できません）\n';
   }
+  msg += '【生涯HP】 ' + Number(cumulativeHp || 0).toLocaleString() + 'HP\n';
   msg += '引き続き応援していきましょう。\n'
        + LINE_NOTIFY_TEMPLATE_SIG;
   return msg;
