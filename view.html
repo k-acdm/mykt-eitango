@@ -777,7 +777,9 @@
           var sets = byLevel[lv].slice().sort(function(a,b){ return a-b; });
           return '<span class="child-detail">英検' + _esc(lv) + ' セット' + sets.join('・') + ' 合格</span>';
         }).join('');
-        return CHILD_OK + detailLines;
+        var hp = Number(d.eitango.hpGained || 0);  // 振り返り解放分（2026-06-04）
+        var hpLabel = hp > 0 ? ' <span style="color:#555;font-size:13px">' + hp.toLocaleString() + 'HP獲得</span>' : '';
+        return CHILD_OK + detailLines + hpLabel;
       }
     },
     {
@@ -789,7 +791,9 @@
         var btn = d.sango.timestamp
           ? '<button type="button" class="child-view-btn" onclick="jumpToSangoSubmission(\'' + _esc(d.sango.timestamp).replace(/'/g,"\\'") + '\')">作品を見る</button>'
           : '';
-        return CHILD_OK + (lv ? ' <span style="color:#555;font-size:13px">' + lv + '</span>' : '') + ' ' + btn;
+        var hp = Number(d.sango.hpGained || 0);  // 振り返り解放分（2026-06-04）
+        var hpLabel = hp > 0 ? ' <span style="color:#555;font-size:13px">' + hp.toLocaleString() + 'HP獲得</span>' : '';
+        return CHILD_OK + (lv ? ' <span style="color:#555;font-size:13px">' + lv + '</span>' : '') + hpLabel + ' ' + btn;
       }
     },
     {

@@ -14157,8 +14157,8 @@ function getChildActivityRecent(params) {
         date: d,
         weekday: wd,
         login: false,
-        eitango: { done: false, details: [] },
-        sango:   { done: false, level: null, timestamp: null },
+        eitango: { done: false, details: [], hpGained: 0 },  // hpGained: 振り返り解放分のコンテンツ別表示用（2026-06-04）
+        sango:   { done: false, level: null, timestamp: null, hpGained: 0 },  // 同上
         wabun1:  { done: false, hpGained: 0 },
         kiso:    { done: false, hpGained: 0, rawHP: 0, sessions: [] },
         lison:   { done: false, hpGained: 0, levels: [] },
@@ -14175,6 +14175,10 @@ function getChildActivityRecent(params) {
 
     const ss = _ss();
     let hasMore = false;
+    // 2026-06-04：振り返り解放分（reflection_release / reserve_release）を日別に一時退避するバッファ。
+    //   後段で HpReservePool を参照し、解放分をコンテンツ別に振り替える（二重計上回避のため
+    //   ここでは hpAdjustments に積まない）。バケット日は既存 HPLog ループと同じ _toDateStr 基準。
+    const releaseLump = {};  // { ds: { reflection: hp, reserve: hp } }
 
     // HPLog: login / test / sango / wabun1 / kiso_* / lison のフラグ + hasMore 判定
     // 末尾 2000 行のみ読む（追記専用シートなので末尾 = 最新、約 40 日分カバー想定）
@@ -14294,9 +14298,16 @@ function getChildActivityRecent(params) {
           byDate[ds].shakai.done = true;
           byDate[ds].shakai.hpGained += hp;
         }
+        else if (type === 'reflection_release' || type === 'reserve_release') {
+          // 2026-06-04：振り返り解放分（reflection_release）/ ミッション完走解放分（reserve_release）は
+          //   日別バッファに退避し、後段で HpReservePool を参照してコンテンツ別に振り替える
+          //   （二重計上回避のため hpAdjustments には積まない）。
+          //   reflection_skip_release（特殊アカウント、下の分岐）は対象外＝従来どおり一括表示（仕様⑤）。
+          if (!releaseLump[ds]) releaseLump[ds] = { reflection: 0, reserve: 0 };
+          if (type === 'reflection_release') releaseLump[ds].reflection += hp;
+          else                               releaseLump[ds].reserve    += hp;
+        }
         else if (type === 'completion_bonus'
-              || type === 'reserve_release'
-              || type === 'reflection_release'
               || type === 'reflection_skip_release'
               || type === 'manual_grant'
               || type === 'manual_streak_modify'
@@ -14504,6 +14515,122 @@ function getChildActivityRecent(params) {
       }
       // hpAdjustments のみ（実際の学習活動なし）の日は login=true にしない
     });
+
+    // ================================================================
+    // 2026-06-04：振り返り解放分（reflection_release / reserve_release）をコンテンツ別に振り替える。
+    // ----------------------------------------------------------------
+    // 旧来は「振り返り提出によるHP解放 ○○HP」と一括（hpAdjustments）表示していたが、HpReservePool には
+    // 元コンテンツ種別（type 列）が保持されているため、解放分をコンテンツ枠 hpGained に合流させて
+    // コンテンツ別表示にする（保護者LINE / 生徒アニメ画面と同方針）。
+    //
+    // 設計（合計を厳密一致＝二重計上・欠落なし）：
+    //   - 各日の解放一括額 lump（= releaseLump[ds].reflection + .reserve）を「総額」として固定。
+    //   - HpReservePool の resolved=TRUE・reserveReason∈{reflection_pending, required_mission}・
+    //     resolvedAt が当該教育日（_educationalDayFromTs）の reservedHp（列5＝実付与額）をコンテンツ別に集計。
+    //   - lump を pool 比率で各コンテンツへ配分（端数は最後のキーで吸収し、配分合計 == lump を保証）。
+    //   - 全 11 コンテンツ（eitango/sango 含む）を表示対象とする。eitango/sango は本対応に合わせて
+    //     view.html / admin.html の該当行へ hpGained 表示を追加済（残差は通常 0）。
+    //   - 万一 pool に未対応キー / 端数が残った場合のみ残差を一括行として透明化（合計 == lump 厳密保証）。
+    //   - reflection_skip_release（特殊アカウント）は対象外（lump=0 なので本処理に入らない）＝仕様⑤維持。
+    //   - pool 内訳が取得できない日（レガシー空欄 reason / *_forfeited / 0:00〜3:59 の境界ずれ等）は
+    //     一括 lump を hpAdjustments に戻すフォールバック（従来表示、HP 欠落なし）。
+    try {
+      const KISO_DISPLAYABLE = {  // 行に hpGained 表示がある＝コンテンツ別に出せるキー
+        // 2026-06-04：eitango / sango も hpGained 表示をフロント（view.html / admin.html）に追加したため対象に含める。
+        eitango: 1, sango: 1,
+        wabun1: 1, kiso: 1, calctrial: 1, kanji: 1, kobun: 1,
+        lison: 1, kokugo: 1, rika: 1, shakai: 1
+      };
+      // 解放分（reflection_pending / required_mission）の resolvedAt 教育日別・コンテンツ別 reservedHp 集計
+      const poolByContentByDate = {};  // { ds: { contentKey: hp } }
+      const poolSh = ss.getSheetByName(SHEET_HP_RESERVE_POOL);
+      if (poolSh && poolSh.getLastRow() >= 2) {
+        const poolValues = poolSh.getDataRange().getValues();
+        const poolHeader = poolValues[0];
+        const iReason = poolHeader.indexOf('reserveReason');  // 列7（無ければ -1＝レガシー扱い）
+        for (let pi = 1; pi < poolValues.length; pi++) {
+          const pr = poolValues[pi];
+          if (String(pr[0] || '').trim() !== sid) continue;
+          if (String(pr[5] || '').trim().toUpperCase() !== 'TRUE') continue;  // 未解放はスキップ
+          const reason = (iReason >= 0) ? String(pr[iReason] || '').trim() : '';
+          // 振り返り解放（reflection_pending）/ 完走解放（required_mission）のみ。
+          // *_forfeited（失効＝未付与）/ レガシー空欄は対象外（lump 側のフォールバックで担保）。
+          if (reason !== 'reflection_pending' && reason !== 'required_mission') continue;
+          const rAt = pr[6];  // resolvedAt
+          if (!rAt) continue;
+          const ds2 = _educationalDayFromTs(rAt);
+          if (!ds2 || !byDate[ds2]) continue;
+          const contentKey = _normalizeHpReservePoolTypeForContent(pr[2]);
+          if (!contentKey) continue;
+          const reservedHp = Number(pr[4]) || 0;
+          if (reservedHp <= 0) continue;
+          if (!poolByContentByDate[ds2]) poolByContentByDate[ds2] = {};
+          poolByContentByDate[ds2][contentKey] = (poolByContentByDate[ds2][contentKey] || 0) + reservedHp;
+        }
+      }
+      Object.keys(releaseLump).forEach(function(ds2) {
+        if (!byDate[ds2]) return;
+        const lo = releaseLump[ds2];
+        const lump = (Number(lo.reflection) || 0) + (Number(lo.reserve) || 0);
+        if (lump <= 0) return;
+        const byContent = poolByContentByDate[ds2] || {};
+        let poolTotal = 0;
+        Object.keys(byContent).forEach(function(k) { poolTotal += Number(byContent[k]) || 0; });
+        if (poolTotal <= 0) {
+          // フォールバック：pool 由来の内訳が取れない → 従来どおり一括で hpAdjustments に戻す（HP 欠落防止）。
+          if ((Number(lo.reflection) || 0) > 0) {
+            byDate[ds2].hpAdjustments.push({ type: 'reflection_release', label: _hpAdjustmentLabel('reflection_release'), hp: Number(lo.reflection) || 0 });
+          }
+          if ((Number(lo.reserve) || 0) > 0) {
+            byDate[ds2].hpAdjustments.push({ type: 'reserve_release', label: _hpAdjustmentLabel('reserve_release'), hp: Number(lo.reserve) || 0 });
+          }
+          return;
+        }
+        // 表示可能コンテンツ（hpGained 表示あり）のみ抽出して比例配分（最後のキーで端数吸収）。
+        const dispKeys = Object.keys(byContent).filter(function(k) {
+          if (!KISO_DISPLAYABLE[k]) return false;          // eitango / sango は残差へ
+          const s = byDate[ds2][k];
+          return s && typeof s === 'object';
+        });
+        let dispRawTotal = 0;
+        dispKeys.forEach(function(k) { dispRawTotal += Number(byContent[k]) || 0; });
+        // 表示枠へ割り当てる予算 = lump × (表示可能 raw 合計 / pool 全体)。残りは残差（eitango/sango ほか）。
+        const dispBudget = (poolTotal > 0) ? Math.round(dispRawTotal * lump / poolTotal) : 0;
+        let dispDistributed = 0;
+        for (let di = 0; di < dispKeys.length; di++) {
+          const k = dispKeys[di];
+          let share;
+          if (di === dispKeys.length - 1) {
+            share = dispBudget - dispDistributed;  // 端数吸収 → 表示枠合計 == dispBudget
+          } else {
+            share = (dispRawTotal > 0) ? Math.round((Number(byContent[k]) || 0) * dispBudget / dispRawTotal) : 0;
+          }
+          if (share < 0) share = 0;
+          const slot = byDate[ds2][k];
+          slot.done = true;
+          slot.hpGained = (Number(slot.hpGained) || 0) + share;
+          dispDistributed += share;
+        }
+        // 残差（pool 未対応キー / 端数。通常は 0）は一括行として透明化（合計 == lump を厳密保証）。
+        const residual = lump - dispDistributed;
+        if (residual > 0) {
+          byDate[ds2].hpAdjustments.push({
+            type: 'reflection_release',
+            label: _hpAdjustmentLabel('reflection_release'),
+            hp: residual
+          });
+        }
+      });
+    } catch (poolErr) {
+      console.error('[getChildActivityRecent] 振り返り解放分のコンテンツ別振り替え失敗（一括表示にフォールバック）', poolErr);
+      // 失敗時は releaseLump を一括で hpAdjustments に戻す（HP 欠落防止）。
+      Object.keys(releaseLump).forEach(function(ds2) {
+        if (!byDate[ds2]) return;
+        const lo = releaseLump[ds2];
+        if ((Number(lo.reflection) || 0) > 0) byDate[ds2].hpAdjustments.push({ type: 'reflection_release', label: _hpAdjustmentLabel('reflection_release'), hp: Number(lo.reflection) || 0 });
+        if ((Number(lo.reserve) || 0) > 0) byDate[ds2].hpAdjustments.push({ type: 'reserve_release', label: _hpAdjustmentLabel('reserve_release'), hp: Number(lo.reserve) || 0 });
+      });
+    }
 
     // 新しい順に配列化
     const days = [];
