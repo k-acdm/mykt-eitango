@@ -358,6 +358,11 @@
   .reply-form-cancel { padding: 8px 16px; background: #fff; color: #475569; border: 2px solid #cbd5e1; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; }
   .reply-form-cancel:hover { background: #f1f5f9; }
   .reply-form-msg { font-size: 12px; color: #dc2626; min-height: 16px; margin-top: 4px; }
+  /* スタンプ＋定型文 ワンタッチ入力（2026-06-05）：textarea 上に並ぶ定型文ボタン群 */
+  .reply-stamps { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .reply-stamp-btn { padding: 6px 10px; background: #fff; color: #5b21b6; border: 1.5px solid #c4b5fd; border-radius: 16px; font-size: 12px; font-weight: 700; cursor: pointer; line-height: 1.3; transition: transform .1s, background .12s, box-shadow .12s; }
+  .reply-stamp-btn:hover { background: #f5f3ff; transform: translateY(-1px); box-shadow: 0 2px 6px rgba(124,58,237,.2); }
+  .reply-stamp-btn:active { transform: translateY(0); }
 
   @media (max-width: 480px) {
     .cal-cell { min-height: 48px; padding: 4px 2px; gap: 2px; }
@@ -6256,10 +6261,45 @@
     return '<div class="reply-thread-title">💬 返信スレッド（' + replies.length + '件）</div>' + items;
   }
 
+  // スタンプ＋定型文 ワンタッチ入力（2026-06-05）
+  // この配列に追記/削除するだけでボタンが増減する。文言（絵文字＋テキスト）が
+  // そのまま content として送信される（admin/teacher 両ロールで表示、権限分岐不要）。
+  var REFLECTION_REPLY_STAMPS = [
+    '💮 よくできました！素晴らしい！',
+    '👍 いいね！その調子！',
+    '✨ 振り返りが素晴らしすぎる！',
+    '🔥 頑張りが伝わってきたぜ！',
+    '📣 今日も期待！明日も期待！',
+    '💪 地道にコツコツ！継続こそ力なり！',
+    '🌱 少しずつ成長を感じる！',
+    '👏 気合いと根性に拍手！'
+  ];
+
+  // スタンプボタン押下：文言を textarea に挿入。空なら設定、既存テキストがあれば
+  // 末尾に改行区切りで追記。挿入後も手で編集・送信できる（既存の送信フローを使う）。
+  function insertReplyStamp(rid, idx) {
+    var ta = document.getElementById('reply-text-' + rid);
+    if (!ta) return;
+    var stamp = REFLECTION_REPLY_STAMPS[idx];
+    if (stamp == null) return;
+    var cur = String(ta.value || '');
+    if (cur.trim() === '') {
+      ta.value = stamp;
+    } else {
+      ta.value = cur.replace(/\s+$/, '') + '\n' + stamp;
+    }
+    ta.focus();
+    onReplyInput(rid);  // 文字数カウンタ + 送信ボタン活性を更新
+  }
+
   // 返信フォーム HTML（最初は display:none、toggleReplyForm で開閉）
   function _renderReplyForm(rid) {
     var ridEsc = _esc(rid);
+    var stampBtns = REFLECTION_REPLY_STAMPS.map(function(txt, i){
+      return '<button type="button" class="reply-stamp-btn" onclick="insertReplyStamp(\'' + ridEsc + '\', ' + i + ')">' + _esc(txt) + '</button>';
+    }).join('');
     return '<div class="reply-form" id="reply-form-' + ridEsc + '">' +
+             '<div class="reply-stamps">' + stampBtns + '</div>' +
              '<textarea id="reply-text-' + ridEsc + '" maxlength="500" placeholder="返信を書いてね（500 文字以内）" oninput="onReplyInput(\'' + ridEsc + '\')"></textarea>' +
              '<div class="reply-form-counter" id="reply-counter-' + ridEsc + '">0 / 500</div>' +
              '<div class="reply-form-msg" id="reply-msg-' + ridEsc + '"></div>' +
