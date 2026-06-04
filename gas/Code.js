@@ -12653,7 +12653,10 @@ function getCalendarDayDetail(params) {
       }
     }
 
-    // sid → { totalHp, byContent: { [contentName]: hp } }
+    // sid → { totalHp, byContent: { [contentName]: hp }, _relReflection, _relReserve }
+    // 2026-06-04：reflection_release / reserve_release は一旦バッファ（_relReflection / _relReserve）に退避し、
+    //   後段で HpReservePool を参照してコンテンツ別に振り替える（getChildActivityRecent 8e83243 と同方針）。
+    //   totalHp には従来どおり加算するため、各生徒の合計は不変。
     const acc = {};
     if (sh && sh.getLastRow() >= 2) {
       const rows = sh.getDataRange().getValues();
@@ -12666,11 +12669,94 @@ function getCalendarDayDetail(params) {
         const type = String(r[4] || '').trim();
         if (!_calendarIsActivity(type)) continue;
         const hp = Number(r[3]) || 0;
+        if (!acc[sid]) acc[sid] = { totalHp: 0, byContent: {}, _relReflection: 0, _relReserve: 0 };
+        acc[sid].totalHp += hp;  // 合計は従来どおり（解放分も含める）
+        // 解放分は byContent へ一括では積まず、後段でコンテンツ別へ振り替える
+        if (type === 'reflection_release') { acc[sid]._relReflection += hp; continue; }
+        if (type === 'reserve_release')    { acc[sid]._relReserve    += hp; continue; }
         const cname = _calendarContentName(type);
-        if (!acc[sid]) acc[sid] = { totalHp: 0, byContent: {} };
-        acc[sid].totalHp += hp;
         acc[sid].byContent[cname] = (acc[sid].byContent[cname] || 0) + hp;
       }
+    }
+
+    // ── 振り返り解放分（reflection_release / reserve_release）をコンテンツ別に振り替える ──
+    //   getChildActivityRecent（8e83243）と同一方針。HpReservePool（元コンテンツ種別を type 列に保持）を参照し、
+    //   この日付（教育日 4:00 区切り = _educationalDayFromTs）に解放された reservedHp をコンテンツ別へ比例配分。
+    //   各生徒の一括額 lump は固定で、配分合計 == lump を厳密保証（端数は最後のキーで吸収）→ 合計不変。
+    //   表示名は _lineNotifyContentKeyToName（_calendarContentName と同じ日本語表記）に統一。
+    //   completion_bonus 等の他調整行はそのまま（上のループで byContent に残る）。
+    //   reflection_skip_release は reflection_release/reserve_release ではないので退避対象外＝従来どおり一括表示（仕様⑤）。
+    //   pool 内訳が取れない日 / 例外時は従来の一括行にフォールバック（HP 欠落防止）。
+    try {
+      const poolBySidContent = {};  // { sid: { contentKey: hp } }
+      const poolSh2 = ss.getSheetByName(SHEET_HP_RESERVE_POOL);
+      if (poolSh2 && poolSh2.getLastRow() >= 2) {
+        const pv = poolSh2.getDataRange().getValues();
+        const iReason = pv[0].indexOf('reserveReason');
+        for (let i = 1; i < pv.length; i++) {
+          const pr = pv[i];
+          const psid = String(pr[0] || '').trim();
+          if (!psid || !acc[psid]) continue;  // この日に活動のある生徒のみ対象
+          if (String(pr[5] || '').trim().toUpperCase() !== 'TRUE') continue;  // 未解放はスキップ
+          const reason = (iReason >= 0) ? String(pr[iReason] || '').trim() : '';
+          if (reason !== 'reflection_pending' && reason !== 'required_mission') continue;
+          const rAt = pr[6];  // resolvedAt
+          if (!rAt) continue;
+          if (_educationalDayFromTs(rAt) !== date) continue;
+          const ck = _normalizeHpReservePoolTypeForContent(pr[2]);
+          if (!ck) continue;
+          const rhp = Number(pr[4]) || 0;
+          if (rhp <= 0) continue;
+          if (!poolBySidContent[psid]) poolBySidContent[psid] = {};
+          poolBySidContent[psid][ck] = (poolBySidContent[psid][ck] || 0) + rhp;
+        }
+      }
+      Object.keys(acc).forEach(function(sid) {
+        const a = acc[sid];
+        const lump = (Number(a._relReflection) || 0) + (Number(a._relReserve) || 0);
+        if (lump <= 0) return;
+        const byCK = poolBySidContent[sid] || {};
+        const cks = Object.keys(byCK);
+        let poolTotal = 0;
+        cks.forEach(function(k) { poolTotal += Number(byCK[k]) || 0; });
+        if (poolTotal <= 0) {
+          // フォールバック：pool 内訳が取れない → 従来どおり一括行で表示（HP 欠落防止）。
+          if ((Number(a._relReflection) || 0) > 0) {
+            const nm = _calendarContentName('reflection_release');
+            a.byContent[nm] = (a.byContent[nm] || 0) + (Number(a._relReflection) || 0);
+          }
+          if ((Number(a._relReserve) || 0) > 0) {
+            const nm = _calendarContentName('reserve_release');
+            a.byContent[nm] = (a.byContent[nm] || 0) + (Number(a._relReserve) || 0);
+          }
+          return;
+        }
+        // 比例配分（最後のキーで端数吸収 → 配分合計 == lump を厳密保証）
+        let distributed = 0;
+        for (let di = 0; di < cks.length; di++) {
+          const ck = cks[di];
+          const name = _lineNotifyContentKeyToName(ck) || ck;
+          let share;
+          if (di === cks.length - 1) share = lump - distributed;
+          else share = Math.round((Number(byCK[ck]) || 0) * lump / poolTotal);
+          if (share < 0) share = 0;
+          a.byContent[name] = (a.byContent[name] || 0) + share;
+          distributed += share;
+        }
+      });
+    } catch (relErr) {
+      console.error('[getCalendarDayDetail] 振り返り解放分のコンテンツ別振り替え失敗（一括表示にフォールバック）', relErr);
+      Object.keys(acc).forEach(function(sid) {
+        const a = acc[sid];
+        if ((Number(a._relReflection) || 0) > 0) {
+          const nm = _calendarContentName('reflection_release');
+          a.byContent[nm] = (a.byContent[nm] || 0) + (Number(a._relReflection) || 0);
+        }
+        if ((Number(a._relReserve) || 0) > 0) {
+          const nm = _calendarContentName('reserve_release');
+          a.byContent[nm] = (a.byContent[nm] || 0) + (Number(a._relReserve) || 0);
+        }
+      });
     }
 
     const students = Object.keys(acc).sort().map(function(sid){
