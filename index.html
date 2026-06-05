@@ -2790,6 +2790,10 @@
     .reserve-notice-sub  { font-size: 14px; line-height: 1.7; color: #9a3412; }
     .reserve-notice-main strong { color: #c2410c; font-size: 18px; }
     .reserve-notice-sub  strong { color: #c2410c; }
+    /* 2026-06-05：振り返り未提出（reflection_pending で全額保留）時の注意書き。マイカツ君セリフ調・赤系（圧は控えめ）。 */
+    .reflection-warn { margin-top: 14px; background: #fef2f2; border: 2px solid #fecaca; border-radius: 14px; padding: 13px 16px; text-align: left; color: #dc2626; font-size: 14px; font-weight: bold; line-height: 1.65; }
+    .reflection-warn .rw-mate { font-size: 12px; color: #991b1b; font-weight: bold; margin-bottom: 4px; }
+    @media (max-width: 480px) { .reflection-warn { font-size: 13px; padding: 11px 13px; } }
 
     /* HP獲得画面：絶対ミッション達成時の派手な解放演出 */
     .completion-celebration {
@@ -2971,10 +2975,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-2029"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-2053"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-2029">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-2029"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-2053">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-2053"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5577,6 +5581,21 @@
   //   呼び出し側は完走時に _totalHP += releasedHp + bonusHp を必要に応じて行うこと。
   //   （saveAttempt は server 由来 totalHP で上書きされるため不要、それ以外は加算が必要）
   //
+  // 2026-06-05：振り返り未提出（reflection_pending で全額保留）時の注意書き HTML を返す。
+  //   表示条件は厳密に hpReserved > 0 && hpGained === 0（= Gate 1 が全額保留）。
+  //   - 練習モード（hpReserved=0）/ 振り返り済み＋ミッション40%保留（hpGained>0）では空文字を返す＝出さない。
+  //   全ゲート対象コンテンツの HP 獲得画面（共通funnel + kokugo + risha）から呼ぶ共通関数。
+  function _reflectionWarnHtml(res) {
+    if (!res) return '';
+    var hpReserved = Number(res.hpReserved) || 0;
+    var hpGained   = Number(res.hpGained)   || 0;
+    if (!(hpReserved > 0 && hpGained === 0)) return '';
+    return '<div class="reflection-warn">' +
+             '<div class="rw-mate">マイカツ君</div>' +
+             '今日の振り返りを送らないと、このHPは全部ボクがもらっちゃうよ！😋 忘れずに、その日のうちに振り返りを送ってね！' +
+           '</div>';
+  }
+
   // 2026-05-27 修正1：表示用「Gate 2 view」に対応。
   //   - 達成時：「X HP獲得の権利ゲット！」のみ（残りは表示しない）
   //   - 未達成時：「X HP獲得の権利ゲット！」+「残りの Y HP の権利は、絶対ミッションを全部やった後にゲットできるよ」
@@ -5653,6 +5672,9 @@
       result.bonusHp = bonusHp;
       result.releasedHp = releasedHp;
     }
+    // 2026-06-05：振り返り未提出（reflection_pending で全額保留）時の注意書きを末尾に追記。
+    //   _reflectionWarnHtml が条件（hpReserved>0 && hpGained===0）を満たす時のみ非空を返す。
+    html += _reflectionWarnHtml(res);
     if (!html) return result;
     bodyEl.insertAdjacentHTML('beforeend', html);
     // 完走時は祝福 chime（呼び出し元が別途 chime を鳴らしている場合は重なるが、控えめな
@@ -13073,6 +13095,8 @@
            +    '<div style="font-size:13px;margin-top:6px;color:#4338ca">感想と AI フィードバックは保存したよ。明日また挑戦してね！</div>'
            +  '</div>';
     }
+    // 2026-06-05：振り返り未提出（reflection_pending で全額保留）時の注意書き（共通関数、条件 hpReserved>0 && hpGained===0）
+    html += _reflectionWarnHtml(res);
     var body = document.getElementById('kokugo-hp-grant-body');
     if (body) body.innerHTML = html;
     showScreen('screen-kokugo-hp-grant');
@@ -15186,6 +15210,8 @@
                 '<div class="done-daily">' + dailyLine + '</div>' +
               '</div>';
     }
+    // 2026-06-05：振り返り未提出（reflection_pending で全額保留）時の注意書き（共通関数、条件 hpReserved>0 && hpGained===0）
+    html += _reflectionWarnHtml(res);
     bodyEl.innerHTML = html;
     // 「別のセットに挑戦する」ボタンの表示制御：今日の上限未達のときのみ表示
     var againBtn = document.getElementById('risha-done-again-btn');
@@ -15244,7 +15270,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-2029</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-2053</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
