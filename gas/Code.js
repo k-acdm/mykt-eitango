@@ -8205,7 +8205,7 @@ function _requireAdmin(teacher) {
 //  - 物理削除なし。「削除」は active=false で兼用（P2）。
 //  - パスワード再発行は 'noblesse0311' 固定 + firstLoginCompleted=false（P3、Phase 1.5 と整合）。
 //  - 新規追加は teacherId 自動採番（P4、_findNextTeacherId）。
-//  - 各操作の return 直前に Phase 4 操作ログ用 TODO コメントを残す（P7）。
+//  - 各書き込み操作の成功時に _logTeacherAction で操作ログを記録する（P7、Phase 4 実装済み）。
 
 // 「最後の active=true admin 喪失防止」ロックの根拠：
 // このアプリの admin 権限は実質的に塾長（t101 ふくち）専属であり、
@@ -10121,8 +10121,11 @@ function executeManualStreakModify(params) {
 // 101 問目以降ボーナスステージ（1問正解=1HP、上限なし）。
 // クライアント側で問題生成（200問/ラウンド を一気に乱数生成）、
 // サーバー通信は 2 ラウンド完走後の submit 1 回のみ。
-// HP は倍率なし（rawHp = hpGained）、2 ラウンド合計の小数点以下切上 = totalHp。
-// 絶対ミッション対象外（暫定）、開放フラグ CALCTRIAL_UNLOCKED は将来用に定義のみ。
+// HP は 2 ラウンド合計の小数点以下切上 = totalHp（素点）。倍率は _grantHP 内部で適用（week² 倍率あり）。
+// 2026-06-05（0f3bf75）：他の通常コンテンツ（kiso/sango/kanji 等）と完全同一の扱いに統一。
+//   _grantHP を標準形 {sid,type,rawHp,stuLoc} で呼び、振り返りゲート（reflection_pending）＋
+//   両輪システム（required_mission 60/40）＋ week² 倍率 ＋ 完走チェックの対象（旧「即時付与・両輪対象外・
+//   倍率なし」の暫定特別扱いは撤廃）。開放フラグ CALCTRIAL_UNLOCKED は将来用に定義のみ（現状未使用）。
 //
 // 公開関数：
 //   submitCalcTrialResult(params)  — 2 ラウンド完走後の結果送信（doPost 強制）

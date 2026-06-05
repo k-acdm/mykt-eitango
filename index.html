@@ -2986,10 +2986,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260606-0008"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260606-0024"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260606-0008">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260606-0008"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260606-0024">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260606-0024"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3277,11 +3277,11 @@
   <div class="top-card">
     <h2 style="text-align:center;background:linear-gradient(135deg,#ff6ea0,#b24bf3,#4f7df0);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:2px">マイ活アプリ</h2>
 
-    <!-- 🚪 ログアウト忘れ防止バナー（2026-05-21 追加）
-         振り返り機能の応急対策。5/20 時点で学習活動 24 名中 22 名が振り返りを書いていない
-         状況を受けた動機付けバナー。ホーム画面の最上部に常時表示し、学習を始める前にも
-         終わってホームに戻った後にも視認できる位置に配置。Phase 5 で「HP 留保 → 振り返り
-         送信で付与」の根本対策を検討中、それまでの応急処置。 -->
+    <!-- 🚪 ログアウト忘れ防止バナー（2026-05-21 追加 / 2026-06-06 コメント更新）
+         元は振り返り機能の応急対策として追加（5/20 時点で学習活動 24 名中 22 名が振り返り未記入だった
+         状況への動機付け）。その後 Phase 5（reflection gate、2026-05-25 稼働）で「HP 留保 → 振り返り
+         送信で付与」の根本対策は恒久実装済み。本バナーはそれとは独立に、ログアウト忘れによる連続日数
+         途切れを防ぐリマインダーとしてホーム最上部に常時表示する恒常 UI として継続運用する。 -->
     <div class="logout-reminder-banner" role="status" aria-live="polite">
       <div class="logout-reminder-icon">🚪</div>
       <div class="logout-reminder-text">
@@ -15284,7 +15284,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260606-0008</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260606-0024</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
