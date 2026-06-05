@@ -10285,8 +10285,9 @@ function getCalcTrialTodayCount(params) {
 //   3. totalHp の値域検証（0 以上の整数、上限 100,000 で異常検知）
 //   4. 当日重複判定（_isAlreadyGrantedToday の sessionCount strategy、2 回/日 上限、特殊アカウントは無制限）
 //   5. CalcTrialSessions に 1 行 appendRow（status は 'completed' or 'practice'）
-//   6. _grantHP に HP 加算経路を集約（applyReserveSystem:false で両輪システム除外）
-//      ※ 倍率は _grantHP 内部で適用（applyWeekMultiplier:true 既定）。絶対ミッション対象外 + 努力の結果を全肯定
+//   6. _grantHP に HP 加算経路を集約（2026-06-05：他コンテンツと同一の標準形に統一。
+//      applyReserveSystem / applyWeekMultiplier / checkCompletion すべて既定 true ＝振り返りゲート＋両輪システム対象）
+//      ※ 倍率は _grantHP 内部で適用（applyWeekMultiplier:true 既定）。
 //   7. cache invalidate（cache_students_values / cache_special_accounts_values）
 //      ※ cache_ranking_last_week は _grantHP 内部で invalidate 済（granted > 0 時のみ）
 //
@@ -10300,7 +10301,8 @@ function getCalcTrialTodayCount(params) {
 //
 // 2026-05-20 Phase 3 Step 4：HP 加算経路を _grantHP に集約。
 //   - 旧版：_logHP → Students.HP 更新 を直接呼び出す 30 行のインライン処理
-//   - 新版：_grantHP({ applyReserveSystem:false, applyWeekMultiplier:true, checkCompletion:false }) に集約
+//   - 2026-06-05：他コンテンツと完全同一に統一 → _grantHP({sid,type,rawHp,stuLoc})（全フラグ既定 true）。
+//     （旧 Step 4 では applyReserveSystem:false の特別扱いだったが撤廃）
 //   - 練習モード（rawHp=0）：_grantHP 内部で _logHP 失敗を許容（HP=0 のため engagement 記録だけが失敗しても続行）
 //   - 本番モード（rawHp=totalHp）：_grantHP 内部で _logHP → Students.HP 更新を直列実行
 //   - CalcTrialSessions の effectiveHp（倍率込み）は _grantHP より先に書く必要があるため事前算出
@@ -10400,23 +10402,26 @@ function submitCalcTrialResult(params) {
       userAgent
     ]);
 
-    // ⑦ HP 加算（Phase 3 Step 4 / 2026-05-20）：_grantHP に集約。
-    //   - applyReserveSystem:false … 計算タイムトライアルは両輪システム対象外（絶対ミッション除外）
-    //   - applyWeekMultiplier:true … _grantHP 内部で fullHpGained = rawHp × week² を計算
-    //   - checkCompletion:false   … applyReserveSystem:false なので完走チェック不要
-    //   - 練習モード（isPractice=true）は rawHp=0 + type='calctrial_practice' で呼び、
-    //     _grantHP 内部で _logHP 失敗を許容（HP=0 のため engagement 記録だけが失敗しても続行）。
-    //   - 本番モード（isPractice=false）は rawHp=totalHp + type='calctrial' で呼び、
-    //     grant.hpGained === effectiveHp（事前算出値）、grant.newHP === curHP + effectiveHp となる。
+    // ⑦ HP 加算：_grantHP に集約。
+    //   ★ 2026-06-05：計算タイムトライアルを他の通常コンテンツ（kiso/sango/wabun1/lison/kanji/kobun）と
+    //     完全同一の扱いに統一。旧版は applyReserveSystem:false / checkCompletion:false の特別扱い
+    //     （即時付与・両輪対象外）だったが撤廃し、標準形 {sid,type,rawHp,stuLoc} で全フラグ既定 true にする。
+    //   - applyReserveSystem:true（既定）… 振り返りゲート（reflection_pending、未提出なら 100% 保留）＋
+    //     両輪システム（required_mission、絶対ミッション未達成なら 60% 即時 / 40% 保留）の対象になる。
+    //   - applyWeekMultiplier:true（既定）… _grantHP 内部で fullHpGained = rawHp × week²。
+    //   - checkCompletion:true（既定、reserve 起動時のみ有効）… calctrial が絶対ミッション完遂の
+    //     最後のピースになり得るため完走チェックを実行。
+    //   - 練習モード（isPractice=true）は rawHp=0 + type='calctrial_practice' で呼ぶ（kanji 練習と同パターン、
+    //     HP=0 なので _grantHP 内部で _logHP 失敗を許容。reserve 0 で no-op）。
+    //   - CalcTrialSessions.effectiveHp 列はセッションの「フル獲得相当（倍率込）」を記録する値であり、
+    //     ゲート化後は即時付与 grant.hpGained と一致しないことがある（HP の実移動は HPLog / Pool が担う）。
     const rawHpForGrant = isPractice ? 0 : totalHp;
     const grant = _grantHP({
-      sid:                 sid,
-      type:                hpLogType,
-      rawHp:               rawHpForGrant,
-      stuLoc:              stuLoc,
-      applyWeekMultiplier: true,
-      applyReserveSystem:  false,
-      checkCompletion:     false
+      sid:    sid,
+      type:   hpLogType,
+      rawHp:  rawHpForGrant,
+      stuLoc: stuLoc
+      // applyWeekMultiplier / applyReserveSystem / checkCompletion はすべて既定値 true（他コンテンツと同一）
     });
     if (!grant.ok) {
       // _grantHP 失敗時：CalcTrialSessions 行は残るが Students.HP は未更新（既存挙動と同等）。
@@ -10435,10 +10440,16 @@ function submitCalcTrialResult(params) {
     return {
       ok:              true,
       sessionId:       sessionId,
-      totalHp:         grant.hpGained,                                  // 実際に付与された HP（倍率込、練習は 0）
+      totalHp:         grant.hpGained,                                  // 即時付与された HP（倍率込、練習/振り返り保留時は 0）
       totalHpAfter:    grant.newHP,                                     // 加算後 Students.HP（_grantHP が返す最新値）
       totalCorrect:    totalCorrect,
       totalAnswered:   totalAnswered,
+      // 2026-06-05：他コンテンツと同一の保留表示（_appendReserveAndCompletionBlock）対応フィールド。
+      hpGained:        grant.hpGained,                                  // 即時付与分（reflection_pending なら 0）
+      hpReserved:      grant.hpReserved,                                // 保留分
+      justCompleted:   grant.justCompleted,                            // この提出で絶対ミッション完遂したか
+      releasedHp:      grant.releasedHp,                               // 完遂による保留解放分
+      bonusHp:         grant.bonusHp,                                  // 絶対ミッション達成ボーナス
       // 2026-05-19 Task 2 追加レスポンス：
       isPractice:      isPractice,                                       // 練習モードだったか（フロント側で UI 切替）
       accountType:     accountType,                                      // 特殊アカウント判定の参考
@@ -10450,7 +10461,7 @@ function submitCalcTrialResult(params) {
       streak:          grant.streak,                                     // _grantHP で参照した連続日数（最低 1）
       week:            grant.week,                                       // ceil(streak / 7)
       weekMult:        grant.week * grant.week,                          // week² = 倍率
-      // 2026-05-27 修正1：表示用「Gate 2 view」（計算TTは applyReserveSystem:false のため事実上 displayedImmediate=hpGained）
+      // 表示用「Gate 2 view」（2026-06-05 ゲート対象化により他コンテンツと同じく 60/40 分割表示が有効になる）
       displayedImmediate:        grant.displayedImmediate,
       displayedReserved:         grant.displayedReserved,
       isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
@@ -23246,21 +23257,16 @@ function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeH
   //   仕様③：振り返り送信がゲート。未送信なら権利HP（gate 対象コンテンツ + completion_bonus 正規ルート）は 0 になる。
   //   ゲート外HPは判定から除外する：
   //     ・手動付与（manual_*）… 既に totalHp から除外済（仕様④、_lineNotifyContentNameFor が null）
-  //     ・計算タイムトライアル（calctrial、applyReserveSystem:false の即時付与）… ここで差し引く（仕様③/B）
-  //   ※ 基礎計算(kiso)・カンジー等は applyReserveSystem:true でゲート対象 → 除外しない（権利HP のまま判定に含める）。
-  //   hasGatedContent：ゲート対象コンテンツ（＝計算タイムトライアル以外）を 1 つでもやったか。
-  //     これにより「計算タイムトライアルだけ実施（即時付与済）」の日に誤って注意文を出さない。
-  var calctrialHp = 0;
+  //   ※ 2026-06-05：計算タイムトライアル(calctrial)は他コンテンツと同じ振り返りゲート対象に統一したため、
+  //     旧「即時付与として noteEligibleHp から差し引く」特別扱いを撤廃。kiso/カンジー等と同様に権利HPとして
+  //     判定に含める（calctrial も含め gate 対象コンテンツをやったのに権利HP=0 なら振り返り未提出）。
+  //   hasGatedContent：ゲート対象コンテンツ（calctrial 含む全コンテンツ）を 1 つでもやったか。
   var hasGatedContent = false;
   for (var ci = 0; ci < contents.length; ci++) {
     var cName = contents[ci] ? contents[ci].name : '';
-    if (cName === '計算タイムトライアル') {
-      calctrialHp += Number(contents[ci].hp || 0);
-    } else if (cName) {
-      hasGatedContent = true;
-    }
+    if (cName) hasGatedContent = true;
   }
-  var noteEligibleHp = grandTotal - calctrialHp;
+  var noteEligibleHp = grandTotal;
   var msg = name + ' さんの保護者様\n'
        + '昨日のマイ活、' + name + ' さんは以下に取り組みました。\n'
        + '【取り組み内容】\n' + contentBlock + '\n';
@@ -23275,7 +23281,7 @@ function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeH
   msg += '【獲得 HP】 ' + grandTotal.toLocaleString() + 'HP\n';
   // 振り返り未提出の注記（仕様⑤）：表示位置は【獲得HP】の直下（仕様D）。
   //   ゲート対象コンテンツに取り組んだのに権利HP（noteEligibleHp）が 0 ＝振り返り未提出と断定できる。
-  //   noteEligibleHp は手動付与・計算タイムトライアル（ゲート外HP）を除いた値（仕様③④）。
+  //   noteEligibleHp は手動付与（ゲート外HP）のみを除いた値（仕様③④。calctrial は 2026-06-05 にゲート対象へ統一）。
   if (hasGatedContent && noteEligibleHp === 0) {
     msg += '（最後の振り返りを書いて送らないとHPは獲得できません）\n';
   }

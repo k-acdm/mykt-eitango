@@ -2971,10 +2971,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-1551"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-2029"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-1551">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-1551"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-2029">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-2029"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5078,6 +5078,8 @@
       <div class="ct-result-breakdown" id="ct-result-breakdown">
         <!-- 動的に挿入：ラウンド①/② の内訳 + 合計 -->
       </div>
+      <!-- 2026-06-05：他コンテンツと同じ保留(reserve)/完走演出ブロックの挿入先 -->
+      <div id="ct-result-reserve-wrap"></div>
       <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:6px" onclick="goHome()">🏠 ホーム画面に戻る</button>
     </div>
   </div>
@@ -14570,6 +14572,9 @@
     }
     document.getElementById('ct-practice-badge-wrap').innerHTML = '';
     document.getElementById('ct-practice-note-wrap').innerHTML = '';
+    // 2026-06-05：保留(reserve)/完走演出ブロックを毎回リセット
+    var ctReserveWrap = document.getElementById('ct-result-reserve-wrap');
+    if (ctReserveWrap) ctReserveWrap.innerHTML = '';
 
     // ヒーロー数字はクライアント計算の素点（倍率前）。ラベルでサーバ確定値（倍率込）を見せる。
     if (hpNum) hpNum.textContent = totalHp.toLocaleString();
@@ -14587,12 +14592,28 @@
         '</div>';
       showScreen('screen-calctrial-result');
     } else {
-      // 本番リザルト：サーバ確定の獲得 HP（倍率込）でラベル更新＋累計 HP 加算
-      var grantedHp = Number(res.totalHp || totalHp);
-      if (hpLab) hpLab.textContent = '獲得HP（+' + grantedHp.toLocaleString() + ' HP 加算済）';
-      if (typeof _totalHP === 'number') _totalHP += grantedHp;
+      // 本番リザルト：他コンテンツ（kiso/カンジー等）と完全同一の保留対応表示に統一（2026-06-05）。
+      //   - calctrial は振り返りゲート＋両輪システム対象になったため、res.totalHp(=hpGained) は
+      //     即時付与分（振り返り未提出なら 0、絶対ミッション未達成なら 60%）になりうる。
+      //   - ヒーロー数字＝今回獲得した「権利HP（倍率込フル）」＝ hpGained + hpReserved。
+      //   - _totalHP には即時付与分(hpGained)のみ加算。保留分は振り返り提出/ミッション完遂で後から解放。
+      var hpGained   = Number(res.hpGained != null ? res.hpGained : res.totalHp) || 0;
+      var hpReserved = Number(res.hpReserved) || 0;
+      var fullRight  = hpGained + hpReserved;
+      if (hpNum) hpNum.textContent = fullRight.toLocaleString();
+      if (hpLab) hpLab.textContent = '獲得した権利HP（倍率込）';
+      if (typeof _totalHP === 'number') _totalHP += hpGained;
       showScreen('screen-calctrial-result');
       if (isPerfect) _ctConfetti();
+      // 保留通知（📦 権利ゲット＋ミッション後に解放）/ 完走演出（紙吹雪＋内訳）を共通ヘルパーで追記。
+      //   res に hpGained / hpReserved / justCompleted / releasedHp / bonusHp /
+      //   displayedImmediate / displayedReserved / isAbsoluteMissionComplete が入っている。
+      try {
+        var apnd = _appendReserveAndCompletionBlock(ctReserveWrap, res);
+        if (apnd && apnd.addedCompletion && typeof _totalHP === 'number') {
+          _totalHP += apnd.releasedHp + apnd.bonusHp;
+        }
+      } catch (e) {}
     }
   }
   function _ctConfetti() {
@@ -15223,7 +15244,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-1551</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-2029</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
