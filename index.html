@@ -2790,10 +2790,19 @@
     .reserve-notice-sub  { font-size: 14px; line-height: 1.7; color: #9a3412; }
     .reserve-notice-main strong { color: #c2410c; font-size: 18px; }
     .reserve-notice-sub  strong { color: #c2410c; }
-    /* 2026-06-05：振り返り未提出（reflection_pending で全額保留）時の注意書き。マイカツ君セリフ調・赤系（圧は控えめ）。 */
-    .reflection-warn { margin-top: 14px; background: #fef2f2; border: 2px solid #fecaca; border-radius: 14px; padding: 13px 16px; text-align: left; color: #dc2626; font-size: 14px; font-weight: bold; line-height: 1.65; }
-    .reflection-warn .rw-mate { font-size: 12px; color: #991b1b; font-weight: bold; margin-bottom: 4px; }
-    @media (max-width: 480px) { .reflection-warn { font-size: 13px; padding: 11px 13px; } }
+    /* 2026-06-05：振り返り注意書きをマイカツ君イラスト付き吹き出しに（.mate-row 構造を流用、赤系に上書き）。圧は控えめ。 */
+    .reflection-warn-row { margin-top: 14px; }
+    /* base .mate-row .mate-bubble（黄色テーマ）を赤系に上書き（同 specificity・後勝ち） */
+    .mate-row .reflection-warn-bubble { background: #fef2f2; border-color: #fecaca; color: #dc2626; font-weight: bold; font-size: 14px; line-height: 1.65; }
+    .mate-row .reflection-warn-bubble::before { border-right-color: #fecaca; }
+    .mate-row .reflection-warn-bubble::after  { border-right-color: #fef2f2; }
+    .reflection-warn-bubble .rw-mate { font-size: 12px; color: #991b1b; font-weight: bold; margin-bottom: 4px; }
+    @media (max-width: 480px) {
+      .mate-row .reflection-warn-bubble { font-size: 13px; }
+      /* モバイルはしっぽが上向き（border-bottom-color）になる base 挙動に合わせて赤系へ */
+      .mate-row .reflection-warn-bubble::before { border-right-color: transparent; border-bottom-color: #fecaca; }
+      .mate-row .reflection-warn-bubble::after  { border-right-color: transparent; border-bottom-color: #fef2f2; }
+    }
 
     /* HP獲得画面：絶対ミッション達成時の派手な解放演出 */
     .completion-celebration {
@@ -2975,10 +2984,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-2300"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-2331"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-2300">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-2300"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-2331">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-2331"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5586,9 +5595,12 @@
   //   全ゲート対象コンテンツの HP 獲得画面（共通funnel + kokugo + risha）から呼ぶ共通関数。
   //   ※ 引数 res は使わないが、呼び出し側シグネチャ互換のため残す。
   function _reflectionWarnHtml(res) {
-    return '<div class="reflection-warn">' +
-             '<div class="rw-mate">マイカツ君</div>' +
-             '今日の振り返りを送らないと、このHPは全部ボクがもらっちゃうよ！😋 忘れずに、その日のうちに振り返りを送ってね！' +
+    return '<div class="mate-row reflection-warn-row">' +
+             '<img class="mate-img" src="character.jpg" alt="マイカツ君">' +
+             '<div class="mate-bubble reflection-warn-bubble">' +
+               '<div class="rw-mate">マイカツ君</div>' +
+               '今日の振り返りを送らないと、このHPは全部ボクがもらっちゃうよ！😋 忘れずに、その日のうちに振り返りを送ってね！' +
+             '</div>' +
            '</div>';
   }
 
@@ -8489,6 +8501,9 @@
     var html = '';
     html += '<div class="refl-release-hp-headline">今日1日の獲得HP合計</div>';
     html += '<div class="refl-release-hp-big"><span id="refl-release-hp-num">0</span><span class="rl-suffix">HP</span></div>';
+    // 2026-06-05：大数値の直下に生涯HPを追加（サイズ・色は headline と同じ 14px/#92400e）。
+    //   値はスコープ内の最新生涯HP _totalHP（8417 で今回解放分まで同期済、ホーム/他画面の生涯HPと一致）。
+    html += '<div class="refl-release-hp-headline">生涯HP ' + (Number(_totalHP) || 0).toLocaleString() + ' HP</div>';
 
     // 修正3：ヘッダーに連続日数 + 連続週数ボーナス
     var headerSub = '連続日数 ' + consecutiveDays + '日 / 連続週数ボーナス ×' + weekMultiplier
@@ -15267,7 +15282,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-2300</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-2331</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
