@@ -2068,7 +2068,9 @@
     .refl-release-close-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(22,163,74,.45); }
     .refl-release-close-note { font-size: 12px; color: #65a30d; margin-top: 10px; font-weight: bold; }
     /* 紙吹雪（既存 wabun1-confetti と独立） */
-    .refl-confetti { position: absolute; top: -20px; font-size: 22px; pointer-events: none; animation: reflConfettiFall 2.6s linear forwards; }
+    /* 2026-06-05：紙吹雪をモーダル(.refl-modal-overlay z-index:10000)の前面に。position:fixed で viewport 基準（keyframe は 110vh）、
+       z-index:10001 で暗い背景オーバーレイより上に出して見えるようにする。pointer-events:none で操作は妨げない。 */
+    .refl-confetti { position: fixed; top: -20px; font-size: 22px; pointer-events: none; z-index: 10001; animation: reflConfettiFall 2.6s linear forwards; }
     @keyframes reflConfettiFall {
       0% { transform: translateY(0) rotate(0deg); opacity: 1; }
       100% { transform: translateY(110vh) rotate(540deg); opacity: 0; }
@@ -2984,10 +2986,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-2331"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-2350"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-2331">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-2331"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-2350">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-2350"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5598,7 +5600,6 @@
     return '<div class="mate-row reflection-warn-row">' +
              '<img class="mate-img" src="character.jpg" alt="マイカツ君">' +
              '<div class="mate-bubble reflection-warn-bubble">' +
-               '<div class="rw-mate">マイカツ君</div>' +
                '今日の振り返りを送らないと、このHPは全部ボクがもらっちゃうよ！😋 忘れずに、その日のうちに振り返りを送ってね！' +
              '</div>' +
            '</div>';
@@ -15282,7 +15283,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-2331</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-2350</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
