@@ -1665,7 +1665,7 @@ function _getPrevDayCount(studentId, yesterday) {
   for (let i = 0; i < data.length; i++) {
     // HPLog 列: 0=timestamp, 1=studentId, 2=rawHP, 3=hpGained, 4=type
     if (String(data[i][1]).trim() !== sid) continue;
-    if (_toDateStr(data[i][0])    !== yesterday) continue;
+    if (_educationalDayFromTs(data[i][0]) !== yesterday) continue;  // 2026-06-05 日付境界統一：0時→4時（教育日）
     if (_isCountableActivityType(String(data[i][4] || ''))) count++;
   }
   return count;
@@ -2389,8 +2389,8 @@ function _grantHpErr(errorCode, message, rawHp, curHp, streak, week, isReserveAc
 //   それまでは温存（後方互換）。
 //
 // 注意：
-//   - cutover の差異は意図的に維持：oncePerDay は _sangoToday（3 AM）、
-//     dailyCap は _todayEducationalJST（4 AM）。既存 submit 関数の挙動と整合させる。
+//   - 2026-06-05 日付境界統一：oncePerDay の _sangoToday も dailyCap の _todayEducationalJST も
+//     共に JST 4 AM（教育日）区切りに統一された（旧 3 AM 差異は解消）。
 //   - ログイン（type='login'）は LAST_LOGIN セル比較のため、本関数の対象外。
 function _isAlreadyGrantedToday(sid, type, strategy, params) {
   params = params || {};
@@ -2453,7 +2453,7 @@ function _isAlreadyGrantedToday(sid, type, strategy, params) {
 
 // 内部ヘルパー：HPLog 末尾 200 行から sid+type+JST3am今日 の行を探す（true/false）。
 // 'oncePerDay' strategy で使用。submitSango / submitWabun1 / submitLison の既存
-// インライン判定と等価のロジック（_sangoToday の 3 AM 区切り）。
+// インライン判定と等価のロジック（_sangoToday の 4 AM 教育日区切り）。
 // 末尾 200 行で十分（提出ボーナスは 1 日 1 件 × 数百生徒 ≪ 200）。
 function _scanHpLogTodayByType(sid, type) {
   try {
@@ -2470,10 +2470,8 @@ function _scanHpLogTodayByType(sid, type) {
       if (String(row[4] || '').trim() !== typeNorm) continue;
       const ts = row[0];
       if (!ts) continue;
-      // _sangoToday と同じ 3 AM 区切りで日付化
-      const dt = new Date(ts);
-      dt.setHours(dt.getHours() - 3);
-      const dStr = Utilities.formatDate(dt, 'Asia/Tokyo', 'yyyy-MM-dd');
+      // _sangoToday と同じ 4 AM 教育日区切りで日付化
+      const dStr = _educationalDayFromTs(ts);
       if (dStr === todayStr) return true;
     }
     return false;
@@ -5472,30 +5470,9 @@ function _findKisoSessionRow(sessionId) {
   return null;
 }
 
-// 教育日 (4 AM 区切り) ベースで timestamp を 'yyyy-MM-dd' 文字列に変換
-// HPLog の timestamp は JST カレンダー時刻（_nowJST 由来）。HP 上限を教育日基準で
-// 集計するため、04:00 未満なら前日扱いに丸める。
-function _toEducationalDateStr(ts) {
-  if (!ts) return '';
-  let d;
-  try {
-    d = (ts instanceof Date) ? ts : new Date(ts);
-  } catch (e) { return ''; }
-  if (isNaN(d.getTime())) {
-    // 文字列の場合は単純に先頭 10 文字を返す（_toDateStr の挙動と互換）
-    const s = String(ts);
-    return s.match(/^\d{4}-\d{2}-\d{2}/) ? s.slice(0, 10) : '';
-  }
-  if (d.getTime() < EDU_DAY_CUTOVER_MS) {
-    return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
-  }
-  const jstHour = parseInt(Utilities.formatDate(d, 'Asia/Tokyo', 'H'), 10);
-  if (jstHour < 4) {
-    const yesterday = new Date(d.getTime() - 86400000);
-    return Utilities.formatDate(yesterday, 'Asia/Tokyo', 'yyyy-MM-dd');
-  }
-  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
-}
+// 注：旧 _toEducationalDateStr（4 AM 区切り版）はここにあったが、2026-06-05 の日付境界統一で
+//     CalcTrialSessions 用の堅牢パーサ版（下方の単一定義、4 時切替）に一本化したため削除。
+//     timestamp → 教育日（4 時）変換は _educationalDayFromTs / _toEducationalDateStr を使う。
 
 // 当日（教育日基準）の基礎計算で獲得した「素点 rawHP」を合計する
 // 仕様書 §8.3：1 日の素点上限 100HP の判定に使う
@@ -10192,7 +10169,7 @@ function ensureCalcTrialSheets() {
   }
 }
 
-// 当日（教育日 = JST 3:00 区切り）の本セッション件数を集計するヘルパー。
+// 当日（教育日 = JST 4:00 区切り）の本セッション件数を集計するヘルパー。
 // CalcTrialSessions シートを直接スキャン（末尾 N 行で十分、件数も少ない想定）。
 // 戻り値: { completed: N, practice: N }
 //   - completed: status='completed' の件数（HP 付与対象、本番）
@@ -10213,7 +10190,7 @@ function _countCalcTrialSessionsToday(sid, todayStr) {
       const row = values[i];
       if (String(row[iSid] || '').trim() !== targetSid) continue;
       // completedAt は 'yyyy-MM-dd HH:mm:ss' 文字列または Date 型の可能性あり。
-      // 教育日基準で日付化（_logHP 系の _logEducationalDate と同じ JST 3:00 区切り）。
+      // 教育日基準で日付化（_logHP 系の _logEducationalDate と同じ JST 4:00 区切り）。
       const ds = _toEducationalDateStr(row[iCompleted]);
       if (ds !== todayStr) continue;
       const st = String(row[iStatus] || '').trim();
@@ -10226,9 +10203,13 @@ function _countCalcTrialSessionsToday(sid, todayStr) {
   return out;
 }
 
-// 完了日時 → 教育日（JST 3:00 区切り） 'yyyy-MM-dd' 文字列に変換。
+// 完了日時 → 教育日（JST 4:00 区切り） 'yyyy-MM-dd' 文字列に変換。
 // CalcTrialSessions.completedAt は記録時に 'yyyy-MM-dd HH:mm:ss' で書き込んでいるが
 // シート上で Date 型に自動変換されるケースもあるので、両方を吸収する。
+// 2026-06-05 日付境界統一：旧 3:00 区切りを 4:00（教育日）に変更。これが唯一の定義
+//（旧 4 時版の重複定義は削除し本関数に一本化）。呼び出し元は _todayEducationalJST()（4 時）と
+// 比較しているため、4 時に揃えることで 3:00〜3:59 の不整合（kiso/kanji/kobun/calctrial の
+// rawHP 当日上限判定など）が解消される。
 function _toEducationalDateStr(raw) {
   if (raw == null || raw === '') return '';
   try {
@@ -10242,8 +10223,8 @@ function _toEducationalDateStr(raw) {
       d = new Date(s.replace(' ', 'T') + (s.length === 10 ? 'T00:00:00' : ''));
       if (isNaN(d.getTime())) return '';
     }
-    // JST 3:00 区切り（_sangoToday と同じロジック）
-    const jstShifted = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+    // JST 4:00 区切り（_educationalDayFromTs と同じ基準）
+    const jstShifted = new Date(d.getTime() - 4 * 60 * 60 * 1000);
     return Utilities.formatDate(jstShifted, 'Asia/Tokyo', 'yyyy-MM-dd');
   } catch(e) {
     return '';
@@ -10497,7 +10478,7 @@ function submitCalcTrialResult(params) {
 const REFLECTIONS_HEADERS = [
   'reflectionId',   // refl_{sid}_{ts}_{rand}
   'studentId',
-  'date',           // 教育日基準（_sangoToday の JST 3:00 区切り）'yyyy-MM-dd'
+  'date',           // 教育日基準（_sangoToday の JST 4:00 区切り）'yyyy-MM-dd'
   'timestamp',      // 実書き込み時刻 _nowJST() 'yyyy-MM-dd HH:mm:ss'
   'content',        // 本文（100〜1500 文字、サーバー側で reject）
   'wordCount',      // クライアント計測の文字数（参考、改行・空白含む単純カウント）
@@ -10823,7 +10804,9 @@ function _getPendingReflectionDate(sid, accountType) {
         for (let i = 0; i < rows.length; i++) {
           if (String(rows[i][1] || '').trim() !== sidNorm) continue;
           if (!_isCountableActivityType(String(rows[i][4] || ''))) continue;
-          const ds = _toDateStr(rows[i][0]);
+          // 2026-06-05 日付境界統一：0時→4時（教育日）。候補日(candidateDates)が _todayEducationalJST 由来の
+          // 4時基準のため、活動日も 4時に揃える（3:00〜3:59 活動の振り返り対象日ズレを解消）。
+          const ds = _educationalDayFromTs(rows[i][0]);
           if (ds) activityDates[ds] = true;
         }
       }
@@ -10874,7 +10857,7 @@ function _invalidatePendingReflectionCache(sid) {
   } catch(e) { /* キャッシュ失敗は無害 */ }
 }
 
-// 今日（_sangoToday() = JST 3:00 区切り）の振り返り提出済みかを判定（Phase 5 / 2026-05-22）。
+// 今日（_sangoToday() = JST 4:00 区切り）の振り返り提出済みかを判定（Phase 5 / 2026-05-22）。
 //
 // 設計：
 //   - キャッシュキー 'cache_refl_today_<sid>_<yyyy-MM-dd>'（TTL 30 分）
@@ -10993,7 +10976,7 @@ function submitReflection(params) {
     //   形式 'yyyy-MM-dd' で、教育日基準の今日〜7 日前の範囲のみ受理。
     //   範囲外 / 不正な値 / 未指定 → _sangoToday()（既定の今日）にフォールバック。
     //   これにより通常運用（当日のログアウト時振り返り）の挙動は無変更。
-    let date = _sangoToday();   // 教育日基準（JST 3:00 区切り）
+    let date = _sangoToday();   // 教育日基準（JST 4:00 区切り）
     const reqDate = String((params && params.reflectionDate) || '').trim();
     if (reqDate && /^\d{4}-\d{2}-\d{2}$/.test(reqDate)) {
       try {
@@ -11215,10 +11198,8 @@ function _todayHpBreakdownForSid(sid) {
       if (String(r[1] || '').trim() !== sidNorm) continue;
       const ts = r[0];
       if (!ts) continue;
-      // 教育日基準（JST 3 時区切り）
-      const t = new Date(ts);
-      t.setHours(t.getHours() - 3);
-      const ds = Utilities.formatDate(t, 'Asia/Tokyo', 'yyyy-MM-dd');
+      // 教育日基準（JST 4 時区切り）
+      const ds = _educationalDayFromTs(ts);
       if (ds !== todayStr) continue;
       const type = String(r[4] || '').trim();
       const hp = Number(r[3]) || 0;
@@ -12602,7 +12583,7 @@ function getCalendarMonthSummary(params) {
         // [0]ts [1]sid [2]rawHP [3]hpGained [4]type [5]message
         for (let i = 1; i < rows.length; i++) {
           const r = rows[i];
-          const ds = _toDateStr(r[0]);
+          const ds = _educationalDayFromTs(r[0]);  // 2026-06-05 日付境界統一：0時→4時（教育日）
           if (!ds || !days[ds]) continue;
           const sid = String(r[1] || '').trim();
           if (!sid) continue;
@@ -12662,7 +12643,7 @@ function getCalendarDayDetail(params) {
       const rows = sh.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
         const r = rows[i];
-        const ds = _toDateStr(r[0]);
+        const ds = _educationalDayFromTs(r[0]);  // 2026-06-05 日付境界統一：0時→4時（教育日）。pool(既4時)/totalHp/解放退避が全て4時で揃う
         if (ds !== date) continue;
         const sid = String(r[1] || '').trim();
         if (!sid) continue;
@@ -13158,12 +13139,14 @@ function _sangoSortByLevel(arr) {
 }
 const _SANGO_WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
 
-// JST で深夜3時を日付境界とする「今日」の日付文字列（yyyy-MM-dd）
+// 教育日（JST 4:00 区切り）の「今日」の日付文字列（yyyy-MM-dd）。
+// 2026-06-05 日付境界統一：旧 3 時切替（setHours(-3)）を廃止し、正準ヘルパー
+// _todayEducationalJST()（4 時切替 + EDU_DAY_CUTOVER ガード）へ委譲。これ 1 箇所で
+// _sangoToday を使う全コンテンツ（sango/wabun1/lison/kobun/kanji/calctrial/reflection/
+// pool/運勢/ミッション/LINE 等）の「今日」判定が 4 時に揃う。_sangoPrevDate / _sangoDateAgo
+// も本関数の出力を起点にするため自動追従する。
 function _sangoToday() {
-  const now = new Date();
-  const jst = new Date(Utilities.formatDate(now, 'Asia/Tokyo', "yyyy/MM/dd HH:mm:ss"));
-  jst.setHours(jst.getHours() - 3); // 3時より前なら前日扱い
-  return Utilities.formatDate(jst, 'Asia/Tokyo', 'yyyy-MM-dd');
+  return _todayEducationalJST();
 }
 
 function _sangoPrevDate(dateStr) {
@@ -14283,7 +14266,7 @@ function getChildActivityRecent(params) {
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (String(r[1] || '').trim() !== sid) continue;
-        const ds = _toDateStr(r[0]);
+        const ds = _educationalDayFromTs(r[0]);  // 2026-06-05 日付境界統一：0時→4時（教育日）。byDate キー(_sangoDateAgo)も4時で揃い、解放lump も pool(4時)と一致
         if (!ds) continue;
         if (ds < startStr) { hasMore = true; continue; }
         if (ds > endStr) continue;
@@ -14462,7 +14445,7 @@ function getChildActivityRecent(params) {
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (String(r[1] || '').trim() !== sid) continue;
-        const ds = _toDateStr(r[0]);
+        const ds = _educationalDayFromTs(r[0]);  // 2026-06-05 日付境界統一：0時→4時（教育日）。byDate キーと整合
         if (!ds || !byDate[ds]) continue;
         const pass = String(r[5] || '').trim();
         if (pass !== '合格') continue;  // ★ 不合格は ✅ にしない
@@ -15195,7 +15178,7 @@ function submitWabun1(params) {
     //          _logHP → reserve pool → Students.HP 更新 → 完走チェック の 45 行
     //   - 新版：oncePerDay strategy で alreadyGranted 判定（_scanHpLogTodayByType 経由で一本化）→
     //          allCorrect && !alreadyGranted のとき _grantHP 1 関数呼び出し
-    //   - 4/29 境界（100/200HP 切替）は維持：todayStr（_sangoToday、JST 3 時区切り）で判定
+    //   - 4/29 境界（100/200HP 切替）は維持：todayStr（_sangoToday、JST 4 時区切り）で判定
     //   - 両輪 Phase A 対応（applyReserveSystem:true・applyWeekMultiplier:true・checkCompletion:true 既定値）
     //   - rawHp は素点 baseHp（100 or 200）を渡す。_grantHP 内部で fullHpGained = baseHp × week² を計算
     //     （Step 4/5/6-1 と一貫：HPLog の rawHP 列値が旧版「実 HP」→ 新版「素点 HP」に変わる）
@@ -15207,7 +15190,7 @@ function submitWabun1(params) {
     let completion_wabun1 = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
     if (allCorrect && !alreadyGranted) {
       // 素点HP は 2026-04-29 以降の教育日から 100 → 200 に変更（4/29 当日含む、過去分は遡及しない）
-      // todayStr は _sangoToday() の JST 3 時区切り。問題の日替わり・alreadyGranted 判定と同じ基準で揃える
+      // todayStr は _sangoToday() の JST 4 時区切り。問題の日替わり・alreadyGranted 判定と同じ基準で揃える
       const baseHp = (todayStr >= '2026-04-29') ? 200 : 100;
       const grant = _grantHP({
         sid:    sid,
@@ -15297,16 +15280,14 @@ function getWabun1Submissions(params) {
 }
 
 // =============================================
-// 共通ヘルパー：JST 3時切替基準の日付文字列（timestamp が 3時より前なら前日扱い）
-// submitWabun1 の alreadyGranted 判定と同じロジック
+// 共通ヘルパー：JST 4時切替（教育日）基準の日付文字列（timestamp が 4時より前なら前日扱い）
+// submitWabun1 の alreadyGranted 判定と同じロジック（2026-06-05 日付境界統一で 3時→4時）
 // =============================================
 function _wabun1LogDate(ts) {
-  const d = new Date(ts);
-  d.setHours(d.getHours() - 3);
-  return Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+  return _educationalDayFromTs(ts);
 }
 
-// 指定 studentId が提出した日付の Set を返す（3時切替基準）
+// 指定 studentId が提出した日付の Set を返す（4時切替＝教育日基準）
 function _wabun1SubmittedDatesBySid(sid) {
   const set = {};
   const sh = _ss().getSheetByName(SHEET_WABUN1_SUBMISSIONS);
@@ -15760,7 +15741,7 @@ const LISON_CONTENTS_MIN_ROWS = 1500;
 // 値を変更したい場合（20 日 / 30 日など）はここ 1 箇所のみ。
 const LISON_RETENTION_DAYS = 15;
 
-// JST 3 時区切りの今日の日付から、その週の月曜日（含む）の 'yyyy-MM-dd' を返す。
+// JST 4 時区切りの今日の日付から、その週の月曜日（含む）の 'yyyy-MM-dd' を返す。
 // 月曜は当日、火〜土は前日〜5 日前、日曜は 6 日前。
 function _lisonGetWeekStart(dateStr) {
   const d = new Date(dateStr + 'T12:00:00+09:00');
@@ -16881,7 +16862,7 @@ function cleanupLisonOldRecordings(params) {
 //   - recordingBase64 : data URL を含まない純粋な base64 文字列
 //   - recordingMime   : 'audio/webm' / 'audio/mp4' など
 //
-// 同日同レベル既提出（JST 3 時区切り）は alreadyGranted=true → hpGained=0。
+// 同日同レベル既提出（JST 4 時区切り）は alreadyGranted=true → hpGained=0。
 // 録音の Drive 保存と LisonSubmissions への記録は alreadyGranted でも実施。
 // HP 加算時のみ Students HP 更新 + _logHP + ランキングキャッシュ invalidate。
 //
@@ -16911,7 +16892,7 @@ function submitLison(params) {
       return { ok: false, message: 'quizAnswers は 3 要素の配列である必要があります' };
     }
 
-    // 今日（JST 3 時区切り）と今週の月曜日を取得
+    // 今日（JST 4 時＝教育日区切り）と今週の月曜日を取得
     const todayStr  = _sangoToday();
     const weekStart = _lisonGetWeekStart(todayStr);
 
@@ -16949,10 +16930,8 @@ function submitLison(params) {
         if (String(subRows[i][3]).trim() !== level) continue;
         const ts = subRows[i][0];
         if (!ts) continue;
-        // wabun1 / sango と同じ JST 3 時区切りで「今日」と同じ日かチェック
-        const dt = new Date(ts);
-        dt.setHours(dt.getHours() - 3);
-        const dStr = Utilities.formatDate(dt, 'Asia/Tokyo', 'yyyy-MM-dd');
+        // wabun1 / sango と同じ JST 4 時（教育日）区切りで「今日」と同じ日かチェック
+        const dStr = _educationalDayFromTs(ts);
         if (dStr === todayStr) { alreadyGranted = true; break; }
       }
     }
@@ -18785,7 +18764,7 @@ function submitKobunSet(params) {
 // ------------------------------------------------------------------------
 // マイカツ君が日替わりで運勢を語るコンテンツ。
 // 設計方針：
-//  - 同じ生徒 × 同じ日（JST 3 時切替）なら何回開いても同じ運勢を返す（決定論的）。
+//  - 同じ生徒 × 同じ日（JST 4 時切替＝教育日）なら何回開いても同じ運勢を返す（決定論的）。
 //  - シード = studentId + _sangoToday()（他コンテンツと同じ「教育日」、3:00 で日替わり）。
 //  - 骨格は本骨格 100 個（v1.0、2026-05-12 生成）。stars 配分 5:20% / 4:25% / 3:30% / 2:15% / 1:10%。
 //  - 2 段階決定論：① stars レベルを重み配分で選ぶ → ② 該当 stars プールから 1 つ選ぶ。
@@ -19291,7 +19270,7 @@ function saveBirthday(params) {
 //   - Students / SpecialAccounts シートに 'LAST_BIRTHDAY_GREET_YEAR' 列を新設
 //     （BIRTHDAY 列と同じヘッダー駆動パターン、固定インデックスは使わない）。
 //   - 形式は西暦 4 桁の数値文字列（例：'2026'）。空文字は「未表示」。
-//   - 年取得は _sangoToday() の先頭 4 文字（教育日基準で 0:00〜2:59 は前日年）。
+//   - 年取得は _sangoToday() の先頭 4 文字（教育日基準で 0:00〜3:59 は前日年）。
 //
 // セル書き込み時：Google Sheets の locale 自動変換を防ぐため
 // setNumberFormat('@') で text 固定してから setValue（BIRTHDAY 列と同じ防御）。
@@ -20025,9 +20004,9 @@ function getTodayFortune(params) {
     }
     const title = _getTitle(streak);
 
-    // 決定論的シード：sid + 教育日（JST 3 時切り替え、yyyy-MM-dd）
+    // 決定論的シード：sid + 教育日（JST 4 時切替、yyyy-MM-dd）
     // _sangoToday() は他コンテンツ（コブタン/カンジー/リスオン/三語短文）と同じ切替基準。
-    // 0:00〜2:59 は「前日」の運勢、3:00〜23:59 は「当日」の運勢を返す。
+    // 0:00〜3:59 は「前日」の運勢、4:00〜23:59 は「当日」の運勢を返す（教育日 4 時境界）。
     const today = _sangoToday();
     const seed  = sid + '_' + today;
     const baseHash = _fortuneHash(seed);
@@ -20078,7 +20057,7 @@ function getTodayFortune(params) {
       const todayMMDD = today.substring(5); // 'yyyy-MM-dd' → 'MM-dd'
       if (todayMMDD === birthday) {
         // year は _sangoToday() の yyyy-MM-dd の先頭 4 文字を採用（教育日基準で
-        // 0:00〜2:59 が前日扱いの場合は前日の年）。1/1 跨ぎでも矛盾しない。
+        // 0:00〜3:59 が前日扱いの場合は前日の年）。1/1 跨ぎでも矛盾しない。
         const year = today.substring(0, 4);
         const bPreset = _pickBirthdaySurpriseMessage(sid, year);
         birthdaySurprise = {
@@ -20186,7 +20165,7 @@ function getKobunHistory(params) {
 // 達成ロジックの判定基準：
 //   - 「今日 HPLog に該当 type のレコードが 1 つ以上ある」= 完了とみなす
 //   - 練習モード（HP=0、type='..._practice'）も「やった」事実なので完了扱い（プレフィックス match）
-//   - 1 日の境界は _sangoToday()（JST 3:00 区切り）に統一（既存 submit と整合）
+//   - 1 日の境界は _sangoToday()（JST 4:00 区切り）に統一（既存 submit と整合）
 // ========================================================================
 
 // 絶対ミッション（コンテンツ）の抽象名（HPLog type とは別の論理名）。
@@ -20274,7 +20253,7 @@ const REFLECTION_GATE_ENABLED = true;
 
 // HpReservePool シートのヘッダー（8 列、Phase 5 / 2026-05-22 で reserveReason 追加）
 //   studentId | date | type | rawHp | reservedHp | resolved | resolvedAt | reserveReason
-//   - date: '_sangoToday()' 形式の 'yyyy-MM-dd' 文字列（JST 3:00 区切り）
+//   - date: '_sangoToday()' 形式の 'yyyy-MM-dd' 文字列（JST 4:00 区切り）
 //   - type: 元の HPLog type（'sango', 'kiso_15_5' 等）
 //   - rawHp: 倍率適用後の総 HP（元の hpGained）
 //   - reservedHp: 保留分（rawHp - 即時付与分）
@@ -21356,12 +21335,10 @@ function _getTodayCompletedRequired(sid, requiredList) {
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     if (String(r[1] || '').trim() !== sid) continue;
-    // 3 時基準で日付判定（既存 submit の alreadyGranted ロジックと完全一致）
+    // 4 時（教育日）基準で日付判定（既存 submit の alreadyGranted ロジックと完全一致）
     const ts = r[0];
     if (!ts) continue;
-    const t = new Date(ts);
-    t.setHours(t.getHours() - 3);
-    const ds = Utilities.formatDate(t, 'Asia/Tokyo', 'yyyy-MM-dd');
+    const ds = _educationalDayFromTs(ts);
     if (ds !== todayStr) continue;
     const type = String(r[4] || '').trim();
     for (let j = 0; j < requiredList.length; j++) {
@@ -22058,9 +22035,7 @@ function _getTodayCompletionBonusForSid(sid) {
       if (String(r[4] || '').trim() !== 'completion_bonus') continue;
       const ts = r[0];
       if (!ts) continue;
-      const t = new Date(ts);
-      t.setHours(t.getHours() - 3);
-      const ds = Utilities.formatDate(t, 'Asia/Tokyo', 'yyyy-MM-dd');
+      const ds = _educationalDayFromTs(ts);
       if (ds === todayStr) return Number(r[3]) || 0;
     }
     return 0;
@@ -22860,8 +22835,12 @@ function _forwardWebhookToBillingLine(e) {
 // LINE 通知 Phase B-3：自動配信機能（2026-05-17）
 // =============================================
 // 設計概要：
-//   - 毎日 03:00（_sangoToday 境界 = 3 時切替）に Time-based Trigger で
-//     runDailyNotifyTargetExtraction() 起動 → 全生徒の前日活動を集計し、
+//   - ★ 2026-06-05 日付境界統一（4時化）以降：このトリガーは必ず JST 04:00 以降に起動すること
+//     （推奨 05:00）。理由：yesterday = _sangoPrevDate(_sangoToday()) で前日を求めるが、_sangoToday は
+//     4 時切替になったため、03:00 台に起動すると _sangoToday() が「前日」を返し、yesterday が
+//     「前々日」にずれて誤った日を集計してしまう。旧 03:00 設定のままにしないこと（GAS UI でトリガー時刻を変更）。
+//   - 毎日 05:00（教育日 4 時境界の直後）に Time-based Trigger で
+//     runDailyNotifyTargetExtraction() 起動 → 全生徒の前日（教育日）活動を集計し、
 //     当日配信対象を NotifyTargets シートに保存。
 //   - 毎日 12:00（正午）に Time-based Trigger で runDailyNotifyDelivery() 起動
 //     → NotifyTargets を読み、LINE Messaging API でプッシュ送信、結果を
@@ -23384,7 +23363,7 @@ function _appendNotifyLog(studentId, nickname, dateStr, targetType, userId, stat
   }
 }
 
-// --- HPLog 走査ヘルパー（前日 3:00 〜 本日 3:00 JST の sango date が yesterdayStr の行を抽出） ---
+// --- HPLog 走査ヘルパー（前日 4:00 〜 本日 4:00 JST の教育日が yesterdayStr の行を抽出） ---
 // 戻り値: { bySid: { '<sid>': [{type, rawHP, hpGained, ts}], ... } }
 // 全生徒分を 1 度のスキャンで集計する。HPLog は末尾 5000 行を読む（1 日あたり数百〜数千行を想定）。
 function _lineNotifyScanHpLogForYesterday(yesterdayStr) {
@@ -23396,14 +23375,9 @@ function _lineNotifyScanHpLogForYesterday(yesterdayStr) {
     var r = rows[i];
     var ts = r[0];
     if (!ts) continue;
-    // _wabun1LogDate と同じ「3 時切替」ロジック
-    var d;
-    try { d = new Date(ts); } catch (e) { continue; }
-    if (isNaN(d.getTime())) continue;
-    var shifted = new Date(d.getTime());
-    shifted.setHours(shifted.getHours() - 3);
-    var dateStr = Utilities.formatDate(shifted, 'Asia/Tokyo', 'yyyy-MM-dd');
-    if (dateStr !== yesterdayStr) continue;
+    // _wabun1LogDate と同じ「4 時切替（教育日）」ロジック（2026-06-05 日付境界統一で 3時→4時）
+    var dateStr = _educationalDayFromTs(ts);
+    if (!dateStr || dateStr !== yesterdayStr) continue;
     var sid = String(r[1] || '').trim();
     if (!sid) continue;
     var rawHP    = Number(r[2]) || 0;
@@ -23656,9 +23630,12 @@ function _extractNotifyTargets(opts) {
   };
 }
 
-// --- Trigger 1: 毎日 03:00 起動 → 配信対象を NotifyTargets に書き込む ---
+// --- Trigger 1: 毎日 05:00 起動 → 配信対象を NotifyTargets に書き込む ---
 // ふくちさん側で Apps Script UI から time-driven trigger を 1 つ作成する。
-//   関数: runDailyNotifyTargetExtraction / 日付ベース / 毎日 / 午前 3 時〜4 時
+//   関数: runDailyNotifyTargetExtraction / 日付ベース / 毎日 / 午前 5 時〜6 時
+//   ★ 2026-06-05 日付境界統一（4時化）：必ず JST 04:00 以降に起動（推奨 5〜6 時）。
+//     旧「午前 3 時〜4 時」設定のままだと _sangoToday() が前日を返し、集計対象日が 1 日ずれる。
+//     既存トリガーを 03:00 台で設定済みの場合は GAS UI で 05:00 台へ変更すること。
 function runDailyNotifyTargetExtraction() {
   try {
     var res = _extractNotifyTargets({ persist: true });
