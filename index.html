@@ -2986,10 +2986,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-2350"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260606-0008"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-2350">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-2350"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260606-0008">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260606-0008"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5702,24 +5702,25 @@
   var _pendingRetry = null;
   var _pendingDismiss = null;
 
-  // JST 3 時切替の今日キー（"yyyy-MM-dd"）。和文英訳①バッジ判定 / 基礎計算 過去セッション再表示で使用。
+  // JST 4 時区切り（教育日）の今日キー（"yyyy-MM-dd"）。和文英訳①バッジ判定 / 基礎計算 過去セッション再表示で使用。
+  // 2026-06-06：サーバ(GAS)の日付境界4時統一(c9a4f19)に合わせ、旧 3 時切替を 4 時に統一（関数名は据え置き）。
   function _todayKeyJST3am() {
     var now = new Date();
     var jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
-    jst.setHours(jst.getHours() - 3);
+    jst.setHours(jst.getHours() - 4);
     var y = jst.getFullYear(), m = jst.getMonth() + 1, d = jst.getDate();
     return y + '-' + (m < 10 ? '0' + m : m) + '-' + (d < 10 ? '0' + d : d);
   }
-  // 昨日の日付キー（_todayKeyJST3am と同じ JST 3 時境界）。基礎計算 過去セッション再表示で使う
+  // 昨日の日付キー（_todayKeyJST3am と同じ JST 4 時区切り＝教育日境界）。基礎計算 過去セッション再表示で使う
   function _yesterdayKeyJST3am() {
     var now = new Date();
     var jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
-    jst.setHours(jst.getHours() - 3);
+    jst.setHours(jst.getHours() - 4);
     jst.setDate(jst.getDate() - 1);
     var y = jst.getFullYear(), m = jst.getMonth() + 1, d = jst.getDate();
     return y + '-' + (m < 10 ? '0' + m : m) + '-' + (d < 10 ? '0' + d : d);
   }
-  // 和文英訳① 素点HP の日付分岐：2026-04-29 以降の教育日（JST 3 時区切り、4/29 当日含む）から 200、それ以前は 100
+  // 和文英訳① 素点HP の日付分岐：2026-04-29 以降の教育日（JST 4 時区切り、4/29 当日含む）から 200、それ以前は 100
   // GAS submitWabun1 と同じ基準で揃える。
   function _wabun1BaseHp() { return (_todayKeyJST3am() >= '2026-04-29') ? 200 : 100; }
   function _applyWabun1HpBadge() {
@@ -15283,7 +15284,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-2350</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260606-0008</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
