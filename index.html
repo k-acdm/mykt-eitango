@@ -962,6 +962,16 @@
     .avatar-cat-soon-card { background: rgba(243,240,255,.7); border: 2px dashed #c4b5fd; border-radius: 14px; padding: 16px 14px; text-align: center; }
     .avatar-cat-soon-card .ttl { font-size: 16px; font-weight: bold; color: #6b21a8; }
     .avatar-cat-soon-card .sub { font-size: 12.5px; color: #7c3aed; margin-top: 4px; }
+    /* カテゴリ一覧（階層表示の第1段） */
+    .avatar-cat-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .avatar-cat-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; background: #fff; border: 2px solid #ede9fe; border-radius: 14px; padding: 14px 10px; cursor: pointer; box-shadow: 0 2px 8px rgba(124,58,237,.08); transition: transform .12s, border-color .12s, box-shadow .12s; }
+    .avatar-cat-btn:hover { transform: translateY(-1px); border-color: #c4b5fd; box-shadow: 0 4px 14px rgba(124,58,237,.16); }
+    .avatar-cat-btn-ico { font-size: 34px; line-height: 1; }
+    .avatar-cat-btn-name { font-size: 14px; font-weight: bold; color: #4c1d95; text-align: center; }
+    .avatar-cat-btn-count { font-size: 12px; color: #7c3aed; background: #f3f0ff; border-radius: 999px; padding: 1px 10px; }
+    /* カテゴリ詳細：一覧へ戻るボタン */
+    .avatar-cat-back-btn { display: inline-block; margin-bottom: 14px; padding: 9px 14px; border: none; border-radius: 10px; background: #f3f4f6; color: #4b5563; font-size: 13px; font-weight: bold; cursor: pointer; }
+    .avatar-cat-back-btn:hover { background: #e5e7eb; }
     /* 品目表示モード：アイテムグリッド */
     .avatar-item-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
     .avatar-item-card { background: #fff; border: 2px solid #ede9fe; border-radius: 14px; padding: 12px 10px; text-align: center; box-shadow: 0 2px 8px rgba(124,58,237,.08); display: flex; flex-direction: column; }
@@ -1020,6 +1030,8 @@
       .avatar-deco { width: 34px; bottom: 10px; }
       .avatar-item-thumb, .avatar-item-thumb-ph { height: 92px; }
       .avatar-shop-balance .val { font-size: 22px; }
+      .avatar-cat-btn-ico { font-size: 28px; }
+      .avatar-cat-btn-name { font-size: 13px; }
       .amazon-gift-hero .title { font-size: 17px; }
       .amazon-gift-hero .req b { font-size: 19px; }
     }
@@ -2959,10 +2971,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-0547"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260605-1551"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-0547">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-0547"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260605-1551">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260605-1551"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6815,8 +6827,12 @@
 
   // ---- ショップ（2 段階表示：カテゴリ表示 / 品目表示）----
   var _avatarShopItemCache = {};
-  function showAvatarShop() {
+  var _avatarShopRes = null;          // getAvatarShop のレスポンスを保持（カテゴリ切替で再取得しない）
+  var _avatarShopCurrentCat = null;   // 開いているカテゴリ key（null = カテゴリ一覧表示中）
+  // keepCat=true のときだけ、開いていたカテゴリ詳細を再取得後に維持する（購入後の復帰用）
+  function showAvatarShop(keepCat) {
     showScreen('screen-avatar-shop');
+    if (!keepCat) _avatarShopCurrentCat = null;
     var body  = document.getElementById('avatar-shop-body');
     var balEl = document.getElementById('avatar-shop-balance-val');
     if (balEl) balEl.textContent = '―';
@@ -6827,48 +6843,95 @@
       _renderAvatarShop(res);
     }).catch(function(){ if (body) body.innerHTML = '<div class="avatar-shop-loading">通信エラーが発生しました。</div>'; });
   }
+  // カテゴリキー → 絵文字アイコン（未知キーは 🎁）
+  function _avatarCatIcon(key) {
+    var map = { makeup:'💄', hat:'🎩', tops:'👕', bottoms:'👖', outfit:'🧥', shoes:'👟',
+                glasses:'👓', item:'🎒', pet:'🐾', background:'🏞️', aura:'✨', collab:'🎭', trophy:'🏆' };
+    return map[key] || '🎁';
+  }
   function _renderAvatarShop(res) {
-    var body  = document.getElementById('avatar-shop-body');
     var balEl = document.getElementById('avatar-shop-balance-val');
     if (balEl) balEl.innerHTML = (res.exchangeableHp == null ? '―' : _avNum(res.exchangeableHp) + ' <small>HP</small>');
-    if (!body) return;
-    var cats = Array.isArray(res.categories) ? res.categories : [];
-    if (cats.length === 0) { body.innerHTML = '<div class="avatar-shop-loading">まだアイテムがありません。</div>'; return; }
+    _avatarShopRes = res;
+    // 全カテゴリ分のアイテムを先読みキャッシュ（購入対象がキャッシュに無い事故を防ぐ）
     _avatarShopItemCache = {};
-    var html = '';
+    var cats = Array.isArray(res.categories) ? res.categories : [];
     cats.forEach(function(cat){
-      html += '<div class="avatar-shop-cat">';
-      html += '<div class="avatar-shop-cat-head">' + _avEsc(cat.categoryJa) + '</div>';
-      if (cat.displayMode !== 'item') {
-        // カテゴリ表示モード：個別アイテムを出さず、カテゴリ名を「近日公開」的に並べる
-        html += '<div class="avatar-cat-soon-card"><div class="ttl">' + _avEsc(cat.categoryJa) + '</div><div class="sub">🔜 近日公開、お楽しみに</div></div>';
-      } else {
-        var items = Array.isArray(cat.items) ? cat.items : [];
-        if (items.length === 0) {
-          html += '<div class="avatar-cat-soon-card"><div class="sub">準備中…</div></div>';
-        } else {
-          html += '<div class="avatar-item-grid">';
-          items.forEach(function(it){
-            _avatarShopItemCache[it.itemId] = it;
-            var soon = !it.purchasable && !it.owned;
-            html += '<div class="avatar-item-card' + (soon ? ' soon' : '') + '">';
-            // 予告アイテム等で image_path のファイル未アップロード時にリンク切れにならないよう、
-            // 読み込み失敗時は空 image_path と同じ 🎁 プレースホルダに差し替える（onerror=null で無限ループ防止）。
-            if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;avatar-item-thumb-ph&quot;>🎁</div>\'">';
-            else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
-            if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
-            html += '<div class="avatar-item-name">' + _avEsc(it.name) + '</div>';
-            html += '<div class="avatar-item-price">' + (Number(it.price) > 0 ? _avNum(it.price) + ' HP' : '—') + '</div>';
-            if (it.owned)            html += '<button class="avatar-item-btn owned" disabled>所持済み</button>';
-            else if (it.purchasable) html += '<button class="avatar-item-btn buy" onclick="buyAvatarItem(\'' + _avEsc(it.itemId) + '\')">交換する</button>';
-            else                     html += '<button class="avatar-item-btn soon" disabled>近日公開</button>';
-            html += '</div>';
-          });
-          html += '</div>';
-        }
-      }
-      html += '</div>';
+      (Array.isArray(cat.items) ? cat.items : []).forEach(function(it){ _avatarShopItemCache[it.itemId] = it; });
     });
+    // 購入後など、開いていたカテゴリが指定されていて、まだ存在するなら詳細を復元
+    if (_avatarShopCurrentCat) {
+      var stillExists = cats.some(function(c){ return c.categoryKey === _avatarShopCurrentCat; });
+      if (stillExists) { _renderAvatarShopCategory(_avatarShopCurrentCat); return; }
+      _avatarShopCurrentCat = null;
+    }
+    _renderAvatarShopCatList();
+  }
+  // 第1段：カテゴリ一覧（アイコン + 名前 + 件数のボタン群）
+  function _renderAvatarShopCatList() {
+    var body = document.getElementById('avatar-shop-body');
+    if (!body) return;
+    var cats = (_avatarShopRes && Array.isArray(_avatarShopRes.categories)) ? _avatarShopRes.categories : [];
+    if (cats.length === 0) { body.innerHTML = '<div class="avatar-shop-loading">まだアイテムがありません。</div>'; return; }
+    var html = '<div class="avatar-cat-list">';
+    cats.forEach(function(cat){
+      html += '<button type="button" class="avatar-cat-btn" onclick="openAvatarShopCategory(\'' + _avEsc(cat.categoryKey) + '\')">';
+      html += '<span class="avatar-cat-btn-ico">' + _avatarCatIcon(cat.categoryKey) + '</span>';
+      html += '<span class="avatar-cat-btn-name">' + _avEsc(cat.categoryJa) + '</span>';
+      html += '<span class="avatar-cat-btn-count">' + _avNum(cat.itemCount) + '個</span>';
+      html += '</button>';
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  }
+  function openAvatarShopCategory(categoryKey) {
+    _avatarShopCurrentCat = categoryKey;
+    _renderAvatarShopCategory(categoryKey);
+  }
+  function backToAvatarShopCatList() {
+    _avatarShopCurrentCat = null;
+    _renderAvatarShopCatList();
+  }
+  // 第2段：選択カテゴリのアイテム表示（アイテムカードの見た目は従来どおり）
+  function _renderAvatarShopCategory(categoryKey) {
+    var body = document.getElementById('avatar-shop-body');
+    if (!body) return;
+    var cats = (_avatarShopRes && Array.isArray(_avatarShopRes.categories)) ? _avatarShopRes.categories : [];
+    var cat = null;
+    for (var i = 0; i < cats.length; i++) { if (cats[i].categoryKey === categoryKey) { cat = cats[i]; break; } }
+    if (!cat) { backToAvatarShopCatList(); return; }
+    var html = '';
+    html += '<button type="button" class="avatar-cat-back-btn" onclick="backToAvatarShopCatList()">← カテゴリ一覧に戻る</button>';
+    html += '<div class="avatar-shop-cat">';
+    html += '<div class="avatar-shop-cat-head">' + _avatarCatIcon(cat.categoryKey) + ' ' + _avEsc(cat.categoryJa) + '</div>';
+    if (cat.displayMode !== 'item') {
+      // カテゴリ表示モード：個別アイテムを出さず、カテゴリ名を「近日公開」的に出す
+      html += '<div class="avatar-cat-soon-card"><div class="ttl">' + _avEsc(cat.categoryJa) + '</div><div class="sub">🔜 近日公開、お楽しみに</div></div>';
+    } else {
+      var items = Array.isArray(cat.items) ? cat.items : [];
+      if (items.length === 0) {
+        html += '<div class="avatar-cat-soon-card"><div class="sub">準備中…</div></div>';
+      } else {
+        html += '<div class="avatar-item-grid">';
+        items.forEach(function(it){
+          var soon = !it.purchasable && !it.owned;
+          html += '<div class="avatar-item-card' + (soon ? ' soon' : '') + '">';
+          // 予告アイテム等で image_path のファイル未アップロード時にリンク切れにならないよう、
+          // 読み込み失敗時は空 image_path と同じ 🎁 プレースホルダに差し替える（onerror=null で無限ループ防止）。
+          if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;avatar-item-thumb-ph&quot;>🎁</div>\'">';
+          else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
+          if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
+          html += '<div class="avatar-item-name">' + _avEsc(it.name) + '</div>';
+          html += '<div class="avatar-item-price">' + (Number(it.price) > 0 ? _avNum(it.price) + ' HP' : '—') + '</div>';
+          if (it.owned)            html += '<button class="avatar-item-btn owned" disabled>所持済み</button>';
+          else if (it.purchasable) html += '<button class="avatar-item-btn buy" onclick="buyAvatarItem(\'' + _avEsc(it.itemId) + '\')">交換する</button>';
+          else                     html += '<button class="avatar-item-btn soon" disabled>近日公開</button>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+    }
+    html += '</div>';
     body.innerHTML = html;
   }
   var _avatarBuyInFlight = false;
@@ -6884,7 +6947,7 @@
       if (!res || !res.ok) { alert('交換できませんでした：' + ((res && res.message) || '通信エラー')); return; }
       if (Array.isArray(res.owned)) _avatarState.items = res.owned;
       alert('🎉 ' + (res.message || '交換しました！'));
-      showAvatarShop(); // 残高 + 所持状態の反映のため再取得
+      showAvatarShop(true); // 残高 + 所持状態の反映のため再取得（開いていたカテゴリに戻す）
     }).catch(function(){ _avatarBuyInFlight = false; alert('交換できませんでした：通信エラー'); });
   }
 
@@ -15160,7 +15223,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-0547</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260605-1551</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
