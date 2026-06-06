@@ -1323,7 +1323,7 @@ function doPost(e) {
     if      (action === 'submitPhoto')              result = submitPhoto(params.studentId, params.setNo, params.imageBase64, params.words);
     // commit 4（並走追加）：VocabOrder 出題の提出。VocabOrder へ position/done 書き戻し＋
     //   既存 _grantHP で HP 付与（saveAttempt は無改修・温存）。フロントはまだ呼ばない（commit 5）。
-    else if (action === 'submitAttemptV2')          result = submitAttemptV2(params.studentId, params.grade, params.groupType, params.blockNo, params.round, params.passed, { expectedPosition: params.expectedPosition });
+    else if (action === 'submitAttemptV2')          result = submitAttemptV2(params.studentId, params.grade, params.groupType, params.blockNo, params.round, params.passed, { expectedPosition: params.expectedPosition, sessionNo: params.sessionNo, score: params.score, total: params.total });
     // 管理画面の大量データ投入用（GET ではクエリ長制限を超えるため POST 経由）
     else if (action === 'adminAddWabun1TopicsWeek') result = adminAddWabun1TopicsWeek(params);
     // 同上：三語短文の週単位一括登録（28 件で 8KB 超過、CLAUDE.md #93 と同パターン）
@@ -28381,11 +28381,24 @@ function _vocabQ4Obj(r, wid, round) {
   };
 }
 
+// 5級：Question5 シート1行 → 出題用オブジェクト（_getWords と同一フィールド + word_id/round）。
+//   Q5 は example/blank 列を持たない 10 列形状（setNo/qNo/word/meaning/A/B/C/D/answer/grade）。
+function _vocabQ5Obj(r, wid, round) {
+  return {
+    setNo: Number(r[0]), qNo: Number(r[1]),
+    word: String(r[2]), meaning: String(r[3]),
+    choiceA: String(r[4]), choiceB: String(r[5]),
+    choiceC: String(r[6]), choiceD: String(r[7]),
+    answer: String(r[8]), grade: String(r[9]),
+    word_id: wid, round: round
+  };
+}
+
 // word_id 配列（＋round）から実際の問題を引く。返却はシャッフル順（wordIds の順）を維持。
 //   問題シートは _getQuestionRowsForLevel（級別キャッシュ・全列含む）を流用＝追加スキャンなし。
 function _vocabLookupQuestions(grade, groupType, wordIds, round) {
   if (!wordIds || wordIds.length === 0) return [];
-  if (grade === '5級') return []; // 5級は次 commit（getTodaysSetV2 側で事前にブロック済み）
+  const isQ5 = (grade === '5級');  // commit 6a：5級は Q5 形状で引く（4級+ は Questions 形状）
   const col = _vocabQColIdx(grade);
   if (!col || col.iWordId < 0 || col.iRound < 0) return [];
   const want = {};
@@ -28398,7 +28411,7 @@ function _vocabLookupQuestions(grade, groupType, wordIds, round) {
     if (!want[wid] || found[wid]) continue;
     if (Number(r[col.iRound]) !== round) continue;
     if (col.iType >= 0 && String(r[col.iType] || '').trim() !== groupType) continue;
-    found[wid] = _vocabQ4Obj(r, wid, round);
+    found[wid] = isQ5 ? _vocabQ5Obj(r, wid, round) : _vocabQ4Obj(r, wid, round);
   }
   const out = [];
   wordIds.forEach(function(w) { if (found[w]) out.push(found[w]); });
@@ -28416,7 +28429,19 @@ function getTodaysSetV2(studentId, grade, groupType) {
     if (!sid) return { ok: false, message: '生徒IDが必要です' };
     if (!VOCAB_GRADE_CODE[grade]) return { ok: false, message: '未知の級です: ' + grade };
     if (groupType !== 'word' && groupType !== 'idiom') return { ok: false, message: "groupType は word/idiom です: " + groupType };
-    if (grade === '5級') return { ok: false, unsupported: true, message: '5級は V2 未対応（次 commit で対応）', words: [] };
+    // 5級も V2 対応（VocabOrder の g5 データを使う。4級+ と同方式・5級特有の新仕様は足さない）。
+
+    // commit 6a：1日2セットゲート（V1 getTodaysSet と同一基準）。
+    //   pass1_/pass2_<sid>_<grade> を教育日(_todayEducationalJST)で判定。両方=今日なら当日上限。
+    //   ※V1 と同じく級単位（word/idiom は同一級の枠を共有＝1日2セットまで）。
+    const props = _props();
+    const today = _todayEducationalJST();
+    const done1 = (props.getProperty('pass1_' + sid + '_' + grade) || '') === today;
+    const done2 = (props.getProperty('pass2_' + sid + '_' + grade) || '') === today;
+    if (done1 && done2) {
+      return { ok: true, alreadyDone: true, sessionNo: 3, level: grade, grade: grade, groupType: groupType, words: [] };
+    }
+    const sessionNo = done1 ? 2 : 1;
 
     const rows = _getVocabRowsForKey(sid, grade, groupType);
     if (rows.length === 0) {
@@ -28443,6 +28468,7 @@ function getTodaysSetV2(studentId, grade, groupType) {
       ok: true, version: 'v2', studentId: sid,
       level: grade, grade: grade, groupType: groupType,
       blockNo: target.blockNo, round: target.round, position: position,
+      sessionNo: sessionNo,
       setSize: VOCAB_V2_SET_SIZE, servedCount: words.length,
       isRound2: (target.round === 2),
       blockLen: order.length, remainingInRound: order.length - position,
@@ -28457,9 +28483,15 @@ function getTodaysSetV2(studentId, grade, groupType) {
 // ── 提出（V2）：合格なら VocabOrder の position/done を前進＋既存 HP を付与 ──
 //   入力: studentId, grade, groupType, blockNo, round, passed,
 //          opts.expectedPosition（任意：二重送信ガード。getTodaysSetV2 の position を渡す）
+//          opts.sessionNo（任意：1/2。当日ゲートの pass1/pass2 振り分け。getTodaysSetV2 の値を渡す）
+//          opts.score / opts.total（任意：Attempts 記録用。V2 合格=満点。未指定時は配信語数で補完）
 //   ★HP は既存 _grantHP（type='test'/rawHp=50）を流用＝saveAttempt と同一の付与・HPLog 記録。
-//   ★書き込むのは VocabOrder のみ＋_grantHP 経由の HP（Students.HP/HPLog）。
-//     Properties（cleared_/pass1_/pass2_）・Attempts・既存 saveAttempt には触らない。
+//   ★commit 6a で saveAttempt 互換に拡張：
+//      - Attempts シートへ V1 saveAttempt と同形式で記録（getHistory に出る。setNo 列＝blockNo）
+//      - 当日ゲート pass1_/pass2_<sid>_<grade> を教育日でセット（V1 と同一基準・1日2セット）
+//      - 戻り値を saveAttempt 互換に（totalHP/clearHP/displayedImmediate/justCompleted 等）
+//   ★cleared_ は V2 では使わない（進捗は VocabOrder の position/done）。V1（getTodaysSet/
+//     saveAttempt/getKobunSet）・_grantHP の HP 計算・VocabOrder データには手を入れない。
 function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, opts) {
   try {
     const sid = String(studentId || '').trim();
@@ -28471,7 +28503,7 @@ function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, op
     opts = opts || {};
     if (!sid) return { ok: false, message: '生徒IDが必要です' };
     if (!VOCAB_GRADE_CODE[grade]) return { ok: false, message: '未知の級です: ' + grade };
-    if (grade === '5級') return { ok: false, unsupported: true, message: '5級は V2 未対応（次 commit）' };
+    // 5級も V2 対応（getTodaysSetV2 と同じく 5級 を受け付ける）。
     if (groupType !== 'word' && groupType !== 'idiom') return { ok: false, message: 'groupType は word/idiom です' };
     if (blockNo <= 0 || (round !== 1 && round !== 2)) return { ok: false, message: 'blockNo/round が不正です' };
 
@@ -28493,14 +28525,36 @@ function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, op
       return { ok: true, alreadyDone: true, blockNo: blockNo, round: round, position: position, hpGained: 0 };
     }
 
+    // このテストの配信語数（＝Attempts の total。V2 合格=満点）
+    const advance = Math.min(VOCAB_V2_SET_SIZE, order.length - position);
+    const total = (opts.total != null) ? Number(opts.total) : advance;
+    const score = (opts.score != null) ? Number(opts.score) : (passed ? advance : 0);
+
+    // 生徒行を sid でフレッシュ特定（氏名 + HP 付与に共用。V1 saveAttempt と同じ _findAccountRowOnSheet）
+    const stuLoc = _findAccountRowOnSheet(sid);
+    const studentName = stuLoc ? String(stuLoc.rowValues[COL_NAME] || '') : '';
+
+    // commit 6a #4：Attempts へ V1 saveAttempt と同形式で記録（getHistory に出る）。
+    //   列：日時 / 生徒ID / 氏名 / セット番号(=V2 blockNo) / 得点 / 合否 / 級 / 端末 / メモ
+    const aSheet = _ss().getSheetByName(SHEET_ATTEMPTS);
+    const now = _nowJST();
+    aSheet.appendRow([now, sid, studentName, blockNo, score, passed ? '合格' : '不合格', grade, '', '']);
+
     if (!passed) {
-      // 不合格：進捗も HP も動かさない（既存 saveAttempt と同じく再挑戦可）
+      // 不合格：進捗も HP も動かさない（既存 saveAttempt と同じく再挑戦可。Attempts には記録済み）
       return { ok: true, passed: false, hpGained: 0, blockNo: blockNo, round: round, position: position };
     }
 
+    // commit 6a #3：当日ゲート（V1 saveAttempt と同一）。pass1/pass2 を教育日でセット。
+    //   sessionNo は getTodaysSetV2 の値（opts.sessionNo）優先。無ければ pass1 の有無で判定。
+    const props = _props();
+    const today = _todayEducationalJST();
+    const sessionNo = Number(opts.sessionNo) || (((props.getProperty('pass1_' + sid + '_' + grade) || '') === today) ? 2 : 1);
+    const passKey = (sessionNo === 1) ? ('pass1_' + sid + '_' + grade) : ('pass2_' + sid + '_' + grade);
+    props.setProperty(passKey, today);
+
     // 合格：position を前進（min SET_SIZE, 残り）→ round 完走で done=TRUE。
     //   進捗先行（書き戻し→HP）。HP 先行だと失敗時に再挑戦で HP 二重取りの恐れがあるため。
-    const advance = Math.min(VOCAB_V2_SET_SIZE, order.length - position);
     const newPosition = position + advance;
     const newDone = newPosition >= order.length;
 
@@ -28511,7 +28565,6 @@ function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, op
     _invalidateVocabKey(sid, grade, groupType);
 
     // HP 付与（既存 _grantHP 流用：type='test' / rawHp=50 → saveAttempt と完全同一の付与）
-    const stuLoc = _findAccountRowOnSheet(sid);
     if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid, advanced: true, newPosition: newPosition, roundDone: newDone };
     const grant = _grantHP({ sid: sid, type: 'test', rawHp: 50, stuLoc: stuLoc });
     if (!grant.ok) {
@@ -28527,11 +28580,24 @@ function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, op
     const blockCompleted = !!(fr1 && fr1.done && fr2 && fr2.done);
 
     return {
+      // V2 進捗（フロントの状態前進用）
       ok: true, version: 'v2', passed: true,
-      blockNo: blockNo, round: round,
+      blockNo: blockNo, round: round, position: position, sessionNo: sessionNo,
       newPosition: newPosition, roundDone: newDone, blockCompleted: blockCompleted,
-      hpGained: grant.hpGained, hpReserved: grant.hpReserved, newHP: grant.newHP,
-      streak: grant.streak, week: grant.week
+      // commit 6a #2：saveAttempt 互換（結果画面 / 両輪 / 振り返り表示が V1 と同一に描画される）
+      clearHP:       grant.hpGained,   // フロント既存互換（_submitAttempt が clearHP を見る）
+      bonusHP:       0,                // 旧版互換（常に 0）
+      hpGained:      grant.hpGained,
+      hpReserved:    grant.hpReserved,
+      justCompleted: grant.justCompleted,
+      releasedHp:    grant.releasedHp,
+      bonusHp:       grant.bonusHp,
+      totalHP:       grant.newHP,
+      streak:        grant.streak,
+      week:          grant.week,
+      displayedImmediate:        grant.displayedImmediate,
+      displayedReserved:         grant.displayedReserved,
+      isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
     };
   } catch (err) {
     console.error('[submitAttemptV2]', err);
