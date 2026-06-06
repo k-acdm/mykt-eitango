@@ -28600,3 +28600,64 @@ function testV2FullFlow(sid, grade, groupType, nTests) {
 //   runTestV2_flow  : テストアカウントで種まき→出題→提出を5回（VocabOrder書込＋HP付与あり）
 function runTestV2_serve() { return testGetTodaysSetV2('20014', '準1級', 'word'); }
 function runTestV2_flow()  { return testV2FullFlow('1001', '4級', 'word', 5); }
+
+// =============================================================================
+// commit 5：V2 切替フラグ（2026-06-06）
+// =============================================================================
+// 「V2（VocabOrder 出題）をどの範囲で有効にするか」を PropertiesService で制御する。
+// このフラグを追加するだけでは実出題は一切変わらない（フロントが getTodaysSet=V1 を呼び
+// 続けるため）。V1/V2 のどちらを呼ぶかの結線は commit 6（フロント）で行う。
+//
+// モード（VOCAB_V2_MODE）3 段階:
+//   'off'  = 全生徒 V1（既定・現状維持。未設定時も off 扱い）
+//   'test' = テストアカウント（1001〜1010 / _isTestAccountId）のみ V2、他は V1
+//   'on'   = 全生徒 V2
+//
+// ★切替は GAS エディタから setVocabV2Off/Test/On() を実行（コード変更不要）。
+// ★ここでは判定ヘルパーと切替関数のみ追加。getTodaysSet(V1)/getTodaysSetV2/submitAttempt 系の
+//   ロジック本体・VocabOrder データ・移行・HP/streak には一切触れない。
+const VOCAB_V2_MODE_KEY  = 'VOCAB_V2_MODE';
+const VOCAB_V2_MODE_OFF  = 'off';
+const VOCAB_V2_MODE_TEST = 'test';
+const VOCAB_V2_MODE_ON   = 'on';
+const VOCAB_V2_MODES     = [VOCAB_V2_MODE_OFF, VOCAB_V2_MODE_TEST, VOCAB_V2_MODE_ON];
+
+// 現在の V2 モードを返す（未設定 / 不正値は 'off' に正規化）。
+function getVocabV2Mode() {
+  let mode = VOCAB_V2_MODE_OFF;
+  try {
+    const raw = String(_props().getProperty(VOCAB_V2_MODE_KEY) || '').trim().toLowerCase();
+    if (VOCAB_V2_MODES.indexOf(raw) >= 0) mode = raw;
+  } catch (e) {
+    console.error('[getVocabV2Mode]', e);
+  }
+  Logger.log('[getVocabV2Mode] 現在の VOCAB_V2_MODE = ' + mode);
+  return mode;
+}
+
+// 指定 sid が V2 出題を使うべきか判定（commit 6 のフロント結線で参照する想定）。
+//   'off'  → 常に false（全員 V1）
+//   'test' → テストアカウント(1001〜1010)のみ true
+//   'on'   → 常に true（全員 V2）
+function _isVocabV2Enabled(sid) {
+  const mode = getVocabV2Mode();
+  if (mode === VOCAB_V2_MODE_ON)   return true;
+  if (mode === VOCAB_V2_MODE_TEST) return _isTestAccountId(sid);
+  return false; // 'off'（既定）
+}
+
+// --- 切替関数（GAS エディタの関数ドロップダウンから実行） ---
+function _setVocabV2Mode(mode) {
+  if (VOCAB_V2_MODES.indexOf(mode) < 0) {
+    Logger.log('[_setVocabV2Mode] 不正なモード: ' + mode);
+    return { ok: false, message: '不正なモード: ' + mode };
+  }
+  _props().setProperty(VOCAB_V2_MODE_KEY, mode);
+  Logger.log('[_setVocabV2Mode] VOCAB_V2_MODE を "' + mode + '" に設定しました'
+    + '（off=全員V1 / test=テストアカウントのみV2 / on=全員V2）'
+    + ' ※フロント結線は commit 6。現時点では実出題は変わりません。');
+  return { ok: true, mode: mode };
+}
+function setVocabV2Off()  { return _setVocabV2Mode(VOCAB_V2_MODE_OFF); }
+function setVocabV2Test() { return _setVocabV2Mode(VOCAB_V2_MODE_TEST); }
+function setVocabV2On()   { return _setVocabV2Mode(VOCAB_V2_MODE_ON); }
