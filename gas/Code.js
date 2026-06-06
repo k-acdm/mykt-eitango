@@ -1579,7 +1579,11 @@ function loginStudent(studentId) {
       title,
       milestone:   milestoneInfo,
       accountType: accountType,             // 'student' / 'test' / 'teacher' / 'invited' / 'experience' / 'unknown'
-      pendingReflectionDate: pendingReflectionDate  // null or 'yyyy-MM-dd'（翌日キャッチアップ用、フロントが強制振り返りモーダルを起動）
+      pendingReflectionDate: pendingReflectionDate, // null or 'yyyy-MM-dd'（翌日キャッチアップ用、フロントが強制振り返りモーダルを起動）
+      // commit 6b-1：語彙ランダム化 V2 フラグ。フロントは _isVocabV2Enabled を直接呼べないため
+      //   サーバで判定済みの値を渡す（mode は表示/診断用、enabled が V1/V2 出し分けの真偽）。
+      vocabV2Mode:    getVocabV2Mode(),
+      vocabV2Enabled: _isVocabV2Enabled(String(row[COL_ID]).trim())
     };
   } catch (err) {
     console.error('[loginStudent]', err);

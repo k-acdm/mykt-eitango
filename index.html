@@ -2986,10 +2986,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260606-0024"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260606-2317"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260606-0024">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260606-0024"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260606-2317">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260606-2317"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5397,6 +5397,14 @@
   var _totalHP = 0;
   // E1: ログインの streak をセッション中保持（HP 予測に使用）
   var _streak = 0;
+  // commit 6b-1：語彙ランダム化 V2 のフラグ + セッション状態
+  var _vocabV2Mode = 'off';     // 'off'/'test'/'on'（ログイン戻り値 vocabV2Mode、表示/診断用）
+  var _vocabV2Enabled = false;  // この生徒が V2 対象か（サーバ _isVocabV2Enabled 判定済みの値）
+  var _isV2Session = false;     // 現在の英単語RUSH セッションが V2 か（showToday で確定）
+  var _v2BlockNo = 0;           // V2 出題の blockNo
+  var _v2Round = 0;             // V2 出題の round（1/2）
+  var _v2Position = 0;          // V2 出題の position（提出時の expectedPosition）
+  var _v2GroupType = 'word';    // 6b-1 は word 固定（単語/熟語選択 UI は 6b-2）
   // Task 3（2026-05-19）：accountType をセッション中保持（doLogout で振り返りモーダル
   // スキップ判定に使う）。'student' / 'test' / 'teacher' / 'invited' / 'experience' /
   // 'unknown' のいずれか。空文字は「未確定」扱いで通常生徒として扱う。
@@ -6217,6 +6225,9 @@
       _totalHP     = Number(res.totalHP) || 0;
       _streak      = Number(res.streak) || 0;
       _accountType = String(res.accountType || ''); // Task 3：振り返りモーダルスキップ判定用
+      // commit 6b-1：V2 フラグをセッション中保持（英単語RUSH の V1/V2 出し分けに使用）
+      _vocabV2Mode    = String(res.vocabV2Mode || 'off');
+      _vocabV2Enabled = (res.vocabV2Enabled === true);
       // 2026-05-21：翌日キャッチアップ。pendingReflectionDate が返ってきたら、ホーム遷移後に
       // 強制振り返りモーダルを起動する（_openCatchupReflectionModal）。
       //   - GAS 側で accountType skip / 7 日範囲制限 / 30 分キャッシュは処理済み
@@ -7634,6 +7645,9 @@
     showFortuneScreen();
   }
   function showToday() {
+    // commit 6b-1：V2 対象生徒は V2 出題へ分岐（フラグ off / 非対象は従来 V1 のまま）。
+    if (_vocabV2Enabled) { _showTodayV2(); return; }
+    _isV2Session = false;
     document.getElementById('today-student').textContent = _studentId + ' さん';
     document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';
     document.getElementById('today-btn').style.display = 'none';
@@ -7651,6 +7665,44 @@
       document.getElementById('today-student').textContent   = _studentId + ' さん｜英検' + res.level + 'レベル';
       if (_level === '5級' && !_isRound2) { showDictation(res.words, res.setNo, sl); }
       else { renderWords(res.words); var btn = document.getElementById('today-btn'); btn.textContent = '✏️ テストに挑戦する'; btn.onclick = showTest; btn.style.display = 'block'; }
+    }).catch(function(){ document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
+  }
+  // commit 6b-1：V2 出題（VocabOrder 参照）。words[] は V1 同形式なので既存 renderWords/
+  //   showDictation/renderQuestion を流用。V2 固有ステート(blockNo/round/position/sessionNo)を保持。
+  //   groupType は word 固定（単語/熟語選択 UI は 6b-2）。5級含む全級（getTodaysSetV2 は 6a で 5級対応済）。
+  function _showTodayV2() {
+    _isV2Session = true;
+    document.getElementById('today-student').textContent = _studentId + ' さん';
+    document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';
+    document.getElementById('today-btn').style.display = 'none';
+    showScreen('screen-today');
+    gasGet({ action:'getTodaysSetV2', studentId:_studentId, grade:_level, groupType:_v2GroupType }).then(function(res){
+      if (!res || !res.ok) { document.getElementById('today-word-list').innerHTML = '<div class="error">⚠️ ' + ((res && res.message) || 'エラーが発生しました。') + '</div>'; return; }
+      // alreadyDone：1日2セット完了（V1 と同じ表示）
+      if (res.alreadyDone) {
+        document.getElementById('today-set-label').textContent = '英検' + (res.level || _level) + 'レベル';
+        document.getElementById('today-word-list').innerHTML = '<div style="text-align:center;padding:40px 16px"><div style="font-size:56px">🎉</div><div style="font-size:20px;font-weight:bold;color:#2d3a8c;margin:16px 0">今日の2セットは完了！</div><div style="font-size:15px;color:#666">お疲れさまでした。また明日も頑張ろう！</div></div>';
+        var b1 = document.getElementById('today-btn'); b1.textContent = '📖 今までのおさらいを見る'; b1.onclick = showHistory; b1.style.display = 'block'; return;
+      }
+      // completed：この級・種別の全ブロック完了（既習）
+      if (res.completed) {
+        document.getElementById('today-set-label').textContent = '英検' + (res.level || _level) + 'レベル';
+        document.getElementById('today-word-list').innerHTML = '<div style="text-align:center;padding:40px 16px"><div style="font-size:56px">🏆</div><div style="font-size:20px;font-weight:bold;color:#2d3a8c;margin:16px 0">この級は全部やり終えたよ！</div><div style="font-size:15px;color:#666">よくがんばったね！別の級にも挑戦してみよう！</div></div>';
+        var b2 = document.getElementById('today-btn'); b2.textContent = '← レベル選択に戻る'; b2.onclick = showLevelSelect; b2.style.display = 'block'; return;
+      }
+      // noData / 出題語なし
+      if (res.noData || !res.words || res.words.length === 0) {
+        document.getElementById('today-word-list').innerHTML = '<div class="error">⚠️ ' + ((res && res.message) || '出題できる単語がありません。') + '</div>';
+        return;
+      }
+      // 通常出題：V2 ステート保持 + 既存描画を流用（_setNo にはラベル/結果画面流用のため blockNo を充てる）
+      _v2BlockNo = Number(res.blockNo) || 0; _v2Round = Number(res.round) || 0; _v2Position = Number(res.position) || 0; _v2GroupType = res.groupType || 'word';
+      _setNo = res.blockNo; _questions = res.words; _sessionNo = res.sessionNo; _level = res.grade || res.level || _level; _isRound2 = res.isRound2 || false;
+      var sl = res.sessionNo === 1 ? '1セット目' : '2セット目';
+      document.getElementById('today-set-label').textContent = '英検' + _level + 'レベル｜セット ' + res.blockNo + '（' + sl + '）';
+      document.getElementById('today-student').textContent   = _studentId + ' さん｜英検' + _level + 'レベル';
+      if (_level === '5級' && !_isRound2) { showDictation(res.words, res.blockNo, sl); }
+      else { renderWords(res.words); var b3 = document.getElementById('today-btn'); b3.textContent = '✏️ テストに挑戦する'; b3.onclick = showTest; b3.style.display = 'block'; }
     }).catch(function(){ document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
   }
   function renderWords(words) {
@@ -7841,6 +7893,8 @@
   //   5 秒 disable し、サーバ側の処理完了をある程度待たせてからリトライさせる
   //   （根本対策は idempotency key 導入だが、本 Step では対象外）。
   function _submitAttempt(total) {
+    // commit 6b-1：V2 セッションなら submitAttemptV2 へ（V1 は従来 saveAttempt のまま）。
+    if (_isV2Session) { _submitAttemptV2(total); return; }
     var sidSnap = _studentId, setNoSnap = _setNo, scoreSnap = _score, levelSnap = _level, sessionNoSnap = _sessionNo;
     var payload = {
       action:    'saveAttempt',
@@ -7872,6 +7926,45 @@
         showResult(true, res);
       }).catch(function(){
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
+        _hideHpConfirmingOverlay();
+        _showSubmitErrorWithRetryGuard(5000);
+      });
+    }
+    doSubmit();
+  }
+
+  // commit 6b-1：V2 提出（submitAttemptV2／doPost）。_submitAttempt と同じ overlay/リトライ/
+  //   結果画面フローを踏襲。submitAttemptV2 の戻り値は 6a で saveAttempt 互換にしてあるので
+  //   showResult / _appendReserveAndCompletionBlock / 振り返り注意書き / 生涯HP は V1 と同一に描画される。
+  //   ※二重送信は submitAttemptV2 の expectedPosition ガードでも弾かれる（V1 より安全）が、
+  //     念のため V1 と同じ 5 秒リトライガードも適用する。
+  function _submitAttemptV2(total) {
+    var payload = {
+      action:    'submitAttemptV2',
+      studentId: _studentId,
+      grade:     _level,
+      groupType: _v2GroupType,
+      blockNo:   _v2BlockNo,
+      round:     _v2Round,
+      passed:    true,
+      expectedPosition: _v2Position,
+      sessionNo: _sessionNo,
+      score:     _score,
+      total:     total
+    };
+    function doSubmit() {
+      _showHpConfirmingOverlay('rushkun');
+      _pendingRetry = function(){ _finishing = true; doSubmit(); };
+      _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
+      gasPost(payload, 25000).then(function(res){
+        _hideHpConfirmingOverlay();
+        if (!res || !res.ok) { _showSubmitErrorWithRetryGuard(5000); return; }
+        _pendingRetry = null; _pendingDismiss = null;
+        _invalidateCacheByAction('getHistory');
+        _invalidateCacheByAction('getWeeklyRanking');
+        if (Number(res.streak) > 0) _streak = Number(res.streak);
+        showResult(true, res);
+      }).catch(function(){
         _hideHpConfirmingOverlay();
         _showSubmitErrorWithRetryGuard(5000);
       });
@@ -8673,6 +8766,9 @@
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
     _accountType = '';
+    // commit 6b-1：V2 フラグ/セッション状態もリセット
+    _vocabV2Mode = 'off'; _vocabV2Enabled = false; _isV2Session = false;
+    _v2BlockNo = 0; _v2Round = 0; _v2Position = 0; _v2GroupType = 'word';
     _pendingCatchupDate = null;  // 2026-05-21：翌日キャッチアップ state も同時クリア
     _requiredProgress = null;
     _avatarState = { base: '', items: [], equipped: {}, nickname: '' };
@@ -15284,7 +15380,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260606-0024</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260606-2317</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
