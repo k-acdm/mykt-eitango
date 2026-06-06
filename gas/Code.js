@@ -26994,6 +26994,12 @@ function ensureVocabOrderSheet() {
 
 const VOCAB_BLOCK_SIZE = 100;  // 100 語 = 1 ブロック
 const VOCAB_SUBJECT_EITANGO = 'eitango';
+// コブタン（古文単語）用 subject 定数（2026-06-06）。
+//   コブタンは級レス・熟語区分なし → grade/groupType を固定プレースホルダで扱う。
+//   出題元は KobunQuestions（列: セット番号/問番号/単語ID/単語/問題/選A〜D/正解/周回）。
+const VOCAB_SUBJECT_KOBUN = 'kobun';
+const VOCAB_KOBUN_GRADE = '古文単語';   // grade 列の固定値（級概念が無いため）
+const VOCAB_KOBUN_GROUPTYPE = 'word';   // 全語 word（idiom は存在しない）
 // 級の日本語文字列 → 級コード（word_id の接頭辞と整合。grade 妥当性チェックにも使う）
 const VOCAB_GRADE_CODE = {
   '5級': 'g5', '4級': 'g4', '3級': 'g3', '準2級': 'jun2',
@@ -27093,6 +27099,12 @@ function buildVocabOrder(sid, grade, groupType, opts) {
     opts = opts || {};
     const dryRun = (opts.dryRun === undefined) ? true : !!opts.dryRun;
     const subject = String(opts.subject || VOCAB_SUBJECT_EITANGO).trim();
+
+    // subject=kobun は専用パスへ分岐（級ゲート・英語問題シート読み・type 必須チェックに
+    //   一切入らない＝eitango の挙動は完全に温存）。grade/groupType は kobun 側で固定。
+    if (subject === VOCAB_SUBJECT_KOBUN) {
+      return _buildVocabOrderKobun(sid, dryRun);
+    }
 
     if (!sid) return { ok: false, ready: false, message: '生徒IDが必要です' };
     if (!VOCAB_GRADE_CODE[grade]) {
@@ -27217,6 +27229,133 @@ function buildVocabOrder(sid, grade, groupType, opts) {
 function testBuildVocabOrder() {
   const res = buildVocabOrder('1004', '4級', 'word', { dryRun: true });
   Logger.log('[testBuildVocabOrder] ' + JSON.stringify(res.summary || res, null, 2));
+  return res;
+}
+
+// -----------------------------------------------------------------------------
+// 出題順生成（コブタン版）— _buildVocabOrderKobun（2026-06-06）
+// -----------------------------------------------------------------------------
+// buildVocabOrder の subject=kobun 経路の実体。英単語版と同じ役割＝指定 sid の
+// 「全語」をシャッフルして VocabOrder 行（subject=kobun / grade=古文単語 /
+// groupType=word）を生成する（既習除外はしない＝テスト/種まき用）。既習を踏まえた
+// 移行は runKobunMigrationLIVE が担う（英単語の buildVocabOrder / 移行の役割分担と同じ）。
+//
+// コブタン固有の差分（eitango との違い）:
+//   - 級概念が無い → grade は '古文単語' 固定（VOCAB_GRADE_CODE ゲートを通さない）。
+//   - 熟語 idiom が無い → groupType は 'word' 固定。type 列も不要（必須チェックを課さない）。
+//   - 出題元は KobunQuestions。単語ID→word_id 相当 / 周回→round 相当を _vocabFindCol で読む。
+//   - round1/round2 は同ブロック内で別行（eitango と同じ規則＝1 ブロックにつき round1/round2 の
+//     2 行を生成。同じ語の 1問目/2問目が同一テストに混在しない）。
+//
+// ★読むのは KobunQuestions のみ。書くのは（非 dryRun 時）VocabOrder のみ。
+//   Students/Properties/KobunVocab/HP/Attempts には一切触れない。
+function _buildVocabOrderKobun(sid, dryRun) {
+  try {
+    sid = String(sid || '').trim();
+    dryRun = (dryRun === undefined) ? true : !!dryRun;
+    const subject = VOCAB_SUBJECT_KOBUN;
+    const grade = VOCAB_KOBUN_GRADE;
+    const groupType = VOCAB_KOBUN_GROUPTYPE;
+    if (!sid) return { ok: false, ready: false, message: '生徒IDが必要です' };
+
+    const sh = _ss().getSheetByName(SHEET_KOBUN_QUESTIONS);
+    if (!sh || sh.getLastRow() < 2) {
+      return { ok: true, ready: false, message: SHEET_KOBUN_QUESTIONS + ' に問題データがありません（準備待ち）' };
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iWordId = _vocabFindCol(header, ['word_id', 'wordId', 'wordID', '単語ID']);
+    const iRound  = _vocabFindCol(header, ['round', '周回', 'round_no']);
+    // kobun は type 列を持たない（全語 word 固定）。type は要求しない。
+    if (iWordId < 0 || iRound < 0) {
+      return {
+        ok: true, ready: false,
+        message: SHEET_KOBUN_QUESTIONS + ' に 単語ID / 周回 列が見つかりません。',
+        missing: { word_id: iWordId < 0, round: iRound < 0 }
+      };
+    }
+
+    // distinct word_id（初出順）＋ round 出現の記録（診断）
+    const seenOrder = [];
+    const seenSet = {};
+    const roundsByWordId = {};
+    let scanned = 0;
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      const wid = String(r[iWordId] || '').trim();
+      if (!wid) continue;
+      const rd = String(r[iRound] || '').trim();
+      scanned++;
+      if (!seenSet[wid]) { seenSet[wid] = true; seenOrder.push(wid); roundsByWordId[wid] = {}; }
+      if (rd) roundsByWordId[wid][rd] = true;
+    }
+    const uniqueWordIds = seenOrder;
+    if (uniqueWordIds.length === 0) {
+      return { ok: true, ready: false, message: '対象語が 0 件でした（' + SHEET_KOBUN_QUESTIONS + '）' };
+    }
+
+    // 決定論シャッフル（eitango と同じシード規則 = sid|grade|groupType）
+    const seedStr = sid + '|' + grade + '|' + groupType;
+    const shuffled = _vocabSeededShuffle(uniqueWordIds, seedStr);
+
+    // 100 語ブロック → 各ブロック × round(1,2)。round1/2 は同ブロック内で別行（混在しない）。
+    const blocks = _vocabChunk(shuffled, VOCAB_BLOCK_SIZE);
+    const now = _nowJST();
+    const rows = [];
+    blocks.forEach(function(blockWordIds, idx) {
+      const blockNo = idx + 1;
+      const orderJson = JSON.stringify(blockWordIds);
+      [1, 2].forEach(function(round) {
+        // VOCAB_ORDER_HEADERS: studentId, subject, grade, groupType, blockNo, round, questionOrder, position, done, generatedAt
+        rows.push([sid, subject, grade, groupType, blockNo, round, orderJson, 0, false, now]);
+      });
+    });
+
+    // round1/round2 両方そろっている語の数（診断）
+    let bothRounds = 0;
+    uniqueWordIds.forEach(function(wid) {
+      const m = roundsByWordId[wid] || {};
+      if (m['1'] && m['2']) bothRounds++;
+    });
+
+    let wrote = 0, deleted = 0;
+    if (!dryRun) {
+      ensureVocabOrderSheet();
+      deleted = _vocabDeleteRowsFor(sid, subject, grade, groupType);
+      const wsh = _ss().getSheetByName(SHEET_VOCAB_ORDER);
+      if (rows.length > 0) {
+        wsh.getRange(wsh.getLastRow() + 1, 1, rows.length, VOCAB_ORDER_HEADERS.length).setValues(rows);
+        wrote = rows.length;
+      }
+    }
+
+    return {
+      ok: true,
+      ready: true,
+      dryRun: dryRun,
+      summary: {
+        studentId: sid, subject: subject, grade: grade, groupType: groupType,
+        scannedRows: scanned,
+        uniqueWordCount: uniqueWordIds.length,
+        bothRoundsWordCount: bothRounds,
+        blockCount: blocks.length,
+        generatedRowCount: rows.length,   // = blockCount × 2（round）
+        wrote: wrote, deleted: deleted,
+        firstBlockSample: (blocks[0] || []).slice(0, 10)  // 並びの目視確認用
+      },
+      rows: rows
+    };
+  } catch (err) {
+    console.error('[_buildVocabOrderKobun]', err);
+    return { ok: false, ready: false, message: String(err) };
+  }
+}
+
+// GAS エディタ単体テスト用（コブタン）。buildVocabOrder 経由で kobun 経路を叩く。
+//   ready:true・uniqueWordCount=390・blockCount=4（=ceil(390/100)）が期待値。
+function testBuildVocabOrderKobun() {
+  const res = buildVocabOrder('1004', VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, { dryRun: true, subject: VOCAB_SUBJECT_KOBUN });
+  Logger.log('[testBuildVocabOrderKobun] ' + JSON.stringify(res.summary || res, null, 2));
   return res;
 }
 
@@ -27962,6 +28101,184 @@ function runEitangoMigrationLIVE(opts) {
 // 明示実行用ラッパー（GAS エディタ関数ドロップダウンからこれを選んで実行＝本書き込み）。
 function runEitangoMigrationLIVE_CONFIRM() {
   return runEitangoMigrationLIVE({ confirm: true });
+}
+
+// =============================================================================
+// 既習移行【コブタン版】runKobunMigrationLIVE（2026-06-06、VocabOrder の kobun 行のみ書込）
+// =============================================================================
+// 英単語の runEitangoMigrationLIVE の kobun 版。級ループは無し（コブタンは級レス）。
+// スコープ：全在籍生徒（Students）× subject=kobun × grade=古文単語 × groupType=word。
+//   - 既習（2周＝round1・round2 両方完了）の語は除外し、未習だけ新 100 語ブロックに再構成。
+//   - 既習(done)は除外＝行を作らない（英単語移行と同じ Design B）。
+//
+// ★既習判定（Properties から。コブタンは Attempts シートが無いため Properties が唯一の進捗源）:
+//   キー: kobun_round_<sid>（現在周回 '1'/'2'） / kobun_next_<sid>_<round>（次にやるセット番号）
+//   - round1 クリア集合 = (kobun_round=='2' なら round1 全セット) else { S : S < kobun_next_1 }
+//       （kobun_round=='2' は「round1 を全完走して round2 へ移行済み」を意味する）
+//   - round2 クリア集合 = { S : S < kobun_next_2 }
+//   - 語（home セット S）が既習 ⇔ round1・round2 双方で S がクリア済み。
+//   ※コブタンは 1 語の home セット番号が round1/round2 で同一（実データ確認済：390語すべて一致）。
+//   ※周回モデルは巡回式（2周完走すると Properties が初期状態に戻る）。完走済みの生徒は
+//     「未習扱い（全語やり直し）」と判定される＝過少カウント側で安全（語の取りこぼしは生じない。
+//     V2 の HP は別系統なので二重取りも無い）。発生し得るのは1ヶ月運用の現状ではほぼ皆無。
+//
+// ★冪等性：VocabOrder の subject='kobun' 行を全削除してから書き直す（eitango 等の行は保全）。
+// ★誤実行防止：runKobunMigrationLIVE()=プレビュー / runKobunMigrationLIVE({confirm:true})=本実行。
+//              整合 NG（done+remaining≠総語数）があれば自動中止。
+// ★絶対条件：書き込むのは VocabOrder シートのみ。Students / Properties / KobunVocab /
+//   KobunQuestions / HP / Attempts / 出題ロジックには一切書き込まない（読み取りのみ）。
+function runKobunMigrationLIVE(opts) {
+  try {
+    opts = opts || {};
+    const willWrite = (opts.confirm === true);
+    const subject = VOCAB_SUBJECT_KOBUN;
+    const grade = VOCAB_KOBUN_GRADE;
+    const groupType = VOCAB_KOBUN_GROUPTYPE;
+
+    // --- 入力収集（read-only） ---
+    const stuSh = _ss().getSheetByName(SHEET_STUDENTS);
+    if (!stuSh || stuSh.getLastRow() < 2) { Logger.log('[KOBUN LIVE] Students シートが空です'); return { ok: false, message: 'Students 空' }; }
+    const stuVals = stuSh.getDataRange().getValues();
+    const students = [];
+    for (let i = 1; i < stuVals.length; i++) {
+      const sid = String(stuVals[i][COL_ID] || '').trim();
+      if (sid) students.push(sid);
+    }
+    const allProps = _props().getProperties();
+
+    // KobunQuestions を 1 回スキャン → 語データ構築（read-only）
+    const qSh = _ss().getSheetByName(SHEET_KOBUN_QUESTIONS);
+    if (!qSh || qSh.getLastRow() < 2) { Logger.log('[KOBUN LIVE] KobunQuestions が空です'); return { ok: false, message: 'KobunQuestions 空' }; }
+    const qVals = qSh.getDataRange().getValues();
+    const qHdr = qVals[0];
+    const iWordId = _vocabFindCol(qHdr, ['word_id', 'wordId', 'wordID', '単語ID']);
+    const iRound  = _vocabFindCol(qHdr, ['round', '周回', 'round_no']);
+    let iSetNo = _vocabFindCol(qHdr, ['setNo', 'セット番号', 'セット']);
+    if (iSetNo < 0) iSetNo = 0; // 既存コブタン実装と同じく列0をセット番号として扱う
+    if (iWordId < 0 || iRound < 0) { Logger.log('[KOBUN LIVE] 単語ID/周回 列が見つかりません'); return { ok: false, message: '単語ID/周回 列なし' }; }
+
+    const allWordIds = [];
+    const seenWid = {};
+    const setByWordIdRound = {};  // wid -> { '1': round1のsetNo, '2': round2のsetNo }
+    for (let i = 1; i < qVals.length; i++) {
+      const r = qVals[i];
+      const wid = String(r[iWordId] || '').trim();
+      if (!wid) continue;
+      const rd = String(r[iRound] || '').trim();
+      const sn = Number(r[iSetNo]) || 0;
+      if (!seenWid[wid]) { seenWid[wid] = true; allWordIds.push(wid); setByWordIdRound[wid] = {}; }
+      if (sn && (rd === '1' || rd === '2')) setByWordIdRound[wid][rd] = sn;
+    }
+    const total = allWordIds.length;
+    if (total === 0) { Logger.log('[KOBUN LIVE] 対象語 0 件'); return { ok: false, message: '対象語 0' }; }
+
+    // --- 全行をメモリ上で生成 ---
+    const now = _nowJST();
+    const newRows = [];
+    let aggDone = 0, aggRemaining = 0, progressed = 0, mismatchCount = 0;
+    const sampleChecks = [];
+
+    students.forEach(function(sid) {
+      let round = String(allProps['kobun_round_' + sid] || '1');
+      if (KOBUN_VALID_ROUNDS.indexOf(round) < 0) round = '1';
+      const n1 = parseInt(allProps['kobun_next_' + sid + '_1'] || '0', 10) || 0;
+      const n2 = parseInt(allProps['kobun_next_' + sid + '_2'] || '0', 10) || 0;
+      const round1All = (round === '2'); // round2 にいる＝round1 を全完走済み
+
+      const learnedWids = {};
+      allWordIds.forEach(function(wid) {
+        const sr = setByWordIdRound[wid] || {};
+        const s1 = sr['1'], s2 = sr['2'];
+        const r1cleared = (s1 !== undefined) && (round1All || (n1 > 0 && s1 < n1));
+        const r2cleared = (s2 !== undefined) && (n2 > 0 && s2 < n2);
+        if (r1cleared && r2cleared) learnedWids[wid] = true; // 2周完了＝既習
+      });
+      const learnedList = Object.keys(learnedWids);
+      const remaining = allWordIds.filter(function(w) { return !learnedWids[w]; });
+      aggDone += learnedList.length; aggRemaining += remaining.length;
+      if (learnedList.length > 0) progressed++;
+      if (learnedList.length + remaining.length !== total) mismatchCount++;
+      if (sampleChecks.length < 10) {
+        sampleChecks.push(sid + ': round=' + round + ' n1=' + n1 + ' n2=' + n2
+          + ' done=' + learnedList.length + ' rem=' + remaining.length
+          + ((learnedList.length + remaining.length === total) ? ' ✓' : ' ★NG'));
+      }
+
+      // 未習を生徒ごとシャッフル → 100 語ブロック → round1/round2 の 2 行
+      const shuffled = _vocabSeededShuffle(remaining, sid + '|' + grade + '|' + groupType);
+      const blocks = _vocabChunk(shuffled, VOCAB_BLOCK_SIZE);
+      blocks.forEach(function(blockWids, idx) {
+        const orderJson = JSON.stringify(blockWids);
+        const blockNo = idx + 1;
+        newRows.push([sid, subject, grade, groupType, blockNo, 1, orderJson, 0, false, now]);
+        newRows.push([sid, subject, grade, groupType, blockNo, 2, orderJson, 0, false, now]);
+      });
+    });
+
+    // --- 実行前ログ ---
+    Logger.log('=====================================================');
+    Logger.log(willWrite
+      ? '★★★ これは【本書き込み】です（VocabOrder へ kobun 行を実際に書き込みます）★★★'
+      : '◇ プレビュー（書き込みなし）。本書き込みは runKobunMigrationLIVE_CONFIRM() を実行 ◇');
+    Logger.log('対象生徒数 = ' + students.length + ' / subject = ' + subject + ' / grade = ' + grade + ' / 総語数 = ' + total);
+    Logger.log('生成行数（newRows） = ' + newRows.length);
+    Logger.log('合計 既習語=' + aggDone + ' / 未習語=' + aggRemaining + ' / 進捗ありの生徒数=' + progressed);
+    Logger.log('整合チェック（done+remaining==total）NG件数 = ' + mismatchCount + (mismatchCount === 0 ? '（取りこぼしゼロ）' : '（★要調査）'));
+    Logger.log('サンプル: ' + sampleChecks.join(' | '));
+
+    if (!willWrite) {
+      Logger.log('◇ プレビュー終了（VocabOrder には何も書き込んでいません） ◇');
+      Logger.log('=====================================================');
+      return { ok: true, wrote: false, preview: true, studentCount: students.length,
+               plannedRows: newRows.length, aggDone: aggDone, aggRemaining: aggRemaining,
+               progressedStudents: progressed, mismatchCount: mismatchCount };
+    }
+
+    if (mismatchCount > 0) {
+      Logger.log('★ 整合 NG が ' + mismatchCount + ' 件あるため、安全のため書き込みを中止しました。');
+      Logger.log('=====================================================');
+      return { ok: false, wrote: false, message: '整合NGのため中止', mismatchCount: mismatchCount };
+    }
+
+    // --- 書き込み（VocabOrder のみ・kobun 行を入れ替え・他 subject は保全） ---
+    ensureVocabOrderSheet();
+    const sh = _ss().getSheetByName(SHEET_VOCAB_ORDER);
+    const W = VOCAB_ORDER_HEADERS.length;
+    const lastRow = sh.getLastRow();
+    const existing = (lastRow > 1) ? sh.getRange(2, 1, lastRow - 1, W).getValues() : [];
+    const kept = existing.filter(function(r) { return String(r[1]).trim() !== subject; }); // 非 kobun を保全
+    Logger.log('既存データ行=' + existing.length + ' / 保全(非kobun)=' + kept.length + ' / 削除(kobun)=' + (existing.length - kept.length));
+
+    if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, W).clearContent();
+
+    const allRows = kept.concat(newRows);
+    const CH = 500;
+    for (let i = 0; i < allRows.length; i += CH) {
+      const part = allRows.slice(i, i + CH);
+      sh.getRange(2 + i, 1, part.length, W).setValues(part);
+    }
+    SpreadsheetApp.flush();
+
+    const afterDataRows = sh.getLastRow() - 1;
+    Logger.log('--- 書き込み完了 ---');
+    Logger.log('VocabOrder データ行数 = ' + afterDataRows + '（保全 ' + kept.length + ' + 新kobun ' + newRows.length + ' = ' + allRows.length + '）');
+    Logger.log('一致チェック: ' + (afterDataRows === allRows.length ? '✓ 一致' : '★不一致（要調査）'));
+    Logger.log('=====================================================');
+
+    return { ok: true, wrote: true, studentCount: students.length,
+             writtenKobunRows: newRows.length, keptRows: kept.length,
+             totalDataRows: afterDataRows, aggDone: aggDone, aggRemaining: aggRemaining,
+             progressedStudents: progressed, mismatchCount: mismatchCount };
+  } catch (err) {
+    console.error('[runKobunMigrationLIVE]', err);
+    Logger.log('[KOBUN LIVE] エラー: ' + err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 明示実行用ラッパー（GAS エディタ関数ドロップダウンからこれを選んで実行＝本書き込み）。
+function runKobunMigrationLIVE_CONFIRM() {
+  return runKobunMigrationLIVE({ confirm: true });
 }
 
 // =============================================================================
