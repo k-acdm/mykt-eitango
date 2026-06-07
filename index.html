@@ -2238,6 +2238,11 @@
     .wabun1-period-warn li { position: relative; padding-left: 1.2em; margin: 6px 0; line-height: 1.55; font-size: 15px; }
     .wabun1-period-warn li::before { content: "・"; position: absolute; left: 0; top: 0; color: #dc2626; }
     .wabun1-period-warn li small { display: block; font-size: 12px; font-weight: normal; color: #991b1b; margin-top: 2px; }
+    /* 2026-06-08：OCR乱れ検知の追加警告（確認画面のみ・提出はブロックしない） */
+    .wabun1-ocr-anomaly-warn { font-size: 15px; font-weight: bold; color: #92400e; line-height: 1.55; margin: 10px 6px 4px; padding: 12px 14px; background: #fffbeb; border: 2px solid #fbbf24; border-radius: 10px; }
+    .wabun1-ocr-anomaly-warn .warn-title { display: block; text-align: center; font-size: 16px; margin-bottom: 8px; color: #b45309; }
+    .wabun1-ocr-anomaly-warn p { margin: 6px 0 0; font-size: 14px; font-weight: normal; }
+    .wabun1-ocr-anomaly-warn p.wabun1-anomaly-extra { font-weight: bold; color: #b45309; }
     .sango-ocr-actions { display:flex; gap:10px; }
     .sango-ocr-actions .btn-wide { margin-top:0; flex:1; }
     /* サンゴタンAIフィードバック：結果表示カード */
@@ -2986,10 +2991,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260606-2317"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260608-0258"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260606-2317">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260606-2317"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260608-0258">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260608-0258"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4020,6 +4025,11 @@
         <div class="sango-ocr-text" id="wabun1-ocr-text"></div>
       </details>
       <div class="sango-ocr-confirm-label">これで良いですか？</div>
+      <div id="wabun1-ocr-anomaly-warn" class="wabun1-ocr-anomaly-warn" style="display:none">
+        <span class="warn-title">⚠️ 読み取りが少し乱れているかもしれません</span>
+        <p>番号（1〜4）の中身が、自分の書いた答えと合っているか、もう一度よく確認してね。違っていたら「もう一度撮る」を押してね。</p>
+        <p id="wabun1-ocr-anomaly-extra" class="wabun1-anomaly-extra" style="display:none">同じような英文が2回読み取られているかもしれません。重複していないか確認してね。</p>
+      </div>
       <div class="wabun1-period-warn">
         <span class="warn-title">⚠️ 提出前に必ず確認してね！</span>
         <ul>
@@ -9950,6 +9960,112 @@
     if (el) el.innerHTML = html;
   }
 
+  // ===== 2026-06-08：OCR乱れ検知（確認画面の警告表示専用 / 提出はブロックしない）=====
+  // 背景：Gemini OCR が稀に「生徒の英文行を複製＋字形補正(cam→can 等)＋日本語行を脱落させ
+  //   番号を振り直す」暴走を起こし、パーサ _wabun1ParseWork がそれを忠実に 4 枠へ割当てて
+  //   判定がズレる事故が報告された（CLAUDE.md 調査参照）。
+  // 方針（絶対条件）：採点(submitWabun1)・提出(submitWabun1Answer)・正規化(_normalizeWabun1)・
+  //   パーサ(_wabun1ParseWork)・OCR本体・Geminiプロンプトは一切変更しない。ここは「確認画面に
+  //   注意を出すだけ」。警告の有無で提出データ・採点結果・保存形式は一切変わらない。
+  // 検知（conservative＝疑わしきは黙る）：
+  //   (a) 主軸：生OCRテキスト中の行頭問題番号が 1..taskCount（スキップ除く）の連番・各1回ずつで
+  //       揃っていない（歯抜け / 重複 / 範囲外の 5 以上等）＝番号整合の崩れ。これ単独で警告。
+  //   (b) 補助：隣接スロットが極端に高類似（一方が他方の清書版＝Levenshtein が小さい）。
+  //       (b) 単独では警告しない（肯定文/疑問文の正規ペアでの誤爆回避）。(a) 成立時にメッセージを
+  //       補強する材料としてのみ使う。
+  function _wabun1ScanHeadNumbers(ocrText) {
+    // 行頭の問題番号を「値そのまま」で全件収集。パーサ regex は 1-4 のみだが、ここは
+    // 5 以上・重複・歯抜けの検知のため任意桁(1〜2桁)を拾う。全角数字は半角化して比較。
+    var norm = String(ocrText || '').replace(/[０-９]/g, function(c){
+      return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+    });
+    var t = '\n' + norm;
+    // 区切りはパーサ/_wabun1CheckNumbers と同じ（(n) / n. / n, / n、 / n) / n）)。番号桁のみ拡張。
+    var re = /\n\s*(?:[(（]\s*(\d{1,2})\s*[)）]|(\d{1,2})[.．,、)）])\s*/g;
+    var nums = [];
+    var m;
+    while ((m = re.exec(t)) !== null) {
+      var n = Number(m[1] || m[2]);
+      if (!isNaN(n)) nums.push(n);
+    }
+    return nums;
+  }
+  // 早期打ち切り付き Levenshtein（cap 超過なら cap+1 を返す）
+  function _wabun1Levenshtein(a, b, cap) {
+    a = String(a == null ? '' : a);
+    b = String(b == null ? '' : b);
+    if (a === b) return 0;
+    var la = a.length, lb = b.length;
+    if (Math.abs(la - lb) > cap) return cap + 1;
+    var prev = new Array(lb + 1), cur = new Array(lb + 1), i, j;
+    for (j = 0; j <= lb; j++) prev[j] = j;
+    for (i = 1; i <= la; i++) {
+      cur[0] = i;
+      var rowMin = cur[0];
+      for (j = 1; j <= lb; j++) {
+        var cost = (a.charCodeAt(i - 1) === b.charCodeAt(j - 1)) ? 0 : 1;
+        var v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+        cur[j] = v;
+        if (v < rowMin) rowMin = v;
+      }
+      if (rowMin > cap) return cap + 1; // これ以上小さくならない
+      var tmp = prev; prev = cur; cur = tmp;
+    }
+    return prev[lb];
+  }
+  // 戻り値: { warn:Boolean, reinforce:Boolean, nums:[...] }
+  function _wabun1DetectOcrAnomaly(ocrText, parsed, taskCount, skipNums) {
+    taskCount = taskCount || 4;
+    var skipSet = {};
+    (skipNums || []).forEach(function(n){ skipSet[n] = true; });
+
+    // ---- (a) 番号整合チェック（主軸）----
+    var nums = _wabun1ScanHeadNumbers(ocrText);
+    var count = {}, outOfRange = false, i;
+    for (i = 0; i < nums.length; i++) {
+      var n = nums[i];
+      if (n >= 1 && n <= taskCount) count[n] = (count[n] || 0) + 1;
+      else outOfRange = true; // 行頭に 5 以上 / 0 等 → 番号振り直し暴走の痕跡
+    }
+    var numAnomaly = outOfRange;
+    for (var e = 1; e <= taskCount; e++) {
+      if (skipSet[e]) continue;            // スキップ番号は欠けていてOK
+      if ((count[e] || 0) !== 1) numAnomaly = true; // 歯抜け(0) or 重複(≥2)
+    }
+    if (!numAnomaly) return { warn: false, reinforce: false, nums: nums };
+
+    // ---- (b) 隣接スロット高類似（補助：判定は変えず、メッセージ補強にのみ使う）----
+    var reinforce = false;
+    for (var a = 1; a < taskCount; a++) {
+      var b = a + 1;
+      if (skipSet[a] || skipSet[b]) continue;
+      var sa = String((parsed && parsed[a] != null) ? parsed[a] : '').trim();
+      var sb = String((parsed && parsed[b] != null) ? parsed[b] : '').trim();
+      if (sa.length < 8 || sb.length < 8) continue;
+      // cap=2：cam↔can（距離1）は補強、肯定文↔疑問文（語順入替で距離大）は黙る
+      if (_wabun1Levenshtein(sa, sb, 2) <= 2) { reinforce = true; break; }
+    }
+    return { warn: true, reinforce: reinforce, nums: nums };
+  }
+  // 確認画面：OCR乱れ警告の表示制御（毎 OCR ごとに呼ぶ。乱れ無しなら非表示にリセット）
+  function _wabun1RenderAnomalyWarn(ocrText, parsed) {
+    var box = document.getElementById('wabun1-ocr-anomaly-warn');
+    if (!box) return;
+    var topic = _wabun1State.topic;
+    var taskCount = (topic && topic.tasks) ? topic.tasks.length : 4;
+    var skipNums = _wabun1AppliedSkipNums();
+    var detect = _wabun1DetectOcrAnomaly(ocrText, parsed, taskCount, skipNums);
+    var extra = document.getElementById('wabun1-ocr-anomaly-extra');
+    if (!detect.warn) {
+      box.style.display = 'none';
+      if (extra) extra.style.display = 'none';
+      return;
+    }
+    if (extra) extra.style.display = detect.reinforce ? 'block' : 'none';
+    box.style.display = 'block';
+    try { console.log('[wabun1 anomaly]', JSON.stringify(detect)); } catch(e){}
+  }
+
   function showWabun1Topic() {
     _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false, lastSourceDataUrl: '' };
     var bodyEl = document.getElementById('wabun1-topic-body');
@@ -10141,6 +10257,8 @@
       document.getElementById('wabun1-photo-input').value = '';
       document.getElementById('wabun1-ocr-text').textContent = ocrText;
       _renderWabun1ParsedList(_wabun1State.parsedAnswers);
+      // OCR乱れ検知（警告表示のみ・提出はブロックしない）。乱れ無しなら内部で非表示にリセット。
+      _wabun1RenderAnomalyWarn(ocrText, _wabun1State.parsedAnswers);
       document.getElementById('wabun1-confirm-msg').style.display = 'none';
       document.getElementById('wabun1-confirm-submit-btn').disabled = false;
       document.getElementById('wabun1-show-answer-confirm').style.display = _wabun1State.hasSubmitted ? 'block' : 'none';
@@ -15380,7 +15498,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260606-2317</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260608-0258</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
