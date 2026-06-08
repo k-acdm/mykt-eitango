@@ -2991,10 +2991,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260608-0258"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260609-0347"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260608-0258">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260608-0258"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260609-0347">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260609-0347"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3711,6 +3711,24 @@
       <button class="level-btn" onclick="selectLevel('1級')"><span class="level-btn-main"><span class="level-btn-name">📒 英検１級レベル</span><span class="level-btn-sub">～ 計2,400語｜480セットで全クリア！ ～</span></span><span class="badge-arrow">›</span></button>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60);margin-top:20px" onclick="showHistory()">📖 今までの単語をおさらいする</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+<!-- commit 6b-2：V2（語彙ランダム化）の単語/熟語選択画面。英単語RUSHのみ・レベル選択後に表示。
+     V2 非対象（off / 非対象生徒）はこの画面を経由せず従来どおり selectLevel→showToday。 -->
+<div id="screen-eitan-grouptype" class="screen">
+  <header><h1>📚 単語 / 熟語</h1><span id="eitan-grouptype-student"></span></header>
+  <div class="container" style="padding-top:20px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-eitan-grouptype" src="images/rushkun-default.png" alt="RUSH君">
+      <div class="mate-bubble" id="mate-bubble-eitan-grouptype">単語と熟語、どっちにする？</div>
+    </div>
+    <p style="text-align:center;color:#666;font-size:14px;margin-bottom:16px" id="eitan-grouptype-level-label">学習する種類を選んでください</p>
+    <div class="level-grid">
+      <button class="level-btn" onclick="selectEitanGroupType('word')"><span class="level-btn-main"><span class="level-btn-name">📗 単語</span><span class="level-btn-sub">～ たんごを学ぶ ～</span></span><span class="badge-arrow">›</span></button>
+      <button class="level-btn" onclick="selectEitanGroupType('idiom')"><span class="level-btn-main"><span class="level-btn-name">📘 熟語</span><span class="level-btn-sub">～ じゅくごを学ぶ ～</span></span><span class="badge-arrow">›</span></button>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:20px" onclick="showLevelSelect()">← レベル選択に戻る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -7425,6 +7443,9 @@
   }
   function selectLevel(level) {
     _level = level;
+    // commit 6b-2：V2 対象生徒は「単語/熟語」選択画面を挟む（英単語RUSHのみ）。
+    //   off / 非対象生徒は分岐に入らず従来どおり（見た目・挙動は不変）。
+    if (_vocabV2Enabled) { showEitanGroupType(); return; }
     // 2026-05-15 バグ修正：読み込み中ヘッダーが前回級のままになる問題への対策。
     // showToday の GAS 応答到着前に「英検{選択した級}レベル｜読み込み中…」を即座に表示し、
     // 古い級名（例：前回 3 級を選んでいたのに 1 級を選択した場合の「3 級｜セット 5」）
@@ -7433,6 +7454,25 @@
     if (labelEl) labelEl.textContent = '英検' + level + 'レベル｜読み込み中…';
     var stuEl = document.getElementById('today-student');
     if (stuEl) stuEl.textContent = _studentId + ' さん｜英検' + level + 'レベル';
+    showToday();
+  }
+  // commit 6b-2：V2 の単語/熟語選択画面（英単語RUSHのみ）。レベル選択後にここを通る。
+  //   選んだ groupType を _v2GroupType に入れて showToday → _showTodayV2(getTodaysSetV2) を呼ぶ。
+  function showEitanGroupType() {
+    var stuEl = document.getElementById('eitan-grouptype-student');
+    if (stuEl) stuEl.textContent = _studentId + ' さん｜英検' + _level + 'レベル';
+    var lvlEl = document.getElementById('eitan-grouptype-level-label');
+    if (lvlEl) lvlEl.textContent = '英検' + _level + 'レベル｜学習する種類を選んでください';
+    _setContentMascot('mate-img-eitan-grouptype', 'default', 'mate-bubble-eitan-grouptype', _pickBubble(RUSHKUN_BUBBLES.level), 'rushkun');
+    showScreen('screen-eitan-grouptype');
+  }
+  function selectEitanGroupType(gt) {
+    _v2GroupType = (gt === 'idiom') ? 'idiom' : 'word';
+    // V1 selectLevel と同じく、応答前の読み込み中ラベルを即表示（前回値が残らないように）。
+    var labelEl = document.getElementById('today-set-label');
+    if (labelEl) labelEl.textContent = '英検' + _level + 'レベル｜読み込み中…';
+    var stuEl = document.getElementById('today-student');
+    if (stuEl) stuEl.textContent = _studentId + ' さん｜英検' + _level + 'レベル';
     showToday();
   }
   function showComingSoonLevel(name) { alert('英検' + name + 'レベルは現在準備中です。もうしばらくお待ちください！'); }
@@ -15498,7 +15538,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260608-0258</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260609-0347</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
