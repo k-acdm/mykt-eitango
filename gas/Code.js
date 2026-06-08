@@ -28440,8 +28440,12 @@ function getTodaysSetV2(studentId, grade, groupType) {
     //   ※V1 と同じく級単位（word/idiom は同一級の枠を共有＝1日2セットまで）。
     const props = _props();
     const today = _todayEducationalJST();
-    const done1 = (props.getProperty('pass1_' + sid + '_' + grade) || '') === today;
-    const done2 = (props.getProperty('pass2_' + sid + '_' + grade) || '') === today;
+    // commit 上限分離：V2 の当日ゲートを groupType 別に独立カウント（単語2セット・熟語2セット＝合計最大4）。
+    //   旧: pass1_/pass2_<sid>_<grade>（word/idiom 合算2セット）→ 新: <grade>_<groupType>。
+    //   ★V2 のみ。V1(getTodaysSet/saveAttempt)の pass1_/pass2_<sid>_<grade> は無改変（別キー体系）。
+    const gateGrade = grade + '_' + groupType;
+    const done1 = (props.getProperty('pass1_' + sid + '_' + gateGrade) || '') === today;
+    const done2 = (props.getProperty('pass2_' + sid + '_' + gateGrade) || '') === today;
     if (done1 && done2) {
       return { ok: true, alreadyDone: true, sessionNo: 3, level: grade, grade: grade, groupType: groupType, words: [] };
     }
@@ -28553,8 +28557,10 @@ function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, op
     //   sessionNo は getTodaysSetV2 の値（opts.sessionNo）優先。無ければ pass1 の有無で判定。
     const props = _props();
     const today = _todayEducationalJST();
-    const sessionNo = Number(opts.sessionNo) || (((props.getProperty('pass1_' + sid + '_' + grade) || '') === today) ? 2 : 1);
-    const passKey = (sessionNo === 1) ? ('pass1_' + sid + '_' + grade) : ('pass2_' + sid + '_' + grade);
+    // commit 上限分離：当日ゲートを groupType 別に（getTodaysSetV2 と同一キー体系。V2 のみ）。
+    const gateGrade = grade + '_' + groupType;
+    const sessionNo = Number(opts.sessionNo) || (((props.getProperty('pass1_' + sid + '_' + gateGrade) || '') === today) ? 2 : 1);
+    const passKey = (sessionNo === 1) ? ('pass1_' + sid + '_' + gateGrade) : ('pass2_' + sid + '_' + gateGrade);
     props.setProperty(passKey, today);
 
     // 合格：position を前進（min SET_SIZE, 残り）→ round 完走で done=TRUE。
