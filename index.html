@@ -2991,10 +2991,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260609-0400"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260609-0500"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260609-0400">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260609-0400"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260609-0500">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260609-0500"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3717,7 +3717,7 @@
 <!-- commit 6b-2：V2（語彙ランダム化）の単語/熟語選択画面。英単語RUSHのみ・レベル選択後に表示。
      V2 非対象（off / 非対象生徒）はこの画面を経由せず従来どおり selectLevel→showToday。 -->
 <div id="screen-eitan-grouptype" class="screen">
-  <header><h1>📚 単語 / 熟語</h1><span id="eitan-grouptype-student"></span></header>
+  <header><h1>📚 単語 / 熟語 の選択</h1><span id="eitan-grouptype-student"></span></header>
   <div class="container" style="padding-top:20px">
     <div class="mate-row">
       <img class="mate-img" id="mate-img-eitan-grouptype" src="images/rushkun-default.png" alt="RUSH君">
@@ -3725,11 +3725,9 @@
     </div>
     <p style="text-align:center;color:#666;font-size:14px;margin-bottom:16px" id="eitan-grouptype-level-label">学習する種類を選んでください</p>
     <div class="level-grid">
-      <button class="level-btn" onclick="selectEitanGroupType('word')"><span class="level-btn-main"><span class="level-btn-name">📗 単語</span><span class="level-btn-sub">～ たんごを学ぶ ～</span></span><span class="badge-arrow">›</span></button>
-      <button class="level-btn" onclick="selectEitanGroupType('idiom')"><span class="level-btn-main"><span class="level-btn-name">📘 熟語</span><span class="level-btn-sub">～ じゅくごを学ぶ ～</span></span><span class="badge-arrow">›</span></button>
+      <button class="level-btn" onclick="selectEitanGroupType('word')"><span class="level-btn-main"><span class="level-btn-name">📗 単語の学習</span><span class="level-btn-sub">～ たんごを学ぶ ～</span></span><span class="badge-arrow">›</span></button>
+      <button class="level-btn" onclick="selectEitanGroupType('idiom')"><span class="level-btn-main"><span class="level-btn-name">📘 熟語の学習</span><span class="level-btn-sub">～ じゅくごを学ぶ ～</span></span><span class="badge-arrow">›</span></button>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:20px" onclick="showLevelSelect()">← レベル選択に戻る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-today" class="screen">
@@ -15584,7 +15582,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260609-0400</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260609-0500</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
