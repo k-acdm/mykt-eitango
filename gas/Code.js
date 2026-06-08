@@ -28734,18 +28734,38 @@ function _vocabLookupKobun(wordIds, round) {
   return out;
 }
 
+// 巡回ループ：コブタンV2 で全ブロック完走した生徒の VocabOrder(kobun) を初期状態に戻す。
+//   全 kobun 行の position=0 / done=false にリセットする。order(personal shuffle)は維持＝
+//   V1コブタン(submitKobunSet の round 巡回)と同じく、完走しても同じ並びで何度でも繰り返せる。
+//   ★書くのは VocabOrder の kobun 行のみ。HP/1日上限/合格判定・英単語RUSH(eitango)には一切触れない。
+function _resetKobunVocabCycle(sid) {
+  const rows = _getVocabRowsForKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
+  if (rows.length === 0) return false;
+  const sh = _ss().getSheetByName(SHEET_VOCAB_ORDER);
+  rows.forEach(function(r){ sh.getRange(r.rowIdx, 8, 1, 2).setValues([[0, false]]); });
+  SpreadsheetApp.flush();
+  _invalidateVocabKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
+  return true;
+}
+
 // 出題（V2・コブタン）：VocabOrder(subject=kobun) の personal shuffle から次の 10 語を返す。
 //   返却は getKobunSet 互換（sessionId/round/count/setVocab/questions）+ V2 進捗(blockNo/position)。
 function _getTodaysSetV2Kobun(sid) {
   try {
-    const rows = _getVocabRowsForKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
+    let rows = _getVocabRowsForKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
     if (rows.length === 0) {
       return { ok: false, message: 'コブタンの問題はまだ準備中だよ。もう少し待っててね！' };
     }
     // 次の未完了 (block, round) を blockNo 昇順・round 昇順で特定（done=TRUE はスキップ）
     let target = null;
     for (let k = 0; k < rows.length; k++) { if (!rows[k].done) { target = rows[k]; break; } }
-    if (!target) return { ok: false, message: 'コブタンは全部やり終えたよ！よくがんばったね！' };
+    if (!target) {
+      // 全ブロック完走 → V1コブタンと同じ巡回式：リセット（position=0/done=false）して最初から繰り返す。
+      _resetKobunVocabCycle(sid);
+      rows = _getVocabRowsForKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
+      for (let k = 0; k < rows.length; k++) { if (!rows[k].done) { target = rows[k]; break; } }
+      if (!target) return { ok: false, message: 'コブタンの問題が見つかりませんでした。もう一度お試しください。' };
+    }
 
     const order = target.order || [];
     const position = target.position || 0;
