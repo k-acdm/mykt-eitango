@@ -1069,7 +1069,7 @@ function doGet(e) {
       //   フロントはまだ呼ばない（commit 5 で切替）。submitAttemptV2 は doPost 側に登録。
       else if (action === 'getTodaysSetV2')   result = getTodaysSetV2(params.studentId, params.grade, params.groupType);
       else if (action === 'getHistory')       result = getHistory(params.studentId);
-      else if (action === 'getSetWords')      result = getSetWords(params.setNo, params.level);
+      else if (action === 'getSetWords')      result = getSetWords(params.setNo, params.level, params);
       else if (action === 'submitPhoto')      result = submitPhoto(params.studentId, params.setNo, params.imageBase64, params.words);
       else if (action === 'getWeeklyRanking') result = getWeeklyRanking();
       else if (action === 'getQuote')         result = getQuote();
@@ -1323,7 +1323,7 @@ function doPost(e) {
     if      (action === 'submitPhoto')              result = submitPhoto(params.studentId, params.setNo, params.imageBase64, params.words);
     // commit 4（並走追加）：VocabOrder 出題の提出。VocabOrder へ position/done 書き戻し＋
     //   既存 _grantHP で HP 付与（saveAttempt は無改修・温存）。フロントはまだ呼ばない（commit 5）。
-    else if (action === 'submitAttemptV2')          result = submitAttemptV2(params.studentId, params.grade, params.groupType, params.blockNo, params.round, params.passed, { expectedPosition: params.expectedPosition, sessionNo: params.sessionNo, score: params.score, total: params.total });
+    else if (action === 'submitAttemptV2')          result = submitAttemptV2(params.studentId, params.grade, params.groupType, params.blockNo, params.round, params.passed, { expectedPosition: params.expectedPosition, sessionNo: params.sessionNo, score: params.score, total: params.total, answers: params.answers });
     // 管理画面の大量データ投入用（GET ではクエリ長制限を超えるため POST 経由）
     else if (action === 'adminAddWabun1TopicsWeek') result = adminAddWabun1TopicsWeek(params);
     // 同上：三語短文の週単位一括登録（28 件で 8KB 超過、CLAUDE.md #93 と同パターン）
@@ -7627,10 +7627,26 @@ function getHistory(studentId) {
       if (row[5] !== '合格') continue;
       const lv    = String(row[6]);
       const setNo = Number(row[3]);
-      const key   = lv + '_' + setNo;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      history.push({ date: String(row[0]).slice(0, 10), setNo, level: lv });
+      // commit 6b-3：V2 行はメモ列(9列目)に {v:2,gt,round,pos} を持つ。
+      //   V2 は「その回」単位（pos でユニーク化）で履歴化し、クリック時に VocabOrder の正しい10語を復元する。
+      //   V1 行（メモ空 / 非JSON）は従来どおり (level,setNo) で重複排除＝挙動不変。
+      let v2 = null;
+      const memo = row[8];
+      if (memo) {
+        try { const m = JSON.parse(memo); if (m && m.v === 2) v2 = m; } catch (e) { /* V1 行/非JSON は無視 */ }
+      }
+      if (v2) {
+        const key = lv + '_' + setNo + '_' + v2.gt + '_' + v2.round + '_' + v2.pos;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        history.push({ date: String(row[0]).slice(0, 10), setNo: setNo, level: lv,
+                       v2: true, groupType: String(v2.gt || 'word'), round: Number(v2.round) || 0, position: Number(v2.pos) || 0 });
+      } else {
+        const key = lv + '_' + setNo;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        history.push({ date: String(row[0]).slice(0, 10), setNo: setNo, level: lv });
+      }
     }
     history.reverse();
     return { ok: true, history };
@@ -7642,15 +7658,42 @@ function getHistory(studentId) {
 // =============================================
 // 指定セットの単語取得
 // =============================================
-function getSetWords(setNo, level) {
+function getSetWords(setNo, level, params) {
   try {
     const lv    = String(level).trim();
+    // commit 6b-3：V2 おさらい。params に studentId+groupType+round+position があれば、
+    //   その回に解いた10語を VocabOrder(personal shuffle)から復元する（setNo=blockNo）。
+    //   無ければ従来 V1（固定セットを setNo で引く）＝挙動不変。
+    if (params && params.studentId && params.groupType
+        && params.round !== undefined && params.round !== null && params.round !== ''
+        && params.position !== undefined && params.position !== null && params.position !== '') {
+      return _getSetWordsV2(String(params.studentId).trim(), lv, String(params.groupType).trim(),
+                            Number(setNo), Number(params.round), Number(params.position));
+    }
     const rows  = _getQuestionRowsForLevel(lv);
     const words = lv === '5級'
       ? _getWords(rows, Number(setNo), '5級')
       : _getWordsQ4(rows, Number(setNo), lv);
     if (words.length === 0) return { ok: false, message: 'データが見つかりません。' };
     return { ok: true, words };
+  } catch (err) {
+    return { ok: false, message: String(err) };
+  }
+}
+
+// commit 6b-3：V2 おさらい用。VocabOrder の (sid,grade,groupType) から setNo=blockNo・round の行を特定し、
+//   開始 position の 10 語スライスを _vocabLookupQuestions で復元（実際に解いた語・順序を再現）。
+function _getSetWordsV2(sid, grade, groupType, blockNo, round, position) {
+  try {
+    if (groupType !== 'word' && groupType !== 'idiom') return { ok: false, message: 'groupType が不正です' };
+    const rows = _getVocabRowsForKey(sid, grade, groupType);  // eitango（subject 既定）
+    const target = rows.filter(function(r){ return r.blockNo === blockNo && r.round === round; })[0];
+    if (!target) return { ok: false, message: 'おさらいデータが見つかりません。' };
+    const order = target.order || [];
+    const sliceWids = order.slice(position, position + VOCAB_V2_SET_SIZE);
+    const words = _vocabLookupQuestions(grade, groupType, sliceWids, round);
+    if (words.length === 0) return { ok: false, message: 'データが見つかりません。' };
+    return { ok: true, words: words };
   } catch (err) {
     return { ok: false, message: String(err) };
   }
@@ -28335,9 +28378,11 @@ function _vocabQColIdx(grade) {
 // VocabOrder から (sid, eitango, grade, groupType) の行だけを効率的に取得（キー単位キャッシュ）。
 //   ★全行 getDataRange はキャッシュミス時のみ。命中時はキャッシュから返す（8364行規模でも高速）。
 //   返却: [{ rowIdx(1始まりシート行), blockNo, round, order(word_id配列), position, done }]（blockNo→round 昇順）
-function _getVocabRowsForKey(sid, grade, groupType) {
-  const subject = VOCAB_SUBJECT_EITANGO;
-  const cacheKey = 'cache_vocabv2_' + sid + '_' + grade + '_' + groupType;
+function _getVocabRowsForKey(sid, grade, groupType, subject) {
+  // commit 6b-3：subject を任意引数化（既定 eitango）。kobun(コブタン)も同じ走査を流用するため。
+  //   既存の eitango 呼び出し（3引数）は subject 既定で従来どおり。cacheKey に subject を含める。
+  subject = String(subject || VOCAB_SUBJECT_EITANGO);
+  const cacheKey = 'cache_vocabv2_' + subject + '_' + sid + '_' + grade + '_' + groupType;
   const cache = CacheService.getScriptCache();
   const hit = cache.get(cacheKey);
   if (hit) { try { return JSON.parse(hit); } catch (e) { /* 破損は再スキャン */ } }
@@ -28368,8 +28413,9 @@ function _getVocabRowsForKey(sid, grade, groupType) {
 }
 
 // 書き戻し後にキー単位キャッシュを破棄（次回読みで最新を反映）。
-function _invalidateVocabKey(sid, grade, groupType) {
-  try { CacheService.getScriptCache().remove('cache_vocabv2_' + sid + '_' + grade + '_' + groupType); } catch (e) {}
+function _invalidateVocabKey(sid, grade, groupType, subject) {
+  subject = String(subject || VOCAB_SUBJECT_EITANGO);
+  try { CacheService.getScriptCache().remove('cache_vocabv2_' + subject + '_' + sid + '_' + grade + '_' + groupType); } catch (e) {}
 }
 
 // 4級以上：問題シート1行 → 出題用オブジェクト（_getWordsQ4 と同一フィールド + word_id/round）。
@@ -28431,6 +28477,9 @@ function getTodaysSetV2(studentId, grade, groupType) {
     grade = String(grade || '').trim();
     groupType = String(groupType || 'word').trim();
     if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    // commit 6b-3：コブタン(grade=古文単語)は VocabOrder の kobun データを使う専用経路へ。
+    //   VOCAB_GRADE_CODE / pass1-2 ゲートは通さず、従来コブタン仕様（素点100/上限100/全問正解）を維持。
+    if (grade === VOCAB_KOBUN_GRADE) return _getTodaysSetV2Kobun(sid);
     if (!VOCAB_GRADE_CODE[grade]) return { ok: false, message: '未知の級です: ' + grade };
     if (groupType !== 'word' && groupType !== 'idiom') return { ok: false, message: "groupType は word/idiom です: " + groupType };
     // 5級も V2 対応（VocabOrder の g5 データを使う。4級+ と同方式・5級特有の新仕様は足さない）。
@@ -28510,6 +28559,8 @@ function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, op
     passed = (passed === true || String(passed) === 'true' || passed === 1 || String(passed) === '1');
     opts = opts || {};
     if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    // commit 6b-3：コブタン(grade=古文単語)は専用経路へ（採点・HP・進捗書き戻しを kobun 仕様で実施）。
+    if (grade === VOCAB_KOBUN_GRADE) return _submitAttemptV2Kobun(sid, blockNo, round, opts);
     if (!VOCAB_GRADE_CODE[grade]) return { ok: false, message: '未知の級です: ' + grade };
     // 5級も V2 対応（getTodaysSetV2 と同じく 5級 を受け付ける）。
     if (groupType !== 'word' && groupType !== 'idiom') return { ok: false, message: 'groupType は word/idiom です' };
@@ -28546,7 +28597,11 @@ function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, op
     //   列：日時 / 生徒ID / 氏名 / セット番号(=V2 blockNo) / 得点 / 合否 / 級 / 端末 / メモ
     const aSheet = _ss().getSheetByName(SHEET_ATTEMPTS);
     const now = _nowJST();
-    aSheet.appendRow([now, sid, studentName, blockNo, score, passed ? '合格' : '不合格', grade, '', '']);
+    // commit 6b-3：おさらい履歴を「その回に解いた10語」で復元できるよう、メモ列(9列目)に
+    //   V2 メタ(groupType / round / 開始position)を記録。V1 saveAttempt は空のまま
+    //   （getHistory / getSetWords がメモ有無で V1/V2 を判別する）。
+    const v2Meta = JSON.stringify({ v: 2, gt: groupType, round: round, pos: position });
+    aSheet.appendRow([now, sid, studentName, blockNo, score, passed ? '合格' : '不合格', grade, '', v2Meta]);
 
     if (!passed) {
       // 不合格：進捗も HP も動かさない（既存 saveAttempt と同じく再挑戦可。Attempts には記録済み）
@@ -28611,6 +28666,232 @@ function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, op
     };
   } catch (err) {
     console.error('[submitAttemptV2]', err);
+    return { ok: false, message: '送信に失敗しました。' };
+  }
+}
+
+// =============================================================================
+// commit 6b-3：コブタン(古文単語) V2 経路（2026-06-09）
+// =============================================================================
+// getTodaysSetV2 / submitAttemptV2 の grade='古文単語' 分岐の実体。
+//   ★データ源だけ V2(VocabOrder の personal shuffle)に差し替え、採点・HP・上限・合格判定・
+//     フロント描画（語彙カード＋{emphasis}問題）は従来コブタン仕様を完全維持する。
+//   ★読むのは VocabOrder(subject=kobun) / KobunVocab / KobunQuestions。
+//     書くのは VocabOrder(position/done) と _grantHP 経由の HPLog/Students のみ。
+//   ★pass1/2 ゲート（英単語RUSHの上限分離）は通さない＝コブタンは従来どおりの素点上限(100)管理。
+//   ★Attempts には記録しない（コブタンの履歴は HPLog ベースの getKobunHistory）。
+
+// word_id 配列 + round → コブタン用の vocab / questions を順序維持で組み立て。
+//   questionKey は word_id ベース（'wid_<id>'）。submitAttemptV2(kobun) が word_id→正解で再採点する。
+function _vocabLookupKobun(wordIds, round) {
+  const out = { vocab: [], questions: [] };
+  if (!wordIds || wordIds.length === 0) return out;
+  const roundStr = String(round);
+  const ss = _ss();
+  const vSheet = ss.getSheetByName(SHEET_KOBUN_VOCAB);
+  const qSheet = ss.getSheetByName(SHEET_KOBUN_QUESTIONS);
+  if (!vSheet || !qSheet || vSheet.getLastRow() < 2 || qSheet.getLastRow() < 2) return out;
+
+  const want = {};
+  wordIds.forEach(function(w){ want[String(w)] = true; });
+
+  // KobunVocab: 0=単語ID 1=単語 2=活用 3=意味 4=用例 5=用例訳
+  const vRows = vSheet.getDataRange().getValues();
+  const vocabByWordId = {};
+  for (let i = 1; i < vRows.length; i++) {
+    const r = vRows[i];
+    const wid = String(r[0] || '').trim();
+    if (!wid || !want[wid]) continue;
+    vocabByWordId[wid] = {
+      wordId: wid, word: String(r[1] || '').trim(), conjugation: String(r[2] || ''),
+      meaning: String(r[3] || ''), example: String(r[4] || ''), exampleTrans: String(r[5] || '')
+    };
+  }
+  // KobunQuestions: 0=セット 1=問 2=単語ID 3=単語 4=問題 5=A 6=B 7=C 8=D 9=正解 10=周回
+  const qRows = qSheet.getDataRange().getValues();
+  const questionByWordId = {};
+  for (let i = 1; i < qRows.length; i++) {
+    const r = qRows[i];
+    if (String(r[10] || '').trim() !== roundStr) continue;
+    const wid = String(r[2] || '').trim();
+    if (!wid || !want[wid] || questionByWordId[wid]) continue;
+    questionByWordId[wid] = {
+      questionKey: 'wid_' + wid, wordId: wid, word: String(r[3] || '').trim(),
+      question: String(r[4] || ''),
+      choices: { A: String(r[5] || ''), B: String(r[6] || ''), C: String(r[7] || ''), D: String(r[8] || '') },
+      correct: String(r[9] || '').trim().toUpperCase()
+    };
+  }
+  // wordIds の順序を維持して組み立て（その round に問題が無い語はスキップ）
+  wordIds.forEach(function(w){
+    const wid = String(w);
+    const q = questionByWordId[wid];
+    if (!q) return;
+    const v = vocabByWordId[wid] || { wordId: wid, word: q.word, conjugation: '', meaning: '', example: '', exampleTrans: '' };
+    out.questions.push(q);
+    out.vocab.push({ wordId: wid, word: (v.word || q.word), conjugation: v.conjugation, meaning: v.meaning, example: v.example, exampleTrans: v.exampleTrans });
+  });
+  return out;
+}
+
+// 出題（V2・コブタン）：VocabOrder(subject=kobun) の personal shuffle から次の 10 語を返す。
+//   返却は getKobunSet 互換（sessionId/round/count/setVocab/questions）+ V2 進捗(blockNo/position)。
+function _getTodaysSetV2Kobun(sid) {
+  try {
+    const rows = _getVocabRowsForKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
+    if (rows.length === 0) {
+      return { ok: false, message: 'コブタンの問題はまだ準備中だよ。もう少し待っててね！' };
+    }
+    // 次の未完了 (block, round) を blockNo 昇順・round 昇順で特定（done=TRUE はスキップ）
+    let target = null;
+    for (let k = 0; k < rows.length; k++) { if (!rows[k].done) { target = rows[k]; break; } }
+    if (!target) return { ok: false, message: 'コブタンは全部やり終えたよ！よくがんばったね！' };
+
+    const order = target.order || [];
+    const position = target.position || 0;
+    if (position >= order.length) {
+      return { ok: false, message: 'このブロックは消化済みです。もう一度お試しください。' };
+    }
+    const sliceWids = order.slice(position, position + VOCAB_V2_SET_SIZE);
+    const looked = _vocabLookupKobun(sliceWids, target.round);
+    const questions = looked.questions;
+    const vocab = looked.vocab;
+    if (questions.length === 0) {
+      return { ok: false, message: 'コブタンの問題が見つかりませんでした。もう一度お試しください。' };
+    }
+    // 用例画面用：前半5語 / 後半5語 に分割（getKobunSet の setVocab 形状に合わせる）。
+    const setVocab = [];
+    const front = vocab.slice(0, KOBUN_SET_SIZE);
+    const back  = vocab.slice(KOBUN_SET_SIZE);
+    setVocab.push({ setNum: target.blockNo, vocab: front });
+    if (back.length > 0) setVocab.push({ setNum: target.blockNo, vocab: back });
+
+    return {
+      ok: true, version: 'v2', isV2Kobun: true, studentId: sid,
+      sessionId: _kobunSessionId(sid),
+      round: String(target.round),
+      count: questions.length,
+      setNumbers: [target.blockNo],
+      blockNo: target.blockNo, position: position,
+      setVocab: setVocab,
+      questions: questions
+    };
+  } catch (err) {
+    console.error('[_getTodaysSetV2Kobun]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 提出（V2・コブタン）：サーバ再採点 → 合格なら従来コブタン仕様で HP 付与 → VocabOrder 進捗前進。
+//   opts.answers: [{questionKey:'wid_<id>', chosen:'A'}...]、opts.expectedPosition: 二重送信ガード。
+function _submitAttemptV2Kobun(sid, blockNo, round, opts) {
+  try {
+    opts = opts || {};
+    blockNo = Number(blockNo) || 0;
+    round = Number(round) || 0;
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    if (blockNo <= 0 || (round !== 1 && round !== 2)) return { ok: false, message: 'blockNo/round が不正です' };
+
+    let answers = opts.answers || [];
+    if (typeof answers === 'string') { try { answers = JSON.parse(answers); } catch (e) { answers = []; } }
+    if (!Array.isArray(answers) || answers.length === 0) return { ok: false, message: '解答データがありません' };
+
+    const rows = _getVocabRowsForKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
+    const target = rows.filter(function(r){ return r.blockNo === blockNo && r.round === round; })[0];
+    if (!target) return { ok: false, message: '該当ブロックが VocabOrder にありません' };
+    const order = target.order || [];
+    const position = target.position || 0;
+
+    // 二重送信 / 古いリクエストのガード
+    if (opts.expectedPosition !== undefined && opts.expectedPosition !== null
+        && Number(opts.expectedPosition) !== position) {
+      return { ok: false, stale: true, currentPosition: position, message: '進捗が既に更新されています（二重送信／古いリクエスト）' };
+    }
+
+    // サーバ再採点：word_id → 正解（該当 round）。questionKey は 'wid_<id>'。
+    const qSheet = _ss().getSheetByName(SHEET_KOBUN_QUESTIONS);
+    if (!qSheet || qSheet.getLastRow() < 2) return { ok: false, message: 'KobunQuestions シートが見つかりません' };
+    const qRows = qSheet.getDataRange().getValues();
+    const roundStr = String(round);
+    const correctByWid = {};
+    for (let i = 1; i < qRows.length; i++) {
+      const r = qRows[i];
+      if (String(r[10] || '').trim() !== roundStr) continue;
+      const wid = String(r[2] || '').trim();
+      if (!wid) continue;
+      correctByWid[wid] = String(r[9] || '').trim().toUpperCase();
+    }
+    let correctCount = 0;
+    const results = answers.map(function(a){
+      const qkey = String((a && a.questionKey) || '').trim();
+      const wid = (qkey.indexOf('wid_') === 0) ? qkey.slice(4) : qkey;
+      const chosen = String((a && a.chosen) || '').trim().toUpperCase();
+      const expected = correctByWid[wid] || '';
+      const isCorrect = !!expected && chosen === expected;
+      if (isCorrect) correctCount += 1;
+      return { questionKey: qkey, chosen: chosen, correct: expected, isCorrect: isCorrect };
+    });
+    const total = results.length;
+    const passed = total > 0 && correctCount === total;  // 全問正解で合格（KOBUN_PASS_RATIO=1.0 維持）
+
+    if (!passed) {
+      // 不合格：進捗も HP も動かさない（再挑戦可。Attempts にも記録しない＝従来コブタン仕様）
+      return { ok: true, passed: false, correctCount: correctCount, total: total, results: results,
+               hpInfo: { rawHP: 0, hpGained: 0, granted: false, isPractice: false, alreadyAtCap: false }, round: roundStr };
+    }
+
+    // 合格：進捗先行（VocabOrder position/done 前進）→ HP 付与。
+    const advance = Math.min(VOCAB_V2_SET_SIZE, order.length - position);
+    const newPosition = position + advance;
+    const newDone = newPosition >= order.length;
+    const sh = _ss().getSheetByName(SHEET_VOCAB_ORDER);
+    sh.getRange(target.rowIdx, 8, 1, 2).setValues([[newPosition, newDone]]);
+    SpreadsheetApp.flush();
+    _invalidateVocabKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
+
+    // HP 付与（従来コブタン仕様：素点100 / 1日上限100 / type=kobun_<round>_<total> / 練習モード）。
+    //   ★submitKobunSet のHPブロックと同一ロジック（既存V1 submitKobunSet を改変しないため複製）。
+    const stuLoc = _findAccountRowOnSheet(sid);
+    let hpInfo = { rawHP: 0, hpGained: 0, granted: false, isPractice: false, alreadyAtCap: false };
+    const baseRawHP = 100;
+    const dupCheck = _isAlreadyGrantedToday(sid, 'kobun', 'dailyCap', { cap: KOBUN_DAILY_RAWHP_CAP });
+    const todayRawHP = Number((dupCheck && dupCheck.todayRawHP)) || 0;
+    const remaining = Math.max(0, KOBUN_DAILY_RAWHP_CAP - todayRawHP);
+    const grantedRawHP = Math.min(baseRawHP, remaining);
+    const isPractice = (remaining === 0);
+
+    if (grantedRawHP > 0 && stuLoc) {
+      const logType_kobun = 'kobun_' + roundStr + '_' + total;
+      const grant = _grantHP({ sid: sid, type: logType_kobun, rawHp: grantedRawHP, stuLoc: stuLoc });
+      if (!grant.ok) {
+        console.error('[_submitAttemptV2Kobun] _grantHP 失敗', { sid: sid, type: logType_kobun, errorCode: grant.errorCode });
+        return { ok: false, message: grant.message || '内部エラーが発生しました。もう一度試してください。', errorCode: grant.errorCode || 'HP_LOG_FAILED' };
+      }
+      hpInfo = {
+        rawHP: grantedRawHP, hpGained: grant.hpGained, hpReserved: grant.hpReserved,
+        granted: true, isPractice: false, alreadyAtCap: false,
+        streak: grant.streak, week: grant.week, justCompleted: grant.justCompleted,
+        releasedHp: grant.releasedHp, bonusHp: grant.bonusHp,
+        displayedImmediate: grant.displayedImmediate, displayedReserved: grant.displayedReserved,
+        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+      };
+    } else if (isPractice && stuLoc) {
+      const logType_kobun_p = 'kobun_' + roundStr + '_' + total + '_practice';
+      const grantP = _grantHP({ sid: sid, type: logType_kobun_p, rawHp: 0, stuLoc: stuLoc });
+      hpInfo = {
+        rawHP: 0, hpGained: 0, granted: false, isPractice: true, alreadyAtCap: true,
+        justCompleted: grantP.justCompleted, releasedHp: grantP.releasedHp, bonusHp: grantP.bonusHp
+      };
+    }
+
+    return {
+      ok: true, version: 'v2', isV2Kobun: true, passed: true,
+      correctCount: correctCount, total: total, results: results,
+      hpInfo: hpInfo, round: roundStr,
+      blockNo: blockNo, position: position, newPosition: newPosition, roundDone: newDone
+    };
+  } catch (err) {
+    console.error('[_submitAttemptV2Kobun]', err);
     return { ok: false, message: '送信に失敗しました。' };
   }
 }
