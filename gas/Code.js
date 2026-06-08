@@ -28942,6 +28942,87 @@ function testSeedVocabForAccount(sid, grade, groupType) {
   return res;
 }
 
+// テストアカウント(1001〜1010)一括種まき：eitango 全級×全種別 + kobun(古文単語/word) を VocabOrder へ。
+//   GAS エディタの関数ドロップダウンから【引数なし】で実行可能。
+//   ★将来の V2 動作確認用にフル装備で用意する用途。
+//
+//   【安全性（コードで担保）】
+//   - 書き込み先は VocabOrder シートのみ（buildVocabOrder/testSeedVocabForAccount 経由）。
+//     書き込み実体は _vocabDeleteRowsFor（VocabOrder の該当 sid×subject×grade×groupType 行だけ削除）
+//     ＋ VocabOrder への setValues 追記のみ。Students / Properties / 問題シート / HP / Attempts には
+//     一切書き込まない（buildVocabOrder は問題シートを read-only でスキャンするだけ）。
+//   - 対象 sid は 1001〜1010 のみ。実在生徒(sid≠1001〜1010)の行には触れない
+//     （_vocabDeleteRowsFor が sid 完全一致で対象行を限定するため）。
+//   - フラグ on（全員V2）中に実行しても、出題側（getTodaysSetV2/_getVocabRowsForKey）は
+//     sid 完全一致で VocabOrder を読むため、実在生徒の出題・データには影響しない（sid 隔離）。
+//   - 対象語が無い級×種別（問題シートに該当 grade×type の付番語が無い等）は buildVocabOrder が
+//     ready:false を返す（早期 return＝削除も書き込みもしない）→ スキップして続行（エラーで止まらない）。
+//     各組み合わせは try/catch で囲み、万一の例外でも全体を止めない。
+//   - 冪等：sid×subject×grade×groupType 単位で「既存行を消して作り直す」ため、再実行で重複行は増えない。
+//   - 既存ロジック・他関数の挙動は不変（本関数の新規追加のみ）。
+//
+//   ※注意：10 アカウント × (8級 × 2種別 + 古文1) = 170 組み合わせを順次書き込むため実行に時間が
+//     かかる場合あり。途中でタイムアウトしても冪等なので再実行で問題なし（作り直されるだけ）。
+function seedAllTestAccountsV2() {
+  const SIDS = [];
+  for (let n = 1001; n <= 1010; n++) SIDS.push(String(n));
+  const GRADES = ['5級', '4級', '3級', '準2級', '準2級プラス', '2級', '準1級', '1級']; // = VOCAB_GRADE_CODE のキー
+  const TYPES  = ['word', 'idiom'];
+
+  let rowsWritten = 0, skipped = 0, failed = 0, combosTried = 0;
+  const skipDetail = [], failDetail = [];
+
+  Logger.log('===== テストアカウント一括種まき開始（' + SIDS.length + ' アカウント / 全級×全種別 + 古文） =====');
+
+  SIDS.forEach(function(sid) {
+    // --- eitango: 全級 × 全種別（testSeedVocabForAccount 経由＝buildVocabOrder dryRun:false + キャッシュ無効化） ---
+    GRADES.forEach(function(grade) {
+      TYPES.forEach(function(gt) {
+        combosTried++;
+        try {
+          const res = testSeedVocabForAccount(sid, grade, gt);
+          if (res && res.ok && res.ready && res.summary && Number(res.summary.wrote) > 0) {
+            rowsWritten += Number(res.summary.wrote);
+          } else {
+            skipped++;
+            skipDetail.push(sid + '/' + grade + '/' + gt + '（' + ((res && res.message) || '対象語なし/未付番') + '）');
+          }
+        } catch (e) {
+          failed++;
+          failDetail.push(sid + '/' + grade + '/' + gt + '：' + e);
+        }
+      });
+    });
+    // --- kobun: 古文単語 / word（subject=kobun を明示。testSeedVocabForAccount は eitango 固定のため直接呼ぶ） ---
+    combosTried++;
+    try {
+      const kr = buildVocabOrder(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, { dryRun: false, subject: VOCAB_SUBJECT_KOBUN });
+      _invalidateVocabKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
+      if (kr && kr.ok && kr.ready && kr.summary && Number(kr.summary.wrote) > 0) {
+        rowsWritten += Number(kr.summary.wrote);
+      } else {
+        skipped++;
+        skipDetail.push(sid + '/' + VOCAB_KOBUN_GRADE + '/word（' + ((kr && kr.message) || '対象語なし') + '）');
+      }
+    } catch (e) {
+      failed++;
+      failDetail.push(sid + '/' + VOCAB_KOBUN_GRADE + '/word：' + e);
+    }
+    Logger.log('[seedAll] ' + sid + ' 完了（ここまで 書込行=' + rowsWritten + ' / skip=' + skipped + ' / fail=' + failed + '）');
+  });
+
+  Logger.log('--- サマリ ---');
+  Logger.log('アカウント数: ' + SIDS.length + '（1001〜1010） / 試行組み合わせ数: ' + combosTried
+    + '（eitango ' + (SIDS.length * GRADES.length * TYPES.length) + ' + kobun ' + SIDS.length + '）');
+  Logger.log('VocabOrder 書き込み行数(合計): ' + rowsWritten + ' / スキップ: ' + skipped + ' / 失敗: ' + failed);
+  if (skipDetail.length) Logger.log('スキップ詳細: ' + skipDetail.join(' | '));
+  if (failDetail.length) Logger.log('失敗詳細: ' + failDetail.join(' | '));
+  Logger.log('===== 一括種まき終了 =====');
+
+  return { ok: true, accounts: SIDS.length, combosTried: combosTried, rowsWritten: rowsWritten,
+           skipped: skipped, failed: failed, skipDetail: skipDetail, failDetail: failDetail };
+}
+
 // フルフロー検証（書き込みあり）：テストアカウントで「種まき→出題→提出」を N テスト回し、
 //   (a)シャッフル順 (b)round1→round2 順 (c)done スキップ (d)HP 付与 を Logger で確認。
 //   ★HP は付与される（テストアカウントで実行すること）。
