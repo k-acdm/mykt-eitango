@@ -10783,6 +10783,15 @@ function _readReflectionsForSid(sid, limit) {
 //   これにより振り返り送信直後の再ログインでキャッシュが古いまま「まだ未提出」と表示
 //   される事故を防ぐ。
 function _getPendingReflectionDate(sid, accountType) {
+  // 2026-06-09 廃止：翌日キャッチアップ（過去日「昨日〜7日前」の強制振り返りモーダル）を停止する。
+  //   背景：予約HPの没収トリガー runDailyForfeitExpiredReserves が毎日 03:00〜04:00 に稼働し、
+  //   翌日には前日の予約HPは没収済み＝過去の振り返りを書いてもHPは解放されない。よって翌日に
+  //   過去分を書かせるのは生徒に無意味な苦行を強いるだけのため廃止する。
+  //   当日分は HP予約ゲート(Gate 1)＋ログアウト時の振り返りモーダル＋ホームの reserve 通知という
+  //   既存の仕組みに委ねる（＝現状維持。当日分を返す新ロジックは追加しない）。
+  //   ★常に null を返す＝強制キャッチアップしない。
+  //   下の旧ロジックは将来の参照/復活用にそのまま残置（return null により到達しない）。
+  return null;
   try {
     const sidNorm = String(sid || '').trim();
     if (!sidNorm) return null;
