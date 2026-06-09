@@ -28500,8 +28500,20 @@ function getTodaysSetV2(studentId, grade, groupType) {
     }
     const sessionNo = done1 ? 2 : 1;
 
-    const rows = _getVocabRowsForKey(sid, grade, groupType);
+    let rows = _getVocabRowsForKey(sid, grade, groupType);
     if (rows.length === 0) {
+      // 恒久対策（lazy 生成 / 2026-06-09）：この生徒×級×種別の VocabOrder 行が未生成なら、その場で
+      //   生成して再読込してから出題する。新規生徒・teacher・invited・experience・全テストアカウントを
+      //   事前種まき/移行なしで一律救済（accountType や sid 範囲では区別しない）。
+      //   ★0件のときだけ生成（既存行があるアカウントは再生成しない＝出題順は不変）。
+      //   ★書き込みは VocabOrder のみ（sid 完全一致）。buildVocabOrder は問題シートを read-only で読むだけ。
+      //   ★冪等（_vocabDeleteRowsFor＋setValues）。同時アクセスで二重生成しても破綻しない。
+      try { buildVocabOrder(sid, grade, groupType, { dryRun: false }); } catch (e) { console.error('[getTodaysSetV2 lazy]', e); }
+      _invalidateVocabKey(sid, grade, groupType);
+      rows = _getVocabRowsForKey(sid, grade, groupType);
+    }
+    if (rows.length === 0) {
+      // 再読込後も0件＝その級×種別に付番語が無い等。従来どおり noData を返す（無限生成しない）。
       return { ok: true, noData: true, words: [], message: 'VocabOrder にこの生徒×級×種別の行がありません（移行未実行 or 対象語なし）' };
     }
 
@@ -28754,6 +28766,16 @@ function _getTodaysSetV2Kobun(sid) {
   try {
     let rows = _getVocabRowsForKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
     if (rows.length === 0) {
+      // 恒久対策（lazy 生成 / 2026-06-09）：この生徒のコブタン VocabOrder 行が未生成なら、その場で
+      //   生成して再読込してから出題する（英単語RUSH と同方針の一律救済）。
+      //   ★0件のときだけ生成（既存行があるアカウントは再生成しない）。書き込みは VocabOrder(kobun) のみ（sid 完全一致）。
+      //   ★冪等（_vocabDeleteRowsFor＋setValues）。buildVocabOrder は問題シートを read-only で読むだけ。
+      try { buildVocabOrder(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, { dryRun: false, subject: VOCAB_SUBJECT_KOBUN }); } catch (e) { console.error('[_getTodaysSetV2Kobun lazy]', e); }
+      _invalidateVocabKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
+      rows = _getVocabRowsForKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
+    }
+    if (rows.length === 0) {
+      // 再読込後も0件＝コブタンの付番語が無い等。従来どおりエラーを返す（無限生成しない）。
       return { ok: false, message: 'コブタンの問題はまだ準備中だよ。もう少し待っててね！' };
     }
     // 次の未完了 (block, round) を blockNo 昇順・round 昇順で特定（done=TRUE はスキップ）
