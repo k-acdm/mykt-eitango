@@ -20575,6 +20575,140 @@ function testGetExchangeableHp(sid) {
 }
 
 // ========================================================================
+// HP 消費共通基盤 第1段階：_consumeHP 共通関数（2026-06-10）
+//   ・消費は生涯HP(COL_HP)を減らさず、HP_SPENT に加算する A 方式
+//     （submitExchange / submitAmazonGiftRequest と同じ。生涯HPは絶対に減らさない）。
+//   ・交換用残高 = getExchangeableHp(sid).exchangeableHp（校種係数込み）を都度計算して使う
+//     （残高計算は getExchangeableHp に一任。ここで再実装しない）。
+//   ・消費記録は HPLog に負値を書かず、専用シート HpConsumeLog に1行追記する。
+//     （Exchanges はアイテム/アマギフ用の列構成で、汎用消費の amount/reason/balanceAfter が
+//       乗らず、_readAmazonGiftRows 等の参照を汚すため、最小構成の専用シートを新設。）
+//   ・同時消費のロックは張らない（既存の交換 submitExchange/submitAmazonGiftRequest と同程度）。
+//   ★ 台帳(HpGrantLedger)・差し戻し・各コンテンツ本体は後続段階（本段階では作らない）。
+// ========================================================================
+const SHEET_HP_CONSUME_LOG   = 'HpConsumeLog';
+const HP_CONSUME_LOG_HEADERS = ['timestamp', 'studentId', 'amount', 'reason', 'balanceAfter'];
+
+// HP を消費する共通関数。
+//   引数: sid（生徒ID） / amount（消費HP・正の整数） / reason（用途文字列。呼び出し側が渡す）
+//   戻り値:
+//     成功      : { ok:true,  consumed:amount, balanceAfter:残高-amount }
+//     残高不足  : { ok:false, reason:'insufficient', balance:残高, required:amount }（消費しない）
+//     引数不正等: { ok:false, reason:'invalid'|'error', message:... }
+function _consumeHP(sid, amount, reason) {
+  try {
+    const sidNorm   = String(sid || '').trim();
+    const amt       = Number(amount);
+    const reasonStr = String(reason || '').trim();
+    if (!sidNorm) return { ok: false, reason: 'invalid', message: '生徒IDが必要です' };
+    if (!isFinite(amt) || amt <= 0 || Math.floor(amt) !== amt) {
+      return { ok: false, reason: 'invalid', message: '消費HPは正の整数で指定してください' };
+    }
+
+    // 1. 現在の交換用残高を取得（= floor(生涯HP×校種係数) − HP_SPENT）。
+    const bal = getExchangeableHp(sidNorm);
+    if (!bal || !bal.ok) {
+      return { ok: false, reason: 'error', message: (bal && bal.message) || '残高の取得に失敗しました' };
+    }
+
+    // 2. 残高不足 → 消費せず不足を返す（呼び出し側のボタン無効＋不足表示用）。
+    if (bal.exchangeableHp < amt) {
+      return { ok: false, reason: 'insufficient', balance: bal.exchangeableHp, required: amt };
+    }
+
+    // 3. 消費：HP_SPENT += amount（生涯HP=COL_HP は不変）。sid が存在する全シートに書く
+    //    （submitExchange / submitAmazonGiftRequest と同じ書き込み方式）。
+    const targets = _avatarWriteTargets(sidNorm);
+    if (targets.length === 0) return { ok: false, reason: 'error', message: '生徒の行が見つかりません' };
+    targets.forEach(function(t){
+      const eSpent = _ensureHpSpentColOnSheet(t.sheet);
+      const cur = Number(t.sheet.getRange(t.rowIdx + 1, eSpent.idx + 1).getValue()) || 0;
+      t.sheet.getRange(t.rowIdx + 1, eSpent.idx + 1).setValue(cur + amt);
+    });
+    _avatarInvalidateAccountCaches();
+
+    const balanceAfter = bal.exchangeableHp - amt;
+
+    // 消費記録（HPLog に負値は書かない。専用シート HpConsumeLog に1行追記）。
+    // 追記失敗は消費自体を巻き戻さない（既存の交換が Exchanges 追記を副次扱いするのと同方針）。
+    try {
+      const sh = _ensureSheetWithHeaders(SHEET_HP_CONSUME_LOG, HP_CONSUME_LOG_HEADERS, 1).sh;
+      sh.appendRow([_nowJST(), sidNorm, amt, reasonStr, balanceAfter]);
+    } catch (eLog) {
+      console.error('[_consumeHP] 消費記録の追記に失敗（消費自体は成立）', eLog);
+    }
+
+    return { ok: true, consumed: amt, balanceAfter: balanceAfter };
+  } catch (err) {
+    console.error('[_consumeHP]', err);
+    return { ok: false, reason: 'error', message: String(err) };
+  }
+}
+
+// _consumeHP の検証（GAS エディタのドロップダウンから引数なしで実行可）。
+//   テストアカウント sid='1001' で
+//     ① 残高十分 → 1HP 消費成功・HP_SPENT が +1 になること
+//     ② 残高不足（残高+100万HP）→ 'insufficient' 返却・HP_SPENT が不変であること
+//   を確認し、最後に HP_SPENT を元の値へ復元する（生涯HP/COL_HP には一切触れない）。
+//   ※ HpConsumeLog に①のテスト行（reason='test_consume'）が1行残るが、残高計算に影響しない。
+function testConsumeHP() {
+  const sid = '1001';
+  const out = { sid: sid, steps: [] };
+
+  const before = getExchangeableHp(sid);
+  if (!before || !before.ok) {
+    out.error = '残高取得に失敗（テストアカウント ' + sid + ' が存在しない可能性）: ' + JSON.stringify(before);
+    Logger.log('[testConsumeHP] ' + JSON.stringify(out));
+    return out;
+  }
+  const origHpSpent = before.hpSpent;
+  out.before = { exchangeableHp: before.exchangeableHp, hpSpent: origHpSpent };
+
+  // ① 残高十分 → 1HP 消費成功
+  if (before.exchangeableHp >= 1) {
+    const r1 = _consumeHP(sid, 1, 'test_consume');
+    const after1 = getExchangeableHp(sid);
+    out.steps.push({
+      name: 'sufficient(amount=1)',
+      result: r1,
+      hpSpentAfter: after1.hpSpent,
+      pass: !!(r1 && r1.ok === true && r1.consumed === 1 && after1.hpSpent === origHpSpent + 1)
+    });
+  } else {
+    out.steps.push({ name: 'sufficient', skipped: true, note: '残高 < 1 のため成功テストをスキップ' });
+  }
+
+  // ② 残高不足 → 'insufficient' 返却・HP_SPENT 不変
+  const cur = getExchangeableHp(sid);
+  const bigAmount = cur.exchangeableHp + 1000000;
+  const r2 = _consumeHP(sid, bigAmount, 'test_consume_over');
+  const after2 = getExchangeableHp(sid);
+  out.steps.push({
+    name: 'insufficient(amount=balance+1000000)',
+    result: r2,
+    hpSpentAfter: after2.hpSpent,
+    pass: !!(r2 && r2.ok === false && r2.reason === 'insufficient' && after2.hpSpent === cur.hpSpent)
+  });
+
+  // 復元：HP_SPENT を元の値に戻す（COL_HP=生涯HP には触れない）。
+  try {
+    const targets = _avatarWriteTargets(sid);
+    targets.forEach(function(t){
+      const eSpent = _ensureHpSpentColOnSheet(t.sheet);
+      t.sheet.getRange(t.rowIdx + 1, eSpent.idx + 1).setValue(origHpSpent);
+    });
+    _avatarInvalidateAccountCaches();
+    out.restoredHpSpentTo = origHpSpent;
+  } catch (e) {
+    out.restoreError = String(e);
+  }
+
+  out.allPass = out.steps.every(function(s){ return s.skipped || s.pass; });
+  Logger.log('[testConsumeHP] ' + JSON.stringify(out, null, 2));
+  return out;
+}
+
+// ========================================================================
 // HP 交換システム Phase 3-A：アバターショップ / クローゼット / 購入 / 装着
 //   （2026-05-31。管理画面パネル = カテゴリ表示モードの書き込み UI は Phase 3-B）
 // ========================================================================
