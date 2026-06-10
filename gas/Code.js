@@ -2225,6 +2225,14 @@ function _grantHP(opts) {
   }
   const stuLoc = opts.stuLoc;
 
+  // ─── HP消費基盤 第2段階：マイ課題（差し戻し対象）の付与台帳メタ（2026-06-10）───
+  // submissionId が無い既存呼び出しは下記が全て空となり、台帳追記・pool への submissionId 保存とも
+  // no-op になる（既存コンテンツの付与は完全に従来どおり）。
+  const submissionId   = String(opts.submissionId   == null ? '' : opts.submissionId).trim();
+  const contentType    = String(opts.contentType    == null ? '' : opts.contentType);
+  const subject        = String(opts.subject        == null ? '' : opts.subject);
+  const submittedDate  = String(opts.submittedDate  == null ? '' : opts.submittedDate);
+
   // ─── ① week² 倍率計算 ───
   const streak = Math.max(1, Number(stuLoc.rowValues[COL_STREAK]) || 1);
   const week = Math.ceil(streak / 7);
@@ -2266,7 +2274,8 @@ function _grantHP(opts) {
   // Phase 5 Step 3：reserveReason を渡す。'reflection_pending' or 'required_mission' or ''（レガシー）。
   if (reserved > 0) {
     try {
-      _appendHpReservePool(sid, _sangoToday(), type, fullHpGained, reserved, reserveReason);
+      // 第2段階：submissionId（マイ課題のみ非空）を pool に保存し、後日の解放時に台帳へ引き継ぐ。
+      _appendHpReservePool(sid, _sangoToday(), type, fullHpGained, reserved, reserveReason, submissionId);
     } catch (e) {
       console.error('[_grantHP] _appendHpReservePool 失敗（続行）', e);
     }
@@ -2282,6 +2291,22 @@ function _grantHP(opts) {
     upd[COL_HP] = newHP;
     _updateAccountCacheBySid(sid, upd);
     _invalidateCache('cache_ranking_last_week');
+
+    // 第2段階：マイ課題（submissionId 付き）の即時分のみ台帳に記録（純粋な副作用、失敗しても続行）。
+    // submissionId が空（既存コンテンツ）なら _appendHpGrantLedger 側で no-op になる。
+    if (submissionId) {
+      _appendHpGrantLedger({
+        submissionId:  submissionId,
+        studentId:     sid,
+        contentType:   contentType,
+        subject:       subject,
+        submittedDate: submittedDate,
+        phase:         'immediate',
+        rawHp:         rawHp_in,
+        grantedHp:     granted,
+        resolvedAt:    ''
+      });
+    }
   }
 
   // ─── ⑥ 完走チェック（reserve_release / completion_bonus）───
@@ -20321,8 +20346,9 @@ const REFLECTION_GATE_START_DATE = '2026-05-25';
 // 本番運用 1〜2 週間安定後に定数自体を削除予定（次フェーズ）。
 const REFLECTION_GATE_ENABLED = true;
 
-// HpReservePool シートのヘッダー（8 列、Phase 5 / 2026-05-22 で reserveReason 追加）
-//   studentId | date | type | rawHp | reservedHp | resolved | resolvedAt | reserveReason
+// HpReservePool シートのヘッダー（9 列、Phase 5 / 2026-05-22 で reserveReason 追加、
+//   HP消費基盤 第2段階 / 2026-06-10 で submissionId 追加）
+//   studentId | date | type | rawHp | reservedHp | resolved | resolvedAt | reserveReason | submissionId
 //   - date: '_sangoToday()' 形式の 'yyyy-MM-dd' 文字列（JST 4:00 区切り）
 //   - type: 元の HPLog type（'sango', 'kiso_15_5' 等）
 //   - rawHp: 倍率適用後の総 HP（元の hpGained）
@@ -20332,7 +20358,10 @@ const REFLECTION_GATE_ENABLED = true;
 //   - reserveReason: Phase 5 で追加。'reflection_pending' / 'required_mission' / 空欄（レガシー互換）
 //                    空欄は 'required_mission' と等価扱い（Phase 3 投入済の既存行を救済）。
 //                    _ensureSheetWithHeaders の schema migration で自動末尾追記される。
-const HP_RESERVE_POOL_HEADERS = ['studentId', 'date', 'type', 'rawHp', 'reservedHp', 'resolved', 'resolvedAt', 'reserveReason'];
+//   - submissionId: HP消費基盤 第2段階で追加。マイ課題（差し戻し対象）の提出に紐づく付与のみ非空。
+//                   解放時にこの値を HpGrantLedger に引き継ぐ。既存コンテンツ / レガシー行は空欄。
+//                   _ensureSheetWithHeaders の schema migration で自動末尾追記される。
+const HP_RESERVE_POOL_HEADERS = ['studentId', 'date', 'type', 'rawHp', 'reservedHp', 'resolved', 'resolvedAt', 'reserveReason', 'submissionId'];
 
 // --- 列インデックス検出ヘルパー（_findBirthdayColIdx / _findAvatarBaseColIdx と同パターン） ---
 
@@ -20588,6 +20617,167 @@ function testGetExchangeableHp(sid) {
 // ========================================================================
 const SHEET_HP_CONSUME_LOG   = 'HpConsumeLog';
 const HP_CONSUME_LOG_HEADERS = ['timestamp', 'studentId', 'amount', 'reason', 'balanceAfter'];
+
+// ========================================================================
+// HP消費基盤 第2段階：HpGrantLedger（付与台帳） / 2026-06-10
+// ------------------------------------------------------------------------
+// マイ課題（差し戻し＝clawback が必要なコンテンツ）の付与だけを記録する台帳。
+//   ・submissionId 付きの付与（=マイ課題）のみ記録。submissionId が空の既存コンテンツ
+//     （英単語/古文/三語短文等）は一切記録しない（純粋な副作用、挙動不変）。
+//   ・記録する付与（すべて week² 込みの実額・COL_HP に乗った額）：
+//       phase='immediate'           : 提出時の即時付与分（_grantHP ⑤）
+//       phase='reflection_release'  : 振り返り提出での解放分（_releaseReflectionReserves）
+//       phase='mission_release'     : 絶対ミッション完走での解放分（_markReservePoolEntriesResolved）
+//   ・completion_bonus（200×week² の日次完走ボーナス）は提出に紐づかないため記録しない。
+//   ・grantedHp の submissionId 別合計 = その提出に与えられた実HP（差し戻しの引き戻し額）。
+//   ・revertedAt 列は第3段階（差し戻し本体）用に列だけ用意。今回は常に空。
+//   ★ 第2段階では差し戻し本体（集計→HP引き戻し）は実装しない。
+// ========================================================================
+const SHEET_HP_GRANT_LEDGER   = 'HpGrantLedger';
+const HP_GRANT_LEDGER_HEADERS = ['submissionId', 'studentId', 'contentType', 'subject', 'submittedDate', 'phase', 'rawHp', 'grantedHp', 'createdAt', 'resolvedAt', 'revertedAt'];
+
+// 付与台帳に1行追記する。マイ課題（submissionId 付き）の付与のみ記録する純粋な副作用。
+//   引数 opts: { submissionId, studentId, contentType, subject, submittedDate, phase, rawHp, grantedHp, resolvedAt }
+//   ・submissionId が空 → no-op（既存コンテンツの付与・解放は台帳に載らない）。
+//   ・シートが無ければ _ensureSheetWithHeaders で冪等に自動作成。
+//   ・createdAt は記録時刻（_nowJST）。revertedAt は常に空（第3段階用）。
+//   ・try/catch で失敗を握りつぶし、呼び出し元の HP 計算・COL_HP 加算・resolved 化・没収に
+//     一切影響させない（_appendHpReservePool と同方針＝失敗は警告のみ続行）。
+//   戻り値: { ok:true } / { ok:false, skipped:true }（submissionId 空）/ { ok:false, message }
+function _appendHpGrantLedger(opts) {
+  try {
+    opts = opts || {};
+    const submissionId = String(opts.submissionId == null ? '' : opts.submissionId).trim();
+    if (!submissionId) return { ok: false, skipped: true };  // マイ課題以外は記録しない
+    const sh = _ensureSheetWithHeaders(SHEET_HP_GRANT_LEDGER, HP_GRANT_LEDGER_HEADERS, 1).sh;
+    // 列順は HP_GRANT_LEDGER_HEADERS に一致させる：
+    // submissionId | studentId | contentType | subject | submittedDate | phase | rawHp | grantedHp | createdAt | resolvedAt | revertedAt
+    sh.appendRow([
+      submissionId,
+      String(opts.studentId == null ? '' : opts.studentId).trim(),
+      String(opts.contentType == null ? '' : opts.contentType),
+      String(opts.subject == null ? '' : opts.subject),
+      String(opts.submittedDate == null ? '' : opts.submittedDate),
+      String(opts.phase == null ? '' : opts.phase),
+      Number(opts.rawHp) || 0,
+      Number(opts.grantedHp) || 0,
+      _nowJST(),                                                  // createdAt
+      String(opts.resolvedAt == null ? '' : opts.resolvedAt),    // resolvedAt（即時分は空）
+      ''                                                          // revertedAt（第3段階用、常に空）
+    ]);
+    return { ok: true };
+  } catch (e) {
+    console.error('[_appendHpGrantLedger] 台帳追記に失敗（呼び出し元には影響させず続行）', e);
+    return { ok: false, message: String(e) };
+  }
+}
+
+// HpGrantLedger（付与台帳）の検証。GAS エディタのドロップダウンから引数なしで実行可。
+// テストアカウント sid='1001' で以下を確認する：
+//   [A] _appendHpGrantLedger 直接：submissionId 付き → 1行追記 / submissionId 空 → no-op
+//   [B] _grantHP（submissionId 付き・即時のみ）→ phase='immediate' が同 submissionId で台帳に載る
+//   [C] _grantHP（submissionId なし）→ 台帳に1行も増えない（既存コンテンツ不変の証明）
+//   [D] reflection_pending を _appendHpReservePool(... submissionId) → _releaseReflectionReserves
+//       → phase='reflection_release' が同 submissionId で台帳に載る
+//   [E] required_mission を _appendHpReservePool(... submissionId) → _markReservePoolEntriesResolved
+//       → phase='mission_release' が同 submissionId で台帳に載る
+//   各 submissionId は実行時刻でユニーク化（過去実行の残骸と混ざらない）。
+//
+// ★ 後始末について（テスト後の汚れデータ）：
+//   ・COL_HP（生涯HP）は実行前の値を退避し、最後に必ず元の値へ復元する（生涯HP を汚さない）。
+//   ・HpGrantLedger：本テスト行（submissionId が 'TESTLEDGER_' 始まり）が数行残る。production 集計は
+//     submissionId 指定で行うため影響なし。気になる場合は手動削除可。
+//   ・HpReservePool：本テストの reserve 行（submissionId が 'TESTLEDGER_' 始まり、resolved=TRUE）が
+//     残る。resolved=TRUE なので解放/没収の再対象にならない。手動削除可。
+//   ・HPLog：_grantHP / _releaseReflectionReserves が type='test'/'reflection_release' を数行追記する
+//     （sid=1001・少額）。テストアカウントのため実害なし。
+function testHpGrantLedger() {
+  const sid = '1001';
+  const results = [];
+  function pass(name, cond, detail) { results.push({ name: name, ok: !!cond, detail: detail || '' }); }
+
+  function ledgerRows() {
+    const sh = _ss().getSheetByName(SHEET_HP_GRANT_LEDGER);
+    if (!sh || sh.getLastRow() < 2) return [];
+    return sh.getDataRange().getValues().slice(1);
+  }
+  // 台帳ヘッダー：submissionId(0) ... phase(5) ...
+  function countBySubmission(subId, phase) {
+    return ledgerRows().filter(function(r){
+      return String(r[0]).trim() === subId && (!phase || String(r[5]).trim() === phase);
+    }).length;
+  }
+
+  const stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+  const today = _sangoToday();
+
+  // COL_HP（生涯HP）を退避
+  const loc0 = _findAccountRowOnSheet(sid);
+  if (!loc0) return { ok: false, message: 'test account ' + sid + ' が見つかりません' };
+  const hpBefore = Number(loc0.rowValues[COL_HP]) || 0;
+
+  try {
+    // ── [A] _appendHpGrantLedger 直接 ──
+    const subA = 'TESTLEDGER_' + stamp + '_A';
+    const beforeA = countBySubmission(subA);
+    _appendHpGrantLedger({ submissionId: subA, studentId: sid, contentType: 'mytask_test', subject: '算数', submittedDate: today, phase: 'immediate', rawHp: 5, grantedHp: 5, resolvedAt: '' });
+    pass('[A1] submissionId 付きで1行追記', countBySubmission(subA) === beforeA + 1);
+    const beforeEmpty = ledgerRows().length;
+    _appendHpGrantLedger({ submissionId: '', studentId: sid, phase: 'immediate', grantedHp: 5 });
+    pass('[A2] submissionId 空は no-op（行数不変）', ledgerRows().length === beforeEmpty);
+
+    // ── [B] _grantHP（submissionId 付き・即時のみ。reserve/倍率/完走チェックは無効化） ──
+    const subB = 'TESTLEDGER_' + stamp + '_B';
+    const locB = _findAccountRowOnSheet(sid);
+    const gB = _grantHP({ sid: sid, type: 'test', rawHp: 1, stuLoc: locB,
+      applyWeekMultiplier: false, applyReserveSystem: false, checkCompletion: false,
+      submissionId: subB, contentType: 'mytask_test', subject: '算数', submittedDate: today });
+    pass('[B1] _grantHP 成功', gB && gB.ok, gB && gB.errorCode);
+    pass('[B2] immediate が submissionId 付きで台帳に載る', countBySubmission(subB, 'immediate') === 1);
+
+    // ── [C] _grantHP（submissionId なし）→ 台帳に1行も増えない（既存コンテンツ不変） ──
+    const beforeC = ledgerRows().length;
+    const locC = _findAccountRowOnSheet(sid);
+    const gC = _grantHP({ sid: sid, type: 'test', rawHp: 1, stuLoc: locC,
+      applyWeekMultiplier: false, applyReserveSystem: false, checkCompletion: false });
+    pass('[C1] _grantHP（submissionId なし）成功', gC && gC.ok);
+    pass('[C2] 台帳に1行も増えない（既存コンテンツ不変）', ledgerRows().length === beforeC);
+
+    // ── [D] reflection_release（振り返り解放分） ──
+    const subD = 'TESTLEDGER_' + stamp + '_D';
+    _appendHpReservePool(sid, today, 'mytask_test', 100, 100, 'reflection_pending', subD);
+    _releaseReflectionReserves(sid, today);
+    pass('[D1] reflection_release が submissionId 付きで台帳に載る', countBySubmission(subD, 'reflection_release') >= 1);
+
+    // ── [E] mission_release（絶対ミッション完走解放分） ──
+    const subE = 'TESTLEDGER_' + stamp + '_E';
+    _appendHpReservePool(sid, today, 'mytask_test', 100, 40, 'required_mission', subE);
+    _markReservePoolEntriesResolved(sid, today);
+    pass('[E1] mission_release が submissionId 付きで台帳に載る', countBySubmission(subE, 'mission_release') >= 1);
+
+  } catch (e) {
+    pass('[EXCEPTION]', false, String(e));
+  } finally {
+    // COL_HP（生涯HP）を復元（テストで増えた分を巻き戻す）
+    try {
+      const locR = _findAccountRowOnSheet(sid);
+      if (locR) {
+        locR.sheet.getRange(locR.rowIdx + 1, COL_HP + 1).setValue(hpBefore);
+        const upd = {}; upd[COL_HP] = hpBefore;
+        _updateAccountCacheBySid(sid, upd);
+        _invalidateCache('cache_ranking_last_week');
+      }
+    } catch (restoreErr) {
+      results.push({ name: '[RESTORE] COL_HP 復元', ok: false, detail: String(restoreErr) });
+    }
+  }
+
+  const allOk = results.every(function(r){ return r.ok; });
+  results.forEach(function(r){ console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.detail ? ' / ' + r.detail : '')); });
+  console.log('==== testHpGrantLedger: ' + (allOk ? 'ALL PASS' : 'SOME FAILED') + ' ====');
+  console.log('後始末メモ：HpGrantLedger / HpReservePool に submissionId が "TESTLEDGER_" 始まりの行が残ります（手動削除可）。COL_HP は復元済み。');
+  return { ok: allOk, results: results, hpBefore: hpBefore };
+}
 
 // HP を消費する共通関数。
 //   引数: sid（生徒ID） / amount（消費HP・正の整数） / reason（用途文字列。呼び出し側が渡す）
@@ -21591,17 +21781,21 @@ function _normalizePoolDate(v) {
 //   宙吊り事故）。submitReflection と同じ「appendRow で date 列を空にしておく → '@' フォーマット
 //   指定 → setValue で文字列再書込」パターンで Date 型化を確実に防ぐ。
 //   既存の Date 型行は本修正で書き換えない（読み取り側 _normalizePoolDate で吸収）。
-function _appendHpReservePool(sid, dateStr, type, rawHp, reservedHp, reserveReason) {
+// 2026-06-10 HP消費基盤 第2段階：任意の第7引数 submissionId（既定 ''）を追加し 9 列目に保存する。
+//   マイ課題（差し戻し対象）の付与のみ非空。解放時に HpGrantLedger へ引き継ぐためのキャリア。
+//   6 引数の既存呼び出しは submissionId='' で従来どおり（挙動不変）。
+function _appendHpReservePool(sid, dateStr, type, rawHp, reservedHp, reserveReason, submissionId) {
   try {
     if (!sid || !dateStr || !type) return { ok: false, message: 'invalid args' };
     if (reservedHp == null || reservedHp <= 0) return { ok: false, message: 'no reserve' };
     const reasonNorm = String(reserveReason == null ? '' : reserveReason).trim();
+    const subIdNorm = String(submissionId == null ? '' : submissionId).trim();
     const sh = _ensureHpReservePoolSheet();
-    // 8 列構造（reserveReason を末尾に追加）。シート側に列が無くてもベストエフォートで appendRow 可能：
-    // _ensureSheetWithHeaders の schema migration が初回 ensure 時に列を末尾追記しているため、
-    // ここでは常に 8 列分の値を渡す。
+    // 9 列構造（reserveReason の後ろに submissionId を追加）。シート側に列が無くてもベストエフォートで
+    // appendRow 可能：_ensureSheetWithHeaders の schema migration が初回 ensure 時に列を末尾追記しているため、
+    // ここでは常に 9 列分の値を渡す。
     // date 列（2 列目）は一旦空で append → 直後に '@' フォーマット指定 → setValue で文字列強制書込。
-    sh.appendRow([sid, '', type, rawHp, reservedHp, 'FALSE', '', reasonNorm]);
+    sh.appendRow([sid, '', type, rawHp, reservedHp, 'FALSE', '', reasonNorm, subIdNorm]);
     try {
       const writtenRow = sh.getLastRow();
       const dCell = sh.getRange(writtenRow, 2);  // date は B 列（2 列目）
@@ -21635,9 +21829,11 @@ function _markReservePoolEntriesResolved(sid, dateStr) {
     // header: studentId(0) date(1) type(2) rawHp(3) reservedHp(4) resolved(5) resolvedAt(6) reserveReason(7)
     const header = values[0];
     const iReason = header.indexOf('reserveReason');  // -1 ならレガシー（全て空欄扱い）
+    const iSubId = header.indexOf('submissionId');    // 第2段階：-1 ならレガシー（全て空欄扱い）
     const targets = [];
     let totalReleased = 0;
     const byReason = {};
+    const ledgerEntries = [];  // 第2段階：submissionId 付き解放行を mission_release として台帳化する
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
       if (String(r[0] || '').trim() !== sid) continue;
@@ -21650,6 +21846,11 @@ function _markReservePoolEntriesResolved(sid, dateStr) {
       totalReleased += hp;
       const reason = (iReason >= 0) ? String(r[iReason] || '').trim() : '';
       byReason[reason] = (byReason[reason] || 0) + hp;
+      // 第2段階：マイ課題（submissionId 付き）の行のみ台帳記録対象に積む。既存／レガシー行は空欄 → 対象外。
+      const subId = (iSubId >= 0) ? String(r[iSubId] || '').trim() : '';
+      if (subId && hp > 0) {
+        ledgerEntries.push({ submissionId: subId, type: String(r[2] || ''), submittedDate: _normalizePoolDate(r[1]), grantedHp: hp });
+      }
     }
     if (targets.length === 0) return { ok: true, totalReleased: 0, count: 0, byReason: {} };
     const now = _nowJST();
@@ -21658,6 +21859,23 @@ function _markReservePoolEntriesResolved(sid, dateStr) {
       sh.getRange(targets[k], 6, 1, 2).setValues([['TRUE', now]]);
     }
     SpreadsheetApp.flush();
+    // 第2段階：マイ課題の解放分を mission_release として台帳に記録（純粋な副作用、失敗しても続行）。
+    // ※ completion_bonus（200×week² の日次完走ボーナス）は呼び出し元 _checkAndReleaseReserveIfCompleted で
+    //   別途付与されるが、提出に紐づかないため台帳には記録しない（ここでも記録しない）。
+    for (let m = 0; m < ledgerEntries.length; m++) {
+      const le = ledgerEntries[m];
+      _appendHpGrantLedger({
+        submissionId:  le.submissionId,
+        studentId:     sid,
+        contentType:   le.type,
+        subject:       '',
+        submittedDate: le.submittedDate,
+        phase:         'mission_release',
+        rawHp:         0,
+        grantedHp:     le.grantedHp,
+        resolvedAt:    now
+      });
+    }
     return { ok: true, totalReleased: totalReleased, count: targets.length, byReason: byReason };
   } catch (e) {
     console.error('[_markReservePoolEntriesResolved]', e);
@@ -21815,13 +22033,14 @@ function _releaseReflectionReserves(sid, dateStr) {
     const values = sh.getDataRange().getValues();
     const header = values[0];
     const iReason = header.indexOf('reserveReason');
+    const iSubId = header.indexOf('submissionId');  // 第2段階：-1 ならレガシー（全て空欄扱い）
     // reserveReason 列が無いシート（極めて稀、Step 1 投入前の状態）では誤動作を避けるため何もしない
     if (iReason < 0) {
       console.warn('[_releaseReflectionReserves] reserveReason 列が見つかりません。シーマ未移行の可能性');
       return { ok: true, releasedHp: 0, count: 0 };
     }
     // 解放対象の reflection_pending 行を収集（このスナップショットの行 index は後段の appendRow があっても不変）。
-    const targets = [];  // [{ rowIdx, type, reservedFull }]
+    const targets = [];  // [{ rowIdx, type, reservedFull, submissionId }]
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
       if (String(r[0] || '').trim() !== sidNorm) continue;
@@ -21831,7 +22050,8 @@ function _releaseReflectionReserves(sid, dateStr) {
       if (String(r[5] || '').trim().toUpperCase() === 'TRUE') continue;
       const reason = String(r[iReason] || '').trim();
       if (reason !== 'reflection_pending') continue;  // 必ず reflection_pending のみ
-      targets.push({ rowIdx: i + 1, type: String(r[2] || ''), reservedFull: Number(r[4]) || 0 });
+      const subId = (iSubId >= 0) ? String(r[iSubId] || '').trim() : '';  // 第2段階：マイ課題のみ非空
+      targets.push({ rowIdx: i + 1, type: String(r[2] || ''), reservedFull: Number(r[4]) || 0, submissionId: subId });
     }
     if (targets.length === 0) return { ok: true, releasedHp: 0, count: 0, releasedByType: {} };
 
@@ -21871,7 +22091,8 @@ function _releaseReflectionReserves(sid, dateStr) {
       if (splitApplies && reservedFull > 0) {
         granted = Math.floor(reservedFull * (1 - REQUIRED_RESERVE_RATIO));  // 60%（Gate2 と同一式）
         const reserve40 = reservedFull - granted;                          // 40%
-        if (reserve40 > 0) reReserveSpecs.push({ type: tg.type, rawHpFull: reservedFull, reserved40: reserve40 });
+        // 第2段階：40% 再保留にも同じ submissionId を引き継ぐ（完走時に mission_release として台帳化）。
+        if (reserve40 > 0) reReserveSpecs.push({ type: tg.type, rawHpFull: reservedFull, reserved40: reserve40, submissionId: tg.submissionId });
       }
       // 解放行を resolved=TRUE 化。reservedHp（列 5）は「実付与した granted」に上書きして、reservedHp を読む
       // 表示（LINE 文面 / 生徒内訳）を実態に一致させる。列 6=resolved, 7=resolvedAt。
@@ -21881,13 +22102,27 @@ function _releaseReflectionReserves(sid, dateStr) {
       if (contentKey && granted > 0) {
         releasedByType[contentKey] = (releasedByType[contentKey] || 0) + granted;
       }
+      // 第2段階：マイ課題（submissionId 付き）の振り返り解放分を台帳に記録（純粋な副作用、失敗しても続行）。
+      if (tg.submissionId && granted > 0) {
+        _appendHpGrantLedger({
+          submissionId:  tg.submissionId,
+          studentId:     sidNorm,
+          contentType:   tg.type,
+          subject:       '',
+          submittedDate: ds,
+          phase:         'reflection_release',
+          rawHp:         0,
+          grantedHp:     granted,
+          resolvedAt:    now
+        });
+      }
     }
     SpreadsheetApp.flush();
 
     // 40% を required_mission として積み直し（完走時に _checkAndReleaseReserveIfCompleted が解放）
     for (let s = 0; s < reReserveSpecs.length; s++) {
       const spec = reReserveSpecs[s];
-      _appendHpReservePool(sidNorm, ds, spec.type, spec.rawHpFull, spec.reserved40, 'required_mission');
+      _appendHpReservePool(sidNorm, ds, spec.type, spec.rawHpFull, spec.reserved40, 'required_mission', spec.submissionId);
     }
 
     // HPLog 記録 + Students.HP 加算（実付与した totalGranted のみ。40% は Pool に残り Students.HP には未加算）
