@@ -20779,6 +20779,223 @@ function testHpGrantLedger() {
   return { ok: allOk, results: results, hpBefore: hpBefore };
 }
 
+// ========================================================================
+// HP消費基盤 第3段階：マイ課題の差し戻し（clawback） / 2026-06-10
+// ------------------------------------------------------------------------
+// マイ課題の提出を差し戻す中核関数。submissionId で HpGrantLedger を集計し、
+// 着地済み総額（immediate + reflection_release + mission_release の grantedHp 合計）を
+// 生涯HP（COL_HP）から直接減算する（COL_HP を減らす唯一の処理）。
+//   ・completion_bonus は台帳に無いので自動的に対象外（取り上げない）。
+//   ・COL_HP はマイナス許容（借金状態。表示HPもマイナスのまま）。
+//   ・二重差し戻し防止：revertedAt が既に入っていれば skip（{ok:false, alreadyReverted:true}）。
+//   ・未解放 reserve の再付与防止：当該 submissionId の resolved=FALSE 行を resolved=TRUE 化し
+//     reserveReason に '_reverted' を付す（将来 _releaseReflectionReserves /
+//     _markReservePoolEntriesResolved が再付与しないようにする）。未解放分は COL_HP に
+//     乗っていない（台帳にも無い）ため COL_HP からは引かない。
+//   ・resolvedAt も now で記録（runDailyForfeitExpiredReserves と同様、解放処理済みの体裁を保つ）。
+// ★ 既存の付与（_grantHP）・解放・没収・交換・_consumeHP は一切変更しない。本関数の新規追加のみ。
+// ★ 管理画面 UI / doPost 公開はマイ課題コンテンツ実装時に別途。本段階は関数＋テストのみ。
+//
+// 引数: submissionId（差し戻す提出の一意キー）
+// 戻り値:
+//   成功      : { ok:true, submissionId, revertedHp, newColHp, reservePoolMarked }
+//   台帳なし  : { ok:false, reason:'not_found' }
+//   差し戻し済: { ok:false, alreadyReverted:true, submissionId }
+//   その他    : { ok:false, reason:'invalid'|'student_not_found'|'error', message }
+function revertMyTaskSubmission(submissionId) {
+  try {
+    const subId = String(submissionId == null ? '' : submissionId).trim();
+    if (!subId) return { ok: false, reason: 'invalid', message: 'submissionId が必要です' };
+
+    // ── a. 台帳走査（submissionId 一致行を収集、二重差し戻しガード） ──
+    const sh = _ss().getSheetByName(SHEET_HP_GRANT_LEDGER);
+    if (!sh || sh.getLastRow() < 2) return { ok: false, reason: 'not_found' };
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iSub        = header.indexOf('submissionId');
+    const iStudentId  = header.indexOf('studentId');
+    const iGrantedHp  = header.indexOf('grantedHp');
+    const iRevertedAt = header.indexOf('revertedAt');
+    if (iSub < 0 || iGrantedHp < 0 || iRevertedAt < 0) {
+      return { ok: false, reason: 'error', message: 'HpGrantLedger のヘッダー構造が想定外です' };
+    }
+    const matchRows = [];   // 1-based row indices（このスナップショットの index は revert 中不変）
+    let revertedHp = 0;
+    let sid = '';
+    let alreadyReverted = false;
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (String(r[iSub] || '').trim() !== subId) continue;
+      matchRows.push(i + 1);
+      revertedHp += Number(r[iGrantedHp]) || 0;
+      if (!sid && iStudentId >= 0) sid = String(r[iStudentId] || '').trim();
+      if (String(r[iRevertedAt] || '').trim() !== '') alreadyReverted = true;
+    }
+    if (matchRows.length === 0) return { ok: false, reason: 'not_found' };
+    if (alreadyReverted) return { ok: false, alreadyReverted: true, submissionId: subId };
+
+    // ── c. COL_HP 減算（_grantHP / 解放と同じ書き込み方式。Students/SpecialAccounts 両対応・マイナス許容） ──
+    if (!sid) return { ok: false, reason: 'error', message: '台帳に studentId がありません' };
+    const loc = _findAccountRowOnSheet(sid);
+    if (!loc) return { ok: false, reason: 'student_not_found', message: '生徒が見つかりません: ' + sid };
+    const curHP = Number(loc.rowValues[COL_HP]) || 0;
+    const newColHp = curHP - revertedHp;   // マイナス許容（借金状態）
+    loc.sheet.getRange(loc.rowIdx + 1, COL_HP + 1).setValue(newColHp);
+    const upd = {}; upd[COL_HP] = newColHp;
+    _updateAccountCacheBySid(sid, upd);
+    _invalidateCache('cache_ranking_last_week');
+
+    // ── d. 台帳の全一致行に revertedAt = now を記録 ──
+    const now = _nowJST();
+    for (let k = 0; k < matchRows.length; k++) {
+      sh.getRange(matchRows[k], iRevertedAt + 1).setValue(now);
+    }
+
+    // ── e. 未解放 reserve の無害化（resolved=FALSE → TRUE、reserveReason に _reverted 付与） ──
+    // ※ COL_HP・台帳の記録（c/d）は完了済みのため、この処理の失敗は警告のみで続行する。
+    let reservePoolMarked = 0;
+    try {
+      const psh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+      if (psh && psh.getLastRow() >= 2) {
+        const pv = psh.getDataRange().getValues();
+        const ph = pv[0];
+        const piSub        = ph.indexOf('submissionId');
+        const piResolved   = ph.indexOf('resolved');
+        const piReason     = ph.indexOf('reserveReason');
+        const piResolvedAt = ph.indexOf('resolvedAt');
+        if (piSub >= 0 && piResolved >= 0) {
+          for (let j = 1; j < pv.length; j++) {
+            const pr = pv[j];
+            if (String(pr[piSub] || '').trim() !== subId) continue;
+            if (String(pr[piResolved] || '').trim().toUpperCase() === 'TRUE') continue;  // 既解放/没収済はスキップ
+            const oldReason = (piReason >= 0) ? String(pr[piReason] || '').trim() : '';
+            psh.getRange(j + 1, piResolved + 1).setValue('TRUE');
+            if (piReason >= 0)     psh.getRange(j + 1, piReason + 1).setValue(oldReason ? (oldReason + '_reverted') : 'reverted');
+            if (piResolvedAt >= 0) psh.getRange(j + 1, piResolvedAt + 1).setValue(now);
+            reservePoolMarked++;
+          }
+        }
+      }
+    } catch (poolErr) {
+      console.error('[revertMyTaskSubmission] reserve 無害化に失敗（COL_HP 減算・台帳記録は完了済み）', poolErr);
+    }
+
+    SpreadsheetApp.flush();
+    return { ok: true, submissionId: subId, revertedHp: revertedHp, newColHp: newColHp, reservePoolMarked: reservePoolMarked };
+  } catch (e) {
+    console.error('[revertMyTaskSubmission]', e);
+    return { ok: false, reason: 'error', message: String(e) };
+  }
+}
+
+// revertMyTaskSubmission の検証。GAS エディタのドロップダウンから引数なしで実行可。
+// テストアカウント sid='1001' で：
+//   ・着地済みを台帳に作成（immediate 30 + reflection_release 70 = 100）+ COL_HP を +100 して
+//     「付与済み」状態を再現 + 未解放 reserve（同 submissionId・resolved=FALSE）を 1 行積む。
+//   ・revertMyTaskSubmission を実行し、
+//      [1][2] ok / revertedHp=100、[3] COL_HP が合計分減算、[4][5] 台帳全行に revertedAt、
+//      [6] 再 revert は alreadyReverted、[7][8][9] reserve 行が resolved=TRUE / _reverted / marked=1、
+//      [10] 未知 submissionId は not_found を確認。
+// ★ 後始末：COL_HP は実行前値へ復元。HpGrantLedger / HpReservePool に 'TESTREVERT_' 始まりの行が残る
+//   （手動削除可、production 集計に影響なし）。
+function testRevertMyTaskSubmission() {
+  const sid = '1001';
+  const results = [];
+  function pass(name, cond, detail) { results.push({ name: name, ok: !!cond, detail: detail || '' }); }
+  function ledgerRows() {
+    const sh = _ss().getSheetByName(SHEET_HP_GRANT_LEDGER);
+    if (!sh || sh.getLastRow() < 2) return [];
+    return sh.getDataRange().getValues();
+  }
+  function poolRows() {
+    const sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+    if (!sh || sh.getLastRow() < 2) return [];
+    return sh.getDataRange().getValues();
+  }
+
+  const stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+  const today = _sangoToday();
+  const subId = 'TESTREVERT_' + stamp;
+
+  const loc0 = _findAccountRowOnSheet(sid);
+  if (!loc0) return { ok: false, message: 'test account ' + sid + ' が見つかりません' };
+  const hpBefore = Number(loc0.rowValues[COL_HP]) || 0;
+
+  try {
+    // 着地済みを台帳に直接作成（immediate 30 + reflection_release 70 = 100）
+    _appendHpGrantLedger({ submissionId: subId, studentId: sid, contentType: 'mytask_test', subject: '算数', submittedDate: today, phase: 'immediate', rawHp: 0, grantedHp: 30, resolvedAt: '' });
+    _appendHpGrantLedger({ submissionId: subId, studentId: sid, contentType: 'mytask_test', subject: '算数', submittedDate: today, phase: 'reflection_release', rawHp: 0, grantedHp: 70, resolvedAt: today });
+    const expectTotal = 100;
+
+    // COL_HP を「付与済み」状態に合わせて +100（実運用で着地している前提を再現）
+    const locG = _findAccountRowOnSheet(sid);
+    const hpGranted = (Number(locG.rowValues[COL_HP]) || 0) + expectTotal;
+    locG.sheet.getRange(locG.rowIdx + 1, COL_HP + 1).setValue(hpGranted);
+    const ug = {}; ug[COL_HP] = hpGranted; _updateAccountCacheBySid(sid, ug);
+
+    // 未解放 reserve（同 submissionId・resolved=FALSE）を 1 行積む
+    _appendHpReservePool(sid, today, 'mytask_test', 100, 40, 'required_mission', subId);
+
+    // ── 差し戻し実行 ──
+    const r1 = revertMyTaskSubmission(subId);
+    pass('[1] ok:true', r1 && r1.ok, r1 && (r1.reason || ''));
+    pass('[2] revertedHp == 100', r1 && r1.revertedHp === expectTotal, r1 && ('revertedHp=' + r1.revertedHp));
+    const locA = _findAccountRowOnSheet(sid);
+    const hpAfter = Number(locA.rowValues[COL_HP]) || 0;
+    pass('[3] COL_HP が合計分減算', r1 && r1.newColHp === (hpGranted - expectTotal) && hpAfter === (hpGranted - expectTotal), 'hpAfter=' + hpAfter);
+
+    // revertedAt が全該当行に入っている
+    const lrows = ledgerRows();
+    const lh = lrows[0];
+    const liSub = lh.indexOf('submissionId');
+    const liRev = lh.indexOf('revertedAt');
+    const mine = lrows.slice(1).filter(function(r){ return String(r[liSub]).trim() === subId; });
+    pass('[4] 台帳に2行', mine.length === 2, 'rows=' + mine.length);
+    pass('[5] 全行 revertedAt 非空', mine.length > 0 && mine.every(function(r){ return String(r[liRev] || '').trim() !== ''; }));
+
+    // 二重差し戻しガード
+    const r2 = revertMyTaskSubmission(subId);
+    pass('[6] 再 revert は alreadyReverted', r2 && r2.ok === false && r2.alreadyReverted === true, r2 && (r2.reason || ''));
+
+    // reserve 無害化
+    const prows = poolRows();
+    const phh = prows[0];
+    const piSub = phh.indexOf('submissionId');
+    const piResolved = phh.indexOf('resolved');
+    const piReason = phh.indexOf('reserveReason');
+    const myPool = prows.slice(1).filter(function(r){ return String(r[piSub]).trim() === subId; });
+    pass('[7] reserve 行が resolved=TRUE', myPool.length > 0 && myPool.every(function(r){ return String(r[piResolved]).trim().toUpperCase() === 'TRUE'; }), 'poolRows=' + myPool.length);
+    pass('[8] reserveReason に _reverted', myPool.length > 0 && myPool.every(function(r){ return String(r[piReason]).indexOf('_reverted') >= 0; }));
+    pass('[9] reservePoolMarked == 1', r1 && r1.reservePoolMarked === 1, r1 && ('marked=' + r1.reservePoolMarked));
+
+    // 未知 submissionId は not_found
+    const r3 = revertMyTaskSubmission('TESTREVERT_NOTEXIST_' + stamp);
+    pass('[10] 未知 submissionId は not_found', r3 && r3.ok === false && r3.reason === 'not_found');
+
+  } catch (e) {
+    pass('[EXCEPTION]', false, String(e));
+  } finally {
+    // COL_HP を実行前値へ復元
+    try {
+      const locR = _findAccountRowOnSheet(sid);
+      if (locR) {
+        locR.sheet.getRange(locR.rowIdx + 1, COL_HP + 1).setValue(hpBefore);
+        const u = {}; u[COL_HP] = hpBefore;
+        _updateAccountCacheBySid(sid, u);
+        _invalidateCache('cache_ranking_last_week');
+      }
+    } catch (restoreErr) {
+      results.push({ name: '[RESTORE] COL_HP 復元', ok: false, detail: String(restoreErr) });
+    }
+  }
+
+  const allOk = results.every(function(r){ return r.ok; });
+  results.forEach(function(r){ console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.detail ? ' / ' + r.detail : '')); });
+  console.log('==== testRevertMyTaskSubmission: ' + (allOk ? 'ALL PASS' : 'SOME FAILED') + ' ====');
+  console.log('後始末メモ：HpGrantLedger / HpReservePool に submissionId が "TESTREVERT_" 始まりの行が残ります（手動削除可）。COL_HP は復元済み。');
+  return { ok: allOk, results: results, hpBefore: hpBefore };
+}
+
 // HP を消費する共通関数。
 //   引数: sid（生徒ID） / amount（消費HP・正の整数） / reason（用途文字列。呼び出し側が渡す）
 //   戻り値:
