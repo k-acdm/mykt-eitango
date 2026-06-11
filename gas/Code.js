@@ -6493,6 +6493,197 @@ function testSubmitMyTask() {
   return { ok: allOk, results: results, hpBefore: hpBefore };
 }
 
+// =============================================================================
+// マイ課題（写真提出）⑥：30 日自動削除（2026-06-12）
+//   ・cleanupKisoPhotos / _deleteKisoPhoto をテンプレに、対象を MyTaskPhotos へ差し替えた複製。
+//   ・既存の cleanupKisoPhotos / _deleteKisoPhoto は変更せず、複製のみ。
+// =============================================================================
+
+// Drive 上の 1 ファイルをゴミ箱へ（_deleteKisoPhoto の複製。best-effort）。
+// 戻り値: { ok: boolean, error?: string }
+function _deleteMyTaskPhoto(driveFileId) {
+  try {
+    if (!driveFileId) return { ok: true };
+    DriveApp.getFileById(String(driveFileId)).setTrashed(true);
+    return { ok: true };
+  } catch (err) {
+    console.warn('[_deleteMyTaskPhoto]', driveFileId, err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+// 日次クリーンアップ（cleanupKisoPhotos の複製。対象を MyTaskPhotos に差し替え）。
+// - MyTaskPhotos を走査し、deleteAfter <= today（_todayJST、kiso と同基準）のレコードについて：
+//   1. Drive ファイルを setTrashed（_deleteMyTaskPhoto）
+//   2. シート行を削除（末尾→先頭の降順で行ズレ防止）
+// - 列インデックスは MYTASK_PHOTOS_HEADERS のヘッダー名から動的取得（announcementId 挿入の影響を受けない）。
+// - opts.dryRun===true なら targets 算出のみで実削除しない。
+// - GAS UI から Time-based Trigger を 03:00〜04:00 に手動設定する想定
+//   （バックアップ 02:00〜03:00 / 教育日切替 04:00 の合間。基礎計算と同じ思想）。
+// 戻り値: { ok, processed, deleted, failed: [...], dryRun, targets: [...] }
+function cleanupMyTaskPhotos(opts) {
+  try {
+    opts = opts || {};
+    const dryRun = !!opts.dryRun;
+
+    const sh = _ensureMyTaskPhotosSheet();
+    if (sh.getLastRow() < 2) {
+      return { ok: true, processed: 0, deleted: 0, failed: [], dryRun: dryRun, targets: [] };
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cFileId = header.indexOf('driveFileId');
+    const cDelete = header.indexOf('deleteAfter');
+    const cSid    = header.indexOf('studentId');
+
+    const today = _todayJST();
+    const failed = [];
+    const targetRowIdxs = [];   // 1-based 行番号（ヘッダー行は 1、データは 2 から）
+
+    for (let i = 1; i < values.length; i++) {
+      const delAfter = (cDelete >= 0) ? _toDateStr(values[i][cDelete]) : '';
+      if (!delAfter) continue;
+      if (delAfter > today) continue;             // まだ保持期間内
+      targetRowIdxs.push({
+        rowNum: i + 1,
+        fileId: (cFileId >= 0) ? String(values[i][cFileId] || '') : '',
+        studentId: (cSid >= 0) ? String(values[i][cSid] || '') : '',
+        deleteAfter: delAfter
+      });
+    }
+
+    let deleted = 0;
+    if (!dryRun) {
+      // Drive 削除（先に一括）
+      for (let k = 0; k < targetRowIdxs.length; k++) {
+        const t = targetRowIdxs[k];
+        const r = _deleteMyTaskPhoto(t.fileId);
+        if (!r.ok) failed.push({ fileId: t.fileId, error: r.error });
+      }
+      // シート行削除（末尾→先頭の順、行番号ズレ防止）
+      const sortedDesc = targetRowIdxs.slice().sort(function(a, b){ return b.rowNum - a.rowNum; });
+      for (let k = 0; k < sortedDesc.length; k++) {
+        try {
+          sh.deleteRow(sortedDesc[k].rowNum);
+          deleted += 1;
+        } catch (err) {
+          failed.push({ rowNum: sortedDesc[k].rowNum, error: String(err) });
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      processed: targetRowIdxs.length,
+      deleted: dryRun ? 0 : deleted,
+      failed: failed,
+      dryRun: dryRun,
+      targets: targetRowIdxs
+    };
+  } catch (err) {
+    console.error('[cleanupMyTaskPhotos]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// cleanupMyTaskPhotos の検証（GAS エディタのドロップダウンから引数なし実行可）。
+// test account 1001 で過去日 / 未来日 deleteAfter の MyTaskPhotos 行を実ファイル付きで作り：
+//   [1] dryRun:true → 過去日行が targets に挙がり、未来日行は挙がらない / 実削除されない
+//   [2] dryRun:false → 過去日行は Drive ゴミ箱 + シート行削除 / 未来日行は残る
+// 後始末：本テストが作成した行・Drive ファイルのみ削除（実生徒データには触れない）。
+function testCleanupMyTaskPhotos() {
+  const sid = '1001';
+  const results = [];
+  function pass(name, cond, detail) { results.push({ name: name, ok: !!cond, detail: detail || '' }); }
+  const IMG = Utilities.base64Encode('mytask-cleanup-test-bytes');
+  const stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+  const subPast   = 'TESTCLEANUP_past_' + stamp + '_' + sid;
+  const subFuture = 'TESTCLEANUP_future_' + stamp + '_' + sid;
+  const createdSubs = {}; createdSubs[subPast] = true; createdSubs[subFuture] = true;
+  const createdFids = [];
+  const PAST_DATE   = '2000-01-01';   // 確実に today より前
+  const FUTURE_DATE = '2999-12-31';   // 確実に today より後
+
+  // submissionId から行情報（rowNum / deleteAfter 列 / fileId）を引く
+  function rowInfo(subId) {
+    const sh = _ensureMyTaskPhotosSheet();
+    if (sh.getLastRow() < 2) return null;
+    const v = sh.getDataRange().getValues();
+    const h = v[0];
+    const cSub = h.indexOf('submissionId');
+    const cDel = h.indexOf('deleteAfter');
+    const cFid = h.indexOf('driveFileId');
+    for (let i = 1; i < v.length; i++) {
+      if (String(v[i][cSub] || '').trim() === subId) {
+        return { rowNum: i + 1, cDel: cDel, fileId: (cFid >= 0) ? String(v[i][cFid] || '').trim() : '' };
+      }
+    }
+    return null;
+  }
+  function existsRow(subId) { return !!rowInfo(subId); }
+  function isTrashed(fid) {
+    try { return DriveApp.getFileById(fid).isTrashed(); } catch (e) { return null; }
+  }
+
+  try {
+    // 実ファイル付きで 2 行作成（_saveMyTaskPhoto は deleteAfter=今日+30日 で作る）
+    const rp = _saveMyTaskPhoto(sid, subPast,   'self', '', '', 'cleanup past',   IMG, 0);
+    const rf = _saveMyTaskPhoto(sid, subFuture, 'self', '', '', 'cleanup future', IMG, 0);
+    if (rp && rp.fileId) createdFids.push(rp.fileId);
+    if (rf && rf.fileId) createdFids.push(rf.fileId);
+    pass('[setup] 2行作成', rp && rp.ok === true && rf && rf.ok === true, rp && rf ? '' : 'save失敗');
+
+    // deleteAfter を過去 / 未来に上書き
+    const sh = _ensureMyTaskPhotosSheet();
+    const ip = rowInfo(subPast);
+    const iff = rowInfo(subFuture);
+    if (ip)  sh.getRange(ip.rowNum,  ip.cDel  + 1).setValue(PAST_DATE);
+    if (iff) sh.getRange(iff.rowNum, iff.cDel + 1).setValue(FUTURE_DATE);
+    SpreadsheetApp.flush();
+
+    // [1] dryRun:true
+    const dry = cleanupMyTaskPhotos({ dryRun: true });
+    const dryPast   = !!(dry.targets || []).some(function(t){ return t.fileId === (rp && rp.fileId); });
+    const dryFuture = !!(dry.targets || []).some(function(t){ return t.fileId === (rf && rf.fileId); });
+    pass('[1a] dryRun:過去日行が targets に挙がる', dry && dry.ok === true && dryPast);
+    pass('[1b] dryRun:未来日行は targets に挙がらない', dryFuture === false);
+    pass('[1c] dryRun は実削除しない（deleted=0・両行残存）', dry && dry.dryRun === true && dry.deleted === 0 && existsRow(subPast) && existsRow(subFuture));
+
+    // [2] dryRun:false
+    const real = cleanupMyTaskPhotos({ dryRun: false });
+    pass('[2a] dryRun:false で 1 行以上削除', real && real.ok === true && real.dryRun === false && real.deleted >= 1, 'deleted=' + (real && real.deleted));
+    pass('[2b] 過去日行はシートから削除された', existsRow(subPast) === false);
+    pass('[2c] 過去日の Drive ファイルはゴミ箱', isTrashed(rp && rp.fileId) === true);
+    pass('[2d] 未来日行は残存', existsRow(subFuture) === true);
+    pass('[2e] 未来日の Drive ファイルは未ゴミ箱', isTrashed(rf && rf.fileId) === false);
+
+  } catch (e) {
+    pass('[EXCEPTION]', false, String(e));
+  } finally {
+    // 後始末：本テスト作成行を削除 + Drive ファイルをゴミ箱へ（best-effort）
+    try {
+      const sh = _ensureMyTaskPhotosSheet();
+      if (sh.getLastRow() >= 2) {
+        const v = sh.getDataRange().getValues();
+        const cSub = v[0].indexOf('submissionId');
+        const del = [];
+        for (let i = 1; i < v.length; i++) {
+          if (createdSubs[String(v[i][cSub] || '').trim()]) del.push(i + 1);
+        }
+        del.sort(function(a, b){ return b - a; }).forEach(function(rn){ try { sh.deleteRow(rn); } catch (_e) {} });
+      }
+    } catch (e) { results.push({ name: '[CLEANUP] MyTaskPhotos rows', ok: false, detail: String(e) }); }
+    createdFids.forEach(function(fid){ try { DriveApp.getFileById(fid).setTrashed(true); } catch (_e) {} });
+    SpreadsheetApp.flush();
+  }
+
+  const allOk = results.every(function(r){ return r.ok; });
+  results.forEach(function(r){ console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.detail ? ' / ' + r.detail : '')); });
+  console.log('==== testCleanupMyTaskPhotos: ' + (allOk ? 'ALL PASS' : 'SOME FAILED') + ' ====');
+  console.log('後始末メモ：本テスト作成の MyTaskPhotos 行と Drive ファイルのみ削除済み（test account 1001 のみ・実生徒データ不変）。');
+  return { ok: allOk, results: results };
+}
+
 // 1 枚を Drive に保存し、KisoPhotos に 1 行追記する。
 // 戻り値: { ok, fileId, shareUrl, deleteAfter, fileName }
 //   - 失敗時: { ok: false, message }
