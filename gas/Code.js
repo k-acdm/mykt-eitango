@@ -1434,6 +1434,9 @@ function doPost(e) {
     // マイ課題③（2026-06-12）：告知の保存（管理画面）。studentIds が配列のため POST 必須。
     //   認証は saveMyTaskAnnouncement 内の _verifyTeacher（塾長/講師）で行う。
     else if (action === 'saveMyTaskAnnouncement')           result = saveMyTaskAnnouncement(params);
+    // マイ課題④（2026-06-12）：生徒の写真提出。写真 base64（複数枚）を含むため POST 必須。
+    //   認証は生徒ログイン前提（submitKisoAnswer と同作法、teacher 認証は不要）。
+    else if (action === 'submitMyTask')                     result = submitMyTask(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -6081,6 +6084,413 @@ function _ensureMyTaskPhotoFolder(yearMonth) {
 //   ・①では書き込みは行わない。②の保存処理がこのヘルパー経由でシートを確保する。
 function _ensureMyTaskPhotosSheet() {
   return _ensureSheetWithHeaders(SHEET_MYTASK_PHOTOS, MYTASK_PHOTOS_HEADERS).sh;
+}
+
+// =============================================================================
+// マイ課題（写真提出）④：保存関数 + 提出本体 + テスト（2026-06-12）
+//   ・_saveKisoPhoto / submitKisoAnswer をテンプレに、マイ課題用に複製・調整したもの。
+//   ・既存の _saveKisoPhoto / submitKisoAnswer / _grantHP / _isAlreadyGrantedToday は
+//     一切変更せず、呼び出し・複製のみ。
+// =============================================================================
+
+// 1 枚を Drive に保存し、MyTaskPhotos に 1 行追記する（_saveKisoPhoto の複製。マイ課題用に
+// ルート / 保管日数 / シート / 列構成を差し替え）。非公開（setSharing を呼ばない・
+// shareUrl='private'）+ 年月フォルダ分け + appendRow 直後 flush は _saveKisoPhoto と同一。
+// 引数: (studentId, submissionId, taskType, subject, announcementId, content, imageBase64, photoIndex)
+// 戻り値: { ok, fileId, shareUrl, deleteAfter, fileName, photoIndex }
+//   - 失敗時: { ok:false, message, photoIndex }
+function _saveMyTaskPhoto(studentId, submissionId, taskType, subject, announcementId, content, imageBase64, photoIndex) {
+  const idxNum = Number(photoIndex);
+  const safeIdx = Number.isFinite(idxNum) ? idxNum : 0;
+  try {
+    const sid = String(studentId || '').trim();
+    if (!sid)          return { ok: false, message: '生徒IDが空です', photoIndex: safeIdx };
+    if (!submissionId) return { ok: false, message: 'submissionId が空です', photoIndex: safeIdx };
+    if (!imageBase64)  return { ok: false, message: '画像データが空です', photoIndex: safeIdx };
+
+    // base64 → Blob（_saveKisoPhoto と同一）
+    const decoded = Utilities.base64Decode(String(imageBase64));
+    const blob = Utilities.newBlob(decoded, 'image/jpeg', 'tmp.jpg');
+
+    // 提出日（JST 教育日基準。deleteAfter / 年月フォルダともこの教育日基準で算出）。
+    const submittedAt   = _nowJST();
+    const submittedDate = _todayEducationalJST();    // 'yyyy-MM-dd'（JST 4:00 区切り）
+    const yearMonth     = submittedDate.slice(0, 7); // 'yyyy-MM'
+
+    // 削除予定日 = 提出日(教育日) + MYTASK_RETAIN_DAYS(30) 日
+    const delAfter = new Date(submittedDate + 'T12:00:00+09:00');
+    delAfter.setDate(delAfter.getDate() + MYTASK_RETAIN_DAYS);
+    const deleteAfter = Utilities.formatDate(delAfter, 'Asia/Tokyo', 'yyyy-MM-dd');
+
+    // フォルダ確保 + ファイル作成
+    const folder = _ensureMyTaskPhotoFolder(yearMonth);
+    const fileName = sid + '_' + submissionId + '_' + safeIdx + '.jpg';
+    const file = folder.createFile(blob).setName(fileName);
+    const fileId = file.getId();
+    // _saveKisoPhoto と同方針（Phase 6）：setSharing は呼ばない。Drive 直アクセス不可、
+    // 表示は GAS プロキシ経由の base64 配信（管理 / 生徒用 API は後続で実装）。
+    // shareUrl は列互換のため 'private' プレースホルダー。
+    const shareUrl = 'private';
+
+    // MyTaskPhotos シートに 1 行記録（MYTASK_PHOTOS_HEADERS の 11 列順）
+    const sh = _ensureMyTaskPhotosSheet();
+    sh.appendRow([
+      submissionId,
+      sid,
+      String(taskType || ''),
+      String(subject == null ? '' : subject),
+      String(announcementId == null ? '' : announcementId),
+      String(content == null ? '' : content),
+      fileId,
+      shareUrl,
+      submittedAt,
+      deleteAfter,
+      safeIdx
+    ]);
+    // _saveKisoPhoto と同方針：appendRow 直後の flush で確実に永続化
+    SpreadsheetApp.flush();
+
+    return {
+      ok: true,
+      fileId: fileId,
+      shareUrl: shareUrl,
+      deleteAfter: deleteAfter,
+      fileName: fileName,
+      photoIndex: safeIdx
+    };
+  } catch (err) {
+    console.error('[_saveMyTaskPhoto]', err);
+    return { ok: false, message: String(err), photoIndex: safeIdx };
+  }
+}
+
+// マイ課題④：提出本体（生徒）。写真を Drive 保存し、1 枚以上成功で HP を付与する。
+// doPost 経由のみ（写真 base64 が大きいため。submitKisoAnswer と同様）。生徒ログイン前提
+// （teacher 認証なし）。studentId の行特定は _findAccountRowOnSheet（行シフト事故防止）。
+//
+// params: { studentId, taskType('homework'|'self'), subject, announcementId, content, photos:[base64,...] }
+//
+// HP 付与の type 設計（dailyCap 一本化のための「末尾トークン付与」方式）：
+//   _sumHpLogTodayByPrefix は問い合わせ鍵に '_' を付けて前方一致するため、HPLog の type は
+//   「dailyCap 鍵 + '_<token>'」の形にして、鍵が type の真の接頭辞になるようにする。
+//     homework：HPLog type = 'mytask_homework_<subject>_hw' / dailyCap 鍵 = 'mytask_homework_<subject>'（教科ごと 100 上限）
+//     self    ：HPLog type = 'mytask_self_only'           / dailyCap 鍵 = 'mytask_self'（1 日 150 上限）
+//
+// 戻り値:
+//   成功      : { ok:true, submissionId, savedCount, savedIndexes:[...], failedIndexes:[...], grantedRawHp, alreadyCapped }
+//   全保存失敗: { ok:false, message:'写真の保存に失敗しました', savedCount:0, savedIndexes:[], failedIndexes:[...] }
+//   入力不正  : { ok:false, message }
+//   HP付与失敗: { ok:false, message, errorCode, submissionId, savedCount, savedIndexes, failedIndexes, grantedRawHp:0, alreadyCapped:false }
+function submitMyTask(params) {
+  try {
+    params = params || {};
+    const sid = String(params.studentId || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+
+    const taskType = String(params.taskType || '').trim();
+    if (taskType !== 'homework' && taskType !== 'self') {
+      return { ok: false, message: 'taskType は homework / self のいずれかを指定してください' };
+    }
+
+    const subject = String(params.subject == null ? '' : params.subject).trim();
+    const content = String(params.content == null ? '' : params.content);
+    // パターン1（homework）：subject 必須 / announcementId は渡された値を保存。
+    // パターン2（self）  ：announcementId は告知に紐づかないため必ず '' にする。
+    let announcementId = String(params.announcementId == null ? '' : params.announcementId).trim();
+    if (taskType === 'homework') {
+      if (!subject) return { ok: false, message: '教科（subject）が必要です' };
+    } else {
+      announcementId = '';
+    }
+
+    // 写真配列（1 枚以上必須）。空配列での提出・台帳作成を防ぐ。
+    const photos = Array.isArray(params.photos) ? params.photos : [];
+    if (photos.length === 0) {
+      return { ok: false, message: '写真がありません（1 枚以上必要です）' };
+    }
+
+    // 生徒行のフレッシュ特定（行シフト事故防止）。HP 付与でも同じ stuLoc を使う。
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+
+    // submissionId 発行（1 提出 1 個）
+    const submissionId = String(Date.now()) + '_' + sid;
+
+    // 写真保存ループ（photoIndex は 0 始まり連番）。何枚中何枚成功したかを集計。
+    const savedIndexes = [];
+    const failedIndexes = [];
+    for (let i = 0; i < photos.length; i++) {
+      const r = _saveMyTaskPhoto(sid, submissionId, taskType, subject, announcementId, content, photos[i], i);
+      if (r && r.ok) savedIndexes.push(i);
+      else failedIndexes.push(i);
+    }
+    const savedCount = savedIndexes.length;
+
+    // 1 枚も保存できなければ HP を付与せず終了（台帳も動かさない）
+    if (savedCount === 0) {
+      return { ok: false, message: '写真の保存に失敗しました', savedCount: 0, savedIndexes: [], failedIndexes: failedIndexes };
+    }
+
+    // ── HP 付与（1 枚以上成功時のみ。一部失敗は成功扱い）──
+    let capKey, logType, baseRawHp, cap, ledgerSubject;
+    if (taskType === 'homework') {
+      capKey        = 'mytask_homework_' + subject;
+      logType       = capKey + '_hw';
+      baseRawHp     = MYTASK_HP_HOMEWORK;   // 100
+      cap           = MYTASK_HP_HOMEWORK;   // 教科ごと 1 日 100
+      ledgerSubject = subject;
+    } else {
+      capKey        = 'mytask_self';
+      logType       = 'mytask_self_only';
+      baseRawHp     = MYTASK_HP_SELF;       // 150
+      cap           = MYTASK_HP_SELF;       // 1 日 150
+      ledgerSubject = 'self';
+    }
+
+    const dup = _isAlreadyGrantedToday(sid, capKey, 'dailyCap', { cap: cap });
+    const todayTotal = Number(dup && dup.todayRawHP) || 0;
+    const remaining = Math.max(0, cap - todayTotal);
+    const effectiveRawHp = Math.min(baseRawHp, remaining);
+    const submittedDate = _todayEducationalJST();
+
+    let alreadyCapped = false;
+    let grantedRawHp = 0;
+
+    if (effectiveRawHp === 0) {
+      // その日の上限に到達済み：写真提出は成立・保存されるが HP は付与しない（_grantHP を呼ばない）
+      alreadyCapped = true;
+    } else {
+      const grant = _grantHP({
+        sid:           sid,
+        type:          logType,
+        rawHp:         effectiveRawHp,
+        stuLoc:        stuLoc,
+        submissionId:  submissionId,
+        contentType:   'mytask',
+        subject:       ledgerSubject,
+        submittedDate: submittedDate
+        // applyWeekMultiplier / applyReserveSystem / checkCompletion は既定 true
+      });
+      if (!grant.ok) {
+        // 写真は保存済みだが HP 付与に失敗。失敗を返しつつ保存状況も伝える（フロント⑧で再送判断）。
+        console.error('[submitMyTask] _grantHP 失敗', { sid: sid, type: logType, errorCode: grant.errorCode });
+        return {
+          ok: false,
+          message: grant.message || '内部エラーが発生しました。もう一度試してください。',
+          errorCode: grant.errorCode || 'HP_LOG_FAILED',
+          submissionId: submissionId,
+          savedCount: savedCount,
+          savedIndexes: savedIndexes,
+          failedIndexes: failedIndexes,
+          grantedRawHp: 0,
+          alreadyCapped: false
+        };
+      }
+      grantedRawHp = effectiveRawHp;
+    }
+
+    return {
+      ok: true,
+      submissionId: submissionId,
+      savedCount: savedCount,
+      savedIndexes: savedIndexes,
+      failedIndexes: failedIndexes,
+      grantedRawHp: grantedRawHp,
+      alreadyCapped: alreadyCapped
+    };
+  } catch (err) {
+    console.error('[submitMyTask]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// submitMyTask の検証（GAS エディタのドロップダウンから引数なし実行可）。
+// テストアカウント sid='1001' で [1]〜[7] を検証。各 HP 系判定は提出直前の dailyCap 残量から
+// 期待値を算出する delta 方式のため、当日の事前状態に依存せず堅牢。
+// 後始末：COL_HP を実行前値へ復元 + 本テストが作成した MyTaskPhotos / HpGrantLedger /
+//   HpReservePool 行と「本日分 mytask_ 系 HPLog 行」を削除し、Drive 写真をゴミ箱へ。
+//   いずれも test account 1001・mytask_ 系のみが対象で、実生徒データには一切触れない。
+function testSubmitMyTask() {
+  const sid = '1001';
+  const results = [];
+  function pass(name, cond, detail) { results.push({ name: name, ok: !!cond, detail: detail || '' }); }
+  const IMG = Utilities.base64Encode('mytask-test-photo-bytes');
+  const today = _todayEducationalJST();
+
+  const createdSubs = {};   // 本テストが作成した submissionId
+  const myLogTypes = {      // 本テストが書く HPLog type（後始末で本日分を削除）
+    'mytask_homework_英語_hw': true,
+    'mytask_homework_数学_hw': true,
+    'mytask_homework_理科_hw': true,
+    'mytask_self_only': true
+  };
+
+  function todayRaw(capKey, cap) {
+    const d = _isAlreadyGrantedToday(sid, capKey, 'dailyCap', { cap: cap });
+    return Number(d && d.todayRawHP) || 0;
+  }
+  function countBySubmission(sheetName, subId) {
+    const sh = _ss().getSheetByName(sheetName);
+    if (!sh || sh.getLastRow() < 2) return 0;
+    const v = sh.getDataRange().getValues();
+    const c = v[0].indexOf('submissionId');
+    if (c < 0) return 0;
+    let n = 0;
+    for (let i = 1; i < v.length; i++) if (String(v[i][c] || '').trim() === subId) n++;
+    return n;
+  }
+  function photoRowsFor(subId) {
+    const sh = _ensureMyTaskPhotosSheet();
+    if (sh.getLastRow() < 2) return [];
+    const v = sh.getDataRange().getValues();
+    const h = v[0];
+    const cSub = h.indexOf('submissionId');
+    const cIdx = h.indexOf('photoIndex');
+    const cAnn = h.indexOf('announcementId');
+    const out = [];
+    for (let i = 1; i < v.length; i++) {
+      if (String(v[i][cSub] || '').trim() !== subId) continue;
+      out.push({ photoIndex: Number(v[i][cIdx]), announcementId: String(v[i][cAnn] == null ? '' : v[i][cAnn]) });
+    }
+    out.sort(function(a, b){ return a.photoIndex - b.photoIndex; });
+    return out;
+  }
+
+  const loc0 = _findAccountRowOnSheet(sid);
+  if (!loc0) return { ok: false, message: 'test account ' + sid + ' が見つかりません' };
+  const hpBefore = Number(loc0.rowValues[COL_HP]) || 0;
+
+  try {
+    // [1] homework 英語 1 枚
+    const pre1 = todayRaw('mytask_homework_英語', 100);
+    const exp1 = Math.min(100, 100 - pre1);
+    const r1 = submitMyTask({ studentId: sid, taskType: 'homework', subject: '英語', announcementId: '', content: 'test', photos: [IMG] });
+    if (r1 && r1.submissionId) createdSubs[r1.submissionId] = true;
+    pass('[1] homework英語: ok & savedCount=1', r1 && r1.ok === true && r1.savedCount === 1, r1 && ('savedCount=' + r1.savedCount));
+    pass('[1b] grantedRawHp = min(100,100-pre)', r1 && r1.grantedRawHp === exp1 && r1.alreadyCapped === (exp1 === 0), 'exp=' + exp1 + ' got=' + (r1 && r1.grantedRawHp));
+    // 付与記録：reserve 分割で即時 0（全 reserve）になる環境もあるため、台帳 or reserve pool のどちらかに残ればOK
+    const rec1 = r1 && r1.submissionId ? (countBySubmission(SHEET_HP_GRANT_LEDGER, r1.submissionId) + countBySubmission(SHEET_HP_RESERVE_POOL, r1.submissionId)) : 0;
+    pass('[1c] 付与記録が残る（台帳 or reserve pool）', (exp1 > 0) ? (rec1 >= 1) : true, 'records=' + rec1);
+
+    // [2] homework 英語 再提出 → dailyCap 頭打ち
+    const pre2 = todayRaw('mytask_homework_英語', 100);
+    const exp2 = Math.min(100, 100 - pre2);
+    const r2 = submitMyTask({ studentId: sid, taskType: 'homework', subject: '英語', announcementId: '', content: 'test2', photos: [IMG] });
+    if (r2 && r2.submissionId) createdSubs[r2.submissionId] = true;
+    pass('[2] 同教科再提出は頭打ち（grantedRawHp=残量, 合計<=100）',
+         r2 && r2.ok === true && r2.grantedRawHp === exp2 && (pre2 + exp2) <= 100 && r2.alreadyCapped === (exp2 === 0),
+         'pre2=' + pre2 + ' exp2=' + exp2 + ' got=' + (r2 && r2.grantedRawHp));
+
+    // [3] homework 数学 同日 → 教科独立で付与
+    const pre3 = todayRaw('mytask_homework_数学', 100);
+    const exp3 = Math.min(100, 100 - pre3);
+    const r3 = submitMyTask({ studentId: sid, taskType: 'homework', subject: '数学', announcementId: '', content: 'math', photos: [IMG] });
+    if (r3 && r3.submissionId) createdSubs[r3.submissionId] = true;
+    pass('[3] 別教科(数学)は独立して付与', r3 && r3.ok === true && r3.grantedRawHp === exp3, 'pre3=' + pre3 + ' exp3=' + exp3 + ' got=' + (r3 && r3.grantedRawHp));
+
+    // [4] self 1 枚 → announcementId は空
+    const pre4 = todayRaw('mytask_self', 150);
+    const exp4 = Math.min(150, 150 - pre4);
+    const r4 = submitMyTask({ studentId: sid, taskType: 'self', subject: '', announcementId: 'IGNORE_ME', content: 'self', photos: [IMG] });
+    if (r4 && r4.submissionId) createdSubs[r4.submissionId] = true;
+    pass('[4] self: ok & grantedRawHp = min(150,150-pre)', r4 && r4.ok === true && r4.grantedRawHp === exp4, 'exp4=' + exp4 + ' got=' + (r4 && r4.grantedRawHp));
+    const pr4 = (r4 && r4.submissionId) ? photoRowsFor(r4.submissionId) : [];
+    pass('[4b] self の announcementId は空文字で記録', pr4.length === 1 && pr4[0].announcementId === '', 'ann=' + (pr4[0] ? JSON.stringify(pr4[0].announcementId) : '-'));
+
+    // [5] self 再提出 → dailyCap 150 頭打ち
+    const pre5 = todayRaw('mytask_self', 150);
+    const exp5 = Math.min(150, 150 - pre5);
+    const r5 = submitMyTask({ studentId: sid, taskType: 'self', subject: '', announcementId: '', content: 'self2', photos: [IMG] });
+    if (r5 && r5.submissionId) createdSubs[r5.submissionId] = true;
+    pass('[5] self 再提出は頭打ち', r5 && r5.ok === true && r5.grantedRawHp === exp5 && r5.alreadyCapped === (exp5 === 0), 'pre5=' + pre5 + ' exp5=' + exp5 + ' got=' + (r5 && r5.grantedRawHp));
+
+    // [6] photos 空配列 → 拒否（submissionId 発行されない＝台帳・写真行も作られない）
+    const r6 = submitMyTask({ studentId: sid, taskType: 'homework', subject: '英語', announcementId: '', content: '', photos: [] });
+    pass('[6] 写真ゼロは拒否', r6 && r6.ok === false && !r6.submissionId, r6 && (r6.message || ''));
+
+    // [7] 複数枚（2 枚）→ savedCount=2, photoIndex 0/1 で 2 行
+    const r7 = submitMyTask({ studentId: sid, taskType: 'homework', subject: '理科', announcementId: '', content: '2pics', photos: [IMG, IMG] });
+    if (r7 && r7.submissionId) createdSubs[r7.submissionId] = true;
+    pass('[7] 2枚提出: savedCount=2 & savedIndexes=[0,1]', r7 && r7.ok === true && r7.savedCount === 2 && r7.savedIndexes.join(',') === '0,1', 'savedCount=' + (r7 && r7.savedCount));
+    const pr7 = (r7 && r7.submissionId) ? photoRowsFor(r7.submissionId) : [];
+    pass('[7b] MyTaskPhotos に2行（photoIndex 0,1）', pr7.length === 2 && pr7[0].photoIndex === 0 && pr7[1].photoIndex === 1, 'rows=' + pr7.length);
+
+  } catch (e) {
+    pass('[EXCEPTION]', false, String(e));
+  } finally {
+    // ── 後始末（test account 1001 + mytask_ 系のみ。実生徒データには触れない）──
+    // a. COL_HP を実行前値へ復元（即時付与分の巻き戻し）
+    try {
+      const locR = _findAccountRowOnSheet(sid);
+      if (locR) {
+        locR.sheet.getRange(locR.rowIdx + 1, COL_HP + 1).setValue(hpBefore);
+        const u = {}; u[COL_HP] = hpBefore; _updateAccountCacheBySid(sid, u);
+        _invalidateCache('cache_ranking_last_week');
+      }
+    } catch (e) { results.push({ name: '[RESTORE] COL_HP', ok: false, detail: String(e) }); }
+
+    // b. MyTaskPhotos：本テストの submissionId 行を削除 + Drive ファイルをゴミ箱へ
+    try {
+      const sh = _ensureMyTaskPhotosSheet();
+      if (sh.getLastRow() >= 2) {
+        const v = sh.getDataRange().getValues();
+        const cSub = v[0].indexOf('submissionId');
+        const cFid = v[0].indexOf('driveFileId');
+        const del = [];
+        for (let i = 1; i < v.length; i++) {
+          if (!createdSubs[String(v[i][cSub] || '').trim()]) continue;
+          del.push(i + 1);
+          const fid = (cFid >= 0) ? String(v[i][cFid] || '').trim() : '';
+          if (fid) { try { DriveApp.getFileById(fid).setTrashed(true); } catch (_e) {} }
+        }
+        del.sort(function(a, b){ return b - a; }).forEach(function(rn){ try { sh.deleteRow(rn); } catch (_e) {} });
+      }
+    } catch (e) { results.push({ name: '[CLEANUP] MyTaskPhotos', ok: false, detail: String(e) }); }
+
+    // c/d. HpGrantLedger / HpReservePool：本テストの submissionId 行を削除
+    [SHEET_HP_GRANT_LEDGER, SHEET_HP_RESERVE_POOL].forEach(function(sheetName) {
+      try {
+        const sh = _ss().getSheetByName(sheetName);
+        if (sh && sh.getLastRow() >= 2) {
+          const v = sh.getDataRange().getValues();
+          const c = v[0].indexOf('submissionId');
+          if (c >= 0) {
+            const del = [];
+            for (let i = 1; i < v.length; i++) if (createdSubs[String(v[i][c] || '').trim()]) del.push(i + 1);
+            del.sort(function(a, b){ return b - a; }).forEach(function(rn){ try { sh.deleteRow(rn); } catch (_e) {} });
+          }
+        }
+      } catch (e) { results.push({ name: '[CLEANUP] ' + sheetName, ok: false, detail: String(e) }); }
+    });
+
+    // e. HPLog：本テストが本日書いた mytask_ 系 type の行を削除（再実行時に dailyCap が 0 から始まるように）
+    try {
+      const sh = _ss().getSheetByName(SHEET_HPLOG);
+      if (sh && sh.getLastRow() >= 2) {
+        const v = sh.getDataRange().getValues();
+        const h = v[0];
+        const cTs   = (h.indexOf('timestamp') >= 0) ? h.indexOf('timestamp') : 0;
+        const cSidH = (h.indexOf('studentId') >= 0) ? h.indexOf('studentId') : 1;
+        const cType = (h.indexOf('type') >= 0) ? h.indexOf('type') : 4;
+        const del = [];
+        for (let i = 1; i < v.length; i++) {
+          if (String(v[i][cSidH] || '').trim() !== sid) continue;
+          if (!myLogTypes[String(v[i][cType] || '').trim()]) continue;
+          if (_educationalDayFromTs(v[i][cTs]) !== today) continue;
+          del.push(i + 1);
+        }
+        del.sort(function(a, b){ return b - a; }).forEach(function(rn){ try { sh.deleteRow(rn); } catch (_e) {} });
+      }
+    } catch (e) { results.push({ name: '[CLEANUP] HPLog', ok: false, detail: String(e) }); }
+
+    SpreadsheetApp.flush();
+  }
+
+  const allOk = results.every(function(r){ return r.ok; });
+  results.forEach(function(r){ console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.detail ? ' / ' + r.detail : '')); });
+  console.log('==== testSubmitMyTask: ' + (allOk ? 'ALL PASS' : 'SOME FAILED') + ' ====');
+  console.log('後始末メモ：COL_HP 復元 + 本テスト作成の MyTaskPhotos/HpGrantLedger/HpReservePool 行と本日分 mytask_ HPLog 行を削除済み（test account 1001 のみ・実生徒データ不変）。Drive 写真はゴミ箱へ。');
+  return { ok: allOk, results: results, hpBefore: hpBefore };
 }
 
 // 1 枚を Drive に保存し、KisoPhotos に 1 行追記する。
