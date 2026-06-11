@@ -6050,14 +6050,15 @@ const SHEET_MYTASK_PHOTOS      = 'MyTaskPhotos';
 const MYTASK_PHOTOS_HEADERS = [
   'submissionId',
   'studentId',
-  'taskType',     // 'homework'（塾宿題）/ 'self'（自発）
-  'subject',      // 教科（算数 / 国語 など）
-  'content',      // 補足テキスト（任意）
+  'taskType',       // 'homework'（塾宿題）/ 'self'（自発）
+  'subject',        // 教科（算数 / 国語 など）
+  'announcementId', // パターン1（homework）：対応する告知の announcementId。パターン2（self）：'' 空文字
+  'content',        // 補足テキスト（任意）
   'driveFileId',
   'shareUrl',
   'submittedAt',
-  'deleteAfter',  // submittedAt + MYTASK_RETAIN_DAYS 日
-  'photoIndex'    // 1 枚目=1、複数枚は 2, 3...
+  'deleteAfter',    // submittedAt + MYTASK_RETAIN_DAYS 日
+  'photoIndex'      // 1 枚目=1、複数枚は 2, 3...
 ];
 
 // マイドライブ直下にルートフォルダを 1 個確保（_ensureKisoPhotoRootFolder と同一パターン）
