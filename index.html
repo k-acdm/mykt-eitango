@@ -2991,10 +2991,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260611-1505"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260611-1541"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260611-1505">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260611-1505"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260611-1541">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260611-1541"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5254,6 +5254,13 @@
 <!-- E1 楽観的UI: 送信中インジケーター（結果画面右下に小さく） -->
 <div id="submit-pending-ind" class="submit-pending-ind" style="display:none"><span class="spinner"></span><span>送信中…</span></div>
 
+<!-- 防護柵2枚目：オフライン検知バナー（既定 display:none）。復帰再検証 or 学習開始ガードが offline を検知したとき表示。
+     回復可能：「再接続を確認」で ping し、疎通すれば自動解除する。 -->
+<div id="mykt-offline-banner" style="display:none;position:fixed;left:0;right:0;top:0;z-index:11000;background:#b91c1c;color:#fff;padding:10px 14px;text-align:center;font-size:14px;line-height:1.5;box-shadow:0 2px 8px rgba(0,0,0,.3);">
+  📶 オフラインです。再接続してから始めてね
+  <button type="button" onclick="_recheckOnline()" style="margin-left:10px;background:#fff;color:#b91c1c;border:none;border-radius:6px;padding:4px 12px;font-size:13px;font-weight:bold;cursor:pointer;">再接続を確認</button>
+</div>
+
 <!-- 和文英訳①: マイカツ君が採点中… overlay -->
 <div id="mykt-grading-overlay" class="mykt-overlay">
   <div class="mykt-overlay-card">
@@ -5437,6 +5444,10 @@
   var _totalHP = 0;
   // E1: ログインの streak をセッション中保持（HP 予測に使用）
   var _streak = 0;
+  // 防護柵2枚目（疎通チェック）：オフライン検知の状態。
+  var _offline = false;        // true の間は学習開始をブロック（_ensureOnlineThenStart）。回復可能（ログアウトしない）
+  var _lastServerOkTs = 0;     // 最後にサーバーから ok が返った時刻（復帰再検証のスロットル判定用）
+  var _revalidating = false;   // 復帰再検証の多重実行ガード
   // commit 6b-1：語彙ランダム化 V2 のフラグ + セッション状態
   var _vocabV2Mode = 'off';     // 'off'/'test'/'on'（ログイン戻り値 vocabV2Mode、表示/診断用）
   var _vocabV2Enabled = false;  // この生徒が V2 対象か（サーバ _isVocabV2Enabled 判定済みの値）
@@ -6281,6 +6292,7 @@
           localStorage.setItem('mykt_session_ts', String(Date.now()));
         } catch(e){}
       }
+      _lastServerOkTs = Date.now();  // 防護柵2枚目：サーバー成功時刻を記録（復帰再検証のスロットル用）
       _totalHP     = Number(res.totalHP) || 0;
       _streak      = Number(res.streak) || 0;
       _accountType = String(res.accountType || ''); // Task 3：振り返りモーダルスキップ判定用
@@ -7776,6 +7788,7 @@
     showFortuneScreen();
   }
   function showToday() {
+    if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
     // commit 6b-1：V2 対象生徒は V2 出題へ分岐（フラグ off / 非対象は従来 V1 のまま）。
     if (_vocabV2Enabled) { _showTodayV2(); return; }
     _isV2Session = false;
@@ -8050,6 +8063,7 @@
         }
         // 成功：pending ハンドラをクリアして結果画面を描画
         _pendingRetry = null; _pendingDismiss = null;
+        _lastServerOkTs = Date.now();  // 防護柵2枚目：サーバー成功時刻を記録
         _invalidateCacheByAction('getHistory');
         _invalidateCacheByAction('getWeeklyRanking');
         if (Number(res.streak) > 0) _streak = Number(res.streak);
@@ -8091,6 +8105,7 @@
         _hideHpConfirmingOverlay();
         if (!res || !res.ok) { _showSubmitErrorWithRetryGuard(5000); return; }
         _pendingRetry = null; _pendingDismiss = null;
+        _lastServerOkTs = Date.now();  // 防護柵2枚目：サーバー成功時刻を記録
         _invalidateCacheByAction('getHistory');
         _invalidateCacheByAction('getWeeklyRanking');
         if (Number(res.streak) > 0) _streak = Number(res.streak);
@@ -8408,6 +8423,7 @@
       reflectionDate: _pendingCatchupDate || ''  // GAS 側で 7 日範囲外 / 不正値は無視されて _sangoToday() にフォールバック
     }).then(function(res){
       if (res && res.ok) {
+        _lastServerOkTs = Date.now();  // 防護柵2枚目：サーバー成功時刻を記録
         // 成功 → モーダルを閉じる + UI を logout モードに戻す（次回の正常 doLogout のため）
         var ov = document.getElementById('reflection-logout-modal');
         if (ov) ov.classList.remove('active');
@@ -8521,6 +8537,7 @@
       // 送信中オーバーレイは _showReflectionReleaseModal 内で hide（成功時は新アニメ画面へ）。
       // 失敗時は明示的に hide。
       if (res && res.ok) {
+        _lastServerOkTs = Date.now();  // 防護柵2枚目：サーバー成功時刻を記録
         // 成功 → 新アニメ画面（手動閉じる、count-up + breakdown）を経由してログアウト
         var ov = document.getElementById('reflection-logout-modal');
         if (ov) ov.classList.remove('active');
@@ -8914,6 +8931,8 @@
     _clearCachedAvatarBase(_studentId);
     // 防護柵1枚目：永続化したセッション(studentId)も必ずクリア（共用端末で前の生徒が残らないように）
     try { localStorage.removeItem('mykt_session_sid'); localStorage.removeItem('mykt_session_ts'); } catch(e){}
+    // 防護柵2枚目：オフライン検知の状態もリセット
+    _offline = false; _lastServerOkTs = 0; _revalidating = false; try { _hideOfflineBanner(); } catch(e){}
     _studentId = null; _questions = []; _score = 0; _current = 0;
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
@@ -9301,6 +9320,7 @@
   var _sangoLastSourceDataUrl = '';   // 切り抜き救済用：直近に撮影した（or 切り抜いた）画像
   function _sangoEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function showSangoTopic() {
+    if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
     document.getElementById('sango-student').textContent = _studentId + ' さん';
     document.getElementById('sango-topic-body').innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     _setContentMascot('mate-img-sango-topic', 'default', 'mate-bubble-sango-topic', _pickBubble(SANGOTAN_BUBBLES.topic), 'sangotan');
@@ -10209,6 +10229,7 @@
   }
 
   function showWabun1Topic() {
+    if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
     _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false, lastSourceDataUrl: '' };
     var bodyEl = document.getElementById('wabun1-topic-body');
     bodyEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
@@ -11229,6 +11250,7 @@
 
   // §4.2 級選択画面
   function showKisoRankSelect() {
+    if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
     var el = document.getElementById('kiso-rank-list');
     var html = '';
     // 教育的メッセージ（級選択画面 最上部、＜無学年＞の上）
@@ -12036,6 +12058,7 @@
   // 級選択画面
   // -----------------------------------------------------
   function showLisonRankSelect() {
+    if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
     _lisonResetState();
     var listEl = document.getElementById('lison-level-list');
     var msgEl  = document.getElementById('lison-rank-msg');
@@ -13496,6 +13519,7 @@
   }
   // ----- レベル選択 -----
   function showKanjiLevelSelect() {
+    if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
     _kanjiResetState();
     _kanjiSetMascot('kanjii-img-level', 'default', 'kanjii-bubble-level', _pickBubble(KANJI_BUBBLES.level));
     showScreen('screen-kanji-level');
@@ -15662,12 +15686,83 @@
   function popstateHandler() { try { history.pushState(null, '', location.href); } catch(e){} }
   try { history.pushState(null, '', location.href); } catch(e){}
   window.addEventListener('popstate', popstateHandler);
+
+  // ============================================================
+  // 防護柵2枚目（疎通チェック）：アプリ復帰時の再検証 ＋ 学習開始ガード
+  //   狙い：23014ケース（タブ無リロードで翌日継続＋通信断→全空振り）を、
+  //         「復帰時に1回の再検証」で前倒し検知する。正常時は往復を増やさない。
+  // ============================================================
+  function _showOfflineBanner() { var b = document.getElementById('mykt-offline-banner'); if (b) b.style.display = 'block'; }
+  function _hideOfflineBanner() { var b = document.getElementById('mykt-offline-banner'); if (b) b.style.display = 'none'; }
+  // 軽量 ping（gas/Code.js の action==='ping' → {ok:true}）。短いタイムアウトで疎通だけ確認。
+  function _pingOnline() {
+    return gasGetWithTimeout({ action: 'ping' }, 8000)
+      .then(function(r){ return !!(r && r.ok); })
+      .catch(function(){ return false; });
+  }
+  // オフラインバナーの「再接続を確認」ボタン：ping して疎通すれば自動解除。
+  function _recheckOnline() {
+    _pingOnline().then(function(ok){
+      if (ok) { _offline = false; _lastServerOkTs = Date.now(); _hideOfflineBanner(); }
+    });
+  }
+  // 学習開始ガード（往復なし、_offline フラグ判定のみ）。
+  //   startFn 省略時：offline なら false / online なら true を返す純粋ガード（各入口は冒頭で if(!_ensureOnlineThenStart())return; で使用）。
+  //   startFn 指定時：offline ならバナー表示のみ、online なら startFn() を実行。
+  function _ensureOnlineThenStart(startFn) {
+    if (_offline) { _showOfflineBanner(); return false; }
+    if (typeof startFn === 'function') startFn();
+    return true;
+  }
+  // アプリ復帰時の再検証（主柵）。
+  //   スロットル：教育日が変わった or 最後のサーバー成功から30分以上のときだけ実行（頻発抑制）。
+  //   再検証は loginStudent 流用＝疎通確認＋セッション再検証＋当日 login 行生成 を同時達成。
+  //   ★ 学習中に画面遷移で割り込まない（状態更新とフラグ操作のみ）。不通は回復可能扱い（ログアウトしない）。
+  function _revalidateOnResume() {
+    if (!_studentId) return;        // 未ログインは対象外
+    if (_revalidating) return;      // 多重実行ガード
+    var dayChanged = (_eduDayKeyFromTs(_lastServerOkTs) !== _todayKeyJST3am());
+    var idle = (Date.now() - _lastServerOkTs) > (30 * 60 * 1000);
+    if (!dayChanged && !idle) return;  // それ以外は何もしない（正常時の往復ゼロ）
+    // navigator.onLine===false（明確に不通）なら往復せず即オフライン確定
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) { _offline = true; _showOfflineBanner(); return; }
+    _revalidating = true;
+    var sid = _studentId;
+    // 甘めタイムアウト(10s)＋1回リトライ（瞬断の誤ブロック回避）
+    function attempt(retryLeft) {
+      gasGetWithTimeout({ action: 'loginStudent', studentId: sid }, 10000).then(function(res){
+        if (res && res.ok) {
+          // 疎通あり：当日 login 行が生成される。状態を静かに更新（画面遷移しない）。
+          _offline = false; _lastServerOkTs = Date.now(); _hideOfflineBanner();
+          _totalHP = Number(res.totalHP) || _totalHP;
+          if (Number(res.streak) > 0) _streak = Number(res.streak);
+          if (res.accountType != null) _accountType = String(res.accountType);
+          _revalidating = false;
+        } else {
+          // res.ok=false：セッション無効（sid 失効等）→ ログイン画面へ（既存の最終ログアウト処理を流用）
+          _revalidating = false;
+          try { _doLogoutFinalize(); } catch(e){ try { showScreen('screen-login'); } catch(_e){} }
+        }
+      }).catch(function(){
+        if (retryLeft > 0) { setTimeout(function(){ attempt(retryLeft - 1); }, 1200); return; }
+        // なお不通 → オフライン確定（回復可能・ログアウトしない・進捗破棄しない）
+        _offline = true; _showOfflineBanner(); _revalidating = false;
+      });
+    }
+    attempt(1);
+  }
+  // 復帰検知：visibilitychange（visible）＋ pageshow（bfcache 復元/初回ロード）。
+  //   初回ロードや未ログイン時は _revalidateOnResume 冒頭の _studentId ガードで no-op。
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible') { try { _revalidateOnResume(); } catch(e){} }
+  });
+  window.addEventListener('pageshow', function(){ try { _revalidateOnResume(); } catch(e){} });
 </script>
 <!-- 左下バージョンバッジ。テキストは scripts/stamp-version.js が commit/push 前に
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260611-1505</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260611-1541</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
