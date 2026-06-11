@@ -21043,6 +21043,202 @@ function testRevertMyTaskSubmission() {
   return { ok: allOk, results: results, hpBefore: hpBefore };
 }
 
+// =============================================================================
+// マイ課題②：課題告知（管理A）データ層 — シート + 保存/取得 + テスト（2026-06-11）
+//   ・講師/塾長が「日付・教科・宿題内容」を入力し、複数生徒へ告知する。
+//   ・「次の告知が来るまで表示」＝同一 studentId×subject では最新1件だけ active=TRUE。
+//   ・②はデータ層（バックエンド関数）のみ。doGet/doPost ルーティング・管理UI(③)・生徒提出(④)は後続。
+// =============================================================================
+const SHEET_MYTASK_ANNOUNCEMENTS = 'MyTaskAnnouncements';
+const MYTASK_ANNOUNCEMENTS_HEADERS = [
+  'announcementId',  // 告知バッチID（同一送信は同じ値。行は生徒ごと）
+  'studentId',       // 宛先生徒（複数送信時は人数分の行）
+  'subject',         // 教科（英語/数学/理科/社会/国語）
+  'content',         // 宿題の内容
+  'announcedDate',   // 出した日付（講師入力）
+  'createdAt',       // 記録時刻
+  'active'           // TRUE=有効（同一 studentId×subject で最新1件のみ TRUE）
+];
+// 生徒画面の表示順（教科順）。未知教科は末尾に回す。
+const MYTASK_SUBJECTS = ['英語', '数学', '理科', '社会', '国語'];
+
+// MyTaskAnnouncements シートの存在保証（初回アクセス時に冪等作成）。
+function _ensureMyTaskAnnouncementsSheet() {
+  return _ensureSheetWithHeaders(SHEET_MYTASK_ANNOUNCEMENTS, MYTASK_ANNOUNCEMENTS_HEADERS).sh;
+}
+
+// 告知の保存（コア・認証なし）。saveMyTaskAnnouncement（認証あり）と testMyTaskAnnouncement の両方から呼ぶ。
+//   各生徒について、同一 studentId×subject の既存 active=TRUE 行を FALSE 化してから、新行を active=TRUE で追加。
+//   戻り値: { ok, count, announcementId } / { ok:false, message }
+function _saveMyTaskAnnouncementCore(subject, content, announcedDate, studentIds) {
+  try {
+    subject       = String(subject       == null ? '' : subject).trim();
+    content       = String(content       == null ? '' : content).trim();
+    announcedDate = String(announcedDate == null ? '' : announcedDate).trim();
+    if (!subject || !content || !announcedDate) return { ok: false, message: '教科・内容・日付は必須です' };
+
+    // studentIds 正規化（trim / 空除去 / 重複除去）
+    let ids = Array.isArray(studentIds) ? studentIds : [];
+    const seen = {};
+    ids = ids.map(function(s){ return String(s == null ? '' : s).trim(); })
+             .filter(function(s){ if (!s || seen[s]) return false; seen[s] = true; return true; });
+    if (ids.length === 0) return { ok: false, message: '送信先の生徒を指定してください' };
+
+    const sh = _ensureMyTaskAnnouncementsSheet();
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iSid    = header.indexOf('studentId');
+    const iSubj   = header.indexOf('subject');
+    const iActive = header.indexOf('active');
+
+    // 既存 active=TRUE（同一 studentId×subject）を FALSE 化（＝古い告知を表示対象から外す）
+    const targetSet = {}; ids.forEach(function(s){ targetSet[s] = true; });
+    for (let r = 1; r < values.length; r++) {
+      const rSid  = String(values[r][iSid]  || '').trim();
+      const rSubj = String(values[r][iSubj] || '').trim();
+      if (!targetSet[rSid] || rSubj !== subject) continue;
+      if (String(values[r][iActive]).toUpperCase() === 'TRUE') {
+        sh.getRange(r + 1, iActive + 1).setValue(false);
+      }
+    }
+
+    // 新行を active=TRUE で追加（同一バッチは同じ announcementId、行は生徒ごと）
+    const now = _nowJST();
+    const announcementId = 'mta_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    const rows = ids.map(function(s){
+      // ヘッダー順：announcementId | studentId | subject | content | announcedDate | createdAt | active
+      return [announcementId, s, subject, content, announcedDate, now, true];
+    });
+    sh.getRange(sh.getLastRow() + 1, 1, rows.length, MYTASK_ANNOUNCEMENTS_HEADERS.length).setValues(rows);
+    SpreadsheetApp.flush();
+
+    return { ok: true, count: rows.length, announcementId: announcementId };
+  } catch (err) {
+    console.error('[_saveMyTaskAnnouncementCore]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 告知の保存（公開・要認証）。params: { teacherId, password, subject, content, announcedDate, studentIds:[...] }
+//   権限：塾長/講師（_verifyTeacher。既存 admin API と同じ認証パターン）。doGet/doPost ルーティングは③で追加。
+function saveMyTaskAnnouncement(params) {
+  const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+  if (!_teacher) return { ok: false, message: '認証エラー' };
+  let studentIds = (params && params.studentIds) || [];
+  if (typeof studentIds === 'string') { try { studentIds = JSON.parse(studentIds); } catch(e) { studentIds = []; } }
+  return _saveMyTaskAnnouncementCore(
+    params && params.subject,
+    params && params.content,
+    params && params.announcedDate,
+    studentIds
+  );
+}
+
+// 生徒向け：その生徒宛の active=TRUE 告知を教科順（英語・数学・理科・社会・国語）で返す。
+//   戻り値: { ok, announcements: [{ announcementId, subject, content, announcedDate }] }
+function listMyTaskAnnouncementsForStudent(studentId) {
+  try {
+    const sid = String(studentId || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const sh = _ensureMyTaskAnnouncementsSheet();
+    if (sh.getLastRow() < 2) return { ok: true, announcements: [] };
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iId     = header.indexOf('announcementId');
+    const iSid    = header.indexOf('studentId');
+    const iSubj   = header.indexOf('subject');
+    const iCont   = header.indexOf('content');
+    const iDate   = header.indexOf('announcedDate');
+    const iActive = header.indexOf('active');
+    const out = [];
+    for (let r = 1; r < values.length; r++) {
+      if (String(values[r][iSid] || '').trim() !== sid) continue;
+      if (String(values[r][iActive]).toUpperCase() !== 'TRUE') continue;
+      out.push({
+        announcementId: String(values[r][iId]   || ''),
+        subject:        String(values[r][iSubj] || ''),
+        content:        String(values[r][iCont] || ''),
+        announcedDate:  _toDateStr(values[r][iDate]) || String(values[r][iDate] || '')
+      });
+    }
+    // 教科順（未知教科は末尾）
+    out.sort(function(a, b){
+      const ra = MYTASK_SUBJECTS.indexOf(a.subject); const rb = MYTASK_SUBJECTS.indexOf(b.subject);
+      return (ra < 0 ? 999 : ra) - (rb < 0 ? 999 : rb);
+    });
+    return { ok: true, announcements: out };
+  } catch (err) {
+    console.error('[listMyTaskAnnouncementsForStudent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// テスト（GAS エディタのドロップダウンから引数なし実行可）。
+//   テストアカウント 1001 / 1002 で「保存→取得→同一教科に上書き→複数生徒」を検証し、
+//   最後に本テストが作成した告知行（announcementId をトラッキング）を削除して後始末する。
+//   後始末メモ：本テストが作った行のみ削除する。万一クラッシュで途中終了した場合、
+//   その回の行（studentId=1001/1002・active=FALSE 等）が残ることがある（手動削除可。実生徒には影響しない）。
+function testMyTaskAnnouncement() {
+  const results = [];
+  function pass(name, cond, detail) { results.push({ name: name, ok: !!cond, detail: detail || '' }); }
+  function findSubj(list, subj) { return (list.announcements || []).filter(function(a){ return a.subject === subj; }); }
+  const sidA = '1001', sidB = '1002';
+  const createdIds = {};
+  try {
+    // [1] 数学を 1001/1002 へ
+    const r1 = _saveMyTaskAnnouncementCore('数学', '数学宿題1', '2026-06-11', [sidA, sidB]);
+    if (r1 && r1.announcementId) createdIds[r1.announcementId] = true;
+    pass('[1] 保存 count=2', r1 && r1.ok === true && r1.count === 2, r1 && ('count=' + r1.count));
+
+    const lA1 = listMyTaskAnnouncementsForStudent(sidA);
+    const lB1 = listMyTaskAnnouncementsForStudent(sidB);
+    pass('[2] 1001 に数学告知あり', findSubj(lA1, '数学').length === 1 && findSubj(lA1, '数学')[0].content === '数学宿題1');
+    pass('[3] 1002 にも行ができる（複数生徒）', findSubj(lB1, '数学').length === 1 && findSubj(lB1, '数学')[0].content === '数学宿題1');
+
+    // [2] 数学を 1001 のみ上書き → 1001 は最新だけ、1002 は据え置き
+    const r2 = _saveMyTaskAnnouncementCore('数学', '数学宿題2', '2026-06-12', [sidA]);
+    if (r2 && r2.announcementId) createdIds[r2.announcementId] = true;
+    const lA2 = listMyTaskAnnouncementsForStudent(sidA);
+    const lB2 = listMyTaskAnnouncementsForStudent(sidB);
+    pass('[4] 1001 数学は最新1件のみ', findSubj(lA2, '数学').length === 1 && findSubj(lA2, '数学')[0].content === '数学宿題2');
+    pass('[5] 1002 数学は据え置き（独立）', findSubj(lB2, '数学').length === 1 && findSubj(lB2, '数学')[0].content === '数学宿題1');
+
+    // [3] 英語を 1001 へ → 教科順（英語→数学）
+    const r3 = _saveMyTaskAnnouncementCore('英語', '英語宿題1', '2026-06-12', [sidA]);
+    if (r3 && r3.announcementId) createdIds[r3.announcementId] = true;
+    const lA3 = listMyTaskAnnouncementsForStudent(sidA);
+    pass('[6] 1001 は2件（英語・数学）', (lA3.announcements || []).length === 2, 'n=' + (lA3.announcements || []).length);
+    pass('[7] 教科順で英語が先頭', (lA3.announcements || [])[0] && lA3.announcements[0].subject === '英語' && lA3.announcements[1] && lA3.announcements[1].subject === '数学');
+
+    // [4] 認証なし saveMyTaskAnnouncement は弾く
+    const rAuth = saveMyTaskAnnouncement({ subject: '理科', content: 'x', announcedDate: '2026-06-12', studentIds: [sidA] });
+    pass('[8] 認証なしは拒否', rAuth && rAuth.ok === false);
+  } catch (e) {
+    pass('[EXCEPTION]', false, String(e));
+  } finally {
+    // 後始末：本テストが作成した announcementId の行を削除（降順）
+    try {
+      const sh = _ensureMyTaskAnnouncementsSheet();
+      if (sh.getLastRow() >= 2) {
+        const values = sh.getDataRange().getValues();
+        const iId = values[0].indexOf('announcementId');
+        const delRows = [];
+        for (let r = 1; r < values.length; r++) {
+          if (createdIds[String(values[r][iId] || '').trim()]) delRows.push(r + 1);
+        }
+        delRows.sort(function(a, b){ return b - a; }).forEach(function(rowNum){ try { sh.deleteRow(rowNum); } catch(_e) {} });
+      }
+    } catch (cleanErr) {
+      results.push({ name: '[CLEANUP]', ok: false, detail: String(cleanErr) });
+    }
+  }
+  const allOk = results.every(function(r){ return r.ok; });
+  results.forEach(function(r){ console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.detail ? ' / ' + r.detail : '')); });
+  console.log('==== testMyTaskAnnouncement: ' + (allOk ? 'ALL PASS' : 'SOME FAILED') + ' ====');
+  console.log('後始末メモ：本テストが作成した告知行は削除済み（1001/1002 分）。実生徒のデータには触れていません。');
+  return { ok: allOk, results: results };
+}
+
 // HP を消費する共通関数。
 //   引数: sid（生徒ID） / amount（消費HP・正の整数） / reason（用途文字列。呼び出し側が渡す）
 //   戻り値:
