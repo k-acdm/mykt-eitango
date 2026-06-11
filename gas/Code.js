@@ -6030,6 +6030,53 @@ function _ensureKisoPhotoFolder(yearMonth) {
   return root.createFolder(yearMonth);
 }
 
+// =============================================================================
+// マイ課題（写真提出）①：定数 + フォルダ/シート確保ヘルパー（2026-06-11、①シート/フォルダ/定数のみ）
+//   ・基礎計算の写真保管（KISO_PHOTO_* / _ensureKisoPhotoFolder / KisoPhotos）と同一パターンを複製。
+//   ・①では定数とヘルパー定義のみ。実際の書き込み（保存/HP繋ぎ/削除/管理UI/フロント）は②以降。
+//   ・確定仕様（参考）：①塾宿題=1教科1日100HP（教科独立）/ ②自発=1回150HP・1日150HP上限。全て reserve ゲート内。
+//   ・写真は個人情報のため、②でも基礎計算 Phase 6 同様「非公開 + GAS プロキシ配信」を踏襲予定。
+// =============================================================================
+const MYTASK_PHOTO_ROOT_FOLDER = 'マイ活_マイ課題_写真';
+const MYTASK_RETAIN_DAYS       = 30;
+const MYTASK_HP_HOMEWORK       = 100;   // ①塾宿題：1教科1日100HP
+const MYTASK_HP_SELF           = 150;   // ②自発：1回150HP・1日150HP上限
+const SHEET_MYTASK_PHOTOS      = 'MyTaskPhotos';
+const MYTASK_PHOTOS_HEADERS = [
+  'submissionId',
+  'studentId',
+  'taskType',     // 'homework'（塾宿題）/ 'self'（自発）
+  'subject',      // 教科（算数 / 国語 など）
+  'content',      // 補足テキスト（任意）
+  'driveFileId',
+  'shareUrl',
+  'submittedAt',
+  'deleteAfter',  // submittedAt + MYTASK_RETAIN_DAYS 日
+  'photoIndex'    // 1 枚目=1、複数枚は 2, 3...
+];
+
+// マイドライブ直下にルートフォルダを 1 個確保（_ensureKisoPhotoRootFolder と同一パターン）
+function _ensureMyTaskPhotoRootFolder() {
+  const it = DriveApp.getFoldersByName(MYTASK_PHOTO_ROOT_FOLDER);
+  if (it.hasNext()) return it.next();
+  return DriveApp.createFolder(MYTASK_PHOTO_ROOT_FOLDER);
+}
+
+// 年月サブフォルダ（'2026-06' 形式）を確保（_ensureKisoPhotoFolder の複製。ルートのみ差し替え）
+function _ensureMyTaskPhotoFolder(yearMonth) {
+  const root = _ensureMyTaskPhotoRootFolder();
+  const it = root.getFoldersByName(yearMonth);
+  if (it.hasNext()) return it.next();
+  return root.createFolder(yearMonth);
+}
+
+// MyTaskPhotos シートの存在保証（_ensureKisoPhotosSheet と同一パターン。初回アクセス時に冪等作成）。
+//   ・_ensureSheetWithHeaders がシート無→作成+ヘッダー設定 / ヘッダー欠落→末尾追記 を冪等に行う。
+//   ・①では書き込みは行わない。②の保存処理がこのヘルパー経由でシートを確保する。
+function _ensureMyTaskPhotosSheet() {
+  return _ensureSheetWithHeaders(SHEET_MYTASK_PHOTOS, MYTASK_PHOTOS_HEADERS).sh;
+}
+
 // 1 枚を Drive に保存し、KisoPhotos に 1 行追記する。
 // 戻り値: { ok, fileId, shareUrl, deleteAfter, fileName }
 //   - 失敗時: { ok: false, message }
