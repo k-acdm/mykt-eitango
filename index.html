@@ -2991,10 +2991,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260611-1541"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260611-1615"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260611-1541">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260611-1541"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260611-1615">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260611-1615"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5261,6 +5261,11 @@
   <button type="button" onclick="_recheckOnline()" style="margin-left:10px;background:#fff;color:#b91c1c;border:none;border-radius:6px;padding:4px 12px;font-size:13px;font-weight:bold;cursor:pointer;">再接続を確認</button>
 </div>
 
+<!-- 防護柵3枚目：未送信(再送キュー)バナー。現在ログイン中の sid のキューが1件以上で表示。タップで再送。 -->
+<div id="mykt-resend-banner" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:10900;background:#b45309;color:#fff;padding:10px 14px;text-align:center;font-size:14px;line-height:1.5;box-shadow:0 -2px 8px rgba(0,0,0,.3);cursor:pointer;" onclick="_flushResendQueue()">
+  <span id="mykt-resend-banner-label">📤 未送信があります（タップで再送）</span>
+</div>
+
 <!-- 和文英訳①: マイカツ君が採点中… overlay -->
 <div id="mykt-grading-overlay" class="mykt-overlay">
   <div class="mykt-overlay-card">
@@ -7265,6 +7270,7 @@
   }
 
   function showWelcome(nickname, totalHP, loginBonus, stage, streak, title, milestone) {
+    try { _updateResendBanner(); } catch(e){}  // 防護柵3枚目：未送信があればバナー表示（手動再送できるよう）
     // ★ 2026-05-16 v2 楽観的表示の即時化（バグ修正）：
     //   従来は末尾の _loadAvatarStateOnHome から描画していたが、showScreen の後に
     //   実行されるため「ホーム画面に「?」プレースホルダーが見えてから数 frame 後に
@@ -8111,6 +8117,7 @@
         if (Number(res.streak) > 0) _streak = Number(res.streak);
         showResult(true, res);
       }).catch(function(){
+        try { _resendQueueAdd({ action: 'submitAttemptV2', payload: payload, method: 'post', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
         _hideHpConfirmingOverlay();
         _showSubmitErrorWithRetryGuard(5000);
       });
@@ -8295,6 +8302,16 @@
     // 二重実行ガード（モーダル多重表示防止 / 二重タップ対策）
     if (_logoutInProgress) return;
     _logoutInProgress = true;
+    // 防護柵3枚目：未送信があるなら警告（再送を促す）。キューは sid 紐付けで保持し、ここでは消さない。
+    try {
+      if (_resendQueueCount() > 0) {
+        if (confirm('未送信の学習データがあります。先に再送しますか？\n「OK」で再送します（送れたら、もう一度ログアウトしてね）。「キャンセル」でそのままログアウトします。')) {
+          _logoutInProgress = false;  // 再送を優先しログアウトは中断（ユーザーが再度ログアウト操作する）
+          _flushResendQueue();
+          return;
+        }
+      }
+    } catch(e){}
     // ログアウト操作トリガーで居残りオーバーレイを必ずクリア（iPad 操作不能対策）
     _clearAllLogoutOverlays();
     // 2026-05-27 Phase 5：特殊アカウントは「書く / 書かない」を選択できる選択モーダルを表示。
@@ -8449,6 +8466,7 @@
         onReflectionInput();
       }
     }).catch(function(err){
+      try { _resendQueueAdd({ action: 'submitReflection', payload: { action:'submitReflection', studentId:_studentId, content:content, wordCount:len, reflectionDate:(_pendingCatchupDate || '') }, method: 'post', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
       _hideReflectionSendingOverlay();
       var em = (err && err.message) ? String(err.message) : 'ネットワークエラーが発生しました';
       if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
@@ -8551,6 +8569,7 @@
         onReflectionInput();
       }
     }).catch(function(err){
+      try { _resendQueueAdd({ action: 'submitReflection', payload: { action:'submitReflection', studentId:_studentId, content:content, wordCount:len }, method: 'post', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
       _hideReflectionSendingOverlay();
       var em = (err && err.message) ? String(err.message) : 'ネットワークエラーが発生しました';
       if (msg) { msg.textContent = '⚠️ ' + em; msg.classList.remove('ok'); }
@@ -8934,6 +8953,8 @@
     // 防護柵2枚目：オフライン検知の状態もリセット
     _offline = false; _lastServerOkTs = 0; _revalidating = false; try { _hideOfflineBanner(); } catch(e){}
     _studentId = null; _questions = []; _score = 0; _current = 0;
+    // 防護柵3枚目：未送信バナーを隠す（_studentId=null 後に呼ぶと現在sidのキューが無く非表示になる）。キューは消さない（sid紐付けで保持）。
+    try { _updateResendBanner(); } catch(e){}
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
     _accountType = '';
@@ -9458,6 +9479,7 @@
         // サーバ ok 確認後に feedback 画面へ直接遷移（旧版の 1.8 秒待ちは overlay 表示時間で代替）
         _showSangoFeedback(res.aiFeedback || null);
       }).catch(function(){
+        try { _resendQueueAdd({ action: 'submitSango', payload: payload, method: 'get', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
         _showSubmitError();
@@ -9581,6 +9603,7 @@
         };
         _showSangoFeedback(res.aiFeedback || null);
       }).catch(function(){
+        try { _resendQueueAdd({ action: 'submitSango', payload: payload, method: 'get', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
         _showSubmitError();
@@ -10524,6 +10547,7 @@
         _invalidateCacheByAction('getWabun1AnswersAfterSubmit');
         _showWabun1Result(res);
       }).catch(function(){
+        try { _resendQueueAdd({ action: 'submitWabun1', payload: payload, method: 'get', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
         _wabun1State.submitting = false;
@@ -12585,6 +12609,7 @@
           _pendingDismiss = null;
           _lisonShowDone(res);
         }).catch(function(err){
+          try { _resendQueueAdd({ action: 'submitLison', payload: payload, method: 'post', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
           // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
           _hideHpConfirmingOverlay();
           _showSubmitError();
@@ -15703,7 +15728,7 @@
   // オフラインバナーの「再接続を確認」ボタン：ping して疎通すれば自動解除。
   function _recheckOnline() {
     _pingOnline().then(function(ok){
-      if (ok) { _offline = false; _lastServerOkTs = Date.now(); _hideOfflineBanner(); }
+      if (ok) { _offline = false; _lastServerOkTs = Date.now(); _hideOfflineBanner(); try { _flushResendQueue(); } catch(e){} }
     });
   }
   // 学習開始ガード（往復なし、_offline フラグ判定のみ）。
@@ -15737,6 +15762,7 @@
           _totalHP = Number(res.totalHP) || _totalHP;
           if (Number(res.streak) > 0) _streak = Number(res.streak);
           if (res.accountType != null) _accountType = String(res.accountType);
+          try { _flushResendQueue(); } catch(e){}  // 防護柵3枚目：疎通回復時に未送信を自動再送
           _revalidating = false;
         } else {
           // res.ok=false：セッション無効（sid 失効等）→ ログイン画面へ（既存の最終ログアウト処理を流用）
@@ -15751,6 +15777,106 @@
     }
     attempt(1);
   }
+  // ============================================================
+  // 防護柵3枚目（再送キュー・軽量案）：送信失敗(.catch)したデータを localStorage に保持し、
+  //   疎通回復時/手動で再送する。二重加算はサーバーの既存ガード（V2=expectedPosition /
+  //   oncePerDay / 振り返り=resolved限定解放）に委ね、再送結果の ok/stale/alreadyDone/alreadyGranted を
+  //   「成功扱い」でキュー削除する。
+  //   ★対象は安全コンテンツのみ：submitAttemptV2(英単語V2)/submitSango/submitWabun1/submitLison/submitReflection。
+  //     kiso/kanji/kobun/V1 は対象外（既存dedupが不完全のため enqueue しない）。
+  //   ★キューは sid 紐付け。表示・再送は「現在ログイン中の sid」のものだけ（別生徒のキューを扱わない）。
+  // ============================================================
+  var _RESEND_QUEUE_KEY = 'mykt_resend_queue';
+  var _flushingResend = false;
+  function _resendQueueLoad() {
+    try { var raw = localStorage.getItem(_RESEND_QUEUE_KEY); if (!raw) return []; var a = JSON.parse(raw); return Array.isArray(a) ? a : []; } catch(e) { return []; }
+  }
+  function _resendQueueSave(arr) {
+    try { localStorage.setItem(_RESEND_QUEUE_KEY, JSON.stringify(arr || [])); } catch(e) {}
+  }
+  function _resendQueueCount() {
+    try { var sid = String(_studentId || '').trim(); if (!sid) return 0; return _resendQueueLoad().filter(function(it){ return it.sid === sid; }).length; } catch(e) { return 0; }
+  }
+  function _resendQueueRemove(key) {
+    try { _resendQueueSave(_resendQueueLoad().filter(function(it){ return it.idempotencyKey !== key; })); } catch(e) {}
+  }
+  function _resendItemAttemptBump(key) {
+    try { var q = _resendQueueLoad(); for (var i = 0; i < q.length; i++) { if (q[i].idempotencyKey === key) { q[i].attempts = (Number(q[i].attempts) || 0) + 1; break; } } _resendQueueSave(q); } catch(e) {}
+  }
+  function _isResendItemStale(it) {
+    return (Number(it.attempts) || 0) >= 5 || (Date.now() - (Number(it.createdTs) || 0)) > (3 * 24 * 3600 * 1000);
+  }
+  // enqueue。重複表示防止：同一 sid+action+payload が既にキューにあれば追加しない。
+  //   item: { action, payload(再送内容そのまま・expectedPosition/教育日/reflectionDate等込み), method('post'|'get'), sid }
+  function _resendQueueAdd(item) {
+    try {
+      if (!item || !item.payload) return;
+      var sid = String(item.sid || _studentId || '').trim();
+      if (!sid) return;
+      var q = _resendQueueLoad();
+      var pj = ''; try { pj = JSON.stringify(item.payload); } catch(e) { pj = ''; }
+      for (var i = 0; i < q.length; i++) {
+        if (q[i].sid === sid && q[i].action === item.action) {
+          var ej = ''; try { ej = JSON.stringify(q[i].payload); } catch(e) {}
+          if (ej === pj) return;  // 既に同一submissionがキュー済み（重複表示防止）
+        }
+      }
+      var now = Date.now();
+      q.push({
+        action: item.action,
+        payload: item.payload,
+        method: (item.method === 'get') ? 'get' : 'post',
+        sid: sid,
+        idempotencyKey: sid + '_' + item.action + '_' + _todayKeyJST3am() + '_' + now,
+        createdTs: now,
+        attempts: 0
+      });
+      _resendQueueSave(q);
+      _updateResendBanner();
+    } catch(e) {}
+  }
+  // 再送：現在ログイン中の sid のキューのみ。多重実行ガード。
+  //   成功扱い(ok/stale/alreadyDone/alreadyGranted)→削除。それ以外/.catch→attempts++保持（古いものは警告表示）。
+  function _flushResendQueue() {
+    if (_flushingResend) return;
+    var sid = String(_studentId || '').trim();
+    if (!sid) return;
+    var mine = _resendQueueLoad().filter(function(it){ return it.sid === sid; });
+    if (mine.length === 0) { _updateResendBanner(); return; }
+    _flushingResend = true;
+    var idx = 0;
+    function next() {
+      if (idx >= mine.length) { _flushingResend = false; _updateResendBanner(); return; }
+      var item = mine[idx++];
+      var p = (item.method === 'get') ? gasGetWithTimeout(item.payload, 25000) : gasPost(item.payload, 25000);
+      p.then(function(res){
+        var successLike = res && (res.ok || res.stale || res.alreadyDone || res.alreadyGranted);
+        if (successLike) _resendQueueRemove(item.idempotencyKey);  // 既存ガードが弾いた＝二重加算なし→削除
+        else _resendItemAttemptBump(item.idempotencyKey);          // res.ok=false 等：再送しても同じ→保持
+        next();
+      }).catch(function(){
+        _resendItemAttemptBump(item.idempotencyKey);                // なお不通→保持
+        next();
+      });
+    }
+    next();
+  }
+  function _updateResendBanner() {
+    try {
+      var b = document.getElementById('mykt-resend-banner');
+      if (!b) return;
+      var sid = String(_studentId || '').trim();
+      var mine = sid ? _resendQueueLoad().filter(function(it){ return it.sid === sid; }) : [];
+      var label = document.getElementById('mykt-resend-banner-label');
+      if (mine.length === 0) { b.style.display = 'none'; return; }
+      var hasStale = mine.some(_isResendItemStale);
+      var txt = '📤 未送信が ' + mine.length + ' 件あります（タップで再送）';
+      if (hasStale) txt += '｜うまく送れないものは先生に相談してね';
+      if (label) label.textContent = txt;
+      b.style.display = 'block';
+    } catch(e) {}
+  }
+
   // 復帰検知：visibilitychange（visible）＋ pageshow（bfcache 復元/初回ロード）。
   //   初回ロードや未ログイン時は _revalidateOnResume 冒頭の _studentId ガードで no-op。
   document.addEventListener('visibilitychange', function(){
@@ -15762,7 +15888,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260611-1541</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260611-1615</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
