@@ -6085,6 +6085,8 @@
 
   // 写真取得・表示・DL の共通機構（kiso の _kiso… 群を _myTask… に複製。action のみ getMyTaskPhotoBlob）。
   var _myTaskPhotoBlobCache = {};
+  // 管理C 差し戻し後に詳細を再読み込みするため、表示中の生徒IDを保持
+  var _myTaskCurrentSid = '';
 
   function _myTaskFetchPhoto(fileId) {
     return adminGasGet({ action: 'getMyTaskPhotoBlob', fileId: fileId }).then(function(res) {
@@ -6208,6 +6210,7 @@
 
   // 提出詳細（detail モード = studentId あり）。submissions[]（提出単位）ごとにカード化。
   function loadMyTaskPhotos(studentId) {
+    _myTaskCurrentSid = studentId;
     var wrap = document.getElementById('mytask-photos-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
     adminGasGet({ action: 'getMyTaskPhotosList', studentId: studentId, _ts: Date.now() }).then(function(res) {
@@ -6222,6 +6225,8 @@
         wrap.innerHTML = '<div class="kiso-photo-empty">この生徒の保存中のマイ課題写真はありません。</div>';
         return;
       }
+      // 差し戻しは塾長(admin)のみ。ロール判定は既存作法（sessionStorage.adminRole）を踏襲。
+      var isAdmin = (sessionStorage.getItem('adminRole') || '') === 'admin';
       var html = submissions.map(function(s) {
         var ts = String(s.submittedAt || '').replace('T', ' ').slice(0, 16);
         var typeLabel = (s.taskType === 'homework') ? '塾の宿題' : (s.taskType === 'self' ? '自発課題' : _esc(s.taskType || ''));
@@ -6236,6 +6241,15 @@
         var photosHtml = photos.length
           ? '<div class="kiso-photos-grid">' + photos.map(function(ph){ return _myTaskRenderPhotoCard(ph, s.deleteAfter); }).join('') + '</div>'
           : '<div class="kiso-photo-empty" style="padding:14px">⚠️ 写真が見つかりません</div>';
+        // 差し戻しボタン：未差し戻し（reverted=false）かつ admin のときのみ表示。
+        // teacher には表示しない（サーバー側でも admin 限定）。スタイルは既存の破壊的操作ボタン idiom（赤系インライン）を流用。
+        var revertBtnHtml = '';
+        if (!s.reverted && isAdmin) {
+          var subIdJs = String(s.submissionId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          revertBtnHtml = '<div style="margin-top:12px;text-align:right">' +
+            '<button type="button" onclick="onMyTaskRevertClick(\'' + subIdJs + '\')" style="font-size:13px;padding:7px 16px;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold">↩️ この提出を差し戻す</button>' +
+          '</div>';
+        }
         return '<div class="kiso-session-group">' +
                  '<div class="kiso-session-head">' +
                    '<div class="ses-meta">' + metaLine + revBadge + '</div>' +
@@ -6243,11 +6257,58 @@
                  '</div>' +
                  contentHtml +
                  photosHtml +
+                 revertBtnHtml +
                '</div>';
       }).join('');
       wrap.innerHTML = html;
     }).catch(function() {
       wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  // 管理C：提出の差し戻し（admin=塾長 のみ）。理由必須 → 確認 → revertMyTaskSubmission（doPost）。
+  //   サーバー側で HP 減算・台帳記録・生徒通知まで実行される（バックエンドが全部やる）。
+  //   teacherId/password は adminGasPost が sessionStorage から自動付与する。
+  function onMyTaskRevertClick(submissionId) {
+    if (!submissionId) return;
+    // フロントガード（サーバー側でも admin 限定）。teacher が誤って叩いても弾く。
+    if ((sessionStorage.getItem('adminRole') || '') !== 'admin') {
+      showToast('差し戻しは塾長のみ可能です', 'error');
+      return;
+    }
+    // 理由入力（必須・自由入力。定型文は用意しない）
+    var reason = prompt('差し戻し理由を入力してください（生徒に通知されます）', '');
+    if (reason === null) return;  // キャンセル
+    reason = String(reason).trim();
+    if (!reason) { showToast('差し戻し理由を入力してください', 'error'); return; }
+    // 確認ダイアログ
+    var msg = 'この提出を差し戻します。\n\n' +
+              '・生徒が獲得したHPが返上されます（生涯HPが減算され、場合によりマイナスになります）。\n' +
+              '・差し戻した旨と理由が生徒に通知されます。\n\n' +
+              'よろしいですか？';
+    if (!confirm(msg)) return;
+    adminGasPost({ action: 'revertMyTaskSubmission', submissionId: submissionId, reason: reason }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '';
+        if (em && _handleAdminApiError(em)) return;  // セッション切れ等は既存作法で処理
+        if (res && res.alreadyReverted) {
+          alert('この提出は既に差し戻し済みです。最新の状態に更新します。');
+          loadMyTaskPhotos(_myTaskCurrentSid);
+          return;
+        }
+        alert(em || '差し戻しに失敗しました');
+        return;
+      }
+      var hp = Number(res.revertedHp) || 0;
+      var toastMsg = '差し戻しました（返上HP: ' + hp + '）。' +
+        (res.notified === false
+          ? '通知の送信に失敗しましたが、差し戻しは完了しています。'
+          : '生徒に通知を送りました。');
+      showToast(toastMsg, 'success');
+      // 詳細を再読み込み → 当該提出が「差し戻し済み」バッジに変わり、差し戻しボタンが消える
+      loadMyTaskPhotos(_myTaskCurrentSid);
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
     });
   }
 
