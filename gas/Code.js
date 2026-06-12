@@ -1168,6 +1168,10 @@ function doGet(e) {
       else if (action === 'getKisoPhotoBlobForStudent') result = getKisoPhotoBlobForStudent(params);
       // 閲覧系操作ログ：DL ボタン押下時の独立ログ記録（キャッシュヒット時でも確実に記録）
       else if (action === 'logKisoPhotoDownload')      result = logKisoPhotoDownload(params);
+      // マイ課題⑦（2026-06-12）：管理B 写真確認（admin/teacher）。kiso 写真系と同じく
+      //   doGet/doPost 両登録（CLAUDE.md #148 原則）。
+      else if (action === 'getMyTaskPhotosList')       result = getMyTaskPhotosList(params);
+      else if (action === 'getMyTaskPhotoBlob')        result = getMyTaskPhotoBlob(params);
       // ※ ここにリスオン関連（getLisonContent, submitLison）のルーティングを必ず残す。
       //   Phase 1-A コミット 71b8c93 で追加。過去に管理画面リファクタ作業で巻き込まれて
       //   消えかけ、ふくちさん側の clasp push が古いまま実機テストで「録音送信が失敗する」
@@ -1355,6 +1359,9 @@ function doPost(e) {
     else if (action === 'logKisoPhotoDownload')      result = logKisoPhotoDownload(params);
     // 基礎計算 履歴一覧（doGet にも保護登録、両方セットで保持）
     else if (action === 'getKisoHistoryForStudent')  result = getKisoHistoryForStudent(params);
+    // マイ課題⑦（2026-06-12）：管理B 写真確認（doGet にも保護登録、両方セットで保持）。
+    else if (action === 'getMyTaskPhotosList')       result = getMyTaskPhotosList(params);
+    else if (action === 'getMyTaskPhotoBlob')        result = getMyTaskPhotoBlob(params);
     // 管理画面: リスオン問題の週単位一括登録（5 レベル × 3 問 + 英文 / 和訳で URL 長を
     // 超えるため POST 必須、CLAUDE.md #93 と同パターン）。
     else if (action === 'adminSaveLisonContentsWeek') result = adminSaveLisonContentsWeek(params);
@@ -1437,6 +1444,9 @@ function doPost(e) {
     // マイ課題④（2026-06-12）：生徒の写真提出。写真 base64（複数枚）を含むため POST 必須。
     //   認証は生徒ログイン前提（submitKisoAnswer と同作法、teacher 認証は不要）。
     else if (action === 'submitMyTask')                     result = submitMyTask(params);
+    // マイ課題⑦（2026-06-12）：管理C 差し戻し。reason / 認証情報を安全に渡すため POST 専用
+    //   （admin=塾長 限定の更新系）。doGet には登録しない。
+    else if (action === 'revertMyTaskSubmission')           result = revertMyTaskSubmission(params.submissionId, params.reason, params.teacherId, params.password);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -21433,6 +21443,255 @@ function testHpGrantLedger() {
   return { ok: allOk, results: results, hpBefore: hpBefore };
 }
 
+// =============================================================================
+// マイ課題⑦（2026-06-12）：管理B 写真確認（admin/teacher）
+//   ・getKisoPhotosList / getKisoPhotoBlob をテンプレに MyTaskPhotos 用へ複製。
+//   ・既存の kiso 写真系 / sendTeacherMessage / 既存シートは変更せず、複製・内部呼び出しのみ。
+// =============================================================================
+
+// 差し戻し済み submissionId の集合を HpGrantLedger から構築（revertedAt 非空＝差し戻し済み）。
+// revert は当該 submissionId の全台帳行に revertedAt を入れるため、1 行でも非空なら差し戻し済み。
+function _myTaskRevertedSubmissionIds() {
+  const set = {};
+  try {
+    const sh = _ss().getSheetByName(SHEET_HP_GRANT_LEDGER);
+    if (!sh || sh.getLastRow() < 2) return set;
+    const values = sh.getDataRange().getValues();
+    const h = values[0];
+    const iSub = h.indexOf('submissionId');
+    const iRev = h.indexOf('revertedAt');
+    if (iSub < 0 || iRev < 0) return set;
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][iRev] || '').trim() === '') continue;
+      const s = String(values[i][iSub] || '').trim();
+      if (s) set[s] = true;
+    }
+  } catch (e) {
+    console.error('[_myTaskRevertedSubmissionIds]', e);
+  }
+  return set;
+}
+
+// fileId が MyTaskPhotos に属するか逆引き（盗み見防止 + 操作ログ details 用）。
+// 戻り値: { sid, submissionId }（見つからなければ {}）。_kisoPhotoLookupByFileId の MyTaskPhotos 版。
+function _myTaskPhotoLookupByFileId(fileId) {
+  try {
+    const sh = _ss().getSheetByName(SHEET_MYTASK_PHOTOS);
+    if (!sh || sh.getLastRow() < 2) return {};
+    const values = sh.getDataRange().getValues();
+    const h = values[0];
+    const cFid = h.indexOf('driveFileId');
+    const cSid = h.indexOf('studentId');
+    const cSub = h.indexOf('submissionId');
+    if (cFid < 0) return {};
+    const target = String(fileId || '').trim();
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][cFid] || '').trim() === target) {
+        return {
+          sid:          (cSid >= 0) ? String(values[i][cSid] || '').trim() : '',
+          submissionId: (cSub >= 0) ? String(values[i][cSub] || '').trim() : ''
+        };
+      }
+    }
+  } catch (e) {
+    console.error('[_myTaskPhotoLookupByFileId]', e);
+  }
+  return {};
+}
+
+// 管理B：マイ課題の提出写真一覧。getKisoPhotosList の複製（対象を MyTaskPhotos に差し替え）。
+// 認証は _verifyTeacher（admin/teacher 両可。管理B＝写真確認は講師も閲覧可）。
+//   summary（params.studentId なし）：生徒ごとに集約。
+//     { studentId, studentName, studentNickname, submissionCount, photoCount, latestSubmittedAt, earliestDeleteAfter }
+//       - submissionCount = その生徒の提出（submissionId のユニーク数）
+//       - photoCount      = その生徒の写真行数
+//   detail（params.studentId あり）：その生徒の写真配列 photos[] と、提出単位グルーピング submissions[]。
+//     photos      : submittedAt 降順 → submissionId 降順 → photoIndex 昇順
+//     submissions : 提出（submissionId）単位の共通属性 + photos[{driveFileId, photoIndex}]
+//       各写真/各提出に reverted（HpGrantLedger.revertedAt が埋まっているか）を付与。
+function getMyTaskPhotosList(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const sidFilter = String((params && params.studentId) || '').trim();
+
+    const sh = _ensureMyTaskPhotosSheet();
+    if (sh.getLastRow() < 2) {
+      return sidFilter
+        ? { ok: true, mode: 'detail', studentId: sidFilter, photos: [], submissions: [] }
+        : { ok: true, mode: 'summary', students: [] };
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSub     = header.indexOf('submissionId');
+    const cSid     = header.indexOf('studentId');
+    const cType    = header.indexOf('taskType');
+    const cSubj    = header.indexOf('subject');
+    const cAnn     = header.indexOf('announcementId');
+    const cContent = header.indexOf('content');
+    const cFileId  = header.indexOf('driveFileId');
+    const cSubmit  = header.indexOf('submittedAt');
+    const cDelete  = header.indexOf('deleteAfter');
+    const cPhIdx   = header.indexOf('photoIndex');
+
+    // 生徒名マップ（全アカウント = Students + SpecialAccounts）
+    const stuRows = _getAllAccountsValues();
+    const nameMap = {};
+    for (let i = 1; i < stuRows.length; i++) {
+      const id = String(stuRows[i][COL_ID] || '').trim();
+      if (!id) continue;
+      nameMap[id] = {
+        real: String(stuRows[i][COL_NAME] || '').trim(),
+        nick: String(stuRows[i][COL_NICKNAME] || '').trim()
+      };
+    }
+
+    // 差し戻し済み submissionId 集合（HpGrantLedger.revertedAt 非空）
+    const revertedSet = _myTaskRevertedSubmissionIds();
+
+    // MyTaskPhotos 行を整形
+    const photos = [];
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const sid = String(row[cSid] || '').trim();
+      if (!sid) continue;
+      if (sidFilter && sid !== sidFilter) continue;
+      const subId = String(row[cSub] || '').trim();
+      const submittedTs = row[cSubmit];
+      const submittedAt = (submittedTs instanceof Date)
+        ? Utilities.formatDate(submittedTs, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(submittedTs || '');
+      const deleteAfter = _toDateStr(row[cDelete]);
+      photos.push({
+        submissionId: subId,
+        studentId: sid,
+        studentName: (nameMap[sid] && nameMap[sid].real) || '',
+        studentNickname: (nameMap[sid] && nameMap[sid].nick) || '',
+        taskType: String(row[cType] || ''),
+        subject: String(row[cSubj] || ''),
+        announcementId: String(row[cAnn] || ''),
+        content: String(row[cContent] || ''),
+        driveFileId: String(row[cFileId] || ''),
+        submittedAt: submittedAt,
+        deleteAfter: deleteAfter,
+        photoIndex: Number(row[cPhIdx]) || 0,
+        reverted: !!revertedSet[subId]
+      });
+    }
+
+    if (sidFilter) {
+      // detail：photos を submittedAt 降順 → submissionId 降順 → photoIndex 昇順 でソート
+      photos.sort(function(a, b) {
+        if (a.submittedAt !== b.submittedAt) return a.submittedAt < b.submittedAt ? 1 : -1;
+        if (a.submissionId !== b.submissionId) return a.submissionId < b.submissionId ? 1 : -1;
+        return a.photoIndex - b.photoIndex;
+      });
+      // 提出（submissionId）単位グルーピング。出現順（= submittedAt 降順）を維持。
+      const subOrder = [];
+      const subMap = {};
+      photos.forEach(function(p) {
+        if (!subMap[p.submissionId]) {
+          subMap[p.submissionId] = {
+            submissionId: p.submissionId,
+            studentId: p.studentId,
+            studentName: p.studentName,
+            studentNickname: p.studentNickname,
+            taskType: p.taskType,
+            subject: p.subject,
+            announcementId: p.announcementId,
+            content: p.content,
+            submittedAt: p.submittedAt,
+            deleteAfter: p.deleteAfter,
+            reverted: p.reverted,
+            photos: []
+          };
+          subOrder.push(p.submissionId);
+        }
+        subMap[p.submissionId].photos.push({ driveFileId: p.driveFileId, photoIndex: p.photoIndex });
+      });
+      // 各提出の写真は photoIndex 昇順を保証（行が非隣接でも安定）
+      const submissions = subOrder.map(function(k) {
+        const e = subMap[k];
+        e.photos.sort(function(a, b) { return a.photoIndex - b.photoIndex; });
+        return e;
+      });
+      return { ok: true, mode: 'detail', studentId: sidFilter, photos: photos, submissions: submissions };
+    }
+
+    // summary：studentId ごとに集約
+    const bySid = {};
+    photos.forEach(function(p) {
+      if (!bySid[p.studentId]) {
+        bySid[p.studentId] = {
+          studentId: p.studentId,
+          studentName: p.studentName,
+          studentNickname: p.studentNickname,
+          submissionCount: 0,
+          photoCount: 0,
+          latestSubmittedAt: '',
+          earliestDeleteAfter: '',
+          _subSeen: {}
+        };
+      }
+      const e = bySid[p.studentId];
+      e.photoCount += 1;
+      if (p.submissionId && !e._subSeen[p.submissionId]) {
+        e._subSeen[p.submissionId] = true;
+        e.submissionCount += 1;
+      }
+      if (!e.latestSubmittedAt || p.submittedAt > e.latestSubmittedAt) e.latestSubmittedAt = p.submittedAt;
+      if (!e.earliestDeleteAfter || (p.deleteAfter && p.deleteAfter < e.earliestDeleteAfter)) e.earliestDeleteAfter = p.deleteAfter;
+    });
+    const students = Object.keys(bySid).map(function(k) {
+      const e = bySid[k];
+      delete e._subSeen;
+      return e;
+    });
+    students.sort(function(a, b) { return a.latestSubmittedAt < b.latestSubmittedAt ? 1 : a.latestSubmittedAt > b.latestSubmittedAt ? -1 : 0; });
+
+    return { ok: true, mode: 'summary', students: students };
+  } catch (err) {
+    console.error('[getMyTaskPhotosList]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理B：マイ課題の写真 base64 配信プロキシ。getKisoPhotoBlob の複製。
+// 認証は _verifyTeacherAndGetDriveBlob(params, true)（admin/teacher 両可）。
+// ★ fileId が MyTaskPhotos に属する行であることを検証（他コンテンツの fileId を渡した盗み見を防止。
+//   kiso の sid×fileId 突合と同じ作法を MyTaskPhotos で実施）。
+// 成功時に MYTASK_PHOTO_VIEW を TeacherActions に記録（kiso の KISO_PHOTO_VIEW と同作法）。
+function getMyTaskPhotoBlob(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const fileId = String((params && params.fileId) || '').trim();
+    if (!fileId) return { ok: false, message: 'fileId が指定されていません' };
+
+    // ★ MyTaskPhotos に属する fileId のみ許可（他コンテンツ写真の盗み見防止）
+    const meta = _myTaskPhotoLookupByFileId(fileId);
+    if (!meta || !meta.submissionId) {
+      return { ok: false, message: 'アクセス権がありません' };
+    }
+
+    // base64 化（認証 + fileId + blob は共通基盤に委譲）
+    const res = _verifyTeacherAndGetDriveBlob(params, true);
+    if (res && res.ok) {
+      try {
+        _logTeacherAction(_teacher.teacherId, 'MYTASK_PHOTO_VIEW', '', 'success', {
+          fileId: fileId, sid: meta.sid || '', submissionId: meta.submissionId || ''
+        });
+      } catch (e) {
+        console.error('[getMyTaskPhotoBlob log]', e);
+      }
+    }
+    return res;
+  } catch (err) {
+    console.error('[getMyTaskPhotoBlob]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
 // ========================================================================
 // HP消費基盤 第3段階：マイ課題の差し戻し（clawback） / 2026-06-10
 // ------------------------------------------------------------------------
@@ -21447,16 +21706,18 @@ function testHpGrantLedger() {
 //     _markReservePoolEntriesResolved が再付与しないようにする）。未解放分は COL_HP に
 //     乗っていない（台帳にも無い）ため COL_HP からは引かない。
 //   ・resolvedAt も now で記録（runDailyForfeitExpiredReserves と同様、解放処理済みの体裁を保つ）。
-// ★ 既存の付与（_grantHP）・解放・没収・交換・_consumeHP は一切変更しない。本関数の新規追加のみ。
-// ★ 管理画面 UI / doPost 公開はマイ課題コンテンツ実装時に別途。本段階は関数＋テストのみ。
+// ★ 既存の付与（_grantHP）・解放・没収・交換・_consumeHP は一切変更しない。
+// ★ マイ課題⑦（2026-06-12）：本体を中核関数 _revertMyTaskSubmissionCore に切り出し、
+//   認証(塾長限定)+理由必須+証跡+通知を上乗せした公開ラッパー revertMyTaskSubmission を別途定義した。
+//   この中核関数のロジック（HP 減算・二重差し戻しガード・reserve 無害化）は従来のまま不変。
 //
 // 引数: submissionId（差し戻す提出の一意キー）
 // 戻り値:
-//   成功      : { ok:true, submissionId, revertedHp, newColHp, reservePoolMarked }
+//   成功      : { ok:true, submissionId, studentId, revertedHp, newColHp, reservePoolMarked }
 //   台帳なし  : { ok:false, reason:'not_found' }
 //   差し戻し済: { ok:false, alreadyReverted:true, submissionId }
 //   その他    : { ok:false, reason:'invalid'|'student_not_found'|'error', message }
-function revertMyTaskSubmission(submissionId) {
+function _revertMyTaskSubmissionCore(submissionId) {
   try {
     const subId = String(submissionId == null ? '' : submissionId).trim();
     if (!subId) return { ok: false, reason: 'invalid', message: 'submissionId が必要です' };
@@ -21535,18 +21796,110 @@ function revertMyTaskSubmission(submissionId) {
     }
 
     SpreadsheetApp.flush();
-    return { ok: true, submissionId: subId, revertedHp: revertedHp, newColHp: newColHp, reservePoolMarked: reservePoolMarked };
+    return { ok: true, submissionId: subId, studentId: sid, revertedHp: revertedHp, newColHp: newColHp, reservePoolMarked: reservePoolMarked };
+  } catch (e) {
+    console.error('[_revertMyTaskSubmissionCore]', e);
+    return { ok: false, reason: 'error', message: String(e) };
+  }
+}
+
+// ── マイ課題⑦（2026-06-12）：管理C 差し戻しの公開ラッパー（admin 限定 + 理由必須 + 証跡 + 生徒通知）──
+//   中核処理（HP 減算・二重差し戻しガード・reserve 無害化）は _revertMyTaskSubmissionCore に委譲し、
+//   ここでは ①認証(塾長限定) ②理由必須 ③HPLog 証跡 ④操作ログ ⑤生徒通知 を上乗せする。
+//   引数順: revertMyTaskSubmission(submissionId, reason, teacherId, password)
+//   戻り値: { ok, submissionId, revertedHp, newColHp, reservePoolMarked, notified } / 失敗時 { ok:false, ... }
+function revertMyTaskSubmission(submissionId, reason, teacherId, password) {
+  try {
+    // ① 認証（admin/teacher 通過）→ 差し戻しは塾長(admin)限定
+    const _teacher = _verifyTeacher(teacherId, password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_isMyTaskRevertAllowedRole(_teacher)) return { ok: false, message: '差し戻しは塾長のみ可能です' };
+
+    // ② 理由必須（空なら HP 減算前に拒否）
+    const reasonStr = String(reason == null ? '' : reason).trim();
+    if (!reasonStr) return { ok: false, message: '差し戻し理由は必須です' };
+
+    // ── 中核処理（HP 減算・二重差し戻しガード・reserve 無害化）──
+    const core = _revertMyTaskSubmissionCore(submissionId);
+    if (!core || !core.ok) return core;  // not_found / alreadyReverted / error をそのまま返す
+
+    const sid        = String(core.studentId || '').trim();
+    const revertedHp = Number(core.revertedHp) || 0;
+    const subId      = core.submissionId;
+
+    // ③ HPLog 証跡（type='mytask_revert'、負の値）。
+    //   ★ COL_HP の実減算は _revertMyTaskSubmissionCore が完了済み。_logHP は HPLog 追記のみで
+    //     COL_HP を触らないため二重減算しない（あくまで証跡ログとしてのみ記録）。
+    //   ★ 'mytask_revert' は dailyCap 集計（'mytask_homework_' / 'mytask_self_' プレフィックスの前方一致）にも
+    //     マイカツ君 Stage 集計（_isCountableActivityType の許可リスト）にも一致しないため集計に巻き込まれない。
+    try {
+      _logHP(sid, -revertedHp, -revertedHp, 'mytask_revert', undefined, 'マイ課題 差し戻し: ' + reasonStr);
+    } catch (e) {
+      console.error('[revertMyTaskSubmission] _logHP 証跡記録に失敗（差し戻し自体は成立済み）', e);
+    }
+
+    // ④ 操作ログ（誰が差し戻したか）
+    try {
+      _logTeacherAction(_teacher.teacherId, 'MYTASK_REVERT', '', 'success', {
+        submissionId: subId, studentId: sid, revertedHp: revertedHp, reason: reasonStr
+      });
+    } catch (e) {
+      console.error('[revertMyTaskSubmission] _logTeacherAction 記録に失敗', e);
+    }
+
+    // ⑤ 生徒通知（既存 sendTeacherMessage に相乗り。targetType='individual'）。
+    //   通知失敗しても差し戻し（HP 減算）は成立済みのため ok:true を維持し、巻き戻さない。
+    let notified = false;
+    try {
+      const body = _buildMyTaskRevertMessage(reasonStr, revertedHp);
+      const sendRes = sendTeacherMessage({
+        teacherId: teacherId,
+        password:  password,
+        targetType: 'individual',
+        targetIds:  [sid],
+        content:    body
+      });
+      notified = !!(sendRes && sendRes.ok);
+      if (!notified) console.error('[revertMyTaskSubmission] 生徒通知に失敗（差し戻しは成立済み）', sendRes);
+    } catch (e) {
+      console.error('[revertMyTaskSubmission] sendTeacherMessage 例外（差し戻しは成立済み）', e);
+    }
+
+    return {
+      ok: true,
+      submissionId: subId,
+      revertedHp: revertedHp,
+      newColHp: core.newColHp,
+      reservePoolMarked: core.reservePoolMarked,
+      notified: notified
+    };
   } catch (e) {
     console.error('[revertMyTaskSubmission]', e);
     return { ok: false, reason: 'error', message: String(e) };
   }
 }
 
-// revertMyTaskSubmission の検証。GAS エディタのドロップダウンから引数なしで実行可。
+// 差し戻し可能ロール判定（現状 admin=塾長 のみ。将来 teacher へ開放する場合はここだけを変更）。
+function _isMyTaskRevertAllowedRole(teacher) {
+  return _requireAdmin(teacher);
+}
+
+// マイ課題 差し戻し通知の本文（500 字以内・前向きで生徒を傷つけないトーン）。
+// ふくちさんが文面を調整しやすいよう、ここに集約。
+function _buildMyTaskRevertMessage(reason, revertedHp) {
+  const hp = Number(revertedHp) || 0;
+  return 'マイ課題の提出を、いったん「やりなおし」にしました。\n'
+       + '理由：' + reason + '\n'
+       + 'この提出でもらったHP（' + hp + '）は、いったんお返しします。\n'
+       + 'もう一度ていねいに直して出せば、HPはちゃんと取り戻せるよ。あせらなくて大丈夫、いっしょにがんばろう！';
+}
+
+// _revertMyTaskSubmissionCore（中核処理）の検証。GAS エディタのドロップダウンから引数なしで実行可。
+//   ※ 認証・理由・証跡・通知を含む公開ラッパー revertMyTaskSubmission の検証は testMyTaskAdminBackend。
 // テストアカウント sid='1001' で：
 //   ・着地済みを台帳に作成（immediate 30 + reflection_release 70 = 100）+ COL_HP を +100 して
 //     「付与済み」状態を再現 + 未解放 reserve（同 submissionId・resolved=FALSE）を 1 行積む。
-//   ・revertMyTaskSubmission を実行し、
+//   ・_revertMyTaskSubmissionCore を実行し、
 //      [1][2] ok / revertedHp=100、[3] COL_HP が合計分減算、[4][5] 台帳全行に revertedAt、
 //      [6] 再 revert は alreadyReverted、[7][8][9] reserve 行が resolved=TRUE / _reverted / marked=1、
 //      [10] 未知 submissionId は not_found を確認。
@@ -21591,7 +21944,7 @@ function testRevertMyTaskSubmission() {
     _appendHpReservePool(sid, today, 'mytask_test', 100, 40, 'required_mission', subId);
 
     // ── 差し戻し実行 ──
-    const r1 = revertMyTaskSubmission(subId);
+    const r1 = _revertMyTaskSubmissionCore(subId);
     pass('[1] ok:true', r1 && r1.ok, r1 && (r1.reason || ''));
     pass('[2] revertedHp == 100', r1 && r1.revertedHp === expectTotal, r1 && ('revertedHp=' + r1.revertedHp));
     const locA = _findAccountRowOnSheet(sid);
@@ -21608,7 +21961,7 @@ function testRevertMyTaskSubmission() {
     pass('[5] 全行 revertedAt 非空', mine.length > 0 && mine.every(function(r){ return String(r[liRev] || '').trim() !== ''; }));
 
     // 二重差し戻しガード
-    const r2 = revertMyTaskSubmission(subId);
+    const r2 = _revertMyTaskSubmissionCore(subId);
     pass('[6] 再 revert は alreadyReverted', r2 && r2.ok === false && r2.alreadyReverted === true, r2 && (r2.reason || ''));
 
     // reserve 無害化
@@ -21623,7 +21976,7 @@ function testRevertMyTaskSubmission() {
     pass('[9] reservePoolMarked == 1', r1 && r1.reservePoolMarked === 1, r1 && ('marked=' + r1.reservePoolMarked));
 
     // 未知 submissionId は not_found
-    const r3 = revertMyTaskSubmission('TESTREVERT_NOTEXIST_' + stamp);
+    const r3 = _revertMyTaskSubmissionCore('TESTREVERT_NOTEXIST_' + stamp);
     pass('[10] 未知 submissionId は not_found', r3 && r3.ok === false && r3.reason === 'not_found');
 
   } catch (e) {
@@ -21647,6 +22000,334 @@ function testRevertMyTaskSubmission() {
   results.forEach(function(r){ console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.detail ? ' / ' + r.detail : '')); });
   console.log('==== testRevertMyTaskSubmission: ' + (allOk ? 'ALL PASS' : 'SOME FAILED') + ' ====');
   console.log('後始末メモ：HpGrantLedger / HpReservePool に submissionId が "TESTREVERT_" 始まりの行が残ります（手動削除可）。COL_HP は復元済み。');
+  return { ok: allOk, results: results, hpBefore: hpBefore };
+}
+
+// マイ課題⑦ 管理B/C のバックエンド検証。GAS エディタのドロップダウンから引数なしで実行可。
+// テストアカウント sid='1001' + 一時 teacher 行（admin/teacher、本テスト作成・finally で削除）で：
+//   [B0] submitMyTask 提出
+//   [B1] getMyTaskPhotosList summary に該当生徒（submissionCount/photoCount）
+//   [B2] detail で提出単位 submissions[] が返る（taskType/subject/photos[]、reverted=false）
+//   [C1] reason 空で revert → 拒否（HP 減算なし）
+//   [C2] teacher ロールで revert → 拒否（admin 限定）
+//   [C3] admin + reason で revert → ok / revertedHp 一致 / COL_HP 減算 / 台帳 revertedAt /
+//        HPLog mytask_revert 証跡（負） / TeacherActions MYTASK_REVERT / 対象生徒へ通知（TeacherMessages）
+//   [C4] 再 revert → alreadyReverted（二重減算なし）
+//   [C5] detail で当該提出 reverted=true
+// ★ 後始末：本テスト作成分（一時 teacher 行 / MyTaskPhotos / Drive 写真 / HpGrantLedger /
+//   HpReservePool / 本日分 mytask_ 系 HPLog（mytask_revert 含む）/ TeacherActions / TeacherMessages）を削除し、
+//   COL_HP を実行前値へ復元。実生徒データには一切触れない。
+function testMyTaskAdminBackend() {
+  const sid = '1001';
+  const results = [];
+  function pass(name, cond, detail) { results.push({ name: name, ok: !!cond, detail: detail || '' }); }
+  const IMG = Utilities.base64Encode('mytask-admin-test-photo-bytes');
+  const stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+  const today = _todayEducationalJST();
+
+  // 一時 teacher 行（本テスト作成・finally で削除）
+  const tAdmin   = 't_test_admin_' + stamp;
+  const tTeacher = 't_test_teacher_' + stamp;
+  const TPW = 'testpw_' + stamp;
+
+  const createdSubs = {};        // 本テストが作成した submissionId
+  const createdMessageIds = {};  // 本テストが送った通知の messageId
+  let teacherRowsAdded = false;
+  const myLogTypes = {           // 本テストが本日書く HPLog type
+    'mytask_self_only': true,
+    'mytask_revert': true
+  };
+
+  function colHp() {
+    const l = _findAccountRowOnSheet(sid);
+    return l ? (Number(l.rowValues[COL_HP]) || 0) : null;
+  }
+  function ledgerGrantedSum(subId) {
+    const sh = _ss().getSheetByName(SHEET_HP_GRANT_LEDGER);
+    if (!sh || sh.getLastRow() < 2) return 0;
+    const v = sh.getDataRange().getValues();
+    const iSub = v[0].indexOf('submissionId');
+    const iG   = v[0].indexOf('grantedHp');
+    let s = 0;
+    for (let i = 1; i < v.length; i++) if (String(v[i][iSub] || '').trim() === subId) s += Number(v[i][iG]) || 0;
+    return s;
+  }
+  function ledgerRevertedAtFilled(subId) {
+    const sh = _ss().getSheetByName(SHEET_HP_GRANT_LEDGER);
+    if (!sh || sh.getLastRow() < 2) return { rows: 0, allFilled: false };
+    const v = sh.getDataRange().getValues();
+    const iSub = v[0].indexOf('submissionId');
+    const iRev = v[0].indexOf('revertedAt');
+    const mine = v.slice(1).filter(function(r){ return String(r[iSub] || '').trim() === subId; });
+    return { rows: mine.length, allFilled: mine.length > 0 && mine.every(function(r){ return String(r[iRev] || '').trim() !== ''; }) };
+  }
+  function hplogHasRevert() {
+    const sh = _ss().getSheetByName(SHEET_HPLOG);
+    if (!sh || sh.getLastRow() < 2) return false;
+    const v = sh.getDataRange().getValues();
+    const h = v[0];
+    const cSidH = (h.indexOf('studentId') >= 0) ? h.indexOf('studentId') : 1;
+    const cType = (h.indexOf('type') >= 0) ? h.indexOf('type') : 4;
+    const cHp   = (h.indexOf('hpGained') >= 0) ? h.indexOf('hpGained') : 3;
+    for (let i = 1; i < v.length; i++) {
+      if (String(v[i][cSidH] || '').trim() !== sid) continue;
+      if (String(v[i][cType] || '').trim() !== 'mytask_revert') continue;
+      return Number(v[i][cHp]) < 0;  // 負の証跡
+    }
+    return false;
+  }
+  function teacherActionHasRevert(subId) {
+    const sh = _ss().getSheetByName(SHEET_TEACHER_ACTIONS);
+    if (!sh || sh.getLastRow() < 2) return false;
+    const v = sh.getDataRange().getValues();
+    const h = v[0];
+    const cAct = h.indexOf('action');
+    const cDet = h.indexOf('details');
+    for (let i = 1; i < v.length; i++) {
+      if (String(v[i][cAct] || '').trim() !== 'MYTASK_REVERT') continue;
+      if (String(v[i][cDet] || '').indexOf(subId) >= 0) return true;
+    }
+    return false;
+  }
+  function messageDeliveredTo(targetSid, senderId) {
+    const sh = _ss().getSheetByName(SHEET_TEACHER_MESSAGES);
+    if (!sh || sh.getLastRow() < 2) return false;
+    const v = sh.getDataRange().getValues();
+    const h = v[0];
+    const cMid = h.indexOf('messageId');
+    const cSnd = h.indexOf('senderId');
+    const cTgt = h.indexOf('targetIds');
+    let found = false;
+    for (let i = 1; i < v.length; i++) {
+      if (String(v[i][cSnd] || '').trim() !== senderId) continue;
+      if (String(v[i][cTgt] || '').indexOf(targetSid) < 0) continue;
+      found = true;
+      createdMessageIds[String(v[i][cMid] || '').trim()] = true;
+    }
+    return found;
+  }
+
+  const loc0 = _findAccountRowOnSheet(sid);
+  if (!loc0) return { ok: false, message: 'test account ' + sid + ' が見つかりません' };
+  const hpBefore = Number(loc0.rowValues[COL_HP]) || 0;
+
+  try {
+    // 一時 teacher 行を Teachers シートに追加（active=TRUE / firstLoginCompleted=TRUE）
+    const tsh = _ss().getSheetByName(SHEET_TEACHERS);
+    if (!tsh) {
+      pass('[SETUP] Teachers シート', false, '見つかりません');
+    } else {
+      tsh.appendRow([tAdmin,   'テスト塾長', _passwordHash(TPW, tAdmin),   'admin',   'テスト塾長', 'TRUE', 'TRUE']);
+      tsh.appendRow([tTeacher, 'テスト講師', _passwordHash(TPW, tTeacher), 'teacher', 'テスト講師', 'TRUE', 'TRUE']);
+      SpreadsheetApp.flush();
+      teacherRowsAdded = true;
+    }
+
+    // ── [B0] 提出（self 1 枚）──
+    const sub = submitMyTask({ studentId: sid, taskType: 'self', subject: '', announcementId: '', content: 'admintest', photos: [IMG] });
+    const subId = sub && sub.submissionId;
+    if (subId) createdSubs[subId] = true;
+    pass('[B0] submitMyTask 成功', sub && sub.ok === true && !!subId, sub && (sub.message || ''));
+
+    // [B1] summary に該当生徒
+    const sum = getMyTaskPhotosList({ teacherId: tAdmin, password: TPW });
+    let me = null;
+    if (sum && sum.ok && Array.isArray(sum.students)) {
+      me = sum.students.filter(function(s){ return s.studentId === sid; })[0] || null;
+    }
+    pass('[B1a] summary mode', sum && sum.mode === 'summary');
+    pass('[B1b] 該当生徒 + submissionCount/photoCount', !!me && me.submissionCount >= 1 && me.photoCount >= 1, me ? ('sub=' + me.submissionCount + ' photo=' + me.photoCount) : 'なし');
+
+    // [B2] detail の提出単位構造
+    const det = getMyTaskPhotosList({ teacherId: tAdmin, password: TPW, studentId: sid });
+    let g = null;
+    if (det && det.ok && Array.isArray(det.submissions)) {
+      g = det.submissions.filter(function(s){ return s.submissionId === subId; })[0] || null;
+    }
+    pass('[B2a] detail mode', det && det.mode === 'detail');
+    pass('[B2b] submissions に taskType/subject/photos[]', !!g && g.taskType === 'self' && g.subject === '' && Array.isArray(g.photos) && g.photos.length === 1, g ? ('type=' + g.taskType + ' photos=' + g.photos.length) : 'なし');
+    pass('[B2c] reverted=false', !!g && g.reverted === false);
+
+    // ── 差し戻し検証の準備：revert 対象の台帳を保証（dailyCap で付与 0 の場合の手当て）──
+    if (subId && ledgerGrantedSum(subId) === 0) {
+      _appendHpGrantLedger({ submissionId: subId, studentId: sid, contentType: 'mytask', subject: 'self', submittedDate: today, phase: 'immediate', rawHp: 0, grantedHp: 100, resolvedAt: today });
+      const ls = _findAccountRowOnSheet(sid);
+      const seeded = (Number(ls.rowValues[COL_HP]) || 0) + 100;
+      ls.sheet.getRange(ls.rowIdx + 1, COL_HP + 1).setValue(seeded);
+      const u = {}; u[COL_HP] = seeded; _updateAccountCacheBySid(sid, u);
+      SpreadsheetApp.flush();
+    }
+
+    // [C1] reason 空 → 拒否（HP 減算前）
+    const hpC1 = colHp();
+    const c1 = revertMyTaskSubmission(subId, '', tAdmin, TPW);
+    pass('[C1] reason 空は拒否（HP 不変）', c1 && c1.ok === false && /理由/.test(c1.message || '') && colHp() === hpC1, c1 && (c1.message || ''));
+
+    // [C2] teacher ロール → 拒否（admin 限定）
+    const hpC2 = colHp();
+    const c2 = revertMyTaskSubmission(subId, 'テスト理由', tTeacher, TPW);
+    pass('[C2] teacher は差し戻し不可（HP 不変）', c2 && c2.ok === false && /塾長/.test(c2.message || '') && colHp() === hpC2, c2 && (c2.message || ''));
+
+    // 差し戻し直前の状態
+    const grantSum = ledgerGrantedSum(subId);
+    const hpPre = colHp();
+
+    // [C3] admin + reason → 成功
+    const c3 = revertMyTaskSubmission(subId, 'ていねいに書き直そう', tAdmin, TPW);
+    pass('[C3a] admin 差し戻し成功', c3 && c3.ok === true, c3 && (c3.message || c3.reason || ''));
+    pass('[C3b] revertedHp == 台帳付与額', c3 && c3.revertedHp === grantSum && grantSum > 0, 'revertedHp=' + (c3 && c3.revertedHp) + ' ledgerSum=' + grantSum);
+    const hpPost = colHp();
+    pass('[C3c] COL_HP が revertedHp 分減算', hpPost === (hpPre - grantSum), 'pre=' + hpPre + ' post=' + hpPost + ' minus=' + grantSum);
+    const lr = ledgerRevertedAtFilled(subId);
+    pass('[C3d] 台帳全行に revertedAt', lr.rows > 0 && lr.allFilled, 'rows=' + lr.rows);
+    pass('[C3e] HPLog に mytask_revert 証跡（負）', hplogHasRevert());
+    pass('[C3f] TeacherActions に MYTASK_REVERT', teacherActionHasRevert(subId));
+    pass('[C3g] 対象生徒へ通知（TeacherMessages）+ notified', c3 && c3.notified === true && messageDeliveredTo(sid, tAdmin));
+
+    // [C4] 再 revert → alreadyReverted（COL_HP 不変）
+    const hpBeforeRe = colHp();
+    const c4 = revertMyTaskSubmission(subId, '再差し戻し', tAdmin, TPW);
+    const hpAfterRe = colHp();
+    pass('[C4] 再 revert は alreadyReverted（二重減算なし）', c4 && c4.ok === false && c4.alreadyReverted === true && hpAfterRe === hpBeforeRe, (c4 && (c4.reason || '')) + ' hp=' + hpAfterRe);
+
+    // [C5] detail で reverted=true
+    const det2 = getMyTaskPhotosList({ teacherId: tAdmin, password: TPW, studentId: sid });
+    let g2 = null;
+    if (det2 && det2.ok && Array.isArray(det2.submissions)) {
+      g2 = det2.submissions.filter(function(s){ return s.submissionId === subId; })[0] || null;
+    }
+    pass('[C5] detail で reverted=true', !!g2 && g2.reverted === true);
+
+  } catch (e) {
+    pass('[EXCEPTION]', false, String(e));
+  } finally {
+    // ── 後始末（本テスト作成分のみ。実生徒データには触れない）──
+    // a. COL_HP を実行前値へ復元
+    try {
+      const locR = _findAccountRowOnSheet(sid);
+      if (locR) {
+        locR.sheet.getRange(locR.rowIdx + 1, COL_HP + 1).setValue(hpBefore);
+        const u = {}; u[COL_HP] = hpBefore; _updateAccountCacheBySid(sid, u);
+        _invalidateCache('cache_ranking_last_week');
+      }
+    } catch (e) { results.push({ name: '[RESTORE] COL_HP', ok: false, detail: String(e) }); }
+
+    // b. MyTaskPhotos：本テストの submissionId 行を削除 + Drive 写真ゴミ箱へ
+    try {
+      const sh = _ensureMyTaskPhotosSheet();
+      if (sh.getLastRow() >= 2) {
+        const v = sh.getDataRange().getValues();
+        const cSubC = v[0].indexOf('submissionId');
+        const cFid  = v[0].indexOf('driveFileId');
+        const del = [];
+        for (let i = 1; i < v.length; i++) {
+          if (!createdSubs[String(v[i][cSubC] || '').trim()]) continue;
+          del.push(i + 1);
+          const fid = (cFid >= 0) ? String(v[i][cFid] || '').trim() : '';
+          if (fid) { try { DriveApp.getFileById(fid).setTrashed(true); } catch (_e) {} }
+        }
+        del.sort(function(a, b){ return b - a; }).forEach(function(rn){ try { sh.deleteRow(rn); } catch (_e) {} });
+      }
+    } catch (e) { results.push({ name: '[CLEANUP] MyTaskPhotos', ok: false, detail: String(e) }); }
+
+    // c/d. HpGrantLedger / HpReservePool：本テストの submissionId 行を削除
+    [SHEET_HP_GRANT_LEDGER, SHEET_HP_RESERVE_POOL].forEach(function(sheetName) {
+      try {
+        const sh = _ss().getSheetByName(sheetName);
+        if (sh && sh.getLastRow() >= 2) {
+          const v = sh.getDataRange().getValues();
+          const c = v[0].indexOf('submissionId');
+          if (c >= 0) {
+            const del = [];
+            for (let i = 1; i < v.length; i++) if (createdSubs[String(v[i][c] || '').trim()]) del.push(i + 1);
+            del.sort(function(a, b){ return b - a; }).forEach(function(rn){ try { sh.deleteRow(rn); } catch (_e) {} });
+          }
+        }
+      } catch (e) { results.push({ name: '[CLEANUP] ' + sheetName, ok: false, detail: String(e) }); }
+    });
+
+    // e. HPLog：本テストが本日書いた mytask_ 系（mytask_self_only / mytask_revert）の行を削除
+    try {
+      const sh = _ss().getSheetByName(SHEET_HPLOG);
+      if (sh && sh.getLastRow() >= 2) {
+        const v = sh.getDataRange().getValues();
+        const h = v[0];
+        const cTs   = (h.indexOf('timestamp') >= 0) ? h.indexOf('timestamp') : 0;
+        const cSidH = (h.indexOf('studentId') >= 0) ? h.indexOf('studentId') : 1;
+        const cType = (h.indexOf('type') >= 0) ? h.indexOf('type') : 4;
+        const del = [];
+        for (let i = 1; i < v.length; i++) {
+          if (String(v[i][cSidH] || '').trim() !== sid) continue;
+          if (!myLogTypes[String(v[i][cType] || '').trim()]) continue;
+          if (_educationalDayFromTs(v[i][cTs]) !== today) continue;
+          del.push(i + 1);
+        }
+        del.sort(function(a, b){ return b - a; }).forEach(function(rn){ try { sh.deleteRow(rn); } catch (_e) {} });
+      }
+    } catch (e) { results.push({ name: '[CLEANUP] HPLog', ok: false, detail: String(e) }); }
+
+    // f. TeacherActions：本テストの MYTASK_PHOTO_VIEW / MYTASK_REVERT（本テスト submissionId 含む）行を削除
+    try {
+      const sh = _ss().getSheetByName(SHEET_TEACHER_ACTIONS);
+      if (sh && sh.getLastRow() >= 2) {
+        const v = sh.getDataRange().getValues();
+        const h = v[0];
+        const cAct = h.indexOf('action');
+        const cDet = h.indexOf('details');
+        const del = [];
+        for (let i = 1; i < v.length; i++) {
+          const act = String(v[i][cAct] || '').trim();
+          if (act !== 'MYTASK_PHOTO_VIEW' && act !== 'MYTASK_REVERT') continue;
+          const d = String(v[i][cDet] || '');
+          let mine = false;
+          Object.keys(createdSubs).forEach(function(s){ if (d.indexOf(s) >= 0) mine = true; });
+          if (mine) del.push(i + 1);
+        }
+        del.sort(function(a, b){ return b - a; }).forEach(function(rn){ try { sh.deleteRow(rn); } catch (_e) {} });
+      }
+    } catch (e) { results.push({ name: '[CLEANUP] TeacherActions', ok: false, detail: String(e) }); }
+
+    // g. TeacherMessages：本テストが送った通知行を削除（messageId or senderId=tAdmin）
+    try {
+      const sh = _ss().getSheetByName(SHEET_TEACHER_MESSAGES);
+      if (sh && sh.getLastRow() >= 2) {
+        const v = sh.getDataRange().getValues();
+        const cMid = v[0].indexOf('messageId');
+        const cSnd = v[0].indexOf('senderId');
+        const del = [];
+        for (let i = 1; i < v.length; i++) {
+          const mid = String(v[i][cMid] || '').trim();
+          const snd = String(v[i][cSnd] || '').trim();
+          if (createdMessageIds[mid] || snd === tAdmin) del.push(i + 1);
+        }
+        del.sort(function(a, b){ return b - a; }).forEach(function(rn){ try { sh.deleteRow(rn); } catch (_e) {} });
+      }
+    } catch (e) { results.push({ name: '[CLEANUP] TeacherMessages', ok: false, detail: String(e) }); }
+
+    // h. 一時 teacher 行を削除
+    if (teacherRowsAdded) {
+      try {
+        const tsh = _ss().getSheetByName(SHEET_TEACHERS);
+        if (tsh && tsh.getLastRow() >= 2) {
+          const v = tsh.getDataRange().getValues();
+          const cId = v[0].indexOf('teacherId');
+          const del = [];
+          for (let i = 1; i < v.length; i++) {
+            const id = String(v[i][cId] || '').trim();
+            if (id === tAdmin || id === tTeacher) del.push(i + 1);
+          }
+          del.sort(function(a, b){ return b - a; }).forEach(function(rn){ try { tsh.deleteRow(rn); } catch (_e) {} });
+        }
+      } catch (e) { results.push({ name: '[CLEANUP] Teachers temp', ok: false, detail: String(e) }); }
+    }
+
+    SpreadsheetApp.flush();
+  }
+
+  const allOk = results.every(function(r){ return r.ok; });
+  results.forEach(function(r){ console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.detail ? ' / ' + r.detail : '')); });
+  console.log('==== testMyTaskAdminBackend: ' + (allOk ? 'ALL PASS' : 'SOME FAILED') + ' ====');
+  console.log('後始末メモ：一時 teacher 行 / MyTaskPhotos / Drive 写真 / HpGrantLedger / HpReservePool / 本日分 mytask_ HPLog / TeacherActions / TeacherMessages を削除し、COL_HP 復元済み（test account 1001 のみ・実生徒データ不変）。');
   return { ok: allOk, results: results, hpBefore: hpBefore };
 }
 
