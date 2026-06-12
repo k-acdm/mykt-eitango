@@ -5830,25 +5830,48 @@ function _kisoOcrWithGemini(imageBase64, numQuestions, rankName) {
 // モデル・リトライ機構は _kisoOcrWithGemini と完全同一。
 //   - HTTP 429 / 5xx / 帯域幅エラーで内部 1 回自動リトライ（500ms wait）
 //   - HTTP 4xx / promptFeedback ブロック / SAFETY finishReason はリトライ対象外
-function _wabun1OcrWithGemini(imageBase64) {
+function _wabun1OcrWithGemini(imageBase64, answerHints) {
   const apiKey = _props().getProperty('GEMINI_API_KEY');
   if (!apiKey) return { ok: false, message: 'GEMINI_API_KEY が設定されていません' };
   const model = 'gemini-2.5-flash';
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
 
-  // 教育的文脈プロンプト（2026-06-13 大改修：例文オウム返し化け + 薄い画像のハルシネーション対策）。
-  // 旧プロンプトはプレースホルダの具体例文・語彙（「（モニョ）を注文する」「（ホニャ）を食べる」、
-  // モニョ/ホニャ/ナニカ/ホゲ 等）を埋め込んでおり、AI が画像でなくその例文をオウム返しして
-  // 無関係な文章に化ける実害が発生していた。本改修で：
-  //   ① 具体例文・プレースホルダ語彙を完全撤去（抽象記号「○○」「□□」のみに置換）。
-  //   ② 「読めない部分は推測・補正・創作せず空/?にせよ」を明記（薄い/ぼやけ/写り込み/筆圧不足対策）。
-  //   ③ 出力を {"readable","text"} の JSON 化し、readable=no/blank のときは
-  //      呼び出し側で採点に進ませず再撮影誘導（retake:true）する。
-  // 自由 OCR 方式（正解を渡さない）は維持。カンジー _kanjiJudgeWithGemini の readable 方式を移植。
-  // readable は和文英訳①の出力構造（プレーンテキスト1本＝問単位ではない）に合わせ「全体1つ」とする。
+  // 教育的文脈プロンプト（2026-06-13）。
+  //  - 履歴①（83d0d5a）：例文オウム返し化け + 薄い画像のハルシネーション対策として、
+  //    具体例文・プレースホルダ語彙を撤去し、「読めない部分は創作せず空/?・readable で申告」
+  //    を導入。出力は {"readable","text"}（全体readable + プレーン番号付きテキスト）。
+  //  - 履歴②（本改修）：「正解を把握したうえで読み取る」方式に変更。サーバが今日の各問の
+  //    正解（answerHints）を読み取りの“手がかり”としてプロンプトに渡す。ただし AI の役割は
+  //    あくまで「正解を手がかりに、実際に書かれた手書き文字を正確に読む」ことまで。
+  //    ★○×判定は AI にさせない（判定・正規化・フィードバックは submitWabun1 が従来どおり実施）。
+  //    カンジー _kanjiJudgeWithGemini（gas:18883-18896）の反補正ルールを英文向けに移植し、
+  //    「正解に寄せて補正するな／違う字はそのまま読め／薄い等は正解で埋めず readable=no」を厳守させる。
+  //    出力構造 {"readable","text"} は維持（per-item 化しない＝下流のパーサ・確認画面・OCR乱れ
+  //    警告・submitWabun1 を無改修で残すため）。
+  //  ★正解はプロンプト埋め込みのためだけにサーバ内部で使用。戻り値・クライアント・ログには
+  //    一切残さない（getWabun1Topic の「today に answers を含めない」漏洩防止設計を OCR 経路でも維持）。
+  const hints = Array.isArray(answerHints) ? answerHints : [];
+  const hintLines = hints.map(function(h){
+    return '問' + Number(h && h.no) + 'の正解: "' + String((h && h.answer) || '') + '"';
+  }).join('\n');
+  const hintSection = hintLines
+    ? ('【各番号の正解（読み取りの手がかり。○×判定には使わない）】\n' +
+       '・以下は今日の各問題の模範解答です。生徒が「何を書こうとしたか」を推測する手がかりとしてのみ使います。\n' +
+       '・この正解は読み取りの参考に過ぎません。○か×かの判定はあなたの仕事ではありません（判定は別システムが行います）。\n' +
+       hintLines + '\n' +
+       '\n' +
+       '【正解を手がかりにする際の絶対ルール（反補正・最重要）】\n' +
+       '・正解はあくまで読み取りの手がかりです。生徒が実際に書いた文字を、正解に寄せて補正してはいけません。\n' +
+       '・生徒が正解と違う綴り・違う単語・違う語順・違う大文字小文字・ピリオドやカンマの有無の違いで書いていたら、絶対に正解どおりに直さず、実際に書かれているとおりに読み取ってください。\n' +
+       '・正解を見て「たぶんこう書いたはずだ」と推測し、正解どおりに出力してはいけません。あくまで紙に実際に書かれている文字を読み取ります。\n' +
+       '・薄い・ぼやけ・写り込み・筆圧不足で判別できない部分は、正解で埋めてはいけません。空または「?」にし、readable="no" としてください。\n' +
+       '・答案が白紙なら、正解で埋めず readable="blank"、text="" としてください。\n' +
+       '\n')
+    : '';
   const prompt =
     'これは中学生の手書きの英訳答案です。日本語の指示文に対して英語で回答した答案を写真に撮ったものです。\n' +
     '\n' +
+    hintSection +
     '【最重要原則（絶対遵守、他のすべての指示に優先）】\n' +
     '・画像に実際に書かれている文字列を、そのまま忠実に読み取ってください。\n' +
     '・文脈や常用語・常識的な熟語に基づく単語の置き換え・推測補正は絶対に禁止します。\n' +
@@ -6029,10 +6052,35 @@ function _wabun1OcrWithGemini(imageBase64) {
 // 和文英訳① OCR エンドポイント（doPost 経由、frontend `sendWabun1Photo` から呼ばれる）。
 // params: { action:'ocrWabun1Photo', imageBase64:'...' }
 // 戻り値: _wabun1OcrWithGemini と同形（ok / ocrText / attempts / message / retake）
+//   ※ 戻り値に正解（answers）は一切含めない（カンニング防止 / getWabun1Topic と同方針）。
 function ocrWabun1Photo(params) {
   const imageBase64 = String((params && params.imageBase64) || '');
   if (!imageBase64) return { ok: false, message: '画像データが見つかりません' };
-  return _wabun1OcrWithGemini(imageBase64);
+
+  // 「正解を手がかりに正確に読み取る」ため、今日の各タスクの正解をサーバ内部だけで取得する。
+  // ・正解はプロンプトに埋め込むためだけに使い、戻り値・クライアント・ログには一切残さない。
+  // ・OCR 時点では生徒の skipQuestions 選択（submit 時にクライアントから来る）は不明なため、
+  //   topic.tasks に存在する全タスクの正解を渡す。番号体系は submitWabun1 と同じ
+  //   （task.no ↔ topic.answers[idx] の対応、_wabun1RowToObj 参照）。日付基準も submit と同じ
+  //   _sangoToday()（教育日）なので、OCR の手がかり正解と採点時の正解は同一の今日の問題を指す。
+  let answerHints = [];
+  try {
+    const topic = _readWabun1TopicsByDate(_sangoToday());
+    if (topic && Array.isArray(topic.tasks)) {
+      answerHints = topic.tasks.map(function(t, idx){
+        return {
+          no: Number(t && t.no),
+          answer: String((topic.answers && topic.answers[idx]) || '')
+        };
+      }).filter(function(h){ return h.answer !== ''; });
+    }
+  } catch (e) {
+    // 正解取得に失敗しても OCR 自体は継続（手がかり無しで従来どおり読み取る）。
+    // ★エラーオブジェクトのみログ出力。正解本文はログに出さない。
+    console.error('[ocrWabun1Photo] 正解ヒント取得失敗（手がかり無しで続行）', e);
+    answerHints = [];
+  }
+  return _wabun1OcrWithGemini(imageBase64, answerHints);
 }
 
 // Vision API レスポンスから symbol レベルの confidence を平均で取得。
