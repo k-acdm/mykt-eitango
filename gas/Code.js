@@ -1104,6 +1104,8 @@ function doGet(e) {
       else if (action === 'getStudentsListForGrant') result = getStudentsListForGrant(params);
       // マイ課題③（2026-06-12）：active=TRUE の全告知一覧（管理画面用 read-only、teacherId/password 認証）
       else if (action === 'listAllActiveMyTaskAnnouncements') result = listAllActiveMyTaskAnnouncements(params);
+      // マイ課題⑧（2026-06-12）：生徒向けの自分宛 active 告知一覧（生徒フロント用 read-only、studentId 直接・認証なし）
+      else if (action === 'listMyTaskAnnouncementsForStudent') result = listMyTaskAnnouncementsForStudent(params.studentId);
       else if (action === 'getStreakRecoveryCandidates') result = getStreakRecoveryCandidates(params);
       // 今日のマイ活 振り返り：閲覧系（認証なしの生徒/保護者用 + admin/teacher 認証用の 2 本）
       else if (action === 'getReflectionsForStudent')    result = getReflectionsForStudent(params);
@@ -22674,6 +22676,72 @@ function testListAllActiveMyTaskAnnouncements() {
   results.forEach(function(r){ console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.detail ? ' / ' + r.detail : '')); });
   console.log('==== testListAllActiveMyTaskAnnouncements: ' + (allOk ? 'ALL PASS' : 'SOME FAILED') + ' ====');
   console.log('後始末メモ：本テストが作成した告知行は削除済み（1001/1002/1003 分）。実生徒のデータには触れていません。');
+  return { ok: allOk, results: results };
+}
+
+// マイ課題⑧ ルーティング確認：listMyTaskAnnouncementsForStudent が doGet 経由で生徒フロントから
+// 呼べるようになったかの軽量検証。GAS エディタのドロップダウンから引数なしで実行可。
+//   ・関数本体のロジックは testMyTaskAnnouncement で検証済み。ここは「doGet に正しく繋がったか」
+//     ＋「直接呼び出しと doGet 経由が一致」＋「MYTASK_SUBJECTS 順」の確認に絞る。
+//   ・テストアカウント 1001 に教科を逆順（数学→英語）で告知保存 → 英語 が 数学 より前に来ることを確認。
+// ★ 後始末：本テスト作成の告知行のみ削除。実生徒データには触れない。
+function testListMyTaskAnnouncementsForStudentRouting() {
+  const sid = '1001';
+  const results = [];
+  function pass(name, cond, detail) { results.push({ name: name, ok: !!cond, detail: detail || '' }); }
+  const createdIds = {};
+  const cMath = 'TESTROUTE_1001数学';
+  const cEng  = 'TESTROUTE_1001英語';
+  const myContents = {}; myContents[cMath] = true; myContents[cEng] = true;
+
+  try {
+    // わざと教科を逆順（数学→英語）で登録 → MYTASK_SUBJECTS 順なら英語が先に並ぶはず
+    const r1 = _saveMyTaskAnnouncementCore('数学', cMath, '2026-06-11', [sid]);
+    if (r1 && r1.announcementId) createdIds[r1.announcementId] = true;
+    const r2 = _saveMyTaskAnnouncementCore('英語', cEng, '2026-06-12', [sid]);
+    if (r2 && r2.announcementId) createdIds[r2.announcementId] = true;
+
+    // [1] 直接呼び出しで announcements が返る
+    const direct = listMyTaskAnnouncementsForStudent(sid);
+    pass('[1] 直接呼び出し ok=true', direct && direct.ok === true);
+    const dMine = ((direct && direct.announcements) || []).filter(function(a){ return myContents[a.content] === true; });
+    pass('[2] 本テストの2件が返る', dMine.length === 2, 'n=' + dMine.length);
+    pass('[3] MYTASK_SUBJECTS 順（英語→数学）', dMine.length === 2 && dMine[0].subject === '英語' && dMine[1].subject === '数学',
+         dMine.map(function(a){ return a.subject; }).join(','));
+
+    // [4][5] doGet 経由（生徒フロントと同じ呼び出し形）でも同じ結果になる＝ルーティング接続確認
+    const ev = { parameter: { params: JSON.stringify({ action: 'listMyTaskAnnouncementsForStudent', studentId: sid }) } };
+    const out = doGet(ev);
+    let viaGet = null;
+    try { viaGet = JSON.parse(out.getContent()); } catch (parseErr) { viaGet = null; }
+    pass('[4] doGet 経由 ok=true', viaGet && viaGet.ok === true, viaGet ? '' : 'JSON parse 失敗');
+    const gMine = ((viaGet && viaGet.announcements) || []).filter(function(a){ return myContents[a.content] === true; });
+    pass('[5] doGet 経由でも 2 件 + 英語→数学順',
+         gMine.length === 2 && gMine[0].subject === '英語' && gMine[1].subject === '数学',
+         gMine.map(function(a){ return a.subject; }).join(','));
+  } catch (e) {
+    pass('[EXCEPTION]', false, String(e));
+  } finally {
+    // 後始末：本テストが作成した announcementId の行を削除（降順）
+    try {
+      const sh = _ensureMyTaskAnnouncementsSheet();
+      if (sh.getLastRow() >= 2) {
+        const values = sh.getDataRange().getValues();
+        const iId = values[0].indexOf('announcementId');
+        const delRows = [];
+        for (let r = 1; r < values.length; r++) {
+          if (createdIds[String(values[r][iId] || '').trim()]) delRows.push(r + 1);
+        }
+        delRows.sort(function(a, b){ return b - a; }).forEach(function(rowNum){ try { sh.deleteRow(rowNum); } catch(_e) {} });
+      }
+    } catch (cleanErr) {
+      results.push({ name: '[CLEANUP]', ok: false, detail: String(cleanErr) });
+    }
+  }
+  const allOk = results.every(function(r){ return r.ok; });
+  results.forEach(function(r){ console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.detail ? ' / ' + r.detail : '')); });
+  console.log('==== testListMyTaskAnnouncementsForStudentRouting: ' + (allOk ? 'ALL PASS' : 'SOME FAILED') + ' ====');
+  console.log('後始末メモ：本テストが作成した 1001 の告知行は削除済み。実生徒データには触れていません。');
   return { ok: allOk, results: results };
 }
 
