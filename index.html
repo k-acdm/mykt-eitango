@@ -2243,6 +2243,26 @@
     .mytask-content-box { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; font-size: 15px; line-height: 1.7; color: #1f2937; white-space: pre-wrap; margin-top: 6px; }
     /* 入力必須：content 未入力時は前進ボタン（写真を撮る）を薄く・押せない表示に（id-scopedで他ボタンに影響させない） */
     #mytask-self-entry-next-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+    #mytask-hw-capture-next-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+    /* マイ課題 パターン1（塾の宿題）：告知選択ボタン・結果集約。最小限の新規CSS。 */
+    .mytask-hw-ann-btn { display: block; width: 100%; text-align: left; border: 2px solid #c7d2fe; background: #eef2ff; border-radius: 12px; padding: 12px 14px; margin-top: 10px; cursor: pointer; font-family: inherit; transition: transform .12s, box-shadow .12s; }
+    .mytask-hw-ann-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,125,240,.18); }
+    .mytask-hw-ann-btn.done { border-color: #6ee7b7; background: #ecfdf5; }
+    .mytask-hw-ann-subject { font-size: 17px; font-weight: bold; color: #312e81; }
+    .mytask-hw-ann-btn.done .mytask-hw-ann-subject { color: #065f46; }
+    .mytask-hw-ann-content { font-size: 14px; color: #374151; margin-top: 5px; line-height: 1.6; white-space: pre-wrap; }
+    .mytask-hw-ann-date { font-size: 12px; color: #6b7280; margin-top: 6px; }
+    .mytask-hw-done-badge { display: inline-block; margin-left: 8px; font-size: 12px; font-weight: bold; color: #065f46; background: #d1fae5; border-radius: 999px; padding: 2px 10px; vertical-align: middle; }
+    .mytask-hw-empty { text-align: center; color: #6b7280; font-size: 15px; line-height: 1.9; padding: 28px 14px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; margin-top: 12px; }
+    .mytask-hw-notice-info { margin: 4px 0 12px; }
+    .mytask-hw-notice-subject, .mytask-hw-confirm-subject-name { font-size: 16px; font-weight: bold; color: #312e81; margin-bottom: 6px; }
+    .mytask-hw-capture-subject { font-size: 16px; font-weight: bold; color: #312e81; margin: 6px 0 4px; }
+    .mytask-hw-confirm-subject { border: 2px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-top: 12px; background: #fff; }
+    .mytask-hw-result-list { margin-top: 14px; }
+    .mytask-hw-result-row { font-size: 15px; line-height: 1.7; padding: 9px 12px; border-radius: 8px; margin-top: 8px; background: #f8fafc; border: 1px solid #e5e7eb; color: #1f2937; }
+    .mytask-hw-result-row.ok { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+    .mytask-hw-result-row.warn { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+    .mytask-hw-resend-btn { margin-left: 6px; border: none; background: linear-gradient(135deg,#fb923c,#f97316); color: #fff; font-size: 13px; font-weight: bold; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
     .sango-ocr-box { display:none; margin-top:14px; padding:16px; background:#fff; border:2px solid #4f7df0; border-radius:12px; }
     .sango-ocr-label { font-size:14px; color:#666; margin-bottom:8px; }
     .sango-ocr-text { font-size:15px; line-height:1.7; white-space:pre-wrap; padding:12px; background:#f8f9ff; border-radius:8px; min-height:60px; }
@@ -3008,10 +3028,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260614-0016"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260614-0112"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260614-0016">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260614-0016"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260614-0112">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260614-0112"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4563,6 +4583,104 @@
   <header><h1>✅ 提出完了</h1><span></span></header>
   <div class="container" style="padding-top:16px">
     <div id="mytask-self-done-body"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- ============================================== -->
+<!-- マイ課題 パターン1（塾の宿題・告知連動）         -->
+<!-- ============================================== -->
+<!-- (1-A) 告知選択 -->
+<div id="screen-mytask-hw-select" class="screen">
+  <header><h1>📚 塾の宿題</h1><span>どの教科を出す？</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-mytask-hw-select" src="images/maikadai-default.png" alt="マイカダイ">
+      <div class="mate-bubble" id="mate-bubble-mytask-hw-select">どの教科の宿題を出す？</div>
+    </div>
+    <div id="mytask-hw-select-list"><div class="loading">⏳ 読み込み中...</div></div>
+    <div id="mytask-hw-select-actions"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskHome()">← マイ課題トップに戻る</button>
+  </div>
+</div>
+
+<!-- (1-B) 4つの注意書き ＋ 教科確認 -->
+<div id="screen-mytask-hw-notice" class="screen">
+  <header><h1>📚 提出前の注意</h1><span>大事なことだよ</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-mytask-hw-notice" src="images/maikadai-encourage.png" alt="マイカダイ">
+      <div class="mate-bubble" id="mate-bubble-mytask-hw-notice">4つのこと、守れてる？守れてたら写真を撮って！</div>
+    </div>
+    <div id="mytask-hw-notice-info" class="mytask-hw-notice-info"></div>
+    <div class="wabun1-period-warn">
+      <span class="warn-title">⚠️ 提出する前に必ず確認してね！</span>
+      <ul>
+        <li>一気にまとめてやらず、数日かけて分散させてやること</li>
+        <li>ていねいな字で書くこと</li>
+        <li>教材名とページ数を必ず書くこと</li>
+        <li>丸つけまでちゃんとやること</li>
+        <li>これらがきちんと守られていない場合は、<small>差し戻し（HP返上）になることがあります。</small></li>
+      </ul>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:8px" onclick="goMyTaskHwCapture()">📸 今日の分の写真を撮る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskHwSelect()">← 教科選びに戻る</button>
+  </div>
+</div>
+
+<!-- (1-C) 撮影（教科別） -->
+<div id="screen-mytask-hw-capture" class="screen">
+  <header><h1>📸 写真を撮る</h1><span id="mytask-hw-photo-count">0 枚</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-mytask-hw-capture" src="images/maikadai-encourage.png" alt="マイカダイ">
+      <div class="mate-bubble" id="mate-bubble-mytask-hw-capture">明るいところで、見やすく撮って！</div>
+    </div>
+    <div class="mytask-hw-capture-subject" id="mytask-hw-capture-subject"></div>
+    <div class="reload-warn-banner redo" data-content="マイ課題">
+      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
+      もう一度ログインしてから、<strong>マイ課題の写真をもう一度撮影し直してね</strong>。<span class="reload-warn-apology">面倒くさくてゴメンナサイ🙇‍♂️💦</span>
+    </div>
+    <input type="file" id="mytask-hw-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onMyTaskHwPhotoSelected(event)"/>
+    <button class="btn-camera" onclick="document.getElementById('mytask-hw-photo-input').click()">📷 写真を撮る／追加する</button>
+    <div id="mytask-hw-photo-list" class="mytask-photo-list"></div>
+    <button class="btn-wide" id="mytask-hw-capture-next-btn" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:14px" onclick="goMyTaskHwMore()" disabled>次へ ▶</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskHwNotice()">← 戻る</button>
+  </div>
+</div>
+
+<!-- (1-D) 他教科もやるか分岐 -->
+<div id="screen-mytask-hw-more" class="screen">
+  <header><h1>📚 他の教科は？</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-mytask-hw-more" src="images/maikadai-default.png" alt="マイカダイ">
+      <div class="mate-bubble" id="mate-bubble-mytask-hw-more">他の教科もある？あるなら続けて、なければ送信へ！</div>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#5c6bc0,#3949ab);margin-top:8px" onclick="goMyTaskHwSelect()">📚 他の教科もやる</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:12px" onclick="goMyTaskHwConfirm()">✅ 送信する（やらない）</button>
+  </div>
+</div>
+
+<!-- (1-E) 送信前確認（全教科まとめ） -->
+<div id="screen-mytask-hw-confirm" class="screen">
+  <header><h1>📋 送信前の確認</h1><span>これで送る？</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-mytask-hw-confirm" src="images/maikadai-thinking.png" alt="マイカダイ">
+      <div class="mate-bubble" id="mate-bubble-mytask-hw-confirm">これで送るけど、OK？良さそうなら送信ボタンを押して！</div>
+    </div>
+    <div id="mytask-hw-confirm-body"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:16px" onclick="submitMyTaskHw()">🚀 送信する</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskHwSelect()">← 戻って追加する</button>
+  </div>
+</div>
+
+<!-- (1-F) 送信結果（教科別集約） -->
+<div id="screen-mytask-hw-done" class="screen">
+  <header><h1>✅ 提出完了</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="mytask-hw-done-body"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -13189,7 +13307,12 @@
     input:   ['やった課題の内容を詳しく教えて！'],
     notice:  ['ていねいな字で書いた？丸付けもした？あと、見やすいように明るいところで撮って！'],
     confirm: ['これで送るけど、OK？良さそうなら送信ボタンを押して！'],
-    done:    ['たしかに受け取った！']
+    done:    ['たしかに受け取った！'],
+    // パターン1（塾の宿題・告知連動）用
+    p1_select:  ['どの教科の宿題を出す？'],
+    p1_notice:  ['4つのこと、守れてる？守れてたら写真を撮って！'],
+    p1_capture: ['明るいところで、見やすく撮って！'],
+    p1_more:    ['他の教科もある？あるなら続けて、なければ送信へ！']
   };
 
   // ============================================================================
@@ -13233,7 +13356,341 @@
     goMyTaskSelfCapture();
   }
   // パターン1（塾の宿題）：中身は次タスク(8-3)で実装。現状は押しても無害（何もしない）。
-  function goMyTaskHomework() { /* 8-3 で告知連動フローを実装予定 */ }
+  // ============================================================================
+  // パターン1（塾の宿題・告知連動） — 2026-06-14 実装
+  //   フロー：home → hw-select（告知一覧）→ hw-notice（教科ごと4注意）→ hw-capture（教科別撮影）
+  //           → hw-more（他教科分岐）→ hw-confirm（全教科まとめ確認）→ submit（教科ごとに submitMyTask）→ hw-done（結果集約）
+  //   ★教科別写真管理：_myTaskHwState.subjects[subject] = { announcementId, content, announcedDate, photos:[base64,...] }
+  //     同じ教科を選び直しても photos に追加するだけ（教科ごと1提出にまとめる → HP は教科ごと1回分）。
+  // ============================================================================
+  var _myTaskHwState = { announcements: [], subjects: {}, current: null, lastResults: [] };
+  function _myTaskHwResetState() { _myTaskHwState = { announcements: [], subjects: {}, current: null, lastResults: [] }; }
+  function _myTaskFmtDate(s) {
+    var m = String(s == null ? '' : s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return String(s == null ? '' : s);
+    return m[1] + '年' + Number(m[2]) + '月' + Number(m[3]) + '日';
+  }
+
+  // 分岐画面のパターン1ボタン → 告知選択画面（毎回リセットして新規セッション開始）
+  function goMyTaskHomework() {
+    _myTaskHwResetState();
+    goMyTaskHwSelect();
+  }
+
+  // (1-A) 告知選択。初回は API 取得、以降（他教科ループ）はキャッシュ再描画（撮影済み photos を保持するため subjects は触らない）。
+  function goMyTaskHwSelect() {
+    _setContentMascot('mate-img-mytask-hw-select', 'default', 'mate-bubble-mytask-hw-select', _pickBubble(MAIKADAI_BUBBLES.p1_select), 'maikadai');
+    showScreen('screen-mytask-hw-select');
+    if (_myTaskHwState.announcements && _myTaskHwState.announcements.length) { _renderMyTaskHwSelect(); return; }
+    var listEl = document.getElementById('mytask-hw-select-list');
+    if (listEl) listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    gasGet({ action: 'listMyTaskAnnouncementsForStudent', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) { _myTaskHwState.announcements = []; }
+      else { _myTaskHwState.announcements = res.announcements || []; }
+      _renderMyTaskHwSelect();
+    }).catch(function(){
+      _myTaskHwState.announcements = [];
+      _renderMyTaskHwSelect();
+    });
+  }
+  function _renderMyTaskHwSelect() {
+    var listEl = document.getElementById('mytask-hw-select-list');
+    var actEl = document.getElementById('mytask-hw-select-actions');
+    var anns = _myTaskHwState.announcements || [];
+    if (!anns.length) {
+      if (listEl) listEl.innerHTML = '<div class="mytask-hw-empty">📭 いま出ている宿題はないよ。<br>次の宿題が出るまで待っててね！</div>';
+      if (actEl) actEl.innerHTML = '';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < anns.length; i++) {
+      var a = anns[i];
+      var entry = _myTaskHwState.subjects[a.subject];
+      var n = (entry && entry.photos) ? entry.photos.length : 0;
+      var badge = n > 0 ? '<span class="mytask-hw-done-badge">✅ 撮影済み ' + n + '枚</span>' : '';
+      html += '<button class="mytask-hw-ann-btn' + (n > 0 ? ' done' : '') + '" onclick="selectMyTaskHwAnnouncement(' + i + ')">'
+        + '<div class="mytask-hw-ann-subject">' + _myTaskEsc(a.subject) + badge + '</div>'
+        + '<div class="mytask-hw-ann-content">' + _myTaskEsc(a.content) + '</div>'
+        + '<div class="mytask-hw-ann-date">出された日：' + _myTaskFmtDate(a.announcedDate) + '</div>'
+        + '</button>';
+    }
+    if (listEl) listEl.innerHTML = html;
+    // 1教科でも撮影済みがあれば「確認・送信へ進む」を表示（他教科ループから送信に進めるように）
+    var anyShot = false;
+    for (var s in _myTaskHwState.subjects) { if (_myTaskHwState.subjects[s].photos && _myTaskHwState.subjects[s].photos.length > 0) { anyShot = true; break; } }
+    if (actEl) {
+      actEl.innerHTML = anyShot
+        ? '<button class="btn-wide" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:14px" onclick="goMyTaskHwConfirm()">✅ 撮った分の確認・送信へ進む</button>'
+        : '';
+    }
+  }
+  // 告知をタップ → その教科を current にし、subjects に告知情報を登録（既存 photos は保持）
+  function selectMyTaskHwAnnouncement(i) {
+    var a = (_myTaskHwState.announcements || [])[i];
+    if (!a) return;
+    var subj = a.subject;
+    if (!_myTaskHwState.subjects[subj]) {
+      _myTaskHwState.subjects[subj] = { announcementId: a.announcementId || '', content: a.content || '', announcedDate: a.announcedDate || '', photos: [] };
+    } else {
+      // 既存教科：告知情報は最新で上書き、photos は維持
+      _myTaskHwState.subjects[subj].announcementId = a.announcementId || '';
+      _myTaskHwState.subjects[subj].content = a.content || '';
+      _myTaskHwState.subjects[subj].announcedDate = a.announcedDate || '';
+    }
+    _myTaskHwState.current = subj;
+    goMyTaskHwNotice();
+  }
+
+  // (1-B) 4つの注意書き ＋ 選んだ教科の確認
+  function goMyTaskHwNotice() {
+    var subj = _myTaskHwState.current;
+    var e = _myTaskHwState.subjects[subj] || {};
+    var infoEl = document.getElementById('mytask-hw-notice-info');
+    if (infoEl) {
+      infoEl.innerHTML =
+        '<div class="mytask-hw-notice-subject">📚 ' + _myTaskEsc(subj) + '</div>' +
+        '<div class="mytask-content-box">' + _myTaskEsc(e.content || '') + '</div>' +
+        '<div class="mytask-hw-ann-date">出された日：' + _myTaskFmtDate(e.announcedDate) + '</div>';
+    }
+    _setContentMascot('mate-img-mytask-hw-notice', 'encourage', 'mate-bubble-mytask-hw-notice', _pickBubble(MAIKADAI_BUBBLES.p1_notice), 'maikadai');
+    showScreen('screen-mytask-hw-notice');
+  }
+
+  // (1-C) 撮影（教科別）
+  function goMyTaskHwCapture() {
+    var subj = _myTaskHwState.current;
+    var titleEl = document.getElementById('mytask-hw-capture-subject');
+    if (titleEl) titleEl.textContent = '📚 ' + (subj || '');
+    _setContentMascot('mate-img-mytask-hw-capture', 'encourage', 'mate-bubble-mytask-hw-capture', _pickBubble(MAIKADAI_BUBBLES.p1_capture), 'maikadai');
+    _renderMyTaskHwPhotos();
+    showScreen('screen-mytask-hw-capture');
+  }
+  function onMyTaskHwPhotoSelected(event) {
+    var file = event.target.files[0]; if (!file) return;
+    var subj = _myTaskHwState.current;
+    if (!subj || !_myTaskHwState.subjects[subj]) { event.target.value = ''; return; }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var maxSize = 1000, w = img.width, h = img.height;
+        if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
+        else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        _myTaskHwState.subjects[subj].photos.push(dataUrl.split(',')[1]);
+        _renderMyTaskHwPhotos();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  }
+  function _renderMyTaskHwPhotos() {
+    var subj = _myTaskHwState.current;
+    var photos = (_myTaskHwState.subjects[subj] && _myTaskHwState.subjects[subj].photos) || [];
+    var listEl = document.getElementById('mytask-hw-photo-list');
+    if (listEl) {
+      var html = '';
+      for (var i = 0; i < photos.length; i++) {
+        html += '<div class="mytask-thumb">'
+          + '<img src="data:image/jpeg;base64,' + photos[i] + '" alt="写真' + (i+1) + '">'
+          + '<button class="mytask-thumb-del" onclick="removeMyTaskHwPhoto(' + i + ')">🗑 削除</button>'
+          + '</div>';
+      }
+      listEl.innerHTML = html;
+    }
+    var countEl = document.getElementById('mytask-hw-photo-count');
+    if (countEl) countEl.textContent = photos.length + ' 枚';
+    var nextBtn = document.getElementById('mytask-hw-capture-next-btn');
+    if (nextBtn) nextBtn.disabled = (photos.length === 0);
+  }
+  function removeMyTaskHwPhoto(i) {
+    var subj = _myTaskHwState.current;
+    if (_myTaskHwState.subjects[subj] && _myTaskHwState.subjects[subj].photos) {
+      _myTaskHwState.subjects[subj].photos.splice(i, 1);
+      _renderMyTaskHwPhotos();
+    }
+  }
+
+  // (1-D) 他教科もやるか分岐
+  function goMyTaskHwMore() {
+    _setContentMascot('mate-img-mytask-hw-more', 'default', 'mate-bubble-mytask-hw-more', _pickBubble(MAIKADAI_BUBBLES.p1_more), 'maikadai');
+    showScreen('screen-mytask-hw-more');
+  }
+
+  // (1-E) 送信前確認（全教科まとめ）。教科順は告知（API＝教科順）に従う。
+  function goMyTaskHwConfirm() {
+    var subs = [];
+    for (var s in _myTaskHwState.subjects) { if (_myTaskHwState.subjects[s].photos.length > 0) subs.push(s); }
+    if (!subs.length) { goMyTaskHwSelect(); return; }
+    var bodyEl = document.getElementById('mytask-hw-confirm-body');
+    var anns = _myTaskHwState.announcements || [];
+    var seen = {}, html = '';
+    function renderSubj(subj) {
+      var e = _myTaskHwState.subjects[subj];
+      if (!e || !e.photos.length) return '';
+      var ph = '';
+      for (var i = 0; i < e.photos.length; i++) { ph += '<img class="mytask-confirm-thumb" src="data:image/jpeg;base64,' + e.photos[i] + '" alt="写真">'; }
+      return '<div class="mytask-hw-confirm-subject">' +
+        '<div class="mytask-hw-confirm-subject-name">📚 ' + _myTaskEsc(subj) + '</div>' +
+        '<div class="mytask-content-box">' + _myTaskEsc(e.content || '') + '</div>' +
+        '<div class="mytask-confirm-photos">' + ph + '</div>' +
+        '</div>';
+    }
+    for (var i = 0; i < anns.length; i++) { var subj = anns[i].subject; if (seen[subj]) continue; seen[subj] = 1; html += renderSubj(subj); }
+    for (var s2 in _myTaskHwState.subjects) { if (!seen[s2]) { html += renderSubj(s2); } }
+    if (bodyEl) bodyEl.innerHTML = html;
+    _setContentMascot('mate-img-mytask-hw-confirm', 'thinking', 'mate-bubble-mytask-hw-confirm', _pickBubble(MAIKADAI_BUBBLES.confirm), 'maikadai');
+    showScreen('screen-mytask-hw-confirm');
+  }
+
+  // (1-E→1-F) 教科ごとに順番に submitMyTask（直列）。各教科の結果を集約。
+  function submitMyTaskHw() {
+    var subs = [];
+    for (var s in _myTaskHwState.subjects) { if (_myTaskHwState.subjects[s].photos.length > 0) subs.push(s); }
+    if (!subs.length) { goMyTaskHwSelect(); return; }
+    _showMyTaskSending();
+    var results = [];
+    var idx = 0;
+    function next() {
+      if (idx >= subs.length) {
+        _hideMyTaskSending();
+        _showMyTaskHwDone(results);
+        return;
+      }
+      var subj = subs[idx];
+      var entry = _myTaskHwState.subjects[subj];
+      var photos = entry.photos.slice();
+      gasPost({
+        action: 'submitMyTask',
+        studentId: _studentId,
+        taskType: 'homework',
+        subject: subj,
+        announcementId: entry.announcementId || '',
+        content: entry.content || '',
+        photos: photos
+      }, 120000).then(function(res){
+        results.push({ subject: subj, res: res, sentPhotos: photos, failedPhotos: [] });
+        idx++; next();
+      }, function(err){
+        results.push({ subject: subj, res: { ok: false, message: String(err && err.message ? err.message : err) }, sentPhotos: photos, failedPhotos: [] });
+        idx++; next();
+      });
+    }
+    next();
+  }
+
+  // (1-F) 結果集約。各教科の grantedRawHp（素点）を合計表示。失敗教科は教科別に再送導線。
+  function _showMyTaskHwDone(results) {
+    _myTaskHwState.lastResults = results;
+    // 各 result の失敗写真を計算（partial=ok+failedIndexes / error=全 sentPhotos）
+    for (var i = 0; i < results.length; i++) {
+      var r = results[i], res = r.res || {};
+      if (res.ok) {
+        var failed = res.failedIndexes || [];
+        var fp = [];
+        for (var k = 0; k < failed.length; k++) { var ix = failed[k]; if (r.sentPhotos[ix] != null) fp.push(r.sentPhotos[ix]); }
+        r.failedPhotos = fp;
+      } else {
+        r.failedPhotos = (r.sentPhotos || []).slice();
+      }
+    }
+    _renderMyTaskHwDoneBody(true);
+    showScreen('screen-mytask-hw-done');
+  }
+  function _renderMyTaskHwDoneBody(doCelebrate) {
+    var results = _myTaskHwState.lastResults || [];
+    var body = document.getElementById('mytask-hw-done-body');
+    if (!body) return;
+    var totalRawHp = 0, anyOutstanding = false, lines = '';
+    for (var i = 0; i < results.length; i++) {
+      var r = results[i], subj = r.subject, res = r.res || {};
+      var outstanding = (r.failedPhotos && r.failedPhotos.length > 0);
+      if (res.ok) {
+        if (res.alreadyCapped) {
+          lines += '<div class="mytask-hw-result-row">⏫ <b>' + _myTaskEsc(subj) + '</b>：今日の上限に達しているよ（提出は受け取ったよ）</div>';
+        } else {
+          var raw = Number(res.grantedRawHp) || 0; totalRawHp += raw;
+          lines += '<div class="mytask-hw-result-row ok">✅ <b>' + _myTaskEsc(subj) + '</b>：+' + raw + 'HP</div>';
+        }
+      }
+      if (outstanding) {
+        anyOutstanding = true;
+        var label = res.ok ? ('写真が一部送れなかった（' + r.failedPhotos.length + '枚）') : '送信できなかった';
+        lines += '<div class="mytask-hw-result-row warn">⚠️ <b>' + _myTaskEsc(subj) + '</b>：' + label +
+          ' <button class="mytask-hw-resend-btn" onclick="resendMyTaskHwFailed(' + i + ')">🔁 もう一度送る</button></div>';
+      }
+    }
+    var confetti = '';
+    if (totalRawHp > 0) {
+      var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
+      for (var c = 0; c < 8; c++) {
+        var left = Math.floor(Math.random() * 90) + 5;
+        var delay = (Math.random() * 0.6).toFixed(2);
+        confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[c] + '</span>';
+      }
+    }
+    var title = anyOutstanding ? '提出しました（再送できる教科があるよ）' : 'ぜんぶ提出完了！よくがんばりました！';
+    var hpInit = doCelebrate ? '0' : String(totalRawHp);
+    var hpBlock = (totalRawHp > 0)
+      ? '<div class="wabun1-result-hp">合計 +<span class="wabun1-result-hp-num" id="mytask-hw-done-hp-num">' + hpInit + '</span> HP 獲得！</div>'
+      : '<div class="wabun1-result-already">提出を受け取ったよ！</div>';
+    body.innerHTML =
+      '<div class="mate-row"><img class="mate-img" src="images/maikadai-celebrate.png" alt="マイカダイ"><div class="mate-bubble">' + _pickBubble(MAIKADAI_BUBBLES.done) + '</div></div>' +
+      '<div class="wabun1-result-success">' +
+        '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
+        '<div style="font-size:52px">🎉</div>' +
+        '<div class="wabun1-result-title">' + title + '</div>' +
+        hpBlock +
+      '</div>' +
+      '<div class="mytask-hw-result-list">' + lines + '</div>';
+    if (doCelebrate) {
+      if (totalRawHp > 0) { var numEl = document.getElementById('mytask-hw-done-hp-num'); if (numEl) _wabun1AnimateHp(numEl, totalRawHp, 1000); }
+      try { playSfx('chime'); } catch(e){}
+    }
+  }
+  // 教科別 失敗分の再送（その教科・失敗写真だけで再度 submitMyTask）
+  function resendMyTaskHwFailed(i) {
+    var r = (_myTaskHwState.lastResults || [])[i];
+    if (!r || !r.failedPhotos || !r.failedPhotos.length) return;
+    var subj = r.subject;
+    var entry = _myTaskHwState.subjects[subj] || {};
+    var sending = r.failedPhotos.slice();
+    _showMyTaskSending();
+    gasPost({
+      action: 'submitMyTask',
+      studentId: _studentId,
+      taskType: 'homework',
+      subject: subj,
+      announcementId: entry.announcementId || '',
+      content: entry.content || '',
+      photos: sending
+    }, 120000).then(function(res){
+      _hideMyTaskSending();
+      _afterMyTaskHwResend(i, res, sending);
+    }, function(err){
+      _hideMyTaskSending();
+      _afterMyTaskHwResend(i, { ok: false, message: String(err && err.message ? err.message : err) }, sending);
+    });
+  }
+  function _afterMyTaskHwResend(i, res, sentPhotos) {
+    var r = (_myTaskHwState.lastResults || [])[i];
+    if (!r) return;
+    var wasError = !(r.res && r.res.ok);
+    if (res && res.ok) {
+      // error 教科（初回 savedCount=0）は今回が初の成功提出 → HP もこの結果で確定
+      if (wasError) r.res = res;
+      var failed = res.failedIndexes || [];
+      if (!failed.length) { r.failedPhotos = []; }
+      else { var fp = []; for (var k = 0; k < failed.length; k++) { var ix = failed[k]; if (sentPhotos[ix] != null) fp.push(sentPhotos[ix]); } r.failedPhotos = fp; }
+    } else {
+      if (wasError) r.res = res || r.res;  // partial 教科は元の r.res（HP）を据え置き
+    }
+    _renderMyTaskHwDoneBody(false);  // 再送では再アニメ/chime はしない（HP は静的反映）
+  }
 
   // (2-C) 撮影＋複数枚管理
   function goMyTaskSelfCapture() {
@@ -16263,7 +16720,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260614-0016</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260614-0112</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
