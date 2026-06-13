@@ -1704,8 +1704,9 @@
     .content-btn.c-phonics   { background: linear-gradient(135deg,#fbb6ce,#ed64a6); }
     /* マイ課題提出（2026-06-13 新設、準備中スケルトン）：藍色（インディゴ）で宿題提出の落ち着いた信頼感。公開時にマスコット適用予定 */
     .content-btn.c-mytask    { background: linear-gradient(135deg,#5c6bc0,#3949ab); }
-    /* オリワンテス（2026-06-13 新設、準備中スケルトン）：マゼンタ（フクシア）でオリジナルテストの特別感。公開時にマスコット適用予定 */
-    .content-btn.c-oriwan    { background: linear-gradient(135deg,#ec4faf,#a21d8a); }
+    /* オリワンテス（2026-06-13 新設、準備中スケルトン）：黄色〜黄土色（ゴールド〜オーカー）でオリジナルテストの特別感。
+       c-kobun(琥珀→茶) / c-calctrial(橙→赤) より黄色寄りにして被りを回避。公開時にマスコット適用予定 */
+    .content-btn.c-oriwan    { background: linear-gradient(135deg,#f5c842,#c99a2e); }
     .content-btn.disabled  { opacity: .58; cursor: not-allowed; }
     .content-btn.disabled:hover { transform: none; box-shadow: 0 4px 14px rgba(0,0,0,.12); opacity: .58; }
     .content-btn .badge-soon { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.45); color: #fff; font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; letter-spacing: .5px; }
@@ -2995,10 +2996,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260613-1728"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260613-1753"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260613-1728">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260613-1728"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260613-1753">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260613-1753"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -15905,7 +15906,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260613-1728</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260613-1753</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
