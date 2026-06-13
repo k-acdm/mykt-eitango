@@ -2241,6 +2241,8 @@
     .mytask-confirm-photos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
     .mytask-confirm-thumb { width: 100%; height: 110px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e7eb; }
     .mytask-content-box { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; font-size: 15px; line-height: 1.7; color: #1f2937; white-space: pre-wrap; margin-top: 6px; }
+    /* 入力必須：content 未入力時は前進ボタン（写真を撮る）を薄く・押せない表示に（id-scopedで他ボタンに影響させない） */
+    #mytask-self-entry-next-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
     .sango-ocr-box { display:none; margin-top:14px; padding:16px; background:#fff; border:2px solid #4f7df0; border-radius:12px; }
     .sango-ocr-label { font-size:14px; color:#666; margin-bottom:8px; }
     .sango-ocr-text { font-size:15px; line-height:1.7; white-space:pre-wrap; padding:12px; background:#f8f9ff; border-radius:8px; min-height:60px; }
@@ -3006,10 +3008,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260613-2324"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260614-0016"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260613-2324">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260613-2324"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260614-0016">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260614-0016"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4489,47 +4491,33 @@
   <div class="container" style="padding-top:16px">
     <div class="mate-row">
       <img class="mate-img" id="mate-img-mytask-home" src="images/maikadai-default.png" alt="マイカダイ">
-      <div class="mate-bubble" id="mate-bubble-mytask-home">宿題以外にやった課題を出して！</div>
+      <div class="mate-bubble" id="mate-bubble-mytask-home">最初にどっちかを選んで！</div>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#5c6bc0,#3949ab);margin-top:8px" onclick="showComingSoon('マイ課題（塾の宿題）')">1. 塾の授業で出された宿題<br><span style="font-size:12px;font-weight:normal;opacity:.9">（準備中）</span></button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:12px" onclick="goMyTaskSelfInput()">2. 自発的に取り組んだ課題</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#5c6bc0,#3949ab);margin-top:8px" onclick="goMyTaskHomework()">1. 塾の授業で出された宿題</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:12px" onclick="goMyTaskSelfEntry()">2. 自発的に取り組んだ課題</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
-<!-- パターン2 (2-A) 課題内容入力 -->
-<div id="screen-mytask-self-input" class="screen">
-  <header><h1>✍️ 自発課題の提出</h1><span>やった課題の内容を入力</span></header>
+<!-- パターン2 (2-A+B) 課題内容入力＋注意書き（1画面に統合） -->
+<div id="screen-mytask-self-entry" class="screen">
+  <header><h1>✍️ 自学課題の提出</h1><span>内容を書いて写真を撮ろう</span></header>
   <div class="container" style="padding-top:16px">
     <div class="mate-row">
-      <img class="mate-img" id="mate-img-mytask-self-input" src="images/maikadai-thinking.png" alt="マイカダイ">
-      <div class="mate-bubble" id="mate-bubble-mytask-self-input">やった課題の内容を詳しく教えて！</div>
+      <img class="mate-img" id="mate-img-mytask-self-entry" src="images/maikadai-encourage.png" alt="マイカダイ">
+      <div class="mate-bubble" id="mate-bubble-mytask-self-entry">ていねいな字で書いた？丸付けもした？あと、見やすいように明るいところで撮って！</div>
     </div>
-    <textarea class="sango-textarea" id="mytask-self-input-text" placeholder="例：英単語帳 P.20〜25 を3回ずつ書いて練習した" oninput="_updateMyTaskInputBtn()"></textarea>
-    <div id="mytask-self-input-msg" class="msg"></div>
-    <button class="btn-wide" id="mytask-self-input-next-btn" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:12px" onclick="myTaskSelfInputNext()" disabled>次へ ▶</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskHome()">← 戻る</button>
-  </div>
-</div>
-
-<!-- パターン2 (2-B) 注意書き -->
-<div id="screen-mytask-self-notice" class="screen">
-  <header><h1>✍️ 提出前の注意</h1><span>大事なことだよ</span></header>
-  <div class="container" style="padding-top:16px">
-    <div class="mate-row">
-      <img class="mate-img" id="mate-img-mytask-self-notice" src="images/maikadai-encourage.png" alt="マイカダイ">
-      <div class="mate-bubble" id="mate-bubble-mytask-self-notice">ていねいな字で書いた？丸付けもした？あと、見やすいように明るいところで撮って！</div>
-    </div>
+    <textarea class="sango-textarea" id="mytask-self-entry-text" placeholder="学校の理科のワークのp.10〜p.11　【入力しないと先に進めないよ】" oninput="_updateMyTaskEntryBtn()"></textarea>
     <div class="wabun1-period-warn">
       <span class="warn-title">⚠️ 提出する前に必ず確認してね！</span>
       <ul>
         <li>ていねいな字で書くこと</li>
         <li>丸つけまでちゃんとやること</li>
-        <li>これらが著しく守られていない場合は、<small>差し戻し（HP返上）になることがあります。</small></li>
+        <li>これらがきちんと守られていない場合は、<small>差し戻し（HP返上）になることがあります。</small></li>
       </ul>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:8px" onclick="goMyTaskSelfCapture()">📸 写真を撮る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskSelfInput()">← 戻る</button>
+    <button class="btn-wide" id="mytask-self-entry-next-btn" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:8px" onclick="myTaskEntryToCapture()" disabled>📸 写真を撮る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskHome()">← 戻る</button>
   </div>
 </div>
 
@@ -4548,8 +4536,8 @@
     <input type="file" id="mytask-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onMyTaskPhotoSelected(event)"/>
     <button class="btn-camera" onclick="document.getElementById('mytask-photo-input').click()">📷 写真を撮る／追加する</button>
     <div id="mytask-photo-list" class="mytask-photo-list"></div>
-    <button class="btn-wide" id="mytask-capture-next-btn" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:14px" onclick="goMyTaskSelfConfirm()" disabled>確認へ進む ▶</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskSelfNotice()">← 戻る</button>
+    <button class="btn-wide" id="mytask-capture-next-btn" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:14px" onclick="goMyTaskSelfConfirm()" disabled>確認へ進む ▶</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskSelfEntry()">← 戻る</button>
   </div>
 </div>
 
@@ -4565,7 +4553,7 @@
     <div class="mytask-content-box" id="mytask-self-confirm-content"></div>
     <div style="font-size:14px;font-weight:bold;color:#374151;margin-top:14px">📸 提出する写真</div>
     <div class="mytask-confirm-photos" id="mytask-self-confirm-photos"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60);margin-top:16px" onclick="submitMyTaskSelf()">🚀 送信する</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:16px" onclick="submitMyTaskSelf()">🚀 送信する</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskSelfCapture()">← 戻って撮り直す／追加する</button>
   </div>
 </div>
@@ -13197,7 +13185,7 @@
   };
   // マイカダイ（マイ課題、元気な世話焼き口調）。2026-06-13 採用。場面キーで管理（将来パターン1用も足せる）。
   var MAIKADAI_BUBBLES = {
-    home:    ['宿題以外にやった課題を出して！'],
+    home:    ['最初にどっちかを選んで！'],
     input:   ['やった課題の内容を詳しく教えて！'],
     notice:  ['ていねいな字で書いた？丸付けもした？あと、見やすいように明るいところで撮って！'],
     confirm: ['これで送るけど、OK？良さそうなら送信ボタンを押して！'],
@@ -13224,35 +13212,28 @@
     showScreen('screen-mytask-home');
   }
 
-  // (2-A) 課題内容入力。state.content を textarea に復元（注意書き画面から戻った時用）。
-  function goMyTaskSelfInput() {
-    var ta = document.getElementById('mytask-self-input-text');
+  // (2-A+B) 課題内容入力＋注意書き（統合画面）。state.content を textarea に復元（戻った時用）。
+  //   入力必須は「未入力なら前進ボタン disabled（薄く押せない）」で表現（旧 alert 方式を廃止）。
+  function goMyTaskSelfEntry() {
+    var ta = document.getElementById('mytask-self-entry-text');
     if (ta) ta.value = _myTaskState.content || '';
-    var msg = document.getElementById('mytask-self-input-msg');
-    if (msg) { msg.textContent = ''; msg.style.display = 'none'; }
-    _updateMyTaskInputBtn();
-    _setContentMascot('mate-img-mytask-self-input', 'thinking', 'mate-bubble-mytask-self-input', _pickBubble(MAIKADAI_BUBBLES.input), 'maikadai');
-    showScreen('screen-mytask-self-input');
+    _updateMyTaskEntryBtn();
+    _setContentMascot('mate-img-mytask-self-entry', 'encourage', 'mate-bubble-mytask-self-entry', _pickBubble(MAIKADAI_BUBBLES.notice), 'maikadai');
+    showScreen('screen-mytask-self-entry');
   }
-  function _updateMyTaskInputBtn() {
-    var ta = document.getElementById('mytask-self-input-text');
-    var v = ta ? ta.value.trim() : '';
-    var btn = document.getElementById('mytask-self-input-next-btn');
-    if (btn) btn.disabled = (v.length === 0);
+  function _updateMyTaskEntryBtn() {
+    var ta = document.getElementById('mytask-self-entry-text');
+    var raw = ta ? ta.value : '';
+    _myTaskState.content = raw;  // 入力のたびに state へ反映（撮影画面から戻っても保持）
+    var btn = document.getElementById('mytask-self-entry-next-btn');
+    if (btn) btn.disabled = (raw.trim().length === 0);
   }
-  function myTaskSelfInputNext() {
-    var ta = document.getElementById('mytask-self-input-text');
-    var v = ta ? ta.value.trim() : '';
-    if (!v) { showMsg('mytask-self-input-msg', 'やった課題の内容を入力してね', 'ng'); return; }
-    _myTaskState.content = v;
-    goMyTaskSelfNotice();
+  function myTaskEntryToCapture() {
+    if (!_myTaskState.content || !_myTaskState.content.trim()) return;  // disabled で押せないが念のため
+    goMyTaskSelfCapture();
   }
-
-  // (2-B) 注意書き
-  function goMyTaskSelfNotice() {
-    _setContentMascot('mate-img-mytask-self-notice', 'encourage', 'mate-bubble-mytask-self-notice', _pickBubble(MAIKADAI_BUBBLES.notice), 'maikadai');
-    showScreen('screen-mytask-self-notice');
-  }
+  // パターン1（塾の宿題）：中身は次タスク(8-3)で実装。現状は押しても無害（何もしない）。
+  function goMyTaskHomework() { /* 8-3 で告知連動フローを実装予定 */ }
 
   // (2-C) 撮影＋複数枚管理
   function goMyTaskSelfCapture() {
@@ -13341,7 +13322,7 @@
 
   // (2-E) 送信。content 必須・photos 1枚以上必須をフロントでも検証。
   function submitMyTaskSelf() {
-    if (!_myTaskState.content || !_myTaskState.content.trim()) { goMyTaskSelfInput(); return; }
+    if (!_myTaskState.content || !_myTaskState.content.trim()) { goMyTaskSelfEntry(); return; }
     if (!_myTaskState.photos.length) { goMyTaskSelfCapture(); return; }
     _doSubmitMyTask(_myTaskState.content, _myTaskState.photos.slice());
   }
@@ -16282,7 +16263,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260613-2324</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260614-0016</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
