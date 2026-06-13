@@ -438,6 +438,8 @@
   .kiso-photo-modal-inner img { max-width: 95vw; max-height: 95vh; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,.5); display: block; }
   .kiso-photo-modal-close { position: absolute; top: -44px; right: 0; background: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
   .kiso-photo-modal-close:hover { background: #f3f4f6; }
+  /* マイ課題の拡大モーダルだけ、✕ を枠外上端（top:-44px）ではなく画像枠内の右上に収める（PC/スマホ両対応） */
+  .kiso-photo-modal-close.mytask-photo-modal-close { top: 8px; right: 8px; }
   .kiso-photo-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; background: #fff; border-radius: 12px; }
   /* セッションごとのグループ表示（解答写真 + 途中式写真をまとめる） */
   .kiso-session-group { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; margin-bottom: 18px; }
@@ -1293,7 +1295,7 @@
   </header>
   <div class="admin-page">
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminMyTaskStudents()">← 生徒一覧に戻る</button>
-    <div class="page-lead">「📷 押して表示」でサムネ、続けてタップ（または「🔍 拡大表示」）で拡大モーダルが開きます。「⬇️ ダウンロード」で写真を保存できます。<br><span style="color:#94a3b8;font-size:13px">※ 写真は管理者・講師のみ閲覧・ダウンロード可能です。</span></div>
+    <div class="page-lead">「📷 押して表示」でサムネ、続けてタップ（または「🔍 拡大表示」）で拡大モーダルが開きます。「⬇️ ダウンロード」で写真を保存できます。</div>
     <div id="mytask-photos-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
   </div>
 </div>
@@ -6170,7 +6172,7 @@
     overlay.onclick = function(ev) { if (ev.target === overlay) overlay.remove(); };
     overlay.innerHTML =
       '<div class="kiso-photo-modal-inner">' +
-        '<button class="kiso-photo-modal-close" onclick="document.getElementById(\'kiso-photo-modal\').remove()" aria-label="閉じる">✕</button>' +
+        '<button class="kiso-photo-modal-close mytask-photo-modal-close" onclick="document.getElementById(\'kiso-photo-modal\').remove()" aria-label="閉じる">✕</button>' +
         '<img src="' + entry.dataUrl + '" alt="">' +
       '</div>';
     document.body.appendChild(overlay);
@@ -6235,7 +6237,7 @@
         var metaLine = metaParts.join(' ・ ');
         var revBadge = s.reverted ? '<span class="mytask-revert-badge">差し戻し済み</span>' : '';
         var contentHtml = s.content
-          ? '<div style="font-size:13px;color:#334155;margin:4px 0 10px;white-space:pre-wrap">' + _esc(s.content) + '</div>'
+          ? '<div style="margin:4px 0 12px"><div style="font-size:13px;font-weight:bold;color:#0c4a6e;margin-bottom:3px">📝 課題内容</div><div style="font-size:15px;font-weight:bold;color:#1e293b;white-space:pre-wrap">' + _esc(s.content) + '</div></div>'
           : '';
         var photos = (s.photos || []).slice().sort(function(a, b){ return (Number(a.photoIndex)||0) - (Number(b.photoIndex)||0); });
         var photosHtml = photos.length
@@ -6253,7 +6255,7 @@
         return '<div class="kiso-session-group">' +
                  '<div class="kiso-session-head">' +
                    '<div class="ses-meta">' + metaLine + revBadge + '</div>' +
-                   '<div class="ses-time">提出：' + _esc(ts) + '</div>' +
+                   '<div class="ses-time" style="font-size:15px;font-weight:bold;color:#0c4a6e">📅 提出日：' + _esc(ts) + '</div>' +
                  '</div>' +
                  contentHtml +
                  photosHtml +

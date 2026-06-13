@@ -3028,10 +3028,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260614-0112"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260614-0511"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260614-0112">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260614-0112"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260614-0511">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260614-0511"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4658,7 +4658,7 @@
       <div class="mate-bubble" id="mate-bubble-mytask-hw-more">他の教科もある？あるなら続けて、なければ送信へ！</div>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#5c6bc0,#3949ab);margin-top:8px" onclick="goMyTaskHwSelect()">📚 他の教科もやる</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:12px" onclick="goMyTaskHwConfirm()">✅ 送信する（やらない）</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:12px" onclick="goMyTaskHwConfirm()">✅ 他の教科はやらない（写真送信画面へ）</button>
   </div>
 </div>
 
@@ -13611,7 +13611,7 @@
       var outstanding = (r.failedPhotos && r.failedPhotos.length > 0);
       if (res.ok) {
         if (res.alreadyCapped) {
-          lines += '<div class="mytask-hw-result-row">⏫ <b>' + _myTaskEsc(subj) + '</b>：今日の上限に達しているよ（提出は受け取ったよ）</div>';
+          lines += '<div class="mytask-hw-result-row">⏫ <b>' + _myTaskEsc(subj) + '</b>：本日分のHP上限に達してるよ（提出は受け取ったよ）</div>';
         } else {
           var raw = Number(res.grantedRawHp) || 0; totalRawHp += raw;
           lines += '<div class="mytask-hw-result-row ok">✅ <b>' + _myTaskEsc(subj) + '</b>：+' + raw + 'HP</div>';
@@ -13841,7 +13841,7 @@
     }
     var rawHp = Number(res.grantedRawHp) || 0;
     var hpBlock = res.alreadyCapped
-      ? '<div class="wabun1-result-already">今日の分のHPは上限に達しているよ。でも提出はちゃんと受け取ったよ！</div>'
+      ? '<div class="wabun1-result-already">本日分のHP上限に達してるよ（提出は受け取ったよ）</div>'
       : '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="mytask-self-done-hp-num">0</span> HP 獲得！</div>';
     body.innerHTML =
       '<div class="mate-row"><img class="mate-img" src="images/maikadai-celebrate.png" alt="マイカダイ"><div class="mate-bubble">' + _pickBubble(MAIKADAI_BUBBLES.done) + '</div></div>' +
@@ -16720,7 +16720,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260614-0112</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260614-0511</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
