@@ -926,6 +926,18 @@
           : '';
         return CHILD_OK + hpLabel;
       }
+    },
+    {
+      label: 'マイ課題',
+      render: function(d) {
+        // 塾の宿題 + 自学を「マイ課題」に統合（教科・パターンは区別しない）。差し戻しは下の「HPの動き」に出る。
+        if (!d.mytask || !d.mytask.done) return CHILD_NG;
+        var hp = Number(d.mytask.hpGained || 0);
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">' + hp.toLocaleString() + 'HP獲得</span>'
+          : '';
+        return CHILD_OK + hpLabel;
+      }
     }
   ];
 

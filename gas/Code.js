@@ -1730,6 +1730,12 @@ function _isCountableActivityType(type) {
   if (type.indexOf('kiso_')  === 0) return true;
   if (type.indexOf('kanji_') === 0) return true;
   if (type.indexOf('kobun_') === 0) return true;
+  // 2026-06-14：マイ課題（mytask）も他コンテンツと同様に活動カウント対象に追加。
+  //   塾の宿題 'mytask_homework_<教科>_hw'（前方一致）＋ 自学課題 'mytask_self_only'（完全一致）。
+  //   差し戻し証跡 'mytask_revert'（負値）は活動ではないので含めない。
+  //   ※ blanket な 'mytask_' 前方一致は revert を巻き込むため使わない。
+  if (type.indexOf('mytask_homework_') === 0) return true;
+  if (type === 'mytask_self_only') return true;
   // 未知の type はデフォルト除外（明示的に許可リストに追加してから有効化）
   return false;
 }
@@ -4210,6 +4216,9 @@ function analyzeHpLog90Days(opts) {
       if (t.indexOf('kiso_')    === 0) return 'kiso';
       if (t.indexOf('kanji_')   === 0) return 'kanji';
       if (t.indexOf('kobun_')   === 0) return 'kobun';
+      // マイ課題：塾の宿題（mytask_homework_*）/ 自学（mytask_self_only）を 'mytask' に集約。
+      //   mytask_revert は manual_grant 等の調整系と同様に正規化せず生 type のまま通す。
+      if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'mytask';
       if (t.indexOf('apology_') === 0) return 'apology';
       return t;
     }
@@ -12082,6 +12091,9 @@ function _todayHpBreakdownForSid(sid) {
         else if (type.indexOf('kanji_') === 0) key = 'kanji';
         else if (type.indexOf('kobun_') === 0) key = 'kobun';
         else if (type === 'calctrial' || type.indexOf('calctrial_') === 0) key = 'calctrial';
+        // マイ課題：塾の宿題（mytask_homework_*）/ 自学（mytask_self_only）を 'mytask' に統合。
+        //   差し戻し mytask_revert は負値なので上の hp<=0 continue で既に除外済み。
+        else if (type.indexOf('mytask_homework_') === 0 || type === 'mytask_self_only') key = 'mytask';
         out.byContent[key] = (out.byContent[key] || 0) + hp;
       }
     }
@@ -13392,6 +13404,10 @@ function _calendarContentName(type) {
   if (t.indexOf('kanji_') === 0) return 'カンジー';
   if (t.indexOf('kobun_') === 0) return 'コブタン';
   if (t.indexOf('kokugo_') === 0) return '国語長文読解';
+  // マイ課題：塾の宿題（mytask_homework_*）/ 自学（mytask_self_only）を「マイ課題」に統合。
+  //   差し戻し（mytask_revert）はカレンダーに活動として出る既存挙動のため、機械文字列でなく日本語で表示する。
+  if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'マイ課題';
+  if (t === 'mytask_revert') return 'マイ課題 差し戻し';
   if (t === 'rika')   return '理科重要語句';
   if (t === 'shakai') return '社会重要語句';
   if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
@@ -15060,6 +15076,7 @@ function _hpAdjustmentLabel(type) {
   if (t === 'manual_streak_modify')       return '連続日数修正';
   if (t === 'login_recovery')             return 'ログイン復旧';
   if (t === 'survey_reward')              return 'アンケート回答報酬';
+  if (t === 'mytask_revert')              return 'マイ課題 差し戻し';
   return 'その他（' + t + '）';
 }
 
@@ -15093,7 +15110,8 @@ function getChildActivityRecent(params) {
         kokugo:    { done: false, hpGained: 0, variants: [] },   // 国語長文読解（variants = ['800字版'] / ['1200字版']）
         rika:      { done: false, hpGained: 0 },                 // 理科重要語句
         shakai:    { done: false, hpGained: 0 },                 // 社会重要語句
-        hpAdjustments: [],  // HP事後調整ログ（apology_* / completion_bonus / reflection_release / manual_grant 等）
+        mytask:    { done: false, hpGained: 0 },                 // マイ課題（塾の宿題 + 自学を「マイ課題」に統合）
+        hpAdjustments: [],  // HP事後調整ログ（apology_* / completion_bonus / reflection_release / manual_grant / mytask_revert 等）
         extras:  []  // 未知の HPLog type は自動でここに集約（将来コンテンツの自動対応）
       };
     }
@@ -15223,6 +15241,13 @@ function getChildActivityRecent(params) {
           byDate[ds].shakai.done = true;
           byDate[ds].shakai.hpGained += hp;
         }
+        else if (type.indexOf('mytask_homework_') === 0 || type === 'mytask_self_only') {
+          // マイ課題：塾の宿題（教科別 mytask_homework_*_hw）/ 自学（mytask_self_only）を
+          //   「マイ課題」に統合（教科・パターンは区別しない）。差し戻し mytask_revert は下の
+          //   hpAdjustments 分岐へ（活動 ✅ には含めない）。
+          byDate[ds].mytask.done = true;
+          byDate[ds].mytask.hpGained += hp;
+        }
         else if (type === 'reflection_release' || type === 'reserve_release') {
           // 2026-06-04：振り返り解放分（reflection_release）/ ミッション完走解放分（reserve_release）は
           //   日別バッファに退避し、後段で HpReservePool を参照してコンテンツ別に振り替える
@@ -15238,9 +15263,11 @@ function getChildActivityRecent(params) {
               || type === 'manual_streak_modify'
               || type === 'login_recovery'
               || type === 'survey_reward'
+              || type === 'mytask_revert'
               || type.indexOf('apology_') === 0) {
           // HP事後調整ログ（学習活動ではない、HP の増減記録）。
           // done 判定には影響させず、hpAdjustments に集約して透明化する。
+          // mytask_revert（マイ課題 差し戻し・負値）も活動 ✅ ではなくここで「HPの動き」として表示する。
           byDate[ds].hpAdjustments.push({ type: type, label: _hpAdjustmentLabel(type), hp: hp });
         }
         else {
@@ -15464,7 +15491,7 @@ function getChildActivityRecent(params) {
         // 2026-06-04：eitango / sango も hpGained 表示をフロント（view.html / admin.html）に追加したため対象に含める。
         eitango: 1, sango: 1,
         wabun1: 1, kiso: 1, calctrial: 1, kanji: 1, kobun: 1,
-        lison: 1, kokugo: 1, rika: 1, shakai: 1
+        lison: 1, kokugo: 1, rika: 1, shakai: 1, mytask: 1
       };
       // 解放分（reflection_pending / required_mission）の resolvedAt 教育日別・コンテンツ別 reservedHp 集計
       const poolByContentByDate = {};  // { ds: { contentKey: hp } }
@@ -24067,6 +24094,8 @@ function _normalizeHpReservePoolTypeForContent(type) {
   if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return 'calctrial';
   // sango / wabun1 / lison / shakai / rika はそのまま byContent キーとして使う
   if (t === 'sango' || t === 'wabun1' || t === 'lison' || t === 'shakai' || t === 'rika') return t;
+  // マイ課題：塾の宿題（mytask_homework_*）/ 自学（mytask_self_only）を 'mytask' キーに統合（revert は対象外＝null）
+  if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'mytask';
   // required_mission / login / apology_* / reserve_release / completion_bonus / reflection_release などはコンテンツ別表示の対象外
   return null;
 }
@@ -25467,6 +25496,7 @@ function _lineNotifyContentKeyToName(key) {
     case 'kokugo':    return '国語長文読解';
     case 'rika':      return '理科重要語句';
     case 'shakai':    return '社会重要語句';
+    case 'mytask':    return 'マイ課題';
   }
   return null;
 }
