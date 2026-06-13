@@ -1702,6 +1702,10 @@
     .content-btn.c-longread  { background: linear-gradient(135deg,#26d0ce,#1a9b9b); }
     /* フォニックスゲーム（2026-05-08 新設、準備中スケルトン）：桜色系で子供向けらしさ */
     .content-btn.c-phonics   { background: linear-gradient(135deg,#fbb6ce,#ed64a6); }
+    /* マイ課題提出（2026-06-13 新設、準備中スケルトン）：藍色（インディゴ）で宿題提出の落ち着いた信頼感。公開時にマスコット適用予定 */
+    .content-btn.c-mytask    { background: linear-gradient(135deg,#5c6bc0,#3949ab); }
+    /* オリワンテス（2026-06-13 新設、準備中スケルトン）：マゼンタ（フクシア）でオリジナルテストの特別感。公開時にマスコット適用予定 */
+    .content-btn.c-oriwan    { background: linear-gradient(135deg,#ec4faf,#a21d8a); }
     .content-btn.disabled  { opacity: .58; cursor: not-allowed; }
     .content-btn.disabled:hover { transform: none; box-shadow: 0 4px 14px rgba(0,0,0,.12); opacity: .58; }
     .content-btn .badge-soon { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.45); color: #fff; font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; letter-spacing: .5px; }
@@ -2991,10 +2995,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260611-1615"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260613-1728"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260611-1615">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260611-1615"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260613-1728">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260613-1728"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3486,6 +3490,19 @@
           <span class="badge-hp">100〜150HP/日</span>
           <img class="ico-mascot" src="images/japanin-default.png" alt="">国語長文読解
           <span class="content-btn-sub">対象：中学生</span>
+        </button>
+        <!-- 2026-06-13 新設（準備中）：マイ課題⑧ 生徒フロント。マイ課題提出・オリワンテスの2カードを
+             公開時の色（c-mytask/c-oriwan）＋ disabled の薄表示で設置。中身（パターン1/2フロー等）は別途実装。
+             公開時は disabled 削除・onclick を本体関数へ・badge-soon を badge-hp へ・絵文字をマスコット画像へ差替。 -->
+        <button class="content-btn c-mytask disabled" onclick="showComingSoon('マイ課題提出')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">📸</span>マイ課題提出
+          <span class="content-btn-sub">塾の宿題や自学課題を写真に撮って提出</span>
+        </button>
+        <button class="content-btn c-oriwan disabled" onclick="showComingSoon('オリワンテス')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">✍️</span>オリワンテス
+          <span class="content-btn-sub">自分専用のオリジナルテストを作る</span>
         </button>
         <button class="content-btn c-phonics disabled" onclick="showComingSoon('フォニックスゲーム')">
           <span class="badge-soon">準備中</span>
@@ -15888,7 +15905,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260611-1615</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260613-1728</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
