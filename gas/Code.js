@@ -14352,6 +14352,9 @@ const ORIWANTES_SYSTEM_PROMPT = `あなたは学習塾「春日部アカデミ�
 - 写真が前提の指示（「この文章で」「この教材で」等）なのに写真が無ければ、こう返す：「ふむ、写真がなければ問題は作れぬ。写真を送ってくれ。そうすれば、それを元にした問題を作ろう。」
 - 生徒の話が問題作成から逸れたら、問題作成に話を戻すよう促す。
 
+【対話の最初に教科を聞く】
+会話の冒頭、まだ教科が分かっていないときは、まず教科を尋ねる：「まず初めに、教科から教えてくれ。」生徒が教科を答えたら、「{生徒が答えた教科}だな。分かった。では次に、どんな問題を作りたいかを教えてくれ。」と応じ、そこから問題作成の対話に入る。教科が既に会話の中で明らかな場合は、この確認を省いてよい。
+
 【断るべきもの】
 - 大学入試レベルや、それに準ずる極めて高度な問題を求められたら、作らずにこう返す：「大学入試レベルの問題か……それは私の領分ではない。AIではなく、専門の教材やあなたの先生に頼るがよい。定期テストくらいまでのレベルなら、この私が引き受けよう。どんな問題が望みだ？」
 - 高校生向けでも学校の定期テストのレベルを超えない範囲で作る。
@@ -14360,7 +14363,24 @@ const ORIWANTES_SYSTEM_PROMPT = `あなたは学習塾「春日部アカデミ�
 【★問題完成の印（重要）】
 - 問題・正解・解説を出力する（＝問題が完成した）ときは、応答の一番最初に必ず [QUESTIONS] という印を書く。その後にオリワンテスの一言（例「出来上がったぞ。早速解いてみようじゃないか。」）、続けて問題（番号つき）と各問題の正解・解説をはっきり分けて出力する。
 - まだ問題を作らず、質問・確認・誘導・断りをするだけのときは、[QUESTIONS] の印を絶対につけない。
-- 採点はしない（生徒の解答を判定しない）。正解と解説を示すだけ。`;
+- 採点はしない（生徒の解答を判定しない）。正解と解説を示すだけ。
+
+【問題を出力するときの形式（重要・厳守）】
+問題が完成して出力するときは、応答の先頭に [QUESTIONS] を置き、続けてオリワンテスの一言を述べた後、各問題を必ず次の形式で出力する：
+各問は [Q番号] の次の行に問題文、[A番号] の次の行に正解、[E番号] の次の行に解説、という区切りで書く。例：
+[Q1]
+（問1の問題文）
+[A1]
+（問1の正解）
+[E1]
+（問1の解説）
+[Q2]
+（問2の問題文）
+[A2]
+（問2の正解）
+[E2]
+（問2の解説）
+このように、問題ごとに [Q n] [A n] [E n] の3つを必ずこの順で付ける。番号は1から連番。問題文・正解・解説の本文は通常の丁寧な口調で書く（オリワンテス口調にしない）。この区切りタグは必ず付けること（後で機械的に分解するため）。`;
 
 function _oriwantesGenerate(messages, systemPrompt) {
   const apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
@@ -14485,6 +14505,51 @@ function _gradeToHumanLabel(gradeLevel) {
   return school + m[1] + '年生';
 }
 
+// オリワンテス②-A：問題完成応答（[QUESTIONS] 印を除いた本文）を構造化パースする。
+//   入力 bodyText の形：「オリワンテスの一言」＋ [Q1]問題文 [A1]正解 [E1]解説 [Q2]… の区切り。
+//   - intro     : 最初の [Q*] タグより前の本文（オリワンテスの一言）。
+//   - questions : [{ questionText, answer, explanation }, ...]（番号昇順）。
+//   タグは全角ブラケット ［］・前後空白・大小文字を許容。Q/A/E が欠ける問題は該当フィールドが
+//   空文字のまま部分的に組み立てる（パース失敗で落とさない方針）。
+function _parseOriwantesQuestions(bodyText) {
+  const text = String(bodyText == null ? '' : bodyText);
+  const TAG_RE = /[\[［]\s*([QAEqae])\s*(\d+)\s*[\]］]/g;
+  const tags = [];
+  let m;
+  while ((m = TAG_RE.exec(text)) !== null) {
+    tags.push({
+      label: m[1].toUpperCase(),   // 'Q' | 'A' | 'E'
+      num:   parseInt(m[2], 10),
+      start: m.index,              // タグ開始位置
+      end:   TAG_RE.lastIndex      // タグ直後（本文開始位置）
+    });
+  }
+
+  // intro = 最初のタグより前の本文。タグが 1 つも無ければ全文を intro 扱い（questions は空）。
+  const intro = (tags.length > 0 ? text.slice(0, tags[0].start) : text).trim();
+
+  // 各タグの本文 = そのタグ end から次タグ start（最後は文末）まで。
+  const byNum = {};   // num -> { questionText, answer, explanation }
+  const order = [];   // 出現した num（重複排除）
+  for (let i = 0; i < tags.length; i++) {
+    const t = tags[i];
+    const contentEnd = (i + 1 < tags.length) ? tags[i + 1].start : text.length;
+    const content = text.slice(t.end, contentEnd).trim();
+    if (!byNum[t.num]) { byNum[t.num] = { questionText: '', answer: '', explanation: '' }; order.push(t.num); }
+    if      (t.label === 'Q') byNum[t.num].questionText = content;
+    else if (t.label === 'A') byNum[t.num].answer       = content;
+    else if (t.label === 'E') byNum[t.num].explanation  = content;
+  }
+
+  order.sort(function(a, b){ return a - b; });   // 番号昇順
+  const questions = order.map(function(n){
+    const q = byNum[n];
+    return { questionText: q.questionText, answer: q.answer, explanation: q.explanation };
+  });
+
+  return { intro: intro, questions: questions };
+}
+
 // オリワンテス②-A：問題生成ハンドラ（doPost）。
 //   params: { studentId, messages（会話全履歴・クライアントが組んだ配列・画像ブロック込み） }
 //   - 生成失敗時は HP を消費しない（案C）。
@@ -14545,13 +14610,23 @@ function generateOriwantes(params) {
         // オリワンテスとしての HP 不足セリフはフロントで出す。
         return { ok: false, error: 'insufficient_hp', needHp: true, message: 'HPが足りない' };
       }
-      // 消費成功 → 先頭の [QUESTIONS] 印を取り除いた本文を questions として返す。
-      const questions = trimmed.replace(MARKER_RE, '').replace(/^[\s　]+/, '');
+      // 消費成功 → 先頭の [QUESTIONS] 印を除いた本文を構造化パース（intro + [Q][A][E]）。
+      //   パース失敗時も rawText を必ず返し、フロントが最低限表示できるようにする（落とさない）。
+      const body = trimmed.replace(MARKER_RE, '').replace(/^[\s　]+/, '');
+      let parsed = { intro: '', questions: [] };
+      try {
+        parsed = _parseOriwantesQuestions(body);
+      } catch (e) {
+        console.error('[generateOriwantes] 構造化パース失敗（rawText で続行）', e);
+        parsed = { intro: '', questions: [] };
+      }
       return {
         ok: true,
         isComplete: true,
-        text: questions,
         hpConsumed: true,
+        intro: parsed.intro,
+        questions: parsed.questions,
+        rawText: rawText,        // 元の応答全文（フォールバック・デバッグ用）
         usage: gen.usage
       };
     }
