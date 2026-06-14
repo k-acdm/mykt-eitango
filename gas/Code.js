@@ -1449,6 +1449,9 @@ function doPost(e) {
     // マイ課題⑦（2026-06-12）：管理C 差し戻し。reason / 認証情報を安全に渡すため POST 専用
     //   （admin=塾長 限定の更新系）。doGet には登録しない。
     else if (action === 'revertMyTaskSubmission')           result = revertMyTaskSubmission(params.submissionId, params.reason, params.teacherId, params.password);
+    // オリワンテス②-A（2026-06-14）：対話型 AI 問題生成。画像 base64＋会話全履歴が大きいため
+    //   POST 専用（doGet には登録しない）。問題完成時のみ 10HP 消費（案C）。
+    else if (action === 'generateOriwantes')                result = generateOriwantes(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -14321,6 +14324,207 @@ function _sangoAiFeedback(submissionText, topic1, topic2, topic3) {
   return { ok: false, error: 'all attempts exhausted' };
 }
 
+// =============================================
+// オリワンテス（モンクロさん）AI 問題生成（Anthropic Claude Opus 4.8）
+// =============================================
+// 2026-06-14 オリワンテス②-A：生徒の会話履歴（プロンプト＋任意の写真＋往復）を受けて、
+//   モンクロさん（オリワンテスというキャラ）として対話的に問題・解説を生成する。
+//   - _sangoAiFeedback（Haiku・三語短文用）は無改修で温存。本関数は独立した複製＋拡張。
+//   - messages はクライアントが組んだ会話全履歴をそのまま body.messages へ渡す
+//     （複数往復対応・画像ブロック込み）。サーバ側で messages を再構築しない。
+//   - 画像ブロックは Anthropic 仕様：{type:'image', source:{type:'base64',
+//     media_type:'image/jpeg', data:<base64>}}（組み立てはクライアント責務）。
+//   - Opus 4.8 は temperature/top_p/top_k 非対応（送ると 400）のため、_sangoAiFeedback の
+//     temperature:0.3 は意図的に踏襲しない。thinking も指定しない（既定＝思考オフ）。
+//   - 戻り値：{ ok, text, usage:{input,output} } / 失敗時 { ok:false, error }
+const ORIWANTES_SYSTEM_PROMPT = `あなたは学習塾「春日部アカデミー」の生徒のために、オリジナルのテスト問題と解説を作る問題作成AIです。生徒に対しては「オリワンテス」という名の、古代ギリシャの哲学者をモチーフにしたキャラクターとして振る舞います。
+
+【キャラクターの口調】
+- 生徒に話しかける発話（質問・確認・断り・誘導・待機などのセリフ）は、すべてオリワンテスの口調で話す：「〜だ」「〜じゃないか」「〜がよい」「〜してくれ」のような、少し古風で威厳があり、しかし生徒を見下さない哲学者の話し方。
+- ただし、実際に出力する「問題・正解・解説」の本文は、通常の丁寧な教育的口調で書く（キャラクター性は不要）。
+
+【あなたの仕事】
+- 生徒の指示に従って、テスト問題とその正解・解説を作る。問題数は最大10問まで。生徒が10問より多く求めたら10問までにする。
+- 教材の写真が添付されている場合は、それを問題の素材として使う。
+
+【対話のしかた】
+- 必要な情報が足りないときは簡潔に質問して補う。情報が揃っているならすぐ問題を作る。やり取りは必要最低限にする。
+- 写真が前提の指示（「この文章で」「この教材で」等）なのに写真が無ければ、こう返す：「ふむ、写真がなければ問題は作れぬ。写真を送ってくれ。そうすれば、それを元にした問題を作ろう。」
+- 生徒の話が問題作成から逸れたら、問題作成に話を戻すよう促す。
+
+【断るべきもの】
+- 大学入試レベルや、それに準ずる極めて高度な問題を求められたら、作らずにこう返す：「大学入試レベルの問題か……それは私の領分ではない。AIではなく、専門の教材やあなたの先生に頼るがよい。定期テストくらいまでのレベルなら、この私が引き受けよう。どんな問題が望みだ？」
+- 高校生向けでも学校の定期テストのレベルを超えない範囲で作る。
+- 問題作成以外の要求（宿題の答えだけ教える、雑談、無関係な作業等）には応じず、こう返す：「私は問題を作る者。それ以外の願いには応えられぬ。さて、どんな問題を作ろうか。」
+
+【★問題完成の印（重要）】
+- 問題・正解・解説を出力する（＝問題が完成した）ときは、応答の一番最初に必ず [QUESTIONS] という印を書く。その後にオリワンテスの一言（例「出来上がったぞ。早速解いてみようじゃないか。」）、続けて問題（番号つき）と各問題の正解・解説をはっきり分けて出力する。
+- まだ問題を作らず、質問・確認・誘導・断りをするだけのときは、[QUESTIONS] の印を絶対につけない。
+- 採点はしない（生徒の解答を判定しない）。正解と解説を示すだけ。`;
+
+function _oriwantesGenerate(messages) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+  if (!apiKey) {
+    console.error('[_oriwantesGenerate] ANTHROPIC_API_KEY が設定されていません');
+    return { ok: false, error: 'ANTHROPIC_API_KEY missing' };
+  }
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return { ok: false, error: 'messages が空です' };
+  }
+
+  const body = {
+    model: 'claude-opus-4-8',
+    max_tokens: 8000,
+    system: ORIWANTES_SYSTEM_PROMPT,
+    messages: messages   // クライアントが組んだ会話全履歴をそのまま渡す（画像ブロック込み）
+  };
+
+  const fetchOpts = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  };
+
+  const url = 'https://api.anthropic.com/v1/messages';
+  const MAX_ATTEMPTS  = 2;
+  const RETRY_WAIT_MS = 500;
+  const QUOTA_PATTERN = /quota|rate|limit|overload|busy|unavailable/i;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res;
+    try { res = UrlFetchApp.fetch(url, fetchOpts); }
+    catch (e) {
+      const exMsg = String(e);
+      console.error('[_oriwantesGenerate fetch exception attempt=' + attempt + ']', exMsg);
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'fetch exception: ' + exMsg };
+    }
+    const code = res.getResponseCode();
+    const raw  = res.getContentText();
+    if (code === 429 || (code >= 500 && code < 600)) {
+      console.error('[_oriwantesGenerate retryable HTTP attempt=' + attempt + ']', code, raw.substring(0, 400));
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'HTTP ' + code };
+    }
+    if (code !== 200) {
+      console.error('[_oriwantesGenerate HTTP error]', code, raw.substring(0, 400));
+      // 4xx 系は永続エラー（auth / 400 等）なのでリトライしない
+      return { ok: false, error: 'HTTP ' + code };
+    }
+
+    let json;
+    try { json = JSON.parse(raw); }
+    catch (e) {
+      console.error('[_oriwantesGenerate response JSON parse error]', e, raw.substring(0, 400));
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'response not JSON: ' + String(e) };
+    }
+
+    // Anthropic は top-level type='error' で返すことがある（500 / 529 等）
+    if (json && json.type === 'error') {
+      const errMsg = String((json.error && json.error.message) || 'error');
+      console.error('[_oriwantesGenerate top-level error attempt=' + attempt + ']', JSON.stringify(json.error));
+      if (QUOTA_PATTERN.test(errMsg) && attempt < MAX_ATTEMPTS) {
+        Utilities.sleep(RETRY_WAIT_MS); continue;
+      }
+      return { ok: false, error: 'anthropic error: ' + errMsg };
+    }
+
+    // 正常応答：content 内の text ブロックを連結して取り出す
+    const content = json && json.content;
+    if (!Array.isArray(content)) {
+      console.error('[_oriwantesGenerate unexpected response shape]', JSON.stringify(json).substring(0, 400));
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'unexpected response shape' };
+    }
+    const text = content
+      .filter(function(b){ return b && b.type === 'text' && typeof b.text === 'string'; })
+      .map(function(b){ return b.text; })
+      .join('');
+    if (!text) {
+      console.error('[_oriwantesGenerate empty text]', JSON.stringify(json).substring(0, 400));
+      if (attempt < MAX_ATTEMPTS) { Utilities.sleep(RETRY_WAIT_MS); continue; }
+      return { ok: false, error: 'empty text' };
+    }
+
+    const usage = (json && json.usage) || {};
+    return {
+      ok: true,
+      text: text,
+      usage: {
+        input:  Number(usage.input_tokens)  || 0,
+        output: Number(usage.output_tokens) || 0
+      }
+    };
+  }
+
+  return { ok: false, error: 'all attempts exhausted' };
+}
+
+// オリワンテス②-A：問題生成ハンドラ（doPost）。
+//   params: { studentId, messages（会話全履歴・クライアントが組んだ配列・画像ブロック込み） }
+//   - 生成失敗時は HP を消費しない（案C）。
+//   - 応答先頭に [QUESTIONS] 印があれば問題完成 → 10HP 消費（floor -10 まで許容）。
+//   - 印が無ければ対話途中（質問・誘導・差し戻し）→ HP 消費せず応答を返す。
+//   ※ 結果のスプレッドシート保存・解答送信・100HP 付与は ②-B 以降（本タスクでは作らない）。
+function generateOriwantes(params) {
+  try {
+    params = params || {};
+    const sid = String(params.studentId || '').trim();
+    if (!sid) return { ok: false, error: 'studentId が必要です', hpConsumed: false };
+
+    const gen = _oriwantesGenerate(params.messages);
+    if (!gen.ok) {
+      // 生成失敗 → HP を消費しない（案C／論点3）
+      return { ok: false, error: gen.error || '生成に失敗しました', hpConsumed: false };
+    }
+
+    const rawText = String(gen.text || '');
+
+    // [QUESTIONS] 印の判定：応答テキスト先頭（先頭空白を除いた後）が [QUESTIONS] で始まるか。
+    //   表記揺れ対応：全角ブラケット ［］ も許容し、大文字小文字を無視（i フラグ）。
+    const trimmed = rawText.replace(/^[\s　]+/, '');               // 先頭の空白（全角空白含む）除去
+    const MARKER_RE = /^[\[［]\s*QUESTIONS\s*[\]］]/i;          // [ or ［ … ] or ］
+    const isComplete = MARKER_RE.test(trimmed);
+
+    if (isComplete) {
+      // ★HP 消費（案C）：問題完成時のみ 10 消費。floor -10（消費後 -10 を下回るなら不可）。
+      const consume = _consumeHP(sid, 10, 'oriwantes_create', -10);
+      if (!consume.ok) {
+        // 残高不足（消費後が -10 を下回る）→ 問題を出さずに不足を返す。
+        // オリワンテスとしての HP 不足セリフはフロントで出す。
+        return { ok: false, error: 'insufficient_hp', needHp: true, message: 'HPが足りない' };
+      }
+      // 消費成功 → 先頭の [QUESTIONS] 印を取り除いた本文を questions として返す。
+      const questions = trimmed.replace(MARKER_RE, '').replace(/^[\s　]+/, '');
+      return {
+        ok: true,
+        isComplete: true,
+        text: questions,
+        hpConsumed: true,
+        usage: gen.usage
+      };
+    }
+
+    // 印なし＝対話途中 → HP 消費せず応答テキストを返す。
+    return {
+      ok: true,
+      isComplete: false,
+      text: rawText,
+      hpConsumed: false,
+      usage: gen.usage
+    };
+  } catch (err) {
+    console.error('[generateOriwantes]', err);
+    return { ok: false, error: String(err), hpConsumed: false };
+  }
+}
+
 function submitSango(params) {
   try {
     const sid    = String(params.studentId || '').trim();
@@ -22873,11 +23077,16 @@ function testListMyTaskAnnouncementsForStudentRouting() {
 //     成功      : { ok:true,  consumed:amount, balanceAfter:残高-amount }
 //     残高不足  : { ok:false, reason:'insufficient', balance:残高, required:amount }（消費しない）
 //     引数不正等: { ok:false, reason:'invalid'|'error', message:... }
-function _consumeHP(sid, amount, reason) {
+function _consumeHP(sid, amount, reason, minBalanceAfter) {
   try {
     const sidNorm   = String(sid || '').trim();
     const amt       = Number(amount);
     const reasonStr = String(reason || '').trim();
+    // 消費後に許容する最低残高（floor）。任意第4引数。既定 0 = 既存挙動（マイナス不可）。
+    // オリワンテス等が負の floor（例 -10）を渡したときだけ、消費後のマイナス残高を許容する。
+    // 第4引数を省略する既存の全呼び出しは floorAfter=0 のまま挙動不変（後方互換）。
+    let floorAfter = Number(minBalanceAfter);
+    if (!isFinite(floorAfter)) floorAfter = 0;
     if (!sidNorm) return { ok: false, reason: 'invalid', message: '生徒IDが必要です' };
     if (!isFinite(amt) || amt <= 0 || Math.floor(amt) !== amt) {
       return { ok: false, reason: 'invalid', message: '消費HPは正の整数で指定してください' };
@@ -22890,7 +23099,9 @@ function _consumeHP(sid, amount, reason) {
     }
 
     // 2. 残高不足 → 消費せず不足を返す（呼び出し側のボタン無効＋不足表示用）。
-    if (bal.exchangeableHp < amt) {
+    //    消費後残高 (exchangeableHp - amt) が floorAfter を下回るなら不足扱い。
+    //    floorAfter 既定 0 のため、第4引数を省略した既存呼び出しは従来どおり「マイナス不可」。
+    if (bal.exchangeableHp - amt < floorAfter) {
       return { ok: false, reason: 'insufficient', balance: bal.exchangeableHp, required: amt };
     }
 
