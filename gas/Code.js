@@ -1452,6 +1452,9 @@ function doPost(e) {
     // オリワンテス②-A（2026-06-14）：対話型 AI 問題生成。画像 base64＋会話全履歴が大きいため
     //   POST 専用（doGet には登録しない）。問題完成時のみ 10HP 消費（案C）。
     else if (action === 'generateOriwantes')                result = generateOriwantes(params);
+    // オリワンテス②-B（2026-06-14）：解答送信＋結果保存＋100HP 付与。questions に問題文・解説を
+    //   含み大きいため POST 専用（doGet には登録しない）。
+    else if (action === 'submitOriwantes')                  result = submitOriwantes(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -14642,6 +14645,120 @@ function generateOriwantes(params) {
   } catch (err) {
     console.error('[generateOriwantes]', err);
     return { ok: false, error: String(err), hpConsumed: false };
+  }
+}
+
+// =============================================
+// オリワンテス②-B：解答送信＋結果保存（OriwantesResults）＋100HP 付与
+// =============================================
+// 1 提出 = 1 行。固定枠（4 列 × 10 問）。写真・プロンプトは保存しない（仕様）。
+const SHEET_ORIWANTES_RESULTS = 'OriwantesResults';
+// 列構成（ふくちさん確定）：base 6 列 + 各問 4 列 × 最大 10 問 + comment 1 列 = 47 列。
+const ORIWANTES_RESULTS_HEADERS = (function() {
+  const h = ['studentId', 'date', 'subject', 'submissionId', 'timestamp', 'studentName'];
+  for (let n = 1; n <= 10; n++) {
+    h.push('q' + n + '_text', 'q' + n + '_answer', 'q' + n + '_studentAnswer', 'q' + n + '_explanation');
+  }
+  h.push('comment');   // 管理者コメント用（初期空・④で使う）
+  return h;
+})();
+
+// OriwantesResults シートを確保する（既存 _ensureSheetWithHeaders 作法・冪等）。
+// ★新シート作成のため、ふくちさんが GAS エディタから 1 回手動実行する必要がある。
+function _ensureOriwantesResultsSheet() {
+  const r = _ensureSheetWithHeaders(SHEET_ORIWANTES_RESULTS, ORIWANTES_RESULTS_HEADERS);
+  return { ok: true, created: r.created, sheet: SHEET_ORIWANTES_RESULTS, headers: ORIWANTES_RESULTS_HEADERS };
+}
+
+// オリワンテス②-B：解答送信ハンドラ（doPost）。
+//   params: { studentId, subject, questions:[{questionText, answer, explanation, studentAnswer}, ...] }
+//   - サーバはステートレスのため、問題文・正解・解説・生徒解答はクライアントから送り返してもらう。
+//   - 結果を OriwantesResults に 1 行保存し、100HP を付与（マイ課題と同様：reserve ゲート・週数ボーナス対象）。
+//   ※ 新 type 'oriwantes' の横断反映（Stage / カレンダー / 保護者画面）は ⑤ で別途。
+function submitOriwantes(params) {
+  try {
+    params = params || {};
+    const sid = String(params.studentId || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+
+    const subject = String(params.subject == null ? '' : params.subject).trim();
+
+    const questionsIn = Array.isArray(params.questions) ? params.questions : [];
+    if (questionsIn.length === 0) {
+      return { ok: false, message: '解答する問題がありません' };
+    }
+
+    // 生徒行をフレッシュ特定（HP 付与と studentName 取得に使う）。
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+    const studentName = String(stuLoc.rowValues[COL_NICKNAME] || '').trim();
+
+    const submissionId  = String(Date.now()) + '_' + sid;
+    const submittedDate = _todayEducationalJST();
+    const timestamp     = _nowJST();
+
+    // 固定枠は 10 問。超過分は枠に収まらないため切り捨てる。
+    const MAX_Q = 10;
+    const qs = questionsIn.slice(0, MAX_Q);
+    const savedQuestionCount = qs.length;
+
+    // ── 1 行を列順に組み立て（base 6 列 + 4 列 × 10 問 + comment）──
+    const row = [sid, submittedDate, subject, submissionId, timestamp, studentName];
+    for (let n = 0; n < MAX_Q; n++) {
+      const q = qs[n] || {};
+      row.push(
+        String(q.questionText  == null ? '' : q.questionText),
+        String(q.answer        == null ? '' : q.answer),
+        String(q.studentAnswer == null ? '' : q.studentAnswer),
+        String(q.explanation   == null ? '' : q.explanation)
+      );
+    }
+    row.push('');   // comment（初期空）
+
+    // ── 結果保存（appendRow）──
+    _ensureOriwantesResultsSheet();
+    const sh = _ss().getSheetByName(SHEET_ORIWANTES_RESULTS);
+    if (!sh) return { ok: false, message: 'OriwantesResults シートが見つかりません' };
+    sh.appendRow(row);
+
+    // ── 100HP 付与（マイ課題と全く同様：reserve ゲート・週数ボーナス対象）──
+    //   付与失敗時も、保存済みの appendRow は巻き戻さない（submitMyTask の HP_LOG_FAILED に倣う）。
+    const grant = _grantHP({
+      sid:           sid,
+      type:          'oriwantes',
+      rawHp:         100,
+      stuLoc:        stuLoc,
+      submissionId:  submissionId,
+      contentType:   'oriwantes',
+      subject:       '',
+      submittedDate: submittedDate
+      // applyWeekMultiplier / applyReserveSystem / checkCompletion は既定 true
+    });
+    if (!grant.ok) {
+      console.error('[submitOriwantes] _grantHP 失敗（結果は保存済み）', { sid: sid, errorCode: grant.errorCode });
+      return {
+        ok: false,
+        message: grant.message || '内部エラーが発生しました。もう一度試してください。',
+        errorCode: grant.errorCode || 'HP_LOG_FAILED',
+        submissionId: submissionId,
+        savedQuestionCount: savedQuestionCount,
+        grantedRawHp: 0
+      };
+    }
+
+    return {
+      ok: true,
+      submissionId: submissionId,
+      savedQuestionCount: savedQuestionCount,
+      grantedRawHp: 100,
+      hpGained: grant.hpGained,
+      hpReserved: grant.hpReserved,
+      isReserveActive: grant.isReserveActive,
+      newHP: grant.newHP
+    };
+  } catch (err) {
+    console.error('[submitOriwantes]', err);
+    return { ok: false, message: String(err) };
   }
 }
 
