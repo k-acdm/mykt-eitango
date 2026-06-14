@@ -14362,7 +14362,7 @@ const ORIWANTES_SYSTEM_PROMPT = `あなたは学習塾「春日部アカデミ�
 - まだ問題を作らず、質問・確認・誘導・断りをするだけのときは、[QUESTIONS] の印を絶対につけない。
 - 採点はしない（生徒の解答を判定しない）。正解と解説を示すだけ。`;
 
-function _oriwantesGenerate(messages) {
+function _oriwantesGenerate(messages, systemPrompt) {
   const apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
   if (!apiKey) {
     console.error('[_oriwantesGenerate] ANTHROPIC_API_KEY が設定されていません');
@@ -14372,10 +14372,14 @@ function _oriwantesGenerate(messages) {
     return { ok: false, error: 'messages が空です' };
   }
 
+  // systemPrompt（学年情報入りの動的プロンプト）を任意で受け取る。省略時は
+  // ORIWANTES_SYSTEM_PROMPT を既定にする（学年情報なしの従来挙動・後方互換）。
+  const sys = (typeof systemPrompt === 'string' && systemPrompt) ? systemPrompt : ORIWANTES_SYSTEM_PROMPT;
+
   const body = {
     model: 'claude-opus-4-8',
     max_tokens: 8000,
-    system: ORIWANTES_SYSTEM_PROMPT,
+    system: sys,
     messages: messages   // クライアントが組んだ会話全履歴をそのまま渡す（画像ブロック込み）
   };
 
@@ -14466,6 +14470,21 @@ function _oriwantesGenerate(messages) {
   return { ok: false, error: 'all attempts exhausted' };
 }
 
+// GRADE_LEVEL の短縮表記（例「高2」「中2」「小5」）を、モンクロさんに伝える自然な表現
+//   （例「高校2年生」「中学2年生」「小学5年生」）へ変換する。
+//   - 先頭文字 小/中/高 を 小学/中学/高校 に展開し、続く数字＋「年生」を付ける。
+//   - 想定外の形式・空・取得失敗時は null を返す（呼び出し側は学年情報なしでフォールバック）。
+function _gradeToHumanLabel(gradeLevel) {
+  const g = String(gradeLevel == null ? '' : gradeLevel).trim();
+  if (!g) return null;
+  const SCHOOL_MAP = { '小': '小学', '中': '中学', '高': '高校' };
+  const school = SCHOOL_MAP[g.charAt(0)];
+  if (!school) return null;
+  const m = g.slice(1).match(/^(\d+)/);  // 校種文字に続く学年の数字
+  if (!m) return null;
+  return school + m[1] + '年生';
+}
+
 // オリワンテス②-A：問題生成ハンドラ（doPost）。
 //   params: { studentId, messages（会話全履歴・クライアントが組んだ配列・画像ブロック込み） }
 //   - 生成失敗時は HP を消費しない（案C）。
@@ -14478,7 +14497,33 @@ function generateOriwantes(params) {
     const sid = String(params.studentId || '').trim();
     if (!sid) return { ok: false, error: 'studentId が必要です', hpConsumed: false };
 
-    const gen = _oriwantesGenerate(params.messages);
+    // ── 学年情報をシステムプロンプトに動的追記（学年の聞き返しを不要化）──
+    //   GRADE_LEVEL の取得は既存作法に従う：_findAccountRowOnSheet で生徒行を引き、
+    //   _readGradeLevelFromLoc（GRADE_LEVEL ヘッダー名検出）で値を読む（getExchangeableHp と同型）。
+    //   取得できない場合は ORIWANTES_SYSTEM_PROMPT のまま（フォールバック）。
+    let systemPrompt = ORIWANTES_SYSTEM_PROMPT;
+    try {
+      const loc = _findAccountRowOnSheet(sid);
+      const gradeLevel = loc ? _readGradeLevelFromLoc(loc) : '';
+      const label = _gradeToHumanLabel(gradeLevel);
+      if (label) {
+        const isHighSchool = (String(gradeLevel || '').trim().charAt(0) === '高');
+        if (isHighSchool) {
+          systemPrompt = ORIWANTES_SYSTEM_PROMPT +
+            '\n\n【この生徒について】この生徒は『' + label + '』です。学年を聞き返す必要はありません。' +
+            '高校生なので、学校の定期テストのレベルを超えない範囲で、この学年に合った問題を作ってください。';
+        } else {
+          systemPrompt = ORIWANTES_SYSTEM_PROMPT +
+            '\n\n【この生徒について】この生徒は『' + label + '』です。学年を聞き返す必要はありません。' +
+            'この学年に合ったレベルで問題を作ってください。';
+        }
+      }
+    } catch (e) {
+      // 学年取得失敗 → 学年情報なしで従来どおり続行（systemPrompt は ORIWANTES_SYSTEM_PROMPT のまま）
+      console.error('[generateOriwantes] 学年取得失敗（学年情報なしで続行）', e);
+    }
+
+    const gen = _oriwantesGenerate(params.messages, systemPrompt);
     if (!gen.ok) {
       // 生成失敗 → HP を消費しない（案C／論点3）
       return { ok: false, error: gen.error || '生成に失敗しました', hpConsumed: false };
