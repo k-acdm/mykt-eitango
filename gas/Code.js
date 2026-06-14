@@ -1129,6 +1129,9 @@ function doGet(e) {
       else if (action === 'adminSetSangoTeacherWork')   result = adminSetSangoTeacherWork(params);
       else if (action === 'adminSetSangoComment')      result = adminSetSangoComment(params);
       else if (action === 'getSangoSubmissions') result = getSangoSubmissions(params);
+      // オリワンテス②-C（2026-06-14）：履歴取得（閲覧専用・小さい params のため doGet。
+      //   getSangoSubmissions と同流儀）。
+      else if (action === 'getOriwantesHistory') result = getOriwantesHistory(params);
       // 2026-05-12 サンゴタン AI フィードバック関連
       else if (action === 'getSangoStarredForStudent')  result = getSangoStarredForStudent(params);
       else if (action === 'getSangoWeeklyFeatured')     result = getSangoWeeklyFeatured();
@@ -14758,6 +14761,87 @@ function submitOriwantes(params) {
     };
   } catch (err) {
     console.error('[submitOriwantes]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// オリワンテス②-C：履歴取得（doGet）。「今までに作成した問題を見る」用・閲覧専用。
+//   params: { studentId, offset(既定0), limit(既定10) }
+//   - その生徒の OriwantesResults 行を新しい順（保存順の降順＝appendRow は末尾追加のため
+//     シート行を逆順）に並べ、offset から limit 件を返す（ページング）。
+//   - 各問は questionText が空でないものだけ questions[] に入れる（10問未満の余り列を除外）。
+//   - getSangoSubmissions と同じ doGet・getDataRange の作法に倣う（取得のみ・更新しない）。
+function getOriwantesHistory(params) {
+  try {
+    params = params || {};
+    const sid = String(params.studentId || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+
+    let offset = parseInt(params.offset, 10);
+    if (!isFinite(offset) || offset < 0) offset = 0;
+    let limit = parseInt(params.limit, 10);
+    if (!isFinite(limit) || limit <= 0) limit = 10;
+
+    const sh = _ss().getSheetByName(SHEET_ORIWANTES_RESULTS);
+    if (!sh || sh.getLastRow() < 2) {
+      return { ok: true, items: [], offset: offset, limit: limit, total: 0, hasMore: false };
+    }
+    const values = sh.getDataRange().getValues();
+
+    // この生徒の行をシート（＝保存）順に抽出。
+    const matched = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r || String(r[0] || '').trim() !== sid) continue;
+      matched.push(r);
+    }
+
+    // 新しい順＝保存順の降順（appendRow は末尾追加のため、後の行ほど新しい）。
+    matched.reverse();
+
+    const total = matched.length;
+    const page = matched.slice(offset, offset + limit);
+
+    const items = page.map(function(r){
+      const questions = [];
+      for (let n = 0; n < 10; n++) {
+        const base = 6 + n * 4;   // q{n}_text の列 index（0 始まり）
+        const questionText = String(r[base] == null ? '' : r[base]).trim();
+        if (!questionText) continue;   // 内容のある問だけ（余り列を除外）
+        questions.push({
+          questionText:  questionText,
+          answer:        String(r[base + 1] == null ? '' : r[base + 1]),
+          studentAnswer: String(r[base + 2] == null ? '' : r[base + 2]),
+          explanation:   String(r[base + 3] == null ? '' : r[base + 3])
+        });
+      }
+      // date 列（index 1）は文字列保存だが Sheets が Date 化する可能性に備えて整形。
+      let dateStr;
+      const dv = r[1];
+      if (Object.prototype.toString.call(dv) === '[object Date]') {
+        dateStr = Utilities.formatDate(dv, 'Asia/Tokyo', 'yyyy-MM-dd');
+      } else {
+        dateStr = String(dv == null ? '' : dv);
+      }
+      return {
+        submissionId: String(r[3] || ''),
+        date:         dateStr,
+        subject:      String(r[2] || ''),
+        questions:    questions,
+        comment:      String(r[46] || '')   // comment（47 列目）
+      };
+    });
+
+    return {
+      ok: true,
+      items: items,
+      offset: offset,
+      limit: limit,
+      total: total,
+      hasMore: (offset + limit) < total
+    };
+  } catch (err) {
+    console.error('[getOriwantesHistory]', err);
     return { ok: false, message: String(err) };
   }
 }
