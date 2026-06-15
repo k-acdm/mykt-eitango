@@ -14373,6 +14373,7 @@ const ORIWANTES_SYSTEM_PROMPT = `あなたは学習塾「春日部アカデミ�
 
 【問題を出力するときの形式（重要・厳守）】
 問題が完成して出力するときは、応答の先頭に [QUESTIONS] を置き、続けてオリワンテスの一言を述べた後、各問題を必ず次の形式で出力する：
+また、[QUESTIONS] の直後（オリワンテスの一言の前でも後でもよい）に、その問題の教科を [SUBJECT]教科名[/SUBJECT] の形式で1つだけ出力する。教科名は、対話で確定した教科を簡潔な標準的な名称にする（例：英語、数学、国語、理科、社会、物理、化学、生物、日本史、世界史、論理表現 など。生徒の冗長な言い方ではなく、教科として簡潔な名称にまとめる）。例：[SUBJECT]社会[/SUBJECT]
 各問は [Q番号] の次の行に問題文、[A番号] の次の行に正解、[E番号] の次の行に解説、という区切りで書く。例：
 [Q1]
 （問1の問題文）
@@ -14518,7 +14519,21 @@ function _gradeToHumanLabel(gradeLevel) {
 //   タグは全角ブラケット ［］・前後空白・大小文字を許容。Q/A/E が欠ける問題は該当フィールドが
 //   空文字のまま部分的に組み立てる（パース失敗で落とさない方針）。
 function _parseOriwantesQuestions(bodyText) {
-  const text = String(bodyText == null ? '' : bodyText);
+  let text = String(bodyText == null ? '' : bodyText);
+
+  // ── [SUBJECT]教科名[/SUBJECT] を最初に抽出し、本文から除去する ──
+  //   全角ブラケット ［］ / 全角スラッシュ ／ / 前後空白 / 大文字小文字（i フラグ）を許容（[Q][A][E] と同じ堅牢さ）。
+  //   ★この除去は intro 抽出・[Q][A][E] パースよりも前に行う。これにより SUBJECT タグの本文（教科名）が
+  //     intro や questions に混入しない（タグ干渉の防止）。
+  let subject = '';
+  const SUBJECT_PAIR_RE = /[\[［]\s*SUBJECT\s*[\]］]([\s\S]*?)[\[［]\s*[\/／]\s*SUBJECT\s*[\]］]/i;
+  const sm = text.match(SUBJECT_PAIR_RE);
+  if (sm && sm[1] != null) subject = sm[1].trim();
+  // 開きタグ〜閉じタグの組をすべて除去（教科名ごと消す）
+  text = text.replace(/[\[［]\s*SUBJECT\s*[\]］][\s\S]*?[\[［]\s*[\/／]\s*SUBJECT\s*[\]］]/gi, '');
+  // 念のため、閉じタグ欠け等で孤立した開き／閉じタグも除去（フォールバック・タグ残留防止）
+  text = text.replace(/[\[［]\s*[\/／]?\s*SUBJECT\s*[\]］]/gi, '');
+
   const TAG_RE = /[\[［]\s*([QAEqae])\s*(\d+)\s*[\]］]/g;
   const tags = [];
   let m;
@@ -14553,7 +14568,7 @@ function _parseOriwantesQuestions(bodyText) {
     return { questionText: q.questionText, answer: q.answer, explanation: q.explanation };
   });
 
-  return { intro: intro, questions: questions };
+  return { subject: subject, intro: intro, questions: questions };
 }
 
 // オリワンテス②-A：問題生成ハンドラ（doPost）。
@@ -14619,17 +14634,18 @@ function generateOriwantes(params) {
       // 消費成功 → 先頭の [QUESTIONS] 印を除いた本文を構造化パース（intro + [Q][A][E]）。
       //   パース失敗時も rawText を必ず返し、フロントが最低限表示できるようにする（落とさない）。
       const body = trimmed.replace(MARKER_RE, '').replace(/^[\s　]+/, '');
-      let parsed = { intro: '', questions: [] };
+      let parsed = { subject: '', intro: '', questions: [] };
       try {
         parsed = _parseOriwantesQuestions(body);
       } catch (e) {
         console.error('[generateOriwantes] 構造化パース失敗（rawText で続行）', e);
-        parsed = { intro: '', questions: [] };
+        parsed = { subject: '', intro: '', questions: [] };
       }
       return {
         ok: true,
         isComplete: true,
         hpConsumed: true,
+        subject: parsed.subject || '',   // [SUBJECT] パース結果（タグ無し・失敗時は '' フォールバック）
         intro: parsed.intro,
         questions: parsed.questions,
         rawText: rawText,        // 元の応答全文（フォールバック・デバッグ用）
