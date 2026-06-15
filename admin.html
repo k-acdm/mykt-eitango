@@ -9248,6 +9248,28 @@
           : '';
         return CHILD_OK + hpLabel;
       }
+    },
+    {
+      label: 'マイ課題',
+      render: function(d) {
+        if (!d.mytask || !d.mytask.done) return CHILD_NG;
+        var hp = Number(d.mytask.hpGained || 0);
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">' + hp.toLocaleString() + 'HP獲得</span>'
+          : '';
+        return CHILD_OK + hpLabel;
+      }
+    },
+    {
+      label: 'オリワンテス',
+      render: function(d) {
+        if (!d.oriwantes || !d.oriwantes.done) return CHILD_NG;
+        var hp = Number(d.oriwantes.hpGained || 0);
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">' + hp.toLocaleString() + 'HP獲得</span>'
+          : '';
+        return CHILD_OK + hpLabel;
+      }
     }
   ];
 
