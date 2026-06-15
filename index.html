@@ -2718,6 +2718,17 @@
     .oriwan-result-correct { color: #047857; }
     .oriwan-result-correct .oriwan-result-rlabel { color: #047857; }
     .oriwan-result-explain { color: #3a2c0a; background: #fff7e0; border-radius: 8px; padding: 6px 10px; }
+    /* ===== オリワンテス（③-C）履歴一覧／詳細 ===== */
+    .oriwan-history-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: #fffdf5; border: 1px solid #f0e2b8; border-radius: 12px; padding: 12px 14px; margin: 8px 0; cursor: pointer; font-size: 15px; color: #3a2c0a; }
+    .oriwan-history-item:hover { background: #fff7e0; }
+    .oriwan-history-item .oh-date { font-weight: bold; color: #7a5210; }
+    .oriwan-history-item .oh-sep { color: #c8b072; }
+    .oriwan-history-item .oh-subject { font-weight: bold; }
+    .oriwan-history-item .oh-count { margin-left: auto; color: #7a5210; font-weight: bold; white-space: nowrap; }
+    .oriwan-history-empty { text-align: center; color: #7a5210; font-size: 15px; line-height: 1.7; padding: 24px 8px; }
+    .oriwan-history-meta { font-size: 14px; font-weight: bold; color: #7a5210; background: #fff7e0; border: 1px solid #f0d48a; border-radius: 10px; padding: 9px 12px; margin: 4px 0 8px; text-align: center; }
+    .oriwan-history-comment { font-size: 14px; line-height: 1.7; color: #1b4332; background: #e6f4ea; border: 2px solid #74c69d; border-radius: 12px; padding: 10px 14px; margin: 8px 0; white-space: pre-wrap; word-break: break-word; }
+    .oriwan-history-comment .ohc-label { display: block; font-weight: bold; color: #1b7a45; margin-bottom: 4px; }
 
     /* ============================================== */
     /* 英語リスオン（lison）                           */
@@ -3055,10 +3066,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260616-0003"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260616-0029"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260616-0003">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260616-0003"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260616-0029">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260616-0029"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4741,7 +4752,7 @@
     </div>
     <div class="oriwan-hp-line" id="oriwantes-hp-line">現在の交換可能HP：読み込み中…</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:8px" onclick="goOriwantesCreate()">✨ 新しい問題を作成する</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#e3c887,#bfa05f);margin-top:12px" onclick="showOriwantesHistoryComingSoon()">📜 今までに作成した問題を見る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#e3c887,#bfa05f);margin-top:12px" onclick="goOriwantesHistory()">📜 今までに作成した問題を見る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -4825,6 +4836,35 @@
     <div id="oriwantes-result-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:14px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- オリワンテス（③-C：履歴一覧）。過去に作った問題を新しい順に。タップで詳細へ。閲覧のみ。 -->
+<div id="screen-oriwantes-history" class="screen">
+  <header><h1>📜 作った問題</h1><span>今までに作成した問題</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-oriwantes-history" src="images/oriwantes-default.png" alt="オリワンテス">
+      <div class="mate-bubble" id="mate-bubble-oriwantes-history">これまでに作った問題だ。</div>
+    </div>
+    <div id="oriwantes-history-list"></div>
+    <button id="oriwantes-history-more" class="btn-wide" style="background:linear-gradient(135deg,#e3c887,#bfa05f);margin-top:12px;display:none" onclick="loadMoreOriwantesHistory()">📜 さらに過去の問題を見る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
+  </div>
+</div>
+
+<!-- オリワンテス（③-C：履歴詳細）。③-B結果と同じ見せ方の閲覧専用（入力欄・送信ボタンなし）。 -->
+<div id="screen-oriwantes-history-detail" class="screen">
+  <header><h1>📋 問題の中身</h1><span>正解と解説</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-oriwantes-history-detail" src="images/oriwantes-default.png" alt="オリワンテス">
+      <div class="mate-bubble" id="mate-bubble-oriwantes-history-detail">これは君が作った問題だ。よく復習するがよい。</div>
+    </div>
+    <div id="oriwantes-history-detail-meta" class="oriwan-history-meta"></div>
+    <div id="oriwantes-history-detail-comment"></div>
+    <div id="oriwantes-history-detail-list"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:14px" onclick="showScreen('screen-oriwantes-history')">← 一覧に戻る</button>
   </div>
 </div>
 
@@ -14240,8 +14280,12 @@
 
   // 結果リスト：採点なし。問N／問題文／あなたの解答（空欄は「（未回答）」）／正解／解説（すべて textContent）。
   function _renderOriwantesResultList(questions) {
-    var listEl = document.getElementById('oriwantes-result-list');
+    _renderOriwantesQuestionCards(document.getElementById('oriwantes-result-list'), questions);
+  }
+  // 採点なし・閲覧用の問題カード描画（結果画面と履歴詳細画面で共用）。本文は textContent（XSS回避）。
+  function _renderOriwantesQuestionCards(listEl, questions) {
     if (!listEl) return;
+    questions = questions || [];
     listEl.innerHTML = '';
     for (var i = 0; i < questions.length; i++) {
       var q = questions[i] || {};
@@ -14277,6 +14321,143 @@
     row.appendChild(l);
     row.appendChild(v);
     return row;
+  }
+
+  // ============================================================================
+  // オリワンテス（③-C）：「今までに作成した問題を見る」履歴閲覧（一覧→詳細、閲覧専用）
+  //   getOriwantesHistory（②-C・doGet）を offset/limit/hasMore でページング。
+  //   採点なし・解答送信なし。本文は textContent で描画（XSS回避）。
+  // ============================================================================
+  var _oriwantesHistory = { items: [], offset: 0, limit: 10, hasMore: false, loading: false };
+
+  function goOriwantesHistory() {
+    // 一覧を開くたびに先頭から取り直す（新しい提出が増えている可能性があるため）。
+    _oriwantesHistory = { items: [], offset: 0, limit: 10, hasMore: false, loading: false };
+    showScreen('screen-oriwantes-history');
+    _setContentMascot('mate-img-oriwantes-history', 'default', 'mate-bubble-oriwantes-history', 'これまでに作った問題だ。', 'oriwantes');
+    var listEl = document.getElementById('oriwantes-history-list');
+    if (listEl) listEl.innerHTML = '<div class="oriwan-history-empty">読み込み中…</div>';
+    var moreBtn = document.getElementById('oriwantes-history-more');
+    if (moreBtn) moreBtn.style.display = 'none';
+    _fetchOriwantesHistory(true);
+  }
+
+  // 「さらに過去の問題を見る」：offset を進めて続きを取得し、一覧末尾に追記する。
+  function loadMoreOriwantesHistory() {
+    _fetchOriwantesHistory(false);
+  }
+
+  function _fetchOriwantesHistory(isFirst) {
+    if (_oriwantesHistory.loading) return;
+    if (!_studentId) {
+      var le = document.getElementById('oriwantes-history-list');
+      if (le) le.innerHTML = '<div class="oriwan-history-empty">ログインしてくれ。</div>';
+      return;
+    }
+    _oriwantesHistory.loading = true;
+    var moreBtn = document.getElementById('oriwantes-history-more');
+    if (moreBtn && !isFirst) { moreBtn.disabled = true; moreBtn.textContent = '読み込み中…'; }
+    gasGet({ action: 'getOriwantesHistory', studentId: _studentId, offset: _oriwantesHistory.offset, limit: _oriwantesHistory.limit, _ts: Date.now() })
+      .then(function(res){
+        _oriwantesHistory.loading = false;
+        if (moreBtn) { moreBtn.disabled = false; moreBtn.textContent = '📜 さらに過去の問題を見る'; }
+        if (!res || !res.ok) {
+          if (isFirst) {
+            var le = document.getElementById('oriwantes-history-list');
+            if (le) le.innerHTML = '<div class="oriwan-history-empty">うまく読み込めなかった。もう一度試してくれ。</div>';
+          } else {
+            alert('うまく読み込めなかった。もう一度試してくれ。');
+          }
+          return;
+        }
+        var items = res.items || [];
+        _oriwantesHistory.items = _oriwantesHistory.items.concat(items);
+        _oriwantesHistory.offset += items.length;   // 取得できた件数だけ進める
+        _oriwantesHistory.hasMore = !!res.hasMore;
+        _renderOriwantesHistoryList();
+      })
+      .catch(function(err){
+        _oriwantesHistory.loading = false;
+        if (moreBtn) { moreBtn.disabled = false; moreBtn.textContent = '📜 さらに過去の問題を見る'; }
+        console.error('[_fetchOriwantesHistory]', err);
+        if (isFirst) {
+          var le = document.getElementById('oriwantes-history-list');
+          if (le) le.innerHTML = '<div class="oriwan-history-empty">通信がうまくいかなかった。電波の良い場所で、もう一度試してくれ。</div>';
+        } else {
+          alert('通信がうまくいかなかった。電波の良い場所で、もう一度試してくれ。');
+        }
+      });
+  }
+
+  // 一覧描画：保持中の items を全件描画（追記分も含めて再描画）。「日付 ｜ 教科 ｜ ○問」。
+  function _renderOriwantesHistoryList() {
+    var listEl = document.getElementById('oriwantes-history-list');
+    var moreBtn = document.getElementById('oriwantes-history-more');
+    if (!listEl) return;
+    var items = _oriwantesHistory.items || [];
+    if (items.length === 0) {
+      listEl.innerHTML = '<div class="oriwan-history-empty">まだ作った問題はないぞ。<br>新しい問題を作ってみよう。</div>';
+      if (moreBtn) moreBtn.style.display = 'none';
+      return;
+    }
+    listEl.innerHTML = '';
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i] || {};
+      var n = (it.questions || []).length;
+      var btn = document.createElement('button');
+      btn.className = 'oriwan-history-item';
+
+      var d = document.createElement('span');
+      d.className = 'oh-date';
+      d.textContent = String(it.date == null ? '' : it.date);
+      var s1 = document.createElement('span'); s1.className = 'oh-sep'; s1.textContent = '｜';
+      var subj = document.createElement('span');
+      subj.className = 'oh-subject';
+      subj.textContent = String(it.subject ? it.subject : '（教科なし）');
+      var cnt = document.createElement('span');
+      cnt.className = 'oh-count';
+      cnt.textContent = n + '問';
+
+      btn.appendChild(d);
+      btn.appendChild(s1);
+      btn.appendChild(subj);
+      btn.appendChild(cnt);
+      (function(item){ btn.onclick = function(){ _showOriwantesHistoryDetail(item); }; })(it);
+      listEl.appendChild(btn);
+    }
+    if (moreBtn) moreBtn.style.display = _oriwantesHistory.hasMore ? '' : 'none';
+  }
+
+  // 詳細：③-B結果と同じ見せ方の閲覧専用（入力欄・送信ボタンなし）。コメントがあれば表示。
+  function _showOriwantesHistoryDetail(item) {
+    item = item || {};
+    showScreen('screen-oriwantes-history-detail');
+    _setContentMascot('mate-img-oriwantes-history-detail', 'default', 'mate-bubble-oriwantes-history-detail', 'これは君が作った問題だ。よく復習するがよい。', 'oriwantes');
+    var meta = document.getElementById('oriwantes-history-detail-meta');
+    if (meta) {
+      var subj = item.subject ? item.subject : '（教科なし）';
+      meta.textContent = String(item.date == null ? '' : item.date) + ' ｜ ' + subj;
+    }
+    var commentEl = document.getElementById('oriwantes-history-detail-comment');
+    if (commentEl) {
+      var c = String(item.comment == null ? '' : item.comment).trim();
+      if (c) {
+        commentEl.innerHTML = '';
+        var box = document.createElement('div');
+        box.className = 'oriwan-history-comment';
+        var lab = document.createElement('span');
+        lab.className = 'ohc-label';
+        lab.textContent = '先生からのひとこと';
+        var body = document.createElement('span');
+        body.textContent = c;
+        box.appendChild(lab);
+        box.appendChild(body);
+        commentEl.appendChild(box);
+      } else {
+        commentEl.innerHTML = '';
+      }
+    }
+    _renderOriwantesQuestionCards(document.getElementById('oriwantes-history-detail-list'), item.questions || []);
   }
 
   // 生成中オーバーレイ（_gradingDotsTimer パターン流用、別タイマー変数）
@@ -17306,7 +17487,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260616-0003</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260616-0029</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
