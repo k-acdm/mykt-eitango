@@ -3066,10 +3066,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260616-0152"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260616-0437"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260616-0152">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260616-0152"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260616-0437">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260616-0437"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -14282,7 +14282,24 @@
 
   // 結果リスト：採点なし。問N／問題文／あなたの解答（空欄は「（未回答）」）／正解／解説（すべて textContent）。
   function _renderOriwantesResultList(questions) {
-    _renderOriwantesQuestionCards(document.getElementById('oriwantes-result-list'), questions);
+    var listEl = document.getElementById('oriwantes-result-list');
+    _renderOriwantesQuestionCards(listEl, questions);
+    // 復習を促す文言を結果リストの先頭に挿入（オリワンテスのセリフ風）。
+    // 解答送信直後の復習喚起が目的のため、結果画面のみ。履歴詳細（共用の _renderOriwantesQuestionCards）には出さない。
+    if (listEl) {
+      var review = document.createElement('div');
+      review.className = 'mate-row';
+      var img = document.createElement('img');
+      img.className = 'mate-img';
+      img.src = 'images/oriwantes-default.png';
+      img.alt = 'オリワンテス';
+      var bubble = document.createElement('div');
+      bubble.className = 'mate-bubble';
+      bubble.textContent = '正解と解説をよく読んで、間違えた問題は「数日後にもう一度解く」ことが大切だ。やったことを無駄にしないために。';
+      review.appendChild(img);
+      review.appendChild(bubble);
+      listEl.insertBefore(review, listEl.firstChild);
+    }
   }
   // 採点なし・閲覧用の問題カード描画（結果画面と履歴詳細画面で共用）。本文は textContent（XSS回避）。
   function _renderOriwantesQuestionCards(listEl, questions) {
@@ -17489,7 +17506,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260616-0152</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260616-0437</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
