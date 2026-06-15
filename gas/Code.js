@@ -1736,6 +1736,9 @@ function _isCountableActivityType(type) {
       type.substring(type.length - PRACTICE_SUFFIX.length) === PRACTICE_SUFFIX) return false;
   // カウント対象（完全一致）
   if (type === 'test' || type === 'sango' || type === 'wabun1' || type === 'lison') return true;
+  // 2026-06-16：オリワンテス（解答送信 type='oriwantes'・単一type）も活動カウント対象。
+  //   消費 'oriwantes_create' は HpConsumeLog のため HPLog に無く、ここには来ない（自然除外）。
+  if (type === 'oriwantes') return true;
   // 2026-05-19 Task 2：計算タイムトライアル本番（'calctrial'）はカウント対象。
   // 練習モード（'calctrial_practice'）は上の _practice 接尾分岐で既に除外済。
   if (type === 'calctrial') return true;
@@ -13421,6 +13424,7 @@ function _calendarContentName(type) {
   //   差し戻し（mytask_revert）はカレンダーに活動として出る既存挙動のため、機械文字列でなく日本語で表示する。
   if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'マイ課題';
   if (t === 'mytask_revert') return 'マイ課題 差し戻し';
+  if (t === 'oriwantes') return 'オリワンテス';
   if (t === 'rika')   return '理科重要語句';
   if (t === 'shakai') return '社会重要語句';
   if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
@@ -15846,6 +15850,7 @@ function getChildActivityRecent(params) {
         rika:      { done: false, hpGained: 0 },                 // 理科重要語句
         shakai:    { done: false, hpGained: 0 },                 // 社会重要語句
         mytask:    { done: false, hpGained: 0 },                 // マイ課題（塾の宿題 + 自学を「マイ課題」に統合）
+        oriwantes: { done: false, hpGained: 0 },                 // オリワンテス（解答送信 type='oriwantes'・単一type）
         hpAdjustments: [],  // HP事後調整ログ（apology_* / completion_bonus / reflection_release / manual_grant / mytask_revert 等）
         extras:  []  // 未知の HPLog type は自動でここに集約（将来コンテンツの自動対応）
       };
@@ -15982,6 +15987,11 @@ function getChildActivityRecent(params) {
           //   hpAdjustments 分岐へ（活動 ✅ には含めない）。
           byDate[ds].mytask.done = true;
           byDate[ds].mytask.hpGained += hp;
+        }
+        else if (type === 'oriwantes') {
+          // オリワンテス（解答送信 type='oriwantes'・単一type）。消費 'oriwantes_create' は HPLog に無い。
+          byDate[ds].oriwantes.done = true;
+          byDate[ds].oriwantes.hpGained += hp;
         }
         else if (type === 'reflection_release' || type === 'reserve_release') {
           // 2026-06-04：振り返り解放分（reflection_release）/ ミッション完走解放分（reserve_release）は
@@ -16226,7 +16236,7 @@ function getChildActivityRecent(params) {
         // 2026-06-04：eitango / sango も hpGained 表示をフロント（view.html / admin.html）に追加したため対象に含める。
         eitango: 1, sango: 1,
         wabun1: 1, kiso: 1, calctrial: 1, kanji: 1, kobun: 1,
-        lison: 1, kokugo: 1, rika: 1, shakai: 1, mytask: 1
+        lison: 1, kokugo: 1, rika: 1, shakai: 1, mytask: 1, oriwantes: 1
       };
       // 解放分（reflection_pending / required_mission）の resolvedAt 教育日別・コンテンツ別 reservedHp 集計
       const poolByContentByDate = {};  // { ds: { contentKey: hp } }
@@ -24838,6 +24848,8 @@ function _normalizeHpReservePoolTypeForContent(type) {
   if (t === 'sango' || t === 'wabun1' || t === 'lison' || t === 'shakai' || t === 'rika') return t;
   // マイ課題：塾の宿題（mytask_homework_*）/ 自学（mytask_self_only）を 'mytask' キーに統合（revert は対象外＝null）
   if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'mytask';
+  // オリワンテス（単一type・reserveゲート対象）。振り返り解放分を 'oriwantes' に紐づける。
+  if (t === 'oriwantes') return 'oriwantes';
   // required_mission / login / apology_* / reserve_release / completion_bonus / reflection_release などはコンテンツ別表示の対象外
   return null;
 }
@@ -26239,6 +26251,7 @@ function _lineNotifyContentKeyToName(key) {
     case 'rika':      return '理科重要語句';
     case 'shakai':    return '社会重要語句';
     case 'mytask':    return 'マイ課題';
+    case 'oriwantes': return 'オリワンテス';
   }
   return null;
 }
