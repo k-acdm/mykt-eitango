@@ -3041,10 +3041,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260615-0056"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260615-1658"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260615-0056">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260615-0056"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260615-1658">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260615-1658"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4718,7 +4718,7 @@
 <!-- 問題を解く画面・解答送信・履歴は ③-B/③-C で別途実装。                    -->
 <!-- ============================================== -->
 <div id="screen-oriwantes-home" class="screen">
-  <header><h1>✍️ オリワンテス</h1><span>君だけのオリジナルテスト</span></header>
+  <header><h1>✍️ 自分専用のオリジナルテスト作成</h1><span>君だけのオリジナルテスト</span></header>
   <div class="container" style="padding-top:16px">
     <div class="mate-row">
       <img class="mate-img" id="mate-img-oriwantes-home" src="images/oriwantes-default.png" alt="オリワンテス">
@@ -4726,7 +4726,7 @@
     </div>
     <div class="oriwan-hp-line" id="oriwantes-hp-line">いまのHP：読み込み中…</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:8px" onclick="goOriwantesCreate()">✨ 新しい問題を作成する</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#8d9499,#5a6065);margin-top:12px" onclick="showOriwantesHistoryComingSoon()">📜 今までに作成した問題を見る <span style="font-size:12px;opacity:.85">（準備中）</span></button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#e3c887,#bfa05f);margin-top:12px" onclick="showOriwantesHistoryComingSoon()">📜 今までに作成した問題を見る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -4737,13 +4737,13 @@
   <div class="container" style="padding-top:16px">
     <div id="oriwantes-chat" class="oriwan-chat"></div>
     <div id="oriwantes-photo-list" class="mytask-photo-list"></div>
-    <textarea class="sango-textarea" id="oriwantes-input" rows="2" placeholder="例：明治維新について10問のテストを作って"></textarea>
+    <textarea class="sango-textarea" id="oriwantes-input" rows="2" placeholder="英語、数学、論理表現、物理、日本史　など"></textarea>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
       <input type="file" id="oriwantes-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onOriwantesPhotoSelected(event)"/>
       <button class="btn-camera" style="flex:1;min-width:130px;margin:0" onclick="document.getElementById('oriwantes-photo-input').click()">📷 写真を添付</button>
       <button class="btn-wide" style="flex:1;min-width:130px;margin:0;background:linear-gradient(135deg,#7a8a99,#566270)" onclick="showOriwantesPromptHelp()">💡 書き方のヒント</button>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:10px" onclick="sendOriwantesMessage()">📨 送信する</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:10px" onclick="sendOriwantesMessage()">📨 オリワンテスに伝える</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
   </div>
 </div>
@@ -13997,7 +13997,7 @@
           window._oriwantesLastQuestions = res.questions || [];
           if (res.intro) _appendOriwantesMate(res.intro);
           var n = (res.questions || []).length;
-          _appendOriwantesMate('問題が ' + n + ' 問完成したぞ！（※解く画面は近日公開）');
+          _appendOriwantesMate('問題が ' + n + ' 問完成したぞ！');
           try { console.log('[oriwantes] questions:', res.questions); } catch(e){}
           return;
         }
@@ -17020,7 +17020,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260615-0056</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260615-1658</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
