@@ -3055,10 +3055,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260615-2254"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260615-2333"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260615-2254">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260615-2254"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260615-2333">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260615-2333"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3452,6 +3452,7 @@
       <div class="welcome-name" id="welcome-name"></div>
       <div class="welcome-msg"  id="welcome-msg"></div>
       <div class="hp-badge">⚡ 生涯HP <span id="welcome-hp">0</span></div>
+      <div class="hp-badge">🔄 交換可能HP <span id="welcome-exchangeable-hp">…</span></div>
       <button class="btn-link" onclick="toggleChangeArea()">ニックネームを変更する</button>
       <div id="change-area">
         <input class="full" id="change-input" placeholder="新しいニックネーム" maxlength="20" style="margin-top:12px"/>
@@ -4738,7 +4739,7 @@
       <img class="mate-img" id="mate-img-oriwantes-home" src="images/oriwantes-default.png" alt="オリワンテス">
       <div class="mate-bubble" id="mate-bubble-oriwantes-home">私はオリワンテス。君だけの、世界でたった一つのテストを作って差し上げよう。</div>
     </div>
-    <div class="oriwan-hp-line" id="oriwantes-hp-line">いまのHP：読み込み中…</div>
+    <div class="oriwan-hp-line" id="oriwantes-hp-line">現在の交換可能HP：読み込み中…</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:8px" onclick="goOriwantesCreate()">✨ 新しい問題を作成する</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#e3c887,#bfa05f);margin-top:12px" onclick="showOriwantesHistoryComingSoon()">📜 今までに作成した問題を見る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
@@ -4770,6 +4771,19 @@
       <div class="mykt-overlay-bubble grading">
         オリワンテスが問題を考えておる<span id="oriwantes-thinking-dots" class="grading-dots">...</span><br>
         <span style="font-size:12px;color:#3b5fa5">少し時間がかかることがある。待っておれ。</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- オリワンテス 解答送信中オーバーレイ（③-B用・オリワンテスのキャラ。マイ課題の送信中とは別物） -->
+<div id="oriwantes-sending-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="images/oriwantes-thinking.png" class="chara-img" alt="オリワンテス">
+      <div class="mykt-overlay-bubble grading">
+        オリワンテスに解答を送っておる<span id="oriwantes-sending-dots" class="grading-dots">...</span><br>
+        <span style="font-size:12px;color:#3b5fa5">少し待っておれ。</span>
       </div>
     </div>
   </div>
@@ -7657,6 +7671,7 @@
     document.getElementById('welcome-msg').textContent  = loginBonus > 0 ? '🎁 ログインボーナス +' + loginBonus + 'HP もらったよ！' : '今日もよろしく！';
     showCharacter(stage || 4, streak || 0, title || 'マイカツ見習い');
     _applyWabun1HpBadge();
+    try { _loadHomeExchangeableHp(); } catch(e){ console.error('[showWelcome] _loadHomeExchangeableHp', e); }
     showScreen('screen-welcome');
     if (milestone) setTimeout(function(){ showMilestoneFlash(milestone); }, 600);
     // 2026-05-15 バグ修正：各非同期初期化呼び出しを try-catch で個別に囲み、
@@ -8581,12 +8596,25 @@
       document.getElementById('review-set-label').textContent = formatDate(date)+'｜英検'+level+'レベル｜'+label;
     }).catch(function(){ alert('エラーが発生しました。'); });
   }
+  // ホームの「🔄 交換可能HP」バッジを getExchangeableHp で取得して表示する（生涯HP とは別軸）。
+  function _loadHomeExchangeableHp() {
+    var el = document.getElementById('welcome-exchangeable-hp');
+    if (!el) return;
+    if (!_studentId) { el.textContent = '―'; return; }
+    gasGet({ action: 'getExchangeableHp', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      if (!el) return;
+      if (res && res.ok) el.textContent = (Number(res.exchangeableHp) || 0).toLocaleString();
+      else el.textContent = '―';
+    }).catch(function(){ if (el) el.textContent = '―'; });
+  }
+
   function goHome() {
     _stopAudio();
     _historyMode = false;
     // コンテンツ遷移で HP を獲得していればホーム画面の表示に反映
     var hpEl = document.getElementById('welcome-hp');
     if (hpEl && typeof _totalHP === 'number') hpEl.textContent = _totalHP.toLocaleString();
+    try { _loadHomeExchangeableHp(); } catch(e){ console.error('[goHome] _loadHomeExchangeableHp', e); }
     // ★ 2026-05-16 v2：showScreen より前に img.src を確定させる。
     //   _avatarState.base が空（showWelcome の初期 fetch が失敗していた等）でも
     //   localStorage に値があれば即描画する。これで goHome 経由でも「?」が出ない。
@@ -13880,13 +13908,13 @@
   }
   function _loadOriwantesHp() {
     var el = document.getElementById('oriwantes-hp-line');
-    if (el) el.textContent = 'いまのHP：読み込み中…';
-    if (!_studentId) { if (el) el.textContent = 'いまのHP：―'; return; }
+    if (el) el.textContent = '現在の交換可能HP：読み込み中…';
+    if (!_studentId) { if (el) el.textContent = '現在の交換可能HP：―'; return; }
     gasGet({ action: 'getExchangeableHp', studentId: _studentId, _ts: Date.now() }).then(function(res){
       if (!el) return;
-      if (res && res.ok) el.textContent = 'いまのHP：' + (Number(res.exchangeableHp) || 0).toLocaleString() + ' HP';
-      else el.textContent = 'いまのHP：―';
-    }).catch(function(){ if (el) el.textContent = 'いまのHP：―'; });
+      if (res && res.ok) el.textContent = '現在の交換可能HP：' + (Number(res.exchangeableHp) || 0).toLocaleString() + ' HP';
+      else el.textContent = '現在の交換可能HP：―';
+    }).catch(function(){ if (el) el.textContent = '現在の交換可能HP：―'; });
   }
   function showOriwantesHistoryComingSoon() {
     alert('「今までに作成した問題を見る」は近日公開です。もう少し待っててね。');
@@ -14107,7 +14135,7 @@
       ta.className = 'sango-textarea oriwan-solve-input';
       ta.id = 'oriwantes-ans-' + i;
       ta.rows = 2;
-      ta.placeholder = 'ここに解答を書いてね（空欄でもOK）';
+      ta.placeholder = 'ここに解答を書く（分からなければ空欄でもOK）';
       card.appendChild(qno);
       card.appendChild(qtext);
       card.appendChild(ta);
@@ -14133,10 +14161,10 @@
       });
     }
     _oriwantesSubmitting = true;
-    _showMyTaskSending();   // 既存の送信中オーバーレイを流用
+    _showOriwantesSending();   // オリワンテスのキャラの送信中オーバーレイ
     gasPost({ action: 'submitOriwantes', studentId: _studentId, subject: window._oriwantesLastSubject || '', questions: questions })
       .then(function(res){
-        _hideMyTaskSending();
+        _hideOriwantesSending();
         _oriwantesSubmitting = false;
         if (res && res.ok) {
           _showOriwantesResult(res, questions, 'ok');
@@ -14150,7 +14178,7 @@
         }
       })
       .catch(function(err){
-        _hideMyTaskSending();
+        _hideOriwantesSending();
         _oriwantesSubmitting = false;
         console.error('[submitOriwantesAnswers]', err);
         alert('通信がうまくいかなかったみたい。電波の良い場所で、もう一度送ってね。');
@@ -14269,6 +14297,26 @@
     var ov = document.getElementById('oriwantes-thinking-overlay');
     if (ov) ov.classList.remove('active');
     if (_oriwantesDotsTimer) { clearInterval(_oriwantesDotsTimer); _oriwantesDotsTimer = null; }
+  }
+
+  // ③-B 解答送信中オーバーレイ（オリワンテスのキャラ。マイ課題の _showMyTaskSending とは別物）
+  var _oriwantesSendDotsTimer = null;
+  function _showOriwantesSending() {
+    var ov = document.getElementById('oriwantes-sending-overlay');
+    if (!ov) return;
+    ov.classList.add('active');
+    var dotsEl = document.getElementById('oriwantes-sending-dots');
+    var n = 3;
+    if (_oriwantesSendDotsTimer) clearInterval(_oriwantesSendDotsTimer);
+    _oriwantesSendDotsTimer = setInterval(function(){
+      n = (n % 3) + 1;
+      if (dotsEl) dotsEl.textContent = n === 1 ? '.' : (n === 2 ? '..' : '...');
+    }, 400);
+  }
+  function _hideOriwantesSending() {
+    var ov = document.getElementById('oriwantes-sending-overlay');
+    if (ov) ov.classList.remove('active');
+    if (_oriwantesSendDotsTimer) { clearInterval(_oriwantesSendDotsTimer); _oriwantesSendDotsTimer = null; }
   }
 
   // プロンプトの書き方ヒント モーダル
@@ -17258,7 +17306,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260615-2254</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260615-2333</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
