@@ -1132,6 +1132,8 @@ function doGet(e) {
       // オリワンテス②-C（2026-06-14）：履歴取得（閲覧専用・小さい params のため doGet。
       //   getSangoSubmissions と同流儀）。
       else if (action === 'getOriwantesHistory') result = getOriwantesHistory(params);
+      // オリワンテス④-A（2026-06-16）：管理者用・任意の生徒の提出取得（読み取り・小さい params のため doGet）。
+      else if (action === 'adminListOriwantesSubmissions') result = adminListOriwantesSubmissions(params);
       // 2026-05-12 サンゴタン AI フィードバック関連
       else if (action === 'getSangoStarredForStudent')  result = getSangoStarredForStudent(params);
       else if (action === 'getSangoWeeklyFeatured')     result = getSangoWeeklyFeatured();
@@ -1458,6 +1460,8 @@ function doPost(e) {
     // オリワンテス②-B（2026-06-14）：解答送信＋結果保存＋100HP 付与。questions に問題文・解説を
     //   含み大きいため POST 専用（doGet には登録しない）。
     else if (action === 'submitOriwantes')                  result = submitOriwantes(params);
+    // オリワンテス④-A（2026-06-16）：管理者用・コメント保存＋生徒通知（書き込み＋通知のため POST）。
+    else if (action === 'adminSetOriwantesComment')         result = adminSetOriwantesComment(params);
     else result = { ok: false, message: 'unknown action: ' + action };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -14865,6 +14869,189 @@ function getOriwantesHistory(params) {
     };
   } catch (err) {
     console.error('[getOriwantesHistory]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// オリワンテス④-A：管理者用・任意の生徒のオリワンテス提出取得（doGet・読み取り）。
+//   params: { teacherId, password, studentId（省略可）, offset(既定0), limit(既定10) }
+//   認証：_verifyTeacher（塾長＆講師どちらも許可。_requireAdmin は使わない）。
+//   studentId 省略/空 → summary（提出のある生徒一覧・最新提出順）。
+//   studentId 指定     → detail（その生徒の提出を新しい順・ページング）。getOriwantesHistory の item 構造を流用。
+function adminListOriwantesSubmissions(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    params = params || {};
+    const sidFilter = String(params.studentId || '').trim();
+
+    const sh = _ss().getSheetByName(SHEET_ORIWANTES_RESULTS);
+    if (!sh || sh.getLastRow() < 2) {
+      return sidFilter
+        ? { ok: true, mode: 'detail', studentId: sidFilter, studentName: '', items: [], offset: 0, limit: 10, total: 0, hasMore: false }
+        : { ok: true, mode: 'summary', students: [] };
+    }
+    const values = sh.getDataRange().getValues();
+
+    // 氏名・ニックネームのマップ（全アカウント = Students + SpecialAccounts）
+    const stuRows = _getAllAccountsValues();
+    const nameMap = {};
+    for (let i = 1; i < stuRows.length; i++) {
+      const id = String(stuRows[i][COL_ID] || '').trim();
+      if (!id) continue;
+      nameMap[id] = {
+        real: String(stuRows[i][COL_NAME] || '').trim(),
+        nick: String(stuRows[i][COL_NICKNAME] || '').trim()
+      };
+    }
+
+    // date 列（index 1）の整形（getOriwantesHistory と同じ：Date 化対策）
+    function _oriwDateStr(dv) {
+      if (Object.prototype.toString.call(dv) === '[object Date]') {
+        return Utilities.formatDate(dv, 'Asia/Tokyo', 'yyyy-MM-dd');
+      }
+      return String(dv == null ? '' : dv);
+    }
+    // 1 行 → item（questions 抽出・comment）。base=6+n*4・comment=r[46]（getOriwantesHistory 流用）
+    function _oriwRowToItem(r) {
+      const questions = [];
+      for (let n = 0; n < 10; n++) {
+        const base = 6 + n * 4;
+        const questionText = String(r[base] == null ? '' : r[base]).trim();
+        if (!questionText) continue;   // 内容のある問だけ（余り列を除外）
+        questions.push({
+          questionText:  questionText,
+          answer:        String(r[base + 1] == null ? '' : r[base + 1]),
+          studentAnswer: String(r[base + 2] == null ? '' : r[base + 2]),
+          explanation:   String(r[base + 3] == null ? '' : r[base + 3])
+        });
+      }
+      return {
+        submissionId: String(r[3] || ''),
+        date:         _oriwDateStr(r[1]),
+        subject:      String(r[2] || ''),
+        questions:    questions,
+        comment:      String(r[46] || '')
+      };
+    }
+
+    // ── summary モード（studentId なし）：生徒ごとに集計、最新提出順 ──
+    if (!sidFilter) {
+      const agg = {};   // sid -> { submissionCount, latestDate, _rowIdx }
+      const order = [];
+      for (let i = 1; i < values.length; i++) {
+        const r = values[i];
+        const sid = String(r[0] || '').trim();
+        if (!sid) continue;
+        if (!agg[sid]) { agg[sid] = { submissionCount: 0, latestDate: '', _rowIdx: i }; order.push(sid); }
+        agg[sid].submissionCount += 1;
+        // appendRow は末尾追加 → 後の行ほど新しい。最後に見た行を最新として採用。
+        agg[sid].latestDate = _oriwDateStr(r[1]);
+        agg[sid]._rowIdx = i;
+      }
+      const students = order.map(function(sid){
+        const a = agg[sid];
+        return {
+          studentId:       sid,
+          studentName:     (nameMap[sid] && nameMap[sid].real) || '',
+          studentNickname: (nameMap[sid] && nameMap[sid].nick) || '',
+          submissionCount: a.submissionCount,
+          latestDate:      a.latestDate
+        };
+      });
+      students.sort(function(x, y){ return agg[y.studentId]._rowIdx - agg[x.studentId]._rowIdx; });
+      return { ok: true, mode: 'summary', students: students };
+    }
+
+    // ── detail モード（studentId 指定）：新しい順・ページング ──
+    let offset = parseInt(params.offset, 10);
+    if (!isFinite(offset) || offset < 0) offset = 0;
+    let limit = parseInt(params.limit, 10);
+    if (!isFinite(limit) || limit <= 0) limit = 10;
+
+    const matched = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (!r || String(r[0] || '').trim() !== sidFilter) continue;
+      matched.push(r);
+    }
+    matched.reverse();   // 保存順の降順＝新しい順
+    const total = matched.length;
+    const items = matched.slice(offset, offset + limit).map(_oriwRowToItem);
+
+    return {
+      ok: true,
+      mode: 'detail',
+      studentId: sidFilter,
+      studentName: (nameMap[sidFilter] && (nameMap[sidFilter].real || nameMap[sidFilter].nick)) || '',
+      items: items,
+      offset: offset,
+      limit: limit,
+      total: total,
+      hasMore: (offset + limit) < total
+    };
+  } catch (err) {
+    console.error('[adminListOriwantesSubmissions]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// オリワンテス④-A：管理者用・コメント保存＋生徒通知（案C・doPost）。
+//   params: { teacherId, password, submissionId, comment }
+//   認証：_verifyTeacher（塾長＆講師どちらも許可）。
+//   ① submissionId（列 index3）一致行を特定 → comment 列（47 列目 = index46）に setValue（空文字＝削除も許容）。
+//   ② コメントが非空なら sendTeacherMessage で生徒へ通知（個別）。通知失敗は非致命（保存成立で ok 維持・notified:false）。
+//      コメントが空（削除）の場合は通知しない。
+function adminSetOriwantesComment(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    params = params || {};
+    const submissionId = String(params.submissionId || '').trim();
+    const comment = String(params.comment != null ? params.comment : '');
+    if (!submissionId) return { ok: false, message: 'submissionId が必要です' };
+
+    const sh = _ss().getSheetByName(SHEET_ORIWANTES_RESULTS);
+    if (!sh || sh.getLastRow() < 2) return { ok: false, message: '該当する提出が見つかりません' };
+    const values = sh.getDataRange().getValues();
+
+    let rowIdx = -1, foundRow = null;
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (String(r[3] || '').trim() === submissionId) { rowIdx = i; foundRow = r; break; }
+    }
+    if (rowIdx < 0) return { ok: false, message: '該当する提出が見つかりません' };
+
+    // comment 列（47 列目 = index46）に保存。空文字も許容（コメント削除）。
+    sh.getRange(rowIdx + 1, 47).setValue(comment);
+
+    // ② 通知（案C）：コメント非空のときのみ。通知失敗でも保存は成立済みのため ok を維持。
+    let notified = false;
+    if (comment.trim()) {
+      try {
+        const sid = String(foundRow[0] || '').trim();
+        const dateStr = (Object.prototype.toString.call(foundRow[1]) === '[object Date]')
+          ? Utilities.formatDate(foundRow[1], 'Asia/Tokyo', 'yyyy-MM-dd')
+          : String(foundRow[1] == null ? '' : foundRow[1]);
+        const subject = String(foundRow[2] || '');
+        const label = dateStr + (subject ? ('・' + subject) : '');
+        const body = 'オリワンテスで作った問題（' + label + '）にコメントが届いたよ。アプリの「今までに作成した問題を見る」で確認してね。';
+        const sendRes = sendTeacherMessage({
+          teacherId:  params.teacherId,
+          password:   params.password,
+          targetType: 'individual',
+          targetIds:  [sid],
+          content:    body
+        });
+        notified = !!(sendRes && sendRes.ok);
+        if (!notified) console.error('[adminSetOriwantesComment] 生徒通知に失敗（コメント保存は成立済み）', sendRes);
+      } catch (e) {
+        console.error('[adminSetOriwantesComment] sendTeacherMessage 例外（コメント保存は成立済み）', e);
+      }
+    }
+    return { ok: true, notified: notified };
+  } catch (err) {
+    console.error('[adminSetOriwantesComment]', err);
     return { ok: false, message: String(err) };
   }
 }
