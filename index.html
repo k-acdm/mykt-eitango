@@ -858,8 +858,10 @@
     .chara-wrap { text-align: center; margin: 0; position: relative; height: 200px; display: flex; align-items: flex-end; justify-content: center; }
     .chara-img  { width: 150px; height: 150px; object-fit: contain; transition: filter .5s, opacity .5s; }
     .chara-fx   { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 180px; height: 180px; pointer-events: none; }
-    .chara-title-badge  { display: inline-block; padding: 4px 16px; border-radius: 12px; font-size: 13px; font-weight: bold; background: #e8f0ff; color: #2d3a8c; margin-bottom: 4px; }
-    .chara-streak-label { font-size: 13px; color: #888; margin-bottom: 4px; }
+    /* 2026-06-16：アバター枠直下へ移動＋強調（視認性アップ）。 */
+    .chara-status-row { margin: 10px 0 4px; }
+    .chara-title-badge  { display: inline-block; padding: 8px 22px; border-radius: 16px; font-size: 20px; font-weight: bold; background: linear-gradient(135deg,#dbe7ff,#c9d8ff); color: #1e2a6b; box-shadow: 0 2px 8px rgba(79,125,240,.25); margin-bottom: 8px; }
+    .chara-streak-label { font-size: 16px; font-weight: bold; color: #5a6b8c; margin-bottom: 4px; }
     .mate-row { display: flex; align-items: center; gap: 14px; margin: 12px 0; }
     .mate-avatar { flex-shrink: 0; text-align: center; }
     .chara-name { font-size: 13px; color: #666; font-weight: bold; margin-top: 4px; }
@@ -1258,6 +1260,14 @@
     .login-mascot.mascot-19 { top: 2%;    left: 36%;  transform: rotate(10deg);  animation-delay: 1.45s; width: 48px; }
     /* トラール 2 枚目：上端中央寄り（mascot-16 の対角、ロゴの上） */
     .login-mascot.mascot-20 { top: 1%;    right: 38%; transform: rotate(-12deg); animation-delay: 1.7s;  width: 48px; }
+    /* 2026-06-16：全13キャラ×2枚=26枚化に伴い slot 21〜26 を追加（kobun/maikadai/oriwantes 分の枠）。
+       座標は _LOGIN_SLOT_XY（JS）と整合。中央カード帯（x 30-70% × y 25-80%）を避けた端寄り配置。 */
+    .login-mascot.mascot-21 { top: 44%;   left: 1%;   transform: rotate(7deg);   animation-delay: .55s;  width: 50px; }
+    .login-mascot.mascot-22 { top: 44%;   right: 1%;  transform: rotate(-8deg);  animation-delay: 1.25s; width: 50px; }
+    .login-mascot.mascot-23 { bottom: 1%; left: 26%;  transform: rotate(-6deg);  animation-delay: 1.6s;  width: 48px; }
+    .login-mascot.mascot-24 { bottom: 1%; right: 26%; transform: rotate(9deg);   animation-delay: 2.0s;  width: 48px; }
+    .login-mascot.mascot-25 { top: 30%;   left: 10%;  transform: rotate(-11deg); animation-delay: .3s;   width: 48px; }
+    .login-mascot.mascot-26 { bottom: 28%; right: 10%; transform: rotate(8deg);  animation-delay: .95s;  width: 48px; }
     @keyframes loginBob {
       0%, 100% { translate: 0 0; }
       50%      { translate: 0 -4px; }
@@ -1296,6 +1306,13 @@
       .login-mascot.mascot-18 { width: 28px; top: auto; bottom: 35%; left: 3%;   transform: rotate(-7deg); } /* シャカネキ */
       .login-mascot.mascot-19 { width: 28px; top: auto; bottom: 5%;  left: 30%;  transform: rotate(10deg); } /* ジャパニン */
       .login-mascot.mascot-20 { width: 28px; top: auto; bottom: 5%;  right: 30%; transform: rotate(-12deg); } /* トラール */
+      /* 2026-06-16：26枚化に伴う slot 21〜26（モバイル）。上端リボン2段目と下端帯の空きに分散。 */
+      .login-mascot.mascot-21 { width: 28px; top: 6%;  left: 2%;   transform: rotate(-7deg); }
+      .login-mascot.mascot-22 { width: 28px; top: 6%;  right: 2%;  transform: rotate(8deg); }
+      .login-mascot.mascot-23 { width: 28px; top: auto; bottom: 18%; left: 2%;  transform: rotate(6deg); }
+      .login-mascot.mascot-24 { width: 28px; top: auto; bottom: 18%; right: 2%; transform: rotate(-9deg); }
+      .login-mascot.mascot-25 { width: 26px; top: 6%;  left: 50%;  transform: translateX(-50%) rotate(5deg); }
+      .login-mascot.mascot-26 { width: 26px; top: auto; bottom: 18%; left: 50%; transform: translateX(-50%) rotate(-6deg); }
     }
 
     /* アクセシビリティ：揺れアニメを無効化したいユーザー向け */
@@ -1856,10 +1873,11 @@
     .notice-body  { font-size: 14px; line-height: 1.75; color: #4b3000; white-space: pre-wrap; word-wrap: break-word; }
     .notice-empty { text-align: center; color: #a07030; font-size: 14px; padding: 6px 0; }
     /* 先生からのメッセージ：ホーム画面ボタン + 一覧画面 */
-    .msg-home-btn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#fff4d6,#ffe5b4); border: 2px solid #ff8a3d; border-radius: 14px; box-shadow: 0 3px 12px rgba(255,138,61,.2); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; }
+    /* 2026-06-16：ラベルを中央寄せに。バッジは絶対配置にしてラベルの中央寄せを崩さない。 */
+    .msg-home-btn { position: relative; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#fff4d6,#ffe5b4); border: 2px solid #ff8a3d; border-radius: 14px; box-shadow: 0 3px 12px rgba(255,138,61,.2); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; }
     .msg-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(255,138,61,.28); }
-    .msg-home-btn-label { font-size: 16px; font-weight: bold; color: #c25b00; }
-    .msg-home-badge { display: none; background: linear-gradient(135deg,#ef4444,#dc2626); color: #fff; font-size: 13px; font-weight: bold; padding: 4px 12px; border-radius: 999px; box-shadow: 0 2px 6px rgba(220,38,38,.4); animation: msgBadgePulse 1.6s ease-in-out infinite; }
+    .msg-home-btn-label { font-size: 16px; font-weight: bold; color: #c25b00; text-align: center; }
+    .msg-home-badge { position: absolute; top: 12px; right: 14px; display: none; background: linear-gradient(135deg,#ef4444,#dc2626); color: #fff; font-size: 13px; font-weight: bold; padding: 4px 12px; border-radius: 999px; box-shadow: 0 2px 6px rgba(220,38,38,.4); animation: msgBadgePulse 1.6s ease-in-out infinite; }
     .msg-home-badge.show { display: inline-block; }
     @keyframes msgBadgePulse {
       0%, 100% { transform: scale(1); }
@@ -3066,10 +3084,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260616-0453"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260616-2328"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260616-0453">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260616-0453"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260616-2328">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260616-2328"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3239,6 +3257,13 @@
     <img class="login-mascot mascot-18" src="images/shakaneki-default.png" alt=""/>
     <img class="login-mascot mascot-19" src="images/japanin-default.png"   alt=""/>
     <img class="login-mascot mascot-20" src="images/trial-default.png"     alt=""/>
+    <!-- 2026-06-16：26枚化（kobun/maikadai/oriwantes 追加）。src は _scatterLoginMascots() が毎回上書き。下記は JS 無効時のフォールバック。 -->
+    <img class="login-mascot mascot-21" src="images/kobun-default.png"      alt=""/>
+    <img class="login-mascot mascot-22" src="images/maikadai-default.png"  alt=""/>
+    <img class="login-mascot mascot-23" src="images/oriwantes-default.png" alt=""/>
+    <img class="login-mascot mascot-24" src="images/kobun-celebrate.png"   alt=""/>
+    <img class="login-mascot mascot-25" src="images/maikadai-celebrate.png" alt=""/>
+    <img class="login-mascot mascot-26" src="images/oriwantes-celebrate.png" alt=""/>
 
     <div class="flex-fill">
       <div class="login-card">
@@ -3348,6 +3373,13 @@
     <img class="login-mascot mascot-18" src="images/shakaneki-default.png" alt=""/>
     <img class="login-mascot mascot-19" src="images/japanin-default.png"   alt=""/>
     <img class="login-mascot mascot-20" src="images/trial-default.png"     alt=""/>
+    <!-- 2026-06-16：26枚化（kobun/maikadai/oriwantes 追加）。src は _scatterLoginMascots() が毎回上書き。下記は JS 無効時のフォールバック。 -->
+    <img class="login-mascot mascot-21" src="images/kobun-default.png"      alt=""/>
+    <img class="login-mascot mascot-22" src="images/maikadai-default.png"  alt=""/>
+    <img class="login-mascot mascot-23" src="images/oriwantes-default.png" alt=""/>
+    <img class="login-mascot mascot-24" src="images/kobun-celebrate.png"   alt=""/>
+    <img class="login-mascot mascot-25" src="images/maikadai-celebrate.png" alt=""/>
+    <img class="login-mascot mascot-26" src="images/oriwantes-celebrate.png" alt=""/>
 
     <div class="flex-fill">
       <div class="login-card">
@@ -3396,12 +3428,23 @@
       </div>
     </div>
 
+    <!-- ②-2 先生からのメッセージ（2026-06-16：今日の一言の直下へ移動） -->
+    <div class="dash-section">
+      <button type="button" class="msg-home-btn" onclick="showStudentMessages()">
+        <span class="msg-home-btn-label">📩 先生からのメッセージ</span>
+        <span class="msg-home-badge" id="msg-home-badge">⚠️ 0件</span>
+      </button>
+    </div>
+
+    <!-- ②-2.5 自分の振り返り（ログアウト直前に書いた記録の一覧。2026-06-16：今日の一言の直下へ移動） -->
+    <div class="dash-section">
+      <button type="button" class="refl-home-btn" onclick="showStudentReflections()">
+        📝 自分の振り返り
+      </button>
+    </div>
+
     <!-- ② マイカツ君エリア -->
     <div class="dash-section">
-      <div style="text-align:center">
-        <div class="chara-title-badge"  id="chara-title-badge"></div><br>
-        <div class="chara-streak-label" id="chara-streak-label"></div>
-      </div>
       <!-- マイカツ君セット：吹き出しはマイカツ君に密着させ、発言の帰属を明確にする。
            2026-05-15 修正：以前は同じ mate-row 内にアバターも並べていたが、
            吹き出しがアバターの右にあるとアバター発言に見えてしまうため、
@@ -3439,6 +3482,11 @@
           </div>
         </div>
       </div>
+      <!-- 2026-06-16：称号＋連続ログインをアバター枠の直下へ移動＋強調表示 -->
+      <div class="chara-status-row" style="text-align:center">
+        <div class="chara-title-badge"  id="chara-title-badge"></div><br>
+        <div class="chara-streak-label" id="chara-streak-label"></div>
+      </div>
       <!-- 📢 アバターリニューアル告知バナー（2026-05-26 追加）
            2026-05-30（土）のアバター画像リニューアルの事前告知。アバター直下に配置し、
            ふだんアバターを見ている生徒の視線に自然に届くようにする。タップで詳細展開、
@@ -3470,21 +3518,6 @@
         <button class="btn-wide" onclick="doChangeNickname()">変更する</button>
         <div id="change-msg" class="msg"></div>
       </div>
-    </div>
-
-    <!-- ②-2 先生からのメッセージ -->
-    <div class="dash-section">
-      <button type="button" class="msg-home-btn" onclick="showStudentMessages()">
-        <span class="msg-home-btn-label">📩 先生からのメッセージ</span>
-        <span class="msg-home-badge" id="msg-home-badge">⚠️ 0件</span>
-      </button>
-    </div>
-
-    <!-- ②-2.5 自分の振り返り（ログアウト直前に書いた記録の一覧） -->
-    <div class="dash-section">
-      <button type="button" class="refl-home-btn" onclick="showStudentReflections()">
-        📝 自分の振り返り
-      </button>
     </div>
 
     <!-- ②-3 両輪システム Phase A：絶対ミッション進捗 + 保留 HP（学齢 / 開放フラグから動的表示、
@@ -3567,7 +3600,7 @@
              入口関数 goMyTaskHome() / goOriwantesHome() でそれぞれの本体フローへ。色クラス c-mytask/c-oriwan。 -->
         <button class="content-btn c-mytask" onclick="goMyTaskHome()">
           <span class="badge-hp">1教科100HP/日</span>
-          <img class="ico-mascot" src="images/maikadai-default.png" alt="">マイ課題提出
+          <img class="ico-mascot" src="images/maikadai-default.png" alt="">マイ課題
           <span class="content-btn-sub">塾の宿題や自学課題を写真に撮って提出</span>
         </button>
         <button class="content-btn c-oriwan" onclick="goOriwantesHome()">
@@ -6843,6 +6876,87 @@
     } catch(e){}
   })();
 
+  // ===== 2026-06-16：ログイン画面の散りばめキャラを JS 駆動でランダム配置 =====
+  // 全13キャラ × 各2枚（mood は1枚目=i%4 / 2枚目=(i+2)%4 で必ず別表情、キャラ間でも分散）= 26 枚を
+  // 26 個の固定スロット（CSS .mascot-1〜26、PC/モバイル両対応）にランダム割当。
+  // ★同キャラの2枚が隣接しないことを保証：スロットの近接ペア（PC座標 _LOGIN_SLOT_XY の距離<18）
+  //   ＋連番（モバイルのリボン隣接対策）を「隣接」とみなし、違反しない並びになるまでシャッフルを最大300回リトライ。
+  // 位置は CSS 固定（モバイル破綻なし）、src のみ毎回入れ替えるのでリロードごとに散らばりが変わる。
+  var _LOGIN_MASCOT_CHARS = ['rushkun','sangotan','nichiei','kisoK','lison','kanjii','kobun','rika','shakaneki','japanin','trial','maikadai','oriwantes'];
+  var _LOGIN_MASCOT_MOODS = ['default','celebrate','encourage','thinking'];
+  // 26 スロットの中心座標(x,y) 0..100（CSS .mascot-N と整合。隣接判定用）。
+  var _LOGIN_SLOT_XY = [
+    [4,6],[95,5],[2,36],[97,34],[6,86],[93,88],[18,18],[81,16],[16,52],[86,54],
+    [22,74],[76,76],[1,22],[99,23],[11,96],[88,97],[99,66],[1,66],[36,2],[62,1],
+    [1,44],[99,44],[26,98],[74,98],[10,30],[90,72]
+  ];
+  function _loginSlotNeighbors() {
+    var n = _LOGIN_SLOT_XY.length, adj = [];
+    for (var i = 0; i < n; i++) adj.push([]);
+    for (var i = 0; i < n; i++) {
+      for (var j = i + 1; j < n; j++) {
+        var dx = _LOGIN_SLOT_XY[i][0] - _LOGIN_SLOT_XY[j][0];
+        var dy = _LOGIN_SLOT_XY[i][1] - _LOGIN_SLOT_XY[j][1];
+        var near = Math.sqrt(dx * dx + dy * dy) < 18 || (j - i) === 1;
+        if (near) { adj[i].push(j); adj[j].push(i); }
+      }
+    }
+    return adj;
+  }
+  function _buildLoginMascotItems() {
+    var items = [];
+    for (var i = 0; i < _LOGIN_MASCOT_CHARS.length; i++) {
+      var ch = _LOGIN_MASCOT_CHARS[i];
+      var m1 = _LOGIN_MASCOT_MOODS[i % 4];
+      var m2 = _LOGIN_MASCOT_MOODS[(i + 2) % 4]; // offset 2 で必ず m1 と別表情
+      items.push({ char: ch, src: 'images/' + ch + '-' + m1 + '.png' });
+      items.push({ char: ch, src: 'images/' + ch + '-' + m2 + '.png' });
+    }
+    return items; // 26 枚
+  }
+  function _scatterLoginMascots() {
+    try {
+      var items = _buildLoginMascotItems();
+      var n = items.length;
+      if (n !== _LOGIN_SLOT_XY.length) return; // 整合崩れ時は何もしない（静的フォールバック維持）
+      var adj = _loginSlotNeighbors();
+      var best = null;
+      for (var attempt = 0; attempt < 300; attempt++) {
+        var order = items.slice();
+        for (var k = order.length - 1; k > 0; k--) {
+          var r = Math.floor(Math.random() * (k + 1));
+          var t = order[k]; order[k] = order[r]; order[r] = t;
+        }
+        if (!best) best = order; // 最低1つは確保（万一全リトライ違反でも適用）
+        var slotOf = {}, ok = true;
+        for (var s = 0; s < n; s++) {
+          var c = order[s].char;
+          if (!slotOf[c]) slotOf[c] = [];
+          slotOf[c].push(s);
+        }
+        for (var c2 in slotOf) {
+          var pair = slotOf[c2];
+          if (pair.length === 2 && adj[pair[0]].indexOf(pair[1]) >= 0) { ok = false; break; }
+        }
+        if (ok) { best = order; break; }
+      }
+      if (!best) return;
+      for (var si = 0; si < n; si++) {
+        var nodes = document.querySelectorAll('.login-mascot.mascot-' + (si + 1));
+        for (var q = 0; q < nodes.length; q++) {
+          nodes[q].src = best[si].src;
+          nodes[q].alt = '';
+        }
+      }
+    } catch (e) { /* 失敗時は静的フォールバック（HTML の初期 src）を維持 */ }
+  }
+  // 初回ロード時に散りばめ（ログイン画面は初期表示画面）。
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _scatterLoginMascots);
+  } else {
+    _scatterLoginMascots();
+  }
+
   function selectLoginRole(role) {
     _loginRole = role;
     var stepRole = document.querySelector('.login-step-role');
@@ -9537,6 +9651,8 @@
     { name: 'シャカネキ',     content: '社会の重要語句',     image: 'images/shakaneki-default.png',   caption: '' },
     { name: 'ジャパニン',     content: '国語長文読解',       image: 'images/japanin-default.png',     caption: '' },
     { name: 'トラール',       content: '計算タイムトライアル', image: 'images/trial-default.png',     caption: '' },
+    { name: 'マイカダイ',     content: 'マイ課題',           image: 'images/maikadai-default.png',    caption: '' },
+    { name: 'オリワンテス',   content: 'オリワンテス',       image: 'images/oriwantes-default.png',   caption: '' },
   ];
   function _charIntroEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function showCharacterIntro() {
@@ -17505,7 +17621,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260616-0453</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260616-2328</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
