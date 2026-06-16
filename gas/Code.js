@@ -1415,6 +1415,9 @@ function doPost(e) {
     // 塾からの連絡：LINE 配信機能（2026-05-18 新規、admin-only、画像 base64 のため POST 必須）
     else if (action === 'addNoticeWithLine')                result = addNoticeWithLine(params);
     else if (action === 'cancelScheduledNoticeLine')        result = cancelScheduledNoticeLine(params);
+    // 投稿後修正（2026-06-16 新規、admin-only、誤実行防止のため POST 強制）
+    else if (action === 'editNotice')                       result = editNotice(params);
+    else if (action === 'redeliverNoticeCorrection')        result = redeliverNoticeCorrection(params);
     // 国語長文読解（2026-05-23 新規）：感想文（最大 3000 字）は POST 強制。
     //   submitKokugoAnswers は doGet 側にも登録済み（base64 ではないため両対応で OK）。
     //   POST 側にも保護登録：将来クライアントが POST で送る場合の備え（CLAUDE.md #148 教訓）。
@@ -9514,6 +9517,8 @@ var NOTICE_LINE_DELIVERY_MODE_HEADER     = 'lineDeliveryMode';   // 'none' / 'im
 var NOTICE_LINE_SCHEDULED_AT_HEADER      = 'lineScheduledAt';    // ISO 文字列
 var NOTICE_LINE_DELIVERY_STATUS_HEADER   = 'lineDeliveryStatus'; // 'pending' / 'sent' / 'cancelled' / 'failed'
 var NOTICE_LINE_DELIVERED_AT_HEADER      = 'lineDeliveredAt';    // ISO 文字列
+// 2026-06-16 投稿後修正：訂正版 LINE 再配信の最終実行時刻（二重配信ガードの基準）。末尾追加（後方互換）。
+var NOTICE_LINE_CORRECTION_AT_HEADER     = 'lineCorrectionDeliveredAt';
 var NOTICE_NEW_HEADERS = [
   NOTICE_ID_HEADER,
   NOTICE_IMAGE_FILE_ID_HEADER,
@@ -9523,7 +9528,8 @@ var NOTICE_NEW_HEADERS = [
   NOTICE_LINE_DELIVERY_MODE_HEADER,
   NOTICE_LINE_SCHEDULED_AT_HEADER,
   NOTICE_LINE_DELIVERY_STATUS_HEADER,
-  NOTICE_LINE_DELIVERED_AT_HEADER
+  NOTICE_LINE_DELIVERED_AT_HEADER,
+  NOTICE_LINE_CORRECTION_AT_HEADER
 ];
 
 var NOTICE_LINE_QUEUE_HEADERS = [
@@ -9536,6 +9542,8 @@ var NOTICE_LINE_VALID_MIMES       = ['image/jpeg', 'image/jpg', 'image/png'];
 var NOTICE_LINE_VALID_RECIPIENTS  = ['parent', 'student', 'both', 'specific'];
 var NOTICE_LINE_VALID_DELIVERY_MODES = ['none', 'immediate', 'scheduled'];
 var NOTICE_LINE_DELIVERY_RATE_LIMIT_MS = 200;
+// 2026-06-16 投稿後修正：同一 Notice の訂正版再配信を直近この時間内なら拒否（二重配信ガード）。
+var NOTICE_REDELIVER_DEBOUNCE_MS = 60 * 1000;
 
 // --- セットアップ補助 ---
 
@@ -10012,6 +10020,124 @@ function cancelScheduledNoticeLine(params) {
     return { ok: true, noticeId: noticeId, deletedQueue: deletedQueue };
   } catch (err) {
     console.error('[cancelScheduledNoticeLine]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 連絡事項の編集（title / body のみ更新、塾長専用、doPost 強制）
+// 2026-06-16 投稿後修正機能。LINE 配信には一切触れない（保存だけでは送らない）。
+// params: { teacherId, password, noticeId, title, body }
+function editNotice(params) {
+  try {
+    var _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    var noticeId = String((params && params.noticeId) || '').trim();
+    var title    = String((params && params.title) || '').trim();
+    var body     = String((params && params.body)  || '').trim();
+    if (!noticeId) return { ok: false, message: 'noticeId が必要です' };
+    if (!title || !body) return { ok: false, message: 'タイトルと本文は必須です' };
+
+    var loc = _findNoticeRowByNoticeId(noticeId);
+    if (!loc) return { ok: false, message: 'noticeId が見つかりません: ' + noticeId };
+
+    // title / body を更新（_updateNoticeColumn が cache_notice_values を invalidate → 生徒/保護者アプリに反映）
+    var r1 = _updateNoticeColumn(noticeId, 'title', title);
+    if (!r1.ok) return r1;
+    var r2 = _updateNoticeColumn(noticeId, 'body', body);
+    if (!r2.ok) return r2;
+
+    _logTeacherAction(_teacher.teacherId, 'NOTICE_EDIT', '', 'success', { noticeId: noticeId });
+    return { ok: true, noticeId: noticeId };
+  } catch (err) {
+    console.error('[editNotice]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 訂正版の LINE 再配信（塾長専用、doPost 強制、明示実行のみ）
+// 2026-06-16：配信済み（lineDeliveryStatus==='sent'）の Notice のみ、元と同じ配信先へ
+//   本文先頭に「【訂正】」を付けて再送する。配信本体 _executeNoticeLineDelivery は無改修で流用。
+// 二重配信ガード（しっかり版）：ScriptLock で「状態確認 → 再配信時刻の予約記録」を直列化し、
+//   直近 NOTICE_REDELIVER_DEBOUNCE_MS 以内の再配信は拒否。送信自体はロック外で実行（HP 記録等への
+//   ロック競合を最小化）。再編集後の改めての再配信は時間が経てば許可される。
+// params: { teacherId, password, noticeId }
+function redeliverNoticeCorrection(params) {
+  try {
+    var _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    if (!_requireAdmin(_teacher)) return { ok: false, message: 'この操作は管理者のみ可能です' };
+
+    var noticeId = String((params && params.noticeId) || '').trim();
+    if (!noticeId) return { ok: false, message: 'noticeId が必要です' };
+
+    // lineCorrectionDeliveredAt 列を保証（冪等）
+    try { ensureNoticeLineColumns(); } catch(_){}
+
+    // ── 二重配信ガード：check-and-reserve を ScriptLock で直列化 ──
+    var lock = LockService.getScriptLock();
+    var locked = false;
+    try { locked = lock.tryLock(5000); } catch (lockErr) {}
+    if (!locked) return { ok: false, message: '他の配信処理が進行中です。少し待ってからお試しください。' };
+
+    var title, body, imageUrl, recipients, specific;
+    try {
+      var loc = _findNoticeRowByNoticeId(noticeId);
+      if (!loc) return { ok: false, message: 'noticeId が見つかりません: ' + noticeId };
+      var hdr = loc.header;
+
+      // 配信済みのみ再配信可
+      var status = String(loc.values[hdr.indexOf(NOTICE_LINE_DELIVERY_STATUS_HEADER)] || '').trim();
+      if (status !== 'sent') {
+        return { ok: false, message: 'この連絡はまだ LINE 配信されていないため、訂正版の再配信はできません（配信済みのみ可）' };
+      }
+
+      // 直近の再配信からの経過チェック（二重配信防止）
+      var iCorr = hdr.indexOf(NOTICE_LINE_CORRECTION_AT_HEADER);
+      if (iCorr >= 0 && loc.values[iCorr]) {
+        var lastT = new Date(loc.values[iCorr]).getTime();
+        if (!isNaN(lastT) && (Date.now() - lastT) < NOTICE_REDELIVER_DEBOUNCE_MS) {
+          return { ok: false, message: '直前に訂正版を再配信したばかりです。重複送信を防ぐため、しばらく待ってからお試しください。' };
+        }
+      }
+
+      // 送信前にスロットを予約（再配信時刻を記録）＝並行リクエストはこの後 debounce で弾かれる
+      _updateNoticeColumn(noticeId, NOTICE_LINE_CORRECTION_AT_HEADER, _nowJST());
+
+      // 現行行から配信データを取り出し（配信先は元のまま）
+      title      = String(loc.values[hdr.indexOf('title')] || '');
+      body       = String(loc.values[hdr.indexOf('body')]  || '');
+      imageUrl   = String(loc.values[hdr.indexOf(NOTICE_IMAGE_URL_HEADER)] || '');
+      recipients = String(loc.values[hdr.indexOf(NOTICE_LINE_RECIPIENTS_HEADER)] || '');
+      specific   = String(loc.values[hdr.indexOf(NOTICE_LINE_SPECIFIC_HEADER)] || '');
+    } finally {
+      if (locked) { try { lock.releaseLock(); } catch (relErr) {} }
+    }
+
+    // 送信（ロック外。本体 _executeNoticeLineDelivery は無改修で流用）。本文先頭に【訂正】を付与。
+    var deliveryResult = _executeNoticeLineDelivery({
+      title: title,
+      body: '【訂正】\n' + body,
+      imageUrl: imageUrl,
+      lineRecipients: recipients,
+      lineSpecificStudents: specific
+    });
+
+    _logTeacherAction(_teacher.teacherId, 'NOTICE_REDELIVER', '', 'success', {
+      noticeId:  noticeId,
+      delivered: (deliveryResult && deliveryResult.delivered) || 0,
+      failed:    (deliveryResult && deliveryResult.failed)    || 0
+    });
+
+    return {
+      ok: true,
+      noticeId:  noticeId,
+      delivered: (deliveryResult && deliveryResult.delivered) || 0,
+      failed:    (deliveryResult && deliveryResult.failed)    || 0
+    };
+  } catch (err) {
+    console.error('[redeliverNoticeCorrection]', err);
     return { ok: false, message: String(err) };
   }
 }

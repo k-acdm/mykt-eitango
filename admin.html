@@ -705,6 +705,29 @@
   .notice-list-card .nl-cancel-btn { padding: 6px 14px; background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
   .notice-list-card .nl-cancel-btn:hover { background: #fecaca; }
   .notice-list-card .nl-cancel-btn:disabled { opacity: .5; cursor: not-allowed; }
+  /* 2026-06-16 投稿後修正：編集ボタン + 編集モーダル */
+  .notice-list-card .nl-edit-btn { padding: 6px 14px; background: #e0e7ff; color: #3730a3; border: 1px solid #a5b4fc; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .notice-list-card .nl-edit-btn:hover { background: #c7d2fe; }
+  .notice-edit-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .notice-edit-inner { position: relative; background: #fff; border-radius: 12px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; padding: 22px 22px 20px; box-shadow: 0 8px 32px rgba(0,0,0,.35); }
+  .notice-edit-close { position: absolute; top: 10px; right: 10px; background: #f3f4f6; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 15px; font-weight: bold; cursor: pointer; }
+  .notice-edit-close:hover { background: #e5e7eb; }
+  .notice-edit-h2 { font-size: 17px; font-weight: 700; color: #333; margin: 0 0 14px; }
+  .notice-edit-label { display: block; font-size: 13px; font-weight: 600; color: #555; margin: 10px 0 4px; }
+  #notice-edit-title { width: 100%; padding: 8px 10px; border: 2px solid #e1e5ee; border-radius: 6px; font-family: inherit; font-size: 14px; box-sizing: border-box; }
+  #notice-edit-body { width: 100%; padding: 8px 10px; border: 2px solid #e1e5ee; border-radius: 6px; font-family: inherit; font-size: 14px; box-sizing: border-box; resize: vertical; }
+  .notice-edit-msg { display: none; margin-top: 10px; padding: 8px 10px; border-radius: 6px; font-size: 13px; }
+  .notice-edit-msg.ng { display: block; background: #fee2e2; color: #b91c1c; }
+  .notice-edit-msg.ok { display: block; background: #dcfce7; color: #15803d; }
+  .notice-edit-actions { margin-top: 14px; }
+  .notice-edit-save { padding: 9px 20px; background: #4f7df0; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 700; }
+  .notice-edit-save:hover { background: #3b6ae0; }
+  .notice-edit-save:disabled { opacity: .5; cursor: not-allowed; }
+  .notice-edit-redeliver { margin-top: 16px; padding: 12px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; }
+  .notice-edit-redeliver-note { font-size: 12px; color: #0c4a6e; line-height: 1.6; margin-bottom: 8px; }
+  .notice-edit-redeliver-btn { padding: 8px 16px; background: #0ea5e9; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 700; }
+  .notice-edit-redeliver-btn:hover { background: #0284c7; }
+  .notice-edit-redeliver-btn:disabled { opacity: .55; cursor: not-allowed; }
 
   /* =============================================================
      塾長権限：LINE通知管理 + 絶対ミッション設定（2026-05-18 新規）
@@ -3702,6 +3725,10 @@
       }
     }
     var imageBadge = hasImage ? '<div><span class="nl-image-badge">📷 画像あり</span></div>' : '';
+    // 2026-06-16 投稿後修正：全 Notice に「編集」ボタン（noticeId があるもののみ）
+    var editActions = n.noticeId
+      ? '<div class="nl-actions"><button type="button" class="nl-edit-btn" onclick="openNoticeEdit(\'' + _esc(n.noticeId) + '\')">✏️ 編集</button></div>'
+      : '';
     return '<div class="notice-list-card" data-nid="' + _esc(n.noticeId || '') + '">' +
       '<div class="nl-head">' +
         '<div class="nl-date">' + dateStr + '</div>' +
@@ -3710,6 +3737,7 @@
       '<div class="nl-body' + (bodyStr.length > 200 ? ' truncated' : '') + '">' + bodyStr + '</div>' +
       imageBadge +
       lineHtml +
+      editActions +
     '</div>';
   }
 
@@ -3743,6 +3771,111 @@
       loadNoticeList();
     }).catch(function() {
       if (btn) { btn.disabled = false; btn.textContent = '予約をキャンセル'; }
+      showToast('通信エラー', 'error');
+    });
+  }
+
+  // ===== 2026-06-16 投稿後修正：編集モーダル + 訂正版再配信 =====
+  function openNoticeEdit(noticeId) {
+    if (!noticeId) return;
+    var n = null;
+    for (var i = 0; i < (_noticeList || []).length; i++) {
+      if (String(_noticeList[i].noticeId || '') === String(noticeId)) { n = _noticeList[i]; break; }
+    }
+    if (!n) { showToast('対象の連絡が見つかりません', 'error'); return; }
+    var prev = document.getElementById('notice-edit-modal');
+    if (prev) prev.remove();
+    var isSent = (n.lineDeliveryStatus === 'sent');
+    var overlay = document.createElement('div');
+    overlay.id = 'notice-edit-modal';
+    overlay.className = 'notice-edit-modal';
+    overlay.setAttribute('data-nid', noticeId);
+    overlay.setAttribute('data-sent', isSent ? '1' : '0');
+    overlay.innerHTML =
+      '<div class="notice-edit-inner">' +
+        '<button type="button" class="notice-edit-close" onclick="closeNoticeEdit()" aria-label="閉じる">✕</button>' +
+        '<h2 class="notice-edit-h2">✏️ 連絡を編集</h2>' +
+        '<label class="notice-edit-label" for="notice-edit-title">タイトル</label>' +
+        '<input type="text" id="notice-edit-title" maxlength="80" />' +
+        '<label class="notice-edit-label" for="notice-edit-body">本文</label>' +
+        '<textarea id="notice-edit-body" maxlength="1000" rows="6"></textarea>' +
+        '<div id="notice-edit-msg" class="notice-edit-msg"></div>' +
+        '<div class="notice-edit-actions">' +
+          '<button type="button" class="notice-edit-save" id="notice-edit-save-btn" onclick="saveNoticeEdit()">💾 保存</button>' +
+        '</div>' +
+        '<div id="notice-edit-redeliver" class="notice-edit-redeliver" style="display:none">' +
+          '<div class="notice-edit-redeliver-note">この連絡はLINE配信済みです。修正内容を訂正版として元の配信先に再配信できます（保存だけでは送られません）。</div>' +
+          '<button type="button" class="notice-edit-redeliver-btn" id="notice-edit-redeliver-btn" onclick="redeliverNoticeCorrection(\'' + _esc(noticeId) + '\', this)">📨 訂正版を再配信</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('notice-edit-title').value = n.title || '';
+    document.getElementById('notice-edit-body').value  = n.body  || '';
+  }
+
+  function closeNoticeEdit() {
+    var m = document.getElementById('notice-edit-modal');
+    if (m) m.remove();
+  }
+
+  function _showNoticeEditMsg(text, kind) {
+    var el = document.getElementById('notice-edit-msg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'notice-edit-msg' + (text && kind ? ' ' + kind : '');
+    el.style.display = text ? 'block' : 'none';
+  }
+
+  function saveNoticeEdit() {
+    var overlay = document.getElementById('notice-edit-modal');
+    if (!overlay) return;
+    var noticeId = overlay.getAttribute('data-nid');
+    var title = (document.getElementById('notice-edit-title').value || '').trim();
+    var body  = (document.getElementById('notice-edit-body').value  || '').trim();
+    if (!title || !body) { _showNoticeEditMsg('タイトルと本文は必須です', 'ng'); return; }
+    var btn = document.getElementById('notice-edit-save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 保存中...'; }
+    _showNoticeEditMsg('', '');
+    adminGasPost({ action: 'editNotice', noticeId: noticeId, title: title, body: body }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '保存に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        if (btn) { btn.disabled = false; btn.textContent = '💾 保存'; }
+        _showNoticeEditMsg('失敗：' + em, 'ng');
+        return;
+      }
+      if (btn) { btn.disabled = false; btn.textContent = '💾 保存'; }
+      showToast('連絡を更新しました', 'success');
+      _showNoticeEditMsg('保存しました。', 'ok');
+      // 配信済みのときだけ「訂正版を再配信」を表示（保存しても自動再配信はしない）
+      if (overlay.getAttribute('data-sent') === '1') {
+        var rd = document.getElementById('notice-edit-redeliver');
+        if (rd) rd.style.display = 'block';
+      }
+      loadNoticeList();  // 一覧のタイトル/本文を最新化
+    }).catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 保存'; }
+      _showNoticeEditMsg('通信エラー', 'ng');
+    });
+  }
+
+  function redeliverNoticeCorrection(noticeId, btn) {
+    if (!noticeId) return;
+    if (!confirm('訂正版をLINEで再配信しますか？元の配信先に【訂正】付きで送られます。')) return;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 再配信中...'; }
+    adminGasPost({ action: 'redeliverNoticeCorrection', noticeId: noticeId }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '再配信に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        if (btn) { btn.disabled = false; btn.textContent = '📨 訂正版を再配信'; }
+        showToast('失敗：' + em, 'error');
+        return;
+      }
+      showToast('訂正版を再配信しました（送信 ' + (res.delivered || 0) + ' 件 / 失敗 ' + (res.failed || 0) + ' 件）', 'success');
+      if (btn) { btn.disabled = true; btn.textContent = '✅ 再配信しました'; }  // 連打防止のため無効化のまま
+      loadNoticeList();
+    }).catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = '📨 訂正版を再配信'; }
       showToast('通信エラー', 'error');
     });
   }
