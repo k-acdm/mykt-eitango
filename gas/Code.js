@@ -27098,6 +27098,161 @@ function verifyNotifyRefactor() {
   return result;
 }
 
+// ============================================================================
+// 2026-06-16 一時診断関数（区間タイミング計測・非破壊）：
+//   本番 _extractNotifyTargets({persist:true}) が 6 分かかる原因区間を実測で特定する。
+//   - _extractNotifyTargets と同じ処理を「計測付き」で再現する（本番関数は一切触らない＝
+//     通常実行の挙動は 1 ミリも変えない）。
+//   - 区間: t0開始 / t1 snapshots / t2 HPLog走査 / t3 releasedMap / t4 per-studentループ /
+//           t5 clearContent / t6 setValues。
+//   - per-student ループは 1 人あたり所要を累積し「合計 / 1人平均 / 最遅 sid+秒」を出力。
+//   - persist は NotifyTargets を copyTo で複製したスクラッチシート（データ・書式・データ検証・
+//     条件付き書式まで同一）に対して clearContent / setValues を実測 → 計測後にスクラッチ削除。
+//     本番 NotifyTargets には一切書き込まない（完全非破壊）。
+//   GAS エディタから手動実行 → 実行ログ（Executions）で各区間秒数を確認。検証後は削除して良い。
+// ============================================================================
+function diagnoseExtractTiming() {
+  var T0 = Date.now();
+  Logger.log('[diagnoseExtractTiming] START');
+
+  // 本番 _extractNotifyTargets 冒頭と同じ ensure（両方とも本番でも毎回走る）
+  ensureNotifyTargetsSheet();
+  ensureNotifyLogSheet();
+  var today = _sangoToday();
+  var yesterday = _sangoPrevDate(today);
+
+  // [t1] snapshots
+  var a1 = Date.now();
+  var snapshots = _lineNotifyBuildStudentSnapshots();
+  var t1 = Date.now();
+  Logger.log('[t1] _lineNotifyBuildStudentSnapshots: ' + ((t1 - a1) / 1000).toFixed(3) + 's  count=' + snapshots.length);
+
+  // [t2] HPLog 走査
+  var hpScan = _lineNotifyScanHpLogForYesterday(yesterday);
+  var t2 = Date.now();
+  Logger.log('[t2] _lineNotifyScanHpLogForYesterday: ' + ((t2 - t1) / 1000).toFixed(3) + 's  sids=' + Object.keys(hpScan.bySid || {}).length);
+
+  // [t3] releasedMap
+  var releasedMap = _lineNotifyBuildReleasedReflectionMap(yesterday);
+  var t3 = Date.now();
+  Logger.log('[t3] _lineNotifyBuildReleasedReflectionMap: ' + ((t3 - t2) / 1000).toFixed(3) + 's  sids=' + Object.keys(releasedMap || {}).length);
+
+  // [t4] per-student ループ（本番 _extractNotifyTargets のループ本体を計測付きで再現。persist しない）
+  var targets = [];
+  var skipped = { notifyOff: 0, gradeEmpty: 0, noLine: 0 };
+  var perStudent = [];  // { sid, sec, skipped }
+  for (var i = 0; i < snapshots.length; i++) {
+    var s = snapshots[i];
+    var sStart = Date.now();
+    var effectiveParentUserId  = s.shouldNotifyParent  ? s.parentUserId  : '';
+    var effectiveStudentUserId = s.shouldNotifyStudent ? s.studentUserId : '';
+    if (!effectiveParentUserId && !effectiveStudentUserId) {
+      if (!s.gradeLevel) skipped.gradeEmpty++;
+      else if (!s.parentUserId && !s.studentUserId) skipped.noLine++;
+      else skipped.notifyOff++;
+      perStudent.push({ sid: s.sid, sec: (Date.now() - sStart) / 1000, skipped: true });
+      continue;
+    }
+    var entries = hpScan.bySid[s.sid] || [];
+    var summary = _lineNotifySummarizeStudentEntries(s.sid, entries, yesterday, releasedMap);
+    var status = summary.worked ? 'worked' : 'sabotaged';
+    var missionStatus = summary.worked ? _lineNotifyAbsoluteMissionStatus(s.sid, entries, s.requiredContents) : null;
+    var displayName = s.name || s.nickname || s.sid;
+    targets.push({
+      studentId: s.sid,
+      nickname: displayName,
+      date: today,
+      status: status,
+      contents: summary.worked ? summary.contents : [],
+      totalHp: summary.worked ? summary.totalHp : 0,
+      cumulativeHp: summary.worked ? s.cumulativeHp : 0,
+      parentUserId: effectiveParentUserId,
+      studentUserId: effectiveStudentUserId,
+      missionAchieved: (missionStatus && Number(missionStatus.total) > 0) ? Number(missionStatus.achieved) : '',
+      missionTotal:    (missionStatus && Number(missionStatus.total) > 0) ? Number(missionStatus.total)    : '',
+      completionBonus: summary.worked ? Number(summary.completionBonus || 0) : 0
+    });
+    perStudent.push({ sid: s.sid, sec: (Date.now() - sStart) / 1000, skipped: false });
+  }
+  var t4 = Date.now();
+  var loopSec = (t4 - t3) / 1000;
+  var sumSec = 0, slowest = { sid: '', sec: -1 };
+  perStudent.forEach(function(p) { sumSec += p.sec; if (p.sec > slowest.sec) slowest = { sid: p.sid, sec: p.sec }; });
+  var avgSec = perStudent.length ? (sumSec / perStudent.length) : 0;
+  Logger.log('[t4] per-student ループ: ' + loopSec.toFixed(3) + 's  targets=' + targets.length
+    + '  人数=' + perStudent.length + '  合計=' + sumSec.toFixed(3) + 's  1人平均=' + avgSec.toFixed(4) + 's'
+    + '  最遅 sid=' + slowest.sid + ' (' + slowest.sec.toFixed(3) + 's)');
+
+  // ── persist 区間（非破壊計測）──
+  // 本番 NotifyTargets の実寸法をログ出力。
+  var src = _ss().getSheetByName(SHEET_NOTIFY_TARGETS);
+  var dimLastRow = src.getLastRow();
+  var dimLastCol = src.getLastColumn();
+  var dimMaxRow  = src.getMaxRows();
+  var dimMaxCol  = src.getMaxColumns();
+  Logger.log('[persist dims] NotifyTargets getLastRow=' + dimLastRow + ' getLastColumn=' + dimLastCol
+    + ' getMaxRows=' + dimMaxRow + ' getMaxColumns=' + dimMaxCol);
+
+  // NotifyTargets を copyTo で完全複製（データ・書式・データ検証・条件付き書式を継承）→ そこで実測。
+  var setupStart = Date.now();
+  var scratch = src.copyTo(_ss());
+  SpreadsheetApp.flush();
+  var setupSec = (Date.now() - setupStart) / 1000;
+  Logger.log('[setup] copyTo(NotifyTargets 複製): ' + setupSec.toFixed(3) + 's  （区間集計には含めない）');
+
+  var rows = targets.map(function(t) {
+    return [
+      t.studentId, t.nickname, t.date, t.status,
+      JSON.stringify(t.contents || []),
+      t.totalHp, t.cumulativeHp,
+      t.parentUserId, t.studentUserId,
+      t.missionAchieved, t.missionTotal, t.completionBonus
+    ];
+  });
+
+  // [t5] clearContent（本番と同じ範囲サイズ = 行2..getLastRow, 列1..getLastColumn を複製シートに対して実行）
+  var c0 = Date.now();
+  if (scratch.getLastRow() > 1) {
+    scratch.getRange(2, 1, scratch.getLastRow() - 1, scratch.getLastColumn()).clearContent();
+  }
+  SpreadsheetApp.flush();
+  var t5 = Date.now();
+  var clearSec = (t5 - c0) / 1000;
+  Logger.log('[t5] clearContent(複製シート 範囲=行2..' + scratch.getLastRow() + ' × 列1..' + scratch.getLastColumn() + '): ' + clearSec.toFixed(3) + 's');
+
+  // [t6] setValues（本番と同じ targets 行 × 12 列を複製シートへ書き込み実測）
+  var c1 = Date.now();
+  if (rows.length > 0) {
+    scratch.getRange(2, 1, rows.length, NOTIFY_TARGETS_HEADERS.length).setValues(rows);
+  }
+  SpreadsheetApp.flush();
+  var t6 = Date.now();
+  var setSec = (t6 - c1) / 1000;
+  Logger.log('[t6] setValues(' + rows.length + '行 × ' + NOTIFY_TARGETS_HEADERS.length + '列): ' + setSec.toFixed(3) + 's');
+
+  // スクラッチ削除（完全非破壊）
+  _ss().deleteSheet(scratch);
+
+  var snapSec = (t1 - a1) / 1000, hplogSec = (t2 - t1) / 1000, poolSec = (t3 - t2) / 1000;
+  var totalSec = (Date.now() - T0) / 1000;
+  Logger.log('[SUMMARY] snapshots=' + snapSec.toFixed(3) + 's | hplog=' + hplogSec.toFixed(3)
+    + 's | pool=' + poolSec.toFixed(3) + 's | loop=' + loopSec.toFixed(3)
+    + 's | clearContent=' + clearSec.toFixed(3) + 's | setValues=' + setSec.toFixed(3) + 's'
+    + '  ／ 診断TOTAL=' + totalSec.toFixed(3) + 's（persist はスクラッチ実測・NotifyTargets 本体は無変更）');
+
+  return {
+    ok: true,
+    sec: {
+      snapshots: snapSec, hplog: hplogSec, pool: poolSec, loop: loopSec,
+      clearContent: clearSec, setValues: setSec, copyToSetup: setupSec, total: totalSec
+    },
+    loop: { count: perStudent.length, totalSec: sumSec, avgSec: avgSec, slowestSid: slowest.sid, slowestSec: slowest.sec },
+    notifyTargetsDims: { lastRow: dimLastRow, lastCol: dimLastCol, maxRow: dimMaxRow, maxCol: dimMaxCol },
+    targetsCount: targets.length,
+    skipped: skipped
+  };
+}
+
 // --- Trigger 1: 毎日 05:00 起動 → 配信対象を NotifyTargets に書き込む ---
 // ふくちさん側で Apps Script UI から time-driven trigger を 1 つ作成する。
 //   関数: runDailyNotifyTargetExtraction / 日付ベース / 毎日 / 午前 5 時〜6 時
