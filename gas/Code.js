@@ -26256,18 +26256,19 @@ function _lineNotifyContentKeyToName(key) {
   return null;
 }
 
-// 指定 (sid, dateStr) に「解放された（resolvedAt が dateStr）」reflection_pending の
-// HpReservePool 保留分を、コンテンツキー別に合算して返す。
-//   戻り値: { eitango: 50, sango: 30, ... }（該当なしは {}）
-// 即時付与分（HPLog の content type hpGained）と合算して「当日のコンテンツ別 最終獲得 HP」を作る。
-function _lineNotifyReleasedReflectionByContent(sid, dateStr) {
-  var out = {};
+// 2026-06-16 パフォーマンス改善（案1）：HpReservePool を 1 回だけ読み、
+//   指定 dateStr に「解放された（resolvedAt が dateStr の教育日）」reflection_pending 分を
+//   { sid: { contentKey: hp } } のマップとして返す。
+//   フィルタ条件・日付判定（_educationalDayFromTs / 4 時切替）は
+//   旧 _lineNotifyReleasedReflectionByContent と完全同一（集計の sid 単位への展開のみ）。
+//   旧版は生徒ごとに全件 getDataRange().getValues() していた（N+1）。これをループ前 1 回に集約する。
+function _lineNotifyBuildReleasedReflectionMap(dateStr) {
+  var bySid = {};
   try {
-    var sidNorm = String(sid || '').trim();
     var ds = String(dateStr || '').trim();
-    if (!sidNorm || !ds) return out;
+    if (!ds) return bySid;
     var sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
-    if (!sh || sh.getLastRow() < 2) return out;
+    if (!sh || sh.getLastRow() < 2) return bySid;
     var values = sh.getDataRange().getValues();
     var header = values[0];
     var iReason     = header.indexOf('reserveReason');
@@ -26276,24 +26277,36 @@ function _lineNotifyReleasedReflectionByContent(sid, dateStr) {
     // 列構成: [0]studentId [1]date [2]type [3]rawHp [4]reservedHp [5]resolved [6]resolvedAt [7]reserveReason
     for (var i = 1; i < values.length; i++) {
       var r = values[i];
-      if (String(r[0] || '').trim() !== sidNorm) continue;
+      var sid = String(r[0] || '').trim();
+      if (!sid) continue;
       if (iResolved >= 0 && String(r[iResolved] || '').trim().toUpperCase() !== 'TRUE') continue;
       if (iReason >= 0 && String(r[iReason] || '').trim() !== 'reflection_pending') continue;
       // 2026-06-03 修正：解放日判定を教育日基準（JST 4:00 切替）に統一。
-      // 旧 _normalizePoolDate は標準 0 時切替のため、0:00〜3:59 に提出→解放された分（例: 川島桃子 0:00 提出）が
-      // 教育日「昨日」の集計とずれて拾えず、コンテンツ別 0HP 表示になっていた。
       var resolvedDs = (iResolvedAt >= 0) ? _educationalDayFromTs(r[iResolvedAt]) : '';
       if (resolvedDs !== ds) continue;
       var key = _normalizeHpReservePoolTypeForContent(r[2]);
       if (!key) continue;
       var hp = Number(r[4]) || 0;
       if (hp <= 0) continue;
-      out[key] = (out[key] || 0) + hp;
+      if (!bySid[sid]) bySid[sid] = {};
+      bySid[sid][key] = (bySid[sid][key] || 0) + hp;
     }
   } catch (e) {
-    console.error('[_lineNotifyReleasedReflectionByContent]', e);
+    console.error('[_lineNotifyBuildReleasedReflectionMap]', e);
   }
-  return out;
+  return bySid;
+}
+
+// 指定 (sid, dateStr) の「解放された reflection_pending 保留分」をコンテンツキー別に返す。
+//   戻り値: { eitango: 50, sango: 30, ... }（該当なしは {}）
+// 2026-06-16：自前の getDataRange を撤廃し、_lineNotifyBuildReleasedReflectionMap に委譲。
+//   ホットパス（_extractNotifyTargets / sendTestNotification）はマップを 1 回作って引数で渡すため
+//   この単体関数は呼ばれない。標準単体呼び出し（後方互換）が来た場合のみ内部で 1 回読む。
+function _lineNotifyReleasedReflectionByContent(sid, dateStr) {
+  var sidNorm = String(sid || '').trim();
+  if (!sidNorm) return {};
+  var map = _lineNotifyBuildReleasedReflectionMap(dateStr);
+  return map[sidNorm] || {};
 }
 
 // ============================================================================
@@ -26409,26 +26422,34 @@ function diagnoseReflectionReleaseDate(sidOrName) {
 //   戻り値: { achieved, total } または null（絶対ミッション未設定 = total 0 の生徒）
 // 判定は両輪システムの達成判定（_getRequiredContentsForLoc + _isHpLogTypeForRequired）と
 // 完全に同じ条件を流用。entries は _lineNotifyScanHpLogForYesterday の該当生徒分（HPLog 当日行）。
-function _lineNotifyAbsoluteMissionStatus(sid, entries) {
+// 2026-06-16 パフォーマンス改善（案2）：requiredList を引数で受け取れるようにし、
+//   _findAccountRowOnSheet（Students 全件読み）を毎回呼ばないようにする。
+//   requiredList は _lineNotifyBuildStudentSnapshots が snapshot 構築時に
+//   _getRequiredContentsForLoc で算出済みの配列（参照列・判定ロジックは従来と完全同一）。
+//   未指定時（後方互換・単体呼び出し）のみ従来通り loc から取得する。
+function _lineNotifyAbsoluteMissionStatus(sid, entries, requiredList) {
   try {
-    var loc = _findAccountRowOnSheet(sid);
-    if (!loc) return null;
-    var requiredList = _getRequiredContentsForLoc(loc);
-    if (!requiredList || requiredList.length === 0) return null;  // 絶対ミッション未設定 → 表示しない
+    var reqList = requiredList;
+    if (reqList === undefined || reqList === null) {
+      var loc = _findAccountRowOnSheet(sid);
+      if (!loc) return null;
+      reqList = _getRequiredContentsForLoc(loc);
+    }
+    if (!reqList || reqList.length === 0) return null;  // 絶対ミッション未設定 → 表示しない
     var completed = {};
     var list = entries || [];
     for (var i = 0; i < list.length; i++) {
       var type = String(list[i].type || '').trim();
-      for (var j = 0; j < requiredList.length; j++) {
-        var rc = requiredList[j];
+      for (var j = 0; j < reqList.length; j++) {
+        var rc = reqList[j];
         if (!completed[rc] && _isHpLogTypeForRequired(type, rc)) completed[rc] = true;
       }
     }
     var achieved = 0;
-    for (var k = 0; k < requiredList.length; k++) {
-      if (completed[requiredList[k]]) achieved++;
+    for (var k = 0; k < reqList.length; k++) {
+      if (completed[reqList[k]]) achieved++;
     }
-    return { achieved: achieved, total: requiredList.length };
+    return { achieved: achieved, total: reqList.length };
   } catch (e) {
     console.error('[_lineNotifyAbsoluteMissionStatus]', e);
     return null;
@@ -26688,7 +26709,11 @@ var LINE_NOTIFY_CONTENT_DISPLAY_ORDER = [
 //   - 達成状況は別途 _lineNotifyAbsoluteMissionStatus で「○/△」表示
 //   - totalHp はコンテンツ別 HP の合計（= 表示される内訳の総和。内訳と一致する）
 //   - grandTotalHp = totalHp + completionBonus（= 文面の【獲得 HP】）
-function _lineNotifySummarizeStudentEntries(sid, entries, dateStr) {
+// 2026-06-16 パフォーマンス改善（案1）：releasedMap（_lineNotifyBuildReleasedReflectionMap の
+//   戻り値 { sid: { key: hp } }）を受け取り、当日解放分は releasedMap[sid] を引くだけにする。
+//   releasedMap 省略時（後方互換）は従来通り _lineNotifyReleasedReflectionByContent で 1 回読む。
+//   集計ロジック・結果は従来と完全同一（読み取りのタイミング・回数のみ変更）。
+function _lineNotifySummarizeStudentEntries(sid, entries, dateStr, releasedMap) {
   var worked = false;
   var byName = {};
   var completionBonus = 0;
@@ -26708,7 +26733,11 @@ function _lineNotifySummarizeStudentEntries(sid, entries, dateStr) {
   }
   // 2. 当日解放された reflection_pending Pool 分をコンテンツ別に加算
   if (sid && dateStr) {
-    var released = _lineNotifyReleasedReflectionByContent(sid, dateStr);
+    // 案1：渡された releasedMap から sid 分を引く（ホットパス）。
+    //   未指定時のみ従来の単体読みにフォールバック（後方互換・単体テスト用）。
+    var released = (releasedMap !== undefined && releasedMap !== null)
+      ? (releasedMap[String(sid).trim()] || {})
+      : _lineNotifyReleasedReflectionByContent(sid, dateStr);
     for (var key in released) {
       if (!Object.prototype.hasOwnProperty.call(released, key)) continue;
       var nm2 = _lineNotifyContentKeyToName(key);
@@ -26791,6 +26820,18 @@ function _lineNotifyBuildStudentSnapshots() {
       var studentUserId = iLineS >= 0 ? String(row[iLineS] || '').trim() : '';
       var shouldNotifyParent  = _lineNotifyShouldNotifyParent(notifyLineParentRaw, gradeLevel);
       var shouldNotifyStudent = _lineNotifyShouldNotifyStudent(notifyLineStudentRaw, gradeLevel);
+      // 2026-06-16 パフォーマンス改善（案2）：絶対ミッションの required リストを
+      //   snapshot 構築時に算出（_findAccountRowOnSheet の毎回読みを排除するため）。
+      //   _findAccountRowOnSheet が返す loc と同じ構造（allValues=values, rowValues=row, rowIdx=r）を
+      //   渡して既存 _getRequiredContentsForLoc をそのまま使う。sheet:null とするのは、
+      //   全列を含む values から既に値を読めており、_readUnlockFlagFromLoc の getRange フォールバック
+      //   （空セルに対してのみ発火し同じ空値を返す＝結果不変）を回避して I/O を増やさないため。
+      var requiredContents = [];
+      try {
+        requiredContents = _getRequiredContentsForLoc({
+          sheet: null, rowIdx: r, rowValues: row, allValues: values, sheetName: sheetName
+        });
+      } catch (eRc) { console.error('[snapshots requiredContents]', eRc); }
       snapshots.push({
         sid: sid,
         nickname: nickname,
@@ -26803,7 +26844,8 @@ function _lineNotifyBuildStudentSnapshots() {
         parentUserId: parentUserId,
         studentUserId: studentUserId,
         cumulativeHp: hp,
-        sheetName: sheetName
+        sheetName: sheetName,
+        requiredContents: requiredContents
       });
     }
   }
@@ -26836,6 +26878,8 @@ function _extractNotifyTargets(opts) {
   var yesterday = _sangoPrevDate(today);
   var snapshots = _lineNotifyBuildStudentSnapshots();
   var hpScan = _lineNotifyScanHpLogForYesterday(yesterday);
+  // 案1：HpReservePool の昨日解放分マップをループ前に 1 回だけ構築（旧: 生徒ごとに全件読み）。
+  var releasedMap = _lineNotifyBuildReleasedReflectionMap(yesterday);
   var targets = [];
   var skipped = { notifyOff: 0, gradeEmpty: 0, noLine: 0 };
   for (var i = 0; i < snapshots.length; i++) {
@@ -26857,10 +26901,11 @@ function _extractNotifyTargets(opts) {
       continue;
     }
     var entries = hpScan.bySid[s.sid] || [];
-    var summary = _lineNotifySummarizeStudentEntries(s.sid, entries, yesterday);
+    var summary = _lineNotifySummarizeStudentEntries(s.sid, entries, yesterday, releasedMap);
     var status = summary.worked ? 'worked' : 'sabotaged';
     // 2026-05-29：絶対ミッション達成状況（worked のときのみ算出。未設定生徒は null）。
-    var missionStatus = summary.worked ? _lineNotifyAbsoluteMissionStatus(s.sid, entries) : null;
+    // 案2：snapshot に載せた requiredContents を渡す（Students 毎回読みを排除）。
+    var missionStatus = summary.worked ? _lineNotifyAbsoluteMissionStatus(s.sid, entries, s.requiredContents) : null;
     // Task 4（2026-05-19）：本名（s.name）優先、空欄ならニックネームへフォールバック。
     // NotifyTargets シートの `nickname` 列にこの値を保存して、配信時はそれをそのまま LINE 文面に使う。
     var displayName = s.name || s.nickname || s.sid;
@@ -26908,6 +26953,149 @@ function _extractNotifyTargets(opts) {
     skipped: skipped,
     targets: targets
   };
+}
+
+// ============================================================================
+// 2026-06-16 一時検証関数（読み取り専用・副作用ゼロ・dryRun）：
+//   案1/案2 のリファクタ前後で _extractNotifyTargets の出力が完全一致するかを検証する。
+//   - 「旧ロジック（生徒ごとフル読み版）」を本関数内のローカル参照実装として持ち、
+//     新ロジック（本番経路 _extractNotifyTargets({persist:false})）と全生徒・全項目を突き合わせる。
+//   - NotifyTargets シートには一切書かない（persist:false）。
+//   - 併せて新 _extractNotifyTargets の dryRun 実行秒数を計測してログ出力する。
+//   GAS エディタから手動実行 → Logger で結果確認。検証完了後は削除して良い。
+// ============================================================================
+function verifyNotifyRefactor() {
+  // ---- 旧ロジック参照実装（修正前の挙動を再現）----
+  // HpReservePool を sid ごとに毎回フル読みする「案1 適用前」の解放分集計。
+  function refReleased(sid, dateStr) {
+    var out = {};
+    try {
+      var sidNorm = String(sid || '').trim();
+      var ds = String(dateStr || '').trim();
+      if (!sidNorm || !ds) return out;
+      var sh = _ss().getSheetByName(SHEET_HP_RESERVE_POOL);
+      if (!sh || sh.getLastRow() < 2) return out;
+      var values = sh.getDataRange().getValues();
+      var header = values[0];
+      var iReason     = header.indexOf('reserveReason');
+      var iResolved   = header.indexOf('resolved');
+      var iResolvedAt = header.indexOf('resolvedAt');
+      for (var i = 1; i < values.length; i++) {
+        var r = values[i];
+        if (String(r[0] || '').trim() !== sidNorm) continue;
+        if (iResolved >= 0 && String(r[iResolved] || '').trim().toUpperCase() !== 'TRUE') continue;
+        if (iReason >= 0 && String(r[iReason] || '').trim() !== 'reflection_pending') continue;
+        var resolvedDs = (iResolvedAt >= 0) ? _educationalDayFromTs(r[iResolvedAt]) : '';
+        if (resolvedDs !== ds) continue;
+        var key = _normalizeHpReservePoolTypeForContent(r[2]);
+        if (!key) continue;
+        var hp = Number(r[4]) || 0;
+        if (hp <= 0) continue;
+        out[key] = (out[key] || 0) + hp;
+      }
+    } catch (e) {}
+    return out;
+  }
+  // 案1 適用前の summarize（released を refReleased で都度読む）。集計ロジックは現行と同一。
+  function refSummarize(sid, entries, dateStr) {
+    var worked = false, byName = {}, completionBonus = 0;
+    var list = entries || [];
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      if (_lineNotifyCountableType(e.type)) worked = true;
+      if (String(e.type || '').trim() === 'completion_bonus') completionBonus += Number(e.hpGained || 0);
+      var name = _lineNotifyContentNameFor(e.type);
+      if (!name) continue;
+      if (!byName[name]) byName[name] = 0;
+      byName[name] += Number(e.hpGained || 0);
+    }
+    if (sid && dateStr) {
+      var released = refReleased(sid, dateStr);
+      for (var key in released) {
+        if (!Object.prototype.hasOwnProperty.call(released, key)) continue;
+        var nm2 = _lineNotifyContentKeyToName(key);
+        if (!nm2) continue;
+        if (!byName[nm2]) byName[nm2] = 0;
+        byName[nm2] += Number(released[key] || 0);
+      }
+    }
+    var contents = [], totalHp = 0;
+    for (var k = 0; k < LINE_NOTIFY_CONTENT_DISPLAY_ORDER.length; k++) {
+      var nm = LINE_NOTIFY_CONTENT_DISPLAY_ORDER[k];
+      if (byName[nm] != null) { contents.push({ name: nm, hp: byName[nm] }); totalHp += Number(byName[nm] || 0); }
+    }
+    return { worked: worked, contents: contents, totalHp: totalHp, completionBonus: completionBonus };
+  }
+
+  // ---- 旧ロジックで targets を再構築（_extractNotifyTargets の loop をそのまま再現、persist しない）----
+  var today = _sangoToday();
+  var yesterday = _sangoPrevDate(today);
+  var snapshots = _lineNotifyBuildStudentSnapshots();
+  var hpScan = _lineNotifyScanHpLogForYesterday(yesterday);
+  var refTargets = [];
+  for (var i = 0; i < snapshots.length; i++) {
+    var s = snapshots[i];
+    var effectiveParentUserId  = s.shouldNotifyParent  ? s.parentUserId  : '';
+    var effectiveStudentUserId = s.shouldNotifyStudent ? s.studentUserId : '';
+    if (!effectiveParentUserId && !effectiveStudentUserId) continue;
+    var entries = hpScan.bySid[s.sid] || [];
+    var summary = refSummarize(s.sid, entries, yesterday);
+    var status = summary.worked ? 'worked' : 'sabotaged';
+    // 旧: requiredList を渡さず _findAccountRowOnSheet 経由（フォールバック）で算出 = 修正前の挙動。
+    var missionStatus = summary.worked ? _lineNotifyAbsoluteMissionStatus(s.sid, entries) : null;
+    var displayName = s.name || s.nickname || s.sid;
+    refTargets.push({
+      studentId: s.sid,
+      nickname: displayName,
+      date: today,
+      status: status,
+      contents: summary.worked ? summary.contents : [],
+      totalHp: summary.worked ? summary.totalHp : 0,
+      cumulativeHp: summary.worked ? s.cumulativeHp : 0,
+      parentUserId: effectiveParentUserId,
+      studentUserId: effectiveStudentUserId,
+      missionAchieved: (missionStatus && Number(missionStatus.total) > 0) ? Number(missionStatus.achieved) : '',
+      missionTotal:    (missionStatus && Number(missionStatus.total) > 0) ? Number(missionStatus.total)    : '',
+      completionBonus: summary.worked ? Number(summary.completionBonus || 0) : 0
+    });
+  }
+
+  // ---- 新ロジック（本番経路）+ dryRun 実行時間計測 ----
+  var t0 = Date.now();
+  var newRes = _extractNotifyTargets({ persist: false });
+  var elapsedSec = (Date.now() - t0) / 1000;
+  var newTargets = (newRes && newRes.targets) || [];
+
+  // ---- diff（studentId で突合、全項目 JSON 比較）----
+  function norm(v) { return JSON.stringify(v == null ? '' : v); }
+  var fields = ['nickname','date','status','contents','totalHp','cumulativeHp',
+                'parentUserId','studentUserId','missionAchieved','missionTotal','completionBonus'];
+  var refMap = {}, newMap = {}, allIds = {};
+  refTargets.forEach(function(t){ refMap[String(t.studentId)] = t; allIds[String(t.studentId)] = true; });
+  newTargets.forEach(function(t){ newMap[String(t.studentId)] = t; allIds[String(t.studentId)] = true; });
+  var diffs = [];
+  Object.keys(allIds).forEach(function(sid){
+    var a = refMap[sid], b = newMap[sid];
+    if (!a) { diffs.push({ sid: sid, field: '(NEW のみに存在)', ref: null, neu: b }); return; }
+    if (!b) { diffs.push({ sid: sid, field: '(REF のみに存在)', ref: a, neu: null }); return; }
+    fields.forEach(function(f){
+      if (norm(a[f]) !== norm(b[f])) diffs.push({ sid: sid, field: f, ref: a[f], neu: b[f] });
+    });
+  });
+
+  var result = {
+    ok: true,
+    verdict: diffs.length === 0 ? 'MATCH ALL' : ('DIFF: ' + diffs.length + ' 件'),
+    refCount: refTargets.length,
+    newCount: newTargets.length,
+    dryRunElapsedSec: elapsedSec,
+    diffs: diffs
+  };
+  Logger.log('[verifyNotifyRefactor] verdict=' + result.verdict
+    + ' refCount=' + result.refCount + ' newCount=' + result.newCount
+    + ' dryRunElapsedSec=' + elapsedSec);
+  if (diffs.length > 0) Logger.log('[verifyNotifyRefactor] diffs=' + JSON.stringify(diffs, null, 2));
+  return result;
 }
 
 // --- Trigger 1: 毎日 05:00 起動 → 配信対象を NotifyTargets に書き込む ---
@@ -27050,9 +27238,11 @@ function sendTestNotification(params) {
     var yesterday = _sangoPrevDate(today);
     var hpScan = _lineNotifyScanHpLogForYesterday(yesterday);
     var entries = hpScan.bySid[sid] || [];
-    var summary = _lineNotifySummarizeStudentEntries(sid, entries, yesterday);
+    // 案1/案2：releasedMap を 1 回構築、required は snapshot から取得（_extractNotifyTargets と同方針）。
+    var releasedMap = _lineNotifyBuildReleasedReflectionMap(yesterday);
+    var summary = _lineNotifySummarizeStudentEntries(sid, entries, yesterday, releasedMap);
     var status = summary.worked ? 'worked' : 'sabotaged';
-    var missionStatus = summary.worked ? _lineNotifyAbsoluteMissionStatus(sid, entries) : null;
+    var missionStatus = summary.worked ? _lineNotifyAbsoluteMissionStatus(sid, entries, snap.requiredContents) : null;
     var msg;
     if (targetType === 'student') {
       msg = (status === 'sabotaged')
