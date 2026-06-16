@@ -27284,9 +27284,26 @@ function runDailyNotifyDelivery() {
     ensureNotifyLogSheet();
     var sh = _ss().getSheetByName(SHEET_NOTIFY_TARGETS);
     var lastRow = sh.getLastRow();
+    // 方式A（2026-06-16 保険）：no targets を検知したら抽出を「最大1回だけ」呼び直して立て直す。
+    //   朝 5 時の runDailyNotifyTargetExtraction が失敗して NotifyTargets が空のまま正午を迎えても、
+    //   ここで自動リカバリして配信する。通常日は最初から targets ありなので、この経路には一切入らない
+    //   （正常系の配信挙動は不変／二重配信は起きない）。リカバリは 1 回限りで再試行しない。
+    var recovered = false;
     if (lastRow < 2) {
-      console.log('[runDailyNotifyDelivery] no targets');
-      return { ok: true, delivered: 0, failed: 0, totalTargets: 0 };
+      console.log('[runDailyNotifyDelivery] no targets → リカバリ抽出を1回だけ実行');
+      try {
+        _extractNotifyTargets({ persist: true });  // 本体は無変更。呼ぶだけ。
+      } catch (recErr) {
+        console.error('[runDailyNotifyDelivery] リカバリ抽出に失敗', recErr);
+      }
+      recovered = true;
+      sh = _ss().getSheetByName(SHEET_NOTIFY_TARGETS);
+      lastRow = sh.getLastRow();
+      if (lastRow < 2) {
+        // リカバリ後もゼロ＝本当に対象なし（全員 notifyOff / gradeEmpty / noLine 等）。再試行しない。
+        console.log('[runDailyNotifyDelivery] リカバリ後も no targets（本当に対象なし）。終了。recovered=true');
+        return { ok: true, delivered: 0, failed: 0, totalTargets: 0, recovered: true };
+      }
     }
     var values = sh.getRange(2, 1, lastRow - 1, NOTIFY_TARGETS_HEADERS.length).getValues();
     var delivered = 0;
@@ -27343,12 +27360,53 @@ function runDailyNotifyDelivery() {
       sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
     }
     console.log('[runDailyNotifyDelivery] delivered=' + delivered + ' failed=' + failed
-      + ' totalTargets=' + totalTargets);
-    return { ok: true, delivered: delivered, failed: failed, totalTargets: totalTargets };
+      + ' totalTargets=' + totalTargets + ' recovered=' + recovered);
+    // 方式B（2026-06-16 保険）：リカバリが発動したときだけ、ふくちさん本人の LINE へ通知する。
+    //   送信経路はアマギフ交換フロー（submitAmazonGiftRequest）と同一パターンを流用（新経路は作らない）。
+    //   通常日（recovered=false）は通知しない。通知失敗は握りつぶす（配信は既に成立）。
+    if (recovered) {
+      try {
+        var fukuchiUid = _getFukuchiLineUserId();
+        if (fukuchiUid) {
+          var txt = '【マイ活アプリ】本日の取り組み報告：朝の抽出が失敗していたため正午に自動リカバリして配信しました。対象' + totalTargets + '件。';
+          try { _pushLineMessage(fukuchiUid, txt); }
+          catch (e3) { console.error('[runDailyNotifyDelivery] 福地LINE通知失敗（配信は成立）', e3); }
+        } else {
+          console.log('[runDailyNotifyDelivery] 福地LINE userId未取得のため通知スキップ');
+        }
+      } catch (e4) {
+        console.error('[runDailyNotifyDelivery] 福地LINE通知ブロック例外（配信は成立）', e4);
+      }
+    }
+    return { ok: true, delivered: delivered, failed: failed, totalTargets: totalTargets, recovered: recovered };
   } catch (err) {
     console.error('[runDailyNotifyDelivery]', err);
     return { ok: false, message: String(err) };
   }
+}
+
+// ============================================================================
+// 2026-06-16 一時テスト関数：方式B（福地LINE通知）の送信経路が生きているかの単体確認用。
+//   _getFukuchiLineUserId() の戻り値をログ出力（空でないか）→ 空でなければテスト1通を送る。
+//   本番 runDailyNotifyDelivery とは独立。GAS エディタから手動実行 → 実行ログ + LINE 受信で確認。
+//   確認後は削除して良い。
+// ============================================================================
+function testFukuchiLineNotify() {
+  var uid = _getFukuchiLineUserId();
+  Logger.log('[testFukuchiLineNotify] _getFukuchiLineUserId() = "' + uid + '" (len=' + (uid ? uid.length : 0) + ')');
+  if (!uid) {
+    Logger.log('[testFukuchiLineNotify] userId が空 → 送信スキップ。Students/SpecialAccounts の福地行 LINE_USER_ID を確認してください。');
+    return { ok: false, uid: '', sent: false };
+  }
+  var res;
+  try {
+    res = _pushLineMessage(uid, '【マイ活アプリ】通知テスト送信です。');
+  } catch (e) {
+    Logger.log('[testFukuchiLineNotify] 送信例外: ' + e);
+    return { ok: false, uid: uid, sent: false, error: String(e) };
+  }
+  Logger.log('[testFukuchiLineNotify] push 結果: ' + JSON.stringify(res));
+  return { ok: !!(res && res.ok), uid: uid, sent: !!(res && res.ok), pushResult: res };
 }
 
 // --- 管理用 API（手動実行用） ---
