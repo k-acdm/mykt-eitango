@@ -2708,6 +2708,8 @@
     .mykt-overlay-btns .btn-retry { background: linear-gradient(135deg, #fb923c, #f97316); color: #fff; }
     .mykt-overlay-btns .btn-cancel { background: #e5e7eb; color: #374151; }
     /* ===== オリワンテス（③-A）トップ／チャットUI ===== */
+    /* 2026-06-17：結果画面の獲得HP内訳の式（特大の +90 より控えめ。オリワンテス専用）。 */
+    .oriwan-hp-breakdown { font-size: 13px; color: #9a7b3a; opacity: .9; margin: 2px 0 4px; text-align: center; letter-spacing: .3px; }
     .oriwan-hp-line { font-size: 14px; font-weight: bold; color: #7a5210; background: #fff7e0; border: 1px solid #f0d48a; border-radius: 10px; padding: 9px 12px; margin: 12px 0 4px; text-align: center; }
     .oriwan-chat { max-height: 52vh; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px; background: #fffdf5; border: 1px solid #f0e2b8; border-radius: 14px; }
     .oriwan-msg { display: flex; margin: 10px 2px; }
@@ -3084,10 +3086,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260617-0002"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260617-0056"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260617-0002">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260617-0002"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260617-0056">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260617-0056"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -14376,6 +14378,9 @@
         '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
         '<div style="font-size:52px">🎉</div>' +
         '<div class="wabun1-result-title">解答を送信したぞ！</div>' +
+        // 2026-06-17：内訳の式を特大表示の直上に控えめに添える（オリワンテス専用＝作成料の概念があるため）。
+        //   結論の 90 は下の特大表示が担うので、式に「＝90」「90HP」は書かない。
+        '<div class="oriwan-hp-breakdown">100HP － 10HP（作成料）</div>' +
         '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="oriwantes-result-hp-num">0</span> HP 獲得！</div>' +
       '</div>';
     // reserve 反映：保留がある（振り返り未提出で保留中）なら振り返り注意書きを出す。即時付与なら出さない。
@@ -17621,7 +17626,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260617-0002</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260617-0056</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
