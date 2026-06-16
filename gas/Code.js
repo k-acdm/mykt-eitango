@@ -14881,12 +14881,14 @@ function submitOriwantes(params) {
     if (!sh) return { ok: false, message: 'OriwantesResults シートが見つかりません' };
     sh.appendRow(row);
 
-    // ── 100HP 付与（マイ課題と全く同様：reserve ゲート・週数ボーナス対象）──
+    // ── 90HP 付与（マイ課題と全く同様：reserve ゲート・週数ボーナス対象）──
+    //   2026-06-17：素点 100→90 に変更。作成時に 10HP 前借り消費しているため、解答時 90 で手持ち +90 に整合。
+    //   週数²ボーナスは _grantHP 内部で 90 × 連続週数² として掛かる（仕組み自体は不変）。
     //   付与失敗時も、保存済みの appendRow は巻き戻さない（submitMyTask の HP_LOG_FAILED に倣う）。
     const grant = _grantHP({
       sid:           sid,
       type:          'oriwantes',
-      rawHp:         100,
+      rawHp:         90,
       stuLoc:        stuLoc,
       submissionId:  submissionId,
       contentType:   'oriwantes',
@@ -14910,7 +14912,7 @@ function submitOriwantes(params) {
       ok: true,
       submissionId: submissionId,
       savedQuestionCount: savedQuestionCount,
-      grantedRawHp: 100,
+      grantedRawHp: 90,
       hpGained: grant.hpGained,
       hpReserved: grant.hpReserved,
       isReserveActive: grant.isReserveActive,
