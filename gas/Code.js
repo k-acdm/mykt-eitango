@@ -23345,7 +23345,7 @@ const MYTASK_ANNOUNCEMENTS_HEADERS = [
   'active'           // TRUE=有効（同一 studentId×subject で最新1件のみ TRUE）
 ];
 // 生徒画面の表示順（教科順）。未知教科は末尾に回す。
-const MYTASK_SUBJECTS = ['英語', '数学', '理科', '社会', '国語'];
+const MYTASK_SUBJECTS = ['英語', '数学・算数', '理科', '社会', '国語'];
 
 // MyTaskAnnouncements シートの存在保証（初回アクセス時に冪等作成）。
 function _ensureMyTaskAnnouncementsSheet() {
