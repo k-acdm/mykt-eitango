@@ -1106,6 +1106,8 @@ function doGet(e) {
       else if (action === 'listAllActiveMyTaskAnnouncements') result = listAllActiveMyTaskAnnouncements(params);
       // マイ課題⑧（2026-06-12）：生徒向けの自分宛 active 告知一覧（生徒フロント用 read-only、studentId 直接・認証なし）
       else if (action === 'listMyTaskAnnouncementsForStudent') result = listMyTaskAnnouncementsForStudent(params.studentId);
+      // 自分の順位ポップアップ（2026-06-18）：生徒向けの自分の4順位（生涯/週間 × 学年区分/全体）。生徒フロント用 read-only、studentId 直接・認証なし
+      else if (action === 'getMyRankings') result = getMyRankings(params.studentId);
       else if (action === 'getStreakRecoveryCandidates') result = getStreakRecoveryCandidates(params);
       // 今日のマイ活 振り返り：閲覧系（認証なしの生徒/保護者用 + admin/teacher 認証用の 2 本）
       else if (action === 'getReflectionsForStudent')    result = getReflectionsForStudent(params);
@@ -8424,6 +8426,145 @@ function getWeeklyRanking() {
     return result;
   } catch(err) {
     console.error('[getWeeklyRanking]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 競技順位法（standard competition ranking）で sid の順位を返す。
+//   list: [{ sid, <valueKey>:Number }] の配列。valueKey で値プロパティ名を指定。
+//   降順ソート → 同値は同順位、次の値は件数ぶん飛ぶ（例: 90,90,80 → 1,1,3）。
+//   sid が list に無ければ null。
+//   ※ list は破壊しない（slice でコピーしてからソート）。
+// =============================================
+function _competitionRank(list, sid, valueKey) {
+  const target = String(sid || '').trim();
+  if (!target || !list || !list.length) return null;
+  const sorted = list.slice().sort(function(a, b){
+    return (Number(b[valueKey]) || 0) - (Number(a[valueKey]) || 0);
+  });
+  let rank = 0;        // 直前に確定した順位
+  let prevVal = null;  // 直前の値（同値判定用）
+  for (let i = 0; i < sorted.length; i++) {
+    const v = Number(sorted[i][valueKey]) || 0;
+    if (prevVal === null || v !== prevVal) {
+      rank = i + 1;    // 新しい値 → 順位は通し番号（同値ブロックは飛ぶ）
+      prevVal = v;
+    }
+    if (String(sorted[i].sid || '').trim() === target) return rank;
+  }
+  return null;
+}
+
+// =============================================
+// 生徒向け：自分の 4 順位を返す（生徒フロント用 doGet action、認証なし・studentId 直接）。
+//   ① 生涯HP（Students.HP=COL_HP）の学年区分内順位 / 全体順位
+//   ② 先週の週間獲得HP（全学習コンテンツ素点 rawHP 合計）の学年区分内順位 / 全体順位
+//   順位は競技順位法（_competitionRank）。
+//
+//   ★ 週間集計は getWeeklyRanking と完全一致させる（別実装で二重定義しない）：
+//      _getLastWeekRange の期間内 × _isWeeklyRankingHpType に合致する grant 行の
+//      rawHP（HPLog col 2）を sid ごとに合計。母集団に全アカウントを含めるため、
+//      週間HP>0 の生徒の順位はランキング表（getWeeklyRanking）の並びと一致する
+//      （週間HP=0 の生徒は最下位に同順位で並ぶだけで、上位の順位は変わらない）。
+//
+//   N+1 回避（今朝の Notify 軽量化の教訓）：
+//     ・全アカウント（Students+SpecialAccounts）を _getAllAccountsValues() で 1 回読む。
+//     ・HPLog は getDataRange().getValues() で 1 回だけフルスキャン。
+//   学年区分は GRADE_LEVEL の先頭文字（小/中/高）。未設定（null）の生徒は全体順位には
+//   含めるが学年区分の母集団からは除外し、本人が未設定なら gradeRank=null を返す。
+//
+// 戻り値:
+//   { ok:true,
+//     grade:'小'|'中'|'高'|null,
+//     period:{start,end},
+//     lifetime:{ gradeRank:N|null, overallRank:N|null },
+//     weekly:{   gradeRank:N|null, overallRank:N|null } }
+// =============================================
+function getMyRankings(studentId) {
+  try {
+    const sid = String(studentId || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+
+    const range = _getLastWeekRange();
+
+    // --- 1) 全アカウントを 1 回読み（Students + SpecialAccounts、Students 優先で dedup 済）---
+    const accRows = _getAllAccountsValues();
+    if (!accRows || accRows.length < 2) return { ok: false, message: 'アカウント情報が見つかりません' };
+    const gradeColIdx = _findGradeLevelColIdx(accRows);
+
+    // GRADE_LEVEL の先頭文字で学年区分を判定（gradeBucket @ gas/Code.js:4244 と同ロジック、
+    //   ただし未設定は '未設定' ではなく null を返す）。
+    function bucketOf(raw) {
+      const g = String(raw || '').trim();
+      if (g.indexOf('小') === 0) return '小';
+      if (g.indexOf('中') === 0) return '中';
+      if (g.indexOf('高') === 0) return '高';
+      return null;
+    }
+
+    const seenSid = {};
+    const lifetimeAll = [];   // [{ sid, hp }] 全アカウント（生涯HP順位の母集団）
+    const bucketBySid = {};   // sid → '小'|'中'|'高'|null
+    let myBucket = null;
+    let myFound = false;
+    for (let i = 1; i < accRows.length; i++) {
+      const rowSid = String(accRows[i][COL_ID] || '').trim();
+      if (!rowSid) continue;
+      if (seenSid[rowSid]) continue;   // 念のため先勝ち dedup
+      seenSid[rowSid] = true;
+      const hp = Number(accRows[i][COL_HP]) || 0;
+      const bucket = gradeColIdx >= 0 ? bucketOf(accRows[i][gradeColIdx]) : null;
+      lifetimeAll.push({ sid: rowSid, hp: hp });
+      bucketBySid[rowSid] = bucket;
+      if (rowSid === sid) { myBucket = bucket; myFound = true; }
+    }
+    if (!myFound) return { ok: false, message: '生徒IDが見つかりません' };
+
+    // --- 2) HPLog を 1 回だけフルスキャン（先週分 × 学習コンテンツの rawHP 合計）---
+    //   getWeeklyRanking と同一ロジック：HPLog 列 [0]timestamp [1]studentId [2]rawHP [4]type。
+    const logSheet = _ss().getSheetByName(SHEET_HPLOG);
+    const weeklyMap = {};   // sid → 先週の素点(rawHP)合計
+    if (logSheet) {
+      const logRows = logSheet.getDataRange().getValues();
+      for (let i = 1; i < logRows.length; i++) {
+        if (!_isWeeklyRankingHpType(logRows[i][4])) continue;
+        const dateStr = _toDateStr(logRows[i][0]);
+        if (dateStr < range.start || dateStr > range.end) continue;
+        const logSid = String(logRows[i][1]).trim();
+        weeklyMap[logSid] = (weeklyMap[logSid] || 0) + (Number(logRows[i][2]) || 0);  // col 2 = rawHP（素点）
+      }
+    }
+
+    // --- 3) メモリ上で母集団配列を組み、競技順位法で sid の順位を算出 ---
+    // 生涯HP：母集団は全アカウント（lifetimeAll）。
+    // 週間HP：母集団も全アカウント（週間HP は weeklyMap から、無ければ 0）。
+    //   → 週間HP>0 の生徒の順位は getWeeklyRanking の並び順と一致する。
+    const weeklyAll = lifetimeAll.map(function(o){
+      return { sid: o.sid, w: (weeklyMap[o.sid] || 0) };
+    });
+    // 学年区分の母集団（自分の区分と一致するアカウントのみ。未設定は除外）。
+    let lifetimeGrade = null, weeklyGrade = null;
+    if (myBucket) {
+      lifetimeGrade = lifetimeAll.filter(function(o){ return bucketBySid[o.sid] === myBucket; });
+      weeklyGrade   = weeklyAll.filter(function(o){ return bucketBySid[o.sid] === myBucket; });
+    }
+
+    return {
+      ok: true,
+      grade: myBucket,
+      period: range,
+      lifetime: {
+        gradeRank:   myBucket ? _competitionRank(lifetimeGrade, sid, 'hp') : null,
+        overallRank: _competitionRank(lifetimeAll, sid, 'hp')
+      },
+      weekly: {
+        gradeRank:   myBucket ? _competitionRank(weeklyGrade, sid, 'w') : null,
+        overallRank: _competitionRank(weeklyAll, sid, 'w')
+      }
+    };
+  } catch(err) {
+    console.error('[getMyRankings]', err);
     return { ok: false, message: String(err) };
   }
 }

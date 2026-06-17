@@ -1945,6 +1945,27 @@
       .refl-modal-title { font-size: 17px; }
       .refl-modal-textarea { min-height: 150px; font-size: 14px; }
     }
+    /* 自分の順位ポップアップ（2026-06-18、生徒リクエスト）。refl-modal-overlay のデザインを踏襲。 */
+    .myrank-open-btn { width: 100%; margin-top: 12px; padding: 11px 16px; font-size: 14px; font-weight: bold; border: 2px solid rgba(255,255,255,.85); border-radius: 12px; cursor: pointer; background: rgba(255,255,255,.95); color: #b5451b; font-family: inherit; box-shadow: 0 2px 8px rgba(0,0,0,.15); transition: transform .15s, box-shadow .15s; }
+    .myrank-open-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.22); }
+    .myrank-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 10000; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+    .myrank-modal-overlay.active { display: flex; }
+    .myrank-modal-card { background: #fff; border-radius: 18px; padding: 24px 22px 20px; max-width: 460px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: 0 18px 48px rgba(0,0,0,.45); box-sizing: border-box; }
+    .myrank-modal-title { font-size: 20px; font-weight: bold; color: #b45309; text-align: center; margin-bottom: 16px; line-height: 1.5; }
+    .myrank-group { margin-bottom: 16px; }
+    .myrank-group-title { font-size: 15px; font-weight: bold; color: #92400e; padding: 8px 12px; background: linear-gradient(135deg,#fff7ed,#fed7aa); border-radius: 10px; margin-bottom: 8px; }
+    .myrank-row { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 14px; background: #fafbff; border-radius: 8px; margin-bottom: 6px; }
+    .myrank-row .mr-label { font-size: 14px; color: #475569; }
+    .myrank-row .mr-value { font-size: 20px; font-weight: bold; color: #c2410c; }
+    .myrank-loading { text-align: center; color: #888; font-size: 14px; padding: 30px 16px; }
+    .myrank-error { text-align: center; color: #dc2626; font-size: 14px; padding: 24px 16px; line-height: 1.6; }
+    .myrank-modal-close { width: 100%; padding: 13px 18px; font-size: 15px; font-weight: bold; border: 2px solid #cbd5e1; border-radius: 12px; cursor: pointer; background: #fff; color: #475569; font-family: inherit; transition: background .15s; margin-top: 8px; }
+    .myrank-modal-close:hover { background: #f1f5f9; }
+    @media (max-width: 480px) {
+      .myrank-modal-card { padding: 20px 16px 16px; border-radius: 14px; }
+      .myrank-modal-title { font-size: 18px; }
+      .myrank-row .mr-value { font-size: 18px; }
+    }
     /* Phase 5 / 2026-05-22：振り返り提出後の保留 HP 解放演出 */
     .refl-release-card { text-align: center; background: linear-gradient(160deg,#fff7ed,#fef3f2); border: 2px solid #fb923c; padding: 28px 24px 24px; }
     .refl-release-title { font-size: 22px; font-weight: bold; color: #c2410c; margin-bottom: 6px; }
@@ -3086,10 +3107,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260617-0056"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260618-0316"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260617-0056">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260617-0056"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260618-0316">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260618-0316"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3148,6 +3169,17 @@
       <button class="refl-choice-btn-no" onclick="onChoiceSkipReflection()">スキップする（書かない）</button>
       <button class="refl-modal-btn-cancel" onclick="cancelReflectionChoice()">キャンセル（ログアウトしない）</button>
     </div>
+  </div>
+</div>
+
+<!-- 自分の順位ポップアップ（2026-06-18、生徒リクエスト）。getMyRankings の結果を流し込んで開く。 -->
+<div id="myrank-modal" class="myrank-modal-overlay">
+  <div class="myrank-modal-card">
+    <div class="myrank-modal-title">📊 自分の順位</div>
+    <div id="myrank-body">
+      <div class="myrank-loading">⏳ 集計中...</div>
+    </div>
+    <button class="myrank-modal-close" onclick="closeMyRankings()">閉じる</button>
   </div>
 </div>
 
@@ -3708,6 +3740,7 @@
         <div class="ranking-note" style="margin-top:10px; font-size:11px; color:rgba(255,255,255,.85); text-align:center; line-height:1.5;">
           ※ ランキングは先週の HP を集計しているよ。<br>今日の HP は確定すれば来週反映されるよ。
         </div>
+        <button type="button" class="myrank-open-btn" onclick="showMyRankings()">📊 自分の順位を見る</button>
       </div>
     </div>
 
@@ -6730,6 +6763,41 @@
           '<div class="rank-hp"><div class="rank-weekly">+'+r.weeklyHP.toLocaleString()+' HP</div><div class="rank-total">（生涯 '+r.totalHP.toLocaleString()+' HP）</div></div></div>';
       }).join('');
     }).catch(function(){ document.getElementById('ranking-list').innerHTML = '<div class="ranking-empty">読み込みに失敗しました</div>'; });
+  }
+  // 自分の順位ポップアップ（2026-06-18、生徒リクエスト）。getMyRankings の結果を 4 順位で表示。
+  function showMyRankings() {
+    if (!_studentId) return;
+    var modal = document.getElementById('myrank-modal');
+    var body  = document.getElementById('myrank-body');
+    body.innerHTML = '<div class="myrank-loading">⏳ 集計中...</div>';
+    modal.classList.add('active');
+    gasGet({ action: 'getMyRankings', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) {
+        body.innerHTML = '<div class="myrank-error">順位の取得に失敗しました。<br>通信環境のよい場所でもう一度お試しください。</div>';
+        return;
+      }
+      var gradeLabelMap = { '小':'小学生', '中':'中学生', '高':'高校生' };
+      var gradeName = gradeLabelMap[res.grade] || null;
+      var gradeRowLabel = gradeName ? (gradeName + 'の中での順位') : '学年区分の中での順位';
+      function rankText(v){ return (v === null || v === undefined) ? '—' : (v + '位'); }
+      var lt = res.lifetime || {}, wk = res.weekly || {};
+      body.innerHTML =
+        '<div class="myrank-group">' +
+          '<div class="myrank-group-title">現在の生涯HPランキング</div>' +
+          '<div class="myrank-row"><span class="mr-label">' + gradeRowLabel + '</span><span class="mr-value">' + rankText(lt.gradeRank) + '</span></div>' +
+          '<div class="myrank-row"><span class="mr-label">全員の中での順位</span><span class="mr-value">' + rankText(lt.overallRank) + '</span></div>' +
+        '</div>' +
+        '<div class="myrank-group">' +
+          '<div class="myrank-group-title">先週の週間獲得HPランキング</div>' +
+          '<div class="myrank-row"><span class="mr-label">' + gradeRowLabel + '</span><span class="mr-value">' + rankText(wk.gradeRank) + '</span></div>' +
+          '<div class="myrank-row"><span class="mr-label">全員の中での順位</span><span class="mr-value">' + rankText(wk.overallRank) + '</span></div>' +
+        '</div>';
+    }).catch(function(){
+      body.innerHTML = '<div class="myrank-error">順位の取得に失敗しました。<br>通信環境のよい場所でもう一度お試しください。</div>';
+    });
+  }
+  function closeMyRankings() {
+    document.getElementById('myrank-modal').classList.remove('active');
   }
   function doLogin() {
     var sid = document.getElementById('login-id').value.trim();
@@ -17626,7 +17694,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260617-0056</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260618-0316</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
