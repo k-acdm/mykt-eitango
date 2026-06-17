@@ -8295,6 +8295,66 @@ function _getLastWeekRange() {
 }
 
 // =============================================
+// 週間HPランキングの「週間獲得HP」に計上する学習コンテンツの grant 行か判定。
+// 集計は HPLog col 2 (rawHP=素点・週²前) を合計する前提。
+// ★ _isCountableActivityType（マイカツ君 Stage 用）とは別物。あちらは rika/shakai/kokugo を
+//   含まないため流用しない。こちらは全 13 種の学習コンテンツを網羅する。
+// 含める（学習コンテンツ 13 種）:
+//   完全一致: test / sango / wabun1 / lison / oriwantes / rika / shakai / mytask_self_only
+//   前方一致: kiso_ / kanji_ / kobun_ / kokugo_ / mytask_homework_
+//   calctrial: 'calctrial' 完全一致 + 'calctrial_' 前方一致（calctrial_practice は除外）
+// 除外（メタ・運営・後払い・解放・ボーナス・差し戻し・練習）:
+//   login / login_recovery / manual_grant / manual_streak_modify
+//   apology_* / *_practice（HP0）/ reserve_release / reflection_release
+//   completion_bonus / reflection_skip_release / mytask_revert
+// → 元の grant 行の rawHP だけを合計する（解放・ボーナス行は二重計上になるため数えない）。
+function _isWeeklyRankingHpType(type) {
+  const t = String(type || '').trim();
+  if (!t) return false;
+  // --- 除外を先に判定（前方一致の取りこぼし防止）---
+  // *_practice（練習モード、rawHP=0 のはずだが念のため除外）
+  const PRACTICE = '_practice';
+  if (t.length >= PRACTICE.length && t.slice(-PRACTICE.length) === PRACTICE) return false;
+  if (t.indexOf('apology_') === 0) return false;
+  // メタ・運営・後払い・解放・ボーナス・差し戻し（完全一致）
+  switch (t) {
+    case 'login':
+    case 'login_recovery':
+    case 'manual_grant':
+    case 'manual_streak_modify':
+    case 'reserve_release':
+    case 'reflection_release':
+    case 'completion_bonus':
+    case 'reflection_skip_release':
+    case 'mytask_revert':
+      return false;
+  }
+  // --- 含める（学習コンテンツ）---
+  // 完全一致
+  switch (t) {
+    case 'test':
+    case 'sango':
+    case 'wabun1':
+    case 'lison':
+    case 'oriwantes':
+    case 'rika':
+    case 'shakai':
+    case 'mytask_self_only':
+      return true;
+  }
+  // 前方一致
+  if (t.indexOf('kiso_')  === 0) return true;
+  if (t.indexOf('kanji_') === 0) return true;
+  if (t.indexOf('kobun_') === 0) return true;
+  if (t.indexOf('kokugo_') === 0) return true;
+  if (t.indexOf('mytask_homework_') === 0) return true;
+  // calctrial 本番（calctrial_practice は上の *_practice 除外で既に弾き済み）
+  if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return true;
+  // 未知 type はデフォルト除外（明示的に許可してから有効化）
+  return false;
+}
+
+// =============================================
 // 週間HPランキング取得
 // =============================================
 function getWeeklyRanking() {
@@ -8309,7 +8369,6 @@ function getWeeklyRanking() {
     const logSheet = ss.getSheetByName(SHEET_HPLOG);
 
     const range = _getLastWeekRange();
-    const HP_PER_TEST = 50;
 
     // 生徒マスタ（Step 2：全アカウント対象 = Students + SpecialAccounts。
     // ふくちさん方針「テスト枠が実生徒に勝ったら面白い」のためテスト枠も集計対象に含める）
@@ -8325,17 +8384,21 @@ function getWeeklyRanking() {
       };
     }
 
-    // HPLogから先週分の type='test' のみ件数カウント（1件 = 50HP、連続週数ボーナス除外）
+    // HPLog から先週分の「全学習コンテンツ」の素点（rawHP）を sid ごとに合計。
+    //   2026-06-18：旧仕様（type='test' 件数 × 50HP、英単語RUSHのみ）から変更。
+    //   通塾日数が長い生徒の独占を防ぎ新入生にもチャンスを与えるため、週²ボーナス前の素点ベースに。
     // HPLog 列構成（rawHP 追加後）：[0]timestamp [1]studentId [2]rawHP [3]hpGained [4]type
+    //   集計対象 type は _isWeeklyRankingHpType（学習コンテンツ13種、メタ/解放/ボーナス/練習は除外）。
+    //   合計するのは col 2 (rawHP=素点)。解放・ボーナス行は除外済みなので二重計上にならない。
     const countMap = {};
     if (logSheet) {
       const logRows = logSheet.getDataRange().getValues();
       for (let i = 1; i < logRows.length; i++) {
-        if (logRows[i][4] !== 'test') continue;
+        if (!_isWeeklyRankingHpType(logRows[i][4])) continue;
         const dateStr = _toDateStr(logRows[i][0]);
         if (dateStr < range.start || dateStr > range.end) continue;
         const sid = String(logRows[i][1]).trim();
-        countMap[sid] = (countMap[sid] || 0) + 1;
+        countMap[sid] = (countMap[sid] || 0) + (Number(logRows[i][2]) || 0);  // col 2 = rawHP（素点）合計
       }
     }
 
@@ -8344,7 +8407,7 @@ function getWeeklyRanking() {
       .filter(sid => countMap[sid] > 0 && stuMap[sid])
       .map(sid => ({
         nickname: stuMap[sid].nickname,
-        weeklyHP: countMap[sid] * HP_PER_TEST,
+        weeklyHP: countMap[sid],   // 先週の全学習コンテンツ素点（rawHP）合計
         totalHP:  stuMap[sid].totalHP,
         title:    _getTitle(stuMap[sid].streak)
       }))
@@ -8363,6 +8426,80 @@ function getWeeklyRanking() {
     console.error('[getWeeklyRanking]', err);
     return { ok: false, message: String(err) };
   }
+}
+
+// =============================================
+// 【一時検証】getWeeklyRanking 新集計（全コンテンツ素点合計）の dryRun 検証。
+//   GAS エディタの関数ドロップダウンから引数なしで実行。シート書き込みなし・副作用なし。
+//   旧集計（test×50）と新集計（全学習コンテンツ rawHP 合計）を全生徒ぶん Logger 出力し、
+//   新集計で値が増えた生徒（英単語RUSH以外もやった生徒）と、type別小計（rika/shakai/kokugo
+//   が拾えているか）を目視確認できるようにする。検証後は削除してよい。
+// =============================================
+function verifyWeeklyRankingV2() {
+  const ss = _ss();
+  const logSheet = ss.getSheetByName(SHEET_HPLOG);
+  const range = _getLastWeekRange();
+  const HP_PER_TEST = 50;  // 旧集計の比較用
+  const stuRows = _getAllAccountsValues();
+  const nameMap = {};
+  if (stuRows && stuRows.length >= 2) {
+    for (let i = 1; i < stuRows.length; i++) {
+      const sid = String(stuRows[i][COL_ID] || '').trim();
+      if (sid) nameMap[sid] = (String(stuRows[i][COL_NICKNAME] || '').trim()) || '名無し';
+    }
+  }
+  const oldMap = {};    // sid -> test 件数（旧ロジック）
+  const newMap = {};    // sid -> 全学習コンテンツ rawHP 合計（新ロジック）
+  const byTypeMap = {}; // sid -> { type -> rawHP小計 }
+  let scanned = 0, inRange = 0, counted = 0;
+  if (logSheet) {
+    const logRows = logSheet.getDataRange().getValues();
+    for (let i = 1; i < logRows.length; i++) {
+      scanned++;
+      const dateStr = _toDateStr(logRows[i][0]);
+      if (dateStr < range.start || dateStr > range.end) continue;
+      inRange++;
+      const type = String(logRows[i][4] || '').trim();
+      const sid  = String(logRows[i][1] || '').trim();
+      const raw  = Number(logRows[i][2]) || 0;
+      if (!sid) continue;
+      // 旧：test 件数
+      if (type === 'test') oldMap[sid] = (oldMap[sid] || 0) + 1;
+      // 新：学習コンテンツの rawHP 合計
+      if (_isWeeklyRankingHpType(type)) {
+        counted++;
+        newMap[sid] = (newMap[sid] || 0) + raw;
+        if (!byTypeMap[sid]) byTypeMap[sid] = {};
+        byTypeMap[sid][type] = (byTypeMap[sid][type] || 0) + raw;
+      }
+    }
+  }
+  const sids = {};
+  Object.keys(oldMap).forEach(function(s){ sids[s] = true; });
+  Object.keys(newMap).forEach(function(s){ sids[s] = true; });
+  const list = Object.keys(sids).map(function(sid){
+    const oldHP = (oldMap[sid] || 0) * HP_PER_TEST;
+    const newHP = newMap[sid] || 0;
+    return { sid: sid, nickname: nameMap[sid] || '(不明)', oldHP: oldHP, newHP: newHP, diff: newHP - oldHP };
+  }).sort(function(a, b){ return b.newHP - a.newHP; });
+
+  Logger.log('=== verifyWeeklyRankingV2（dryRun・書き込みなし）===');
+  Logger.log('期間: ' + range.start + ' 〜 ' + range.end + '（先週月〜日）');
+  Logger.log('HPLog スキャン行数=' + scanned + ' / 期間内=' + inRange + ' / 新集計に計上した行=' + counted);
+  Logger.log('対象生徒数=' + list.length);
+  Logger.log('--- sid別 {旧(test×50) → 新(全コンテンツrawHP合計) / 差分} ---');
+  list.forEach(function(r){
+    Logger.log(r.sid + ' ' + r.nickname + ' : 旧=' + r.oldHP + ' → 新=' + r.newHP + ' (差分+' + r.diff + ')' + (r.diff > 0 ? '  ★増' : ''));
+  });
+  const increased = list.filter(function(r){ return r.diff > 0; });
+  Logger.log('--- 新集計で値が増えた生徒数=' + increased.length + '（英単語RUSH以外もやった生徒＝修正が効いている証拠）---');
+  Logger.log('--- type別 rawHP 小計サンプル（新集計上位5名、rika/shakai/kokugo の拾い確認用）---');
+  list.slice(0, 5).forEach(function(r){
+    const bt = byTypeMap[r.sid] || {};
+    const parts = Object.keys(bt).sort().map(function(t){ return t + '=' + bt[t]; });
+    Logger.log(r.sid + ' ' + r.nickname + ' : ' + (parts.join(' / ') || '(なし)'));
+  });
+  return { ok: true, period: range, studentCount: list.length, increasedCount: increased.length };
 }
 
 // =============================================
