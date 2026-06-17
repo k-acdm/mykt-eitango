@@ -26599,6 +26599,14 @@ function _lineNotifyCountableType(type) {
   // 2026-05-30：国語長文読解。HPLog の type は接尾辞付き 'kokugo_800' / 'kokugo_1200'
   // （23244 行 type = 'kokugo_' + charCount）。_lineNotifyContentNameFor 側の前方一致判定と揃える。
   if (t.indexOf('kokugo_') === 0) return true;
+  // 2026-06-18：オリワンテス（6/16公開）・マイ課題（6/14公開）の追従漏れを修正。
+  //   公開以来、昨日これらだけ取り組んだ生徒が「やってない子（sabotaged）」と誤通知されていた
+  //   （rika/shakai/kokugo を 5/30 に直したのと同じ class のバグ）。
+  //   HPLog の生 type をそのまま受けるため、_isCountableActivityType / _calendarContentName と同規約で拾う：
+  //   オリワンテス = 'oriwantes'（完全一致）、マイ課題 = 'mytask_homework_*'（前方一致）＋ 'mytask_self_only'（完全一致）。
+  //   差し戻し 'mytask_revert'（負値・活動ではない）は意図的に含めない。
+  if (t === 'oriwantes') return true;
+  if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return true;
   // 2026-05-19 Task 2：計算タイムトライアルは本番（'calctrial'）/ 練習（'calctrial_practice'）
   // とも engagement として「やった子」扱い（kiso_*_practice 等と同方針）。
   if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return true;
@@ -26630,6 +26638,11 @@ function _lineNotifyContentNameFor(type) {
   if (t.indexOf('kokugo_') === 0) return '国語長文読解';  // 2026-05-29 追加
   if (t === 'rika')   return '理科重要語句';                // 2026-05-29 追加
   if (t === 'shakai') return '社会重要語句';                // 2026-05-29 追加
+  // 2026-06-18：オリワンテス・マイ課題の追従漏れ修正（_lineNotifyContentKeyToName の表記に揃える）。
+  //   マイ課題は塾の宿題 'mytask_homework_*'（前方一致）＋ 自学 'mytask_self_only'（完全一致）を統合表示。
+  //   差し戻し 'mytask_revert' はここでは名前を返さない（下の汎用 return null で除外）。
+  if (t === 'oriwantes') return 'オリワンテス';
+  if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'マイ課題';
   // 2026-05-29：reserve_release / completion_bonus は「取り組み内容」に出さない（達成状況で別表示）
   // 2026-05-19：連続日数修正は LINE 通知の取組み一覧に出さない（HP 0 のメタデータ書き換えなので「取り組み内容」ではない）
   if (t === 'manual_streak_modify') return null;
@@ -27104,7 +27117,9 @@ function _lineNotifyScanHpLogForYesterday(yesterdayStr) {
 var LINE_NOTIFY_CONTENT_DISPLAY_ORDER = [
   '英単語RUSH', '三語短文', '和文英訳①', '基礎計算', '計算タイムトライアル',
   'カンジー', 'コブタン', '英語リスオン', '国語長文読解', '理科重要語句',
-  '社会重要語句', '手動付与'
+  // 2026-06-18：オリワンテス・マイ課題を追加（_lineNotifyContentNameFor/_lineNotifyContentKeyToName が
+  //   返す名称をこの配列が許可しないと step3 で contents/totalHp に乗らず内訳に出ないため、追記が必須）。
+  '社会重要語句', 'オリワンテス', 'マイ課題', '手動付与'
 ];
 // 2026-05-29 改修：コンテンツ別 HP = 「即時付与分（HPLog）」+「当日解放された Pool 分（reflection_pending）」。
 //   - 即時付与：HPLog の content type hpGained（_lineNotifyContentNameFor が name を返すもの）
@@ -27168,6 +27183,102 @@ function _lineNotifySummarizeStudentEntries(sid, entries, dateStr, releasedMap) 
     totalHp: totalHp,
     completionBonus: completionBonus,
     grandTotalHp: totalHp + completionBonus
+  };
+}
+
+// =============================================
+// 【一時検証】2026-06-18 LINE 通知 オリワンテス・マイ課題 追従漏れ修正の dryRun 検証。
+//   GAS エディタの関数ドロップダウンから引数なしで実行。シート書き込み一切なし（読み取りのみ）。
+//   NotifyTargets / LINE 送信には一切触れない。
+//
+//   Part A：代表 type を _lineNotifyCountableType / _lineNotifyContentNameFor に直接通し、
+//           オリワンテス・マイ課題が worked=true かつ正しい日本語名になること、
+//           rika/shakai/kokugo がデグレしていないこと、mytask_revert / login が除外されることを表で確認。
+//   Part B：昨日（教育日）の HPLog を実走査し、オリワンテス or マイ課題の行を持つ実在生徒について
+//           新ロジックで summary.worked=true・内訳に「オリワンテス」「マイ課題」が出ることを確認。
+//           併せて rika/shakai/kokugo の行を持つ生徒も拾ってデグレ無しを確認。
+//   ※ summary は releasedMap={} を渡して即時付与分のみ検証（HpReservePool は読まない）。
+// =============================================
+function verifyLineNotifyContentFix() {
+  Logger.log('===== verifyLineNotifyContentFix (dryRun, 書き込みなし) =====');
+
+  // ---- Part A：直接判定テーブル（データ非依存のデグレ証明）----
+  Logger.log('--- Part A: 直接判定 [type] worked / name ---');
+  var sampleTypes = [
+    'oriwantes',                 // ← 今回追加（worked=true / オリワンテス）
+    'mytask_homework_数学・算数_hw', // ← 今回追加（worked=true / マイ課題）
+    'mytask_self_only',          // ← 今回追加（worked=true / マイ課題）
+    'mytask_revert',             // 除外維持（worked=false / 名前なし）
+    'rika',                      // デグレ確認（worked=true / 理科重要語句）
+    'shakai',                    // デグレ確認（worked=true / 社会重要語句）
+    'kokugo_800',                // デグレ確認（worked=true / 国語長文読解）
+    'kokugo_1200',               // デグレ確認（worked=true / 国語長文読解）
+    'test', 'sango', 'wabun1', 'lison',  // 既存代表（worked=true）
+    'kiso_15_10', 'kanji_5_10', 'kobun_1_10', 'calctrial', // 既存代表（worked=true）
+    'login', 'apology_kiso', 'manual_grant' // 除外維持（worked=false）
+  ];
+  for (var i = 0; i < sampleTypes.length; i++) {
+    var ty = sampleTypes[i];
+    var w  = _lineNotifyCountableType(ty);
+    var nm = _lineNotifyContentNameFor(ty);
+    var inOrder = (nm != null) ? (LINE_NOTIFY_CONTENT_DISPLAY_ORDER.indexOf(nm) >= 0) : '-';
+    Logger.log('  [' + ty + '] worked=' + w + ' / name=' + (nm === null ? 'null' : nm) +
+               ' / 表示順登録=' + inOrder);
+  }
+
+  // ---- Part B：昨日（教育日）の実 HPLog を走査 ----
+  var yesterday = _yesterdayEducationalJST();
+  Logger.log('--- Part B: 昨日(教育日)=' + yesterday + ' の実データ走査 ---');
+  var hpScan = _lineNotifyScanHpLogForYesterday(yesterday);
+  var bySid = hpScan.bySid || {};
+  var sids = Object.keys(bySid);
+  Logger.log('  昨日 HPLog に活動のある生徒数: ' + sids.length);
+
+  function entriesHave(entries, pred) {
+    for (var k = 0; k < entries.length; k++) { if (pred(String(entries[k].type || ''))) return true; }
+    return false;
+  }
+  var isOri    = function(t){ return t === 'oriwantes'; };
+  var isMytask = function(t){ return t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only'; };
+  var isRika   = function(t){ return t === 'rika'; };
+  var isShakai = function(t){ return t === 'shakai'; };
+  var isKokugo = function(t){ return t.indexOf('kokugo_') === 0; };
+
+  var oriMytaskSids = [], degradeSids = [];
+  for (var s = 0; s < sids.length; s++) {
+    var sid = sids[s];
+    var entries = bySid[sid] || [];
+    if (entriesHave(entries, isOri) || entriesHave(entries, isMytask)) oriMytaskSids.push(sid);
+    if (entriesHave(entries, isRika) || entriesHave(entries, isShakai) || entriesHave(entries, isKokugo)) degradeSids.push(sid);
+  }
+
+  Logger.log('  ▼ オリワンテス/マイ課題の行を持つ生徒: ' + oriMytaskSids.length + ' 名');
+  for (var a = 0; a < oriMytaskSids.length; a++) {
+    var sidA = oriMytaskSids[a];
+    var entA = bySid[sidA] || [];
+    var typesA = entA.map(function(e){ return String(e.type || ''); }).join(', ');
+    var sumA = _lineNotifySummarizeStudentEntries(sidA, entA, yesterday, {}); // releasedMap={}＝即時付与のみ
+    var contA = (sumA.contents || []).map(function(c){ return c.name + ':' + c.hp + 'HP'; }).join(' / ');
+    Logger.log('    sid=' + sidA + ' worked=' + sumA.worked + ' totalHp=' + sumA.totalHp +
+               ' 内訳=[' + contA + '] 生type=[' + typesA + ']');
+  }
+
+  Logger.log('  ▼ 理科/社会/国語長文の行を持つ生徒（デグレ確認）: ' + degradeSids.length + ' 名');
+  for (var b = 0; b < Math.min(degradeSids.length, 10); b++) {  // 最大10名まで
+    var sidB = degradeSids[b];
+    var entB = bySid[sidB] || [];
+    var sumB = _lineNotifySummarizeStudentEntries(sidB, entB, yesterday, {});
+    var contB = (sumB.contents || []).map(function(c){ return c.name + ':' + c.hp + 'HP'; }).join(' / ');
+    Logger.log('    sid=' + sidB + ' worked=' + sumB.worked + ' 内訳=[' + contB + ']');
+  }
+
+  Logger.log('===== verifyLineNotifyContentFix 完了（書き込みなし） =====');
+  return {
+    ok: true,
+    yesterday: yesterday,
+    studentsWithActivity: sids.length,
+    oriMytaskStudents: oriMytaskSids.length,
+    riShaKokuStudents: degradeSids.length
   };
 }
 
