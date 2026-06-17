@@ -1757,6 +1757,12 @@ function _isCountableActivityType(type) {
   //   ※ blanket な 'mytask_' 前方一致は revert を巻き込むため使わない。
   if (type.indexOf('mytask_homework_') === 0) return true;
   if (type === 'mytask_self_only') return true;
+  // 2026-06-18：理科重要語句 / 社会重要語句 / 国語長文読解 の追従漏れを修正。
+  //   これらだけをやった生徒の prevDayCount が 0 になり、マイカツ君が高 Stage（元気）に
+  //   上がれなかった。HPLog の type は rika / shakai（完全一致）・kokugo_800 / kokugo_1200
+  //   （前方一致 'kokugo_'）。_isWeeklyRankingHpType / _calendarContentName と同規約で拾う。
+  if (type === 'rika' || type === 'shakai') return true;
+  if (type.indexOf('kokugo_') === 0) return true;
   // 未知の type はデフォルト除外（明示的に許可リストに追加してから有効化）
   return false;
 }
@@ -1769,6 +1775,82 @@ function _calcStage(streak, missedDays, prevDayCount) {
   if (missedDays === 0 && prevDayCount >= 1 && streak >= 2)  return 6;
   if (missedDays === 0 && prevDayCount >= 1)                 return 5;
   return 4;
+}
+
+// =============================================
+// 【一時検証】2026-06-18 マイカツ君 Stage の取りこぼし（rika/shakai/kokugo）修正の dryRun 検証。
+//   GAS エディタの関数ドロップダウンから引数なしで実行。シート書き込み一切なし（読み取りのみ）。
+//   _calcStage の閾値ロジックには触れず、prevDayCount に計上される活動種類が増えたことだけを確認する。
+//
+//   Part A：代表 type を _isCountableActivityType に直接通し、rika/shakai/kokugo_* が true になること、
+//           既存 type（test/sango/... oriwantes/mytask）が引き続き true、除外系が false のままを表で確認。
+//   Part B：昨日（教育日）の HPLog を実走査し、rika/shakai/kokugo の行を持つ実在生徒について
+//           「旧ロジック（rika/shakai/kokugo を除外）の件数」→「新ロジックの件数」を並べて出力し、
+//           取りこぼしが解消（旧 < 新 になる生徒がいること）を確認。実 _getPrevDayCount の値も併記。
+// =============================================
+function verifyStageActivityFix() {
+  Logger.log('===== verifyStageActivityFix (dryRun, 書き込みなし) =====');
+
+  // ---- Part A：直接判定テーブル ----
+  Logger.log('--- Part A: _isCountableActivityType 直接判定 ---');
+  var sampleTypes = [
+    'rika',        // ← 今回追加（true 期待）
+    'shakai',      // ← 今回追加（true 期待）
+    'kokugo_800',  // ← 今回追加（true 期待）
+    'kokugo_1200', // ← 今回追加（true 期待）
+    'test', 'sango', 'wabun1', 'lison', 'oriwantes',     // 既存（true 期待）
+    'kiso_15_10', 'kanji_5_10', 'kobun_1_10', 'calctrial', // 既存（true 期待）
+    'mytask_homework_数学・算数_hw', 'mytask_self_only',   // 既存（true 期待）
+    'mytask_revert',                                       // 除外維持（false 期待）
+    'login', 'apology_kiso', 'manual_grant', 'kanji_5_10_practice', 'calctrial_practice' // 除外維持（false 期待）
+  ];
+  for (var i = 0; i < sampleTypes.length; i++) {
+    var ty = sampleTypes[i];
+    Logger.log('  [' + ty + '] countable=' + _isCountableActivityType(ty));
+  }
+
+  // ---- Part B：昨日（教育日）の実 HPLog で旧 vs 新を比較 ----
+  var yesterday = _yesterdayEducationalJST();
+  Logger.log('--- Part B: 昨日(教育日)=' + yesterday + ' の実データで 旧→新 件数比較 ---');
+  var hpScan = _lineNotifyScanHpLogForYesterday(yesterday); // 読み取りのみ（書き込みなし）
+  var bySid = hpScan.bySid || {};
+  var sids = Object.keys(bySid);
+
+  function isRiShaKoku(t) { return t === 'rika' || t === 'shakai' || t.indexOf('kokugo_') === 0; }
+
+  var affected = 0;
+  for (var s = 0; s < sids.length; s++) {
+    var sid = sids[s];
+    var entries = bySid[sid] || [];
+    var hasTarget = false;
+    for (var k = 0; k < entries.length; k++) {
+      if (isRiShaKoku(String(entries[k].type || ''))) { hasTarget = true; break; }
+    }
+    if (!hasTarget) continue;
+
+    // 新ロジック件数（現行 _isCountableActivityType でカウント）
+    var newCount = 0;
+    // 旧ロジック件数（rika/shakai/kokugo を除外した過去挙動の再現）
+    var oldCount = 0;
+    var typeList = [];
+    for (var e = 0; e < entries.length; e++) {
+      var t = String(entries[e].type || '');
+      typeList.push(t);
+      if (_isCountableActivityType(t)) {
+        newCount++;
+        if (!isRiShaKoku(t)) oldCount++;
+      }
+    }
+    // 実際に Stage 算出で使われる関数の値（末尾500行スキャン版）も併記
+    var realPrev = _getPrevDayCount(sid, yesterday);
+    affected++;
+    Logger.log('    sid=' + sid + ' 旧prevDayCount=' + oldCount + ' → 新prevDayCount=' + newCount +
+               ' (_getPrevDayCount=' + realPrev + ') 生type=[' + typeList.join(', ') + ']');
+  }
+  Logger.log('  ▼ rika/shakai/kokugo の行を持つ生徒: ' + affected + ' 名（旧<新 になっていれば取りこぼし解消）');
+
+  Logger.log('===== verifyStageActivityFix 完了（書き込みなし） =====');
+  return { ok: true, yesterday: yesterday, studentsWithActivity: sids.length, affectedStudents: affected };
 }
 
 // =============================================
@@ -16611,7 +16693,9 @@ function getChildActivityRecent(params) {
       if (d.login) return;  // 既に true ならスキップ
       if (d.eitango.done || d.sango.done || d.wabun1.done || d.kiso.done
           || d.lison.done || d.kanji.done || d.kobun.done
-          || d.calctrial.done || d.kokugo.done || d.rika.done || d.shakai.done) {
+          || d.calctrial.done || d.kokugo.done || d.rika.done || d.shakai.done
+          // 2026-06-18：マイ課題 / オリワンテスの追従漏れを修正（他コンテンツ同様に login を推論）。
+          || d.mytask.done || d.oriwantes.done) {
         d.login = true;
       } else if (d.extras && d.extras.length > 0) {
         d.login = true;
