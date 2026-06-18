@@ -1713,6 +1713,242 @@ function _getPrevDayCount(studentId, yesterday) {
   return count;
 }
 
+// =====================================================================
+// 【type 判定一元化・第0段】単一定義 CONTENT_TYPE_DEFS とヘルパー（2026-06-19）
+//
+// 背景：HPLog の type 判定/名称変換が 18 箇所でバラバラに重複定義されており、
+//   コンテンツ追加のたびに追従漏れが発生（5/30・6/18 で計 2 回の漏れバグ）。
+//   これを単一定義に一元化する根本対策。本段（第0段）は土台のみ。
+//
+// ★第0段の鉄則：既存コードに一切接続しない。定義・ヘルパー・検証関数を
+//   新規追加するだけ。既存関数（_isCountableActivityType /
+//   _isWeeklyRankingHpType / _lineNotifyCountableType / _calendarContentName 等）
+//   は呼び出しも改変もしない。既存の挙動は 1 ミリも変えない。
+//   （検証関数 verifyClassifyVsExisting は新→既存を「読むだけ」で照合する。
+//     既存を新ヘルパーに向ける書き換えは後の段で行う。）
+//
+// 設計メモ：
+//   - 13 コンテンツを単一定義に統合。
+//   - kokugo は「国語長文読解」1 キーに統一（kokugo_800 / kokugo_1200 とも key='kokugo'）。
+//   - calctrial は exactOrPrefix（'calctrial' 完全一致 ＋ 'calctrial_*' 前方一致）。
+//     ※ calctrial_practice の扱い（除外）は本段では未実装。後の段でオプション吸収。
+//   - mytask は塾の宿題 'mytask_homework_*'（前方一致）＋ 自学 'mytask_self_only'（完全一致）。
+//     差し戻し 'mytask_revert' はどの def にもマッチしない（= null、活動ではない）。
+//   - icon は各コンテンツのマスコット prefix（フロントの images/<icon>-default.png のルート名）。
+//   - practice/release/meta 等の機能差分はオプションで吸収する想定（接続は後の段）。
+//     本段の _isLearningContentType は素朴版＝「13 コンテンツのいずれかにマッチするか」だけ。
+//   - カレンダー(_calendarIsActivity)は blacklist 方式のまま統合対象外。
+// =====================================================================
+var CONTENT_TYPE_DEFS = [
+  { key: 'eitango',   rawType: 'test',                                       match: 'exact',         name: '英単語RUSH',         icon: 'rushkun'   },
+  { key: 'sango',     rawType: 'sango',                                      match: 'exact',         name: '三語短文',           icon: 'sangotan'  },
+  { key: 'wabun1',    rawType: 'wabun1',                                     match: 'exact',         name: '和文英訳①',          icon: 'nichiei'   },
+  { key: 'lison',     rawType: 'lison',                                      match: 'exact',         name: '英語リスオン',       icon: 'lison'     },
+  { key: 'kiso',      rawType: 'kiso_',                                      match: 'prefix',        name: '基礎計算',           icon: 'kisoK'     },
+  { key: 'kanji',     rawType: 'kanji_',                                     match: 'prefix',        name: 'カンジー',           icon: 'kanjii'    },
+  { key: 'kobun',     rawType: 'kobun_',                                     match: 'prefix',        name: 'コブタン',           icon: 'kobun'     },
+  { key: 'calctrial', rawType: 'calctrial',                                  match: 'exactOrPrefix', name: '計算タイムトライアル', icon: 'trial'     },
+  { key: 'kokugo',    rawType: 'kokugo_',                                    match: 'prefix',        name: '国語長文読解',       icon: 'japanin'   },
+  { key: 'rika',      rawType: 'rika',                                       match: 'exact',         name: '理科重要語句',       icon: 'rika'      },
+  { key: 'shakai',    rawType: 'shakai',                                     match: 'exact',         name: '社会重要語句',       icon: 'shakaneki' },
+  { key: 'mytask',    rawType: ['mytask_homework_', 'mytask_self_only'],     match: 'prefixOrExact', name: 'マイ課題',           icon: 'maikadai'  },
+  { key: 'oriwantes', rawType: 'oriwantes',                                  match: 'exact',         name: 'オリワンテス',       icon: 'oriwantes' }
+];
+
+// 参考用：定義順のキー配列（表示順序の土台。第0段では既存コードに接続しない）。
+var DISPLAY_ORDER_UNIFIED = CONTENT_TYPE_DEFS.map(function(d){ return d.key; });
+
+// 1 つの def に rawType がマッチするか（純関数・副作用なし）。
+//   match 種別：
+//     'exact'         … t === rawType
+//     'prefix'        … t が rawType（末尾 '_' 付き）で始まる
+//     'exactOrPrefix' … t === rawType  または  t が (rawType + '_') で始まる
+//     'prefixOrExact' … rawType 配列の各要素について、末尾 '_' なら前方一致・それ以外は完全一致
+function _contentTypeMatchesDef(t, def) {
+  var pats = (Object.prototype.toString.call(def.rawType) === '[object Array]') ? def.rawType : [def.rawType];
+  for (var j = 0; j < pats.length; j++) {
+    var p = String(pats[j]);
+    switch (def.match) {
+      case 'exact':
+        if (t === p) return true;
+        break;
+      case 'prefix':
+        if (t.indexOf(p) === 0) return true;
+        break;
+      case 'exactOrPrefix':
+        if (t === p) return true;
+        if (t.indexOf(p + '_') === 0) return true;
+        break;
+      case 'prefixOrExact':
+        if (p.charAt(p.length - 1) === '_') {
+          if (t.indexOf(p) === 0) return true;
+        } else {
+          if (t === p) return true;
+        }
+        break;
+    }
+  }
+  return false;
+}
+
+// rawType を CONTENT_TYPE_DEFS と照合し、マッチした def を返す（無ければ null）。
+//   kokugo_800 / kokugo_1200 はどちらも key='kokugo' の def を返す。
+//   未知 type / meta type / 空文字は null。純関数・副作用なし。
+function _classifyContentType(rawType) {
+  var t = String(rawType == null ? '' : rawType).trim();
+  if (!t) return null;
+  for (var i = 0; i < CONTENT_TYPE_DEFS.length; i++) {
+    if (_contentTypeMatchesDef(t, CONTENT_TYPE_DEFS[i])) return CONTENT_TYPE_DEFS[i];
+  }
+  return null;
+}
+
+// 13 コンテンツのいずれかにマッチするかの素朴版（_classifyContentType が non-null か）。
+//   ※ practice/release 等のオプションは第0段では未実装（純粋に membership だけ）。
+function _isLearningContentType(rawType) {
+  return _classifyContentType(rawType) !== null;
+}
+
+// rawType もしくは key から日本語表示名を返す（無ければ null）。純関数・副作用なし。
+function _contentDisplayNameUnified(rawTypeOrKey) {
+  var t = String(rawTypeOrKey == null ? '' : rawTypeOrKey).trim();
+  if (!t) return null;
+  var def = _classifyContentType(t);
+  if (def) return def.name;
+  for (var i = 0; i < CONTENT_TYPE_DEFS.length; i++) {
+    if (CONTENT_TYPE_DEFS[i].key === t) return CONTENT_TYPE_DEFS[i].name;
+  }
+  return null;
+}
+
+// =====================================================================
+// 【type 判定一元化・第0段】パリティ検証関数（どちらも dryRun・副作用なし）
+//   GAS エディタの関数ドロップダウンから引数なしで実行し、Logger 出力を見る。
+// =====================================================================
+
+// (a) CONTENT_TYPE_DEFS 自体の自己検証。
+//     13 件・key 重複なし・必須フィールド(key/rawType/match/name)が揃っている・
+//     全 13 コンテンツの key が網羅されているか、を Logger に出力する。
+function verifyContentDefsParity() {
+  Logger.log('===== verifyContentDefsParity (dryRun, 書き込みなし) =====');
+  var EXPECTED_KEYS = ['eitango','sango','wabun1','lison','kiso','kanji','kobun',
+                       'calctrial','kokugo','rika','shakai','mytask','oriwantes'];
+  var problems = [];
+
+  // 件数
+  Logger.log('件数: ' + CONTENT_TYPE_DEFS.length + ' (期待: 13)');
+  if (CONTENT_TYPE_DEFS.length !== 13) problems.push('件数が 13 でない: ' + CONTENT_TYPE_DEFS.length);
+
+  // key 重複なし & 必須フィールド
+  var seen = {};
+  for (var i = 0; i < CONTENT_TYPE_DEFS.length; i++) {
+    var d = CONTENT_TYPE_DEFS[i];
+    if (!d.key)   problems.push('[' + i + '] key が無い');
+    if (!d.rawType) problems.push('[' + (d.key || i) + '] rawType が無い');
+    if (!d.match) problems.push('[' + (d.key || i) + '] match が無い');
+    if (!d.name)  problems.push('[' + (d.key || i) + '] name が無い');
+    if (d.key) {
+      if (seen[d.key]) problems.push('key 重複: ' + d.key);
+      seen[d.key] = true;
+    }
+  }
+
+  // 全 13 コンテンツ網羅（期待 key の過不足）
+  for (var e = 0; e < EXPECTED_KEYS.length; e++) {
+    if (!seen[EXPECTED_KEYS[e]]) problems.push('期待 key が欠落: ' + EXPECTED_KEYS[e]);
+  }
+  for (var k in seen) {
+    if (EXPECTED_KEYS.indexOf(k) < 0) problems.push('想定外の key: ' + k);
+  }
+
+  // 定義一覧の表示
+  Logger.log('--- 定義一覧 (key | match | rawType | name | icon) ---');
+  for (var m = 0; m < CONTENT_TYPE_DEFS.length; m++) {
+    var x = CONTENT_TYPE_DEFS[m];
+    var rt = (Object.prototype.toString.call(x.rawType) === '[object Array]') ? x.rawType.join(',') : x.rawType;
+    Logger.log('  ' + x.key + ' | ' + x.match + ' | ' + rt + ' | ' + x.name + ' | ' + x.icon);
+  }
+  Logger.log('DISPLAY_ORDER_UNIFIED = ' + DISPLAY_ORDER_UNIFIED.join(', '));
+
+  if (problems.length === 0) {
+    Logger.log('✅ verifyContentDefsParity: 問題なし（13 件・key 重複なし・必須フィールド完備・網羅 OK）');
+  } else {
+    Logger.log('❌ verifyContentDefsParity: ' + problems.length + ' 件の問題');
+    for (var p = 0; p < problems.length; p++) Logger.log('  - ' + problems[p]);
+  }
+}
+
+// (b) ★最重要：新ヘルパー _classifyContentType / _isLearningContentType の
+//     「13 コンテンツ membership 判定」が、既存 3 関数
+//       A: _isCountableActivityType
+//       B: _isWeeklyRankingHpType
+//       C: _lineNotifyCountableType
+//     の 13 コンテンツ判定と完全一致することを証明する（後の段で安全に置換できる土台確認）。
+//
+//   コーパス：13 コンテンツの代表 rawType（isContent13=true）＋ 全 meta type ＋ 未知/空文字。
+//   - isContent13=true の項目：new・A・B・C が全て true で一致することを assert。
+//   - meta/practice/release/unknown：機能ごとに扱いが違うため一致は求めず、
+//     差分を「差分あり（想定内）」として分類出力する（エラーにしない）。
+function verifyClassifyVsExisting() {
+  Logger.log('===== verifyClassifyVsExisting (dryRun, 既存関数は読むだけ) =====');
+
+  // [rawType, isContent13]
+  var corpus = [
+    // --- 13 コンテンツ代表（membership 一致を assert）---
+    ['test', true], ['sango', true], ['wabun1', true], ['lison', true],
+    ['kiso_15_10', true], ['kanji_5_10', true], ['kobun_1_10', true],
+    ['calctrial', true], ['kokugo_800', true], ['kokugo_1200', true],
+    ['rika', true], ['shakai', true],
+    ['mytask_homework_数学・算数_hw', true], ['mytask_self_only', true],
+    ['oriwantes', true],
+    // --- meta / 運営 / 解放 / ボーナス / 差し戻し / 練習（想定内の差分）---
+    ['login', false], ['login_recovery', false], ['manual_grant', false],
+    ['manual_streak_modify', false], ['apology_kiso', false], ['apology_wabun1', false],
+    ['reserve_release', false], ['reflection_release', false], ['completion_bonus', false],
+    ['reflection_skip_release', false], ['mytask_revert', false], ['survey_reward', false],
+    ['kanji_5_10_practice', false], ['calctrial_practice', false],
+    // --- 未知 / 空 ---
+    ['', false], ['totally_unknown_xyz', false]
+  ];
+
+  var assertFails = [];   // isContent13=true なのに不一致 → 失敗
+  var diffsExpected = []; // isContent13=false で new と既存が食い違う → 想定内
+  Logger.log('--- 判定テーブル (type | new | A | B | C | def.key) ---');
+  for (var i = 0; i < corpus.length; i++) {
+    var ty = corpus[i][0];
+    var is13 = corpus[i][1];
+    var def = _classifyContentType(ty);
+    var nw = _isLearningContentType(ty);
+    var a = _isCountableActivityType(ty);   // 既存：読むだけ
+    var b = _isWeeklyRankingHpType(ty);     // 既存：読むだけ
+    var c = _lineNotifyCountableType(ty);   // 既存：読むだけ
+    var label = (ty === '' ? '(空文字)' : ty);
+    Logger.log('  ' + label + ' | ' + nw + ' | ' + a + ' | ' + b + ' | ' + c + ' | ' + (def ? def.key : '-'));
+
+    if (is13) {
+      // 13 コンテンツは new・A・B・C すべて true で一致するはず
+      if (!(nw === true && a === true && b === true && c === true)) {
+        assertFails.push(label + ' → new=' + nw + ', A=' + a + ', B=' + b + ', C=' + c + '（13コンテンツなのに全 true 一致でない）');
+      }
+    } else {
+      // 想定内差分の検出（new と既存いずれかが食い違う場合のみ記録）
+      if (!(nw === a && nw === b && nw === c)) {
+        diffsExpected.push(label + ' → new=' + nw + ', A=' + a + ', B=' + b + ', C=' + c);
+      }
+    }
+  }
+
+  Logger.log('--- 結果サマリ ---');
+  if (assertFails.length === 0) {
+    Logger.log('✅ 13 コンテンツ membership：new と既存 A/B/C が完全一致（後の段で安全に置換可能）');
+  } else {
+    Logger.log('❌ 13 コンテンツ membership 不一致 ' + assertFails.length + ' 件：');
+    for (var f = 0; f < assertFails.length; f++) Logger.log('  - ' + assertFails[f]);
+  }
+  Logger.log('ℹ️ meta/practice/release 等の差分（想定内・エラーではない）: ' + diffsExpected.length + ' 件');
+  for (var g = 0; g < diffsExpected.length; g++) Logger.log('  · ' + diffsExpected[g]);
+}
+
 // 学習活動として「prevDayCount に計上する type」かどうかを判定。
 // マイ活アプリの全コンテンツの活動を網羅し、運営付与・ログインボーナス・練習モード
 // は除外する。新コンテンツ追加時はここに 1 行足すだけで対応可。

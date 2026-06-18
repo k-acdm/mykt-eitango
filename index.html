@@ -3108,10 +3108,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260618-0418"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260619-0007"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260618-0418">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260618-0418"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260619-0007">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260619-0007"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9702,6 +9702,95 @@
               'background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-size:15px;font-weight:bold;cursor:pointer;' +
               'box-shadow:0 3px 10px rgba(217,119,6,.3)">🛍 ショップでアイテムと交換する</button>';
     body.innerHTML = html;
+  }
+
+  // =====================================================================
+  // 【type 判定一元化・第0段】CONTENT_TYPE_DEFS フロントミラー（2026-06-19）
+  //
+  // GAS の gas/Code.js 内 CONTENT_TYPE_DEFS と「完全に同一内容」を保つこと。
+  //   GAS から import できないため二重定義。将来は起動時パリティ検証で同期を担保する。
+  //
+  // ★第0段の鉄則：既存コードに一切接続しない。定義とヘルパーを置くだけ。
+  //   名称/アイコン解決の差し替え（既存表示ロジックを本ヘルパーに向ける）は後の段で行う。
+  //
+  //   - key/rawType/match/name/icon は GAS 側と 1:1 一致させる。
+  //   - icon はマスコット prefix（このフロントの images/<icon>-default.png のルート名）。
+  //   - match 種別：exact / prefix / exactOrPrefix(calctrial) / prefixOrExact(mytask)。
+  //   - kokugo_800 / kokugo_1200 はどちらも key='kokugo'。
+  // =====================================================================
+  var CONTENT_TYPE_DEFS = [
+    { key: 'eitango',   rawType: 'test',                                   match: 'exact',         name: '英単語RUSH',          icon: 'rushkun'   },
+    { key: 'sango',     rawType: 'sango',                                  match: 'exact',         name: '三語短文',            icon: 'sangotan'  },
+    { key: 'wabun1',    rawType: 'wabun1',                                 match: 'exact',         name: '和文英訳①',           icon: 'nichiei'   },
+    { key: 'lison',     rawType: 'lison',                                  match: 'exact',         name: '英語リスオン',        icon: 'lison'     },
+    { key: 'kiso',      rawType: 'kiso_',                                  match: 'prefix',        name: '基礎計算',            icon: 'kisoK'     },
+    { key: 'kanji',     rawType: 'kanji_',                                 match: 'prefix',        name: 'カンジー',            icon: 'kanjii'    },
+    { key: 'kobun',     rawType: 'kobun_',                                 match: 'prefix',        name: 'コブタン',            icon: 'kobun'     },
+    { key: 'calctrial', rawType: 'calctrial',                              match: 'exactOrPrefix', name: '計算タイムトライアル', icon: 'trial'     },
+    { key: 'kokugo',    rawType: 'kokugo_',                                match: 'prefix',        name: '国語長文読解',        icon: 'japanin'   },
+    { key: 'rika',      rawType: 'rika',                                   match: 'exact',         name: '理科重要語句',        icon: 'rika'      },
+    { key: 'shakai',    rawType: 'shakai',                                 match: 'exact',         name: '社会重要語句',        icon: 'shakaneki' },
+    { key: 'mytask',    rawType: ['mytask_homework_', 'mytask_self_only'], match: 'prefixOrExact', name: 'マイ課題',            icon: 'maikadai'  },
+    { key: 'oriwantes', rawType: 'oriwantes',                              match: 'exact',         name: 'オリワンテス',        icon: 'oriwantes' }
+  ];
+
+  // 参考用：定義順のキー配列（表示順序の土台。第0段では既存コードに接続しない）。
+  var DISPLAY_ORDER_UNIFIED = CONTENT_TYPE_DEFS.map(function(d){ return d.key; });
+
+  // 1 つの def に rawType がマッチするか（純関数・副作用なし）。GAS 版と同一ロジック。
+  function _contentTypeMatchesDef(t, def) {
+    var pats = (Object.prototype.toString.call(def.rawType) === '[object Array]') ? def.rawType : [def.rawType];
+    for (var j = 0; j < pats.length; j++) {
+      var p = String(pats[j]);
+      switch (def.match) {
+        case 'exact':
+          if (t === p) return true;
+          break;
+        case 'prefix':
+          if (t.indexOf(p) === 0) return true;
+          break;
+        case 'exactOrPrefix':
+          if (t === p) return true;
+          if (t.indexOf(p + '_') === 0) return true;
+          break;
+        case 'prefixOrExact':
+          if (p.charAt(p.length - 1) === '_') {
+            if (t.indexOf(p) === 0) return true;
+          } else {
+            if (t === p) return true;
+          }
+          break;
+      }
+    }
+    return false;
+  }
+
+  // rawType を CONTENT_TYPE_DEFS と照合し、マッチした def を返す（無ければ null）。
+  //   kokugo_800 / kokugo_1200 はどちらも key='kokugo' の def を返す。未知/meta/空は null。
+  function _classifyContentType(rawType) {
+    var t = String(rawType == null ? '' : rawType).trim();
+    if (!t) return null;
+    for (var i = 0; i < CONTENT_TYPE_DEFS.length; i++) {
+      if (_contentTypeMatchesDef(t, CONTENT_TYPE_DEFS[i])) return CONTENT_TYPE_DEFS[i];
+    }
+    return null;
+  }
+
+  // 13 コンテンツのいずれかにマッチするかの素朴版（第0段では practice/release 等は未考慮）。
+  function _isLearningContentType(rawType) {
+    return _classifyContentType(rawType) !== null;
+  }
+
+  // rawType もしくは key から日本語表示名を返す（無ければ null）。純関数・副作用なし。
+  function _contentDisplayNameUnified(rawTypeOrKey) {
+    var t = String(rawTypeOrKey == null ? '' : rawTypeOrKey).trim();
+    if (!t) return null;
+    var def = _classifyContentType(t);
+    if (def) return def.name;
+    for (var i = 0; i < CONTENT_TYPE_DEFS.length; i++) {
+      if (CONTENT_TYPE_DEFS[i].key === t) return CONTENT_TYPE_DEFS[i].name;
+    }
+    return null;
   }
 
   // ================= マイ活アプリ キャラクター紹介 =================
@@ -17701,7 +17790,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260618-0418</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260619-0007</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
