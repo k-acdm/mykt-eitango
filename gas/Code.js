@@ -1803,10 +1803,32 @@ function _classifyContentType(rawType) {
   return null;
 }
 
-// 13 コンテンツのいずれかにマッチするかの素朴版（_classifyContentType が non-null か）。
-//   ※ practice/release 等のオプションは第0段では未実装（純粋に membership だけ）。
-function _isLearningContentType(rawType) {
-  return _classifyContentType(rawType) !== null;
+// 解放・ボーナス系メタ type（_isLearningContentType の includeReleases オプション用）。
+//   これらは 13 コンテンツ def に非マッチ＝既定では学習活動に含めない。
+var _RELEASE_ACTIVITY_TYPES = { reserve_release: 1, completion_bonus: 1, reflection_release: 1, reflection_skip_release: 1 };
+
+// 13 コンテンツのいずれかにマッチするかを判定。【第3段】で boolean 系（A）統合のためオプションを追加。
+//   opts.includePractice（既定 false）：false なら末尾 '_practice'（kanji_5_10_practice /
+//     calctrial_practice 等＝prefix は kanji_/calctrial だが練習モード）を学習活動から除外する。
+//     ★ prefix（kanji_ 等）に先にマッチしてしまうため、membership 照合より前に practice を評価する。
+//   opts.includeReleases（既定 false）：false なら reserve_release / completion_bonus /
+//     reflection_release / reflection_skip_release 等の解放・ボーナス系を学習活動に含めない。
+//     ※これらは 13 コンテンツ def に元々非マッチ（=false）。includeReleases:true の時だけ true にする明示フック。
+//   ※ 第0段の素朴版（純粋 membership）と同じ挙動が必要な箇所では opts.includePractice:true を明示指定する。
+function _isLearningContentType(rawType, opts) {
+  opts = opts || {};
+  var t = String(rawType == null ? '' : rawType).trim();
+  if (!t) return false;
+  // practice 除外（既定）。prefix にマッチするため membership 判定より先に評価。
+  if (!opts.includePractice) {
+    var P = '_practice';
+    if (t.length >= P.length && t.substring(t.length - P.length) === P) return false;
+  }
+  // 13 コンテンツ membership
+  if (_classifyContentType(t) !== null) return true;
+  // 解放・ボーナス系（13コンテンツ非マッチ）。既定 false、includeReleases:true の時だけ活動扱い。
+  if (opts.includeReleases && _RELEASE_ACTIVITY_TYPES[t]) return true;
+  return false;
 }
 
 // rawType もしくは key から日本語表示名を返す（無ければ null）。純関数・副作用なし。
@@ -1931,7 +1953,9 @@ function verifyClassifyVsExisting() {
     var ty = corpus[i][0];
     var is13 = corpus[i][1];
     var def = _classifyContentType(ty);
-    var nw = _isLearningContentType(ty);
+    // 第3段で _isLearningContentType に practice 除外オプション（既定で除外）を追加したため、
+    //   第0段の「純粋 membership」検証の出力を一切変えないよう includePractice:true を明示指定する。
+    var nw = _isLearningContentType(ty, { includePractice: true });
     var a = _isCountableActivityType(ty);   // 既存：読むだけ
     var b = _isWeeklyRankingHpType(ty);     // 既存：読むだけ
     var c = _lineNotifyCountableType(ty);   // 既存：読むだけ
@@ -2318,6 +2342,137 @@ function verifyNormalizeRefactorParity() {
   }
 }
 
+// =====================================================================
+// 【type 判定一元化・第3段】boolean 系（A：マイカツ君 Stage 活動カウント）リファクタの
+//   パリティ検証（dryRun・副作用なし）。GAS エディタの関数ドロップダウンから引数なし実行 → Logger。
+//
+//   対象：A = _isCountableActivityType（中核ヘルパー _isLearningContentType 経由に置換済）
+//   ★A は表示でなく Stage の活動カウントに直結するため、1 件でも不一致なら置き換え不可。
+//
+//   Part A：共通コーパス（13コンテンツ代表 RAW ＋ 全 meta ＋ *_practice 各種 ＋
+//           reserve_release/completion_bonus 等 ＋ 未知/空）について
+//           【OLD A スナップショット】と【現行 _isCountableActivityType（NEW）】を全件突き合わせ。
+//           ★目標：差分 0。*_practice が false 維持・13コンテンツ本体が true 維持を明示確認。
+//   Part B：昨日（教育日）の実 HPLog（_getPrevDayCount と同じ末尾500行・教育日フィルタ）を走査し、
+//           生徒ごとに OLD/NEW で活動件数を集計 → 全生徒で同値（＝_getPrevDayCount が前後不変）を確認。
+// =====================================================================
+function verifyStageBooleanRefactorParity() {
+  Logger.log('===== verifyStageBooleanRefactorParity (dryRun, 書き込みなし) =====');
+
+  // ---- 置き換え前（OLD）の A をローカルに忠実コピー ----
+  var oldA = function(type) {
+    if (!type) return false;
+    if (type === 'login') return false;
+    if (type === 'manual_grant') return false;
+    if (type === 'manual_streak_modify') return false;
+    if (type === 'login_recovery') return false;
+    if (type.indexOf('apology_') === 0) return false;
+    var P = '_practice';
+    if (type.length >= P.length && type.substring(type.length - P.length) === P) return false;
+    if (type === 'test' || type === 'sango' || type === 'wabun1' || type === 'lison') return true;
+    if (type === 'oriwantes') return true;
+    if (type === 'calctrial') return true;
+    if (type.indexOf('kiso_')  === 0) return true;
+    if (type.indexOf('kanji_') === 0) return true;
+    if (type.indexOf('kobun_') === 0) return true;
+    if (type.indexOf('mytask_homework_') === 0) return true;
+    if (type === 'mytask_self_only') return true;
+    if (type === 'rika' || type === 'shakai') return true;
+    if (type.indexOf('kokugo_') === 0) return true;
+    return false;
+  };
+
+  // ---- コーパス（A は RAW type 入力）----
+  var corpus = [
+    // 13 コンテンツ代表（true 期待）
+    'test','sango','wabun1','lison','kiso_15_10','kanji_5_10','kobun_1_10',
+    'calctrial','kokugo_800','kokugo_1200','rika','shakai',
+    'mytask_homework_数学・算数_hw','mytask_self_only','oriwantes',
+    // 練習 / 差し戻し（false 期待）
+    'calctrial_practice','kanji_5_10_practice','kiso_15_10_practice','mytask_revert',
+    // meta（false 期待）
+    'login','login_recovery','manual_grant','manual_streak_modify',
+    'apology_kiso','apology_wabun1','reserve_release','reflection_release',
+    'completion_bonus','reflection_skip_release','survey_reward',
+    // 未知 / 空（false 期待）
+    '','totally_unknown_xyz'
+  ];
+  // true 期待（13コンテンツ本体）/ false 期待（*_practice 等）の明示確認対象
+  var expectTrue  = { 'test':1,'sango':1,'wabun1':1,'lison':1,'kiso_15_10':1,'kanji_5_10':1,
+                      'kobun_1_10':1,'calctrial':1,'kokugo_800':1,'kokugo_1200':1,'rika':1,
+                      'shakai':1,'mytask_homework_数学・算数_hw':1,'mytask_self_only':1,'oriwantes':1 };
+  var practiceTypes = ['calctrial_practice','kanji_5_10_practice','kiso_15_10_practice'];
+
+  var diffs = [];
+  Logger.log('--- Part A: OLD A vs NEW _isCountableActivityType ---');
+  for (var i = 0; i < corpus.length; i++) {
+    var t = corpus[i];
+    var o = oldA(t), n = _isCountableActivityType(t);
+    var lbl = (t === '' ? '(空)' : t);
+    Logger.log('  ' + lbl + ' | OLD=' + o + ' | NEW=' + n);
+    if (o !== n) diffs.push(lbl + ' : OLD=' + o + ' NEW=' + n);
+  }
+
+  // 明示確認①：*_practice は NEW でも false
+  var practiceBad = [];
+  for (var p = 0; p < practiceTypes.length; p++) {
+    if (_isCountableActivityType(practiceTypes[p]) !== false) practiceBad.push(practiceTypes[p]);
+  }
+  // 明示確認②：13コンテンツ本体は NEW でも true
+  var contentBad = [];
+  var etKeys = Object.keys(expectTrue);
+  for (var c = 0; c < etKeys.length; c++) {
+    if (_isCountableActivityType(etKeys[c]) !== true) contentBad.push(etKeys[c]);
+  }
+
+  Logger.log('--- Part A 結果サマリ ---');
+  if (diffs.length === 0) {
+    Logger.log('✅ A：OLD↔NEW 完全一致（差分 0）。置き換え可');
+  } else {
+    Logger.log('❌ A：不一致 ' + diffs.length + ' 件（★1件でもあれば置き換え不可）：');
+    for (var d = 0; d < diffs.length; d++) Logger.log('  - ' + diffs[d]);
+  }
+  Logger.log((practiceBad.length === 0 ? '✅' : '❌') + ' *_practice は NEW でも false 維持' +
+             (practiceBad.length ? '（違反: ' + practiceBad.join(', ') + '）' : ''));
+  Logger.log((contentBad.length === 0 ? '✅' : '❌') + ' 13コンテンツ本体は NEW でも true 維持' +
+             (contentBad.length ? '（違反: ' + contentBad.join(', ') + '）' : ''));
+
+  // ---- Part B：昨日(教育日)の実 HPLog で _getPrevDayCount の OLD/NEW 同値を確認 ----
+  Logger.log('--- Part B: 昨日(教育日)の実データで _getPrevDayCount 件数 OLD↔NEW 比較 ---');
+  try {
+    var yesterday = _yesterdayEducationalJST();
+    var sh = _ss().getSheetByName(SHEET_HPLOG);
+    var rows = sh ? _readLastNRows(sh, 500) : [];   // _getPrevDayCount と同条件
+    var perOld = {}, perNew = {};
+    for (var r = 0; r < rows.length; r++) {
+      var sid = String(rows[r][1] || '').trim();
+      if (!sid) continue;
+      if (_educationalDayFromTs(rows[r][0]) !== yesterday) continue;  // _getPrevDayCount と同じ教育日フィルタ
+      var ty = String(rows[r][4] || '');
+      if (oldA(ty)) perOld[sid] = (perOld[sid] || 0) + 1;
+      if (_isCountableActivityType(ty)) perNew[sid] = (perNew[sid] || 0) + 1;
+    }
+    var allSids = {};
+    Object.keys(perOld).forEach(function(s){ allSids[s] = 1; });
+    Object.keys(perNew).forEach(function(s){ allSids[s] = 1; });
+    var sidList = Object.keys(allSids);
+    var mismatchB = [];
+    Logger.log('  昨日(教育日)=' + yesterday + ' / 活動のあった生徒数=' + sidList.length + '（サンプル先頭最大10名を表示）');
+    for (var s = 0; s < sidList.length; s++) {
+      var co = perOld[sidList[s]] || 0, cn = perNew[sidList[s]] || 0;
+      if (s < 10) Logger.log('    sid=' + sidList[s] + ' : OLD prevDayCount=' + co + ' / NEW=' + cn + (co === cn ? '' : '  ← ★不一致'));
+      if (co !== cn) mismatchB.push(sidList[s] + '(old=' + co + ',new=' + cn + ')');
+    }
+    if (mismatchB.length === 0) {
+      Logger.log('✅ Part B：全 ' + sidList.length + ' 名で _getPrevDayCount が OLD↔NEW 同値（Stage 件数不変）');
+    } else {
+      Logger.log('❌ Part B：' + mismatchB.length + ' 名で件数不一致：' + mismatchB.join(', '));
+    }
+  } catch (e) {
+    Logger.log('⚠️ Part B 実データ検証でエラー（Part A の差分0が満たされていれば論理的には同値）: ' + e);
+  }
+}
+
 // 学習活動として「prevDayCount に計上する type」かどうかを判定。
 // マイ活アプリの全コンテンツの活動を網羅し、運営付与・ログインボーナス・練習モード
 // は除外する。新コンテンツ追加時はここに 1 行足すだけで対応可。
@@ -2332,44 +2487,14 @@ function verifyNormalizeRefactorParity() {
 //   その他:      'reserve_release' / 'completion_bonus' / 'reflection_release' （Phase A/5 メタログ、
 //                許可リスト未登録のためデフォルト分岐の return false で自動除外）
 function _isCountableActivityType(type) {
-  if (!type) return false;
-  if (type === 'login') return false;
-  if (type === 'manual_grant') return false;
-  // 2026-05-19：連続日数修正は HP 0 のメタデータ書き換えなのでマイカツ君 Stage 計算から除外
-  if (type === 'manual_streak_modify') return false;
-  // 2026-05-19 リライト：自動復旧で補完された login 相当レコードもメタデータなので除外
-  if (type === 'login_recovery') return false;
-  if (type.indexOf('apology_') === 0) return false;
-  // _practice 接尾の判定（カンジー練習モード等）
-  const PRACTICE_SUFFIX = '_practice';
-  if (type.length >= PRACTICE_SUFFIX.length &&
-      type.substring(type.length - PRACTICE_SUFFIX.length) === PRACTICE_SUFFIX) return false;
-  // カウント対象（完全一致）
-  if (type === 'test' || type === 'sango' || type === 'wabun1' || type === 'lison') return true;
-  // 2026-06-16：オリワンテス（解答送信 type='oriwantes'・単一type）も活動カウント対象。
-  //   消費 'oriwantes_create' は HpConsumeLog のため HPLog に無く、ここには来ない（自然除外）。
-  if (type === 'oriwantes') return true;
-  // 2026-05-19 Task 2：計算タイムトライアル本番（'calctrial'）はカウント対象。
-  // 練習モード（'calctrial_practice'）は上の _practice 接尾分岐で既に除外済。
-  if (type === 'calctrial') return true;
-  // カウント対象（プレフィックス）
-  if (type.indexOf('kiso_')  === 0) return true;
-  if (type.indexOf('kanji_') === 0) return true;
-  if (type.indexOf('kobun_') === 0) return true;
-  // 2026-06-14：マイ課題（mytask）も他コンテンツと同様に活動カウント対象に追加。
-  //   塾の宿題 'mytask_homework_<教科>_hw'（前方一致）＋ 自学課題 'mytask_self_only'（完全一致）。
-  //   差し戻し証跡 'mytask_revert'（負値）は活動ではないので含めない。
-  //   ※ blanket な 'mytask_' 前方一致は revert を巻き込むため使わない。
-  if (type.indexOf('mytask_homework_') === 0) return true;
-  if (type === 'mytask_self_only') return true;
-  // 2026-06-18：理科重要語句 / 社会重要語句 / 国語長文読解 の追従漏れを修正。
-  //   これらだけをやった生徒の prevDayCount が 0 になり、マイカツ君が高 Stage（元気）に
-  //   上がれなかった。HPLog の type は rika / shakai（完全一致）・kokugo_800 / kokugo_1200
-  //   （前方一致 'kokugo_'）。_isWeeklyRankingHpType / _calendarContentName と同規約で拾う。
-  if (type === 'rika' || type === 'shakai') return true;
-  if (type.indexOf('kokugo_') === 0) return true;
-  // 未知の type はデフォルト除外（明示的に許可リストに追加してから有効化）
-  return false;
+  // 【type判定一元化・第3段】13コンテンツ membership ＋ practice 除外を中核ヘルパーに一元化。
+  //   - includePractice:false … 末尾 '_practice'（kanji_5_10_practice / calctrial_practice 等）を除外。
+  //     ※ prefix（kanji_/calctrial）にマッチするが、中核ヘルパーが practice を membership より先に評価して除外。
+  //   - includeReleases:false … reserve_release / completion_bonus / reflection_release 等を含めない。
+  //   - meta（login / manual_grant / manual_streak_modify / login_recovery / apology_* / mytask_revert）は
+  //     13コンテンツ def に非マッチ＝false で自動除外（従来の明示分岐と同一結果）。
+  //   置き換え前後で出力は完全一致（verifyStageBooleanRefactorParity で差分0を検証）。
+  return _isLearningContentType(type, { includePractice: false, includeReleases: false });
 }
 
 function _calcStage(streak, missedDays, prevDayCount) {
