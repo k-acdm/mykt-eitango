@@ -3108,10 +3108,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260619-0032"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260619-0514"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260619-0032">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260619-0032"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260619-0514">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260619-0514"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6248,6 +6248,86 @@
     return result;
   }
   // ========================================================================
+
+  // 【用件4 第0段】全コンテンツ共通の HP 獲得演出（①満額 / ②素点×週² / ③絶対ミッション未達額 / ④振り返り0）。
+  //   ★この関数は新設のみ。第0段ではどのコンテンツからも呼ばない（未接続・既存挙動は不変）。
+  //   引数：
+  //     bodyEl : 描画先要素
+  //     res    : submit のサーバ戻り値。_grantHP 由来の fullHp / rawHp / week / missionIncompleteHp /
+  //              hasRequiredMission / displayedImmediate / displayedReserved / justCompleted / hpReserved 等を含む想定。
+  //     config : { mascotImg, bubbleText, label } コンテンツ固有の見た目パラメータ。
+  //   表示する①②③④（数値はサーバ確定値をそのまま表示・フロント再計算しない）：
+  //     ① fullHp を大きく（.wabun1-result-hp-num へ _wabun1AnimateHp でカウントアップ）。満額＝rawHp×week²。
+  //     ② 「{rawHp}HP × {week}(週)²」（²は <sup>2</sup>。1週でも「× 1(週)²」と表示）。
+  //     ③ hasRequiredMission===true のときだけ「絶対ミッションを達成しないと、{missionIncompleteHp}HP」。
+  //        false（必須ミッション未設定の生徒）なら③行を出さない＝表示と実挙動の一致。
+  //     ④ 常に「最後の振り返りコメントを書いて送らないと、0 HP」（全生徒共通・固定0）。
+  //   既存演出を流用：紙吹雪（.wabun1-confetti）/ playSfx('chime') /
+  //     _appendReserveAndCompletionBlock（保留通知・完走演出・振り返り注意書き）を下部に共存。
+  function _showCommonHpGrantScreen(bodyEl, res, config) {
+    if (!bodyEl) return;
+    res = res || {};
+    config = config || {};
+    // 数値はサーバ確定値を採用（無い場合の防御的フォールバックのみ）
+    var fullHp   = Number(res.fullHp != null ? res.fullHp : (res.hpGained || 0)) || 0;                       // ①
+    var rawHp    = Number(res.rawHp || 0) || 0;
+    var week     = Number(res.week  || 1) || 1;
+    var missionIncompleteHp = Number(res.missionIncompleteHp != null ? res.missionIncompleteHp
+                                     : Math.floor(fullHp * 0.6)) || 0;                                       // ③
+    var hasReq   = (res.hasRequiredMission === true);
+    var mascotImg  = config.mascotImg  || 'character.jpg';
+    var bubbleText = config.bubbleText || '';
+    var label      = config.label      || 'やったね！';
+
+    // 紙吹雪（既存 .wabun1-confetti を流用）
+    var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
+    var confetti = '';
+    for (var i = 0; i < 8; i++) {
+      var left = Math.floor(Math.random() * 90) + 5;
+      var delay = (Math.random() * 0.6).toFixed(2);
+      confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i] + '</span>';
+    }
+
+    // ② 式表示（²は上付き。1週でも明示）
+    var formulaHtml = '<div style="font-size:15px;color:#92400e;margin-top:8px">'
+                    + rawHp + 'HP × ' + week + '(週)<sup>2</sup></div>';
+    // ③ 絶対ミッション未達額（必須ミッションがある生徒のみ）
+    var missionHtml = hasReq
+      ? '<div style="font-size:14px;color:#b91c1c;margin-top:10px;font-weight:bold">絶対ミッションを達成しないと、'
+        + missionIncompleteHp.toLocaleString() + 'HP</div>'
+      : '';
+    // ④ 振り返り未送信（常に0・全生徒共通）
+    var reflHtml = '<div style="font-size:14px;color:#b91c1c;margin-top:6px;font-weight:bold">'
+                 + '最後の振り返りコメントを書いて送らないと、0 HP</div>';
+    // マスコット行（吹き出しがある場合のみ）
+    var mateRow = bubbleText
+      ? '<div class="mate-row"><img class="mate-img" src="' + mascotImg + '" alt=""><div class="mate-bubble">' + bubbleText + '</div></div>'
+      : '';
+
+    bodyEl.innerHTML =
+      mateRow +
+      '<div class="wabun1-result-success">' +
+        '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
+        '<div style="font-size:52px">🎉</div>' +
+        '<div class="wabun1-result-title">' + label + '</div>' +
+        '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="common-hp-num">0</span> HP 獲得！</div>' +
+        formulaHtml +
+        missionHtml +
+        reflHtml +
+      '</div>';
+
+    // ① 満額へカウントアップ（既存 _wabun1AnimateHp を流用）
+    var numEl = document.getElementById('common-hp-num');
+    if (numEl && fullHp > 0 && typeof _wabun1AnimateHp === 'function') {
+      _wabun1AnimateHp(numEl, fullHp, 1000);
+    }
+    try { playSfx('chime'); } catch(e){}
+
+    // 既存の保留通知・完走演出・振り返り注意書きを下部に共存させる
+    try {
+      if (typeof _appendReserveAndCompletionBlock === 'function') _appendReserveAndCompletionBlock(bodyEl, res);
+    } catch(e){}
+  }
 
   // 楽観的UI のリトライ / キャンセル用クロージャ（Phase 3 全 Step で使用）
   //   各 submit 関数が doSubmit を再帰呼び出しするパターンで _pendingRetry を再設定する。
@@ -17784,7 +17864,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260619-0032</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260619-0514</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

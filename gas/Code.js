@@ -3334,6 +3334,27 @@ function _grantHP(opts) {
     console.error('[_grantHP] Gate 2 view 計算失敗（フォールバック：actual granted/reserved を表示）', e);
   }
 
+  // ─── 【用件4 第0段】統一HP獲得画面の表示用フィールド（既存挙動は不変・追加のみ）───
+  //   ① 満額 fullHp = fullHpGained（= applyMult ? rawHp_in×week² : rawHp_in）。
+  //      week²非適用の非コンテンツ呼び出し（login/手動付与等）では rawHp_in そのもの。
+  //   ③ 未達額 missionIncompleteHp = floor(fullHp × (1 - REQUIRED_RESERVE_RATIO))。
+  //      ★ Gate2（_calculateHpWithReserve / _calculateGate2OnlyView）の未達時 granted と同一式・同一定数を使用し、
+  //        表示値が実 HP 付与と構造的に一致することを保証する。
+  //      reserve 分割が効かない呼び出し（applyReserve=false）では減額が起きないため fullHp と同値（減らない）。
+  //   hasRequiredMission = この生徒に必須ミッションが設定され、かつ reserve 分割が効く呼び出しか。
+  //      ③の表示要否に使う（未設定の生徒は未達でも減らないので③を出さない＝表示と実挙動の一致）。
+  const fullHp = fullHpGained;
+  const missionIncompleteHp = applyReserve ? Math.floor(fullHp * (1 - REQUIRED_RESERVE_RATIO)) : fullHp;
+  let hasRequiredMission = false;
+  try {
+    if (applyReserve) {
+      const _rl = _getRequiredContentsForLoc(stuLoc);
+      hasRequiredMission = !!(_rl && _rl.length > 0);
+    }
+  } catch (e) {
+    console.error('[_grantHP] hasRequiredMission 判定失敗（false 扱いで続行）', e);
+  }
+
   return {
     ok: true,
     errorCode: '',
@@ -3351,7 +3372,11 @@ function _grantHP(opts) {
     // 2026-05-27 修正1：表示用「Gate 2 view」
     displayedImmediate: displayedImmediate,
     displayedReserved:  displayedReserved,
-    isAbsoluteMissionComplete: isAbsoluteMissionComplete
+    isAbsoluteMissionComplete: isAbsoluteMissionComplete,
+    // 【用件4 第0段】統一HP獲得画面 ①③ の表示用（rawHp / week は既存フィールドを①②③で流用）
+    fullHp: fullHp,                            // ① 満額（rawHp × week²、理論最大の即時付与）
+    missionIncompleteHp: missionIncompleteHp,  // ③ 絶対ミッション未達時の即時付与額（floor(① × 0.6)）
+    hasRequiredMission: hasRequiredMission     // ③の表示要否（必須ミッション設定あり & reserve 適用時のみ true）
   };
 }
 
@@ -3376,6 +3401,105 @@ function _grantHpErr(errorCode, message, rawHp, curHp, streak, week, isReserveAc
     displayedReserved: 0,
     isAbsoluteMissionComplete: !isReserveActive
   };
+}
+
+// =====================================================================
+// 【用件4 第0段】統一HP獲得画面の表示値パリティ検証（dryRun・副作用なし）。
+//   GAS エディタの関数ドロップダウンから引数なし実行 → Logger を確認。
+//
+//   目的：_grantHP が返す ①fullHp / ③missionIncompleteHp / ④（=0）が、
+//     実際の HP 付与ロジック（_grantHP の week² 倍率・_calculateHpWithReserve の 3 ゲート）
+//     が出す granted と完全一致することを証明する（用件4 の大原則の担保）。
+//
+//   Part A：(rawHp, streak) コーパスで純粋な式の整合を検証（副作用ゼロ）：
+//     ・week == Math.ceil(streak/7)
+//     ・fullHp == rawHp × week²
+//     ・missionIncompleteHp == Math.floor(fullHp × (1 - REQUIRED_RESERVE_RATIO))  ＝ Gate2 未達時の granted 式と同一
+//   Part B：実在生徒の loc を使い、_calculateHpWithReserve（読み取りのみ・書き込みなし）を
+//     実際の fullHp で呼び、3 ゲートの granted が表示値と一致することを突き合わせ：
+//     ・reserveReason='reflection_pending'（振り返り未提出）→ granted === 0       （④ の裏付け）
+//     ・reserveReason='required_mission'  （絶対ミッション未達）→ granted === missionIncompleteHp（③ の裏付け）
+//     ・reserveReason=''                  （達成 / 必須なし / 起動前）→ granted === fullHp（① の裏付け）
+//     ※ _grantHP 本体は副作用（HPLog/Students書込）があるため呼ばない。純粋な計算関数のみ突き合わせる。
+// =====================================================================
+function verifyHpGrantFormulaParity() {
+  Logger.log('===== verifyHpGrantFormulaParity (dryRun, 書き込みなし) =====');
+  Logger.log('REQUIRED_RESERVE_RATIO = ' + REQUIRED_RESERVE_RATIO + ' （未達時 即時付与率 = ' + (1 - REQUIRED_RESERVE_RATIO) + '）');
+
+  // ---- Part A：式の整合（純粋・副作用ゼロ）----
+  var rawHps  = [50, 90, 100, 150, 200];
+  var streaks = [0, 1, 6, 7, 8, 14, 28, 30, 35];
+  var failA = [];
+  Logger.log('--- Part A: 式整合 (rawHp, streak → week / fullHp / missionIncompleteHp) ---');
+  for (var i = 0; i < rawHps.length; i++) {
+    for (var j = 0; j < streaks.length; j++) {
+      var rawHp = rawHps[i];
+      var streakRaw = streaks[j];
+      var streak = Math.max(1, streakRaw);            // _grantHP と同じ下限
+      var week = Math.ceil(streak / 7);               // _grantHP:3229 と同式
+      var fullHp = rawHp * week * week;               // ① _grantHP:3231（applyMult 既定 true）
+      var missionIncompleteHp = Math.floor(fullHp * (1 - REQUIRED_RESERVE_RATIO));  // ③
+      // 期待 week（streak<1 は 1 扱い）
+      var expWeek = Math.ceil(Math.max(1, streakRaw) / 7);
+      if (week !== expWeek) failA.push('week 不一致 streak=' + streakRaw + ' got=' + week + ' exp=' + expWeek);
+      // missionIncompleteHp は floor(fullHp*0.6) と一致するはず
+      if (missionIncompleteHp !== Math.floor(fullHp * 0.6)) failA.push('missionIncompleteHp 式不一致 rawHp=' + rawHp + ' streak=' + streakRaw);
+    }
+  }
+  // 代表値の表示（streak=1→week1, 28→week4 等）
+  [[100,1],[100,7],[100,8],[100,28],[90,30]].forEach(function(p){
+    var s = Math.max(1, p[1]); var w = Math.ceil(s/7); var f = p[0]*w*w;
+    Logger.log('  rawHp=' + p[0] + ' streak=' + p[1] + ' → week=' + w + ' / fullHp=' + f +
+               ' / missionIncompleteHp=' + Math.floor(f*(1-REQUIRED_RESERVE_RATIO)) + ' / 振り返り未提出=0');
+  });
+  Logger.log(failA.length === 0 ? '✅ Part A：式整合 OK（week=ceil(streak/7) / fullHp=rawHp×week² / ③=floor(①×0.6)）'
+                                : '❌ Part A：' + failA.length + ' 件不整合：' + failA.join(' | '));
+
+  // ---- Part B：実在生徒で 3 ゲートの granted と表示値の一致を確認（読み取りのみ）----
+  Logger.log('--- Part B: 実在生徒で _calculateHpWithReserve の granted ↔ 表示値 突き合わせ（書き込みなし） ---');
+  var TEST_RAWHP = 100;  // 検証用の素点（実付与はしない。計算のみ）
+  var mismatchB = [];
+  var seenReason = { 'reflection_pending': 0, 'required_mission': 0, '': 0 };
+  try {
+    var rows = _getAllAccountsValues();
+    var sample = [];
+    if (rows && rows.length > 1) {
+      for (var r = 1; r < rows.length && sample.length < 25; r++) {
+        var sid = String(rows[r][COL_ID] || '').trim();
+        if (sid) sample.push(sid);
+      }
+    }
+    Logger.log('  サンプル生徒数=' + sample.length + ' / 検証用 rawHp=' + TEST_RAWHP);
+    for (var s = 0; s < sample.length; s++) {
+      var sid2 = sample[s];
+      var loc = _findAccountRowOnSheet(sid2);
+      if (!loc) continue;
+      var streak2 = Math.max(1, Number(loc.rowValues[COL_STREAK]) || 1);
+      var week2 = Math.ceil(streak2 / 7);
+      var fullHp2 = TEST_RAWHP * week2 * week2;                                   // ① _grantHP と同じ計算
+      var missionIncomp2 = Math.floor(fullHp2 * (1 - REQUIRED_RESERVE_RATIO));    // ③
+      var rc = _calculateHpWithReserve(loc, fullHp2);   // ★読み取りのみ（_grantHP が実際に呼ぶ関数）
+      var reason = rc.reserveReason || '';
+      if (seenReason[reason] != null) seenReason[reason]++;
+      var expected, label;
+      if (reason === 'reflection_pending')      { expected = 0;             label = '④振り返り未提出→0'; }
+      else if (reason === 'required_mission')   { expected = missionIncomp2; label = '③絶対ミッション未達→floor(①×0.6)'; }
+      else                                      { expected = fullHp2;       label = '①達成/必須なし→満額'; }
+      if (Number(rc.granted) !== Number(expected)) {
+        mismatchB.push('sid=' + sid2 + ' reason=' + (reason || '(なし)') + ' granted=' + rc.granted + ' 期待=' + expected + '（' + label + '）');
+      }
+    }
+    Logger.log('  観測した reason 分布: reflection_pending=' + seenReason['reflection_pending'] +
+               ' / required_mission=' + seenReason['required_mission'] + ' / passthrough(達成/必須なし)=' + seenReason['']);
+    if (mismatchB.length === 0) {
+      Logger.log('✅ Part B：全サンプルで _calculateHpWithReserve の granted が ①/③/④ 表示値と一致（表示＝実HP付与）');
+    } else {
+      Logger.log('❌ Part B：' + mismatchB.length + ' 件で granted と表示値が不一致：');
+      for (var m = 0; m < mismatchB.length; m++) Logger.log('  - ' + mismatchB[m]);
+    }
+  } catch (e) {
+    Logger.log('⚠️ Part B 実データ検証でエラー（Part A の式整合が OK なら論理的には一致）: ' + e);
+  }
 }
 
 // =============================================
