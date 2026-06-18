@@ -3108,10 +3108,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260619-0007"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260619-0032"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260619-0007">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260619-0007"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260619-0032">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260619-0032"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9253,55 +9253,36 @@
   }
 
   // 2026-05-27 Phase 4-3：HPLog type → 日本語コンテンツ名（フロント側、_calendarContentName と同方針）
+  // 【type判定一元化・第1段】13 コンテンツ名は中核ミラー（_contentDisplayNameUnified）で解決。
+  //   入力 key は byContent 由来：即時=kokugo_800/1200（rawType照合）、保留解放=bare 'kokugo'（key照合）の
+  //   いずれも国語長文読解に解決する。未知 key は従来どおりエコー（fallback）。
+  //   ※ bare 'kokugo' は旧実装に case が無くエコーしていた（生文字列表示）→ 中核経由で正名に改善。
   function _reflContentNameJa(key) {
-    switch (key) {
-      case 'eitango':  return '英単語RUSH';
-      case 'sango':    return '三語短文';
-      case 'wabun1':   return '和文英訳①';
-      case 'kiso':     return '基礎計算';
-      case 'kanji':    return 'カンジー';
-      case 'kobun':    return 'コブタン';
-      case 'lison':    return '英語リスオン';
-      case 'calctrial':return '計算タイムトライアル';
-      case 'kokugo_800':  return '国語長文読解';
-      case 'kokugo_1200': return '国語長文読解';
-      case 'mytask':   return 'マイ課題';
-      case 'oriwantes':return 'オリワンテス';
-      // 2026-06-18：理科 / 社会の追従漏れを修正（他画面の表記に揃える。kokugo は既に上で対応済）。
-      case 'rika':     return '理科重要語句';
-      case 'shakai':   return '社会重要語句';
-      default:         return key;
-    }
+    var nm = _contentDisplayNameUnified(key);
+    return nm == null ? key : nm;
   }
 
   // 2026-05-27 修正3：HPLog type → キャラクターアイコン HTML（24px 丸枠、images/ 配下に既存画像）
   // 存在しないファイルは onerror で絵文字フォールバック（理科 🔬 / 社会 🗺️）
+  // 【type判定一元化・第1段】「どの icon か」の解決を中核ミラー（_contentIconUnified）に寄せる。
+  //   画像パスは images/<icon>-default.png。ただし絵文字 vs 画像の出し分けロジックは従来どおり温存：
+  //   理科 🔬 / 社会 🗺️ はこの画面では中核に画像があっても絵文字で出す（既存挙動）。
+  //   ※ 画像 12 コンテンツの解決先パスは中核 icon と完全一致（rushkun/sangotan/.../japanin/maikadai/oriwantes）。
+  //   ※ bare 'kokugo'（保留解放由来）は旧実装でアイコン無しだったが、中核経由で japanin に解決（改善）。
   function _reflContentIconHtml(key) {
-    var fileMap = {
-      'eitango':    'images/rushkun-default.png',
-      'sango':      'images/sangotan-default.png',
-      'wabun1':     'images/nichiei-default.png',
-      'kiso':       'images/kisoK-default.png',
-      'kanji':      'images/kanjii-default.png',
-      'kobun':      'images/kobun-default.png',
-      'lison':      'images/lison-default.png',
-      'calctrial':  'images/trial-default.png',
-      'kokugo_800':  'images/japanin-default.png',
-      'kokugo_1200': 'images/japanin-default.png',
-      'mytask':      'images/maikadai-default.png',
-      'oriwantes':   'images/oriwantes-default.png'
-    };
     var emojiFallback = {
       'rika':   '🔬',
       'shakai': '🗺️'
     };
-    var path = fileMap[key];
-    if (path) {
-      // onerror で alt 表示にフォールバック（画像が無いケース、軽量に処理）
-      return '<img class="rbd-char-icon" src="' + path + '" alt="" onerror="this.style.display=\'none\'">';
-    }
+    // 絵文字出し分けを最優先で温存（rika/shakai はこの画面では絵文字表示）
     if (emojiFallback[key]) {
       return '<span style="font-size:20px;line-height:1;width:24px;display:inline-block;text-align:center">' + emojiFallback[key] + '</span>';
+    }
+    // それ以外は中核 icon から画像パスを解決（images/<icon>-default.png）
+    var icon = _contentIconUnified(key);
+    if (icon) {
+      // onerror で alt 表示にフォールバック（画像が無いケース、軽量に処理）
+      return '<img class="rbd-char-icon" src="images/' + icon + '-default.png" alt="" onerror="this.style.display=\'none\'">';
     }
     // 未知キー：絵文字なし、ラベルだけ
     return '';
@@ -9789,6 +9770,19 @@
     if (def) return def.name;
     for (var i = 0; i < CONTENT_TYPE_DEFS.length; i++) {
       if (CONTENT_TYPE_DEFS[i].key === t) return CONTENT_TYPE_DEFS[i].name;
+    }
+    return null;
+  }
+
+  // rawType もしくは key から icon（マスコット prefix）を返す（無ければ null）。GAS版と同一ロジック。
+  //   解決順は classify → key。kokugo_800/1200 → 'japanin'。
+  function _contentIconUnified(rawTypeOrKey) {
+    var t = String(rawTypeOrKey == null ? '' : rawTypeOrKey).trim();
+    if (!t) return null;
+    var def = _classifyContentType(t);
+    if (def) return def.icon;
+    for (var i = 0; i < CONTENT_TYPE_DEFS.length; i++) {
+      if (CONTENT_TYPE_DEFS[i].key === t) return CONTENT_TYPE_DEFS[i].icon;
     }
     return null;
   }
@@ -17790,7 +17784,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260619-0007</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260619-0032</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

@@ -1821,6 +1821,19 @@ function _contentDisplayNameUnified(rawTypeOrKey) {
   return null;
 }
 
+// rawType もしくは key から icon（マスコット prefix）を返す（無ければ null）。純関数・副作用なし。
+//   _contentDisplayNameUnified と同じ解決順（classify → key）。kokugo_800/1200 → 'japanin'。
+function _contentIconUnified(rawTypeOrKey) {
+  var t = String(rawTypeOrKey == null ? '' : rawTypeOrKey).trim();
+  if (!t) return null;
+  var def = _classifyContentType(t);
+  if (def) return def.icon;
+  for (var i = 0; i < CONTENT_TYPE_DEFS.length; i++) {
+    if (CONTENT_TYPE_DEFS[i].key === t) return CONTENT_TYPE_DEFS[i].icon;
+  }
+  return null;
+}
+
 // =====================================================================
 // 【type 判定一元化・第0段】パリティ検証関数（どちらも dryRun・副作用なし）
 //   GAS エディタの関数ドロップダウンから引数なしで実行し、Logger 出力を見る。
@@ -1947,6 +1960,204 @@ function verifyClassifyVsExisting() {
   }
   Logger.log('ℹ️ meta/practice/release 等の差分（想定内・エラーではない）: ' + diffsExpected.length + ' 件');
   for (var g = 0; g < diffsExpected.length; g++) Logger.log('  · ' + diffsExpected[g]);
+}
+
+// =====================================================================
+// 【type 判定一元化・第1段】表示名リファクタのパリティ検証（dryRun・副作用なし）
+//   E/F/K（GAS 実関数）/ N/O（フロント関数）を、置き換え前の実装（oldXxx として
+//   ローカルに保持）と置き換え後の出力で突き合わせ、不一致のみ Logger 出力する。
+//   N/O はフロント関数のため、置き換え後ロジックも newN/newO としてここに写し
+//   （index.html のミラーと同一ロジック・同一中核 CONTENT_TYPE_DEFS を参照）GAS 上で検証する。
+//
+//   ★目標：差分 0。ただし kokugo 1 キー化による「想定内差分」のみ別枠で報告。
+//     - bare 'kokugo'（HpReservePool 由来の byContent キー）は旧 N/O に case が無く、
+//       旧 N は生文字列 'kokugo' をエコー・旧 O はアイコン無し（''）だった。
+//       新 N/O は中核経由で '国語長文読解' / japanin アイコンに解決する（＝既存の取りこぼし改善）。
+//     - kokugo_800 / kokugo_1200 は旧新とも同出力（差分なし）。
+//   GAS エディタの関数ドロップダウンから引数なしで実行し、Logger を確認する。
+// =====================================================================
+function verifyDisplayNameRefactorParity() {
+  Logger.log('===== verifyDisplayNameRefactorParity (dryRun, 書き込みなし) =====');
+
+  // ---- 置き換え前（OLD）の実装をローカルに忠実コピー ----
+  var oldE = function(type) {
+    if (!type) return 'その他';
+    var t = String(type).trim();
+    if (t === 'test')   return '英単語RUSH';
+    if (t === 'eitan' || t === 'eitango') return '英単語RUSH';
+    if (t === 'sango')  return '三語短文';
+    if (t === 'wabun1') return '和文英訳①';
+    if (t === 'lison')  return '英語リスオン';
+    if (t === 'manual_grant') return '手動付与';
+    if (t === 'manual_streak_modify') return '連続日数修正';
+    if (t === 'login_recovery') return 'ログイン復旧';
+    if (t.indexOf('kiso_')  === 0) return '基礎計算';
+    if (t.indexOf('kanji_') === 0) return 'カンジー';
+    if (t.indexOf('kobun_') === 0) return 'コブタン';
+    if (t.indexOf('kokugo_') === 0) return '国語長文読解';
+    if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'マイ課題';
+    if (t === 'mytask_revert') return 'マイ課題 差し戻し';
+    if (t === 'oriwantes') return 'オリワンテス';
+    if (t === 'rika')   return '理科重要語句';
+    if (t === 'shakai') return '社会重要語句';
+    if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
+    if (t === 'survey_reward') return 'アンケート回答報酬';
+    if (t.indexOf('apology_') === 0) return 'お詫びHP';
+    if (t === 'completion_bonus')        return '絶対ミッション達成ボーナス';
+    if (t === 'reserve_release')         return '保留HP解放';
+    if (t === 'reflection_release')      return '振り返り提出による解放';
+    if (t === 'reflection_skip_release') return '振り返りスキップによる解放（特殊アカウント）';
+    return 'その他（' + t + '）';
+  };
+  var oldF = function(type) {
+    if (!type) return null;
+    var t = String(type);
+    if (t === 'test' || t.indexOf('test_') === 0)   return '英単語RUSH';
+    if (t === 'sango' || t.indexOf('sango_') === 0) return '三語短文';
+    if (t === 'wabun1' || t.indexOf('wabun1_') === 0) return '和文英訳①';
+    if (t === 'lison' || t.indexOf('lison_') === 0)   return '英語リスオン';
+    if (t.indexOf('kiso_')  === 0) return '基礎計算';
+    if (t.indexOf('kanji_') === 0) return 'カンジー';
+    if (t.indexOf('kobun_') === 0) return 'コブタン';
+    if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
+    if (t.indexOf('kokugo_') === 0) return '国語長文読解';
+    if (t === 'rika')   return '理科重要語句';
+    if (t === 'shakai') return '社会重要語句';
+    if (t === 'oriwantes') return 'オリワンテス';
+    if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'マイ課題';
+    if (t === 'manual_streak_modify') return null;
+    if (t === 'login_recovery') return null;
+    if (t.indexOf('manual_') === 0 || t === 'manual_grant') return null;
+    return null;
+  };
+  var oldK = function(key) {
+    switch (String(key || '')) {
+      case 'eitango':   return '英単語RUSH';
+      case 'sango':     return '三語短文';
+      case 'wabun1':    return '和文英訳①';
+      case 'kiso':      return '基礎計算';
+      case 'calctrial': return '計算タイムトライアル';
+      case 'kanji':     return 'カンジー';
+      case 'kobun':     return 'コブタン';
+      case 'lison':     return '英語リスオン';
+      case 'kokugo':    return '国語長文読解';
+      case 'rika':      return '理科重要語句';
+      case 'shakai':    return '社会重要語句';
+      case 'mytask':    return 'マイ課題';
+      case 'oriwantes': return 'オリワンテス';
+    }
+    return null;
+  };
+  var oldN = function(key) {
+    switch (key) {
+      case 'eitango':  return '英単語RUSH';
+      case 'sango':    return '三語短文';
+      case 'wabun1':   return '和文英訳①';
+      case 'kiso':     return '基礎計算';
+      case 'kanji':    return 'カンジー';
+      case 'kobun':    return 'コブタン';
+      case 'lison':    return '英語リスオン';
+      case 'calctrial':return '計算タイムトライアル';
+      case 'kokugo_800':  return '国語長文読解';
+      case 'kokugo_1200': return '国語長文読解';
+      case 'mytask':   return 'マイ課題';
+      case 'oriwantes':return 'オリワンテス';
+      case 'rika':     return '理科重要語句';
+      case 'shakai':   return '社会重要語句';
+      default:         return key;
+    }
+  };
+  var oldO = function(key) {
+    var fileMap = {
+      'eitango':'images/rushkun-default.png','sango':'images/sangotan-default.png',
+      'wabun1':'images/nichiei-default.png','kiso':'images/kisoK-default.png',
+      'kanji':'images/kanjii-default.png','kobun':'images/kobun-default.png',
+      'lison':'images/lison-default.png','calctrial':'images/trial-default.png',
+      'kokugo_800':'images/japanin-default.png','kokugo_1200':'images/japanin-default.png',
+      'mytask':'images/maikadai-default.png','oriwantes':'images/oriwantes-default.png'
+    };
+    var emojiFallback = { 'rika':'🔬', 'shakai':'🗺️' };
+    var path = fileMap[key];
+    if (path) return '<img class="rbd-char-icon" src="' + path + '" alt="" onerror="this.style.display=\'none\'">';
+    if (emojiFallback[key]) return '<span style="font-size:20px;line-height:1;width:24px;display:inline-block;text-align:center">' + emojiFallback[key] + '</span>';
+    return '';
+  };
+
+  // ---- 置き換え後（NEW）：E/F/K は実関数を直接呼ぶ。N/O は index.html ミラーと同一ロジックを写す ----
+  var newN = function(key) {
+    var nm = _contentDisplayNameUnified(key);
+    return nm == null ? key : nm;
+  };
+  var newO = function(key) {
+    var emojiFallback = { 'rika':'🔬', 'shakai':'🗺️' };
+    if (emojiFallback[key]) {
+      return '<span style="font-size:20px;line-height:1;width:24px;display:inline-block;text-align:center">' + emojiFallback[key] + '</span>';
+    }
+    var icon = _contentIconUnified(key);
+    if (icon) return '<img class="rbd-char-icon" src="images/' + icon + '-default.png" alt="" onerror="this.style.display=\'none\'">';
+    return '';
+  };
+
+  // ---- コーパス（各関数の実入力ドメインに沿う）----
+  // E/F は RAW（HPLog の生 type）。K/N/O は KEY（byContent / 正規化キー）。
+  var rawCorpus = [
+    'test','sango','wabun1','lison','kiso_15_10','kanji_5_10','kobun_1_10','calctrial',
+    'calctrial_practice','kokugo_800','kokugo_1200','rika','shakai',
+    'mytask_homework_数学・算数_hw','mytask_self_only','mytask_revert','oriwantes',
+    'eitan','eitango','kanji_5_10_practice',
+    'login','login_recovery','manual_grant','manual_streak_modify','apology_kiso',
+    'reserve_release','reflection_release','completion_bonus','reflection_skip_release',
+    'survey_reward','','totally_unknown_xyz'
+  ];
+  // K の実ドメイン：_normalizeHpReservePoolTypeForContent 戻り値（kokugo は bare）＋非contentkey＋空
+  var keyCorpusK = [
+    'eitango','sango','wabun1','lison','kiso','kanji','kobun','calctrial','kokugo',
+    'rika','shakai','mytask','oriwantes','','login','manual_grant','totally_unknown_xyz'
+  ];
+  // N/O の実ドメイン：byContent キー（即時=kokugo_800/1200、保留解放=bare kokugo）＋非content＋空
+  var keyCorpusNO = [
+    'eitango','sango','wabun1','lison','kiso','kanji','kobun','calctrial',
+    'kokugo_800','kokugo_1200','kokugo','rika','shakai','mytask','oriwantes',
+    '','totally_unknown_xyz'
+  ];
+
+  var diffs = [];          // 想定外の不一致（あってはならない）
+  var kokugoExpected = []; // kokugo 1 キー化による想定内差分
+
+  function _cmp(label, input, oldOut, newOut) {
+    if (oldOut === newOut) return;
+    // 想定内：bare 'kokugo'（N/O のみ）。kokugo_800/1200 は一致するはずなので除外条件は厳密に bare のみ。
+    if (input === 'kokugo' && (label === 'N' || label === 'O')) {
+      kokugoExpected.push(label + " '" + input + "' : OLD=[" + oldOut + "] → NEW=[" + newOut + "]");
+    } else {
+      diffs.push(label + " '" + (input === '' ? '(空)' : input) + "' : OLD=[" + oldOut + "] NEW=[" + newOut + "]");
+    }
+  }
+
+  for (var i = 0; i < rawCorpus.length; i++) {
+    var r = rawCorpus[i];
+    _cmp('E', r, oldE(r), _calendarContentName(r));
+    _cmp('F', r, oldF(r), _lineNotifyContentNameFor(r));
+  }
+  for (var j = 0; j < keyCorpusK.length; j++) {
+    var kk = keyCorpusK[j];
+    _cmp('K', kk, oldK(kk), _lineNotifyContentKeyToName(kk));
+  }
+  for (var n = 0; n < keyCorpusNO.length; n++) {
+    var kn = keyCorpusNO[n];
+    _cmp('N', kn, oldN(kn), newN(kn));
+    _cmp('O', kn, oldO(kn), newO(kn));
+  }
+
+  Logger.log('--- 結果サマリ ---');
+  if (diffs.length === 0) {
+    Logger.log('✅ E/F/K/N/O：想定外の不一致なし（kokugo 想定内差分を除き完全一致）');
+  } else {
+    Logger.log('❌ 想定外の不一致 ' + diffs.length + ' 件：');
+    for (var d = 0; d < diffs.length; d++) Logger.log('  - ' + diffs[d]);
+  }
+  Logger.log('ℹ️ kokugo 1 キー化による想定内差分（取りこぼし改善・エラーではない）: ' + kokugoExpected.length + ' 件');
+  for (var e = 0; e < kokugoExpected.length; e++) Logger.log('  · ' + kokugoExpected[e]);
 }
 
 // 学習活動として「prevDayCount に計上する type」かどうかを判定。
@@ -14129,27 +14340,20 @@ function getRepliesForReflection(params) {
 function _calendarContentName(type) {
   if (!type) return 'その他';
   const t = String(type).trim();
-  if (t === 'test')   return '英単語RUSH';
-  // 将来 eitan / eitango 表記に切り替わった場合の互換も用意（現行 saveAttempt は 'test'）
+  // 【type判定一元化・第1段】13 コンテンツ名は中核定義（_classifyContentType→def.name）で解決。
+  //   kiso_*/kanji_*/kobun_*/kokugo_*/calctrial(_*)/mytask_homework_*・mytask_self_only/
+  //   test/sango/wabun1/lison/rika/shakai/oriwantes を網羅。出力は従来と完全一致（rawType 照合）。
+  //   ※ mytask_revert は def にマッチしない（=下の meta 個別処理に落ちる）。
+  const _u = _classifyContentType(t);
+  if (_u) return _u.name;
+  // 将来 eitan / eitango 表記に切り替わった場合の互換（中核は rawType='test' のみ拾う）
   if (t === 'eitan' || t === 'eitango') return '英単語RUSH';
-  if (t === 'sango')  return '三語短文';
-  if (t === 'wabun1') return '和文英訳①';
-  if (t === 'lison')  return '英語リスオン';
+  // --- 以下 meta / fallback（13 コンテンツ以外：既存挙動そのまま温存）---
   if (t === 'manual_grant') return '手動付与';
   if (t === 'manual_streak_modify') return '連続日数修正';
   if (t === 'login_recovery') return 'ログイン復旧';
-  if (t.indexOf('kiso_')  === 0) return '基礎計算';
-  if (t.indexOf('kanji_') === 0) return 'カンジー';
-  if (t.indexOf('kobun_') === 0) return 'コブタン';
-  if (t.indexOf('kokugo_') === 0) return '国語長文読解';
-  // マイ課題：塾の宿題（mytask_homework_*）/ 自学（mytask_self_only）を「マイ課題」に統合。
-  //   差し戻し（mytask_revert）はカレンダーに活動として出る既存挙動のため、機械文字列でなく日本語で表示する。
-  if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'マイ課題';
+  // マイ課題 差し戻し（mytask_revert）はカレンダーに活動として出る既存挙動のため日本語で表示する。
   if (t === 'mytask_revert') return 'マイ課題 差し戻し';
-  if (t === 'oriwantes') return 'オリワンテス';
-  if (t === 'rika')   return '理科重要語句';
-  if (t === 'shakai') return '社会重要語句';
-  if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
   if (t === 'survey_reward') return 'アンケート回答報酬';
   if (t.indexOf('apology_') === 0) return 'お詫びHP';
   // 2026-05-27：両輪システム/振り返り連動の HPLog メタログを分かりやすく表示
@@ -26947,50 +27151,29 @@ function _lineNotifyCountableType(type) {
 function _lineNotifyContentNameFor(type) {
   if (!type) return null;
   var t = String(type);
-  if (t === 'test' || t.indexOf('test_') === 0)   return '英単語RUSH';
-  if (t === 'sango' || t.indexOf('sango_') === 0) return '三語短文';
-  if (t === 'wabun1' || t.indexOf('wabun1_') === 0) return '和文英訳①';
-  if (t === 'lison' || t.indexOf('lison_') === 0)   return '英語リスオン';
-  if (t.indexOf('kiso_')  === 0) return '基礎計算';
-  if (t.indexOf('kanji_') === 0) return 'カンジー';
-  if (t.indexOf('kobun_') === 0) return 'コブタン';
-  if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return '計算タイムトライアル';
-  if (t.indexOf('kokugo_') === 0) return '国語長文読解';  // 2026-05-29 追加
-  if (t === 'rika')   return '理科重要語句';                // 2026-05-29 追加
-  if (t === 'shakai') return '社会重要語句';                // 2026-05-29 追加
-  // 2026-06-18：オリワンテス・マイ課題の追従漏れ修正（_lineNotifyContentKeyToName の表記に揃える）。
-  //   マイ課題は塾の宿題 'mytask_homework_*'（前方一致）＋ 自学 'mytask_self_only'（完全一致）を統合表示。
-  //   差し戻し 'mytask_revert' はここでは名前を返さない（下の汎用 return null で除外）。
-  if (t === 'oriwantes') return 'オリワンテス';
-  if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'マイ課題';
-  // 2026-05-29：reserve_release / completion_bonus は「取り組み内容」に出さない（達成状況で別表示）
-  // 2026-05-19：連続日数修正は LINE 通知の取組み一覧に出さない（HP 0 のメタデータ書き換えなので「取り組み内容」ではない）
-  if (t === 'manual_streak_modify') return null;
-  // 2026-05-19 リライト：自動復旧で補完された login 相当レコードも取組み一覧には出さない
-  if (t === 'login_recovery') return null;
-  // 2026-06-04（仕様④）：手動付与（manual_* / manual_grant）は学習の流れと完全に無関係。
-  //   取り組み内容・獲得HP（totalHp/grandTotal）・注意文判定のいずれにも含めないため null を返す。
-  //   （旧実装は '手動付与' を返して内訳・totalHp に合算していた → 福本さん等で注意文が出ない原因だった）
-  if (t.indexOf('manual_') === 0 || t === 'manual_grant') return null;
+  // 【type判定一元化・第1段】13 コンテンツ名は中核定義（_classifyContentType→def.name）で解決。
+  //   rawType 照合なので bare 名・各 prefix（kiso_/kanji_/kobun_/kokugo_/calctrial(_*)/mytask_*）を網羅。
+  //   meta（manual_*/login_recovery 等）は def にマッチせず、従来どおり null に落ちる。
+  var def = _classifyContentType(t);
+  if (def) return def.name;
+  // F 固有の防御的エイリアス（suffix 付き変種 test_/sango_/wabun1_/lison_）。
+  //   中核は bare 名のみ拾うため、これらは従来どおり個別に拾う（後方互換）。
+  if (t.indexOf('test_')   === 0) return '英単語RUSH';
+  if (t.indexOf('sango_')  === 0) return '三語短文';
+  if (t.indexOf('wabun1_') === 0) return '和文英訳①';
+  if (t.indexOf('lison_')  === 0) return '英語リスオン';
+  // meta（manual_* / login_recovery / reserve_release / completion_bonus 等）は「取り組み内容」に
+  //   出さないため null（既存どおり。下の汎用 return null で吸収）。
   return null;
 }
 
 // 抽象コンテンツキー（_normalizeHpReservePoolTypeForContent の戻り値）→ 保護者向け日本語表記。
+// 【type判定一元化・第1段】入力は抽象 key（kokugo は bare 'kokugo'）なので中核定義の key→name を
+//   引く（純粋な key 照合）。非コンテンツ key は null（既存どおり）。中核 13 キーと 1:1 一致。
 function _lineNotifyContentKeyToName(key) {
-  switch (String(key || '')) {
-    case 'eitango':   return '英単語RUSH';
-    case 'sango':     return '三語短文';
-    case 'wabun1':    return '和文英訳①';
-    case 'kiso':      return '基礎計算';
-    case 'calctrial': return '計算タイムトライアル';
-    case 'kanji':     return 'カンジー';
-    case 'kobun':     return 'コブタン';
-    case 'lison':     return '英語リスオン';
-    case 'kokugo':    return '国語長文読解';
-    case 'rika':      return '理科重要語句';
-    case 'shakai':    return '社会重要語句';
-    case 'mytask':    return 'マイ課題';
-    case 'oriwantes': return 'オリワンテス';
+  var k = String(key || '');
+  for (var i = 0; i < CONTENT_TYPE_DEFS.length; i++) {
+    if (CONTENT_TYPE_DEFS[i].key === k) return CONTENT_TYPE_DEFS[i].name;
   }
   return null;
 }
