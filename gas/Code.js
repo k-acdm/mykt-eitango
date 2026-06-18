@@ -1826,7 +1826,11 @@ function _isLearningContentType(rawType, opts) {
   }
   // 13 コンテンツ membership
   if (_classifyContentType(t) !== null) return true;
-  // 解放・ボーナス系（13コンテンツ非マッチ）。既定 false、includeReleases:true の時だけ活動扱い。
+  // 解放・ボーナス系（13コンテンツ非マッチ）の包含制御。
+  //   opts.releaseAllow（明示セット・優先）… 「特定の release だけ含めたい」呼び出し用（C＝LINE通知 engagement で
+  //     {reserve_release, completion_bonus} のみ含めるケース等）。{ type: 1 } 形式のマップ。
+  //   opts.includeReleases（既定 false・広いセット _RELEASE_ACTIVITY_TYPES）… 汎用フック。
+  if (opts.releaseAllow && opts.releaseAllow[t]) return true;
   if (opts.includeReleases && _RELEASE_ACTIVITY_TYPES[t]) return true;
   return false;
 }
@@ -27469,47 +27473,28 @@ var LINE_MESSAGING_RETRY_MAX = 1;            // 429 リトライ回数（合計�
 //   - 共通除外：login / apology_*
 //   - 練習モード（kiso_*_practice 等）は engagement としては成立しているため
 //     カウント対象（HP=0 でも「取り組んだ」と扱う）。
+// C（LINE通知 engagement）が「やった子（worked）」に含める release/ボーナス系。
+//   ★ reserve_release（保留HP解放）/ completion_bonus（絶対ミッション達成ボーナス）のみ。
+//     reflection_release / reflection_skip_release は含めない（従来の _lineNotifyCountableType と同一）。
+//     共有の _RELEASE_ACTIVITY_TYPES（4種・broader）より狭いため、専用セットで明示する。
+var _LINE_NOTIFY_ENGAGEMENT_RELEASES = { reserve_release: 1, completion_bonus: 1 };
+
 function _lineNotifyCountableType(type) {
-  if (!type) return false;
-  var t = String(type);
-  if (t === 'login') return false;
-  if (t.indexOf('apology_') === 0) return false;
-  // 2026-05-19：連続日数修正は HP 0 のメタデータ書き換えのため「やった子」判定対象外
-  if (t === 'manual_streak_modify') return false;
-  // 2026-05-19 リライト：自動復旧で補完された login 相当レコードもメタデータなので除外
-  if (t === 'login_recovery') return false;
-  if (t === 'test' || t === 'sango' || t === 'wabun1' || t === 'lison') return true;
+  // 【type判定一元化・第5段】学習コンテンツ判定を中核ヘルパー経由に一元化。
+  //   C は engagement 視点で A（Stage）/ B（ランキング）と除外条件が異なる：
+  //     - includePractice:true … *_practice（kanji_5_10_practice / calctrial_practice 等）も「やった子」扱い。
+  //     - releaseAllow:_LINE_NOTIFY_ENGAGEMENT_RELEASES … reserve_release / completion_bonus を worked 扱い。
+  //       reflection_release / reflection_skip_release は含めない（従来どおり）。
+  //   meta（login / apology_* / manual_* / manual_grant / manual_streak_modify / login_recovery /
+  //     mytask_revert）は中核 def 非マッチ＝false で自動除外（従来の明示分岐と同一結果）。
+  if (_isLearningContentType(type, { includePractice: true, releaseAllow: _LINE_NOTIFY_ENGAGEMENT_RELEASES })) return true;
+  // 防御的エイリアス（suffix 付き変種 test_/sango_/wabun1_/lison_）。中核 def は bare 名の exact 一致のみ拾うため、
+  //   これらは従来どおり個別に拾う（F _lineNotifyContentNameFor の第1段措置と同じ後方互換）。
+  var t = String(type || '');
   if (t.indexOf('test_')   === 0) return true;
   if (t.indexOf('sango_')  === 0) return true;
   if (t.indexOf('wabun1_') === 0) return true;
   if (t.indexOf('lison_')  === 0) return true;
-  if (t.indexOf('kiso_')   === 0) return true;
-  if (t.indexOf('kanji_')  === 0) return true;
-  if (t.indexOf('kobun_')  === 0) return true;
-  // 2026-05-30：理科重要語句 / 社会重要語句。HPLog の type は接尾辞無しの完全一致
-  // （'rika' / 'shakai'）。_lineNotifyContentNameFor 側には 2026-05-29 に追加済みだったが
-  // 判定側に追加漏れがあり、理科・社会だけ実施した生徒が誤って「やってない子」判定されていた。
-  if (t === 'rika' || t === 'shakai') return true;
-  // 2026-05-30：国語長文読解。HPLog の type は接尾辞付き 'kokugo_800' / 'kokugo_1200'
-  // （23244 行 type = 'kokugo_' + charCount）。_lineNotifyContentNameFor 側の前方一致判定と揃える。
-  if (t.indexOf('kokugo_') === 0) return true;
-  // 2026-06-18：オリワンテス（6/16公開）・マイ課題（6/14公開）の追従漏れを修正。
-  //   公開以来、昨日これらだけ取り組んだ生徒が「やってない子（sabotaged）」と誤通知されていた
-  //   （rika/shakai/kokugo を 5/30 に直したのと同じ class のバグ）。
-  //   HPLog の生 type をそのまま受けるため、_isCountableActivityType / _calendarContentName と同規約で拾う：
-  //   オリワンテス = 'oriwantes'（完全一致）、マイ課題 = 'mytask_homework_*'（前方一致）＋ 'mytask_self_only'（完全一致）。
-  //   差し戻し 'mytask_revert'（負値・活動ではない）は意図的に含めない。
-  if (t === 'oriwantes') return true;
-  if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return true;
-  // 2026-05-19 Task 2：計算タイムトライアルは本番（'calctrial'）/ 練習（'calctrial_practice'）
-  // とも engagement として「やった子」扱い（kiso_*_practice 等と同方針）。
-  if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return true;
-  if (t === 'reserve_release') return true;
-  if (t === 'completion_bonus') return true;
-  // 2026-06-04（仕様④）：手動付与（manual_* / manual_grant）は学習の流れと完全に無関係なので
-  //   「やった子（worked）」判定に含めない。手動付与しか無い日は worked=false（sabotaged 扱い）。
-  //   旧実装は「安全側」で manual_* を true にしていたが、仕様④に合わせて false に是正。
-  if (t.indexOf('manual_') === 0 || t === 'manual_grant') return false;
   return false;
 }
 
@@ -28153,6 +28138,177 @@ function verifyLineNotifyContentFix() {
     oriMytaskStudents: oriMytaskSids.length,
     riShaKokuStudents: degradeSids.length
   };
+}
+
+// =====================================================================
+// 【type 判定一元化・第5段（最終段）】LINE 通知 C/M リファクタの最厳格パリティ検証
+//   （dryRun・副作用なし）。GAS エディタの関数ドロップダウンから引数なし実行 → Logger。
+//   NotifyTargets / LINE 送信には一切触れない（読み取りのみ）。
+//
+//   対象：
+//     C = _lineNotifyCountableType（中核ヘルパー経由＋engagement release＋防御エイリアスに置換済）
+//     M = LINE_NOTIFY_CONTENT_DISPLAY_ORDER（内訳表示順。★今回は据え置き＝変更なし）
+//   ★C/M は毎日正午の保護者向け「昨日の取り組み報告」を構成。誤判定は信頼に直結。最厳格に検証する。
+//
+//   Part A：共通コーパス（13コンテンツ＋全meta＋*_practice＋release全種＋未知/空）で
+//           【OLD C スナップショット】vs【現行 _lineNotifyCountableType（NEW）】の worked 判定を全件突き合わせ。差分0目標。
+//           ★reserve_release/completion_bonus/*_practice が NEW でも true 維持、
+//             reflection_release/reflection_skip_release が NEW でも false 維持を明示確認。
+//   Part B（最重要）：昨日（教育日）の実 HPLog を _lineNotifySummarizeStudentEntries と同型集計で
+//           OLD C / NEW C 両方回し（F=_lineNotifyContentNameFor・M は不変、release分は同一 releasedMap）、
+//           全生徒の worked / 内訳(name+hp+並び) / totalHp が完全一致（mismatch 0）を確認。
+//           併せて oriwantes/mytask だけの生徒が worked=true・内訳に正しく出ることを維持確認。
+//   Part C：M の表示順が置き換え前後で完全一致（据え置きのため自明）＋ DISPLAY_ORDER_UNIFIED 由来順との
+//           差分を記録（M を中核から導出せず据え置く根拠の可視化）。
+// =====================================================================
+function verifyLineNotifyRefactorParity() {
+  Logger.log('===== verifyLineNotifyRefactorParity (dryRun, 書き込みなし) =====');
+
+  // ---- 置き換え前（OLD）の C をローカルに忠実コピー ----
+  var oldC = function(type) {
+    if (!type) return false;
+    var t = String(type);
+    if (t === 'login') return false;
+    if (t.indexOf('apology_') === 0) return false;
+    if (t === 'manual_streak_modify') return false;
+    if (t === 'login_recovery') return false;
+    if (t === 'test' || t === 'sango' || t === 'wabun1' || t === 'lison') return true;
+    if (t.indexOf('test_')   === 0) return true;
+    if (t.indexOf('sango_')  === 0) return true;
+    if (t.indexOf('wabun1_') === 0) return true;
+    if (t.indexOf('lison_')  === 0) return true;
+    if (t.indexOf('kiso_')   === 0) return true;
+    if (t.indexOf('kanji_')  === 0) return true;
+    if (t.indexOf('kobun_')  === 0) return true;
+    if (t === 'rika' || t === 'shakai') return true;
+    if (t.indexOf('kokugo_') === 0) return true;
+    if (t === 'oriwantes') return true;
+    if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return true;
+    if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return true;
+    if (t === 'reserve_release') return true;
+    if (t === 'completion_bonus') return true;
+    if (t.indexOf('manual_') === 0 || t === 'manual_grant') return false;
+    return false;
+  };
+
+  // ---- Part A：コーパス全件突き合わせ ----
+  var corpus = [
+    'test','sango','wabun1','lison','test_v2','sango_x','wabun1_x','lison_x',
+    'kiso_15_10','kanji_5_10','kobun_1_10','calctrial','kokugo_800','kokugo_1200','rika','shakai',
+    'mytask_homework_数学・算数_hw','mytask_self_only','oriwantes',
+    'calctrial_practice','kanji_5_10_practice','kiso_15_10_practice','mytask_revert',
+    'login','login_recovery','manual_grant','manual_streak_modify','manual_xxx',
+    'apology_kiso','apology_wabun1','reserve_release','completion_bonus',
+    'reflection_release','reflection_skip_release','survey_reward','','totally_unknown_xyz'
+  ];
+  var diffsA = [];
+  Logger.log('--- Part A: OLD C vs NEW _lineNotifyCountableType ---');
+  for (var i = 0; i < corpus.length; i++) {
+    var t = corpus[i];
+    var o = oldC(t), n = _lineNotifyCountableType(t);
+    var lbl = (t === '' ? '(空)' : t);
+    Logger.log('  ' + lbl + ' | OLD=' + o + ' | NEW=' + n);
+    if (o !== n) diffsA.push(lbl + ' : OLD=' + o + ' NEW=' + n);
+  }
+  // 明示確認：engagement release / practice は true 維持、reflection 系 release は false 維持
+  var mustTrue  = ['reserve_release','completion_bonus','calctrial_practice','kanji_5_10_practice'];
+  var mustFalse = ['reflection_release','reflection_skip_release'];
+  var trueBad = [], falseBad = [];
+  for (var mt = 0; mt < mustTrue.length; mt++)  if (_lineNotifyCountableType(mustTrue[mt])  !== true)  trueBad.push(mustTrue[mt]);
+  for (var mf = 0; mf < mustFalse.length; mf++) if (_lineNotifyCountableType(mustFalse[mf]) !== false) falseBad.push(mustFalse[mf]);
+
+  Logger.log('--- Part A 結果サマリ ---');
+  if (diffsA.length === 0) Logger.log('✅ C：OLD↔NEW 完全一致（差分 0）');
+  else { Logger.log('❌ C：不一致 ' + diffsA.length + ' 件（★1件でもあれば置き換え不可）：');
+         for (var d = 0; d < diffsA.length; d++) Logger.log('  - ' + diffsA[d]); }
+  Logger.log((trueBad.length === 0 ? '✅' : '❌') + ' reserve_release/completion_bonus/*_practice は NEW でも true 維持' +
+             (trueBad.length ? '（違反: ' + trueBad.join(', ') + '）' : ''));
+  Logger.log((falseBad.length === 0 ? '✅' : '❌') + ' reflection_release/reflection_skip_release は NEW でも false 維持' +
+             (falseBad.length ? '（違反: ' + falseBad.join(', ') + '）' : ''));
+
+  // ---- Part C：M 表示順（据え置き）の確認 ＋ DISPLAY_ORDER_UNIFIED 由来順との差分記録 ----
+  Logger.log('--- Part C: M (LINE_NOTIFY_CONTENT_DISPLAY_ORDER) 表示順 ---');
+  Logger.log('  M（現行・据え置き）= [' + LINE_NOTIFY_CONTENT_DISPLAY_ORDER.join(' / ') + ']');
+  var derivedOrder = DISPLAY_ORDER_UNIFIED.map(function(k){ return _contentDisplayNameUnified(k); });
+  Logger.log('  DISPLAY_ORDER_UNIFIED 由来 = [' + derivedOrder.join(' / ') + ']');
+  var sameOrder = (LINE_NOTIFY_CONTENT_DISPLAY_ORDER.length === derivedOrder.length);
+  if (sameOrder) for (var c = 0; c < derivedOrder.length; c++) if (LINE_NOTIFY_CONTENT_DISPLAY_ORDER[c] !== derivedOrder[c]) { sameOrder = false; break; }
+  Logger.log('  → M は中核由来順と' + (sameOrder ? '一致' : '不一致（並び・手動付与の有無が異なる）') + '。今回は M を据え置き（置き換え前後で完全一致）');
+  Logger.log('✅ Part C：M は変更していない（置き換え前後で表示順は完全一致）');
+
+  // ---- Part B（最重要）：昨日の実 HPLog で worked/内訳/totalHp の OLD↔NEW 一致を確認 ----
+  Logger.log('--- Part B: 昨日(教育日)の実データで worked/内訳/totalHp OLD↔NEW 比較 ---');
+  try {
+    var yesterday = _yesterdayEducationalJST();
+    var hpScan = _lineNotifyScanHpLogForYesterday(yesterday);
+    var bySid = (hpScan && hpScan.bySid) || {};
+    var releasedMap = _lineNotifyBuildReleasedReflectionMap(yesterday);  // 当日解放分（C 非依存・両者同一）
+
+    // _lineNotifySummarizeStudentEntries と同型の集計を、worked 判定関数だけ差し替えて回す
+    function summarizeWith(sid, entries, dateStr, relMap, cFn) {
+      var worked = false, byName = {}, completionBonus = 0;
+      var list = entries || [];
+      for (var x = 0; x < list.length; x++) {
+        var e = list[x];
+        if (cFn(e.type)) worked = true;
+        if (String(e.type || '').trim() === 'completion_bonus') completionBonus += Number(e.hpGained || 0);
+        var nm = _lineNotifyContentNameFor(e.type);
+        if (!nm) continue;
+        if (!byName[nm]) byName[nm] = 0;
+        byName[nm] += Number(e.hpGained || 0);
+      }
+      if (sid && dateStr) {
+        var released = (relMap != null) ? (relMap[String(sid).trim()] || {}) : {};
+        for (var key in released) {
+          if (!Object.prototype.hasOwnProperty.call(released, key)) continue;
+          var nm2 = _lineNotifyContentKeyToName(key);
+          if (!nm2) continue;
+          if (!byName[nm2]) byName[nm2] = 0;
+          byName[nm2] += Number(released[key] || 0);
+        }
+      }
+      var contents = [], totalHp = 0;
+      for (var k = 0; k < LINE_NOTIFY_CONTENT_DISPLAY_ORDER.length; k++) {
+        var n2 = LINE_NOTIFY_CONTENT_DISPLAY_ORDER[k];
+        if (byName[n2] != null) { contents.push({ name: n2, hp: byName[n2] }); totalHp += Number(byName[n2] || 0); }
+      }
+      return { worked: worked, contents: contents, totalHp: totalHp };
+    }
+    function contentsKey(c) { return (c || []).map(function(x){ return x.name + ':' + x.hp; }).join('|'); }
+
+    var sids = Object.keys(bySid);
+    var mismatch = [], oriMytaskWorked = 0, oriMytaskTotal = 0;
+    var isOriMytask = function(t){ return t === 'oriwantes' || t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only'; };
+    for (var s = 0; s < sids.length; s++) {
+      var sid = sids[s];
+      var ent = bySid[sid] || [];
+      var oldS = summarizeWith(sid, ent, yesterday, releasedMap, oldC);
+      var newS = summarizeWith(sid, ent, yesterday, releasedMap, _lineNotifyCountableType);
+      if (oldS.worked !== newS.worked || oldS.totalHp !== newS.totalHp || contentsKey(oldS.contents) !== contentsKey(newS.contents)) {
+        mismatch.push(sid + ' worked(' + oldS.worked + '→' + newS.worked + ') totalHp(' + oldS.totalHp + '→' + newS.totalHp +
+                      ') 内訳(' + contentsKey(oldS.contents) + ' → ' + contentsKey(newS.contents) + ')');
+      }
+      // oriwantes/mytask だけ（他の学習コンテンツを伴わない）生徒が worked=true を維持しているか
+      var hasOriMy = false, hasOtherLearning = false;
+      for (var z = 0; z < ent.length; z++) {
+        var ty = String(ent[z].type || '');
+        if (isOriMytask(ty)) hasOriMy = true;
+        else if (_lineNotifyCountableType(ty)) hasOtherLearning = true;
+      }
+      if (hasOriMy && !hasOtherLearning) { oriMytaskTotal++; if (newS.worked) oriMytaskWorked++; }
+    }
+    Logger.log('  昨日(教育日)=' + yesterday + ' / 活動のある生徒数=' + sids.length);
+    if (mismatch.length === 0) {
+      Logger.log('✅ Part B：全 ' + sids.length + ' 名で worked/内訳/totalHp が OLD↔NEW 完全一致（保護者通知は変わらない）');
+    } else {
+      Logger.log('❌ Part B：' + mismatch.length + ' 名で不一致（★置き換え不可）：');
+      for (var m = 0; m < mismatch.length; m++) Logger.log('  - ' + mismatch[m]);
+    }
+    Logger.log('  ▼ oriwantes/mytask のみの生徒 ' + oriMytaskTotal + ' 名中 worked=true: ' + oriMytaskWorked + ' 名' +
+               (oriMytaskTotal === oriMytaskWorked ? '（✅ 緊急修正の worked化を維持）' : '（❌ デグレ）'));
+  } catch (e) {
+    Logger.log('⚠️ Part B 実データ検証でエラー（Part A の差分0が満たされていれば論理的には同値）: ' + e);
+  }
 }
 
 // --- 取得対象生徒のスナップショット構築 ---
