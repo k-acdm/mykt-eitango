@@ -2160,6 +2160,164 @@ function verifyDisplayNameRefactorParity() {
   for (var e = 0; e < kokugoExpected.length; e++) Logger.log('  · ' + kokugoExpected[e]);
 }
 
+// =====================================================================
+// 【type 判定一元化・第2段】正規化系（RAW type → contentKey）リファクタのパリティ検証
+//   （dryRun・副作用なし）。GAS エディタの関数ドロップダウンから引数なし実行 → Logger を確認。
+//
+//   対象：
+//     H: _normalizeHpReservePoolTypeForContent（RAW→KEY、kokugo は元から collapse）
+//     I: _todayHpBreakdownForSid 内のインライン byContent キー導出（kokugo は非collapse だった）
+//     J: analyzeHpLog90Days 内 normalizeType（kiso/kanji/kobun/mytask/apology のみ collapse、
+//        kokugo/calctrial/test は raw 保持＝独自ポリシー）
+//
+//   ★方針：
+//     - H：中核定義に置換済。OLD スナップショット vs 実関数（NEW）で突き合わせ → 差分 0 が目標。
+//     - I：中核定義に置換済。OLD スナップショット vs NEW ミラーで突き合わせ →
+//          想定内差分は kokugo_800/kokugo_1200 → 'kokugo' のみ。それ以外の差分 0 が目標。
+//     - J：★コードは未変更（差分 0）。ここでは「もし J も 1 キー化したら何が変わるか」を
+//          OLD vs 仮想 1キー版（J1key）で可視化し、ふくちさん判断材料として報告する。
+//          → J を 1 キー化すると kokugo 以外（test→eitango / calctrial_practice→calctrial）も
+//            変わるため、絶対条件「I/J の kokugo 1キー化以外で出力が変わらない」に抵触する。
+//            よって既定では J は「variants 保持の例外」（差分 0）のまま据え置く。
+// =====================================================================
+function verifyNormalizeRefactorParity() {
+  Logger.log('===== verifyNormalizeRefactorParity (dryRun, 書き込みなし) =====');
+
+  // ---- 置き換え前（OLD）の実装をローカルに忠実コピー ----
+  // H: 旧 _normalizeHpReservePoolTypeForContent
+  var oldH = function(type) {
+    var t = String(type || '').trim();
+    if (!t) return null;
+    if (t === 'test') return 'eitango';
+    if (t.indexOf('kiso_')   === 0) return 'kiso';
+    if (t.indexOf('kanji_')  === 0) return 'kanji';
+    if (t.indexOf('kobun_')  === 0) return 'kobun';
+    if (t.indexOf('kokugo_') === 0) return 'kokugo';
+    if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return 'calctrial';
+    if (t === 'sango' || t === 'wabun1' || t === 'lison' || t === 'shakai' || t === 'rika') return t;
+    if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'mytask';
+    if (t === 'oriwantes') return 'oriwantes';
+    return null;
+  };
+  // I: 旧 _todayHpBreakdownForSid の byContent キー導出（else ブロック内）。
+  //    ※ login/reflection_release/reserve_release/completion_bonus/apology_*/*_practice は
+  //      本来この導出に到達しない（前段で category 分類 or 除外）。ただしキー導出を単体比較しても
+  //      旧新とも「非コンテンツ＝raw type」で一致するため誤検出は出ない（スニペット単体の同値検証）。
+  var oldI = function(type) {
+    var key = type;
+    if (type === 'test') key = 'eitango';
+    else if (type.indexOf('kiso_')  === 0) key = 'kiso';
+    else if (type.indexOf('kanji_') === 0) key = 'kanji';
+    else if (type.indexOf('kobun_') === 0) key = 'kobun';
+    else if (type === 'calctrial' || type.indexOf('calctrial_') === 0) key = 'calctrial';
+    else if (type.indexOf('mytask_homework_') === 0 || type === 'mytask_self_only') key = 'mytask';
+    return key;
+  };
+  // J: 旧 analyzeHpLog90Days 内 normalizeType（現状の実コードと同一・未変更）
+  var oldJ = function(t) {
+    t = String(t || '').trim();
+    if (!t) return 'unknown';
+    if (t.indexOf('kiso_')    === 0) return 'kiso';
+    if (t.indexOf('kanji_')   === 0) return 'kanji';
+    if (t.indexOf('kobun_')   === 0) return 'kobun';
+    if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'mytask';
+    if (t.indexOf('apology_') === 0) return 'apology';
+    return t;
+  };
+
+  // ---- 置き換え後（NEW）----
+  // H: 実関数（リファクタ済）を直接呼ぶ。
+  // I: 中核定義経由のミラー（コミット済ロジックと同一）。
+  var newI = function(type) {
+    var key = type;
+    var u = _classifyContentType(type);
+    if (u) key = u.key;
+    return key;
+  };
+  // J（仮想 1キー版・未コミット）：apology 集約は維持しつつ 13 コンテンツを中核 key へ畳む。
+  //   影響可視化専用。実際の J には適用しない。
+  var newJ1key = function(t) {
+    t = String(t || '').trim();
+    if (!t) return 'unknown';
+    if (t.indexOf('apology_') === 0) return 'apology';
+    var u = _classifyContentType(t);
+    if (u) return u.key;
+    return t;
+  };
+
+  // ---- コーパス（H/I/J いずれも RAW type 入力）----
+  var rawCorpus = [
+    // 13 コンテンツ代表
+    'test','sango','wabun1','lison','kiso_15_10','kanji_5_10','kobun_1_10',
+    'calctrial','kokugo_800','kokugo_1200','rika','shakai',
+    'mytask_homework_数学・算数_hw','mytask_self_only','oriwantes',
+    // 練習 / 差し戻し
+    'calctrial_practice','kanji_5_10_practice','mytask_revert',
+    // meta 全種
+    'login','login_recovery','manual_grant','manual_streak_modify',
+    'apology_kiso','apology_wabun1','reserve_release','reflection_release',
+    'completion_bonus','reflection_skip_release','survey_reward',
+    // 未知 / 空
+    '','totally_unknown_xyz'
+  ];
+
+  var unexpected      = [];   // H/I の想定外不一致（あってはならない → 目標 0）
+  var kokugoExpectedI = [];   // I の kokugo 1キー化による想定内差分
+  var jKokugo         = [];   // J を 1キー化した場合の kokugo 差分（想定内枠）
+  var jOther          = [];   // J を 1キー化した場合の kokugo 以外の差分（★絶対条件抵触＝据え置き理由）
+
+  function isKokugoRaw(t) { return t === 'kokugo_800' || t === 'kokugo_1200'; }
+  function lbl(t) { return t === '' ? '(空)' : t; }
+
+  // --- H：OLD vs 実関数（差分 0 目標）---
+  for (var i = 0; i < rawCorpus.length; i++) {
+    var r = rawCorpus[i];
+    var ho = oldH(r), hn = _normalizeHpReservePoolTypeForContent(r);
+    if (ho !== hn) {
+      unexpected.push("H '" + lbl(r) + "' : OLD=[" + ho + "] NEW=[" + hn + "]");
+    }
+  }
+  // --- I：OLD vs NEW（kokugo のみ想定内）---
+  for (var j = 0; j < rawCorpus.length; j++) {
+    var r2 = rawCorpus[j];
+    var io = oldI(r2), inw = newI(r2);
+    if (io !== inw) {
+      if (isKokugoRaw(r2)) kokugoExpectedI.push("I '" + r2 + "' : OLD=[" + io + "] → NEW=[" + inw + "]");
+      else                 unexpected.push("I '" + lbl(r2) + "' : OLD=[" + io + "] NEW=[" + inw + "]");
+    }
+  }
+  // --- J：OLD vs 仮想 1キー版（影響可視化のみ。実コードは未変更＝差分 0）---
+  for (var k = 0; k < rawCorpus.length; k++) {
+    var r3 = rawCorpus[k];
+    var jo = oldJ(r3), jn = newJ1key(r3);
+    if (jo !== jn) {
+      if (isKokugoRaw(r3)) jKokugo.push("J '" + r3 + "' : OLD=[" + jo + "] → 1キー版=[" + jn + "]");
+      else                 jOther.push("J '" + lbl(r3) + "' : OLD=[" + jo + "] → 1キー版=[" + jn + "]");
+    }
+  }
+
+  // ---- 結果サマリ ----
+  Logger.log('--- H / I 結果サマリ（実コミット対象）---');
+  if (unexpected.length === 0) {
+    Logger.log('✅ H/I：想定外の不一致なし（H は完全一致、I は kokugo 想定内差分のみ）');
+  } else {
+    Logger.log('❌ H/I 想定外の不一致 ' + unexpected.length + ' 件：');
+    for (var u = 0; u < unexpected.length; u++) Logger.log('  - ' + unexpected[u]);
+  }
+  Logger.log('ℹ️ I の kokugo 1キー化による想定内差分（kokugo_800/1200 → kokugo）: ' + kokugoExpectedI.length + ' 件');
+  for (var e = 0; e < kokugoExpectedI.length; e++) Logger.log('  · ' + kokugoExpectedI[e]);
+
+  Logger.log('--- J 影響レポート（★コードは未変更＝差分 0。以下は「もし 1キー化したら」の試算）---');
+  Logger.log('ℹ️ J を 1キー化した場合の kokugo 差分（想定内枠）: ' + jKokugo.length + ' 件');
+  for (var f = 0; f < jKokugo.length; f++) Logger.log('  · ' + jKokugo[f]);
+  Logger.log('⚠️ J を 1キー化した場合の kokugo 以外の差分（絶対条件抵触＝J 据え置きの根拠）: ' + jOther.length + ' 件');
+  for (var g = 0; g < jOther.length; g++) Logger.log('  · ' + jOther[g]);
+  if (jOther.length > 0) {
+    Logger.log('   → kokugo 以外も変わる（test→eitango / calctrial_practice→calctrial 等）ため、');
+    Logger.log('     「I/J の kokugo 1キー化以外で出力が変わらない」絶対条件に抵触。J は variants 保持の例外として据え置き。');
+  }
+}
+
 // 学習活動として「prevDayCount に計上する type」かどうかを判定。
 // マイ活アプリの全コンテンツの活動を網羅し、運営付与・ログインボーナス・練習モード
 // は除外する。新コンテンツ追加時はここに 1 行足すだけで対応可。
@@ -13034,15 +13192,15 @@ function _todayHpBreakdownForSid(sid) {
       } else {
         out.byCategory.immediate += hp;
         // コンテンツ別キー（type プレフィックスを正規化）
+        // 【type判定一元化・第2段】13コンテンツの RAW→KEY を中核定義（_classifyContentType）に一元化。
+        //   従来との差分は kokugo のみ：kokugo_800 / kokugo_1200 → bare 'kokugo'（1キー統一）。
+        //   フロント _reflContentNameJa は kokugo_800/1200・bare 'kokugo' いずれも「国語長文読解」に
+        //   解決するため表示は安全（同名の重複行が 1 行に統合されるだけ）。
+        //   非コンテンツ type（manual_grant 等／差し戻し mytask_revert は hp<=0 で既に除外）は
+        //   def 非マッチ＝_u が null → 従来どおり raw type をキーに据える（フォールバック温存）。
         let key = type;
-        if (type === 'test') key = 'eitango';
-        else if (type.indexOf('kiso_')  === 0) key = 'kiso';
-        else if (type.indexOf('kanji_') === 0) key = 'kanji';
-        else if (type.indexOf('kobun_') === 0) key = 'kobun';
-        else if (type === 'calctrial' || type.indexOf('calctrial_') === 0) key = 'calctrial';
-        // マイ課題：塾の宿題（mytask_homework_*）/ 自学（mytask_self_only）を 'mytask' に統合。
-        //   差し戻し mytask_revert は負値なので上の hp<=0 continue で既に除外済み。
-        else if (type.indexOf('mytask_homework_') === 0 || type === 'mytask_self_only') key = 'mytask';
+        const _u = _classifyContentType(type);
+        if (_u) key = _u.key;
         out.byContent[key] = (out.byContent[key] || 0) + hp;
       }
     }
@@ -25766,22 +25924,15 @@ function runDailyForfeitExpiredReserves() {
 // 学習コンテンツに由来しないシステム枠）。
 // マッピングは index.html の _reflContentNameJa / _reflContentIconHtml と整合させる。
 function _normalizeHpReservePoolTypeForContent(type) {
-  const t = String(type || '').trim();
-  if (!t) return null;
-  if (t === 'test') return 'eitango';
-  if (t.indexOf('kiso_')   === 0) return 'kiso';
-  if (t.indexOf('kanji_')  === 0) return 'kanji';
-  if (t.indexOf('kobun_')  === 0) return 'kobun';
-  if (t.indexOf('kokugo_') === 0) return 'kokugo';
-  if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return 'calctrial';
-  // sango / wabun1 / lison / shakai / rika はそのまま byContent キーとして使う
-  if (t === 'sango' || t === 'wabun1' || t === 'lison' || t === 'shakai' || t === 'rika') return t;
-  // マイ課題：塾の宿題（mytask_homework_*）/ 自学（mytask_self_only）を 'mytask' キーに統合（revert は対象外＝null）
-  if (t.indexOf('mytask_homework_') === 0 || t === 'mytask_self_only') return 'mytask';
-  // オリワンテス（単一type・reserveゲート対象）。振り返り解放分を 'oriwantes' に紐づける。
-  if (t === 'oriwantes') return 'oriwantes';
-  // required_mission / login / apology_* / reserve_release / completion_bonus / reflection_release などはコンテンツ別表示の対象外
-  return null;
+  // 【type判定一元化・第2段】13コンテンツの RAW→KEY を中核定義（_classifyContentType）に一元化。
+  //   出力は従来と完全一致（test→eitango / kiso_→kiso / kanji_→kanji / kobun_→kobun /
+  //   kokugo_*→kokugo / calctrial(_*)→calctrial / sango・wabun1・lison・shakai・rika→同名 /
+  //   mytask_homework_*・mytask_self_only→mytask / oriwantes→oriwantes）。
+  //   ※ kokugo は中核定義でも従来同様 1 キー（'kokugo'）に畳むため H の出力は不変。
+  //   meta（login / apology_* / reserve_release / completion_bonus / reflection_release /
+  //   required_mission / manual_* / mytask_revert 等）は def 非マッチ＝null（コンテンツ別表示対象外、従来どおり）。
+  var def = _classifyContentType(type);
+  return def ? def.key : null;
 }
 
 // 指定 (sid, dateStr) の reflection_pending 保留分だけを解放し、Students.HP に加算 + HPLog 記録。
