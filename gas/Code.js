@@ -2473,6 +2473,134 @@ function verifyStageBooleanRefactorParity() {
   }
 }
 
+// =====================================================================
+// 【type 判定一元化・第4段】boolean 系（B：週間 HP ランキング集計対象判定）リファクタの
+//   パリティ検証（dryRun・副作用なし）。GAS エディタの関数ドロップダウンから引数なし実行 → Logger。
+//
+//   対象：B = _isWeeklyRankingHpType（中核ヘルパー _isLearningContentType 経由に置換済）
+//   ★B は生徒・保護者に即見える順位の集計に直結。1 ポイントでも変われば即露見。最厳格に検証する。
+//
+//   Part A：共通コーパス（13コンテンツ代表 RAW ＋ 全 meta ＋ *_practice ＋
+//           reserve_release/completion_bonus 等 ＋ 未知/空）で
+//           【OLD B スナップショット】vs【現行 _isWeeklyRankingHpType（NEW）】を全件突き合わせ。差分0目標。
+//   Part B（最重要）：先週（_getLastWeekRange）の実 HPLog を getWeeklyRanking と同一の集計
+//           （全行 getDataRange / 期間 _toDateStr / col2=rawHP 合計）で OLD B・NEW B 両方回し、
+//           全生徒の weeklyHP（素点合計）が完全一致（mismatch 0）であることを確認。
+//           ＝「順位の数字が 1 ポイントも変わらない」証明。上位を特に明示。
+// =====================================================================
+function verifyWeeklyBooleanRefactorParity() {
+  Logger.log('===== verifyWeeklyBooleanRefactorParity (dryRun, 書き込みなし) =====');
+
+  // ---- 置き換え前（OLD）の B をローカルに忠実コピー ----
+  var oldB = function(type) {
+    var t = String(type || '').trim();
+    if (!t) return false;
+    var PRACTICE = '_practice';
+    if (t.length >= PRACTICE.length && t.slice(-PRACTICE.length) === PRACTICE) return false;
+    if (t.indexOf('apology_') === 0) return false;
+    switch (t) {
+      case 'login':
+      case 'login_recovery':
+      case 'manual_grant':
+      case 'manual_streak_modify':
+      case 'reserve_release':
+      case 'reflection_release':
+      case 'completion_bonus':
+      case 'reflection_skip_release':
+      case 'mytask_revert':
+        return false;
+    }
+    switch (t) {
+      case 'test':
+      case 'sango':
+      case 'wabun1':
+      case 'lison':
+      case 'oriwantes':
+      case 'rika':
+      case 'shakai':
+      case 'mytask_self_only':
+        return true;
+    }
+    if (t.indexOf('kiso_')  === 0) return true;
+    if (t.indexOf('kanji_') === 0) return true;
+    if (t.indexOf('kobun_') === 0) return true;
+    if (t.indexOf('kokugo_') === 0) return true;
+    if (t.indexOf('mytask_homework_') === 0) return true;
+    if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return true;
+    return false;
+  };
+
+  // ---- Part A：コーパス全件突き合わせ ----
+  var corpus = [
+    'test','sango','wabun1','lison','kiso_15_10','kanji_5_10','kobun_1_10',
+    'calctrial','kokugo_800','kokugo_1200','rika','shakai',
+    'mytask_homework_数学・算数_hw','mytask_self_only','oriwantes',
+    'calctrial_practice','kanji_5_10_practice','kiso_15_10_practice','mytask_revert',
+    'login','login_recovery','manual_grant','manual_streak_modify',
+    'apology_kiso','apology_wabun1','reserve_release','reflection_release',
+    'completion_bonus','reflection_skip_release','survey_reward',
+    '','totally_unknown_xyz'
+  ];
+  var diffsA = [];
+  Logger.log('--- Part A: OLD B vs NEW _isWeeklyRankingHpType ---');
+  for (var i = 0; i < corpus.length; i++) {
+    var t = corpus[i];
+    var o = oldB(t), n = _isWeeklyRankingHpType(t);
+    var lbl = (t === '' ? '(空)' : t);
+    Logger.log('  ' + lbl + ' | OLD=' + o + ' | NEW=' + n);
+    if (o !== n) diffsA.push(lbl + ' : OLD=' + o + ' NEW=' + n);
+  }
+  Logger.log('--- Part A 結果サマリ ---');
+  if (diffsA.length === 0) {
+    Logger.log('✅ B：OLD↔NEW 完全一致（差分 0）。判定の中核化可');
+  } else {
+    Logger.log('❌ B：不一致 ' + diffsA.length + ' 件（★1件でもあれば置き換え不可）：');
+    for (var d = 0; d < diffsA.length; d++) Logger.log('  - ' + diffsA[d]);
+  }
+
+  // ---- Part B（最重要）：先週の実 HPLog で weeklyHP（素点合計）の OLD↔NEW 一致を確認 ----
+  //   getWeeklyRanking と同一の集計（全行 getDataRange・期間 _toDateStr・col2=rawHP 合計）を
+  //   OLD B / NEW B の 2 通りで回す。集計ロジック自体は getWeeklyRanking と同型（こちらは検証用の写し）。
+  Logger.log('--- Part B: 先週の実データで weeklyHP（素点合計）OLD↔NEW 比較 ---');
+  try {
+    var range = _getLastWeekRange();
+    var logSheet = _ss().getSheetByName(SHEET_HPLOG);
+    var oldMap = {}, newMap = {};
+    if (logSheet) {
+      var logRows = logSheet.getDataRange().getValues();   // getWeeklyRanking と同じ全行スキャン
+      for (var r = 1; r < logRows.length; r++) {
+        var ty = logRows[r][4];
+        var dateStr = _toDateStr(logRows[r][0]);
+        if (dateStr < range.start || dateStr > range.end) continue;
+        var sid = String(logRows[r][1]).trim();
+        var raw = Number(logRows[r][2]) || 0;   // col 2 = rawHP（素点）
+        if (oldB(ty))                     oldMap[sid] = (oldMap[sid] || 0) + raw;
+        if (_isWeeklyRankingHpType(ty))   newMap[sid] = (newMap[sid] || 0) + raw;
+      }
+    }
+    var allSids = {};
+    Object.keys(oldMap).forEach(function(s){ allSids[s] = 1; });
+    Object.keys(newMap).forEach(function(s){ allSids[s] = 1; });
+    var sidList = Object.keys(allSids);
+    // weeklyHP 降順（順位表に出る上位を特に確認）
+    sidList.sort(function(a, b){ return (newMap[b] || 0) - (newMap[a] || 0); });
+    var mismatchB = [];
+    Logger.log('  期間 ' + range.start + '〜' + range.end + ' / 集計対象生徒数=' + sidList.length + '（上位最大15名を表示）');
+    for (var s = 0; s < sidList.length; s++) {
+      var co = oldMap[sidList[s]] || 0, cn = newMap[sidList[s]] || 0;
+      if (s < 15) Logger.log('    [' + (s+1) + '] sid=' + sidList[s] + ' : OLD weeklyHP=' + co + ' / NEW=' + cn + (co === cn ? '' : '  ← ★不一致'));
+      if (co !== cn) mismatchB.push(sidList[s] + '(old=' + co + ',new=' + cn + ')');
+    }
+    if (mismatchB.length === 0) {
+      Logger.log('✅ Part B：全 ' + sidList.length + ' 名で weeklyHP（素点合計）が OLD↔NEW 完全一致（順位の数字は1ポイントも変わらない）');
+    } else {
+      Logger.log('❌ Part B：' + mismatchB.length + ' 名で weeklyHP 不一致（★置き換え不可）：' + mismatchB.join(', '));
+    }
+  } catch (e) {
+    Logger.log('⚠️ Part B 実データ検証でエラー（Part A の差分0が満たされていれば論理的には同値）: ' + e);
+  }
+}
+
 // 学習活動として「prevDayCount に計上する type」かどうかを判定。
 // マイ活アプリの全コンテンツの活動を網羅し、運営付与・ログインボーナス・練習モード
 // は除外する。新コンテンツ追加時はここに 1 行足すだけで対応可。
@@ -9123,49 +9251,15 @@ function _getLastWeekRange() {
 //   completion_bonus / reflection_skip_release / mytask_revert
 // → 元の grant 行の rawHP だけを合計する（解放・ボーナス行は二重計上になるため数えない）。
 function _isWeeklyRankingHpType(type) {
-  const t = String(type || '').trim();
-  if (!t) return false;
-  // --- 除外を先に判定（前方一致の取りこぼし防止）---
-  // *_practice（練習モード、rawHP=0 のはずだが念のため除外）
-  const PRACTICE = '_practice';
-  if (t.length >= PRACTICE.length && t.slice(-PRACTICE.length) === PRACTICE) return false;
-  if (t.indexOf('apology_') === 0) return false;
-  // メタ・運営・後払い・解放・ボーナス・差し戻し（完全一致）
-  switch (t) {
-    case 'login':
-    case 'login_recovery':
-    case 'manual_grant':
-    case 'manual_streak_modify':
-    case 'reserve_release':
-    case 'reflection_release':
-    case 'completion_bonus':
-    case 'reflection_skip_release':
-    case 'mytask_revert':
-      return false;
-  }
-  // --- 含める（学習コンテンツ）---
-  // 完全一致
-  switch (t) {
-    case 'test':
-    case 'sango':
-    case 'wabun1':
-    case 'lison':
-    case 'oriwantes':
-    case 'rika':
-    case 'shakai':
-    case 'mytask_self_only':
-      return true;
-  }
-  // 前方一致
-  if (t.indexOf('kiso_')  === 0) return true;
-  if (t.indexOf('kanji_') === 0) return true;
-  if (t.indexOf('kobun_') === 0) return true;
-  if (t.indexOf('kokugo_') === 0) return true;
-  if (t.indexOf('mytask_homework_') === 0) return true;
-  // calctrial 本番（calctrial_practice は上の *_practice 除外で既に弾き済み）
-  if (t === 'calctrial' || t.indexOf('calctrial_') === 0) return true;
-  // 未知 type はデフォルト除外（明示的に許可してから有効化）
-  return false;
+  // 【type判定一元化・第4段】学習コンテンツ判定を中核ヘルパーに一元化（A/Stage と完全同条件）。
+  //   - includePractice:false … 末尾 '_practice'（練習モード、rawHP=0 のはずだが念のため）を除外。
+  //   - includeReleases:false … reserve_release / completion_bonus / reflection_release /
+  //     reflection_skip_release を含めない。
+  //   - meta（login / login_recovery / manual_grant / manual_streak_modify / apology_* / mytask_revert）は
+  //     13コンテンツ def に非マッチ＝false で自動除外（従来の switch/前方一致と同一結果）。
+  //   ★判定のみ中核化。getWeeklyRanking 側の素点(rawHP=col2)合計・期間判定（_getLastWeekRange）・
+  //     テスト枠含む集計・キャッシュ・slice は一切不変。verifyWeeklyBooleanRefactorParity で差分0を検証。
+  return _isLearningContentType(type, { includePractice: false, includeReleases: false });
 }
 
 // =============================================
