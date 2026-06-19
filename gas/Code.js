@@ -7465,6 +7465,10 @@ function submitMyTask(params) {
 
     let alreadyCapped = false;
     let grantedRawHp = 0;
+    // 【用件4 第4段】統一HP獲得画面 ①②③ の表示用＋_totalHP 同期用（教科ごと1回呼ばれるので各 res に付与）。
+    //   alreadyCapped（_grantHP を呼ばない）教科は全て 0/1/false のまま返り、付与なし教科として集約される。
+    let grantHpGained = 0, grantHpReserved = 0, grantWeek = 1;
+    let grantFullHp = 0, grantMissionIncompleteHp = 0, grantHasRequiredMission = false;
 
     if (effectiveRawHp === 0) {
       // その日の上限に到達済み：写真提出は成立・保存されるが HP は付与しない（_grantHP を呼ばない）
@@ -7497,6 +7501,13 @@ function submitMyTask(params) {
         };
       }
       grantedRawHp = effectiveRawHp;
+      // 【用件4 第4段】_grantHP 由来の表示用/会計用フィールドを素通し捕捉（再計算なし）。
+      grantHpGained            = grant.hpGained;
+      grantHpReserved          = grant.hpReserved;
+      grantWeek                = grant.week;
+      grantFullHp              = grant.fullHp;
+      grantMissionIncompleteHp = grant.missionIncompleteHp;
+      grantHasRequiredMission  = grant.hasRequiredMission;
     }
 
     return {
@@ -7506,7 +7517,16 @@ function submitMyTask(params) {
       savedIndexes: savedIndexes,
       failedIndexes: failedIndexes,
       grantedRawHp: grantedRawHp,
-      alreadyCapped: alreadyCapped
+      alreadyCapped: alreadyCapped,
+      // 【用件4 第4段】統一HP獲得画面 ①②③ の表示用＋_totalHP 同期用（素通し転送・再計算なし）。
+      //   rawHp は ②素点（=grant.rawHp=effectiveRawHp、grantedRawHp と同値）。_buildHpConditionBlock が参照する。
+      rawHp:               grantedRawHp,
+      hpGained:            grantHpGained,             // 週²適用後の実即時HP（_totalHP 加算用）
+      hpReserved:          grantHpReserved,           // 保留分
+      week:                grantWeek,
+      fullHp:              grantFullHp,               // ①満額（素点 × week²）
+      missionIncompleteHp: grantMissionIncompleteHp,  // ③絶対ミッション未達時の即時付与額
+      hasRequiredMission:  grantHasRequiredMission     // ③の表示要否
     };
   } catch (err) {
     console.error('[submitMyTask]', err);
@@ -31128,7 +31148,9 @@ function finishRishaSet(params) {
 
     // 合格時のみ Attempts に記録（仕様書「合格時のみ append」）
     // ※ 不合格時にも記録したい場合は後日 isPass を外す。今は仕様書通りの最小実装。
-    let hpInfo = { hpGained: 0, hpReserved: 0, alreadyGranted: false, justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    let hpInfo = { hpGained: 0, hpReserved: 0, alreadyGranted: false, justCompleted: false, releasedHp: 0, bonusHp: 0,
+                   // 【用件4 第4段】統一HP獲得画面 ①②③ の表示用（付与なし/練習時は 0）
+                   rawHp: 0, week: 1, fullHp: 0, missionIncompleteHp: 0, hasRequiredMission: false };
     let todayClearedAfter = _rishaTodayClearedCount(sid, subject);
     let reachedDailyLimit = false;
     let isPractice = false;
@@ -31168,7 +31190,13 @@ function finishRishaSet(params) {
           alreadyGranted: false,
           justCompleted:  grant.justCompleted,
           releasedHp:     grant.releasedHp,
-          bonusHp:        grant.bonusHp
+          bonusHp:        grant.bonusHp,
+          // 【用件4 第4段】統一HP獲得画面 ①②③ の表示用（_grantHP 由来をフロントへ素通し転送・再計算なし）
+          rawHp:               grant.rawHp,                // ②素点（=100）
+          week:                grant.week,
+          fullHp:              grant.fullHp,               // ①満額（100 × week²）
+          missionIncompleteHp: grant.missionIncompleteHp,  // ③絶対ミッション未達時の即時付与額
+          hasRequiredMission:  grant.hasRequiredMission     // ③の表示要否
         };
         hpGainedForRow = grant.hpGained;
       } else {
@@ -31230,6 +31258,12 @@ function finishRishaSet(params) {
       justCompleted:     hpInfo.justCompleted,
       releasedHp:        hpInfo.releasedHp,
       bonusHp:           hpInfo.bonusHp,
+      // 【用件4 第4段】統一HP獲得画面 ①②③ の表示用（素通し転送・再計算なし）
+      rawHp:               hpInfo.rawHp,
+      week:                hpInfo.week,
+      fullHp:              hpInfo.fullHp,
+      missionIncompleteHp: hpInfo.missionIncompleteHp,
+      hasRequiredMission:  hpInfo.hasRequiredMission,
       todayClearedSets:  todayClearedAfter,
       reachedDailyLimit: reachedDailyLimit,
       isPractice:        isPractice,

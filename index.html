@@ -3116,10 +3116,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260620-0116"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260620-0158"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260620-0116">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260620-0116"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260620-0158">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260620-0158"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -14200,6 +14200,15 @@
         r.failedPhotos = (r.sentPhotos || []).slice();
       }
     }
+    // 【用件4 第4段】_totalHP（ホームHP同期）に実即時HP合計を加算（他コンテンツと同型・即時 hpGained 分のみ）。
+    //   ★初回集約でのみ加算する。_renderMyTaskHwDoneBody は再送で再描画されるため、加算をそこに置くと二重加算になる。
+    //    再送で初めて付与される教科の追加分は _afterMyTaskHwResend 側で個別に加算する。
+    var hwImmediate = 0;
+    for (var m = 0; m < results.length; m++) {
+      var mr = results[m].res || {};
+      if (mr.ok && !mr.alreadyCapped) hwImmediate += Number(mr.hpGained) || 0;
+    }
+    if (typeof _totalHP === 'number' && hwImmediate > 0) _totalHP += hwImmediate;
     _renderMyTaskHwDoneBody(true);
     showScreen('screen-mytask-hw-done');
   }
@@ -14207,7 +14216,11 @@
     var results = _myTaskHwState.lastResults || [];
     var body = document.getElementById('mytask-hw-done-body');
     if (!body) return;
-    var totalRawHp = 0, anyOutstanding = false, lines = '';
+    // 【用件4 第4段・案B】付与教科の 満額fullHp / 素点grantedRawHp / 未達額missionIncompleteHp を合算。
+    //   週²(week)・hasRequiredMission は生徒共通なので付与教科のいずれかから採用。すべてサーバ確定値の合算（×0.6/×week² の再計算なし）。
+    var totalRawHp = 0, totalFullHp = 0, totalMissionIncompleteHp = 0;
+    var aggWeek = 1, aggHasRequiredMission = false;
+    var anyOutstanding = false, lines = '';
     for (var i = 0; i < results.length; i++) {
       var r = results[i], subj = r.subject, res = r.res || {};
       var outstanding = (r.failedPhotos && r.failedPhotos.length > 0);
@@ -14215,8 +14228,15 @@
         if (res.alreadyCapped) {
           lines += '<div class="mytask-hw-result-row">⏫ <b>' + _myTaskEsc(subj) + '</b>：本日分のHP上限に達してるよ（提出は受け取ったよ）</div>';
         } else {
-          var raw = Number(res.grantedRawHp) || 0; totalRawHp += raw;
-          lines += '<div class="mytask-hw-result-row ok">✅ <b>' + _myTaskEsc(subj) + '</b>：+' + raw + 'HP</div>';
+          var rawI  = Number(res.grantedRawHp) || 0;
+          var fullI = Number(res.fullHp != null ? res.fullHp : ((Number(res.hpGained) || 0) + (Number(res.hpReserved) || 0))) || 0;
+          totalRawHp  += rawI;
+          totalFullHp += fullI;
+          totalMissionIncompleteHp += Number(res.missionIncompleteHp) || 0;
+          if (Number(res.week) > 0) aggWeek = Number(res.week);
+          if (res.hasRequiredMission === true) aggHasRequiredMission = true;
+          // 教科別内訳は満額(fullHp_i)表示。式（×week²）は付けない＝② に1回だけ。
+          lines += '<div class="mytask-hw-result-row ok">✅ <b>' + _myTaskEsc(subj) + '</b>：+' + fullI.toLocaleString() + 'HP</div>';
         }
       }
       if (outstanding) {
@@ -14227,7 +14247,7 @@
       }
     }
     var confetti = '';
-    if (totalRawHp > 0) {
+    if (totalFullHp > 0) {
       var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
       for (var c = 0; c < 8; c++) {
         var left = Math.floor(Math.random() * 90) + 5;
@@ -14236,9 +14256,13 @@
       }
     }
     var title = anyOutstanding ? '提出しました（再送できる教科があるよ）' : 'ぜんぶ提出完了！よくがんばりました！';
-    var hpInit = doCelebrate ? '0' : String(totalRawHp);
-    var hpBlock = (totalRawHp > 0)
-      ? '<div class="wabun1-result-hp">合計 +<span class="wabun1-result-hp-num" id="mytask-hw-done-hp-num">' + hpInit + '</span> HP 獲得！</div>'
+    // 【用件4 第4段】① 合計＝満額合計 totalFullHp（Σ fullHp_i）。doCelebrate 時は 0 起点でカウントアップ。
+    var hpInit = doCelebrate ? '0' : String(totalFullHp);
+    // ②③④：合成 res をそのまま共通ブロックへ（② は「{Σ素点}HP × {week}(週)²」、③は hasRequiredMission 時のみ、④常時）。
+    var condRes = { rawHp: totalRawHp, week: aggWeek, fullHp: totalFullHp, missionIncompleteHp: totalMissionIncompleteHp, hasRequiredMission: aggHasRequiredMission };
+    var hpBlock = (totalFullHp > 0)
+      ? '<div class="wabun1-result-hp">合計 +<span class="wabun1-result-hp-num" id="mytask-hw-done-hp-num">' + hpInit + '</span> HP 獲得！</div>' +  // ① 特大ヒーロー
+        _buildHpConditionBlock(condRes)                                                                                                          // ②③④
       : '<div class="wabun1-result-already">提出を受け取ったよ！</div>';
     body.innerHTML =
       '<div class="mate-row"><img class="mate-img" src="images/maikadai-celebrate.png" alt="マイカダイ"><div class="mate-bubble">' + _pickBubble(MAIKADAI_BUBBLES.done) + '</div></div>' +
@@ -14250,7 +14274,7 @@
       '</div>' +
       '<div class="mytask-hw-result-list">' + lines + '</div>';
     if (doCelebrate) {
-      if (totalRawHp > 0) { var numEl = document.getElementById('mytask-hw-done-hp-num'); if (numEl) _wabun1AnimateHp(numEl, totalRawHp, 1000); }
+      if (totalFullHp > 0) { var numEl = document.getElementById('mytask-hw-done-hp-num'); if (numEl) _wabun1AnimateHp(numEl, totalFullHp, 1000); }
       try { playSfx('chime'); } catch(e){}
     }
   }
@@ -14284,7 +14308,12 @@
     var wasError = !(r.res && r.res.ok);
     if (res && res.ok) {
       // error 教科（初回 savedCount=0）は今回が初の成功提出 → HP もこの結果で確定
-      if (wasError) r.res = res;
+      if (wasError) {
+        r.res = res;
+        // 【用件4 第4段】error 教科の初成功＝この提出で初付与 → 実即時HP を _totalHP に加算（初回集約では未加算のため二重にならない）。
+        //   partial 教科の再送は submitMyTask が当日上限で alreadyCapped(hpGained=0) を返すため加算されない。
+        if (typeof _totalHP === 'number' && !res.alreadyCapped) _totalHP += Number(res.hpGained) || 0;
+      }
       var failed = res.failedIndexes || [];
       if (!failed.length) { r.failedPhotos = []; }
       else { var fp = []; for (var k = 0; k < failed.length; k++) { var ix = failed[k]; if (sentPhotos[ix] != null) fp.push(sentPhotos[ix]); } r.failedPhotos = fp; }
@@ -15049,9 +15078,12 @@
       confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i] + '</span>';
     }
     var rawHp = Number(res.grantedRawHp) || 0;
+    // 【用件4 第4段】① 特大ヒーロー＝満額 fullHp（素点150 × week²、サーバ確定値・素通し）。無ければ hpGained+hpReserved にフォールバック。
+    var fullHpDisp = Number(res.fullHp != null ? res.fullHp : ((Number(res.hpGained) || 0) + (Number(res.hpReserved) || 0))) || 0;
     var hpBlock = res.alreadyCapped
       ? '<div class="wabun1-result-already">本日分のHP上限に達してるよ（提出は受け取ったよ）</div>'
-      : '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="mytask-self-done-hp-num">0</span> HP 獲得！</div>';
+      : '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="mytask-self-done-hp-num">0</span> HP 獲得！</div>' +  // ① 特大ヒーロー
+        _buildHpConditionBlock(res);                                                                                                  // ②③④
     body.innerHTML =
       '<div class="mate-row"><img class="mate-img" src="images/maikadai-celebrate.png" alt="マイカダイ"><div class="mate-bubble">' + _pickBubble(MAIKADAI_BUBBLES.done) + '</div></div>' +
       '<div class="wabun1-result-success">' +
@@ -15061,9 +15093,12 @@
         hpBlock +
       '</div>';
     showScreen('screen-mytask-self-done');
-    if (!res.alreadyCapped && rawHp > 0) {
+    if (!res.alreadyCapped && fullHpDisp > 0) {
       var numEl = document.getElementById('mytask-self-done-hp-num');
-      if (numEl) _wabun1AnimateHp(numEl, rawHp, 1000);
+      // 【用件4 第4段】① 満額へカウントアップ（他コンテンツと同じ _wabun1AnimateHp / duration 1000、現状素点→満額に統一）。
+      if (numEl) _wabun1AnimateHp(numEl, fullHpDisp, 1000);
+      // _totalHP（ホームHP同期）に実即時HP を加算（他コンテンツと同型・即時 hpGained 分のみ）。
+      if (typeof _totalHP === 'number') _totalHP += Number(res.hpGained) || 0;
     }
     try { playSfx('chime'); } catch(e){}
     _myTaskResetState();  // 提出成立 → state クリア（重複提出防止）
@@ -17710,10 +17745,12 @@
       var dailyLine = res.reachedDailyLimit
         ? '今日のセットはすべて完了しました（' + today + ' / 2）'
         : '今日はあと ' + (2 - today) + ' セット挑戦できます（' + today + ' / 2）';
+      // 【用件4 第4段】① 特大ヒーロー＝満額 fullHp。要素を 0 起点で描画し、innerHTML 反映後に _wabun1AnimateHp でカウントアップ（下記）。
       html += '<div class="risha-done-success">' +
                 '<div class="done-title">🎉 全問正解！</div>' +
-                '<div class="done-hp">' + hp.toLocaleString() + '</div>' +
+                '<div class="done-hp" id="risha-done-hp-num">0</div>' +   // ① カウントアップ対象
                 '<div class="done-hp-label">HP獲得</div>' +
+                _buildHpConditionBlock(res) +                              // ②③④（②「100HP × week²」/③④「ただし、…」）
                 pendingLine +
                 '<div class="done-daily">' + dailyLine + '</div>' +
               '</div>';
@@ -17721,6 +17758,12 @@
     // 2026-06-05：振り返り注意書きを常時・無条件で追記（共通関数 _reflectionWarnHtml は常に非空を返す）
     html += _reflectionWarnHtml(res);
     bodyEl.innerHTML = html;
+    // 【用件4 第4段】① を 0→満額 fullHp へカウントアップ（他コンテンツと同じ _wabun1AnimateHp / duration 1000、現状静的→統一）。
+    if (!isPractice) {
+      var rishaHpNum = document.getElementById('risha-done-hp-num');
+      var rishaFull = Number(res.fullHp != null ? res.fullHp : ((Number(res.hpGained) || 0) + (Number(res.hpReserved) || 0))) || 0;
+      if (rishaHpNum && rishaFull > 0) _wabun1AnimateHp(rishaHpNum, rishaFull, 1000);
+    }
     // 「別のセットに挑戦する」ボタンの表示制御：今日の上限未達のときのみ表示
     var againBtn = document.getElementById('risha-done-again-btn');
     if (!isPractice && !res.reachedDailyLimit) {
@@ -17950,7 +17993,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260620-0116</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260620-0158</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
