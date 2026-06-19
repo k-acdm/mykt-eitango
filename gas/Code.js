@@ -2890,7 +2890,12 @@ function saveAttempt(studentId, setNo, score, total, passed, level, sessionNo) {
       // 2026-05-27 修正1：表示用「Gate 2 view」（達成時=全付与 / 未達成時=60/40 分割）
       displayedImmediate:        grant.displayedImmediate,
       displayedReserved:         grant.displayedReserved,
-      isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+      isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+      // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（_grantHP 由来をフロントへ素通し転送・再計算なし）
+      rawHp:               grant.rawHp,                // ②素点
+      fullHp:              grant.fullHp,               // ①満額（rawHp × week²）
+      missionIncompleteHp: grant.missionIncompleteHp,  // ③絶対ミッション未達時の即時付与額
+      hasRequiredMission:  grant.hasRequiredMission     // ③の表示要否
     };
   } catch (err) {
     console.error('[saveAttempt]', err);
@@ -16566,7 +16571,13 @@ function submitSango(params) {
         // 2026-05-27 修正1：表示用「Gate 2 view」
         displayedImmediate:        grant.displayedImmediate,
         displayedReserved:         grant.displayedReserved,
-        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+        // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（素通し転送・再計算なし）
+        rawHp:               grant.rawHp,
+        week:                grant.week,
+        fullHp:              grant.fullHp,
+        missionIncompleteHp: grant.missionIncompleteHp,
+        hasRequiredMission:  grant.hasRequiredMission
       };
     }
     // 注：旧版では alreadyGranted=true の場合でも reserveActive_sango が true なら完走チェックが
@@ -16627,6 +16638,12 @@ function submitSango(params) {
       displayedImmediate:        completion_sango.displayedImmediate || 0,
       displayedReserved:         completion_sango.displayedReserved  || 0,
       isAbsoluteMissionComplete: !!completion_sango.isAbsoluteMissionComplete,
+      // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（素通し転送・再計算なし）
+      rawHp:               completion_sango.rawHp || 0,
+      week:                completion_sango.week || 1,
+      fullHp:              completion_sango.fullHp || 0,
+      missionIncompleteHp: completion_sango.missionIncompleteHp || 0,
+      hasRequiredMission:  !!completion_sango.hasRequiredMission,
       aiFeedback: aiFeedbackForFrontend
     };
   } catch(err) {
@@ -18287,7 +18304,13 @@ function submitWabun1(params) {
         // 2026-05-27 修正1：表示用「Gate 2 view」
         displayedImmediate:        grant.displayedImmediate,
         displayedReserved:         grant.displayedReserved,
-        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+        // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（素通し転送・再計算なし）
+        rawHp:               grant.rawHp,
+        week:                grant.week,
+        fullHp:              grant.fullHp,
+        missionIncompleteHp: grant.missionIncompleteHp,
+        hasRequiredMission:  grant.hasRequiredMission
       };
     }
     // 注：旧版では allCorrect && !alreadyGranted のときだけ reserveActive_wabun1 が true になり、
@@ -18306,6 +18329,12 @@ function submitWabun1(params) {
       displayedImmediate:        completion_wabun1.displayedImmediate || 0,
       displayedReserved:         completion_wabun1.displayedReserved  || 0,
       isAbsoluteMissionComplete: !!completion_wabun1.isAbsoluteMissionComplete,
+      // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（素通し転送・再計算なし）
+      rawHp:               completion_wabun1.rawHp || 0,
+      week:                completion_wabun1.week || 1,
+      fullHp:              completion_wabun1.fullHp || 0,
+      missionIncompleteHp: completion_wabun1.missionIncompleteHp || 0,
+      hasRequiredMission:  !!completion_wabun1.hasRequiredMission,
       alreadyGranted: alreadyGranted,
       appliedSkips: appliedSkips
     };
@@ -20051,7 +20080,13 @@ function submitLison(params) {
         // 2026-05-27 修正1：表示用「Gate 2 view」
         displayedImmediate:        grant.displayedImmediate,
         displayedReserved:         grant.displayedReserved,
-        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+        // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（素通し転送・再計算なし）
+        rawHp:               grant.rawHp,
+        week:                grant.week,
+        fullHp:              grant.fullHp,
+        missionIncompleteHp: grant.missionIncompleteHp,
+        hasRequiredMission:  grant.hasRequiredMission
       };
     }
 
@@ -20084,6 +20119,12 @@ function submitLison(params) {
       displayedImmediate:        completion_lison.displayedImmediate || 0,
       displayedReserved:         completion_lison.displayedReserved  || 0,
       isAbsoluteMissionComplete: !!completion_lison.isAbsoluteMissionComplete,
+      // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（素通し転送・再計算なし）
+      rawHp:               completion_lison.rawHp || 0,
+      week:                completion_lison.week || 1,
+      fullHp:              completion_lison.fullHp || 0,
+      missionIncompleteHp: completion_lison.missionIncompleteHp || 0,
+      hasRequiredMission:  !!completion_lison.hasRequiredMission,
       alreadyGranted: alreadyGranted,
       quizScore: quizScore,
       recordingUrl: saveRes.shareUrl
@@ -29789,7 +29830,11 @@ function submitKokugoImpression(params) {
       justCompleted: false,
       releasedHp: 0,
       bonusHp: 0,
-      alreadyGranted: alreadyGranted
+      alreadyGranted: alreadyGranted,
+      // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（alreadyGranted/未付与時は 0）
+      fullHp: 0,
+      missionIncompleteHp: 0,
+      hasRequiredMission: false
     };
 
     if (!alreadyGranted && baseRawHP > 0) {
@@ -29821,7 +29866,11 @@ function submitKokugoImpression(params) {
         // 2026-05-27 修正1：表示用「Gate 2 view」（kokugo）
         displayedImmediate:        grant.displayedImmediate,
         displayedReserved:         grant.displayedReserved,
-        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+        // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（素通し転送・再計算なし）
+        fullHp:              grant.fullHp,
+        missionIncompleteHp: grant.missionIncompleteHp,
+        hasRequiredMission:  grant.hasRequiredMission
       };
     }
 
@@ -29849,6 +29898,11 @@ function submitKokugoImpression(params) {
       displayedImmediate:        hpInfo.displayedImmediate || 0,
       displayedReserved:         hpInfo.displayedReserved  || 0,
       isAbsoluteMissionComplete: !!hpInfo.isAbsoluteMissionComplete,
+      // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（素通し転送・再計算なし）
+      rawHp:               hpInfo.rawHp || 0,
+      fullHp:              hpInfo.fullHp || 0,
+      missionIncompleteHp: hpInfo.missionIncompleteHp || 0,
+      hasRequiredMission:  !!hpInfo.hasRequiredMission,
       category:       category,
       charCount:      charCount
     };
@@ -33665,7 +33719,12 @@ function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, op
       week:          grant.week,
       displayedImmediate:        grant.displayedImmediate,
       displayedReserved:         grant.displayedReserved,
-      isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+      isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+      // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（saveAttempt と同一・素通し転送）
+      rawHp:               grant.rawHp,
+      fullHp:              grant.fullHp,
+      missionIncompleteHp: grant.missionIncompleteHp,
+      hasRequiredMission:  grant.hasRequiredMission
     };
   } catch (err) {
     console.error('[submitAttemptV2]', err);
