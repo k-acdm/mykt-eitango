@@ -3115,10 +3115,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260619-1656"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260619-1709"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260619-1656">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260619-1656"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260619-1709">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260619-1709"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -17083,7 +17083,8 @@
       var fullRight  = hpGained + hpReserved;
       // 【用件4 第1段】① 特大ヒーロー＝fullHp（サーバ確定値・素通し）。無ければ従来の fullRight（=hpGained+hpReserved）にフォールバック。
       var fullHpDisp = Number(res.fullHp != null ? res.fullHp : fullRight) || 0;
-      if (hpNum) hpNum.textContent = fullHpDisp.toLocaleString();
+      // 【用件4 第1段 仕上げ】① を 0→fullHp へカウントアップ（基礎計算/カンジー/コブタンと同じ _wabun1AnimateHp / duration 1000 に統一）。
+      if (hpNum) { hpNum.textContent = '0'; _wabun1AnimateHp(hpNum, fullHpDisp, 1000); }
       if (hpLab) hpLab.textContent = '獲得した権利HP（倍率込）';
       // ②③④ ブロックを挿入（_buildHpConditionBlock、breakdown 表とは独立に共存）
       if (ctCondWrap) ctCondWrap.innerHTML = _buildHpConditionBlock(res);
@@ -17903,7 +17904,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260619-1656</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260619-1709</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
