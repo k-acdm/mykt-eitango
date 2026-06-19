@@ -2486,8 +2486,9 @@
     .hp-unified-formula { font-size:22px; font-weight:bold; color:#b45309; margin-top:10px; line-height:1.35; }
     .hp-unified-formula sup { font-size:.65em; }
     .hp-unified-cond { margin-top:14px; }
+    /* 「ただし、」③④ の3行は同じ控えめスタイル（14px・グレー・太字なし）で統一（2026-06-19 調整）。 */
     .hp-unified-tadashi { font-size:14px; color:#6b7280; margin-bottom:4px; }
-    .hp-unified-note { font-size:14px; font-weight:bold; color:#b91c1c; margin-top:4px; line-height:1.5; }
+    .hp-unified-note { font-size:14px; color:#6b7280; margin-top:4px; line-height:1.5; }
     .wabun1-result-partial { background:#fff; border:3px solid #fca5a5; border-radius:18px; padding:24px 18px; text-align:center; }
     .wabun1-result-partial-title { font-size:22px; font-weight:bold; color:#dc2626; margin-bottom:10px; }
     .wabun1-result-partial-msg { color:#555; font-size:14px; margin-bottom:14px; line-height:1.7; }
@@ -3115,10 +3116,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260619-1709"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260619-1858"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260619-1709">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260619-1709"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260619-1858">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260619-1858"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -17065,7 +17066,7 @@
       // 練習モードリザルト：HP は 0 表示 + 「練習」バッジ + 注記
       document.getElementById('ct-practice-badge-wrap').innerHTML = '<div class="ct-practice-badge">📌 練習モード</div>';
       if (hpNum) hpNum.textContent = '0';
-      if (hpLab) hpLab.textContent = '獲得HP（練習扱い）';
+      if (hpLab) { hpLab.style.display = ''; hpLab.textContent = '獲得HP（練習扱い）'; }  // 練習ラベルは従来どおり表示（本番で非表示化されていても復帰）
       document.getElementById('ct-practice-note-wrap').innerHTML =
         '<div class="ct-practice-note">' +
           '本日3回目以降の挑戦は<strong>練習扱い</strong>となるため、HPには反映されません。<br>' +
@@ -17085,7 +17086,8 @@
       var fullHpDisp = Number(res.fullHp != null ? res.fullHp : fullRight) || 0;
       // 【用件4 第1段 仕上げ】① を 0→fullHp へカウントアップ（基礎計算/カンジー/コブタンと同じ _wabun1AnimateHp / duration 1000 に統一）。
       if (hpNum) { hpNum.textContent = '0'; _wabun1AnimateHp(hpNum, fullHpDisp, 1000); }
-      if (hpLab) hpLab.textContent = '獲得した権利HP（倍率込）';
+      // 【2026-06-19 調整1】①直下の説明ラベル「獲得した権利HP（倍率込）」を非表示（他3コンテンツに合わせてラベルなしに統一）。
+      if (hpLab) { hpLab.textContent = ''; hpLab.style.display = 'none'; }
       // ②③④ ブロックを挿入（_buildHpConditionBlock、breakdown 表とは独立に共存）
       if (ctCondWrap) ctCondWrap.innerHTML = _buildHpConditionBlock(res);
       if (typeof _totalHP === 'number') _totalHP += hpGained;
@@ -17904,7 +17906,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260619-1709</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260619-1858</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
