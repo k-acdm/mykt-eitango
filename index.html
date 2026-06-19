@@ -3116,10 +3116,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260620-0049"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260620-0116"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260620-0049">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260620-0049"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260620-0116">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260620-0116"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -14650,9 +14650,12 @@
     }
     _renderOriwantesResultList(questions);
     if (mode === 'ok') {
-      var rawHp = Number(res.grantedRawHp) || 0;
+      // 【用件4 第3段】① 満額（fullHp = 90 × week²）へカウントアップ（他コンテンツと同一の _wabun1AnimateHp / duration 1000）。
+      //   旧版は grantedRawHp(=90素点) を表示していたが、統一方針により満額表示へ変更。
+      //   サーバ確定値・素通し（フロント再計算なし）。無ければ hpGained+hpReserved にフォールバック。
+      var fullHpDisp = Number(res.fullHp != null ? res.fullHp : ((Number(res.hpGained) || 0) + (Number(res.hpReserved) || 0))) || 0;
       var numEl = document.getElementById('oriwantes-result-hp-num');
-      if (numEl && rawHp > 0) _wabun1AnimateHp(numEl, rawHp, 1000);
+      if (numEl && fullHpDisp > 0) _wabun1AnimateHp(numEl, fullHpDisp, 1000);
       try { playSfx('chime'); } catch(e){}
     }
     // 送信成立（ok / hp_failed どちらも保存済み）→ 重複送信防止のため保持データをクリア。
@@ -14675,10 +14678,13 @@
         '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
         '<div style="font-size:52px">🎉</div>' +
         '<div class="wabun1-result-title">解答を送信したぞ！</div>' +
-        // 2026-06-17：内訳の式を特大表示の直上に控えめに添える（オリワンテス専用＝作成料の概念があるため）。
-        //   結論の 90 は下の特大表示が担うので、式に「＝90」「90HP」は書かない。
-        '<div class="oriwan-hp-breakdown">100HP － 10HP（作成料）</div>' +
+        // 【用件4 第3段】① 特大ヒーロー＝満額 fullHp（90 × week²）。下の _wabun1AnimateHp でカウントアップ。
         '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="oriwantes-result-hp-num">0</span> HP 獲得！</div>' +
+        // 2026-06-17：作成料の内訳（オリワンテス専用＝作成料の概念があるため）。①と②の間に小さめ（.oriwan-hp-breakdown=13px）で残す。
+        //   結論の 90 は ① 特大表示と ②（90HP × week²）が担うので、式に「＝90」「90HP」は書かない。
+        '<div class="oriwan-hp-breakdown">100HP － 10HP（作成料）</div>' +
+        // ②③④（②「90HP × week²」／③④「ただし、…」）は他コンテンツと同一の共通ブロック。
+        _buildHpConditionBlock(res) +
       '</div>';
     // reserve 反映：保留がある（振り返り未提出で保留中）なら振り返り注意書きを出す。即時付与なら出さない。
     var hpReserved = Number(res.hpReserved) || 0;
@@ -17944,7 +17950,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260620-0049</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260620-0116</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

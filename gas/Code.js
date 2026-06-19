@@ -16234,7 +16234,14 @@ function submitOriwantes(params) {
       hpGained: grant.hpGained,
       hpReserved: grant.hpReserved,
       isReserveActive: grant.isReserveActive,
-      newHP: grant.newHP
+      newHP: grant.newHP,
+      // 【用件4 第3段】統一HP獲得画面 ①②③ の表示用（_grantHP 由来をフロントへ素通し転送・再計算なし）
+      //   rawHp は作成料 10HP 控除後の素点 90（grant.rawHp === 90、grantedRawHp と整合）。②は「90HP × week²」となる。
+      rawHp:               grant.rawHp,                // ②素点（=90）
+      week:                grant.week,
+      fullHp:              grant.fullHp,               // ①満額（90 × week²）
+      missionIncompleteHp: grant.missionIncompleteHp,  // ③絶対ミッション未達時の即時付与額
+      hasRequiredMission:  grant.hasRequiredMission     // ③の表示要否
     };
   } catch (err) {
     console.error('[submitOriwantes]', err);
