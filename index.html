@@ -2481,6 +2481,13 @@
     .wabun1-result-hp-num { font-size:42px; font-weight:bold; color:#dc2626; display:inline-block; }
     .wabun1-result-total { font-size:14px; color:#6b7280; margin-top:14px; }
     .wabun1-result-already { font-size:14px; color:#78350f; margin-top:8px; font-style:italic; }
+    /* 【用件4 第1段】HP獲得画面 統一フォーマットの ②③④ ブロック（4コンテンツ共通）。
+       視覚階層：① .wabun1-result-hp-num(42px) > ② .hp-unified-formula(22px) > ③④「ただし、」(14px)。 */
+    .hp-unified-formula { font-size:22px; font-weight:bold; color:#b45309; margin-top:10px; line-height:1.35; }
+    .hp-unified-formula sup { font-size:.65em; }
+    .hp-unified-cond { margin-top:14px; }
+    .hp-unified-tadashi { font-size:14px; color:#6b7280; margin-bottom:4px; }
+    .hp-unified-note { font-size:14px; font-weight:bold; color:#b91c1c; margin-top:4px; line-height:1.5; }
     .wabun1-result-partial { background:#fff; border:3px solid #fca5a5; border-radius:18px; padding:24px 18px; text-align:center; }
     .wabun1-result-partial-title { font-size:22px; font-weight:bold; color:#dc2626; margin-bottom:10px; }
     .wabun1-result-partial-msg { color:#555; font-size:14px; margin-bottom:14px; line-height:1.7; }
@@ -3108,10 +3115,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260619-0514"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260619-1656"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260619-0514">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260619-0514"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260619-1656">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260619-1656"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5618,6 +5625,8 @@
       <div id="ct-practice-badge-wrap"></div>
       <div class="ct-result-hp-num" id="ct-result-hp-num">0</div>
       <div class="ct-result-hp-label" id="ct-result-hp-label">獲得HP</div>
+      <!-- 【用件4 第1段】統一フォーマットの ②③④ 挿入先（本番リザルト時のみ充填、練習時は空） -->
+      <div id="ct-result-cond-wrap"></div>
       <div id="ct-practice-note-wrap"></div>
       <div class="ct-result-breakdown" id="ct-result-breakdown">
         <!-- 動的に挿入：ラウンド①/② の内訳 + 合計 -->
@@ -6249,8 +6258,39 @@
   }
   // ========================================================================
 
+  // 【用件4 第1段】HP獲得画面 統一フォーマットの ②③④ ブロック HTML を生成（4コンテンツ共通の「相当の共通HTML生成」）。
+  //   ★数値はすべて res（submit 戻り値＝_grantHP 由来）の素通し。フロントで ×0.6 / ×week² 等の再計算はしない。
+  //   ② 「{rawHp}HP × {week}(週)²」（準主役・²は <sup>2</sup>・1週でも「× 1(週)²」と表示）。
+  //   ③ hasRequiredMission===true のときだけ「絶対ミッションを達成しないと、{missionIncompleteHp}HP」（小さめ注意書き）。
+  //      false（必須ミッション未設定の生徒）なら③行を出さない＝表示と実挙動の一致。
+  //   ④ 常に「最後の振り返りコメントを書いて送らないと、0 HP」（全生徒共通・固定0・小さめ注意書き）。
+  //   ③④は「ただし、」見出し付き。③だけ消えても④が残るのでレイアウトは崩れない。
+  //   ① fullHp（特大ヒーロー）は各コンテンツ側の既存 .wabun1-result-hp-num / ct-result-hp-num に res.fullHp を再バインドして表示。
+  //   rawHp は hpInfo 系（res.rawHP 大文字）/ CT 系（res.rawHp 小文字）の両方を吸収する。
+  function _buildHpConditionBlock(res) {
+    res = res || {};
+    var rawHp  = Number(res.rawHp != null ? res.rawHp : (res.rawHP != null ? res.rawHP : 0)) || 0;
+    var week   = Number(res.week || 1) || 1;
+    var fullHp = Number(res.fullHp != null ? res.fullHp : 0) || 0;
+    var missionIncompleteHp = Number(res.missionIncompleteHp != null ? res.missionIncompleteHp
+                                     : Math.floor(fullHp * 0.6)) || 0;                       // ③（防御的フォールバックのみ）
+    var hasReq = (res.hasRequiredMission === true);
+    // ② 準主役（rawHp × week²）
+    var html = '<div class="hp-unified-formula">' + rawHp.toLocaleString() + 'HP × ' + week + '(週)<sup>2</sup></div>';
+    // ③④（「ただし、」見出し + 小さめ注意書き）
+    var notes = '';
+    if (hasReq) {  // ③：必須ミッション設定ありの生徒のみ
+      notes += '<div class="hp-unified-note">絶対ミッションを達成しないと、' + missionIncompleteHp.toLocaleString() + 'HP</div>';
+    }
+    notes += '<div class="hp-unified-note">最後の振り返りコメントを書いて送らないと、0 HP</div>';  // ④：常に表示
+    html += '<div class="hp-unified-cond"><div class="hp-unified-tadashi">ただし、</div>' + notes + '</div>';
+    return html;
+  }
+
   // 【用件4 第0段】全コンテンツ共通の HP 獲得演出（①満額 / ②素点×週² / ③絶対ミッション未達額 / ④振り返り0）。
-  //   ★この関数は新設のみ。第0段ではどのコンテンツからも呼ばない（未接続・既存挙動は不変）。
+  //   ★この関数は第1段でも 4 コンテンツからは呼ばない（未接続のまま）。
+  //     4 コンテンツは「既存画面を温存しつつ ① を fullHp に再バインド ＋ _buildHpConditionBlock(②③④) を追加」する方式。
+  //     本関数は ②③④ を _buildHpConditionBlock に集約（単一ソース化）し、将来ステージでフル置換が必要になった時に使える形に整流。
   //   引数：
   //     bodyEl : 描画先要素
   //     res    : submit のサーバ戻り値。_grantHP 由来の fullHp / rawHp / week / missionIncompleteHp /
@@ -6268,16 +6308,12 @@
     if (!bodyEl) return;
     res = res || {};
     config = config || {};
-    // 数値はサーバ確定値を採用（無い場合の防御的フォールバックのみ）
+    // ① 満額（サーバ確定値を採用、無い場合の防御的フォールバックのみ）。②③④は _buildHpConditionBlock に集約。
     var fullHp   = Number(res.fullHp != null ? res.fullHp : (res.hpGained || 0)) || 0;                       // ①
-    var rawHp    = Number(res.rawHp || 0) || 0;
-    var week     = Number(res.week  || 1) || 1;
-    var missionIncompleteHp = Number(res.missionIncompleteHp != null ? res.missionIncompleteHp
-                                     : Math.floor(fullHp * 0.6)) || 0;                                       // ③
-    var hasReq   = (res.hasRequiredMission === true);
     var mascotImg  = config.mascotImg  || 'character.jpg';
     var bubbleText = config.bubbleText || '';
     var label      = config.label      || 'やったね！';
+    var emoji      = config.emoji      || '🎉';
 
     // 紙吹雪（既存 .wabun1-confetti を流用）
     var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
@@ -6288,17 +6324,8 @@
       confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i] + '</span>';
     }
 
-    // ② 式表示（²は上付き。1週でも明示）
-    var formulaHtml = '<div style="font-size:15px;color:#92400e;margin-top:8px">'
-                    + rawHp + 'HP × ' + week + '(週)<sup>2</sup></div>';
-    // ③ 絶対ミッション未達額（必須ミッションがある生徒のみ）
-    var missionHtml = hasReq
-      ? '<div style="font-size:14px;color:#b91c1c;margin-top:10px;font-weight:bold">絶対ミッションを達成しないと、'
-        + missionIncompleteHp.toLocaleString() + 'HP</div>'
-      : '';
-    // ④ 振り返り未送信（常に0・全生徒共通）
-    var reflHtml = '<div style="font-size:14px;color:#b91c1c;margin-top:6px;font-weight:bold">'
-                 + '最後の振り返りコメントを書いて送らないと、0 HP</div>';
+    // ②③④（「ただし、」ブロック）は共通ヘルパーで生成（単一ソース）
+    var condHtml = _buildHpConditionBlock(res);
     // マスコット行（吹き出しがある場合のみ）
     var mateRow = bubbleText
       ? '<div class="mate-row"><img class="mate-img" src="' + mascotImg + '" alt=""><div class="mate-bubble">' + bubbleText + '</div></div>'
@@ -6308,12 +6335,10 @@
       mateRow +
       '<div class="wabun1-result-success">' +
         '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
-        '<div style="font-size:52px">🎉</div>' +
+        '<div style="font-size:52px">' + emoji + '</div>' +
         '<div class="wabun1-result-title">' + label + '</div>' +
         '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="common-hp-num">0</span> HP 獲得！</div>' +
-        formulaHtml +
-        missionHtml +
-        reflHtml +
+        condHtml +
       '</div>';
 
     // ① 満額へカウントアップ（既存 _wabun1AnimateHp を流用）
@@ -6323,10 +6348,12 @@
     }
     try { playSfx('chime'); } catch(e){}
 
-    // 既存の保留通知・完走演出・振り返り注意書きを下部に共存させる
+    // 既存の保留通知・完走演出・振り返り注意書きを下部に共存させる（戻り値を呼び出し側に返し _totalHP 会計に使えるように）
+    var apnd = { addedReserve:false, addedCompletion:false, bonusHp:0, releasedHp:0 };
     try {
-      if (typeof _appendReserveAndCompletionBlock === 'function') _appendReserveAndCompletionBlock(bodyEl, res);
+      if (typeof _appendReserveAndCompletionBlock === 'function') apnd = _appendReserveAndCompletionBlock(bodyEl, res) || apnd;
     } catch(e){}
+    return apnd;
   }
 
   // 楽観的UI のリトライ / キャンセル用クロージャ（Phase 3 全 Step で使用）
@@ -12634,23 +12661,20 @@
       }
       confetti += '</div>';
       var hpGained = Number(info.hpGained) || 0;
-      var rawHP    = Number(info.rawHP) || 0;
-      // 2026-05-27 修正1：メイン HP 表示は displayedImmediate を優先（Gate 2 view）
-      var displayedHp = (info.displayedImmediate != null) ? Number(info.displayedImmediate) : hpGained;
-      var weekStr  = info.week ? '（連続' + (info.streak || 0) + '日目・倍率 ×' + (info.week * info.week) + '）' : '';
+      // 【用件4 第1段】① fullHp（満額）を特大ヒーローに表示。旧「素点×倍率=」行と weekStr は ②（_buildHpConditionBlock）に統一。
+      var fullHpDisp = Number(info.fullHp != null ? info.fullHp : ((Number(info.hpGained)||0) + (Number(info.hpReserved)||0))) || 0;
       bodyEl.innerHTML =
         '<div class="mate-row"><img class="mate-img" src="images/kisoK-celebrate.png" alt="キソKさん"><div class="mate-bubble">'+_pickBubble(KISOK_BUBBLES.pass)+'</div></div>' +
         '<div class="wabun1-result-success">' + confetti +
           '<div style="font-size:20px;font-weight:bold;color:#b45309;margin-bottom:8px">🎉 合格おめでとう！</div>' +
-          '<div style="font-size:14px;color:#78350f;margin-bottom:12px">素点 ' + rawHP + 'HP × 倍率 = </div>' +
-          '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="kiso-done-hp-num">0</span> HP 獲得！</div>' +
-          '<div style="font-size:13px;color:#78350f;margin-top:8px">' + weekStr + '</div>' +
+          '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="kiso-done-hp-num">0</span> HP 獲得！</div>' +  // ① 特大ヒーロー
+          _buildHpConditionBlock(info) +                                                                                       // ②③④
         '</div>';
-      // HP カウントアップ + chime
+      // ① 満額へカウントアップ + chime
       var hpEl = document.getElementById('kiso-done-hp-num');
-      if (hpEl) _wabun1AnimateHp(hpEl, displayedHp, 1000);
+      if (hpEl) _wabun1AnimateHp(hpEl, fullHpDisp, 1000);
       try { playSfx('chime'); } catch(e){}
-      // セッション中の合計 HP に反映（_totalHP は実際付与 hpGained で加算、表示は Gate 2 view）
+      // セッション中の合計 HP に反映（_totalHP は実際付与 hpGained で加算）
       if (typeof _totalHP === 'number') _totalHP += hpGained;
     }
 
@@ -16087,11 +16111,15 @@
       var delay = (Math.random() * 0.6).toFixed(2);
       confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i] + '</span>';
     }
+    // 【用件4 第1段】① fullHp（満額）。HP 付与がある hp>0 ケースのみ ① ヒーロー + ②③④ を表示。
+    var fullHpDisp = Number((hpInfo && hpInfo.fullHp != null) ? hpInfo.fullHp
+                            : (Number((hpInfo && hpInfo.hpGained) || 0) + Number((hpInfo && hpInfo.hpReserved) || 0))) || 0;
     var hpBlock;
     if (isPractice || alreadyAtCap) {
       hpBlock = '<div class="wabun1-result-already">（本日の素点上限に達しているためHPは付与されません）</div>';
     } else if (hp > 0) {
-      hpBlock = '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="kanji-done-hp-num">0</span> HP 獲得！</div>';
+      hpBlock = '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="kanji-done-hp-num">0</span> HP 獲得！</div>' +  // ① 特大ヒーロー
+                _buildHpConditionBlock(hpInfo);                                                                                       // ②③④
     } else {
       hpBlock = '<div class="wabun1-result-already">（本日のHPは既に獲得済みです）</div>';
     }
@@ -16107,8 +16135,8 @@
     showScreen('screen-kanji-done');
     if (hp > 0 && !isPractice && !alreadyAtCap) {
       var numEl = document.getElementById('kanji-done-hp-num');
-      // 2026-05-27 修正1：アニメ表示も displayedImmediate に揃える（_totalHP は実 hp で加算）
-      if (numEl) _wabun1AnimateHp(numEl, displayedHp, 1000);
+      // ① 満額へカウントアップ（_totalHP は実 hp で加算）
+      if (numEl) _wabun1AnimateHp(numEl, fullHpDisp, 1000);
       _totalHP += hp;
     }
     try { playSfx('chime'); } catch(e){}
@@ -16425,11 +16453,15 @@
       var delay = (Math.random() * 0.6).toFixed(2);
       confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i] + '</span>';
     }
+    // 【用件4 第1段】① fullHp（満額）。HP 付与がある hp>0 ケースのみ ① ヒーロー + ②③④ を表示。
+    var fullHpDisp = Number((hpInfo && hpInfo.fullHp != null) ? hpInfo.fullHp
+                            : (Number((hpInfo && hpInfo.hpGained) || 0) + Number((hpInfo && hpInfo.hpReserved) || 0))) || 0;
     var hpBlock;
     if (isPractice || alreadyAtCap) {
       hpBlock = '<div class="wabun1-result-already">（本日の素点上限に達しているためHPは付与されません）</div>';
     } else if (hp > 0) {
-      hpBlock = '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="kobun-done-hp-num">0</span> HP 獲得！</div>';
+      hpBlock = '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="kobun-done-hp-num">0</span> HP 獲得！</div>' +  // ① 特大ヒーロー
+                _buildHpConditionBlock(hpInfo);                                                                                       // ②③④
     } else {
       hpBlock = '<div class="wabun1-result-already">（本日のHPは既に獲得済みです）</div>';
     }
@@ -16443,8 +16475,8 @@
     showScreen('screen-kobun-done');
     if (hp > 0 && !isPractice && !alreadyAtCap) {
       var numEl = document.getElementById('kobun-done-hp-num');
-      // 2026-05-27 修正1：アニメ表示も displayedImmediate に揃える（_totalHP は実 hp で加算）
-      if (numEl) _wabun1AnimateHp(numEl, displayedHp, 1000);
+      // ① 満額へカウントアップ（_totalHP は実 hp で加算）
+      if (numEl) _wabun1AnimateHp(numEl, fullHpDisp, 1000);
       _totalHP += hp;
     }
     try { playSfx('chime'); } catch(e){}
@@ -17021,6 +17053,9 @@
     // 2026-06-05：保留(reserve)/完走演出ブロックを毎回リセット
     var ctReserveWrap = document.getElementById('ct-result-reserve-wrap');
     if (ctReserveWrap) ctReserveWrap.innerHTML = '';
+    // 【用件4 第1段】②③④ ブロックを毎回リセット（本番リザルト時のみ下で充填）
+    var ctCondWrap = document.getElementById('ct-result-cond-wrap');
+    if (ctCondWrap) ctCondWrap.innerHTML = '';
 
     // ヒーロー数字はクライアント計算の素点（倍率前）。ラベルでサーバ確定値（倍率込）を見せる。
     if (hpNum) hpNum.textContent = totalHp.toLocaleString();
@@ -17046,8 +17081,12 @@
       var hpGained   = Number(res.hpGained != null ? res.hpGained : res.totalHp) || 0;
       var hpReserved = Number(res.hpReserved) || 0;
       var fullRight  = hpGained + hpReserved;
-      if (hpNum) hpNum.textContent = fullRight.toLocaleString();
+      // 【用件4 第1段】① 特大ヒーロー＝fullHp（サーバ確定値・素通し）。無ければ従来の fullRight（=hpGained+hpReserved）にフォールバック。
+      var fullHpDisp = Number(res.fullHp != null ? res.fullHp : fullRight) || 0;
+      if (hpNum) hpNum.textContent = fullHpDisp.toLocaleString();
       if (hpLab) hpLab.textContent = '獲得した権利HP（倍率込）';
+      // ②③④ ブロックを挿入（_buildHpConditionBlock、breakdown 表とは独立に共存）
+      if (ctCondWrap) ctCondWrap.innerHTML = _buildHpConditionBlock(res);
       if (typeof _totalHP === 'number') _totalHP += hpGained;
       showScreen('screen-calctrial-result');
       if (isPerfect) _ctConfetti();
@@ -17864,7 +17903,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260619-0514</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260619-1656</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

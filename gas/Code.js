@@ -9226,7 +9226,11 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto, studentAnswersJs
           // 2026-05-27 修正1：表示用「Gate 2 view」
           displayedImmediate:        grant.displayedImmediate,
           displayedReserved:         grant.displayedReserved,
-          isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+          isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+          // 【用件4 第1段】統一HP獲得画面 ①③ の表示用（_grantHP 由来をフロントへ素通し転送・再計算なし）
+          fullHp:              grant.fullHp,
+          missionIncompleteHp: grant.missionIncompleteHp,
+          hasRequiredMission:  grant.hasRequiredMission
         };
       }
     }
@@ -12763,7 +12767,11 @@ function submitCalcTrialResult(params) {
       // 表示用「Gate 2 view」（2026-06-05 ゲート対象化により他コンテンツと同じく 60/40 分割表示が有効になる）
       displayedImmediate:        grant.displayedImmediate,
       displayedReserved:         grant.displayedReserved,
-      isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+      isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+      // 【用件4 第1段】統一HP獲得画面 ①③ の表示用（_grantHP 由来をフロントへ素通し転送・再計算なし）
+      fullHp:              grant.fullHp,
+      missionIncompleteHp: grant.missionIncompleteHp,
+      hasRequiredMission:  grant.hasRequiredMission
     };
   } catch(err) {
     console.error('[submitCalcTrialResult]', err);
@@ -20802,7 +20810,11 @@ function submitKanjiKaki(params) {
           // 2026-05-27 修正1：表示用「Gate 2 view」（カンジー）
           displayedImmediate:        grant.displayedImmediate,
           displayedReserved:         grant.displayedReserved,
-          isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+          isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+          // 【用件4 第1段】統一HP獲得画面 ①③ の表示用（_grantHP 由来をフロントへ素通し転送・再計算なし）
+          fullHp:              grant.fullHp,
+          missionIncompleteHp: grant.missionIncompleteHp,
+          hasRequiredMission:  grant.hasRequiredMission
         };
       } else if (isPractice && stuLoc) {
         // 練習モード（既に上限到達）：rawHp=0 で _grantHP を呼ぶ。
@@ -21743,7 +21755,11 @@ function submitKobunSet(params) {
           // 2026-05-27 修正1：表示用「Gate 2 view」（コブタン）
           displayedImmediate:        grant.displayedImmediate,
           displayedReserved:         grant.displayedReserved,
-          isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+          isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+          // 【用件4 第1段】統一HP獲得画面 ①③ の表示用（_grantHP 由来をフロントへ素通し転送・再計算なし）
+          fullHp:              grant.fullHp,
+          missionIncompleteHp: grant.missionIncompleteHp,
+          hasRequiredMission:  grant.hasRequiredMission
         };
       } else if (isPractice && stuLoc) {
         // 練習モード（既に上限到達）：rawHp=0 で _grantHP を呼ぶ。
@@ -33890,7 +33906,9 @@ function _submitAttemptV2Kobun(sid, blockNo, round, opts) {
         streak: grant.streak, week: grant.week, justCompleted: grant.justCompleted,
         releasedHp: grant.releasedHp, bonusHp: grant.bonusHp,
         displayedImmediate: grant.displayedImmediate, displayedReserved: grant.displayedReserved,
-        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete
+        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+        // 【用件4 第1段】統一HP獲得画面 ①③ の表示用（_grantHP 由来をフロントへ素通し転送・再計算なし）
+        fullHp: grant.fullHp, missionIncompleteHp: grant.missionIncompleteHp, hasRequiredMission: grant.hasRequiredMission
       };
     } else if (isPractice && stuLoc) {
       const logType_kobun_p = 'kobun_' + roundStr + '_' + total + '_practice';
