@@ -186,7 +186,9 @@
     .kanji-prog-text { font-size: 13px; color: #666; text-align: center; margin: 6px 0; }
     .kanji-kaki-list { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 16px; }
     .kanji-kaki-item { background: #fff; border: 2px solid #fde68a; border-radius: 10px; padding: 12px 14px; font-size: 16px; line-height: 1.7; color: #1f2937; }
-    .kanji-kaki-item .num { display: inline-block; background: #f59e0b; color: #fff; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: bold; margin-right: 8px; }
+    /* 2026-06-23：グローバル .num（width/height:32px の丸バッジ、英単語 word-card 用）が
+       width/height だけ漏れ継承され「問 N」が 32px 角に収まらず隠れていた。width/height:auto で打ち消す。 */
+    .kanji-kaki-item .num { display: inline-block; width: auto; height: auto; background: #f59e0b; color: #fff; padding: 2px 9px; border-radius: 10px; font-size: 12px; font-weight: bold; line-height: 1.4; margin-right: 8px; }
     .kanji-result-success { background: linear-gradient(135deg, #fef3c7, #fcd34d); border: 3px solid #f59e0b; border-radius: 14px; padding: 22px 16px; text-align: center; margin: 14px 0; box-shadow: 0 6px 20px rgba(245,158,11,.3); }
     .kanji-result-fail    { background: linear-gradient(135deg, #fff7ed, #fef3c7); border: 2px solid #fb923c; border-radius: 14px; padding: 18px 16px; text-align: center; margin: 14px 0; }
     .kanji-result-title { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
@@ -3122,10 +3124,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260623-0308"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260623-0410"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260623-0308">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260623-0308"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260623-0410">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260623-0410"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -18021,7 +18023,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260623-0308</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260623-0410</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
