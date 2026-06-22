@@ -3124,10 +3124,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260623-0410"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260623-0437"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260623-0410">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260623-0410"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260623-0437">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260623-0437"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -16654,8 +16654,8 @@
   // state は _ctState に集約。ラウンド遷移で reset せず、round1Stats を保持しながら
   // 後半に進む。submitCalcTrialResult 成功で goHome → _ctReset() で完全クリア。
 
-  var _CT_PROBLEMS_REGULAR = 100;
-  var _CT_PROBLEMS_BONUS   = 100;   // 予備バッファ（5 分内で 100 問解けるのは現実的に難しいので余裕として）
+  var _CT_PROBLEMS_REGULAR = 90;    // 2026-06-23：本編 100→90 問（両ラウンド共通）。進行表示分母 / ボーナス突入閾値 / allCorrect 判定の3役がこの定数に追従
+  var _CT_PROBLEMS_BONUS   = 100;   // 予備バッファ（5 分内で本編を解き切った後のボーナス用に余裕として）
   var _CT_ROUND_SECONDS    = 300;   // 5 分
 
   var _ctState = null;
@@ -16734,20 +16734,17 @@
     return arr;
   }
 
-  // ラウンド ① の本編 100 問：カテゴリ順固定（教育的意図：難易度傾斜の維持 + 記憶定着）
-  //   問題  1〜 20：たし算（2桁+1桁）
-  //   問題 21〜 50：たし算（2桁+2桁）
-  //   問題 51〜 70：ひき算（2桁-1桁）
-  //   問題 71〜100：ひき算（2桁-2桁）
-  // 各カテゴリ内の数値はランダムだが、カテゴリの並び順は固定。シャッフルしない。
-  // 2026-05-19 Phase 3 で「本編もシャッフル」と誤実装していたバグの修正。
+  // ラウンド ① の本編 90 問：4 パターンをほぼ均等配分（22/23/22/23 = 90）し、ランダム順に出題。
+  //   ・たし算（2桁+1桁）22 / たし算（2桁+2桁）23 / ひき算（2桁-1桁）22 / ひき算（2桁-2桁）23
+  //   ・各カテゴリ内の数値はランダム。2026-06-23：90 問化＋全体を _ctShuffle でランダム順に変更
+  //     （旧：100 問・カテゴリ順固定）。4 パターンが予測不能に混ざることで集中力を要する設計に。
   function _ctGenRound1Regular() {
     var arr = [];
-    for (var i = 0; i < 20; i++) arr.push(_ctGenAdd2_1());
-    for (var i = 0; i < 30; i++) arr.push(_ctGenAdd2_2());
-    for (var i = 0; i < 20; i++) arr.push(_ctGenSub2_1());
-    for (var i = 0; i < 30; i++) arr.push(_ctGenSub2_2());
-    return arr;
+    for (var i = 0; i < 22; i++) arr.push(_ctGenAdd2_1());
+    for (var i = 0; i < 23; i++) arr.push(_ctGenAdd2_2());
+    for (var i = 0; i < 22; i++) arr.push(_ctGenSub2_1());
+    for (var i = 0; i < 23; i++) arr.push(_ctGenSub2_2());
+    return _ctShuffle(arr);
   }
   // ラウンド ① のボーナス：4 カテゴリからランダム（本編 100 問後の「予測不能」負荷）
   function _ctGenRound1Bonus(n) {
@@ -16756,13 +16753,13 @@
     for (var i = 0; i < n; i++) arr.push(gens[_ctRandInt(0, 3)]());
     return arr;
   }
-  // ラウンド ② 本編 100 問：カテゴリ順固定
-  //   問題  1〜 40：かけ算（1桁×1桁、九九）
-  //   問題 41〜100：かけ算（2桁×1桁）
-  // 各カテゴリ内の数値はランダム、並びは固定。
+  // ラウンド ② 本編 90 問：カテゴリ順固定
+  //   問題  1〜 30：かけ算（1桁×1桁、九九）
+  //   問題 31〜 90：かけ算（2桁×1桁）
+  // 各カテゴリ内の数値はランダム、並びは固定。2026-06-23：1桁×1桁を 40→30 に変更（2桁×1桁は 60 据置、合計 90）。
   function _ctGenRound2Regular() {
     var arr = [];
-    for (var i = 0; i < 40; i++) arr.push(_ctGenMul1_1());
+    for (var i = 0; i < 30; i++) arr.push(_ctGenMul1_1());
     for (var i = 0; i < 60; i++) arr.push(_ctGenMul2_1());
     return arr;
   }
@@ -18023,7 +18020,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260623-0410</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260623-0437</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
