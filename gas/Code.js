@@ -28149,6 +28149,45 @@ function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeH
   return msg;
 }
 
+// =============================================
+// 保護者あて LINE 通知 本文の dryRun プレビュー（2026-06-23）
+// =============================================
+// ★ LINE には一切送信しない。_pushLineMessage / LINE Messaging API を呼ばず、
+//   本文生成関数（_buildLineMessage_workedParent / _buildLineMessage_sabotagedParent）を
+//   ダミー引数で呼んで、生成される本文文字列を Logger.log に出すだけの検証用関数。
+// ★ 副作用なし（シート書き込み・NotifyLog 記録・push なし）。
+// 実行方法：GAS エディタで関数 verifyParentLineMessagePreview を選んで引数なしで実行 →
+//   実行ログ（Logger）に worked 版 / sabotaged 版の本文がそのまま出る。
+//   末尾の案内3行・空行の入り方・生徒ID（9999）の差し込み位置を目視確認する。
+function verifyParentLineMessagePreview() {
+  // ダミー引数（実在しない値。HP 等の数値は文面確認用のサンプル）
+  var dummyName    = 'サンプル　太郎';
+  var dummySid     = '9999';                 // 実在しない生徒ID（差し込み位置の目視用）
+  var dummyContents = [                       // worked 版の【取り組み内容】
+    { name: '英単語RUSH', hp: 50 },
+    { name: '基礎計算',   hp: 100 },
+    { name: 'カンジー',   hp: 50 }
+  ];
+  var dummyTotalHp       = 200;               // コンテンツHP合計
+  var dummyCumulativeHp  = 12345;             // 生涯HP
+  var dummyMissionStatus = { achieved: 2, total: 3 };  // 絶対ミッション達成状況
+  var dummyCompletionBonus = 500;             // 絶対ミッション達成ボーナス
+
+  var workedMsg = _buildLineMessage_workedParent(
+    dummyName, dummyContents, dummyTotalHp, dummyCumulativeHp,
+    dummyMissionStatus, dummyCompletionBonus, dummySid
+  );
+  var sabotagedMsg = _buildLineMessage_sabotagedParent(dummyName, dummySid);
+
+  Logger.log('===== worked版（取り組みあり） =====');
+  Logger.log(workedMsg);
+  Logger.log('===== sabotaged版（取り組みなし） =====');
+  Logger.log(sabotagedMsg);
+
+  // 戻り値でも確認できるように返す（LINE 送信は一切していない）
+  return { ok: true, workedMsg: workedMsg, sabotagedMsg: sabotagedMsg };
+}
+
 // --- LINE Messaging API: push ---
 // 戻り値: { ok: boolean, status?: number, error?: string, attempts: number }
 // エラー時も throw しない（呼び出し側は ok を見て NotifyLog に記録する）。
