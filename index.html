@@ -2548,6 +2548,12 @@
     .kiso-rank-btn:hover { opacity: .92; }
     .kiso-rank-btn .kiso-rank-no { flex: 0 0 auto; background: rgba(255,255,255,.22); border-radius: 8px; padding: 4px 9px; font-size: 14px; min-width: 2.4em; text-align: center; }
     .kiso-rank-btn .kiso-rank-name { flex: 1; }
+    .kiso-rank-btn .kiso-rank-answered { flex: 0 0 auto; font-size: 11px; font-weight: normal; opacity: .92; white-space: nowrap; text-align: right; line-height: 1.3; }
+    .kiso-rank-btn .kiso-rank-answered strong { display: block; font-size: 15px; font-weight: bold; color: #fde68a; }
+    @media (max-width: 480px) {
+      .kiso-rank-btn .kiso-rank-answered { font-size: 10px; }
+      .kiso-rank-btn .kiso-rank-answered strong { font-size: 14px; }
+    }
 
     .kiso-count-card { background: #fff; border-radius: 14px; padding: 22px; margin: 14px 0; box-shadow: 0 3px 12px rgba(0,0,0,.08); text-align: center; }
     .kiso-count-rank-label { font-size: 18px; font-weight: bold; color: #0c4a6e; margin-bottom: 14px; }
@@ -3116,10 +3122,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260620-0158"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260623-0308"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260620-0158">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260620-0158"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260623-0308">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260623-0308"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -12141,11 +12147,33 @@
       html += '<button class="kiso-rank-btn" onclick="selectKisoRank(' + d.no + ')">'
             + '<span class="kiso-rank-no">' + d.no + '</span>'
             + '<span class="kiso-rank-name">' + _kisoEsc(d.name) + '</span>'
+            + '<span class="kiso-rank-answered" id="kiso-answered-r' + d.rank + '"></span>'
             + '</button>';
     });
     el.innerHTML = html;
     _setContentMascot('mate-img-kiso-rank', 'default', 'mate-bubble-kiso-rank', _pickBubble(KISOK_BUBBLES.rank), 'kisoK');
     showScreen('screen-kiso-rank');
+    // 単元別「解答した問題数」累計をバックグラウンド取得して各ボタンに反映（画面表示はブロックしない）。
+    // 集計源は KisoSessions（GAS 側で studentId 単位キャッシュ）。キーは rank（no とは逆対応）。
+    _loadKisoAnsweredCounts();
+  }
+
+  function _loadKisoAnsweredCounts() {
+    gasGet({ action: 'getKisoAnsweredCounts', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      var counts = (res && res.ok && res.counts) ? res.counts : null;
+      KISO_RANK_DEFS.forEach(function(d){
+        var elc = document.getElementById('kiso-answered-r' + d.rank);
+        if (!elc) return;
+        if (!counts) { elc.textContent = ''; return; }  // 取得失敗時は空欄
+        var n = Number(counts[d.rank] || counts[String(d.rank)] || 0);
+        elc.innerHTML = '解答した問題数<strong>' + n + '問</strong>';
+      });
+    }).catch(function(){
+      KISO_RANK_DEFS.forEach(function(d){
+        var elc = document.getElementById('kiso-answered-r' + d.rank);
+        if (elc) elc.textContent = '';
+      });
+    });
   }
 
   function selectKisoRank(no) {
@@ -17993,7 +18021,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260620-0158</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260623-0308</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

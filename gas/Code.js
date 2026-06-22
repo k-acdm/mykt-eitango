@@ -1166,6 +1166,8 @@ function doGet(e) {
       //   ocrWabun1Photo と同様 doGet にも保護登録（CLAUDE.md #148 原則）。
       else if (action === 'ocrKisoAnswer')           result = ocrKisoAnswer(params.sessionId, params.imageBase64);
       else if (action === 'getKisoTodayRawHP')       result = getKisoTodayRawHP(params);
+      // 基礎計算：単元別「解答した問題数」累計（単元選択画面のボタン右側表示用、2026-06-23）
+      else if (action === 'getKisoAnsweredCounts')   result = getKisoAnsweredCounts(params);
       else if (action === 'getKisoPhotosList')       result = getKisoPhotosList(params);
       // 基礎計算 履歴一覧（生徒画面 screen-kiso-history、カンジー方式踏襲）
       else if (action === 'getKisoHistoryForStudent') result = getKisoHistoryForStudent(params);
@@ -6693,6 +6695,60 @@ function getKisoTodayRawHP(params) {
 }
 
 // =============================================
+// 基礎計算：単元別「解答した問題数」累計 公開 API（2026-06-23）
+// =============================================
+// 単元選択画面のボタン右側に「解答した問題数 N問」を表示するための集計。
+// - 集計源：KisoSessions シート（全期間、削除されないので全行が対象）。
+// - 対象 status：'passed' / 'failed_retry' のみ（提出済み）。
+//   'in_progress'（未提出）/ 'abandoned'（放棄）は数えない。
+//   練習（当日上限到達で hpEarned=0 のセッション）は status が passed/failed_retry
+//   なので、この絞り込みだけで自動的に含まれる（練習かどうかで除外しない）。
+// - 問題数 = セットの count（5 or 10）の合計。再挑戦の再採点分は数えない
+//   （count 合計＝出題ベース。wrongIds 履歴は残らないので自然にこうなる）。
+// - 単元キーは rank（1〜20）。戻り値の counts は { "<rank>": 合計問題数, ... }。
+//   ※ フロントの no（表示順）とは逆対応なので、フロント側で rank をキーに引くこと。
+// - パフォーマンス：KisoSessions は全期間で数千〜万行になり得るため CacheService で
+//   studentId 単位にキャッシュ（TTL 600 秒）。submitKisoAnswer 成功時に該当
+//   studentId のキャッシュを無効化するので、提出後は次回画面表示で最新値になる。
+// 戻り値: { ok:true, studentId, counts: { "<rank>": number, ... } }
+function _kisoAnsweredCacheKey(studentId) {
+  return 'kiso_answered_' + String(studentId).trim();
+}
+function getKisoAnsweredCounts(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが必要です' };
+    const counts = _getCachedValues(_kisoAnsweredCacheKey(sid), 600, function() {
+      const acc = {};
+      const sh = _ss().getSheetByName(SHEET_KISO_SESSIONS);
+      if (!sh || sh.getLastRow() < 2) return acc;
+      const values = sh.getDataRange().getValues();
+      const header = values[0];
+      const cSid    = header.indexOf('studentId');
+      const cRank   = header.indexOf('rank');
+      const cCount  = header.indexOf('count');
+      const cStatus = header.indexOf('status');
+      if (cSid < 0 || cRank < 0 || cCount < 0 || cStatus < 0) return acc;
+      for (let i = 1; i < values.length; i++) {
+        const row = values[i];
+        if (String(row[cSid] || '').trim() !== sid) continue;
+        const status = String(row[cStatus] || '').trim();
+        if (status !== 'passed' && status !== 'failed_retry') continue;
+        const rank = Number(row[cRank]);
+        if (!rank) continue;
+        const cnt = Number(row[cCount]) || 0;
+        acc[rank] = (acc[rank] || 0) + cnt;
+      }
+      return acc;
+    });
+    return { ok: true, studentId: sid, counts: counts };
+  } catch (err) {
+    console.error('[getKisoAnsweredCounts]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
 // 基礎計算 Phase 7：B-2 OCR 信頼度判定（仕様書 §7.6 ケース4）
 // =============================================
 // 閾値：実機テストで微調整するため定数化。
@@ -9284,6 +9340,11 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto, studentAnswersJs
         photoInfo = { ok: false, message: String(e) };
       }
     }
+
+    // 単元別「解答した問題数」累計キャッシュを無効化（提出が反映されるよう）。
+    // status は passed/failed_retry のどちらかに確定済みで集計対象に入るため、
+    // 成功 return の直前で該当 studentId のキャッシュを消す（次回画面表示で最新値）。
+    _invalidateCache(_kisoAnsweredCacheKey(studentId));
 
     return {
       ok: true,
