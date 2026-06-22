@@ -28083,7 +28083,7 @@ function _buildLineMessage_workedStudent(nickname) {
 // completionBonus: 当日の絶対ミッション達成ボーナス額（completion_bonus、0 なら行を出さない）
 // 表示順：取り組み内容 → 達成状況 → 達成ボーナス → 獲得HP → 累計HP
 // 【獲得 HP】 = コンテンツHP合計(totalHp) + 達成ボーナス(completionBonus)（内訳と整合）
-function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp, missionStatus, completionBonus) {
+function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp, missionStatus, completionBonus, studentId) {
   var name = String(nickname || '').trim() || '生徒';
   var lines = [];
   for (var i = 0; i < contents.length; i++) {
@@ -28129,6 +28129,14 @@ function _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeH
   msg += '【生涯HP】 ' + Number(cumulativeHp || 0).toLocaleString() + 'HP\n';
   msg += '引き続き応援していきましょう。\n'
        + LINE_NOTIFY_TEMPLATE_SIG;
+  // 2026-06-23：本文末尾に保護者用画面への案内 3 行を追加（「講師一同」の後に空行 1 つ → 3 行）。
+  //   生徒ID はこの通知を受け取る生徒本人の studentId（通知ループで生徒ごとに渡される）。
+  var sidStr = String(studentId || '').trim();
+  msg += '\n'
+       + '\n'
+       + 'ぜひこちらから、より詳細の内容をご確認ください。\n'
+       + 'https://k-acdm.github.io/mykt-eitango/\n'
+       + '（「保護者用」からお入りください。「生徒ID」は ' + sidStr + ' です。）';
   return msg;
 }
 
@@ -28853,7 +28861,7 @@ function runDailyNotifyDelivery() {
         : _buildLineMessage_workedStudent(nickname);
       var parentMsg = (status === 'sabotaged')
         ? _buildLineMessage_sabotagedParent(nickname)
-        : _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp, missionStatus, completionBonus);
+        : _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp, missionStatus, completionBonus, sid);
 
       // 生徒本人へ
       if (studentUserId) {
@@ -28957,7 +28965,7 @@ function sendTestNotification(params) {
     } else {
       msg = (status === 'sabotaged')
         ? _buildLineMessage_sabotagedParent(snap.nickname)
-        : _buildLineMessage_workedParent(snap.nickname, summary.contents, summary.totalHp, snap.cumulativeHp, missionStatus, summary.completionBonus);
+        : _buildLineMessage_workedParent(snap.nickname, summary.contents, summary.totalHp, snap.cumulativeHp, missionStatus, summary.completionBonus, sid);
     }
     var push = _pushLineMessage(userId, msg);
     _appendNotifyLog(sid, snap.nickname, today, targetType, userId, status,
