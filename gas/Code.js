@@ -28062,12 +28062,21 @@ function _buildLineMessage_sabotagedStudent(nickname) {
        + LINE_NOTIFY_AUTO_TAIL;
 }
 
-function _buildLineMessage_sabotagedParent(nickname) {
+function _buildLineMessage_sabotagedParent(nickname, studentId) {
   var name = String(nickname || '').trim() || '生徒';
+  // 2026-06-23：署名（講師一同）と自動配信注記の間に保護者用画面の案内3行を挿入。
+  //   文面・生徒ID差し込みは worked 版（_buildLineMessage_workedParent）と一字一句同じ。
+  //   並び：署名 → 空行 → 案内3行 → 空行 → 自動配信注記（注記は既存のまま末尾維持）。
+  var sidStr = String(studentId || '').trim();
   return name + ' さんの保護者様\n'
        + '昨日のマイ活、' + name + ' さんは取り組めてなかったようです。\n'
        + '今日はしっかり取り組むよう、お声がけください。\n'
        + LINE_NOTIFY_TEMPLATE_SIG + '\n'
+       + '\n'
+       + 'ぜひこちらから、より詳細の内容をご確認ください。\n'
+       + 'https://k-acdm.github.io/mykt-eitango/\n'
+       + '（「保護者用」からお入りください。「生徒ID」は ' + sidStr + ' です。）\n'
+       + '\n'
        + LINE_NOTIFY_AUTO_TAIL;
 }
 
@@ -28860,7 +28869,7 @@ function runDailyNotifyDelivery() {
         ? _buildLineMessage_sabotagedStudent(nickname)
         : _buildLineMessage_workedStudent(nickname);
       var parentMsg = (status === 'sabotaged')
-        ? _buildLineMessage_sabotagedParent(nickname)
+        ? _buildLineMessage_sabotagedParent(nickname, sid)
         : _buildLineMessage_workedParent(nickname, contents, totalHp, cumulativeHp, missionStatus, completionBonus, sid);
 
       // 生徒本人へ
@@ -28964,7 +28973,7 @@ function sendTestNotification(params) {
         : _buildLineMessage_workedStudent(snap.nickname);
     } else {
       msg = (status === 'sabotaged')
-        ? _buildLineMessage_sabotagedParent(snap.nickname)
+        ? _buildLineMessage_sabotagedParent(snap.nickname, sid)
         : _buildLineMessage_workedParent(snap.nickname, summary.contents, summary.totalHp, snap.cumulativeHp, missionStatus, summary.completionBonus, sid);
     }
     var push = _pushLineMessage(userId, msg);
