@@ -8115,13 +8115,15 @@ function getWeeklyRanking() {
     // ふくちさん方針「テスト枠が実生徒に勝ったら面白い」のためテスト枠も集計対象に含める）
     const stuRows = _getAllAccountsValues();
     if (!stuRows || stuRows.length < 2) return { ok: false, message: 'Studentsシートが見つかりません。' };
+    const gradeColIdx = _findGradeLevelColIdx(stuRows);   // 学年区分ハンデ補正用（GRADE_LEVEL 列）
     const stuMap  = {};
     for (let i = 1; i < stuRows.length; i++) {
       const sid = String(stuRows[i][COL_ID]).trim();
       stuMap[sid] = {
         nickname: (String(stuRows[i][COL_NICKNAME] || '').trim()) || '名無し',
         totalHP:  Number(stuRows[i][COL_HP])     || 0,
-        streak:   Number(stuRows[i][COL_STREAK]) || 0
+        streak:   Number(stuRows[i][COL_STREAK]) || 0,
+        grade:    gradeColIdx >= 0 ? String(stuRows[i][gradeColIdx] || '').trim() : ''
       };
     }
 
@@ -8143,12 +8145,17 @@ function getWeeklyRanking() {
       }
     }
 
-    // 上位10名を選出
+    // 上位10名を選出。
+    //   学年区分ハンデ補正（2026-06-24・第1段）：素点合計 × _hpExchangeGradeCoef
+    //   （小×1.15 / 中×1.0 / 高×1.6、判定不能=1.0）を Math.round（四捨五入）で整数化。
+    //   案A＝補正後の値を weeklyHP に入れ、その値で表示・順位付けを行う。
+    //   中学生・学年未設定は係数 1.0 のため素点のまま（安全）。
+    //   ※ getMyRankings と倍率・端数処理（Math.round）を必ず揃える。
     const ranking = Object.keys(countMap)
       .filter(sid => countMap[sid] > 0 && stuMap[sid])
       .map(sid => ({
         nickname: stuMap[sid].nickname,
-        weeklyHP: countMap[sid],   // 先週の全学習コンテンツ素点（rawHP）合計
+        weeklyHP: Math.round(countMap[sid] * _hpExchangeGradeCoef(stuMap[sid].grade)),  // 補正後HP（表示・順位とも）
         totalHP:  stuMap[sid].totalHP,
         title:    _getTitle(stuMap[sid].streak)
       }))
@@ -8279,8 +8286,17 @@ function getMyRankings(studentId) {
     // 生涯HP：母集団は全アカウント（lifetimeAll）。
     // 週間HP：母集団も全アカウント（週間HP は weeklyMap から、無ければ 0）。
     //   → 週間HP>0 の生徒の順位は getWeeklyRanking の並び順と一致する。
+    // 学年区分ハンデ補正（2026-06-24・第1段）：素点 × _hpExchangeGradeCoef
+    //   （小×1.15 / 中×1.0 / 高×1.6、判定不能=1.0）を Math.round で整数化してから順位算出。
+    //   getWeeklyRanking と同一の倍率・端数処理（Math.round）。bucketBySid は '小'/'中'/'高'/null
+    //   で、_hpExchangeGradeCoef は先頭文字判定のため同じ係数になる（null→1.0）。
+    //   w=0 は補正不要（0 のまま、係数引きの不要なログも避ける）。
+    //   weeklyGrade は weeklyAll を filter するので補正後の w を自動で引き継ぐ。
+    //   getMyRankings は順位のみ返す関数なので、変わるのは「順位が補正後HPベースになる」点のみ
+    //   （学年別 gradeRank・全体 overallRank の両方を補正後で一貫させる）。
     const weeklyAll = lifetimeAll.map(function(o){
-      return { sid: o.sid, w: (weeklyMap[o.sid] || 0) };
+      const w = (weeklyMap[o.sid] || 0);
+      return { sid: o.sid, w: w > 0 ? Math.round(w * _hpExchangeGradeCoef(bucketBySid[o.sid])) : 0 };
     });
     // 学年区分の母集団（自分の区分と一致するアカウントのみ。未設定は除外）。
     let lifetimeGrade = null, weeklyGrade = null;
