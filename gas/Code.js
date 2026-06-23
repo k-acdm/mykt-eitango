@@ -8070,6 +8070,25 @@ function _getLastWeekRange() {
 }
 
 // =============================================
+// 週間HPランキングの学年区分ハンデ補正（2026-06-24・第1段）の適用開始日ガード。
+//   集計対象の「週の開始日（月曜）」が HANDICAP_START_DATE 以降の週だけ補正を適用する。
+//   一度きりの移行ガード：
+//     ・公表済みの先週分（2026-06-15 開始）は素点のまま据え置き（補正なし）。
+//     ・来週月曜（06-29）に集計対象が今週分（06-22 開始）へ切り替わった瞬間、
+//       開始日 06-22 ≥ 06-22 で補正が自動適用される。以降の週は常に適用。
+//   getWeeklyRanking / getMyRankings の両方が _getLastWeekRange().start を渡すため、
+//   同じ週なら必ず同じ判定（補正の有無）になる。
+//   ★日付比較は文字列ではなく Date（JST 0:00 起点）で行う。
+const HANDICAP_START_DATE = '2026-06-22';  // この日（月）開始の週から週間ランキングのハンデ補正を適用
+function _isHandicapWeek(rangeStart) {
+  if (!rangeStart) return false;
+  const start = new Date(String(rangeStart) + 'T00:00:00+09:00');
+  const guard = new Date(HANDICAP_START_DATE + 'T00:00:00+09:00');
+  if (isNaN(start.getTime())) return false;
+  return start.getTime() >= guard.getTime();
+}
+
+// =============================================
 // 週間HPランキングの「週間獲得HP」に計上する学習コンテンツの grant 行か判定。
 // 集計は HPLog col 2 (rawHP=素点・週²前) を合計する前提。
 // ★ _isCountableActivityType（マイカツ君 Stage 用）とは別物。あちらは rika/shakai/kokugo を
@@ -8110,6 +8129,7 @@ function getWeeklyRanking() {
     const logSheet = ss.getSheetByName(SHEET_HPLOG);
 
     const range = _getLastWeekRange();
+    const applyHandicap = _isHandicapWeek(range.start);   // 週開始日が 06-22 以降のみ補正適用
 
     // 生徒マスタ（Step 2：全アカウント対象 = Students + SpecialAccounts。
     // ふくちさん方針「テスト枠が実生徒に勝ったら面白い」のためテスト枠も集計対象に含める）
@@ -8147,18 +8167,23 @@ function getWeeklyRanking() {
 
     // 上位10名を選出。
     //   学年区分ハンデ補正（2026-06-24・第1段）：素点合計 × _hpExchangeGradeCoef
-    //   （小×1.15 / 中×1.0 / 高×1.6、判定不能=1.0）を Math.round（四捨五入）で整数化。
+    //   （小×1.15 / 中×1.0 / 高×1.6、判定不能=1.0）を Math.floor（切り捨て）で整数化。
     //   案A＝補正後の値を weeklyHP に入れ、その値で表示・順位付けを行う。
     //   中学生・学年未設定は係数 1.0 のため素点のまま（安全）。
-    //   ※ getMyRankings と倍率・端数処理（Math.round）を必ず揃える。
+    //   端数処理は floor で交換HP側（getExchangeableHp）と統一。
+    //   ★ applyHandicap=false の週（06-22 未満開始）は係数 1.0 相当で補正なし＝素点のまま。
+    //   ※ getMyRankings と倍率・端数処理（Math.floor）・適用ガードを必ず揃える。
     const ranking = Object.keys(countMap)
       .filter(sid => countMap[sid] > 0 && stuMap[sid])
-      .map(sid => ({
-        nickname: stuMap[sid].nickname,
-        weeklyHP: Math.round(countMap[sid] * _hpExchangeGradeCoef(stuMap[sid].grade)),  // 補正後HP（表示・順位とも）
-        totalHP:  stuMap[sid].totalHP,
-        title:    _getTitle(stuMap[sid].streak)
-      }))
+      .map(sid => {
+        const coef = applyHandicap ? _hpExchangeGradeCoef(stuMap[sid].grade) : 1.0;
+        return {
+          nickname: stuMap[sid].nickname,
+          weeklyHP: Math.floor(countMap[sid] * coef),  // 補正後HP（表示・順位とも）
+          totalHP:  stuMap[sid].totalHP,
+          title:    _getTitle(stuMap[sid].streak)
+        };
+      })
       .sort((a, b) => b.weeklyHP - a.weeklyHP)
       .slice(0, 10);
 
@@ -8233,6 +8258,7 @@ function getMyRankings(studentId) {
     if (!sid) return { ok: false, message: '生徒IDが必要です' };
 
     const range = _getLastWeekRange();
+    const applyHandicap = _isHandicapWeek(range.start);   // getWeeklyRanking と同一基準日・同一判定
 
     // --- 1) 全アカウントを 1 回読み（Students + SpecialAccounts、Students 優先で dedup 済）---
     const accRows = _getAllAccountsValues();
@@ -8287,16 +8313,18 @@ function getMyRankings(studentId) {
     // 週間HP：母集団も全アカウント（週間HP は weeklyMap から、無ければ 0）。
     //   → 週間HP>0 の生徒の順位は getWeeklyRanking の並び順と一致する。
     // 学年区分ハンデ補正（2026-06-24・第1段）：素点 × _hpExchangeGradeCoef
-    //   （小×1.15 / 中×1.0 / 高×1.6、判定不能=1.0）を Math.round で整数化してから順位算出。
-    //   getWeeklyRanking と同一の倍率・端数処理（Math.round）。bucketBySid は '小'/'中'/'高'/null
-    //   で、_hpExchangeGradeCoef は先頭文字判定のため同じ係数になる（null→1.0）。
-    //   w=0 は補正不要（0 のまま、係数引きの不要なログも避ける）。
+    //   （小×1.15 / 中×1.0 / 高×1.6、判定不能=1.0）を Math.floor で整数化してから順位算出。
+    //   getWeeklyRanking と同一の倍率・端数処理（Math.floor）・適用ガード（applyHandicap）。
+    //   bucketBySid は '小'/'中'/'高'/null で、_hpExchangeGradeCoef は先頭文字判定のため同じ係数
+    //   になる（null→1.0）。w=0 は補正不要（0 のまま、係数引きの不要なログも避ける）。
+    //   ★ applyHandicap=false の週（06-22 未満開始）は係数 1.0 相当で補正なし＝素点のまま。
     //   weeklyGrade は weeklyAll を filter するので補正後の w を自動で引き継ぐ。
     //   getMyRankings は順位のみ返す関数なので、変わるのは「順位が補正後HPベースになる」点のみ
     //   （学年別 gradeRank・全体 overallRank の両方を補正後で一貫させる）。
     const weeklyAll = lifetimeAll.map(function(o){
       const w = (weeklyMap[o.sid] || 0);
-      return { sid: o.sid, w: w > 0 ? Math.round(w * _hpExchangeGradeCoef(bucketBySid[o.sid])) : 0 };
+      const coef = applyHandicap ? _hpExchangeGradeCoef(bucketBySid[o.sid]) : 1.0;
+      return { sid: o.sid, w: w > 0 ? Math.floor(w * coef) : 0 };
     });
     // 学年区分の母集団（自分の区分と一致するアカウントのみ。未設定は除外）。
     let lifetimeGrade = null, weeklyGrade = null;
