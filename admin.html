@@ -1257,6 +1257,8 @@
       <div class="ranking-actions">
         <button type="button" class="submit-btn" onclick="loadAdminRanking()">🔄 最新データ取得</button>
         <button type="button" class="submit-btn save-img-btn" onclick="saveRankingImage()">📷 画像として保存</button>
+        <!-- LINE配信（候補D・半自動、2026-06-24）。誤押下防止のため緑系で差別化 -->
+        <button type="button" class="submit-btn" id="ranking-line-btn" style="background:linear-gradient(135deg,#06c755,#04a648)" onclick="sendRankingLine()">📤 LINEで配信</button>
       </div>
       <div id="ranking-capture" style="background:#fff;padding:20px;border-radius:14px;">
         <div class="ranking-wrap">
@@ -10092,6 +10094,86 @@
     }).catch(function(err) {
       console.error('[saveRankingImage]', err);
       showToast('画像の保存に失敗しました', 'error');
+    });
+  }
+
+  // =============================================================
+  // 週間HPランキングの LINE 配信（候補D・半自動、2026-06-24）
+  //   #ranking-capture を html2canvas で JPEG 画像化 → base64 を adminSendRankingLine へ POST。
+  //   GAS 側が全保護者・全生徒へ配信（既存 LINE 画像配信基盤を流用）。
+  //   ★ 配信用は JPEG（toDataURL('image/jpeg', 0.9)）。「画像として保存」の PNG とは別系統。
+  //   ★ 配信メッセージは GAS 側で [1]画像 → [2]テキスト の順に組む。テキストはここから送る。
+  // =============================================================
+  // GAS 側 RANKING_LINE_DEFAULT_TEXT と一字一句一致させる（クライアントから送る正式文言）。
+  var RANKING_LINE_TEXT = 'マイ活アプリ、先週の週間HPランキングです👆\n今週も、地道にコツコツ✨継続こそ力なり✨';
+
+  function sendRankingLine() {
+    var el = document.getElementById('ranking-capture');
+    if (!el) { showToast('ランキングタブを開いてください', 'error'); return; }
+    if (typeof html2canvas === 'undefined') { showToast('画像ライブラリの読込に失敗しました', 'error'); return; }
+    // ランキングが描画済み（行がある）でないと配信できない
+    if (!document.querySelector('#admin-ranking-list .ranking-row')) {
+      showToast('先に「🔄 最新データ取得」をしてください', 'error');
+      return;
+    }
+    var periodTxt = (document.getElementById('admin-ranking-period') || {}).textContent || '';
+    var confirmMsg = '先週' + (periodTxt ? '（' + periodTxt + '）' : '') +
+      'の週間HPランキングを\n全保護者・全生徒に配信します。よろしいですか？';
+    if (!window.confirm(confirmMsg)) return;
+    _doSendRankingLine(2, false);
+  }
+
+  // scale: html2canvas の倍率（tooLarge 時に 2→1.5 へ落として 1 回だけ再試行）
+  // force : 重複配信の警告に OK した再送かどうか
+  function _doSendRankingLine(scale, force) {
+    var btn = document.getElementById('ranking-line-btn');
+    var origLabel = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '配信中…'; }
+    function restoreBtn() { if (btn) { btn.disabled = false; btn.textContent = origLabel; } }
+
+    var el = document.getElementById('ranking-capture');
+    showToast('画像を生成中…', 'success');
+    html2canvas(el, { scale: scale, backgroundColor: '#ffffff', useCORS: true }).then(function(canvas) {
+      // JPEG 0.9 でサイズを抑える（LINE 配信用。ローカル保存の PNG とは別）
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      var base64 = dataUrl.split(',')[1] || '';   // 'data:image/jpeg;base64,XXXX' の後半のみ送る
+      showToast('配信中…', 'success');
+      return adminGasPost({
+        action: 'adminSendRankingLine',
+        imageBase64: base64,
+        imageMimeType: 'image/jpeg',
+        text: RANKING_LINE_TEXT,
+        force: force
+      });
+    }).then(function(res) {
+      if (!res) { restoreBtn(); showToast('配信に失敗しました（応答なし）', 'error'); return; }
+      if (res.ok) {
+        restoreBtn();
+        showToast('配信完了：成功 ' + (res.delivered || 0) + '件 / 失敗 ' + (res.failed || 0) + '件', 'success');
+        return;
+      }
+      // 重複配信の警告 → 再送確認
+      if (res.alreadyDelivered) {
+        restoreBtn();
+        var prev = res.prev || {};
+        var when = prev.deliveredAt || '不明';
+        if (window.confirm('この週分は ' + when + ' に配信済みです（成功 ' + (prev.delivered || 0) + '件）。\n本当に再配信しますか？')) {
+          _doSendRankingLine(scale, true);   // force:true で再送
+        }
+        return;
+      }
+      // 画像が大きすぎる → scale を落として 1 回だけ自動リトライ
+      if (res.tooLarge && scale > 1.5) {
+        showToast('画像が大きいため縮小して再試行します…', 'success');
+        _doSendRankingLine(1.5, force);
+        return;
+      }
+      restoreBtn();
+      showToast(res.message || '配信に失敗しました', 'error');
+    }).catch(function(err) {
+      console.error('[sendRankingLine]', err);
+      restoreBtn();
+      showToast('配信に失敗しました（通信エラー）', 'error');
     });
   }
 

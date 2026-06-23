@@ -1419,6 +1419,8 @@ function doPost(e) {
     // 塾からの連絡：LINE 配信機能（2026-05-18 新規、admin-only、画像 base64 のため POST 必須）
     else if (action === 'addNoticeWithLine')                result = addNoticeWithLine(params);
     else if (action === 'cancelScheduledNoticeLine')        result = cancelScheduledNoticeLine(params);
+    // 週間HPランキングの LINE 配信（候補D・半自動、2026-06-24、admin-only、画像 base64 のため POST 必須）
+    else if (action === 'adminSendRankingLine')             result = adminSendRankingLine(params);
     // 投稿後修正（2026-06-16 新規、admin-only、誤実行防止のため POST 強制）
     else if (action === 'editNotice')                       result = editNotice(params);
     else if (action === 'redeliverNoticeCorrection')        result = redeliverNoticeCorrection(params);
@@ -10264,6 +10266,122 @@ function runScheduledNoticeLineDelivery() {
     return { ok: true, processed: processed, failed: failed };
   } catch (err) {
     console.error('[runScheduledNoticeLineDelivery]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================
+// 週間HPランキングの LINE 配信（候補D・半自動、2026-06-24）
+//   管理画面で html2canvas 生成した画像(base64)を受け取り、全保護者 + 全生徒へ配信する。
+//   既存 Notice LINE 配信基盤を流用（ロジックは変えず呼ぶだけ）：
+//     - 画像保存・公開URL化 : _saveNoticeLineImage（gas:9588）
+//     - push 送信           : _pushLineMessagesMulti（gas:9630）
+//     - 全アカウント userId : _lineNotifyBuildStudentSnapshots（gas:25928、Students + SpecialAccounts）
+//   ★ opt-out（shouldNotifyParent/Student）は無視＝全員配信（正午の取り組み報告とは別物）。
+//   ★ メッセージ順序は [1]画像 → [2]テキスト（テキストの👆が画像を指すため順序厳守）。
+//   重複配信は RankingLineLog（weekStart キー）で警告方式：既配信なら alreadyDelivered を返し、
+//   クライアントが force:true を付けて再送可（履歴は別行で追記）。
+// =============================================
+var SHEET_RANKING_LINE_LOG = 'RankingLineLog';
+var RANKING_LINE_LOG_HEADERS = ['weekStart', 'deliveredAt', 'deliveredBy', 'delivered', 'failed', 'totalTargets'];
+// 配信テキスト（クライアント未指定時のデフォルト。サーバ側にも一字一句保持）。
+var RANKING_LINE_DEFAULT_TEXT = 'マイ活アプリ、先週の週間HPランキングです👆\n今週も、地道にコツコツ✨継続こそ力なり✨';
+
+function ensureRankingLineLogSheet() {
+  return _ensureSheetWithHeaders(SHEET_RANKING_LINE_LOG, RANKING_LINE_LOG_HEADERS, 1);
+}
+
+function adminSendRankingLine(params) {
+  try {
+    // 1) 認証（管理操作のため必須）
+    var _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+
+    var imageBase64 = String((params && params.imageBase64) || '');
+    var mimeType    = String((params && params.imageMimeType) || '').trim().toLowerCase();
+    if (!imageBase64) return { ok: false, message: '画像データが空です' };
+    var force = (params && params.force === true);
+
+    // 2) 週識別子：GAS 側で算出（クライアントから受け取らない＝単一情報源）
+    var weekStart = _getLastWeekRange().start;
+
+    // 3) 重複判定：RankingLineLog を weekStart で検索（最後にマッチした行＝最新を採用）
+    ensureRankingLineLogSheet();
+    var logSh = _ss().getSheetByName(SHEET_RANKING_LINE_LOG);
+    if (logSh && logSh.getLastRow() >= 2) {
+      var lv  = logSh.getRange(1, 1, logSh.getLastRow(), RANKING_LINE_LOG_HEADERS.length).getValues();
+      var hdr = lv[0];
+      var iWs = hdr.indexOf('weekStart');
+      var iAt = hdr.indexOf('deliveredAt');
+      var iDl = hdr.indexOf('delivered');
+      var iFl = hdr.indexOf('failed');
+      var prev = null;
+      for (var r = 1; r < lv.length; r++) {
+        if (String(lv[r][iWs] || '').trim() === weekStart) {
+          prev = {
+            deliveredAt: String(lv[r][iAt] || ''),
+            delivered:   Number(lv[r][iDl]) || 0,
+            failed:      Number(lv[r][iFl]) || 0
+          };
+        }
+      }
+      if (prev && !force) {
+        return { ok: false, alreadyDelivered: true, prev: prev, weekStart: weekStart };
+      }
+    }
+
+    // 4) 画像サイズ事前チェック → Drive 保存・公開URL化
+    var decoded;
+    try { decoded = Utilities.base64Decode(imageBase64); }
+    catch (e) { return { ok: false, message: '画像データの形式が不正です' }; }
+    if (decoded.length > NOTICE_LINE_IMAGE_MAX_BYTES) {
+      return { ok: false, tooLarge: true,
+               message: '画像サイズが大きすぎます（' + Math.round(decoded.length / 1024) + ' KB / 上限 5MB）' };
+    }
+    var imgRes = _saveNoticeLineImage('ranking_' + weekStart, imageBase64, mimeType);
+    if (!imgRes.ok) {
+      // _saveNoticeLineImage 側のサイズ超過・形式不正も tooLarge 扱いで返す（クライアントが縮小再試行できるように）
+      return { ok: false, tooLarge: true, message: '画像のアップロードに失敗：' + imgRes.message };
+    }
+    var imageUrl = imgRes.publicUrl;
+
+    // 5) 配信対象：全保護者 + 全生徒（★opt-out 無視）。同一 userId への二重送信を Set で排除。
+    var snapshots = _lineNotifyBuildStudentSnapshots();
+    var seenUid = {};
+    var targets = [];
+    for (var i = 0; i < snapshots.length; i++) {
+      var sn = snapshots[i];
+      var pu = String(sn.parentUserId  || '').trim();
+      var su = String(sn.studentUserId || '').trim();
+      if (pu && !seenUid[pu]) { seenUid[pu] = true; targets.push({ userId: pu, sid: sn.sid, targetType: 'parent'  }); }
+      if (su && !seenUid[su]) { seenUid[su] = true; targets.push({ userId: su, sid: sn.sid, targetType: 'student' }); }
+    }
+
+    // 6) メッセージ：★ [1]画像 → [2]テキスト の順（順序厳守）
+    var text = String((params && params.text) || '').trim() || RANKING_LINE_DEFAULT_TEXT;
+    var messages = [
+      { type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl },
+      { type: 'text',  text: text }
+    ];
+
+    // 7) 配信（既存 push 部品 + レート制御。_pushLineMessagesMulti は throw しない）
+    var delivered = 0, failed = 0;
+    for (var t = 0; t < targets.length; t++) {
+      var rr = _pushLineMessagesMulti(targets[t].userId, messages);
+      if (rr.ok) delivered++; else failed++;
+      Utilities.sleep(NOTICE_LINE_DELIVERY_RATE_LIMIT_MS);
+    }
+
+    // 8) ログ記録：RankingLineLog に追記（再配信も別行で追記＝履歴を残す）
+    try {
+      var logSh2 = _ss().getSheetByName(SHEET_RANKING_LINE_LOG);
+      if (logSh2) logSh2.appendRow([weekStart, _nowJST(), _teacher.teacherId, delivered, failed, targets.length]);
+    } catch (eLog) { console.error('[adminSendRankingLine log]', eLog); }
+
+    // 9) 戻り値
+    return { ok: true, delivered: delivered, failed: failed, totalTargets: targets.length, weekStart: weekStart };
+  } catch (err) {
+    console.error('[adminSendRankingLine]', err);
     return { ok: false, message: String(err) };
   }
 }
