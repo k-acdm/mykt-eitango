@@ -8187,7 +8187,10 @@ function getWeeklyRanking() {
       .sort((a, b) => b.weeklyHP - a.weeklyHP)
       .slice(0, 10);
 
-    const result = { ok: true, ranking, period: range };
+    // handicapApplied：この週にハンデ補正が適用されているか（注意書き表示のフラグ・第2段）。
+    //   applyHandicap と同値。フロントは日付を再計算せず、このフラグだけで注意書きの表示/非表示を決める。
+    //   result ごとキャッシュされるため、キャッシュ済みの週でもフラグは正しく一致する。
+    const result = { ok: true, ranking, period: range, handicapApplied: applyHandicap };
     // 派生結果をキャッシュ（6h TTL）
     try {
       const ser = JSON.stringify(result);
@@ -8337,6 +8340,10 @@ function getMyRankings(studentId) {
       ok: true,
       grade: myBucket,
       period: range,
+      // handicapApplied：この週にハンデ補正が適用されているか（注意書き表示のフラグ・第2段）。
+      //   getWeeklyRanking と同一基準（applyHandicap = _isHandicapWeek(range.start)）。
+      //   ポップアップ（順位のみ）でも補正がかかるため、フラグに連動して同じ注意書きを出す。
+      handicapApplied: applyHandicap,
       lifetime: {
         gradeRank:   myBucket ? _competitionRank(lifetimeGrade, sid, 'hp') : null,
         overallRank: _competitionRank(lifetimeAll, sid, 'hp')

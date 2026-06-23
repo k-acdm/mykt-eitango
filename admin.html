@@ -1263,6 +1263,11 @@
           <div class="ranking-title">🏆 先週の週間HPランキング</div>
           <div class="ranking-period" id="admin-ranking-period">読み込み中...</div>
           <div id="admin-ranking-list"><div class="ranking-empty">⏳ 集計中...</div></div>
+          <!-- ハンデ補正の注意書き（第2段・2026-06-24）。getWeeklyRanking の handicapApplied=true の週のみ表示。
+               ★ #ranking-capture の内側に置くことで html2canvas の画像（LINE配信）に必ず写る。 -->
+          <div id="admin-ranking-handicap-note" style="display:none; margin-top:12px; font-size:12px; color:#888; text-align:center; line-height:1.5;">
+            小学生と高校生は対象コンテンツが少ないため、公平にするためHPに補正をかけています。
+          </div>
         </div>
       </div>
     </div>
@@ -9556,9 +9561,13 @@
     var listEl = document.getElementById('admin-ranking-list');
     var periodEl = document.getElementById('admin-ranking-period');
     if (!listEl || !periodEl) return;
+    // ハンデ補正の注意書きは既定で隠し、補正適用週（handicapApplied=true）のみ表示する（日付判定はサーバ一元化）
+    var hnoteEl = document.getElementById('admin-ranking-handicap-note');
+    if (hnoteEl) hnoteEl.style.display = 'none';
     listEl.innerHTML = '<div class="ranking-empty">⏳ 集計中...</div>';
     periodEl.textContent = '読み込み中...';
     gasGet({ action: 'getWeeklyRanking', _ts: Date.now() }).then(function(res) {
+      if (hnoteEl) hnoteEl.style.display = (res && res.handicapApplied) ? 'block' : 'none';
       if (!res || !res.ok || !res.ranking) {
         listEl.innerHTML = '<div class="ranking-empty">データがまだありません</div>';
         periodEl.textContent = '';

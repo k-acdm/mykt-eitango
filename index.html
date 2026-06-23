@@ -3124,10 +3124,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260623-0437"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260624-0344"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260623-0437">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260623-0437"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260624-0344">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260624-0344"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3760,6 +3760,10 @@
         <!-- Phase 5 / 2026-05-22：保留 HP との関係を生徒が混同しないよう、簡単な注記を追加 -->
         <div class="ranking-note" style="margin-top:10px; font-size:11px; color:rgba(255,255,255,.85); text-align:center; line-height:1.5;">
           ※ ランキングは先週の HP の集計だよ。<br>ただし、連続週数のボーナス加算前の数字にしてある。
+        </div>
+        <!-- ハンデ補正の注意書き（第2段・2026-06-24）。getWeeklyRanking の handicapApplied=true の週のみ表示 -->
+        <div class="ranking-handicap-note" id="ranking-handicap-note" style="display:none; margin-top:8px; font-size:11px; color:rgba(255,255,255,.85); text-align:center; line-height:1.5;">
+          小学生と高校生は対象コンテンツが少ないため、公平にするためHPに補正をかけています。
         </div>
       </div>
     </div>
@@ -6869,7 +6873,11 @@
     });
   }
   function loadWeeklyRanking() {
+    // ハンデ補正の注意書きは既定で隠し、補正適用週（handicapApplied=true）のみ表示する（日付判定はサーバ一元化）
+    var _hnote = document.getElementById('ranking-handicap-note');
+    if (_hnote) _hnote.style.display = 'none';
     cachedGasGet({ action: 'getWeeklyRanking' }).then(function(res) {
+      if (_hnote) _hnote.style.display = (res && res.handicapApplied) ? 'block' : 'none';
       if (!res.ok || !res.ranking) { document.getElementById('ranking-list').innerHTML = '<div class="ranking-empty">データがまだありません</div>'; document.getElementById('ranking-period').textContent = ''; return; }
       var p = res.period;
       document.getElementById('ranking-period').textContent = p.start.slice(5).replace('-','/') + '（月）〜' + p.end.slice(5).replace('-','/') + '（日）';
@@ -6901,6 +6909,10 @@
       var gradeRowLabel = gradeName ? (gradeName + 'の中での順位') : '学年区分の中での順位';
       function rankText(v){ return (v === null || v === undefined) ? '—' : (v + '位'); }
       var lt = res.lifetime || {}, wk = res.weekly || {};
+      // ハンデ補正の注意書き（第2段）。getMyRankings の handicapApplied=true の週のみ末尾に表示
+      var handicapNote = res.handicapApplied
+        ? '<div class="myrank-handicap-note" style="margin-top:6px; font-size:12px; color:#888; text-align:center; line-height:1.5;">小学生と高校生は対象コンテンツが少ないため、公平にするためHPに補正をかけています。</div>'
+        : '';
       body.innerHTML =
         '<div class="myrank-group">' +
           '<div class="myrank-group-title">現在の生涯HPランキング</div>' +
@@ -6911,7 +6923,8 @@
           '<div class="myrank-group-title">先週の週間獲得HPランキング</div>' +
           '<div class="myrank-row"><span class="mr-label">' + gradeRowLabel + '</span><span class="mr-value">' + rankText(wk.gradeRank) + '</span></div>' +
           '<div class="myrank-row"><span class="mr-label">全員の中での順位</span><span class="mr-value">' + rankText(wk.overallRank) + '</span></div>' +
-        '</div>';
+        '</div>' +
+        handicapNote;
     }).catch(function(){
       body.innerHTML = '<div class="myrank-error">順位の取得に失敗しました。<br>通信環境のよい場所でもう一度お試しください。</div>';
     });
@@ -18020,7 +18033,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260623-0437</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260624-0344</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
