@@ -9607,7 +9607,10 @@ function _saveNoticeLineImage(noticeId, imageBase64, mimeType) {
     // 公開設定：リンクを知っている全員が閲覧可（LINE Messaging API が画像取得するため必須）
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     var fileId = file.getId();
-    var publicUrl = 'https://drive.google.com/uc?export=view&id=' + fileId;
+    // ★ uc?export=view は外部アクセス時に画像バイナリではなく 303 リダイレクト（→drive.usercontent）を
+    //   返すため LINE が画像として読めず「×」になる（2026-06-24 実証）。thumbnail エンドポイントは
+    //   lh3.googleusercontent.com へ転送され画像を直接配信するため外部表示に使える。sz=w1600 は本画像サイズ。
+    var publicUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1600';
     return { ok: true, fileId: fileId, publicUrl: publicUrl };
   } catch (e) {
     console.error('[_saveNoticeLineImage]', e);
@@ -10301,14 +10304,19 @@ function adminSendRankingLine(params) {
     var mimeType    = String((params && params.imageMimeType) || '').trim().toLowerCase();
     if (!imageBase64) return { ok: false, message: '画像データが空です' };
     var force = (params && params.force === true);
+    // ★ testMode：ふくちさんの LINE だけに送る安全確認用。配信経路（画像生成・Drive保存・URL生成・
+    //   push・メッセージ順序/文言）は本番と完全に同一。重複防止チェックも RankingLineLog 記録も行わない
+    //   （テストでログを汚さない／いつでも何度でも確認できる）。テストで表示OK＝本番でも表示OKの保証になる。
+    var testMode = (params && params.testMode === true);
 
     // 2) 週識別子：GAS 側で算出（クライアントから受け取らない＝単一情報源）
     var weekStart = _getLastWeekRange().start;
 
     // 3) 重複判定：RankingLineLog を weekStart で検索（最後にマッチした行＝最新を採用）
+    //    ★ testMode のときは重複判定をスキップ（テスト送信は何度でも実行可能にする）
     ensureRankingLineLogSheet();
     var logSh = _ss().getSheetByName(SHEET_RANKING_LINE_LOG);
-    if (logSh && logSh.getLastRow() >= 2) {
+    if (!testMode && logSh && logSh.getLastRow() >= 2) {
       var lv  = logSh.getRange(1, 1, logSh.getLastRow(), RANKING_LINE_LOG_HEADERS.length).getValues();
       var hdr = lv[0];
       var iWs = hdr.indexOf('weekStart');
@@ -10345,16 +10353,26 @@ function adminSendRankingLine(params) {
     }
     var imageUrl = imgRes.publicUrl;
 
-    // 5) 配信対象：全保護者 + 全生徒（★opt-out 無視）。同一 userId への二重送信を Set で排除。
-    var snapshots = _lineNotifyBuildStudentSnapshots();
-    var seenUid = {};
+    // 5) 配信対象
     var targets = [];
-    for (var i = 0; i < snapshots.length; i++) {
-      var sn = snapshots[i];
-      var pu = String(sn.parentUserId  || '').trim();
-      var su = String(sn.studentUserId || '').trim();
-      if (pu && !seenUid[pu]) { seenUid[pu] = true; targets.push({ userId: pu, sid: sn.sid, targetType: 'parent'  }); }
-      if (su && !seenUid[su]) { seenUid[su] = true; targets.push({ userId: su, sid: sn.sid, targetType: 'student' }); }
+    if (testMode) {
+      // ★ テスト：ふくちさん（FUKUCHI_ACCOUNT_ID）の LINE userId のみ。既存ヘルパーを流用。
+      var fukuchiUid = _getFukuchiLineUserId();
+      if (!fukuchiUid) {
+        return { ok: false, message: 'ふくちさんの LINE userId が取得できませんでした（LINE 連携が未登録の可能性）' };
+      }
+      targets.push({ userId: fukuchiUid, sid: FUKUCHI_ACCOUNT_ID, targetType: 'test' });
+    } else {
+      // 本番：全保護者 + 全生徒（★opt-out 無視）。同一 userId への二重送信を Set で排除。
+      var snapshots = _lineNotifyBuildStudentSnapshots();
+      var seenUid = {};
+      for (var i = 0; i < snapshots.length; i++) {
+        var sn = snapshots[i];
+        var pu = String(sn.parentUserId  || '').trim();
+        var su = String(sn.studentUserId || '').trim();
+        if (pu && !seenUid[pu]) { seenUid[pu] = true; targets.push({ userId: pu, sid: sn.sid, targetType: 'parent'  }); }
+        if (su && !seenUid[su]) { seenUid[su] = true; targets.push({ userId: su, sid: sn.sid, targetType: 'student' }); }
+      }
     }
 
     // 6) メッセージ：★ [1]画像 → [2]テキスト の順（順序厳守）
@@ -10373,13 +10391,16 @@ function adminSendRankingLine(params) {
     }
 
     // 8) ログ記録：RankingLineLog に追記（再配信も別行で追記＝履歴を残す）
-    try {
-      var logSh2 = _ss().getSheetByName(SHEET_RANKING_LINE_LOG);
-      if (logSh2) logSh2.appendRow([weekStart, _nowJST(), _teacher.teacherId, delivered, failed, targets.length]);
-    } catch (eLog) { console.error('[adminSendRankingLine log]', eLog); }
+    //    ★ testMode のときは記録しない（重複防止ログを汚さない＝本番配信の判定に影響させない）
+    if (!testMode) {
+      try {
+        var logSh2 = _ss().getSheetByName(SHEET_RANKING_LINE_LOG);
+        if (logSh2) logSh2.appendRow([weekStart, _nowJST(), _teacher.teacherId, delivered, failed, targets.length]);
+      } catch (eLog) { console.error('[adminSendRankingLine log]', eLog); }
+    }
 
     // 9) 戻り値
-    return { ok: true, delivered: delivered, failed: failed, totalTargets: targets.length, weekStart: weekStart };
+    return { ok: true, testMode: testMode, delivered: delivered, failed: failed, totalTargets: targets.length, weekStart: weekStart };
   } catch (err) {
     console.error('[adminSendRankingLine]', err);
     return { ok: false, message: String(err) };
