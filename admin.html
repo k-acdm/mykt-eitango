@@ -906,16 +906,278 @@
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
     </div>
   </header>
+  <!-- 2026-06-29 段階A-1：3階層ハブ再編。ダッシュボードを大分類5カードに集約。
+       各リーフカードは対応する大分類/中分類ハブ screen 内へ移設（onclick 不変）。
+       ★A-1 では admin-only クラスは付与しない（ロール出し分けは A-2）。 -->
   <div class="dashboard-wrap">
+    <button type="button" class="dashboard-card" onclick="goAdminLearningHub()">
+      <div class="dashboard-card-icon">📊</div>
+      <div class="dashboard-card-title">生徒の学習履歴</div>
+      <div class="dashboard-card-desc">実施状況 / コンテンツごとの達成度 / 解答確認</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminInputHub()">
+      <div class="dashboard-card-icon">📝</div>
+      <div class="dashboard-card-title">問題等の入力</div>
+      <div class="dashboard-card-desc">学習コンテンツの問題投入 / 連絡・一言・メッセージ等</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminStudentCareHub()">
+      <div class="dashboard-card-icon">🎯</div>
+      <div class="dashboard-card-title">生徒対応</div>
+      <div class="dashboard-card-desc">週間HPランキング / HP手動付与 / LINE通知管理 / 絶対ミッション設定</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminExchangeHub()">
+      <div class="dashboard-card-icon">🛍️</div>
+      <div class="dashboard-card-title">HP交換</div>
+      <div class="dashboard-card-desc">アバターアイテム管理 / Amazonギフト交換申請</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminSystemHub()">
+      <div class="dashboard-card-icon">⚙️</div>
+      <div class="dashboard-card-title">システム系</div>
+      <div class="dashboard-card-desc">講師管理 / 連続ログイン日数 自動復旧 / 各種ログ</div>
+    </button>
+  </div>
+</div>
+
+<!-- =====================================================================
+     2026-06-29 段階A-1：3階層ハブ再編で新設したハブ画面（計9枚）。
+     ・大分類ハブ5枚：learning-hub / input-hub / student-care-hub /
+       exchange-hub / system-hub
+     ・中分類ハブ4枚：achievement-hub / answer-check-hub /
+       content-input-hub / other-input-hub
+     ・「生徒の実施状況」中分類ハブは既存 screen-admin-activity-select を
+       流用（設計案①）。
+     各リーフカードは onclick / 遷移先 screen を変更せず、置き場所だけ移設。
+     ===================================================================== -->
+
+<!-- 大分類ハブ：📊 生徒の学習履歴 -->
+<div id="screen-admin-learning-hub" class="screen">
+  <header>
+    <h1>📊 生徒の学習履歴</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="dashboard-wrap">
+    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
     <button type="button" class="dashboard-card" onclick="goAdminActivitySelect()">
       <div class="dashboard-card-icon">👥</div>
       <div class="dashboard-card-title">生徒の実施状況</div>
-      <div class="dashboard-card-desc">各生徒の学習状況を確認（生徒一覧 / カレンダーから選択）</div>
+      <div class="dashboard-card-desc">生徒一覧 / カレンダー / 振り返りコメント</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminTabs()">
+    <button type="button" class="dashboard-card" onclick="goAdminAchievementHub()">
+      <div class="dashboard-card-icon">📚</div>
+      <div class="dashboard-card-title">コンテンツごとの達成度</div>
+      <div class="dashboard-card-desc">国語長文 / 理科 / 社会の挑戦履歴</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminAnswerCheckHub()">
+      <div class="dashboard-card-icon">📷</div>
+      <div class="dashboard-card-title">解答確認</div>
+      <div class="dashboard-card-desc">基礎計算 / リスオン / 三語短文 / 和文英訳① / マイ課題 / オリワンテス</div>
+    </button>
+  </div>
+</div>
+
+<!-- 中分類ハブ：📚 コンテンツごとの達成度（国語/理科/社会 を activity-select から移設） -->
+<div id="screen-admin-achievement-hub" class="screen">
+  <header>
+    <h1>📚 コンテンツごとの達成度</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="dashboard-wrap">
+    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLearningHub()">← 生徒の学習履歴に戻る</button>
+    <button type="button" class="dashboard-card" onclick="goAdminKokugoStudents()">
+      <div class="dashboard-card-icon">📚</div>
+      <div class="dashboard-card-title">国語長文 挑戦履歴</div>
+      <div class="dashboard-card-desc">生徒の挑戦履歴・感想文・AIフィードバックを確認（admin / teacher 両ロール可）</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminRishaHistory('rika')">
+      <div class="dashboard-card-icon">📕</div>
+      <div class="dashboard-card-title">理科重要語句 挑戦履歴</div>
+      <div class="dashboard-card-desc">生徒の挑戦履歴（単元・セット・正誤）を確認（admin / teacher 両ロール可）</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminRishaHistory('shakai')">
+      <div class="dashboard-card-icon">📗</div>
+      <div class="dashboard-card-title">社会重要語句 挑戦履歴</div>
+      <div class="dashboard-card-desc">生徒の挑戦履歴（単元・セット・正誤）を確認（admin / teacher 両ロール可）</div>
+    </button>
+  </div>
+</div>
+
+<!-- 中分類ハブ：📷 解答確認（6枚集約） -->
+<div id="screen-admin-answer-check-hub" class="screen">
+  <header>
+    <h1>📷 解答確認</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="dashboard-wrap">
+    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLearningHub()">← 生徒の学習履歴に戻る</button>
+    <button type="button" class="dashboard-card admin-only" onclick="goAdminKisoStudents()">
+      <div class="dashboard-card-icon">📷</div>
+      <div class="dashboard-card-title">基礎計算・答案写真</div>
+      <div class="dashboard-card-desc">生徒が提出した答案写真を確認（保存期間 15 日）</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminLisonRecordings()">
+      <div class="dashboard-card-icon">🎤</div>
+      <div class="dashboard-card-title">リスオン録音データ</div>
+      <div class="dashboard-card-desc">生徒の音読録音を確認（保存期間 15 日）</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminForm('sango-submissions')">
+      <div class="dashboard-card-icon">📋</div>
+      <div class="dashboard-card-title">三語短文の提出</div>
+      <div class="dashboard-card-desc">生徒の提出一覧を閲覧・先生コメントを入力</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminForm('wabun1-submissions')">
+      <div class="dashboard-card-icon">📋</div>
+      <div class="dashboard-card-title">和文英訳① 提出</div>
+      <div class="dashboard-card-desc">生徒の提出一覧を閲覧・先生コメントを入力</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminMyTaskStudents()">
+      <div class="dashboard-card-icon">📸</div>
+      <div class="dashboard-card-title">マイ課題 提出確認</div>
+      <div class="dashboard-card-desc">生徒が提出したマイ課題の写真を確認（提出単位・複数枚）</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminOriwantesStudents()">
+      <div class="dashboard-card-icon">✍️</div>
+      <div class="dashboard-card-title">オリワンテス 提出確認</div>
+      <div class="dashboard-card-desc">生徒が作った問題・解答を確認してコメントを送る</div>
+    </button>
+  </div>
+</div>
+
+<!-- 大分類ハブ：📝 問題等の入力 -->
+<div id="screen-admin-input-hub" class="screen">
+  <header>
+    <h1>📝 問題等の入力</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="dashboard-wrap">
+    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <button type="button" class="dashboard-card" onclick="goAdminContentInputHub()">
+      <div class="dashboard-card-icon">📚</div>
+      <div class="dashboard-card-title">学習コンテンツ</div>
+      <div class="dashboard-card-desc">マイ課題告知 / 各コンテンツの問題・お題投入</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminOtherInputHub()">
+      <div class="dashboard-card-icon">📢</div>
+      <div class="dashboard-card-title">他の項目</div>
+      <div class="dashboard-card-desc">塾からの連絡 / 今日の一言 / 先生からのメッセージ / アンケート</div>
+    </button>
+  </div>
+</div>
+
+<!-- 中分類ハブ：📚 学習コンテンツ（問題投入系 7枚を tabs / dashboard から移設） -->
+<div id="screen-admin-content-input-hub" class="screen">
+  <header>
+    <h1>📚 学習コンテンツ</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="dashboard-wrap">
+    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminInputHub()">← 問題等の入力に戻る</button>
+    <button type="button" class="dashboard-card" onclick="goAdminMyTaskAnnounce()">
+      <div class="dashboard-card-icon">📣</div>
+      <div class="dashboard-card-title">マイ課題 告知</div>
+      <div class="dashboard-card-desc">指定した生徒に「日付・教科・宿題内容」を告知（複数生徒選択）</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminForm('sango-topic')">
+      <div class="dashboard-card-icon">✏️</div>
+      <div class="dashboard-card-title">三語短文のお題</div>
+      <div class="dashboard-card-desc">Excel コピペで週単位一括登録、先生の作品も個別登録</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminForm('wabun1-topic')">
       <div class="dashboard-card-icon">📝</div>
-      <div class="dashboard-card-title">問題等の入力と解答確認</div>
-      <div class="dashboard-card-desc">各種お題・問題の入力と提出確認</div>
+      <div class="dashboard-card-title">和文英訳①</div>
+      <div class="dashboard-card-desc">問題・正解の週単位一括登録（Excel コピペ）</div>
+    </button>
+    <button type="button" id="dash-card-lison-input" class="dashboard-card admin-only" onclick="goAdminLisonInput()">
+      <div class="dashboard-card-icon">🎧</div>
+      <div class="dashboard-card-title">リスオン問題入力</div>
+      <div class="dashboard-card-desc">週ごとの問題を作成・編集</div>
+    </button>
+    <button type="button" id="dash-card-kokugo-input" class="dashboard-card admin-only" onclick="goAdminKokugoInput()">
+      <div class="dashboard-card-icon">📖</div>
+      <div class="dashboard-card-title">国語長文 問題投入</div>
+      <div class="dashboard-card-desc">文学的文章 / 説明的文章 × 800字 / 1,200字 の 4 区分で問題を追加</div>
+    </button>
+    <button type="button" id="dash-card-rika-input" class="dashboard-card admin-only" onclick="goAdminRikaInput()">
+      <div class="dashboard-card-icon">📕</div>
+      <div class="dashboard-card-title">理科重要語句 問題投入</div>
+      <div class="dashboard-card-desc">中学理科の問題を TSV で一括投入（10 問 / セット、4 択 + 解説）</div>
+    </button>
+    <button type="button" id="dash-card-shakai-input" class="dashboard-card admin-only" onclick="goAdminShakaiInput()">
+      <div class="dashboard-card-icon">📗</div>
+      <div class="dashboard-card-title">社会重要語句 問題投入</div>
+      <div class="dashboard-card-desc">中学社会の問題を TSV で一括投入（10 問 / セット、4 択 + 解説）</div>
+    </button>
+  </div>
+</div>
+
+<!-- 中分類ハブ：📢 他の項目（連絡/一言/メッセージ/アンケート 4枚） -->
+<div id="screen-admin-other-input-hub" class="screen">
+  <header>
+    <h1>📢 他の項目</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="dashboard-wrap">
+    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminInputHub()">← 問題等の入力に戻る</button>
+    <button type="button" class="dashboard-card" onclick="goAdminForm('notice')">
+      <div class="dashboard-card-icon">📢</div>
+      <div class="dashboard-card-title">塾からの連絡</div>
+      <div class="dashboard-card-desc">連絡事項の追加・編集・LINE 配信設定 / 過去一覧</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminForm('quote')">
+      <div class="dashboard-card-icon">💡</div>
+      <div class="dashboard-card-title">今日の一言</div>
+      <div class="dashboard-card-desc">ホーム画面に表示する今日の一言を追加</div>
+    </button>
+    <button type="button" class="dashboard-card" onclick="goAdminTeacherMessages()">
+      <div class="dashboard-card-icon">📩</div>
+      <div class="dashboard-card-title">先生からのメッセージ</div>
+      <div class="dashboard-card-desc">生徒へのメッセージを作成・送信（個別 / 全員）</div>
+    </button>
+    <button type="button" id="dash-card-surveys" class="dashboard-card admin-only" onclick="goAdminSurveys()">
+      <div class="dashboard-card-icon">📋</div>
+      <div class="dashboard-card-title">アンケート</div>
+      <div class="dashboard-card-desc">生徒に単一選択アンケートを作成・公開／停止・結果集計（admin専用）</div>
+    </button>
+  </div>
+</div>
+
+<!-- 大分類ハブ：🎯 生徒対応（直カード4枚） -->
+<div id="screen-admin-student-care-hub" class="screen">
+  <header>
+    <h1>🎯 生徒対応</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="dashboard-wrap">
+    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <button type="button" class="dashboard-card" onclick="goAdminRanking()">
+      <div class="dashboard-card-icon">🏆</div>
+      <div class="dashboard-card-title">週間HPランキング</div>
+      <div class="dashboard-card-desc">週間ランキングの確認・画像保存</div>
+    </button>
+    <button type="button" id="dash-card-hp-grant" class="dashboard-card admin-only" onclick="goAdminHpGrant()">
+      <div class="dashboard-card-icon">💎</div>
+      <div class="dashboard-card-title">HP手動付与</div>
+      <div class="dashboard-card-desc">指定した生徒に素点HPを付与（連続週数ボーナスの加算可）</div>
     </button>
     <button type="button" id="dash-card-line-notify" class="dashboard-card admin-only" onclick="goAdminLineNotify()">
       <div class="dashboard-card-icon">💎</div>
@@ -927,92 +1189,63 @@
       <div class="dashboard-card-title">絶対ミッション設定</div>
       <div class="dashboard-card-desc">各生徒の絶対ミッション（英単語RUSH / 三語短文 / 和文英訳① / 基礎計算 / カンジー）を切替</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminRanking()">
-      <div class="dashboard-card-icon">🏆</div>
-      <div class="dashboard-card-title">週間HPランキング</div>
-      <div class="dashboard-card-desc">週間ランキングの確認・画像保存</div>
+  </div>
+</div>
+
+<!-- 大分類ハブ：🛍️ HP交換（直カード2枚） -->
+<div id="screen-admin-exchange-hub" class="screen">
+  <header>
+    <h1>🛍️ HP交換</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="dashboard-wrap">
+    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <button type="button" id="dash-card-avatar-items" class="dashboard-card admin-only" onclick="goAdminAvatarItems()">
+      <div class="dashboard-card-icon">🛍️</div>
+      <div class="dashboard-card-title">アバターアイテム管理</div>
+      <div class="dashboard-card-desc">着せ替えアイテムの価格・公開／予告・カテゴリ表示モードを設定（admin専用）</div>
     </button>
-    <!-- 2026-05-19 ダッシュボード集約化：以下 4 カードを各サブページ内に移動した。
-         · 基礎計算・答案写真 / リスオン問題入力 / リスオン録音データ
-              → 「問題等の入力と解答確認」ページ（screen-admin-tabs）の冒頭ナビ
-         · 振り返り閲覧（タイトルを「生徒の振り返りコメント」に変更）
-              → 「生徒の実施状況」ページ（screen-admin-activity-select）の末尾
-         機能・遷移・権限制御は維持。カードの場所だけ移動。 -->
-    <button type="button" id="dash-card-hp-grant" class="dashboard-card admin-only" onclick="goAdminHpGrant()">
-      <div class="dashboard-card-icon">💎</div>
-      <div class="dashboard-card-title">HP手動付与</div>
-      <div class="dashboard-card-desc">指定した生徒に素点HPを付与（連続週数ボーナスの加算可）</div>
+    <button type="button" id="dash-card-amazon-gift" class="dashboard-card admin-only" onclick="goAdminAmazonGift()">
+      <div class="dashboard-card-icon">🎁</div>
+      <div class="dashboard-card-title">Amazonギフト交換申請 <span id="amazon-gift-pending-badge" class="dash-pending-badge" style="display:none">0</span></div>
+      <div class="dashboard-card-desc">生徒からの Amazonギフト5000円申請を確認・対応済みにする（admin専用）</div>
+    </button>
+  </div>
+</div>
+
+<!-- 大分類ハブ：⚙️ システム系（直カード4枚） -->
+<div id="screen-admin-system-hub" class="screen">
+  <header>
+    <h1>⚙️ システム系</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="dashboard-wrap">
+    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <button type="button" id="dash-card-teacher-mgmt" class="dashboard-card admin-only" onclick="goAdminTeachers()">
+      <div class="dashboard-card-icon">👨‍🏫</div>
+      <div class="dashboard-card-title">講師管理</div>
+      <div class="dashboard-card-desc">講師の追加・パスワード再発行・有効/無効切替</div>
     </button>
     <button type="button" id="dash-card-streak-modify" class="dashboard-card admin-only" onclick="goAdminStreakModify()">
       <div class="dashboard-card-icon">⏱️</div>
       <div class="dashboard-card-title">連続ログイン日数 自動復旧</div>
       <div class="dashboard-card-desc">HPLog からログイン欠落日を自動検出し、補完承認のみで連続日数を機械算出（人力計算ミス防止）</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminTeacherMessages()">
-      <div class="dashboard-card-icon">📩</div>
-      <div class="dashboard-card-title">先生からのメッセージ</div>
-      <div class="dashboard-card-desc">生徒へのメッセージを作成・送信（個別 / 全員）</div>
-    </button>
-    <!-- マイ課題③（2026-06-12）：日付・教科・宿題内容を複数生徒に告知（admin/teacher 両ロール） -->
-    <button type="button" class="dashboard-card" onclick="goAdminMyTaskAnnounce()">
-      <div class="dashboard-card-icon">📣</div>
-      <div class="dashboard-card-title">マイ課題 告知</div>
-      <div class="dashboard-card-desc">指定した生徒に「日付・教科・宿題内容」を告知（複数生徒選択）</div>
-    </button>
-    <!-- マイ課題⑦（2026-06-12）：生徒が提出した写真を確認（管理B、admin/teacher 両ロール） -->
-    <button type="button" class="dashboard-card" onclick="goAdminMyTaskStudents()">
-      <div class="dashboard-card-icon">📸</div>
-      <div class="dashboard-card-title">マイ課題 提出確認</div>
-      <div class="dashboard-card-desc">生徒が提出したマイ課題の写真を確認（提出単位・複数枚）</div>
-    </button>
-    <!-- オリワンテス④-B（2026-06-16）：生徒が作った問題・解答を確認しコメント送信（admin/teacher 両ロール） -->
-    <button type="button" class="dashboard-card" onclick="goAdminOriwantesStudents()">
-      <div class="dashboard-card-icon">✍️</div>
-      <div class="dashboard-card-title">オリワンテス 提出確認</div>
-      <div class="dashboard-card-desc">生徒が作った問題・解答を確認してコメントを送る</div>
-    </button>
-    <!-- 2026-05-28 アンケート機能：生徒の声を集めて機能開発の優先順位や満足度把握に活用（admin専用） -->
-    <button type="button" id="dash-card-surveys" class="dashboard-card admin-only" onclick="goAdminSurveys()">
-      <div class="dashboard-card-icon">📋</div>
-      <div class="dashboard-card-title">アンケート</div>
-      <div class="dashboard-card-desc">生徒に単一選択アンケートを作成・公開／停止・結果集計（admin専用）</div>
-    </button>
-    <!-- 国語長文読解（2026-05-23 新規 → 同日中に集約化）：
-         以下 2 カードをサブページへ移動し、ダッシュボードからは外した（既存集約パターン踏襲）。
-         · 📖 国語長文 問題投入（admin-only）
-              → 「問題等の入力と解答確認」ページ（screen-admin-tabs）の冒頭ナビ
-                 リスオン問題入力と同列（問題投入系として集約）
-         · 📚 国語長文 挑戦履歴（admin/teacher 両ロール）
-              → 「生徒の実施状況」ページ（screen-admin-activity-select）の末尾
-                 生徒の振り返りコメントと同列（生徒の活動閲覧系として集約）
-         機能・遷移・権限制御は維持。カードの場所だけ移動。 -->
-    <button type="button" id="dash-card-teacher-mgmt" class="dashboard-card admin-only" onclick="goAdminTeachers()">
-      <div class="dashboard-card-icon">👨‍🏫</div>
-      <div class="dashboard-card-title">講師管理</div>
-      <div class="dashboard-card-desc">講師の追加・パスワード再発行・有効/無効切替</div>
-    </button>
-    <button type="button" id="dash-card-action-log" class="dashboard-card admin-only" onclick="goAdminActionLog()">
-      <div class="dashboard-card-icon">📋</div>
-      <div class="dashboard-card-title">操作ログ</div>
-      <div class="dashboard-card-desc">講師の管理操作・HP付与の履歴を確認（admin専用）</div>
-    </button>
-    <!-- 2026-05-21：Phase 3 _logHP 防御層のテレメトリ閲覧（silent failure 早期発見、admin専用） -->
     <button type="button" id="dash-card-hp-attempts" class="dashboard-card admin-only" onclick="goAdminHpAttempts()">
       <div class="dashboard-card-icon">⚠️</div>
       <div class="dashboard-card-title">HP書き込みログ</div>
       <div class="dashboard-card-desc">_logHP の試行ログ（成功・失敗・verify失敗）。silent failure の早期発見用（admin専用）</div>
     </button>
-    <!-- 2026-06-01：HP交換 Phase 3-B アバターアイテム管理（価格 / 公開状態 / カテゴリ表示モード、admin専用） -->
-    <button type="button" id="dash-card-avatar-items" class="dashboard-card admin-only" onclick="goAdminAvatarItems()">
-      <div class="dashboard-card-icon">🛍️</div>
-      <div class="dashboard-card-title">アバターアイテム管理</div>
-      <div class="dashboard-card-desc">着せ替えアイテムの価格・公開／予告・カテゴリ表示モードを設定（admin専用）</div>
-    </button>
-    <!-- 2026-06-01：HP交換 Phase 4 Amazonギフト交換申請（未対応バッジ付き、admin専用） -->
-    <button type="button" id="dash-card-amazon-gift" class="dashboard-card admin-only" onclick="goAdminAmazonGift()">
-      <div class="dashboard-card-icon">🎁</div>
-      <div class="dashboard-card-title">Amazonギフト交換申請 <span id="amazon-gift-pending-badge" class="dash-pending-badge" style="display:none">0</span></div>
-      <div class="dashboard-card-desc">生徒からの Amazonギフト5000円申請を確認・対応済みにする（admin専用）</div>
+    <button type="button" id="dash-card-action-log" class="dashboard-card admin-only" onclick="goAdminActionLog()">
+      <div class="dashboard-card-icon">📋</div>
+      <div class="dashboard-card-title">操作ログ</div>
+      <div class="dashboard-card-desc">講師の管理操作・HP付与の履歴を確認（admin専用）</div>
     </button>
   </div>
 </div>
@@ -1082,82 +1315,19 @@
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
     </div>
   </header>
-  <!-- 2026-05-19 集約化：ダッシュボードから移動した 3 カード（個別画面への遷移用）。
-       フォーム入力（タブ）とは別動線として上部に配置。機能・遷移は元のまま。 -->
-  <div class="admin-section-divider">📂 個別画面へ移動</div>
-  <div class="admin-inpage-nav">
-    <button type="button" class="dashboard-card admin-only" onclick="goAdminKisoStudents()">
-      <div class="dashboard-card-icon">📷</div>
-      <div class="dashboard-card-title">基礎計算・答案写真</div>
-      <div class="dashboard-card-desc">生徒が提出した答案写真を確認（保存期間 15 日）</div>
-    </button>
-    <button type="button" class="dashboard-card admin-only" onclick="goAdminLisonInput()">
-      <div class="dashboard-card-icon">🎧</div>
-      <div class="dashboard-card-title">リスオン問題入力</div>
-      <div class="dashboard-card-desc">週ごとの問題を作成・編集</div>
-    </button>
-    <button type="button" class="dashboard-card" onclick="goAdminLisonRecordings()">
-      <div class="dashboard-card-icon">🎤</div>
-      <div class="dashboard-card-title">リスオン録音データ</div>
-      <div class="dashboard-card-desc">生徒の音読録音を確認（保存期間 15 日）</div>
-    </button>
-    <!-- 2026-05-23 集約化：ダッシュボードから移動。リスオン問題入力と同列（問題投入系として集約）。
-         権限制御（admin-only）と遷移先 goAdminKokugoInput() は元のまま。 -->
-    <button type="button" id="dash-card-kokugo-input" class="dashboard-card admin-only" onclick="goAdminKokugoInput()">
-      <div class="dashboard-card-icon">📖</div>
-      <div class="dashboard-card-title">国語長文 問題投入</div>
-      <div class="dashboard-card-desc">文学的文章 / 説明的文章 × 800字 / 1,200字 の 4 区分で問題を追加</div>
-    </button>
-    <!-- 2026-05-23 新規：理社重要語句（中学理科・社会）問題投入。
-         TSV 一括投入で問題マスター（RikaQuestions / ShakaiQuestions）に追加。
-         id は自動採番（RK_0001 / SH_0001 から連番）。admin-only。 -->
-    <button type="button" id="dash-card-rika-input" class="dashboard-card admin-only" onclick="goAdminRikaInput()">
-      <div class="dashboard-card-icon">📕</div>
-      <div class="dashboard-card-title">理科重要語句 問題投入</div>
-      <div class="dashboard-card-desc">中学理科の問題を TSV で一括投入（10 問 / セット、4 択 + 解説）</div>
-    </button>
-    <button type="button" id="dash-card-shakai-input" class="dashboard-card admin-only" onclick="goAdminShakaiInput()">
-      <div class="dashboard-card-icon">📗</div>
-      <div class="dashboard-card-title">社会重要語句 問題投入</div>
-      <div class="dashboard-card-desc">中学社会の問題を TSV で一括投入（10 問 / セット、4 択 + 解説）</div>
-    </button>
-  </div>
-  <!-- 2026-05-19 タブ → カード化：6 モジュール（quote / notice / sango-topic /
-       sango-submissions / wabun1-topic / wabun1-submissions）をカード形式に統一。
-       各カード → 個別画面 screen-admin-form-{id} に遷移。フォーム内容・送信処理は無変更。 -->
-  <div class="admin-section-divider">✏️ フォーム入力</div>
-  <div class="admin-inpage-nav">
-    <button type="button" class="dashboard-card" onclick="goAdminForm('quote')">
-      <div class="dashboard-card-icon">💡</div>
-      <div class="dashboard-card-title">今日の一言</div>
-      <div class="dashboard-card-desc">ホーム画面に表示する今日の一言を追加</div>
-    </button>
-    <button type="button" class="dashboard-card" onclick="goAdminForm('notice')">
-      <div class="dashboard-card-icon">📢</div>
-      <div class="dashboard-card-title">塾からの連絡</div>
-      <div class="dashboard-card-desc">連絡事項の追加・編集・LINE 配信設定 / 過去一覧</div>
-    </button>
-    <button type="button" class="dashboard-card" onclick="goAdminForm('sango-topic')">
-      <div class="dashboard-card-icon">✏️</div>
-      <div class="dashboard-card-title">三語短文のお題</div>
-      <div class="dashboard-card-desc">Excel コピペで週単位一括登録、先生の作品も個別登録</div>
-    </button>
-    <button type="button" class="dashboard-card" onclick="goAdminForm('sango-submissions')">
-      <div class="dashboard-card-icon">📋</div>
-      <div class="dashboard-card-title">三語短文の提出</div>
-      <div class="dashboard-card-desc">生徒の提出一覧を閲覧・先生コメントを入力</div>
-    </button>
-    <button type="button" class="dashboard-card" onclick="goAdminForm('wabun1-topic')">
-      <div class="dashboard-card-icon">📝</div>
-      <div class="dashboard-card-title">和文英訳①</div>
-      <div class="dashboard-card-desc">問題・正解の週単位一括登録（Excel コピペ）</div>
-    </button>
-    <button type="button" class="dashboard-card" onclick="goAdminForm('wabun1-submissions')">
-      <div class="dashboard-card-icon">📋</div>
-      <div class="dashboard-card-title">和文英訳① 提出</div>
-      <div class="dashboard-card-desc">生徒の提出一覧を閲覧・先生コメントを入力</div>
-    </button>
-  </div>
+  <!-- =================================================================
+       2026-06-29 段階A-1：この screen-admin-tabs はハブのエントリから退役。
+       内包していた 12 カードは以下の中分類ハブへ移設済み（onclick 不変）：
+         · 基礎計算写真 / リスオン録音 / 三語短文提出 / 和文英訳①提出
+              → screen-admin-answer-check-hub
+         · リスオン入力 / 国語入力 / 理科入力 / 社会入力 / 三語短文お題 / 和文英訳①投入
+              → screen-admin-content-input-hub
+         · 今日の一言 / 塾からの連絡
+              → screen-admin-other-input-hub
+       div 自体は DOM 残置（リンクは張らない）。buildAdminUI / goAdminForm /
+       screen-admin-form-* は無傷（事実B：goAdminForm が自己初期化するため
+       本 screen を経由しなくてもフォームは正しく動作）。
+       ================================================================= -->
 </div>
 
 <!-- 2026-05-19 各フォーム用の個別画面（6 つ）。section.id = form-section-{moduleId} に
@@ -1166,12 +1336,12 @@
   <header>
     <h1>💡 今日の一言</h1>
     <div class="header-btns">
-      <button class="logout-btn" onclick="goAdminTabs()">← フォーム選択へ</button>
+      <button class="logout-btn" onclick="goAdminOtherInputHub()">← 他の項目へ</button>
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
     </div>
   </header>
   <div class="admin-page">
-    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminTabs()">← フォーム選択へ戻る</button>
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminOtherInputHub()">← 他の項目に戻る</button>
     <section id="form-section-quote"></section>
   </div>
 </div>
@@ -1179,12 +1349,12 @@
   <header>
     <h1>📢 塾からの連絡</h1>
     <div class="header-btns">
-      <button class="logout-btn" onclick="goAdminTabs()">← フォーム選択へ</button>
+      <button class="logout-btn" onclick="goAdminOtherInputHub()">← 他の項目へ</button>
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
     </div>
   </header>
   <div class="admin-page">
-    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminTabs()">← フォーム選択へ戻る</button>
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminOtherInputHub()">← 他の項目に戻る</button>
     <section id="form-section-notice"></section>
   </div>
 </div>
@@ -1192,12 +1362,12 @@
   <header>
     <h1>✏️ 三語短文のお題</h1>
     <div class="header-btns">
-      <button class="logout-btn" onclick="goAdminTabs()">← フォーム選択へ</button>
+      <button class="logout-btn" onclick="goAdminContentInputHub()">← 学習コンテンツへ</button>
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
     </div>
   </header>
   <div class="admin-page">
-    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminTabs()">← フォーム選択へ戻る</button>
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminContentInputHub()">← 学習コンテンツに戻る</button>
     <section id="form-section-sango-topic"></section>
   </div>
 </div>
@@ -1205,12 +1375,12 @@
   <header>
     <h1>📋 三語短文の提出</h1>
     <div class="header-btns">
-      <button class="logout-btn" onclick="goAdminTabs()">← フォーム選択へ</button>
+      <button class="logout-btn" onclick="goAdminAnswerCheckHub()">← 解答確認へ</button>
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
     </div>
   </header>
   <div class="admin-page">
-    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminTabs()">← フォーム選択へ戻る</button>
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAnswerCheckHub()">← 解答確認に戻る</button>
     <section id="form-section-sango-submissions"></section>
   </div>
 </div>
@@ -1218,12 +1388,12 @@
   <header>
     <h1>📝 和文英訳①</h1>
     <div class="header-btns">
-      <button class="logout-btn" onclick="goAdminTabs()">← フォーム選択へ</button>
+      <button class="logout-btn" onclick="goAdminContentInputHub()">← 学習コンテンツへ</button>
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
     </div>
   </header>
   <div class="admin-page">
-    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminTabs()">← フォーム選択へ戻る</button>
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminContentInputHub()">← 学習コンテンツに戻る</button>
     <section id="form-section-wabun1-topic"></section>
   </div>
 </div>
@@ -1231,12 +1401,12 @@
   <header>
     <h1>📋 和文英訳① 提出</h1>
     <div class="header-btns">
-      <button class="logout-btn" onclick="goAdminTabs()">← フォーム選択へ</button>
+      <button class="logout-btn" onclick="goAdminAnswerCheckHub()">← 解答確認へ</button>
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
     </div>
   </header>
   <div class="admin-page">
-    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminTabs()">← フォーム選択へ戻る</button>
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAnswerCheckHub()">← 解答確認に戻る</button>
     <section id="form-section-wabun1-submissions"></section>
   </div>
 </div>
@@ -1999,7 +2169,7 @@
     </div>
   </header>
   <div class="dashboard-wrap">
-    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+    <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLearningHub()">← 生徒の学習履歴に戻る</button>
     <button type="button" class="dashboard-card" onclick="goAdminStudents()">
       <div class="dashboard-card-icon">📋</div>
       <div class="dashboard-card-title">生徒一覧から選ぶ</div>
@@ -2018,25 +2188,9 @@
       <div class="dashboard-card-title">生徒の振り返りコメント</div>
       <div class="dashboard-card-desc">生徒がログアウト時に書いた振り返りコメントを確認（admin / teacher 両ロール可）</div>
     </button>
-    <!-- 2026-05-23 集約化：ダッシュボードから移動。生徒の振り返りコメントと同列（生徒の活動閲覧系として集約）。
-         権限制御（admin / teacher 両ロール可）と遷移先 goAdminKokugoStudents() は元のまま。 -->
-    <button type="button" class="dashboard-card" onclick="goAdminKokugoStudents()">
-      <div class="dashboard-card-icon">📚</div>
-      <div class="dashboard-card-title">国語長文 挑戦履歴</div>
-      <div class="dashboard-card-desc">生徒の挑戦履歴・感想文・AIフィードバックを確認（admin / teacher 両ロール可）</div>
-    </button>
-    <!-- 2026-05-23 新規：理社重要語句 挑戦履歴（国語長文と同パターン：生徒別 / カレンダーの 2 モード UI）。
-         admin / teacher 両ロール可。subject パラメータで rika / shakai を切替（1 セットの screen 群で両対応）。 -->
-    <button type="button" class="dashboard-card" onclick="goAdminRishaHistory('rika')">
-      <div class="dashboard-card-icon">📕</div>
-      <div class="dashboard-card-title">理科重要語句 挑戦履歴</div>
-      <div class="dashboard-card-desc">生徒の挑戦履歴（単元・セット・正誤）を確認（admin / teacher 両ロール可）</div>
-    </button>
-    <button type="button" class="dashboard-card" onclick="goAdminRishaHistory('shakai')">
-      <div class="dashboard-card-icon">📗</div>
-      <div class="dashboard-card-title">社会重要語句 挑戦履歴</div>
-      <div class="dashboard-card-desc">生徒の挑戦履歴（単元・セット・正誤）を確認（admin / teacher 両ロール可）</div>
-    </button>
+    <!-- 2026-06-29 段階A-1：国語長文 / 理科 / 社会の挑戦履歴 3 枚は
+         「コンテンツごとの達成度」中分類ハブ（screen-admin-achievement-hub）へ移設。
+         遷移先 goAdminKokugoStudents() / goAdminRishaHistory() は不変。 -->
   </div>
 </div>
 
@@ -9015,6 +9169,22 @@
     _showScreen('screen-admin-activity-select');
     window.scrollTo(0, 0);
   }
+
+  // =============================================================
+  // 2026-06-29 段階A-1：3階層ハブ再編の遷移関数（新設9個）。
+  // 既存 go関数の作法（_showScreen + scrollTo）に合わせた単純遷移のみ。
+  // 「生徒の実施状況」中分類は既存 goAdminActivitySelect を流用するため
+  // ここには含めない（計10ハブ = 新設9 + activity-select 流用1）。
+  // =============================================================
+  function goAdminLearningHub()     { _showScreen('screen-admin-learning-hub');      window.scrollTo(0, 0); }
+  function goAdminAchievementHub()  { _showScreen('screen-admin-achievement-hub');   window.scrollTo(0, 0); }
+  function goAdminAnswerCheckHub()  { _showScreen('screen-admin-answer-check-hub');  window.scrollTo(0, 0); }
+  function goAdminInputHub()        { _showScreen('screen-admin-input-hub');         window.scrollTo(0, 0); }
+  function goAdminContentInputHub() { _showScreen('screen-admin-content-input-hub'); window.scrollTo(0, 0); }
+  function goAdminOtherInputHub()   { _showScreen('screen-admin-other-input-hub');   window.scrollTo(0, 0); }
+  function goAdminStudentCareHub()  { _showScreen('screen-admin-student-care-hub');  window.scrollTo(0, 0); }
+  function goAdminExchangeHub()     { _showScreen('screen-admin-exchange-hub');      window.scrollTo(0, 0); }
+  function goAdminSystemHub()       { _showScreen('screen-admin-system-hub');        window.scrollTo(0, 0); }
 
   function _todayJSTStr() {
     // 端末タイムゾーンに依存しないよう、Asia/Tokyo の今日を組み立てる
