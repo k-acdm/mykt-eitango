@@ -925,12 +925,12 @@
       <div class="dashboard-card-title">生徒対応</div>
       <div class="dashboard-card-desc">週間HPランキング / HP手動付与 / LINE通知管理 / 絶対ミッション設定</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminExchangeHub()">
+    <button type="button" class="dashboard-card admin-only" onclick="goAdminExchangeHub()">
       <div class="dashboard-card-icon">🛍️</div>
       <div class="dashboard-card-title">HP交換</div>
       <div class="dashboard-card-desc">アバターアイテム管理 / Amazonギフト交換申請</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminSystemHub()">
+    <button type="button" class="dashboard-card admin-only" onclick="goAdminSystemHub()">
       <div class="dashboard-card-icon">⚙️</div>
       <div class="dashboard-card-title">システム系</div>
       <div class="dashboard-card-desc">講師管理 / 連続ログイン日数 自動復旧 / 各種ログ</div>
@@ -1018,7 +1018,7 @@
   </header>
   <div class="dashboard-wrap">
     <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLearningHub()">← 生徒の学習履歴に戻る</button>
-    <button type="button" class="dashboard-card admin-only" onclick="goAdminKisoStudents()">
+    <button type="button" class="dashboard-card" onclick="goAdminKisoStudents()">
       <div class="dashboard-card-icon">📷</div>
       <div class="dashboard-card-title">基礎計算・答案写真</div>
       <div class="dashboard-card-desc">生徒が提出した答案写真を確認（保存期間 15 日）</div>
@@ -1091,12 +1091,12 @@
       <div class="dashboard-card-title">マイ課題 告知</div>
       <div class="dashboard-card-desc">指定した生徒に「日付・教科・宿題内容」を告知（複数生徒選択）</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminForm('sango-topic')">
+    <button type="button" class="dashboard-card admin-only" onclick="goAdminForm('sango-topic')">
       <div class="dashboard-card-icon">✏️</div>
       <div class="dashboard-card-title">三語短文のお題</div>
       <div class="dashboard-card-desc">Excel コピペで週単位一括登録、先生の作品も個別登録</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminForm('wabun1-topic')">
+    <button type="button" class="dashboard-card admin-only" onclick="goAdminForm('wabun1-topic')">
       <div class="dashboard-card-icon">📝</div>
       <div class="dashboard-card-title">和文英訳①</div>
       <div class="dashboard-card-desc">問題・正解の週単位一括登録（Excel コピペ）</div>
@@ -1135,12 +1135,12 @@
   </header>
   <div class="dashboard-wrap">
     <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminInputHub()">← 問題等の入力に戻る</button>
-    <button type="button" class="dashboard-card" onclick="goAdminForm('notice')">
+    <button type="button" class="dashboard-card admin-only" onclick="goAdminForm('notice')">
       <div class="dashboard-card-icon">📢</div>
       <div class="dashboard-card-title">塾からの連絡</div>
       <div class="dashboard-card-desc">連絡事項の追加・編集・LINE 配信設定 / 過去一覧</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminForm('quote')">
+    <button type="button" class="dashboard-card admin-only" onclick="goAdminForm('quote')">
       <div class="dashboard-card-icon">💡</div>
       <div class="dashboard-card-title">今日の一言</div>
       <div class="dashboard-card-desc">ホーム画面に表示する今日の一言を追加</div>
