@@ -10611,7 +10611,7 @@
     });
   }
 
-  // 指定生徒の挑戦履歴を時刻昇順で表示（adminListKokugoAttempts は降順返却 → フロントで reverse）
+  // 指定生徒の挑戦履歴を時刻降順（新しい順）で表示（2026-06-29：timestamp 降順ソート。GAS取得順に依存しない）
   function loadKokugoHistoryForStudent(sid) {
     var wrap = document.getElementById('kokugo-history-wrap');
     if (!sid) {
@@ -10631,7 +10631,12 @@
         if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var attempts = (res.attempts || []).slice().reverse(); // 降順 → 昇順
+      // timestamp（"YYYY-MM-DD HH:MM:SS"）の降順（新しい順）で表示。同日複数回も時刻まで見て新しい順。
+      var attempts = (res.attempts || []).slice().sort(function(x, y){
+        var tx = String((x && x.timestamp) || '');
+        var ty = String((y && y.timestamp) || '');
+        return tx < ty ? 1 : (tx > ty ? -1 : 0);
+      });
       if (!attempts.length) {
         if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">まだ挑戦履歴がありません</div>';
         return;
@@ -11134,7 +11139,12 @@
         if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var attempts = (res.attempts || []).slice().reverse();
+      // timestamp（"YYYY-MM-DD HH:MM:SS"）の降順（新しい順）で表示。同日複数回も時刻まで見て新しい順。
+      var attempts = (res.attempts || []).slice().sort(function(x, y){
+        var tx = String((x && x.timestamp) || '');
+        var ty = String((y && y.timestamp) || '');
+        return tx < ty ? 1 : (tx > ty ? -1 : 0);
+      });
       if (!attempts.length) {
         if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">まだ挑戦履歴がありません</div>';
         return;
