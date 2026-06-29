@@ -1305,6 +1305,7 @@ function doGet(e) {
       else if (action === 'adminListShakaiAttempts')     result = adminListShakaiAttempts(params);
       // 英単語RUSH 達成度（到達率・定義B・V2前提、2026-06-29 段階C-1）。admin/teacher 両ロール可。
       else if (action === 'getEitangoAchievement')       result = getEitangoAchievement(params);
+      else if (action === 'getKobunAchievement')          result = getKobunAchievement(params);
       else if (action === 'getRikaMonthSummary')         result = getRikaMonthSummary(params);
       else if (action === 'getShakaiMonthSummary')       result = getShakaiMonthSummary(params);
       else if (action === 'getRikaDayDetail')            result = getRikaDayDetail(params);
@@ -20509,6 +20510,8 @@ function submitKobunSet(params) {
         console.error('[submitKobunSet progress update]', progressErr);
         // 進捗更新失敗時もユーザー応答は成功扱い（HP は加算済み）
       }
+      // コブタン達成度（到達率）キャッシュを破棄して即時反映（getKobunAchievement / 段階C-2）。
+      try { _invalidateCache('cache_kobun_ach_' + sid); } catch (e) {}
     }
 
     return {
@@ -30439,6 +30442,109 @@ function getEitangoAchievement(params) {
 }
 
 // =============================================================================
+// コブタン（古文単語）達成度（到達率）— getKobunAchievement（2026-06-30 / 段階C-2）
+// =============================================================================
+// 定義B：全語に対する到達率（既習も分子に ×2＝問題ベースで含める）。コブタンは級レス（単一）。
+//   total_words = KobunQuestions の distinct word_id 数（≈390）
+//   total       = total_words × 2（各語が round1/round2 の 2 問）
+//   reached     = min(p1, total_words) + min(p2, total_words)   ← ★各周回を全語数で min クランプ
+//   rate        = total > 0 ? reached / total : null
+//   p1/p2       = HPLog の type=kobun_<round>_<count>（_practice 含む）の count 合計（round 別）
+//
+// ★巡回吸収（案2）：コブタンは V1（submitKobunSet）が 2 周完走で Properties（kobun_round/
+//   kobun_next）を初期化する巡回式。Properties・VocabOrder は完走を durable に保持できない
+//   （V1 は巡回でリセット、V2 はマイグレーションが巡回後 Properties から再シードし得る）。
+//   一方 HPLog は append-only・never reset で、V1（submitKobunSet）/ V2（_submitAttemptV2Kobun）の
+//   両経路が合格毎に kobun_<round>_<count> を書く＝完走の唯一の durable な記録。
+//   各周回を total_words で min クランプすることで「両周回を一度でも完走 = 100% で固定」
+//   （再周回で同じ語を再通過しても水増しされず 100% を維持）。
+// ★mode 非依存：HPLog は V1/V2 双方が書くため VOCAB_V2_MODE を一切参照しない。
+// ★練習（_practice）も分子に加算：到達は到達（HP 有無＝daily cap とは別概念）。
+// ★完走検出のため HPLog は全期間スキャン（末尾 N 行では完走を取りこぼす）。sid 絞り＋
+//   type 前置 'kobun_' でフィルタ。
+// 認証：_verifyTeacher（達成度ハブは admin/teacher 両ロール可）。getEitangoAchievement と同じ外枠。
+// キャッシュ：per-sid 短 TTL（300s）cache_kobun_ach_<sid>。提出（V1/V2 両経路）成功時に remove。
+function getKobunAchievement(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+
+    return _getCachedValues('cache_kobun_ach_' + sid, 300, function() {
+      const warns = [];
+
+      // 全語数（student 非依存）：KobunQuestions の distinct word_id 数。グローバル長 TTL キャッシュ。
+      const totalWords = _getCachedValues('cache_kobun_wordcount', 21600, function() {
+        const qSh = _ss().getSheetByName(SHEET_KOBUN_QUESTIONS);
+        if (!qSh || qSh.getLastRow() < 2) return 0;
+        const qVals = qSh.getDataRange().getValues();
+        const iWordId = _vocabFindCol(qVals[0], ['word_id', 'wordId', 'wordID', '単語ID']);
+        const wi = (iWordId >= 0) ? iWordId : 2; // KobunQuestions の 単語ID は既定で列2
+        const seen = {};
+        let n = 0;
+        for (let i = 1; i < qVals.length; i++) {
+          const wid = String(qVals[i][wi] || '').trim();
+          if (!wid || seen[wid]) continue;
+          seen[wid] = true; n++;
+        }
+        return n;
+      });
+
+      if (!totalWords || totalWords <= 0) {
+        warns.push('KobunQuestions に語データがありません（未投入）');
+        return { ok: true, studentId: sid, reached: 0, total: 0, rate: null,
+                 round1Reached: 0, round2Reached: 0, totalWords: 0, fullCompletions: 0, warns: warns };
+      }
+
+      // HPLog 全期間スキャン（sid 絞り）。type=kobun_<round>_<count>（_practice 含む）の count を round 別合算。
+      //   HPLog 列: 0=timestamp, 1=studentId, 2=rawHP, 3=hpGained, 4=type
+      let p1 = 0, p2 = 0;
+      const logSh = _ss().getSheetByName(SHEET_HPLOG);
+      if (logSh && logSh.getLastRow() >= 2) {
+        const lv = logSh.getDataRange().getValues();
+        const re = /^kobun_(\d+)_(\d+)(_practice)?$/;
+        for (let i = 1; i < lv.length; i++) {
+          if (String(lv[i][1] || '').trim() !== sid) continue;
+          const type = String(lv[i][4] || '').trim();
+          if (type.indexOf('kobun_') !== 0) continue;
+          const m = re.exec(type);
+          if (!m) continue;
+          const round = m[1];
+          const count = parseInt(m[2], 10) || 0;
+          if (round === '1') p1 += count;
+          else if (round === '2') p2 += count;
+        }
+      }
+
+      const round1Reached = Math.min(p1, totalWords);   // ★周回クランプ
+      const round2Reached = Math.min(p2, totalWords);
+      const reached = round1Reached + round2Reached;
+      const total = totalWords * 2;
+      const rate = total > 0 ? (reached / total) : null;
+      // 2 周完走回数（両周回の通過回数の小さい方）。再周回で下がらない（min クランプと整合）。
+      const fullCompletions = Math.min(Math.floor(p1 / totalWords), Math.floor(p2 / totalWords));
+
+      return {
+        ok: true,
+        studentId: sid,
+        reached: reached,
+        total: total,
+        rate: rate,
+        round1Reached: round1Reached,
+        round2Reached: round2Reached,
+        totalWords: totalWords,
+        fullCompletions: fullCompletions,
+        warns: warns
+      };
+    });
+  } catch (err) {
+    console.error('[getKobunAchievement]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================================================
 // 既習移行【本書き込み】runEitangoMigrationLIVE（2026-06-03、VocabOrder のみ書込）
 // =============================================================================
 // dryRun で検証済みの既習移行を、実際に VocabOrder シートへ書き込む。
@@ -31332,6 +31438,8 @@ function _submitAttemptV2Kobun(sid, blockNo, round, opts) {
     sh.getRange(target.rowIdx, 8, 1, 2).setValues([[newPosition, newDone]]);
     SpreadsheetApp.flush();
     _invalidateVocabKey(sid, VOCAB_KOBUN_GRADE, VOCAB_KOBUN_GROUPTYPE, VOCAB_SUBJECT_KOBUN);
+    // コブタン達成度（到達率）キャッシュを破棄して即時反映（getKobunAchievement / 段階C-2）。
+    try { _invalidateCache('cache_kobun_ach_' + sid); } catch (e) {}
 
     // HP 付与（従来コブタン仕様：素点100 / 1日上限100 / type=kobun_<round>_<total> / 練習モード）。
     //   ★submitKobunSet のHPブロックと同一ロジック（既存V1 submitKobunSet を改変しないため複製）。
