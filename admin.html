@@ -989,17 +989,17 @@
   </header>
   <div class="dashboard-wrap">
     <button type="button" class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLearningHub()">← 生徒の学習履歴に戻る</button>
-    <button type="button" class="dashboard-card" onclick="goAdminKokugoStudents()">
+    <button type="button" class="dashboard-card" onclick="goAdminKokugoStudentsMode()">
       <div class="dashboard-card-icon">📚</div>
       <div class="dashboard-card-title">国語長文 挑戦履歴</div>
       <div class="dashboard-card-desc">生徒の挑戦履歴・感想文・AIフィードバックを確認（admin / teacher 両ロール可）</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminRishaHistory('rika')">
+    <button type="button" class="dashboard-card" onclick="goAdminRishaHistoryStudents('rika')">
       <div class="dashboard-card-icon">📕</div>
       <div class="dashboard-card-title">理科重要語句 挑戦履歴</div>
       <div class="dashboard-card-desc">生徒の挑戦履歴（単元・セット・正誤）を確認（admin / teacher 両ロール可）</div>
     </button>
-    <button type="button" class="dashboard-card" onclick="goAdminRishaHistory('shakai')">
+    <button type="button" class="dashboard-card" onclick="goAdminRishaHistoryStudents('shakai')">
       <div class="dashboard-card-icon">📗</div>
       <div class="dashboard-card-title">社会重要語句 挑戦履歴</div>
       <div class="dashboard-card-desc">生徒の挑戦履歴（単元・セット・正誤）を確認（admin / teacher 両ロール可）</div>
@@ -1859,11 +1859,14 @@
       <div class="dashboard-card-title">生徒別に見る</div>
       <div class="dashboard-card-desc">生徒名から挑戦履歴を確認</div>
     </button>
+    <!-- 2026-06-29 段階B：カレンダー別を廃止（導線カット）。画面・関数は DOM 残置。復活時はこのボタンを戻す。
     <button type="button" class="dashboard-card" onclick="goAdminKokugoCalendar()">
       <div class="dashboard-card-icon">📅</div>
       <div class="dashboard-card-title">カレンダーで見る</div>
       <div class="dashboard-card-desc">日付から、その日の挑戦全件を時刻順に確認</div>
     </button>
+    -->
+    <!-- 段階B：このモード選択画面（screen-admin-kokugo-history-select）は到達導線なし（達成度ハブから直接 goAdminKokugoStudentsMode へ）。DOM 残置。 -->
   </div>
 </div>
 
@@ -1877,7 +1880,7 @@
     </div>
   </header>
   <div class="admin-page">
-    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKokugoStudents()">← 選択画面に戻る</button>
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
     <div class="page-lead">生徒名をクリックすると、その生徒の国語長文 挑戦履歴（感想文・AIフィードバックを含む）を表示します。</div>
     <div id="kokugo-history-students-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
   </div>
@@ -1999,11 +2002,14 @@
       <div class="dashboard-card-title">生徒別に見る</div>
       <div class="dashboard-card-desc">生徒名から挑戦履歴を確認</div>
     </button>
+    <!-- 2026-06-29 段階B：カレンダー別を廃止（導線カット）。画面・関数は DOM 残置。復活時はこのボタンを戻す。
     <button type="button" class="dashboard-card" onclick="goAdminRishaCalendar()">
       <div class="dashboard-card-icon">📅</div>
       <div class="dashboard-card-title">カレンダーで見る</div>
       <div class="dashboard-card-desc">日付から、その日の挑戦全件を時刻順に確認</div>
     </button>
+    -->
+    <!-- 段階B：このモード選択画面（screen-admin-risha-history-select）は到達導線なし（達成度ハブから直接 goAdminRishaHistoryStudents へ）。DOM 残置。 -->
   </div>
 </div>
 
@@ -2017,7 +2023,7 @@
     </div>
   </header>
   <div class="admin-page">
-    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="_goRishaHistorySelect()">← 選択画面に戻る</button>
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
     <div class="page-lead">生徒名をクリックすると、その生徒の理社重要語句 挑戦履歴を表示します。</div>
     <div id="risha-history-students-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
   </div>
@@ -11039,6 +11045,12 @@
   function goAdminRishaHistory(subject) {
     _rishaAdminSubject = subject;
     _goRishaHistorySelect();
+  }
+  // 2026-06-29 段階B：達成度ハブから「生徒別」に直行（モード選択画面を経由しない）。
+  // subject を設定してから生徒別モード（goAdminRishaStudentsMode）を呼ぶ。カレンダー別は廃止。
+  function goAdminRishaHistoryStudents(subject) {
+    _rishaAdminSubject = subject;
+    goAdminRishaStudentsMode();
   }
   function _goRishaHistorySelect() {
     var subject = _rishaAdminSubject;
