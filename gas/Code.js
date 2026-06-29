@@ -92,6 +92,11 @@ const COL_LAST_TEST  = 7;
 const COL_LAST_LOGIN = 8;
 
 const LEVEL_ORDER     = ['5級', '4級', '3級', '準2級', '2級', '準1級'];
+// ★達成度（getEitangoAchievement / _migScanGradeData）専用の全8級リスト。
+//   LEVEL_ORDER とは別物。後付けの準2級プラス・1級も達成度の計算・表示に含めるため。
+//   LEVEL_ORDER 本体は V1 の級チェーン（_getNextLevel）・ランキング・移行LIVE が依存するため
+//   絶対に変更しない（準2級プラスを混ぜると V1 進行が壊れる）。
+const EITANGO_GRADES  = ['5級', '4級', '3級', '準2級', '準2級プラス', '2級', '準1級', '1級'];
 // 旧 EXCHANGE_RANKS（固定ランク景品交換）は HP 交換システム Phase 3（2026-05-31）で廃止。
 // 新方式は AvatarItems シート（商品マスタ）+ HP_SPENT 列ベースの submitExchange(sid, itemId)。
 
@@ -30147,7 +30152,7 @@ function _migScanGradeData() {
       if (!rowsByGrade[g]) rowsByGrade[g] = [];
       rowsByGrade[g].push(r);
     }
-    LEVEL_ORDER.forEach(function(grade) {
+    EITANGO_GRADES.forEach(function(grade) {
       if (grade === '5級') return; // 5級は Q5 で処理済み
       const rows = rowsByGrade[grade] || [];
       if (rows.length === 0) { dataWarnings.push('[' + grade + '] Questions に該当データなし'); return; }
@@ -30393,7 +30398,7 @@ function getEitangoAchievement(params) {
       const byGrade = {};
       const warns = [];
       let overallReached = 0, overallTotal = 0;
-      LEVEL_ORDER.forEach(function(grade) {
+      EITANGO_GRADES.forEach(function(grade) {
         const clearedStr   = allProps['cleared_' + sid + '_' + grade];
         const passedSetMap = passed[grade] || {};
         const res = _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap, false);
