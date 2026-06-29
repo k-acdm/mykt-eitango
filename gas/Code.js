@@ -1298,6 +1298,8 @@ function doGet(e) {
       else if (action === 'adminAddShakaiQuestion')      result = adminAddShakaiQuestion(params);
       else if (action === 'adminListRikaAttempts')       result = adminListRikaAttempts(params);
       else if (action === 'adminListShakaiAttempts')     result = adminListShakaiAttempts(params);
+      // 英単語RUSH 達成度（到達率・定義B・V2前提、2026-06-29 段階C-1）。admin/teacher 両ロール可。
+      else if (action === 'getEitangoAchievement')       result = getEitangoAchievement(params);
       else if (action === 'getRikaMonthSummary')         result = getRikaMonthSummary(params);
       else if (action === 'getShakaiMonthSummary')       result = getShakaiMonthSummary(params);
       else if (action === 'getRikaDayDetail')            result = getRikaDayDetail(params);
@@ -30319,6 +30321,119 @@ function _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap
 }
 
 // =============================================================================
+// 英単語RUSH 達成度（到達率）— getEitangoAchievement（2026-06-29 / 段階C-1）
+// =============================================================================
+// 定義B：級の全語に対する到達率。既習（V1 で 2 周完了し V2 移行で出題リストから除外された語）も
+//   分子に ×2（2 周＝問題ベース）で含める。全生徒で分母を「級の全プール」に統一。
+//
+// 級ごと（word/idiom 合算）に：
+//   total(級)   = (word.total + idiom.total) × 2                  ← 全語数 × 2 周
+//   reached(級) = (word.migrated_done + idiom.migrated_done) × 2   ← 既習 ×2
+//               + Σ position(VocabOrder, subject='eitango', その級) ← V2 到達分（問題ベース）
+//   reached     = max(0, min(reached, total))                     ← 防御クランプ
+//   rate        = total > 0 ? reached / total : null              ← 全語 0 の級は N/A
+//   overall     = Σreached ÷ Σtotal
+//
+// ★既習語数は _migrateOneStudentGrade（cleared_/Attempts から移行と同一ロジックで算出）を使う。
+//   VocabOrder 行数からの逆算は【しない】：未着手の級（0 行）と全既習の級（0 行）が区別できず、
+//   未着手級を「全部既習＝100%」と誤判定する致命的バグになるため（設計 §2）。
+// ★VocabOrder（position）は V2 到達分の正。Attempts/cleared_ は「既習語数」の算出にのみ使用
+//   （＝移行と同じ）。Attempts から達成率そのものは作らない。
+// 認証：_verifyTeacher（達成度ハブは admin/teacher 両ロール可）。
+// キャッシュ：per-sid 短 TTL（300s）cache_eitan_ach_<sid>。submitAttemptV2 が position を進めたら
+//   同キーを remove して即時反映（任意・実装済み）。手本：getKisoAnsweredCounts。
+function getEitangoAchievement(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+
+    return _getCachedValues('cache_eitan_ach_' + sid, 300, function() {
+      // 全語数の素（student 非依存）。重いのでベストエフォートで別途グローバルキャッシュ（>95KB 時は素通り）。
+      const scan = _getCachedValues('cache_eitan_gradedata', 21600, function() { return _migScanGradeData(); });
+      const gradeData = (scan && scan.gradeData) || {};
+
+      // この生徒の Attempts 合格セット（sid 絞り・軽量スキャン）。passed[級] = { setNo:true }
+      //   列: 0 日時 / 1 sid / 3 setNo / 5 合否 / 6 級（_migScanAttempts と同一の列定義）
+      const passed = {};
+      const ash = _ss().getSheetByName(SHEET_ATTEMPTS);
+      if (ash && ash.getLastRow() >= 2) {
+        const av = ash.getDataRange().getValues();
+        for (let i = 1; i < av.length; i++) {
+          const r = av[i];
+          if (String(r[1] || '').trim() !== sid) continue;
+          if (String(r[5]).trim() !== '合格') continue;
+          const lv = String(r[6] || '').trim();
+          const setNo = Number(r[3]) || 0;
+          if (!lv || setNo <= 0) continue;
+          if (!passed[lv]) passed[lv] = {};
+          passed[lv][setNo] = true;
+        }
+      }
+
+      // cleared_<sid>_<級>（1 回だけ getProperties）
+      const allProps = _props().getProperties();
+
+      // VocabOrder（subject='eitango'）を sid で 1 スキャン → 級ごとに Σposition
+      //   列: 0 studentId / 1 subject / 2 grade / 7 position（_getVocabRowsForKey と同一の列定義）
+      const posByGrade = {};
+      const vsh = _ss().getSheetByName(SHEET_VOCAB_ORDER);
+      if (vsh && vsh.getLastRow() >= 2) {
+        const vv = vsh.getDataRange().getValues();
+        for (let i = 1; i < vv.length; i++) {
+          const r = vv[i];
+          if (String(r[0]).trim() !== sid) continue;
+          if (String(r[1]).trim() !== VOCAB_SUBJECT_EITANGO) continue;
+          const g = String(r[2]).trim();
+          posByGrade[g] = (posByGrade[g] || 0) + (Number(r[7]) || 0);
+        }
+      }
+
+      const byGrade = {};
+      const warns = [];
+      let overallReached = 0, overallTotal = 0;
+      LEVEL_ORDER.forEach(function(grade) {
+        const clearedStr   = allProps['cleared_' + sid + '_' + grade];
+        const passedSetMap = passed[grade] || {};
+        const res = _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap, false);
+
+        // 付番列未投入 / 級データ無し → N/A（friendly）。既習語数を出せないため率は出さない。
+        if (!res || !res.ready) {
+          byGrade[grade] = { reached: 0, total: 0, rate: null, ready: false };
+          return;
+        }
+        const tw = res.types.word  || { total: 0, migrated_done: 0 };
+        const ti = res.types.idiom || { total: 0, migrated_done: 0 };
+        const total = (Number(tw.total) + Number(ti.total)) * 2;
+        let reached = (Number(tw.migrated_done) + Number(ti.migrated_done)) * 2
+                    + (Number(posByGrade[grade]) || 0);
+        reached = Math.max(0, Math.min(reached, total));   // 防御クランプ（reached ≤ total を保証）
+        const rate = total > 0 ? (reached / total) : null;
+        byGrade[grade] = { reached: reached, total: total, rate: rate, ready: true };
+        if (res.warns && res.warns.length) Array.prototype.push.apply(warns, res.warns);
+        if (total > 0) { overallReached += reached; overallTotal += total; }
+      });
+
+      return {
+        ok: true,
+        studentId: sid,
+        byGrade: byGrade,
+        overall: {
+          reached: overallReached,
+          total:   overallTotal,
+          rate:    overallTotal > 0 ? (overallReached / overallTotal) : null
+        },
+        warns: warns
+      };
+    });
+  } catch (err) {
+    console.error('[getEitangoAchievement]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================================================
 // 既習移行【本書き込み】runEitangoMigrationLIVE（2026-06-03、VocabOrder のみ書込）
 // =============================================================================
 // dryRun で検証済みの既習移行を、実際に VocabOrder シートへ書き込む。
@@ -30955,6 +31070,8 @@ function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, op
     sh.getRange(target.rowIdx, 8, 1, 2).setValues([[newPosition, newDone]]);
     SpreadsheetApp.flush();
     _invalidateVocabKey(sid, grade, groupType);
+    // 達成度（到達率）キャッシュを破棄して即時反映（getEitangoAchievement / 段階C-1）。
+    _invalidateCache('cache_eitan_ach_' + sid);
 
     // HP 付与（既存 _grantHP 流用：type='test' / rawHp=50 → saveAttempt と完全同一の付与）
     if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid, advanced: true, newPosition: newPosition, roundDone: newDone };
