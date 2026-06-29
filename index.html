@@ -3124,10 +3124,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260624-0344"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260630-0347"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260624-0344">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260624-0344"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260630-0347">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260630-0347"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3930,8 +3930,8 @@
     <div class="set-label" id="today-set-label"></div>
     <div id="today-word-list"><div class="loading">⏳ 単語を読み込んでいます...</div></div>
     <button class="btn-wide" id="today-btn" style="display:none">✏️ テストに挑戦する</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showLevelSelect()">← レベル選択に戻る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" id="today-back-levelselect" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showLevelSelect()">← レベル選択に戻る</button>
+    <button class="btn-wide" id="today-back-home" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-dictation" class="screen">
@@ -8528,6 +8528,16 @@
   function cancelBirthdayInput() {
     showFortuneScreen();
   }
+  // screen-today 下部の「← レベル選択に戻る」「🏠 ホーム画面に戻る」の表示制御。
+  //   通常の単語リスト表示では出す（全級共通）。5級 書き取り合格後の確認テスト誘導
+  //   （showPhotoPassedScreen）でだけ隠して「✏️確認テストに進む」一択にする。
+  function _setTodayNavButtons(show) {
+    var disp = show ? '' : 'none';
+    var b1 = document.getElementById('today-back-levelselect');
+    var b2 = document.getElementById('today-back-home');
+    if (b1) b1.style.display = disp;
+    if (b2) b2.style.display = disp;
+  }
   function showToday() {
     if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
     // commit 6b-1：V2 対象生徒は V2 出題へ分岐（フラグ off / 非対象は従来 V1 のまま）。
@@ -8536,6 +8546,7 @@
     document.getElementById('today-student').textContent = _studentId + ' さん';
     document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';
     document.getElementById('today-btn').style.display = 'none';
+    _setTodayNavButtons(true);   // 通常の単語リスト表示：戻る系ボタンを復帰（書き取り合格後だけ後で隠す）
     showScreen('screen-today');
     gasGet({ action:'getTodaysSet', studentId:_studentId, level:_level }).then(function(res){
       if (!res.ok) { document.getElementById('today-word-list').innerHTML = '<div class="error">⚠️ ' + res.message + '</div>'; return; }
@@ -8560,6 +8571,7 @@
     document.getElementById('today-student').textContent = _studentId + ' さん';
     document.getElementById('today-word-list').innerHTML = '<div class="loading">⏳ 単語を読み込んでいます...</div>';
     document.getElementById('today-btn').style.display = 'none';
+    _setTodayNavButtons(true);   // 通常の単語リスト表示：戻る系ボタンを復帰（書き取り合格後だけ後で隠す）
     showScreen('screen-today');
     gasGet({ action:'getTodaysSetV2', studentId:_studentId, grade:_level, groupType:_v2GroupType }).then(function(res){
       if (!res || !res.ok) { document.getElementById('today-word-list').innerHTML = '<div class="error">⚠️ ' + ((res && res.message) || 'エラーが発生しました。') + '</div>'; return; }
@@ -8702,7 +8714,9 @@
   }
   function showPhotoPassedScreen() {
     document.getElementById('today-word-list').innerHTML = '<div style="text-align:center;padding:30px 16px"><div style="font-size:56px">✨</div><div style="font-size:22px;font-weight:bold;color:#2d3a8c;margin:16px 0">よく頑張りました！✨</div><div style="font-size:16px;color:#555;margin-bottom:8px">確認テストに進みましょう。</div></div>';
-    var btn = document.getElementById('today-btn'); btn.textContent = '✏️ 確認テストに進む'; btn.onclick = showTest; btn.style.display = 'block'; showScreen('screen-today');
+    var btn = document.getElementById('today-btn'); btn.textContent = '✏️ 確認テストに進む'; btn.onclick = showTest; btn.style.display = 'block';
+    _setTodayNavButtons(false);   // 書き取り合格後は「確認テストに進む」一択（戻る系を隠して4択スキップを防止）
+    showScreen('screen-today');
   }
   function showTest() { _current = 0; _score = 0; _finishing = false; _setContentMascot('mate-img-eitan-test', 'thinking', 'mate-bubble-eitan-test', _pickBubble(RUSHKUN_BUBBLES.test), 'rushkun'); showScreen('screen-test'); renderQuestion(); }
   function renderQuestion() {
@@ -18033,7 +18047,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260624-0344</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260630-0347</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
