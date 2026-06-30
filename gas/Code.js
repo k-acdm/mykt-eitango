@@ -1046,10 +1046,53 @@ function clearAllCache() {
     ];
     // 基礎計算 KisoQuestions の rank 別キャッシュ（1〜20）
     for (let r = 1; r <= 20; r++) keys.push('cache_kiso_q_rows_' + r);
-    CacheService.getScriptCache().removeAll(keys);
+    // 2026-07-01：リスオン達成度の母数キャッシュ。LisonContents / LisonFirstLogin を手動編集後、
+    //   clearAllCache() で母数を即反映できるようにする。
+    //   - cache_lison_delivered_ws：配信 weekStart 配列（student 非依存・単一キー）
+    //   - cache_lison_ach_<sid> / cache_firstlogin_<sid>：per-sid。CacheService にプレフィックス
+    //     一括削除が無いため、全アカウント（Students＋SpecialAccounts）の sid を列挙してキーを組む。
+    //   ※ cache_firstlogin_date_<sid> は廃止済みのため対象外。cache_firstlogin_<sid>（ログインの
+    //     記録済みフラグ）は消えても次回ログインで再記録されるだけで害なし。
+    keys.push('cache_lison_delivered_ws');
+    try {
+      const accs = _getAllAccountsValues();
+      for (let i = 1; i < accs.length; i++) {
+        const sid = String(accs[i][COL_ID] || '').trim();
+        if (!sid) continue;
+        keys.push('cache_lison_ach_' + sid);
+        keys.push('cache_firstlogin_' + sid);
+      }
+    } catch (e) {
+      console.error('[clearAllCache] アカウント列挙に失敗（リスオン per-sid 分はスキップ）', e);
+    }
+    // removeAll は大きな配列でも可だが、安全のため 500 件ずつに分割して実行
+    const cache = CacheService.getScriptCache();
+    for (let i = 0; i < keys.length; i += 500) {
+      cache.removeAll(keys.slice(i, i + 500));
+    }
     return { ok: true, cleared: keys.length };
   } catch(err) {
     console.error('[clearAllCache]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 2026-07-01：特定 sid のリスオン達成度キャッシュだけをピンポイントで消す保守用関数。
+//   用途：LisonFirstLogin で特定生徒の firstLoginDate を手直しした後、その生徒だけ即反映したいとき。
+//   GAS エディタから invalidateLisonAchievementCache('<sid>') を実行する（doGet には載せない）。
+//   date キャッシュは廃止済みなので、cache_lison_ach_<sid> を消せば次回閲覧でシートから再計算される。
+//   cache_firstlogin_<sid>（ログインの記録済みフラグ）も併せて消す（害なし・整合のため）。
+function invalidateLisonAchievementCache(sid) {
+  try {
+    sid = String(sid || '').trim();
+    if (!sid) return { ok: false, message: 'sid が必要です' };
+    CacheService.getScriptCache().removeAll([
+      'cache_lison_ach_' + sid,
+      'cache_firstlogin_' + sid
+    ]);
+    return { ok: true, sid: sid, cleared: ['cache_lison_ach_' + sid, 'cache_firstlogin_' + sid] };
+  } catch (err) {
+    console.error('[invalidateLisonAchievementCache]', sid, err);
     return { ok: false, message: String(err) };
   }
 }
@@ -17762,17 +17805,14 @@ function ensureLisonFirstLoginSheet() {
 
 // 指定 sid の初回ログイン日（'yyyy-MM-dd'）を返す。無ければ null。
 //   複数行ある場合（万一の重複）は最小日付を採用（最も古い＝真の初回を保持）。
-//   per-sid キャッシュ（cache_firstlogin_date_<sid>、長 TTL）で軽量化。
+//   2026-07-01：per-sid キャッシュ（cache_firstlogin_date_<sid>・TTL6h）を廃止し毎回シート読みに変更。
+//     旧キャッシュは clearAllCache の明示列挙に入っておらず、LisonFirstLogin を手動修正しても
+//     最大6時間古い値（または '記録なし'）を返し続け母数が反映されない問題があった。
+//     本関数は達成度（getLisonAchievement）からのみ呼ばれ、その外側に cache_lison_ach_<sid>（300s）が
+//     あるため、シート読みは最悪5分に1回・該当生徒分のみ。LisonFirstLogin は <500 行で軽量。
 function _getFirstLoginDate(sid) {
   sid = String(sid || '').trim();
   if (!sid) return null;
-  const cacheKey = 'cache_firstlogin_date_' + sid;
-  const cache = CacheService.getScriptCache();
-  const hit = cache.get(cacheKey);
-  if (hit != null) {
-    // '' は「記録なし」を表す negative cache。null に戻す。
-    return hit === '' ? null : hit;
-  }
   let result = null;
   try {
     const sh = _ss().getSheetByName(SHEET_LISON_FIRST_LOGIN);
@@ -17796,9 +17836,8 @@ function _getFirstLoginDate(sid) {
     }
   } catch (e) {
     console.error('[_getFirstLoginDate]', sid, e);
-    return null;  // 失敗時はキャッシュせず null（フォールバック＝全期間母数に倒す）
+    return null;  // 失敗時は null（フォールバック＝全期間母数に倒す）
   }
-  try { cache.put(cacheKey, result === null ? '' : result, 21600); } catch (e) { /* ignore */ }
   return result;
 }
 
@@ -17839,8 +17878,8 @@ function _recordFirstLoginIfAbsent(sid, stuLoc) {
     const today = _todayEducationalJST();
     sh.appendRow([sid, today, _nowJST()]);
     cache.put(flagKey, '1', 21600);
-    // 日付キャッシュも更新（getLisonAchievement が即座に新しい初回日を読めるように）
-    try { cache.put('cache_firstlogin_date_' + sid, today, 21600); } catch (e) { /* ignore */ }
+    // 2026-07-01：date キャッシュ（cache_firstlogin_date_<sid>）は廃止したため put しない
+    //   （_getFirstLoginDate は毎回シートを読む）。flagKey は記録済み判定用なので温存。
   } catch (e) {
     // ★ログインを絶対に壊さない：失敗しても握りつぶす
     console.error('[_recordFirstLoginIfAbsent]', sid, e);
@@ -17927,14 +17966,16 @@ function seedLisonFirstLoginForExistingStudents(opts) {
           flSheet.getRange(o.rowNum, iDate + 1).setValue(seedDate);
         });
       }
-      // 投入した sid のキャッシュフラグ/日付を破棄（次回読みで最新を反映）
+      // 投入した sid の記録済みフラグを破棄（次回ログインで最新シートを再スキャン）。
+      //   2026-07-01：date キャッシュ（cache_firstlogin_date_*）は廃止済みのため対象外。
+      //   達成度キャッシュ cache_lison_ach_<sid>（300s）は自然失効。即時反映したい場合は
+      //   clearAllCache() か invalidateLisonAchievementCache(sid) を使う。
       try {
         const cache = CacheService.getScriptCache();
         const keys = [];
-        sidsAppended.forEach(function(s){ keys.push('cache_firstlogin_' + s); keys.push('cache_firstlogin_date_' + s); });
-        sidsOverwritten.forEach(function(o){ keys.push('cache_firstlogin_' + o.sid); keys.push('cache_firstlogin_date_' + o.sid); });
+        sidsAppended.forEach(function(s){ keys.push('cache_firstlogin_' + s); });
+        sidsOverwritten.forEach(function(o){ keys.push('cache_firstlogin_' + o.sid); });
         if (keys.length > 0) cache.removeAll(keys);
-        // delivered_ws / 達成度キャッシュは student 非依存 or per-sid TTL なので個別 remove 不要
       } catch (e) { /* ignore */ }
     }
 
