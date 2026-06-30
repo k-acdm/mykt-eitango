@@ -18622,24 +18622,34 @@ function migrateLisonSubmissionsAddFileId(params) {
 // =============================================
 // 古いリスオン録音の自動削除（Time-based Trigger で日次実行）
 // =============================================
-// LisonSubmissions シートを走査し、timestamp が LISON_RETENTION_DAYS 日以上前の
-// レコードについて：
-//   1. Drive ファイル（fileId）を setTrashed(true)
-//   2. シート行を削除
-// を実行する。
+// ★2026-06-30 重大修正：録音ファイルだけ削除し、LisonSubmissions の行（履歴）は絶対に消さない。
+//   旧版は録音(Drive)と同時にシート行を deleteRow していたため、達成度の集計ソース
+//   （getLisonAchievement が distinct weekStart で本数を数える）が 15 日で痩せ、達成度が
+//   「直近 15 日分しか反映されない」事故になっていた。基礎計算/マイ課題は写真メタを専用シート
+//   （KisoPhotos/MyTaskPhotos）に隔離して履歴(KisoSessions/HPLog)に触れない正しい設計。リスオンは
+//   録音参照と履歴を同一行に同居させたのが原因。本修正で「録音は消す・履歴は残す」に分離する。
+//
+// LisonSubmissions シートを走査し、timestamp が LISON_RETENTION_DAYS 日以上前のレコードについて：
+//   1. Drive ファイル（fileId）を setTrashed(true)（容量回収。これは維持）
+//   2. ★行は消さず、録音参照だけ無効化：recordingUrl 列 = 'deleted'、fileId 列 = ''（空）
+//      → level / weekStart / quizScore / timestamp は不変＝履歴は永久に残る。
+//   3. recordingUrl が既に 'deleted'（無効化済み）の行はスキップ（再処理・無駄な setValue を避ける・冪等）。
 //
 // params:
-//   - dryRun?: true なら削除せず対象一覧をログ表示するだけ
+//   - dryRun?: true なら削除/無効化せず対象一覧をログ表示するだけ
 //
 // 戻り値: {
-//   ok, totalChecked, deleted, alreadyMissing, errors:[{row,fileId,reason}],
-//   dryRun, elapsedSec, targets:[{row,fileId,timestamp}]  // dryRun のみ詳細
+//   ok, totalChecked, deleted, alreadyMissing, skipped, rowsInvalidated,
+//   errors:[{row,fileId,reason}], dryRun, elapsedSec, targets:[{row,fileId,timestamp}]  // dryRun のみ詳細
 // }
+//   - deleted         : Drive 録音を setTrashed できた件数
+//   - alreadyMissing  : Drive 録音が既に無い（Not Found）or fileId 解決不能の件数
+//   - skipped         : 既に recordingUrl='deleted' で無効化済み（再処理せずスキップ）
+//   - rowsInvalidated : 録音参照を無効化した行数（★行自体は残す。deleteRow はしない）
 //
 // エラー方針:
-//   - DriveApp.getFileById で例外（File not found 等）→ alreadyMissing として
-//     カウント。シート行は削除する（孤児行を残さない）
-//   - その他の例外 → errors に追加し、シート行は削除しない（次回再試行対象に残す）
+//   - DriveApp.getFileById で例外（File not found 等）→ alreadyMissing。録音参照は無効化する（行は残す）
+//   - その他の例外（権限・通信）→ errors に追加し、その行は無効化せず次回再試行に残す（Drive 再削除）
 //
 // 想定運用: Apps Script エディタの「時計アイコン」→「トリガーを追加」
 //   → 関数: cleanupLisonOldRecordings / イベント: 時間主導 / 日タイマー / 午前 4-5 時
@@ -18653,6 +18663,8 @@ function cleanupLisonOldRecordings(params) {
     totalChecked: 0,
     deleted: 0,
     alreadyMissing: 0,
+    skipped: 0,
+    rowsInvalidated: 0,
     errors: [],
     dryRun: dryRun,
     elapsedSec: 0,
@@ -18673,8 +18685,9 @@ function cleanupLisonOldRecordings(params) {
     const urlIdx = (iUrl >= 0) ? iUrl : 6;
 
     const cutoffMs = Date.now() - LISON_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const DELETED_MARK = 'deleted';  // 録音削除済みを示すセンチネル（recordingUrl 列に書く）
 
-    // 削除対象を収集（行番号は 1-based）
+    // 対象を収集（行番号は 1-based）。★行は消さないので行番号は安定（書き込み中もズレない）。
     const targets = [];
     for (let i = 1; i < values.length; i++) {
       const r = values[i];
@@ -18682,8 +18695,10 @@ function cleanupLisonOldRecordings(params) {
       const ts = new Date(r[0]);
       if (isNaN(ts.getTime())) continue;
       result.totalChecked += 1;
-      if (ts.getTime() >= cutoffMs) continue; // まだ保持期間内
+      if (ts.getTime() >= cutoffMs) continue; // まだ保持期間内（録音も履歴も保持）
       const url = String(r[urlIdx] || '').trim();
+      // 既に無効化済み（recordingUrl='deleted'）の行はスキップ（冪等・無駄な setValue 回避）
+      if (url === DELETED_MARK) { result.skipped += 1; continue; }
       const fid = (iFileId >= 0)
         ? (String(r[iFileId] || '').trim() || _lisonExtractFileId(url))
         : _lisonExtractFileId(url);
@@ -18695,7 +18710,8 @@ function cleanupLisonOldRecordings(params) {
     }
 
     console.log('[cleanupLisonOldRecordings] 対象 ' + targets.length + ' 件 / 全行 '
-                + result.totalChecked + ' 件 / 保持期間 ' + LISON_RETENTION_DAYS + ' 日'
+                + result.totalChecked + ' 件 / 無効化済みスキップ ' + result.skipped
+                + ' / 保持期間 ' + LISON_RETENTION_DAYS + ' 日'
                 + (dryRun ? ' [dry-run]' : ''));
 
     if (dryRun) {
@@ -18704,52 +18720,54 @@ function cleanupLisonOldRecordings(params) {
       // dry-run でも対象が多い場合は最初の数件のみログ
       const sample = targets.slice(0, 10);
       sample.forEach(function(t) {
-        console.log('  [would delete] row=' + t.row + ', fileId=' + t.fileId + ', ts=' + t.timestamp);
+        console.log('  [would trash recording + invalidate ref, KEEP row] row=' + t.row + ', fileId=' + t.fileId + ', ts=' + t.timestamp);
       });
       if (targets.length > 10) console.log('  ... and ' + (targets.length - 10) + ' more');
       return result;
     }
 
-    // 本番削除：Drive 削除 → 行削除（行は末尾→先頭の順で削除して行番号ズレ回避）
-    const successRows = [];   // Drive 削除 OK or alreadyMissing → シート行も消す
+    // 本番：Drive 録音を削除 → 行は残したまま録音参照だけ無効化（recordingUrl='deleted' / fileId='')。
+    //   ★行を deleteRow しないため履歴（level/weekStart/quizScore/timestamp）は永久に残る。
     for (let k = 0; k < targets.length; k++) {
       const t = targets[k];
-      if (!t.fileId) {
-        // fileId 取れない孤児行は警告ログを出してシートからは削除する
-        console.warn('[cleanupLisonOldRecordings] row=' + t.row + ' fileId 取得不可、シート行のみ削除');
-        successRows.push(t.row);
-        continue;
-      }
-      try {
-        const file = DriveApp.getFileById(t.fileId);
-        file.setTrashed(true);
-        result.deleted += 1;
-        successRows.push(t.row);
-      } catch (err) {
-        const msg = String(err && err.message || err);
-        // ファイル既削除済み（Not Found 系）は alreadyMissing にカウント、行も削除
-        if (/not\s*found|見つかりません|無効な ID/i.test(msg)) {
-          result.alreadyMissing += 1;
-          successRows.push(t.row);
-        } else {
-          // その他のエラー（権限・通信など）はシート行を残して再試行対象に
-          result.errors.push({ row: t.row, fileId: t.fileId, reason: msg });
+      let proceedInvalidate = true;
+
+      if (t.fileId) {
+        try {
+          DriveApp.getFileById(t.fileId).setTrashed(true);
+          result.deleted += 1;
+        } catch (err) {
+          const msg = String(err && err.message || err);
+          if (/not\s*found|見つかりません|無効な ID/i.test(msg)) {
+            // 既に削除済み → 録音参照は無効化してよい（行は残す）
+            result.alreadyMissing += 1;
+          } else {
+            // 権限・通信など一過性エラー → 無効化せず次回再試行に残す（Drive 再削除を狙う）
+            result.errors.push({ row: t.row, fileId: t.fileId, reason: msg });
+            proceedInvalidate = false;
+          }
         }
+      } else {
+        // fileId 解決不能（旧行・空）→ 消すべき Drive ファイルが無い。録音参照だけ無効化して再処理を止める。
+        result.alreadyMissing += 1;
       }
+
+      if (!proceedInvalidate) continue;
+
+      // ★録音参照のみ無効化（行は残す）。recordingUrl='deleted'、fileId=''（列があれば）。
+      //   hpGained 列[7] 等の他列には触れない（recordingUrl[6] と fileId[8] のみ個別 setValue）。
+      try {
+        sh.getRange(t.row, urlIdx + 1).setValue(DELETED_MARK);
+        if (iFileId >= 0) sh.getRange(t.row, iFileId + 1).setValue('');
+        result.rowsInvalidated += 1;
+      } catch (err) {
+        result.errors.push({ row: t.row, fileId: t.fileId, reason: '録音参照の無効化に失敗: ' + String(err) });
+      }
+
       if ((k + 1) % 100 === 0) {
         console.log('[cleanupLisonOldRecordings] 進捗 ' + (k + 1) + '/' + targets.length
                     + ' (deleted=' + result.deleted + ', alreadyMissing=' + result.alreadyMissing
-                    + ', errors=' + result.errors.length + ')');
-      }
-    }
-
-    // シート行削除（末尾→先頭の順）
-    successRows.sort(function(a, b){ return b - a; });
-    for (let k = 0; k < successRows.length; k++) {
-      try {
-        sh.deleteRow(successRows[k]);
-      } catch (err) {
-        result.errors.push({ row: successRows[k], fileId: '', reason: 'deleteRow 失敗: ' + String(err) });
+                    + ', rowsInvalidated=' + result.rowsInvalidated + ', errors=' + result.errors.length + ')');
       }
     }
 
@@ -18757,6 +18775,8 @@ function cleanupLisonOldRecordings(params) {
     console.log('[cleanupLisonOldRecordings] 完了: totalChecked=' + result.totalChecked
                 + ', deleted=' + result.deleted
                 + ', alreadyMissing=' + result.alreadyMissing
+                + ', skipped=' + result.skipped
+                + ', rowsInvalidated(行は残す)=' + result.rowsInvalidated
                 + ', errors=' + result.errors.length
                 + ', elapsedSec=' + result.elapsedSec.toFixed(2));
     return result;
