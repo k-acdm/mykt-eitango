@@ -1306,6 +1306,7 @@ function doGet(e) {
       // 英単語RUSH 達成度（到達率・定義B・V2前提、2026-06-29 段階C-1）。admin/teacher 両ロール可。
       else if (action === 'getEitangoAchievement')       result = getEitangoAchievement(params);
       else if (action === 'getKobunAchievement')          result = getKobunAchievement(params);
+      else if (action === 'getKisoAchievement')           result = getKisoAchievement(params);
       else if (action === 'getRikaMonthSummary')         result = getRikaMonthSummary(params);
       else if (action === 'getShakaiMonthSummary')       result = getShakaiMonthSummary(params);
       else if (action === 'getRikaDayDetail')            result = getRikaDayDetail(params);
@@ -7970,6 +7971,8 @@ function submitKisoAnswer(sessionId, imageBase64, hasWorkPhoto, studentAnswersJs
     // status は passed/failed_retry のどちらかに確定済みで集計対象に入るため、
     // 成功 return の直前で該当 studentId のキャッシュを消す（次回画面表示で最新値）。
     _invalidateCache(_kisoAnsweredCacheKey(studentId));
+    // 基礎計算 達成度（到達率）キャッシュを破棄して即時反映（getKisoAchievement / 段階C-2）。
+    _invalidateCache('cache_kiso_ach_' + studentId);
 
     return {
       ok: true,
@@ -30540,6 +30543,114 @@ function getKobunAchievement(params) {
     });
   } catch (err) {
     console.error('[getKobunAchievement]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================================================
+// 基礎計算 達成度（到達率）— getKisoAchievement（2026-06-30 / 段階C-2）
+// =============================================================================
+// 候補A：rank別到達率（rank 1〜20 の各単元の到達率＋overall）。基礎計算は 2周構造なし・
+//   固定順なし（毎セッション rank プールからランダム抽出＝再抽選あり）のため、英単語/古文の
+//   VocabOrder.position 方式が使えない。コブタンと同じ「延べ＋min クランプ」で率に変換する。
+//   total_rank   = KisoQuestions の rank別問題数（動的算出。Phase 2 で 50→100 になっても自動追従）
+//   reached_rank = min( Σcount(passed セッションのみ, その rank), total_rank )   ← ★min クランプ
+//   rate_rank    = total_rank > 0 ? reached_rank / total_rank : null
+//   overall      = Σreached ÷ Σtotal（total>0 の rank のみ）
+// ★passed のみを数える（failed_retry は「合格演習」ではないため分子に含めない）。
+//   ＝英単語の position（合格通過）と並行。ふくちさん哲学「HP獲得まで到達=✅」とも整合。
+// ★既存 getKisoAnsweredCounts（passed+failed_retry を集計）は【無改変】＝単元ボタンの
+//   「解答した問題数」表示に影響なし。達成度のために status==='passed' 限定の小スキャンを本関数内で別途行う。
+// ★2周構造なし＝×2 不要。母数＝問題数そのもの、reached＝合格演習した問題数（延べ・クランプ）。
+// 認証：_verifyTeacher（達成度ハブは admin/teacher 両ロール可）。getKobunAchievement と同じ外枠。
+// キャッシュ：per-sid 短 TTL（300s）cache_kiso_ach_<sid>。submitKisoAnswer 成功時に remove。
+//   母数は student 非依存のグローバル長 TTL（21600s）cache_kiso_poolsizes。
+function getKisoAchievement(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+
+    return _getCachedValues('cache_kiso_ach_' + sid, 300, function() {
+      const warns = [];
+
+      // ── 母数：rank別プールサイズ（student 非依存・長 TTL グローバル）──
+      //   KisoQuestions を 1 スキャンして rank別の問題行数を数える（rank の母数＝問題数そのもの）。
+      const poolByRank = _getCachedValues('cache_kiso_poolsizes', 21600, function() {
+        const acc = {};
+        const qSh = _ss().getSheetByName(SHEET_KISO_QUESTIONS);
+        if (!qSh || qSh.getLastRow() < 2) return acc;
+        const qv = qSh.getDataRange().getValues();
+        const cRank = qv[0].indexOf('rank');
+        if (cRank < 0) return acc;
+        for (let i = 1; i < qv.length; i++) {
+          const rk = Number(qv[i][cRank]);
+          if (!rk) continue;
+          acc[rk] = (acc[rk] || 0) + 1;
+        }
+        return acc;
+      });
+
+      // ── 分子：passed セッションのみ Σcount を rank別に（達成度専用の小スキャン）──
+      //   ★getKisoAnsweredCounts は passed+failed_retry なので使わず、status==='passed' 限定で別集計。
+      //   KisoSessions 列: studentId / rank / count(5 or 10) / status をヘッダー駆動で参照。
+      const passedByRank = {};
+      const sSh = _ss().getSheetByName(SHEET_KISO_SESSIONS);
+      if (sSh && sSh.getLastRow() >= 2) {
+        const sv = sSh.getDataRange().getValues();
+        const h = sv[0];
+        const cSid    = h.indexOf('studentId');
+        const cRank   = h.indexOf('rank');
+        const cCount  = h.indexOf('count');
+        const cStatus = h.indexOf('status');
+        if (cSid >= 0 && cRank >= 0 && cCount >= 0 && cStatus >= 0) {
+          for (let i = 1; i < sv.length; i++) {
+            const row = sv[i];
+            if (String(row[cSid] || '').trim() !== sid) continue;
+            if (String(row[cStatus] || '').trim() !== 'passed') continue;  // ★passed のみ（failed_retry 除外）
+            const rk = Number(row[cRank]);
+            if (!rk) continue;
+            passedByRank[rk] = (passedByRank[rk] || 0) + (Number(row[cCount]) || 0);
+          }
+        } else {
+          warns.push('KisoSessions のヘッダー列（studentId/rank/count/status）が見つかりません');
+        }
+      }
+
+      // ── rank 1..20 で byRank を組み立て ──
+      const byRank = {};
+      let overallReached = 0, overallTotal = 0;
+      for (let rank = 1; rank <= 20; rank++) {
+        const total = Number(poolByRank[rank]) || 0;
+        let reached = Number(passedByRank[rank]) || 0;
+        reached = Math.max(0, Math.min(reached, total));   // ★防御クランプ（reached ≤ total を保証）
+        const rate = total > 0 ? (reached / total) : null;
+        byRank[rank] = {
+          rank: rank,
+          rankName: (KISO_RANK_NAMES[rank] || ''),
+          reached: reached,
+          total: total,
+          rate: rate,
+          ready: total > 0
+        };
+        if (total > 0) { overallReached += reached; overallTotal += total; }
+      }
+
+      return {
+        ok: true,
+        studentId: sid,
+        byRank: byRank,
+        overall: {
+          reached: overallReached,
+          total:   overallTotal,
+          rate:    overallTotal > 0 ? (overallReached / overallTotal) : null
+        },
+        warns: warns
+      };
+    });
+  } catch (err) {
+    console.error('[getKisoAchievement]', err);
     return { ok: false, message: String(err) };
   }
 }
