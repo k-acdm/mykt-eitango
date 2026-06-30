@@ -1308,6 +1308,7 @@ function doGet(e) {
       else if (action === 'getKobunAchievement')          result = getKobunAchievement(params);
       else if (action === 'getKisoAchievement')           result = getKisoAchievement(params);
       else if (action === 'getKanjiAchievement')          result = getKanjiAchievement(params);
+      else if (action === 'getLisonAchievement')          result = getLisonAchievement(params);
       else if (action === 'getRikaMonthSummary')         result = getRikaMonthSummary(params);
       else if (action === 'getShakaiMonthSummary')       result = getShakaiMonthSummary(params);
       else if (action === 'getRikaDayDetail')            result = getRikaDayDetail(params);
@@ -18924,6 +18925,10 @@ function submitLison(params) {
       saveRes.fileId || ''
     ]);
 
+    // リスオン達成度（本数）キャッシュを破棄して即時反映（getLisonAchievement / 段階C-2）。
+    //   提出で LisonSubmissions に行が増え、attempted（取り組み本数）が変わるため。remove のみ（採点・録音保存は不変）。
+    _invalidateCache('cache_lison_ach_' + sid);
+
     return {
       ok: true,
       hpGained: hpGained,
@@ -30764,6 +30769,125 @@ function getKanjiAchievement(params) {
     });
   } catch (err) {
     console.error('[getKanjiAchievement]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================================================
+// リスオン（英語リスニング長文）達成度 — getLisonAchievement（2026-06-30 / 段階C-2）
+// =============================================================================
+// 候補A：レベル別「取り組んだ長文数（○本）」＋配信本数＋クイズ平均正答率。
+//   リスオンは「長文1本が単位」「週次で母数が無限に増える」「合否なし・提出のみ」
+//   「過去週やり直し不可」のため、%到達率（固定母数を網羅）は不自然＝採らない。基礎計算に近い
+//   「数（本数）」表示。バーだけは「配信のうちどれだけ取り組んだか」を attempted/delivered で出す。
+//   level ごと（LISON_VALID_LEVELS = 4/3/pre2/pre2plus/2/pre1/1）：
+//     delivered   = LisonContents の level別 distinct weekStart 数（配信済み長文本数・参考）
+//     attempted   = その生徒の LisonSubmissions の level別 distinct weekStart 数（★取り組んだ長文本数＝主指標）
+//                   ＝同週2回提出は1本に正規化（distinct weekStart）。
+//     submissions = 提出行数（延べ・参考）
+//     avgQuizRate = ΣquizScore ÷ (3 × 提出行数)（リスニング理解度・参考。提出0なら null）
+// ★集計ソースは LisonSubmissions（HPLog ではない）。HPLog の type='lison' は flat で level/週を
+//   含まないためレベル別に出せない。LisonSubmissions のみが level + weekStart + quizScore を持つ。
+// ★LisonSubmissions は全行スキャン（_readLastNRows ではなく全期間。過去全週の本数を取りこぼさない）。
+// ★weekStart は Date / 文字列の両方があり得るため 'yyyy-MM-dd' に正規化して distinct 判定する。
+// 認証：_verifyTeacher（達成度ハブは admin/teacher 両ロール可）。getKanjiAchievement と同じ外枠。
+// キャッシュ：per-sid 短 TTL（300s）cache_lison_ach_<sid>。submitLison 成功時に remove。
+//   配信本数（母数・参考）は student 非依存のグローバル長 TTL（21600s）cache_lison_delivered。
+function getLisonAchievement(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+
+    return _getCachedValues('cache_lison_ach_' + sid, 300, function() {
+      const warns = [];
+
+      // weekStart を 'yyyy-MM-dd' に正規化（Date / 文字列の両対応）。distinct 判定の鍵に使う。
+      const wsKey = function(v) {
+        if (v instanceof Date) {
+          try { return Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy-MM-dd'); } catch (e) { return ''; }
+        }
+        return String(v || '').trim();
+      };
+
+      // ── 配信本数（母数・参考）：LisonContents の level別 distinct weekStart（student 非依存・長 TTL）──
+      //   LISON_CONTENTS_HEADERS: 0=weekStart, 1=level（ヘッダー駆動。無ければ既定 0/1）。
+      const deliveredByLevel = _getCachedValues('cache_lison_delivered', 21600, function() {
+        const acc = {};
+        const cSh = _ss().getSheetByName(SHEET_LISON_CONTENTS);
+        if (!cSh || cSh.getLastRow() < 2) return acc;
+        const cv = cSh.getDataRange().getValues();
+        const h = cv[0];
+        let iWS = h.indexOf('weekStart'); if (iWS < 0) iWS = 0;
+        let iLv = h.indexOf('level');     if (iLv < 0) iLv = 1;
+        const seen = {};  // level -> { wsKey: true }
+        for (let i = 1; i < cv.length; i++) {
+          const lv = String(cv[i][iLv] || '').trim();
+          if (LISON_VALID_LEVELS.indexOf(lv) < 0) continue;
+          const ws = wsKey(cv[i][iWS]);
+          if (!ws) continue;
+          if (!seen[lv]) seen[lv] = {};
+          if (!seen[lv][ws]) { seen[lv][ws] = true; acc[lv] = (acc[lv] || 0) + 1; }
+        }
+        return acc;
+      });
+
+      // ── 生徒の取り組み：LisonSubmissions を sid 絞りで全行スキャン、level別に集計 ──
+      //   列: [1]studentId [3]level [4]weekStart [5]quizScore（getLisonSubmissionsList と同じ固定位置）。
+      const attemptedSets = {};  // level -> { wsKey: true }（distinct weekStart）
+      const submissions   = {};  // level -> 提出行数（延べ）
+      const quizSum       = {};  // level -> ΣquizScore
+      const quizN         = {};  // level -> 提出数
+      const subSh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
+      if (subSh && subSh.getLastRow() >= 2) {
+        const sv = subSh.getDataRange().getValues();
+        for (let i = 1; i < sv.length; i++) {
+          const r = sv[i];
+          if (String(r[1] || '').trim() !== sid) continue;
+          const lv = String(r[3] || '').trim();
+          if (LISON_VALID_LEVELS.indexOf(lv) < 0) continue;
+          const ws = wsKey(r[4]);
+          submissions[lv] = (submissions[lv] || 0) + 1;
+          quizSum[lv] = (quizSum[lv] || 0) + (Number(r[5]) || 0);
+          quizN[lv]   = (quizN[lv] || 0) + 1;
+          if (ws) {
+            if (!attemptedSets[lv]) attemptedSets[lv] = {};
+            attemptedSets[lv][ws] = true;
+          }
+        }
+      }
+
+      // ── byLevel を組み立て（LISON_VALID_LEVELS = 4→1 の順）──
+      const labelByLevel = {};
+      LISON_LEVEL_META.forEach(function(m){ labelByLevel[m.value] = m.label; });
+      const byLevel = {};
+      LISON_VALID_LEVELS.forEach(function(level) {
+        const delivered = Number(deliveredByLevel[level]) || 0;
+        const attempted = attemptedSets[level] ? Object.keys(attemptedSets[level]).length : 0;
+        const subs = Number(submissions[level]) || 0;
+        const qN = Number(quizN[level]) || 0;
+        const avgQuizRate = qN > 0 ? ((Number(quizSum[level]) || 0) / (3 * qN)) : null;
+        byLevel[level] = {
+          level: level,
+          label: labelByLevel[level] || level,
+          attempted: attempted,
+          delivered: delivered,
+          submissions: subs,
+          avgQuizRate: avgQuizRate,
+          ready: delivered > 0
+        };
+      });
+
+      return {
+        ok: true,
+        studentId: sid,
+        byLevel: byLevel,
+        warns: warns
+      };
+    });
+  } catch (err) {
+    console.error('[getLisonAchievement]', err);
     return { ok: false, message: String(err) };
   }
 }
