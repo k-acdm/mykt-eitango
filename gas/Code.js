@@ -30550,18 +30550,19 @@ function getKobunAchievement(params) {
 // =============================================================================
 // 基礎計算 達成度（到達率）— getKisoAchievement（2026-06-30 / 段階C-2）
 // =============================================================================
-// 候補A：rank別到達率（rank 1〜20 の各単元の到達率＋overall）。基礎計算は 2周構造なし・
-//   固定順なし（毎セッション rank プールからランダム抽出＝再抽選あり）のため、英単語/古文の
-//   VocabOrder.position 方式が使えない。コブタンと同じ「延べ＋min クランプ」で率に変換する。
+// 候補A：rank別「合格問題数」（rank 1〜20 の各単元）。基礎計算は 2周構造なし・固定順なし
+//   （毎セッション rank プールからランダム抽出＝再抽選あり）のため、英単語/古文の
+//   VocabOrder.position 方式が使えない。
+//   reached_rank = Σcount(passed セッションのみ, その rank)   ← ★上限クランプなし（重複込み・演習量）
 //   total_rank   = KisoQuestions の rank別問題数（動的算出。Phase 2 で 50→100 になっても自動追従）
-//   reached_rank = min( Σcount(passed セッションのみ, その rank), total_rank )   ← ★min クランプ
-//   rate_rank    = total_rank > 0 ? reached_rank / total_rank : null
-//   overall      = Σreached ÷ Σtotal（total>0 の rank のみ）
+//                  ※2026-06-30 表示方式変更で reached のクランプには使わない。total/rate は後方互換で残置
+//   rate_rank    = total_rank > 0 ? reached_rank / total_rank : null（100% 超になり得る・フロント未使用）
+// ★2026-06-30：min クランプを廃止。母数100で頭打ちにせず「合格問題数そのもの」を表示し、
+//   たくさん演習した子の頑張り（演習量）を可視化する（管理画面は reached を「○○問」で表示）。
 // ★passed のみを数える（failed_retry は「合格演習」ではないため分子に含めない）。
-//   ＝英単語の position（合格通過）と並行。ふくちさん哲学「HP獲得まで到達=✅」とも整合。
 // ★既存 getKisoAnsweredCounts（passed+failed_retry を集計）は【無改変】＝単元ボタンの
 //   「解答した問題数」表示に影響なし。達成度のために status==='passed' 限定の小スキャンを本関数内で別途行う。
-// ★2周構造なし＝×2 不要。母数＝問題数そのもの、reached＝合格演習した問題数（延べ・クランプ）。
+// ★2周構造なし＝×2 不要。reached＝合格問題数（延べ・上限なし）。
 // 認証：_verifyTeacher（達成度ハブは admin/teacher 両ロール可）。getKobunAchievement と同じ外枠。
 // キャッシュ：per-sid 短 TTL（300s）cache_kiso_ach_<sid>。submitKisoAnswer 成功時に remove。
 //   母数は student 非依存のグローバル長 TTL（21600s）cache_kiso_poolsizes。
@@ -30623,9 +30624,11 @@ function getKisoAchievement(params) {
       let overallReached = 0, overallTotal = 0;
       for (let rank = 1; rank <= 20; rank++) {
         const total = Number(poolByRank[rank]) || 0;
-        let reached = Number(passedByRank[rank]) || 0;
-        reached = Math.max(0, Math.min(reached, total));   // ★防御クランプ（reached ≤ total を保証）
-        const rate = total > 0 ? (reached / total) : null;
+        // ★2026-06-30 表示方式変更：min クランプを廃止。reached＝合格(passed)問題数そのもの
+        //   （重複込み・上限なし）。母数(total)で頭打ちにせず、演習量（たくさんやった頑張り）を可視化する。
+        //   total/rate は後方互換のため残置するが、フロント（管理画面）は reached（合格問題数）のみ使う。
+        const reached = Math.max(0, Number(passedByRank[rank]) || 0);   // 上限クランプなし（floor 0 のみ）
+        const rate = total > 0 ? (reached / total) : null;             // 残置（100% 超になり得る・フロント未使用）
         byRank[rank] = {
           rank: rank,
           rankName: (KISO_RANK_NAMES[rank] || ''),

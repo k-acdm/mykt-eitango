@@ -1113,7 +1113,7 @@
   </header>
   <div class="admin-page">
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKisoAchievementStudents()">← 生徒一覧に戻る</button>
-    <div class="page-lead">「到達 / 総数」は合格(passed)セッションで解いた問題数の延べ（母数で 100% にクランプ）。母数は各単元の問題数。達成率は「単元の全問題に対する合格演習到達率」。</div>
+    <div class="page-lead">各単元の数字は「合格した問題数」（合格セッションで解いた問題数の延べ・重複込み・上限なし）。たくさん演習した分だけ増えます。帯バーの長さは演習量の目安です。</div>
     <div id="kiso-ach-detail-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
   </div>
 </div>
@@ -9497,12 +9497,22 @@
     });
   }
 
-  // ===== 基礎計算 達成度（rank別到達率・R1 延べ＋minクランプ・passedのみ、2026-06-30 段階C-2） =====
-  //   達成度ハブ「🧮 基礎計算 達成度」→ 生徒一覧 → 生徒別に rank 1〜20 の到達率を表示。
+  // ===== 基礎計算 達成度（rank別「合格問題数」・passedのみ・上限なし、2026-06-30 段階C-2） =====
+  //   達成度ハブ「🧮 基礎計算 達成度」→ 生徒一覧 → 生徒別に rank 1〜20 の合格問題数を表示。
   //   GAS getKisoAchievement（_verifyTeacher・admin/teacher 両ロール可）を叩く。
-  //   バー/％は英単語の汎用ヘルパー _eitangoAchBar / _eitangoAchPct を流用。
+  //   ★2026-06-30 表示方式変更：% ではなく「合格問題数（○○問・重複込み・上限なし）」を表示。
+  //     min クランプを廃止したので、たくさん演習した子の頑張り（演習量）が見える。
+  //     overall（全体）と % は表示しない。帯バーは「合格問題数 ÷ KISO_ACH_BAR_MAX」で長さ算出。
   //   ★表示順は生徒画面と揃えて rank 20→1（易→難）。rankName は応答 byRank[rank].rankName を表示。
   var _kisoAchSid = '', _kisoAchLabel = '';
+  // 帯バーの満タン基準（合格問題数）。画面には出さず、バー長の基準としてのみ使う。
+  // 500 を超える子が出たらこの定数を引き上げるだけで対応できる（1 箇所変更）。
+  var KISO_ACH_BAR_MAX = 500;
+  // 合格問題数 → バー（min(reached/MAX, 1) の長さ。英単語の _eitangoAchBar は rate(0〜1) を取るので流用）。
+  function _kisoAchBar(reached) {
+    var frac = KISO_ACH_BAR_MAX > 0 ? (Number(reached) || 0) / KISO_ACH_BAR_MAX : 0;
+    return _eitangoAchBar(Math.max(0, Math.min(1, frac)));
+  }
 
   function goAdminKisoAchievementStudents() {
     _showScreen('screen-admin-kiso-ach-students');
@@ -9556,32 +9566,20 @@
         return;
       }
       var byRank = res.byRank || {};
-      var ov = res.overall || {};
       var html = '';
-      // 全単元 合計
-      html += '<div style="background:#ecfdf5;border:2px solid #10b981;border-radius:10px;padding:12px 14px;margin-bottom:14px">' +
-                '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">' +
-                  '<span style="font-weight:bold;color:#047857;font-size:15px">全単元 合計</span>' +
-                  '<span style="font-weight:bold;color:#047857;font-size:16px">' + _eitangoAchPct(ov.rate) + '</span>' +
-                '</div>' +
-                '<div style="font-size:12px;color:#555;margin-bottom:6px">到達 ' + (Number(ov.reached)||0).toLocaleString() + ' / ' + (Number(ov.total)||0).toLocaleString() + '（合格演習・延べ）</div>' +
-                _eitangoAchBar(ov.rate) +
-              '</div>';
+      // ★合格問題数（○○問・重複込み・上限なし）を rank別に表示。% / overall は表示しない。
       // rank ごと（★rank 20→1＝易→難 順で表示）
       for (var rank = 20; rank >= 1; rank--) {
         var d = byRank[rank] || byRank[String(rank)] || { rank:rank, rankName:'', reached:0, total:0, rate:null, ready:false };
         var rankName = _esc(d.rankName || '');
         var label = 'rank ' + rank + (rankName ? '：' + rankName : '');
-        var detail = (Number(d.total) > 0)
-          ? ('到達 ' + (Number(d.reached)||0).toLocaleString() + ' / ' + (Number(d.total)||0).toLocaleString())
-          : 'データ未投入（N/A）';
+        var reached = Number(d.reached) || 0;
         html += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:10px">' +
                   '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">' +
                     '<span style="font-weight:bold;color:#2d3a8c;font-size:15px">' + label + '</span>' +
-                    '<span style="font-weight:bold;color:#10b981;font-size:15px">' + _eitangoAchPct(d.rate) + '</span>' +
+                    '<span style="font-weight:bold;color:#10b981;font-size:16px">' + reached.toLocaleString() + '問</span>' +
                   '</div>' +
-                  '<div style="font-size:12px;color:#666;margin-bottom:6px">' + detail + '</div>' +
-                  (Number(d.total) > 0 ? _eitangoAchBar(d.rate) : '') +
+                  _kisoAchBar(reached) +
                 '</div>';
       }
       // データ品質の注記
