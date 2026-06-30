@@ -20,6 +20,11 @@ const SHEET_KISO_SESSIONS  = 'KisoSessions';
 const SHEET_KISO_PHOTOS    = 'KisoPhotos';
 const SHEET_LISON_CONTENTS    = 'LisonContents';
 const SHEET_LISON_SUBMISSIONS = 'LisonSubmissions';
+// リスオン達成度「途中入塾者対応」（2026-07-01）：初回ログイン日を記録する独立シート。
+//   Students への列追加を避けるための別シート（COL_* 固定列・キャッシュ・schema migration に非干渉）。
+//   delivered（母数）= その生徒の初回ログイン日の「週」以降に配信された本数、の算出に使う。
+const SHEET_LISON_FIRST_LOGIN = 'LisonFirstLogin';
+const LISON_FIRST_LOGIN_HEADERS = ['studentId', 'firstLoginDate', 'recordedAt'];
 // 計算タイムトライアル（2026-05-19 新設、トラール）：1 セッション = 1 行
 const SHEET_CALCTRIAL_SESSIONS = 'CalcTrialSessions';
 // 今日のマイ活 振り返り（2026-05-19 新設）：ログアウト前に必ず書き込む
@@ -1618,6 +1623,12 @@ function loginStudent(studentId) {
     //   内部で処理。null（未提出なし or skip）or 'yyyy-MM-dd' を返す。
     const accountType = _resolveAccountTypeFromLoc(stuLoc);
     const pendingReflectionDate = _getPendingReflectionDate(studentId, accountType);
+
+    // 2026-07-01 リスオン達成度「途中入塾者対応」：初回ログイン日を未記録なら記録する。
+    //   ★完全に隔離された副作用（内部 try/catch で全例外を握りつぶす・実生徒限定・冪等・
+    //     キャッシュフラグで負荷最小化）。既存の streak/HP/LAST_LOGIN/milestone/return には
+    //     一切影響しない。書き込み確定後・return 直前の安全な位置で呼ぶ。
+    _recordFirstLoginIfAbsent(studentId, stuLoc);
 
     return {
       ok:          true,
@@ -17719,6 +17730,235 @@ function _readLisonContentRow(weekStart, level) {
   return null;
 }
 
+// =============================================================================
+// リスオン達成度「途中入塾者対応」（2026-07-01）— LisonFirstLogin シート関連
+// =============================================================================
+// 目的：delivered（母数）を「その生徒の初回ログイン日の週以降に配信された本数」にする。
+//   初回ログイン日は Students 列追加を避けて独立シート LisonFirstLogin で記録する。
+//   - 現在の生徒は seed で '2026-04-01'（リスオン最古 weekStart 2026-04-27 より前）を一括投入
+//     → 全配信が母数（途中入塾の不利ゼロ）。
+//   - 今後の新規生徒は loginStudent が初回ログイン日を記録 → その週以降の配信が母数。
+// 列構成（3 列）: studentId / firstLoginDate('yyyy-MM-dd') / recordedAt('yyyy-MM-dd HH:mm:ss')
+
+// 一律 seed 日付。リスオン最古 weekStart（≈2026-04-27）より前なら全配信が母数になる。
+const LISON_FIRST_LOGIN_SEED_DATE = '2026-04-01';
+
+// 部分1：シート初期化（冪等）。GAS エディタから 1 回実行する想定。
+function ensureLisonFirstLoginSheet() {
+  try {
+    const r = _ensureSheetWithHeaders(SHEET_LISON_FIRST_LOGIN, LISON_FIRST_LOGIN_HEADERS);
+    return {
+      ok: true,
+      created: r.created,
+      sheet: SHEET_LISON_FIRST_LOGIN,
+      headers: LISON_FIRST_LOGIN_HEADERS,
+      message: r.created ? 'LisonFirstLogin シートを新規作成しました' : 'LisonFirstLogin シートは既に存在します（ヘッダー保証済み）'
+    };
+  } catch (err) {
+    console.error('[ensureLisonFirstLoginSheet]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 指定 sid の初回ログイン日（'yyyy-MM-dd'）を返す。無ければ null。
+//   複数行ある場合（万一の重複）は最小日付を採用（最も古い＝真の初回を保持）。
+//   per-sid キャッシュ（cache_firstlogin_date_<sid>、長 TTL）で軽量化。
+function _getFirstLoginDate(sid) {
+  sid = String(sid || '').trim();
+  if (!sid) return null;
+  const cacheKey = 'cache_firstlogin_date_' + sid;
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get(cacheKey);
+  if (hit != null) {
+    // '' は「記録なし」を表す negative cache。null に戻す。
+    return hit === '' ? null : hit;
+  }
+  let result = null;
+  try {
+    const sh = _ss().getSheetByName(SHEET_LISON_FIRST_LOGIN);
+    if (sh && sh.getLastRow() >= 2) {
+      const values = sh.getDataRange().getValues();
+      const header = values[0] || [];
+      let iSid = header.indexOf('studentId');     if (iSid < 0) iSid = 0;
+      let iDate = header.indexOf('firstLoginDate'); if (iDate < 0) iDate = 1;
+      for (let i = 1; i < values.length; i++) {
+        if (String(values[i][iSid] || '').trim() !== sid) continue;
+        const raw = values[i][iDate];
+        let ds;
+        if (raw instanceof Date) {
+          ds = Utilities.formatDate(raw, 'Asia/Tokyo', 'yyyy-MM-dd');
+        } else {
+          ds = String(raw || '').trim();
+        }
+        if (!ds) continue;
+        if (result === null || ds < result) result = ds;  // 最小日付（辞書順＝日付順）
+      }
+    }
+  } catch (e) {
+    console.error('[_getFirstLoginDate]', sid, e);
+    return null;  // 失敗時はキャッシュせず null（フォールバック＝全期間母数に倒す）
+  }
+  try { cache.put(cacheKey, result === null ? '' : result, 21600); } catch (e) { /* ignore */ }
+  return result;
+}
+
+// 部分3：初回ログイン日を「まだ無ければ」記録する（loginStudent から呼ぶ）。
+//   ★既存ロジック非干渉：内部 try/catch で全例外を握りつぶし、触るのは LisonFirstLogin
+//     シート + 自前キャッシュキーのみ。streak/HP/LAST_LOGIN/milestone/return に一切影響しない。
+//   ★実生徒限定：stuLoc.sheetName === SHEET_STUDENTS のときだけ記録（SpecialAccounts 除外）。
+//   ★冪等：シートに sid が既存なら何もしない（初回を保持）。
+//   ★負荷対策：per-sid フラグ cache_firstlogin_<sid>（長 TTL）。hit ならシートを読まず即 return。
+function _recordFirstLoginIfAbsent(sid, stuLoc) {
+  try {
+    sid = String(sid || '').trim();
+    if (!sid) return;
+    // 実生徒（Students シート）以外は記録しない
+    if (!stuLoc || stuLoc.sheetName !== SHEET_STUDENTS) return;
+
+    const cache = CacheService.getScriptCache();
+    const flagKey = 'cache_firstlogin_' + sid;
+    if (cache.get(flagKey)) return;  // 記録済み確定 → シートを読まない
+
+    const sh = _ss().getSheetByName(SHEET_LISON_FIRST_LOGIN);
+    if (!sh) return;  // シート未作成（ensure 前）なら静かに何もしない
+
+    // 既存スキャン（≒生徒数 <500 行、軽量）
+    if (sh.getLastRow() >= 2) {
+      const values = sh.getDataRange().getValues();
+      const header = values[0] || [];
+      let iSid = header.indexOf('studentId'); if (iSid < 0) iSid = 0;
+      for (let i = 1; i < values.length; i++) {
+        if (String(values[i][iSid] || '').trim() === sid) {
+          cache.put(flagKey, '1', 21600);  // 既存あり → フラグ立てて以降の読みを省く
+          return;
+        }
+      }
+    }
+
+    // 未記録 → 初回ログイン日（教育日）で追記
+    const today = _todayEducationalJST();
+    sh.appendRow([sid, today, _nowJST()]);
+    cache.put(flagKey, '1', 21600);
+    // 日付キャッシュも更新（getLisonAchievement が即座に新しい初回日を読めるように）
+    try { cache.put('cache_firstlogin_date_' + sid, today, 21600); } catch (e) { /* ignore */ }
+  } catch (e) {
+    // ★ログインを絶対に壊さない：失敗しても握りつぶす
+    console.error('[_recordFirstLoginIfAbsent]', sid, e);
+  }
+}
+
+// 部分2：現在の在籍生徒の初回ログイン日を一括投入する使い切り関数（GAS エディタ実行）。
+//   recoverAllStudentsStreak（dryRun 規約）に倣う。
+//
+// ★反映の順序（重要）：単一 Code.js デプロイで全部分が同時に本番化するため、デプロイ直後・
+//   生徒利用前に ensureLisonFirstLoginSheet() → 本関数（dryRun→本実行）を実行すること。
+//   seed 前に生徒がログインすると loginStudent が「今日付」を記録してしまい母数が縮む。
+//
+// 引数: opts = { dryRun?: boolean, overwriteExisting?: boolean, seedDate?: string }
+//   - dryRun=true            : 書き込みなし。投入予定 sid 一覧・件数だけ返す（必ず最初に確認）。
+//   - overwriteExisting=true : ★保険。既存行も seedDate で強制上書き（窓を逃して今日付が入った
+//       生徒を救済する用）。dryRun と併用可。
+//       ★注意：新規生徒が加入した後はこのフラグを使わないこと（実際の初回日を 2026-04-01 で
+//       潰してしまう）。初回の一斉投入のときだけの救済レバー。
+//   - seedDate               : 省略時 LISON_FIRST_LOGIN_SEED_DATE（'2026-04-01'）。
+//
+// 対象：Students シートを直接読み（cache 経由禁止）、空でない sid。
+//   SpecialAccounts（テスト/講師/招待）は対象外（リスオン母数が不要）。
+// 戻り値: { ok, dryRun, overwriteExisting, seedDate, totalStudents, appendCount, overwriteCount, skipCount, sids:{appended:[],overwritten:[],skipped:[]} }
+function seedLisonFirstLoginForExistingStudents(opts) {
+  try {
+    opts = opts || {};
+    const dryRun = !!opts.dryRun;
+    const overwriteExisting = !!opts.overwriteExisting;
+    const seedDate = String(opts.seedDate || LISON_FIRST_LOGIN_SEED_DATE).trim();
+
+    const ss = _ss();
+    const stuSheet = ss.getSheetByName(SHEET_STUDENTS);
+    if (!stuSheet) return { ok: false, message: 'Students シートが見つかりません' };
+    const flSheet = ss.getSheetByName(SHEET_LISON_FIRST_LOGIN);
+    if (!flSheet) return { ok: false, message: 'LisonFirstLogin シートが見つかりません。先に ensureLisonFirstLoginSheet() を実行してください' };
+
+    // 既存 LisonFirstLogin を sid -> {rowIdx(1-based), date} で索引（cache 経由禁止）
+    const flValues = (flSheet.getLastRow() >= 1) ? flSheet.getDataRange().getValues() : [[]];
+    const flHeader = flValues[0] || [];
+    let iSid = flHeader.indexOf('studentId');      if (iSid < 0) iSid = 0;
+    let iDate = flHeader.indexOf('firstLoginDate'); if (iDate < 0) iDate = 1;
+    const existing = {};  // sid -> { rowNum(1-based), date }
+    for (let i = 1; i < flValues.length; i++) {
+      const sid = String(flValues[i][iSid] || '').trim();
+      if (!sid) continue;
+      if (!existing[sid]) existing[sid] = { rowNum: i + 1, date: String(flValues[i][iDate] || '').trim() };
+    }
+
+    // Students を直接読み（cache 経由禁止）
+    const stuValues = stuSheet.getDataRange().getValues();
+    const appendRows = [];      // [sid, seedDate, now]
+    const sidsAppended = [];
+    const sidsOverwritten = []; // { sid, rowNum }
+    const sidsSkipped = [];
+    let totalStudents = 0;
+    const now = _nowJST();
+
+    for (let i = 1; i < stuValues.length; i++) {
+      const sid = String(stuValues[i][COL_ID] || '').trim();
+      if (!sid) continue;
+      totalStudents++;
+      if (existing[sid]) {
+        if (overwriteExisting) {
+          sidsOverwritten.push({ sid: sid, rowNum: existing[sid].rowNum });
+        } else {
+          sidsSkipped.push(sid);
+        }
+      } else {
+        appendRows.push([sid, seedDate, now]);
+        sidsAppended.push(sid);
+      }
+    }
+
+    if (!dryRun) {
+      // 追記（まとめて setValues で効率化）
+      if (appendRows.length > 0) {
+        const startRow = flSheet.getLastRow() + 1;
+        flSheet.getRange(startRow, 1, appendRows.length, 3).setValues(appendRows);
+      }
+      // 上書き（保険）：既存行の firstLoginDate を seedDate に
+      if (overwriteExisting && sidsOverwritten.length > 0) {
+        sidsOverwritten.forEach(function(o) {
+          flSheet.getRange(o.rowNum, iDate + 1).setValue(seedDate);
+        });
+      }
+      // 投入した sid のキャッシュフラグ/日付を破棄（次回読みで最新を反映）
+      try {
+        const cache = CacheService.getScriptCache();
+        const keys = [];
+        sidsAppended.forEach(function(s){ keys.push('cache_firstlogin_' + s); keys.push('cache_firstlogin_date_' + s); });
+        sidsOverwritten.forEach(function(o){ keys.push('cache_firstlogin_' + o.sid); keys.push('cache_firstlogin_date_' + o.sid); });
+        if (keys.length > 0) cache.removeAll(keys);
+        // delivered_ws / 達成度キャッシュは student 非依存 or per-sid TTL なので個別 remove 不要
+      } catch (e) { /* ignore */ }
+    }
+
+    return {
+      ok: true,
+      dryRun: dryRun,
+      overwriteExisting: overwriteExisting,
+      seedDate: seedDate,
+      totalStudents: totalStudents,
+      appendCount: sidsAppended.length,
+      overwriteCount: sidsOverwritten.length,
+      skipCount: sidsSkipped.length,
+      sids: {
+        appended: sidsAppended,
+        overwritten: sidsOverwritten.map(function(o){ return o.sid; }),
+        skipped: sidsSkipped
+      }
+    };
+  } catch (err) {
+    console.error('[seedLisonFirstLoginForExistingStudents]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
 // =============================================
 // 管理画面：LisonContents シートのヘッダー保証（冪等）
 // 既存シートが古い 8 列構成等の場合に末尾に欠落列を追記する（破壊的変更なし）。
@@ -30843,10 +31083,13 @@ function getLisonAchievement(params) {
         return String(v || '').trim();
       };
 
-      // ── 配信本数（母数・参考）：LisonContents の level別 distinct weekStart（student 非依存・長 TTL）──
+      // ── 配信（母数の素材）：LisonContents の level別 distinct weekStart「配列」（student 非依存・長 TTL）──
       //   LISON_CONTENTS_HEADERS: 0=weekStart, 1=level（ヘッダー駆動。無ければ既定 0/1）。
-      const deliveredByLevel = _getCachedValues('cache_lison_delivered', 21600, function() {
-        const acc = {};
+      //   2026-07-01 途中入塾者対応：従来の「件数」cache_lison_delivered（{level:count}）ではなく、
+      //     初回ログイン日の週でフィルタするため「weekStart 配列」cache_lison_delivered_ws
+      //     （{level:[ws,...]}）を新キーで保持する（★旧キーと形が違うため必ず別キー名にする）。
+      const deliveredWsByLevel = _getCachedValues('cache_lison_delivered_ws', 21600, function() {
+        const acc = {};   // level -> [ws, ...]（distinct）
         const cSh = _ss().getSheetByName(SHEET_LISON_CONTENTS);
         if (!cSh || cSh.getLastRow() < 2) return acc;
         const cv = cSh.getDataRange().getValues();
@@ -30860,10 +31103,17 @@ function getLisonAchievement(params) {
           const ws = wsKey(cv[i][iWS]);
           if (!ws) continue;
           if (!seen[lv]) seen[lv] = {};
-          if (!seen[lv][ws]) { seen[lv][ws] = true; acc[lv] = (acc[lv] || 0) + 1; }
+          if (!seen[lv][ws]) { seen[lv][ws] = true; (acc[lv] = acc[lv] || []).push(ws); }
         }
         return acc;
       });
+
+      // 2026-07-01 途中入塾者対応：その生徒の初回ログイン日の「週開始」を境に母数を絞る。
+      //   ・初回日の weekStart で比較する（生日付ではない）→ 週途中入塾者が入塾週の月曜配信を
+      //     解いても attempted>delivered（100%超）にならない。
+      //   ・記録なし（fl=null）は flWeek='2000-01-01' に倒す＝全 weekStart が母数（安全側＝従来通り）。
+      const _fl = _getFirstLoginDate(sid);
+      const flWeek = _fl ? _lisonGetWeekStart(_fl) : '2000-01-01';
 
       // ── 生徒の取り組み：LisonSubmissions を sid 絞りで全行スキャン、level別に集計 ──
       //   列: [1]studentId [3]level [4]weekStart [5]quizScore（getLisonSubmissionsList と同じ固定位置）。
@@ -30895,7 +31145,11 @@ function getLisonAchievement(params) {
       LISON_LEVEL_META.forEach(function(m){ labelByLevel[m.value] = m.label; });
       const byLevel = {};
       LISON_VALID_LEVELS.forEach(function(level) {
-        const delivered = Number(deliveredByLevel[level]) || 0;
+        // 母数 = その生徒の初回ログイン日の週（flWeek）以降に配信された distinct weekStart 数。
+        //   'yyyy-MM-dd' は辞書順＝日付順なので文字列比較でよい。
+        const wsList = deliveredWsByLevel[level] || [];
+        let delivered = 0;
+        for (let k = 0; k < wsList.length; k++) { if (wsList[k] >= flWeek) delivered++; }
         const attempted = attemptedSets[level] ? Object.keys(attemptedSets[level]).length : 0;
         const subs = Number(submissions[level]) || 0;
         const qN = Number(quizN[level]) || 0;
