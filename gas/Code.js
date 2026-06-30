@@ -31193,11 +31193,18 @@ function submitAttemptV2(studentId, grade, groupType, blockNo, round, passed, op
                advanced: true, newPosition: newPosition, roundDone: newDone };
     }
 
-    // ブロック完了（round1/round2 両方 done か）を最新状態で判定
-    const fresh = _getVocabRowsForKey(sid, grade, groupType);
-    const fr1 = fresh.filter(function(r) { return r.blockNo === blockNo && r.round === 1; })[0];
-    const fr2 = fresh.filter(function(r) { return r.blockNo === blockNo && r.round === 2; })[0];
-    const blockCompleted = !!(fr1 && fr1.done && fr2 && fr2.done);
+    // ブロック完了（round1/round2 両方 done か）を判定。
+    //   案2（軽量化）：VocabOrder フル再読（_getVocabRowsForKey 再呼び出し）を廃止し、
+    //   送信冒頭で読んだ rows（同一キーの全行）＋今回の newDone からメモリ算出する。
+    //   - 相方 round の done は rows の値が正（今回更新したのは target 行=提出 round のみ）。
+    //   - 提出 round の done は今書き込んだ newDone で確定。
+    //   → 同一実行内で従来の再読(fresh)と厳密一致。blockCompleted はフロント未参照（cosmetic）で、
+    //     次回出題・級完了は getTodaysSetV2 が独立にフレッシュ読みで決定するため出題進行は不変。
+    const r1 = rows.filter(function(r) { return r.blockNo === blockNo && r.round === 1; })[0];
+    const r2 = rows.filter(function(r) { return r.blockNo === blockNo && r.round === 2; })[0];
+    const done1 = (round === 1) ? newDone : !!(r1 && r1.done);
+    const done2 = (round === 2) ? newDone : !!(r2 && r2.done);
+    const blockCompleted = !!(r1 && r2 && done1 && done2);
 
     return {
       // V2 進捗（フロントの状態前進用）
