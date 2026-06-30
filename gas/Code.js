@@ -30893,6 +30893,178 @@ function getLisonAchievement(params) {
 }
 
 // =============================================================================
+// 【診断・読み取り専用】リスオン orphan 検出 — diagnoseLisonOrphans（2026-06-30）
+// =============================================================================
+// 「録音は Drive にあるのに LisonSubmissions に行が無い（達成度の本数に入らない）」orphan を検出する。
+// 背景：submitLison は「録音保存(_saveLisonRecording) → HP付与(_grantHP・失敗で early return) →
+//   LisonSubmissions appendRow」の順。_grantHP 失敗時は録音だけ Drive に残り行が作られない（構造的 orphan）。
+//   cleanupLisonOldRecordings は LisonSubmissions の行を起点に Drive を消すため、行の無い orphan 録音は
+//   永久に残る（＝検出可能）。
+//
+// ★完全に読み取り専用：LisonSubmissions / Drive / HPLog / Properties に一切書き込まない。
+//   DriveApp は getFiles / getId / getName のみ（createFile / setTrashed / setName 等は呼ばない）。
+//
+// 判定：
+//   1. LisonSubmissions の fileId 列（[8]、ヘッダー無ければ index 8 フォールバック）の集合を作る（primary key）。
+//   2. Drive ファイル名 'lison_<sid>_<level>_<yyyyMMddHHmmss>.<ext>' から sid/level/提出日時をパース。
+//   3. orphan 判定：file.getId() が fileId 集合に無い AND
+//      フォールバック（fileId 空の旧行対策）でも (sid, level, 近接 timestamp ±FALLBACK_WINDOW_SEC) の
+//      行が見つからない → 真の orphan。どちらかで見つかれば「記録あり」として除外（誤検出を避ける）。
+//
+// GAS エディタでの実行：関数 diagnoseLisonOrphans を選択して実行 → 実行ログ（Logger.log）で結果を見る。
+//   返り値（JSON）も得られる（実行 → 表示で確認可）。doGet には載せない（公開URLから叩かれないように）。
+//
+// 引数（任意）：{ maxFiles?: number }  Drive 列挙の安全上限（既定 5000）。超過時は capped:true を返す。
+function diagnoseLisonOrphans(params) {
+  const t0 = Date.now();
+  const FALLBACK_WINDOW_SEC = 300;  // fileId 空の旧行向けフォールバック突合の許容時間差（秒）
+  const maxFiles = (params && Number(params.maxFiles)) > 0 ? Number(params.maxFiles) : 5000;
+  const result = {
+    ok: true,
+    orphanCount: 0,
+    orphansBySid: {},
+    orphansByLevel: {},
+    orphans: [],            // { sid, level, submittedAt, fileId, fileName }
+    driveFileTotal: 0,
+    submissionRowTotal: 0,
+    emptyFileIdRows: 0,
+    unparseableFileNames: 0,
+    capped: false,
+    elapsedSec: 0
+  };
+  try {
+    // ── ① LisonSubmissions を全行スキャンして突合用インデックスを構築（読み取りのみ）──
+    //   列: [0]timestamp [1]studentId [3]level [8]fileId（ヘッダー駆動 + フォールバック）
+    const fileIdSet = {};                 // fileId -> true（primary）
+    const rowsByKey = {};                 // 'sidlevel' -> [ submittedMs, ... ]（フォールバック）
+    const sh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (sh && sh.getLastRow() >= 2) {
+      const values = sh.getDataRange().getValues();
+      const header = values[0] || [];
+      let iFileId = header.indexOf('fileId'); if (iFileId < 0) iFileId = 8;
+      for (let i = 1; i < values.length; i++) {
+        const r = values[i];
+        if (!r[1] && !r[0]) continue;
+        result.submissionRowTotal += 1;
+        const fid = String(r[iFileId] || '').trim();
+        if (fid) fileIdSet[fid] = true;
+        else result.emptyFileIdRows += 1;
+        // フォールバック用：sid+level ごとに行 timestamp(ms) を貯める
+        const sid = String(r[1] || '').trim();
+        const lv  = String(r[3] || '').trim();
+        const ms  = _lisonTsToMs(r[0]);
+        if (sid && lv && ms != null) {
+          const key = sid + '' + lv;
+          if (!rowsByKey[key]) rowsByKey[key] = [];
+          rowsByKey[key].push(ms);
+        }
+      }
+    }
+
+    // ── ② Drive の録音ファイルを列挙して orphan 判定（読み取りのみ：getFoldersByName/getFiles/getId/getName）──
+    //   ★_ensureLisonRecordingsFolder は未存在時にフォルダを createFolder（書き込み）するため使わない。
+    //     getFoldersByName で非作成ルックアップし、フォルダが無ければ Drive ファイル 0 件として扱う（完全読み取り専用）。
+    const folderIt = DriveApp.getFoldersByName(LISON_RECORDING_ROOT_FOLDER);
+    if (!folderIt.hasNext()) {
+      result.elapsedSec = (Date.now() - t0) / 1000;
+      Logger.log('[diagnoseLisonOrphans] LisonRecordings フォルダが見つかりません（録音ファイル 0 件として扱う）');
+      return result;
+    }
+    const folder = folderIt.next();
+    const it = folder.getFiles();
+    const re = /^lison_([^_]+)_([^_]+)_(\d{14})\.([A-Za-z0-9]+)$/;
+    while (it.hasNext()) {
+      if (result.driveFileTotal >= maxFiles) { result.capped = true; break; }
+      const file = it.next();
+      result.driveFileTotal += 1;
+      const fid  = file.getId();
+      const name = file.getName();
+
+      // primary：fileId が LisonSubmissions に存在 → 記録あり（orphan ではない）
+      if (fileIdSet[fid]) continue;
+
+      // ファイル名パース（sid / level / 提出日時）
+      const m = re.exec(name);
+      let sid = '?', lv = '?', submittedAt = '', fileMs = null;
+      if (m) {
+        sid = m[1];
+        lv  = m[2];
+        const tsStr = m[3];  // yyyyMMddHHmmss
+        submittedAt = tsStr.slice(0,4) + '-' + tsStr.slice(4,6) + '-' + tsStr.slice(6,8) + ' '
+                    + tsStr.slice(8,10) + ':' + tsStr.slice(10,12) + ':' + tsStr.slice(12,14);
+        fileMs = _lisonTsToMs(submittedAt);
+      } else {
+        result.unparseableFileNames += 1;
+      }
+
+      // フォールバック：fileId 空の旧行救済。(sid, level) で近接 timestamp の行があれば「記録あり」
+      let matchedByFallback = false;
+      if (m && fileMs != null) {
+        const arr = rowsByKey[sid + '' + lv];
+        if (arr && arr.length) {
+          for (let k = 0; k < arr.length; k++) {
+            if (Math.abs(arr[k] - fileMs) <= FALLBACK_WINDOW_SEC * 1000) { matchedByFallback = true; break; }
+          }
+        }
+      }
+      if (matchedByFallback) continue;
+
+      // どちらでも見つからない → 真の orphan
+      result.orphanCount += 1;
+      result.orphansBySid[sid]   = (result.orphansBySid[sid]   || 0) + 1;
+      result.orphansByLevel[lv]  = (result.orphansByLevel[lv]  || 0) + 1;
+      result.orphans.push({ sid: sid, level: lv, submittedAt: submittedAt, fileId: fid, fileName: name });
+    }
+
+    result.elapsedSec = (Date.now() - t0) / 1000;
+
+    // ── ③ ログ出力（GAS エディタで目視確認する用）──
+    Logger.log('[diagnoseLisonOrphans] === リスオン orphan 診断（読み取り専用）===');
+    Logger.log('  Drive 録音ファイル総数 : ' + result.driveFileTotal + (result.capped ? '（上限 ' + maxFiles + ' で打ち切り）' : ''));
+    Logger.log('  LisonSubmissions 行数  : ' + result.submissionRowTotal + '（うち fileId 空: ' + result.emptyFileIdRows + '）');
+    Logger.log('  ★ orphan（録音あり・記録なし）: ' + result.orphanCount + ' 件');
+    if (result.unparseableFileNames > 0) Logger.log('  ファイル名パース不能: ' + result.unparseableFileNames + ' 件（名前形式が想定外）');
+    Logger.log('  --- sid 別 orphan 件数 ---');
+    Object.keys(result.orphansBySid).sort(function(a,b){ return result.orphansBySid[b] - result.orphansBySid[a]; })
+      .forEach(function(s){ Logger.log('    sid=' + s + ' : ' + result.orphansBySid[s] + ' 件'); });
+    Logger.log('  --- level 別 orphan 件数 ---');
+    Object.keys(result.orphansByLevel).forEach(function(l){ Logger.log('    level=' + l + ' : ' + result.orphansByLevel[l] + ' 件'); });
+    Logger.log('  --- orphan 明細（最大 50 件表示）---');
+    result.orphans.slice(0, 50).forEach(function(o){
+      Logger.log('    sid=' + o.sid + ' level=' + o.level + ' at=' + o.submittedAt + ' file=' + o.fileName);
+    });
+    if (result.orphans.length > 50) Logger.log('    ... 他 ' + (result.orphans.length - 50) + ' 件');
+    Logger.log('  elapsed=' + result.elapsedSec.toFixed(2) + 's');
+
+    return result;
+  } catch (err) {
+    console.error('[diagnoseLisonOrphans]', err);
+    result.ok = false;
+    result.error = String(err);
+    result.elapsedSec = (Date.now() - t0) / 1000;
+    return result;
+  }
+}
+
+// 診断用ヘルパー（読み取り専用）：LisonSubmissions の timestamp / ファイル名復元日時を ms に正規化。
+//   - Date オブジェクト → getTime()
+//   - 'yyyy-MM-dd HH:mm:ss'（_nowJST 形式・TZ マーカーなし）→ JST(+09:00) として解釈
+//   - 'yyyy-MM-dd' → JST 0:00 として解釈
+//   - それ以外は new Date() に委ねる。解釈不能なら null。
+function _lisonTsToMs(v) {
+  if (v == null || v === '') return null;
+  try {
+    if (v instanceof Date) { const t = v.getTime(); return isNaN(t) ? null : t; }
+    let s = String(v).trim();
+    let m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})$/);
+    if (m) { const t = new Date(m[1] + 'T' + m[2] + '+09:00').getTime(); return isNaN(t) ? null : t; }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) { const t = new Date(s + 'T00:00:00+09:00').getTime(); return isNaN(t) ? null : t; }
+    const t = new Date(s).getTime();
+    return isNaN(t) ? null : t;
+  } catch (e) { return null; }
+}
+
+// =============================================================================
 // 既習移行【本書き込み】runEitangoMigrationLIVE（2026-06-03、VocabOrder のみ書込）
 // =============================================================================
 // dryRun で検証済みの既習移行を、実際に VocabOrder シートへ書き込む。
