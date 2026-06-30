@@ -18869,7 +18869,13 @@ function submitLison(params) {
         if (!ts) continue;
         // wabun1 / sango と同じ JST 4 時（教育日）区切りで「今日」と同じ日かチェック
         const dStr = _educationalDayFromTs(ts);
-        if (dStr === todayStr) { alreadyGranted = true; break; }
+        if (dStr !== todayStr) continue;
+        // 2026-07-01 orphan予防（option i）：HP を実際に付与できた行（hpGained>0、列[7]）だけを
+        //   「付与済み」とみなす。HP付与に失敗して記録だけ残った行（hpGained=0）は対象外とし、
+        //   同日同レベルの再提出で _grantHP を再実行して HP を取り戻せるようにする。
+        //   hpGained>0 の行が 1 つでもあれば二重付与を防ぐため alreadyGranted=true。
+        const grantedHp = Number(subRows[i][7]) || 0;
+        if (grantedHp > 0) { alreadyGranted = true; break; }
       }
     }
 
@@ -18885,12 +18891,16 @@ function submitLison(params) {
     //   - alreadyGranted=true（同日 2 回目以降）の場合は HP 加算なし。完走チェックは
     //     旧版でも __reserveActive_lison=false のため呼ばれない（リスオンは絶対ミッション対象外）。
     //     新版でも _grantHP を skip して旧挙動を維持。
-    //   - Drive に保存済みの録音ファイルは _grantHP 失敗時も残るが、再提出時に
-    //     alreadyGranted=false のまま再度 HP 付与経路に入る（LisonSubmissions に未追記のため）→
-    //     次回成功で救済される（既存挙動と同じ）。
+    //   - 2026-07-01 orphan予防（案b）：_grantHP 失敗時も early return せず、hpGained=0 で
+    //     後段の LisonSubmissions appendRow まで進める（録音あり・記録なしの orphan を構造的に防ぐ）。
+    //     grant.ok=false の時点で _grantHP は Students.HP 更新前に終了しており HP は未加算（部分付与なし）。
+    //     hpGained=0 の行は alreadyGranted 判定の対象外（option i）のため、同日同レベルの再提出で
+    //     _grantHP が再実行され HP を取り戻せる。hpGained>0 行が残れば二重付与は防がれる。
     let hpGained = 0;
     let reservedHp_lison = 0;
     let completion_lison = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+    // 2026-07-01：HP付与失敗を記録は残したままレスポンスで伝えるフラグ（フロント参照は任意）。
+    let hpGrantFailed = false;
     if (!alreadyGranted) {
       const baseHp = _lisonBaseHpForLevel(level);
       const grant = _grantHP({
@@ -18901,30 +18911,29 @@ function submitLison(params) {
         // applyWeekMultiplier / applyReserveSystem / checkCompletion はすべて既定値 true
       });
       if (!grant.ok) {
-        console.error('[submitLison] _grantHP 失敗', { sid: sid, errorCode: grant.errorCode });
-        return {
-          ok:        false,
-          message:   grant.message || '内部エラーが発生しました。もう一度試してください。',
-          errorCode: grant.errorCode || 'HP_LOG_FAILED'
+        // 2026-07-01 orphan予防：return せず記録（appendRow）は残す。hpGained は 0 のまま。
+        console.error('[submitLison] _grantHP 失敗（録音・記録は残す）', { sid: sid, errorCode: grant.errorCode });
+        hpGrantFailed = true;
+        // hpGained / reservedHp_lison / completion_lison は初期値（0 / 空）のまま継続
+      } else {
+        hpGained = grant.hpGained;
+        reservedHp_lison = grant.hpReserved;
+        completion_lison = {
+          justCompleted: grant.justCompleted,
+          releasedHp:    grant.releasedHp,
+          bonusHp:       grant.bonusHp,
+          // 2026-05-27 修正1：表示用「Gate 2 view」
+          displayedImmediate:        grant.displayedImmediate,
+          displayedReserved:         grant.displayedReserved,
+          isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
+          // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（素通し転送・再計算なし）
+          rawHp:               grant.rawHp,
+          week:                grant.week,
+          fullHp:              grant.fullHp,
+          missionIncompleteHp: grant.missionIncompleteHp,
+          hasRequiredMission:  grant.hasRequiredMission
         };
       }
-      hpGained = grant.hpGained;
-      reservedHp_lison = grant.hpReserved;
-      completion_lison = {
-        justCompleted: grant.justCompleted,
-        releasedHp:    grant.releasedHp,
-        bonusHp:       grant.bonusHp,
-        // 2026-05-27 修正1：表示用「Gate 2 view」
-        displayedImmediate:        grant.displayedImmediate,
-        displayedReserved:         grant.displayedReserved,
-        isAbsoluteMissionComplete: grant.isAbsoluteMissionComplete,
-        // 【用件4 第2段】統一HP獲得画面 ①②③ の表示用（素通し転送・再計算なし）
-        rawHp:               grant.rawHp,
-        week:                grant.week,
-        fullHp:              grant.fullHp,
-        missionIncompleteHp: grant.missionIncompleteHp,
-        hasRequiredMission:  grant.hasRequiredMission
-      };
     }
 
     // LisonSubmissions に追記（alreadyGranted のときも recordingUrl と quizScore は残す）
@@ -18967,6 +18976,9 @@ function submitLison(params) {
       missionIncompleteHp: completion_lison.missionIncompleteHp || 0,
       hasRequiredMission:  !!completion_lison.hasRequiredMission,
       alreadyGranted: alreadyGranted,
+      // 2026-07-01 orphan予防：HP付与に失敗したが録音・取り組み記録は保存済みであることを伝える。
+      //   true のとき hpGained=0 だが、同日同レベルの再提出で HP を取り戻せる（option i）。
+      hpGrantFailed: hpGrantFailed,
       quizScore: quizScore,
       recordingUrl: saveRes.shareUrl
     };
