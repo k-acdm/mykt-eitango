@@ -1307,6 +1307,7 @@ function doGet(e) {
       else if (action === 'getEitangoAchievement')       result = getEitangoAchievement(params);
       else if (action === 'getKobunAchievement')          result = getKobunAchievement(params);
       else if (action === 'getKisoAchievement')           result = getKisoAchievement(params);
+      else if (action === 'getKanjiAchievement')          result = getKanjiAchievement(params);
       else if (action === 'getRikaMonthSummary')         result = getRikaMonthSummary(params);
       else if (action === 'getShakaiMonthSummary')       result = getShakaiMonthSummary(params);
       else if (action === 'getRikaDayDetail')            result = getRikaDayDetail(params);
@@ -19554,6 +19555,10 @@ function submitKanjiKaki(params) {
       }
     }
 
+    // 漢字 達成度（到達率）キャッシュを破棄して即時反映（getKanjiAchievement / 段階C-2）。
+    //   合格時に HPLog の kanji_<level>_<count> が増えて達成率が変わるため。remove のみ（採点ロジックは不変）。
+    _invalidateCache('cache_kanji_ach_' + sid);
+
     return {
       ok: true,
       passed: passed,
@@ -30654,6 +30659,111 @@ function getKisoAchievement(params) {
     });
   } catch (err) {
     console.error('[getKisoAchievement]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================================================
+// 漢字（カンジー）達成度（到達率）— getKanjiAchievement（2026-06-30 / 段階C-2）
+// =============================================================================
+// 候補A：級別の到達率（%）＋周回完走回数。漢字は「決まった順序で出題（シャッフルなし）」＝
+//   英単語/古文と同じく到達・網羅の概念が成立 → 到達率(%)で表示。巡回式（一周したら先頭に戻り
+//   再演習）なので、母数超は min クランプで吸収し、何周したかは fullCompletions で併記する
+//   （構造はコブタンと同型。級別にしただけ）。
+//   level ごと（KANJI_VALID_LEVELS = 8/7/6/5/4/3/準2/2）：
+//     total_level     = その級の KanjiKaki 行数（漢字数。動的算出。Phase 拡張・級追加に自動追従）
+//     passedΣ_level   = HPLog の type=kanji_<level>_<count>(_practice) の count 合計（全期間・練習込み）
+//     reached_level   = min(passedΣ, total)                          ← ★巡回の母数超を min クランプ
+//     rate_level      = total>0 ? reached/total : null
+//     fullCompletions = total>0 ? floor(passedΣ / total) : 0         ← 周回完走回数（再周回で下がらない）
+// ★読み/書きは合算：HP は「書き」合格時のみ付与（読みは採点のみ）＝ HPLog の kanji_<level>_<count> 1 本が
+//   「読み＋書き両方クリアした漢字数」を表す。読み/書きを分離する別ログは無いため合算が唯一自然。
+// ★count は漢字数（5/10）＝母数(KanjiKaki 行数=漢字数)と単位一致。英単語のような ×2 はしない。
+// ★HPLog は全期間スキャン（末尾 N 行だと周回完走を取りこぼす）。sid 絞り＋type 前置 'kanji_' でフィルタ。
+// ★級の正規化：シートの 級列は '5級' / '準2級' 形式、API は bare '5' / '準2'。getKanjiSet:19108 と同じ
+//   levelKey =（level==='準2'）? '準2級' : level+'級' で突合（全8級とも母数が取れる）。
+// 認証：_verifyTeacher（達成度ハブは admin/teacher 両ロール可）。getKobunAchievement と同じ外枠。
+// キャッシュ：per-sid 短 TTL（300s）cache_kanji_ach_<sid>。submitKanjiKaki 合格時に remove。
+//   母数は student 非依存のグローバル長 TTL（21600s）cache_kanji_poolsizes。
+function getKanjiAchievement(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+
+    return _getCachedValues('cache_kanji_ach_' + sid, 300, function() {
+      const warns = [];
+
+      // ── 母数：級別プールサイズ（student 非依存・長 TTL グローバル）──
+      //   KanjiKaki を 1 スキャンし、級列（'5級'/'準2級'）→ bare レベル（'5'/'準2'）に正規化して
+      //   級別の漢字数（行数）を集計。KanjiKaki: 6=級（KANJI_KAKI_HEADERS と同順）。
+      const poolByLevel = _getCachedValues('cache_kanji_poolsizes', 21600, function() {
+        const acc = {};
+        const kSheet = _ss().getSheetByName(SHEET_KANJI_KAKI);
+        if (!kSheet || kSheet.getLastRow() < 2) return acc;
+        const kv = kSheet.getDataRange().getValues();
+        // 級列インデックス（ヘッダー駆動。無ければ既定 6）
+        let cLevel = kv[0].indexOf('級');
+        if (cLevel < 0) cLevel = 6;
+        for (let i = 1; i < kv.length; i++) {
+          let lvRaw = String(kv[i][cLevel] || '').trim();   // '5級' / '準2級'
+          if (!lvRaw) continue;
+          // bare レベルに正規化（'準2級'→'準2'、'5級'→'5'）
+          const bare = lvRaw.replace(/級$/, '');
+          if (KANJI_VALID_LEVELS.indexOf(bare) < 0) continue;  // 想定外の級表記は無視
+          acc[bare] = (acc[bare] || 0) + 1;
+        }
+        return acc;
+      });
+
+      // ── 分子：HPLog 全期間スキャン（sid 絞り）。kanji_<level>_<count>(_practice) の count を級別合算 ──
+      //   HPLog 列: 0=timestamp, 1=studentId, 2=rawHP, 3=hpGained, 4=type
+      //   正規表現は getKanjiHistory と同一（準2級も正しく扱う）。
+      const passedByLevel = {};
+      const logSh = _ss().getSheetByName(SHEET_HPLOG);
+      if (logSh && logSh.getLastRow() >= 2) {
+        const lv = logSh.getDataRange().getValues();
+        const re = /^kanji_(準?\d+)_(\d+)(_practice)?$/;
+        for (let i = 1; i < lv.length; i++) {
+          if (String(lv[i][1] || '').trim() !== sid) continue;
+          const type = String(lv[i][4] || '').trim();
+          if (type.indexOf('kanji_') !== 0) continue;
+          const m = re.exec(type);
+          if (!m) continue;
+          const level = m[1];                       // '5' / '準2' 等
+          const cnt = parseInt(m[2], 10) || 0;
+          passedByLevel[level] = (passedByLevel[level] || 0) + cnt;
+        }
+      }
+
+      // ── 級別に byLevel を組み立て（KANJI_VALID_LEVELS = 8→2 の順）──
+      const byLevel = {};
+      KANJI_VALID_LEVELS.forEach(function(level) {
+        const total = Number(poolByLevel[level]) || 0;
+        const passedSum = Number(passedByLevel[level]) || 0;
+        const reached = Math.max(0, Math.min(passedSum, total));   // ★min クランプ（巡回の母数超を吸収）
+        const rate = total > 0 ? (reached / total) : null;
+        const fullCompletions = total > 0 ? Math.floor(passedSum / total) : 0;
+        byLevel[level] = {
+          level: level,
+          reached: reached,
+          total: total,
+          rate: rate,
+          fullCompletions: fullCompletions,
+          ready: total > 0
+        };
+      });
+
+      return {
+        ok: true,
+        studentId: sid,
+        byLevel: byLevel,
+        warns: warns
+      };
+    });
+  } catch (err) {
+    console.error('[getKanjiAchievement]', err);
     return { ok: false, message: String(err) };
   }
 }
