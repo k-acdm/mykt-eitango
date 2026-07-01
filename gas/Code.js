@@ -5113,6 +5113,84 @@ function _getKisoQuestionRowsForRank(rank) {
   return byRank[r] || [];
 }
 
+// 2026-07-02 応急処置A：基礎計算 KisoQuestions の全 rank キャッシュを事前ウォーミングする保守用関数。
+//
+// 背景：startKisoSession → _getKisoQuestionRowsForRank(rank) はキャッシュヒット時は軽いが、
+//   ミス時は KisoQuestions 全 ~2000 行を getDataRange().getValues() で一括読みする（重い）。
+//   規模拡大・混雑時にこのコールド読みが完走せず、生徒が諦めて再試行 → また全件読み …という
+//   悪循環（キャッシュ・スタンピード）で「読み込めない・復活しない」状態になる。
+//   本関数を時間主導トリガーで TTL(6h) より短い間隔（推奨 4 時間ごと）で回し、キャッシュを常に
+//   温めておくことで、生徒アクセスは常にキャッシュヒットになりコールド読みを回避する。
+//
+// 設計：
+//   - KisoQuestions を getDataRange で「1 回だけ」全件読みし、rank 別に振り分けて
+//     各 cache_kiso_q_rows_<rank> に put する。キー・格納形式（生の行配列を JSON.stringify）・
+//     TTL(21600s)・95KB スキップ条件はすべて _getKisoQuestionRowsForRank のミス分岐と厳密に一致。
+//     ★_getKisoQuestionRowsForRank が JSON.parse で読み戻すので、格納フォーマットを崩さないこと。
+//   - put は上書きなので、実行のたびに TTL がリセットされ「常に温かい」状態を保てる。
+//     （_getKisoQuestionRowsForRank を 20 回呼ぶ方式だと、既に温かいとき put されず TTL が延びず、
+//      6h 経過直前にコールドミスが起こる隙間ができる。ここは 1 回読み + 上書き put でそれを回避。）
+//   - _getKisoQuestionRowsForRank / startKisoSession は一切変更しない（本関数はキャッシュを埋めるだけ）。
+//
+// 保守用：doGet には載せない。GAS エディタ / 時間主導トリガーから実行する。
+// 運用：KisoQuestions を編集して clearAllCache() を打った後は、本関数を手動実行して即温め直すと
+//   コールドミスを避けられる（clearAllCache 本体には連結しない＝他用途の cache クリアに重い
+//   全件読みを常時くっつける副作用を避けるため。定期トリガー + 編集後の手動実行で運用する）。
+function warmKisoQuestionCache() {
+  const t0 = Date.now();
+  try {
+    const sh = _ensureKisoQuestionsSheet();
+    if (sh.getLastRow() < 2) {
+      console.warn('[warmKisoQuestionCache] KisoQuestions が空です。ウォーミングをスキップ');
+      return { ok: true, warmed: 0, skipped: 0, rows: 0, ms: Date.now() - t0 };
+    }
+    const values = sh.getDataRange().getValues();  // ★1 回だけ全件読み
+    const header = values[0];
+    const cRank = header.indexOf('rank');
+    if (cRank < 0) {
+      console.error('[warmKisoQuestionCache] rank 列が見つかりません');
+      return { ok: false, message: 'rank 列が見つかりません', ms: Date.now() - t0 };
+    }
+    // rank 別に生の行を振り分け（_getKisoQuestionRowsForRank のミス分岐と同一ロジック）
+    const byRank = {};
+    for (let i = 1; i < values.length; i++) {
+      const rk = Number(values[i][cRank]);
+      if (!rk) continue;
+      if (!byRank[rk]) byRank[rk] = [];
+      byRank[rk].push(values[i]);
+    }
+    const cache = CacheService.getScriptCache();
+    let warmed = 0;
+    let skipped = 0;
+    const skippedRanks = [];
+    Object.keys(byRank).forEach(function(rk){
+      const k = 'cache_kiso_q_rows_' + rk;  // _getKisoQuestionRowsForRank と同一キー
+      try {
+        const ser = JSON.stringify(byRank[rk]);  // 同一格納形式（生の行配列）
+        if (ser.length < 95000) {                // 同一 95KB スキップ条件
+          cache.put(k, ser, 21600);              // 同一 TTL（上書き = TTL リセット）
+          warmed++;
+        } else {
+          skipped++;
+          skippedRanks.push(rk + '(' + ser.length + 'B)');
+          console.warn('[warmKisoQuestionCache] cache skip >95KB', k, 'size=' + ser.length);
+        }
+      } catch (e) {
+        skipped++;
+        console.error('[warmKisoQuestionCache] cache put 失敗', k, e);
+      }
+    });
+    const ms = Date.now() - t0;
+    console.log('[warmKisoQuestionCache] warmed=' + warmed + ' rank / skipped=' + skipped
+      + ' / rows=' + (values.length - 1) + ' / ' + ms + 'ms'
+      + (skippedRanks.length ? ' / skippedRanks=' + skippedRanks.join(',') : ''));
+    return { ok: true, warmed: warmed, skipped: skipped, rows: values.length - 1, ms: ms };
+  } catch (err) {
+    console.error('[warmKisoQuestionCache]', err);
+    return { ok: false, message: String(err), ms: Date.now() - t0 };
+  }
+}
+
 // 指定の questionId 配列に対応する問題行を返す（順序は questionIds の順）
 // rank 単位でキャッシュを呼ぶため、問題セットが同じ rank に揃っていれば 1 回の cache hit で済む
 function _getKisoQuestionsByIds(questionIds) {
