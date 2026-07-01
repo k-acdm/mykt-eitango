@@ -12074,11 +12074,26 @@ function _invalidatePendingReflectionCache(sid) {
 //
 // accountType フィルタは呼び出し側（Gate 1）で実施するため、本関数は素直にシートを見る。
 // テスト枠でも誤動作しないよう、シート参照失敗時は安全側で false（未提出扱い）を返す。
+//
+// 2026-07-02 応急対処A：二重送信ガード用に「対象日」を引数に取る一般化版
+//   _isReflectionSubmittedOnDate(sid, dateStr) を追加。_isReflectionSubmittedToday は
+//   これを _sangoToday() で呼ぶ薄いラッパーにして後方互換を完全維持
+//   （キャッシュキー・TTL・走査幅・正規化・エラー時 false・戻り値すべて従来と同一）。
 function _isReflectionSubmittedToday(sid) {
+  return _isReflectionSubmittedOnDate(sid, _sangoToday());
+}
+
+// 指定日（dateStr = 'yyyy-MM-dd'）に sid が振り返り提出済みかを判定。
+//   - キャッシュキー 'cache_refl_today_<sid>_<dateStr>'（dateStr が _sangoToday() のときは
+//     従来の _isReflectionSubmittedToday と完全に同一キー・同一 TTL 30 分）
+//   - キャッシュミスなら Reflections シート末尾 200 行スキャン
+//   - date 列は Sheets 自動変換で Date 型 / 'yyyy-MM-dd' / 'yyyy/MM/dd' 等の可能性あり → 正規化して比較
+//   - シート参照失敗時は安全側で false（未提出扱い）
+function _isReflectionSubmittedOnDate(sid, dateStr) {
   const sidNorm = String(sid || '').trim();
-  if (!sidNorm) return false;
-  const todayStr = _sangoToday();
-  const cacheKey = 'cache_refl_today_' + sidNorm + '_' + todayStr;
+  const targetDate = String(dateStr || '').trim();
+  if (!sidNorm || !targetDate) return false;
+  const cacheKey = 'cache_refl_today_' + sidNorm + '_' + targetDate;
   try {
     const cached = CacheService.getScriptCache().get(cacheKey);
     if (cached !== null) return cached === '1';
@@ -12107,15 +12122,17 @@ function _isReflectionSubmittedToday(sid) {
             const m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})/);
             if (m) ds = m[1] + '-' + m[2] + '-' + m[3];
           }
-          if (ds === todayStr) { found = true; break; }
+          if (ds === targetDate) { found = true; break; }
         }
       }
     }
   } catch(e) {
-    console.error('[_isReflectionSubmittedToday]', e);
+    console.error('[_isReflectionSubmittedOnDate]', e);
     // シート読込失敗時は安全側で false（=未提出扱い）。
     // 「未提出」を返すと Gate 1 が起動して 100% 保留になるが、これは生徒の HP を「失う」のではなく
     // 「振り返り提出で取り戻せる」状態なので、誤検知の被害は最小限。
+    // 二重送信ガードから呼ばれた場合も false（＝ appendRow を通す）が安全側
+    // （記録漏れより重複記録のほうが復旧しやすい）。
     return false;
   }
 
@@ -12194,6 +12211,51 @@ function submitReflection(params) {
         if (validDates[reqDate]) date = reqDate;
       } catch(_e) { /* date は既定値のまま */ }
     }
+
+    // ★二重送信ガード（応急対処A・2026-07-02）━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 通信エラーで生徒が 2〜3 回送信しても、Reflections に同じ振り返りテキストが重複
+    // 記録されるのを防ぐ。対象日(date)で既に提出済みなら appendRow を抑止し、「成功」
+    // レスポンスを返す（クライアントが失敗と誤認して再送を繰り返さないように）。
+    //   - 対象日は上で reflectionDate（今日 or 過去 7 日キャッチアップ日）に確定済み。
+    //     _isReflectionSubmittedToday（今日固定・ログインゲート用）は挙動不変のまま温存し、
+    //     ここでは対象日を取れる一般化版 _isReflectionSubmittedOnDate を使う。
+    //   - HP 解放系の後処理（_releaseReflectionReserves / _checkAndReleaseReserveIfCompleted /
+    //     _todayHpBreakdownForSid）は従来どおり呼ぶ。resolved / completion_bonus フラグで
+    //     二重加算は防止済みのため害はなく、「1 回目でテキストは入ったが後処理が途中失敗」
+    //     ケースの取りこぼし救済になる。
+    //   - 重い後処理の軽量化(B)は本コミットのスコープ外（AWS 移行で根本解決予定）。
+    if (_isReflectionSubmittedOnDate(sid, date)) {
+      let releasedHp = 0;
+      let bonusInfo = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
+      try {
+        const releaseRes = _releaseReflectionReserves(sid, date);
+        releasedHp = releaseRes.releasedHp || 0;
+        if (date === _sangoToday()) {
+          bonusInfo = _checkAndReleaseReserveIfCompleted(sid, 'reflection_release');
+        }
+      } catch (relErr) {
+        console.error('[submitReflection] (既提出ガード) release/bonus 失敗（続行）', relErr);
+      }
+      let hpBreakdown = null;
+      try {
+        hpBreakdown = _todayHpBreakdownForSid(sid);
+      } catch (bdErr) {
+        console.error('[submitReflection] (既提出ガード) hpBreakdown 集計失敗（続行）', bdErr);
+      }
+      return {
+        ok:                   true,
+        alreadySubmitted:     true,   // クライアント診断用（挙動は通常成功と同じ）
+        date:                 date,
+        wordCount:            wordCount,
+        releasedHp:           releasedHp,
+        justCompleted:        !!bonusInfo.justCompleted,
+        completionReleasedHp: Number(bonusInfo.releasedHp) || 0,
+        completionBonusHp:    Number(bonusInfo.bonusHp) || 0,
+        hpBreakdown:          hpBreakdown
+      };
+    }
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
     const timestamp    = _nowJST();
     const reflectionId = 'refl_' + sid + '_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
 
