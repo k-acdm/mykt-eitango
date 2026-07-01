@@ -11969,6 +11969,171 @@ function diagnoseReflectionDuplicates() {
   }
 }
 
+// 2026-07-02：Reflections の「再送重複（content 完全一致）」の余分行だけを掃除する保守用関数。
+//
+// 背景：二重送信ガード（submitReflection、b8b0c75）導入前の残存重複のうち、通信エラーによる
+//   同一内容の再送重複（all_identical）だけを削除する。マイ活では 1 日に複数回学習して
+//   その都度「別内容」の振り返りを書く正当な複数投稿（has_diff）があり、これは絶対に消さない。
+//   diagnoseReflectionDuplicates の結果：完全一致16行（掃除候補）／ばらつき28行（要確認・温存）。
+//
+// 掃除ポリシー（安全側）：
+//   - 対象は「content が完全一致（全文 === で判定）のグループ」の余分行のみ。
+//     ★has_diff（content にばらつきがあるグループ）は一切対象にしない。
+//   - 各 all_identical グループで最古 1 行（timestamp 昇順 → 同着は行番号昇順の先頭）を
+//     必ず残す。★グループを全削除しない（最初の送信を正とする）。
+//   - 削除直前に全文一致を再確認（先頭一致だけで消さない）。少しでも異なれば削除しない。
+//
+// dryRun：
+//   - opts.dryRun 既定 true。true では削除予定を一覧＋件数だけ返し、★一切削除しない。
+//   - opts.dryRun === false のときのみ実削除。
+//
+// 削除方式：deleteRow を行番号「降順」で実行（削除で下の行番号がずれない）。
+//   全935行中の削除は 16 行程度で少数のため、全行書き直しより deleteRow の方が影響範囲・
+//   リスクが小さいと判断して deleteRow を採用。
+//
+// 影響：Reflections のテキスト行を消すだけ。HP（付与済み・HPLog は別シート）や他機能に影響なし。
+//   保護者画面（getReflectionsForStudent）の表示から再送重複が消える（正当な複数投稿は残る）。
+//
+// 保守用：doGet には載せない。GAS エディタから実行。
+//   まず cleanupReflectionDuplicates()（dryRun）で計画確認 → cleanupReflectionDuplicates({dryRun:false}) で本実行。
+function cleanupReflectionDuplicates(opts) {
+  const t0 = Date.now();
+  const dryRun = !(opts && opts.dryRun === false);  // 既定 true（明示的に false のときだけ実削除）
+  try {
+    const sh = _ss().getSheetByName(SHEET_REFLECTIONS);
+    if (!sh || sh.getLastRow() < 2) {
+      Logger.log('[cleanupReflectionDuplicates] Reflections が空 or 未作成');
+      return { ok: true, dryRun: dryRun, totalRows: 0, deleteCandidates: 0, deleted: 0, plan: [] };
+    }
+    const values = sh.getDataRange().getValues();  // dryRun 判定・計画作成のため全件読み
+    const header = values[0];
+    const iSid     = header.indexOf('studentId');
+    const iDate    = header.indexOf('date');
+    const iTs      = header.indexOf('timestamp');
+    const iContent = header.indexOf('content');
+    if (iSid < 0 || iDate < 0 || iContent < 0) {
+      Logger.log('[cleanupReflectionDuplicates] studentId / date / content 列が見つかりません');
+      return { ok: false, message: 'studentId / date / content 列が見つかりません' };
+    }
+
+    // diagnoseReflectionDuplicates と同一の正規化
+    function normDate(raw) {
+      if (raw instanceof Date) return Utilities.formatDate(raw, 'Asia/Tokyo', 'yyyy-MM-dd');
+      if (raw == null) return '';
+      const s = String(raw).trim();
+      const m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})/);
+      return m ? (m[1] + '-' + m[2] + '-' + m[3]) : s;
+    }
+    function tsStr(raw) {
+      if (raw instanceof Date) return Utilities.formatDate(raw, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      return String(raw == null ? '' : raw).trim();
+    }
+
+    // (sid, date) でグルーピング（content は全文を保持して後で厳密比較）
+    const groups = {};
+    const totalRows = values.length - 1;
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      const sid = String(r[iSid] || '').trim();
+      const date = normDate(r[iDate]);
+      if (!sid || !date) continue;
+      const key = sid + '\x01' + date;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push({
+        rowNum:  i + 1,                                        // シート行番号（1-indexed）
+        ts:      iTs >= 0 ? tsStr(r[iTs]) : '',
+        content: String(r[iContent] == null ? '' : r[iContent])  // ★全文保持（再確認用）
+      });
+    }
+
+    // all_identical グループの余分行のみを削除対象に
+    let allIdenticalGroups = 0;
+    let skippedHasDiffGroups = 0;
+    const plan = [];  // 削除対象行 { rowNum, sid, date, ts, contentHead }
+    Object.keys(groups).forEach(function(key) {
+      const arr = groups[key];
+      if (arr.length < 2) return;  // 重複なし
+      const parts = key.split('\x01');
+      const sid = parts[0];
+      const date = parts[1];
+
+      // ★content 全文一致の再確認（先頭一致でなく全文 === で判定）
+      const first = arr[0].content;
+      const allIdentical = arr.every(function(x) { return x.content === first; });
+      if (!allIdentical) {
+        skippedHasDiffGroups++;   // has_diff は一切触らない
+        return;
+      }
+      allIdenticalGroups++;
+
+      // 最古 1 行を残す：timestamp 昇順 → 同着は行番号昇順。先頭を keep、残りを削除対象。
+      const sorted = arr.slice().sort(function(a, b) {
+        if (a.ts !== b.ts) return a.ts < b.ts ? -1 : 1;  // ts 昇順（空文字は最小＝最古扱い）
+        return a.rowNum - b.rowNum;                        // 同着は行番号昇順
+      });
+      const keep = sorted[0];
+      for (let k = 1; k < sorted.length; k++) {
+        const del = sorted[k];
+        // ★二重の安全確認：keep と全文一致でなければ削除しない
+        if (del.content !== keep.content) continue;
+        plan.push({
+          rowNum: del.rowNum,
+          sid: sid,
+          date: date,
+          ts: del.ts,
+          keepRowNum: keep.rowNum,
+          keepTs: keep.ts,
+          contentHead: del.content.slice(0, 40).replace(/\s+/g, ' ')
+        });
+      }
+    });
+
+    // 行番号降順（大きい方から削除 → 下の行番号がずれない）
+    plan.sort(function(a, b) { return b.rowNum - a.rowNum; });
+
+    // ─── ログ出力 ───
+    Logger.log('===== Reflections 重複掃除' + (dryRun ? '（dryRun・削除しません）' : '（本実行）') + ' =====');
+    Logger.log('総行数: ' + totalRows);
+    Logger.log('all_identical グループ数: ' + allIdenticalGroups
+      + ' / has_diff グループ（温存）: ' + skippedHasDiffGroups);
+    Logger.log('削除対象行数: ' + plan.length);
+    plan.forEach(function(p) {
+      Logger.log('  DEL row' + p.rowNum + ' (keep row' + p.keepRowNum + ') sid=' + p.sid
+        + ' date=' + p.date + ' ts=' + p.ts + ' | ' + p.contentHead);
+    });
+
+    let deleted = 0;
+    if (!dryRun) {
+      // 降順に deleteRow。plan は既に rowNum 降順。
+      for (let i = 0; i < plan.length; i++) {
+        sh.deleteRow(plan[i].rowNum);
+        deleted++;
+      }
+      SpreadsheetApp.flush();
+      Logger.log('実削除完了: ' + deleted + ' 行を削除しました。');
+    } else {
+      Logger.log('dryRun のため削除していません。実行するには cleanupReflectionDuplicates({dryRun:false}) を呼んでください。');
+    }
+    Logger.log('=========================================');
+
+    return {
+      ok: true,
+      dryRun: dryRun,
+      totalRows: totalRows,
+      allIdenticalGroups: allIdenticalGroups,
+      skippedHasDiffGroups: skippedHasDiffGroups,  // has_diff は対象外（温存）
+      deleteCandidates: plan.length,
+      deleted: deleted,
+      plan: plan,
+      ms: Date.now() - t0
+    };
+  } catch (err) {
+    console.error('[cleanupReflectionDuplicates]', err);
+    Logger.log('[cleanupReflectionDuplicates] エラー: ' + String(err));
+    return { ok: false, message: String(err), ms: Date.now() - t0 };
+  }
+}
+
 // 2026-05-20 バグ修正：既存 Reflections レコードの date / timestamp 列を一括正規化する
 // ワンタイム関数。Sheets が文字列を Date 型に自動変換してしまった既存データを修復。
 //
