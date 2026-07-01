@@ -181,9 +181,9 @@
       </div>
     </div>
 
-    <!-- 学習履歴へ -->
+    <!-- 学習状況へ（トップの主役ボタン。遷移先は Step B〜D で拡張予定、今回は現状維持） -->
     <div class="dash-section">
-      <button class="btn-more" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);color:#4a2c6d" onclick="showChildHistory()">📅 お子様の学習履歴を見る</button>
+      <button class="btn-more" style="background:linear-gradient(135deg,#7c4dff,#d500f9);color:#fff;padding:22px 16px;font-size:20px;font-weight:800;border-radius:16px;box-shadow:0 6px 20px rgba(124,77,255,.35);letter-spacing:.5px" onclick="showChildHistory()">📊 お子様の学習状況を見る</button>
     </div>
 
     <!-- 週間ランキング -->
@@ -200,32 +200,7 @@
       </div>
     </div>
 
-    <!-- 連絡事項 -->
-    <div class="dash-section">
-      <div class="section-title">📢 塾からの連絡事項</div>
-      <div id="notice-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
-      <button class="btn-more" onclick="showNoticeHistory()">📜 過去の連絡事項を見る</button>
-    </div>
-
-    <!-- 三語短文 提出作品 -->
-    <div class="dash-section">
-      <div class="section-title">✏️ 三語短文の提出作品</div>
-      <button class="btn-more" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);color:#4a2c6d" onclick="showSangoHistory()">📖 三語短文の提出作品を見る</button>
-    </div>
-
-    <!-- お子様の振り返り（ログアウト直前に書いた記録の一覧、Phase D 追加） -->
-    <div class="dash-section">
-      <div class="section-title">📝 お子様の振り返り</div>
-      <button class="btn-more" style="background:linear-gradient(135deg,#86efac,#16a34a);color:#fff" onclick="showChildReflections()">📝 お子様の振り返りを見る</button>
-    </div>
-
-    <!-- お子様の国語長文の取り組み（getKokugoAttemptsForStudent、認証なし / studentId 絞り込み） -->
-    <div class="dash-section">
-      <div class="section-title">📖 お子様の国語長文の取り組み</div>
-      <button class="btn-more" style="background:linear-gradient(135deg,#fdba74,#ea580c);color:#fff" onclick="showChildKokugo()">📖 国語長文の取り組みを見る</button>
-    </div>
-
-    <!-- HP算出方法 -->
+    <!-- HP算出方法（週間ランキングの直下に移動） -->
     <div class="dash-section">
       <div class="hp-info-card">
         <div class="hp-info-title">💡 HPの算出方法</div>
@@ -253,6 +228,14 @@
         </div>
       </div>
     </div>
+
+    <!-- 連絡事項 -->
+    <div class="dash-section">
+      <div class="section-title">📢 塾からの連絡事項</div>
+      <div id="notice-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
+      <button class="btn-more" onclick="showNoticeHistory()">📜 過去の連絡事項を見る</button>
+    </div>
+
   </div>
 </div>
 
