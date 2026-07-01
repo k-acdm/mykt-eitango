@@ -1177,6 +1177,10 @@ function doGet(e) {
       else if (action === 'getReflectionDayDetail')    result = getReflectionDayDetail(params);
       else if (action === 'getStudentView') result = getStudentView(params);
       else if (action === 'getStudentViewEitangoAchievement') result = getStudentViewEitangoAchievement(params);  // 保護者経路・自分の子の英単語RUSH達成度（Step B-1）
+      else if (action === 'getStudentViewKobunAchievement')   result = getStudentViewKobunAchievement(params);   // 保護者経路・自分の子の古文達成度（Step B-2）
+      else if (action === 'getStudentViewKisoAchievement')    result = getStudentViewKisoAchievement(params);    // 保護者経路・自分の子の基礎計算達成度（Step B-2）
+      else if (action === 'getStudentViewKanjiAchievement')   result = getStudentViewKanjiAchievement(params);   // 保護者経路・自分の子の漢字達成度（Step B-2）
+      else if (action === 'getStudentViewLisonAchievement')   result = getStudentViewLisonAchievement(params);   // 保護者経路・自分の子のリスオン達成度（Step B-2）
       else if (action === 'getSangoTopic')             result = getSangoTopic();
       else if (action === 'submitSango')               result = submitSango(params);
       else if (action === 'adminAddSangoTopic')        result = adminAddSangoTopic(params);
@@ -30819,14 +30823,9 @@ function getStudentViewEitangoAchievement(params) {
 //   type 前置 'kobun_' でフィルタ。
 // 認証：_verifyTeacher（達成度ハブは admin/teacher 両ロール可）。getEitangoAchievement と同じ外枠。
 // キャッシュ：per-sid 短 TTL（300s）cache_kobun_ach_<sid>。提出（V1/V2 両経路）成功時に remove。
-function getKobunAchievement(params) {
-  try {
-    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
-    if (!_teacher) return { ok: false, message: '認証エラー' };
-    const sid = String((params && params.studentId) || '').trim();
-    if (!sid) return { ok: false, message: 'studentId が必要です' };
-
-    return _getCachedValues('cache_kobun_ach_' + sid, 300, function() {
+// 古文単語（コブタン）達成度の集計本体（student 依存）。admin/保護者の両経路から共通で呼ぶ。
+//   認証・キャッシュは呼び出し側が担う。返り値・中身は従来 getKobunAchievement のキャッシュ内層と同一（挙動不変）。
+function _computeKobunAchievement(sid) {
       const warns = [];
 
       // 全語数（student 非依存）：KobunQuestions の distinct word_id 数。グローバル長 TTL キャッシュ。
@@ -30892,9 +30891,36 @@ function getKobunAchievement(params) {
         fullCompletions: fullCompletions,
         warns: warns
       };
+}
+
+// 管理画面（admin/teacher）用：古文単語 達成度。認証・キャッシュキー・入出力とも従来どおり不変。
+function getKobunAchievement(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+    return _getCachedValues('cache_kobun_ach_' + sid, 300, function() {
+      return _computeKobunAchievement(sid);
     });
   } catch (err) {
     console.error('[getKobunAchievement]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 保護者経路（view.html）用：古文単語 達成度。_verifyTeacher は通さず getStudentView と同列の保護者read系。
+//   params.studentId で同じ集計・同じキャッシュ（cache_kobun_ach_<sid>）を共有。
+//   ★他の子を列挙・選択する導線は view 側に作らない（自分の子固定）。新たな任意 sid 口は増やさない。
+function getStudentViewKobunAchievement(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    return _getCachedValues('cache_kobun_ach_' + sid, 300, function() {
+      return _computeKobunAchievement(sid);
+    });
+  } catch (err) {
+    console.error('[getStudentViewKobunAchievement]', err);
     return { ok: false, message: String(err) };
   }
 }
@@ -30918,14 +30944,9 @@ function getKobunAchievement(params) {
 // 認証：_verifyTeacher（達成度ハブは admin/teacher 両ロール可）。getKobunAchievement と同じ外枠。
 // キャッシュ：per-sid 短 TTL（300s）cache_kiso_ach_<sid>。submitKisoAnswer 成功時に remove。
 //   母数は student 非依存のグローバル長 TTL（21600s）cache_kiso_poolsizes。
-function getKisoAchievement(params) {
-  try {
-    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
-    if (!_teacher) return { ok: false, message: '認証エラー' };
-    const sid = String((params && params.studentId) || '').trim();
-    if (!sid) return { ok: false, message: 'studentId が必要です' };
-
-    return _getCachedValues('cache_kiso_ach_' + sid, 300, function() {
+// 基礎計算 達成度の集計本体（student 依存）。admin/保護者の両経路から共通で呼ぶ。
+//   認証・キャッシュは呼び出し側が担う。返り値・中身は従来 getKisoAchievement のキャッシュ内層と同一（挙動不変）。
+function _computeKisoAchievement(sid) {
       const warns = [];
 
       // ── 母数：rank別プールサイズ（student 非依存・長 TTL グローバル）──
@@ -31003,9 +31024,36 @@ function getKisoAchievement(params) {
         },
         warns: warns
       };
+}
+
+// 管理画面（admin/teacher）用：基礎計算 達成度。認証・キャッシュキー・入出力とも従来どおり不変。
+function getKisoAchievement(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+    return _getCachedValues('cache_kiso_ach_' + sid, 300, function() {
+      return _computeKisoAchievement(sid);
     });
   } catch (err) {
     console.error('[getKisoAchievement]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 保護者経路（view.html）用：基礎計算 達成度。_verifyTeacher は通さず getStudentView と同列の保護者read系。
+//   params.studentId で同じ集計・同じキャッシュ（cache_kiso_ach_<sid>）を共有。
+//   ★他の子を列挙・選択する導線は view 側に作らない（自分の子固定）。新たな任意 sid 口は増やさない。
+function getStudentViewKisoAchievement(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    return _getCachedValues('cache_kiso_ach_' + sid, 300, function() {
+      return _computeKisoAchievement(sid);
+    });
+  } catch (err) {
+    console.error('[getStudentViewKisoAchievement]', err);
     return { ok: false, message: String(err) };
   }
 }
@@ -31032,14 +31080,9 @@ function getKisoAchievement(params) {
 // 認証：_verifyTeacher（達成度ハブは admin/teacher 両ロール可）。getKobunAchievement と同じ外枠。
 // キャッシュ：per-sid 短 TTL（300s）cache_kanji_ach_<sid>。submitKanjiKaki 合格時に remove。
 //   母数は student 非依存のグローバル長 TTL（21600s）cache_kanji_poolsizes。
-function getKanjiAchievement(params) {
-  try {
-    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
-    if (!_teacher) return { ok: false, message: '認証エラー' };
-    const sid = String((params && params.studentId) || '').trim();
-    if (!sid) return { ok: false, message: 'studentId が必要です' };
-
-    return _getCachedValues('cache_kanji_ach_' + sid, 300, function() {
+// 漢字（カンジー）達成度の集計本体（student 依存）。admin/保護者の両経路から共通で呼ぶ。
+//   認証・キャッシュは呼び出し側が担う。返り値・中身は従来 getKanjiAchievement のキャッシュ内層と同一（挙動不変）。
+function _computeKanjiAchievement(sid) {
       const warns = [];
 
       // ── 母数：級別プールサイズ（student 非依存・長 TTL グローバル）──
@@ -31108,9 +31151,36 @@ function getKanjiAchievement(params) {
         byLevel: byLevel,
         warns: warns
       };
+}
+
+// 管理画面（admin/teacher）用：漢字（カンジー）達成度。認証・キャッシュキー・入出力とも従来どおり不変。
+function getKanjiAchievement(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+    return _getCachedValues('cache_kanji_ach_' + sid, 300, function() {
+      return _computeKanjiAchievement(sid);
     });
   } catch (err) {
     console.error('[getKanjiAchievement]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 保護者経路（view.html）用：漢字（カンジー）達成度。_verifyTeacher は通さず getStudentView と同列の保護者read系。
+//   params.studentId で同じ集計・同じキャッシュ（cache_kanji_ach_<sid>）を共有。
+//   ★他の子を列挙・選択する導線は view 側に作らない（自分の子固定）。新たな任意 sid 口は増やさない。
+function getStudentViewKanjiAchievement(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    return _getCachedValues('cache_kanji_ach_' + sid, 300, function() {
+      return _computeKanjiAchievement(sid);
+    });
+  } catch (err) {
+    console.error('[getStudentViewKanjiAchievement]', err);
     return { ok: false, message: String(err) };
   }
 }
@@ -31135,14 +31205,10 @@ function getKanjiAchievement(params) {
 // 認証：_verifyTeacher（達成度ハブは admin/teacher 両ロール可）。getKanjiAchievement と同じ外枠。
 // キャッシュ：per-sid 短 TTL（300s）cache_lison_ach_<sid>。submitLison 成功時に remove。
 //   配信本数（母数・参考）は student 非依存のグローバル長 TTL（21600s）cache_lison_delivered。
-function getLisonAchievement(params) {
-  try {
-    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
-    if (!_teacher) return { ok: false, message: '認証エラー' };
-    const sid = String((params && params.studentId) || '').trim();
-    if (!sid) return { ok: false, message: 'studentId が必要です' };
-
-    return _getCachedValues('cache_lison_ach_' + sid, 300, function() {
+// リスオン 達成度の集計本体（student 依存）。admin/保護者の両経路から共通で呼ぶ。
+//   認証・キャッシュは呼び出し側が担う。返り値・中身は従来 getLisonAchievement のキャッシュ内層と同一（挙動不変）。
+//   ★母数は初回ログイン週以降で絞る既存ロジックそのまま（保護者経路でも同じ sid で同じ結果）。
+function _computeLisonAchievement(sid) {
       const warns = [];
 
       // weekStart を 'yyyy-MM-dd' に正規化（Date / 文字列の両対応）。distinct 判定の鍵に使う。
@@ -31241,9 +31307,36 @@ function getLisonAchievement(params) {
         byLevel: byLevel,
         warns: warns
       };
+}
+
+// 管理画面（admin/teacher）用：リスオン 達成度。認証・キャッシュキー・入出力とも従来どおり不変。
+function getLisonAchievement(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+    return _getCachedValues('cache_lison_ach_' + sid, 300, function() {
+      return _computeLisonAchievement(sid);
     });
   } catch (err) {
     console.error('[getLisonAchievement]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 保護者経路（view.html）用：リスオン 達成度。_verifyTeacher は通さず getStudentView と同列の保護者read系。
+//   params.studentId で同じ集計・同じキャッシュ（cache_lison_ach_<sid>）を共有。
+//   ★他の子を列挙・選択する導線は view 側に作らない（自分の子固定）。新たな任意 sid 口は増やさない。
+function getStudentViewLisonAchievement(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    return _getCachedValues('cache_lison_ach_' + sid, 300, function() {
+      return _computeLisonAchievement(sid);
+    });
+  } catch (err) {
+    console.error('[getStudentViewLisonAchievement]', err);
     return { ok: false, message: String(err) };
   }
 }

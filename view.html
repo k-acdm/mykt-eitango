@@ -282,7 +282,11 @@
   </header>
   <div class="container">
     <div class="section-title">コンテンツを選ぶと達成度が見られます</div>
-    <button class="btn-more" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff;padding:20px 16px;font-size:18px;font-weight:800;border-radius:14px;box-shadow:0 4px 14px rgba(124,79,255,.28)" onclick="showEitangoAchievement()">📚 英単語RUSH</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff;padding:20px 16px;font-size:18px;font-weight:800;border-radius:14px;box-shadow:0 4px 14px rgba(124,79,255,.28);margin-bottom:10px" onclick="showEitangoAchievement()">📚 英単語RUSH</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:20px 16px;font-size:18px;font-weight:800;border-radius:14px;box-shadow:0 4px 14px rgba(217,119,6,.28);margin-bottom:10px" onclick="showKobunAchievement()">📜 古文単語</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#34d399,#10b981);color:#fff;padding:20px 16px;font-size:18px;font-weight:800;border-radius:14px;box-shadow:0 4px 14px rgba(16,185,129,.28);margin-bottom:10px" onclick="showKisoAchievement()">🧮 基礎計算</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;padding:20px 16px;font-size:18px;font-weight:800;border-radius:14px;box-shadow:0 4px 14px rgba(230,126,34,.28);margin-bottom:10px" onclick="showKanjiAchievement()">🈶 漢字（カンジー）</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#2dd4bf,#16a085);color:#fff;padding:20px 16px;font-size:18px;font-weight:800;border-radius:14px;box-shadow:0 4px 14px rgba(22,160,133,.28)" onclick="showLisonAchievement()">🎧 リスオン</button>
     <button class="btn-back" onclick="showChildHistory()">← 1つ前の画面に戻る</button>
   </div>
 </div>
@@ -296,6 +300,58 @@
   <div class="container">
     <div class="child-history-notice" style="background:#f3e8ff;border-left-color:#7c4fff;color:#5b21b6">「到達 / 総数」は問題ベース（1単語＝2周＝2問）。達成率は「級の全語に対する到達率」（既習語も到達済みとして算入）。</div>
     <div id="eitango-ach-wrap"><div class="child-history-empty">読み込み中…</div></div>
+    <button class="btn-back" onclick="showChildAchievementHub()">← 1つ前の画面に戻る</button>
+  </div>
+</div>
+
+<!-- 古文単語 達成度詳細（自分の子固定。admin の screen-admin-kobun-ach-detail を移植） -->
+<div id="screen-child-kobun-ach" class="screen">
+  <header>
+    <h1>📜 古文単語 達成度</h1>
+    <button class="logout-btn" onclick="showChildAchievementHub()">← 戻る</button>
+  </header>
+  <div class="container">
+    <div class="child-history-notice" style="background:#fff7ed;border-left-color:#d97706;color:#92400e">「到達 / 総数」は問題ベース（1単語＝2周＝2問）。達成率は「全語に対する到達率」。2 周完走で 100%（再周回しても下がりません）。</div>
+    <div id="kobun-ach-wrap"><div class="child-history-empty">読み込み中…</div></div>
+    <button class="btn-back" onclick="showChildAchievementHub()">← 1つ前の画面に戻る</button>
+  </div>
+</div>
+
+<!-- 基礎計算 達成度詳細（自分の子固定。admin の screen-admin-kiso-ach-detail を移植） -->
+<div id="screen-child-kiso-ach" class="screen">
+  <header>
+    <h1>🧮 基礎計算 達成度</h1>
+    <button class="logout-btn" onclick="showChildAchievementHub()">← 戻る</button>
+  </header>
+  <div class="container">
+    <div class="child-history-notice" style="background:#ecfdf5;border-left-color:#10b981;color:#065f46">各単元の数字は「合格した問題数」（合格したときに解いた問題数の延べ）。たくさん練習した分だけ増えます。帯バーの長さは練習量の目安です。</div>
+    <div id="kiso-ach-wrap"><div class="child-history-empty">読み込み中…</div></div>
+    <button class="btn-back" onclick="showChildAchievementHub()">← 1つ前の画面に戻る</button>
+  </div>
+</div>
+
+<!-- 漢字（カンジー）達成度詳細（自分の子固定。admin の screen-admin-kanji-ach-detail を移植） -->
+<div id="screen-child-kanji-ach" class="screen">
+  <header>
+    <h1>🈶 漢字（カンジー）達成度</h1>
+    <button class="logout-btn" onclick="showChildAchievementHub()">← 戻る</button>
+  </header>
+  <div class="container">
+    <div class="child-history-notice" style="background:#fff7ed;border-left-color:#e67e22;color:#92400e">「到達 / 総数」は漢字数ベース（読み＋書きを1漢字として合算）。達成率は「級の全漢字に対する到達率」。巡回式のため、一周し終えた回数を「周回 N 回」で併記します。</div>
+    <div id="kanji-ach-wrap"><div class="child-history-empty">読み込み中…</div></div>
+    <button class="btn-back" onclick="showChildAchievementHub()">← 1つ前の画面に戻る</button>
+  </div>
+</div>
+
+<!-- リスオン 達成度詳細（自分の子固定。admin の screen-admin-lison-ach-detail を移植） -->
+<div id="screen-child-lison-ach" class="screen">
+  <header>
+    <h1>🎧 リスオン 達成度</h1>
+    <button class="logout-btn" onclick="showChildAchievementHub()">← 戻る</button>
+  </header>
+  <div class="container">
+    <div class="child-history-notice" style="background:#f0fdfa;border-left-color:#16a085;color:#0f766e">数字は「取り組んだ長文の本数（配信本数中）」。リスオンは長文1本が単位で週ごとに増え続けるため、到達率%ではなく取り組んだ本数で表示します。バーは配信のうち取り組んだ割合。クイズ平均正答率はリスニング理解度の目安です。</div>
+    <div id="lison-ach-wrap"><div class="child-history-empty">読み込み中…</div></div>
     <button class="btn-back" onclick="showChildAchievementHub()">← 1つ前の画面に戻る</button>
   </div>
 </div>
@@ -389,6 +445,10 @@
   function jumpToSangoSubmission(ts) { _showScreen('screen-sango-history'); loadSangoHistory(ts); }
   function showChildAchievementHub() { _showScreen('screen-child-achievement-hub'); }
   function showEitangoAchievement()  { _showScreen('screen-child-eitango-ach'); loadChildEitangoAchievement(); }
+  function showKobunAchievement()    { _showScreen('screen-child-kobun-ach'); loadChildKobunAchievement(); }
+  function showKisoAchievement()     { _showScreen('screen-child-kiso-ach'); loadChildKisoAchievement(); }
+  function showKanjiAchievement()    { _showScreen('screen-child-kanji-ach'); loadChildKanjiAchievement(); }
+  function showLisonAchievement()    { _showScreen('screen-child-lison-ach'); loadChildLisonAchievement(); }
 
   // ============================
   // お子様の達成度（英単語RUSH）— 自分の子固定・生徒選択なし（Step B-1）
@@ -451,6 +511,141 @@
     }).catch(function() {
       if (wrap) wrap.innerHTML = '<div class="child-history-empty">通信エラーが発生しました</div>';
     });
+  }
+
+  // ============================
+  // お子様の達成度（古文・基礎計算・漢字・リスオン）— 自分の子固定・生徒選択なし（Step B-2）
+  //   admin の各達成度詳細画面を移植。GAS getStudentViewXxxAchievement を _studentId（自分の子）で叩く。
+  //   ★他の子の sid を渡す導線・列挙UIは作らない。warns は保護者画面では非表示。
+  //   バー/％は英単語の _eitangoAchBar / _eitangoAchPct を流用（B-1で定義済み）。
+  // ============================
+  var KISO_ACH_BAR_MAX = 500;                                          // 基礎計算バー満タン基準（admin と同値）
+  var _KANJI_LEVELS = ['8', '7', '6', '5', '4', '3', '準2', '2'];      // 8→2（易→難）。GAS KANJI_VALID_LEVELS と同順
+  var _LISON_LEVELS = ['4', '3', 'pre2', 'pre2plus', '2', 'pre1', '1']; // 4→1（易→難）。GAS LISON_VALID_LEVELS と同順
+  function _kisoAchBar(reached) {
+    var frac = KISO_ACH_BAR_MAX > 0 ? (Number(reached) || 0) / KISO_ACH_BAR_MAX : 0;
+    return _eitangoAchBar(Math.max(0, Math.min(1, frac)));
+  }
+  function _lisonAchBar(attempted, delivered) {
+    var frac = (Number(delivered) > 0) ? (Number(attempted) || 0) / Number(delivered) : 0;
+    return _eitangoAchBar(Math.max(0, Math.min(1, frac)));
+  }
+
+  // --- 古文単語（級レス＝単一達成率＋周回内訳＋2周完走） ---
+  function loadChildKobunAchievement() {
+    var wrap = document.getElementById('kobun-ach-wrap');
+    if (!_studentId) { if (wrap) wrap.innerHTML = '<div class="child-history-empty">セッション情報が見つかりません。再度ログインしてください。</div>'; return; }
+    if (wrap) wrap.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
+    gasGet({ action: 'getStudentViewKobunAchievement', studentId: _studentId, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) { if (wrap) wrap.innerHTML = '<div class="child-history-empty">' + _esc((res && res.message) || '取得に失敗しました') + '</div>'; return; }
+      var tw = Number(res.totalWords) || 0;
+      var html = '';
+      html += '<div style="background:#fff7ed;border:2px solid #d97706;border-radius:10px;padding:12px 14px;margin-bottom:14px">' +
+                '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">' +
+                  '<span style="font-weight:bold;color:#92400e;font-size:15px">古文単語 全体</span>' +
+                  '<span style="font-weight:bold;color:#92400e;font-size:16px">' + _eitangoAchPct(res.rate) + '</span>' +
+                '</div>' +
+                '<div style="font-size:12px;color:#555;margin-bottom:6px">到達 ' + (Number(res.reached)||0).toLocaleString() + ' / ' + (Number(res.total)||0).toLocaleString() + '（問題ベース）</div>' +
+                _eitangoAchBar(res.rate) +
+              '</div>';
+      if (tw > 0) {
+        var fc = Number(res.fullCompletions) || 0;
+        html += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:10px">' +
+                  '<div style="font-size:13px;color:#555;line-height:1.9">' +
+                    '<div>1周目（読み）：到達 ' + (Number(res.round1Reached)||0).toLocaleString() + ' / ' + tw.toLocaleString() + '</div>' +
+                    '<div>2周目（読み）：到達 ' + (Number(res.round2Reached)||0).toLocaleString() + ' / ' + tw.toLocaleString() + '</div>' +
+                    '<div style="margin-top:4px;font-weight:bold;color:#92400e">2周完走：' + (fc > 0 ? ('✓ ' + fc + ' 回') : 'まだ') + '</div>' +
+                  '</div>' +
+                '</div>';
+      }
+      if (wrap) wrap.innerHTML = html;
+    }).catch(function() { if (wrap) wrap.innerHTML = '<div class="child-history-empty">通信エラーが発生しました</div>'; });
+  }
+
+  // --- 基礎計算（rank20→1 の合格問題数＋帯バー。％・overall なし） ---
+  function loadChildKisoAchievement() {
+    var wrap = document.getElementById('kiso-ach-wrap');
+    if (!_studentId) { if (wrap) wrap.innerHTML = '<div class="child-history-empty">セッション情報が見つかりません。再度ログインしてください。</div>'; return; }
+    if (wrap) wrap.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
+    gasGet({ action: 'getStudentViewKisoAchievement', studentId: _studentId, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) { if (wrap) wrap.innerHTML = '<div class="child-history-empty">' + _esc((res && res.message) || '取得に失敗しました') + '</div>'; return; }
+      var byRank = res.byRank || {};
+      var html = '';
+      for (var rank = 20; rank >= 1; rank--) {
+        var d = byRank[rank] || byRank[String(rank)] || { rank:rank, rankName:'', reached:0, total:0, rate:null, ready:false };
+        var rankName = _esc(d.rankName || '');
+        var label = 'rank ' + rank + (rankName ? '：' + rankName : '');
+        var reached = Number(d.reached) || 0;
+        html += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:10px">' +
+                  '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">' +
+                    '<span style="font-weight:bold;color:#2d3a8c;font-size:15px">' + label + '</span>' +
+                    '<span style="font-weight:bold;color:#10b981;font-size:16px">' + reached.toLocaleString() + '問</span>' +
+                  '</div>' +
+                  _kisoAchBar(reached) +
+                '</div>';
+      }
+      if (wrap) wrap.innerHTML = html;
+    }).catch(function() { if (wrap) wrap.innerHTML = '<div class="child-history-empty">通信エラーが発生しました</div>'; });
+  }
+
+  // --- 漢字（8→2級の到達率%＋周回完走） ---
+  function loadChildKanjiAchievement() {
+    var wrap = document.getElementById('kanji-ach-wrap');
+    if (!_studentId) { if (wrap) wrap.innerHTML = '<div class="child-history-empty">セッション情報が見つかりません。再度ログインしてください。</div>'; return; }
+    if (wrap) wrap.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
+    gasGet({ action: 'getStudentViewKanjiAchievement', studentId: _studentId, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) { if (wrap) wrap.innerHTML = '<div class="child-history-empty">' + _esc((res && res.message) || '取得に失敗しました') + '</div>'; return; }
+      var byLevel = res.byLevel || {};
+      var html = '';
+      _KANJI_LEVELS.forEach(function(level) {
+        var d = byLevel[level] || { level:level, reached:0, total:0, rate:null, fullCompletions:0, ready:false };
+        var fc = Number(d.fullCompletions) || 0;
+        var detail = (Number(d.total) > 0)
+          ? ('到達 ' + (Number(d.reached)||0).toLocaleString() + ' / ' + (Number(d.total)||0).toLocaleString() + (fc > 0 ? '　｜　周回 ' + fc + ' 回' : ''))
+          : 'データ未投入（N/A）';
+        html += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:10px">' +
+                  '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">' +
+                    '<span style="font-weight:bold;color:#2d3a8c;font-size:15px">' + _esc(level) + '級</span>' +
+                    '<span style="font-weight:bold;color:#e67e22;font-size:15px">' + _eitangoAchPct(d.rate) + '</span>' +
+                  '</div>' +
+                  '<div style="font-size:12px;color:#666;margin-bottom:6px">' + detail + '</div>' +
+                  (Number(d.total) > 0 ? _eitangoAchBar(d.rate) : '') +
+                '</div>';
+      });
+      if (wrap) wrap.innerHTML = html;
+    }).catch(function() { if (wrap) wrap.innerHTML = '<div class="child-history-empty">通信エラーが発生しました</div>'; });
+  }
+
+  // --- リスオン（4→1級の取り組み本数＋クイズ平均正答率＋バー） ---
+  function loadChildLisonAchievement() {
+    var wrap = document.getElementById('lison-ach-wrap');
+    if (!_studentId) { if (wrap) wrap.innerHTML = '<div class="child-history-empty">セッション情報が見つかりません。再度ログインしてください。</div>'; return; }
+    if (wrap) wrap.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
+    gasGet({ action: 'getStudentViewLisonAchievement', studentId: _studentId, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) { if (wrap) wrap.innerHTML = '<div class="child-history-empty">' + _esc((res && res.message) || '取得に失敗しました') + '</div>'; return; }
+      var byLevel = res.byLevel || {};
+      var html = '';
+      _LISON_LEVELS.forEach(function(level) {
+        var d = byLevel[level] || { level:level, label:level, attempted:0, delivered:0, submissions:0, avgQuizRate:null, ready:false };
+        var attempted = Number(d.attempted) || 0;
+        var delivered = Number(d.delivered) || 0;
+        var quizPct = (d.avgQuizRate == null) ? '—' : (Math.round(d.avgQuizRate * 1000) / 10) + '%';
+        var detail = (delivered > 0)
+          ? ('クイズ平均正答率 ' + quizPct + '　｜　提出 ' + (Number(d.submissions)||0).toLocaleString() + ' 回')
+          : 'データ未投入（N/A）';
+        html += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:10px">' +
+                  '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">' +
+                    '<span style="font-weight:bold;color:#2d3a8c;font-size:15px">' + _esc(d.label || level) + '</span>' +
+                    '<span style="font-weight:bold;color:#16a085;font-size:16px">' + attempted.toLocaleString() + ' 本' +
+                      (delivered > 0 ? '<span style="font-size:12px;color:#888;font-weight:normal">（配信 ' + delivered.toLocaleString() + ' 本中）</span>' : '') +
+                    '</span>' +
+                  '</div>' +
+                  '<div style="font-size:12px;color:#666;margin-bottom:6px">' + detail + '</div>' +
+                  (delivered > 0 ? _lisonAchBar(attempted, delivered) : '') +
+                '</div>';
+      });
+      if (wrap) wrap.innerHTML = html;
+    }).catch(function() { if (wrap) wrap.innerHTML = '<div class="child-history-empty">通信エラーが発生しました</div>'; });
   }
 
   function toggleHpInfo() {
@@ -1192,7 +1387,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260701-2351</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260702-0006</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
