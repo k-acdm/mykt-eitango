@@ -12134,6 +12134,15 @@ function cleanupReflectionDuplicates(opts) {
   }
 }
 
+// 2026-07-02：cleanupReflectionDuplicates を「引数なし・実削除」で呼ぶための薄いラッパー。
+//   GAS エディタの関数ドロップダウンは引数を渡せないため、本削除（dryRun:false）を実行する
+//   専用のエントリを用意する。中身は dryRun:false を渡すだけ。
+//   ★実行すると実際に Reflections の再送重複行を削除する（事前に cleanupReflectionDuplicates()
+//     の dryRun で削除対象を確認済みであること）。doGet には載せない（保守用）。
+function cleanupReflectionDuplicatesRun() {
+  return cleanupReflectionDuplicates({ dryRun: false });
+}
+
 // 2026-05-20 バグ修正：既存 Reflections レコードの date / timestamp 列を一括正規化する
 // ワンタイム関数。Sheets が文字列を Date 型に自動変換してしまった既存データを修復。
 //
