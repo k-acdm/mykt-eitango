@@ -11791,6 +11791,184 @@ function ensureReflectionsSheets() {
   }
 }
 
+// 2026-07-02：Reflections の重複行を検出する読み取り専用の診断関数。
+//
+// 背景：二重送信ガード（submitReflection、commit b8b0c75）導入前は、通信エラーで生徒が
+//   2〜3 回送信すると同一 (studentId, date) の振り返りが重複記録されていた（HP は二重加算
+//   されないがテキストが重複）。ガード導入後の新規重複は止まったが、それ以前の重複が残る。
+//   本関数はその残存重複を「件数把握」するための読み取り専用診断（掃除するかは件数を見て判断）。
+//
+// ★完全に読み取り専用：Reflections・他シート・Properties に一切書き込まない
+//   （appendRow / setValue / deleteRow / Properties 書き込みは皆無）。
+//
+// 判定：
+//   - Reflections を全行読み、(studentId, date) でグルーピング。
+//   - 同一 (studentId, date) が 2 行以上 = 重複グループ。
+//   - 各重複グループの content を比較し、
+//       ・全行の content が完全一致 → 'all_identical'（＝再送重複、掃除候補）
+//       ・content にばらつきあり       → 'has_diff'（＝別内容を同日に複数投稿かも、掃除は慎重に）
+//     に区別して集計。
+//
+// GAS エディタから手動実行：関数ドロップダウンで diagnoseReflectionDuplicates を選択 → ▶ 実行。
+//   実行ログ（Logger.log / console.log）にサマリ + sid 別 + 明細（content は先頭 40 字のみ）を出力。
+//   返り値も同じ内容の JSON。doGet には載せない（保守用）。
+//
+// タイムアウト：Reflections は 1 生徒 1 日 1 行が基本で規模は限定的（数千行想定）。全行 getDataRange
+//   でも問題ないが、将来肥大化した場合は content 列を読まずに (sid,date) だけ先に集計する等の
+//   段階化が必要（現状は content 一致判定のため全列読み。数千行なら数百 ms〜数秒で完了する想定）。
+function diagnoseReflectionDuplicates() {
+  const t0 = Date.now();
+  try {
+    const sh = _ss().getSheetByName(SHEET_REFLECTIONS);
+    if (!sh || sh.getLastRow() < 2) {
+      Logger.log('[diagnoseReflectionDuplicates] Reflections が空 or 未作成');
+      return { ok: true, totalRows: 0, duplicateGroups: 0, extraRows: 0, details: [] };
+    }
+    const values = sh.getDataRange().getValues();  // ★読み取りのみ
+    const header = values[0];
+    const iSid     = header.indexOf('studentId');
+    const iDate    = header.indexOf('date');
+    const iTs      = header.indexOf('timestamp');
+    const iContent = header.indexOf('content');
+    if (iSid < 0 || iDate < 0) {
+      Logger.log('[diagnoseReflectionDuplicates] studentId / date 列が見つかりません');
+      return { ok: false, message: 'studentId / date 列が見つかりません' };
+    }
+
+    // date 列は Sheets 自動変換で Date 型 / 'yyyy-MM-dd' / 'yyyy/MM/dd' の可能性 → 正規化
+    function normDate(raw) {
+      if (raw instanceof Date) return Utilities.formatDate(raw, 'Asia/Tokyo', 'yyyy-MM-dd');
+      if (raw == null) return '';
+      const s = String(raw).trim();
+      const m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})/);
+      return m ? (m[1] + '-' + m[2] + '-' + m[3]) : s;
+    }
+    function tsStr(raw) {
+      if (raw instanceof Date) return Utilities.formatDate(raw, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      return String(raw == null ? '' : raw).trim();
+    }
+
+    // (sid, date) でグルーピング
+    const groups = {};  // key => [{ rowNum, ts, content }]
+    const totalRows = values.length - 1;
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      const sid = String(r[iSid] || '').trim();
+      const date = normDate(r[iDate]);
+      if (!sid || !date) continue;  // 空行 / 不正行はスキップ（重複判定対象外）
+      const key = sid + '' + date;  // 制御文字区切りで衝突回避
+      if (!groups[key]) groups[key] = [];
+      groups[key].push({
+        rowNum:  i + 1,  // シート行番号（1-indexed、参考表示用。書き込みはしない）
+        ts:      iTs >= 0 ? tsStr(r[iTs]) : '',
+        content: iContent >= 0 ? String(r[iContent] == null ? '' : r[iContent]) : ''
+      });
+    }
+
+    // 重複グループ（2 行以上）を集計
+    let duplicateGroups = 0;
+    let extraRows = 0;                 // 余分な行数（各グループ size-1 の合計 = 削除候補の最大数）
+    let extraRowsAllIdentical = 0;     // content 完全一致グループの余分行数（安全に掃除できる候補）
+    let extraRowsHasDiff = 0;          // content ばらつきグループの余分行数（手動確認が必要）
+    let groupsAllIdentical = 0;
+    let groupsHasDiff = 0;
+    const perSid = {};                 // sid => { groups, extraRows }
+    const details = [];               // 明細（重複グループのみ）
+
+    Object.keys(groups).forEach(function(key) {
+      const arr = groups[key];
+      if (arr.length < 2) return;  // 重複なし
+      const parts = key.split('');
+      const sid = parts[0];
+      const date = parts[1];
+
+      duplicateGroups++;
+      const extra = arr.length - 1;
+      extraRows += extra;
+
+      // content 完全一致か（全行が同一 content か）
+      const firstContent = arr[0].content;
+      const allIdentical = arr.every(function(x) { return x.content === firstContent; });
+      if (allIdentical) {
+        groupsAllIdentical++;
+        extraRowsAllIdentical += extra;
+      } else {
+        groupsHasDiff++;
+        extraRowsHasDiff += extra;
+      }
+
+      if (!perSid[sid]) perSid[sid] = { groups: 0, extraRows: 0 };
+      perSid[sid].groups++;
+      perSid[sid].extraRows += extra;
+
+      details.push({
+        studentId: sid,
+        date: date,
+        rowCount: arr.length,
+        extraRows: extra,
+        contentMatch: allIdentical ? 'all_identical' : 'has_diff',
+        rows: arr.map(function(x) {
+          return {
+            rowNum: x.rowNum,
+            ts: x.ts,
+            // ★content は先頭 40 字のみ（ログ肥大 / 個人情報全文出力を避ける）
+            contentHead: x.content.slice(0, 40).replace(/\s+/g, ' ')
+          };
+        })
+      });
+    });
+
+    // 明細は (sid, date) 昇順で見やすく
+    details.sort(function(a, b) {
+      if (a.studentId !== b.studentId) return a.studentId < b.studentId ? -1 : 1;
+      return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0);
+    });
+
+    const ms = Date.now() - t0;
+    const result = {
+      ok: true,
+      totalRows: totalRows,
+      duplicateGroups: duplicateGroups,
+      extraRows: extraRows,                             // 削除候補の総数（安全 + 要確認の合算）
+      extraRowsAllIdentical: extraRowsAllIdentical,     // content 完全一致 = 再送重複（掃除候補）
+      extraRowsHasDiff: extraRowsHasDiff,               // content ばらつき = 別内容かも（要確認）
+      groupsAllIdentical: groupsAllIdentical,
+      groupsHasDiff: groupsHasDiff,
+      perSid: perSid,
+      details: details,
+      ms: ms
+    };
+
+    // ─── ログ出力（見やすく） ───
+    Logger.log('===== Reflections 重複診断 =====');
+    Logger.log('総行数: ' + totalRows + ' / 所要 ' + ms + 'ms');
+    Logger.log('重複グループ数 (sid,date): ' + duplicateGroups
+      + '（内 content完全一致=' + groupsAllIdentical + ' / ばらつき=' + groupsHasDiff + '）');
+    Logger.log('余分行（削除候補）合計: ' + extraRows
+      + '（内 完全一致=' + extraRowsAllIdentical + '＝掃除候補 / ばらつき=' + extraRowsHasDiff + '＝要確認）');
+    Logger.log('--- sid 別 ---');
+    Object.keys(perSid).sort().forEach(function(sid) {
+      Logger.log('  ' + sid + ': 重複グループ ' + perSid[sid].groups + ' / 余分行 ' + perSid[sid].extraRows);
+    });
+    Logger.log('--- 明細（content は先頭40字のみ） ---');
+    details.forEach(function(d) {
+      Logger.log('[' + d.contentMatch + '] sid=' + d.studentId + ' date=' + d.date
+        + ' 行数=' + d.rowCount + '（余分' + d.extraRows + '）');
+      d.rows.forEach(function(row) {
+        Logger.log('    row' + row.rowNum + ' ts=' + row.ts + ' | ' + row.contentHead);
+      });
+    });
+    if (duplicateGroups === 0) Logger.log('重複はありませんでした。');
+    Logger.log('================================');
+
+    return result;
+  } catch (err) {
+    console.error('[diagnoseReflectionDuplicates]', err);
+    Logger.log('[diagnoseReflectionDuplicates] エラー: ' + String(err));
+    return { ok: false, message: String(err), ms: Date.now() - t0 };
+  }
+}
+
 // 2026-05-20 バグ修正：既存 Reflections レコードの date / timestamp 列を一括正規化する
 // ワンタイム関数。Sheets が文字列を Date 型に自動変換してしまった既存データを修復。
 //
