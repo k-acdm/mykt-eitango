@@ -40,7 +40,8 @@
   /* 我が子ステータスカード */
   .status-card { background: #fff; border-radius: 16px; padding: 24px 20px; box-shadow: 0 3px 14px rgba(0,0,0,.06); text-align: center; }
   .status-card .viewing-label { font-size: 13px; color: #888; margin-bottom: 4px; }
-  .status-card .student-name { font-size: 20px; font-weight: bold; color: #2e7d32; margin-bottom: 16px; }
+  .status-card .student-name { font-size: 22px; font-weight: bold; color: #2e7d32; margin-bottom: 4px; }
+  .status-card .student-nickname { font-size: 13px; color: #888; margin-bottom: 16px; }
   .chara-title-badge { display: inline-block; padding: 5px 18px; border-radius: 14px; font-size: 13px; font-weight: bold; background: #e8f0ff; color: #2d3a8c; margin-bottom: 4px; }
   .chara-streak-label { font-size: 13px; color: #888; margin-bottom: 6px; }
   .chara-wrap { margin: 12px 0 8px; height: 180px; display: flex; align-items: flex-end; justify-content: center; }
@@ -172,6 +173,7 @@
       <div class="status-card">
         <div class="viewing-label">閲覧中</div>
         <div class="student-name" id="student-name">—</div>
+        <div class="student-nickname" id="student-nickname" style="display:none"></div>
         <div class="chara-title-badge" id="chara-title-badge">—</div><br>
         <div class="chara-streak-label" id="chara-streak-label">—</div>
         <div class="chara-wrap">
@@ -428,13 +430,27 @@
   // ステータス描画
   // ============================
   function _renderStatus(res) {
-    var nickname = res.nickname || '—';
+    var realName = String(res.name || '').trim();
+    var nickname = String(res.nickname || '').trim();
     var totalHP  = Number(res.totalHP)  || 0;
     var streak   = Number(res.streak)   || 0;
     var stage    = Number(res.stage)    || 4;
     var title    = res.title || 'マイカツ見習い';
 
-    document.getElementById('student-name').textContent = nickname + ' さん';
+    // 本名を主に大きく、ニックネームを下に小さく添える。
+    // 本名が空（テスト枠など氏名列が空のアカウント）ならニックネームを主にフォールバック。
+    var mainName = realName || nickname || '—';
+    document.getElementById('student-name').textContent = mainName + ' さん';
+    var nickEl = document.getElementById('student-nickname');
+    if (nickEl) {
+      if (realName && nickname) {
+        nickEl.textContent = 'ニックネーム：' + nickname;
+        nickEl.style.display = '';
+      } else {
+        nickEl.textContent = '';
+        nickEl.style.display = 'none';
+      }
+    }
     document.getElementById('student-hp').textContent   = totalHP.toLocaleString();
 
     var s = STAGE_DEF[stage] || STAGE_DEF[4];

@@ -14277,6 +14277,7 @@ function getStudentView(params) {
     const stuLoc = _findAccountRowOnSheet(sid);
     if (!stuLoc) return { ok: false, message: '生徒IDが見つかりません' };
     const row = stuLoc.rowValues;
+    const realName = String(row[COL_NAME] || '').trim();  // 本名（Students 氏名列 COL_NAME=1）。sid で確定済みの「その子」の氏名のみ
     const nickname = (String(row[COL_NICKNAME] || '').trim()) || '名無し';
     const totalHP  = Number(row[COL_HP])     || 0;
     const streak   = Number(row[COL_STREAK]) || 0;
@@ -14285,6 +14286,7 @@ function getStudentView(params) {
     return {
       ok: true,
       studentId:   sid,
+      name:        realName,  // 保護者トップの本名主表示用。誤 sid 時に「違う本名」で気づける安全装置も兼ねる
       nickname:    nickname,
       totalHP:     totalHP,
       streak:      streak,
