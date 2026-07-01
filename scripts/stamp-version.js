@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * stamp-version.js — マイ活アプリ index.html キャッシュバスティング自動化
+ * stamp-version.js — マイ活アプリ HTML キャッシュバスティング自動化
+ *   対象：index.html / view.html / admin.html（2026-07-01 に view/admin を追加）
  *
  * 概要:
  *   実行ごとに現在時刻（JST）から YYYYMMDD-HHMM 形式のバージョン文字列を生成し、
- *   index.html の以下 2 ヶ所を一括更新する：
+ *   各対象 HTML の以下 2 ヶ所を一括更新する（3 ファイルとも同一 version）：
  *     ① 外部 JS/CSS の src/href に ?v=<バージョン> を付与（既存 ?v=... は置換）
  *        - CDN 上のサードパーティライブラリ（MathJax / Cropper 等）が対象
  *        - CDN 側は不明クエリを通常無視するが、ブラウザのローカルキャッシュ識別子としては有効
@@ -65,18 +66,19 @@ function appendVersionQuery(url, version) {
   return cleaned + sep + 'v=' + version;
 }
 
-// --- index.html を読込 → 置換 → 書戻し ---
-function stampIndexHtml() {
+// --- 1 つの HTML ファイルを stamp（読込 → 置換 → 書戻し）---
+//   変換内容は従来 index.html に対して行っていたものと完全に同一（①外部JS ?v / ②外部CSS ?v /
+//   ③バッジ）。ファイルパスと version を引数化しただけ。存在しないファイルは skip。
+function stampHtmlFile(relPath, version) {
   const repoRoot = path.resolve(__dirname, '..');
-  const indexPath = path.join(repoRoot, 'index.html');
+  const filePath = path.join(repoRoot, relPath);
 
-  if (!fs.existsSync(indexPath)) {
-    console.error('[stamp-version] ❌ index.html not found at', indexPath);
-    process.exit(1);
+  if (!fs.existsSync(filePath)) {
+    console.warn('[stamp-version] ⚠️ ' + relPath + ' not found, skip');
+    return;
   }
 
-  const version = makeVersionString();
-  let html = fs.readFileSync(indexPath, 'utf8');
+  let html = fs.readFileSync(filePath, 'utf8');
   let scriptReplacements = 0;
   let linkReplacements = 0;
   let badgeReplaced = false;
@@ -110,21 +112,35 @@ function stampIndexHtml() {
 
   // ③ 左下バージョンバッジ <span id="app-version" ...>...</span> の中身を置換
   //    マーカーは中身の文字列に依存せず、id="app-version" だけで特定する
+  //    ※ view.html / admin.html はバッジ表示を実行時 document.lastModified で上書きするため、
+  //      ここでの静的テキスト置換は「見た目」を変えない（ソース上のバージョン刻印のみ）。
   const badgeRegex = /(<span\s+id="app-version"[^>]*>)([^<]*)(<\/span>)/;
   if (badgeRegex.test(html)) {
     html = html.replace(badgeRegex, `$1${version}$3`);
     badgeReplaced = true;
   } else {
-    console.warn('[stamp-version] ⚠️ <span id="app-version"> not found, badge unchanged');
+    console.warn('[stamp-version] ⚠️ [' + relPath + '] <span id="app-version"> not found, badge unchanged');
   }
 
-  fs.writeFileSync(indexPath, html, 'utf8');
+  fs.writeFileSync(filePath, html, 'utf8');
 
-  console.log('--- stamp-version.js ---');
-  console.log('✅ stamped: ' + version);
-  console.log('   <script src>  replacements: ' + scriptReplacements);
-  console.log('   <link href>   replacements: ' + linkReplacements);
-  console.log('   <span id="app-version"> updated: ' + (badgeReplaced ? 'yes' : 'no'));
+  console.log('   [' + relPath + '] <script src>:' + scriptReplacements +
+              ' / <link href>:' + linkReplacements +
+              ' / badge:' + (badgeReplaced ? 'yes' : 'no'));
 }
 
-stampIndexHtml();
+// --- stamp 対象 HTML 一覧 ---
+//   index.html：従来どおり（外部 MathJax / Cropper の ?v ＋ バッジ）。処理内容は不変。
+//   admin.html：2026-07-01 追加。外部 html2canvas(CDN) に ?v が付く ＋ バッジ。
+//   view.html ：2026-07-01 追加。外部リソースを持たないためバッジのみ（表示は実行時 lastModified）。
+//   ※ 1 回の実行で 3 ファイルとも同一 version に更新する。
+const TARGET_HTML_FILES = ['index.html', 'view.html', 'admin.html'];
+
+function stampAll() {
+  const version = makeVersionString();
+  console.log('--- stamp-version.js ---');
+  console.log('✅ stamped: ' + version);
+  TARGET_HTML_FILES.forEach(function(f) { stampHtmlFile(f, version); });
+}
+
+stampAll();

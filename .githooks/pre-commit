@@ -1,13 +1,16 @@
 #!/bin/sh
-# index.html が staged にあるとき、scripts/stamp-version.js を自動実行して
-# バージョン番号を最新の JST タイムスタンプに更新する。
+# index.html / view.html / admin.html のいずれかが staged にあるとき、
+# scripts/stamp-version.js を自動実行してバージョン番号を最新の JST タイムスタンプに更新する。
 # 2026-05-28 新設（手動 stamp 忘れによる「v が古いまま」を構造的に防止）。
+# 2026-07-01 view.html / admin.html を対象に追加（保護者・管理画面のキャッシュ更新）。
 #
 # 初回セットアップ：リポジトリのルートで一度だけ以下を実行する：
 #   git config core.hooksPath .githooks
-# 以降、index.html を含む commit のたびに自動で stamp される。
+# 以降、対象 HTML を含む commit のたびに自動で stamp される。
+# 注：stamp-version は 3 ファイルとも同一 version に更新するため、1 ファイルだけ変更した commit でも
+#     3 ファイルとも stamp され得る（同一 version 刻印で整合を取る意図）。
 
-CHANGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^index\.html$' || true)
+CHANGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(index|view|admin)\.html$' || true)
 if [ -z "$CHANGED" ]; then
   exit 0
 fi
@@ -17,13 +20,13 @@ if ! command -v node >/dev/null 2>&1; then
   exit 0
 fi
 
-echo "[pre-commit] index.html が変更されているため stamp-version.js を実行します..."
+echo "[pre-commit] 対象 HTML が変更されているため stamp-version.js を実行します..."
 node scripts/stamp-version.js
 if [ $? -ne 0 ]; then
   echo "[pre-commit] stamp-version.js が失敗しました。commit を中断します。"
   exit 1
 fi
 
-# stamp 後の index.html を staged に再追加（差分が出ていた場合のみ）
-git add index.html
+# stamp 後の HTML を staged に再追加（差分が出ていたものだけが実質対象）
+git add index.html view.html admin.html
 exit 0
