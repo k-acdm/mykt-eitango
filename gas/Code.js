@@ -1181,6 +1181,8 @@ function doGet(e) {
       else if (action === 'getStudentViewKisoAchievement')    result = getStudentViewKisoAchievement(params);    // 保護者経路・自分の子の基礎計算達成度（Step B-2）
       else if (action === 'getStudentViewKanjiAchievement')   result = getStudentViewKanjiAchievement(params);   // 保護者経路・自分の子の漢字達成度（Step B-2）
       else if (action === 'getStudentViewLisonAchievement')   result = getStudentViewLisonAchievement(params);   // 保護者経路・自分の子のリスオン達成度（Step B-2）
+      else if (action === 'getStudentViewRikaAttempts')       result = getStudentViewRikaAttempts(params);       // 保護者経路・自分の子の理科挑戦履歴（Step C）
+      else if (action === 'getStudentViewShakaiAttempts')     result = getStudentViewShakaiAttempts(params);     // 保護者経路・自分の子の社会挑戦履歴（Step C）
       else if (action === 'getSangoTopic')             result = getSangoTopic();
       else if (action === 'submitSango')               result = submitSango(params);
       else if (action === 'adminAddSangoTopic')        result = adminAddSangoTopic(params);
@@ -29355,68 +29357,75 @@ function adminAddShakaiQuestion(params) { return _adminAddRishaQuestionsCommon(p
 // 管理 API（履歴閲覧、国語長文と同パターン）
 // -------------------------------------------------
 // 共通実装：subject 切替版 adminListKokugoAttempts
+// 理科/社会 挑戦履歴の集計本体（認証・teacher ログなし）。admin/保護者の両経路から共通で呼ぶ。
+//   返り値は従来 _adminListRishaAttempts の中身と同一（{ ok, subject, studentId, name, nickname, attempts }）。
+function _computeRishaAttempts(sid, subject, rawLimit) {
+  let limit = Number(rawLimit);
+  if (!Number.isFinite(limit) || limit < 1) limit = 50;
+  limit = Math.min(200, Math.floor(limit));
+
+  const sh = _ss().getSheetByName(_rishaAttemptsSheetForSubject(subject));
+  let items = [];
+  if (sh && sh.getLastRow() >= 2) {
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iTs   = header.indexOf('timestamp');
+    const iSid  = header.indexOf('studentId');
+    const iUnit = header.indexOf('unitName');
+    const iSet  = header.indexOf('setNo');
+    const iRes  = header.indexOf('result');
+    const iAt   = header.indexOf('attemptCount');
+    const iCl   = header.indexOf('clearCount');
+    const iHp   = header.indexOf('hpGained');
+    const iErr  = header.indexOf('errorQuestionIds');
+    const all = [];
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][iSid] || '').trim() !== sid) continue;
+      all.push({
+        timestamp:         iTs   >= 0 ? _reflectionToTimestampStr(values[i][iTs]) : '',
+        unitName:          iUnit >= 0 ? String(values[i][iUnit] || '').trim() : '',
+        setNo:             iSet  >= 0 ? (Number(values[i][iSet]) || 0) : 0,
+        result:            iRes  >= 0 ? String(values[i][iRes] || '').trim() : '',
+        attemptCount:      iAt   >= 0 ? (Number(values[i][iAt]) || 0) : 0,
+        clearCount:        iCl   >= 0 ? (Number(values[i][iCl]) || 0) : 0,
+        hpGained:          iHp   >= 0 ? (Number(values[i][iHp]) || 0) : 0,
+        errorQuestionIds:  iErr  >= 0 ? String(values[i][iErr] || '').trim() : ''
+      });
+    }
+    // 降順（最新が先頭）
+    items = all.slice().reverse().slice(0, limit);
+  }
+  const stuLoc = _findAccountRowOnSheet(sid);
+  let name = '', nickname = '';
+  if (stuLoc) {
+    name     = String(stuLoc.rowValues[COL_NAME] || '').trim();
+    nickname = String(stuLoc.rowValues[COL_NICKNAME] || '').trim();
+  }
+  return {
+    ok: true,
+    subject: subject,
+    studentId: sid,
+    name: name,
+    nickname: nickname,
+    attempts: items
+  };
+}
+
+// 管理画面（admin/teacher）用：理科/社会 挑戦履歴。認証＋操作ログとも従来どおり不変（集計本体のみ切り出し）。
 function _adminListRishaAttempts(params, subject) {
   try {
     const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
     if (!_teacher) return { ok: false, message: '認証エラー' };
     // admin/teacher 両ロール許可
-
     const sid = String((params && params.studentId) || '').trim();
     if (!sid) return { ok: false, message: 'studentId が必要です' };
-    let limit = Number((params && params.limit));
-    if (!Number.isFinite(limit) || limit < 1) limit = 50;
-    limit = Math.min(200, Math.floor(limit));
-
-    const sh = _ss().getSheetByName(_rishaAttemptsSheetForSubject(subject));
-    let items = [];
-    if (sh && sh.getLastRow() >= 2) {
-      const values = sh.getDataRange().getValues();
-      const header = values[0];
-      const iTs   = header.indexOf('timestamp');
-      const iSid  = header.indexOf('studentId');
-      const iUnit = header.indexOf('unitName');
-      const iSet  = header.indexOf('setNo');
-      const iRes  = header.indexOf('result');
-      const iAt   = header.indexOf('attemptCount');
-      const iCl   = header.indexOf('clearCount');
-      const iHp   = header.indexOf('hpGained');
-      const iErr  = header.indexOf('errorQuestionIds');
-      const all = [];
-      for (let i = 1; i < values.length; i++) {
-        if (String(values[i][iSid] || '').trim() !== sid) continue;
-        all.push({
-          timestamp:         iTs   >= 0 ? _reflectionToTimestampStr(values[i][iTs]) : '',
-          unitName:          iUnit >= 0 ? String(values[i][iUnit] || '').trim() : '',
-          setNo:             iSet  >= 0 ? (Number(values[i][iSet]) || 0) : 0,
-          result:            iRes  >= 0 ? String(values[i][iRes] || '').trim() : '',
-          attemptCount:      iAt   >= 0 ? (Number(values[i][iAt]) || 0) : 0,
-          clearCount:        iCl   >= 0 ? (Number(values[i][iCl]) || 0) : 0,
-          hpGained:          iHp   >= 0 ? (Number(values[i][iHp]) || 0) : 0,
-          errorQuestionIds:  iErr  >= 0 ? String(values[i][iErr] || '').trim() : ''
-        });
-      }
-      // 降順（最新が先頭）
-      items = all.slice().reverse().slice(0, limit);
-    }
-    const stuLoc = _findAccountRowOnSheet(sid);
-    let name = '', nickname = '';
-    if (stuLoc) {
-      name     = String(stuLoc.rowValues[COL_NAME] || '').trim();
-      nickname = String(stuLoc.rowValues[COL_NICKNAME] || '').trim();
-    }
+    const res = _computeRishaAttempts(sid, subject, params && params.limit);
     try {
       _logTeacherAction(_teacher.teacherId, (subject === 'shakai' ? 'SHAKAI_HISTORY_VIEW' : 'RIKA_HISTORY_VIEW'), '', 'success', {
-        studentId: sid, returned: items.length
+        studentId: sid, returned: (res.attempts || []).length
       });
     } catch(_e) {}
-    return {
-      ok: true,
-      subject: subject,
-      studentId: sid,
-      name: name,
-      nickname: nickname,
-      attempts: items
-    };
+    return res;
   } catch (err) {
     console.error('[_adminListRishaAttempts]', err);
     return { ok: false, message: String(err) };
@@ -29424,6 +29433,30 @@ function _adminListRishaAttempts(params, subject) {
 }
 function adminListRikaAttempts(params)   { return _adminListRishaAttempts(params, 'rika'); }
 function adminListShakaiAttempts(params) { return _adminListRishaAttempts(params, 'shakai'); }
+
+// 保護者経路（view.html）用：理科/社会 挑戦履歴。_verifyTeacher は通さず getStudentView と同列の保護者read系。
+//   params.studentId（＝保護者が見ているその子）で同じ集計本体を呼ぶ。
+//   ★他の子を列挙・選択する導線は view 側に作らない（自分の子固定）。新たな任意 sid 口は増やさない。
+function getStudentViewRikaAttempts(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    return _computeRishaAttempts(sid, 'rika', params && params.limit);
+  } catch (err) {
+    console.error('[getStudentViewRikaAttempts]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+function getStudentViewShakaiAttempts(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    return _computeRishaAttempts(sid, 'shakai', params && params.limit);
+  } catch (err) {
+    console.error('[getStudentViewShakaiAttempts]', err);
+    return { ok: false, message: String(err) };
+  }
+}
 
 // 月次サマリー（カレンダー用、getKokugoMonthSummary と同パターン）
 function _getRishaMonthSummary(params, subject) {

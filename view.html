@@ -253,6 +253,15 @@
     <div class="child-history-notice">⚠️ アプリ実装以前のLINEでの提出状況は反映されていません。</div>
     <div id="child-history-list"><div class="child-history-empty">読み込み中…</div></div>
     <button id="child-history-more" class="btn-more" style="background:linear-gradient(135deg,#ff8a3d,#ff6a00);margin-top:10px;display:none" onclick="showChildHistoryArchive()">📜 さらに過去の履歴を見る</button>
+
+    <!-- 挑戦・提出の記録（Step C：自分の子固定。温存関数＋理科/社会 保護者ラッパーを流用） -->
+    <div class="section-title" style="margin-top:22px">📚 挑戦・提出の記録</div>
+    <button class="btn-more" style="background:linear-gradient(135deg,#fdba74,#ea580c);color:#fff;margin-bottom:10px" onclick="showChildKokugo()">📖 国語長文の取り組み</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#34d399,#059669);color:#fff;margin-bottom:10px" onclick="showChildRisha('rika')">🧪 理科の挑戦履歴</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#a3a380,#78716c);color:#fff;margin-bottom:10px" onclick="showChildRisha('shakai')">🗺️ 社会の挑戦履歴</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#f9a8d4,#db2777);color:#fff;margin-bottom:10px" onclick="showSangoHistory()">✏️ 三語短文の提出作品</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#86efac,#16a34a);color:#fff" onclick="showChildReflections()">📝 振り返りコメント</button>
+
     <button class="btn-back" onclick="showView()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -360,11 +369,11 @@
 <div id="screen-sango-history" class="screen">
   <header>
     <h1>📖 三語短文の提出作品</h1>
-    <button class="logout-btn" onclick="showView()">← 戻る</button>
+    <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
   </header>
   <div class="container">
     <div id="sango-history-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
-    <button class="btn-back" onclick="showView()">← 閲覧画面に戻る</button>
+    <button class="btn-back" onclick="showChildHistory()">← 1つ前の画面に戻る</button>
   </div>
 </div>
 
@@ -372,12 +381,12 @@
 <div id="screen-child-reflections" class="screen">
   <header>
     <h1>📝 お子様の振り返り</h1>
-    <button class="logout-btn" onclick="showView()">← 戻る</button>
+    <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
   </header>
   <div class="container">
     <p style="text-align:center;color:#666;font-size:13px;margin:8px 0 14px">お子様がログアウト直前に書いた振り返りです（最新が上、直近 30 件）。</p>
     <div id="child-reflections-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
-    <button class="btn-back" onclick="showView()">← 閲覧画面に戻る</button>
+    <button class="btn-back" onclick="showChildHistory()">← 1つ前の画面に戻る</button>
   </div>
 </div>
 
@@ -385,12 +394,25 @@
 <div id="screen-child-kokugo" class="screen">
   <header>
     <h1>📖 お子様の国語長文の取り組み</h1>
-    <button class="logout-btn" onclick="showView()">← 戻る</button>
+    <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
   </header>
   <div class="container">
     <p style="text-align:center;color:#666;font-size:13px;margin:8px 0 14px">お子様の国語長文 挑戦履歴です（最新が上、直近 50 件）。<br>感想文と AI からのフィードバックも一緒に見られます。</p>
     <div id="child-kokugo-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
-    <button class="btn-back" onclick="showView()">← 閲覧画面に戻る</button>
+    <button class="btn-back" onclick="showChildHistory()">← 1つ前の画面に戻る</button>
+  </div>
+</div>
+
+<!-- 理科/社会 挑戦履歴（自分の子固定。admin の risha-history-list を移植・生徒選択なし。Step C） -->
+<div id="screen-child-risha" class="screen">
+  <header>
+    <h1 id="child-risha-title">📕 挑戦履歴</h1>
+    <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
+  </header>
+  <div class="container">
+    <p style="text-align:center;color:#666;font-size:13px;margin:8px 0 14px">お子様の挑戦履歴です（最新が上、直近 200 件）。</p>
+    <div id="child-risha-list"><div class="child-history-empty">読み込み中…</div></div>
+    <button class="btn-back" onclick="showChildHistory()">← 1つ前の画面に戻る</button>
   </div>
 </div>
 
@@ -645,6 +667,59 @@
                 '</div>';
       });
       if (wrap) wrap.innerHTML = html;
+    }).catch(function() { if (wrap) wrap.innerHTML = '<div class="child-history-empty">通信エラーが発生しました</div>'; });
+  }
+
+  // ============================
+  // お子様の挑戦履歴（理科・社会）— 自分の子固定・生徒選択なし（Step C）
+  //   admin の risha-history-list（_renderRishaAttemptCard）を view 用に inline スタイルで移植。
+  //   GAS getStudentViewRikaAttempts / getStudentViewShakaiAttempts を _studentId で叩く。
+  //   ★他の子の sid を渡す導線・列挙UIは作らない。国語は showChildKokugo（温存）が担当。
+  // ============================
+  var _childRishaSubject = 'rika';
+  function showChildRisha(subject) {
+    _childRishaSubject = (subject === 'shakai') ? 'shakai' : 'rika';
+    var t = document.getElementById('child-risha-title');
+    if (t) t.textContent = (_childRishaSubject === 'shakai') ? '🗺️ 社会の挑戦履歴' : '🧪 理科の挑戦履歴';
+    _showScreen('screen-child-risha');
+    loadChildRisha(_childRishaSubject);
+  }
+  function _renderChildRishaCard(a) {
+    var resPass = (String(a.result || '').trim() === 'pass');
+    var ts = String(a.timestamp || '').slice(0, 16);
+    var meta = '';
+    meta += '<div style="font-size:12px;color:#555;line-height:1.8"><strong>単元</strong> ' + _esc(a.unitName || '') + ' / セット' + (Number(a.setNo) || 0) + '</div>';
+    meta += '<div style="font-size:12px;color:#555;line-height:1.8"><strong>累計</strong> ' + (Number(a.attemptCount) || 0) + '回挑戦 / ' + (Number(a.clearCount) || 0) + '回クリア</div>';
+    if (Number(a.hpGained) > 0) {
+      meta += '<div style="font-size:12px;color:#b45309;line-height:1.8"><strong>💎 獲得HP</strong> ' + Number(a.hpGained).toLocaleString() + ' HP</div>';
+    }
+    var errBlock = '';
+    if (!resPass && a.errorQuestionIds) {
+      errBlock = '<div style="font-size:12px;color:#b91c1c;margin-top:4px">⚠️ 誤答問題ID：' + _esc(a.errorQuestionIds) + '</div>';
+    }
+    return '<div class="notice-card" style="background:#fff;border-left:6px solid ' + (resPass ? '#16a34a' : '#f87171') + ';box-shadow:0 2px 10px rgba(0,0,0,.08);padding:14px 16px;margin-bottom:12px">' +
+             '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">' +
+               '<span style="font-weight:bold;color:#334155">' + _esc(ts) + '</span>' +
+               '<span style="font-size:12px;color:#888">' + (Number(a.attemptCount) || 0) + '回目</span>' +
+             '</div>' +
+             meta +
+             '<div style="margin-top:6px"><span style="padding:3px 10px;border-radius:6px;font-weight:bold;font-size:13px;background:' + (resPass ? '#dcfce7' : '#fee2e2') + ';color:' + (resPass ? '#166534' : '#b91c1c') + '">' + (resPass ? '◯ 合格' : '✕ 不合格') + '</span></div>' +
+             errBlock +
+           '</div>';
+  }
+  function loadChildRisha(subject) {
+    var wrap = document.getElementById('child-risha-list');
+    if (!_studentId) { if (wrap) wrap.innerHTML = '<div class="child-history-empty">セッション情報が見つかりません。再度ログインしてください。</div>'; return; }
+    if (wrap) wrap.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
+    var action = (subject === 'shakai') ? 'getStudentViewShakaiAttempts' : 'getStudentViewRikaAttempts';
+    gasGet({ action: action, studentId: _studentId, limit: 200, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) { if (wrap) wrap.innerHTML = '<div class="child-history-empty">' + _esc((res && res.message) || '取得に失敗しました') + '</div>'; return; }
+      var attempts = (res.attempts || []).slice().sort(function(x, y){
+        var tx = String((x && x.timestamp) || ''), ty = String((y && y.timestamp) || '');
+        return tx < ty ? 1 : (tx > ty ? -1 : 0);
+      });
+      if (!attempts.length) { if (wrap) wrap.innerHTML = '<div class="child-history-empty">まだ挑戦履歴がありません。</div>'; return; }
+      if (wrap) wrap.innerHTML = attempts.map(_renderChildRishaCard).join('');
     }).catch(function() { if (wrap) wrap.innerHTML = '<div class="child-history-empty">通信エラーが発生しました</div>'; });
   }
 
@@ -1387,7 +1462,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260702-0006</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260702-0033</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
