@@ -283,7 +283,7 @@
   <div class="container">
     <div class="section-title">コンテンツを選ぶと達成度が見られます</div>
     <button class="btn-more" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff;padding:20px 16px;font-size:18px;font-weight:800;border-radius:14px;box-shadow:0 4px 14px rgba(124,79,255,.28)" onclick="showEitangoAchievement()">📚 英単語RUSH</button>
-    <button class="btn-back" onclick="showChildHistory()">← 学習状況に戻る</button>
+    <button class="btn-back" onclick="showChildHistory()">← 1つ前の画面に戻る</button>
   </div>
 </div>
 
@@ -296,7 +296,7 @@
   <div class="container">
     <div class="child-history-notice" style="background:#f3e8ff;border-left-color:#7c4fff;color:#5b21b6">「到達 / 総数」は問題ベース（1単語＝2周＝2問）。達成率は「級の全語に対する到達率」（既習語も到達済みとして算入）。</div>
     <div id="eitango-ach-wrap"><div class="child-history-empty">読み込み中…</div></div>
-    <button class="btn-back" onclick="showChildAchievementHub()">← 達成度ハブに戻る</button>
+    <button class="btn-back" onclick="showChildAchievementHub()">← 1つ前の画面に戻る</button>
   </div>
 </div>
 
@@ -445,14 +445,8 @@
                   (Number(d.total) > 0 ? _eitangoAchBar(d.rate) : '') +
                 '</div>';
       });
-      // データ品質の注記
-      if (res.warns && res.warns.length) {
-        var wl = res.warns.map(function(w){ return '<li>' + _esc(w) + '</li>'; }).join('');
-        html += '<div style="background:#fffbe6;border-left:4px solid #f59e0b;border-radius:6px;padding:10px 14px;margin-top:8px;font-size:12px;color:#92400e">' +
-                  '<div style="font-weight:bold;margin-bottom:4px">⚠️ データ品質の注記</div>' +
-                  '<ul style="margin:0;padding-left:18px">' + wl + '</ul>' +
-                '</div>';
-      }
+      // warns（データ品質の注記）は保護者画面では表示しない（先生向けの admin のみ）。
+      //   返り値に res.warns が含まれていても view 側では描画しない。
       if (wrap) wrap.innerHTML = html;
     }).catch(function() {
       if (wrap) wrap.innerHTML = '<div class="child-history-empty">通信エラーが発生しました</div>';
