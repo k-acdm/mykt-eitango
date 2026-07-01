@@ -258,6 +258,8 @@
     <button class="btn-more" style="background:linear-gradient(135deg,#34d399,#059669);color:#fff;margin-bottom:10px" onclick="showChildRisha('rika')">🧪 理科の挑戦履歴</button>
     <button class="btn-more" style="background:linear-gradient(135deg,#a3a380,#78716c);color:#fff;margin-bottom:10px" onclick="showChildRisha('shakai')">🗺️ 社会の挑戦履歴</button>
     <button class="btn-more" style="background:linear-gradient(135deg,#f9a8d4,#db2777);color:#fff;margin-bottom:10px" onclick="showSangoHistory()">✏️ 三語短文の提出作品</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#93c5fd,#2563eb);color:#fff;margin-bottom:10px" onclick="showChildWabun1()">✍️ 和文英訳①の提出</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed);color:#fff;margin-bottom:10px" onclick="showChildOriwantes()">📝 オリワンテスの記録</button>
     <button class="btn-more" style="background:linear-gradient(135deg,#86efac,#16a34a);color:#fff" onclick="showChildReflections()">📝 振り返りコメント</button>
 
     <!-- 日別の学習履歴（挑戦・提出の記録の下へ移動。notice は日別履歴の説明のため一緒に配置） -->
@@ -420,6 +422,32 @@
   </div>
 </div>
 
+<!-- お子様の和文英訳①の提出（Step D-1・自分の子固定・getWabun1Submissions 流用） -->
+<div id="screen-child-wabun1" class="screen">
+  <header>
+    <h1>✍️ お子様の和文英訳①の提出</h1>
+    <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
+  </header>
+  <div class="container">
+    <p style="text-align:center;color:#666;font-size:13px;margin:8px 0 14px">お子様の和文英訳①の提出です（最新が上、直近 30 件）。<br>先生からのコメントも一緒に見られます。</p>
+    <div id="child-wabun1-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
+    <button class="btn-back" onclick="showChildHistory()">← 1つ前の画面に戻る</button>
+  </div>
+</div>
+
+<!-- お子様のオリワンテスの記録（Step D-1・自分の子固定・getOriwantesHistory 流用） -->
+<div id="screen-child-oriwantes" class="screen">
+  <header>
+    <h1>📝 お子様のオリワンテスの記録</h1>
+    <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
+  </header>
+  <div class="container">
+    <p style="text-align:center;color:#666;font-size:13px;margin:8px 0 14px">お子様のオリワンテスの記録です（最新が上、直近 30 件）。<br>問題・正答・お子様の解答・解説が見られます。</p>
+    <div id="child-oriwantes-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
+    <button class="btn-back" onclick="showChildHistory()">← 1つ前の画面に戻る</button>
+  </div>
+</div>
+
 <!-- 過去の連絡事項 -->
 <div id="screen-notice-history" class="screen">
   <header>
@@ -464,6 +492,8 @@
   function showView()           { _showScreen('screen-view'); }
   function showNoticeHistory()  { _showScreen('screen-notice-history'); loadNoticeHistory(); }
   function showSangoHistory()   { _showScreen('screen-sango-history'); loadSangoHistory(); }
+  function showChildWabun1()    { _showScreen('screen-child-wabun1'); loadChildWabun1(); }
+  function showChildOriwantes() { _showScreen('screen-child-oriwantes'); loadChildOriwantes(); }
   function showChildReflections() { _showScreen('screen-child-reflections'); loadChildReflections(); }
   function showChildKokugo()    { _showScreen('screen-child-kokugo'); loadChildKokugo(); }
   function showChildHistory()   { _showScreen('screen-child-history'); loadChildHistory(); }
@@ -1019,6 +1049,107 @@
                    '<div class="notice-date" style="color:#888">' + len + ' 文字</div>' +
                  '</div>' +
                  '<div style="background:#f0fdf4;border-radius:10px;padding:10px 12px;white-space:pre-wrap;word-wrap:break-word;font-size:14px;line-height:1.75;color:#333">' + _esc(r.content || '') + '</div>' +
+               '</div>';
+      }).join('');
+    }).catch(function() {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+    });
+  }
+
+  // ============================
+  // お子様の和文英訳①の提出（Step D-1、getWabun1Submissions・認証なし / studentId 固定で絞り込み）
+  //   - サーバ側で studentId 一致行のみ返すため、他の子の提出は構造上返らない
+  // ============================
+  function loadChildWabun1() {
+    var listEl = document.getElementById('child-wabun1-list');
+    listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">⏳ 読み込み中…</div></div></div>';
+    if (!_studentId) {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">セッション情報が見つかりません。再度ログインしてください。</div></div></div>';
+      return;
+    }
+    gasGet({ action: 'getWabun1Submissions', studentId: _studentId, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+        return;
+      }
+      var items = (res.submissions || []).slice(0, 30);
+      if (items.length === 0) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">まだ和文英訳①の提出はありません。お子様が提出するとここに並びます。</div></div></div>';
+        return;
+      }
+      listEl.innerHTML = items.map(function(s){
+        var methodLabel = (s.method === 'photo') ? '📷 写真' : '✏️ 直接入力';
+        var skips = (s.skip_questions && s.skip_questions.length)
+          ? '<div style="font-size:12px;color:#c2410c;margin-bottom:6px">⊘ スキップ：' + _esc(s.skip_questions.join('・')) + '番</div>'
+          : '';
+        var comment = String(s.teacher_comment || '').trim();
+        var commentHtml = comment
+          ? '<div style="background:#e3f2fd;border-left:4px solid #1976d2;border-radius:10px;padding:10px 12px;margin-top:8px;white-space:pre-wrap;word-wrap:break-word;font-size:13px;line-height:1.7;color:#0d47a1">' +
+              '<div style="font-weight:bold;color:#1565c0;margin-bottom:4px">💬 先生からのコメント</div>' +
+              _esc(comment) +
+            '</div>'
+          : '';
+        return '<div class="notice-card" style="background:#fff;border-left:6px solid #2563eb;box-shadow:0 2px 10px rgba(0,0,0,.08)">' +
+                 '<div class="notice-header">' +
+                   '<div class="notice-title" style="color:#1d4ed8">' + _esc(s.date || (s.timestamp || '').slice(0,10)) + '</div>' +
+                   '<div class="notice-date" style="color:#888">' + _esc(s.timestamp || '') + ' / ' + methodLabel + '</div>' +
+                 '</div>' +
+                 skips +
+                 '<div style="background:#eff6ff;border-radius:10px;padding:10px 12px;white-space:pre-wrap;word-wrap:break-word;font-size:13px;line-height:1.75;color:#333">' + _esc(s.work || '') + '</div>' +
+                 commentHtml +
+               '</div>';
+      }).join('');
+    }).catch(function() {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+    });
+  }
+
+  // ============================
+  // お子様のオリワンテスの記録（Step D-1、getOriwantesHistory・認証なし / studentId 固定で絞り込み）
+  //   - サーバ側で studentId 一致行のみ返すため、他の子の記録は構造上返らない
+  //   - 直近 30 件を表示（既存の子画面と同じく固定件数・ページング UI なし）
+  // ============================
+  function loadChildOriwantes() {
+    var listEl = document.getElementById('child-oriwantes-list');
+    listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">⏳ 読み込み中…</div></div></div>';
+    if (!_studentId) {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">セッション情報が見つかりません。再度ログインしてください。</div></div></div>';
+      return;
+    }
+    gasGet({ action: 'getOriwantesHistory', studentId: _studentId, offset: 0, limit: 30, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+        return;
+      }
+      var items = res.items || [];
+      if (items.length === 0) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">まだオリワンテスの記録はありません。お子様が取り組むとここに並びます。</div></div></div>';
+        return;
+      }
+      listEl.innerHTML = items.map(function(it){
+        var qs = (it.questions || []).map(function(q, i){
+          var expl = String(q.explanation || '').trim();
+          return '<div style="border-top:1px dashed #d8b4fe;padding:8px 0;margin-top:6px">' +
+                   '<div style="font-weight:bold;color:#6b21a8;font-size:13px">問' + (i + 1) + '　' + _esc(q.questionText || '') + '</div>' +
+                   '<div style="font-size:13px;color:#166534;margin-top:3px">正答：' + _esc(q.answer || '') + '</div>' +
+                   '<div style="font-size:13px;color:#333;margin-top:3px">お子様の解答：' + _esc(q.studentAnswer || '') + '</div>' +
+                   (expl ? '<div style="font-size:12px;color:#666;margin-top:3px;white-space:pre-wrap;word-wrap:break-word">解説：' + _esc(expl) + '</div>' : '') +
+                 '</div>';
+        }).join('');
+        var comment = String(it.comment || '').trim();
+        var commentHtml = comment
+          ? '<div style="background:#e3f2fd;border-left:4px solid #1976d2;border-radius:10px;padding:10px 12px;margin-top:8px;white-space:pre-wrap;word-wrap:break-word;font-size:13px;line-height:1.7;color:#0d47a1">' +
+              '<div style="font-weight:bold;color:#1565c0;margin-bottom:4px">💬 先生からのコメント</div>' +
+              _esc(comment) +
+            '</div>'
+          : '';
+        return '<div class="notice-card" style="background:#fff;border-left:6px solid #7c3aed;box-shadow:0 2px 10px rgba(0,0,0,.08)">' +
+                 '<div class="notice-header">' +
+                   '<div class="notice-title" style="color:#6d28d9">' + _esc(it.subject || '（教科未設定）') + '</div>' +
+                   '<div class="notice-date" style="color:#888">' + _esc(it.date || '') + '</div>' +
+                 '</div>' +
+                 '<div style="background:#faf5ff;border-radius:10px;padding:8px 12px">' + (qs || '<div style="font-size:13px;color:#999">問題データがありません。</div>') + '</div>' +
+                 commentHtml +
                '</div>';
       }).join('');
     }).catch(function() {
