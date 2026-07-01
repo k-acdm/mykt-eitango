@@ -1175,7 +1175,8 @@ function doGet(e) {
       // 振り返りカレンダー（2026-05-20）：学習カレンダーと同パターン、admin/teacher 両ロール
       else if (action === 'getReflectionMonthSummary') result = getReflectionMonthSummary(params);
       else if (action === 'getReflectionDayDetail')    result = getReflectionDayDetail(params);
-      else if (action === 'getStudentView') result = getStudentView(params);  
+      else if (action === 'getStudentView') result = getStudentView(params);
+      else if (action === 'getStudentViewEitangoAchievement') result = getStudentViewEitangoAchievement(params);  // 保護者経路・自分の子の英単語RUSH達成度（Step B-1）
       else if (action === 'getSangoTopic')             result = getSangoTopic();
       else if (action === 'submitSango')               result = submitSango(params);
       else if (action === 'adminAddSangoTopic')        result = adminAddSangoTopic(params);
@@ -30678,14 +30679,11 @@ function _migrateOneStudentGrade(sid, grade, gradeData, clearedStr, passedSetMap
 // 認証：_verifyTeacher（達成度ハブは admin/teacher 両ロール可）。
 // キャッシュ：per-sid 短 TTL（300s）cache_eitan_ach_<sid>。submitAttemptV2 が position を進めたら
 //   同キーを remove して即時反映（任意・実装済み）。手本：getKisoAnsweredCounts。
-function getEitangoAchievement(params) {
-  try {
-    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
-    if (!_teacher) return { ok: false, message: '認証エラー' };
-    const sid = String((params && params.studentId) || '').trim();
-    if (!sid) return { ok: false, message: 'studentId が必要です' };
-
-    return _getCachedValues('cache_eitan_ach_' + sid, 300, function() {
+// 英単語RUSH 達成度の集計本体（student 依存）。admin（getEitangoAchievement）と
+//   保護者経路（getStudentViewEitangoAchievement）の両方から共通で呼ぶ共通ヘルパー。
+//   認証・キャッシュは呼び出し側が担う。返り値は従来 getEitangoAchievement のキャッシュ内層と
+//   完全に同一（{ ok, studentId, byGrade, overall, warns }）。中身は一切変更していない（挙動不変）。
+function _computeEitangoAchievement(sid) {
       // 全語数の素（student 非依存）。重いのでベストエフォートで別途グローバルキャッシュ（>95KB 時は素通り）。
       const scan = _getCachedValues('cache_eitan_gradedata', 21600, function() { return _migScanGradeData(); });
       const gradeData = (scan && scan.gradeData) || {};
@@ -30762,9 +30760,38 @@ function getEitangoAchievement(params) {
         },
         warns: warns
       };
+}
+
+// 管理画面（admin/teacher）用：英単語RUSH 達成度。認証・キャッシュキー・入出力とも従来どおり不変。
+function getEitangoAchievement(params) {
+  try {
+    const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+    if (!_teacher) return { ok: false, message: '認証エラー' };
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が必要です' };
+    return _getCachedValues('cache_eitan_ach_' + sid, 300, function() {
+      return _computeEitangoAchievement(sid);
     });
   } catch (err) {
     console.error('[getEitangoAchievement]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 保護者経路（view.html）用：英単語RUSH 達成度。_verifyTeacher は通さず、getStudentView と同列の
+//   保護者向け read 系として params.studentId（＝保護者が見ているその子）で集計する。
+//   集計本体・キャッシュキーは admin と完全共通（_computeEitangoAchievement / cache_eitan_ach_<sid>）。
+//   ★他の子を列挙・選択する導線は view 側に作らない（自分の子固定）。新たに任意 sid を受ける口を
+//     増やしているわけではなく、getStudentView と同じ「その子の sid で読むだけ」（現状の sid 方式）。
+function getStudentViewEitangoAchievement(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    return _getCachedValues('cache_eitan_ach_' + sid, 300, function() {
+      return _computeEitangoAchievement(sid);
+    });
+  } catch (err) {
+    console.error('[getStudentViewEitangoAchievement]', err);
     return { ok: false, message: String(err) };
   }
 }

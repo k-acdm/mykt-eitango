@@ -248,6 +248,8 @@
     <button class="logout-btn" onclick="showView()">← 戻る</button>
   </header>
   <div class="container">
+    <!-- 達成度への入口（自分の子固定・生徒選択なし。Step B-1で英単語RUSH 1つ） -->
+    <button class="btn-more" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff;padding:18px 16px;font-size:18px;font-weight:800;border-radius:14px;box-shadow:0 4px 14px rgba(124,79,255,.28);margin-bottom:14px" onclick="showChildAchievementHub()">🎯 お子様の達成度を見る</button>
     <div class="child-history-notice">⚠️ アプリ実装以前のLINEでの提出状況は反映されていません。</div>
     <div id="child-history-list"><div class="child-history-empty">読み込み中…</div></div>
     <button id="child-history-more" class="btn-more" style="background:linear-gradient(135deg,#ff8a3d,#ff6a00);margin-top:10px;display:none" onclick="showChildHistoryArchive()">📜 さらに過去の履歴を見る</button>
@@ -269,6 +271,32 @@
       <button type="button" class="next" id="child-archive-next" onclick="childHistoryNext()">次のページ →</button>
     </div>
     <button class="btn-back" onclick="showChildHistory()">← 直近7日間に戻る</button>
+  </div>
+</div>
+
+<!-- お子様の達成度ハブ（コンテンツ別カード。自分の子固定・生徒選択なし。Step B-1で英単語RUSH 1枚） -->
+<div id="screen-child-achievement-hub" class="screen">
+  <header>
+    <h1>🎯 お子様の達成度</h1>
+    <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
+  </header>
+  <div class="container">
+    <div class="section-title">コンテンツを選ぶと達成度が見られます</div>
+    <button class="btn-more" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff;padding:20px 16px;font-size:18px;font-weight:800;border-radius:14px;box-shadow:0 4px 14px rgba(124,79,255,.28)" onclick="showEitangoAchievement()">📚 英単語RUSH</button>
+    <button class="btn-back" onclick="showChildHistory()">← 学習状況に戻る</button>
+  </div>
+</div>
+
+<!-- 英単語RUSH 達成度詳細（自分の子固定。admin の screen-admin-eitango-ach-detail を移植） -->
+<div id="screen-child-eitango-ach" class="screen">
+  <header>
+    <h1>📚 英単語RUSH 達成度</h1>
+    <button class="logout-btn" onclick="showChildAchievementHub()">← 戻る</button>
+  </header>
+  <div class="container">
+    <div class="child-history-notice" style="background:#f3e8ff;border-left-color:#7c4fff;color:#5b21b6">「到達 / 総数」は問題ベース（1単語＝2周＝2問）。達成率は「級の全語に対する到達率」（既習語も到達済みとして算入）。</div>
+    <div id="eitango-ach-wrap"><div class="child-history-empty">読み込み中…</div></div>
+    <button class="btn-back" onclick="showChildAchievementHub()">← 達成度ハブに戻る</button>
   </div>
 </div>
 
@@ -359,6 +387,77 @@
   function showChildHistory()   { _showScreen('screen-child-history'); loadChildHistory(); }
   function showChildHistoryArchive() { _childArchiveOffset = 1; _showScreen('screen-child-history-archive'); loadChildHistoryArchive(); }
   function jumpToSangoSubmission(ts) { _showScreen('screen-sango-history'); loadSangoHistory(ts); }
+  function showChildAchievementHub() { _showScreen('screen-child-achievement-hub'); }
+  function showEitangoAchievement()  { _showScreen('screen-child-eitango-ach'); loadChildEitangoAchievement(); }
+
+  // ============================
+  // お子様の達成度（英単語RUSH）— 自分の子固定・生徒選択なし（Step B-1）
+  //   admin の英単語達成度画面（screen-admin-eitango-ach-detail）を移植。
+  //   GAS getStudentViewEitangoAchievement を _studentId（ログイン中に確定した自分の子）で叩く。
+  //   ★他の子の sid を渡す導線・列挙UIは作らない（自分の子固定）。
+  // ============================
+  var _EITANGO_GRADES = ['5級', '4級', '3級', '準2級', '準2級プラス', '2級', '準1級', '1級'];
+  function _eitangoAchBar(rate) {
+    var pct = Math.max(0, Math.min(100, Math.round((rate || 0) * 100)));
+    return '<div style="background:#e5e7eb;border-radius:6px;height:14px;overflow:hidden">' +
+             '<div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,#4f7df0,#7c4fff)"></div>' +
+           '</div>';
+  }
+  function _eitangoAchPct(rate) {
+    return (rate == null) ? '—' : (Math.round(rate * 1000) / 10) + '%';
+  }
+  function loadChildEitangoAchievement() {
+    var wrap = document.getElementById('eitango-ach-wrap');
+    if (!_studentId) {
+      if (wrap) wrap.innerHTML = '<div class="child-history-empty">セッション情報が見つかりません。再度ログインしてください。</div>';
+      return;
+    }
+    if (wrap) wrap.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
+    gasGet({ action: 'getStudentViewEitangoAchievement', studentId: _studentId, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        if (wrap) wrap.innerHTML = '<div class="child-history-empty">' + _esc((res && res.message) || '取得に失敗しました') + '</div>';
+        return;
+      }
+      var byGrade = res.byGrade || {};
+      var ov = res.overall || {};
+      var html = '';
+      // 全級 合計
+      html += '<div style="background:#f3e8ff;border:2px solid #7c4fff;border-radius:10px;padding:12px 14px;margin-bottom:14px">' +
+                '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">' +
+                  '<span style="font-weight:bold;color:#5b21b6;font-size:15px">全級 合計</span>' +
+                  '<span style="font-weight:bold;color:#5b21b6;font-size:16px">' + _eitangoAchPct(ov.rate) + '</span>' +
+                '</div>' +
+                '<div style="font-size:12px;color:#555;margin-bottom:6px">到達 ' + (Number(ov.reached)||0).toLocaleString() + ' / ' + (Number(ov.total)||0).toLocaleString() + '（問題ベース）</div>' +
+                _eitangoAchBar(ov.rate) +
+              '</div>';
+      // 級ごと
+      _EITANGO_GRADES.forEach(function(g) {
+        var d = byGrade[g] || { reached:0, total:0, rate:null, ready:false };
+        var detail = (Number(d.total) > 0)
+          ? ('到達 ' + (Number(d.reached)||0).toLocaleString() + ' / ' + (Number(d.total)||0).toLocaleString())
+          : (d.ready === false ? 'データ未投入（N/A）' : '対象語なし');
+        html += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:10px">' +
+                  '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">' +
+                    '<span style="font-weight:bold;color:#2d3a8c;font-size:15px">' + _esc(g) + '</span>' +
+                    '<span style="font-weight:bold;color:#7c4fff;font-size:15px">' + _eitangoAchPct(d.rate) + '</span>' +
+                  '</div>' +
+                  '<div style="font-size:12px;color:#666;margin-bottom:6px">' + detail + '</div>' +
+                  (Number(d.total) > 0 ? _eitangoAchBar(d.rate) : '') +
+                '</div>';
+      });
+      // データ品質の注記
+      if (res.warns && res.warns.length) {
+        var wl = res.warns.map(function(w){ return '<li>' + _esc(w) + '</li>'; }).join('');
+        html += '<div style="background:#fffbe6;border-left:4px solid #f59e0b;border-radius:6px;padding:10px 14px;margin-top:8px;font-size:12px;color:#92400e">' +
+                  '<div style="font-weight:bold;margin-bottom:4px">⚠️ データ品質の注記</div>' +
+                  '<ul style="margin:0;padding-left:18px">' + wl + '</ul>' +
+                '</div>';
+      }
+      if (wrap) wrap.innerHTML = html;
+    }).catch(function() {
+      if (wrap) wrap.innerHTML = '<div class="child-history-empty">通信エラーが発生しました</div>';
+    });
+  }
 
   function toggleHpInfo() {
     var el = document.getElementById('hp-info-examples');
