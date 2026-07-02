@@ -286,8 +286,9 @@
     <button class="btn-more" style="background:linear-gradient(135deg,#93c5fd,#2563eb);color:#fff;margin-bottom:10px" onclick="showChildWabun1()">✍️ 和文英訳①の提出</button>
     <button class="btn-more" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed);color:#fff;margin-bottom:10px" onclick="showChildOriwantes()">📝 オリワンテスの記録</button>
     <button class="btn-more" style="background:linear-gradient(135deg,#86efac,#16a34a);color:#fff;margin-bottom:10px" onclick="showChildReflections()">📝 振り返りコメント</button>
-    <!-- ファイル系（Step D-2）：基礎計算の答案写真。自分の子固定（_studentId）・blob は sid×fileId 突合。 -->
-    <button class="btn-more" style="background:linear-gradient(135deg,#38bdf8,#0284c7);color:#fff" onclick="showChildKisoPhotos()">📷 基礎計算の答案写真</button>
+    <!-- ファイル系（Step D-2/D-3）：写真系をまとめる。自分の子固定（_studentId）・blob は sid×fileId 突合。 -->
+    <button class="btn-more" style="background:linear-gradient(135deg,#38bdf8,#0284c7);color:#fff;margin-bottom:10px" onclick="showChildKisoPhotos()">📷 基礎計算の答案写真</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#2dd4bf,#0d9488);color:#fff" onclick="showChildMytaskPhotos()">📷 マイ課題の提出写真</button>
 
     <!-- 日別の学習履歴（挑戦・提出の記録の下へ移動。notice は日別履歴の説明のため一緒に配置） -->
     <div class="section-title" style="margin-top:22px">📅 日別の学習履歴</div>
@@ -490,6 +491,21 @@
   </div>
 </div>
 
+<!-- お子様のマイ課題 提出写真（Step D-3・自分の子固定・getMyTaskPhotosListForStudent + getMyTaskPhotoBlobForStudent）
+     ・list は sid 絞り、blob は sid×fileId ペア突合。studentId は常に _studentId 固定。
+     ・D-2 の写真表示土台（_cphoto* 機構＋CSS）を再利用。提出単位でまとめて表示。 -->
+<div id="screen-child-mytask-photos" class="screen">
+  <header>
+    <h1>📷 お子様のマイ課題の提出写真</h1>
+    <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
+  </header>
+  <div class="container">
+    <p style="text-align:center;color:#666;font-size:13px;margin:8px 0 14px">お子様が提出したマイ課題の写真です（最新が上）。<br>写真は約 30 日で自動的に削除されます。表示されない写真は削除済みです。</p>
+    <div id="child-mytask-photos-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
+    <button class="btn-back" onclick="showChildHistory()">← 1つ前の画面に戻る</button>
+  </div>
+</div>
+
 <!-- 過去の連絡事項 -->
 <div id="screen-notice-history" class="screen">
   <header>
@@ -537,6 +553,7 @@
   function showChildWabun1()    { _showScreen('screen-child-wabun1'); loadChildWabun1(); }
   function showChildOriwantes() { _showScreen('screen-child-oriwantes'); loadChildOriwantes(); }
   function showChildKisoPhotos() { _showScreen('screen-child-kiso-photos'); loadChildKisoPhotos(); }
+  function showChildMytaskPhotos() { _showScreen('screen-child-mytask-photos'); loadChildMytaskPhotos(); }
   function showChildReflections() { _showScreen('screen-child-reflections'); loadChildReflections(); }
   function showChildKokugo()    { _showScreen('screen-child-kokugo'); loadChildKokugo(); }
   function showChildHistory()   { _showScreen('screen-child-history'); loadChildHistory(); }
@@ -1210,8 +1227,11 @@
   //       teacherId / password は送らない。fileId は list で得た自分の子の写真の fileId のみ。
   //   ・写真は「押して表示」タップ時に順次取得（同時多発取得を避ける）→ 画像タップで拡大モーダル。admin 踏襲。
   //   ・15 日で自動削除された写真は list に出ない（KisoPhotos に行なし）＝正常動作。
+  //   ・この _cphoto* 機構（キャッシュ / サムネ取得 / 拡大モーダル / カード描画）は D-3 マイ課題写真でも再利用する。
+  //     blob エンドポイントは _cphotoBlobAction で切替（各画面の loader が入場時にセット）。studentId は常に _studentId 固定。
   // ============================
   var _cphotoCache = {};  // fileId -> { dataUrl, mime }
+  var _cphotoBlobAction = 'getKisoPhotoBlobForStudent';  // 現在画面の保護者版 blob action（sid×fileId 突合）
 
   function loadChildKisoPhotos() {
     var listEl = document.getElementById('child-kiso-photos-list');
@@ -1221,6 +1241,7 @@
       return;
     }
     _cphotoCache = {};  // 画面を開き直したら再取得（他の子の写真が残らないよう毎回クリア）
+    _cphotoBlobAction = 'getKisoPhotoBlobForStudent';  // 基礎計算写真の blob（sid×fileId 突合）
     gasGet({ action: 'getKisoPhotosListForStudent', studentId: _studentId, _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
@@ -1291,6 +1312,72 @@
     return '';
   }
 
+  // ============================
+  // お子様のマイ課題 提出写真（Step D-3、ファイル系。D-2 の _cphoto* 土台を再利用）
+  //   ★セキュリティ（絶対条件）：
+  //     - list は getMyTaskPhotosListForStudent（サーバ側で studentId 一致行のみ返す）を studentId:_studentId で呼ぶ。
+  //       他の子の写真は構造上返らない。任意 sid 口・生徒選択導線は作らない。
+  //     - 画像 blob は getMyTaskPhotoBlobForStudent（sid×fileId ペア突合）を studentId:_studentId で呼ぶ（_cphotoBlobAction 経由）。
+  //       ★teacher 版 getMyTaskPhotoBlob / _verifyTeacherAndGetDriveBlob は保護者経路で一切使わない。teacherId/password 送らない。
+  //   ・30 日で自動削除された写真は list に出ない（MyTaskPhotos に行なし）＝正常動作。
+  // ============================
+  function _mytaskTypeLabel(taskType) {
+    var t = String(taskType || '');
+    if (t === 'homework') return '塾の宿題';
+    if (t === 'self')     return '自分で提出';
+    return t || 'マイ課題';
+  }
+
+  function loadChildMytaskPhotos() {
+    var listEl = document.getElementById('child-mytask-photos-list');
+    listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">⏳ 読み込み中…</div></div></div>';
+    if (!_studentId) {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">セッション情報が見つかりません。再度ログインしてください。</div></div></div>';
+      return;
+    }
+    _cphotoCache = {};  // 画面を開き直したら再取得（他の子の写真が残らないよう毎回クリア）
+    _cphotoBlobAction = 'getMyTaskPhotoBlobForStudent';  // マイ課題写真の blob（sid×fileId 突合）
+    gasGet({ action: 'getMyTaskPhotosListForStudent', studentId: _studentId, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+        return;
+      }
+      var subs = res.submissions || [];
+      if (subs.length === 0) {
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">保存中のマイ課題の写真はありません。<br>お子様がマイ課題の写真を送るとここに並びます（約 30 日で自動削除）。</div></div></div>';
+        return;
+      }
+      listEl.innerHTML = subs.map(function(s){
+        var ts = String(s.submittedAt || '').replace('T', ' ').slice(0, 16);
+        var typeLabel = _mytaskTypeLabel(s.taskType);
+        var subj = String(s.subject || '').trim();
+        var head = '<div class="cphoto-session-head">' +
+                     '<div class="cphoto-session-meta">' + _esc(typeLabel) + (subj ? '：' + _esc(subj) : '') + '</div>' +
+                     '<div class="cphoto-session-time">提出：' + _esc(ts) + '</div>' +
+                   '</div>';
+        var content = String(s.content || '').trim();
+        var contentHtml = content
+          ? '<div style="font-size:13px;color:#333;background:#f0fdfa;border-radius:8px;padding:8px 10px;margin-bottom:8px;white-space:pre-wrap;word-wrap:break-word">' + _esc(content) + '</div>'
+          : '';
+        var photos = s.photos || [];
+        var gridHtml;
+        if (photos.length > 0) {
+          gridHtml = '<div class="cphoto-grid">' + photos.map(function(ph){
+            var idx = Number(ph.photoIndex) || 1;
+            // deleteAfter は提出単位（各写真に引き渡してカードに表示）
+            var pobj = { driveFileId: ph.driveFileId, photoIndex: idx, deleteAfter: s.deleteAfter };
+            return _cphotoRenderCard(pobj, false, '写真 #' + idx);
+          }).join('') + '</div>';
+        } else {
+          gridHtml = '<div class="cphoto-subhead warn">⚠️ 写真が見つかりません</div>';
+        }
+        return '<div class="cphoto-session">' + head + contentHtml + gridHtml + '</div>';
+      }).join('');
+    }).catch(function() {
+      listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込みに失敗しました。</div></div></div>';
+    });
+  }
+
   function _cphotoDeleteLabel(deleteAfter) {
     var d = String(deleteAfter || '').trim();
     if (!d) return '';
@@ -1305,10 +1392,11 @@
   }
 
   // カード（pending サムネ → タップで取得 → 画像タップで拡大）。fileId は自分の子の写真のみ。
-  function _cphotoRenderCard(p, isWork) {
+  //   labelText を渡すとカードのラベルに使う（マイ課題用）。省略時は kiso 用（isWork で 解答用紙/途中式）。
+  function _cphotoRenderCard(p, isWork, labelText) {
     var fid = String(p.driveFileId || '').trim();
     var fidEsc = fid.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    var label = isWork ? ('途中式 #' + (Number(p.photoIndex) || 1)) : '解答用紙';
+    var label = labelText ? labelText : (isWork ? ('途中式 #' + (Number(p.photoIndex) || 1)) : '解答用紙');
     var hasFile = !!fid;
     var clickAttr = hasFile ? ' onclick="onCphotoThumbClick(\'' + fidEsc + '\')"' : '';
     var thumb = hasFile
@@ -1323,9 +1411,10 @@
            '</div>';
   }
 
-  // ★blob 取得は必ず getKisoPhotoBlobForStudent（sid×fileId ペア突合）。studentId は _studentId 固定。
+  // ★blob 取得は必ず sid×fileId ペア突合の保護者版 blob（_cphotoBlobAction）。studentId は _studentId 固定。
+  //   teacherId / password は送らない。_verifyTeacherAndGetDriveBlob / teacher 版 blob は使わない。
   function _cphotoFetch(fileId) {
-    return gasGet({ action: 'getKisoPhotoBlobForStudent', studentId: _studentId, fileId: fileId, _ts: Date.now() }).then(function(res){
+    return gasGet({ action: _cphotoBlobAction, studentId: _studentId, fileId: fileId, _ts: Date.now() }).then(function(res){
       if (!res || !res.ok) {
         throw new Error((res && res.message) || '取得に失敗しました');
       }
@@ -1815,7 +1904,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260702-1552</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260702-1621</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

@@ -1247,6 +1247,11 @@ function doGet(e) {
       //   doGet/doPost 両登録（CLAUDE.md #148 原則）。
       else if (action === 'getMyTaskPhotosList')       result = getMyTaskPhotosList(params);
       else if (action === 'getMyTaskPhotoBlob')        result = getMyTaskPhotoBlob(params);
+      // 保護者画面用：自分の子のマイ課題提出写真（Step D-3）。sid 絞り・認証なし（getStudentView 同列の
+      //   保護者 read 系）。blob は sid×fileId 突合。teacher 版 getMyTaskPhotosList / getMyTaskPhotoBlob とは
+      //   別関数（admin 不変）。base64 を送らない小さな GET のため doGet のみ。
+      else if (action === 'getMyTaskPhotosListForStudent') result = getMyTaskPhotosListForStudent(params);
+      else if (action === 'getMyTaskPhotoBlobForStudent')  result = getMyTaskPhotoBlobForStudent(params);
       // ※ ここにリスオン関連（getLisonContent, submitLison）のルーティングを必ず残す。
       //   Phase 1-A コミット 71b8c93 で追加。過去に管理画面リファクタ作業で巻き込まれて
       //   消えかけ、ふくちさん側の clasp push が古いまま実機テストで「録音送信が失敗する」
@@ -23524,6 +23529,181 @@ function getMyTaskPhotoBlob(params) {
     return res;
   } catch (err) {
     console.error('[getMyTaskPhotoBlob]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================================================
+// 保護者画面用：自分の子のマイ課題 提出写真（Step D-3、2026-07-02）
+//   ★セキュリティ（ファイル系・最優先）：D-2（getKisoPhotosListForStudent /
+//     getKisoPhotoBlobForStudent）と同一方針。
+//     - getStudentView と同列の「保護者 read 系」＝ _verifyTeacher を通さない（現状 sid 方式）。
+//     - blob は sid×fileId ペア突合（getKisoPhotoBlobForStudent と同一ガード）で新設。
+//     - ★teacher 版 getMyTaskPhotosList / getMyTaskPhotoBlob / _verifyTeacherAndGetDriveBlob は
+//       一切使わない・改変しない（admin 挙動不変）。保護者版は別関数として新設する。
+//     - 30 日で自動削除（cleanupMyTaskPhotos）→ MyTaskPhotos に行なし＝一覧に出ない（正常動作）。
+// =============================================================================
+
+// 保護者版 blob：MyTaskPhotos で「studentId 一致 AND driveFileId 一致」を同一行で満たす場合のみ
+//   Drive から取得して base64 返却。不一致は「アクセス権がありません」で拒否。
+//   ★getKisoPhotoBlobForStudent（sid×fileId ペア突合）と同一の作法。他の子の fileId を渡されても、
+//     その fileId の所有者 sid が渡された studentId と一致しなければ返さない（＝盗み見不可）。
+//   ★teacher 版 getMyTaskPhotoBlob / _verifyTeacherAndGetDriveBlob は一切使わない（保護者 read 系）。
+//   入力: { studentId, fileId }
+//   出力: { ok:true, base64, mime, fileName, sizeBytes }
+//        { ok:false, message:'生徒IDが指定されていません' } / { ok:false, message:'fileId が指定されていません' }
+//        { ok:false, message:'アクセス権がありません' }  ← sid×fileId 不一致
+//        { ok:false, message:'ファイルが見つかりません' }
+function getMyTaskPhotoBlobForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const fileId = String((params && params.fileId) || '').trim();
+    if (!fileId) return { ok: false, message: 'fileId が指定されていません' };
+
+    // MyTaskPhotos で { studentId, driveFileId } のペア突合（getKisoPhotoBlobForStudent と同一ガード）
+    const sh = _ss().getSheetByName(SHEET_MYTASK_PHOTOS);
+    if (!sh || sh.getLastRow() < 2) {
+      return { ok: false, message: 'アクセス権がありません' };
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSid = header.indexOf('studentId');
+    const cFid = header.indexOf('driveFileId');
+    if (cSid < 0 || cFid < 0) {
+      console.warn('[getMyTaskPhotoBlobForStudent] MyTaskPhotos シートのヘッダー構造が想定外');
+      return { ok: false, message: 'アクセス権がありません' };
+    }
+    let matched = false;
+    for (let i = 1; i < values.length; i++) {
+      const rowSid = String(values[i][cSid] == null ? '' : values[i][cSid]).trim();
+      const rowFid = String(values[i][cFid] == null ? '' : values[i][cFid]).trim();
+      if (rowSid === sid && rowFid === fileId) { matched = true; break; }
+    }
+    if (!matched) {
+      // ★セキュリティガード：他の子の fileId を直接叩いても studentId 不一致でここで拒否される。
+      console.warn('[getMyTaskPhotoBlobForStudent] sid×fileId 突合失敗', { sid: sid, fileId: fileId });
+      return { ok: false, message: 'アクセス権がありません' };
+    }
+
+    // 突合 OK：Drive から取得して base64 化
+    let file;
+    try {
+      file = DriveApp.getFileById(fileId);
+    } catch (e) {
+      console.error('[getMyTaskPhotoBlobForStudent] DriveApp.getFileById failed:', fileId, e);
+      return { ok: false, message: 'ファイルが見つかりません' };
+    }
+    try {
+      const blob = file.getBlob();
+      const bytes = blob.getBytes();
+      return {
+        ok: true,
+        base64: Utilities.base64Encode(bytes),
+        mime: blob.getContentType() || 'image/jpeg',
+        fileName: file.getName() || '',
+        sizeBytes: bytes.length
+      };
+    } catch (e) {
+      console.error('[getMyTaskPhotoBlobForStudent] blob/base64 failed:', fileId, e);
+      return { ok: false, message: 'ファイル取得に失敗しました：' + String(e) };
+    }
+  } catch (err) {
+    console.error('[getMyTaskPhotoBlobForStudent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 保護者版 list：自分の子のマイ課題提出写真一覧（sid 絞り・認証なし）。
+//   ★teacher 版 getMyTaskPhotosList とは別関数で新設（admin 不変）。
+//     判断理由（D-2 と同じ）：teacher 版は nameMap（全アカウント）・revertedSet（HpGrantLedger）・
+//     summary モードを持ち、保護者版が必要とする情報（sid 絞りの提出単位メタのみ）と大きく異なる。
+//     共通化すると teacher 版の改変が避けられず admin 挙動不変を保証できないため、独立実装する。
+//   ★渡された studentId 一致行のみ返す。他の子の写真は構造上一切含まれない（sid 絞り）。
+//   ・画像バイナリは返さずメタのみ。blob は getMyTaskPhotoBlobForStudent（sid×fileId 突合）で別途取得。
+//   ・30 日で自動削除された写真は MyTaskPhotos に行が無い＝この一覧に出ない（正常動作）。
+//   入力: { studentId }
+//   出力: { ok:true, studentId, submissions:[{ submissionId, taskType, subject, content,
+//            submittedAt, deleteAfter, photos:[{ driveFileId, photoIndex }] }] }（提出日時降順）
+function getMyTaskPhotosListForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+
+    const sh = _ss().getSheetByName(SHEET_MYTASK_PHOTOS);
+    if (!sh || sh.getLastRow() < 2) {
+      return { ok: true, studentId: sid, submissions: [] };
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSub     = header.indexOf('submissionId');
+    const cSid     = header.indexOf('studentId');
+    const cType    = header.indexOf('taskType');
+    const cSubj    = header.indexOf('subject');
+    const cContent = header.indexOf('content');
+    const cFileId  = header.indexOf('driveFileId');
+    const cSubmit  = header.indexOf('submittedAt');
+    const cDelete  = header.indexOf('deleteAfter');
+    const cPhIdx   = header.indexOf('photoIndex');
+    if (cSid < 0 || cFileId < 0) {
+      console.warn('[getMyTaskPhotosListForStudent] MyTaskPhotos ヘッダー構造が想定外');
+      return { ok: true, studentId: sid, submissions: [] };
+    }
+
+    const photos = [];
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const rowSid = String(row[cSid] || '').trim();
+      if (!rowSid || rowSid !== sid) continue;   // ★自分の子以外は絶対に含めない（sid 絞り）
+      const submittedTs = (cSubmit >= 0) ? row[cSubmit] : '';
+      const submittedAt = (submittedTs instanceof Date)
+        ? Utilities.formatDate(submittedTs, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(submittedTs || '');
+      photos.push({
+        submissionId: (cSub >= 0) ? String(row[cSub] || '').trim() : '',
+        taskType: (cType >= 0) ? String(row[cType] || '') : '',
+        subject: (cSubj >= 0) ? String(row[cSubj] || '') : '',
+        content: (cContent >= 0) ? String(row[cContent] || '') : '',
+        driveFileId: String(row[cFileId] || '').trim(),
+        submittedAt: submittedAt,
+        deleteAfter: (cDelete >= 0) ? _toDateStr(row[cDelete]) : '',
+        photoIndex: (cPhIdx >= 0) ? (Number(row[cPhIdx]) || 0) : 0
+      });
+    }
+    // submittedAt 降順 → submissionId 降順 → photoIndex 昇順（admin detail 踏襲）
+    photos.sort(function(a, b) {
+      if (a.submittedAt !== b.submittedAt) return a.submittedAt < b.submittedAt ? 1 : -1;
+      if (a.submissionId !== b.submissionId) return a.submissionId < b.submissionId ? 1 : -1;
+      return a.photoIndex - b.photoIndex;
+    });
+    // 提出（submissionId）単位グルーピング（出現順＝提出日時降順を維持）
+    const order = [];
+    const map = {};
+    photos.forEach(function(p) {
+      const key = p.submissionId || ('__nosub_' + p.driveFileId);
+      if (!map[key]) {
+        map[key] = {
+          submissionId: p.submissionId,
+          taskType: p.taskType,
+          subject: p.subject,
+          content: p.content,
+          submittedAt: p.submittedAt,
+          deleteAfter: p.deleteAfter,
+          photos: []
+        };
+        order.push(key);
+      }
+      map[key].photos.push({ driveFileId: p.driveFileId, photoIndex: p.photoIndex });
+    });
+    const submissions = order.map(function(k) {
+      const e = map[k];
+      e.photos.sort(function(a, b) { return a.photoIndex - b.photoIndex; });
+      return e;
+    });
+
+    return { ok: true, studentId: sid, submissions: submissions };
+  } catch (err) {
+    console.error('[getMyTaskPhotosListForStudent]', err);
     return { ok: false, message: String(err) };
   }
 }
