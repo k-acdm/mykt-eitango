@@ -1229,6 +1229,10 @@ function doGet(e) {
       // 基礎計算：単元別「解答した問題数」累計（単元選択画面のボタン右側表示用、2026-06-23）
       else if (action === 'getKisoAnsweredCounts')   result = getKisoAnsweredCounts(params);
       else if (action === 'getKisoPhotosList')       result = getKisoPhotosList(params);
+      // 保護者画面用：自分の子の答案写真一覧（Step D-2）。sid 絞り・認証なし（getStudentView 同列の
+      //   保護者 read 系）。teacher 版 getKisoPhotosList とは別関数（admin 不変）。メタのみ返し、
+      //   画像バイナリは getKisoPhotoBlobForStudent（sid×fileId 突合）で別途取得。小さい GET のため doGet のみ。
+      else if (action === 'getKisoPhotosListForStudent') result = getKisoPhotosListForStudent(params);
       // 基礎計算 履歴一覧（生徒画面 screen-kiso-history、カンジー方式踏襲）
       else if (action === 'getKisoHistoryForStudent') result = getKisoHistoryForStudent(params);
       // Phase 6: 基礎計算 答案写真の認証付き base64 配信。
@@ -7365,6 +7369,113 @@ function getKisoHistoryForStudent(params) {
     return { ok: true, items: items, total: sessions.length };
   } catch (err) {
     console.error('[getKisoHistoryForStudent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 保護者画面用：自分の子の基礎計算 答案写真一覧（Step D-2、2026-07-02）
+//   ★セキュリティ（ファイル系・最優先）：
+//     - getStudentView と同列の「保護者 read 系」＝ _verifyTeacher を通さない（現状 sid 方式）。
+//     - ★渡された studentId 一致行のみ返す。他の子の写真は構造上一切含まれない
+//       （KisoPhotos で studentId !== sid の行は push しない）。任意 sid 口・生徒選択導線なし。
+//     - ★teacher 版 getKisoPhotosList（認証必須・summary/detail・全生徒対象・nameMap 等）は
+//       一切改変しない。保護者版は sid 絞り専用の別関数として新設する（admin 挙動不変）。
+//       ・teacher 版とは必要とする情報が大きく異なる（保護者版は nameMap 不要・summary モード不要・
+//         全生徒列挙不要）ため、共通ヘルパー切り出しでは teacher 版の改変が避けられず admin 挙動
+//         不変を保証できない。よって sid 絞りの軽量読み取りとして独立実装する（判断理由）。
+//     - blob は別途 getKisoPhotoBlobForStudent（sid×fileId ペア突合）で取得する。ここでは
+//       一覧（driveFileId 等のメタ）のみ返し、画像バイナリは返さない。
+//   15 日で自動削除された写真は KisoPhotos に行が無い＝この一覧に出ない（正常動作 / cleanupKisoPhotos）。
+//   入力: { studentId }
+//   出力: { ok:true, studentId, photos:[{ sessionId, rank, rankName, count, driveFileId,
+//            submittedAt, deleteAfter, photoType, photoIndex,
+//            sessionStatus, sessionAttempts, hasWorkPhoto }] }（提出日時降順）
+function getKisoPhotosListForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+
+    const sh = _ss().getSheetByName(SHEET_KISO_PHOTOS);
+    if (!sh || sh.getLastRow() < 2) {
+      return { ok: true, studentId: sid, photos: [] };
+    }
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSession = header.indexOf('sessionId');
+    const cSid     = header.indexOf('studentId');
+    const cRank    = header.indexOf('rank');
+    const cCount   = header.indexOf('count');
+    const cFileId  = header.indexOf('driveFileId');
+    const cSubmit  = header.indexOf('submittedAt');
+    const cDelete  = header.indexOf('deleteAfter');
+    const cPhType  = header.indexOf('photoType');   // 新列：無い古いシートは -1
+    const cPhIdx   = header.indexOf('photoIndex');
+    if (cSid < 0 || cFileId < 0) {
+      console.warn('[getKisoPhotosListForStudent] KisoPhotos ヘッダー構造が想定外');
+      return { ok: true, studentId: sid, photos: [] };
+    }
+
+    // KisoSessions から status / attempts / hasWorkPhoto を引く（読み取りのみ・書き込みなし）
+    const sesSh = _ss().getSheetByName(SHEET_KISO_SESSIONS);
+    const sesMap = {};
+    if (sesSh && sesSh.getLastRow() >= 2) {
+      const sv = sesSh.getDataRange().getValues();
+      const sh0 = sv[0];
+      const sCSession  = sh0.indexOf('sessionId');
+      const sCStatus   = sh0.indexOf('status');
+      const sCAttempts = sh0.indexOf('attempts');
+      const sCHasWork  = sh0.indexOf('hasWorkPhoto');
+      if (sCSession >= 0) {
+        for (let i = 1; i < sv.length; i++) {
+          const id = String(sv[i][sCSession] || '');
+          if (!id) continue;
+          const hwRaw = (sCHasWork >= 0) ? sv[i][sCHasWork] : '';
+          sesMap[id] = {
+            status: (sCStatus >= 0) ? String(sv[i][sCStatus] || '') : '',
+            attempts: (sCAttempts >= 0) ? (Number(sv[i][sCAttempts]) || 0) : 0,
+            hasWorkPhoto: (hwRaw === true || hwRaw === 'TRUE' || hwRaw === 'true' || hwRaw === 1)
+          };
+        }
+      }
+    }
+
+    const photos = [];
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const rowSid = String(row[cSid] || '').trim();
+      if (!rowSid || rowSid !== sid) continue;   // ★自分の子以外は絶対に含めない（sid 絞り）
+      const fileId = String(row[cFileId] || '').trim();
+      const sessionId = String(row[cSession] || '');
+      const submittedTs = (cSubmit >= 0) ? row[cSubmit] : '';
+      const submittedAt = (submittedTs instanceof Date)
+        ? Utilities.formatDate(submittedTs, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss')
+        : String(submittedTs || '');
+      const deleteAfter = (cDelete >= 0) ? _toDateStr(row[cDelete]) : '';
+      const rank = (cRank >= 0) ? (Number(row[cRank]) || 0) : 0;
+      const ses = sesMap[sessionId] || {};
+      const photoType = (cPhType >= 0) ? (String(row[cPhType] || '').trim() || 'answer') : 'answer';
+      const photoIndex = (cPhIdx >= 0) ? (Number(row[cPhIdx]) || 1) : 1;
+      photos.push({
+        sessionId: sessionId,
+        rank: rank,
+        rankName: _kisoRankNameForRank(rank),
+        count: (cCount >= 0) ? (Number(row[cCount]) || 0) : 0,
+        driveFileId: fileId,
+        submittedAt: submittedAt,
+        deleteAfter: deleteAfter,
+        photoType: photoType,
+        photoIndex: photoIndex,
+        sessionStatus: ses.status || '',
+        sessionAttempts: ses.attempts || 0,
+        hasWorkPhoto: !!ses.hasWorkPhoto
+      });
+    }
+    // 提出日時降順（admin 踏襲）
+    photos.sort(function(a, b){ return a.submittedAt < b.submittedAt ? 1 : a.submittedAt > b.submittedAt ? -1 : 0; });
+
+    return { ok: true, studentId: sid, photos: photos };
+  } catch (err) {
+    console.error('[getKisoPhotosListForStudent]', err);
     return { ok: false, message: String(err) };
   }
 }
