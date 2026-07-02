@@ -1321,10 +1321,11 @@
   //       ★teacher 版 getMyTaskPhotoBlob / _verifyTeacherAndGetDriveBlob は保護者経路で一切使わない。teacherId/password 送らない。
   //   ・30 日で自動削除された写真は list に出ない（MyTaskPhotos に行なし）＝正常動作。
   // ============================
+  // taskType 内部値→日本語表記は admin.html / 生徒側の正式呼称に統一：homework=塾の宿題 / self=自発課題
   function _mytaskTypeLabel(taskType) {
     var t = String(taskType || '');
     if (t === 'homework') return '塾の宿題';
-    if (t === 'self')     return '自分で提出';
+    if (t === 'self')     return '自発課題';
     return t || 'マイ課題';
   }
 
@@ -1904,7 +1905,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260702-1621</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260702-1634</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
