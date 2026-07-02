@@ -1261,6 +1261,11 @@ function doGet(e) {
       // Phase 6: リスオン録音の認証付き base64 配信（DL 抑止用、admin/teacher 両方再生可）。
       //   doPost にも保護登録（submitLison 事故 / CLAUDE.md #148 の教訓）。
       else if (action === 'getLisonRecordingBlob')    result = getLisonRecordingBlob(params);
+      // 保護者画面用：自分の子のリスオン録音（Step D-4）。sid 絞り・認証なし（getStudentView 同列の
+      //   保護者 read 系）。blob は sid×fileId 突合＋削除済みグレースフル。teacher版 getLisonRecordingBlob /
+      //   getLisonSubmissionsList / _verifyTeacherAndGetDriveBlob とは別関数（admin 不変）。リクエストは小さいので doGet のみ。
+      else if (action === 'getLisonSubmissionsListForStudent') result = getLisonSubmissionsListForStudent(params);
+      else if (action === 'getLisonRecordingBlobForStudent')   result = getLisonRecordingBlobForStudent(params);
       // ※ ここにカンジー関連（getKanjiSet, submitKanjiYomi）のルーティングを必ず残す。
       //   2026-05-02 新規追加。submitKanjiKaki は base64 画像があるため doPost 側のみ。
       else if (action === 'getKanjiSet')              result = getKanjiSet(params);
@@ -19281,6 +19286,174 @@ function getLisonSubmissionsList(params) {
     return { ok: true, submissions: submissions };
   } catch (err) {
     console.error('[getLisonSubmissionsList]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =============================================================================
+// 保護者画面用：自分の子のリスオン録音（Step D-4、2026-07-02）
+//   ★セキュリティ（ファイル系・最優先）：D-2/D-3 と同一方針。
+//     - getStudentView 同列の保護者 read 系＝ _verifyTeacher を通さない（現状 sid 方式）。
+//     - blob は sid×fileId ペア突合（getKisoPhotoBlobForStudent と同一ガード）で新設。
+//     - ★teacher版 getLisonRecordingBlob / getLisonSubmissionsList / _verifyTeacherAndGetDriveBlob は
+//       一切使わない・改変しない（admin 挙動不変）。保護者版を別関数として新設する。
+//     - 15 日で録音は Drive 削除（setTrashed）され、行は残り recordingUrl='deleted' / fileId='' になる
+//       （commit 988216b）。→ 削除済みはグレースフルに扱う（list は hasRecording=false、blob は deleted:true）。
+// =============================================================================
+
+// 保護者版 blob：LisonSubmissions で「studentId 一致 AND fileId 一致」を同一行で満たす場合のみ
+//   Drive から取得して base64 返却。不一致は「アクセス権がありません」で拒否（他の子の fileId を渡されても
+//   studentId 不一致で拒否＝盗み見不可）。★getKisoPhotoBlobForStudent と同一の sid×fileId 突合。
+//   削除済み（recordingUrl='deleted' / Drive trashed / ファイル消失）は { ok:false, deleted:true, message } を
+//   返し、例外で UI を壊さない（グレースフル）。teacher版 / _verifyTeacherAndGetDriveBlob は不使用。
+//   入力: { studentId, fileId }
+//   出力: { ok:true, base64, mime, fileName, sizeBytes }
+//        { ok:false, message:'生徒IDが指定されていません' } / { ok:false, message:'fileId が指定されていません' }
+//        { ok:false, message:'アクセス権がありません' }                 ← sid×fileId 不一致
+//        { ok:false, deleted:true, message:'録音は保存期間（15日）を過ぎました' }  ← 削除済み（グレースフル）
+function getLisonRecordingBlobForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+    const fileId = String((params && params.fileId) || '').trim();
+    if (!fileId) return { ok: false, message: 'fileId が指定されていません' };
+
+    // LisonSubmissions で { studentId, fileId } のペア突合（getKisoPhotoBlobForStudent と同一ガード）
+    const sh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: false, message: 'アクセス権がありません' };
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const cSid = header.indexOf('studentId');
+    const cFid = header.indexOf('fileId');
+    const cUrl = header.indexOf('recordingUrl');
+    if (cSid < 0 || cFid < 0) {
+      console.warn('[getLisonRecordingBlobForStudent] LisonSubmissions ヘッダー構造が想定外');
+      return { ok: false, message: 'アクセス権がありません' };
+    }
+    let matched = false;
+    let matchedUrl = '';
+    for (let i = 1; i < values.length; i++) {
+      const rowSid = String(values[i][cSid] == null ? '' : values[i][cSid]).trim();
+      const rowFid = String(values[i][cFid] == null ? '' : values[i][cFid]).trim();
+      if (rowSid === sid && rowFid === fileId) {
+        matched = true;
+        matchedUrl = (cUrl >= 0) ? String(values[i][cUrl] || '').trim() : '';
+        break;
+      }
+    }
+    if (!matched) {
+      // ★セキュリティガード：他の子の fileId を直接叩いても studentId 不一致でここで拒否される。
+      console.warn('[getLisonRecordingBlobForStudent] sid×fileId 突合失敗', { sid: sid, fileId: fileId });
+      return { ok: false, message: 'アクセス権がありません' };
+    }
+    // 削除済み（recordingUrl='deleted'）はグレースフルに返す
+    if (matchedUrl === 'deleted') {
+      return { ok: false, deleted: true, message: '録音は保存期間（15日）を過ぎました' };
+    }
+
+    // 突合 OK：Drive から取得して base64 化（削除・trashed はグレースフル）
+    let file;
+    try {
+      file = DriveApp.getFileById(fileId);
+    } catch (e) {
+      console.warn('[getLisonRecordingBlobForStudent] getFileById failed（削除済み扱い）:', fileId);
+      return { ok: false, deleted: true, message: '録音は保存期間（15日）を過ぎました' };
+    }
+    try {
+      if (file.isTrashed && file.isTrashed()) {
+        return { ok: false, deleted: true, message: '録音は保存期間（15日）を過ぎました' };
+      }
+    } catch (e) { /* isTrashed 未対応環境は無視して続行 */ }
+    try {
+      const blob = file.getBlob();
+      const bytes = blob.getBytes();
+      return {
+        ok: true,
+        base64: Utilities.base64Encode(bytes),
+        mime: blob.getContentType() || 'audio/webm',
+        fileName: file.getName() || '',
+        sizeBytes: bytes.length
+      };
+    } catch (e) {
+      console.error('[getLisonRecordingBlobForStudent] blob/base64 failed:', fileId, e);
+      return { ok: false, message: '録音の取得に失敗しました：' + String(e) };
+    }
+  } catch (err) {
+    console.error('[getLisonRecordingBlobForStudent]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 保護者版 list：自分の子のリスオン提出一覧（sid 絞り・認証なし）。
+//   ★teacher版 getLisonSubmissionsList とは別関数で新設（admin 不変）。判断理由（D-2/D-3 と同じ）：
+//     teacher版は realNameMap（全アカウント）を引き、15日 cutoff で古い行を除外する。保護者版は
+//     realName 不要＝ sid 絞りで自分の子のみ。かつ「取り組み履歴は残す」方針（達成度と整合）のため
+//     ★cutoff を適用せず全行を表示し、録音の有無だけ hasRecording フラグで示す。共通化すると teacher版の
+//     改変（cutoff 挙動を含む）が避けられず admin 不変を保証できないため独立実装する。
+//   ★渡された studentId 一致行のみ返す。他の子は構造上一切含まれない（sid 絞り）。
+//   ・録音バイナリは返さずメタのみ。再生は getLisonRecordingBlobForStudent（sid×fileId 突合）で別途取得。
+//   ・15日で録音削除された行（recordingUrl='deleted' / fileId='')は hasRecording=false（「録音なし」表示用。
+//     取り組み履歴＝level/weekStart/quizScore は残して見せる）。
+//   入力: { studentId }
+//   出力: { ok:true, studentId, submissions:[{ timestamp, level, weekStart, quizScore,
+//            hasRecording, fileId }] }（timestamp 降順）
+function getLisonSubmissionsListForStudent(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '生徒IDが指定されていません' };
+
+    const sh = _ss().getSheetByName(SHEET_LISON_SUBMISSIONS);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, studentId: sid, submissions: [] };
+    const values = sh.getDataRange().getValues();
+    const header = values[0] || [];
+    // 列名で引く（取れないときは既知の固定インデックスにフォールバック＝旧 8 列シート対応）
+    const iTs    = header.indexOf('timestamp');
+    const iSid   = header.indexOf('studentId');
+    const iLv    = header.indexOf('level');
+    const iWS    = header.indexOf('weekStart');
+    const iScore = header.indexOf('quizScore');
+    const iUrl   = header.indexOf('recordingUrl');
+    const iFid   = header.indexOf('fileId');
+    const cTs    = iTs    >= 0 ? iTs    : 0;
+    const cSid   = iSid   >= 0 ? iSid   : 1;
+    const cLv    = iLv    >= 0 ? iLv    : 3;
+    const cWS    = iWS    >= 0 ? iWS    : 4;
+    const cScore = iScore >= 0 ? iScore : 5;
+    const cUrl   = iUrl   >= 0 ? iUrl   : 6;
+    const cFid   = iFid;  // 無ければ -1（URL から抽出）
+
+    const submissions = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      const rowSid = String(r[cSid] || '').trim();
+      if (!rowSid || rowSid !== sid) continue;   // ★自分の子以外は絶対に含めない（sid 絞り）
+      const tsRaw = r[cTs];
+      if (!tsRaw) continue;
+      const ts = new Date(tsRaw);
+      const tsStr = isNaN(ts.getTime())
+        ? String(tsRaw)
+        : Utilities.formatDate(ts, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      const url = String(r[cUrl] || '').trim();
+      const fid = (cFid >= 0)
+        ? (String(r[cFid] || '').trim() || _lisonExtractFileId(url))
+        : _lisonExtractFileId(url);
+      // 録音削除済み：recordingUrl='deleted' もしくは fileId が取得できない → 再生不可
+      const hasRecording = (url !== 'deleted') && !!fid;
+      submissions.push({
+        timestamp: tsStr,
+        level: String(r[cLv] || '').trim(),
+        weekStart: r[cWS] instanceof Date
+          ? Utilities.formatDate(r[cWS], 'Asia/Tokyo', 'yyyy-MM-dd')
+          : String(r[cWS] || '').trim(),
+        quizScore: Number(r[cScore]) || 0,
+        hasRecording: hasRecording,
+        fileId: hasRecording ? fid : ''   // 再生可能な行だけ fileId を渡す
+      });
+    }
+    submissions.sort(function(a, b){ return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; });
+    return { ok: true, studentId: sid, submissions: submissions };
+  } catch (err) {
+    console.error('[getLisonSubmissionsListForStudent]', err);
     return { ok: false, message: String(err) };
   }
 }
