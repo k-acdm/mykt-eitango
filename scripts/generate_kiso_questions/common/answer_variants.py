@@ -13,7 +13,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, List, Set
+from typing import Iterable, List, Set, Tuple
 
 import sympy as sp
 
@@ -204,6 +204,66 @@ def variants_for_xy_solution(x_val: sp.Rational, y_val: sp.Rational) -> List[str
 def canonical_for_xy_solution(x_val: sp.Rational, y_val: sp.Rational) -> str:
     """連立方程式の解の標準表記："x = a, y = b"。"""
     return f"x = {canonical_for_rational(x_val)}, y = {canonical_for_rational(y_val)}"
+
+
+# ---- 方程式（x= 形）用：rank1 二次 / rank8 一次 --------------------------
+# 2026-07-03：一次(rank8)・二次(rank1) を x= 必須ルールに統一（連立に倣うデータ駆動）。
+#   採点側 _kisoNormalize は「= 前後の空白」を保持する（連続空白の圧縮のみ）ため、
+#   "x=5" / "x =5" / "x= 5" / "x = 5" の 4 形を allowed に明示的に含める必要がある。
+#   ★ x= 必須：素の数値（"5" 等）は allowed に一切含めない → x= なしは不正解になる。
+
+_X_EQ_SPACINGS = ("x=", "x =", "x= ", "x = ")
+
+
+def _x_prefix_expand(bodies: Iterable[str]) -> List[str]:
+    """右辺本体の集合に "x=" の空白ゆらぎ 4 種を付与し、マイナス/スラッシュ揺れを展開。"""
+    seeds: Set[str] = set()
+    for b in bodies:
+        for pref in _X_EQ_SPACINGS:
+            seeds.add(pref + b)
+    return _cross_expand(sorted(seeds), [_expand_minus_variants, _expand_slash_variants])
+
+
+def variants_for_x_single(x_val: sp.Rational) -> Tuple[str, List[str]]:
+    """一次方程式（rank8）：単一解を "x=..." 形（x= 必須、素の数値は含めない）。
+
+    canonical = "x=<既約>"（例 "x=5"、"x=3/2"）。
+    allowed = 分数/帯分数/小数の各表記 × "x=" の空白ゆらぎ × 記号ゆらぎ。
+    """
+    r = sp.Rational(x_val)
+    canonical = "x=" + canonical_for_rational(r)
+    bodies = set(variants_for_rational(r))
+    allowed = _x_prefix_expand(bodies)
+    return canonical, allowed
+
+
+def variants_for_x_roots(
+    tokens: List[str],
+    canonical_body: str | None = None,
+    extra_bodies: Iterable[str] | None = None,
+) -> Tuple[str, List[str]]:
+    """二次方程式（rank1）：複数解を "x=(1回) t1, t2" 形（順序非依存・x= 必須）。
+
+    tokens: 解トークンのリスト（例 ["3", "5"]、["-√5", "√5"]、["3"]=重解/単一）。
+    canonical_body: canonical の本体を明示（例 "±3"、"±√5"）。None なら ", ".join(tokens)。
+    extra_bodies: 追加で許容する本体（例 ± 形 "±3" を comma 形と併存させる）。
+
+    ★ "x=t1, x=t2"（各解に x を付ける形）は生成しない（要件により却下）。
+    ★ 2 解の順序は permutations で両方許容（順序非依存）。
+    """
+    from itertools import permutations
+
+    bodies: Set[str] = set()
+    for perm in set(permutations(tokens)):
+        for sep in (", ", ","):
+            bodies.add(sep.join(perm))
+    if extra_bodies:
+        bodies.update(extra_bodies)
+    body_for_canonical = canonical_body if canonical_body is not None else ", ".join(tokens)
+    bodies.add(body_for_canonical)
+    canonical = "x=" + body_for_canonical
+    allowed = _x_prefix_expand(bodies)
+    return canonical, allowed
 
 
 def variants_for_factored_pair(canonical: str) -> List[str]:

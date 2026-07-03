@@ -347,8 +347,8 @@ def generate_problem(band: str, rng: random.Random, slot_index: int = 0) -> Dict
         if built is None:
             continue
         latex, x_val, info = built
-        canonical = av.canonical_for_rational(x_val)
-        allowed = av.variants_for_rational(x_val)
+        # 2026-07-03：x= 必須ルールに統一（素の数値は allowed から外す）。
+        canonical, allowed = av.variants_for_x_single(x_val)
         return {
             "problemLatex": latex,
             "answerCanonical": canonical,
@@ -394,7 +394,8 @@ def self_check(problem: Dict[str, Any]) -> bool:
     x_val = sp.Rational(meta["x_p"], meta["x_q"])
     if not _verify_solution(meta, x_val):
         return False
-    if av.canonical_for_rational(x_val) != problem["answerCanonical"]:
+    # 2026-07-03：x= 付き canonical（"x=5" 等）と一致するか。
+    if av.variants_for_x_single(x_val)[0] != problem["answerCanonical"]:
         return False
     try:
         assert_problem_fractions_in_lowest_terms(problem["problemLatex"])

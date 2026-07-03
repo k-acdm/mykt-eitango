@@ -53,54 +53,35 @@ def _build_quadratic_problem(a: int, b: int, c: int) -> str:
 
 # --- 解の表記（plain text） ------------------------------------------------
 
+# 2026-07-03：x= 必須ルールに統一。canonical は "x=（1回）＋カンマ列挙"（x は 1 回だけ）。
+#   相異なる 2 解 → "x=a, b"（昇順）、重解 → "x=m"、± 対称解 → "x=±k"。
+#   allowed は順序非依存・空白ゆらぎ・記号ゆらぎを av.variants_for_x_roots で網羅。
+#   ★ "x=a, x=b"（各解に x）は生成しない。★ 素の数値（x= なし）は含めない。
+
 def _format_int_solutions(m: int, n: int) -> str:
-    """整数解 2 つ：``x = m, n``（昇順）。重解なら ``x = m``。"""
+    """整数解の canonical：``x=m``（重解）または ``x=a, b``（相異なる・昇順）。"""
     if m == n:
-        return f"x = {m}"
+        return f"x={m}"
     a, b = sorted([m, n])
-    return f"x = {a}, {b}"
+    return f"x={a}, {b}"
 
 
 def _variants_for_int_solutions(m: int, n: int) -> List[str]:
-    """整数解の許容表記。"""
-    canonical = _format_int_solutions(m, n)
-    seeds: Set[str] = {canonical}
-    seeds.add(canonical.replace(" = ", "=").replace(", ", ","))
-    seeds.add(canonical.replace(", ", ","))
-    seeds.add(canonical.replace(" = ", "="))
-    if m != n:
+    """整数解の許容表記（x= 必須・順序非依存・空白ゆらぎ）。"""
+    if m == n:
+        _, allowed = av.variants_for_x_roots([str(m)])
+    else:
         a, b = sorted([m, n])
-        rev = f"x = {b}, {a}"
-        seeds.add(rev)
-        seeds.add(rev.replace(" = ", "=").replace(", ", ","))
-    result: Set[str] = set()
-    for s in seeds:
-        result.add(s)
-        if "-" in s:
-            result.add(s.replace("-", "−"))
-            result.add(s.replace("-", "ー"))
-    return sorted(result)
+        _, allowed = av.variants_for_x_roots([str(a), str(b)])
+    return allowed
 
 
 def _variants_for_pm_int(root: int) -> List[str]:
-    """``x = ±root`` 形の許容表記（root > 0）。"""
-    canonical = f"x = -{root}, {root}"
-    seeds: Set[str] = {
-        canonical,
-        canonical.replace(" = ", "=").replace(", ", ","),
-        canonical.replace(", ", ","),
-        canonical.replace(" = ", "="),
-        f"x = {root}, -{root}",
-        f"x = ±{root}",
-        f"x=±{root}",
-    }
-    result: Set[str] = set()
-    for s in seeds:
-        result.add(s)
-        if "-" in s:
-            result.add(s.replace("-", "−"))
-            result.add(s.replace("-", "ー"))
-    return sorted(result)
+    """``x=±root`` 形の許容表記（root > 0）。comma 形（両順序）＋ ± 形を併存。"""
+    _, allowed = av.variants_for_x_roots(
+        [str(-root), str(root)], canonical_body=f"±{root}", extra_bodies=[f"±{root}"]
+    )
+    return allowed
 
 
 # --- Band A: 因数分解で解ける整数解 ----------------------------------------
@@ -154,23 +135,10 @@ def _gen_x2_eq_c(rng):
     c = rng.choice(c_candidates)
     A, B, C = 1, 0, -c
     problem_latex = _build_quadratic_problem(A, B, C)
-    canonical = f"x = -√{c}, √{c}"
-    seeds: Set[str] = {
-        canonical,
-        canonical.replace(" = ", "=").replace(", ", ","),
-        canonical.replace(", ", ","),
-        canonical.replace(" = ", "="),
-        f"x = √{c}, -√{c}",
-        f"x = ±√{c}",
-        f"x=±√{c}",
-    }
-    expanded: Set[str] = set()
-    for s in seeds:
-        expanded.add(s)
-        if "-" in s:
-            expanded.add(s.replace("-", "−"))
-            expanded.add(s.replace("-", "ー"))
-    allowed = sorted(expanded)
+    # canonical = "x=±√c"、allowed は comma 形（両順序）＋ ± 形＋空白ゆらぎ。
+    canonical, allowed = av.variants_for_x_roots(
+        [f"√{c}", f"-√{c}"], canonical_body=f"±√{c}", extra_bodies=[f"±√{c}"]
+    )
     return problem_latex, canonical, allowed, {
         "kind": "x2_eq_c", "a": A, "b": B, "c": C, "c_radicand": c,
     }
@@ -225,47 +193,25 @@ def _gen_irrational(rng, max_a, max_bc, k_constraint=None, min_a=1):
         problem_latex = _build_quadratic_problem(a, b, c)
 
         ksqrt = f"√{d}" if k_red == 1 else f"{k_red}√{d}"
+        # canonical 本体（± 形、x は 1 回）と 2 解トークン（順序非依存で列挙）を組み立てる。
         if p_red == 0:
-            if q_red == 1:
-                canonical = f"x = ±{ksqrt}"
-            else:
-                canonical = f"x = ±{ksqrt}/{q_red}"
+            canonical_body = f"±{ksqrt}" if q_red == 1 else f"±{ksqrt}/{q_red}"
+            pos_body = ksqrt if q_red == 1 else f"{ksqrt}/{q_red}"
+            neg_body = f"-{ksqrt}" if q_red == 1 else f"-{ksqrt}/{q_red}"
         else:
             if q_red == 1:
-                canonical = f"x = {p_red}±{ksqrt}"
+                canonical_body = f"{p_red}±{ksqrt}"
+                pos_body = f"{p_red}+{ksqrt}"
+                neg_body = f"{p_red}-{ksqrt}"
             else:
-                canonical = f"x = ({p_red}±{ksqrt})/{q_red}"
+                canonical_body = f"({p_red}±{ksqrt})/{q_red}"
+                pos_body = f"({p_red}+{ksqrt})/{q_red}"
+                neg_body = f"({p_red}-{ksqrt})/{q_red}"
 
-        def _build_pair(sign_first: bool) -> str:
-            if p_red == 0:
-                pos = ksqrt if q_red == 1 else f"{ksqrt}/{q_red}"
-                neg = f"-{ksqrt}" if q_red == 1 else f"-{ksqrt}/{q_red}"
-            else:
-                if q_red == 1:
-                    pos = f"{p_red}+{ksqrt}"
-                    neg = f"{p_red}-{ksqrt}"
-                else:
-                    pos = f"({p_red}+{ksqrt})/{q_red}"
-                    neg = f"({p_red}-{ksqrt})/{q_red}"
-            if sign_first:
-                return f"x = {pos}, {neg}"
-            return f"x = {neg}, {pos}"
-
-        pair_pos_first = _build_pair(sign_first=True)
-        pair_neg_first = _build_pair(sign_first=False)
-
-        seeds: Set[str] = {
-            canonical,
-            canonical.replace(" = ", "=").replace(" ± ", "±").replace(" ", ""),
-            canonical.replace(" = ", "="),
-            pair_pos_first,
-            pair_pos_first.replace(" = ", "=").replace(", ", ","),
-            pair_pos_first.replace(", ", ","),
-            pair_pos_first.replace(" = ", "="),
-            pair_neg_first,
-            pair_neg_first.replace(" = ", "=").replace(", ", ","),
-        }
-        allowed = sorted(seeds)
+        # canonical = "x=±..." 形、allowed は comma 形（両順序）＋ ± 形＋空白/記号ゆらぎ。
+        canonical, allowed = av.variants_for_x_roots(
+            [pos_body, neg_body], canonical_body=canonical_body
+        )
         return problem_latex, canonical, allowed, {
             "kind": "irrational",
             "a": a, "b": b, "c": c,
@@ -326,7 +272,7 @@ def _gen_sqrt_method_ax2_eq_c(rng):
     root = rng.choice([2, 3, 4, 5, 6])
     c = a * root * root
     problem_latex = f"{a}x^2 = {c}"
-    canonical = f"x = -{root}, {root}"
+    canonical = f"x=±{root}"
     allowed = _variants_for_pm_int(root)
     return problem_latex, canonical, allowed, {
         "kind": "sqrt_method", "subkind": "ax2_eq_c",

@@ -2573,6 +2573,17 @@
     .kiso-problem-item { background: #fff; border-left: 5px solid #0ea5e9; border-radius: 10px; padding: 18px 18px 18px 14px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.05); display: flex; gap: 12px; align-items: flex-start; }
     .kiso-problem-no { flex: 0 0 auto; background: #0ea5e9; color: #fff; min-width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
     .kiso-problem-latex { flex: 1; font-size: 1.3rem; line-height: 1.7; color: #0c4a6e; padding-top: 4px; word-break: break-word; }
+    /* 方程式（一次/二次/連立）の答え方 大きな注意（rank 1/6/8 のみ表示） */
+    .kiso-eq-notice { background: linear-gradient(135deg, #fff3cd, #ffe08a); border: 3px solid #f0a500; border-radius: 14px; padding: 16px 18px; margin: 4px 0 14px; color: #7a4f00; font-size: 17px; font-weight: bold; line-height: 1.7; text-align: center; box-shadow: 0 3px 12px rgba(240,165,0,.25); }
+    .kiso-eq-notice-ttl { font-size: 19px; color: #b45309; }
+    .kiso-eq-notice b { color: #c0392b; font-size: 20px; }
+    .kiso-eq-notice small { font-weight: bold; color: #92600a; font-size: 14px; }
+    @media (max-width: 480px) {
+      .kiso-eq-notice { font-size: 15px; padding: 13px 14px; }
+      .kiso-eq-notice-ttl { font-size: 17px; }
+      .kiso-eq-notice b { font-size: 18px; }
+      .kiso-eq-notice small { font-size: 13px; }
+    }
     .kiso-write-guide { background: #ecfeff; border: 2px dashed #06b6d4; border-radius: 12px; padding: 14px 16px; margin: 18px 0 12px; color: #0e7490; font-size: 14px; line-height: 1.85; }
     .kiso-write-guide strong { color: #0369a1; }
     .kiso-photo-btn { background: linear-gradient(135deg, #0ea5e9, #0369a1) !important; font-size: 18px !important; padding: 18px !important; box-shadow: 0 6px 18px rgba(14,165,233,.35); }
@@ -3124,10 +3135,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260702-1647"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260703-1816"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260702-1647">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260702-1647"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260703-1816">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260703-1816"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4361,6 +4372,7 @@
         答えは<strong>1問ずつ縦に並べて</strong>書いてね！
       </div>
     </div>
+    <div id="kiso-eq-notice" class="kiso-eq-notice" style="display:none"></div>
     <div id="kiso-problem-list" class="kiso-problem-list"></div>
     <div class="kiso-paper-rules">
       <div class="rule-section">
@@ -4389,7 +4401,8 @@
         <div class="rule-title">📝 途中式について</div>
         <ul class="rule-bullets">
           <li>途中の計算式は<strong>別の紙</strong>に書く</li>
-          <li>解答用紙には<strong>答えのみ</strong>を書く（連立方程式の <code>x=</code>, <code>y=</code> は答えなのでOK）</li>
+          <li>解答用紙には<strong>答えのみ</strong>を書く</li>
+          <li><strong>方程式は必ず <code>x=</code> を付ける</strong>：一次・二次方程式は <code>x=○</code>、連立方程式は <code>x=○, y=△</code>。二次方程式で解が2つなら <code>x=3, 5</code> のようにカンマで並べる（<code>x=3, x=5</code> のように x を繰り返さない）</li>
         </ul>
       </div>
     </div>
@@ -12358,7 +12371,33 @@
         _kisoRenderPastButtons();
       }
     }
+    _applyKisoEqNotice();
     _kisoTypeset(listEl);
+  }
+
+  // 方程式系（rank 1=二次 / 6=連立 / 8=一次）のとき、答え方の注意を大きく表示。
+  // それ以外の rank では非表示（従来の一般的な注意のみ）。
+  function _applyKisoEqNotice() {
+    var el = document.getElementById('kiso-eq-notice');
+    if (!el) return;
+    var rank = Number(_kisoState.rank) || 0;
+    var body = '';
+    if (rank === 6) {
+      body = '答えは <b>x=○, y=△</b> の形で書いてね！'
+           + '<br><small>例：x=5, y=-2　※ x= と y= を必ず付ける</small>';
+    } else if (rank === 8) {
+      body = '答えは <b>x=○</b> の形で書いてね！'
+           + '<br><small>例：x=5　※「5」だけはダメ。必ず x= を付ける</small>';
+    } else if (rank === 1) {
+      body = '答えは <b>x=○</b> の形で書いてね！'
+           + '<br><small>解が2つなら x=3, 5 のようにカンマで並べる。「3, 5」だけはダメ。必ず x= を付ける</small>';
+    }
+    if (body) {
+      el.innerHTML = '⚠️ <span class="kiso-eq-notice-ttl">方程式の答え方</span><br>' + body;
+      el.style.display = 'block';
+    } else {
+      el.style.display = 'none';
+    }
   }
 
   // §4.6 写真撮影：選択 → リサイズ（長辺 1000px / JPEG 0.6）→ プレビュー → 確認画面
@@ -18047,7 +18086,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260702-1647</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260703-1816</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
