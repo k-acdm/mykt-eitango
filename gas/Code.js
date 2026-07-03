@@ -1666,6 +1666,22 @@ function doPost(e) {
 // =============================================
 // ログイン（キャラクターステージ対応版）
 // =============================================
+// クライアント版数の強制更新（2026-07-03 応急処置①）。
+// 旧・楽観的UI版がキャッシュされた端末を根絶するため、loginStudent が「期待版数」を返す。
+// フロントは自分の app-version（YYYYMMDD-HHMM）と比較し、古ければ 1 回だけ強制リロードする。
+//   - 値は Script Property 'EXPECTED_CLIENT_VERSION'（YYYYMMDD-HHMM 形式）から取得。
+//   - 未設定 / 不正形式なら '' を返す＝強制更新オフ（既定・事故防止）。
+//     新クライアント配信後に、ふくちさんが Script Property に版数を入れると、それ未満の
+//     端末だけが 1 回強制更新される。空のままなら誰もリロードされない（安全側）。
+function _getExpectedClientVersion() {
+  try {
+    var v = _props().getProperty('EXPECTED_CLIENT_VERSION');
+    return (v && /^\d{8}-\d{4}$/.test(String(v).trim())) ? String(v).trim() : '';
+  } catch (e) {
+    return '';
+  }
+}
+
 function loginStudent(studentId) {
   try {
     // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行は必ず
@@ -1811,6 +1827,7 @@ function loginStudent(studentId) {
       title,
       milestone:   milestoneInfo,
       accountType: accountType,             // 'student' / 'test' / 'teacher' / 'invited' / 'experience' / 'unknown'
+      expectedClientVersion: _getExpectedClientVersion(), // 応急処置①：期待クライアント版数（'' なら強制更新オフ）
       pendingReflectionDate: pendingReflectionDate, // null or 'yyyy-MM-dd'（翌日キャッチアップ用、フロントが強制振り返りモーダルを起動）
       // commit 6b-1：語彙ランダム化 V2 フラグ。フロントは _isVocabV2Enabled を直接呼べないため
       //   サーバで判定済みの値を渡す（mode は表示/診断用、enabled が V1/V2 出し分けの真偽）。

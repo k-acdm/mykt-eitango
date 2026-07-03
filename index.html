@@ -3135,10 +3135,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260703-1816"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260703-2244"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260703-1816">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260703-1816"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260703-2244">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260703-2244"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6945,6 +6945,32 @@
   function closeMyRankings() {
     document.getElementById('myrank-modal').classList.remove('active');
   }
+  // 応急処置①：期待版数より古いクライアントを 1 回だけ強制リロード（キャッシュバスト）。
+  //   - 版数は #app-version の 'YYYYMMDD-HHMM'。固定幅なので文字列比較で「cur < exp なら古い」。
+  //   - ★リロードループ二重ガード：
+  //       (1) sessionStorage 'mykt_ver_reloaded' が既にあれば二度と実行しない（タブ単位で1回）。
+  //       (2) cur >= exp なら何もしない（更新後は必ず満たすので再発火しない）。
+  //   - 戻り値 true = リロードを開始した（呼び出し側は以降の処理を中断すべき）。
+  function _maybeForceClientUpdate(expected) {
+    try {
+      var exp = String(expected || '').trim();
+      if (!/^\d{8}-\d{4}$/.test(exp)) return false;              // サーバ未設定 / 不正 → 何もしない
+      var el = document.getElementById('app-version');
+      var cur = el ? String(el.textContent || '').trim() : '';
+      if (!/^\d{8}-\d{4}$/.test(cur)) return false;              // 版数が読めない → 何もしない（安全側）
+      if (cur >= exp) return false;                              // 同じ / 新しい → 何もしない
+      // ここに来たら client が古い。二重ガード：セッションで 1 回だけ。
+      var already = false;
+      try { already = (sessionStorage.getItem('mykt_ver_reloaded') === '1'); } catch(e) {}
+      if (already) return false;                                // 既に 1 回リロード済み → ループ防止で諦める
+      try { sessionStorage.setItem('mykt_ver_reloaded', '1'); } catch(e) {}
+      var base = location.href.split('#')[0].split('?')[0];
+      location.replace(base + '?v=' + Date.now());              // GH Pages の 10 分 HTML キャッシュを回避
+      return true;
+    } catch (e) {
+      return false;                                             // 例外時はリロードしない（安全側）
+    }
+  }
   function doLogin() {
     var sid = document.getElementById('login-id').value.trim();
     if (!sid) { showMsg('login-msg','生徒IDを入力してください。','ng'); return; }
@@ -6964,6 +6990,9 @@
         } catch(e){}
       }
       _lastServerOkTs = Date.now();  // 防護柵2枚目：サーバー成功時刻を記録（復帰再検証のスロットル用）
+      // 応急処置①：期待版数より古いクライアントなら強制更新（セッション保存後・以降の処理前）。
+      //   セッション sid は保存済みなので、リロード後は自動復元→再検証で seamless に復帰する。
+      if (_maybeForceClientUpdate(res.expectedClientVersion)) return;  // 古い版 → リロード開始、以降中断
       _totalHP     = Number(res.totalHP) || 0;
       _streak      = Number(res.streak) || 0;
       _accountType = String(res.accountType || ''); // Task 3：振り返りモーダルスキップ判定用
@@ -18086,7 +18115,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260703-1816</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260703-2244</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
