@@ -1098,6 +1098,110 @@ function invalidateLisonAchievementCache(sid) {
 }
 
 // =============================================
+// onEdit 自動キャッシュ無効化（2026-07-03 新設）
+// =============================================
+// スプレッドシートを「手で直接編集」したとき、対応するコンテンツのキャッシュを
+// 自動で無効化して即時反映させる簡易トリガー。
+// 背景：和文英訳①などデータ本体を 6h キャッシュしているコンテンツは、正解を
+//   スプレッドシートで直接編集しても最大 6 時間 stale だった（admin 一括登録経由の
+//   _invalidateCache しか無効化されず、直接セル編集を検知する仕組みが無かった）。
+//
+// 重要な性質:
+//  - 簡易トリガー onEdit は「ユーザーの手動編集」でのみ発火する。Apps Script の
+//    setValues（admin.html 経由の一括登録など）や API 経由の書き込みでは発火しない。
+//    → 既存の admin 側 _invalidateCache（adminAddWabun1TopicsWeek 等）と非競合。
+//      admin 経由＝プログラム書き込み側が明示 invalidate、直接セル編集＝onEdit が担当、
+//      という住み分けになる（二重処理にならない）。
+//  - ★基礎計算 KisoQuestions は対象外。素朴に無効化すると warmKisoQuestionCache 抜きの
+//    コールド読み（~2000 行）でスタンピードが再発するため。基礎計算のデータ変更は
+//    Python + db_writer の全置換が正規フローで、編集後は invalidateKisoCacheAndWarm()
+//    （無効化＋ウォーミングをセットで）を手動運用する。
+//  - 対象外シートの編集では何もしない（no-op）。
+//  - 例外は握りつぶす（無効化の失敗が「編集操作そのもの」を妨げないように）。
+
+// 英単語RUSH 4級以上（Questions シート）のレベル別キャッシュキー。
+// 5級は Question5（cache_q5_rows）で別管理。clearAllCache のリストと一致させる。
+var _EITANGO_LEVEL_CACHE_KEYS = [
+  'cache_q_rows_4級', 'cache_q_rows_3級', 'cache_q_rows_準2級',
+  'cache_q_rows_2級', 'cache_q_rows_準1級'
+];
+
+// 編集シート名 → 無効化するキャッシュキー配列のマップ。
+// ★KisoQuestions は意図的に含めない（スタンピード防止、上記コメント参照）。
+// マップに無いシート（漢字/古文/リスオン/理社 等はそもそもキャッシュなし）は null → no-op。
+function _onEditCacheKeysForSheet(sheetName) {
+  switch (sheetName) {
+    case SHEET_WABUN1_TOPICS: return ['cache_wabun1_topics_values'];
+    case SHEET_SANGO_TOPICS:  return ['cache_sango_topics_values'];
+    case SHEET_Q5:            return ['cache_q5_rows'];
+    case SHEET_QUESTIONS:     return _EITANGO_LEVEL_CACHE_KEYS.slice();
+    case SHEET_QUOTE:         return ['cache_quote_values'];
+    case SHEET_NOTICE:        return ['cache_notice_values'];
+    default:                  return null; // 対象外シート → no-op
+  }
+}
+
+// 簡易トリガー：手動編集を検知して該当コンテンツのキャッシュを消す。
+// 関数名 onEdit は GAS が「編集時に自動実行する簡易トリガー」として自動認識する
+// （手動でのトリガー登録は不要。バウンドスクリプトなら関数名だけで発火する）。
+// 処理はマップ引き＋removeAll のみで軽量（簡易トリガーの約 30 秒制限内に確実に完結）。
+function onEdit(e) {
+  try {
+    if (!e || !e.range) return;
+    var sheetName = e.range.getSheet().getName();
+    var keys = _onEditCacheKeysForSheet(sheetName);
+    if (!keys || !keys.length) return; // 対象外シート → no-op（余計なことをしない）
+    // _invalidateCacheAll は内部で removeAll + 各キーの _cacheLog(invalidate) を行う。
+    // 余分に消しても「次回読みで 1 回シート読みして再キャッシュ」されるだけで実害なし（安全側）。
+    _invalidateCacheAll(keys);
+  } catch (err) {
+    // ★無効化の失敗が編集操作やシートを壊さないよう、必ず握りつぶす
+    try { console.error('[onEdit] cache invalidate failed', err); } catch (_) {}
+  }
+}
+
+// =============================================
+// 補助：コンテンツ別の手動キャッシュクリア（保守用・doGet 非登録・GAS エディタ実行）
+// =============================================
+// トリガー不調時や、まとめて消したいときのリカバリ用。
+// 既存 invalidateLisonAchievementCache（per-sid）と同思想の「ピンポイント無効化」。
+
+function invalidateWabun1Cache() {
+  _invalidateCacheAll(['cache_wabun1_topics_values']);
+  return { ok: true, cleared: ['cache_wabun1_topics_values'] };
+}
+function invalidateSangoCache() {
+  _invalidateCacheAll(['cache_sango_topics_values']);
+  return { ok: true, cleared: ['cache_sango_topics_values'] };
+}
+// 英単語RUSH：4級以上の全級 + 5級（Question5）をまとめて無効化。
+function invalidateEitangoCache() {
+  var keys = _EITANGO_LEVEL_CACHE_KEYS.concat(['cache_q5_rows']);
+  _invalidateCacheAll(keys);
+  return { ok: true, cleared: keys };
+}
+function invalidateQuoteCache() {
+  _invalidateCacheAll(['cache_quote_values']);
+  return { ok: true, cleared: ['cache_quote_values'] };
+}
+function invalidateNoticeCache() {
+  _invalidateCacheAll(['cache_notice_values']);
+  return { ok: true, cleared: ['cache_notice_values'] };
+}
+// ★基礎計算：無効化＋ウォーミングをセットで（スタンピード防止）。
+//   KisoQuestions を直接編集した / 全置換投入した後に GAS エディタから実行する。
+//   clearAllCache() が基礎計算のウォーミングを意図的に含めない（コメント参照）のを補う。
+function invalidateKisoCacheAndWarm() {
+  var keys = [];
+  for (var r = 1; r <= 20; r++) keys.push('cache_kiso_q_rows_' + r);
+  _invalidateCacheAll(keys);
+  var warm;
+  try { warm = warmKisoQuestionCache(); }
+  catch (e) { warm = { ok: false, message: String(e) }; }
+  return { ok: true, cleared: keys.length, warm: warm };
+}
+
+// =============================================
 // doGet
 // =============================================
 function doGet(e) {
