@@ -12798,6 +12798,59 @@ function _isReflectionSubmittedOnDate(sid, dateStr) {
   return found;
 }
 
+// 指定日(dateStr)に sid が「今回と同一 content」の振り返りを既に提出済みかを判定。
+//   2026-07-03：二重送信ガード専用。旧ガードは _isReflectionSubmittedOnDate（内容不問・
+//   その日1件でもあれば抑止）を使っていたが、それだと「1日複数回・別内容」の正当な投稿まで
+//   ブロックしていた（データで 7/2 以降 同日複数投稿がゼロに）。本関数は content を突き合わせ、
+//   同一内容の再送（通信エラー由来の重複）だけを弾き、別内容の投稿は通す。
+//
+// 設計上の注意:
+//   - content 一致は cleanupReflectionDuplicates の all_identical と同基準（全文 === の生比較。
+//     trim 等の加工はしない＝掃除の判定と厳密に揃える）。再送は同一テキストが飛ぶので === で捕捉できる。
+//   - キャッシュ cache_refl_today_<sid>_<date> は「その日提出済みか」の内容を持たないフラグで、
+//     ログイン/HP ゲート（_isReflectionSubmittedToday）専用。content 比較には使えないため本関数は
+//     使わず、必ずシート走査で突き合わせる（_isReflectionSubmittedOnDate とは別関数・別責務）。
+//   - 走査幅は _isReflectionSubmittedOnDate と同じ末尾 200 行（再送は直近に来るので十分）。
+//   - シート参照失敗時は安全側で false（＝ appendRow を通す）。記録漏れより重複記録の方が
+//     復旧しやすいため（_isReflectionSubmittedOnDate と同じ安全側方針）。
+function _isSameReflectionContentSubmitted(sid, dateStr, content) {
+  const sidNorm = String(sid || '').trim();
+  const targetDate = String(dateStr || '').trim();
+  if (!sidNorm || !targetDate) return false;
+  const targetContent = String(content == null ? '' : content);
+  try {
+    const sh = _ss().getSheetByName(SHEET_REFLECTIONS);
+    if (!sh || sh.getLastRow() < 2) return false;
+    const lastCol = sh.getLastColumn();
+    const header  = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    const iSid     = header.indexOf('studentId');
+    const iDate    = header.indexOf('date');
+    const iContent = header.indexOf('content');
+    if (iSid < 0 || iDate < 0 || iContent < 0) return false;
+    const rows = _readLastNRows(sh, 200);
+    for (let i = 0; i < rows.length; i++) {
+      if (String(rows[i][iSid] || '').trim() !== sidNorm) continue;
+      // date 正規化は _isReflectionSubmittedOnDate と同一（Date 型 / yyyy-MM-dd / yyyy/MM/dd）
+      const raw = rows[i][iDate];
+      let ds = '';
+      if (raw instanceof Date) {
+        ds = Utilities.formatDate(raw, 'Asia/Tokyo', 'yyyy-MM-dd');
+      } else if (raw != null) {
+        const s = String(raw).trim();
+        const m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})/);
+        if (m) ds = m[1] + '-' + m[2] + '-' + m[3];
+      }
+      if (ds !== targetDate) continue;
+      // ★content 全文一致（cleanupReflectionDuplicates の all_identical と同基準 = 生の === ）
+      if (String(rows[i][iContent] == null ? '' : rows[i][iContent]) === targetContent) return true;
+    }
+    return false;
+  } catch (e) {
+    console.error('[_isSameReflectionContentSubmitted]', e);
+    return false;  // 安全側：appendRow を通す（同一内容でも別内容でも、失敗時は記録優先）
+  }
+}
+
 // 振り返り送信。doPost 経由のみ（誤実行防止 + base64 等の大データ送信余地）。
 // params:
 //   studentId:  生徒ID（必須、行特定）
@@ -12867,19 +12920,22 @@ function submitReflection(params) {
       } catch(_e) { /* date は既定値のまま */ }
     }
 
-    // ★二重送信ガード（応急対処A・2026-07-02）━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 通信エラーで生徒が 2〜3 回送信しても、Reflections に同じ振り返りテキストが重複
-    // 記録されるのを防ぐ。対象日(date)で既に提出済みなら appendRow を抑止し、「成功」
-    // レスポンスを返す（クライアントが失敗と誤認して再送を繰り返さないように）。
+    // ★二重送信ガード（応急対処A・2026-07-02 / 2026-07-03 修正：同一内容のみ抑止）━━━━━━━
+    // 通信エラーで生徒が 2〜3 回送信しても、Reflections に「同じ振り返りテキスト」が重複
+    // 記録されるのを防ぐ。対象日(date)に【今回と同一内容の行が既にある場合のみ】appendRow を
+    // 抑止し、「成功」レスポンスを返す（クライアントが失敗と誤認して再送を繰り返さないように）。
+    //   - ★別内容の投稿（1日複数回・正当）は通す。旧実装は _isReflectionSubmittedOnDate（内容
+    //     不問・その日1件でもあれば抑止）だったため、正当な別内容の 2 件目以降まで消していた。
+    //     content を突き合わせる _isSameReflectionContentSubmitted に切替（all_identical と同基準）。
     //   - 対象日は上で reflectionDate（今日 or 過去 7 日キャッチアップ日）に確定済み。
-    //     _isReflectionSubmittedToday（今日固定・ログインゲート用）は挙動不変のまま温存し、
-    //     ここでは対象日を取れる一般化版 _isReflectionSubmittedOnDate を使う。
+    //     _isReflectionSubmittedToday / _isReflectionSubmittedOnDate（ログイン/HP ゲート用・内容不問）は
+    //     挙動不変のまま温存（本ガード以外の呼び出し元＝ Gate 1 等はそちらを使い続ける）。
     //   - HP 解放系の後処理（_releaseReflectionReserves / _checkAndReleaseReserveIfCompleted /
     //     _todayHpBreakdownForSid）は従来どおり呼ぶ。resolved / completion_bonus フラグで
     //     二重加算は防止済みのため害はなく、「1 回目でテキストは入ったが後処理が途中失敗」
     //     ケースの取りこぼし救済になる。
     //   - 重い後処理の軽量化(B)は本コミットのスコープ外（AWS 移行で根本解決予定）。
-    if (_isReflectionSubmittedOnDate(sid, date)) {
+    if (_isSameReflectionContentSubmitted(sid, date, content)) {
       let releasedHp = 0;
       let bonusInfo = { justCompleted: false, releasedHp: 0, bonusHp: 0 };
       try {
