@@ -3135,10 +3135,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260703-2250"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260703-2251"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260703-2250">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260703-2250"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260703-2251">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260703-2251"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9114,13 +9114,35 @@
     // 二重実行ガード（モーダル多重表示防止 / 二重タップ対策）
     if (_logoutInProgress) return;
     _logoutInProgress = true;
-    // 防護柵3枚目：未送信があるなら警告（再送を促す）。キューは sid 紐付けで保持し、ここでは消さない。
+    // 防護柵3枚目（応急処置③で強化）：未送信があるなら「そのままログアウトで捨てさせない」。
+    //   - 自動再送できるキュー（sango/wabun1/lison/V2/reflection）があれば、まず再送を強く促す。
+    //     断ったら最終警告を出す（それでも最終的には抜けられる＝端末トラブル時に詰まないよう）。
+    //   - kiso/kanji/kobun/V1 の「送れなかった気づき」分（自動再送不可）だけのときも、明確に
+    //     「記録されません」と警告してから抜けられる。
+    //   - キュー・気づきログは sid 紐付けで保持し、ここでは消さない（次回ログインで ④ が通知）。
     try {
-      if (_resendQueueCount() > 0) {
-        if (confirm('未送信の学習データがあります。先に再送しますか？\n「OK」で再送します（送れたら、もう一度ログアウトしてね）。「キャンセル」でそのままログアウトします。')) {
-          _logoutInProgress = false;  // 再送を優先しログアウトは中断（ユーザーが再度ログアウト操作する）
-          _flushResendQueue();
-          return;
+      var _rqN = _resendQueueCount();
+      var _mnN = _unsentManualCount();
+      var _unsentTotal = _rqN + _mnN;
+      if (_unsentTotal > 0) {
+        if (_rqN > 0) {
+          // 自動再送できる未送信あり → まず再送を強く促す
+          if (confirm('⚠️ 未送信の学習データが ' + _unsentTotal + ' 件あります。\nこのままログアウトすると、これらは記録されません。\n\n「OK」で今すぐ送信します（送れたら、もう一度ログアウトしてね）。')) {
+            _logoutInProgress = false;  // 再送を優先しログアウトは中断（ユーザーが再度ログアウト操作する）
+            _flushResendQueue();
+            return;
+          }
+          // 再送を断った → 最終警告（Cancel でとどまる／OK で抜けられる）
+          if (!confirm('本当にログアウトしますか？\n未送信の ' + _unsentTotal + ' 件は記録されません（あとで先生に相談してね）。')) {
+            _logoutInProgress = false;  // ログアウト中止（アプリに留まる）
+            return;
+          }
+        } else {
+          // 手動やり直し分のみ（kiso/kanji/kobun/V1・自動再送できない）→ 明確に警告してから抜けられる
+          if (!confirm('⚠️ 送れなかった学習が ' + _mnN + ' 件あります。\nこのままログアウトすると記録されません。もう一度やり直すか、先生に相談してね。\n\n「OK」でログアウト（記録されません）／「キャンセル」でとどまる。')) {
+            _logoutInProgress = false;  // ログアウト中止（アプリに留まる）
+            return;
+          }
         }
       }
     } catch(e){}
@@ -18160,7 +18182,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260703-2250</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260703-2251</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
