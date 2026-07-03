@@ -1686,6 +1686,28 @@ function _getExpectedClientVersion() {
   }
 }
 
+// 保守用（doGet 非搭載・GAS エディタ実行）：Script Property EXPECTED_CLIENT_VERSION を設定する。
+//   背景：GAS のプロパティ画面が「50 個超で追加不可」制約に当たるため、コードから設定する。
+//   本番配信中の index.html 版数（バージョンバッジで確認済み）をハードコードで 1 回実行する。
+//   実行後、getProperty で読み戻してログ出力し、正しくセットされたかを確認できる。
+function setExpectedClientVersion() {
+  var VALUE = '20260703-2258';   // ★本番配信中の index.html 版数（YYYYMMDD-HHMM）
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty('EXPECTED_CLIENT_VERSION', VALUE);
+  var readBack = props.getProperty('EXPECTED_CLIENT_VERSION');
+  Logger.log('[setExpectedClientVersion] set=%s / readBack=%s / _getExpectedClientVersion()=%s',
+    VALUE, String(readBack), _getExpectedClientVersion());
+  return { ok: true, set: VALUE, readBack: String(readBack), effective: _getExpectedClientVersion() };
+}
+
+// 保守用（doGet 非搭載・GAS エディタ実行）：現在の EXPECTED_CLIENT_VERSION を表示するだけ（読み取り）。
+function getExpectedClientVersionNow() {
+  var raw = PropertiesService.getScriptProperties().getProperty('EXPECTED_CLIENT_VERSION');
+  Logger.log('[getExpectedClientVersionNow] raw=%s / effective(_getExpectedClientVersion)=%s',
+    String(raw), _getExpectedClientVersion());
+  return { ok: true, raw: String(raw), effective: _getExpectedClientVersion() };
+}
+
 function loginStudent(studentId) {
   try {
     // 2026-05-09 Step 0：行シフト事故防止のため、書き込み対象行は必ず
