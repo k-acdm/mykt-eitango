@@ -3135,10 +3135,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260703-2244"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260703-2250"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260703-2244">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260703-2244"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260703-2250">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260703-2250"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -8719,7 +8719,7 @@
       });
       if (failedWords.length === 0) { _setContentMascot('mate-img-eitan-dictation', 'celebrate', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.pass), 'rushkun'); msgEl.style.display = 'none'; showPhotoPassedScreen(); }
       else { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); _renderPhotoFail(failedWords, rawText, confPct); }
-    }).catch(function(err){ _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','エラー：'+String(err),'ng'); });
+    }).catch(function(err){ try { _recordUnsentAwareness('英単語RUSH(5級)'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','⚠️ 送信できませんでした。まだ記録されていません。電波の良い場所でもう一度送ってね。','ng'); });
   }
   function _renderPhotoFail(failedWords, rawText, confPct) {
     var escH = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
@@ -8869,6 +8869,7 @@
       }).catch(function(){
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
+        try { _recordUnsentAwareness('英単語RUSH'); } catch(e){}  // 応急処置②：未送信を可視化（V1 は自動再送しない）
         _showSubmitErrorWithRetryGuard(5000);
       });
     }
@@ -12669,6 +12670,7 @@
           // 通信エラー / タイムアウト → エラーオーバーレイでリトライ誘導
           _hideHpConfirmingOverlay();
           btn.disabled = false;
+          try { _recordUnsentAwareness('基礎計算'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない）
           _showSubmitError();
         });
       } catch (err) {
@@ -16126,6 +16128,7 @@
         // 通信エラー / 90 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
         submitBtn.disabled = false;
+        try { _recordUnsentAwareness('カンジー'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない）
         _showSubmitError();
       });
     }
@@ -16592,6 +16595,7 @@
       }).catch(function(err){
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
+        try { _recordUnsentAwareness('コブタン'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない）
         _showSubmitError();
       });
     }
@@ -18094,14 +18098,55 @@
       if (!b) return;
       var sid = String(_studentId || '').trim();
       var mine = sid ? _resendQueueLoad().filter(function(it){ return it.sid === sid; }) : [];
+      var manualN = _unsentManualCount();  // 応急処置②：kiso/kanji/kobun/V1 の「送れなかった」気づき件数
       var label = document.getElementById('mykt-resend-banner-label');
-      if (mine.length === 0) { b.style.display = 'none'; return; }
-      var hasStale = mine.some(_isResendItemStale);
-      var txt = '📤 未送信が ' + mine.length + ' 件あります（タップで再送）';
-      if (hasStale) txt += '｜うまく送れないものは先生に相談してね';
+      if (mine.length === 0 && manualN === 0) { b.style.display = 'none'; return; }
+      var txt;
+      if (mine.length > 0) {
+        // 自動再送できるキューがある → タップで再送。手動やり直し分があれば併記。
+        var hasStale = mine.some(_isResendItemStale);
+        txt = '📤 未送信が ' + (mine.length + manualN) + ' 件あります（タップで再送）';
+        if (manualN > 0) txt += '｜一部はもう一度やり直してね';
+        if (hasStale) txt += '｜うまく送れないものは先生に相談してね';
+      } else {
+        // 手動やり直し分のみ（kiso/kanji/kobun/V1・自動再送しない）→ やり直しを促す。
+        txt = '📌 送れなかった学習が ' + manualN + ' 件あります（もう一度やり直してね／先生に相談）';
+      }
       if (label) label.textContent = txt;
       b.style.display = 'block';
     } catch(e) {}
+  }
+
+  // ============================================================
+  // 未送信の「気づき」ログ（応急処置②/④・2026-07-03）
+  //   対象：kiso / kanji / kobun / 英単語RUSH V1 —— 再送キュー非対象。
+  //     理由：これらはサーバー側の重複排除（dedup）が弱く、payload をそのまま自動再送すると
+  //     二重 HP 付与の恐れがある。よって「表示専用」で記録し、★自動再送は一切しない（二重付与ゼロ）。
+  //     救済は生徒の手動やり直し（通常フロー＝OCR/採点をやり直す安全経路）で行う。
+  //   役割：(1) 未送信バナーに件数を出す（生徒が気づける）
+  //         (2) 次回ログイン時に件数をサーバーへ通知（応急処置④・先生が気づける）
+  // ============================================================
+  var _UNSENT_MANUAL_KEY = 'mykt_unsent_manual';
+  function _unsentManualLoad() {
+    try { var a = JSON.parse(localStorage.getItem(_UNSENT_MANUAL_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; }
+  }
+  function _unsentManualSave(a) { try { localStorage.setItem(_UNSENT_MANUAL_KEY, JSON.stringify(a || [])); } catch(e){} }
+  function _unsentManualCount() {
+    try { var sid = String(_studentId || '').trim(); if (!sid) return 0; return _unsentManualLoad().filter(function(it){ return it.sid === sid; }).length; } catch(e){ return 0; }
+  }
+  // 送信失敗（通信断/タイムアウト）を表示専用で記録。payload は保持しない（自動再送しないため）。
+  function _recordUnsentAwareness(label) {
+    try {
+      var sid = String(_studentId || '').trim(); if (!sid) return;
+      var a = _unsentManualLoad();
+      a.push({ sid: sid, label: String(label || '学習'), ts: Date.now() });
+      if (a.length > 50) a = a.slice(-50);   // 上限（暴走防止）
+      _unsentManualSave(a);
+      try { _updateResendBanner(); } catch(e){}
+    } catch(e){}
+  }
+  function _unsentManualClearForSid(sid) {
+    try { sid = String(sid || '').trim(); _unsentManualSave(_unsentManualLoad().filter(function(it){ return it.sid !== sid; })); } catch(e){}
   }
 
   // 復帰検知：visibilitychange（visible）＋ pageshow（bfcache 復元/初回ロード）。
@@ -18115,7 +18160,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260703-2244</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260703-2250</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
