@@ -25,6 +25,11 @@ const SHEET_LISON_SUBMISSIONS = 'LisonSubmissions';
 //   delivered（母数）= その生徒の初回ログイン日の「週」以降に配信された本数、の算出に使う。
 const SHEET_LISON_FIRST_LOGIN = 'LisonFirstLogin';
 const LISON_FIRST_LOGIN_HEADERS = ['studentId', 'firstLoginDate', 'recordedAt'];
+// フォニックスゲーム（2026-07-04 新設、フォニー）：問題データ（読み専用・全 327 行）
+//   列：stage / type(char|word|add) / question / answers(|区切り) / dummies(|区切り・単語のみ) / note
+//   フロント完結型（設定→ゲーム→HP付与）。データは全件を 6h キャッシュ→フロントで絞り込み。
+const SHEET_PHONICS_QUESTIONS = 'PhonicsQuestions';
+const PHONICS_QUESTIONS_HEADERS = ['stage', 'type', 'question', 'answers', 'dummies', 'note'];
 // 計算タイムトライアル（2026-05-19 新設、トラール）：1 セッション = 1 行
 const SHEET_CALCTRIAL_SESSIONS = 'CalcTrialSessions';
 // 今日のマイ活 振り返り（2026-05-19 新設）：ログアウト前に必ず書き込む
@@ -1137,6 +1142,7 @@ function _onEditCacheKeysForSheet(sheetName) {
     case SHEET_QUESTIONS:     return _EITANGO_LEVEL_CACHE_KEYS.slice();
     case SHEET_QUOTE:         return ['cache_quote_values'];
     case SHEET_NOTICE:        return ['cache_notice_values'];
+    case SHEET_PHONICS_QUESTIONS: return ['cache_phonics_questions_values'];
     default:                  return null; // 対象外シート → no-op
   }
 }
@@ -1187,6 +1193,11 @@ function invalidateQuoteCache() {
 function invalidateNoticeCache() {
   _invalidateCacheAll(['cache_notice_values']);
   return { ok: true, cleared: ['cache_notice_values'] };
+}
+// フォニックス：問題データの手動キャッシュクリア（onEdit 不調時の保守用・doGet 非登録）。
+function invalidatePhonicsCache() {
+  _invalidateCacheAll(['cache_phonics_questions_values']);
+  return { ok: true, cleared: ['cache_phonics_questions_values'] };
 }
 // ★基礎計算：無効化＋ウォーミングをセットで（スタンピード防止）。
 //   KisoQuestions を直接編集した / 全置換投入した後に GAS エディタから実行する。
@@ -1364,6 +1375,8 @@ function doGet(e) {
       //   症状を起こした実績あり（2026-04-29）。両ルーティングはセットで保持すること。
       else if (action === 'getLisonContent')         result = getLisonContent(params.level);
       else if (action === 'submitLison')              result = submitLison(params);
+      // フォニックスゲーム（2026-07-04 新設）：問題データの一括取得（読み取り専用・GET のみ）
+      else if (action === 'getPhonicsQuestions')     result = getPhonicsQuestions();
       // Phase 6: リスオン録音の認証付き base64 配信（DL 抑止用、admin/teacher 両方再生可）。
       //   doPost にも保護登録（submitLison 事故 / CLAUDE.md #148 の教訓）。
       else if (action === 'getLisonRecordingBlob')    result = getLisonRecordingBlob(params);
@@ -15253,6 +15266,68 @@ function _getSangoTopicsValues() {
     if (!sh || sh.getLastRow() < 2) return [];
     return sh.getDataRange().getValues();
   });
+}
+
+// =============================================
+// フォニックスゲーム（2026-07-04 新設）：問題データの読み込み
+// =============================================
+// PhonicsQuestions シート全体をキャッシュ経由で取得（6h TTL）。
+//   327 行と小さいので三語短文と同じ全行キャッシュ方式。手動セル編集は onEdit で
+//   cache_phonics_questions_values を無効化して即反映（基礎計算と違いスタンピード無し）。
+function _getPhonicsQuestionsValues() {
+  return _getCachedValues('cache_phonics_questions_values', 21600, function() {
+    const sh = _ss().getSheetByName(SHEET_PHONICS_QUESTIONS);
+    if (!sh || sh.getLastRow() < 2) return [];
+    return sh.getDataRange().getValues();
+  });
+}
+
+// 全問題を配列で返す（フロント完結型なので一括取得→フロントで絞り込み）。
+//   各行を { stage, type, question, answers:[...], dummies:[...], note } に整形。
+//   answers / dummies は '|' 区切りを分割（空トリム後に空文字は除外）。
+function getPhonicsQuestions() {
+  try {
+    const values = _getPhonicsQuestionsValues();
+    if (!values || values.length < 2) return { ok: true, questions: [] };
+    const header = values[0];
+    const iStage    = header.indexOf('stage');
+    const iType     = header.indexOf('type');
+    const iQuestion = header.indexOf('question');
+    const iAnswers  = header.indexOf('answers');
+    const iDummies  = header.indexOf('dummies');
+    const iNote     = header.indexOf('note');
+    if (iStage < 0 || iType < 0) {
+      return { ok: false, message: 'PhonicsQuestions のヘッダーが不正です（stage / type が必要）' };
+    }
+    const splitPipe = function(v) {
+      return String(v == null ? '' : v)
+        .split('|')
+        .map(function(s){ return s.trim(); })
+        .filter(function(s){ return s !== ''; });
+    };
+    const get = function(row, i) { return (i >= 0) ? row[i] : ''; };
+    const questions = [];
+    for (let r = 1; r < values.length; r++) {
+      const row = values[r];
+      const stage = String(get(row, iStage) || '').trim();
+      const type  = String(get(row, iType)  || '').trim();
+      const question = String(get(row, iQuestion) || '').trim();
+      // stage も type も question も空の行はスキップ（余白行対策）
+      if (!stage && !type && !question) continue;
+      questions.push({
+        stage:    stage,
+        type:     type,
+        question: question,
+        answers:  splitPipe(get(row, iAnswers)),
+        dummies:  splitPipe(get(row, iDummies)),
+        note:     String(get(row, iNote) || '').trim()
+      });
+    }
+    return { ok: true, questions: questions };
+  } catch(err) {
+    console.error('[getPhonicsQuestions]', err);
+    return { ok: false, message: String(err) };
+  }
 }
 
 function _readSangoTopicsByDate(dateStr) {

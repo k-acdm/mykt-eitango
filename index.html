@@ -2556,6 +2556,24 @@
       .kiso-rank-btn .kiso-rank-answered { font-size: 10px; }
       .kiso-rank-btn .kiso-rank-answered strong { font-size: 14px; }
     }
+    /* フォニックスゲーム 設定画面（2026-07-04 新設・第1段階） */
+    .phonics-setup-block { margin: 16px 0; }
+    .phonics-setup-label { font-size: 15px; font-weight: bold; color: #9d174d; margin: 0 2px 8px; }
+    .phonics-choice-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .phonics-choice-btn { flex: 1 1 auto; min-width: 44%; padding: 14px 12px; background: linear-gradient(135deg,#fbb6ce,#ed64a6); color: #fff; border: 3px solid transparent; border-radius: 14px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(237,100,166,.28); display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .phonics-choice-btn:hover { opacity: .93; }
+    .phonics-choice-btn.selected { border-color: #831843; box-shadow: 0 0 0 3px rgba(131,24,67,.25), 0 3px 10px rgba(237,100,166,.35); transform: translateY(-1px); }
+    .phonics-choice-btn .phonics-diff-hp { font-size: 11px; font-weight: normal; opacity: .95; }
+    .phonics-stage-list { display: flex; flex-wrap: wrap; gap: 10px; }
+    .phonics-stage-btn { flex: 1 1 auto; min-width: 44%; padding: 12px 10px; background: linear-gradient(135deg,#fde68a,#fbbf24); color: #78350f; border: 3px solid transparent; border-radius: 14px; font-size: 14px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(251,191,36,.28); text-align: center; line-height: 1.4; }
+    .phonics-stage-btn:hover { opacity: .93; }
+    .phonics-stage-btn.selected { border-color: #b45309; background: linear-gradient(135deg,#fbbf24,#f59e0b); box-shadow: 0 0 0 3px rgba(180,83,9,.22), 0 2px 8px rgba(251,191,36,.35); }
+    .phonics-stage-btn .phonics-stage-sub { display: block; font-size: 11px; font-weight: normal; opacity: .85; margin-top: 2px; }
+    .phonics-start-btn { background: linear-gradient(135deg,#ec4899,#be185d); margin-top: 18px; }
+    .phonics-start-btn:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(.3); }
+    @media (max-width: 480px) {
+      .phonics-choice-btn, .phonics-stage-btn { min-width: 100%; }
+    }
 
     .kiso-count-card { background: #fff; border-radius: 14px; padding: 22px; margin: 14px 0; box-shadow: 0 3px 12px rgba(0,0,0,.08); text-align: center; }
     .kiso-count-rank-label { font-size: 18px; font-weight: bold; color: #0c4a6e; margin-bottom: 14px; }
@@ -3135,10 +3153,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260703-2258"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260704-0528"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260703-2258">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260703-2258"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260704-0528">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260704-0528"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3674,9 +3692,10 @@
           <img class="ico-mascot" src="images/oriwantes-default.png" alt="">オリワンテス
           <span class="content-btn-sub">自分専用のオリジナルテストを作る</span>
         </button>
-        <button class="content-btn c-phonics disabled" onclick="showComingSoon('フォニックスゲーム')">
-          <span class="badge-soon">準備中</span>
-          <span class="ico">🎵</span>フォニックスゲーム
+        <button class="content-btn c-phonics" onclick="showPhonicsStart()">
+          <span class="badge-hp">1〜5HP/問</span>
+          <img class="ico-mascot" src="images/phony-default.png" alt="">フォニックスゲーム
+          <span class="content-btn-sub">英語の音で遊ぶゲーム</span>
         </button>
         <button class="content-btn c-himitsu" onclick="showFortuneScreen()">
           <span class="ico">🔮</span>今日の運勢
@@ -5661,6 +5680,60 @@
       <div id="ct-result-reserve-wrap"></div>
       <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:6px" onclick="goHome()">🏠 ホーム画面に戻る</button>
     </div>
+  </div>
+</div>
+
+<!-- ===== フォニックスゲーム（2026-07-04 新設・第1段階：設定画面） ===== -->
+<!-- 第1段階＝入口＋設定＋データ読込＋出題ロジックまで。ゲーム演出（風船/モグラ）と -->
+<!-- HP付与・結果画面は第2〜4段階で実装（screen-phonics-game は枠のみ）。 -->
+<div id="screen-phonics-setup" class="screen">
+  <header><h1>🎵 フォニックスゲーム</h1><span>設定を選んでね</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-phonics-setup" src="images/phony-default.png" alt="フォニー">
+      <div class="mate-bubble" id="mate-bubble-phonics-setup">いっしょに英語の音であそぼう！</div>
+    </div>
+
+    <!-- ① ゲーム種類（単一選択） -->
+    <div class="phonics-setup-block">
+      <div class="phonics-setup-label">① あそび方をえらぶ</div>
+      <div class="phonics-choice-row">
+        <button class="phonics-choice-btn" data-gametype="balloon" onclick="selectPhonicsGameType('balloon')">🎈 風船割り</button>
+        <button class="phonics-choice-btn" data-gametype="mole"    onclick="selectPhonicsGameType('mole')">🔨 モグラ叩き</button>
+      </div>
+    </div>
+
+    <!-- ② 難易度（単一選択） -->
+    <div class="phonics-setup-block">
+      <div class="phonics-setup-label">② むずかしさをえらぶ</div>
+      <div class="phonics-choice-row">
+        <button class="phonics-choice-btn phonics-diff-btn" data-diff="easy"   onclick="selectPhonicsDifficulty('easy')">かんたん<span class="phonics-diff-hp">1HP/問</span></button>
+        <button class="phonics-choice-btn phonics-diff-btn" data-diff="normal" onclick="selectPhonicsDifficulty('normal')">ふつう<span class="phonics-diff-hp">3HP/問</span></button>
+        <button class="phonics-choice-btn phonics-diff-btn" data-diff="hard"   onclick="selectPhonicsDifficulty('hard')">ハード<span class="phonics-diff-hp">5HP/問</span></button>
+      </div>
+    </div>
+
+    <!-- ③ 問題の種類（複数選択・2つ以上） -->
+    <div class="phonics-setup-block">
+      <div class="phonics-setup-label">③ もんだいの種類をえらぶ（2つ以上）</div>
+      <div id="phonics-stage-list" class="phonics-stage-list"></div>
+    </div>
+
+    <div id="phonics-setup-msg" class="msg" style="display:none"></div>
+    <button id="phonics-start-btn" class="btn-wide phonics-start-btn" onclick="startPhonicsGame()" disabled>▶ ゲーム開始</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">← ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- フォニックス ゲーム画面（第1段階では枠のみ。中身＝風船/モグラ演出は第2段階） -->
+<div id="screen-phonics-game" class="screen">
+  <header><h1>🎵 フォニックスゲーム</h1><span id="phonics-game-meta"></span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="phonics-game-body" style="text-align:center;padding:24px 0;color:#78350f">
+      <p style="font-size:16px;font-weight:bold">ゲーム画面は準備中です（第2段階で実装）</p>
+      <p style="font-size:13px;color:#888;margin-top:8px">出題データ（quiz）は組み立て済み。コンソールで確認できます。</p>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-phonics-setup')">← 設定に戻る</button>
   </div>
 </div>
 
@@ -14010,6 +14083,12 @@
     done:        ['天晴れじゃ！', 'みごとなり！', '平安の知恵、その手に'],
     history:     ['過去の学びをふり返ろう', '復習はみやびじゃ']
   };
+  // フォニー（フォニックスゲーム、元気な音あそび口調）。2026-07-04 新設・第1段階。
+  //   本格的なセリフ出し分けは第2段階（ゲーム演出）で使う。今は設定画面用の最小限。
+  var PHONY_BUBBLES = {
+    setup:  ['いっしょに英語の音であそぼう！', 'どのあそび方にする？', '音をよく聞いてね！'],
+    start:  ['よーし、はじめよう！', 'いくよ、レッツゴー！']
+  };
   // ジャパニン（国語長文読解、和風武士口調）。2026-05-23 採用。
   var JAPANIN_BUBBLES = {
     category:    ['どちらに挑むでござるか？', 'いざ、文章を読まんとす', '今日もよう励まれた'],
@@ -16381,6 +16460,275 @@
   }
 
   // ============================================================================
+  // フォニックスゲーム「フォニー」（2026-07-04 新設・第1段階）
+  //   第1段階 = 入口 + 設定画面 + 問題データ読込 + 出題ロジック（quiz の組み立て）まで。
+  //   ゲーム演出（風船割り/モグラ叩き）と HP付与・結果画面は第2〜4段階で実装する。
+  //   フロント完結型：getPhonicsQuestions で全 327 問を1回取得しメモリ保持 → 絞り込み。
+  //
+  //   問題データ（PhonicsQuestions シート）:
+  //     stage : 'stage0_add'(音の足し算) / 'stage1'〜'stage7'
+  //     type  : 'char'(文字・47問) / 'add'(音の足し算・100問) / 'word'(単語・180問)
+  //     answers : 読みの配列（char は 1〜2 個＝どちらも正解、add/word は 1 個）
+  //     dummies : word のみ 3 個（誤選択肢）。char/add は空 → 全体プールから動的生成。
+  // ============================================================================
+  var PHONICS_QUIZ_SIZE = 20;       // 1 ゲーム = 最大 20 問
+  var PHONICS_DUMMY_COUNT = 3;      // char/add のダミー生成数（word は dummies の 3 個を使用）
+
+  var _phonicsState = {
+    questions: [],        // getPhonicsQuestions で取得した全問（{stage,type,question,answers,dummies,note}）
+    gameType: '',         // 'balloon'（風船割り） / 'mole'（モグラ叩き）
+    difficulty: '',       // 'easy' / 'normal' / 'hard'
+    selectedStages: [],   // 選択された stage 文字列の配列（例 ['stage0_add','stage1']）
+    quiz: []              // _buildPhonicsQuiz が組み立てた出題（第2段階でゲームが消費）
+  };
+
+  function _phonicsResetState() {
+    _phonicsState.gameType = '';
+    _phonicsState.difficulty = '';
+    _phonicsState.selectedStages = [];
+    _phonicsState.quiz = [];
+    // questions（取得済みの全問）は保持（再取得を避ける）
+  }
+
+  // stage 文字列 → 表示ラベル。データに無い stage でも安全にフォールバック。
+  function _phonicsStageLabel(stage) {
+    if (stage === 'stage0_add') return 'ステージ0：音の足し算';
+    var m = /^stage(\d+)$/.exec(stage);
+    if (m) return 'ステージ' + m[1];
+    return stage; // 想定外の値はそのまま表示
+  }
+
+  // stage の並び順キー（stage0_add を先頭、その後 stage1..7 を数値順）。
+  function _phonicsStageOrder(stage) {
+    if (stage === 'stage0_add') return 0;
+    var m = /^stage(\d+)$/.exec(stage);
+    if (m) return Number(m[1]) + 1;
+    return 999; // 想定外は末尾
+  }
+
+  // Fisher–Yates シャッフル（配列を破壊しない）
+  function _phonicsShuffle(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  // プールから n 個をランダム抽出（exclude セットの読みは除外、重複も排除）
+  function _phonicsSampleDummies(pool, n, excludeSet) {
+    var seen = {};
+    var uniq = [];
+    for (var i = 0; i < pool.length; i++) {
+      var v = String(pool[i] || '').trim();
+      if (!v) continue;
+      if (excludeSet[v]) continue;   // 正解は除外
+      if (seen[v]) continue;         // 重複除外
+      seen[v] = true;
+      uniq.push(v);
+    }
+    var shuffled = _phonicsShuffle(uniq);
+    return shuffled.slice(0, Math.max(0, n));
+  }
+
+  // ホームカードから起動：全問データを取得して設定画面へ
+  function showPhonicsStart() {
+    if (typeof _ensureOnlineThenStart === 'function' && !_ensureOnlineThenStart()) return;
+    _phonicsResetState();
+    // 取得済みなら再利用、未取得なら getPhonicsQuestions を1回だけ呼ぶ
+    if (_phonicsState.questions && _phonicsState.questions.length > 0) {
+      _renderPhonicsSetup();
+      return;
+    }
+    var body = document.getElementById('phonics-stage-list');
+    if (body) body.innerHTML = '<div class="loading" style="padding:20px 0">⏳ 問題を読み込み中...</div>';
+    showScreen('screen-phonics-setup');
+    _setContentMascot('mate-img-phonics-setup', 'default', 'mate-bubble-phonics-setup', _pickBubble(PHONY_BUBBLES.setup), 'phony');
+    cachedGasGet({ action: 'getPhonicsQuestions' }).then(function(res){
+      if (!res || !res.ok) {
+        if (body) body.innerHTML = '<div class="msg ng">問題の読み込みに失敗しました。' + ((res && res.message) ? '<br><small>' + _phonicsEsc(res.message) + '</small>' : '') + '</div>';
+        return;
+      }
+      _phonicsState.questions = res.questions || [];
+      _renderPhonicsSetup();
+    }).catch(function(err){
+      if (body) body.innerHTML = '<div class="msg ng">通信エラー：ネットワークが不安定かもしれません。少し待ってもう一度お試しください。</div>';
+      try { console.warn('[phonics] getPhonicsQuestions error', err); } catch(e){}
+    });
+  }
+
+  function _phonicsEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+    });
+  }
+
+  // 設定画面の描画（ステージボタンをデータから動的生成）
+  function _renderPhonicsSetup() {
+    // 選択状態リセットの見た目反映
+    var typeBtns = document.querySelectorAll('#screen-phonics-setup .phonics-choice-btn[data-gametype]');
+    for (var i = 0; i < typeBtns.length; i++) typeBtns[i].classList.remove('selected');
+    var diffBtns = document.querySelectorAll('#screen-phonics-setup .phonics-diff-btn');
+    for (var j = 0; j < diffBtns.length; j++) diffBtns[j].classList.remove('selected');
+
+    // データに存在する stage を集計（件数付き）
+    var counts = {};
+    _phonicsState.questions.forEach(function(q){
+      var st = q.stage || '';
+      if (!st) return;
+      counts[st] = (counts[st] || 0) + 1;
+    });
+    var stages = Object.keys(counts).sort(function(a, b){ return _phonicsStageOrder(a) - _phonicsStageOrder(b); });
+
+    var listEl = document.getElementById('phonics-stage-list');
+    if (stages.length === 0) {
+      if (listEl) listEl.innerHTML = '<div class="msg ng">出題できる問題がまだ登録されていません。</div>';
+    } else {
+      var html = '';
+      stages.forEach(function(st){
+        html += '<button class="phonics-stage-btn" data-stage="' + _phonicsEsc(st) + '" onclick="togglePhonicsStage(this, \'' + _phonicsEsc(st) + '\')">'
+              +   _phonicsEsc(_phonicsStageLabel(st))
+              +   '<span class="phonics-stage-sub">' + counts[st] + '問</span>'
+              + '</button>';
+      });
+      if (listEl) listEl.innerHTML = html;
+    }
+    var msg = document.getElementById('phonics-setup-msg');
+    if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+    _updatePhonicsStartBtn();
+    _setContentMascot('mate-img-phonics-setup', 'default', 'mate-bubble-phonics-setup', _pickBubble(PHONY_BUBBLES.setup), 'phony');
+    showScreen('screen-phonics-setup');
+  }
+
+  // ① ゲーム種類（単一選択）
+  function selectPhonicsGameType(type) {
+    _phonicsState.gameType = type;
+    var btns = document.querySelectorAll('#screen-phonics-setup .phonics-choice-btn[data-gametype]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('selected', btns[i].getAttribute('data-gametype') === type);
+    }
+    _updatePhonicsStartBtn();
+  }
+
+  // ② 難易度（単一選択）
+  function selectPhonicsDifficulty(diff) {
+    _phonicsState.difficulty = diff;
+    var btns = document.querySelectorAll('#screen-phonics-setup .phonics-diff-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('selected', btns[i].getAttribute('data-diff') === diff);
+    }
+    _updatePhonicsStartBtn();
+  }
+
+  // ③ 問題の種類（複数トグル選択）
+  function togglePhonicsStage(btn, stage) {
+    var idx = _phonicsState.selectedStages.indexOf(stage);
+    if (idx >= 0) {
+      _phonicsState.selectedStages.splice(idx, 1);
+      btn.classList.remove('selected');
+    } else {
+      _phonicsState.selectedStages.push(stage);
+      btn.classList.add('selected');
+    }
+    _updatePhonicsStartBtn();
+  }
+
+  // 「ゲーム開始」ボタンの有効/無効（種類・難易度・ステージ2つ以上）
+  function _updatePhonicsStartBtn() {
+    var ready = !!_phonicsState.gameType
+             && !!_phonicsState.difficulty
+             && _phonicsState.selectedStages.length >= 2;
+    var btn = document.getElementById('phonics-start-btn');
+    if (btn) btn.disabled = !ready;
+    var msg = document.getElementById('phonics-setup-msg');
+    if (msg && _phonicsState.selectedStages.length === 1) {
+      msg.textContent = '※ もんだいの種類は2つ以上えらんでね';
+      msg.className = 'msg';
+      msg.style.display = 'block';
+    } else if (msg) {
+      msg.style.display = 'none';
+    }
+  }
+
+  // 「ゲーム開始」：バリデーション → quiz 組み立て → ゲーム画面（第1段階では枠のみ）
+  function startPhonicsGame() {
+    if (!_phonicsState.gameType || !_phonicsState.difficulty) return;
+    if (_phonicsState.selectedStages.length < 2) return;
+    _buildPhonicsQuiz();
+    var meta = document.getElementById('phonics-game-meta');
+    if (meta) {
+      var gt = (_phonicsState.gameType === 'balloon') ? '風船割り' : 'モグラ叩き';
+      var df = ({ easy:'かんたん', normal:'ふつう', hard:'ハード' })[_phonicsState.difficulty] || '';
+      meta.textContent = gt + '・' + df + '・' + _phonicsState.quiz.length + '問';
+    }
+    showScreen('screen-phonics-game');
+  }
+
+  // ★出題ロジック（第1段階の核）：selectedStages の問題を全部まぜてシャッフル → 先頭20問。
+  //   各問に correct[]（正解の読み）と dummyChoices[]（誤選択肢）を持たせる。
+  //     word : correct = answers（1個）、dummyChoices = dummies（3個）
+  //     char : correct = answers（1〜2個＝両方正解）、dummyChoices = 全char読みプールから抽出
+  //     add  : correct = answers（1個）、dummyChoices = 全add読みプールから抽出
+  //   char/add のダミープールは _phonicsState.questions 全体から動的構築（全ステージ横断）。
+  function _buildPhonicsQuiz() {
+    var all = _phonicsState.questions || [];
+    var stageSet = {};
+    _phonicsState.selectedStages.forEach(function(s){ stageSet[s] = true; });
+
+    // char / add の読みプールを全問から構築
+    var charPool = [];
+    var addPool = [];
+    all.forEach(function(q){
+      if (q.type === 'char') { (q.answers || []).forEach(function(a){ if (a) charPool.push(a); }); }
+      else if (q.type === 'add') { (q.answers || []).forEach(function(a){ if (a) addPool.push(a); }); }
+    });
+
+    // 選択ステージの問題だけ抽出 → シャッフル → 先頭20問
+    var pool = all.filter(function(q){ return stageSet[q.stage]; });
+    var picked = _phonicsShuffle(pool).slice(0, PHONICS_QUIZ_SIZE);
+
+    var quiz = picked.map(function(q){
+      var correct = (q.answers || []).slice();
+      var excludeSet = {};
+      correct.forEach(function(c){ excludeSet[String(c).trim()] = true; });
+      var dummyChoices;
+      if (q.type === 'word') {
+        dummyChoices = (q.dummies || []).slice();
+      } else if (q.type === 'char') {
+        dummyChoices = _phonicsSampleDummies(charPool, PHONICS_DUMMY_COUNT, excludeSet);
+      } else if (q.type === 'add') {
+        dummyChoices = _phonicsSampleDummies(addPool, PHONICS_DUMMY_COUNT, excludeSet);
+      } else {
+        dummyChoices = [];
+      }
+      return {
+        type: q.type,
+        stage: q.stage,
+        question: q.question,
+        correct: correct,
+        dummyChoices: dummyChoices,
+        note: q.note || ''
+      };
+    });
+
+    _phonicsState.quiz = quiz;
+
+    // 動作確認用ログ（第1段階：quiz の妥当性チェック）
+    try {
+      var byType = {}, byStage = {};
+      quiz.forEach(function(item){
+        byType[item.type] = (byType[item.type] || 0) + 1;
+        byStage[item.stage] = (byStage[item.stage] || 0) + 1;
+      });
+      console.log('[phonics] quiz 組み立て完了:', quiz.length, '問');
+      console.log('[phonics] type別:', JSON.stringify(byType), '/ stage別:', JSON.stringify(byStage));
+      console.log('[phonics] 選択:', 'gameType=' + _phonicsState.gameType, 'difficulty=' + _phonicsState.difficulty, 'stages=' + JSON.stringify(_phonicsState.selectedStages));
+      console.log('[phonics] quiz 全内容:', quiz);
+    } catch(e){}
+  }
+
+  // ============================================================================
   // 古文単語「コブタン」（2026-05-08 枠組み実装）
   // 学習フロー:
   //   showKobunStart → getKobunSet → vocab1 (5語) → Q1-5 → vocab2 (5語) → Q6-10 → submit → 結果
@@ -18205,7 +18553,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260703-2258</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260704-0528</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
