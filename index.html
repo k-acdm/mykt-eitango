@@ -3135,10 +3135,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260703-2251"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260703-2258"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260703-2251">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260703-2251"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260703-2258">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260703-2258"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6993,6 +6993,7 @@
       // 応急処置①：期待版数より古いクライアントなら強制更新（セッション保存後・以降の処理前）。
       //   セッション sid は保存済みなので、リロード後は自動復元→再検証で seamless に復帰する。
       if (_maybeForceClientUpdate(res.expectedClientVersion)) return;  // 古い版 → リロード開始、以降中断
+      try { _reportUnsentOnLogin(); } catch(e){}  // 応急処置④：前回セッションの未送信件数を先生へ通知（fire-and-forget）
       _totalHP     = Number(res.totalHP) || 0;
       _streak      = Number(res.streak) || 0;
       _accountType = String(res.accountType || ''); // Task 3：振り返りモーダルスキップ判定用
@@ -18170,6 +18171,28 @@
   function _unsentManualClearForSid(sid) {
     try { sid = String(sid || '').trim(); _unsentManualSave(_unsentManualLoad().filter(function(it){ return it.sid !== sid; })); } catch(e){}
   }
+  // 応急処置④：前回セッションの未送信件数をサーバーへ通知（先生が気づける）。
+  //   - resendCount（自動再送キュー）＋ manualCount（kiso/kanji/kobun/V1 の手動やり直し分）。
+  //   - 通知できたら manual ログはクリア（報告済み・二重報告防止）。resend キューは自動再送に任せ消さない。
+  //   - fire-and-forget（失敗しても学習体験を妨げない／失敗時は次回ログインで再通知）。
+  function _reportUnsentOnLogin() {
+    try {
+      var sid = String(_studentId || '').trim(); if (!sid) return;
+      var resendCount = _resendQueueCount();
+      var manualN = _unsentManualCount();
+      if (resendCount === 0 && manualN === 0) return;
+      var labels = {};
+      try { _unsentManualLoad().filter(function(it){ return it.sid === sid; }).forEach(function(it){ labels[it.label] = (labels[it.label] || 0) + 1; }); } catch(e){}
+      var parts = Object.keys(labels).map(function(k){ return k + '×' + labels[k]; });
+      if (resendCount > 0) parts.push('自動再送待ち×' + resendCount);
+      var summary = parts.join(', ');
+      gasPost({ action: 'reportUnsentOnLogin', studentId: sid, resendCount: resendCount, manualCount: manualN, summary: summary }, 20000)
+        .then(function(res){
+          if (res && res.ok) { try { _unsentManualClearForSid(sid); _updateResendBanner(); } catch(e){} }
+        })
+        .catch(function(){ /* 失敗時は次回ログインで再通知（クリアしない） */ });
+    } catch(e){}
+  }
 
   // 復帰検知：visibilitychange（visible）＋ pageshow（bfcache 復元/初回ロード）。
   //   初回ロードや未ログイン時は _revalidateOnResume 冒頭の _studentId ガードで no-op。
@@ -18182,7 +18205,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260703-2251</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260703-2258</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

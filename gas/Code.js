@@ -1256,6 +1256,8 @@ function doGet(e) {
       else if (action === 'adminAddQuote')     result = adminAddQuote(params);
       else if (action === 'adminAddNotice')    result = adminAddNotice(params);
       else if (action === 'adminListStudents') result = adminListStudents(params);
+      // 応急処置④：未送信レポート一覧（管理画面・認証必須・読み取り）
+      else if (action === 'adminListUnsentReports') result = adminListUnsentReports(params);
       // 2026-05-21：HP 書き込みテレメトリ閲覧（admin 限定、Phase 3 _logHP 防御層の silent failure 早期発見用）
       else if (action === 'adminListHpLogWriteAttempts') result = adminListHpLogWriteAttempts(params);
       else if (action === 'getStudentsListForGrant') result = getStudentsListForGrant(params);
@@ -1545,6 +1547,8 @@ function doPost(e) {
     //   本番デプロイ後の初回テストで「unknown action: submitLison」エラーを起こした実績あり
     //   （2026-04-29）。getLisonContent は GET（cachedGasGet）なので doGet のみで OK。
     else if (action === 'submitLison')              result = submitLison(params);
+    // 応急処置④：前回セッションの未送信件数の通知（軽量 POST・追記のみ）
+    else if (action === 'reportUnsentOnLogin')      result = reportUnsentOnLogin(params);
     // Phase 6: リスオン録音 base64 配信（doGet にも保護登録、両方セットで保持）。
     else if (action === 'getLisonRecordingBlob')    result = getLisonRecordingBlob(params);
     // Phase 6: 基礎計算 答案写真 base64 配信（doGet にも保護登録、両方セットで保持）。
@@ -1837,6 +1841,75 @@ function loginStudent(studentId) {
   } catch (err) {
     console.error('[loginStudent]', err);
     return { ok: false, message: '内部エラーが発生しました。' };
+  }
+}
+
+// =============================================
+// 未送信レポート（応急処置④・2026-07-03）
+// =============================================
+// クライアントが「前回セッションの未送信件数」を次回ログイン時に通知 → UnsentReports に記録。
+//   先生（管理画面）が「どの生徒が前回どれだけ未送信だったか」に気づいて手動救済できるようにする。
+//   ★自動でデータ復元はしない（未送信＝サーバーに届いていない＝復元不能）。あくまで「気づく」ため。
+const SHEET_UNSENT_REPORTS = 'UnsentReports';
+const UNSENT_REPORTS_HEADERS = ['timestamp', 'studentId', 'studentName', 'resendCount', 'manualCount', 'summary'];
+
+function _ensureUnsentReportsSheet() {
+  return _ensureSheetWithHeaders(SHEET_UNSENT_REPORTS, UNSENT_REPORTS_HEADERS, 100).sh;
+}
+
+function _unsentFmtTs(raw) {
+  try { return (raw instanceof Date) ? Utilities.formatDate(raw, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss') : String(raw == null ? '' : raw); }
+  catch (e) { return String(raw == null ? '' : raw); }
+}
+
+// 生徒クライアントからの通知（doPost）。認証不要（studentId 紐付け・追記のみ）。
+//   resendCount：自動再送キュー（sango/wabun1/lison/V2/reflection）の残件数
+//   manualCount：kiso/kanji/kobun/V1 の「送れなかった」手動やり直し分（自動再送不可）
+function reportUnsentOnLogin(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: 'studentId が指定されていません' };
+    const resendCount = Math.max(0, Number((params && params.resendCount) || 0) | 0);
+    const manualCount = Math.max(0, Number((params && params.manualCount) || 0) | 0);
+    if (resendCount === 0 && manualCount === 0) return { ok: true, skipped: true };
+    const summary = String((params && params.summary) || '').slice(0, 500);
+    let name = '';
+    try { const loc = _findAccountRowOnSheet(sid); if (loc) name = String(loc.rowValues[COL_NAME] || ''); } catch (e) {}
+    const sh = _ensureUnsentReportsSheet();
+    sh.appendRow([_nowJST(), sid, name, resendCount, manualCount, summary]);
+    return { ok: true };
+  } catch (err) {
+    console.error('[reportUnsentOnLogin]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 管理画面用：直近の未送信レポート一覧（認証必須・読み取りのみ）。
+function adminListUnsentReports(params) {
+  const _teacher = _verifyTeacher(params && params.teacherId, params && params.password);
+  if (!_teacher) return { ok: false, message: '認証エラー' };
+  try {
+    const sh = _ss().getSheetByName(SHEET_UNSENT_REPORTS);
+    if (!sh || sh.getLastRow() < 2) return { ok: true, reports: [] };
+    const limit = Math.min(200, Math.max(1, Number((params && params.limit) || 100) | 0));
+    const rows = _readLastNRows(sh, limit);
+    const reports = [];
+    for (let i = rows.length - 1; i >= 0; i--) {   // 新しい順
+      const r = rows[i];
+      if (!r[1]) continue;
+      reports.push({
+        timestamp:   _unsentFmtTs(r[0]),
+        studentId:   String(r[1] || ''),
+        studentName: String(r[2] || ''),
+        resendCount: Number(r[3]) || 0,
+        manualCount: Number(r[4]) || 0,
+        summary:     String(r[5] || '')
+      });
+    }
+    return { ok: true, reports: reports };
+  } catch (err) {
+    console.error('[adminListUnsentReports]', err);
+    return { ok: false, message: String(err) };
   }
 }
 
