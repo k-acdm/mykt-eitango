@@ -3153,10 +3153,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260704-0528"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260704-0533"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260704-0528">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260704-0528"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260704-0533">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260704-0533"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3692,10 +3692,13 @@
           <img class="ico-mascot" src="images/oriwantes-default.png" alt="">オリワンテス
           <span class="content-btn-sub">自分専用のオリジナルテストを作る</span>
         </button>
-        <button class="content-btn c-phonics" onclick="showPhonicsStart()">
-          <span class="badge-hp">1〜5HP/問</span>
-          <img class="ico-mascot" src="images/phony-default.png" alt="">フォニックスゲーム
-          <span class="content-btn-sub">英語の音で遊ぶゲーム</span>
+        <!-- フォニックスゲーム：第1段階の実装本体（screen-phonics-setup / _buildPhonicsQuiz /
+             GAS getPhonicsQuestions 等）は完成済みだが、ゲーム本体（第2段階以降）が未完のため
+             生徒には見せない「準備中」に戻している。第2段階で下記カードを稼働版（badge-hp +
+             ico-mascot phony-default + onclick=showPhonicsStart）に戻せば即つながる。 -->
+        <button class="content-btn c-phonics disabled" onclick="showComingSoon('フォニックスゲーム')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">🎵</span>フォニックスゲーム
         </button>
         <button class="content-btn c-himitsu" onclick="showFortuneScreen()">
           <span class="ico">🔮</span>今日の運勢
@@ -18553,7 +18556,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260704-0528</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260704-0533</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
