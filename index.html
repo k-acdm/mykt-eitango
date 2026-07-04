@@ -2575,6 +2575,67 @@
       .phonics-choice-btn, .phonics-stage-btn { min-width: 100%; }
     }
 
+    /* フォニックスゲーム 風船割り本体（2026-07-04 第2段階） */
+    .phonics-progress { text-align: right; font-size: 13px; font-weight: bold; color: #9d174d; margin: 2px 2px 4px; }
+    .phonics-question { text-align: center; margin: 6px 0 2px; }
+    .phonics-question .pq-main { font-size: 30px; font-weight: bold; color: #9d174d; letter-spacing: 1px; line-height: 1.25; word-break: break-word; }
+    .phonics-question .pq-inst { font-size: 13px; color: #78350f; margin-top: 4px; }
+    .phonics-question .pq-note { font-size: 12px; color: #a16207; margin-top: 2px; }
+    /* 風船が浮かぶフィールド。height は JS の travel 計算と連動（固定 400px） */
+    .phonics-field {
+      position: relative; height: 400px; margin: 8px 0 4px;
+      border-radius: 16px; overflow: hidden;
+      background: linear-gradient(180deg,#e0f2fe 0%,#f0f9ff 55%,#fdf4ff 100%);
+      box-shadow: inset 0 2px 10px rgba(0,0,0,.06);
+      touch-action: manipulation;
+    }
+    /* 外側＝上昇アニメーション担当（translateY のみ。中の割れ演出と競合させない） */
+    .phonics-floater {
+      position: absolute; top: 100%; width: 74px; height: 92px;
+      animation-name: phonicsFloat; animation-timing-function: linear; animation-fill-mode: forwards;
+      will-change: transform;
+    }
+    @keyframes phonicsFloat {
+      from { transform: translateY(0); }
+      to   { transform: translateY(calc(var(--phonics-travel, 520px) * -1)); }
+    }
+    /* 内側＝風船の見た目＋タップ対象＋割れ演出（scale）担当 */
+    .phonics-balloon {
+      position: relative; width: 74px; height: 84px;
+      border-radius: 50% 50% 48% 48% / 55% 55% 45% 45%;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: bold; font-size: 17px; text-align: center; padding: 0 4px;
+      text-shadow: 0 1px 3px rgba(0,0,0,.35);
+      box-shadow: inset -6px -8px 12px rgba(0,0,0,.14), 0 3px 6px rgba(0,0,0,.16);
+      cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    .phonics-balloon::after {
+      content: ''; position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
+      width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent;
+      border-top: 8px solid rgba(0,0,0,.18);
+    }
+    .phonics-balloon.pb0 { background: radial-gradient(circle at 34% 28%, #fecdd3, #fb7185); }
+    .phonics-balloon.pb1 { background: radial-gradient(circle at 34% 28%, #bfdbfe, #60a5fa); }
+    .phonics-balloon.pb2 { background: radial-gradient(circle at 34% 28%, #bbf7d0, #34d399); }
+    .phonics-balloon.pb3 { background: radial-gradient(circle at 34% 28%, #fde68a, #fbbf24); }
+    .phonics-balloon.pb4 { background: radial-gradient(circle at 34% 28%, #ddd6fe, #a78bfa); }
+    .phonics-balloon.pb5 { background: radial-gradient(circle at 34% 28%, #fbcfe8, #f472b6); }
+    .phonics-balloon.phonics-pop { animation: phonicsPop .26s ease-out forwards; pointer-events: none; }
+    @keyframes phonicsPop { 0% { transform: scale(1); opacity: 1; } 40% { transform: scale(1.35); opacity: .9; } 100% { transform: scale(0); opacity: 0; } }
+    .phonics-balloon.phonics-wrong { animation: phonicsWrong .42s ease-in-out; }
+    @keyframes phonicsWrong { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-7px) rotate(-4deg); } 60% { transform: translateX(7px) rotate(4deg); } }
+    .phonics-feedback { min-height: 30px; text-align: center; margin-top: 2px; }
+    .phonics-fb { font-size: 20px; font-weight: bold; }
+    .phonics-fb.ok { color: #16a34a; }
+    .phonics-fb.ng { color: #dc2626; }
+    .phonics-result-score { font-size: 24px; font-weight: bold; color: #9d174d; margin: 14px 0 4px; }
+    .phonics-result-score strong { font-size: 34px; color: #be185d; }
+    .phonics-result-hp-note { font-size: 13px; color: #888; margin-top: 6px; }
+    @media (max-width: 480px) {
+      .phonics-field { height: 360px; }
+      .phonics-question .pq-main { font-size: 26px; }
+    }
+
     .kiso-count-card { background: #fff; border-radius: 14px; padding: 22px; margin: 14px 0; box-shadow: 0 3px 12px rgba(0,0,0,.08); text-align: center; }
     .kiso-count-rank-label { font-size: 18px; font-weight: bold; color: #0c4a6e; margin-bottom: 14px; }
     .kiso-count-btn { width: 100%; margin: 10px 0; padding: 22px; font-size: 22px; font-weight: bold; color: #fff; border: none; border-radius: 14px; cursor: pointer; box-shadow: 0 4px 14px rgba(14,165,233,.4); }
@@ -3153,10 +3214,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260704-0533"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260704-2033"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260704-0533">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260704-0533"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260704-2033">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260704-2033"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5728,15 +5789,43 @@
   </div>
 </div>
 
-<!-- フォニックス ゲーム画面（第1段階では枠のみ。中身＝風船/モグラ演出は第2段階） -->
+<!-- フォニックス ゲーム画面（第2段階：風船割り本体。モグラ叩きは第3段階で 準備中 表示） -->
 <div id="screen-phonics-game" class="screen">
   <header><h1>🎵 フォニックスゲーム</h1><span id="phonics-game-meta"></span></header>
-  <div class="container" style="padding-top:16px">
-    <div id="phonics-game-body" style="text-align:center;padding:24px 0;color:#78350f">
-      <p style="font-size:16px;font-weight:bold">ゲーム画面は準備中です（第2段階で実装）</p>
-      <p style="font-size:13px;color:#888;margin-top:8px">出題データ（quiz）は組み立て済み。コンソールで確認できます。</p>
+  <div class="container" style="padding-top:12px">
+    <!-- モグラ叩き（第3段階）用の準備中プレースホルダ。風船割り時は非表示 -->
+    <div id="phonics-game-soon" style="display:none;text-align:center;padding:24px 0;color:#78350f">
+      <p style="font-size:16px;font-weight:bold">🔨 モグラ叩きは準備中です</p>
+      <p style="font-size:13px;color:#888;margin-top:8px">第3段階で実装予定。いまは「風船割り」であそべます。</p>
+      <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-phonics-setup')">← 設定に戻る</button>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-phonics-setup')">← 設定に戻る</button>
+    <!-- 風船割り本体 -->
+    <div id="phonics-game-play">
+      <div id="phonics-progress" class="phonics-progress"></div>
+      <div class="mate-row">
+        <img class="mate-img" id="mate-img-phonics-game" src="images/phony-default.png" alt="フォニー">
+        <div class="mate-bubble" id="mate-bubble-phonics-game">よーし、はじめよう！</div>
+      </div>
+      <div id="phonics-question" class="phonics-question"></div>
+      <div id="phonics-field" class="phonics-field"></div>
+      <div id="phonics-feedback" class="phonics-feedback"></div>
+      <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="quitPhonicsGame()">← やめて設定に戻る</button>
+    </div>
+  </div>
+</div>
+
+<!-- フォニックス 結果画面（第2段階：正解数のみ。HP付与は第4段階） -->
+<div id="screen-phonics-result" class="screen">
+  <header><h1>🎵 けっか</h1><span id="phonics-result-meta"></span></header>
+  <div class="container" style="padding-top:16px;text-align:center">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-phonics-result" src="images/phony-celebrate.png" alt="フォニー">
+      <div class="mate-bubble" id="mate-bubble-phonics-result">おつかれさま！</div>
+    </div>
+    <div id="phonics-result-score" class="phonics-result-score"></div>
+    <div class="phonics-result-hp-note">✨ HP は後で（第4段階でつくよ）</div>
+    <button class="btn-wide phonics-start-btn" style="margin-top:16px" onclick="showPhonicsStart()">🔁 もう一回あそぶ</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">← ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -14089,8 +14178,13 @@
   // フォニー（フォニックスゲーム、元気な音あそび口調）。2026-07-04 新設・第1段階。
   //   本格的なセリフ出し分けは第2段階（ゲーム演出）で使う。今は設定画面用の最小限。
   var PHONY_BUBBLES = {
-    setup:  ['いっしょに英語の音であそぼう！', 'どのあそび方にする？', '音をよく聞いてね！'],
-    start:  ['よーし、はじめよう！', 'いくよ、レッツゴー！']
+    setup:      ['いっしょに英語の音であそぼう！', 'どのあそび方にする？', '音をよく聞いてね！'],
+    start:      ['よーし、はじめよう！', 'いくよ、レッツゴー！'],
+    question:   ['正しい読みの風船をわってね！', 'どの風船かな？', '音をよく聞いてタップ！', 'ねらってわろう！'],
+    correct:    ['やったね！', 'せいかい〜！', 'その調子！', 'ナイス！'],
+    incorrect:  ['おしい！つぎがんばろう', 'ドンマイ！', 'つぎはいけるよ', 'もういちどチャレンジ！'],
+    resultGood: ['すごい！よくできたね！', 'かんぺきに近いよ！', 'その耳、さいこう！'],
+    resultBad:  ['よくがんばったね！', 'つづければ上手になるよ！', 'また一緒にあそぼう！']
   };
   // ジャパニン（国語長文読解、和風武士口調）。2026-05-23 採用。
   var JAPANIN_BUBBLES = {
@@ -16477,12 +16571,41 @@
   var PHONICS_QUIZ_SIZE = 20;       // 1 ゲーム = 最大 20 問
   var PHONICS_DUMMY_COUNT = 3;      // char/add のダミー生成数（word は dummies の 3 個を使用）
 
+  // ★調整パラメータ集約（第2段階・たたき台の仮値。ふくちさんと実機で見ながら調整する）
+  //   速度・個数・演出時間はすべてここ 1 箇所で変える。値の意味は各コメント参照。
+  var PHONICS_CONFIG = {
+    balloonCount: 6,        // 1 問あたりの風船の総数（正解＋ダミー）。難易度共通で当面 6 固定
+    balloonWidth: 74,       // 風船の幅(px)。CSS .phonics-floater / .phonics-balloon と揃える
+    balloonHeight: 92,      // 風船の高さ(px)。上に流れ切る移動量(travel)の計算に使う
+    spawnStaggerSec: 0.45,  // 風船を1個ずつ出す間隔(秒)。0 で全部同時に出現
+    spawnJitterSec: 0.35,   // 出現タイミングのランダムばらつき(秒)
+    popMs: 260,             // 正解の風船が割れる演出の長さ(ms)。CSS phonicsPop と揃える
+    feedbackMs: 1100,       // 正解/不正解を見せてから次の問題へ進むまでの待ち(ms)
+    // 難易度：風船が下から上へ流れ切るまでの秒数（小さいほど速い）
+    difficulty: {
+      easy:   { floatSec: 11  },  // 遅い
+      normal: { floatSec: 8   },  // 標準
+      hard:   { floatSec: 5.5 }   // 速い
+    }
+  };
+
   var _phonicsState = {
     questions: [],        // getPhonicsQuestions で取得した全問（{stage,type,question,answers,dummies,note}）
     gameType: '',         // 'balloon'（風船割り） / 'mole'（モグラ叩き）
     difficulty: '',       // 'easy' / 'normal' / 'hard'
     selectedStages: [],   // 選択された stage 文字列の配列（例 ['stage0_add','stage1']）
-    quiz: []              // _buildPhonicsQuiz が組み立てた出題（第2段階でゲームが消費）
+    quiz: [],             // _buildPhonicsQuiz が組み立てた出題（第2段階でゲームが消費）
+    correctCount: 0       // 直近ゲームの正解数（結果画面で表示。HP付与は第4段階）
+  };
+
+  // 風船割りゲームの実行時状態（1 ゲームの間だけ有効。_phonicsStopGame で確実に破棄）
+  var _phonicsGame = {
+    qIndex: 0,            // 現在の問題インデックス(0..quiz.length-1)
+    correctCount: 0,      // このゲームの正解数
+    remainingCorrect: 0,  // この問題で「まだ割っていない正解の風船」の数
+    answered: false,      // この問題が確定済みか（多重進行ガード）
+    listening: false,     // フィールドにタップ/animationend リスナーを付けているか
+    timers: []            // 進行中の setTimeout id（画面離脱・問題遷移で全破棄）
   };
 
   function _phonicsResetState() {
@@ -16490,6 +16613,7 @@
     _phonicsState.difficulty = '';
     _phonicsState.selectedStages = [];
     _phonicsState.quiz = [];
+    _phonicsState.correctCount = 0;
     // questions（取得済みの全問）は保持（再取得を避ける）
   }
 
@@ -16654,7 +16778,7 @@
     }
   }
 
-  // 「ゲーム開始」：バリデーション → quiz 組み立て → ゲーム画面（第1段階では枠のみ）
+  // 「ゲーム開始」：バリデーション → quiz 組み立て → 風船割り本体 or モグラ準備中
   function startPhonicsGame() {
     if (!_phonicsState.gameType || !_phonicsState.difficulty) return;
     if (_phonicsState.selectedStages.length < 2) return;
@@ -16665,7 +16789,250 @@
       var df = ({ easy:'かんたん', normal:'ふつう', hard:'ハード' })[_phonicsState.difficulty] || '';
       meta.textContent = gt + '・' + df + '・' + _phonicsState.quiz.length + '問';
     }
+    var playEl = document.getElementById('phonics-game-play');
+    var soonEl = document.getElementById('phonics-game-soon');
+    if (_phonicsState.gameType === 'mole') {
+      // モグラ叩きは第3段階。ここでは準備中を表示するだけ。
+      if (playEl) playEl.style.display = 'none';
+      if (soonEl) soonEl.style.display = 'block';
+      showScreen('screen-phonics-game');
+      return;
+    }
+    // 風船割り本体
+    if (soonEl) soonEl.style.display = 'none';
+    if (playEl) playEl.style.display = 'block';
     showScreen('screen-phonics-game');
+    _phonicsStartBalloonGame();
+  }
+
+  // ============================================================================
+  // 風船割りゲーム本体（第2段階・たたき台）
+  //   方式：CSS アニメーション（translateY で下→上に流す）＋ フィールドへのイベント委譲。
+  //     - 外側 .phonics-floater が上昇アニメ、内側 .phonics-balloon が見た目＋タップ＋割れ演出。
+  //     - タップ判定と流れ切り(animationend)はフィールド 1 箇所への委譲で軽量に処理。
+  //   破棄：問題遷移・画面離脱で _phonicsStopGame がタイマー/リスナー/DOM を確実に片付ける。
+  // ============================================================================
+  function _phonicsStartBalloonGame() {
+    _phonicsStopGame();  // 念のため前回分を完全破棄してから開始
+    _phonicsGame.qIndex = 0;
+    _phonicsGame.correctCount = 0;
+    _phonicsGame.answered = false;
+    _phonicsGame.timers = [];
+    var field = document.getElementById('phonics-field');
+    if (field && !_phonicsGame.listening) {
+      field.addEventListener('pointerdown', _phonicsFieldTap);
+      field.addEventListener('animationend', _phonicsFieldAnimEnd);
+      _phonicsGame.listening = true;
+    }
+    _phonicsRenderQuestion(0);
+  }
+
+  // 「やめて設定に戻る」：必ず片付けてから遷移（タイマー/アニメの取り残し防止）
+  function quitPhonicsGame() {
+    _phonicsStopGame();
+    showScreen('screen-phonics-setup');
+  }
+
+  // ゲームの実行状態を完全破棄（タイマー全解除・リスナー除去・風船 DOM 撤去）
+  function _phonicsStopGame() {
+    var g = _phonicsGame;
+    (g.timers || []).forEach(function(t){ try { clearTimeout(t); } catch(e){} });
+    g.timers = [];
+    g.answered = true;  // 遅延コールバックが来ても進行させない
+    var field = document.getElementById('phonics-field');
+    if (field) {
+      if (g.listening) {
+        field.removeEventListener('pointerdown', _phonicsFieldTap);
+        field.removeEventListener('animationend', _phonicsFieldAnimEnd);
+      }
+      field.innerHTML = '';
+    }
+    g.listening = false;
+  }
+
+  // 1 問を描画：前問の風船を撤去 → 20問到達なら結果へ → 問題文＋風船を出す
+  function _phonicsRenderQuestion(idx) {
+    var g = _phonicsGame;
+    // 前問のタイマー・風船をクリア（進行タイマーは既に発火済みなので破棄して良い）
+    (g.timers || []).forEach(function(t){ try { clearTimeout(t); } catch(e){} });
+    g.timers = [];
+    var field = document.getElementById('phonics-field');
+    if (field) field.innerHTML = '';
+    var fb = document.getElementById('phonics-feedback');
+    if (fb) fb.innerHTML = '';
+
+    var quiz = _phonicsState.quiz || [];
+    if (idx >= quiz.length) { _phonicsShowResult(); return; }
+
+    g.qIndex = idx;
+    g.answered = false;
+    var item = quiz[idx];
+
+    var prog = document.getElementById('phonics-progress');
+    if (prog) prog.textContent = (idx + 1) + ' / ' + quiz.length + '問';
+
+    _phonicsRenderQuestionText(item);
+    _setContentMascot('mate-img-phonics-game', 'default', 'mate-bubble-phonics-game', _pickBubble(PHONY_BUBBLES.question), 'phony');
+
+    var balloons = _phonicsBuildBalloons(item);
+    g.remainingCorrect = balloons.filter(function(b){ return b.isCorrect; }).length;
+    // 防御：正解の風船が 0 個（想定外データ）だと永久に確定しないので不正解扱いで次へ
+    if (g.remainingCorrect === 0) {
+      try { console.warn('[phonics] 正解の風船が0個の問題をスキップ:', item); } catch(e){}
+      _phonicsAdvance(false);
+      return;
+    }
+    _phonicsSpawnBalloons(balloons);
+  }
+
+  // 問題文（question）＋種類別の遊び方インストラクションを描画
+  function _phonicsRenderQuestionText(item) {
+    var el = document.getElementById('phonics-question');
+    if (!el) return;
+    var inst;
+    if (item.type === 'word')      inst = 'この単語の読み方の風船をわってね';
+    else if (item.type === 'add')  inst = '音をたすと…？ 読み方の風船をわってね';
+    else if (item.type === 'char') inst = (item.correct.length >= 2) ? 'この文字の音は2つ！ 両方の風船をわってね' : 'この文字の音の風船をわってね';
+    else                           inst = '読み方の風船をわってね';
+    var html = '<div class="pq-main">' + _phonicsEsc(item.question) + '</div>' +
+               '<div class="pq-inst">' + inst + '</div>';
+    if (item.note) html += '<div class="pq-note">' + _phonicsEsc(item.note) + '</div>';
+    el.innerHTML = html;
+  }
+
+  // この問題の風船 6 個を組み立て（正解＋ダミー、読みの重複を避ける）
+  //   correct 2要素（読み2つ）：各読み1個ずつ＝2個を正解に。両方割る必要あり。
+  //   correct 1要素：正解を 1〜2 個（ランダム）。残りをダミーで埋めて計 balloonCount 個。
+  //   ダミーが足りなければあるだけ（6個未満でも動く）。
+  function _phonicsBuildBalloons(item) {
+    var cfg = PHONICS_CONFIG;
+    var correctReadings = (item.correct || []).map(function(c){ return String(c || '').trim(); }).filter(Boolean);
+    var correctBalloons = [];
+    if (correctReadings.length >= 2) {
+      correctReadings.forEach(function(r){ correctBalloons.push({ reading: r, isCorrect: true }); });
+    } else if (correctReadings.length === 1) {
+      var n = 1 + Math.floor(Math.random() * 2);  // 1 or 2
+      for (var i = 0; i < n; i++) correctBalloons.push({ reading: correctReadings[0], isCorrect: true });
+    }
+    var need = Math.max(0, cfg.balloonCount - correctBalloons.length);
+    // 正解の読みと重複しない・ダミー同士でも重複しないダミーを集める
+    var used = {};
+    correctReadings.forEach(function(r){ used[r] = true; });
+    var dummies = [];
+    (item.dummyChoices || []).forEach(function(d){
+      var v = String(d || '').trim();
+      if (!v || used[v]) return;
+      used[v] = true;
+      dummies.push({ reading: v, isCorrect: false });
+    });
+    dummies = _phonicsShuffle(dummies).slice(0, need);
+    return _phonicsShuffle(correctBalloons.concat(dummies));
+  }
+
+  // 風船 DOM を生成してフィールドに配置＋上昇アニメ開始
+  function _phonicsSpawnBalloons(list) {
+    var field = document.getElementById('phonics-field');
+    if (!field) return;
+    var cfg = PHONICS_CONFIG;
+    var diff = cfg.difficulty[_phonicsState.difficulty] || cfg.difficulty.normal;
+    var fieldW = field.clientWidth || 320;
+    var fieldH = field.clientHeight || 380;
+    var travel = fieldH + cfg.balloonHeight + 40;  // 上に完全に流れ切るまでの移動量
+    var leftMax = Math.max(0, fieldW - cfg.balloonWidth);
+    list.forEach(function(b, i){
+      var floater = document.createElement('div');
+      floater.className = 'phonics-floater';
+      floater.style.left = Math.floor(Math.random() * (leftMax + 1)) + 'px';
+      floater.style.setProperty('--phonics-travel', travel + 'px');
+      floater.style.animationDuration = diff.floatSec + 's';
+      floater.style.animationDelay = (i * cfg.spawnStaggerSec + Math.random() * cfg.spawnJitterSec).toFixed(2) + 's';
+      floater.setAttribute('data-correct', b.isCorrect ? '1' : '0');
+      var balloon = document.createElement('div');
+      balloon.className = 'phonics-balloon pb' + (i % 6);
+      balloon.textContent = b.reading;
+      floater.appendChild(balloon);
+      field.appendChild(floater);
+    });
+  }
+
+  // フィールドへのタップ（イベント委譲）：正解→割れる／ダミー→不正解
+  function _phonicsFieldTap(e) {
+    var g = _phonicsGame;
+    if (g.answered) return;
+    var target = e.target;
+    var balloon = (target && target.closest) ? target.closest('.phonics-balloon') : null;
+    if (!balloon) return;
+    var floater = balloon.parentNode;
+    if (!floater || floater._phonicsHandled) return;
+    floater._phonicsHandled = true;
+    var isCorrect = floater.getAttribute('data-correct') === '1';
+    if (isCorrect) {
+      balloon.classList.add('phonics-pop');
+      playSfx('correct');
+      var t = setTimeout(function(){ if (floater.parentNode) floater.parentNode.removeChild(floater); }, PHONICS_CONFIG.popMs);
+      g.timers.push(t);
+      g.remainingCorrect--;
+      if (g.remainingCorrect <= 0) _phonicsAdvance(true);
+    } else {
+      balloon.classList.add('phonics-wrong');
+      playSfx('wrong');
+      _phonicsAdvance(false);
+    }
+  }
+
+  // 風船が上端まで流れ切った（animationend）：正解を割れずに逃したら不正解
+  function _phonicsFieldAnimEnd(e) {
+    if (e.animationName !== 'phonicsFloat') return;
+    var floater = e.target;
+    if (!floater || !floater.classList || !floater.classList.contains('phonics-floater')) return;
+    var wasHandled = floater._phonicsHandled;
+    floater._phonicsHandled = true;
+    var isCorrect = floater.getAttribute('data-correct') === '1';
+    if (floater.parentNode) floater.parentNode.removeChild(floater);
+    if (wasHandled) return;
+    if (_phonicsGame.answered) return;
+    if (isCorrect) _phonicsAdvance(false);  // 必要な正解を逃した → 不正解
+    // ダミーが流れ切っただけなら何もしない
+  }
+
+  // 問題確定 → フィードバック表示 → 次の問題（or 結果）へ
+  function _phonicsAdvance(wasCorrect) {
+    var g = _phonicsGame;
+    if (g.answered) return;
+    g.answered = true;
+    if (wasCorrect) { g.correctCount++; _phonicsState.correctCount = g.correctCount; }
+    // 残りの風船を止めて演出のじゃまをしない（movement/animationend を停止）
+    var field = document.getElementById('phonics-field');
+    if (field) {
+      var floaters = field.querySelectorAll('.phonics-floater');
+      for (var i = 0; i < floaters.length; i++) {
+        floaters[i]._phonicsHandled = true;
+        floaters[i].style.animationPlayState = 'paused';
+      }
+    }
+    var fb = document.getElementById('phonics-feedback');
+    if (fb) fb.innerHTML = wasCorrect ? '<span class="phonics-fb ok">せいかい！🎉</span>' : '<span class="phonics-fb ng">ざんねん…</span>';
+    _setContentMascot('mate-img-phonics-game', wasCorrect ? 'celebrate' : 'encourage', 'mate-bubble-phonics-game',
+      _pickBubble(wasCorrect ? PHONY_BUBBLES.correct : PHONY_BUBBLES.incorrect), 'phony');
+    var t = setTimeout(function(){ _phonicsRenderQuestion(g.qIndex + 1); }, PHONICS_CONFIG.feedbackMs);
+    g.timers.push(t);
+  }
+
+  // 結果画面：正解数 X/20 のみ（HP付与は第4段階のプレースホルダ）
+  function _phonicsShowResult() {
+    _phonicsStopGame();
+    var total = (_phonicsState.quiz || []).length;
+    var score = _phonicsGame.correctCount;
+    _phonicsState.correctCount = score;
+    var scoreEl = document.getElementById('phonics-result-score');
+    if (scoreEl) scoreEl.innerHTML = '正解数 <strong>' + score + '</strong> / ' + total + '問';
+    var meta = document.getElementById('phonics-result-meta');
+    if (meta) meta.textContent = '';
+    var good = (total > 0 && score >= Math.ceil(total * 0.6));
+    _setContentMascot('mate-img-phonics-result', good ? 'celebrate' : 'encourage', 'mate-bubble-phonics-result',
+      _pickBubble(good ? PHONY_BUBBLES.resultGood : PHONY_BUBBLES.resultBad), 'phony');
+    playSfx(good ? 'chime' : 'wrong');
+    showScreen('screen-phonics-result');
   }
 
   // ★出題ロジック（第1段階の核）：selectedStages の問題を全部まぜてシャッフル → 先頭20問。
@@ -18556,7 +18923,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260704-0533</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260704-2033</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
