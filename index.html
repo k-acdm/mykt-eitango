@@ -2563,13 +2563,13 @@
     .phonics-choice-btn { flex: 1 1 auto; min-width: 44%; padding: 14px 12px; background: linear-gradient(135deg,#fbb6ce,#ed64a6); color: #fff; border: 3px solid transparent; border-radius: 14px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(237,100,166,.28); display: flex; flex-direction: column; align-items: center; gap: 3px; }
     .phonics-choice-btn:hover { opacity: .93; }
     .phonics-choice-btn.selected { border-color: #831843; box-shadow: 0 0 0 3px rgba(131,24,67,.25), 0 3px 10px rgba(237,100,166,.35); transform: translateY(-1px); }
-    .phonics-choice-btn .phonics-diff-hp { font-size: 11px; font-weight: normal; opacity: .95; }
+    .phonics-choice-btn .phonics-diff-hp { font-size: 16px; font-weight: normal; color: #fff0b3; }  /* 1行目と同サイズ＋淡黄で区別 */
     .phonics-stage-list { display: flex; flex-wrap: wrap; gap: 10px; }
     .phonics-stage-btn { flex: 1 1 auto; min-width: 44%; padding: 12px 10px; background: linear-gradient(135deg,#fde68a,#fbbf24); color: #78350f; border: 3px solid transparent; border-radius: 14px; font-size: 14px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(251,191,36,.28); text-align: center; line-height: 1.4; }
     .phonics-stage-btn:hover { opacity: .93; }
     .phonics-stage-btn.selected { border-color: #b45309; background: linear-gradient(135deg,#fbbf24,#f59e0b); box-shadow: 0 0 0 3px rgba(180,83,9,.22), 0 2px 8px rgba(251,191,36,.35); }
     .phonics-stage-btn .phonics-stage-name { display: block; font-size: 15px; font-weight: bold; }
-    .phonics-stage-btn .phonics-stage-sub { display: block; font-size: 11px; font-weight: normal; opacity: .85; margin-top: 3px; line-height: 1.3; }
+    .phonics-stage-btn .phonics-stage-sub { display: block; font-size: 15px; font-weight: normal; color: #b45309; margin-top: 3px; line-height: 1.3; }  /* 1行目と同サイズ＋アンバーで区別 */
     .phonics-start-btn { background: linear-gradient(135deg,#ec4899,#be185d); margin-top: 18px; }
     .phonics-start-btn:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(.3); }
     @media (max-width: 480px) {
@@ -3232,10 +3232,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260704-2317"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260705-0026"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260704-2317">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260704-2317"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260705-0026">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260705-0026"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5778,7 +5778,7 @@
 
     <!-- ① ゲーム種類（単一選択） -->
     <div class="phonics-setup-block">
-      <div class="phonics-setup-label">① あそび方をえらぶ</div>
+      <div class="phonics-setup-label">① 遊び方をえらぶ</div>
       <div class="phonics-choice-row">
         <button class="phonics-choice-btn" data-gametype="balloon" onclick="selectPhonicsGameType('balloon')">🎈 風船割り</button>
         <button class="phonics-choice-btn" data-gametype="mole"    onclick="selectPhonicsGameType('mole')">🔨 モグラ叩き</button>
@@ -5787,7 +5787,7 @@
 
     <!-- ② 難易度（単一選択） -->
     <div class="phonics-setup-block">
-      <div class="phonics-setup-label">② むずかしさをえらぶ</div>
+      <div class="phonics-setup-label">② 難しさをえらぶ</div>
       <div class="phonics-choice-row">
         <button class="phonics-choice-btn phonics-diff-btn" data-diff="easy"   onclick="selectPhonicsDifficulty('easy')">かんたん<span class="phonics-diff-hp">1HP/問</span></button>
         <button class="phonics-choice-btn phonics-diff-btn" data-diff="normal" onclick="selectPhonicsDifficulty('normal')">ふつう<span class="phonics-diff-hp">3HP/問</span></button>
@@ -5797,7 +5797,7 @@
 
     <!-- ③ 問題の種類（複数選択・2つ以上） -->
     <div class="phonics-setup-block">
-      <div class="phonics-setup-label">③ もんだいの種類をえらぶ（2つ以上）</div>
+      <div class="phonics-setup-label">③ 問題の種類をえらぶ（2つ以上）</div>
       <div id="phonics-stage-list" class="phonics-stage-list"></div>
     </div>
 
@@ -5830,14 +5830,14 @@
       <div id="phonics-question" class="phonics-question"></div>
       <div id="phonics-field" class="phonics-field"></div>
       <div id="phonics-feedback" class="phonics-feedback"></div>
-      <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="quitPhonicsGame()">← やめて設定に戻る</button>
+      <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="quitPhonicsGame()">■ ゲームを中断する</button>
     </div>
   </div>
 </div>
 
 <!-- フォニックス 結果画面（第2段階：正解数のみ。HP付与は第4段階） -->
 <div id="screen-phonics-result" class="screen">
-  <header><h1>🎵 けっか</h1><span id="phonics-result-meta"></span></header>
+  <header><h1>🎵 結果</h1><span id="phonics-result-meta"></span></header>
   <div class="container" style="padding-top:16px;text-align:center">
     <div class="mate-row">
       <img class="mate-img" id="mate-img-phonics-result" src="images/phony-celebrate.png" alt="フォニー">
@@ -16886,7 +16886,7 @@
     _phonicsRenderQuestion(0);
   }
 
-  // 「やめて設定に戻る」：必ず片付けてから遷移（タイマー/アニメの取り残し防止）
+  // 「ゲームを中断する」：必ず片付けてから遷移（タイマー/アニメの取り残し防止）
   function quitPhonicsGame() {
     _phonicsStopGame();
     showScreen('screen-phonics-setup');
@@ -16967,7 +16967,8 @@
     // ★読み方が2つある問題は「2つ」を目立たせる（両方割る必要があると分かるように）
     if (twoReadings) html += '<div class="pq-two">🎯 読み方は<span class="pq-two-num">2つ</span>あるよ！</div>';
     html += '<div class="pq-inst">' + inst + '</div>';
-    if (item.note) html += '<div class="pq-note">' + _phonicsEsc(item.note) + '</div>';
+    // ★char/add の note は上の大ラベル（文字の読み方／音の足し算）と重複するため下部には出さない。word のみ表示。
+    if (item.note && t === 'word') html += '<div class="pq-note">' + _phonicsEsc(item.note) + '</div>';
     el.innerHTML = html;
   }
 
@@ -17210,8 +17211,9 @@
     if (meta) meta.textContent = '';
     var good = (total > 0 && g.clearedCount >= Math.ceil(total * 0.6));
     _setContentMascot('mate-img-phonics-result', good ? 'celebrate' : 'encourage', 'mate-bubble-phonics-result',
-      'つづければ『フォニックスマスター』になるよ！', 'phony');
-    playSfx(good ? 'chime' : 'wrong');
+      '続ければ『フォニックスマスター』になるよ！', 'phony');
+    // ★お祝い画面なので常に成功音（英単語RUSHの合格結果と同じ 'pass'）。不正解音は鳴らさない。
+    playSfx('pass');
     showScreen('screen-phonics-result');
   }
 
@@ -19103,7 +19105,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260704-2317</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260705-0026</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
