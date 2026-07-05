@@ -3244,10 +3244,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260706-0503"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260706-0521"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260706-0503">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260706-0503"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260706-0521">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260706-0521"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -16629,23 +16629,29 @@
   var PHONICS_CONFIG = {
     balloonWidth: 74,       // 風船の幅(px)。CSS .phonics-floater / .phonics-balloon と揃える
     balloonHeight: 92,      // 風船の高さ(px)。上に流れ切る移動量(travel)の計算に使う
-    laneGap: 12,            // 重なり回避用：レーン間の最小すき間(px)。レーン幅=balloonWidth+laneGap
-    spawnStaggerSec: 0.40,  // 風船を1個ずつ出す間隔(秒)。大きいほど同時表示が減り重なりにくい
-    spawnJitterSec: 0.28,   // 出現タイミングのランダムばらつき(秒)
+    // ── 重なり回避パラメータ（★可読性優先。ここを触れば挙動を微調整できる。2026-07-06 強化）──
+    laneGap: 22,            // レーン間の最小すき間(px)。レーン幅=balloonWidth+laneGap。隣レーンの横重なり防止（旧12→22）
+    horizontalJitterMax: 8, // レーン内での横ゆらぎ上限(px)。レーン幅内でも隣に寄りすぎないよう小さめ
+    minVerticalGapFactor: 1.5, // 同一レーンの縦最小すき間 = balloonHeight × これ。大きいほど縦に離れて読みが隠れない（旧1.15相当→1.5）
+    spawnStaggerSec: 0.18,  // 風船を1個ずつ出す間隔(秒)の下限。実際は下の重なり回避計算で自動的に引き上がる
+    spawnJitterSec: 0.10,   // 出現タイミングのランダムばらつき(秒)。縦間隔を縮めすぎないよう小さく（旧0.28→0.10）。
+                            //   さらに spawn 時に stagger の 35% を上限にクランプして縦すき間を守る
     popMs: 260,             // 正解の風船が割れる演出の長さ(ms)。CSS phonicsPop と揃える
     feedbackMs: 1100,       // 問題確定を見せてから次の問題へ進むまでの待ち(ms)
-    // 難易度別のパラメータ（★ここで個数・正解数・速さ・HPレートを調整する）
+    // 難易度別のパラメータ（★ここで個数・正解数・速さ・HPレート・同時表示上限を調整する）
     //   balloonCount : 風船の総数（正解＋ダミー）
     //   correctMin/Max : 正解の風船の個数（この範囲でランダム。2読みの問題は両方必ず出す）
     //   floatSec : 下から上へ流れ切るまでの秒数（小さいほど速い）
-    //     現状比：easy=現状 / normal=現状8秒の約1.2倍速(6.7) / hard=現状5.5秒の約1.5倍速(3.7)
-    //   hpPerCorrect : 正解の風船1個を割るごとの獲得予定HP（サーバー付与は第4段階）
+    //   hpPerCorrect : 正解の風船1個を割るごとの獲得予定HP（難易度別レート 1/3/5）
     //   uniqueDummies : true ならダミーの読みを重複させない（足りなければ個数を減らす）。
     //     easy のみ true（6個で読みがダブらない）。normal/hard は false（12/20個を埋めるため許容）。
+    //   maxConcurrent : 画面に同時に出す風船数の上限（★重なり防止の要）。個数が多くても
+    //     これ以上は一度に出さず、消えたら順次出る（stagger を自動的に引き上げてキュー的に制御）。
+    //     ※ 実際の同時表示数は「縦すき間が保てる幾何学的上限」と本値の小さい方に収まる。
     difficulty: {
-      easy:   { balloonCount: 6,  correctMin: 1, correctMax: 2, floatSec: 11,   hpPerCorrect: 1, uniqueDummies: true  },
-      normal: { balloonCount: 12, correctMin: 3, correctMax: 4, floatSec: 6.7,  hpPerCorrect: 3, uniqueDummies: false },
-      hard:   { balloonCount: 20, correctMin: 5, correctMax: 6, floatSec: 2.47, hpPerCorrect: 5, uniqueDummies: false }
+      easy:   { balloonCount: 6,  correctMin: 1, correctMax: 2, floatSec: 11,   hpPerCorrect: 1, uniqueDummies: true,  maxConcurrent: 6  },
+      normal: { balloonCount: 12, correctMin: 3, correctMax: 4, floatSec: 6.7,  hpPerCorrect: 3, uniqueDummies: false, maxConcurrent: 8  },
+      hard:   { balloonCount: 20, correctMin: 5, correctMax: 6, floatSec: 2.47, hpPerCorrect: 5, uniqueDummies: false, maxConcurrent: 12 }
     }
   };
 
@@ -17064,30 +17070,45 @@
   }
 
   // 風船 DOM を生成してフィールドに配置＋上昇アニメ開始
-  //   重なり回避：横をレーンに分割し、1ラウンド（レーン数ぶん）ごとにレーン順をシャッフルして割り当てる。
-  //     → 同じレーンの再利用は最短でもレーン数×spawnStaggerSec の時間差がつき、縦に離れて読みが隠れない。
-  //     さらに spawnStagger で「次々と出てくる」ため同時表示数も抑えられる。
+  //   ★重なり回避（可読性優先。2026-07-06 強化）：後ろの風船の読みが隠れて選べない状況を無くす。
+  //   ① 横レーン分割：レーン幅 = balloonWidth + laneGap(22px) で隣レーンとの横すき間を確保。
+  //      1ラウンド（レーン数ぶん）ごとにレーン順をシャッフル → 同レーンの再利用に必ず時間差。
+  //   ② 縦すき間保証：同一レーンの再利用間隔 = laneCount × stagger。これ×速度が
+  //      balloonHeight × minVerticalGapFactor(1.5) 以上になるよう stagger を自動で引き上げる
+  //      → 同レーンの風船が縦に十分離れ、後ろが隠れない。
+  //   ③ 同時表示上限：maxConcurrent を超えないよう stagger をさらに引き上げ（キュー的に順次出す）。
+  //      実際の同時表示数は「幾何学的に縦すき間が保てる上限」と maxConcurrent の小さい方に収まる。
+  //   ④ 揺らぎは控えめ：delay の揺らぎは stagger の 35% までにクランプし縦すき間を守る。
+  //      横揺らぎは horizontalJitterMax(8px) まででレーン中央寄りに保つ。
   function _phonicsSpawnBalloons(list) {
     var field = document.getElementById('phonics-field');
     if (!field) return;
     var cfg = PHONICS_CONFIG;
     var diff = cfg.difficulty[_phonicsState.difficulty] || cfg.difficulty.normal;
     var fieldW = field.clientWidth || 320;
-    var fieldH = field.clientHeight || 380;
+    var fieldH = field.clientHeight || 400;
     var travel = fieldH + cfg.balloonHeight + 40;  // 上に完全に流れ切るまでの移動量
     var laneW = cfg.balloonWidth + cfg.laneGap;
     var laneCount = Math.max(1, Math.floor(fieldW / laneW));
     var startX = Math.max(0, (fieldW - laneCount * laneW) / 2);      // レーン群を中央寄せ
-    var jitterMax = Math.max(0, laneW - cfg.balloonWidth);           // レーン内の微小な横ゆらぎ
+    var slack = Math.max(0, laneW - cfg.balloonWidth);               // レーン内の余白
+    var hJit = Math.min(cfg.horizontalJitterMax || 0, slack);        // 横ゆらぎ幅（レーン内に収める）
 
-    // 同一レーンの縦重なりを防ぐため、出現間隔を速度に応じて自動で引き上げる。
-    //   同レーンの再利用間隔 = laneCount × stagger。これに速度を掛けた縦距離が
-    //   風船の高さ以上になるよう最小 stagger を確保（config 値を下限に採用）。
+    // ── stagger（出現間隔）を重なり回避の観点から自動決定 ──
     var speed = travel / (diff.floatSec || 8);                        // px/秒
-    var minStagger = (cfg.balloonHeight * 1.15) / speed / laneCount;
-    var stagger = Math.max(cfg.spawnStaggerSec, minStagger);
+    var gapFactor = cfg.minVerticalGapFactor || 1.5;
+    // ② 同一レーンの縦すき間を balloonHeight×gapFactor 以上にする最小 stagger
+    var staggerForGap = (cfg.balloonHeight * gapFactor) / speed / laneCount;
+    // ③ 同時表示数を maxConcurrent 以下にする最小 stagger（画面内滞在時間 ÷ 上限）
+    var visibleTime = fieldH / speed;                                 // 画面内に見えている時間(秒)
+    var maxConc = Math.max(1, diff.maxConcurrent || (laneCount * 2));
+    var staggerForConcurrency = visibleTime / maxConc;
+    var stagger = Math.max(cfg.spawnStaggerSec, staggerForGap, staggerForConcurrency);
 
-    // レーン割り当て列（ラウンドごとにシャッフル）
+    // delay 揺らぎは stagger の 35% までに制限（縦すき間を縮めすぎない）
+    var jitterCap = Math.min(cfg.spawnJitterSec || 0, stagger * 0.35);
+
+    // レーン割り当て列（ラウンド＝レーン数ぶん ごとにシャッフルして距離を稼ぐ）
     var laneSeq = [];
     var pool = [];
     for (var s = 0; s < list.length; s++) {
@@ -17103,11 +17124,13 @@
       var floater = document.createElement('div');
       floater.className = 'phonics-floater';
       var lane = laneSeq[i];
-      var left = Math.round(startX + lane * laneW + Math.random() * jitterMax);
+      // レーン内で中央寄りに配置（余白の中央に揺らぎ帯を置く）→ 隣レーンとのすき間を均等に確保
+      var base = startX + lane * laneW + (slack - hJit) / 2;
+      var left = Math.round(base + Math.random() * hJit);
       floater.style.left = left + 'px';
       floater.style.setProperty('--phonics-travel', travel + 'px');
       floater.style.animationDuration = diff.floatSec + 's';
-      floater.style.animationDelay = (i * stagger + Math.random() * cfg.spawnJitterSec).toFixed(2) + 's';
+      floater.style.animationDelay = (i * stagger + Math.random() * jitterCap).toFixed(2) + 's';
       floater.setAttribute('data-correct', b.isCorrect ? '1' : '0');
       var balloon = document.createElement('div');
       balloon.className = 'phonics-balloon pb' + (i % 6);
@@ -19216,7 +19239,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-0503</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-0521</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
