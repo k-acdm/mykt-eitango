@@ -3244,10 +3244,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260706-0422"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260706-0503"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260706-0422">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260706-0422"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260706-0503">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260706-0503"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5818,7 +5818,7 @@
     <a class="phonics-manual-btn" href="docs/phonics_list.pdf" target="_blank" rel="noopener">📖 読み方一覧を見る（ゲームの前にちょっと予習😊）</a>
 
     <!-- HP付与の注意書き（1日5回まで本番・それ以上は練習） -->
-    <div class="phonics-hp-note">🎈 1日5回まではHPがもらえるよ。それ以上あそべるけど、HPはもらえないよ😊</div>
+    <div class="phonics-hp-note">🎈 1日5回まではHPがもらえるよ。それ以上も遊べるけど、HPはもらえない😎</div>
 
     <div id="phonics-setup-msg" class="msg" style="display:none"></div>
     <button id="phonics-start-btn" class="btn-wide phonics-start-btn" onclick="startPhonicsGame()" disabled>▶ ゲーム開始</button>
@@ -9686,6 +9686,9 @@
   //   いずれも国語長文読解に解決する。未知 key は従来どおりエコー（fallback）。
   //   ※ bare 'kokugo' は旧実装に case が無くエコーしていた（生文字列表示）→ 中核経由で正名に改善。
   function _reflContentNameJa(key) {
+    // この画面（ログアウト内訳）専用：フォニックスはホームカードと同じ「フォニックスゲーム」表記にする。
+    //   （CONTENT_TYPE_DEFS ミラーの name は GAS とのパリティのため 'フォニックス' を維持）
+    if (String(key).trim() === 'phonics') return 'フォニックスゲーム';
     var nm = _contentDisplayNameUnified(key);
     return nm == null ? key : nm;
   }
@@ -10136,6 +10139,7 @@
     { key: 'kanji',     rawType: 'kanji_',                                 match: 'prefix',        name: 'カンジー',            icon: 'kanjii'    },
     { key: 'kobun',     rawType: 'kobun_',                                 match: 'prefix',        name: 'コブタン',            icon: 'kobun'     },
     { key: 'calctrial', rawType: 'calctrial',                              match: 'exactOrPrefix', name: '計算タイムトライアル', icon: 'trial'     },
+    { key: 'phonics',   rawType: 'phonics',                                match: 'exactOrPrefix', name: 'フォニックス',        icon: 'phony'     },
     { key: 'kokugo',    rawType: 'kokugo_',                                match: 'prefix',        name: '国語長文読解',        icon: 'japanin'   },
     { key: 'rika',      rawType: 'rika',                                   match: 'exact',         name: '理科重要語句',        icon: 'rika'      },
     { key: 'shakai',    rawType: 'shakai',                                 match: 'exact',         name: '社会重要語句',        icon: 'shakaneki' },
@@ -16958,7 +16962,7 @@
     var item = quiz[idx];
 
     var prog = document.getElementById('phonics-progress');
-    if (prog) prog.textContent = (idx + 1) + ' / ' + quiz.length + '問';
+    if (prog) prog.textContent = (idx + 1) + ' / ' + quiz.length;
 
     _phonicsRenderQuestionText(item);
     _setContentMascot('mate-img-phonics-game', 'default', 'mate-bubble-phonics-game', _pickBubble(PHONY_BUBBLES.question), 'phony');
@@ -17191,7 +17195,7 @@
     if (!el) return;
     var diff = PHONICS_CONFIG.difficulty[_phonicsState.difficulty] || PHONICS_CONFIG.difficulty.normal;
     var popped = _phonicsGame.poppedCorrectTotal || 0;
-    el.textContent = '🎈 ' + popped + 'こ ・ ' + (popped * diff.hpPerCorrect) + 'HP よてい';
+    el.textContent = '🎈 ' + popped + '個 ・ ' + (popped * diff.hpPerCorrect) + 'HP';
   }
 
   // 問題確定 → フィードバック表示 → 次の問題（or 結果）へ
@@ -17223,19 +17227,17 @@
   function _phonicsShowResult() {
     _phonicsStopGame();
     var g = _phonicsGame;
-    var total = (_phonicsState.quiz || []).length;
     var diff = PHONICS_CONFIG.difficulty[_phonicsState.difficulty] || PHONICS_CONFIG.difficulty.normal;
     var rate = diff.hpPerCorrect;
     var popped = g.poppedCorrectTotal || 0;
-    var plannedHp = popped * rate;   // ★予定表示用（フロント側レート）。実際の付与はサーバーが計算
     _phonicsState.poppedCorrect = popped;
-    _phonicsState.plannedHp = plannedHp;
+    _phonicsState.plannedHp = popped * rate;
     _phonicsState.clearedCount = g.clearedCount;
+    // 内訳行（割った正解数 ×レート）を用意。実際の獲得HP（週²込）はサーバー応答で大きく表示。
     var scoreEl = document.getElementById('phonics-result-score');
     if (scoreEl) {
       scoreEl.innerHTML =
-        'クリアした問題 <strong>' + g.clearedCount + '</strong> / ' + total + '問<br>' +
-        '<span class="phonics-hp-calc">割った正解の風船　' + popped + '個 × ' + rate + ' ＝ <strong>' + plannedHp + '</strong>HP（予定）</span>';
+        '<span class="phonics-hp-calc">割った正解の風船　' + popped + '個（× ' + rate + 'HP）</span>';
     }
     var meta = document.getElementById('phonics-result-meta');
     if (meta) meta.textContent = '';
@@ -17244,21 +17246,21 @@
     var prWrap = document.getElementById('phonics-result-practice');
     if (hpWrap) hpWrap.style.display = 'none';
     if (prWrap) { prWrap.style.display = 'none'; prWrap.innerHTML = ''; }
-    var good = (total > 0 && g.clearedCount >= Math.ceil(total * 0.6));
+    var good = (popped > 0 && g.clearedCount >= Math.ceil(((_phonicsState.quiz || []).length) * 0.6));
     _setContentMascot('mate-img-phonics-result', good ? 'celebrate' : 'encourage', 'mate-bubble-phonics-result',
       '続ければ『フォニックスマスター』になるよ！', 'phony');
-    // ★お祝い画面なので常に成功音（英単語RUSHの合格結果と同じ 'pass'）。不正解音は鳴らさない。
-    playSfx('pass');
-    showScreen('screen-phonics-result');
-    // ★第4段階：サーバーへ結果送信 → 実際のHP付与（週²倍率込）
+    // ★第4段階：サーバーへ結果送信 → 集計中オーバーレイ → 消えたら結果画面＋成功音（順序：隠す→送信→結果描画＋音）
     _phonicsSubmitResult(popped);
   }
 
   // サーバーへ結果送信 → HP付与（計算タイムトライアル doSubmit と同型）。
   //   ★HP額はフロントで計算して送らない：difficulty と poppedCorrect のみ送り、サーバーが rate を乗算。
+  //   ★順序：集計中オーバーレイで結果画面を隠す → 送信 → 成功したら overlay を消して結果画面表示＋成功音。
+  //     （オーバーレイ表示中は結果画面を見せない／成功音はオーバーレイが消えて結果が見えた瞬間に鳴らす）
   //   ★失敗時は _pendingRetry / _pendingDismiss で手動リトライ（自動再送キューには乗せない＝二重付与防止）。
   function _phonicsSubmitResult(popped) {
-    if (!_studentId) return;  // 未ログイン時はサーバー付与しない（予定表示のみ）
+    // 未ログイン時はサーバー付与しない（結果画面だけ見せる＝安全側フォールバック）
+    if (!_studentId) { showScreen('screen-phonics-result'); playSfx('pass'); return; }
     var payload = {
       action:          'submitPhonicsResult',
       studentId:       _studentId,
@@ -17272,13 +17274,17 @@
       clientUserAgent: (navigator && navigator.userAgent || '').slice(0, 200)
     };
     function doSubmit() {
+      // 集計中オーバーレイでゲーム画面を覆う（結果画面はまだ表示しない）
       _showHpConfirmingOverlay('phony');
       _pendingRetry = function(){ doSubmit(); };
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
       gasPost(payload, 25000).then(function(res){
-        _hideHpConfirmingOverlay();
-        if (!res || !res.ok) { _showSubmitError(); return; }
+        if (!res || !res.ok) { _hideHpConfirmingOverlay(); _showSubmitError(); return; }
         _pendingRetry = null; _pendingDismiss = null;
+        // ★オーバーレイを消す → 結果画面を表示 → その瞬間に成功音（結果が実際に見えたタイミング）
+        _hideHpConfirmingOverlay();
+        showScreen('screen-phonics-result');
+        playSfx('pass');
         _phonicsRenderHpResult(res);
       }).catch(function(){
         // 通信エラー / タイムアウト → エラーオーバーレイでリトライ誘導。
@@ -19210,7 +19216,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-0422</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-0503</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
