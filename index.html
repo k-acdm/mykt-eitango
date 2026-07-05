@@ -2653,6 +2653,14 @@
     .phonics-result-score strong { font-size: 30px; color: #be185d; }
     .phonics-result-score .phonics-hp-calc { display: inline-block; font-size: 18px; color: #78350f; margin-top: 4px; }
     .phonics-result-hp-note { font-size: 13px; color: #888; margin-top: 6px; }
+    /* 第4段階：サーバー付与後の実際の獲得HP（週²倍率込）表示 */
+    .phonics-result-hp-wrap { margin: 12px auto 4px; padding: 14px 12px; max-width: 320px; background: linear-gradient(135deg,#fff0f6,#ffe0ef); border: 2px solid #f9a8d4; border-radius: 16px; box-shadow: 0 4px 14px rgba(237,100,166,.2); }
+    .phonics-result-hp-num { font-size: 20px; font-weight: bold; color: #be185d; line-height: 1.3; }
+    .phonics-result-hp-num span { font-size: 40px; color: #ec4899; }
+    .phonics-result-hp-sub { font-size: 14px; color: #9d174d; margin-top: 4px; }
+    .phonics-result-practice { margin: 12px auto 4px; padding: 12px 14px; max-width: 320px; background: #fff7ed; border: 2px solid #fdba74; border-radius: 14px; color: #7c2d12; font-size: 14px; line-height: 1.7; font-weight: bold; }
+    /* 設定画面：1日5回まで本番HP の注意書き */
+    .phonics-hp-note { font-size: 13px; color: #9d174d; background: rgba(255,255,255,.78); border: 1px dashed #f9a8d4; border-radius: 10px; padding: 9px 12px; margin: 2px 0 4px; line-height: 1.6; text-align: center; }
     @media (max-width: 480px) {
       .phonics-field { height: 360px; }
       .phonics-question .pq-main { font-size: 26px; }
@@ -3236,10 +3244,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260706-0342"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260706-0422"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260706-0342">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260706-0342"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260706-0422">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260706-0422"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5644,7 +5652,7 @@
 
 <!-- ===== 計算タイムトライアル（2026-05-19 Phase 3 新規） ===== -->
 <!-- イントロ → ラウンド①（5分）→ 中間モーダル → ラウンド②（5分）→ リザルト の固定フロー -->
-<!-- 中断不可 / 中断時は submit しない（仕様 案 C）。本番は 1 日 2 回までで 3 回目以降は練習モード。 -->
+<!-- 中断不可 / 中断時は submit しない（仕様 案 C）。本番は 1 日 5 回までで 6 回目以降は練習モード（2026-07-06 に 2→5 変更）。 -->
 
 <!-- イントロ画面：ルール説明 + 本日プレイ済み回数 + 練習モード警告（条件付き） + スタートボタン -->
 <div id="screen-calctrial-intro" class="screen">
@@ -5659,8 +5667,8 @@
       </div>
       <div id="ct-intro-today-line" class="ct-intro-today-line">本日：◯回プレイ済</div>
       <div id="ct-intro-warn" class="ct-intro-warn-card" style="display:none">
-        <div class="ct-warn-title">⚠️ 本日のHP獲得は2回目までです</div>
-        <div>3回目以降も挑戦できますが、HPには反映されません（練習モード）</div>
+        <div class="ct-warn-title">⚠️ 本日のHP獲得は5回目までです</div>
+        <div>6回目以降も挑戦できますが、HPには反映されません（練習モード）</div>
       </div>
       <div class="ct-intro-section">
         <div class="ct-intro-section-title">📜 ルール</div>
@@ -5671,6 +5679,7 @@
             <li>100問正解で 50HP（部分正解は問題数に応じて）</li>
             <li>残り時間がある間は<strong>ボーナスステージ</strong>に突入！<br>正解1問につき +1HP（上限なし）</li>
             <li>2ラウンド合計が獲得HP（小数点以下切上）</li>
+            <li>本番でHPがもらえるのは<strong>1日5回まで</strong>。それ以上は練習モード（HP 0）</li>
             <li>中断はできません。最後まで集中して取り組もう</li>
           </ul>
         </div>
@@ -5808,6 +5817,9 @@
     <!-- 読み方一覧 PDF（既存マニュアルと同じ相対パス＋別タブ方式）。ゲーム設定を保ったまま参照できる -->
     <a class="phonics-manual-btn" href="docs/phonics_list.pdf" target="_blank" rel="noopener">📖 読み方一覧を見る（ゲームの前にちょっと予習😊）</a>
 
+    <!-- HP付与の注意書き（1日5回まで本番・それ以上は練習） -->
+    <div class="phonics-hp-note">🎈 1日5回まではHPがもらえるよ。それ以上あそべるけど、HPはもらえないよ😊</div>
+
     <div id="phonics-setup-msg" class="msg" style="display:none"></div>
     <button id="phonics-start-btn" class="btn-wide phonics-start-btn" onclick="startPhonicsGame()" disabled>▶ ゲーム開始</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">← ホーム画面に戻る</button>
@@ -5851,6 +5863,13 @@
       <div class="mate-bubble" id="mate-bubble-phonics-result">おつかれさま！</div>
     </div>
     <div id="phonics-result-score" class="phonics-result-score"></div>
+    <!-- 第4段階：サーバー付与後の実際の獲得HP（週²倍率込）をカウントアップ表示 -->
+    <div id="phonics-result-hp-wrap" class="phonics-result-hp-wrap" style="display:none">
+      <div class="phonics-result-hp-num"><span id="phonics-result-hp-num">0</span> HP ゲット！</div>
+      <div id="phonics-result-hp-sub" class="phonics-result-hp-sub"></div>
+    </div>
+    <!-- 6回目以降：練習モード（HP0）のお知らせ -->
+    <div id="phonics-result-practice" class="phonics-result-practice" style="display:none"></div>
     <button class="btn-wide phonics-start-btn" style="margin-top:16px" onclick="showPhonicsStart()">🔁 もう一回あそぶ</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">← ホーム画面に戻る</button>
   </div>
@@ -6666,6 +6685,7 @@
     'lison':    { img: 'images/lison-thinking.png',    text: '現在マイカツ君が獲得HPを最終確認中です' },
     'kobun':    { img: 'images/kobun-thinking.png',    text: '現在マイカツ君が獲得HPを最終確認中なり' },
     'trial':    { img: 'images/trial-thinking.png',    text: '只今マイカツ君が獲得HPを最終確認中だぞ' },
+    'phony':    { img: 'images/phony-thinking.png',    text: 'いまマイカツ君が獲得HPを最終かくにん中だよ！' },
     'japanin':  { img: 'images/japanin-thinking.png',  text: '只今マイカツ君が獲得HPを最終確認中でござる' },
     // 2026-05-23 新規：理社重要語句（中学理科・社会）
     'rika':      { img: 'images/rika-thinking.png',      text: '只今マイカツ君が獲得HPを最終確認中…' },
@@ -16632,8 +16652,9 @@
     selectedStages: [],   // 選択された stage 文字列の配列（例 ['stage0_add','stage1']）
     quiz: [],             // _buildPhonicsQuiz が組み立てた出題（第2段階でゲームが消費）
     poppedCorrect: 0,     // 直近ゲームで割った正解の風船の総数（HP計算の基礎）
-    plannedHp: 0,         // 割った正解数 × HPレート の獲得予定HP（サーバー付与は第4段階）
-    clearedCount: 0       // 全正解を割れた問題の数（結果画面の参考表示）
+    plannedHp: 0,         // 割った正解数 × HPレート の獲得予定HP（第4段階の予定表示用）
+    clearedCount: 0,      // 全正解を割れた問題の数（結果画面の参考表示）
+    sessionStartedAt: ''  // ゲーム開始時刻（第4段階 submitPhonicsResult の startedAt 用）
   };
 
   // 風船割りゲームの実行時状態（1 ゲームの間だけ有効。_phonicsStopGame で確実に破棄）
@@ -16657,6 +16678,7 @@
     _phonicsState.poppedCorrect = 0;
     _phonicsState.plannedHp = 0;
     _phonicsState.clearedCount = 0;
+    _phonicsState.sessionStartedAt = '';
     // questions（取得済みの全問）は保持（再取得を避ける）
   }
 
@@ -16883,6 +16905,7 @@
     _phonicsState.poppedCorrect = 0;
     _phonicsState.plannedHp = 0;
     _phonicsState.clearedCount = 0;
+    _phonicsState.sessionStartedAt = _ctFormatNowYmdhms();  // 第4段階 submitPhonicsResult の startedAt 用
     _phonicsUpdateTally();
     var field = document.getElementById('phonics-field');
     if (field && !_phonicsGame.listening) {
@@ -17195,7 +17218,8 @@
     g.timers.push(t);
   }
 
-  // 結果画面：割った正解の数 × HPレート ＝ 獲得予定HP（★サーバー付与は第4段階。ここは表示のみ）
+  // 結果画面：まず予定HP（割った正解数 × フロント側レート）を表示 → サーバーへ送信して実際のHPを付与
+  //   （計算タイムトライアル _ctShowResult / doSubmit と同型の2段構成。第4段階）
   function _phonicsShowResult() {
     _phonicsStopGame();
     var g = _phonicsGame;
@@ -17203,8 +17227,7 @@
     var diff = PHONICS_CONFIG.difficulty[_phonicsState.difficulty] || PHONICS_CONFIG.difficulty.normal;
     var rate = diff.hpPerCorrect;
     var popped = g.poppedCorrectTotal || 0;
-    var plannedHp = popped * rate;
-    // 第4段階で使うため _phonicsState に保持
+    var plannedHp = popped * rate;   // ★予定表示用（フロント側レート）。実際の付与はサーバーが計算
     _phonicsState.poppedCorrect = popped;
     _phonicsState.plannedHp = plannedHp;
     _phonicsState.clearedCount = g.clearedCount;
@@ -17212,16 +17235,91 @@
     if (scoreEl) {
       scoreEl.innerHTML =
         'クリアした問題 <strong>' + g.clearedCount + '</strong> / ' + total + '問<br>' +
-        '<span class="phonics-hp-calc">割った正解の風船　' + popped + '個 × ' + rate + ' ＝ <strong>' + plannedHp + '</strong>HP</span>';
+        '<span class="phonics-hp-calc">割った正解の風船　' + popped + '個 × ' + rate + ' ＝ <strong>' + plannedHp + '</strong>HP（予定）</span>';
     }
     var meta = document.getElementById('phonics-result-meta');
     if (meta) meta.textContent = '';
+    // HP／練習ブロックを毎回リセット（サーバー応答で充填）
+    var hpWrap = document.getElementById('phonics-result-hp-wrap');
+    var prWrap = document.getElementById('phonics-result-practice');
+    if (hpWrap) hpWrap.style.display = 'none';
+    if (prWrap) { prWrap.style.display = 'none'; prWrap.innerHTML = ''; }
     var good = (total > 0 && g.clearedCount >= Math.ceil(total * 0.6));
     _setContentMascot('mate-img-phonics-result', good ? 'celebrate' : 'encourage', 'mate-bubble-phonics-result',
       '続ければ『フォニックスマスター』になるよ！', 'phony');
     // ★お祝い画面なので常に成功音（英単語RUSHの合格結果と同じ 'pass'）。不正解音は鳴らさない。
     playSfx('pass');
     showScreen('screen-phonics-result');
+    // ★第4段階：サーバーへ結果送信 → 実際のHP付与（週²倍率込）
+    _phonicsSubmitResult(popped);
+  }
+
+  // サーバーへ結果送信 → HP付与（計算タイムトライアル doSubmit と同型）。
+  //   ★HP額はフロントで計算して送らない：difficulty と poppedCorrect のみ送り、サーバーが rate を乗算。
+  //   ★失敗時は _pendingRetry / _pendingDismiss で手動リトライ（自動再送キューには乗せない＝二重付与防止）。
+  function _phonicsSubmitResult(popped) {
+    if (!_studentId) return;  // 未ログイン時はサーバー付与しない（予定表示のみ）
+    var payload = {
+      action:          'submitPhonicsResult',
+      studentId:       _studentId,
+      difficulty:      _phonicsState.difficulty,
+      poppedCorrect:   popped,
+      clearedCount:    _phonicsState.clearedCount || 0,
+      gameType:        _phonicsState.gameType || 'balloon',
+      selectedStages:  JSON.stringify(_phonicsState.selectedStages || []),
+      startedAt:       _phonicsState.sessionStartedAt || _ctFormatNowYmdhms(),
+      completedAt:     _ctFormatNowYmdhms(),
+      clientUserAgent: (navigator && navigator.userAgent || '').slice(0, 200)
+    };
+    function doSubmit() {
+      _showHpConfirmingOverlay('phony');
+      _pendingRetry = function(){ doSubmit(); };
+      _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
+      gasPost(payload, 25000).then(function(res){
+        _hideHpConfirmingOverlay();
+        if (!res || !res.ok) { _showSubmitError(); return; }
+        _pendingRetry = null; _pendingDismiss = null;
+        _phonicsRenderHpResult(res);
+      }).catch(function(){
+        // 通信エラー / タイムアウト → エラーオーバーレイでリトライ誘導。
+        // ★自動再送キューには乗せない（毎回付与のため二重付与防止。calctrial と同じ既知トレードオフ）。
+        _hideHpConfirmingOverlay();
+        _showSubmitError();
+      });
+    }
+    doSubmit();
+  }
+
+  // サーバー確定 HP を結果画面に反映（予定 → 実際）。_wabun1AnimateHp でカウントアップ。
+  function _phonicsRenderHpResult(res) {
+    var hpWrap = document.getElementById('phonics-result-hp-wrap');
+    var hpNum  = document.getElementById('phonics-result-hp-num');
+    var hpSub  = document.getElementById('phonics-result-hp-sub');
+    var prWrap = document.getElementById('phonics-result-practice');
+    if (res.isPractice) {
+      // 6回目以降：練習モード（HP0）
+      if (hpWrap) hpWrap.style.display = 'none';
+      if (prWrap) {
+        prWrap.style.display = 'block';
+        prWrap.innerHTML = '📌 きょうはもう5回あそんだから、これは<strong>れんしゅう</strong>だよ😊<br>HPはもらえないけど、いっぱい練習しよう！';
+      }
+      return;
+    }
+    var hpGained   = Number(res.hpGained != null ? res.hpGained : 0) || 0;
+    var hpReserved = Number(res.hpReserved) || 0;
+    var fullHp     = Number(res.fullHp != null ? res.fullHp : (hpGained + hpReserved)) || 0;
+    if (prWrap) { prWrap.style.display = 'none'; prWrap.innerHTML = ''; }
+    if (hpWrap) hpWrap.style.display = 'block';
+    if (hpNum) { hpNum.textContent = '0'; _wabun1AnimateHp(hpNum, fullHp, 1000); }
+    if (hpSub) {
+      var wk = Number(res.weekMult) || 1;
+      var rawHp = Number(res.rawHp) || 0;
+      hpSub.innerHTML = (wk > 1)
+        ? ('れんぞく' + (Number(res.week) || 1) + 'しゅう ×' + wk + 'ばい（' + rawHp + ' × ' + wk + '）')
+        : '';
+    }
+    // セッション内の生涯HPは即時付与分（hpGained）のみ加算（保留分は振り返り等で後から解放）
+    if (typeof _totalHP === 'number') _totalHP += hpGained;
   }
 
   // ★出題ロジック（第1段階の核）：selectedStages の問題を全部まぜてシャッフル → 先頭20問。
@@ -19112,7 +19210,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-0342</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-0422</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

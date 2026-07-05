@@ -30,6 +30,8 @@ const LISON_FIRST_LOGIN_HEADERS = ['studentId', 'firstLoginDate', 'recordedAt'];
 //   フロント完結型（設定→ゲーム→HP付与）。データは全件を 6h キャッシュ→フロントで絞り込み。
 const SHEET_PHONICS_QUESTIONS = 'PhonicsQuestions';
 const PHONICS_QUESTIONS_HEADERS = ['stage', 'type', 'question', 'answers', 'dummies', 'note'];
+// フォニックス第4段階（2026-07-06 新設、フォニー）：1 プレイ = 1 行（難易度別分析用）
+const SHEET_PHONICS_SESSIONS = 'PhonicsSessions';
 // 計算タイムトライアル（2026-05-19 新設、トラール）：1 セッション = 1 行
 const SHEET_CALCTRIAL_SESSIONS = 'CalcTrialSessions';
 // 今日のマイ活 振り返り（2026-05-19 新設）：ログアウト前に必ず書き込む
@@ -1287,6 +1289,8 @@ function doGet(e) {
       else if (action === 'getKokugoAttemptsForStudent') result = getKokugoAttemptsForStudent(params);
       // 計算タイムトライアル：当日プレイ済み回数（screen-calctrial-intro の事前告知用、認証なし）
       else if (action === 'getCalcTrialTodayCount')      result = getCalcTrialTodayCount(params);
+      // フォニックス 第4段階：結果送信（unknown action 事故防止のため doGet 側にも登録＝CLAUDE.md #148）
+      else if (action === 'submitPhonicsResult')         result = submitPhonicsResult(params);
       else if (action === 'getCalendarMonthSummary') result = getCalendarMonthSummary(params);
       else if (action === 'getCalendarDayDetail')    result = getCalendarDayDetail(params);
       // 振り返りカレンダー（2026-05-20）：学習カレンダーと同パターン、admin/teacher 両ロール
@@ -1585,6 +1589,8 @@ function doPost(e) {
     else if (action === 'executeManualStreakModify') result = executeManualStreakModify(params);
     // 計算タイムトライアル：2 ラウンド完走後の結果送信（POST 強制、CalcTrialSessions と HPLog/Students.HP を更新）
     else if (action === 'submitCalcTrialResult')     result = submitCalcTrialResult(params);
+    // フォニックス 第4段階：風船割り完了後の結果送信（POST 強制、PhonicsSessions と HPLog/Students.HP を更新）
+    else if (action === 'submitPhonicsResult')       result = submitPhonicsResult(params);
     // 今日のマイ活 振り返り：ログアウト前の必須記録（POST 強制、Reflections シートに 1 行記録）
     else if (action === 'submitReflection')          result = submitReflection(params);
     // 2026-05-28 アンケート機能：HP 付与と SurveyResponses への書き込みがあるため POST 強制（誤実行 / 二重回答防止）。
@@ -2067,6 +2073,7 @@ var CONTENT_TYPE_DEFS = [
   { key: 'kanji',     rawType: 'kanji_',                                     match: 'prefix',        name: 'カンジー',           icon: 'kanjii'    },
   { key: 'kobun',     rawType: 'kobun_',                                     match: 'prefix',        name: 'コブタン',           icon: 'kobun'     },
   { key: 'calctrial', rawType: 'calctrial',                                  match: 'exactOrPrefix', name: '計算タイムトライアル', icon: 'trial'     },
+  { key: 'phonics',   rawType: 'phonics',                                    match: 'exactOrPrefix', name: 'フォニックス',       icon: 'phony'     },
   { key: 'kokugo',    rawType: 'kokugo_',                                    match: 'prefix',        name: '国語長文読解',       icon: 'japanin'   },
   { key: 'rika',      rawType: 'rika',                                       match: 'exact',         name: '理科重要語句',       icon: 'rika'      },
   { key: 'shakai',    rawType: 'shakai',                                     match: 'exact',         name: '社会重要語句',       icon: 'shakaneki' },
@@ -2981,10 +2988,16 @@ function _isAlreadyGrantedToday(sid, type, strategy, params) {
     const limit = Number(params.limit) || 2;
     let completed = 0;
     try {
-      const counts = _countCalcTrialSessionsToday(sidNorm, _sangoToday());
+      // type ごとに参照するセッションシートを切り替える。
+      //   'phonics'    → PhonicsSessions（フォニックス第4段階、5 回/日）
+      //   それ以外      → CalcTrialSessions（計算タイムトライアル、5 回/日）
+      const typeNorm = String(type || '').trim();
+      const counts = (typeNorm === 'phonics')
+        ? _countPhonicsSessionsToday(sidNorm, _sangoToday())
+        : _countCalcTrialSessionsToday(sidNorm, _sangoToday());
       completed = Number(counts && counts.completed) || 0;
     } catch (e) {
-      console.error('[_isAlreadyGrantedToday] _countCalcTrialSessionsToday 失敗', e);
+      console.error('[_isAlreadyGrantedToday] sessionCount 集計失敗', { type: type, error: String(e) });
     }
     const alreadyGranted = (completed >= limit);
     return {
@@ -11855,7 +11868,7 @@ function getCalcTrialTodayCount(params) {
     if (!stuLoc) return { ok: false, message: '生徒が見つかりません' };
     const accountType = _resolveAccountTypeFromLoc(stuLoc);
     const isSpecial = (accountType === 'test' || accountType === 'teacher' || accountType === 'invited');
-    const dailyLimit = isSpecial ? 9999 : 2;
+    const dailyLimit = isSpecial ? 9999 : 5;  // 2026-07-06：2 → 5 に変更（フォニックスと統一）
     const today = _sangoToday();
     const counts = _countCalcTrialSessionsToday(sid, today);
     const totalToday = counts.completed + counts.practice;
@@ -11890,7 +11903,7 @@ function getCalcTrialTodayCount(params) {
 //   1. studentId 検証 + Students または SpecialAccounts から行特定
 //   2. rounds の構造検証（配列で 2 要素必須）
 //   3. totalHp の値域検証（0 以上の整数、上限 100,000 で異常検知）
-//   4. 当日重複判定（_isAlreadyGrantedToday の sessionCount strategy、2 回/日 上限、特殊アカウントは無制限）
+//   4. 当日重複判定（_isAlreadyGrantedToday の sessionCount strategy、5 回/日 上限、特殊アカウントは無制限）
 //   5. CalcTrialSessions に 1 行 appendRow（status は 'completed' or 'practice'）
 //   6. _grantHP に HP 加算経路を集約（2026-06-05：他コンテンツと同一の標準形に統一。
 //      applyReserveSystem / applyWeekMultiplier / checkCompletion すべて既定 true ＝振り返りゲート＋両輪システム対象）
@@ -11901,8 +11914,8 @@ function getCalcTrialTodayCount(params) {
 // 注意：サーバー検証ガード不要（仕様：努力の結果を全肯定）。
 //      クライアント計算をそのまま採用する。
 //
-// 2026-05-19 Task 2 追加：
-//   - 本番 HP 付与は 1 日 2 回まで（教育日基準、_sangoToday）。3 回目以降は status='practice'
+// 2026-05-19 Task 2 追加（2026-07-06 上限 2→5 に変更）：
+//   - 本番 HP 付与は 1 日 5 回まで（教育日基準、_sangoToday）。6 回目以降は status='practice'
 //     で記録し HP 0（HPLog 'calctrial_practice' で engagement のみ記録）。
 //   - 特殊アカウント（test / teacher / invited）は上限対象外（無制限本番扱い）。
 //
@@ -11962,7 +11975,7 @@ function submitCalcTrialResult(params) {
 
     // ④' 当日重複判定（Phase 3 Step 2 の共通ヘルパー _isAlreadyGrantedToday を使用）：
     //   - 特殊アカウント（test / teacher / invited）：上限対象外（常に本番扱い）
-    //   - それ以外：sessionCount strategy で completed >= 2 なら練習扱い
+    //   - それ以外：sessionCount strategy で completed >= 5 なら練習扱い
     //   レスポンス用の今日の practice 件数は _isAlreadyGrantedToday からは取れないため
     //   _countCalcTrialSessionsToday を別途呼ぶ（両者とも CalcTrialSessions シートを読むが、
     //   GAS の per-request 実行時間内であれば数 ms 程度のオーバーヘッド）。
@@ -11971,7 +11984,8 @@ function submitCalcTrialResult(params) {
     const today       = _sangoToday();
     let isPractice    = false;
     if (!isSpecial) {
-      const dupCheck = _isAlreadyGrantedToday(sid, 'calctrial', 'sessionCount', { limit: 2 });
+      // 2026-07-06：本番 HP 付与の上限を 2 回 → 5 回に変更（フォニックス第4段階と統一）。
+      const dupCheck = _isAlreadyGrantedToday(sid, 'calctrial', 'sessionCount', { limit: 5 });
       isPractice = !!(dupCheck && dupCheck.alreadyGranted);
     }
     const counts = _countCalcTrialSessionsToday(sid, today);
@@ -12079,6 +12093,239 @@ function submitCalcTrialResult(params) {
     };
   } catch(err) {
     console.error('[submitCalcTrialResult]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// =====================================================
+// フォニックス 第4段階：HP 付与（2026-07-06 新設、フォニー）
+// =====================================================
+// 計算タイムトライアル（submitCalcTrialResult）と同型のフロント完結型。
+//   - フロントは difficulty と poppedCorrect（割った正解の風船数）のみ送信。
+//     ★HP 額はサーバー側で計算（改ざん耐性）：rate = {easy:1,normal:3,hard:5}、
+//       rawHp = poppedCorrect × rate。週² 倍率は _grantHP 内部で適用。
+//   - 1 日の本番付与は 5 回まで（_isAlreadyGrantedToday の sessionCount strategy、
+//     PhonicsSessions を参照）。6 回目以降は status='practice' で HP 0
+//     （HPLog 'phonics_practice' で engagement のみ記録）。特殊アカウントは無制限。
+//   - HP 加算は他コンテンツと同一の _grantHP 標準形（reserve/reflection/両輪も同一挙動）。
+//   - プレイ自体は無制限（練習でも PhonicsSessions には記録し、難易度別分析に活用）。
+//
+// 公開関数：
+//   submitPhonicsResult(params)  — 風船割り完了後の結果送信（doPost 強制）
+//   ensurePhonicsSheets()        — シート初期化（GAS エディタから 1 回限り実行）
+
+// 難易度別 HP レート（★サーバー側にのみ持つ。フロントからは正解数のみ受け取る）
+const PHONICS_HP_RATE = { easy: 1, normal: 3, hard: 5 };
+// poppedCorrect の値域上限（20 問 × 最大 6 正解 = 120 程度。余裕をもって 300 で異常検知）
+const PHONICS_MAX_POPPED = 300;
+
+// 1 プレイ = 1 行の列構成（難易度別分析用）
+const PHONICS_SESSIONS_HEADERS = [
+  'timestamp',       // 記録時刻（_nowJST）
+  'studentId',
+  'difficulty',      // 'easy' / 'normal' / 'hard'
+  'gameType',        // 'balloon'（第4段は風船割りのみ）
+  'poppedCorrect',   // 割った正解の風船数（HP 素点の基礎）
+  'clearedCount',    // 全正解を割れた問題数（参考）
+  'selectedStages',  // 選択ステージの JSON（参考）
+  'rawHp',           // 素点 HP（poppedCorrect × rate、練習は 0）
+  'hpGained',        // 倍率込み実効 HP（練習は 0）
+  'isPractice',      // true=練習（6 回目以降）/ false=本番
+  'startedAt',       // ゲーム開始時刻
+  'completedAt'      // ゲーム終了時刻
+];
+
+const PHONICS_MIN_ROWS_SESSIONS = 1100;
+
+function _ensurePhonicsSessionsSheet() {
+  return _ensureSheetWithHeaders(SHEET_PHONICS_SESSIONS, PHONICS_SESSIONS_HEADERS, PHONICS_MIN_ROWS_SESSIONS).sh;
+}
+
+// シート存在保証（GAS エディタから 1 回限り実行する想定）。
+// 戻り値: { ok: true, created: { sessions: boolean }, headers: { sessions: [...] } }
+function ensurePhonicsSheets() {
+  try {
+    const s = _ensureSheetWithHeaders(SHEET_PHONICS_SESSIONS, PHONICS_SESSIONS_HEADERS, PHONICS_MIN_ROWS_SESSIONS);
+    return {
+      ok: true,
+      created: { sessions: s.created },
+      headers: { sessions: PHONICS_SESSIONS_HEADERS }
+    };
+  } catch(err) {
+    console.error('[ensurePhonicsSheets]', err);
+    return { ok: false, message: String(err) };
+  }
+}
+
+// 当日（教育日 = JST 4:00 区切り）の本セッション件数を集計するヘルパー。
+// PhonicsSessions シートを直接スキャン。戻り値: { completed: N, practice: N }
+//   - completed: isPractice=false の件数（HP 付与対象、本番）
+//   - practice:  isPractice=true  の件数（6 回目以降、HP 0、練習扱い）
+function _countPhonicsSessionsToday(sid, todayStr) {
+  const out = { completed: 0, practice: 0 };
+  try {
+    const sh = _ss().getSheetByName(SHEET_PHONICS_SESSIONS);
+    if (!sh || sh.getLastRow() < 2) return out;
+    const values = sh.getDataRange().getValues();
+    const header = values[0];
+    const iSid       = header.indexOf('studentId');
+    const iCompleted = header.indexOf('completedAt');
+    const iPractice  = header.indexOf('isPractice');
+    if (iSid < 0 || iCompleted < 0 || iPractice < 0) return out;
+    const targetSid = String(sid || '').trim();
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      if (String(row[iSid] || '').trim() !== targetSid) continue;
+      // completedAt は 'yyyy-MM-dd HH:mm:ss' 文字列または Date 型の可能性あり（教育日 JST 4:00 区切り）。
+      const ds = _toEducationalDateStr(row[iCompleted]);
+      if (ds !== todayStr) continue;
+      // isPractice は boolean / 'TRUE' / 'true' / 1 / '1' のいずれでも真と判定（シートの値ゆらぎ吸収）。
+      const p = row[iPractice];
+      const practice = (p === true || p === 1 || String(p).trim().toLowerCase() === 'true' || String(p).trim() === '1');
+      if (practice) out.practice++;
+      else out.completed++;
+    }
+  } catch(e) {
+    console.error('[_countPhonicsSessionsToday]', e);
+  }
+  return out;
+}
+
+// 結果送信。doPost 経由のみ（生徒画面から呼ぶ、認証なし、studentId 一致のみ確認）。
+// params:
+//   studentId:        生徒ID
+//   difficulty:       'easy' / 'normal' / 'hard'（必須。レート特定に使用）
+//   poppedCorrect:    割った正解の風船数（必須、0 以上の整数。★HP 額はこれ × rate をサーバーで算出）
+//   clearedCount:     全正解を割れた問題数（任意、参考記録）
+//   gameType:         'balloon'（任意、参考記録）
+//   selectedStages:   選択ステージ配列 or その JSON 文字列（任意、参考記録）
+//   startedAt:        'yyyy-MM-dd HH:mm:ss'（任意、無ければ now で補完）
+//   completedAt:      同上
+//   clientUserAgent:  任意（最大 200 文字に丸めて保存、デバッグ用）
+function submitPhonicsResult(params) {
+  try {
+    const sid = String((params && params.studentId) || '').trim();
+    if (!sid) return { ok: false, message: '対象生徒IDが指定されていません' };
+
+    // ① 行特定（cache 経由禁止、書き込み対象の rowIdx 安全性を確保）
+    const stuLoc = _findAccountRowOnSheet(sid);
+    if (!stuLoc) return { ok: false, message: '生徒が見つかりません: ' + sid };
+
+    // ② difficulty 検証（レート表に存在するもののみ）
+    const difficulty = String((params && params.difficulty) || '').trim();
+    if (!Object.prototype.hasOwnProperty.call(PHONICS_HP_RATE, difficulty)) {
+      return { ok: false, message: 'difficulty は easy / normal / hard のいずれかを指定してください' };
+    }
+    const rate = PHONICS_HP_RATE[difficulty];
+
+    // ③ poppedCorrect 値域検証（0 以上の整数、上限 PHONICS_MAX_POPPED で異常検知）
+    const poppedRaw = Number(params && params.poppedCorrect);
+    if (!Number.isFinite(poppedRaw) || poppedRaw < 0 || Math.floor(poppedRaw) !== poppedRaw) {
+      return { ok: false, message: 'poppedCorrect は 0 以上の整数を指定してください' };
+    }
+    if (poppedRaw > PHONICS_MAX_POPPED) {
+      return { ok: false, message: 'poppedCorrect が異常に大きいです（上限 ' + PHONICS_MAX_POPPED + '）' };
+    }
+    const poppedCorrect = Math.floor(poppedRaw);
+
+    // ★ HP 素点はサーバーで計算（フロントの申告値は使わない ＝ 改ざん耐性）
+    const rawHp = poppedCorrect * rate;
+
+    // 参考記録フィールド（任意）
+    const clearedCount = Math.max(0, Math.floor(Number(params && params.clearedCount) || 0));
+    const gameType = String((params && params.gameType) || 'balloon').slice(0, 20);
+    let selectedStages = params && params.selectedStages;
+    if (typeof selectedStages === 'string') {
+      try { selectedStages = JSON.parse(selectedStages); } catch(e) { selectedStages = []; }
+    }
+    if (!Array.isArray(selectedStages)) selectedStages = [];
+    const stagesJson = JSON.stringify(selectedStages).slice(0, 500);
+
+    const now         = _nowJST();
+    const startedAt   = String((params && params.startedAt)   || now).slice(0, 19);
+    const completedAt = String((params && params.completedAt) || now).slice(0, 19);
+    const userAgent   = String((params && params.clientUserAgent) || '').slice(0, 200);
+
+    // ④ 当日重複判定（sessionCount strategy、5 回上限、PhonicsSessions を参照）。
+    //   特殊アカウント（test / teacher / invited）は上限対象外（常に本番扱い）。
+    const accountType = _resolveAccountTypeFromLoc(stuLoc);
+    const isSpecial   = (accountType === 'test' || accountType === 'teacher' || accountType === 'invited');
+    let isPractice    = false;
+    if (!isSpecial) {
+      const dupCheck = _isAlreadyGrantedToday(sid, 'phonics', 'sessionCount', { limit: 5 });
+      isPractice = !!(dupCheck && dupCheck.alreadyGranted);
+    }
+    const hpLogType     = isPractice ? 'phonics_practice' : 'phonics';
+    const rawHpForGrant = isPractice ? 0 : rawHp;
+
+    // ⑤ 週² 倍率の事前算出（PhonicsSessions.hpGained 列に書く実効 HP 用。
+    //   _grantHP 内部の計算と同じロジック：streak=max(1,COL_STREAK)、week=ceil(streak/7)、倍率=week²）
+    const streakRaw = Number(stuLoc.rowValues[COL_STREAK]) || 1;
+    const streak    = streakRaw > 0 ? streakRaw : 1;
+    const week      = Math.ceil(streak / 7);
+    const weekMult  = week * week;
+    const effectiveHp = rawHpForGrant * weekMult;
+
+    // ⑥ PhonicsSessions に 1 行記録（_grantHP より先に書く。再送時に二重行になっても HP 二重加算より軽微）
+    const ses = _ensurePhonicsSessionsSheet();
+    ses.appendRow([
+      now,
+      sid,
+      difficulty,
+      gameType,
+      poppedCorrect,
+      clearedCount,
+      stagesJson,
+      rawHpForGrant,
+      effectiveHp,
+      isPractice,
+      startedAt,
+      completedAt
+    ]);
+
+    // ⑦ HP 加算：_grantHP に集約（週² は内部適用、reserve/reflection/両輪も calctrial と同一の標準形）。
+    //   練習モード（isPractice=true）は rawHp=0 + type='phonics_practice' で呼ぶ（HP=0 なので _logHP 失敗を許容）。
+    const grant = _grantHP({
+      sid:    sid,
+      type:   hpLogType,
+      rawHp:  rawHpForGrant,
+      stuLoc: stuLoc
+      // applyWeekMultiplier / applyReserveSystem / checkCompletion はすべて既定値 true（他コンテンツと同一）
+    });
+    if (!grant.ok) {
+      console.error('[submitPhonicsResult] _grantHP 失敗', { sid: sid, type: hpLogType, errorCode: grant.errorCode });
+      return {
+        ok:        false,
+        message:   grant.message || '内部エラー（HP 加算失敗）。もう一度送信してください',
+        errorCode: grant.errorCode || 'HP_LOG_FAILED'
+      };
+    }
+
+    // ⑧ cache invalidate（cache_ranking_last_week は _grantHP 内部で granted > 0 時に invalidate 済）
+    _invalidateCache('cache_students_values');
+    _invalidateCache('cache_special_accounts_values');
+
+    return {
+      ok:            true,
+      isPractice:    isPractice,
+      accountType:   accountType,
+      difficulty:    difficulty,
+      rate:          rate,
+      poppedCorrect: poppedCorrect,
+      hpGained:      grant.hpGained,        // 即時付与分（reflection_pending なら 0）
+      hpReserved:    grant.hpReserved,      // 保留分
+      totalHpAfter:  grant.newHP,           // 加算後 Students.HP
+      rawHp:         grant.rawHp,           // 素点（練習は 0）
+      streak:        grant.streak,          // _grantHP で参照した連続日数（最低 1）
+      week:          grant.week,            // ceil(streak / 7)
+      weekMult:      grant.week * grant.week, // week² = 倍率
+      fullHp:        grant.fullHp,          // 今回獲得した権利 HP（倍率込フル）
+      justCompleted: grant.justCompleted,
+      releasedHp:    grant.releasedHp,
+      bonusHp:       grant.bonusHp
+    };
+  } catch(err) {
+    console.error('[submitPhonicsResult]', err);
     return { ok: false, message: String(err) };
   }
 }
@@ -17144,6 +17391,7 @@ function getChildActivityRecent(params) {
         kanji:   { done: false, hpGained: 0, rawHP: 0, sessions: [] },
         kobun:   { done: false, hpGained: 0, rawHP: 0, sessions: [] },
         calctrial: { done: false, hpGained: 0 },                 // 計算タイムトライアル
+        phonics:   { done: false, hpGained: 0 },                 // フォニックス（風船割り、1日何度でもプレイ）
         kokugo:    { done: false, hpGained: 0, variants: [] },   // 国語長文読解（variants = ['800字版'] / ['1200字版']）
         rika:      { done: false, hpGained: 0 },                 // 理科重要語句
         shakai:    { done: false, hpGained: 0 },                 // 社会重要語句
@@ -17258,6 +17506,12 @@ function getChildActivityRecent(params) {
           // 練習モードは HP 0 なので done は立つが hpGained には寄与しない。
           byDate[ds].calctrial.done = true;
           byDate[ds].calctrial.hpGained += hp;
+        }
+        else if (type === 'phonics' || type.indexOf('phonics_') === 0) {
+          // フォニックス（本番 'phonics' / 練習 'phonics_practice'）。
+          // 練習モードは HP 0 なので done は立つが hpGained には寄与しない。
+          byDate[ds].phonics.done = true;
+          byDate[ds].phonics.hpGained += hp;
         }
         else if (type.indexOf('kokugo_') === 0) {
           // 国語長文読解：'kokugo_800' / 'kokugo_1200'。バリアントを区別して保持。

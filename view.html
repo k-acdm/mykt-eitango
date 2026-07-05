@@ -1825,6 +1825,17 @@
       }
     },
     {
+      label: 'フォニックス',
+      render: function(d) {
+        if (!d.phonics || !d.phonics.done) return CHILD_NG;
+        var hp = Number(d.phonics.hpGained || 0);
+        var hpLabel = hp > 0
+          ? ' <span style="color:#555;font-size:13px">' + hp.toLocaleString() + 'HP獲得</span>'
+          : ' <span style="color:#555;font-size:13px">練習</span>';
+        return CHILD_OK + hpLabel;
+      }
+    },
+    {
       label: 'カンジー',
       render: function(d) {
         if (!d.kanji || !d.kanji.done) return CHILD_NG;
@@ -2080,7 +2091,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-0342</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-0422</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
