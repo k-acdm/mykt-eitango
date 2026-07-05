@@ -2600,6 +2600,16 @@
       box-shadow: inset 0 2px 10px rgba(0,0,0,.06);
       touch-action: manipulation;
     }
+    /* ハードのカウントダウン「3・2・1・GO！」（フィールド中央に大きく表示） */
+    .phonics-countdown {
+      position: absolute; inset: 0; z-index: 6; pointer-events: none;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 92px; font-weight: 900; color: #ec4899; line-height: 1;
+      text-shadow: -3px -3px 0 #fff, 3px -3px 0 #fff, -3px 3px 0 #fff, 3px 3px 0 #fff, 0 5px 14px rgba(0,0,0,.28);
+    }
+    .phonics-countdown.go { color: #16a34a; font-size: 76px; }
+    .phonics-countdown.cd-pop { animation: phonicsCdPop .5s ease-out; }
+    @keyframes phonicsCdPop { 0% { transform: scale(.35); opacity: 0; } 45% { transform: scale(1.18); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
     /* 外側＝上昇アニメーション担当（translateY のみ。中の割れ演出と競合させない） */
     .phonics-floater {
       position: absolute; top: 100%; width: 74px; height: 92px;
@@ -3244,10 +3254,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260706-0521"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260706-0543"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260706-0521">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260706-0521"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260706-0543">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260706-0543"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -16632,7 +16642,7 @@
     // ── 重なり回避パラメータ（★可読性優先。ここを触れば挙動を微調整できる。2026-07-06 強化）──
     laneGap: 22,            // レーン間の最小すき間(px)。レーン幅=balloonWidth+laneGap。隣レーンの横重なり防止（旧12→22）
     horizontalJitterMax: 8, // レーン内での横ゆらぎ上限(px)。レーン幅内でも隣に寄りすぎないよう小さめ
-    minVerticalGapFactor: 1.5, // 同一レーンの縦最小すき間 = balloonHeight × これ。大きいほど縦に離れて読みが隠れない（旧1.15相当→1.5）
+    minVerticalGapFactor: 1.5, // 同一レーンの縦最小すき間 = balloonHeight × これ（デフォルト。難易度別に上書き可）。大きいほど縦に離れて読みが隠れない
     spawnStaggerSec: 0.18,  // 風船を1個ずつ出す間隔(秒)の下限。実際は下の重なり回避計算で自動的に引き上がる
     spawnJitterSec: 0.10,   // 出現タイミングのランダムばらつき(秒)。縦間隔を縮めすぎないよう小さく（旧0.28→0.10）。
                             //   さらに spawn 時に stagger の 35% を上限にクランプして縦すき間を守る
@@ -16646,12 +16656,15 @@
     //   uniqueDummies : true ならダミーの読みを重複させない（足りなければ個数を減らす）。
     //     easy のみ true（6個で読みがダブらない）。normal/hard は false（12/20個を埋めるため許容）。
     //   maxConcurrent : 画面に同時に出す風船数の上限（★重なり防止の要）。個数が多くても
-    //     これ以上は一度に出さず、消えたら順次出る（stagger を自動的に引き上げてキュー的に制御）。
-    //     ※ 実際の同時表示数は「縦すき間が保てる幾何学的上限」と本値の小さい方に収まる。
+    //     これ以上は一度に出さず、消えたら順次出る（出現ペースを自動調整してキュー的に制御）。
+    //   minVerticalGapFactor : 難易度別に上書き可（未指定ならグローバル値 1.5）。hard は 1.8 で縦をより空ける。
+    //   countdown : true の難易度のみ、ゲーム開始時に「3・2・1・GO！」を表示してから風船を出す（hard のみ）。
+    //   ※ 実際の同時表示数と縦すき間は、各レーンの空きを追跡する貪欲スケジューラで
+    //     「同一レーンの縦間隔 ≥ balloonHeight × minVerticalGapFactor」を画面幅によらず必ず保証する。
     difficulty: {
-      easy:   { balloonCount: 6,  correctMin: 1, correctMax: 2, floatSec: 11,   hpPerCorrect: 1, uniqueDummies: true,  maxConcurrent: 6  },
-      normal: { balloonCount: 12, correctMin: 3, correctMax: 4, floatSec: 6.7,  hpPerCorrect: 3, uniqueDummies: false, maxConcurrent: 8  },
-      hard:   { balloonCount: 20, correctMin: 5, correctMax: 6, floatSec: 2.47, hpPerCorrect: 5, uniqueDummies: false, maxConcurrent: 12 }
+      easy:   { balloonCount: 6,  correctMin: 1, correctMax: 2, floatSec: 11,   hpPerCorrect: 1, uniqueDummies: true,  maxConcurrent: 6 },
+      normal: { balloonCount: 12, correctMin: 3, correctMax: 4, floatSec: 6.7,  hpPerCorrect: 3, uniqueDummies: false, maxConcurrent: 8 },
+      hard:   { balloonCount: 20, correctMin: 5, correctMax: 6, floatSec: 3.2,  hpPerCorrect: 5, uniqueDummies: false, maxConcurrent: 8, minVerticalGapFactor: 1.8, countdown: true }
     }
   };
 
@@ -16923,7 +16936,49 @@
       field.addEventListener('animationend', _phonicsFieldAnimEnd);
       _phonicsGame.listening = true;
     }
-    _phonicsRenderQuestion(0);
+    // ★ハードのみ：ゲーム開始時に「3・2・1・GO！」カウントダウン → GO! 後に最初の問題（風船）を出す。
+    //   かんたん・ふつうは従来どおりすぐ開始。カウントダウンのタイマーは g.timers に積むので中断時に破棄される。
+    var diff = PHONICS_CONFIG.difficulty[_phonicsState.difficulty] || PHONICS_CONFIG.difficulty.normal;
+    if (diff && diff.countdown) {
+      _phonicsRunCountdown(function(){ _phonicsRenderQuestion(0); });
+    } else {
+      _phonicsRenderQuestion(0);
+    }
+  }
+
+  // 「3・2・1・GO！」カウントダウン（ハードのみ）。onDone は GO! 表示後に呼ぶ（＝風船スポーン開始）。
+  //   タイマーは _phonicsGame.timers に積み、中断/離脱時に _phonicsStopGame が確実に破棄する。
+  function _phonicsRunCountdown(onDone) {
+    var g = _phonicsGame;
+    var field = document.getElementById('phonics-field');
+    if (!field) { onDone(); return; }
+    field.innerHTML = '';
+    var ov = document.createElement('div');
+    ov.className = 'phonics-countdown';
+    field.appendChild(ov);
+    var steps = [
+      { text: '3',    ms: 1000, go: false },
+      { text: '2',    ms: 1000, go: false },
+      { text: '1',    ms: 1000, go: false },
+      { text: 'GO！', ms: 700,  go: true  }
+    ];
+    var idx = 0;
+    function tick() {
+      if (idx >= steps.length) {
+        if (ov.parentNode) ov.parentNode.removeChild(ov);
+        onDone();
+        return;
+      }
+      var st = steps[idx++];
+      ov.textContent = st.text;
+      ov.classList.toggle('go', !!st.go);
+      // クラス付け直しで pop アニメを再生
+      ov.classList.remove('cd-pop'); void ov.offsetWidth; ov.classList.add('cd-pop');
+      if (st.go) { try { playSfx('pass'); } catch(e){} }
+      var t = setTimeout(tick, st.ms);
+      g.timers.push(t);
+    }
+    tick();
   }
 
   // 「ゲームを中断する」：必ず片付けてから遷移（タイマー/アニメの取り残し防止）
@@ -17070,15 +17125,14 @@
   }
 
   // 風船 DOM を生成してフィールドに配置＋上昇アニメ開始
-  //   ★重なり回避（可読性優先。2026-07-06 強化）：後ろの風船の読みが隠れて選べない状況を無くす。
+  //   ★重なり回避（可読性優先。2026-07-06 再修正で貪欲スケジューラ化）：後ろの読みが隠れて選べない状況を無くす。
   //   ① 横レーン分割：レーン幅 = balloonWidth + laneGap(22px) で隣レーンとの横すき間を確保。
-  //      1ラウンド（レーン数ぶん）ごとにレーン順をシャッフル → 同レーンの再利用に必ず時間差。
-  //   ② 縦すき間保証：同一レーンの再利用間隔 = laneCount × stagger。これ×速度が
-  //      balloonHeight × minVerticalGapFactor(1.5) 以上になるよう stagger を自動で引き上げる
-  //      → 同レーンの風船が縦に十分離れ、後ろが隠れない。
-  //   ③ 同時表示上限：maxConcurrent を超えないよう stagger をさらに引き上げ（キュー的に順次出す）。
-  //      実際の同時表示数は「幾何学的に縦すき間が保てる上限」と maxConcurrent の小さい方に収まる。
-  //   ④ 揺らぎは控えめ：delay の揺らぎは stagger の 35% までにクランプし縦すき間を守る。
+  //   ② 縦すき間保証（要）：各レーンが「次に使える最早 delay(laneReadyAt)」を持ち、最も空いたレーンへ割り当て、
+  //      同一レーンは必ず sameLaneMinDt(= balloonHeight×gapFactor ÷ 速度) 以上あける。
+  //      → 画面幅・レーン数によらず、同一レーンの縦間隔 ≥ balloonHeight×minVerticalGapFactor を必ず保証。
+  //      （旧「ラウンドごとシャッフル pool」は波の境界で同一レーンが隣接割当になり広い画面で重なっていた）
+  //   ③ 同時表示上限：出現ペース cadence を maxConcurrent から算出（画面内滞在時間 ÷ 上限）。
+  //   ④ 揺らぎは控えめ：delay の揺らぎは cadence の 25% まで（laneReadyAt に反映するので縦すき間は崩れない）。
   //      横揺らぎは horizontalJitterMax(8px) まででレーン中央寄りに保つ。
   function _phonicsSpawnBalloons(list) {
     var field = document.getElementById('phonics-field');
@@ -17094,43 +17148,44 @@
     var slack = Math.max(0, laneW - cfg.balloonWidth);               // レーン内の余白
     var hJit = Math.min(cfg.horizontalJitterMax || 0, slack);        // 横ゆらぎ幅（レーン内に収める）
 
-    // ── stagger（出現間隔）を重なり回避の観点から自動決定 ──
+    // ── 出現タイミングを「各レーンの空きを追跡する貪欲スケジューラ」で決定 ──
+    //   旧方式（ラウンドごとシャッフル pool）は波の境界で同一レーンが隣接割当になり、
+    //   広い画面ほど stagger が下限に張り付いて最悪 ~39px しか空かず重なっていた（2026-07-06 再修正）。
+    //   新方式：各レーンが「次に使える最早 delay(laneReadyAt)」を持ち、最も空いたレーンへ割り当て、
+    //   同一レーンは必ず sameLaneMinDt 以上あける → 画面幅・レーン数によらず縦すき間を保証。
     var speed = travel / (diff.floatSec || 8);                        // px/秒
-    var gapFactor = cfg.minVerticalGapFactor || 1.5;
-    // ② 同一レーンの縦すき間を balloonHeight×gapFactor 以上にする最小 stagger
-    var staggerForGap = (cfg.balloonHeight * gapFactor) / speed / laneCount;
-    // ③ 同時表示数を maxConcurrent 以下にする最小 stagger（画面内滞在時間 ÷ 上限）
-    var visibleTime = fieldH / speed;                                 // 画面内に見えている時間(秒)
+    var gapFactor = diff.minVerticalGapFactor || cfg.minVerticalGapFactor || 1.5;  // 難易度別に上書き可
+    var sameLaneMinDt = (cfg.balloonHeight * gapFactor) / speed;      // 同一レーンで空ける最小「時間」(秒)
+    // 全体の出現ペース（テンポ・同時表示数の目安）。maxConcurrent を超えないよう画面内滞在時間から算出。
+    var visibleTime = fieldH / speed;
     var maxConc = Math.max(1, diff.maxConcurrent || (laneCount * 2));
-    var staggerForConcurrency = visibleTime / maxConc;
-    var stagger = Math.max(cfg.spawnStaggerSec, staggerForGap, staggerForConcurrency);
+    var cadence = Math.max(cfg.spawnStaggerSec, visibleTime / maxConc);
+    // delay 揺らぎは cadence の 25% までに制限（縦すき間を縮めすぎない。laneReadyAt に反映するので保証は崩れない）
+    var jitterCap = Math.min(cfg.spawnJitterSec || 0, cadence * 0.25);
 
-    // delay 揺らぎは stagger の 35% までに制限（縦すき間を縮めすぎない）
-    var jitterCap = Math.min(cfg.spawnJitterSec || 0, stagger * 0.35);
-
-    // レーン割り当て列（ラウンド＝レーン数ぶん ごとにシャッフルして距離を稼ぐ）
-    var laneSeq = [];
-    var pool = [];
-    for (var s = 0; s < list.length; s++) {
-      if (pool.length === 0) {
-        pool = [];
-        for (var l = 0; l < laneCount; l++) pool.push(l);
-        pool = _phonicsShuffle(pool);
-      }
-      laneSeq.push(pool.shift());
-    }
+    var laneReadyAt = [];
+    for (var l = 0; l < laneCount; l++) laneReadyAt.push(0);
 
     list.forEach(function(b, i){
+      // 標準ペースの目標時刻
+      var baseT = i * cadence;
+      // 最も早く使えるレーン（laneReadyAt 最小）を選ぶ → 最大の縦余裕を確保
+      var lane = 0;
+      for (var l2 = 1; l2 < laneCount; l2++) { if (laneReadyAt[l2] < laneReadyAt[lane]) lane = l2; }
+      // そのレーンが使える時刻と標準ペースの遅い方（レーンが詰まっていれば自動で後ろへずれる）
+      var t = Math.max(baseT, laneReadyAt[lane]);
+      var delay = t + Math.random() * jitterCap;
+      laneReadyAt[lane] = delay + sameLaneMinDt;   // 揺らぎ込みで次の同一レーンまで必ず sameLaneMinDt 空ける
+
       var floater = document.createElement('div');
       floater.className = 'phonics-floater';
-      var lane = laneSeq[i];
       // レーン内で中央寄りに配置（余白の中央に揺らぎ帯を置く）→ 隣レーンとのすき間を均等に確保
       var base = startX + lane * laneW + (slack - hJit) / 2;
       var left = Math.round(base + Math.random() * hJit);
       floater.style.left = left + 'px';
       floater.style.setProperty('--phonics-travel', travel + 'px');
       floater.style.animationDuration = diff.floatSec + 's';
-      floater.style.animationDelay = (i * stagger + Math.random() * jitterCap).toFixed(2) + 's';
+      floater.style.animationDelay = delay.toFixed(2) + 's';
       floater.setAttribute('data-correct', b.isCorrect ? '1' : '0');
       var balloon = document.createElement('div');
       balloon.className = 'phonics-balloon pb' + (i % 6);
@@ -19239,7 +19294,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-0521</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-0543</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
