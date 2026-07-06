@@ -3312,10 +3312,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260707-0439"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260707-0513"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260707-0439">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260707-0439"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260707-0513">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260707-0513"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -16732,16 +16732,20 @@
     //     ここには「見た目と出方」だけを持つ（穴数・出ている時間・同時数・正解数・出現間隔・カウントダウン）。
     //   holeCount    : 穴の数（3×3=9 固定。たたき台では難易度共通）
     //   correctMin/Max : 1問で叩くべき「正解のモグラ」の数（風船と揃える。easy1-2/normal3-4/hard5-6）
-    //   moleVisibleMs  : モグラが顔を出してから引っ込むまで(ms)。小さいほど難しい（easy長い/hard短い）
+    //   moleVisibleMs  : ★モグラが「出きった状態で顔を出している滞在時間」(ms)。小さいほど難しい（easy長い/hard短い）。
+    //                    生徒が反応できるよう延長（2026-07-07。旧 2200/1600/1050 → 3200/2600/1900）。
+    //   moleRiseMs     : ★モグラの「出入り（登場・引っ込み）アニメの速さ」(ms)。moleVisibleMs とは別物。
+    //                    かんたんほどゆっくり顔を出す／ハードほどキビキビ。CSS の .phonics-mole transition を
+    //                    JS がモグラ生成時に inline で上書きして難易度別にする（.down 引っ込みにも同じ速度が効く）。
     //   spawnIntervalMs: モグラを出す間隔(ms)。小さいほどテンポが速い
-    //   simultaneousMax: 画面に同時に出るモグラ数の上限（穴数以内。easy少なめ/hard多め）
+    //   simultaneousMax: 画面に同時に出るモグラ数の上限（穴数9以内。easy少なめ/hard多め＝出っぱなし/穴不足を防ぐ要）
     //   spawnBatch     : 1回の出現でまとめて出す最大数（空き穴と simultaneousMax の範囲内で）
     //   countdown      : true の難易度のみ開始時に「3・2・1・GO！」（hard のみ・GO無音、風船と同じ）
     moleHoleCount: 9,
     mole: {
-      easy:   { correctMin: 1, correctMax: 2, moleVisibleMs: 2200, spawnIntervalMs: 900, simultaneousMax: 3, spawnBatch: 1, countdown: false },
-      normal: { correctMin: 3, correctMax: 4, moleVisibleMs: 1600, spawnIntervalMs: 750, simultaneousMax: 4, spawnBatch: 2, countdown: false },
-      hard:   { correctMin: 5, correctMax: 6, moleVisibleMs: 1050, spawnIntervalMs: 600, simultaneousMax: 6, spawnBatch: 2, countdown: true }
+      easy:   { correctMin: 1, correctMax: 2, moleVisibleMs: 3200, moleRiseMs: 350, spawnIntervalMs: 900, simultaneousMax: 3, spawnBatch: 1, countdown: false },
+      normal: { correctMin: 3, correctMax: 4, moleVisibleMs: 2600, moleRiseMs: 280, spawnIntervalMs: 750, simultaneousMax: 4, spawnBatch: 2, countdown: false },
+      hard:   { correctMin: 5, correctMax: 6, moleVisibleMs: 1900, moleRiseMs: 200, spawnIntervalMs: 600, simultaneousMax: 6, spawnBatch: 2, countdown: true }
     }
   };
 
@@ -17195,6 +17199,11 @@
     mole._isCorrect = !!isCorrect;
     mole._handled = false;
     mole._retracted = false;
+    // ★出入りアニメ速度を難易度別に（CSS の .phonics-mole transition を inline で上書き）。
+    //   transform=登場/引っ込みの上下速度（moleRiseMs）、opacity は少し速めに追従。.up/.down 両方に効く。
+    var riseMs = mdiff.moleRiseMs || 240;
+    mole._riseMs = riseMs;  // retract の DOM 撤去待ちで参照（下降アニメを見せ切ってから消す）
+    mole.style.transition = 'transform ' + riseMs + 'ms ease-out, opacity ' + Math.round(riseMs * 0.66) + 'ms ease-out';
     hole.el.appendChild(mole);
     hole.mole = mole;
     // 登場（次tickで .up を付けてトランジション発火）
@@ -17214,10 +17223,13 @@
     var holeIdx = mole._hole;
     var holes = _phonicsMole.holes || [];
     if (!whacked) { mole.classList.remove('up'); mole.classList.add('down'); }
+    // DOM 撤去待ち：時間切れは下降アニメ(moleRiseMs)を、叩き時は hit 演出(0.3s)を見せ切ってから消す。
+    //   （両方をカバーするよう max(riseMs, 300)+バッファ。easy はゆっくり下降＝350ms でも切れない）
+    var removeDelay = Math.max(mole._riseMs || 240, 300) + 40;
     var t = setTimeout(function(){
       if (mole.parentNode) mole.parentNode.removeChild(mole);
       if (holes[holeIdx] && holes[holeIdx].mole === mole) holes[holeIdx].mole = null;  // ここで穴を空ける（重なり防止）
-    }, 320);
+    }, removeDelay);
     g.timers.push(t);
     if (!whacked && mole._isCorrect && !g.answered) {
       g.remainingCorrect--;
@@ -19667,7 +19679,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260707-0439</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260707-0513</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
