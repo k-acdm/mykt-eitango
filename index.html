@@ -2695,42 +2695,50 @@
       content: ''; position: absolute; left: 9%; right: 9%; bottom: 5px; height: 16px;
       background: #9a6b3c; border-radius: 50%; box-shadow: 0 3px 0 #77502b; z-index: 1;
     }
-    /* モグラ本体＝タップ対象＋読み方表示。translateY で下から登場 */
+    /* モグラ本体＝タップ対象。モグラ画像＋頭上の読み方を重ねる。translateY で穴の下から登場 */
     .phonics-mole {
-      position: relative; z-index: 2; width: 78%; margin-bottom: 12px;
-      padding: 10px 4px; border-radius: 18px 18px 22px 22px;
-      background: radial-gradient(circle at 40% 30%, #d8c3ac, #a37f5b);
-      border: 2px solid #7c5636;
-      color: #3a2410; font-size: 19px; font-weight: bold; text-align: center; line-height: 1.15;
-      word-break: break-word;
-      /* 白フチで全背景でも読めるように（風船と同じ方針） */
-      text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
-      box-shadow: inset 0 -6px 10px rgba(0,0,0,.15), 0 3px 8px rgba(0,0,0,.22);
+      position: relative; z-index: 2; width: 92%; margin-bottom: 0;
       transform: translateY(125%); opacity: 0;
       transition: transform .18s ease-out, opacity .12s ease-out;
       cursor: pointer; user-select: none; -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
-    .phonics-mole.up   { transform: translateY(0);     opacity: 1; }
-    .phonics-mole.down { transform: translateY(125%);  opacity: 0; }
-    /* 叩いた演出（つぶれて沈む） */
-    .phonics-mole.hit { animation: phonicsMoleHit .3s ease-out forwards; pointer-events: none; }
-    @keyframes phonicsMoleHit {
-      0%   { transform: translateY(0) scale(1,1);        opacity: 1; }
-      40%  { transform: translateY(6%) scale(1.18,.72);  opacity: .95; }
-      100% { transform: translateY(45%) scale(.55,.45);  opacity: 0; }
+    /* モグラ画像（600×600 透過PNG。タップは親要素が拾うので画像自体は pointer-events なし） */
+    .phonics-mole-img {
+      display: block; width: 100%; height: auto;
+      pointer-events: none; user-select: none; -webkit-user-drag: none;
+      filter: drop-shadow(0 3px 5px rgba(0,0,0,.28));
     }
-    /* ダミーを叩いた演出（首を振る・減点なし） */
-    .phonics-mole.miss { animation: phonicsMoleMiss .4s ease-in-out; }
-    @keyframes phonicsMoleMiss {
-      0%,100% { transform: translateY(0) rotate(0); }
-      25%     { transform: translateY(0) rotate(-8deg); }
-      75%     { transform: translateY(0) rotate(8deg); }
+    /* 読み方＝画像に焼き込まず、頭の上（頭に少し重なる位置）に大きく重ねる。
+       白フチ（8方向＋ハロー）＋濃い文字色で、穴のボードともモグラの体とも同化せず読める（風船と同じ手法） */
+    .phonics-mole-reading {
+      position: absolute; left: -6%; right: -6%; top: 40%;
+      text-align: center; pointer-events: none;
+      color: #3a2410; font-weight: 900; font-size: 23px; line-height: 1.02; letter-spacing: .5px;
+      text-shadow:
+        -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 2px 2px 0 #fff,
+        0 -2px 0 #fff, 0 2px 0 #fff, -2px 0 0 #fff, 2px 0 0 #fff,
+        0 0 5px #fff, 0 2px 3px rgba(0,0,0,.28);
+    }
+    /* 長い読み（単語＝ベイビー等）は小さく（頭上からはみ出さないように） */
+    .phonics-mole-reading.long  { font-size: 18px; }
+    .phonics-mole-reading.long2 { font-size: 14px; }
+    .phonics-mole.up   { transform: translateY(0);    opacity: 1; }
+    .phonics-mole.down { transform: translateY(125%); opacity: 0; }
+    /* 叩いた瞬間の「イテッ」ポップ（画像だけ弾む。親の translateY とは干渉しない） */
+    .phonics-mole.ouch .phonics-mole-img { animation: phonicsMoleOuch .2s ease-out; }
+    @keyframes phonicsMoleOuch {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.16) rotate(-2deg); }
+      100% { transform: scale(1.02); }
     }
     @media (max-width: 480px) {
       .phonics-field { height: 360px; }
       .phonics-mole-field { height: 360px; }
       .phonics-mole-grid { gap: 8px; padding: 8px; }
-      .phonics-mole { font-size: 17px; padding: 8px 3px; }
+      .phonics-mole-reading { font-size: 19px; }
+      .phonics-mole-reading.long  { font-size: 15px; }
+      .phonics-mole-reading.long2 { font-size: 12px; }
       .phonics-question .pq-main { font-size: 26px; }
     }
 
@@ -3312,10 +3320,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260707-0513"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260707-0544"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260707-0513">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260707-0513"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260707-0544">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260707-0544"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -16742,6 +16750,8 @@
     //   spawnBatch     : 1回の出現でまとめて出す最大数（空き穴と simultaneousMax の範囲内で）
     //   countdown      : true の難易度のみ開始時に「3・2・1・GO！」（hard のみ・GO無音、風船と同じ）
     moleHoleCount: 9,
+    moleOuchMs: 200,    // ★叩いた時「イテッ顔（mole-ouch.png）」を見せてから消すまで(ms)。正解・ダミー共通の演出時間
+
     mole: {
       easy:   { correctMin: 1, correctMax: 2, moleVisibleMs: 3200, moleRiseMs: 350, spawnIntervalMs: 900, simultaneousMax: 3, spawnBatch: 1, countdown: false },
       normal: { correctMin: 3, correctMax: 4, moleVisibleMs: 2600, moleRiseMs: 280, spawnIntervalMs: 750, simultaneousMax: 4, spawnBatch: 2, countdown: false },
@@ -16783,6 +16793,19 @@
     dummyPool: [],       // ダミーの読みプール（使い回してよい）
     listening: false     // モグラフィールドに pointerdown リスナーを付けているか
   };
+
+  // モグラ画像（通常・イテッ）のプリロード。穴から出る瞬間に読み込み遅延で欠けないよう、
+  //   モグラ叩きを選んだ時点／ゲーム開始時に一度だけ Image をキャッシュさせる（2枚・冪等）。
+  var _phonicsMoleImgsPreloaded = false;
+  function _phonicsPreloadMoleImages() {
+    if (_phonicsMoleImgsPreloaded) return;
+    _phonicsMoleImgsPreloaded = true;
+    try {
+      ['images/mole-default.png', 'images/mole-ouch.png'].forEach(function(src){
+        var im = new Image(); im.src = src;
+      });
+    } catch(e){}
+  }
 
   function _phonicsResetState() {
     _phonicsState.gameType = '';
@@ -16932,6 +16955,8 @@
     for (var i = 0; i < btns.length; i++) {
       btns[i].classList.toggle('selected', btns[i].getAttribute('data-gametype') === type);
     }
+    // モグラを選んだら画像を先読み（難易度・ステージ選択の間に読み込ませ、最初のモグラで欠けないように）
+    if (type === 'mole') _phonicsPreloadMoleImages();
     _updatePhonicsStartBtn();
   }
 
@@ -17046,6 +17071,7 @@
   // ============================================================================
   function _phonicsStartMoleGame() {
     _phonicsStopGame();  // 念のため前回分を完全破棄してから開始
+    _phonicsPreloadMoleImages();  // 画像プリロード（selectPhonicsGameType 未経由の再開等に備えた保険・冪等）
     _phonicsGame.qIndex = 0;
     _phonicsGame.poppedCorrectTotal = 0;
     _phonicsGame.clearedCount = 0;
@@ -17193,7 +17219,19 @@
     var mdiff = PHONICS_CONFIG.mole[_phonicsState.difficulty] || PHONICS_CONFIG.mole.normal;
     var mole = document.createElement('div');
     mole.className = 'phonics-mole';
-    mole.textContent = reading;
+    // モグラ画像（通常顔）
+    var mimg = document.createElement('img');
+    mimg.className = 'phonics-mole-img';
+    mimg.src = 'images/mole-default.png';
+    mimg.alt = '';
+    mimg.setAttribute('draggable', 'false');
+    mole.appendChild(mimg);
+    // 読み方を頭の上に重ねる（画像に焼き込まずプログラムで乗せる）。長い読みは自動で小さく。
+    var rd = document.createElement('span');
+    var rlen = String(reading || '').length;
+    rd.className = 'phonics-mole-reading' + (rlen >= 6 ? ' long2' : (rlen >= 4 ? ' long' : ''));
+    rd.textContent = reading;
+    mole.appendChild(rd);
     mole.setAttribute('data-correct', isCorrect ? '1' : '0');
     mole._hole = holeIdx;
     mole._isCorrect = !!isCorrect;
@@ -17214,7 +17252,8 @@
     g.timers.push(tHide);
   }
 
-  // モグラを引っ込める。whacked=true は叩かれた（演出は hit/miss に任せる）、false は時間切れ（down で沈む）。
+  // モグラを引っ込める（★叩かれず時間切れになった場合の処理。叩かれた時は _phonicsMoleWhack が担当）。
+  //   whacked は後方互換で残すが、現状の呼び出しは時間切れ(false)のみ。down で沈めてから撤去。
   //   ★時間切れで「叩かれなかった正解モグラ」が消えたら残り正解を1減らす（風船の animationend と同じ扱い）。
   function _phonicsRetractMole(mole, whacked) {
     if (!mole || mole._retracted) return;
@@ -17223,8 +17262,7 @@
     var holeIdx = mole._hole;
     var holes = _phonicsMole.holes || [];
     if (!whacked) { mole.classList.remove('up'); mole.classList.add('down'); }
-    // DOM 撤去待ち：時間切れは下降アニメ(moleRiseMs)を、叩き時は hit 演出(0.3s)を見せ切ってから消す。
-    //   （両方をカバーするよう max(riseMs, 300)+バッファ。easy はゆっくり下降＝350ms でも切れない）
+    // DOM 撤去待ち：下降アニメ(moleRiseMs、easy 最大 350ms)を見せ切ってから消す（min 300ms + バッファ）
     var removeDelay = Math.max(mole._riseMs || 240, 300) + 40;
     var t = setTimeout(function(){
       if (mole.parentNode) mole.parentNode.removeChild(mole);
@@ -17237,32 +17275,54 @@
     }
   }
 
+  // 叩かれた演出（正解・ダミー共通）：mole-ouch.png（イテッ顔）に差し替え → 読み方を消す → 一瞬見せて撤去。
+  //   ★判定（正解/ダミーの HP カウント）は呼び出し元 _phonicsMoleTap で完了済み。ここは見た目と撤去のみ。
+  //   タイマーは g.timers に積む＝画面離脱・問題遷移で確実に破棄される。
+  function _phonicsMoleWhack(mole) {
+    if (!mole || mole._retracted) return;
+    mole._retracted = true;  // 時間切れ retract の二重処理を防ぐ
+    var g = _phonicsGame;
+    var holeIdx = mole._hole;
+    var holes = _phonicsMole.holes || [];
+    var img = mole.querySelector('.phonics-mole-img');
+    if (img) img.src = 'images/mole-ouch.png';   // 通常顔 → イテッ顔（サイズ・頭位置は揃っているのでずれない）
+    var rd = mole.querySelector('.phonics-mole-reading');
+    if (rd) rd.style.display = 'none';           // 読み方も一緒に消す
+    mole.classList.add('up', 'ouch');            // up 維持で表示のまま、ouch で画像を一瞬弾ませる
+    mole.style.pointerEvents = 'none';
+    var ouchMs = PHONICS_CONFIG.moleOuchMs || 200;
+    var t = setTimeout(function(){
+      if (mole.parentNode) mole.parentNode.removeChild(mole);
+      if (holes[holeIdx] && holes[holeIdx].mole === mole) holes[holeIdx].mole = null;  // 穴を空ける
+    }, ouchMs);
+    g.timers.push(t);
+  }
+
   // モグラフィールドへのタップ（イベント委譲）
-  //   正解→叩く演出＋正解カウント＋「+HP」フロート。全正解を叩いたらクリアで次へ。
-  //   ダミー→首振り演出だけで消えて続行（★減点・不正解確定なし。風船割りと同じ思想）。
+  //   正解→正解カウント＋「+HP」フロート。全正解を叩いたらクリアで次へ。ダミー→減点なし・続行。
+  //   ★見た目：正解・ダミーどちらも「イテッ顔（mole-ouch）」に切替→一瞬で消す（_phonicsMoleWhack）。
+  //     判定（正解/ダミーのHPカウント）は従来通り変えず、演出だけ共通のイテッにする。
   function _phonicsMoleTap(e) {
     var g = _phonicsGame;
     if (g.answered) return;
     var target = e.target;
     var mole = (target && target.closest) ? target.closest('.phonics-mole') : null;
-    if (!mole || mole._handled) return;
+    if (!mole || mole._handled || mole._retracted) return;  // 既に叩いた/引っ込み中は無視（二重処理防止）
     mole._handled = true;
     var isCorrect = mole.getAttribute('data-correct') === '1';
     if (isCorrect) {
-      mole.classList.add('hit');
       playSfx('correct');
       g.remainingCorrect--; g.poppedThisQ++; g.poppedCorrectTotal++;
       _phonicsState.poppedCorrect = g.poppedCorrectTotal;
       var diff = PHONICS_CONFIG.difficulty[_phonicsState.difficulty] || PHONICS_CONFIG.difficulty.normal;
       _phonicsSpawnHpFloat(e, diff.hpPerCorrect, 'phonics-mole-field');
       _phonicsUpdateTally();
-      _phonicsRetractMole(mole, true);
+      _phonicsMoleWhack(mole);
       // 全正解を叩いたらクリア（poppedThisQ===correctTotal）。時間切れ済みが混ざれば neutral 進行。
       if (g.remainingCorrect <= 0) _phonicsAdvance(g.poppedThisQ === g.correctTotal);
     } else {
-      mole.classList.add('miss');
       playSfx('wrong');
-      _phonicsRetractMole(mole, true);
+      _phonicsMoleWhack(mole);
     }
   }
 
@@ -19679,7 +19739,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260707-0513</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260707-0544</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
