@@ -3254,10 +3254,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260706-0543"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260706-2350"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260706-0543">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260706-0543"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260706-2350">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260706-2350"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -16646,6 +16646,10 @@
     spawnStaggerSec: 0.18,  // 風船を1個ずつ出す間隔(秒)の下限。実際は下の重なり回避計算で自動的に引き上がる
     spawnJitterSec: 0.10,   // 出現タイミングのランダムばらつき(秒)。縦間隔を縮めすぎないよう小さく（旧0.28→0.10）。
                             //   さらに spawn 時に stagger の 35% を上限にクランプして縦すき間を守る
+    lanePickWindowFactor: 0.5, // ★配置ランダム化（2026-07-06）。レーン選択を決定論的（最小readyAt固定）から
+                            //   「制約内の乱択」に変更するための許容窓。baseTまでに空くレーンが無いとき、
+                            //   最早readyAt+ sameLaneMinDt×この値 以内のレーン群からランダムに選ぶ。
+                            //   0 で最早レーン固定に近い挙動、大きいほど散らばるが縦すき間は laneReadyAt 簿記で常に保証。
     popMs: 260,             // 正解の風船が割れる演出の長さ(ms)。CSS phonicsPop と揃える
     feedbackMs: 1100,       // 問題確定を見せてから次の問題へ進むまでの待ち(ms)
     // 難易度別のパラメータ（★ここで個数・正解数・速さ・HPレート・同時表示上限を調整する）
@@ -16664,7 +16668,7 @@
     difficulty: {
       easy:   { balloonCount: 6,  correctMin: 1, correctMax: 2, floatSec: 11,   hpPerCorrect: 1, uniqueDummies: true,  maxConcurrent: 6 },
       normal: { balloonCount: 12, correctMin: 3, correctMax: 4, floatSec: 6.7,  hpPerCorrect: 3, uniqueDummies: false, maxConcurrent: 8 },
-      hard:   { balloonCount: 20, correctMin: 5, correctMax: 6, floatSec: 3.2,  hpPerCorrect: 5, uniqueDummies: false, maxConcurrent: 8, minVerticalGapFactor: 1.8, countdown: true }
+      hard:   { balloonCount: 20, correctMin: 5, correctMax: 6, floatSec: 2.9,  hpPerCorrect: 5, uniqueDummies: false, maxConcurrent: 8, minVerticalGapFactor: 1.8, countdown: true }
     }
   };
 
@@ -16974,7 +16978,8 @@
       ov.classList.toggle('go', !!st.go);
       // クラス付け直しで pop アニメを再生
       ov.classList.remove('cd-pop'); void ov.offsetWidth; ov.classList.add('cd-pop');
-      if (st.go) { try { playSfx('pass'); } catch(e){} }
+      // ★カウントダウン中（GO含む）は無音。以前は GO で成功音 pass が鳴っていたが誤発火なので除去
+      //   （2026-07-06）。成功音 pass は「結果画面でHP獲得時」だけに鳴らす。将来 GO に開始音を足す可能性はあるが今は無音。
       var t = setTimeout(tick, st.ms);
       g.timers.push(t);
     }
@@ -17127,13 +17132,17 @@
   // 風船 DOM を生成してフィールドに配置＋上昇アニメ開始
   //   ★重なり回避（可読性優先。2026-07-06 再修正で貪欲スケジューラ化）：後ろの読みが隠れて選べない状況を無くす。
   //   ① 横レーン分割：レーン幅 = balloonWidth + laneGap(22px) で隣レーンとの横すき間を確保。
-  //   ② 縦すき間保証（要）：各レーンが「次に使える最早 delay(laneReadyAt)」を持ち、最も空いたレーンへ割り当て、
-  //      同一レーンは必ず sameLaneMinDt(= balloonHeight×gapFactor ÷ 速度) 以上あける。
+  //   ② 縦すき間保証（要）：各レーンが「次に使える最早 delay(laneReadyAt)」を持ち、割り当て後は
+  //      同一レーンを必ず sameLaneMinDt(= balloonHeight×gapFactor ÷ 速度) 以上あける。
   //      → 画面幅・レーン数によらず、同一レーンの縦間隔 ≥ balloonHeight×minVerticalGapFactor を必ず保証。
   //      （旧「ラウンドごとシャッフル pool」は波の境界で同一レーンが隣接割当になり広い画面で重なっていた）
-  //   ③ 同時表示上限：出現ペース cadence を maxConcurrent から算出（画面内滞在時間 ÷ 上限）。
+  //   ②' 配置ランダム化（2026-07-06）：レーン選択は「制約を満たす候補（baseTまでに空くレーン、無ければ
+  //      最早readyAtから窓幅内）の中から乱択」。重なり保証は laneReadyAt 簿記だけで成立するため、どのレーンを
+  //      選んでも縦すき間は崩れない。決定論（最小readyAt固定）だと毎回同じ並びになるのを解消し、毎回違う配置に。
+  //   ③ 同時表示上限：出現ペース cadence を maxConcurrent から算出（画面内滞在時間 ÷ 上限）。乱択にしても
+  //      風船数は増えず baseT=i×cadence でテンポは不変なので maxConcurrent は満たされる。
   //   ④ 揺らぎは控えめ：delay の揺らぎは cadence の 25% まで（laneReadyAt に反映するので縦すき間は崩れない）。
-  //      横揺らぎは horizontalJitterMax(8px) まででレーン中央寄りに保つ。
+  //      横揺らぎは horizontalJitterMax(8px) まででレーン中央寄りに保つ（乱択レーンでも横クリアランス維持）。
   function _phonicsSpawnBalloons(list) {
     var field = document.getElementById('phonics-field');
     if (!field) return;
@@ -17166,13 +17175,30 @@
     var laneReadyAt = [];
     for (var l = 0; l < laneCount; l++) laneReadyAt.push(0);
 
+    // ★配置ランダム化（2026-07-06）：レーン選択を「制約を満たす候補の中から乱択」にする。
+    //   重ならない保証は per-lane の laneReadyAt 簿記（同一レーンを sameLaneMinDt 以上あける）だけで成立しており、
+    //   どのレーンを選んでも t = max(baseT, laneReadyAt[lane]) → laneReadyAt[lane] = delay + sameLaneMinDt で
+    //   縦すき間は必ず守られる。「最小readyAt 固定」だと毎回同じ並びになるので、制約内で乱択して毎回違う配置にする。
+    var EPS = 1e-6;
     list.forEach(function(b, i){
       // 標準ペースの目標時刻
       var baseT = i * cadence;
-      // 最も早く使えるレーン（laneReadyAt 最小）を選ぶ → 最大の縦余裕を確保
-      var lane = 0;
-      for (var l2 = 1; l2 < laneCount; l2++) { if (laneReadyAt[l2] < laneReadyAt[lane]) lane = l2; }
-      // そのレーンが使える時刻と標準ペースの遅い方（レーンが詰まっていれば自動で後ろへずれる）
+      // 候補①：baseT までに空くレーン（追加遅延ゼロで使える）→ あればその中からランダム選択
+      var candidates = [];
+      for (var lc = 0; lc < laneCount; lc++) {
+        if (laneReadyAt[lc] <= baseT + EPS) candidates.push(lc);
+      }
+      // 候補②：全レーン埋まっているときは、最早 readyAt から窓幅内のレーン群から乱択（縦すき間は保証を維持）
+      if (candidates.length === 0) {
+        var minReady = Infinity;
+        for (var lm = 0; lm < laneCount; lm++) { if (laneReadyAt[lm] < minReady) minReady = laneReadyAt[lm]; }
+        var win = sameLaneMinDt * (cfg.lanePickWindowFactor || 0);
+        for (var lw = 0; lw < laneCount; lw++) {
+          if (laneReadyAt[lw] <= minReady + win + EPS) candidates.push(lw);
+        }
+      }
+      var lane = candidates[Math.floor(Math.random() * candidates.length)];
+      // 選んだレーンが使える時刻と標準ペースの遅い方（レーンが詰まっていれば自動で後ろへずれる）
       var t = Math.max(baseT, laneReadyAt[lane]);
       var delay = t + Math.random() * jitterCap;
       laneReadyAt[lane] = delay + sameLaneMinDt;   // 揺らぎ込みで次の同一レーンまで必ず sameLaneMinDt 空ける
@@ -19294,7 +19320,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-0543</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-2350</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
