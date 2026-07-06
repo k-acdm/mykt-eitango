@@ -2671,8 +2671,66 @@
     .phonics-result-practice { margin: 12px auto 4px; padding: 12px 14px; max-width: 320px; background: #fff7ed; border: 2px solid #fdba74; border-radius: 14px; color: #7c2d12; font-size: 14px; line-height: 1.7; font-weight: bold; }
     /* 設定画面：1日5回まで本番HP の注意書き */
     .phonics-hp-note { font-size: 13px; color: #9d174d; background: rgba(255,255,255,.78); border: 1px dashed #f9a8d4; border-radius: 10px; padding: 9px 12px; margin: 2px 0 4px; line-height: 1.6; text-align: center; }
+    /* ── モグラ叩き（第3段階・たたき台）。風船割りとは別フィールド。高さ・角丸・touch は phonics-field に揃える ── */
+    .phonics-mole-field {
+      position: relative; height: 400px; margin: 8px 0 4px;
+      border-radius: 16px; overflow: hidden;
+      background: linear-gradient(180deg,#dcfce7 0%,#f0fdf4 55%,#fefce8 100%);
+      box-shadow: inset 0 2px 10px rgba(0,0,0,.06);
+      touch-action: manipulation;
+    }
+    /* 3×3 の穴グリッド（フィールドいっぱいに広げる） */
+    .phonics-mole-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+      gap: 10px; width: 100%; height: 100%; box-sizing: border-box; padding: 10px;
+    }
+    /* 1つの穴。モグラは穴の下から出てくる（overflow:hidden で穴の下に隠れる） */
+    .phonics-mole-hole {
+      position: relative; border-radius: 14px; overflow: hidden;
+      display: flex; align-items: flex-end; justify-content: center;
+      background: radial-gradient(ellipse at 50% 128%, #d8bd94 0%, #cbab7c 42%, rgba(203,171,124,0) 74%);
+    }
+    /* 穴のふち（土もり）を下端に描く */
+    .phonics-mole-hole::after {
+      content: ''; position: absolute; left: 9%; right: 9%; bottom: 5px; height: 16px;
+      background: #9a6b3c; border-radius: 50%; box-shadow: 0 3px 0 #77502b; z-index: 1;
+    }
+    /* モグラ本体＝タップ対象＋読み方表示。translateY で下から登場 */
+    .phonics-mole {
+      position: relative; z-index: 2; width: 78%; margin-bottom: 12px;
+      padding: 10px 4px; border-radius: 18px 18px 22px 22px;
+      background: radial-gradient(circle at 40% 30%, #d8c3ac, #a37f5b);
+      border: 2px solid #7c5636;
+      color: #3a2410; font-size: 19px; font-weight: bold; text-align: center; line-height: 1.15;
+      word-break: break-word;
+      /* 白フチで全背景でも読めるように（風船と同じ方針） */
+      text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+      box-shadow: inset 0 -6px 10px rgba(0,0,0,.15), 0 3px 8px rgba(0,0,0,.22);
+      transform: translateY(125%); opacity: 0;
+      transition: transform .18s ease-out, opacity .12s ease-out;
+      cursor: pointer; user-select: none; -webkit-user-select: none;
+    }
+    .phonics-mole.up   { transform: translateY(0);     opacity: 1; }
+    .phonics-mole.down { transform: translateY(125%);  opacity: 0; }
+    /* 叩いた演出（つぶれて沈む） */
+    .phonics-mole.hit { animation: phonicsMoleHit .3s ease-out forwards; pointer-events: none; }
+    @keyframes phonicsMoleHit {
+      0%   { transform: translateY(0) scale(1,1);        opacity: 1; }
+      40%  { transform: translateY(6%) scale(1.18,.72);  opacity: .95; }
+      100% { transform: translateY(45%) scale(.55,.45);  opacity: 0; }
+    }
+    /* ダミーを叩いた演出（首を振る・減点なし） */
+    .phonics-mole.miss { animation: phonicsMoleMiss .4s ease-in-out; }
+    @keyframes phonicsMoleMiss {
+      0%,100% { transform: translateY(0) rotate(0); }
+      25%     { transform: translateY(0) rotate(-8deg); }
+      75%     { transform: translateY(0) rotate(8deg); }
+    }
     @media (max-width: 480px) {
       .phonics-field { height: 360px; }
+      .phonics-mole-field { height: 360px; }
+      .phonics-mole-grid { gap: 8px; padding: 8px; }
+      .phonics-mole { font-size: 17px; padding: 8px 3px; }
       .phonics-question .pq-main { font-size: 26px; }
     }
 
@@ -3254,10 +3312,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260706-2350"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260707-0439"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260706-2350">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260706-2350"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260707-0439">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260707-0439"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5836,17 +5894,13 @@
   </div>
 </div>
 
-<!-- フォニックス ゲーム画面（第2段階：風船割り本体。モグラ叩きは第3段階で 準備中 表示） -->
+<!-- フォニックス ゲーム画面（第2段階：風船割り本体／第3段階：モグラ叩き本体）。
+     問題表示・フォニー・進捗・中断は両ゲーム共通。中央フィールドだけ gameType で切替
+     （balloon=phonics-field / mole=phonics-mole-field）。 -->
 <div id="screen-phonics-game" class="screen">
   <header><h1>🎵 フォニックスゲーム</h1><span id="phonics-game-meta"></span></header>
   <div class="container" style="padding-top:12px">
-    <!-- モグラ叩き（第3段階）用の準備中プレースホルダ。風船割り時は非表示 -->
-    <div id="phonics-game-soon" style="display:none;text-align:center;padding:24px 0;color:#78350f">
-      <p style="font-size:16px;font-weight:bold">🔨 モグラ叩きは準備中です</p>
-      <p style="font-size:13px;color:#888;margin-top:8px">第3段階で実装予定。いまは「風船割り」であそべます。</p>
-      <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-phonics-setup')">← 設定に戻る</button>
-    </div>
-    <!-- 風船割り本体 -->
+    <!-- 風船割り／モグラ叩き 共通の本体 -->
     <div id="phonics-game-play">
       <div class="phonics-topbar">
         <span id="phonics-hp-tally" class="phonics-hp-tally"></span>
@@ -5857,7 +5911,10 @@
         <div class="mate-bubble" id="mate-bubble-phonics-game">よーし、はじめよう！</div>
       </div>
       <div id="phonics-question" class="phonics-question"></div>
+      <!-- 風船割りのフィールド（gameType=balloon のとき表示） -->
       <div id="phonics-field" class="phonics-field"></div>
+      <!-- モグラ叩きのフィールド（gameType=mole のとき表示。3×3 の穴グリッドを JS で描画） -->
+      <div id="phonics-mole-field" class="phonics-mole-field" style="display:none"></div>
       <div id="phonics-feedback" class="phonics-feedback"></div>
       <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="quitPhonicsGame()">■ ゲームを中断する</button>
     </div>
@@ -16669,6 +16726,22 @@
       easy:   { balloonCount: 6,  correctMin: 1, correctMax: 2, floatSec: 11,   hpPerCorrect: 1, uniqueDummies: true,  maxConcurrent: 6 },
       normal: { balloonCount: 12, correctMin: 3, correctMax: 4, floatSec: 6.7,  hpPerCorrect: 3, uniqueDummies: false, maxConcurrent: 8 },
       hard:   { balloonCount: 20, correctMin: 5, correctMax: 6, floatSec: 2.9,  hpPerCorrect: 5, uniqueDummies: false, maxConcurrent: 8, minVerticalGapFactor: 1.8, countdown: true }
+    },
+    // ── モグラ叩き（第3段階・たたき台）の調整パラメータ ──
+    //   ★HPレート（hpPerCorrect）は風船割りと共通（上の difficulty を使う。easy1/normal3/hard5）。
+    //     ここには「見た目と出方」だけを持つ（穴数・出ている時間・同時数・正解数・出現間隔・カウントダウン）。
+    //   holeCount    : 穴の数（3×3=9 固定。たたき台では難易度共通）
+    //   correctMin/Max : 1問で叩くべき「正解のモグラ」の数（風船と揃える。easy1-2/normal3-4/hard5-6）
+    //   moleVisibleMs  : モグラが顔を出してから引っ込むまで(ms)。小さいほど難しい（easy長い/hard短い）
+    //   spawnIntervalMs: モグラを出す間隔(ms)。小さいほどテンポが速い
+    //   simultaneousMax: 画面に同時に出るモグラ数の上限（穴数以内。easy少なめ/hard多め）
+    //   spawnBatch     : 1回の出現でまとめて出す最大数（空き穴と simultaneousMax の範囲内で）
+    //   countdown      : true の難易度のみ開始時に「3・2・1・GO！」（hard のみ・GO無音、風船と同じ）
+    moleHoleCount: 9,
+    mole: {
+      easy:   { correctMin: 1, correctMax: 2, moleVisibleMs: 2200, spawnIntervalMs: 900, simultaneousMax: 3, spawnBatch: 1, countdown: false },
+      normal: { correctMin: 3, correctMax: 4, moleVisibleMs: 1600, spawnIntervalMs: 750, simultaneousMax: 4, spawnBatch: 2, countdown: false },
+      hard:   { correctMin: 5, correctMax: 6, moleVisibleMs: 1050, spawnIntervalMs: 600, simultaneousMax: 6, spawnBatch: 2, countdown: true }
     }
   };
 
@@ -16695,6 +16768,16 @@
     answered: false,         // この問題が確定済みか（多重進行ガード）
     listening: false,        // フィールドにタップ/animationend リスナーを付けているか
     timers: []               // 進行中の setTimeout id（画面離脱・問題遷移で全破棄）
+  };
+
+  // モグラ叩きの実行時状態（1 問の間だけ有効。_phonicsStopGame / _phonicsRenderQuestion で破棄）。
+  //   進行カウンタ（correctTotal/remainingCorrect/poppedThisQ/… とタイマー）は _phonicsGame を共用する。
+  //   ここには「穴の占有状況」と「まだ出していない正解モグラのキュー」だけを持つ。
+  var _phonicsMole = {
+    holes: [],           // 各穴の現在のモグラ要素（空は null）。index = 穴番号
+    correctQueue: [],    // まだ出していない正解モグラの読み配列（全部出し切ると問題が終わりへ向かう）
+    dummyPool: [],       // ダミーの読みプール（使い回してよい）
+    listening: false     // モグラフィールドに pointerdown リスナーを付けているか
   };
 
   function _phonicsResetState() {
@@ -16900,19 +16983,16 @@
       meta.textContent = gt + '・' + df + '・' + _phonicsState.quiz.length + '問';
     }
     var playEl = document.getElementById('phonics-game-play');
-    var soonEl = document.getElementById('phonics-game-soon');
-    if (_phonicsState.gameType === 'mole') {
-      // モグラ叩きは第3段階。ここでは準備中を表示するだけ。
-      if (playEl) playEl.style.display = 'none';
-      if (soonEl) soonEl.style.display = 'block';
-      showScreen('screen-phonics-game');
-      return;
-    }
-    // 風船割り本体
-    if (soonEl) soonEl.style.display = 'none';
     if (playEl) playEl.style.display = 'block';
+    // 中央フィールドを gameType で切替（balloon=phonics-field / mole=phonics-mole-field）
+    var isMole = (_phonicsState.gameType === 'mole');
+    var balloonField = document.getElementById('phonics-field');
+    var moleField    = document.getElementById('phonics-mole-field');
+    if (balloonField) balloonField.style.display = isMole ? 'none' : 'block';
+    if (moleField)    moleField.style.display    = isMole ? 'block' : 'none';
     showScreen('screen-phonics-game');
-    _phonicsStartBalloonGame();
+    if (isMole) _phonicsStartMoleGame();
+    else        _phonicsStartBalloonGame();
   }
 
   // ============================================================================
@@ -16950,11 +17030,235 @@
     }
   }
 
+  // ============================================================================
+  // モグラ叩きゲーム本体（第3段階・たたき台）
+  //   方式：3×3 の穴グリッドに、正解モグラ（1問あたり固定数）とダミーモグラを時間差で出す。
+  //     - モグラは translateY で穴の下から登場 → moleVisibleMs 後に引っ込む（叩かれなければ消える）。
+  //     - 判定はモグラフィールド1箇所への pointerdown 委譲。正解→叩く演出＋カウント、ダミー→首振り演出のみ（減点なし）。
+  //   ★問題進行（進捗・問題文・フォニー・タリー・結果遷移・HP送信）は風船割りと共通
+  //     （_phonicsRenderQuestion / _phonicsAdvance / _phonicsUpdateTally / _phonicsShowResult / _phonicsSubmitResult）。
+  //     モグラ固有なのは「穴グリッド生成・モグラ出入り・タップ判定」だけ。風船割りのコードには一切触れない。
+  //   破棄：問題遷移・画面離脱で _phonicsStopGame がタイマー/リスナー/DOM を確実に片付ける（モグラも対象に追加済）。
+  // ============================================================================
+  function _phonicsStartMoleGame() {
+    _phonicsStopGame();  // 念のため前回分を完全破棄してから開始
+    _phonicsGame.qIndex = 0;
+    _phonicsGame.poppedCorrectTotal = 0;
+    _phonicsGame.clearedCount = 0;
+    _phonicsGame.answered = false;
+    _phonicsGame.timers = [];
+    _phonicsMole.holes = [];
+    _phonicsMole.correctQueue = [];
+    _phonicsMole.dummyPool = [];
+    _phonicsState.poppedCorrect = 0;
+    _phonicsState.plannedHp = 0;
+    _phonicsState.clearedCount = 0;
+    _phonicsState.sessionStartedAt = _ctFormatNowYmdhms();  // submitPhonicsResult の startedAt 用
+    _phonicsUpdateTally();
+    var field = document.getElementById('phonics-mole-field');
+    if (field && !_phonicsMole.listening) {
+      field.addEventListener('pointerdown', _phonicsMoleTap);
+      _phonicsMole.listening = true;
+    }
+    // ★ハードのみ：開始時に「3・2・1・GO！」（GO無音）→ GO! 後に最初の問題（穴グリッド＋モグラ）。
+    //   かんたん・ふつうはすぐ開始。カウントダウンのタイマーは g.timers に積むので中断時に破棄される。
+    var mdiff = PHONICS_CONFIG.mole[_phonicsState.difficulty] || PHONICS_CONFIG.mole.normal;
+    if (mdiff && mdiff.countdown) {
+      _phonicsRunCountdown(function(){ _phonicsRenderQuestion(0); }, 'phonics-mole-field');
+    } else {
+      _phonicsRenderQuestion(0);
+    }
+  }
+
+  // この問題のモグラを組み立て：正解モグラ（固定数）＋ダミー読みプール。
+  //   正解数は mole.correctMin/Max（easy1-2 / normal3-4 / hard5-6・風船と揃える）。
+  //   2読み（c=ク/ス 等）：両方の読みを必ず1個以上入れる（両方叩く必要あり）。
+  //   ダミー：正解の読みとは必ず別。プールは使い回して穴を埋める（正解と混同しない＝data-correct で厳密判定）。
+  function _phonicsBuildMoles(item) {
+    var cfg = PHONICS_CONFIG;
+    var mdiff = cfg.mole[_phonicsState.difficulty] || cfg.mole.normal;
+    var holeCount = cfg.moleHoleCount || 9;
+    var correctReadings = (item.correct || []).map(function(c){ return String(c || '').trim(); }).filter(Boolean);
+
+    // 正解モグラの数（難易度の範囲でランダム。2読みは最低でも読み数ぶん・穴数以内）
+    var target = mdiff.correctMin + Math.floor(Math.random() * (mdiff.correctMax - mdiff.correctMin + 1));
+    target = Math.min(Math.max(target, correctReadings.length), holeCount);
+    var correctMoles = [];
+    if (correctReadings.length === 1) {
+      var n = Math.max(1, target);
+      for (var i = 0; i < n; i++) correctMoles.push({ reading: correctReadings[0], isCorrect: true });
+    } else if (correctReadings.length >= 2) {
+      correctReadings.forEach(function(r){ correctMoles.push({ reading: r, isCorrect: true }); });  // 各読み1個は必ず
+      while (correctMoles.length < target) {
+        var rr = correctReadings[Math.floor(Math.random() * correctReadings.length)];
+        correctMoles.push({ reading: rr, isCorrect: true });
+      }
+    }
+
+    // ダミー読みプール（正解の読みは除外・重複も排除）
+    var used = {};
+    correctReadings.forEach(function(r){ used[r] = true; });
+    var dummyPool = [];
+    (item.dummyChoices || []).forEach(function(d){
+      var v = String(d || '').trim();
+      if (!v || used[v]) return;
+      used[v] = true;
+      dummyPool.push(v);
+    });
+    return { correctMoles: _phonicsShuffle(correctMoles), dummyPool: _phonicsShuffle(dummyPool) };
+  }
+
+  // 穴グリッド（3×3）を生成 → 正解キュー／ダミープールをセット → スポーン loop 開始
+  function _phonicsSpawnMoles(built) {
+    var field = document.getElementById('phonics-mole-field');
+    if (!field) return;
+    var cfg = PHONICS_CONFIG;
+    var holeCount = cfg.moleHoleCount || 9;
+    // 穴グリッドを毎問リセット（前問のモグラ状態が残らない）
+    field.innerHTML = '';
+    var grid = document.createElement('div');
+    grid.className = 'phonics-mole-grid';
+    _phonicsMole.holes = [];
+    for (var h = 0; h < holeCount; h++) {
+      var hole = document.createElement('div');
+      hole.className = 'phonics-mole-hole';
+      hole.setAttribute('data-hole', String(h));
+      grid.appendChild(hole);
+      _phonicsMole.holes.push({ el: hole, mole: null });
+    }
+    field.appendChild(grid);
+    _phonicsMole.correctQueue = (built.correctMoles || []).slice();
+    _phonicsMole.dummyPool    = (built.dummyPool || []).slice();
+    // スポーン loop 開始（recursive setTimeout。g.timers に積むので離脱・遷移で確実に破棄される）
+    _phonicsMoleTick();
+  }
+
+  // スポーン1周期：空き穴に正解／ダミーのモグラを出す。
+  //   ★正解キューが残っている限り「この周期に最低1匹は正解モグラ」を出す＝必ず出し切る＝いつか必ず終わる。
+  //   ダミーはプールから使い回して穴を埋める。同時表示は simultaneousMax、1周期の追加は spawnBatch まで。
+  function _phonicsMoleTick() {
+    var g = _phonicsGame;
+    if (g.answered) return;
+    var cfg = PHONICS_CONFIG;
+    var mdiff = cfg.mole[_phonicsState.difficulty] || cfg.mole.normal;
+    var holes = _phonicsMole.holes || [];
+
+    // 空き穴を集める＋現在アクティブ数を数える
+    var freeHoles = [];
+    var active = 0;
+    for (var i = 0; i < holes.length; i++) {
+      if (holes[i].mole) active++;
+      else freeHoles.push(i);
+    }
+    var room = Math.max(0, (mdiff.simultaneousMax || 3) - active);
+    var toSpawn = Math.min(room, freeHoles.length, mdiff.spawnBatch || 1);
+
+    var spawnedCorrectThisTick = false;
+    for (var s = 0; s < toSpawn; s++) {
+      if (freeHoles.length === 0) break;
+      var pick = Math.floor(Math.random() * freeHoles.length);
+      var holeIdx = freeHoles.splice(pick, 1)[0];
+      // 正解キューが残っていれば、この周期の最初の1匹は必ず正解モグラ（確実に出し切る）
+      var reading, isCorrect;
+      if (_phonicsMole.correctQueue.length > 0 && !spawnedCorrectThisTick) {
+        reading = _phonicsMole.correctQueue.shift().reading;
+        isCorrect = true;
+        spawnedCorrectThisTick = true;
+      } else if (_phonicsMole.dummyPool.length > 0) {
+        reading = _phonicsMole.dummyPool[Math.floor(Math.random() * _phonicsMole.dummyPool.length)];
+        isCorrect = false;
+      } else {
+        continue; // ダミーが無い（データが薄い）なら空けておく
+      }
+      _phonicsPopMole(holeIdx, reading, isCorrect);
+    }
+
+    // 次の周期：まだ出していない正解がある or 画面に残っている正解がある間は続ける（ダミーで賑やかさを保つ）
+    if (!g.answered && (_phonicsMole.correctQueue.length > 0 || g.remainingCorrect > 0)) {
+      var t = setTimeout(_phonicsMoleTick, mdiff.spawnIntervalMs || 800);
+      g.timers.push(t);
+    }
+  }
+
+  // 1匹のモグラを穴に出す（登場アニメ＋ moleVisibleMs 後の自動引っ込みを予約）
+  function _phonicsPopMole(holeIdx, reading, isCorrect) {
+    var g = _phonicsGame;
+    var holes = _phonicsMole.holes || [];
+    var hole = holes[holeIdx];
+    if (!hole || hole.mole) return;  // 穴が無い/埋まっている
+    var mdiff = PHONICS_CONFIG.mole[_phonicsState.difficulty] || PHONICS_CONFIG.mole.normal;
+    var mole = document.createElement('div');
+    mole.className = 'phonics-mole';
+    mole.textContent = reading;
+    mole.setAttribute('data-correct', isCorrect ? '1' : '0');
+    mole._hole = holeIdx;
+    mole._isCorrect = !!isCorrect;
+    mole._handled = false;
+    mole._retracted = false;
+    hole.el.appendChild(mole);
+    hole.mole = mole;
+    // 登場（次tickで .up を付けてトランジション発火）
+    var tUp = setTimeout(function(){ if (mole.parentNode) mole.classList.add('up'); }, 20);
+    g.timers.push(tUp);
+    // 引っ込み予約（叩かれなければ moleVisibleMs 後に retract）
+    var tHide = setTimeout(function(){ _phonicsRetractMole(mole, false); }, (mdiff.moleVisibleMs || 1600) + 20);
+    g.timers.push(tHide);
+  }
+
+  // モグラを引っ込める。whacked=true は叩かれた（演出は hit/miss に任せる）、false は時間切れ（down で沈む）。
+  //   ★時間切れで「叩かれなかった正解モグラ」が消えたら残り正解を1減らす（風船の animationend と同じ扱い）。
+  function _phonicsRetractMole(mole, whacked) {
+    if (!mole || mole._retracted) return;
+    mole._retracted = true;
+    var g = _phonicsGame;
+    var holeIdx = mole._hole;
+    var holes = _phonicsMole.holes || [];
+    if (!whacked) { mole.classList.remove('up'); mole.classList.add('down'); }
+    var t = setTimeout(function(){
+      if (mole.parentNode) mole.parentNode.removeChild(mole);
+      if (holes[holeIdx] && holes[holeIdx].mole === mole) holes[holeIdx].mole = null;  // ここで穴を空ける（重なり防止）
+    }, 320);
+    g.timers.push(t);
+    if (!whacked && mole._isCorrect && !g.answered) {
+      g.remainingCorrect--;
+      if (g.remainingCorrect <= 0) _phonicsAdvance(g.poppedThisQ === g.correctTotal);
+    }
+  }
+
+  // モグラフィールドへのタップ（イベント委譲）
+  //   正解→叩く演出＋正解カウント＋「+HP」フロート。全正解を叩いたらクリアで次へ。
+  //   ダミー→首振り演出だけで消えて続行（★減点・不正解確定なし。風船割りと同じ思想）。
+  function _phonicsMoleTap(e) {
+    var g = _phonicsGame;
+    if (g.answered) return;
+    var target = e.target;
+    var mole = (target && target.closest) ? target.closest('.phonics-mole') : null;
+    if (!mole || mole._handled) return;
+    mole._handled = true;
+    var isCorrect = mole.getAttribute('data-correct') === '1';
+    if (isCorrect) {
+      mole.classList.add('hit');
+      playSfx('correct');
+      g.remainingCorrect--; g.poppedThisQ++; g.poppedCorrectTotal++;
+      _phonicsState.poppedCorrect = g.poppedCorrectTotal;
+      var diff = PHONICS_CONFIG.difficulty[_phonicsState.difficulty] || PHONICS_CONFIG.difficulty.normal;
+      _phonicsSpawnHpFloat(e, diff.hpPerCorrect, 'phonics-mole-field');
+      _phonicsUpdateTally();
+      _phonicsRetractMole(mole, true);
+      // 全正解を叩いたらクリア（poppedThisQ===correctTotal）。時間切れ済みが混ざれば neutral 進行。
+      if (g.remainingCorrect <= 0) _phonicsAdvance(g.poppedThisQ === g.correctTotal);
+    } else {
+      mole.classList.add('miss');
+      playSfx('wrong');
+      _phonicsRetractMole(mole, true);
+    }
+  }
+
   // 「3・2・1・GO！」カウントダウン（ハードのみ）。onDone は GO! 表示後に呼ぶ（＝風船スポーン開始）。
   //   タイマーは _phonicsGame.timers に積み、中断/離脱時に _phonicsStopGame が確実に破棄する。
-  function _phonicsRunCountdown(onDone) {
+  function _phonicsRunCountdown(onDone, fieldId) {
     var g = _phonicsGame;
-    var field = document.getElementById('phonics-field');
+    var field = document.getElementById(fieldId || 'phonics-field');
     if (!field) { onDone(); return; }
     field.innerHTML = '';
     var ov = document.createElement('div');
@@ -17007,15 +17311,28 @@
       field.innerHTML = '';
     }
     g.listening = false;
+    // ★モグラ叩きの後始末（追加）：モグラフィールドのリスナー・DOM・穴/キュー状態を確実に破棄。
+    //   タイマー（スポーン loop / 引っ込み）は上の g.timers 一括破棄で共通に片付く。
+    var mfield = document.getElementById('phonics-mole-field');
+    if (mfield) {
+      if (_phonicsMole.listening) mfield.removeEventListener('pointerdown', _phonicsMoleTap);
+      mfield.innerHTML = '';
+    }
+    _phonicsMole.listening = false;
+    _phonicsMole.holes = [];
+    _phonicsMole.correctQueue = [];
+    _phonicsMole.dummyPool = [];
   }
 
-  // 1 問を描画：前問の風船を撤去 → 20問到達なら結果へ → 問題文＋風船を出す
+  // 1 問を描画：前問の風船／モグラを撤去 → 20問到達なら結果へ → 問題文＋風船 or モグラを出す
+  //   ★問題進行（進捗・問題文・フォニー・タリー・結果遷移）は両ゲーム共通。中央のスポーンだけ gameType で分岐。
   function _phonicsRenderQuestion(idx) {
     var g = _phonicsGame;
-    // 前問のタイマー・風船をクリア（進行タイマーは既に発火済みなので破棄して良い）
+    // 前問のタイマー・風船／モグラをクリア（進行タイマーは既に発火済みなので破棄して良い）
     (g.timers || []).forEach(function(t){ try { clearTimeout(t); } catch(e){} });
     g.timers = [];
-    var field = document.getElementById('phonics-field');
+    var isMole = (_phonicsState.gameType === 'mole');
+    var field = document.getElementById(isMole ? 'phonics-mole-field' : 'phonics-field');
     if (field) field.innerHTML = '';
     var fb = document.getElementById('phonics-feedback');
     if (fb) fb.innerHTML = '';
@@ -17034,17 +17351,32 @@
     _setContentMascot('mate-img-phonics-game', 'default', 'mate-bubble-phonics-game', _pickBubble(PHONY_BUBBLES.question), 'phony');
     _phonicsUpdateTally();
 
-    var balloons = _phonicsBuildBalloons(item);
-    g.correctTotal = balloons.filter(function(b){ return b.isCorrect; }).length;
-    g.remainingCorrect = g.correctTotal;
-    g.poppedThisQ = 0;
-    // 防御：正解の風船が 0 個（想定外データ）だと永久に確定しないので次へ
-    if (g.correctTotal === 0) {
-      try { console.warn('[phonics] 正解の風船が0個の問題をスキップ:', item); } catch(e){}
-      _phonicsAdvance(false);
-      return;
+    if (isMole) {
+      // モグラ叩き：正解モグラ（固定数）とダミープールを組み立て、3×3 の穴に順次出す。
+      var built = _phonicsBuildMoles(item);
+      g.correctTotal = built.correctMoles.length;
+      g.remainingCorrect = g.correctTotal;
+      g.poppedThisQ = 0;
+      if (g.correctTotal === 0) {
+        try { console.warn('[phonics] 正解のモグラが0個の問題をスキップ:', item); } catch(e){}
+        _phonicsAdvance(false);
+        return;
+      }
+      _phonicsSpawnMoles(built);
+    } else {
+      // 風船割り（第2段階のまま・不変）
+      var balloons = _phonicsBuildBalloons(item);
+      g.correctTotal = balloons.filter(function(b){ return b.isCorrect; }).length;
+      g.remainingCorrect = g.correctTotal;
+      g.poppedThisQ = 0;
+      // 防御：正解の風船が 0 個（想定外データ）だと永久に確定しないので次へ
+      if (g.correctTotal === 0) {
+        try { console.warn('[phonics] 正解の風船が0個の問題をスキップ:', item); } catch(e){}
+        _phonicsAdvance(false);
+        return;
+      }
+      _phonicsSpawnBalloons(balloons);
     }
-    _phonicsSpawnBalloons(balloons);
   }
 
   // 問題文（question）＋種類別ラベル／インストラクションを描画
@@ -17276,9 +17608,10 @@
     // ダミーが流れ切っただけなら何もしない（続行）
   }
 
-  // 割った正解の位置に「+HP」を一瞬出す（気持ちよさ用・軽量、タイマーは破棄管理下）
-  function _phonicsSpawnHpFloat(e, amount) {
-    var field = document.getElementById('phonics-field');
+  // 割った/叩いた正解の位置に「+HP」を一瞬出す（気持ちよさ用・軽量、タイマーは破棄管理下）
+  //   fieldId 省略時は風船フィールド（phonics-field）。モグラ叩きは 'phonics-mole-field' を渡す。
+  function _phonicsSpawnHpFloat(e, amount, fieldId) {
+    var field = document.getElementById(fieldId || 'phonics-field');
     if (!field) return;
     var rect = field.getBoundingClientRect();
     var x = ((e && e.clientX != null) ? e.clientX : rect.left + rect.width / 2) - rect.left;
@@ -17299,7 +17632,9 @@
     if (!el) return;
     var diff = PHONICS_CONFIG.difficulty[_phonicsState.difficulty] || PHONICS_CONFIG.difficulty.normal;
     var popped = _phonicsGame.poppedCorrectTotal || 0;
-    el.textContent = '🎈 ' + popped + '個 ・ ' + (popped * diff.hpPerCorrect) + 'HP';
+    // アイコンだけゲーム別（HP レートは風船・モグラ共通の difficulty.hpPerCorrect）
+    var icon = (_phonicsState.gameType === 'mole') ? '🔨' : '🎈';
+    el.textContent = icon + ' ' + popped + '個 ・ ' + (popped * diff.hpPerCorrect) + 'HP';
   }
 
   // 問題確定 → フィードバック表示 → 次の問題（or 結果）へ
@@ -17316,6 +17651,16 @@
       for (var i = 0; i < floaters.length; i++) {
         floaters[i]._phonicsHandled = true;
         floaters[i].style.animationPlayState = 'paused';
+      }
+    }
+    // ★モグラ叩き：残っているモグラも「処理済み」にして引っ込め、多重進行を防ぐ（フィードバック中に静止）
+    var mfield = document.getElementById('phonics-mole-field');
+    if (mfield) {
+      var moles = mfield.querySelectorAll('.phonics-mole');
+      for (var m = 0; m < moles.length; m++) {
+        moles[m]._phonicsHandled = true;
+        moles[m].classList.remove('up');
+        moles[m].classList.add('down');
       }
     }
     var fb = document.getElementById('phonics-feedback');
@@ -17337,11 +17682,13 @@
     _phonicsState.poppedCorrect = popped;
     _phonicsState.plannedHp = popped * rate;
     _phonicsState.clearedCount = g.clearedCount;
-    // 内訳行（割った正解数 ×レート）を用意。実際の獲得HP（週²込）はサーバー応答で大きく表示。
+    // 内訳行（割った/叩いた正解数 ×レート）を用意。実際の獲得HP（週²込）はサーバー応答で大きく表示。
+    //   文言だけゲーム別（HP計算・付与・送信は共通）。balloon=「割った正解の風船」/ mole=「叩いた正解のモグラ」。
     var scoreEl = document.getElementById('phonics-result-score');
     if (scoreEl) {
+      var itemLabel = (_phonicsState.gameType === 'mole') ? '叩いた正解のモグラ' : '割った正解の風船';
       scoreEl.innerHTML =
-        '<span class="phonics-hp-calc">割った正解の風船　' + popped + '個（× ' + rate + 'HP）</span>';
+        '<span class="phonics-hp-calc">' + itemLabel + '　' + popped + '個（× ' + rate + 'HP）</span>';
     }
     var meta = document.getElementById('phonics-result-meta');
     if (meta) meta.textContent = '';
@@ -19320,7 +19667,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260706-2350</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260707-0439</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
