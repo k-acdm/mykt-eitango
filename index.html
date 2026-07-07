@@ -3320,10 +3320,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260707-2334"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260708-0002"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260707-2334">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260707-2334"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260708-0002">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260708-0002"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -16791,6 +16791,7 @@
     holes: [],           // 各穴の現在のモグラ要素（空は null）。index = 穴番号
     correctQueue: [],    // まだ出していない正解モグラの読み配列（全部出し切ると問題が終わりへ向かう）
     dummyPool: [],       // ダミーの読みプール（使い回してよい）
+    dummyStreak: 0,      // ★案A セーフティ弁：ダミーが連続で出た回数（正解を挟むとリセット。暴走防止）
     listening: false     // モグラフィールドに pointerdown リスナーを付けているか
   };
 
@@ -17159,12 +17160,16 @@
     field.appendChild(grid);
     _phonicsMole.correctQueue = (built.correctMoles || []).slice();
     _phonicsMole.dummyPool    = (built.dummyPool || []).slice();
+    _phonicsMole.dummyStreak  = 0;  // ★案A セーフティ弁カウンタを毎問リセット
     // スポーン loop 開始（recursive setTimeout。g.timers に積むので離脱・遷移で確実に破棄される）
     _phonicsMoleTick();
   }
 
   // スポーン1周期：空き穴に正解／ダミーのモグラを出す。
-  //   ★正解キューが残っている限り「この周期に最低1匹は正解モグラ」を出す＝必ず出し切る＝いつか必ず終わる。
+  //   ★案A：各スポーンで正解/ダミーを「確率」で選ぶ（毎周期の先頭を必ず正解にしない＝正解の序盤前寄せを解消）。
+  //     p = 残り正解数 / (残り正解数 + 見込みダミー数) の確率で正解、そうでなければダミー。正解が時間軸に散る。
+  //   ★終了保証：下の再スケジュール条件（correctQueue が空になるまでループ継続）が正解を必ず出し切る＝必ず終わる。
+  //   ★セーフティ弁（暴走防止）：正解が空き容量を超えて溜まった / ダミーが連続しすぎた時は正解を強制（下記 urgent）。
   //   ダミーはプールから使い回して穴を埋める。同時表示は simultaneousMax、1周期の追加は spawnBatch まで。
   function _phonicsMoleTick() {
     var g = _phonicsGame;
@@ -17183,22 +17188,42 @@
     var room = Math.max(0, (mdiff.simultaneousMax || 3) - active);
     var toSpawn = Math.min(room, freeHoles.length, mdiff.spawnBatch || 1);
 
-    var spawnedCorrectThisTick = false;
+    // ★案A：正解1匹あたりに挟みたい見込みダミー数（難易度で密度が変わる。easy2/normal3/hard5）。
+    //   p = qLeft/(qLeft+dummyWeight) の分母を作る。dummyWeight が大きいほど正解が出にくく＝散る。
+    var dummyWeight = Math.max(1, (mdiff.simultaneousMax || 3) - 1);
+    var SAFETY_DUMMY_STREAK = 4;  // ★セーフティ弁：ダミーがこの回数連続したら正解を強制（暴走・長引きを防ぐ）
+
     for (var s = 0; s < toSpawn; s++) {
       if (freeHoles.length === 0) break;
       var pick = Math.floor(Math.random() * freeHoles.length);
       var holeIdx = freeHoles.splice(pick, 1)[0];
-      // 正解キューが残っていれば、この周期の最初の1匹は必ず正解モグラ（確実に出し切る）
+
+      // ★各スポーンで独立に「正解を出すか」を判定（毎周期先頭を必ず正解にする決定論を廃止）
+      var qLeft    = _phonicsMole.correctQueue.length;
+      var hasDummy = _phonicsMole.dummyPool.length > 0;
+      var emitCorrect;
+      if (qLeft === 0) {
+        emitCorrect = false;                 // 正解は残っていない → ダミー（無ければ何も出さない）
+      } else if (!hasDummy) {
+        emitCorrect = true;                  // ★ダミー枯渇 → 正解を出して確実に出し切る
+      } else {
+        // 通常は確率選択。urgent（正解が空き容量超で滞留 or ダミー連続しすぎ）なら正解を強制。
+        var p = qLeft / (qLeft + dummyWeight);
+        var urgent = (qLeft > room) || (_phonicsMole.dummyStreak >= SAFETY_DUMMY_STREAK);
+        emitCorrect = urgent || (Math.random() < p);
+      }
+
       var reading, isCorrect;
-      if (_phonicsMole.correctQueue.length > 0 && !spawnedCorrectThisTick) {
+      if (emitCorrect) {
         reading = _phonicsMole.correctQueue.shift().reading;
         isCorrect = true;
-        spawnedCorrectThisTick = true;
+        _phonicsMole.dummyStreak = 0;        // 正解を挟んだら連続ダミーカウンタをリセット
       } else if (_phonicsMole.dummyPool.length > 0) {
         reading = _phonicsMole.dummyPool[Math.floor(Math.random() * _phonicsMole.dummyPool.length)];
         isCorrect = false;
+        _phonicsMole.dummyStreak++;          // ダミー連続数を加算（セーフティ弁用）
       } else {
-        continue; // ダミーが無い（データが薄い）なら空けておく
+        continue; // 正解キュー空 & ダミー無し（データが薄い）なら空けておく
       }
       _phonicsPopMole(holeIdx, reading, isCorrect);
     }
@@ -19739,7 +19764,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260707-2334</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260708-0002</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
