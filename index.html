@@ -1270,6 +1270,9 @@
     .login-mascot.mascot-24 { bottom: 1%; right: 26%; transform: rotate(9deg);   animation-delay: 2.0s;  width: 48px; }
     .login-mascot.mascot-25 { top: 30%;   left: 10%;  transform: rotate(-11deg); animation-delay: .3s;   width: 48px; }
     .login-mascot.mascot-26 { bottom: 28%; right: 10%; transform: rotate(8deg);  animation-delay: .95s;  width: 48px; }
+    /* 2026-07-08：28枚化（フォニー phony 追加）。左右エッジ中段の空きに 2 枚。 */
+    .login-mascot.mascot-27 { top: 54%;   left: 5%;   transform: rotate(-10deg); animation-delay: .7s;   width: 48px; }
+    .login-mascot.mascot-28 { top: 56%;   right: 4%;  transform: rotate(8deg);   animation-delay: 1.35s; width: 48px; }
     @keyframes loginBob {
       0%, 100% { translate: 0 0; }
       50%      { translate: 0 -4px; }
@@ -1315,6 +1318,9 @@
       .login-mascot.mascot-24 { width: 28px; top: auto; bottom: 18%; right: 2%; transform: rotate(-9deg); }
       .login-mascot.mascot-25 { width: 26px; top: 6%;  left: 50%;  transform: translateX(-50%) rotate(5deg); }
       .login-mascot.mascot-26 { width: 26px; top: auto; bottom: 18%; left: 50%; transform: translateX(-50%) rotate(-6deg); }
+      /* 2026-07-08：28枚化（フォニー）。下端帯の左右隅の空きに配置。 */
+      .login-mascot.mascot-27 { width: 28px; top: auto; bottom: 5%; left: 6%;  transform: rotate(-8deg); }
+      .login-mascot.mascot-28 { width: 28px; top: auto; bottom: 5%; right: 6%; transform: rotate(9deg); }
     }
 
     /* アクセシビリティ：揺れアニメを無効化したいユーザー向け */
@@ -1612,7 +1618,7 @@
     @media (max-width: 480px) { .content-btn .ico-mascot { width:48px; height:48px; padding:5px; border-radius:12px; } }
     /* ---- ホーム画面コンテンツボタンのキャラ画像ゆらゆら（マイカツ君 cbob 踏襲） ---- */
     /* マイカツ君の cbob keyframes（行 219）と同じ上下 7px の控えめな揺れを 7 キャラに適用。
-       準備中（c-wabun2 / c-social / c-science / c-phonics）と今日の運勢（c-himitsu、マスコット画像なしのため対象外）には適用しない。
+       準備中（c-wabun2 / c-social / c-science）と今日の運勢（c-himitsu、マスコット画像なしのため対象外）には適用しない。
        2026-05-08：カンジー稼働化に合わせ c-kanji を追加（delay 2.0s）。
        2026-05-08 夕：古文単語コブタン稼働化に合わせ c-kobun を追加（delay 2.4s）。
        duration 2.4s、各キャラ delay 0/0.4/0.8/1.2/1.6/2.0/2.4s で機械的な同期を回避（半周期内に分散）。 */
@@ -1624,6 +1630,7 @@
     .content-btn.c-lison     .ico-mascot,
     .content-btn.c-kanji     .ico-mascot,
     .content-btn.c-kobun     .ico-mascot,
+    .content-btn.c-phonics   .ico-mascot,
     .content-btn.c-calctrial .ico-mascot { animation: wobble-character 2.4s ease-in-out infinite; will-change: transform; }
     .content-btn.c-eitango   .ico-mascot { animation-delay: 0s; }
     .content-btn.c-sango     .ico-mascot { animation-delay: 0.4s; }
@@ -1633,6 +1640,7 @@
     .content-btn.c-kanji     .ico-mascot { animation-delay: 2.0s; }
     .content-btn.c-kobun     .ico-mascot { animation-delay: 2.4s; }
     .content-btn.c-calctrial .ico-mascot { animation-delay: 0.6s; }
+    .content-btn.c-phonics   .ico-mascot { animation-delay: 1.0s; }
     /* hover 中は scale 効果と衝突しないよう揺れを一時停止（既存 :hover ルールの transform を維持） */
     .content-btn.c-eitango:hover   .ico-mascot,
     .content-btn.c-sango:hover     .ico-mascot,
@@ -1641,6 +1649,7 @@
     .content-btn.c-lison:hover     .ico-mascot,
     .content-btn.c-kanji:hover     .ico-mascot,
     .content-btn.c-kobun:hover     .ico-mascot,
+    .content-btn.c-phonics:hover   .ico-mascot,
     .content-btn.c-calctrial:hover .ico-mascot { animation-play-state: paused; }
     @media (prefers-reduced-motion: reduce) {
       .content-btn.c-eitango   .ico-mascot,
@@ -1650,6 +1659,7 @@
       .content-btn.c-lison     .ico-mascot,
       .content-btn.c-kanji     .ico-mascot,
       .content-btn.c-kobun     .ico-mascot,
+      .content-btn.c-phonics   .ico-mascot,
       .content-btn.c-calctrial .ico-mascot { animation: none; }
     }
     /* 「今日の運勢」カード（旧「秘密の扉」、2026-05-13 リブランド）
@@ -1714,9 +1724,11 @@
     .risha-done-practice .practice-note { font-size: 13px; color: #475569; margin-top: 8px; }
     /* 2026-05-21：週²倍率適用に伴うアテンション獲得バナー（calctrial ボタン内、副題の下）。
        橙赤グラデ背景に映える明黄色 + 軽い脈動。「青天井ハマり状態」設計の入口訴求。 */
-    .content-btn.c-calctrial .content-btn-hot { display: block; font-size: 13px; font-weight: 900; color: #fde047; margin-top: 4px; letter-spacing: .3px; text-shadow: 0 1px 2px rgba(0,0,0,.3); animation: ctHotPulse 1.6s ease-in-out infinite; }
+    .content-btn.c-calctrial .content-btn-hot,
+    .content-btn.c-phonics   .content-btn-hot { display: block; font-size: 13px; font-weight: 900; color: #fde047; margin-top: 4px; letter-spacing: .3px; text-shadow: 0 1px 2px rgba(0,0,0,.3); animation: ctHotPulse 1.6s ease-in-out infinite; }
     @keyframes ctHotPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .88; transform: scale(1.04); } }
-    @media (prefers-reduced-motion: reduce) { .content-btn.c-calctrial .content-btn-hot { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .content-btn.c-calctrial .content-btn-hot,
+      .content-btn.c-phonics .content-btn-hot { animation: none; } }
     /* 国語長文読解（2026-05-19 新設、準備中スケルトン）：青緑系（読書のしずかさ） */
     .content-btn.c-longread  { background: linear-gradient(135deg,#26d0ce,#1a9b9b); }
     /* フォニックスゲーム（2026-05-08 新設、準備中スケルトン）：桜色系で子供向けらしさ */
@@ -3320,10 +3332,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260708-0002"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260708-0043"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260708-0002">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260708-0002"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260708-0043">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260708-0043"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3511,6 +3523,9 @@
     <img class="login-mascot mascot-24" src="images/kobun-celebrate.png"   alt=""/>
     <img class="login-mascot mascot-25" src="images/maikadai-celebrate.png" alt=""/>
     <img class="login-mascot mascot-26" src="images/oriwantes-celebrate.png" alt=""/>
+    <!-- 2026-07-08：フォニー追加（28枚化）。src は _scatterLoginMascots() が上書き。下記は JS 無効時のフォールバック。 -->
+    <img class="login-mascot mascot-27" src="images/phony-default.png"    alt=""/>
+    <img class="login-mascot mascot-28" src="images/phony-celebrate.png" alt=""/>
 
     <div class="flex-fill">
       <div class="login-card">
@@ -3627,6 +3642,9 @@
     <img class="login-mascot mascot-24" src="images/kobun-celebrate.png"   alt=""/>
     <img class="login-mascot mascot-25" src="images/maikadai-celebrate.png" alt=""/>
     <img class="login-mascot mascot-26" src="images/oriwantes-celebrate.png" alt=""/>
+    <!-- 2026-07-08：フォニー追加（28枚化）。src は _scatterLoginMascots() が上書き。下記は JS 無効時のフォールバック。 -->
+    <img class="login-mascot mascot-27" src="images/phony-default.png"    alt=""/>
+    <img class="login-mascot mascot-28" src="images/phony-celebrate.png" alt=""/>
 
     <div class="flex-fill">
       <div class="login-card">
@@ -3859,13 +3877,14 @@
           <img class="ico-mascot" src="images/oriwantes-default.png" alt="">オリワンテス
           <span class="content-btn-sub">自分専用のオリジナルテストを作る</span>
         </button>
-        <!-- フォニックスゲーム：第1段階の実装本体（screen-phonics-setup / _buildPhonicsQuiz /
-             GAS getPhonicsQuestions 等）は完成済みだが、ゲーム本体（第2段階以降）が未完のため
-             生徒には見せない「準備中」に戻している。第2段階で下記カードを稼働版（badge-hp +
-             ico-mascot phony-default + onclick=showPhonicsStart）に戻せば即つながる。 -->
-        <button class="content-btn c-phonics disabled" onclick="showComingSoon('フォニックスゲーム')">
-          <span class="badge-soon">準備中</span>
-          <span class="ico">🎵</span>フォニックスゲーム
+        <!-- フォニックスゲーム：2026-07-08 公開（風船割り・モグラ叩き完成、HP付与稼働）。
+             計算タイムトライアルと同型の「ゲーム系・HP大量」カード（badge-hp「HP＝頑張った分だけ！」+
+             ico-mascot phony-default + content-btn-hot「🔥 HP大量GETのチャンス！」+ onclick=showPhonicsStart）。 -->
+        <button class="content-btn c-phonics" onclick="showPhonicsStart()">
+          <span class="badge-hp">HP＝頑張った分だけ！</span>
+          <img class="ico-mascot" src="images/phony-default.png" alt="">フォニックスゲーム
+          <span class="content-btn-sub">春アカフォニックスをルールでマスター</span>
+          <span class="content-btn-hot">🔥 HP大量GETのチャンス！</span>
         </button>
         <button class="content-btn c-himitsu" onclick="showFortuneScreen()">
           <span class="ico">🔮</span>今日の運勢
@@ -7415,13 +7434,14 @@
   // ★同キャラの2枚が隣接しないことを保証：スロットの近接ペア（PC座標 _LOGIN_SLOT_XY の距離<18）
   //   ＋連番（モバイルのリボン隣接対策）を「隣接」とみなし、違反しない並びになるまでシャッフルを最大300回リトライ。
   // 位置は CSS 固定（モバイル破綻なし）、src のみ毎回入れ替えるのでリロードごとに散らばりが変わる。
-  var _LOGIN_MASCOT_CHARS = ['rushkun','sangotan','nichiei','kisoK','lison','kanjii','kobun','rika','shakaneki','japanin','trial','maikadai','oriwantes'];
+  var _LOGIN_MASCOT_CHARS = ['rushkun','sangotan','nichiei','kisoK','lison','kanjii','kobun','rika','shakaneki','japanin','trial','maikadai','oriwantes','phony'];
   var _LOGIN_MASCOT_MOODS = ['default','celebrate','encourage','thinking'];
-  // 26 スロットの中心座標(x,y) 0..100（CSS .mascot-N と整合。隣接判定用）。
+  // 28 スロットの中心座標(x,y) 0..100（CSS .mascot-N と整合。隣接判定用）。
+  //   2026-07-08：フォニー追加で 26→28。slot 27/28 は左右エッジ中段（CSS mascot-27/28 と対応）。
   var _LOGIN_SLOT_XY = [
     [4,6],[95,5],[2,36],[97,34],[6,86],[93,88],[18,18],[81,16],[16,52],[86,54],
     [22,74],[76,76],[1,22],[99,23],[11,96],[88,97],[99,66],[1,66],[36,2],[62,1],
-    [1,44],[99,44],[26,98],[74,98],[10,30],[90,72]
+    [1,44],[99,44],[26,98],[74,98],[10,30],[90,72],[5,54],[96,56]
   ];
   function _loginSlotNeighbors() {
     var n = _LOGIN_SLOT_XY.length, adj = [];
@@ -10320,6 +10340,7 @@
     { name: 'トラール',       content: '計算タイムトライアル', image: 'images/trial-default.png',     caption: '' },
     { name: 'マイカダイ',     content: 'マイ課題',           image: 'images/maikadai-default.png',    caption: '' },
     { name: 'オリワンテス',   content: 'オリワンテス',       image: 'images/oriwantes-default.png',   caption: '' },
+    { name: 'フォニー',       content: 'フォニックスゲーム', image: 'images/phony-default.png',       caption: '' },
   ];
   function _charIntroEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function showCharacterIntro() {
@@ -19764,7 +19785,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260708-0002</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260708-0043</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
