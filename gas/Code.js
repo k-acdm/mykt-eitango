@@ -1710,7 +1710,7 @@ function _getExpectedClientVersion() {
 //   本番配信中の index.html 版数（バージョンバッジで確認済み）をハードコードで 1 回実行する。
 //   実行後、getProperty で読み戻してログ出力し、正しくセットされたかを確認できる。
 function setExpectedClientVersion() {
-  var VALUE = '20260703-2258';   // ★本番配信中の index.html 版数（YYYYMMDD-HHMM）
+  var VALUE = '20260708-0043';   // ★本番配信中の index.html 版数（YYYYMMDD-HHMM）2026-07-08 フォニックス公開版に追い上げ
   var props = PropertiesService.getScriptProperties();
   props.setProperty('EXPECTED_CLIENT_VERSION', VALUE);
   var readBack = props.getProperty('EXPECTED_CLIENT_VERSION');
