@@ -3332,10 +3332,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260708-0043"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260804-2323"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260708-0043">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260708-0043"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260804-2323">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260804-2323"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6278,6 +6278,11 @@
   var _totalHP = 0;
   // E1: ログインの streak をセッション中保持（HP 予測に使用）
   var _streak = 0;
+  // 2026-08-04：ログイン中の生徒ID。従来は暗黙グローバル（doLogin 成功時 7287付近で初代入）
+  // だったが、silent 自動復帰の導入に合わせて状態変数ブロックで明示宣言する。
+  // 挙動は不変（初期値 null）。未ログイン時の `if (!_studentId)` 参照が ReferenceError に
+  // ならないよう明示化する意味もある。
+  var _studentId = null;
   // 防護柵2枚目（疎通チェック）：オフライン検知の状態。
   var _offline = false;        // true の間は学習開始をブロック（_ensureOnlineThenStart）。回復可能（ログアウトしない）
   var _lastServerOkTs = 0;     // 最後にサーバーから ok が返った時刻（復帰再検証のスロットル判定用）
@@ -7404,27 +7409,28 @@
     try { _applyLineRegisteredButtons(); } catch(e){}
   })();
 
-  // 防護柵1枚目：起動時のセッション復元プロンプト表示判定。
-  //   - 保存済み studentId があり、かつ保存時刻が「今」と同一教育日(JST4時境界=TTL内)のときだけ、
-  //     ログイン画面に「前回ログイン：◯◯ → このまま続ける／別の生徒はこちら」を提示する。
-  //   - 教育日をまたいでいたら提示しない（古い提示を出さない＝共用端末で時間が経った別生徒への誤提示を抑制）。
-  //   - sid 無し / TTL 外 / 例外時は何もしない＝従来どおりログイン画面で手入力（既存フロー不変）。
-  //   ★ ここでは silent にホームへ入れない。実際のログインは本人が「このまま続ける」を押して doLogin で再検証する。
+  // 防護柵1枚目：起動時のセッション自動復帰（silent）。
+  //   2026-08-04 変更：個人端末前提のため silent 自動復帰を全面解禁（カメラ起動→WebView 強制
+  //   リロードで in-memory の _studentId が消えても、タップ不要で元のログイン済み状態へ戻す）。
+  //   - 保存済み studentId があり、かつ保存時刻から 7 日以内（TTL）なら、タップ待ちの復元
+  //     プロンプト（.login-step-resume）を出さず、その場で resumeContinueLogin() を自動実行する。
+  //   - resumeContinueLogin() は doLogin（loginStudent）でサーバー再検証を必ず通すため、
+  //     無効ID / 期限切れ等では復帰しない（既存挙動どおりログイン画面へフォールバック）。
+  //   - sid 無し / TTL 外 / 例外時は何もしない＝通常のログイン画面（役割選択）を表示（既存フロー不変）。
+  //   ★ 手動の復元 UI（.login-step-resume / resumeContinueLogin / dismissResumePrompt）は
+  //     コードとして残す（挙動は壊さない）。ただし全面自動化により通常フローでは経由しなくなる。
+  var _SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;  // セッション永続化 TTL：7 日（旧：教育日一致=実質当日限定）
   (function _initSessionResumePrompt(){
     try {
       var sid = String(localStorage.getItem('mykt_session_sid') || '').trim();
       if (!sid) return;
       var ts = parseInt(localStorage.getItem('mykt_session_ts') || '0', 10);
       if (!ts) return;
-      // TTL：保存時刻の教育日と今の教育日が一致しなければ提示しない
-      if (_eduDayKeyFromTs(ts) !== _todayKeyJST3am()) return;
-      var stepRole   = document.querySelector('.login-step-role');
-      var stepResume = document.querySelector('.login-step-resume');
-      var label      = document.getElementById('resume-sid-label');
-      if (!stepRole || !stepResume) return;
-      if (label) label.textContent = sid;
-      stepRole.style.display   = 'none';
-      stepResume.style.display = '';
+      // TTL：保存時刻から 7 日以内なら有効（旧：_eduDayKeyFromTs === _todayKeyJST3am の当日限定を置換）
+      if ((Date.now() - ts) > _SESSION_TTL_MS) return;
+      // silent 自動復帰：復元ステップの提示を挟まず、その場で復帰を実行する。
+      // 失敗（無効ID/期限切れ）は resumeContinueLogin → doLogin 内で処理され、ログイン画面に留まる。
+      resumeContinueLogin();
     } catch(e){}
   })();
 
@@ -7573,10 +7579,12 @@
   }
   document.getElementById('login-id').addEventListener('keydown', function(e){ if (e.key==='Enter') doRoleLogin(); });
 
-  // 防護柵1枚目：前回ログイン復元プロンプトの「このまま続ける」。
-  //   ★ silent 自動ログインは作らない。localStorage の studentId を ID 入力欄に充填し、
-  //     生徒ロールとして既存 doLogin（loginStudent でサーバー再検証）を必ず通す。
-  //     再検証失敗（res.ok=false / .catch）は既存挙動どおりログイン画面に留まる。
+  // 防護柵1枚目：セッション復元の実処理（silent 自動復帰の実体 / 手動プロンプト「このまま続ける」共用）。
+  //   2026-08-04：起動時 _initSessionResumePrompt から silent に自動呼び出しされる経路を追加。
+  //     通常フローはこの silent 経路。手動プロンプト（.login-step-resume）は残置だが経由しなくなる。
+  //   ★ silent でも「ホームへ直接入れる」ことはしない。localStorage の studentId を ID 入力欄に
+  //     充填し、生徒ロールとして必ず doLogin（loginStudent でサーバー再検証）を通す。
+  //     再検証失敗（res.ok=false / .catch）は既存挙動どおりログイン画面に留まる＝安全なフォールバック。
   function resumeContinueLogin() {
     var sid = '';
     try { sid = String(localStorage.getItem('mykt_session_sid') || '').trim(); } catch(e){}
@@ -19785,7 +19793,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260708-0043</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260804-2323</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
