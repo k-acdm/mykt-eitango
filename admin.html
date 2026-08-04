@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260804-2323"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260805-0314"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -3959,15 +3959,20 @@
         return;
       }
     }
-    var scheduledAtIso = '';
+    var scheduledAtJst = '';
     if (lineMode === 'scheduled') {
       var schVal = (document.getElementById('notice-scheduled-at').value || '').trim();
       if (!schVal) { _showNoticeMsg('予約配信時は配信日時の指定が必須です', 'ng'); return; }
-      // datetime-local の値（'YYYY-MM-DDTHH:mm'）を JST ISO に変換
+      // datetime-local の値 'YYYY-MM-DDTHH:mm'（JST壁時計・TZなし）を検証
+      var schM = schVal.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+      if (!schM) { _showNoticeMsg('配信日時の形式が不正です', 'ng'); return; }
+      // 未来時刻チェックは端末JST前提で概ね妥当（判定にのみ Date を使う）
       var schDate = new Date(schVal);
       if (isNaN(schDate.getTime())) { _showNoticeMsg('配信日時の形式が不正です', 'ng'); return; }
       if (schDate.getTime() <= Date.now()) { _showNoticeMsg('配信日時は未来の時刻を指定してください', 'ng'); return; }
-      scheduledAtIso = schDate.toISOString();
+      // 送信値は UTC化せず、入力された壁時計をそのまま 'YYYY-MM-DD HH:mm:00'（JST壁時計・Zなし）で送る
+      // ＝ toISOString() による端末TZ→UTC変換を経由しないため、非JST端末でも -9h ズレが起きない
+      scheduledAtJst = schM[1] + '-' + schM[2] + '-' + schM[3] + ' ' + schM[4] + ':' + schM[5] + ':00';
     }
 
     var btn = document.getElementById('notice-submit-btn');
@@ -3982,7 +3987,7 @@
       lineDeliveryMode: lineMode,
       lineRecipients:   lineRecipients,
       lineSpecificStudents: specificStudents,
-      lineScheduledAt:  scheduledAtIso
+      lineScheduledAt:  scheduledAtJst
     };
     if (_noticeFormState.imageBase64) {
       params.imageFileBase64 = _noticeFormState.imageBase64;
@@ -12376,7 +12381,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260804-2323</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260805-0314</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
