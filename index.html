@@ -3332,10 +3332,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260805-0437"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260805-0536"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260805-0437">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260805-0437"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260805-0536">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260805-0536"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7078,29 +7078,59 @@
     'screen-wabun1-result': 'screen-wabun1-topic'
   };
   var DONE_GATE_MS = 3000;
+  // 2026-08-05 修正：旧実装は showScreen 内の単発 requestAnimationFrame で走査していたが、
+  //   screen-result / wabun1-result は "出る"ボタンを showScreen の"後"に innerHTML で注入するため、
+  //   ①注入〜rAF発火の間はボタンが enabled のまま描画され得る（端末負荷時に速タップで素通り）、
+  //   ②2セット目は showScreen 時点で前回のボタンが残っており rAF が旧要素を掴んで新要素を取りこぼす、
+  //   という二つの穴があった。対策：注入の"瞬間"を MutationObserver（描画前の microtask で発火）で掴み、
+  //   さらに rAF リトライを保険にする。掴んだ要素だけを DONE_GATE_MS 後に再有効化する（セット跨ぎ誤作動防止）。
   function _applyDoneScreenGate(id) {
     if (!HP_DONE_SCREENS[id]) return;
     var extra = HP_DONE_EXIT_EXTRA[id] || null;
-    // ★ screen-result 等は showScreen の"後"に innerHTML でボタンを注入するため、
-    //   requestAnimationFrame で現在の同期処理完了後に走査する（静的ボタン画面にも問題なく効く）。
-    requestAnimationFrame(function(){
-      var scr = document.getElementById(id);
-      if (!scr || !scr.classList.contains('active')) return;
+    var scr = document.getElementById(id);
+    if (!scr) return;
+    var settled = false;  // 出口ボタンを掴んで disable 済み or 対象なしで確定
+    function _isExitBtn(b) {
+      var oc = b.getAttribute('onclick') || '';
+      // "出る"ボタンのみ：goHome を呼ぶボタン（＋ wabun1 は問題画面へ戻る唯一の出口）
+      return oc.indexOf('goHome') !== -1 || (extra && oc.indexOf(extra) !== -1);
+    }
+    // 現時点で存在する出口ボタンを disable し、DONE_GATE_MS 後に「掴んだ要素だけ」再有効化。掴めたら true。
+    function _gateNow() {
+      if (settled) return true;
+      if (!scr.classList.contains('active')) { settled = true; return true; }  // 既に離脱：何もしない
       var btns = scr.querySelectorAll('button');
       var gated = [];
-      for (var i = 0; i < btns.length; i++) {
-        var oc = btns[i].getAttribute('onclick') || '';
-        // "出る"ボタンのみ：goHome を呼ぶボタン（＋ wabun1 は問題画面へ戻る唯一の出口）
-        if (oc.indexOf('goHome') !== -1 || (extra && oc.indexOf(extra) !== -1)) {
-          btns[i].disabled = true; gated.push(btns[i]);
-        }
-      }
-      if (!gated.length) return;
+      for (var i = 0; i < btns.length; i++) { if (_isExitBtn(btns[i])) { btns[i].disabled = true; gated.push(btns[i]); } }
+      if (!gated.length) return false;  // 出口ボタンがまだ注入されていない
+      settled = true;
       setTimeout(function(){
         if (!scr.classList.contains('active')) return;  // 3秒以内に離脱済みなら触らない
-        for (var j = 0; j < gated.length; j++) { gated[j].disabled = false; }
+        for (var j = 0; j < gated.length; j++) { gated[j].disabled = false; }  // 掴んだ要素だけ再有効化
       }, DONE_GATE_MS);
-    });
+      return true;
+    }
+    var obs = null;
+    function _stop() { if (obs) { try { obs.disconnect(); } catch(_e){} obs = null; } }
+    // 動的注入画面（screen-result 等）：注入の瞬間（childList mutation → 描画前 microtask）で掴む。
+    //   これで「enabled のまま描画される隙」を作らない。静的ボタン画面は mutation が起きないので下の rAF が掴む。
+    try {
+      obs = new MutationObserver(function(){ if (_gateNow()) _stop(); });
+      obs.observe(scr, { childList: true, subtree: true });
+    } catch(_e) {}
+    // 保険：MutationObserver 非対応/取りこぼし時のフレーム走査。静的ボタン画面は初回フレーム（初回描画前）で掴む。
+    var _deadline = Date.now() + 5000;
+    function _retry(){
+      if (settled) { _stop(); return; }
+      if (_gateNow()) { _stop(); return; }
+      if (Date.now() > _deadline) { _stop(); return; }
+      requestAnimationFrame(_retry);
+    }
+    // ★ 同期スキャンはしない：showScreen 時点では前セットの旧ボタンが DOM に残っており、
+    //   同期で走査すると旧ボタンを掴んで（observer も止めて）新ボタンを取りこぼす（2セット目バグ）。
+    //   ボタン注入は showScreen 後の同期処理で入るので、次フレーム＝注入後に走査する。
+    //   動的注入は observer（注入直後の microtask＝rAF より早い）が先に掴むため描画前に確実に無効化される。
+    requestAnimationFrame(_retry);
   }
   // showScreen は音声システム内で定義済み
   function showMsg(id, text, kind) { var el = document.getElementById(id); el.textContent = text; el.className = 'msg ' + kind; el.style.display = 'block'; }
@@ -9862,12 +9892,14 @@
   }
 
   // 2026-08-05 (B)(C)：解放モーダルの「画面を閉じる」共通配線。演出開始から最低6秒はボタン無効（早すぎるログアウト防止）。
-  //   setTimeout は「有効化」のみに使用（自動遷移ではない）。ボタン欠落の異常時のみ最低6秒後に安全弁で onComplete。
+  //   setTimeout は「有効化」のみに使用（自動遷移ではない）。呼び出し元は innerHTML 注入直後に同期で呼ぶため
+  //   通常はボタンが即座に見つかるが、万一注入が僅かに遅れても確実にゲートできるよう数フレーム再走査する
+  //   （どの経路でも「解放画面が最低6秒とどまり、画面を閉じるボタンで閉じる」を確実に効かせる）。
   var REFL_RELEASE_MIN_MS = 6000;
   function _wireReflReleaseClose(ov, onComplete) {
     var shownAt = Date.now();
-    var btn = document.getElementById('refl-release-close-btn');
     var done = false;
+    var wired = false;
     function finish() {
       if (done) return; done = true;
       if (ov) ov.classList.remove('active');
@@ -9877,14 +9909,29 @@
       } catch(_e) {}
       if (typeof onComplete === 'function') onComplete();
     }
-    if (!btn) { setTimeout(finish, REFL_RELEASE_MIN_MS); return; }  // 異常系のみの安全弁
-    btn.disabled = true;
-    var remain = Math.max(0, REFL_RELEASE_MIN_MS - (Date.now() - shownAt));
-    setTimeout(function(){ if (btn) btn.disabled = false; }, remain);  // 有効化のみ（遷移しない）
-    btn.onclick = function(){
-      if ((Date.now() - shownAt) < REFL_RELEASE_MIN_MS) return;  // 二重ガード
-      finish();
-    };
+    // 「画面を閉じる」ボタンを掴んで最低6秒 disable → 有効化。掴めたら true。
+    function wire() {
+      if (wired || done) return true;
+      var btn = document.getElementById('refl-release-close-btn');
+      if (!btn) return false;
+      wired = true;
+      btn.disabled = true;
+      var remain = Math.max(0, REFL_RELEASE_MIN_MS - (Date.now() - shownAt));
+      setTimeout(function(){ if (btn) btn.disabled = false; }, remain);  // 有効化のみ（遷移しない）
+      btn.onclick = function(){
+        if ((Date.now() - shownAt) < REFL_RELEASE_MIN_MS) return;  // 二重ガード
+        finish();
+      };
+      return true;
+    }
+    if (wire()) return;  // 通常経路：同期でボタンが存在するのでここで確定
+    // 異常系：ボタンが即座に見つからない場合の数フレーム再走査（最大 ~1 秒）＋最終安全弁で最低6秒後に onComplete。
+    var tries = 0;
+    (function retry(){
+      if (done || wire()) return;
+      if (++tries > 40) { setTimeout(finish, Math.max(0, REFL_RELEASE_MIN_MS - (Date.now() - shownAt))); return; }
+      requestAnimationFrame(retry);
+    })();
   }
   // Phase 5 / 2026-05-22：振り返り提出後の保留 HP 解放演出。
   // 2026-05-27 Phase 4-3：hpBreakdown 受信時はカウントアップ + 内訳 + 手動閉じるボタンの新フロー。
@@ -9903,22 +9950,10 @@
     // 送信中オーバーレイを必ず閉じる
     _hideReflectionSendingOverlay();
 
-    // 演出不要判定：hpBreakdown が無い + リリース系もゼロ + justComp 無し
+    // 演出不要判定：hpBreakdown が無い + リリース系もゼロ + justComp 無し → 即 onComplete
     var hasBreakdown = breakdown && Number(breakdown.total) > 0;
     if (!hasBreakdown && totalAddedFromRelease <= 0 && !justComp) {
-      // 2026-08-05 (B)：解放HPゼロでも即ログアウトせず、最小画面＋最低6秒ゲートで全経路を統一。
-      var bodyZ = document.getElementById('refl-release-body');
-      if (bodyZ) {
-        bodyZ.innerHTML =
-          '<div class="refl-release-hp-headline">今日もおつかれさま！</div>' +
-          '<div class="refl-release-section-sub">今日の振り返りを受け取りました。</div>' +
-          '<button id="refl-release-close-btn" class="refl-release-close-btn">画面を閉じる</button>' +
-          '<div class="refl-release-close-note">✅ サーバーで受信確認しました。画面を閉じても大丈夫です。</div>';
-      }
-      var ovZ = document.getElementById('reflection-release-modal');
-      if (ovZ) ovZ.classList.add('active');
-      try { playSfx('chime'); } catch(_e) {}
-      _wireReflReleaseClose(ovZ, onComplete);
+      if (typeof onComplete === 'function') onComplete();
       return;
     }
 
@@ -19857,7 +19892,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260805-0437</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260805-0536</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
