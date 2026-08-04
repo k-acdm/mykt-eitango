@@ -6,11 +6,13 @@
 
 **マイ活アプリ**（春日部アカデミー 学習支援アプリ）
 
-- フロント: 単一ファイル `index.html`（GitHub Pages で配信）
-- バック: Google Apps Script + Google Spreadsheet
-- GAS_URL: `https://script.google.com/macros/s/AKfycbyuf6o6RD_FLv4xwNlnYlaoxNmVGNATB5HyAV3rixQU6aSoiW8kP0uNEkf-7Pa2nOY6GQ/exec`
+> **★ このリポジトリ＝フロント（GitHub Pages 公開）専用。** バックエンド（Laravel）は別リポ `mykt-eitango-aws`（SSH接続 `mykt-eitango-AWS`・`/var/www/mykt-eitango`）で作業する。
+
+- フロント: 単一ファイル `index.html`（GitHub Pages で配信）。`view.html` / `admin.html` も同リポ
+- バック: **Laravel（AWS、`https://mykt-eitango.com`）**。※2026-08 に旧 Google Apps Script + Google Spreadsheet から移行済み。バックエンドの実装は別リポ `mykt-eitango-aws` 側で行う（このリポでは触らない）
+- API エンドポイント: `https://mykt-eitango.com/exec`（フロント側では歴史的経緯で `GAS_URL` という定数名のまま保持。値は AWS/Laravel を指す）
 - リポジトリ内にある画像資産: `logo.png` / `character.jpg` / `eiken5_sample.jpg`（相対パス参照）
-- GASコードは `gas/Code.js` にある（claspで管理）。修正後は `gas/` フォルダで `clasp push` を実行してGAS側に同期する
+- ~~GASコードは `gas/Code.js` にある（claspで管理）~~ → **廃止**：GAS は 2026-08 に AWS へ移行済。`gas/Code.js` / `clasp` は使わない
 
 ### スプレッドシートのシート構成
 
@@ -32,25 +34,15 @@
 ### 運用メモ
 
 - コミット作者は `k-acdm <k-academy@mbr.nifty.com>`（リポジトリ内 git config 未設定のため `-c user.name= -c user.email=` で都度指定）
-- **★ Claude Code → ふくちさん間の同期ルール（鉄則）**：Claude Code が dev に push したら、ふくちさんは `clasp push` する前に必ず以下を実行する：
-  1. `cd C:\Users\Manager\mykt-eitango`
-  2. `git checkout dev`
-  3. `git pull origin dev` ← **必須**
-  4. `git log --oneline -3` で Claude Code の最新コミットがローカルにあるか確認
-  5. その後 `cd gas && clasp push`
-
-  これを怠ると「ローカルが古いまま GAS に古いコードを上げてしまう」事故が起きる（2026-04-28 / 2026-04-29 に複数回発生）。Claude Code の dev push と clasp push の間は順序依存。
-- GAS 変更フロー：
-  1. `gas/Code.js` を編集（ローカルまたはClaude Code経由）
-  2. `cd gas && clasp push` でGAS側に同期
-  3. **★ GAS エディタは必ず F5 で強制リロードしてから確認・デプロイ**。開きっぱなしの状態では `clasp push` の差分が画面に反映されておらず、古いコードがデプロイされる事故につながる（2026-04-29 早朝に発生）。「push したのに古いコードに見える」と感じたら 100% F5 し忘れ
-  4. GAS エディタで「デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ」で本番反映
-- **`clasp pull` は使用しない**。GASへの変更は常に `clasp push` で一方通行。手元の `gas/Code.js` を最新に保ち、それをGASに反映する運用とする。過去に「デプロイ忘れ状態の GAS から `clasp pull` して手元の新実装を事故で revert」した事例があるため、`pull` は原則禁止。万が一 GAS エディタで直接編集した場合は、`gas/Code.js` にも同じ変更を手動で入れてから `clasp push` する
+- **※ GAS / clasp 手順は全廃（2026-08 AWS 移行）**：かつてここにあった「Claude Code → ふくちさん間の clasp 同期ルール（鉄則）」「`gas/Code.js` 編集 → `cd gas && clasp push` → GAS エディタで F5 → Apps Script デプロイ」「`clasp pull` は使用しない（clasp push 一方通行）」等の GAS 運用手順は、バックエンドが Laravel（AWS）へ移行したため**すべて無効**。`clasp` / `gas/Code.js` / Apps Script デプロイは今後使わない。バックエンドの変更は別リポ `mykt-eitango-aws`（AWS）側で行う
 - **バージョン表示は `document.lastModified` から自動生成のため手動更新不要**。3 ファイル（`index.html` / `view.html` / `admin.html`）の右下に表示される `vYYYY.MM.DD` は GH Pages の Last-Modified ヘッダー由来で、HTML が実際にどの時点のバージョンかを反映する。タップで `?v=timestamp` 付き強制リロード可能（iPad Safari のキャッシュ問題への診断兼対策）
-- **GAS 側 Script Cache 運用**: `gas/Code.js` は問題データ・お題・連絡・Quote・ランキングを CacheService でキャッシュしている（TTL 6 時間）。管理画面経由の書き込みは自動でキャッシュをクリアする。**Questions シートを直接スプレッドシートで編集**した場合は自動クリアされないため、即反映したいときは GAS エディタから `clearAllCache()` を手動実行するか、最大 6 時間待つ
+- **※ Script Cache（GAS の CacheService）運用も廃止**（2026-08 AWS 移行）。旧「`clearAllCache()` を手動実行」等は不要。キャッシュ制御はバックエンド（Laravel）側の責務
 - **★ admin.html 新規画面追加時は必ずヘッダーセレクタリストに追加**（2026-05-04 確立）: 新画面（`screen-admin-...`）を追加するとき、[admin.html](admin.html) 先頭の `#screen-admin-... header { ... }` および `#screen-admin-... header h1 { ... }` セレクタリスト（通常版 + `@media (max-width: 480px)` レスポンシブ版の計 3 行）に新画面 ID を**末尾追記必須**。リストに含まれていないと `display:flex` / 青紫グラデ背景 / 白文字 / padding が未適用となり、`header-btns` 内の絵文字（🏠🚪）が改行されてヘッダー直下に表示崩れする。カレンダー追加時に発覚し過去 5 画面（kiso-students / kiso-photos / hp-grant 系）も同根バグだったことが判明（2026-05-04 #167/#168 で全画面修正済）
-- **GAS 変更時の必須 4 ステップ**（2026-05-04 改めて整理）: ① `git pull origin dev` ② `git checkout main && git merge dev && git push origin main` ③ `cd gas && clasp push` ④ Apps Script エディタで F5 リロード → デプロイ → 新しいデプロイを管理 → 編集 → バージョン更新 → デプロイ
-- **フロントのみ変更時の 2 ステップ**: ① `git pull origin dev` ② `git checkout main && git merge dev && git push origin main` ③ ブラウザで `Ctrl + F5`（Mac は `Cmd + Shift + R`）で強制リロード。GAS 系の ③④ は不要
+- **★ 本番反映手順（唯一・フロントのみ）**（2026-08 AWS 移行後の確定版）:
+  1. **dev で作業 → commit → `git push origin dev`**
+  2. **`git checkout main && git merge dev && git push origin main`**（GitHub Pages に反映）→ **`git checkout dev`**（作業ブランチへ戻る）
+  3. **生徒端末で強制リロード**：PC / Android は `Ctrl + F5`（Mac は `Cmd + Shift + R`）、iPad は左下バージョンバッジをタップして `?v=` 付き強制リロード
+  - ※ 旧「GAS 変更時の必須 4 ステップ」の ③ `clasp push` / ④ Apps Script デプロイは**廃止**。このリポの本番反映は**フロント（GitHub Pages）のみ**。バックエンド（Laravel）の反映は別リポ `mykt-eitango-aws`／AWS 側で行う
 - **GitHub Web UI からのファイルアップロード時の事故防止**（2026-05-03 確立）: 画像等を Web UI からアップロードする際は、**先に対象フォルダ（`images/` 等）の中に入ってから**「Add file → Upload files」をクリックする。リポジトリのルートに居るままアップロードするとルート直下に置かれ、`index.html` 側の `images/...` 参照と不整合になる。事故が起きた場合は `git mv` で履歴保持しながら正しい場所に移動して再 push（過去事例：2026-05-03 のカンジー画像 4 ファイル / `git mv` で復旧）。**ブランチも `dev` に切り替えてからアップロード**すること（main 直 push を避けるため）
 - **★ iframe の初期 `src=""` は罠**（2026-05-04 夕方確立）: HTML 仕様で空文字 src は「現在のドキュメント URL」に解決される。`<iframe src="">` を作ると iframe が**親ページ自身を再帰ロード**してしまう。さらに JS 側で `if (!iframe.src)` のような空文字判定ガードを置くと、`iframe.src` は親ページの絶対 URL（truthy）になっているため**条件が常に false で代入が走らない**という二重バグになる。使うべき初期値は **`src="about:blank"`**。リセット時も `iframe.src = ''` ではなく `iframe.src = 'about:blank'` を使う。リスオン録音再生（コミット d9c08c8）で実機まで気付けなかった
 - **★ `window.location.href` で外部 URL 遷移する処理の前に beforeunload を解除**（2026-05-04 夜確立）: `index.html` には [index.html:5955](index.html:5955) で `beforeUnloadHandler` がページロード時にグローバル登録されている。内部画面遷移（`showScreen`）は問題ないが、`window.location.href = '...'` 等で外部 URL に飛ぶ前に `removeEventListener('beforeunload', beforeUnloadHandler)` をしないと「このサイトを離れますか？」確認ダイアログが出る。`doLogout` は元々これを呼んでいたが、新規追加した遷移処理（保護者ログイン経路）で漏れた実績あり（コミット 0e7e0a3 で修正、CLAUDE.md 内 #176 相当）
