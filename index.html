@@ -3332,10 +3332,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260805-1526"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260805-2048"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260805-1526">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260805-1526"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260805-2048">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260805-2048"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6821,7 +6821,10 @@
       if (dotsEl) dotsEl.textContent = n === 1 ? '.' : (n === 2 ? '..' : '...');
     }, 380);
   }
-  function _hideHpConfirmingOverlay() {
+  //   2026-08-05 追修正：onHidden（次画面へ切り替えるコールバック）を受け取り、overlay を remove する
+  //   「まさにその瞬間・同一タスク内」で呼ぶ。これにより結果（HP獲得）画面への切替が overlay 消滅と同時になり、
+  //   半透明 overlay 越しに結果画面が先見えする問題を解消する（remove と switch を同フレームで確定＝1フレーム点滅なし）。
+  function _hideHpConfirmingOverlay(onHidden) {
     var ov = document.getElementById('hp-confirming-overlay');
     // §6-A23 ①：表示から最低3秒は被せたまま。経過が足りなければ差分だけ待ってから消す（dots も同じく遅延）。
     var shownAt = _hpOverlayShownAt;
@@ -6829,6 +6832,7 @@
       if (_hpOverlayShownAt !== shownAt) return;   // 別の表示が始まっていたら無効（セット跨ぎの誤消し防止）
       if (ov) ov.classList.remove('active');
       if (_hpConfirmingDotsTimer) { clearInterval(_hpConfirmingDotsTimer); _hpConfirmingDotsTimer = null; }
+      if (typeof onHidden === 'function') onHidden();   // remove と同一タスクで画面切替（同時遷移）
     };
     var remain = MIN_HP_OVERLAY_MS - (Date.now() - shownAt);
     if (remain > 0) setTimeout(_doHide, remain);
@@ -9186,9 +9190,9 @@
       _pendingRetry = function(){ _finishing = true; doSubmit(); };
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
       gasGetWithTimeout(payload, 60000).then(function(res){
-        _hideHpConfirmingOverlay();
         if (!res || !res.ok) {
           // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
+          _hideHpConfirmingOverlay();
           _showSubmitErrorWithRetryGuard(5000);
           return;
         }
@@ -9199,7 +9203,8 @@
         _invalidateCacheByAction('getWeeklyRanking');
         if (Number(res.streak) > 0) _streak = Number(res.streak);
         // サーバ確定値で showResult（_totalHP は showResult 内部で res.totalHP に同期される）
-        showResult(true, res);
+        // 2026-08-05 追修正：結果画面への切替を overlay 消滅と同時に（半透明 overlay 越しの先見え防止）
+        _hideHpConfirmingOverlay(function(){ showResult(true, res); });
       }).catch(function(){
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
@@ -9234,14 +9239,14 @@
       _pendingRetry = function(){ _finishing = true; doSubmit(); };
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
       gasPost(payload, 60000).then(function(res){
-        _hideHpConfirmingOverlay();
-        if (!res || !res.ok) { _showSubmitErrorWithRetryGuard(5000); return; }
+        if (!res || !res.ok) { _hideHpConfirmingOverlay(); _showSubmitErrorWithRetryGuard(5000); return; }
         _pendingRetry = null; _pendingDismiss = null;
         _lastServerOkTs = Date.now();  // 防護柵2枚目：サーバー成功時刻を記録
         _invalidateCacheByAction('getHistory');
         _invalidateCacheByAction('getWeeklyRanking');
         if (Number(res.streak) > 0) _streak = Number(res.streak);
-        showResult(true, res);
+        // 2026-08-05 追修正：結果画面への切替を overlay 消滅と同時に
+        _hideHpConfirmingOverlay(function(){ showResult(true, res); });
       }).catch(function(){
         try { _resendQueueAdd({ action: 'submitAttemptV2', payload: payload, method: 'post', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
         _hideHpConfirmingOverlay();
@@ -10756,9 +10761,9 @@
       _pendingRetry = function(){ doSubmit(); };
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); btn.disabled = false; showScreen('screen-sango-text'); };
       gasGetWithTimeout(payload, 25000).then(function(res) {
-        _hideHpConfirmingOverlay();
         if (!res || !res.ok) {
           // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
+          _hideHpConfirmingOverlay();
           _showSubmitError();
           return;
         }
@@ -10789,7 +10794,8 @@
           hasRequiredMission:  res.hasRequiredMission
         };
         // サーバ ok 確認後に feedback 画面へ直接遷移（旧版の 1.8 秒待ちは overlay 表示時間で代替）
-        _showSangoFeedback(res.aiFeedback || null);
+        // 2026-08-05 追修正：feedback 画面への切替を overlay 消滅と同時に
+        _hideHpConfirmingOverlay(function(){ _showSangoFeedback(res.aiFeedback || null); });
       }).catch(function(){
         try { _resendQueueAdd({ action: 'submitSango', payload: payload, method: 'get', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
@@ -10888,9 +10894,9 @@
       _pendingRetry = function(){ _sangoOcrText = ocrSnap; _sangoCurrentLevel = levelSnap; doSubmit(); };
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); showScreen('screen-sango-photo'); };
       gasGetWithTimeout(payload, 25000).then(function(res) {
-        _hideHpConfirmingOverlay();
         if (!res || !res.ok) {
           // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
+          _hideHpConfirmingOverlay();
           _showSubmitError();
           return;
         }
@@ -10919,7 +10925,8 @@
           missionIncompleteHp: res.missionIncompleteHp,
           hasRequiredMission:  res.hasRequiredMission
         };
-        _showSangoFeedback(res.aiFeedback || null);
+        // 2026-08-05 追修正：feedback 画面への切替を overlay 消滅と同時に
+        _hideHpConfirmingOverlay(function(){ _showSangoFeedback(res.aiFeedback || null); });
       }).catch(function(){
         try { _resendQueueAdd({ action: 'submitSango', payload: payload, method: 'get', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
@@ -11860,10 +11867,10 @@
       _pendingRetry = function(){ _wabun1State.submitting = false; doSubmit(); };
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); _wabun1State.submitting = false; btn.disabled = false; };
       gasGetWithTimeout(payload, 25000).then(function(res){
-        _hideHpConfirmingOverlay();
         _wabun1State.submitting = false;
         if (!res || !res.ok) {
           // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
+          _hideHpConfirmingOverlay();
           btn.disabled = false;
           _showSubmitError();
           return;
@@ -11872,7 +11879,8 @@
         _pendingRetry = null; _pendingDismiss = null;
         _wabun1State.hasSubmitted = true;
         _invalidateCacheByAction('getWabun1AnswersAfterSubmit');
-        _showWabun1Result(res);
+        // 2026-08-05 追修正：result 画面への切替を overlay 消滅と同時に
+        _hideHpConfirmingOverlay(function(){ _showWabun1Result(res); });
       }).catch(function(){
         try { _resendQueueAdd({ action: 'submitWabun1', payload: payload, method: 'get', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
@@ -12909,9 +12917,9 @@
     };
     try {
       gasPost(payload, 90000).then(function(res){
-        _kisoShowGrading(false);
         if (btn) btn.disabled = false;
         if (!res || !res.ok) {
+          _kisoShowGrading(false);
           if (res && res.retake) {
             // 全部空 → 撮り直し誘導（撮影確認画面に留まる）
             alert('📸 写真から答えが読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
@@ -12933,8 +12941,11 @@
         var rawAnswers = res.answers || [];
         _kisoState.previewAnswers = rawAnswers.map(function(a){ return String(a && a.text != null ? a.text : ''); });
         _kisoState.previewOcrText = String(res.ocrText || '');
-        _renderKisoAnswerConfirm(rawAnswers);
-        showScreen('screen-kiso-answer-confirm');
+        // 2026-08-05 追修正：確認画面への切替を overlay 消滅と同時に
+        _kisoShowGrading(false, function(){
+          _renderKisoAnswerConfirm(rawAnswers);
+          showScreen('screen-kiso-answer-confirm');
+        });
       }).catch(function(err){
         _kisoShowGrading(false);
         if (btn) btn.disabled = false;
@@ -12970,7 +12981,9 @@
     _setContentMascot('mate-img-kiso-answer-confirm', 'thinking', 'mate-bubble-kiso-answer-confirm', _pickBubble(KISOK_BUBBLES.answer), 'kisoK');
   }
 
-  function _kisoShowGrading(show) {
+  // 2026-08-05 追修正：hide 時（show=false）に onHidden を受け取り、remove と同一タスクで呼ぶ
+  //   （次画面への切替を overlay 消滅と同時にする）。
+  function _kisoShowGrading(show, onHidden) {
     var el = document.getElementById('kiso-grading-overlay');
     if (!el) return;
     if (show) {
@@ -12991,6 +13004,7 @@
         if (_kisoGradingShownAt !== shownAt) return;   // 別の表示が始まっていたら無効
         el.classList.remove('active');
         if (_kisoGradingDotsTimer) { clearInterval(_kisoGradingDotsTimer); _kisoGradingDotsTimer = null; }
+        if (typeof onHidden === 'function') onHidden();   // remove と同一タスクで画面切替
       };
       var remain = MIN_HP_OVERLAY_MS - (Date.now() - shownAt);
       if (remain > 0) setTimeout(_doHide, remain);
@@ -13035,9 +13049,9 @@
       // 同期 throw（ReferenceError 等）でも overlay が固まらないよう try/catch でラップ
       try {
         gasPost(payload, 90000).then(function(res){
-          _hideHpConfirmingOverlay();
           btn.disabled = false;
           if (!res || !res.ok) {
+            _hideHpConfirmingOverlay();
             if (res && res.retake) {
               // 旧 retake フロー：OCR 信頼度低 → 撮り直し誘導（既存挙動維持）
               _pendingRetry = null;
@@ -13076,7 +13090,8 @@
               ocrPreview:     String(res.ocrPreview || '').slice(0, 600)
             });
           }
-          _renderKisoResult(res);
+          // 2026-08-05 追修正：結果画面への切替を overlay 消滅と同時に
+          _hideHpConfirmingOverlay(function(){ _renderKisoResult(res); });
         }).catch(function(err){
           // 通信エラー / タイムアウト → エラーオーバーレイでリトライ誘導
           _hideHpConfirmingOverlay();
@@ -13363,16 +13378,17 @@
         imageBase64: _kisoState.workPhotoBase64,
         photoIndex: nextIdx
       }).then(function(res){
-        _kisoShowGrading(false);
         if (msgEl && msgOriginal) msgEl.innerHTML = msgOriginal;
         document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
         if (!res || !res.ok) {
+          _kisoShowGrading(false);
           alert('⚠️ 途中式写真の送信に失敗しました。\n' + ((res && res.message) || '通信エラー') + '\n\nネットワークが不安定な可能性があります。\n少し待ってから再送信してください。');
           return;
         }
         _kisoState.workPhotoIndex = res.photoIndex || nextIdx;
         _kisoState.workPhotoBase64 = '';
-        _renderKisoWorkAfter();
+        // 2026-08-05 追修正：次表示への切替を overlay 消滅と同時に
+        _kisoShowGrading(false, function(){ _renderKisoWorkAfter(); });
       }).catch(function(err){
         _kisoShowGrading(false);
         if (msgEl && msgOriginal) msgEl.innerHTML = msgOriginal;
@@ -13983,16 +13999,17 @@
         _pendingRetry = function(){ doSubmit(); };
         _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
         gasPost(payload, 25000).then(function(res){
-          _hideHpConfirmingOverlay();
           if (!res || !res.ok) {
             // サーバが ok:false を返した → エラーオーバーレイでリトライ誘導
+            _hideHpConfirmingOverlay();
             _showSubmitError();
             return;
           }
           // 成功：pending ハンドラをクリアして完了画面を描画
           _pendingRetry = null;
           _pendingDismiss = null;
-          _lisonShowDone(res);
+          // 2026-08-05 追修正：完了画面への切替を overlay 消滅と同時に
+          _hideHpConfirmingOverlay(function(){ _lisonShowDone(res); });
         }).catch(function(err){
           try { _resendQueueAdd({ action: 'submitLison', payload: payload, method: 'post', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
           // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
@@ -15970,9 +15987,9 @@
       q1_selected: q1Sel,
       q2_selected: q2Sel
     }).then(function(res){
-      _hideHpConfirmingOverlay();
       if (btn) btn.disabled = false;
       if (!res || !res.ok) {
+        _hideHpConfirmingOverlay();
         console.error('[submitKokugoAnswerForGrading] server returned not ok', res);
         var msg = (res && res.message) ? res.message : '採点に失敗しました';
         alert('採点に失敗：' + msg);
@@ -15980,7 +15997,8 @@
       }
       _kokugoState.attemptId = res.attemptId;
       _kokugoState.gradingResult = res;
-      _kokugoRenderResultScreen();
+      // 2026-08-05 追修正：結果画面への切替を overlay 消滅と同時に
+      _hideHpConfirmingOverlay(function(){ _kokugoRenderResultScreen(); });
     }).catch(function(err){
       _hideHpConfirmingOverlay();
       if (btn) btn.disabled = false;
@@ -16078,15 +16096,16 @@
       attemptId: _kokugoState.attemptId,
       impressionText: imp
     }, 120000).then(function(res){
-      _hideHpConfirmingOverlay();
       if (btn) btn.disabled = false;
       if (!res || !res.ok) {
+        _hideHpConfirmingOverlay();
         console.error('[submitKokugoImpressionToServer] server returned not ok', res);
         var msg = (res && res.message) ? res.message : '送信に失敗しました';
         alert('送信に失敗：' + msg);
         return;
       }
-      _kokugoRenderHpGrantScreen(res);
+      // 2026-08-05 追修正：HP獲得画面への切替を overlay 消滅と同時に
+      _hideHpConfirmingOverlay(function(){ _kokugoRenderHpGrantScreen(res); });
     }).catch(function(err){
       _hideHpConfirmingOverlay();
       if (btn) btn.disabled = false;
@@ -16503,9 +16522,9 @@
         // 撮影確認画面に留まり、生徒が「もう一度撮る」or「ホームに戻る」を選べるようにする
       };
       gasPost(payload, 90000).then(function(res){
-        _hideHpConfirmingOverlay();
         submitBtn.disabled = false;
         if (!res || !res.ok) {
+          _hideHpConfirmingOverlay();
           if (res && res.retake) {
             // 旧 retake フロー：OCR 信頼度低 → 撮り直し誘導（既存挙動維持）
             _pendingRetry = null;
@@ -16526,7 +16545,8 @@
         if (res.needsRetake) {
           _pendingRetry = null;
           _pendingDismiss = null;
-          _showKanjiKakiRetake(res);
+          // 2026-08-05 追修正：撮り直し画面への切替を overlay 消滅と同時に
+          _hideHpConfirmingOverlay(function(){ _showKanjiKakiRetake(res); });
           return;
         }
         // 成功：pending ハンドラをクリアして結果画面を描画
@@ -16545,7 +16565,8 @@
             gradedAt:     Date.now()
           });
         } catch(_e) {}
-        _showKanjiKakiResult(res);
+        // 2026-08-05 追修正：結果画面への切替を overlay 消滅と同時に
+        _hideHpConfirmingOverlay(function(){ _showKanjiKakiResult(res); });
       }).catch(function(err){
         // 通信エラー / 90 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
@@ -17926,11 +17947,12 @@
       gasPost(payload, 25000).then(function(res){
         if (!res || !res.ok) { _hideHpConfirmingOverlay(); _showSubmitError(); return; }
         _pendingRetry = null; _pendingDismiss = null;
-        // ★オーバーレイを消す → 結果画面を表示 → その瞬間に成功音（結果が実際に見えたタイミング）
-        _hideHpConfirmingOverlay();
-        showScreen('screen-phonics-result');
-        playSfx('pass');
-        _phonicsRenderHpResult(res);
+        // ★オーバーレイ消滅と同時に結果画面表示＋成功音（半透明 overlay 越しの先見え防止・remove と同一タスク）
+        _hideHpConfirmingOverlay(function(){
+          showScreen('screen-phonics-result');
+          playSfx('pass');
+          _phonicsRenderHpResult(res);
+        });
       }).catch(function(){
         // 通信エラー / タイムアウト → エラーオーバーレイでリトライ誘導。
         // ★自動再送キューには乗せない（毎回付与のため二重付与防止。calctrial と同じ既知トレードオフ）。
@@ -18253,9 +18275,9 @@
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
       var req = _kobunState.isV2 ? gasPost(payload, 25000) : gasGetWithTimeout(payload, 25000);
       req.then(function(res){
-        _hideHpConfirmingOverlay();
         if (!res || !res.ok) {
           // サーバが ok:false を返した → エラーオーバーレイでリトライ誘導
+          _hideHpConfirmingOverlay();
           _showSubmitError();
           return;
         }
@@ -18266,11 +18288,14 @@
         _kobunState.passed = passed;
         var correctCount = (res.correctCount != null) ? res.correctCount : _kobunState.score;
         var total = (res.total != null) ? res.total : _kobunState.questions.length;
-        if (passed) {
-          _showKobunDone(res.hpInfo);
-        } else {
-          _showKobunResult(passed, correctCount, total);
-        }
+        // 2026-08-05 追修正：結果/完了画面への切替を overlay 消滅と同時に
+        _hideHpConfirmingOverlay(function(){
+          if (passed) {
+            _showKobunDone(res.hpInfo);
+          } else {
+            _showKobunResult(passed, correctCount, total);
+          }
+        });
       }).catch(function(err){
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
@@ -18878,17 +18903,18 @@
       _pendingRetry = function(){ doSubmit(); };
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
       gasPost(payload, 25000).then(function(res){
-        _hideHpConfirmingOverlay();
         if (!res || !res.ok) {
           // サーバが ok:false を返した（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
           // _pendingRetry / _pendingDismiss は引き続き有効、リトライで doSubmit が再走
+          _hideHpConfirmingOverlay();
           _showSubmitError();
           return;
         }
         // 成功：pending ハンドラをクリアして result 画面を描画
         _pendingRetry = null;
         _pendingDismiss = null;
-        _ctRenderResultUI(r1, r2, totalHp, isPerfect, res);
+        // 2026-08-05 追修正：result 画面への切替を overlay 消滅と同時に
+        _hideHpConfirmingOverlay(function(){ _ctRenderResultUI(r1, r2, totalHp, isPerfect, res); });
       }).catch(function(err){
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
         // _logHP は防御層（LockService + verify retry + テレメトリ）で大半が成功するため、
@@ -19506,14 +19532,15 @@
       errorQuestionIds: [],   // ここに来る時点で全問正解
       _ts: Date.now()
     }).then(function(res) {
-      _hideHpConfirmingOverlay();
       if (!res || !res.ok) {
+        _hideHpConfirmingOverlay();
         var msg = (res && res.message) ? res.message : 'セット完了の記録に失敗しました';
         console.error('[_rishaSubmitFinish] not ok', res);
         alert('エラー：' + msg);
         return;
       }
-      _rishaRenderDoneScreen(res);
+      // 2026-08-05 追修正：HP獲得画面への切替を overlay 消滅と同時に
+      _hideHpConfirmingOverlay(function(){ _rishaRenderDoneScreen(res); });
     }).catch(function(err) {
       _hideHpConfirmingOverlay();
       console.error('[_rishaSubmitFinish] rejected', err);
@@ -19861,7 +19888,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260805-1526</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260805-2048</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
