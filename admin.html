@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-0048"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-0121"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -12572,14 +12572,35 @@
       _gridRenderTable();
       if (cfg.key === 'hplog') _gridRenderHplogPager(res);
       _gridSetMsg('', '');
-    }).catch(function(){
+    }).catch(function(err){
+      // ★受領後の描画で例外が出た場合も従来ここに落ちる。切り分け用に実例外をログ出力（表示文言は不変）。
+      if (window.console && console.error) console.error('[grid] READ/描画で例外:', err);
       document.getElementById('grid-table-wrap').innerHTML = '<div class="grid-empty">通信エラーが発生しました</div>';
       _gridSetMsg('通信エラー', 'ng');
     });
   }
   function _gridIngest(res){
-    var cols = res.columns || res.cols || [];
-    _grid.columns = cols.map(function(c){ return (typeof c === 'string') ? { key: c, label: c } : c; });
+    // ★確定仕様（Networkで実証）：columns は「列名キーのオブジェクト」
+    //   { colName: { editable, readonly, masked, enum }, ... } で来る。
+    //   （配列 [{key,...}] / 文字列配列で来る場合にも後方互換で対応）。
+    var raw = res.columns || res.cols || [];
+    var cols;
+    if (Array.isArray(raw)) {
+      cols = raw.map(function(c){ return (typeof c === 'string') ? { key: c, label: c } : c; });
+    } else if (raw && typeof raw === 'object') {
+      // 列順：order 系配列があればそれに従い、無ければオブジェクトの挿入順（Object.keys）。
+      var order = Array.isArray(res.columnOrder) ? res.columnOrder
+                : (Array.isArray(res.order) ? res.order : Object.keys(raw));
+      cols = order.filter(function(k){ return Object.prototype.hasOwnProperty.call(raw, k); })
+                  .map(function(k){
+                    var meta = (raw[k] && typeof raw[k] === 'object') ? raw[k] : {};
+                    // key/label はプロパティ名（列名）を既定にし、meta 側に有ればそれを優先。
+                    return Object.assign({ key: k, label: k }, meta);
+                  });
+    } else {
+      cols = [];
+    }
+    _grid.columns = cols;
     var rows = res.rows || res.data || [];
     _grid.rowsAreArray = rows.length > 0 && Array.isArray(rows[0]);
     _grid.rows = rows.map(function(rd){ return { data: _gridClone(rd), changed: {}, isNew: false }; });
@@ -12979,7 +13000,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-0048</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-0121</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
