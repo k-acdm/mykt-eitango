@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-0033"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-0048"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -12650,11 +12650,16 @@
 
   // ---- マスク列の解錠編集 ----
   function _gridRevealApi(model, col){
-    var params = { action: 'adminGridRevealLineUserId', tab: _grid.cfg.key, column: _gcKey(col) };
-    var d = model.data;
-    ['studentId', 'student_code', 'code', 'account_code', 'id', 'sid', 'teacherId'].forEach(function(k){ if (d && d[k] != null && d[k] !== '') params[k] = d[k]; });
-    params.rowData = d;
-    params.rowIndex = _grid.rows.indexOf(model);
+    // バックエンド契約（SheetGridActions.php）：adminGridRevealLineUserId は
+    // studentCode ＋ field('parent'|'student') を受け取る。
+    var d = model.data || {};
+    var key = _gcKey(col);
+    var field = /parent/i.test(key) ? 'parent' : (/student/i.test(key) ? 'student' : key);
+    var params = {
+      action: 'adminGridRevealLineUserId',
+      studentCode: (d.student_code != null ? d.student_code : ''),
+      field: field
+    };
     return adminGasGet(params).then(function(res){
       if (!res || !res.ok) throw new Error((res && res.message) || 'reveal failed');
       return (res.value != null) ? res.value : (res.lineUserId != null ? res.lineUserId : (res.realValue != null ? res.realValue : ''));
@@ -12938,7 +12943,7 @@
   // ---- HPLog：フィルタ＋ページング（閲覧専用） ----
   function _gridHplogParams(){
     return {
-      studentId: (document.getElementById('grid-hf-student').value || '').trim(),
+      studentCode: (document.getElementById('grid-hf-student').value || '').trim(),
       educationalDateFrom: document.getElementById('grid-hf-edufrom').value || '',
       educationalDateTo: document.getElementById('grid-hf-eduto').value || '',
       grantKind: (document.getElementById('grid-hf-kind').value || '').trim(),
@@ -12946,7 +12951,7 @@
       submissionId: (document.getElementById('grid-hf-subid').value || '').trim(),
       occurredFrom: document.getElementById('grid-hf-occfrom').value || '',
       occurredTo: document.getElementById('grid-hf-occto').value || '',
-      page: _grid.hplog.page, pageSize: 100
+      page: _grid.hplog.page, perPage: 100
     };
   }
   function gridHplogSearch(){ _grid.hplog.page = 1; gridReload(true); }
@@ -12974,7 +12979,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-0033</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-0048</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
