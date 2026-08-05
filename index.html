@@ -3332,10 +3332,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260805-0536"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260805-1526"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260805-0536">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260805-0536"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260805-1526">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260805-1526"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6791,7 +6791,17 @@
     'shakaneki': { img: 'images/shakaneki-thinking.png', text: '只今マイカツ君が獲得HPを最終確認中…' }
   };
   var _hpConfirmingDotsTimer = null;
+  // 2026-08-05 §6-A23（速すぎ④ cover方式）：overlay を最低時間だけ被せてから消す。
+  //   ① HP獲得系 overlay は最低3秒（hp-confirming / kiso-grading）、② 振り返り送信 overlay は最低6秒。
+  //   いずれも「show 時に時刻を記録 → hide 時に経過を見て、足りない分だけ setTimeout で遅らせてから remove」。
+  //   z-index で下の結果画面／解放モーダルを覆っているため、遅延中は下が見えず、消えた瞬間に現れる（＝cover方式）。
+  var MIN_HP_OVERLAY_MS   = 3000;
+  var MIN_REFL_OVERLAY_MS = 6000;
+  var _hpOverlayShownAt   = 0;
+  var _reflOverlayShownAt = 0;
+  var _kisoGradingShownAt = 0;
   function _showHpConfirmingOverlay(charId) {
+    _hpOverlayShownAt = Date.now();   // §6-A23 ①：cover方式の起点時刻
     var meta = HP_CONFIRMING_BY_CHAR[charId] || HP_CONFIRMING_BY_CHAR['rushkun'];
     var ov  = document.getElementById('hp-confirming-overlay');
     var img = document.getElementById('hp-confirming-mascot');
@@ -6813,8 +6823,16 @@
   }
   function _hideHpConfirmingOverlay() {
     var ov = document.getElementById('hp-confirming-overlay');
-    if (ov) ov.classList.remove('active');
-    if (_hpConfirmingDotsTimer) { clearInterval(_hpConfirmingDotsTimer); _hpConfirmingDotsTimer = null; }
+    // §6-A23 ①：表示から最低3秒は被せたまま。経過が足りなければ差分だけ待ってから消す（dots も同じく遅延）。
+    var shownAt = _hpOverlayShownAt;
+    var _doHide = function(){
+      if (_hpOverlayShownAt !== shownAt) return;   // 別の表示が始まっていたら無効（セット跨ぎの誤消し防止）
+      if (ov) ov.classList.remove('active');
+      if (_hpConfirmingDotsTimer) { clearInterval(_hpConfirmingDotsTimer); _hpConfirmingDotsTimer = null; }
+    };
+    var remain = MIN_HP_OVERLAY_MS - (Date.now() - shownAt);
+    if (remain > 0) setTimeout(_doHide, remain);
+    else _doHide();
   }
 
   // gasGet にタイムアウトを付けたラッパー（Phase 3 Step 4 以降で使う想定、Step 3 時点ではユーティリティ追加のみ）。
@@ -7050,8 +7068,6 @@
     document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
     document.getElementById(id).classList.add('active');
     window.scrollTo(0, 0);
-    // 2026-08-05 (A)：HP獲得画面は表示直後 最低3秒、"出る"ボタン(goHome等)のみ無効化。続行/戻る系はノーウェイト。
-    try { _applyDoneScreenGate(id); } catch(_e){}
     // 強制リロードバッジ（#app-version）はログイン画面でのみ表示する。
     // ログイン後の画面では非表示にし、解答中の誤タップでログイン画面に戻る事故を防ぐ。
     // ログアウトで screen-login に戻れば再表示される（全画面遷移が showScreen を通るため確実に切替わる）。
@@ -7064,73 +7080,6 @@
       }
       _renderSfxToggle();  // 効果音トグルの現在状態を反映
     }
-  }
-  // 2026-08-05 (A)：HP獲得（結果/完了）画面の id 集合（'-done' と '-result' 混在のため明示列挙）。
-  var HP_DONE_SCREENS = {
-    'screen-result': 1, 'screen-sango-done': 1, 'screen-wabun1-result': 1,
-    'screen-kiso-done': 1, 'screen-lison-done': 1, 'screen-mytask-hw-done': 1,
-    'screen-mytask-self-done': 1, 'screen-oriwantes-result': 1, 'screen-kanji-done': 1,
-    'screen-phonics-result': 1, 'screen-kobun-done': 1, 'screen-calctrial-result': 1,
-    'screen-risha-done': 1
-  };
-  // goHome を持たない画面の"出る"ボタンを補足指定（onclick 部分一致）。現状 wabun1 のみ（出口＝問題画面に戻る）。
-  var HP_DONE_EXIT_EXTRA = {
-    'screen-wabun1-result': 'screen-wabun1-topic'
-  };
-  var DONE_GATE_MS = 3000;
-  // 2026-08-05 修正：旧実装は showScreen 内の単発 requestAnimationFrame で走査していたが、
-  //   screen-result / wabun1-result は "出る"ボタンを showScreen の"後"に innerHTML で注入するため、
-  //   ①注入〜rAF発火の間はボタンが enabled のまま描画され得る（端末負荷時に速タップで素通り）、
-  //   ②2セット目は showScreen 時点で前回のボタンが残っており rAF が旧要素を掴んで新要素を取りこぼす、
-  //   という二つの穴があった。対策：注入の"瞬間"を MutationObserver（描画前の microtask で発火）で掴み、
-  //   さらに rAF リトライを保険にする。掴んだ要素だけを DONE_GATE_MS 後に再有効化する（セット跨ぎ誤作動防止）。
-  function _applyDoneScreenGate(id) {
-    if (!HP_DONE_SCREENS[id]) return;
-    var extra = HP_DONE_EXIT_EXTRA[id] || null;
-    var scr = document.getElementById(id);
-    if (!scr) return;
-    var settled = false;  // 出口ボタンを掴んで disable 済み or 対象なしで確定
-    function _isExitBtn(b) {
-      var oc = b.getAttribute('onclick') || '';
-      // "出る"ボタンのみ：goHome を呼ぶボタン（＋ wabun1 は問題画面へ戻る唯一の出口）
-      return oc.indexOf('goHome') !== -1 || (extra && oc.indexOf(extra) !== -1);
-    }
-    // 現時点で存在する出口ボタンを disable し、DONE_GATE_MS 後に「掴んだ要素だけ」再有効化。掴めたら true。
-    function _gateNow() {
-      if (settled) return true;
-      if (!scr.classList.contains('active')) { settled = true; return true; }  // 既に離脱：何もしない
-      var btns = scr.querySelectorAll('button');
-      var gated = [];
-      for (var i = 0; i < btns.length; i++) { if (_isExitBtn(btns[i])) { btns[i].disabled = true; gated.push(btns[i]); } }
-      if (!gated.length) return false;  // 出口ボタンがまだ注入されていない
-      settled = true;
-      setTimeout(function(){
-        if (!scr.classList.contains('active')) return;  // 3秒以内に離脱済みなら触らない
-        for (var j = 0; j < gated.length; j++) { gated[j].disabled = false; }  // 掴んだ要素だけ再有効化
-      }, DONE_GATE_MS);
-      return true;
-    }
-    var obs = null;
-    function _stop() { if (obs) { try { obs.disconnect(); } catch(_e){} obs = null; } }
-    // 動的注入画面（screen-result 等）：注入の瞬間（childList mutation → 描画前 microtask）で掴む。
-    //   これで「enabled のまま描画される隙」を作らない。静的ボタン画面は mutation が起きないので下の rAF が掴む。
-    try {
-      obs = new MutationObserver(function(){ if (_gateNow()) _stop(); });
-      obs.observe(scr, { childList: true, subtree: true });
-    } catch(_e) {}
-    // 保険：MutationObserver 非対応/取りこぼし時のフレーム走査。静的ボタン画面は初回フレーム（初回描画前）で掴む。
-    var _deadline = Date.now() + 5000;
-    function _retry(){
-      if (settled) { _stop(); return; }
-      if (_gateNow()) { _stop(); return; }
-      if (Date.now() > _deadline) { _stop(); return; }
-      requestAnimationFrame(_retry);
-    }
-    // ★ 同期スキャンはしない：showScreen 時点では前セットの旧ボタンが DOM に残っており、
-    //   同期で走査すると旧ボタンを掴んで（observer も止めて）新ボタンを取りこぼす（2セット目バグ）。
-    //   ボタン注入は showScreen 後の同期処理で入るので、次フレーム＝注入後に走査する。
-    //   動的注入は observer（注入直後の microtask＝rAF より早い）が先に掴むため描画前に確実に無効化される。
-    requestAnimationFrame(_retry);
   }
   // showScreen は音声システム内で定義済み
   function showMsg(id, text, kind) { var el = document.getElementById(id); el.textContent = text; el.className = 'msg ' + kind; el.style.display = 'block'; }
@@ -9803,6 +9752,7 @@
   //   mode 'calculate'      ：「現在マイカツ君が獲得HPを最終計算中…」 — 特殊アカウント「書かない」選択時
   // ふくちさん指摘：「書かない」のに「コメント送信中」と表示されるのは矛盾。1 行目だけ条件分岐。
   function _showReflectionSendingOverlay(mode) {
+    _reflOverlayShownAt = Date.now();   // §6-A23 ②：cover方式の起点時刻
     var ov = document.getElementById('reflection-sending-overlay');
     if (!ov) return;
     var titleEl = document.getElementById('refl-sending-title-text');
@@ -9816,7 +9766,16 @@
   }
   function _hideReflectionSendingOverlay() {
     var ov = document.getElementById('reflection-sending-overlay');
-    if (ov) ov.classList.remove('active');
+    // §6-A23 ②：送信 overlay を最低6秒は被せたまま。経過が足りなければ差分だけ待ってから消す。
+    //   z-index 10100 で解放モーダル(10000)を覆うので、消えた瞬間に「画面を閉じる」ボタン画面が現れる。
+    var shownAt = _reflOverlayShownAt;
+    var _doHide = function(){
+      if (_reflOverlayShownAt !== shownAt) return;   // 別の送信が始まっていたら無効
+      if (ov) ov.classList.remove('active');
+    };
+    var remain = MIN_REFL_OVERLAY_MS - (Date.now() - shownAt);
+    if (remain > 0) setTimeout(_doHide, remain);
+    else _doHide();
   }
 
   // 2026-05-27 Phase 4-3：HP 数字カウントアップアニメ。target 値まで duration ms でアニメ。
@@ -9891,48 +9850,6 @@
     return '';
   }
 
-  // 2026-08-05 (B)(C)：解放モーダルの「画面を閉じる」共通配線。演出開始から最低6秒はボタン無効（早すぎるログアウト防止）。
-  //   setTimeout は「有効化」のみに使用（自動遷移ではない）。呼び出し元は innerHTML 注入直後に同期で呼ぶため
-  //   通常はボタンが即座に見つかるが、万一注入が僅かに遅れても確実にゲートできるよう数フレーム再走査する
-  //   （どの経路でも「解放画面が最低6秒とどまり、画面を閉じるボタンで閉じる」を確実に効かせる）。
-  var REFL_RELEASE_MIN_MS = 6000;
-  function _wireReflReleaseClose(ov, onComplete) {
-    var shownAt = Date.now();
-    var done = false;
-    var wired = false;
-    function finish() {
-      if (done) return; done = true;
-      if (ov) ov.classList.remove('active');
-      try {
-        var cs = document.querySelectorAll('.refl-confetti');
-        for (var i = 0; i < cs.length; i++) { cs[i].parentNode && cs[i].parentNode.removeChild(cs[i]); }
-      } catch(_e) {}
-      if (typeof onComplete === 'function') onComplete();
-    }
-    // 「画面を閉じる」ボタンを掴んで最低6秒 disable → 有効化。掴めたら true。
-    function wire() {
-      if (wired || done) return true;
-      var btn = document.getElementById('refl-release-close-btn');
-      if (!btn) return false;
-      wired = true;
-      btn.disabled = true;
-      var remain = Math.max(0, REFL_RELEASE_MIN_MS - (Date.now() - shownAt));
-      setTimeout(function(){ if (btn) btn.disabled = false; }, remain);  // 有効化のみ（遷移しない）
-      btn.onclick = function(){
-        if ((Date.now() - shownAt) < REFL_RELEASE_MIN_MS) return;  // 二重ガード
-        finish();
-      };
-      return true;
-    }
-    if (wire()) return;  // 通常経路：同期でボタンが存在するのでここで確定
-    // 異常系：ボタンが即座に見つからない場合の数フレーム再走査（最大 ~1 秒）＋最終安全弁で最低6秒後に onComplete。
-    var tries = 0;
-    (function retry(){
-      if (done || wire()) return;
-      if (++tries > 40) { setTimeout(finish, Math.max(0, REFL_RELEASE_MIN_MS - (Date.now() - shownAt))); return; }
-      requestAnimationFrame(retry);
-    })();
-  }
   // Phase 5 / 2026-05-22：振り返り提出後の保留 HP 解放演出。
   // 2026-05-27 Phase 4-3：hpBreakdown 受信時はカウントアップ + 内訳 + 手動閉じるボタンの新フロー。
   //   - hpBreakdown が無い経路（古い catchup レスポンス等）は旧 2.8 秒自動閉じフロー（後方互換）
@@ -9950,10 +9867,31 @@
     // 送信中オーバーレイを必ず閉じる
     _hideReflectionSendingOverlay();
 
-    // 演出不要判定：hpBreakdown が無い + リリース系もゼロ + justComp 無し → 即 onComplete
+    // §6-A23 ③(B)：演出不要（hpBreakdown 無し + リリース系ゼロ + justComp 無し）でも一瞬で閉じない。
+    //   新画面は作らず、既存の解放モーダルを「HP行なし＋既存の"画面を閉じる"ボタン」で表示し、押下で onComplete。
+    //   送信 overlay(②)が最低6秒被さり、消えた瞬間にこのボタン画面が現れる（＝cover方式）。
     var hasBreakdown = breakdown && Number(breakdown.total) > 0;
     if (!hasBreakdown && totalAddedFromRelease <= 0 && !justComp) {
-      if (typeof onComplete === 'function') onComplete();
+      var bodyB = document.getElementById('refl-release-body');
+      var ovB   = document.getElementById('reflection-release-modal');
+      if (bodyB && ovB) {
+        bodyB.innerHTML =
+          '<button id="refl-release-close-btn" class="refl-release-close-btn">画面を閉じる</button>' +
+          '<div class="refl-release-close-note">✅ サーバーで受信確認しました。画面を閉じても大丈夫です。</div>';
+        ovB.classList.add('active');
+        var _cbtnB = document.getElementById('refl-release-close-btn');
+        if (_cbtnB) {
+          _cbtnB.onclick = function(){
+            ovB.classList.remove('active');
+            if (typeof onComplete === 'function') onComplete();
+          };
+        } else if (typeof onComplete === 'function') {
+          onComplete();
+        }
+      } else {
+        // モーダル要素が無い異常系のみ：従来どおり即 onComplete（画面が固まらない安全弁）
+        if (typeof onComplete === 'function') onComplete();
+      }
       return;
     }
 
@@ -9986,7 +9924,7 @@
       if (totalAddedFromRelease > 0) {
         lines += '<div class="refl-release-line rl-total"><span class="rl-label">合計</span><span class="rl-value">+' + totalAddedFromRelease.toLocaleString() + ' HP</span></div>';
       }
-      // 2026-08-05 (C)：閉じ手段が消えないよう「画面を閉じる」ボタンを必ず出す（新フローと共通 id/クラス）
+      // §6-A23 ③(C)：自動遷移(2.8s)を廃止。既存の「画面を閉じる」ボタン＋既存の受信確認ノートを付けてボタン式に統一。
       lines += '<button id="refl-release-close-btn" class="refl-release-close-btn">画面を閉じる</button>';
       lines += '<div class="refl-release-close-note">✅ サーバーで受信確認しました。画面を閉じても大丈夫です。</div>';
       body.innerHTML = lines;
@@ -9994,8 +9932,17 @@
     var ov = document.getElementById('reflection-release-modal');
     if (ov) ov.classList.add('active');
     try { playSfx('chime'); } catch(_e) {}
-    // 2026-08-05 (C)：自動遷移(2.8s)撤去。(B) 最低6秒ゲート付きボタン式に統一。
-    _wireReflReleaseClose(ov, onComplete);
+    // §6-A23 ③(C)：2.8s 自動遷移を撤去し、「画面を閉じる」ボタン押下で閉じる（押下先＝onComplete）。
+    var _cbtnC = document.getElementById('refl-release-close-btn');
+    if (_cbtnC) {
+      _cbtnC.onclick = function(){
+        if (ov) ov.classList.remove('active');
+        if (typeof onComplete === 'function') onComplete();
+      };
+    } else {
+      // ボタンが無い異常系（refl-release-body 欠落等）のみ：従来どおり onComplete で閉じる（安全弁）
+      if (typeof onComplete === 'function') onComplete();
+    }
   }
 
   // 2026-05-27 Phase 4-3 + 修正3：新アニメ画面の本体（hpBreakdown を表示）
@@ -10120,8 +10067,21 @@
     // SFX
     try { playSfx('chime'); } catch(_e) {}
 
-    // 2026-08-05 (B)：最低6秒ゲート付きの共通クローズ配線
-    _wireReflReleaseClose(ov, onComplete);
+    // 手動閉じるボタン
+    var btn = document.getElementById('refl-release-close-btn');
+    if (btn) {
+      btn.onclick = function(){
+        ov.classList.remove('active');
+        // 紙吹雪要素を掃除（アニメ完了済みでも残骸がある可能性）
+        try {
+          var confettiNodes = document.querySelectorAll('.refl-confetti');
+          for (var i = 0; i < confettiNodes.length; i++) {
+            confettiNodes[i].parentNode && confettiNodes[i].parentNode.removeChild(confettiNodes[i]);
+          }
+        } catch(_e) {}
+        if (typeof onComplete === 'function') onComplete();
+      };
+    }
   }
 
   // ================== Phase 5（2026-05-27）：特殊アカウント選択モーダル ==================
@@ -13014,6 +12974,7 @@
     var el = document.getElementById('kiso-grading-overlay');
     if (!el) return;
     if (show) {
+      _kisoGradingShownAt = Date.now();   // §6-A23 ①（基礎計算 別系統）：cover方式の起点時刻
       el.classList.add('active');
       // ドット点滅
       var dots = document.getElementById('kiso-grading-dots');
@@ -13024,8 +12985,16 @@
         dots.textContent = '.'.repeat(n);
       }, 450);
     } else {
-      el.classList.remove('active');
-      if (_kisoGradingDotsTimer) { clearInterval(_kisoGradingDotsTimer); _kisoGradingDotsTimer = null; }
+      // §6-A23 ①：表示から最低3秒は被せたまま。経過が足りなければ差分だけ待ってから消す。
+      var shownAt = _kisoGradingShownAt;
+      var _doHide = function(){
+        if (_kisoGradingShownAt !== shownAt) return;   // 別の表示が始まっていたら無効
+        el.classList.remove('active');
+        if (_kisoGradingDotsTimer) { clearInterval(_kisoGradingDotsTimer); _kisoGradingDotsTimer = null; }
+      };
+      var remain = MIN_HP_OVERLAY_MS - (Date.now() - shownAt);
+      if (remain > 0) setTimeout(_doHide, remain);
+      else _doHide();
     }
   }
 
@@ -19892,7 +19861,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260805-0536</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260805-1526</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
