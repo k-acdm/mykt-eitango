@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260805-2048"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-0033"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -75,8 +75,8 @@
   }
 
   /* メイン系画面のヘッダー（ダッシュボード以外） */
-  #screen-admin-dashboard header, #screen-admin-learning-hub header, #screen-admin-achievement-hub header, #screen-admin-eitango-ach-students header, #screen-admin-eitango-ach-detail header, #screen-admin-kobun-ach-students header, #screen-admin-kobun-ach-detail header, #screen-admin-kiso-ach-students header, #screen-admin-kiso-ach-detail header, #screen-admin-kanji-ach-students header, #screen-admin-kanji-ach-detail header, #screen-admin-lison-ach-students header, #screen-admin-lison-ach-detail header, #screen-admin-answer-check-hub header, #screen-admin-input-hub header, #screen-admin-content-input-hub header, #screen-admin-other-input-hub header, #screen-admin-student-care-hub header, #screen-admin-exchange-hub header, #screen-admin-system-hub header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-streak-modify header, #screen-admin-streak-modify-confirm header, #screen-admin-streak-modify-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header, #screen-admin-teachers header, #screen-admin-teacher-edit header, #screen-admin-teacher-add header, #screen-admin-action-log header, #screen-admin-hp-attempts header, #screen-admin-unsent-reports header, #screen-admin-line-notify header, #screen-admin-required-missions header, #screen-admin-reflections-students header, #screen-admin-reflections-list header, #screen-admin-reflections-select header, #screen-admin-reflections-calendar header, #screen-admin-reflections-day header, #screen-admin-form-quote header, #screen-admin-form-notice header, #screen-admin-form-sango-topic header, #screen-admin-form-sango-submissions header, #screen-admin-form-wabun1-topic header, #screen-admin-form-wabun1-submissions header, #screen-admin-kokugo-input header, #screen-admin-kokugo-history-select header, #screen-admin-kokugo-history-students header, #screen-admin-kokugo-history-list header, #screen-admin-kokugo-history-calendar header, #screen-admin-kokugo-history-day header, #screen-admin-risha-input header, #screen-admin-risha-history-select header, #screen-admin-risha-history-students header, #screen-admin-risha-history-list header, #screen-admin-risha-history-calendar header, #screen-admin-risha-history-day header, #screen-admin-surveys header, #screen-admin-survey-results header, #screen-admin-avatar-items header, #screen-admin-amazon-gift header, #screen-admin-mytask-announce header, #screen-admin-mytask-students header, #screen-admin-oriwantes-students header, #screen-admin-oriwantes-detail header, #screen-admin-mytask-photos header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-  #screen-admin-dashboard header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-kokugo-input header h1, #screen-admin-kokugo-history-select header h1, #screen-admin-kokugo-history-students header h1, #screen-admin-kokugo-history-list header h1, #screen-admin-kokugo-history-calendar header h1, #screen-admin-kokugo-history-day header h1, #screen-admin-risha-input header h1, #screen-admin-risha-history-select header h1, #screen-admin-risha-history-students header h1, #screen-admin-risha-history-list header h1, #screen-admin-risha-history-calendar header h1, #screen-admin-risha-history-day header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-mytask-photos header h1 { font-size: 18px; font-weight: 600; }
+  #screen-admin-dashboard header, #screen-admin-learning-hub header, #screen-admin-achievement-hub header, #screen-admin-eitango-ach-students header, #screen-admin-eitango-ach-detail header, #screen-admin-kobun-ach-students header, #screen-admin-kobun-ach-detail header, #screen-admin-kiso-ach-students header, #screen-admin-kiso-ach-detail header, #screen-admin-kanji-ach-students header, #screen-admin-kanji-ach-detail header, #screen-admin-lison-ach-students header, #screen-admin-lison-ach-detail header, #screen-admin-answer-check-hub header, #screen-admin-input-hub header, #screen-admin-content-input-hub header, #screen-admin-other-input-hub header, #screen-admin-student-care-hub header, #screen-admin-exchange-hub header, #screen-admin-system-hub header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-streak-modify header, #screen-admin-streak-modify-confirm header, #screen-admin-streak-modify-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header, #screen-admin-teachers header, #screen-admin-teacher-edit header, #screen-admin-teacher-add header, #screen-admin-action-log header, #screen-admin-hp-attempts header, #screen-admin-unsent-reports header, #screen-admin-line-notify header, #screen-admin-required-missions header, #screen-admin-reflections-students header, #screen-admin-reflections-list header, #screen-admin-reflections-select header, #screen-admin-reflections-calendar header, #screen-admin-reflections-day header, #screen-admin-form-quote header, #screen-admin-form-notice header, #screen-admin-form-sango-topic header, #screen-admin-form-sango-submissions header, #screen-admin-form-wabun1-topic header, #screen-admin-form-wabun1-submissions header, #screen-admin-kokugo-input header, #screen-admin-kokugo-history-select header, #screen-admin-kokugo-history-students header, #screen-admin-kokugo-history-list header, #screen-admin-kokugo-history-calendar header, #screen-admin-kokugo-history-day header, #screen-admin-risha-input header, #screen-admin-risha-history-select header, #screen-admin-risha-history-students header, #screen-admin-risha-history-list header, #screen-admin-risha-history-calendar header, #screen-admin-risha-history-day header, #screen-admin-surveys header, #screen-admin-survey-results header, #screen-admin-avatar-items header, #screen-admin-amazon-gift header, #screen-admin-mytask-announce header, #screen-admin-mytask-students header, #screen-admin-oriwantes-students header, #screen-admin-oriwantes-detail header, #screen-admin-mytask-photos header, #screen-admin-grid header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  #screen-admin-dashboard header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-kokugo-input header h1, #screen-admin-kokugo-history-select header h1, #screen-admin-kokugo-history-students header h1, #screen-admin-kokugo-history-list header h1, #screen-admin-kokugo-history-calendar header h1, #screen-admin-kokugo-history-day header h1, #screen-admin-risha-input header h1, #screen-admin-risha-history-select header h1, #screen-admin-risha-history-students header h1, #screen-admin-risha-history-list header h1, #screen-admin-risha-history-calendar header h1, #screen-admin-risha-history-day header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-mytask-photos header h1, #screen-admin-grid header h1 { font-size: 18px; font-weight: 600; }
   .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
   .logout-btn:hover { background: rgba(255,255,255,.3); }
 
@@ -592,7 +592,7 @@
   .tm-result-summary strong { color: #16a34a; }
 
   @media (max-width: 480px) {
-    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-mytask-photos header h1 { font-size: 15px; }
+    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-mytask-photos header h1, #screen-admin-grid header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
     .admin-page { padding: 16px 12px 80px; }
     .form-card { padding: 18px; }
@@ -826,6 +826,53 @@
     .admin-mgmt-table th, .admin-mgmt-table td { padding: 7px 8px; }
     .tri-toggle { min-width: 64px; padding: 5px 7px; font-size: 11px; }
     .admin-mgmt-lead { font-size: 12px; }
+  }
+
+  /* ============ シート可視化グリッド（③ Excel風グリッド） ============ */
+  .grid-tabbar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; border-bottom:2px solid #e5e7eb; }
+  .grid-tab-btn { padding:8px 16px; border:none; background:#eef2ff; color:#4338ca; font-weight:600; font-size:14px; border-radius:8px 8px 0 0; cursor:pointer; font-family:inherit; }
+  .grid-tab-btn.active { background:#4f7df0; color:#fff; }
+  .grid-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .grid-toolbar .submit-btn { padding:8px 14px; font-size:13px; flex:0 0 auto; }
+  .grid-btn-save { background:linear-gradient(135deg,#16a34a,#15803d); }
+  .grid-btn-undo { background:linear-gradient(135deg,#f59e0b,#d97706); }
+  .grid-btn-add  { background:linear-gradient(135deg,#3b82f6,#2563eb); }
+  .grid-toolbar .submit-btn:disabled { opacity:.5; cursor:not-allowed; }
+  .grid-msg { margin-left:auto; font-size:12px; color:#666; }
+  .grid-msg.ok { color:#15803d; } .grid-msg.ng { color:#b91c1c; }
+  .grid-warn { font-size:12px; color:#92400e; background:#fffbeb; border-left:3px solid #f59e0b; border-radius:4px; padding:8px 12px; margin-bottom:10px; display:none; line-height:1.6; }
+  .grid-hint { font-size:12px; color:#777; margin-bottom:8px; line-height:1.6; }
+  .grid-filter { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px; padding:12px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:8px; }
+  .grid-filter > div { display:flex; flex-direction:column; }
+  .grid-filter label { font-size:11px; color:#555; margin-bottom:3px; }
+  .grid-filter input, .grid-filter select { padding:6px 8px; font-size:13px; border:1px solid #cbd5e1; border-radius:6px; font-family:inherit; }
+  .grid-table-wrap { overflow:auto; max-height:70vh; border:1px solid #d1d5db; border-radius:8px; }
+  table.grid-table { border-collapse:separate; border-spacing:0; font-size:13px; white-space:nowrap; }
+  table.grid-table th, table.grid-table td { border-right:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb; }
+  table.grid-table thead th { position:sticky; top:0; z-index:3; background:#eef2ff; color:#374151; font-weight:700; padding:8px 12px; text-align:left; }
+  table.grid-table thead th.grid-th-ro { color:#9ca3af; }
+  table.grid-table thead th.grid-th-mask::after { content:' 🔒'; }
+  .grid-rownum { position:sticky; left:0; z-index:2; background:#f3f4f6; color:#9ca3af; text-align:center; padding:6px 10px; font-size:11px; user-select:none; min-width:36px; }
+  table.grid-table thead th.grid-rownum { z-index:4; }
+  .grid-td { padding:6px 10px; min-width:70px; max-width:360px; overflow:hidden; text-overflow:ellipsis; outline:none; vertical-align:middle; }
+  .grid-td.grid-edit { background:#fff; cursor:text; }
+  .grid-td.grid-edit:focus { box-shadow: inset 0 0 0 2px #4f7df0; }
+  .grid-td.grid-ro { background:#f9fafb; color:#6b7280; cursor:default; }
+  .grid-td.grid-masked { background:#fff7ed; color:#9a3412; cursor:pointer; font-family:monospace; }
+  .grid-td.grid-changed { background:#fef9c3 !important; }
+  .grid-td.grid-sel { box-shadow: inset 0 0 0 2px #93c5fd; }
+  .grid-td.grid-err { box-shadow: inset 0 0 0 2px #dc2626 !important; background:#fee2e2 !important; }
+  .grid-td select, .grid-td input { width:100%; box-sizing:border-box; border:none; padding:0; font-size:13px; font-family:inherit; background:transparent; outline:none; color:inherit; }
+  .grid-td input:focus, .grid-td select:focus { box-shadow: inset 0 0 0 2px #4f7df0; }
+  tr.grid-newrow .grid-rownum { background:#dcfce7; color:#15803d; font-weight:700; }
+  .grid-empty { text-align:center; color:#888; padding:40px 20px; }
+  .grid-pager { display:flex; gap:10px; align-items:center; justify-content:center; margin-top:12px; }
+  .grid-pager-info { font-size:13px; color:#555; }
+  @media (max-width:480px){
+    .grid-tab-btn { padding:6px 10px; font-size:13px; }
+    table.grid-table { font-size:12px; }
+    .grid-td, table.grid-table thead th { padding:5px 7px; }
+    .grid-filter { padding:10px; gap:8px; }
   }
 
   /* バージョン表示（右下固定、キャッシュ診断＆強制リロード用） */
@@ -1437,6 +1484,63 @@
       <div class="dashboard-card-title">操作ログ</div>
       <div class="dashboard-card-desc">講師の管理操作・HP付与の履歴を確認（admin専用）</div>
     </button>
+    <button type="button" id="dash-card-grid" class="dashboard-card admin-only" onclick="goAdminGrid()">
+      <div class="dashboard-card-icon">🗂️</div>
+      <div class="dashboard-card-title">シート（データ直接編集）</div>
+      <div class="dashboard-card-desc">Students / SpecialAccounts / Teachers / HPLog を表形式で閲覧・直接編集（admin専用）</div>
+    </button>
+  </div>
+</div>
+
+<!-- シート可視化グリッド画面（③ Excel風グリッド） -->
+<div id="screen-admin-grid" class="screen">
+  <header>
+    <h1>🗂️ シート（データ直接編集）</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminSystemHub()">← システム系に戻る</button>
+
+    <div class="grid-tabbar" id="grid-tabbar">
+      <button type="button" class="grid-tab-btn active" data-gtab="students"  onclick="gridSwitchTab('students')">Students</button>
+      <button type="button" class="grid-tab-btn"        data-gtab="special"   onclick="gridSwitchTab('special')">SpecialAccounts</button>
+      <button type="button" class="grid-tab-btn"        data-gtab="teachers"  onclick="gridSwitchTab('teachers')">Teachers</button>
+      <button type="button" class="grid-tab-btn"        data-gtab="hplog"     onclick="gridSwitchTab('hplog')">HPLog</button>
+    </div>
+
+    <!-- 編集タブ用ツールバー（Students / SpecialAccounts / Teachers） -->
+    <div class="grid-toolbar" id="grid-edit-toolbar">
+      <button type="button" class="submit-btn" onclick="gridReload()">🔄 再読み込み</button>
+      <button type="button" class="submit-btn grid-btn-save" onclick="gridSave()">💾 保存</button>
+      <button type="button" class="submit-btn grid-btn-undo" id="grid-undo-btn" onclick="gridUndo()" disabled>↶ 元に戻す</button>
+      <button type="button" class="submit-btn grid-btn-add" onclick="gridAddRow()">＋ 行を追加</button>
+      <span class="grid-msg" id="grid-msg"></span>
+    </div>
+
+    <!-- HPLog 用フィルタ（閲覧専用） -->
+    <div class="grid-filter" id="grid-hplog-filter" style="display:none">
+      <div><label>生徒ID / コード</label><input type="text" id="grid-hf-student" /></div>
+      <div><label>教育日（開始）</label><input type="date" id="grid-hf-edufrom" /></div>
+      <div><label>教育日（終了）</label><input type="date" id="grid-hf-eduto" /></div>
+      <div><label>付与種別 grant_kind</label><input type="text" id="grid-hf-kind" /></div>
+      <div><label>コンテンツ content_key</label><input type="text" id="grid-hf-content" /></div>
+      <div><label>submission_id</label><input type="text" id="grid-hf-subid" /></div>
+      <div><label>発生日時（開始）</label><input type="date" id="grid-hf-occfrom" /></div>
+      <div><label>発生日時（終了）</label><input type="date" id="grid-hf-occto" /></div>
+      <div><button type="button" class="submit-btn" onclick="gridHplogSearch()">🔍 絞り込み</button></div>
+    </div>
+
+    <div class="grid-warn" id="grid-warn"></div>
+    <div class="grid-hint" id="grid-hint"></div>
+    <div class="grid-table-wrap" id="grid-table-wrap"><div class="grid-empty">⏳ 読み込み中...</div></div>
+    <div class="grid-pager" id="grid-hplog-pager" style="display:none">
+      <button type="button" class="submit-btn" id="grid-hp-prev" onclick="gridHplogPrev()">← 前へ</button>
+      <span class="grid-pager-info" id="grid-hp-pageinfo"></span>
+      <button type="button" class="submit-btn" id="grid-hp-next" onclick="gridHplogNext()">次へ →</button>
+    </div>
   </div>
 </div>
 
@@ -12368,6 +12472,495 @@
     wrap.innerHTML = html;
   }
 
+  // =============================================================
+  // シート可視化グリッド（③ Excel風グリッド、admin専用）
+  // -------------------------------------------------------------
+  // 前提：バックエンド（別リポ mykt-eitango-aws / commit 7f65a5e）の新設APIに乗せる。
+  //   READ  : adminGridReadStudents / adminGridReadSpecialAccounts / adminGridReadTeachers / adminGridReadHpLog
+  //           → { ok, columns:[{key,label,editable,readonly,masked,enum}], rows:[ {key:val,...} ] }
+  //   REVEAL: adminGridRevealLineUserId … 単独でマスク列の生値を取得
+  //   UPSERT : adminGridUpsert{Students/SpecialAccounts/Teachers}
+  //           送信 { rows:[...] } → { ok, updated, snapshots, warnings } / { ok:false, errors:[{row,column,message}] }
+  //   ADD   : adminGridAdd{Student/SpecialAccount}（重複は { ok:false, errorCode:'DUPLICATE_CODE' }）
+  //           Teachers の行追加は既存 adminAddTeacher を使う（自動採番＋初期PW）
+  // 認証は adminGasGet / adminGasPost（sessionStorage の teacherId / password）を踏襲。
+  // ★列メタの editable / readonly / masked / enum に従って出し分け。マスク列は書き戻し時に
+  //   'U'+32hex 形式でなければサーバ側が無視する契約なので、マスク表示のまま送っても安全。
+  // =============================================================
+  var GRID_TABS = {
+    students: { key:'students', label:'Students',        readAction:'adminGridReadStudents',        upsertAction:'adminGridUpsertStudents',        addAction:'adminGridAddStudent',        editable:true },
+    special:  { key:'special',  label:'SpecialAccounts', readAction:'adminGridReadSpecialAccounts', upsertAction:'adminGridUpsertSpecialAccounts', addAction:'adminGridAddSpecialAccount', editable:true },
+    teachers: { key:'teachers', label:'Teachers',        readAction:'adminGridReadTeachers',        upsertAction:'adminGridUpsertTeachers',        addAction:'adminAddTeacher', teacherAdd:true, editable:true },
+    hplog:    { key:'hplog',    label:'HPLog',           readAction:'adminGridReadHpLog',           editable:false }
+  };
+  var _grid = {
+    tab: 'students', cfg: null,
+    columns: [], rows: [], rowsAreArray: false,
+    active: null, anchor: null, focus: null, _suppressAnchor: false,
+    lastSnapshots: null, lastSubmitted: null,
+    hplog: { page: 1, totalPages: 1 }
+  };
+
+  // ---- 列メタのアクセサ（プロパティ名ゆらぎに寛容） ----
+  function _gcKey(col){ return col.key || col.field || col.name || col.id || ''; }
+  function _gcLabel(col){ return col.label || col.title || col.header || _gcKey(col); }
+  function _gcEnum(col){ var e = col.enum || col.options || col.values; return Array.isArray(e) ? e : null; }
+  function _gcMasked(col){ return col.masked === true; }
+  function _gcReadonly(col){ return col.readonly === true; }
+  function _gcEditable(col){ if (_gcReadonly(col)) return false; if (col.editable === true) return true; if (_gcMasked(col)) return true; return false; }
+
+  // ---- 行データアクセス（object行 / array行 両対応） ----
+  function _gridGet(rowData, col, cIdx){ return Array.isArray(rowData) ? rowData[cIdx] : rowData[_gcKey(col)]; }
+  function _gridSet(rowData, col, cIdx, val){ if (Array.isArray(rowData)) rowData[cIdx] = val; else rowData[_gcKey(col)] = val; }
+  function _gridClone(d){ if (Array.isArray(d)) return d.slice(); var o = {}; Object.keys(d || {}).forEach(function(k){ o[k] = d[k]; }); return o; }
+
+  function _gridColIndexByKey(key){ for (var i = 0; i < _grid.columns.length; i++){ if (_gcKey(_grid.columns[i]) === key) return i; } return -1; }
+  function _gridCellEl(r, c){ var w = document.getElementById('grid-table-wrap'); return w ? w.querySelector('td.grid-td[data-r="' + r + '"][data-c="' + c + '"]') : null; }
+  function _gridSetMsg(txt, kind){ var el = document.getElementById('grid-msg'); if (!el) return; el.textContent = txt; el.className = 'grid-msg' + (kind ? (' ' + kind) : ''); }
+  function _gridDisplayVal(r, c){ var col = _grid.columns[c], m = _grid.rows[r]; if (!col || !m) return ''; var v = _gridGet(m.data, col, c); return v == null ? '' : String(v); }
+  function _gridFirstCodeCol(){ for (var i = 0; i < _grid.columns.length; i++){ if (/code|コード/i.test(_gcKey(_grid.columns[i]))) return i; } return 0; }
+  function _modelHasChange(m){ return Object.keys(m.changed).length > 0; }
+  function _gridHasChanges(){ return _grid.rows.some(function(m){ return m.isNew || _modelHasChange(m); }); }
+  function _gridClearErrCells(){ var w = document.getElementById('grid-table-wrap'); if (w) w.querySelectorAll('td.grid-err').forEach(function(td){ td.classList.remove('grid-err'); td.removeAttribute('title'); }); }
+  function _gridClearChangedCells(){ var w = document.getElementById('grid-table-wrap'); if (w) w.querySelectorAll('td.grid-changed').forEach(function(td){ td.classList.remove('grid-changed'); }); }
+  function _gridMarkErr(r, c, msg){ var td = _gridCellEl(r, c); if (td){ td.classList.add('grid-err'); if (msg) td.title = msg; } }
+
+  // ---- 画面遷移・タブ ----
+  function goAdminGrid(){
+    _grid.tab = 'students'; _grid.hplog.page = 1;
+    _showScreen('screen-admin-grid'); window.scrollTo(0, 0);
+    _gridSyncTabUI(); gridReload(true);
+  }
+  function gridSwitchTab(tab){
+    if (tab === _grid.tab) return;
+    if (_grid.cfg && _grid.cfg.editable && _gridHasChanges() && !confirm('未保存の変更があります。破棄して切り替えますか？')) return;
+    _grid.tab = tab; _grid.hplog.page = 1; _gridSyncTabUI(); gridReload(true);
+  }
+  function _gridSyncTabUI(){
+    _grid.cfg = GRID_TABS[_grid.tab];
+    document.querySelectorAll('#grid-tabbar .grid-tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.gtab === _grid.tab); });
+    var isHp = (_grid.tab === 'hplog');
+    document.getElementById('grid-edit-toolbar').style.display = isHp ? 'none' : 'flex';
+    document.getElementById('grid-hplog-filter').style.display = isHp ? 'flex' : 'none';
+    document.getElementById('grid-hplog-pager').style.display = isHp ? 'flex' : 'none';
+    var undo = document.getElementById('grid-undo-btn'); if (undo) undo.disabled = true;
+    _grid.lastSnapshots = null;
+    document.getElementById('grid-warn').style.display = 'none';
+    var hint = document.getElementById('grid-hint');
+    if (isHp) hint.textContent = 'HPLog は閲覧専用です（編集・保存・行追加はできません）。絞り込み条件を指定して「絞り込み」を押してください。';
+    else hint.innerHTML = 'セルを直接編集できます（🔒 の列はダブルクリック / F2 で解錠して編集）。移動：Tab / Enter / 矢印。範囲選択：Shift+矢印、コピー：Ctrl+C、貼り付け：Excel からのTSVを左上セルにペースト。灰色は読み取り専用。編集後は「💾 保存」を押してください。';
+  }
+
+  // ---- 読み込み ----
+  function gridReload(force){
+    var cfg = _grid.cfg; if (!cfg) return;
+    if (!force && cfg.editable && _gridHasChanges() && !confirm('未保存の変更があります。破棄して再読み込みしますか？')) return;
+    _grid.rows = []; _grid.columns = []; _grid.active = null; _grid.anchor = null; _grid.focus = null;
+    _grid.lastSubmitted = null;
+    document.getElementById('grid-table-wrap').innerHTML = '<div class="grid-empty">⏳ 読み込み中...</div>';
+    _gridSetMsg('読み込み中…', '');
+    var params = { action: cfg.readAction, _ts: Date.now() };
+    if (cfg.key === 'hplog') Object.assign(params, _gridHplogParams());
+    adminGasGet(params).then(function(res){
+      if (!res || !res.ok){
+        var em = (res && res.message) || '読み込みに失敗しました';
+        if (_handleAdminApiError(em)) return;
+        document.getElementById('grid-table-wrap').innerHTML = '<div class="grid-empty">' + _esc(em) + '</div>';
+        _gridSetMsg(em, 'ng'); return;
+      }
+      _gridIngest(res);
+      _gridRenderTable();
+      if (cfg.key === 'hplog') _gridRenderHplogPager(res);
+      _gridSetMsg('', '');
+    }).catch(function(){
+      document.getElementById('grid-table-wrap').innerHTML = '<div class="grid-empty">通信エラーが発生しました</div>';
+      _gridSetMsg('通信エラー', 'ng');
+    });
+  }
+  function _gridIngest(res){
+    var cols = res.columns || res.cols || [];
+    _grid.columns = cols.map(function(c){ return (typeof c === 'string') ? { key: c, label: c } : c; });
+    var rows = res.rows || res.data || [];
+    _grid.rowsAreArray = rows.length > 0 && Array.isArray(rows[0]);
+    _grid.rows = rows.map(function(rd){ return { data: _gridClone(rd), changed: {}, isNew: false }; });
+  }
+
+  // ---- テーブル描画 ----
+  function _gridRenderTable(){
+    var wrap = document.getElementById('grid-table-wrap');
+    if (!_grid.columns.length){ wrap.innerHTML = '<div class="grid-empty">列がありません</div>'; return; }
+    var table = document.createElement('table'); table.className = 'grid-table';
+    var thead = document.createElement('thead'); var htr = document.createElement('tr');
+    var corner = document.createElement('th'); corner.className = 'grid-rownum'; corner.textContent = '#'; htr.appendChild(corner);
+    _grid.columns.forEach(function(col){
+      var th = document.createElement('th'); th.textContent = _gcLabel(col);
+      if (_gcReadonly(col)) th.classList.add('grid-th-ro');
+      if (_gcMasked(col)) th.classList.add('grid-th-mask');
+      var eo = _gcEnum(col); if (eo) th.title = '選択肢: ' + eo.join(' / ');
+      htr.appendChild(th);
+    });
+    thead.appendChild(htr); table.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    if (!_grid.rows.length){
+      var tr = document.createElement('tr'); var td = document.createElement('td');
+      td.colSpan = _grid.columns.length + 1; td.className = 'grid-empty'; td.textContent = 'データがありません';
+      tr.appendChild(td); tbody.appendChild(tr);
+    } else {
+      _grid.rows.forEach(function(m, rIdx){ tbody.appendChild(_gridBuildRow(m, rIdx)); });
+    }
+    table.appendChild(tbody);
+    wrap.innerHTML = ''; wrap.appendChild(table);
+    _gridAttachTableEvents(table, wrap);
+  }
+  function _gridBuildRow(m, rIdx){
+    var tr = document.createElement('tr'); tr.dataset.r = rIdx;
+    if (m.isNew) tr.className = 'grid-newrow';
+    var rn = document.createElement('td'); rn.className = 'grid-rownum'; rn.textContent = (rIdx + 1); tr.appendChild(rn);
+    _grid.columns.forEach(function(col, cIdx){ tr.appendChild(_gridBuildCell(rIdx, cIdx, col, m)); });
+    return tr;
+  }
+  function _gridBuildCell(rIdx, cIdx, col, m){
+    var td = document.createElement('td'); td.className = 'grid-td'; td.dataset.r = rIdx; td.dataset.c = cIdx;
+    var key = _gcKey(col); var val = _gridGet(m.data, col, cIdx); if (val == null) val = '';
+    if (m.changed[key]) td.classList.add('grid-changed');
+    var editable = _gcEditable(col), enumOpts = _gcEnum(col), masked = _gcMasked(col);
+    if (!editable){ td.classList.add('grid-ro'); td.tabIndex = -1; td.textContent = String(val); return td; }
+    if (enumOpts){
+      var sel = document.createElement('select');
+      var cur = String(val), hasCur = false;
+      var em0 = document.createElement('option'); em0.value = ''; em0.textContent = '—'; sel.appendChild(em0);
+      enumOpts.forEach(function(o){ var op = document.createElement('option'); op.value = String(o); op.textContent = String(o); if (String(o) === cur) hasCur = true; sel.appendChild(op); });
+      if (cur && !hasCur){ var ex = document.createElement('option'); ex.value = cur; ex.textContent = cur; sel.appendChild(ex); }
+      sel.value = cur;
+      sel.addEventListener('change', function(){ _gridSet(m.data, col, cIdx, sel.value); m.changed[key] = true; td.classList.add('grid-changed'); });
+      td.appendChild(sel); return td;
+    }
+    if (masked && !m.isNew){
+      td.classList.add('grid-masked'); td.tabIndex = -1; td.textContent = String(val);
+      td.title = 'ダブルクリック / F2 で解錠して編集';
+      td.addEventListener('dblclick', function(){ _gridRevealEdit(td, m, col, cIdx); });
+      return td;
+    }
+    // テキスト編集（マスク列の新規行もここで直接入力）
+    td.classList.add('grid-edit'); td.contentEditable = 'true'; td.textContent = String(val);
+    if (masked) td.title = 'LINE ID（U＋英数字32桁）を直接入力';
+    td.addEventListener('input', function(){ _gridSet(m.data, col, cIdx, td.textContent); m.changed[key] = true; td.classList.add('grid-changed'); });
+    return td;
+  }
+
+  // ---- マスク列の解錠編集 ----
+  function _gridRevealApi(model, col){
+    var params = { action: 'adminGridRevealLineUserId', tab: _grid.cfg.key, column: _gcKey(col) };
+    var d = model.data;
+    ['studentId', 'student_code', 'code', 'account_code', 'id', 'sid', 'teacherId'].forEach(function(k){ if (d && d[k] != null && d[k] !== '') params[k] = d[k]; });
+    params.rowData = d;
+    params.rowIndex = _grid.rows.indexOf(model);
+    return adminGasGet(params).then(function(res){
+      if (!res || !res.ok) throw new Error((res && res.message) || 'reveal failed');
+      return (res.value != null) ? res.value : (res.lineUserId != null ? res.lineUserId : (res.realValue != null ? res.realValue : ''));
+    });
+  }
+  function _gridRevealEdit(td, m, col, cIdx){
+    if (td._revealing) return; td._revealing = true;
+    var prev = td.textContent; td.textContent = '🔓 解錠中…';
+    _gridRevealApi(m, col).then(function(real){ td._revealing = false; _gridMakeMaskedInput(td, m, col, cIdx, real, false); })
+      .catch(function(){ td._revealing = false; td.textContent = prev; showToast('LINE IDの取得に失敗しました', 'error'); });
+  }
+  function _gridMakeMaskedInput(td, m, col, cIdx, val, edited){
+    var key = _gcKey(col);
+    td.textContent = ''; td.classList.remove('grid-masked');
+    var inp = document.createElement('input'); inp.type = 'text'; inp.value = (val == null ? '' : String(val)); inp.spellcheck = false;
+    inp.addEventListener('input', function(){ _gridSet(m.data, col, cIdx, inp.value); m.changed[key] = true; td.classList.add('grid-changed'); });
+    inp.addEventListener('blur', function(){ if (!m.changed[key]) _gridRestoreMasked(td, m, col, cIdx); });
+    td.appendChild(inp);
+    if (edited){ m.changed[key] = true; td.classList.add('grid-changed'); }
+    inp.focus(); try { inp.select(); } catch (e) {}
+  }
+  function _gridRestoreMasked(td, m, col, cIdx){
+    td.innerHTML = ''; td.classList.add('grid-masked'); td.tabIndex = -1;
+    td.textContent = String(_gridGet(m.data, col, cIdx) || '');
+    // dblclick リスナーは元の td に残っているため再バインド不要
+  }
+
+  // ---- 選択・キーボード・コピー・貼り付け ----
+  function _gridAttachTableEvents(table, wrap){
+    table.addEventListener('focusin', function(e){
+      var td = e.target.closest ? e.target.closest('td.grid-td') : null; if (!td) return;
+      var r = +td.dataset.r, c = +td.dataset.c; _grid.active = { r: r, c: c };
+      if (_grid._suppressAnchor) return;
+      _grid.anchor = { r: r, c: c }; _grid.focus = { r: r, c: c }; _gridPaintSelection();
+    });
+    table.addEventListener('keydown', _gridOnKeyDown);
+    wrap.addEventListener('copy', _gridOnCopy);
+    wrap.addEventListener('paste', _gridOnPaste);
+  }
+  function _gridCaretAtStart(el){
+    if (el.tagName === 'INPUT') return el.selectionStart === 0 && el.selectionEnd === 0;
+    if (el.isContentEditable){ var s = window.getSelection(); if (!s || !s.isCollapsed) return false; return s.anchorOffset === 0; }
+    return true;
+  }
+  function _gridCaretAtEnd(el){
+    if (el.tagName === 'INPUT'){ var l = el.value.length; return el.selectionStart === l && el.selectionEnd === l; }
+    if (el.isContentEditable){ var s = window.getSelection(); if (!s || !s.isCollapsed) return false; return s.anchorOffset === (el.textContent || '').length; }
+    return true;
+  }
+  function _gridFocusCell(r, c, keepSel){
+    if (!_grid.rows.length) return;
+    r = Math.max(0, Math.min(_grid.rows.length - 1, r));
+    c = Math.max(0, Math.min(_grid.columns.length - 1, c));
+    var td = _gridCellEl(r, c); if (!td) return;
+    _grid.active = { r: r, c: c };
+    if (keepSel){ _grid.focus = { r: r, c: c }; } else { _grid.anchor = { r: r, c: c }; _grid.focus = { r: r, c: c }; }
+    _grid._suppressAnchor = true;
+    var child = td.querySelector('input, select');
+    if (child){ child.focus(); if (child.tagName === 'INPUT'){ try { child.setSelectionRange(child.value.length, child.value.length); } catch (e) {} } }
+    else if (td.isContentEditable){ td.focus(); _gridCaretEnd(td); }
+    else { td.focus(); }
+    _grid._suppressAnchor = false;
+    _gridPaintSelection();
+  }
+  function _gridCaretEnd(el){ try { var r = document.createRange(); r.selectNodeContents(el); r.collapse(false); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); } catch (e) {} }
+  function _gridOnKeyDown(e){
+    if (!_grid.active) return;
+    var r = _grid.active.r, c = _grid.active.c, key = e.key, t = e.target;
+    var isSelect = t.tagName === 'SELECT';
+    if (key === 'Tab'){ e.preventDefault(); var nc = c + (e.shiftKey ? -1 : 1); if (nc < 0) nc = _grid.columns.length - 1; if (nc > _grid.columns.length - 1) nc = 0; _gridFocusCell(r, nc, false); return; }
+    if (key === 'Enter'){ e.preventDefault(); _gridFocusCell(r + (e.shiftKey ? -1 : 1), c, false); return; }
+    if (key === 'ArrowUp' || key === 'ArrowDown'){ if (isSelect) return; e.preventDefault(); _gridFocusCell(r + (key === 'ArrowUp' ? -1 : 1), c, e.shiftKey); return; }
+    if (key === 'ArrowLeft'){ if (isSelect) return; if (_gridCaretAtStart(t)){ e.preventDefault(); _gridFocusCell(r, c - 1, e.shiftKey); } return; }
+    if (key === 'ArrowRight'){ if (isSelect) return; if (_gridCaretAtEnd(t)){ e.preventDefault(); _gridFocusCell(r, c + 1, e.shiftKey); } return; }
+    if (key === 'F2'){ var col = _grid.columns[c], m = _grid.rows[r]; if (col && m && _gcMasked(col) && !m.isNew){ var td = _gridCellEl(r, c); if (td) _gridRevealEdit(td, m, col, c); e.preventDefault(); } return; }
+  }
+  function _gridPaintSelection(){
+    var wrap = document.getElementById('grid-table-wrap'); if (!wrap) return;
+    wrap.querySelectorAll('td.grid-sel').forEach(function(td){ td.classList.remove('grid-sel'); });
+    if (!_grid.anchor || !_grid.focus) return;
+    var r0 = Math.min(_grid.anchor.r, _grid.focus.r), r1 = Math.max(_grid.anchor.r, _grid.focus.r);
+    var c0 = Math.min(_grid.anchor.c, _grid.focus.c), c1 = Math.max(_grid.anchor.c, _grid.focus.c);
+    if (r0 === r1 && c0 === c1) return;
+    for (var r = r0; r <= r1; r++) for (var c = c0; c <= c1; c++){ var td = _gridCellEl(r, c); if (td) td.classList.add('grid-sel'); }
+  }
+  function _gridOnCopy(e){
+    if (!_grid.anchor || !_grid.focus || !_grid.active) return;
+    var r0 = Math.min(_grid.anchor.r, _grid.focus.r), r1 = Math.max(_grid.anchor.r, _grid.focus.r);
+    var c0 = Math.min(_grid.anchor.c, _grid.focus.c), c1 = Math.max(_grid.anchor.c, _grid.focus.c);
+    if (r0 === r1 && c0 === c1){
+      var t = e.target, inline = false;
+      if (t.tagName === 'INPUT') inline = t.selectionStart !== t.selectionEnd;
+      else { var s = window.getSelection(); inline = s && !s.isCollapsed; }
+      if (inline) return; // セル内で一部選択中は既定コピーに任せる
+    }
+    var lines = [];
+    for (var r = r0; r <= r1; r++){ var cells = []; for (var c = c0; c <= c1; c++) cells.push(_gridDisplayVal(r, c)); lines.push(cells.join('\t')); }
+    e.clipboardData.setData('text/plain', lines.join('\n'));
+    e.preventDefault();
+  }
+  function _gridOnPaste(e){
+    if (!_grid.cfg || !_grid.cfg.editable) return; // HPLog は貼り付け無効（既定動作＝readonlyセルで無反応）
+    if (!_grid.active) return;
+    var txt = (e.clipboardData || window.clipboardData).getData('text'); if (txt == null) return;
+    e.preventDefault();
+    var g2d = txt.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').map(function(l){ return l.split('\t'); });
+    while (g2d.length > 1 && g2d[g2d.length - 1].length === 1 && g2d[g2d.length - 1][0] === '') g2d.pop();
+    var sr = _grid.active.r, sc = _grid.active.c, filled = 0, skipped = 0;
+    for (var i = 0; i < g2d.length; i++){ var rr = sr + i; if (rr >= _grid.rows.length) break;
+      for (var j = 0; j < g2d[i].length; j++){ var cc = sc + j; if (cc >= _grid.columns.length) break;
+        if (!_gcEditable(_grid.columns[cc])){ skipped++; continue; }
+        _gridSetCellValue(rr, cc, g2d[i][j]); filled++;
+      }
+    }
+    _gridSetMsg('貼り付け：' + filled + ' セル更新' + (skipped ? '（読み取り専用 ' + skipped + ' セルはスキップ）' : ''), '');
+  }
+  function _gridSetCellValue(r, c, val){
+    var col = _grid.columns[c], m = _grid.rows[r], key = _gcKey(col);
+    if (!_gcEditable(col)) return;
+    var td = _gridCellEl(r, c); if (!td) return;
+    var enumOpts = _gcEnum(col);
+    if (enumOpts){
+      var sel = td.querySelector('select'); if (!sel) return;
+      var ok = false; for (var i = 0; i < sel.options.length; i++){ if (sel.options[i].value === String(val)){ ok = true; break; } }
+      if (!ok){ var op = document.createElement('option'); op.value = String(val); op.textContent = String(val); sel.appendChild(op); }
+      sel.value = String(val); _gridSet(m.data, col, c, sel.value); m.changed[key] = true; td.classList.add('grid-changed'); return;
+    }
+    if (_gcMasked(col) && !m.isNew){ _gridSet(m.data, col, c, val); _gridMakeMaskedInput(td, m, col, c, val, true); return; }
+    _gridSet(m.data, col, c, val); m.changed[key] = true;
+    var inp = td.querySelector('input'); if (inp) inp.value = val; else td.textContent = (val == null ? '' : String(val));
+    td.classList.add('grid-changed');
+  }
+
+  // ---- 行追加 ----
+  function gridAddRow(){
+    if (!_grid.cfg || !_grid.cfg.editable) return;
+    if (!_grid.columns.length){ showToast('先に読み込んでください', 'error'); return; }
+    var data; if (_grid.rowsAreArray){ data = _grid.columns.map(function(){ return ''; }); }
+    else { data = {}; _grid.columns.forEach(function(col){ data[_gcKey(col)] = ''; }); }
+    _grid.rows.push({ data: data, changed: {}, isNew: true });
+    _gridRenderTable();
+    var rIdx = _grid.rows.length - 1, fc = 0;
+    for (var c = 0; c < _grid.columns.length; c++){ if (_gcEditable(_grid.columns[c])){ fc = c; break; } }
+    _gridFocusCell(rIdx, fc, false);
+    var wrap = document.getElementById('grid-table-wrap'); if (wrap) wrap.scrollTop = wrap.scrollHeight;
+    _gridSetMsg('新規行を追加しました。入力して「💾 保存」を押してください', '');
+  }
+
+  // ---- マスク列の形式検証 ----
+  function _gridValidateMasked(){
+    var bad = [], re = /^U[0-9a-f]{32}$/i;
+    _grid.rows.forEach(function(m, rIdx){
+      _grid.columns.forEach(function(col, cIdx){
+        if (!_gcMasked(col)) return;
+        var key = _gcKey(col); if (!m.changed[key]) return;
+        var v = String(_gridGet(m.data, col, cIdx) || ''); if (v === '') return;
+        if (!re.test(v)) bad.push({ r: rIdx, c: cIdx });
+      });
+    });
+    return bad;
+  }
+
+  // ---- 保存（行追加＝Add / 既存変更＝Upsert） ----
+  function gridSave(){
+    var cfg = _grid.cfg; if (!cfg || !cfg.editable) return;
+    var bad = _gridValidateMasked();
+    if (bad.length){ _gridClearErrCells(); bad.forEach(function(b){ _gridMarkErr(b.r, b.c, 'LINE IDは U＋英数字32桁で入力してください'); }); _gridSetMsg('LINE IDの形式エラー ' + bad.length + ' 件', 'ng'); alert('LINE ID（U＋32桁）の形式が正しくない箇所があります（赤枠）。修正してから保存してください。'); return; }
+    _gridClearErrCells();
+    var newRows = _grid.rows.filter(function(m){ return m.isNew; });
+    var changed = _grid.rows.filter(function(m){ return !m.isNew && _modelHasChange(m); });
+    if (!newRows.length && !changed.length){ _gridSetMsg('変更はありません', ''); return; }
+    _gridSetMsg('保存中…', '');
+    _gridProcessAdds(newRows).then(function(addRes){
+      if (addRes.stopped){ _gridSetMsg('行追加を中断しました（' + addRes.reason + '）', 'ng'); return; }
+      var addedMsg = addRes.added ? ('追加 ' + addRes.added + ' 行 / ') : '';
+      if (!changed.length){ _gridSetMsg(addedMsg + '完了', addRes.added ? 'ok' : ''); if (addRes.added) gridReload(true); return; }
+      var payload = changed.map(function(m){ return _gridClone(m.data); });
+      _grid.lastSubmitted = { models: changed };
+      adminGasPost({ action: cfg.upsertAction, rows: payload }).then(function(res){ _gridHandleUpsertResp(res, changed, addedMsg, addRes.added > 0); })
+        .catch(function(){ _gridSetMsg('通信エラー', 'ng'); });
+    });
+  }
+  function _gridPick(obj, keys){
+    for (var i = 0; i < keys.length; i++){ if (obj[keys[i]] != null && obj[keys[i]] !== '') return String(obj[keys[i]]); }
+    var lower = {}; Object.keys(obj || {}).forEach(function(k){ lower[k.toLowerCase()] = obj[k]; });
+    for (var j = 0; j < keys.length; j++){ var kk = keys[j].toLowerCase(); if (lower[kk] != null && lower[kk] !== '') return String(lower[kk]); }
+    return '';
+  }
+  function _gridProcessAdds(newRows){
+    var cfg = _grid.cfg, added = 0;
+    return newRows.reduce(function(chain, m){
+      return chain.then(function(state){
+        if (state.stopped) return state;
+        var p;
+        if (cfg.teacherAdd){
+          var d = m.data;
+          var name = _gridPick(d, ['teacherName', 'name', '氏名']);
+          var role = _gridPick(d, ['role', '役割']) || 'teacher';
+          var nick = _gridPick(d, ['displayNickname', 'nickname', '表示名']);
+          if (!name){ var riN = _grid.rows.indexOf(m); return { stopped: true, reason: (riN + 1) + '行目 講師の氏名が未入力', added: added }; }
+          p = adminGasPost({ action: 'adminAddTeacher', teacherName: name, role: role, displayNickname: nick });
+        } else {
+          p = adminGasPost({ action: cfg.addAction, row: _gridClone(m.data) });
+        }
+        return p.then(function(res){
+          if (res && res.ok){ m.isNew = false; m.changed = {}; added++; return { stopped: false, added: added }; }
+          if (res && res.errorCode === 'DUPLICATE_CODE'){
+            var ri = _grid.rows.indexOf(m);
+            _gridMarkErr(ri, _gridFirstCodeCol(), 'コード重複');
+            alert('コードが重複しています（' + (ri + 1) + '行目）。別のコードにしてください。');
+            return { stopped: true, reason: (ri + 1) + '行目 コード重複', added: added };
+          }
+          var em = (res && res.message) || '行追加に失敗しました';
+          _handleAdminApiError(em);
+          return { stopped: true, reason: em, added: added };
+        });
+      });
+    }, Promise.resolve({ stopped: false, added: 0 }));
+  }
+  function _gridHandleUpsertResp(res, changed, addedMsg, hadAdds){
+    if (res && res.ok){
+      changed.forEach(function(m){ m.changed = {}; });
+      _gridClearChangedCells();
+      _grid.lastSnapshots = res.snapshots || null;
+      var undo = document.getElementById('grid-undo-btn'); if (undo) undo.disabled = !_grid.lastSnapshots;
+      _gridShowWarnings(res.warnings);
+      var upd = (res.updated != null) ? res.updated : changed.length;
+      _gridSetMsg((addedMsg || '') + '保存しました（更新 ' + upd + ' 行）', 'ok');
+      if (hadAdds) gridReload(true);
+      return;
+    }
+    if (res && res.errors && res.errors.length){
+      _gridClearErrCells();
+      res.errors.forEach(function(er){ var pos = _gridResolveErrPos(er); if (pos) _gridMarkErr(pos.r, pos.c, er.message); });
+      _gridSetMsg('保存失敗：' + res.errors.length + ' 件のエラー（サーバ側でロールバック済み・未保存）', 'ng');
+      alert('保存できませんでした（サーバー側でロールバック済み・1件も保存されていません）。赤枠のセルを確認してください。');
+      return;
+    }
+    var em = (res && res.message) || '保存に失敗しました';
+    if (_handleAdminApiError(em)) return;
+    _gridSetMsg(em, 'ng');
+  }
+  function _gridResolveErrPos(er){
+    var c = _gridColIndexByKey(er.column); if (c < 0) c = 0;
+    var model = null;
+    if (typeof er.row === 'number' && _grid.lastSubmitted && _grid.lastSubmitted.models[er.row]) model = _grid.lastSubmitted.models[er.row];
+    if (!model && _grid.lastSubmitted){
+      _grid.lastSubmitted.models.forEach(function(m){
+        if (model) return;
+        var vals = Array.isArray(m.data) ? m.data : Object.keys(m.data).map(function(k){ return m.data[k]; });
+        if (vals.indexOf(er.row) >= 0) model = m;
+      });
+    }
+    if (!model) return null;
+    var r = _grid.rows.indexOf(model); if (r < 0) return null;
+    return { r: r, c: c };
+  }
+  function _gridShowWarnings(warnings){
+    var el = document.getElementById('grid-warn');
+    if (!warnings || !warnings.length){ el.style.display = 'none'; el.textContent = ''; return; }
+    var msgs = warnings.map(function(w){ return typeof w === 'string' ? w : (w.message || JSON.stringify(w)); });
+    el.innerHTML = '⚠️ ' + msgs.map(_esc).join('<br>⚠️ ');
+    el.style.display = 'block';
+  }
+
+  // ---- 元に戻す（直前の upsert の snapshots を再送信） ----
+  function gridUndo(){
+    var cfg = _grid.cfg; if (!cfg || !cfg.editable) return;
+    if (!_grid.lastSnapshots || !_grid.lastSnapshots.length){ _gridSetMsg('元に戻せる保存がありません', ''); return; }
+    if (!confirm('直前の保存内容を元に戻します（サーバーへ再送信）。よろしいですか？')) return;
+    _gridSetMsg('元に戻し中…', '');
+    adminGasPost({ action: cfg.upsertAction, rows: _grid.lastSnapshots }).then(function(res){
+      if (res && res.ok){ _grid.lastSnapshots = null; var b = document.getElementById('grid-undo-btn'); if (b) b.disabled = true; _gridSetMsg('元に戻しました', 'ok'); gridReload(true); return; }
+      var em = (res && res.message) || '元に戻せませんでした';
+      if (res && res.errors) em = '元に戻す際にエラー（ロールバック済み）';
+      if (_handleAdminApiError(em)) return;
+      _gridSetMsg(em, 'ng');
+    }).catch(function(){ _gridSetMsg('通信エラー', 'ng'); });
+  }
+
+  // ---- HPLog：フィルタ＋ページング（閲覧専用） ----
+  function _gridHplogParams(){
+    return {
+      studentId: (document.getElementById('grid-hf-student').value || '').trim(),
+      educationalDateFrom: document.getElementById('grid-hf-edufrom').value || '',
+      educationalDateTo: document.getElementById('grid-hf-eduto').value || '',
+      grantKind: (document.getElementById('grid-hf-kind').value || '').trim(),
+      contentKey: (document.getElementById('grid-hf-content').value || '').trim(),
+      submissionId: (document.getElementById('grid-hf-subid').value || '').trim(),
+      occurredFrom: document.getElementById('grid-hf-occfrom').value || '',
+      occurredTo: document.getElementById('grid-hf-occto').value || '',
+      page: _grid.hplog.page, pageSize: 100
+    };
+  }
+  function gridHplogSearch(){ _grid.hplog.page = 1; gridReload(true); }
+  function gridHplogPrev(){ if (_grid.hplog.page > 1){ _grid.hplog.page--; gridReload(true); } }
+  function gridHplogNext(){ if (_grid.hplog.page < _grid.hplog.totalPages){ _grid.hplog.page++; gridReload(true); } }
+  function _gridRenderHplogPager(res){
+    var page = (res.page != null) ? res.page : _grid.hplog.page;
+    var total = (res.totalPages != null) ? res.totalPages : (res.hasMore ? (page + 1) : page);
+    _grid.hplog.page = page; _grid.hplog.totalPages = total;
+    document.getElementById('grid-hp-pageinfo').textContent = 'ページ ' + page + ' / ' + total + (res.total != null ? ('（全 ' + res.total + ' 件）') : '');
+    document.getElementById('grid-hp-prev').disabled = (page <= 1);
+    document.getElementById('grid-hp-next').disabled = (page >= total);
+  }
+
   // セッション継続（タブ閉じで失効）。teacherId と password が両方揃っている時のみ自動再開。
   // Phase 1.5：firstLoginCompleted=false なら自動再開先は初回フロー画面に変更。
   (function init() {
@@ -12381,7 +12974,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260805-2048</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-0033</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
