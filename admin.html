@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-1505"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-1522"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -12493,9 +12493,9 @@
   //   'U'+32hex 形式でなければサーバ側が無視する契約なので、マスク表示のまま送っても安全。
   // =============================================================
   var GRID_TABS = {
-    students: { key:'students', label:'Students',        readAction:'adminGridReadStudents',        upsertAction:'adminGridUpsertStudents',        addAction:'adminGridAddStudent',        editable:true, pinnedKeys:['student_code','name'] },
-    special:  { key:'special',  label:'SpecialAccounts', readAction:'adminGridReadSpecialAccounts', upsertAction:'adminGridUpsertSpecialAccounts', addAction:'adminGridAddSpecialAccount', editable:true, pinnedKeys:['student_code','name'] },
-    teachers: { key:'teachers', label:'Teachers',        readAction:'adminGridReadTeachers',        upsertAction:'adminGridUpsertTeachers',        addAction:'adminAddTeacher', teacherAdd:true, editable:true, pinnedKeys:['teacher_code','name'] },
+    students: { key:'students', label:'Students',        readAction:'adminGridReadStudents',        upsertAction:'adminGridUpsertStudents',        addAction:'adminGridAddStudent',        editable:true, pinCount:2 },
+    special:  { key:'special',  label:'SpecialAccounts', readAction:'adminGridReadSpecialAccounts', upsertAction:'adminGridUpsertSpecialAccounts', addAction:'adminGridAddSpecialAccount', editable:true, pinCount:2 },
+    teachers: { key:'teachers', label:'Teachers',        readAction:'adminGridReadTeachers',        upsertAction:'adminGridUpsertTeachers',        addAction:'adminAddTeacher', teacherAdd:true, editable:true, pinCount:2 },
     hplog:    { key:'hplog',    label:'HPLog',           readAction:'adminGridReadHpLog',           editable:false }
   };
   var _grid = {
@@ -12608,7 +12608,8 @@
     _grid.columns = cols;
     var rows = res.rows || res.data || [];
     _grid.rowsAreArray = rows.length > 0 && Array.isArray(rows[0]);
-    _grid.rows = rows.map(function(rd){ return { data: _gridClone(rd), changed: {}, isNew: false }; });
+    // orig：編集前の pristine 行（rows.id を含む）。UNDO 用に保持。
+    _grid.rows = rows.map(function(rd){ return { data: _gridClone(rd), orig: _gridClone(rd), changed: {}, isNew: false }; });
   }
 
   // ---- テーブル描画 ----
@@ -12641,17 +12642,15 @@
   }
   // 識別列（cfg.pinnedKeys）を左固定にする。列幅は実測して各セルに left(px) を付与。
   // 編集/選択/貼り付け/reveal は position:sticky では一切壊れない（イベントは通常どおり）。
+  // ★左端の識別列を「位置」で固定する（列キー名に依存しない）。
+  //   実バックエンドの列キー（student_code 等）が想定と違っても確実に効くよう、
+  //   id 除去後の先頭 pinCount 列（＝コード・氏名）を pin する。
   function _gridPinnedIndexes(){
-    var cfg = _grid.cfg; var keys = (cfg && cfg.pinnedKeys) || []; var res = [];
-    keys.forEach(function(spec){
-      var i = _gridColIndexByKey(spec);
-      if (i < 0){ // フォールバック：code/name を含む列名で拾う
-        var re = /code/i.test(spec) ? /code/i : (/name/i.test(spec) ? /name/i : null);
-        if (re){ for (var j = 0; j < _grid.columns.length; j++){ if (re.test(_gcKey(_grid.columns[j]))){ i = j; break; } } }
-      }
-      if (i >= 0 && res.indexOf(i) < 0) res.push(i);
-    });
-    res.sort(function(a, b){ return a - b; }); // 物理列順に left を積む
+    var cfg = _grid.cfg;
+    var n = (cfg && cfg.pinCount) ? cfg.pinCount : 0;
+    if (!n) return [];
+    n = Math.min(n, _grid.columns.length);
+    var res = []; for (var i = 0; i < n; i++) res.push(i);
     return res;
   }
   function _gridPinCell(cell, left, isEdge){
@@ -12904,8 +12903,10 @@
       var addedMsg = addRes.added ? ('追加 ' + addRes.added + ' 行 / ') : '';
       if (!changed.length){ _gridSetMsg(addedMsg + '完了', addRes.added ? 'ok' : ''); if (addRes.added) gridReload(true); return; }
       var payload = changed.map(function(m){ return _gridClone(m.data); });
+      // クライアント側スナップショット（編集前 orig）。バックエンドが snapshots を返さない場合の UNDO 保険。
+      var clientSnaps = changed.map(function(m){ return _gridClone(m.orig || m.data); });
       _grid.lastSubmitted = { models: changed };
-      adminGasPost({ action: cfg.upsertAction, rows: payload }).then(function(res){ _gridHandleUpsertResp(res, changed, addedMsg, addRes.added > 0); })
+      adminGasPost({ action: cfg.upsertAction, rows: payload }).then(function(res){ _gridHandleUpsertResp(res, changed, addedMsg, addRes.added > 0, clientSnaps); })
         .catch(function(){ _gridSetMsg('通信エラー', 'ng'); });
     });
   }
@@ -12946,11 +12947,20 @@
       });
     }, Promise.resolve({ stopped: false, added: 0 }));
   }
-  function _gridHandleUpsertResp(res, changed, addedMsg, hadAdds){
+  // 応答から snapshots を寛容に拾う（キー名ゆらぎに対応）。無ければ null。
+  function _gridPickSnapshots(res){
+    if (!res) return null;
+    var s = res.snapshots || res.snapshot || res.rowsBefore || res.rows_before || res.before || res.previous;
+    return (Array.isArray(s) && s.length) ? s : null;
+  }
+  function _gridHandleUpsertResp(res, changed, addedMsg, hadAdds, clientSnaps){
     if (res && res.ok){
-      changed.forEach(function(m){ m.changed = {}; });
+      // ★UNDO：バックエンドの snapshots を優先し、無ければクライアント側の編集前 orig を採用。
+      //   これで応答に snapshots が無くても保存成功で UNDO が有効化される。
+      _grid.lastSnapshots = _gridPickSnapshots(res) || (clientSnaps && clientSnaps.length ? clientSnaps : null);
+      // 次回 UNDO のため orig を保存後の状態に更新（changed を消す前に）。
+      changed.forEach(function(m){ m.changed = {}; m.orig = _gridClone(m.data); });
       _gridClearChangedCells();
-      _grid.lastSnapshots = res.snapshots || null;
       var undo = document.getElementById('grid-undo-btn'); if (undo) undo.disabled = !_grid.lastSnapshots;
       _gridShowWarnings(res.warnings);
       var upd = (res.updated != null) ? res.updated : changed.length;
@@ -13024,18 +13034,22 @@
   function gridHplogSearch(){ _grid.hplog.page = 1; gridReload(true); }
   function gridHplogPrev(){ if (_grid.hplog.page > 1){ _grid.hplog.page--; gridReload(true); } }
   function gridHplogNext(){ if (_grid.hplog.page < _grid.hplog.totalPages){ _grid.hplog.page++; gridReload(true); } }
+  function _gridNum(v){ if (v == null || v === '') return null; var n = Number(v); return isFinite(n) ? n : null; }
+  function _gridPickNum(res, keys){ for (var i = 0; i < keys.length; i++){ var n = _gridNum(res[keys[i]]); if (n != null) return n; } return null; }
   function _gridRenderHplogPager(res){
-    // ★バックエンドは {total, page, perPage, pageCount} を返す。総ページ数は pageCount を読む
-    //   （旧コードは totalPages を見ており undefined → 常に1ページ扱いで「次へ」が無効化されていた）。
-    var page = (res.page != null) ? Number(res.page) : _grid.hplog.page;
-    var pageCount = (res.pageCount != null) ? Number(res.pageCount)
-                  : (res.totalPages != null ? Number(res.totalPages)
-                  : ((res.total != null && res.perPage) ? Math.max(1, Math.ceil(Number(res.total) / Number(res.perPage)))
-                  : (res.hasMore ? (page + 1) : page)));
+    // ★キー名ゆらぎ（camel/snake）に寛容に読む。pageCount が来なくても total/perPage から必ず算出する。
+    //   旧不具合：res.pageCount / res.perPage を camel 固定で読み、undefined → 1ページ扱いで「次へ」無効。
+    var page = _gridPickNum(res, ['page', 'currentPage', 'current_page', 'pageNo', 'page_no']);
+    if (page == null) page = _grid.hplog.page || 1;
+    var total = _gridPickNum(res, ['total', 'totalCount', 'total_count', 'count']);
+    var perPage = _gridPickNum(res, ['perPage', 'per_page', 'pageSize', 'page_size', 'limit']);
+    if (!(perPage >= 1)) perPage = (res.rows && res.rows.length) ? res.rows.length : 100; // 送信値と同じ 100 を既定
+    var pageCount = _gridPickNum(res, ['pageCount', 'page_count', 'totalPages', 'total_pages', 'pages', 'lastPage', 'last_page']);
+    if (pageCount == null) pageCount = (total != null) ? Math.max(1, Math.ceil(total / perPage))
+                          : ((res.rows && res.rows.length >= perPage) ? (page + 1) : page);
     if (!(page >= 1)) page = 1;
     if (!(pageCount >= 1)) pageCount = 1;
     _grid.hplog.page = page; _grid.hplog.totalPages = pageCount;
-    var total = (res.total != null) ? Number(res.total) : null;
     document.getElementById('grid-hp-pageinfo').textContent = 'ページ ' + page + ' / ' + pageCount + (total != null ? ('（全 ' + total + ' 件）') : '');
     document.getElementById('grid-hp-prev').disabled = (page <= 1);
     document.getElementById('grid-hp-next').disabled = (page >= pageCount);
@@ -13054,7 +13068,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-1505</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-1522</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
