@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-2045"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-2101"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -12888,27 +12888,39 @@
     return bad;
   }
 
-  // upsert/add 送信用：マスク列（masked=true）は「その行で reveal→編集済み」のみ値を残し、
-  // 未編集（マスク表示のまま Ua••••••b8 等）の列はキーごと削除する（サーバの更新対象から外す）。
-  // ※未編集のマスク文字列を送るとサーバの 'U'+32hex 形式検証で弾かれ全体ロールバックになるため。
-  function _gridStripUneditedMasked(row, model){
-    _grid.columns.forEach(function(col){
-      if (!_gcMasked(col)) return;
-      var key = _gcKey(col);
-      if (model && model.changed && model.changed[key]) return; // 編集済みの正規値（'U'+32hex）は従来どおり送る
-      if (Array.isArray(row)) { var ci = _gridColIndexByKey(key); if (ci >= 0) row[ci] = null; }
-      else { delete row[key]; }
-    });
-    return row;
+  // マスク列判定：メタ masked=true「または」列キーが line_user_id* にマッチ。
+  //   ★旧不具合：strip を _gcMasked(col) だけで判定していたため、実バックエンドの列メタが
+  //     masked を立てていない（=_gcMasked=false）と早期 return で mask 値が payload に残った。
+  function _gridIsMaskedCol(col){ return _gcMasked(col) || /line_user_id/i.test(_gcKey(col)); }
+  // マスク表示値（Ua••••••b8 等）判定：ビュレット/中点/アスタリスク等のマスク文字を含む文字列。
+  //   実データ（氏名・コード・数値）はこれらを含まないため、値ベースで確実にマスク値だけ落とせる。
+  function _gridLooksMasked(v){ return (typeof v === 'string') && /[•‧∙●○·・･…⋯＊*]/.test(v); }
+  function _gridDeleteRowKey(row, key){
+    if (Array.isArray(row)) { var ci = _gridColIndexByKey(key); if (ci >= 0) delete row[ci]; }
+    else { delete row[key]; }
   }
-  // UNDO スナップショット用：マスク列は復元できる実値を持たない（orig はマスク文字列）ため全削除。
-  function _gridStripAllMasked(row){
+  // ★送信直前の最終ガード（組み立て経路が複数でも「送信直前で1回」効かせて取りこぼしを無くす）：
+  //   (1) マスク列は「その行で reveal→編集され正規の 'U'+32hex になった」時のみ残す。それ以外は削除。
+  //   (2) さらに“マスク表示値を含む any 列”を無条件で削除（メタ欠落・キーずれ・changed 取りこぼしの保険）。
+  //   通常列（nickname 等）・id はそのまま送る（id は更新対象特定用）。
+  function _gridSanitizeSendRow(row, model){
+    if (!row || typeof row !== 'object') return row;
+    var validRe = /^U[0-9a-f]{32}$/i;
+    // (1) メタ/列名でマスク列を処理
     _grid.columns.forEach(function(col){
-      if (!_gcMasked(col)) return;
+      if (!_gridIsMaskedCol(col)) return;
       var key = _gcKey(col);
-      if (Array.isArray(row)) { var ci = _gridColIndexByKey(key); if (ci >= 0) row[ci] = null; }
-      else { delete row[key]; }
+      var edited = model && model.changed && model.changed[key];
+      var v = Array.isArray(row) ? row[_gridColIndexByKey(key)] : row[key];
+      if (edited && typeof v === 'string' && validRe.test(v)) return; // 正規の編集値のみ残す
+      _gridDeleteRowKey(row, key);
     });
+    // (2) 値ベースの catch-all：マスク表示値（•/●/·/* 等を含む）を持つ列は必ず落とす
+    if (Array.isArray(row)) {
+      for (var i = 0; i < row.length; i++){ if (_gridLooksMasked(row[i])) delete row[i]; }
+    } else {
+      Object.keys(row).forEach(function(k){ if (_gridLooksMasked(row[k])) delete row[k]; });
+    }
     return row;
   }
 
@@ -12926,10 +12938,10 @@
       if (addRes.stopped){ _gridSetMsg('行追加を中断しました（' + addRes.reason + '）', 'ng'); return; }
       var addedMsg = addRes.added ? ('追加 ' + addRes.added + ' 行 / ') : '';
       if (!changed.length){ _gridSetMsg(addedMsg + '完了', addRes.added ? 'ok' : ''); if (addRes.added) gridReload(true); return; }
-      // 未編集のマスク列（line_user_id_*）はキーごと除外して送る（サーバ形式検証での誤ロールバック防止）。
-      var payload = changed.map(function(m){ return _gridStripUneditedMasked(_gridClone(m.data), m); });
-      // クライアント側スナップショット（編集前 orig）。マスク列は実値を持たないため全除外。UNDO 保険。
-      var clientSnaps = changed.map(function(m){ return _gridStripAllMasked(_gridClone(m.orig || m.data)); });
+      // ★送信直前の最終ガードで未編集マスク列/マスク値を確実に除外（サーバ形式検証での誤ロールバック防止）。
+      var payload = changed.map(function(m){ return _gridSanitizeSendRow(_gridClone(m.data), m); });
+      // クライアント側スナップショット（編集前 orig）。マスク列は実値を持たないため全除外（model=null）。UNDO 保険。
+      var clientSnaps = changed.map(function(m){ return _gridSanitizeSendRow(_gridClone(m.orig || m.data), null); });
       _grid.lastSubmitted = { models: changed };
       adminGasPost({ action: cfg.upsertAction, rows: payload }).then(function(res){ _gridHandleUpsertResp(res, changed, addedMsg, addRes.added > 0, clientSnaps); })
         .catch(function(){ _gridSetMsg('通信エラー', 'ng'); });
@@ -12955,7 +12967,7 @@
           if (!name){ var riN = _grid.rows.indexOf(m); return { stopped: true, reason: (riN + 1) + '行目 講師の氏名が未入力', added: added }; }
           p = adminGasPost({ action: 'adminAddTeacher', teacherName: name, role: role, displayNickname: nick });
         } else {
-          p = adminGasPost({ action: cfg.addAction, row: _gridStripUneditedMasked(_gridClone(m.data), m) });
+          p = adminGasPost({ action: cfg.addAction, row: _gridSanitizeSendRow(_gridClone(m.data), m) });
         }
         return p.then(function(res){
           if (res && res.ok){ m.isNew = false; m.changed = {}; added++; return { stopped: false, added: added }; }
@@ -13033,7 +13045,9 @@
     if (!_grid.lastSnapshots || !_grid.lastSnapshots.length){ _gridSetMsg('元に戻せる保存がありません', ''); return; }
     if (!confirm('直前の保存内容を元に戻します（サーバーへ再送信）。よろしいですか？')) return;
     _gridSetMsg('元に戻し中…', '');
-    adminGasPost({ action: cfg.upsertAction, rows: _grid.lastSnapshots }).then(function(res){
+    // 最終ガード：スナップショットにもマスク値が混ざらないよう送信直前に除去。
+    var undoRows = _grid.lastSnapshots.map(function(r){ return _gridSanitizeSendRow(_gridClone(r), null); });
+    adminGasPost({ action: cfg.upsertAction, rows: undoRows }).then(function(res){
       if (res && res.ok){ _grid.lastSnapshots = null; var b = document.getElementById('grid-undo-btn'); if (b) b.disabled = true; _gridSetMsg('元に戻しました', 'ok'); gridReload(true); return; }
       var em = (res && res.message) || '元に戻せませんでした';
       if (res && res.errors) em = '元に戻す際にエラー（ロールバック済み）';
@@ -13093,7 +13107,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-2045</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-2101</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
