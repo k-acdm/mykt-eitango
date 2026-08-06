@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-1522"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-2045"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -12888,6 +12888,30 @@
     return bad;
   }
 
+  // upsert/add 送信用：マスク列（masked=true）は「その行で reveal→編集済み」のみ値を残し、
+  // 未編集（マスク表示のまま Ua••••••b8 等）の列はキーごと削除する（サーバの更新対象から外す）。
+  // ※未編集のマスク文字列を送るとサーバの 'U'+32hex 形式検証で弾かれ全体ロールバックになるため。
+  function _gridStripUneditedMasked(row, model){
+    _grid.columns.forEach(function(col){
+      if (!_gcMasked(col)) return;
+      var key = _gcKey(col);
+      if (model && model.changed && model.changed[key]) return; // 編集済みの正規値（'U'+32hex）は従来どおり送る
+      if (Array.isArray(row)) { var ci = _gridColIndexByKey(key); if (ci >= 0) row[ci] = null; }
+      else { delete row[key]; }
+    });
+    return row;
+  }
+  // UNDO スナップショット用：マスク列は復元できる実値を持たない（orig はマスク文字列）ため全削除。
+  function _gridStripAllMasked(row){
+    _grid.columns.forEach(function(col){
+      if (!_gcMasked(col)) return;
+      var key = _gcKey(col);
+      if (Array.isArray(row)) { var ci = _gridColIndexByKey(key); if (ci >= 0) row[ci] = null; }
+      else { delete row[key]; }
+    });
+    return row;
+  }
+
   // ---- 保存（行追加＝Add / 既存変更＝Upsert） ----
   function gridSave(){
     var cfg = _grid.cfg; if (!cfg || !cfg.editable) return;
@@ -12902,9 +12926,10 @@
       if (addRes.stopped){ _gridSetMsg('行追加を中断しました（' + addRes.reason + '）', 'ng'); return; }
       var addedMsg = addRes.added ? ('追加 ' + addRes.added + ' 行 / ') : '';
       if (!changed.length){ _gridSetMsg(addedMsg + '完了', addRes.added ? 'ok' : ''); if (addRes.added) gridReload(true); return; }
-      var payload = changed.map(function(m){ return _gridClone(m.data); });
-      // クライアント側スナップショット（編集前 orig）。バックエンドが snapshots を返さない場合の UNDO 保険。
-      var clientSnaps = changed.map(function(m){ return _gridClone(m.orig || m.data); });
+      // 未編集のマスク列（line_user_id_*）はキーごと除外して送る（サーバ形式検証での誤ロールバック防止）。
+      var payload = changed.map(function(m){ return _gridStripUneditedMasked(_gridClone(m.data), m); });
+      // クライアント側スナップショット（編集前 orig）。マスク列は実値を持たないため全除外。UNDO 保険。
+      var clientSnaps = changed.map(function(m){ return _gridStripAllMasked(_gridClone(m.orig || m.data)); });
       _grid.lastSubmitted = { models: changed };
       adminGasPost({ action: cfg.upsertAction, rows: payload }).then(function(res){ _gridHandleUpsertResp(res, changed, addedMsg, addRes.added > 0, clientSnaps); })
         .catch(function(){ _gridSetMsg('通信エラー', 'ng'); });
@@ -12930,7 +12955,7 @@
           if (!name){ var riN = _grid.rows.indexOf(m); return { stopped: true, reason: (riN + 1) + '行目 講師の氏名が未入力', added: added }; }
           p = adminGasPost({ action: 'adminAddTeacher', teacherName: name, role: role, displayNickname: nick });
         } else {
-          p = adminGasPost({ action: cfg.addAction, row: _gridClone(m.data) });
+          p = adminGasPost({ action: cfg.addAction, row: _gridStripUneditedMasked(_gridClone(m.data), m) });
         }
         return p.then(function(res){
           if (res && res.ok){ m.isNew = false; m.changed = {}; added++; return { stopped: false, added: added }; }
@@ -13068,7 +13093,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-1522</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-2045</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
