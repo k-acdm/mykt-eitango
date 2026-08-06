@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-0121"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-1505"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -853,6 +853,11 @@
   table.grid-table thead th.grid-th-ro { color:#9ca3af; }
   table.grid-table thead th.grid-th-mask::after { content:' 🔒'; }
   .grid-rownum { position:sticky; left:0; z-index:2; background:#f3f4f6; color:#9ca3af; text-align:center; padding:6px 10px; font-size:11px; user-select:none; min-width:36px; }
+  /* 識別列の左固定（横スクロール時も左に留める）。left 値は描画後に JS が実測して付与。
+     背景はセル種別クラス（grid-edit/grid-ro/grid-masked=不透明）に委ねる。 */
+  table.grid-table td.grid-td.grid-pin { position:sticky; z-index:2; }
+  table.grid-table thead th.grid-pin { position:sticky; z-index:5; }
+  table.grid-table .grid-pin-edge { border-right:2px solid #94a3b8; }
   table.grid-table thead th.grid-rownum { z-index:4; }
   .grid-td { padding:6px 10px; min-width:70px; max-width:360px; overflow:hidden; text-overflow:ellipsis; outline:none; vertical-align:middle; }
   .grid-td.grid-edit { background:#fff; cursor:text; }
@@ -12488,9 +12493,9 @@
   //   'U'+32hex 形式でなければサーバ側が無視する契約なので、マスク表示のまま送っても安全。
   // =============================================================
   var GRID_TABS = {
-    students: { key:'students', label:'Students',        readAction:'adminGridReadStudents',        upsertAction:'adminGridUpsertStudents',        addAction:'adminGridAddStudent',        editable:true },
-    special:  { key:'special',  label:'SpecialAccounts', readAction:'adminGridReadSpecialAccounts', upsertAction:'adminGridUpsertSpecialAccounts', addAction:'adminGridAddSpecialAccount', editable:true },
-    teachers: { key:'teachers', label:'Teachers',        readAction:'adminGridReadTeachers',        upsertAction:'adminGridUpsertTeachers',        addAction:'adminAddTeacher', teacherAdd:true, editable:true },
+    students: { key:'students', label:'Students',        readAction:'adminGridReadStudents',        upsertAction:'adminGridUpsertStudents',        addAction:'adminGridAddStudent',        editable:true, pinnedKeys:['student_code','name'] },
+    special:  { key:'special',  label:'SpecialAccounts', readAction:'adminGridReadSpecialAccounts', upsertAction:'adminGridUpsertSpecialAccounts', addAction:'adminGridAddSpecialAccount', editable:true, pinnedKeys:['student_code','name'] },
+    teachers: { key:'teachers', label:'Teachers',        readAction:'adminGridReadTeachers',        upsertAction:'adminGridUpsertTeachers',        addAction:'adminAddTeacher', teacherAdd:true, editable:true, pinnedKeys:['teacher_code','name'] },
     hplog:    { key:'hplog',    label:'HPLog',           readAction:'adminGridReadHpLog',           editable:false }
   };
   var _grid = {
@@ -12632,6 +12637,47 @@
     table.appendChild(tbody);
     wrap.innerHTML = ''; wrap.appendChild(table);
     _gridAttachTableEvents(table, wrap);
+    _gridApplyStickyColumns(table);
+  }
+  // 識別列（cfg.pinnedKeys）を左固定にする。列幅は実測して各セルに left(px) を付与。
+  // 編集/選択/貼り付け/reveal は position:sticky では一切壊れない（イベントは通常どおり）。
+  function _gridPinnedIndexes(){
+    var cfg = _grid.cfg; var keys = (cfg && cfg.pinnedKeys) || []; var res = [];
+    keys.forEach(function(spec){
+      var i = _gridColIndexByKey(spec);
+      if (i < 0){ // フォールバック：code/name を含む列名で拾う
+        var re = /code/i.test(spec) ? /code/i : (/name/i.test(spec) ? /name/i : null);
+        if (re){ for (var j = 0; j < _grid.columns.length; j++){ if (re.test(_gcKey(_grid.columns[j]))){ i = j; break; } } }
+      }
+      if (i >= 0 && res.indexOf(i) < 0) res.push(i);
+    });
+    res.sort(function(a, b){ return a - b; }); // 物理列順に left を積む
+    return res;
+  }
+  function _gridPinCell(cell, left, isEdge){
+    if (!cell) return;
+    cell.classList.add('grid-pin');
+    if (isEdge) cell.classList.add('grid-pin-edge');
+    cell.style.left = left + 'px';
+  }
+  function _gridApplyStickyColumns(table){
+    var pinIdx = _gridPinnedIndexes();
+    if (!pinIdx.length || !table.tHead || !table.tHead.rows[0] || !table.tBodies[0]) return;
+    var headRow = table.tHead.rows[0];
+    var rownumTh = headRow.cells[0];
+    var offset = rownumTh ? rownumTh.getBoundingClientRect().width : 0; // 行番号列の幅
+    pinIdx.forEach(function(ci, order){
+      var isEdge = (order === pinIdx.length - 1);
+      var th = headRow.cells[ci + 1]; // +1：先頭は行番号列
+      var w = th ? th.getBoundingClientRect().width : 0;
+      _gridPinCell(th, offset, isEdge);
+      var bodyRows = table.tBodies[0].rows;
+      for (var r = 0; r < bodyRows.length; r++){
+        var cell = bodyRows[r].cells[ci + 1];
+        if (cell && cell.classList.contains('grid-td')) _gridPinCell(cell, offset, isEdge);
+      }
+      offset += w;
+    });
   }
   function _gridBuildRow(m, rIdx){
     var tr = document.createElement('tr'); tr.dataset.r = rIdx;
@@ -12979,12 +13025,20 @@
   function gridHplogPrev(){ if (_grid.hplog.page > 1){ _grid.hplog.page--; gridReload(true); } }
   function gridHplogNext(){ if (_grid.hplog.page < _grid.hplog.totalPages){ _grid.hplog.page++; gridReload(true); } }
   function _gridRenderHplogPager(res){
-    var page = (res.page != null) ? res.page : _grid.hplog.page;
-    var total = (res.totalPages != null) ? res.totalPages : (res.hasMore ? (page + 1) : page);
-    _grid.hplog.page = page; _grid.hplog.totalPages = total;
-    document.getElementById('grid-hp-pageinfo').textContent = 'ページ ' + page + ' / ' + total + (res.total != null ? ('（全 ' + res.total + ' 件）') : '');
+    // ★バックエンドは {total, page, perPage, pageCount} を返す。総ページ数は pageCount を読む
+    //   （旧コードは totalPages を見ており undefined → 常に1ページ扱いで「次へ」が無効化されていた）。
+    var page = (res.page != null) ? Number(res.page) : _grid.hplog.page;
+    var pageCount = (res.pageCount != null) ? Number(res.pageCount)
+                  : (res.totalPages != null ? Number(res.totalPages)
+                  : ((res.total != null && res.perPage) ? Math.max(1, Math.ceil(Number(res.total) / Number(res.perPage)))
+                  : (res.hasMore ? (page + 1) : page)));
+    if (!(page >= 1)) page = 1;
+    if (!(pageCount >= 1)) pageCount = 1;
+    _grid.hplog.page = page; _grid.hplog.totalPages = pageCount;
+    var total = (res.total != null) ? Number(res.total) : null;
+    document.getElementById('grid-hp-pageinfo').textContent = 'ページ ' + page + ' / ' + pageCount + (total != null ? ('（全 ' + total + ' 件）') : '');
     document.getElementById('grid-hp-prev').disabled = (page <= 1);
-    document.getElementById('grid-hp-next').disabled = (page >= total);
+    document.getElementById('grid-hp-next').disabled = (page >= pageCount);
   }
 
   // セッション継続（タブ閉じで失効）。teacherId と password が両方揃っている時のみ自動再開。
@@ -13000,7 +13054,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-0121</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-1505</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
