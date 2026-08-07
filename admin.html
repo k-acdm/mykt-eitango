@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260807-1418"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260807-1437"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -75,8 +75,8 @@
   }
 
   /* メイン系画面のヘッダー（ダッシュボード以外） */
-  #screen-admin-dashboard header, #screen-admin-learning-hub header, #screen-admin-achievement-hub header, #screen-admin-eitango-ach-students header, #screen-admin-eitango-ach-detail header, #screen-admin-kobun-ach-students header, #screen-admin-kobun-ach-detail header, #screen-admin-kiso-ach-students header, #screen-admin-kiso-ach-detail header, #screen-admin-kanji-ach-students header, #screen-admin-kanji-ach-detail header, #screen-admin-lison-ach-students header, #screen-admin-lison-ach-detail header, #screen-admin-answer-check-hub header, #screen-admin-input-hub header, #screen-admin-content-input-hub header, #screen-admin-other-input-hub header, #screen-admin-student-care-hub header, #screen-admin-exchange-hub header, #screen-admin-system-hub header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-streak-modify header, #screen-admin-streak-modify-confirm header, #screen-admin-streak-modify-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header, #screen-admin-teachers header, #screen-admin-teacher-edit header, #screen-admin-teacher-add header, #screen-admin-action-log header, #screen-admin-hp-attempts header, #screen-admin-unsent-reports header, #screen-admin-line-notify header, #screen-admin-required-missions header, #screen-admin-reflections-students header, #screen-admin-reflections-list header, #screen-admin-reflections-select header, #screen-admin-reflections-calendar header, #screen-admin-reflections-day header, #screen-admin-form-quote header, #screen-admin-form-notice header, #screen-admin-form-sango-topic header, #screen-admin-form-sango-submissions header, #screen-admin-form-wabun1-topic header, #screen-admin-form-wabun1-submissions header, #screen-admin-kokugo-input header, #screen-admin-kokugo-history-select header, #screen-admin-kokugo-history-students header, #screen-admin-kokugo-history-list header, #screen-admin-kokugo-history-calendar header, #screen-admin-kokugo-history-day header, #screen-admin-risha-input header, #screen-admin-risha-history-select header, #screen-admin-risha-history-students header, #screen-admin-risha-history-list header, #screen-admin-risha-history-calendar header, #screen-admin-risha-history-day header, #screen-admin-surveys header, #screen-admin-survey-results header, #screen-admin-avatar-items header, #screen-admin-amazon-gift header, #screen-admin-mytask-announce header, #screen-admin-mytask-students header, #screen-admin-oriwantes-students header, #screen-admin-oriwantes-detail header, #screen-admin-mytask-photos header, #screen-admin-grid header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-  #screen-admin-dashboard header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-kokugo-input header h1, #screen-admin-kokugo-history-select header h1, #screen-admin-kokugo-history-students header h1, #screen-admin-kokugo-history-list header h1, #screen-admin-kokugo-history-calendar header h1, #screen-admin-kokugo-history-day header h1, #screen-admin-risha-input header h1, #screen-admin-risha-history-select header h1, #screen-admin-risha-history-students header h1, #screen-admin-risha-history-list header h1, #screen-admin-risha-history-calendar header h1, #screen-admin-risha-history-day header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-mytask-photos header h1, #screen-admin-grid header h1 { font-size: 18px; font-weight: 600; }
+  #screen-admin-dashboard header, #screen-admin-learning-hub header, #screen-admin-achievement-hub header, #screen-admin-eitango-ach-students header, #screen-admin-eitango-ach-detail header, #screen-admin-kobun-ach-students header, #screen-admin-kobun-ach-detail header, #screen-admin-kiso-ach-students header, #screen-admin-kiso-ach-detail header, #screen-admin-kanji-ach-students header, #screen-admin-kanji-ach-detail header, #screen-admin-lison-ach-students header, #screen-admin-lison-ach-detail header, #screen-admin-answer-check-hub header, #screen-admin-input-hub header, #screen-admin-content-input-hub header, #screen-admin-other-input-hub header, #screen-admin-question-edit header, #screen-admin-student-care-hub header, #screen-admin-exchange-hub header, #screen-admin-system-hub header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-streak-modify header, #screen-admin-streak-modify-confirm header, #screen-admin-streak-modify-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header, #screen-admin-teachers header, #screen-admin-teacher-edit header, #screen-admin-teacher-add header, #screen-admin-action-log header, #screen-admin-hp-attempts header, #screen-admin-unsent-reports header, #screen-admin-line-notify header, #screen-admin-required-missions header, #screen-admin-reflections-students header, #screen-admin-reflections-list header, #screen-admin-reflections-select header, #screen-admin-reflections-calendar header, #screen-admin-reflections-day header, #screen-admin-form-quote header, #screen-admin-form-notice header, #screen-admin-form-sango-topic header, #screen-admin-form-sango-submissions header, #screen-admin-form-wabun1-topic header, #screen-admin-form-wabun1-submissions header, #screen-admin-kokugo-input header, #screen-admin-kokugo-history-select header, #screen-admin-kokugo-history-students header, #screen-admin-kokugo-history-list header, #screen-admin-kokugo-history-calendar header, #screen-admin-kokugo-history-day header, #screen-admin-risha-input header, #screen-admin-risha-history-select header, #screen-admin-risha-history-students header, #screen-admin-risha-history-list header, #screen-admin-risha-history-calendar header, #screen-admin-risha-history-day header, #screen-admin-surveys header, #screen-admin-survey-results header, #screen-admin-avatar-items header, #screen-admin-amazon-gift header, #screen-admin-mytask-announce header, #screen-admin-mytask-students header, #screen-admin-oriwantes-students header, #screen-admin-oriwantes-detail header, #screen-admin-mytask-photos header, #screen-admin-grid header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  #screen-admin-dashboard header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-question-edit header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-kokugo-input header h1, #screen-admin-kokugo-history-select header h1, #screen-admin-kokugo-history-students header h1, #screen-admin-kokugo-history-list header h1, #screen-admin-kokugo-history-calendar header h1, #screen-admin-kokugo-history-day header h1, #screen-admin-risha-input header h1, #screen-admin-risha-history-select header h1, #screen-admin-risha-history-students header h1, #screen-admin-risha-history-list header h1, #screen-admin-risha-history-calendar header h1, #screen-admin-risha-history-day header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-mytask-photos header h1, #screen-admin-grid header h1 { font-size: 18px; font-weight: 600; }
   .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
   .logout-btn:hover { background: rgba(255,255,255,.3); }
 
@@ -592,7 +592,7 @@
   .tm-result-summary strong { color: #16a34a; }
 
   @media (max-width: 480px) {
-    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-mytask-photos header h1, #screen-admin-grid header h1 { font-size: 15px; }
+    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-question-edit header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-mytask-photos header h1, #screen-admin-grid header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
     .admin-page { padding: 16px 12px 80px; }
     .form-card { padding: 18px; }
@@ -1309,6 +1309,11 @@
       <div class="dashboard-card-title">他の項目</div>
       <div class="dashboard-card-desc">塾からの連絡 / 今日の一言 / 先生からのメッセージ / アンケート</div>
     </button>
+    <button type="button" id="dash-card-question-edit" class="dashboard-card admin-only" onclick="goAdminQuestionEdit()">
+      <div class="dashboard-card-icon">🔧</div>
+      <div class="dashboard-card-title">既存問題の修正</div>
+      <div class="dashboard-card-desc">登録済み問題を横断検索し、中身（問題文・選択肢・解説など）だけを修正（追加・削除はしない）</div>
+    </button>
   </div>
 </div>
 
@@ -1394,6 +1399,93 @@
     </button>
   </div>
 </div>
+
+<!-- 問題等の入力：🔧 既存問題の修正（検索→一覧→中身修正）2026-08-07 -->
+<div id="screen-admin-question-edit" class="screen">
+  <header>
+    <h1>🔧 既存問題の修正</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminInputHub()">← 問題等の入力に戻る</button>
+
+    <!-- 検索＋一覧パネル -->
+    <div id="qedit-search-panel">
+      <div class="form-card">
+        <h2>既存問題を検索</h2>
+        <div class="hp-grant-bonus-note" style="margin-bottom:14px">
+          🔧 登録済み問題の<strong>中身（問題文・選択肢・解説など）だけ</strong>を修正できます。<br>
+          新規追加・削除はできません（採番・ID・キーは変更対象外のため表示されません）。
+        </div>
+        <label>
+          <span class="form-label">キーワード</span>
+          <input type="text" id="qedit-keyword" placeholder="問題文・単語・解説などに含まれる語で検索" />
+        </label>
+        <label>
+          <span class="form-label">コンテンツで絞り込み</span>
+          <select id="qedit-content"></select>
+        </label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <label style="flex:1;min-width:140px">
+            <span class="form-label">レベル（任意）</span>
+            <input type="text" id="qedit-level" placeholder="例：5 / 中1 など" />
+          </label>
+          <label style="flex:1;min-width:140px">
+            <span class="form-label">教科（任意）</span>
+            <input type="text" id="qedit-subject" placeholder="例：理科 / 社会 など" />
+          </label>
+        </div>
+        <button class="submit-btn" onclick="qeditSearch(1)">🔍 検索する</button>
+      </div>
+
+      <div class="form-card" style="margin-top:18px">
+        <h2>検索結果</h2>
+        <div id="qedit-results-summary" style="font-size:13px;color:#636e72;margin-bottom:10px">キーワードやコンテンツを指定して「検索する」を押してください。</div>
+        <div id="qedit-results-wrap"></div>
+        <div id="qedit-pager" style="margin-top:12px;display:none;align-items:center;gap:10px;justify-content:center">
+          <button type="button" class="btn-mini" id="qedit-prev" onclick="qeditPage(-1)">← 前へ</button>
+          <span id="qedit-page-label" style="font-size:13px;color:#636e72"></span>
+          <button type="button" class="btn-mini" id="qedit-next" onclick="qeditPage(1)">次へ →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 中身修正パネル -->
+    <div id="qedit-form-panel" style="display:none">
+      <button class="submit-btn" style="margin-bottom:14px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="qeditBackToList()">← 検索結果に戻る</button>
+      <div class="form-card">
+        <h2 id="qedit-form-title">問題の中身を修正</h2>
+        <div class="hp-grant-bonus-note" style="margin-bottom:14px">
+          ✏️ 表示されている項目が<strong>編集可能な中身</strong>です。採番・ID・キー・ラベルなどの内部項目は表示されません（変更対象外）。
+        </div>
+        <div id="qedit-form-body"></div>
+      </div>
+      <button class="submit-btn" id="qedit-save-btn" style="margin-top:18px;background:linear-gradient(135deg,#22c55e,#16a34a)" onclick="qeditSave()">💾 保存する</button>
+      <div id="qedit-save-msg" style="margin-top:10px;font-size:14px"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* 既存問題の修正（2026-08-07） */
+  #screen-admin-question-edit .form-card select { width:100%; padding:10px 12px; font-size:15px; border:2px solid #e1e5ee; border-radius:8px; outline:none; font-family:inherit; background:#fff; }
+  #screen-admin-question-edit .qedit-excerpt { white-space:normal; max-width:320px; color:#555; font-size:12px; }
+  #screen-admin-question-edit .hp-grant-table td, #screen-admin-question-edit .hp-grant-table th { white-space:normal; }
+  .qedit-section { margin-top:18px; padding-top:16px; border-top:2px solid #eef1f7; }
+  .qedit-section:first-child { margin-top:0; padding-top:0; border-top:none; }
+  .qedit-section-title { font-size:14px; font-weight:700; color:#4f7df0; margin-bottom:12px; }
+  .qedit-child-row { background:#f9fafe; border:1px solid #eef1f7; border-radius:8px; padding:12px 12px 2px; margin-bottom:10px; }
+  .qedit-child-row-head { font-size:12px; color:#8a94a6; font-weight:700; margin-bottom:10px; }
+  .qedit-field { margin-bottom:14px; }
+  .qedit-field-label { display:block; font-size:13px; font-weight:600; color:#555; margin-bottom:4px; }
+  #qedit-form-body input, #qedit-form-body textarea, #qedit-form-body select { width:100%; padding:10px 12px; font-size:15px; border:2px solid #e1e5ee; border-radius:8px; outline:none; font-family:inherit; background:#fff; box-sizing:border-box; }
+  #qedit-form-body input:focus, #qedit-form-body textarea:focus, #qedit-form-body select:focus { border-color:#4f7df0; }
+  #qedit-form-body textarea { min-height:90px; resize:vertical; line-height:1.6; }
+  .qedit-readonly { color:#9ca3af; font-size:13px; padding:8px 10px; background:#f4f6fb; border-radius:6px; word-break:break-all; white-space:pre-wrap; }
+</style>
 
 <!-- 大分類ハブ：🎯 生徒対応（直カード4枚） -->
 <div id="screen-admin-student-care-hub" class="screen">
@@ -9048,6 +9140,402 @@
   }
 
   // =============================================================
+  // 既存問題の修正（検索 → 一覧 → 中身修正）2026-08-07
+  // =============================================================
+  // 設計：
+  //   - バックエンド(ac295b6) の adminQuestionSearch / adminQuestionRead /
+  //     adminQuestionUpdate に乗せる。スコープは「中身列の修正」のみ（追加/削除なし）。
+  //   - Read が返す columns/row/children だけを描画。採番・ID・キー・label 等の
+  //     内部列はサーバが返さないので、フロントでも一切表示・送信しない。
+  //   - 現在値は状態オブジェクト(_qeditVals)で保持し、保存時に初期値(_qeditInit)と
+  //     diff を取って「変更列だけ」送る（children は変更のあった親のみ全行を index 順で）。
+  var QEDIT_CONTENTS = [
+    { key: '',           label: 'すべて' },
+    { key: 'eitango',    label: '英単語RUSH' },
+    { key: 'wabun1',     label: '和文英訳①' },
+    { key: 'sango',      label: '三語短文' },
+    { key: 'kanji_yomi', label: 'カンジー（読み）' },
+    { key: 'kanji_kaki', label: 'カンジー（書き）' },
+    { key: 'kiso',       label: '基礎計算' },
+    { key: 'kobun',      label: '古文単語（コブタン）' },
+    { key: 'risha',      label: '理科・社会 重要語句' },
+    { key: 'kokugo',     label: '国語長文' },
+    { key: 'phonics',    label: 'フォニックス' },
+    { key: 'lison',      label: '英語リスオン' }
+  ];
+  var QEDIT_LIMIT = 20;
+  var _qeditSearch = { keyword: '', contentKey: '', level: '', subject: '', page: 1, limit: QEDIT_LIMIT, total: 0, rows: [] };
+  var _qeditRead = null;   // adminQuestionRead の戻り値
+  var _qeditVals = null;   // 現在値 { row:{col:val}, children:{name:[{col:val},...]} }
+  var _qeditInit = null;   // 初期値スナップショット（変更検出用、_qeditVals と同型）
+
+  function _qeditContentLabel(key) {
+    for (var i = 0; i < QEDIT_CONTENTS.length; i++) {
+      if (QEDIT_CONTENTS[i].key === key) return QEDIT_CONTENTS[i].label;
+    }
+    return key || '(不明)';
+  }
+
+  // 属性内 JS 文字列に安全に埋め込む（\ と ' をエスケープ）
+  function _qeditJsStr(s) {
+    return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  }
+
+  function goAdminQuestionEdit() {
+    _showScreen('screen-admin-question-edit');
+    window.scrollTo(0, 0);
+    // コンテンツ絞り込みドロップダウンを構築（初回のみ）
+    var sel = document.getElementById('qedit-content');
+    if (sel && (!sel.options || !sel.options.length)) {
+      var opt = '';
+      for (var i = 0; i < QEDIT_CONTENTS.length; i++) {
+        opt += '<option value="' + _esc(QEDIT_CONTENTS[i].key) + '">' + _esc(QEDIT_CONTENTS[i].label) + '</option>';
+      }
+      sel.innerHTML = opt;
+    }
+    _qeditShowSearchPanel();
+  }
+
+  function _qeditShowSearchPanel() {
+    var sp = document.getElementById('qedit-search-panel');
+    var fp = document.getElementById('qedit-form-panel');
+    if (sp) sp.style.display = 'block';
+    if (fp) fp.style.display = 'none';
+  }
+  function qeditBackToList() {
+    _qeditShowSearchPanel();
+    window.scrollTo(0, 0);
+  }
+
+  function qeditSearch(page) {
+    var kw   = (document.getElementById('qedit-keyword') || {}).value || '';
+    var ck   = (document.getElementById('qedit-content') || {}).value || '';
+    var lv   = (document.getElementById('qedit-level')   || {}).value || '';
+    var subj = (document.getElementById('qedit-subject') || {}).value || '';
+    _qeditSearch.keyword    = String(kw).trim();
+    _qeditSearch.contentKey = String(ck).trim();
+    _qeditSearch.level      = String(lv).trim();
+    _qeditSearch.subject    = String(subj).trim();
+    _qeditSearch.page       = page || 1;
+
+    var summary = document.getElementById('qedit-results-summary');
+    var wrap    = document.getElementById('qedit-results-wrap');
+    var pager   = document.getElementById('qedit-pager');
+    if (summary) summary.textContent = '⏳ 検索中...';
+    if (wrap)    wrap.innerHTML = '';
+    if (pager)   pager.style.display = 'none';
+
+    var params = {
+      action: 'adminQuestionSearch',
+      page:   _qeditSearch.page,
+      limit:  _qeditSearch.limit,
+      _ts:    Date.now()
+    };
+    if (_qeditSearch.keyword)    params.keyword    = _qeditSearch.keyword;
+    if (_qeditSearch.contentKey) params.contentKey = _qeditSearch.contentKey;
+    if (_qeditSearch.level)      params.level      = _qeditSearch.level;
+    if (_qeditSearch.subject)    params.subject    = _qeditSearch.subject;
+
+    adminGasGet(params).then(function (res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '検索に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        if (summary) summary.textContent = '';
+        if (wrap) wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      _qeditSearch.total = Number(res.total || 0);
+      _qeditSearch.page  = Number(res.page || _qeditSearch.page);
+      _qeditSearch.limit = Number(res.limit || _qeditSearch.limit);
+      _qeditSearch.rows  = res.rows || [];
+      _renderQeditResults();
+    }).catch(function () {
+      if (summary) summary.textContent = '';
+      if (wrap) wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  function qeditPage(delta) {
+    var next = _qeditSearch.page + delta;
+    if (next < 1) next = 1;
+    qeditSearch(next);
+  }
+
+  function _renderQeditResults() {
+    var summary = document.getElementById('qedit-results-summary');
+    var wrap    = document.getElementById('qedit-results-wrap');
+    var pager   = document.getElementById('qedit-pager');
+    var rows = _qeditSearch.rows || [];
+    if (summary) summary.textContent = '全 ' + _qeditSearch.total + ' 件';
+
+    if (rows.length === 0) {
+      if (wrap) wrap.innerHTML = '<div class="students-empty">該当する問題が見つかりませんでした</div>';
+      if (pager) pager.style.display = 'none';
+      return;
+    }
+
+    var trs = rows.map(function (r, i) {
+      var lv = (r.level != null && r.level !== '') ? _esc(r.level) : '—';
+      var sj = (r.subject != null && r.subject !== '') ? _esc(r.subject) : '—';
+      return '<tr>' +
+        '<td>' + _esc(_qeditContentLabel(r.contentKey)) + '</td>' +
+        '<td>' + _esc(r.label || '—') + '</td>' +
+        '<td class="qedit-excerpt">' + _esc(r.excerpt || '') + '</td>' +
+        '<td>' + lv + '</td>' +
+        '<td>' + sj + '</td>' +
+        '<td><button type="button" class="btn-mini" onclick="qeditOpen(' + i + ')">修正</button></td>' +
+      '</tr>';
+    }).join('');
+
+    if (wrap) {
+      wrap.innerHTML =
+        '<div class="students-table-wrap">' +
+          '<table class="hp-grant-table">' +
+            '<thead><tr><th>コンテンツ</th><th>ラベル</th><th>抜粋</th><th>レベル</th><th>教科</th><th>操作</th></tr></thead>' +
+            '<tbody>' + trs + '</tbody>' +
+          '</table>' +
+        '</div>';
+    }
+
+    // ページング
+    var totalPages = Math.max(1, Math.ceil(_qeditSearch.total / _qeditSearch.limit));
+    var label = document.getElementById('qedit-page-label');
+    var prev  = document.getElementById('qedit-prev');
+    var next  = document.getElementById('qedit-next');
+    if (label) label.textContent = _qeditSearch.page + ' / ' + totalPages + ' ページ';
+    if (prev)  prev.disabled = (_qeditSearch.page <= 1);
+    if (next)  next.disabled = (_qeditSearch.page >= totalPages);
+    if (pager) pager.style.display = (totalPages > 1) ? 'flex' : 'none';
+  }
+
+  function qeditOpen(index) {
+    var row = _qeditSearch.rows[index];
+    if (!row) { showToast('対象が選択できませんでした', 'error'); return; }
+    var body = document.getElementById('qedit-form-body');
+    if (body) body.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    var fp = document.getElementById('qedit-form-panel');
+    var sp = document.getElementById('qedit-search-panel');
+    if (fp) fp.style.display = 'block';
+    if (sp) sp.style.display = 'none';
+    var msg = document.getElementById('qedit-save-msg');
+    if (msg) { msg.textContent = ''; msg.style.color = ''; }
+    window.scrollTo(0, 0);
+
+    adminGasGet({
+      action:      'adminQuestionRead',
+      sourceTable: row.source_table,
+      sourceId:    row.source_id,
+      _ts:         Date.now()
+    }).then(function (res) {
+      if (!res || !res.ok) {
+        var m = (res && res.message) ? res.message : '読み込みに失敗しました';
+        if (_handleAdminApiError(m)) return;
+        if (body) body.innerHTML = '<div class="students-empty">' + _esc(m) + '</div>';
+        return;
+      }
+      _qeditRead = res;
+      _qeditBuildState(res);
+      _renderQeditForm(res);
+    }).catch(function () {
+      if (body) body.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  // Read 結果から現在値 / 初期値スナップショットを構築（editable 列のみ状態に持つ）
+  function _qeditBuildState(res) {
+    var columns = res.columns || {};
+    var row = res.row || {};
+    var vals = { row: {}, children: {} };
+    Object.keys(columns).forEach(function (col) {
+      if (columns[col] && columns[col].editable === false) return; // 読み取り専用は状態外
+      vals.row[col] = (row[col] == null) ? '' : row[col];
+    });
+    var children = res.children || {};
+    Object.keys(children).forEach(function (name) {
+      var child = children[name] || {};
+      var ccols = child.columns || {};
+      var crows = child.rows || [];
+      vals.children[name] = crows.map(function (crow) {
+        var o = {};
+        Object.keys(ccols).forEach(function (col) {
+          if (ccols[col] && ccols[col].editable === false) return;
+          o[col] = (crow[col] == null) ? '' : crow[col];
+        });
+        return o;
+      });
+    });
+    _qeditVals = vals;
+    _qeditInit = JSON.parse(JSON.stringify(vals)); // deep copy
+  }
+
+  // 1 フィールドの入力 HTML（enum→select / 長い列→textarea / それ以外→text）
+  function _qeditFieldHtml(scope, childName, rowIndex, col, meta, value) {
+    var m = meta || {};
+    var handler;
+    if (scope === 'row') {
+      handler = "qeditSetRowField('" + _qeditJsStr(col) + "', this.value)";
+    } else {
+      handler = "qeditSetChildField('" + _qeditJsStr(childName) + "'," + rowIndex + ",'" + _qeditJsStr(col) + "', this.value)";
+    }
+    var labelHtml = '<span class="qedit-field-label">' + _esc(col) + '</span>';
+    var v = String(value == null ? '' : value);
+
+    // 読み取り専用（通常は返らないが、editable=false が来たら表示のみ）
+    if (m.editable === false) {
+      return '<div class="qedit-field">' + labelHtml + '<div class="qedit-readonly">' + _esc(v) + '</div></div>';
+    }
+    // enum → select
+    if (m.enum && m.enum.length) {
+      var opts = m.enum.map(function (ev) {
+        var s = (String(ev) === v) ? ' selected' : '';
+        return '<option value="' + _esc(ev) + '"' + s + '>' + _esc(ev) + '</option>';
+      }).join('');
+      return '<div class="qedit-field">' + labelHtml + '<select onchange="' + handler + '">' + opts + '</select></div>';
+    }
+    // 長い列 → textarea
+    var isLong = v.length > 40 || v.indexOf('\n') >= 0 ||
+      /text|body|example|explanation|expl|passage|content|honbun|question|sentence|解説|問題|本文|例文|訳/i.test(col);
+    if (isLong) {
+      return '<div class="qedit-field">' + labelHtml + '<textarea oninput="' + handler + '">' + _esc(v) + '</textarea></div>';
+    }
+    return '<div class="qedit-field">' + labelHtml + '<input type="text" value="' + _esc(v) + '" oninput="' + handler + '" /></div>';
+  }
+
+  function _renderQeditForm(res) {
+    var title = document.getElementById('qedit-form-title');
+    if (title) {
+      title.textContent = _qeditContentLabel(res.contentKey) + '：' + (res.label || '問題') + ' の中身を修正';
+    }
+    var body = document.getElementById('qedit-form-body');
+    if (!body) return;
+
+    var html = '';
+    // 本体 row セクション
+    var columns = res.columns || {};
+    var rowVals = (_qeditVals && _qeditVals.row) || {};
+    var mainFields = Object.keys(columns).map(function (col) {
+      var meta = columns[col] || {};
+      var val = (meta.editable === false) ? (res.row ? res.row[col] : '') : rowVals[col];
+      return _qeditFieldHtml('row', null, -1, col, meta, val);
+    }).join('');
+    html += '<div class="qedit-section">' +
+              '<div class="qedit-section-title">📄 本体</div>' + mainFields +
+            '</div>';
+
+    // children セクション（親子孫）— 返却の index 順で並べる。行の増減はしない。
+    var children = res.children || {};
+    Object.keys(children).forEach(function (name) {
+      var child = children[name] || {};
+      var ccols = child.columns || {};
+      var crows = child.rows || [];
+      var childHtml = crows.map(function (crow, ri) {
+        var fields = Object.keys(ccols).map(function (col) {
+          var meta = ccols[col] || {};
+          var stateRow = (_qeditVals.children[name] && _qeditVals.children[name][ri]) || {};
+          var val = (meta.editable === false) ? crow[col] : stateRow[col];
+          return _qeditFieldHtml('child', name, ri, col, meta, val);
+        }).join('');
+        return '<div class="qedit-child-row">' +
+                 '<div class="qedit-child-row-head">' + _esc(name) + ' #' + (ri + 1) + '</div>' +
+                 fields +
+               '</div>';
+      }).join('');
+      html += '<div class="qedit-section">' +
+                '<div class="qedit-section-title">🧩 ' + _esc(name) + '（' + crows.length + ' 件）</div>' +
+                childHtml +
+              '</div>';
+    });
+
+    body.innerHTML = html;
+  }
+
+  function qeditSetRowField(col, val) {
+    if (_qeditVals && _qeditVals.row) _qeditVals.row[col] = val;
+  }
+  function qeditSetChildField(name, ri, col, val) {
+    if (_qeditVals && _qeditVals.children && _qeditVals.children[name] && _qeditVals.children[name][ri]) {
+      _qeditVals.children[name][ri][col] = val;
+    }
+  }
+
+  function qeditSave() {
+    if (!_qeditRead || !_qeditVals || !_qeditInit) {
+      showToast('編集内容が読み込まれていません', 'error');
+      return;
+    }
+    // row：変更列だけ抽出
+    var rowDiff = {};
+    Object.keys(_qeditVals.row).forEach(function (col) {
+      if (String(_qeditVals.row[col]) !== String(_qeditInit.row[col])) {
+        rowDiff[col] = _qeditVals.row[col];
+      }
+    });
+    // children：変更のあった親のみ、その rows を index 順で全件（editable 列）送る
+    var childrenDiff = {};
+    Object.keys(_qeditVals.children).forEach(function (name) {
+      var curRows  = _qeditVals.children[name] || [];
+      var initRows = _qeditInit.children[name] || [];
+      var changed = false;
+      for (var i = 0; i < curRows.length && !changed; i++) {
+        var cur = curRows[i] || {}, ini = initRows[i] || {};
+        var cols = Object.keys(cur);
+        for (var j = 0; j < cols.length; j++) {
+          if (String(cur[cols[j]]) !== String(ini[cols[j]])) { changed = true; break; }
+        }
+      }
+      if (changed) {
+        childrenDiff[name] = {
+          rows: curRows.map(function (r) {
+            var o = {};
+            Object.keys(r).forEach(function (c) { o[c] = r[c]; });
+            return o;
+          })
+        };
+      }
+    });
+
+    var rowChanged   = Object.keys(rowDiff).length > 0;
+    var childChanged = Object.keys(childrenDiff).length > 0;
+    if (!rowChanged && !childChanged) {
+      showToast('変更がありません', 'error');
+      return;
+    }
+
+    // adminGasPost は payload 全体を JSON.stringify するので row/children はオブジェクトのまま渡す
+    var payload = {
+      action:      'adminQuestionUpdate',
+      sourceTable: _qeditRead.source_table,
+      sourceId:    _qeditRead.source_id
+    };
+    if (rowChanged)   payload.row      = rowDiff;
+    if (childChanged) payload.children = childrenDiff;
+
+    var btn = document.getElementById('qedit-save-btn');
+    var msg = document.getElementById('qedit-save-msg');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 保存中...'; }
+    if (msg) { msg.textContent = ''; msg.style.color = ''; }
+
+    adminGasPost(payload).then(function (res) {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 保存する'; }
+      if (!res || !res.ok) {
+        var m = (res && res.message) ? res.message : '保存に失敗しました';
+        if (_handleAdminApiError(m)) return;
+        if (msg) { msg.style.color = '#e74c3c'; msg.textContent = '⚠️ ' + m; }
+        showToast(m, 'error');
+        return;
+      }
+      // 保存成功：初期スナップショットを現在値で更新（続けて編集しても差分が正しく出る）
+      _qeditInit = JSON.parse(JSON.stringify(_qeditVals));
+      if (msg) { msg.style.color = '#16a34a'; msg.textContent = '✅ 保存しました。検索索引も更新されました。'; }
+      showToast('保存しました', 'success');
+    }).catch(function () {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 保存する'; }
+      if (msg) { msg.style.color = '#e74c3c'; msg.textContent = '⚠️ 通信エラーが発生しました'; }
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // =============================================================
   // リスオン問題入力（管理画面、新画面 screen-admin-lison-input）
   // =============================================================
   // 設計：
@@ -13209,7 +13697,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260807-1418</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260807-1437</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
