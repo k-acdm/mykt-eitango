@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260807-2101"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260807-2237"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -173,6 +173,8 @@
   /* 汎用コンテンツ（ダッシュボード以外の画面用） */
   .admin-page { max-width: 680px; margin: 0 auto; padding: 24px 16px 80px; }
   .admin-page .page-lead { font-size: 14px; color: #555; margin-bottom: 16px; line-height: 1.7; }
+  /* 学習履歴クラスタ 最下部ナビ（2026-08-07）：上部ボタンを最下部にも複製（長い一覧のスクロール対策） */
+  .admin-bottom-nav { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e1e5ee; }
 
   /* 生徒一覧テーブル */
   .students-table-wrap { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.05); overflow-x: auto; }
@@ -1027,6 +1029,11 @@
       <div class="dashboard-card-title">解答確認</div>
       <div class="dashboard-card-desc">基礎計算 / リスオン / 三語短文 / 和文英訳① / マイ課題 / オリワンテス</div>
     </button>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminDashboard()">← ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1081,6 +1088,12 @@
       <div class="dashboard-card-title">社会重要語句 挑戦履歴</div>
       <div class="dashboard-card-desc">生徒の挑戦履歴（単元・セット・正誤）を確認（admin / teacher 両ロール可）</div>
     </button>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLearningHub()">← 生徒の学習履歴に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1097,6 +1110,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
     <div class="page-lead">生徒名をクリックすると、その生徒の英単語RUSH 達成度（級ごとの到達率）を表示します。</div>
     <div id="eitango-ach-students-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1113,6 +1132,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminEitangoAchievementStudents()">← 生徒一覧に戻る</button>
     <div class="page-lead">「到達 / 総数」は問題ベース（1単語＝2周＝2問）。達成率は「級の全語に対する到達率」（既習語も到達済みとして算入）。</div>
     <div id="eitango-ach-detail-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminEitangoAchievementStudents()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1129,6 +1154,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
     <div class="page-lead">生徒名をクリックすると、その生徒の古文単語（コブタン）達成度（到達率）を表示します。</div>
     <div id="kobun-ach-students-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1145,6 +1176,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKobunAchievementStudents()">← 生徒一覧に戻る</button>
     <div class="page-lead">「到達 / 総数」は問題ベース（1単語＝2周＝2問）。達成率は「全語に対する到達率」。2 周完走で 100%（再周回しても下がりません）。</div>
     <div id="kobun-ach-detail-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKobunAchievementStudents()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1161,6 +1198,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
     <div class="page-lead">生徒名をクリックすると、その生徒の基礎計算 達成度（単元 rank 1〜20 ごとの到達率）を表示します。</div>
     <div id="kiso-ach-students-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1177,6 +1220,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKisoAchievementStudents()">← 生徒一覧に戻る</button>
     <div class="page-lead">各単元の数字は「合格した問題数」（合格セッションで解いた問題数の延べ・重複込み・上限なし）。たくさん演習した分だけ増えます。帯バーの長さは演習量の目安です。</div>
     <div id="kiso-ach-detail-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKisoAchievementStudents()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1193,6 +1242,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
     <div class="page-lead">生徒名をクリックすると、その生徒の漢字（カンジー）達成度（級ごとの到達率）を表示します。</div>
     <div id="kanji-ach-students-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1209,6 +1264,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKanjiAchievementStudents()">← 生徒一覧に戻る</button>
     <div class="page-lead">「到達 / 総数」は漢字数ベース（読み＋書きを1漢字として合算）。達成率は「級の全漢字に対する到達率」。巡回式のため、一周し終えた回数を「周回 N 回」で併記します。</div>
     <div id="kanji-ach-detail-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKanjiAchievementStudents()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1225,6 +1286,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
     <div class="page-lead">生徒名をクリックすると、その生徒のリスオン達成度（レベルごとの取り組んだ長文数）を表示します。</div>
     <div id="lison-ach-students-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1241,6 +1308,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLisonAchievementStudents()">← 生徒一覧に戻る</button>
     <div class="page-lead">数字は「取り組んだ長文の本数（配信本数中）」。リスオンは長文1本が単位で週ごとに増え続けるため、到達率%ではなく取り組んだ本数で表示します。バーは配信のうち取り組んだ割合。クイズ平均正答率はリスニング理解度の目安です。</div>
     <div id="lison-ach-detail-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLisonAchievementStudents()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1285,6 +1358,12 @@
       <div class="dashboard-card-title">オリワンテス 提出確認</div>
       <div class="dashboard-card-desc">生徒が作った問題・解答を確認してコメントを送る</div>
     </button>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLearningHub()">← 生徒の学習履歴に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1646,6 +1725,12 @@
     <div id="students-list-wrap">
       <div class="students-empty">⏳ 読み込み中...</div>
     </div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminActivitySelect()">← 生徒の実施状況に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1664,6 +1749,13 @@
     <div class="child-history-notice">⚠️ アプリ実装以前のLINEでの提出状況は反映されていません。</div>
     <div id="admin-child-history-list"><div class="child-history-empty">読み込み中…</div></div>
     <button id="admin-child-history-more" class="submit-btn" style="margin-top:12px;background:linear-gradient(135deg,#ff8a3d,#ff6a00);display:none" onclick="goAdminChildArchive()">📜 さらに過去の履歴を見る</button>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminStudents()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminActivityCalendar()">📅 カレンダーに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1683,6 +1775,12 @@
     <div class="child-pager">
       <button type="button" class="prev" id="admin-child-archive-prev" onclick="adminChildArchivePrev()">← 新しいページへ</button>
       <button type="button" class="next" id="admin-child-archive-next" onclick="adminChildArchiveNext()">次のページ →</button>
+    </div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminChildHistory()">← 直近7日間に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
     </div>
   </div>
 </div>
@@ -1845,6 +1943,12 @@
       <button type="button" class="submit-btn" style="padding:8px 14px;font-size:13px" onclick="loadKisoStudents()">🔄 最新データ取得</button>
     </div>
     <div id="kiso-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAnswerCheckHub()">← 解答確認に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1861,6 +1965,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKisoStudents()">← 生徒一覧に戻る</button>
     <div class="page-lead">「🔍 拡大表示」で写真を読み込み、サムネ表示と拡大モーダルが開きます。「⬇️ ダウンロード」で写真を保存できます。<br><span style="color:#94a3b8;font-size:13px">※ 写真は管理者・講師のみ閲覧・ダウンロード可能です（生徒は自分の答案のみ閲覧可、ダウンロード不可）。</span></div>
     <div id="kiso-photos-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKisoStudents()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1880,6 +1990,12 @@
       <button type="button" class="submit-btn" style="padding:8px 14px;font-size:13px" onclick="loadMyTaskStudents()">🔄 最新データ取得</button>
     </div>
     <div id="mytask-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAnswerCheckHub()">← 解答確認に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1896,6 +2012,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminMyTaskStudents()">← 生徒一覧に戻る</button>
     <div class="page-lead">「📷 押して表示」でサムネ、続けてタップ（または「🔍 拡大表示」）で拡大モーダルが開きます。「⬇️ ダウンロード」で写真を保存できます。</div>
     <div id="mytask-photos-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminMyTaskStudents()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1915,6 +2037,12 @@
       <button type="button" class="submit-btn" style="padding:8px 14px;font-size:13px" onclick="loadOriwantesStudents()">🔄 最新データ取得</button>
     </div>
     <div id="oriwantes-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAnswerCheckHub()">← 解答確認に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1932,6 +2060,12 @@
     <div class="page-lead">各提出の問題・正解・生徒の解答・解説を確認できます。コメントを送ると、その内容が保存され、生徒に「先生からのメッセージ」として通知されます。</div>
     <div id="oriwantes-detail-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
     <button id="oriwantes-detail-more" class="submit-btn" style="display:none;margin-top:8px;background:linear-gradient(135deg,#e3c887,#bfa05f)" onclick="loadMoreOriwantesDetail()">📜 さらに見る</button>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminOriwantesStudents()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1948,6 +2082,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAnswerCheckHub()">← 解答確認に戻る</button>
     <div class="page-lead">直近 15 日に音読を録音した生徒の一覧です。生徒名をクリックすると録音一覧を表示します。</div>
     <div id="lison-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAnswerCheckHub()">← 解答確認に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1964,6 +2104,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLisonRecordings()">← 生徒一覧に戻る</button>
     <div class="page-lead">▶️ 再生ボタンで音声プレイヤーを表示します。<br><span style="color:#94a3b8;font-size:13px">※ iPad Safari では過去の webm 形式録音が再生できない場合があります。新規録音から順次対応されます。</span></div>
     <div id="lison-list-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLisonRecordings()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -1988,6 +2134,12 @@
       <div class="dashboard-card-title">カレンダーで見る</div>
       <div class="dashboard-card-desc">日付から、その日の振り返り全件を時刻順に確認</div>
     </button>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminActivitySelect()">← 生徒の実施状況に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2006,6 +2158,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminReflections()">← 選択画面に戻る</button>
     <div class="page-lead">生徒名をクリックすると、その生徒の振り返り履歴を表示します（最大 50 件）。</div>
     <div id="refl-students-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminReflections()">← 選択画面に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2022,6 +2180,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminReflectionsStudentsMode()">← 生徒一覧に戻る</button>
     <div class="page-lead">timestamp 降順（最新が上）。本文は提出時のまま表示します。</div>
     <div id="refl-list-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminReflectionsStudentsMode()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2058,6 +2222,12 @@
         <span class="cal-legend-item"><span class="cal-legend-dot future"></span>未来</span>
       </div>
     </div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminReflections()">← 選択画面に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2074,6 +2244,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminReflectionsCalendar()">← カレンダーに戻る</button>
     <div class="page-lead">時刻昇順（朝→夜）で全員分を表示します。本文は全文表示です。</div>
     <div id="refl-day-list-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminReflectionsCalendar()">← カレンダーに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2248,6 +2424,12 @@
     </button>
     -->
     <!-- 段階B：このモード選択画面（screen-admin-kokugo-history-select）は到達導線なし（達成度ハブから直接 goAdminKokugoStudentsMode へ）。DOM 残置。 -->
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2264,6 +2446,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
     <div class="page-lead">生徒名をクリックすると、その生徒の国語長文 挑戦履歴（感想文・AIフィードバックを含む）を表示します。</div>
     <div id="kokugo-history-students-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2280,6 +2468,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKokugoStudentsMode()">← 生徒一覧に戻る</button>
     <div class="page-lead">時刻昇順（古い順）で表示します。感想文・AIフィードバックは全文表示です。</div>
     <div id="kokugo-history-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKokugoStudentsMode()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2316,6 +2510,12 @@
         <span class="cal-legend-item"><span class="cal-legend-dot future"></span>未来</span>
       </div>
     </div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKokugoStudents()">← 選択画面に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2332,6 +2532,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKokugoCalendar()">← カレンダーに戻る</button>
     <div class="page-lead">時刻昇順（朝→夜）で全員分を表示します。感想文・AIフィードバックは全文表示です。</div>
     <div id="kokugo-day-list-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminKokugoCalendar()">← カレンダーに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2391,6 +2597,12 @@
     </button>
     -->
     <!-- 段階B：このモード選択画面（screen-admin-risha-history-select）は到達導線なし（達成度ハブから直接 goAdminRishaHistoryStudents へ）。DOM 残置。 -->
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2407,6 +2619,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
     <div class="page-lead">生徒名をクリックすると、その生徒の理社重要語句 挑戦履歴を表示します。</div>
     <div id="risha-history-students-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminAchievementHub()">← コンテンツごとの達成度に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2423,6 +2641,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminRishaStudentsMode()">← 生徒一覧に戻る</button>
     <div class="page-lead">時刻昇順（古い順）で表示します。</div>
     <div id="risha-history-list-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminRishaStudentsMode()">← 生徒一覧に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2458,6 +2682,12 @@
         <span class="cal-legend-item"><span class="cal-legend-dot future"></span>未来</span>
       </div>
     </div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="_goRishaHistorySelect()">← 選択画面に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2474,6 +2704,12 @@
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminRishaCalendar()">← カレンダーに戻る</button>
     <div class="page-lead">時刻昇順（朝→夜）で全員分を表示します。</div>
     <div id="risha-history-day-wrap"><div class="refl-adm-students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminRishaCalendar()">← カレンダーに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2578,6 +2814,12 @@
     <!-- 2026-06-29 段階A-1：国語長文 / 理科 / 社会の挑戦履歴 3 枚は
          「コンテンツごとの達成度」中分類ハブ（screen-admin-achievement-hub）へ移設。
          遷移先 goAdminKokugoStudents() / goAdminRishaHistory() は不変。 -->
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminLearningHub()">← 生徒の学習履歴に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2607,6 +2849,12 @@
         <span class="cal-legend-item"><span class="cal-legend-dot future"></span>未来</span>
       </div>
     </div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminActivitySelect()">← 選択画面に戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -2622,6 +2870,12 @@
   <div class="admin-page">
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminActivityCalendar()">← カレンダーに戻る</button>
     <div id="cal-day-list-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
+    <div class="admin-bottom-nav">
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminActivityCalendar()">← カレンダーに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#4f7df0,#7c4fff)" onclick="goAdminDashboard()">🏠 ダッシュボードに戻る</button>
+      <button type="button" class="submit-btn" style="margin-top:10px;background:linear-gradient(135deg,#e74c3c,#c0392b)" onclick="doAdminLogout()">🚪 ログアウト</button>
+    </div>
   </div>
 </div>
 
@@ -13708,7 +13962,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260807-2101</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260807-2237</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

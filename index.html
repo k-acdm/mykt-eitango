@@ -3332,10 +3332,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260807-2101"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260807-2237"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260807-2101">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260807-2101"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260807-2237">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260807-2237"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3997,6 +3997,7 @@
 <div id="screen-student-messages" class="screen">
   <header><h1>📩 先生からのメッセージ</h1><span id="student-messages-sid"></span></header>
   <div class="container" style="padding-top:20px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">← ホームに戻る</button>
     <p style="text-align:center;color:#666;font-size:13px;margin-bottom:14px">タップすると既読になります</p>
     <div id="student-messages-list" class="msg-list">
       <div class="msg-empty">⏳ 読み込み中...</div>
@@ -4007,6 +4008,7 @@
 <div id="screen-student-reflections" class="screen">
   <header><h1>📝 自分の振り返り</h1><span id="student-reflections-sid"></span></header>
   <div class="container" style="padding-top:20px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">← ホームに戻る</button>
     <p style="text-align:center;color:#666;font-size:13px;margin-bottom:14px">ログアウト直前に書いた振り返りの一覧（最新が上）</p>
     <div id="student-reflections-list" class="refl-list">
       <div class="refl-empty">⏳ 読み込み中...</div>
@@ -19888,7 +19890,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260807-2101</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260807-2237</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
