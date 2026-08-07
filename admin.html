@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260806-2114"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260807-1418"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -2756,12 +2756,21 @@
     <div id="streak-modify-step2-wrap" style="display:none">
       <div class="form-card" style="margin-top:18px">
         <h2>Step 2：過去30日のログイン記録（HPLog 突合）</h2>
+        <!-- 要件6：連続日数のしくみを常時表示 -->
+        <div class="hp-grant-bonus-note" style="margin-bottom:10px;background:#eff6ff;border-left:4px solid #2563eb;color:#1e3a8a">
+          📌 <strong>連続日数のしくみ</strong>：連続日数は「今日／昨日から遡って<strong>連続してログインした日数</strong>」です。<br>
+          復活させるには、<strong>今日側から途切れず繋がる範囲の日</strong>を✅にしてください。<br>
+          （過去の飛び地だけを✅にしても連続は伸びません）
+        </div>
         <div id="streak-modify-summary-banner" class="hp-grant-bonus-note" style="margin-bottom:10px">
           ⏳ HPLog を読み込み中...
         </div>
         <div id="streak-modify-days-wrap"></div>
         <div style="margin-top:8px;color:#636e72;font-size:13px">
-          ※ ⚠️ マークの日が補完候補（login 欠落＋他活動あり）です。チェックを入れると Step 3 で確認できます。
+          ※ <span class="smr-legend-candidate">■</span> 自動検出の補完候補（login 欠落＋他活動あり／初期チェックON）
+          <span class="smr-legend-manual">■</span> 手動で✅にできる日（login 記録のない過去日）
+          グレーの行は選択できません（login 済み・今日・30日より前）。<br>
+          チェックを入れると Step 3 の「修正後の連続日数（推定）」に反映されます。
         </div>
       </div>
 
@@ -2769,14 +2778,14 @@
         <h2>Step 3：補完内容を確認して実行</h2>
         <label>
           <span class="form-label">修正理由 <span class="form-required">必須</span></span>
-          <textarea id="streak-modify-reason" placeholder="例：2026-05-17にログアウトボタン不具合により再ログインできず連続記録が切れたため復旧"></textarea>
-          <span class="form-hint">HPLog の message 列と TeacherActions の details に保存されます。</span>
+          <textarea id="streak-modify-reason" placeholder="例：2026-05-17にログアウトボタン不具合により再ログインできず連続記録が切れたため復旧" oninput="_updateStreakSubmitBtnState()"></textarea>
+          <span class="form-hint">承認の記録として必須です。HPLog の message 列と TeacherActions の details に保存されます。</span>
         </label>
         <div id="streak-modify-preview" style="margin-top:10px;padding:10px;background:#f0f9ff;border-left:4px solid #4f7df0;border-radius:6px;font-size:14px">
-          補完候補にチェックを入れると、修正後の連続日数が表示されます。
+          ✅にする日にチェックを入れると、修正後の連続日数が表示されます。
         </div>
       </div>
-      <button class="submit-btn" style="margin-top:18px" onclick="confirmStreakModify()">確認画面へ</button>
+      <button class="submit-btn" id="streak-modify-confirm-btn" style="margin-top:18px" onclick="confirmStreakModify()" disabled>確認画面へ</button>
     </div>
   </div>
 </div>
@@ -2798,6 +2807,14 @@
   .smr-judge-empty     { color:#9ca3af; }
   .smr-judge-broken    { color:#9ca3af; }
   .smr-judge-today-ok  { color:#2563eb; }
+  /* 手動✅選択（login 記録のない過去日）の色分け（2026-08-07 手動復旧UI拡張） */
+  .smr-day-row.manual-selectable { background:#f5f3ff; }
+  .smr-day-check input[type=checkbox].smr-check-disabled { cursor:not-allowed; opacity:.35; }
+  .smr-judge-manual { color:#7c3aed; }
+  .smr-day-badge { display:inline-block; margin-left:6px; padding:1px 6px; border-radius:8px; font-size:11px; font-weight:bold; vertical-align:middle; }
+  .smr-badge-auto { background:#ffedd5; color:#c2410c; }
+  .smr-legend-candidate { color:#f59e0b; font-weight:bold; }
+  .smr-legend-manual { color:#8b5cf6; font-weight:bold; }
   @media (max-width: 600px) {
     .smr-day-row { flex-wrap:wrap; row-gap:4px; }
     .smr-day-acts { flex-basis:100%; padding-left:32px; font-size:12px; }
@@ -8667,9 +8684,16 @@
         return;
       }
       _streakModifyData = res;
-      // 補完候補は初期状態で全部チェック ON（ふくちさんは目視確認だけで承認できるように）
+      // 自動検出の補完候補（login 欠落＋他活動あり）は初期状態で全部チェック ON。
+      // 手動で✅にできる空白日（selectable=true / activity 無し）は初期 OFF（塾長が意識的に選ぶ）。
+      var autoCands = res.recoveryCandidates;
+      if (!autoCands) {
+        // 後方互換：recoveryCandidates が無ければ days の isRecoveryCandidate から導出
+        autoCands = (res.days || []).filter(function(x) { return x.isRecoveryCandidate; })
+                                    .map(function(x) { return x.date; });
+      }
       _streakModifyChecked = {};
-      (res.recoveryCandidates || []).forEach(function(d) { _streakModifyChecked[d] = true; });
+      autoCands.forEach(function(d) { _streakModifyChecked[d] = true; });
       _renderStreakDays();
       _updateStreakPreview();
     }).catch(function() {
@@ -8695,52 +8719,71 @@
     if (banner) banner.innerHTML = bannerHtml;
 
     var rows = (d.days || []).map(function(day) {
-      var rowCls = 'smr-day-row';
-      if (day.isRecoveryCandidate) rowCls += ' has-candidate';
-      if (day.date === d.today)    rowCls += ' is-today';
+      var isAutoCand = !!day.isRecoveryCandidate;
+      // selectable：バックエンド(975b161)が返す「login 無しの過去日=手動✅可」フラグ。
+      //   後方互換：boolean が無ければ従来どおり自動検出候補のみ選択可とみなす。
+      var isSelectable = (typeof day.selectable === 'boolean') ? day.selectable : isAutoCand;
+      var isToday = (day.date === d.today);
 
+      var rowCls = 'smr-day-row';
+      if (isAutoCand)                              rowCls += ' has-candidate';
+      else if (isSelectable && !day.hasLogin)      rowCls += ' manual-selectable';
+      if (isToday)                                 rowCls += ' is-today';
+
+      // 要件2：selectable=true の日のみチェック可。selectable=false はグレーの無効チェックボックス。
       var checkHtml = '';
-      if (day.isRecoveryCandidate) {
+      if (isSelectable) {
         var checked = _streakModifyChecked[day.date] ? 'checked' : '';
         checkHtml = '<input type="checkbox" data-date="' + _esc(day.date) + '" ' + checked +
-                    ' onchange="streakModifyToggleCheck(this)" title="この日を login 補完候補として有効化" />';
+                    ' onchange="streakModifyToggleCheck(this)" title="この日を✅（login 補完）にする" />';
       } else {
-        checkHtml = '<span style="display:inline-block;width:18px"></span>';
+        checkHtml = '<input type="checkbox" class="smr-check-disabled" disabled title="この日は選択できません（login 済み・今日・30日より前）" />';
       }
 
       // login 表記：今日かつ login あり→🔵、login あり→✅、login なし→❌
       var loginMark = '';
       if (day.hasLogin) {
-        loginMark = (day.date === d.today) ? '🔵' : '✅';
+        loginMark = isToday ? '🔵' : '✅';
       } else {
         loginMark = '❌';
       }
 
-      // 他活動の表記
+      // 他活動の表記（activities 配列優先、無ければ hasOtherActivity フラグにフォールバック）
       var actsHtml = '';
       if (day.activities && day.activities.length > 0) {
         actsHtml = day.activities.map(function(a) {
           return _esc(a.label) + (a.count > 1 ? ' ×' + a.count : '');
         }).join('、');
+      } else if (day.hasOtherActivity) {
+        actsHtml = '<span style="color:#636e72">他の学習活動あり</span>';
       } else {
         actsHtml = '<span style="color:#9ca3af">—</span>';
       }
 
+      // 要件2：自動検出候補は色分け＋バッジで「自動でも候補」と分かるように（情報表示のみ）
+      var dateHtml = _esc(day.date);
+      if (isAutoCand) {
+        dateHtml += '<span class="smr-day-badge smr-badge-auto">自動でも候補</span>';
+      }
+
       // 連続判定の表記
       var judgeHtml = '';
-      if (day.date === d.today) {
+      if (isToday) {
         judgeHtml = day.hasLogin ?
           '<span class="smr-judge-today-ok">今日（連続中）</span>' :
           '<span class="smr-judge-broken">今日（未ログイン）</span>';
-      } else if (day.isRecoveryCandidate) {
-        judgeHtml = '<span class="smr-judge-candidate">⚠️ 補完候補</span>';
+      } else if (isAutoCand) {
+        judgeHtml = '<span class="smr-judge-candidate">⚠️ 自動検出候補</span>';
       } else if (day.hasLogin) {
         judgeHtml = day.isConnectedInCurrentSeq ?
           '<span class="smr-judge-connected">連続中</span>' :
           '<span class="smr-judge-connected">login あり</span>';
+      } else if (isSelectable) {
+        // login なしの過去日：塾長が手動で✅にできる
+        judgeHtml = '<span class="smr-judge-manual">手動✅可</span>';
       } else {
-        // login なし + 他活動も無し
-        if (day.activityCount === 0) {
+        // login なし + 選択不可
+        if (day.activityCount === 0 && !day.hasOtherActivity) {
           judgeHtml = '<span class="smr-judge-empty">活動なし</span>';
         } else {
           judgeHtml = '<span class="smr-judge-broken">—</span>';
@@ -8749,7 +8792,7 @@
 
       return '<div class="' + rowCls + '">' +
                '<span class="smr-day-check">' + checkHtml + '</span>' +
-               '<span class="smr-day-date">' + _esc(day.date) + '</span>' +
+               '<span class="smr-day-date">' + dateHtml + '</span>' +
                '<span class="smr-day-login">' + loginMark + '</span>' +
                '<span class="smr-day-acts">' + actsHtml + '</span>' +
                '<span class="smr-day-judge">' + judgeHtml + '</span>' +
@@ -8836,11 +8879,24 @@
                '<span style="color:#16a34a;font-weight:bold;font-size:16px">' + newStreak + ' 日</span>' +
                '　<span style="color:' + deltaColor + '">（' + deltaTxt + '）</span></div>';
     if (checkedDates.length === 0) {
-      html += '<div style="margin-top:6px;color:#9ca3af">補完日：未選択（streak は補完なしで再計算されます）</div>';
+      html += '<div style="margin-top:6px;color:#9ca3af">補完日：未選択（✅にする日を1つ以上選んでください）</div>';
     } else {
       html += '<div style="margin-top:6px">補完日：<strong>' + _esc(checkedDates.join(', ')) + '</strong>（' + checkedDates.length + ' 件）</div>';
     }
     preview.innerHTML = html;
+    _updateStreakSubmitBtnState();
+  }
+
+  // 要件3：修正理由（reason）が空、または補完日が0件なら「確認画面へ」を押せない
+  function _updateStreakSubmitBtnState() {
+    var btn = document.getElementById('streak-modify-confirm-btn');
+    if (!btn) return;
+    var reasonEl = document.getElementById('streak-modify-reason');
+    var reason = reasonEl ? String(reasonEl.value || '').trim() : '';
+    var checkedCount = 0;
+    for (var ds in _streakModifyChecked) { if (_streakModifyChecked[ds]) checkedCount++; }
+    var ok = !!_streakModifyData && !!_streakModifySelectedSid && reason.length > 0 && checkedCount > 0;
+    btn.disabled = !ok;
   }
 
   function confirmStreakModify() {
@@ -8854,7 +8910,7 @@
     }
     var reason = (document.getElementById('streak-modify-reason').value || '').trim();
     if (!reason) {
-      showToast('修正理由を入力してください', 'error');
+      showToast('修正理由を入力してください（承認の記録として必須です）', 'error');
       return;
     }
     var checkedDates = [];
@@ -8863,7 +8919,7 @@
     }
     checkedDates.sort();
     if (checkedDates.length === 0) {
-      showToast('補完する日を1つ以上選択してください（補完候補が無い場合はこの機能は適用できません）', 'error');
+      showToast('✅にする日を1つ以上選択してください', 'error');
       return;
     }
 
@@ -8931,15 +8987,31 @@
       _renderStreakModifyResult(res);
       _showScreen('screen-admin-streak-modify-result');
       window.scrollTo(0, 0);
-      // 完了後はスナップショット破棄 + 入力欄リセット
+      // 確認スナップショットのみ破棄。要件5：成功後は同じ生徒の候補を再読込して
+      // 最新の✅/❌（追記された login_recovery）を Step2 に反映する。
+      // （選択中の生徒は保持したまま background で再取得。"続けて別の生徒" では別途リセットされる）
       _streakModifyConfirm = null;
-      _streakModifySelectedSid = '';
-      _streakModifyData = null;
-      _streakModifyChecked = {};
+      if (_streakModifySelectedSid) {
+        _loadStreakRecoveryCandidates();
+      }
     }).catch(function() {
       if (btn) { btn.disabled = false; btn.textContent = '✅ はい、修正する'; }
       showToast('通信エラーが発生しました', 'error');
     });
+  }
+
+  // 要件5：warnings コード → 日本語メッセージ（disconnected_islands を特に明示）
+  function _streakWarnMsg(w) {
+    var code = (typeof w === 'string') ? w : (w && (w.code || w.type || w.key)) || '';
+    switch (code) {
+      case 'disconnected_islands':
+        return '選んだ日が今日側の連続に繋がっていないため、連続日数が伸びていません。今日側から途切れず繋がる範囲の日を選んでください。';
+      case 'streak_not_increased':
+        return '補完しても連続日数が伸びませんでした。今日側から途切れず繋がる範囲の日を選べているか確認してください。';
+      default:
+        if (w && typeof w === 'object' && w.message) return String(w.message);
+        return '警告: ' + String(code || w);
+    }
   }
 
   function _renderStreakModifyResult(res) {
@@ -8949,13 +9021,29 @@
     var nameLabel = (res.name || '（未登録）') + 'さん（' + _esc(res.studentId || '') + '）';
     var recoveryDates = res.recoveryDates || [];
     var recoveryHtml = recoveryDates.map(function(dd) { return '<code>' + _esc(dd) + '</code>'; }).join(', ');
+
+    // warnings（特に disconnected_islands / streak_not_increased）を分かりやすく表示
+    var warnings = res.warnings || [];
+    var warnHtml = '';
+    if (warnings.length > 0) {
+      var items = warnings.map(function(w) {
+        return '<li style="margin-top:4px">' + _esc(_streakWarnMsg(w)) + '</li>';
+      }).join('');
+      warnHtml =
+        '<div style="margin-top:12px;padding:10px;background:#fef2f2;border-left:4px solid #ef4444;border-radius:6px;color:#991b1b;font-size:13px">' +
+          '<strong>⚠️ 注意</strong>' +
+          '<ul style="margin:6px 0 0 18px;padding:0">' + items + '</ul>' +
+        '</div>';
+    }
+
     var summaryHtml =
       '<div>対象生徒：<strong>' + _esc(nameLabel) + '</strong></div>' +
       '<div style="margin-top:8px">修正前：<strong>' + (res.oldStreak || 0) + ' 日</strong></div>' +
       '<div>修正後：<strong>' + (res.newStreak || 0) + ' 日</strong></div>' +
       '<div style="margin-top:6px">差分：<strong style="color:' + deltaColor + '">' + deltaTxt + '</strong></div>' +
       '<div style="margin-top:8px">補完した日（' + recoveryDates.length + ' 件）：' + (recoveryHtml || '—') + '</div>' +
-      '<div style="margin-top:10px">修正理由：<strong>' + _esc(res.reason || '') + '</strong></div>';
+      '<div style="margin-top:10px">修正理由：<strong>' + _esc(res.reason || '') + '</strong></div>' +
+      warnHtml;
     document.getElementById('streak-modify-result-summary').innerHTML = summaryHtml;
   }
 
@@ -13121,7 +13209,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260806-2114</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260807-1418</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
