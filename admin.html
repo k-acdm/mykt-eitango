@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260807-1437"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260807-2101"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -1428,16 +1428,6 @@
           <span class="form-label">コンテンツで絞り込み</span>
           <select id="qedit-content"></select>
         </label>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <label style="flex:1;min-width:140px">
-            <span class="form-label">レベル（任意）</span>
-            <input type="text" id="qedit-level" placeholder="例：5 / 中1 など" />
-          </label>
-          <label style="flex:1;min-width:140px">
-            <span class="form-label">教科（任意）</span>
-            <input type="text" id="qedit-subject" placeholder="例：理科 / 社会 など" />
-          </label>
-        </div>
         <button class="submit-btn" onclick="qeditSearch(1)">🔍 検索する</button>
       </div>
 
@@ -9149,19 +9139,24 @@
   //     内部列はサーバが返さないので、フロントでも一切表示・送信しない。
   //   - 現在値は状態オブジェクト(_qeditVals)で保持し、保存時に初期値(_qeditInit)と
   //     diff を取って「変更列だけ」送る（children は変更のあった親のみ全行を index 順で）。
+  // ★ドロップダウンは索引実態(question_search_index.content_key)に整合させて送信する。
+  //   value=UIの選択キー / contentKey=索引の content_key / subject=索引の subject 絞り込み。
+  //   漢字は content_key='kanji'＋subject='yomi'/'kaki'、理社は content_key='rika'/'shakai'。
+  //   （'kanji_yomi'/'kanji_kaki'/'risha' は索引に存在しない＝0件の原因だったので送らない）
   var QEDIT_CONTENTS = [
-    { key: '',           label: 'すべて' },
-    { key: 'eitango',    label: '英単語RUSH' },
-    { key: 'wabun1',     label: '和文英訳①' },
-    { key: 'sango',      label: '三語短文' },
-    { key: 'kanji_yomi', label: 'カンジー（読み）' },
-    { key: 'kanji_kaki', label: 'カンジー（書き）' },
-    { key: 'kiso',       label: '基礎計算' },
-    { key: 'kobun',      label: '古文単語（コブタン）' },
-    { key: 'risha',      label: '理科・社会 重要語句' },
-    { key: 'kokugo',     label: '国語長文' },
-    { key: 'phonics',    label: 'フォニックス' },
-    { key: 'lison',      label: '英語リスオン' }
+    { value: '',           label: 'すべて',               contentKey: '' },
+    { value: 'eitango',    label: '英単語RUSH',           contentKey: 'eitango' },
+    { value: 'wabun1',     label: '和文英訳①',           contentKey: 'wabun1' },
+    { value: 'sango',      label: '三語短文',             contentKey: 'sango' },
+    { value: 'kanji_yomi', label: '漢字カンジー（読み）', contentKey: 'kanji', subject: 'yomi' },
+    { value: 'kanji_kaki', label: '漢字カンジー（書き）', contentKey: 'kanji', subject: 'kaki' },
+    { value: 'kiso',       label: '基礎計算',             contentKey: 'kiso' },
+    { value: 'kobun',      label: '古文単語コブタン',     contentKey: 'kobun' },
+    { value: 'rika',       label: '理科（重要語句）',     contentKey: 'rika' },
+    { value: 'shakai',     label: '社会（重要語句）',     contentKey: 'shakai' },
+    { value: 'kokugo',     label: '国語長文',             contentKey: 'kokugo' },
+    { value: 'phonics',    label: 'フォニックス',         contentKey: 'phonics' },
+    { value: 'lison',      label: '英語リスオン',         contentKey: 'lison' }
   ];
   var QEDIT_LIMIT = 20;
   var _qeditSearch = { keyword: '', contentKey: '', level: '', subject: '', page: 1, limit: QEDIT_LIMIT, total: 0, rows: [] };
@@ -9169,11 +9164,16 @@
   var _qeditVals = null;   // 現在値 { row:{col:val}, children:{name:[{col:val},...]} }
   var _qeditInit = null;   // 初期値スナップショット（変更検出用、_qeditVals と同型）
 
-  function _qeditContentLabel(key) {
-    for (var i = 0; i < QEDIT_CONTENTS.length; i++) {
-      if (QEDIT_CONTENTS[i].key === key) return QEDIT_CONTENTS[i].label;
-    }
-    return key || '(不明)';
+  // 一覧/フォームの表示はサーバ返却の label（source_table 由来）を優先。これは content_key→日本語の
+  // フォールバック（label が無い場合のみ使用）。index の content_key 実態に合わせる。
+  function _qeditContentLabel(ck) {
+    var m = {
+      eitango: '英単語RUSH', wabun1: '和文英訳①', sango: '三語短文',
+      kanji: '漢字カンジー', kiso: '基礎計算', kobun: '古文単語コブタン',
+      rika: '理科（重要語句）', shakai: '社会（重要語句）',
+      kokugo: '国語長文', phonics: 'フォニックス', lison: '英語リスオン'
+    };
+    return m[ck] || ck || '(不明)';
   }
 
   // 属性内 JS 文字列に安全に埋め込む（\ と ' をエスケープ）
@@ -9189,7 +9189,7 @@
     if (sel && (!sel.options || !sel.options.length)) {
       var opt = '';
       for (var i = 0; i < QEDIT_CONTENTS.length; i++) {
-        opt += '<option value="' + _esc(QEDIT_CONTENTS[i].key) + '">' + _esc(QEDIT_CONTENTS[i].label) + '</option>';
+        opt += '<option value="' + _esc(QEDIT_CONTENTS[i].value) + '">' + _esc(QEDIT_CONTENTS[i].label) + '</option>';
       }
       sel.innerHTML = opt;
     }
@@ -9208,14 +9208,17 @@
   }
 
   function qeditSearch(page) {
-    var kw   = (document.getElementById('qedit-keyword') || {}).value || '';
-    var ck   = (document.getElementById('qedit-content') || {}).value || '';
-    var lv   = (document.getElementById('qedit-level')   || {}).value || '';
-    var subj = (document.getElementById('qedit-subject') || {}).value || '';
+    var kw  = (document.getElementById('qedit-keyword') || {}).value || '';
+    var val = (document.getElementById('qedit-content') || {}).value || '';
+    // ドロップダウンの選択値 → 索引実態の contentKey / subject に変換して送る。
+    var entry = null;
+    for (var i = 0; i < QEDIT_CONTENTS.length; i++) {
+      if (QEDIT_CONTENTS[i].value === val) { entry = QEDIT_CONTENTS[i]; break; }
+    }
     _qeditSearch.keyword    = String(kw).trim();
-    _qeditSearch.contentKey = String(ck).trim();
-    _qeditSearch.level      = String(lv).trim();
-    _qeditSearch.subject    = String(subj).trim();
+    _qeditSearch.contentKey = entry ? (entry.contentKey || '') : '';
+    _qeditSearch.subject    = (entry && entry.subject) ? entry.subject : '';  // 漢字のみ yomi/kaki
+    _qeditSearch.level      = '';  // レベル自由入力欄は廃止（絞り込みはドロップダウンに一本化）
     _qeditSearch.page       = page || 1;
 
     var summary = document.getElementById('qedit-results-summary');
@@ -9392,9 +9395,16 @@
       }).join('');
       return '<div class="qedit-field">' + labelHtml + '<select onchange="' + handler + '">' + opts + '</select></div>';
     }
-    // 長い列 → textarea
-    var isLong = v.length > 40 || v.indexOf('\n') >= 0 ||
-      /text|body|example|explanation|expl|passage|content|honbun|question|sentence|解説|問題|本文|例文|訳/i.test(col);
+    // 長い列 → textarea。★サーバの columns メタ multiline を最優先（blank/body_text/word_list/
+    //   problem_latex/question_text 等の記法・改行列を1行inputで潰さない）。
+    //   multiline ヒントが無い場合のみ列名/値ヒューリスティックにフォールバック（後方互換）。
+    var isLong;
+    if (typeof m.multiline === 'boolean') {
+      isLong = m.multiline;
+    } else {
+      isLong = v.length > 40 || v.indexOf('\n') >= 0 ||
+        /text|body|example|explanation|expl|passage|content|honbun|question|sentence|blank|latex|word_list|解説|問題|本文|例文|訳/i.test(col);
+    }
     if (isLong) {
       return '<div class="qedit-field">' + labelHtml + '<textarea oninput="' + handler + '">' + _esc(v) + '</textarea></div>';
     }
@@ -9404,7 +9414,8 @@
   function _renderQeditForm(res) {
     var title = document.getElementById('qedit-form-title');
     if (title) {
-      title.textContent = _qeditContentLabel(res.contentKey) + '：' + (res.label || '問題') + ' の中身を修正';
+      // サーバ返却 label（漢字読み/書き・コブタン語義カード等を区別）を優先表示。
+      title.textContent = (res.label || _qeditContentLabel(res.contentKey)) + ' の中身を修正';
     }
     var body = document.getElementById('qedit-form-body');
     if (!body) return;
@@ -13697,7 +13708,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260807-1437</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260807-2101</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
