@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260808-0428"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260808-0503"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -482,10 +482,14 @@
   .kiso-photo-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.85); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
   .kiso-photo-modal-inner { position: relative; max-width: 95vw; max-height: 95vh; }
   .kiso-photo-modal-inner img { max-width: 95vw; max-height: 95vh; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,.5); display: block; }
-  .kiso-photo-modal-close { position: absolute; top: -44px; right: 0; background: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  /* 2026-08 修正：✕ を position:fixed でビューポート右上に固定する。
+     旧実装は position:absolute; top:-44px（インナー上端の外側）で、縦長の答案画像（最大95vh）を
+     広いPC画面で中央寄せ表示すると ✕ がビューポート上端より上にはみ出て押せなかった。
+     fixed 化＋画像より前面の z-index で、画像がどれだけ大きく/縦長でも ✕ が常に画面内で押せる。
+     kiso/mytask の解答確認 + 当日作品ビューアが同じ _showKisoPhotoModal を使う共有モーダルのため、
+     全経路で改善される（mytask 専用の枠内 override は不要になり撤去して統一）。 */
+  .kiso-photo-modal-close { position: fixed; top: 16px; right: 16px; z-index: 10000; background: #fff; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 20px; line-height: 1; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
   .kiso-photo-modal-close:hover { background: #f3f4f6; }
-  /* マイ課題の拡大モーダルだけ、✕ を枠外上端（top:-44px）ではなく画像枠内の右上に収める（PC/スマホ両対応） */
-  .kiso-photo-modal-close.mytask-photo-modal-close { top: 8px; right: 8px; }
   .kiso-photo-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; background: #fff; border-radius: 12px; }
   /* セッションごとのグループ表示（解答写真 + 途中式写真をまとめる） */
   .kiso-session-group { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; margin-bottom: 18px; }
@@ -14264,7 +14268,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260808-0428</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260808-0503</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
