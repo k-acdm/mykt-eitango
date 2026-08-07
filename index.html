@@ -3332,10 +3332,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260807-2237"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260807-2344"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260807-2237">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260807-2237"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260807-2344">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260807-2344"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4820,6 +4820,17 @@
   <header><h1>🎉 完了！</h1><span></span></header>
   <div class="container" style="padding-top:18px">
     <div id="kiso-done-body"></div>
+    <!-- ★合格後は強制的に答え確認へ（goHome 直行を廃止）。ホーム等の遷移は screen-kiso-answers 側に置く。 -->
+    <button class="btn-wide" style="margin-top:18px" onclick="showKisoAnswers()">🔎 もう一度正解を確認しておこう</button>
+  </div>
+</div>
+
+<!-- 合格後の全答表示（その回の全問＝問題＋正解／2026-08-07） -->
+<div id="screen-kiso-answers" class="screen">
+  <header><h1>🔎 正解を確認しよう</h1><span id="kiso-answers-meta"></span></header>
+  <div class="container" style="padding-top:14px">
+    <p style="text-align:center;color:#666;font-size:13px;margin-bottom:12px">今回といた問題の正解だよ。答え合わせをして、しっかり身につけよう！</p>
+    <div id="kiso-answers-list"></div>
     <button class="btn-wide" style="margin-top:18px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -13275,6 +13286,63 @@
     } catch(e){}
   }
 
+  // §4.9.5 合格後の全答表示（その回の全問＝問題＋正解をシンプルに一覧）
+  //   ★HP獲得画面（screen-kiso-done）の唯一のボタンから遷移＝合格後は必ずここを通る。
+  //   データ源：再挑戦合格でも「その回の全問」を出すため、localStorage の当該 sessionId の
+  //   初回提出 submission.results（フル）を最優先。無ければ _kisoState.lastDone.results にフォールバック。
+  //   描画は Mode B（_showKisoReview）と同型カードを流用。ふくち指定によりシンプルに「問題＋正解」のみ。
+  function showKisoAnswers() {
+    var results = null;
+    var metaRankName = _kisoState.rankName || '';
+    var metaCount = _kisoState.count || 0;
+    try {
+      var arr = _kisoLoadRecentSessions(_kisoState.rank);
+      for (var i = 0; i < arr.length; i++) {
+        var e = arr[i];
+        if (e && e.sessionId === _kisoState.sessionId && e.submission
+            && Array.isArray(e.submission.results) && e.submission.results.length) {
+          results = e.submission.results;               // 初回提出＝フル（全問）
+          metaRankName = e.rankName || metaRankName;
+          metaCount = e.count || metaCount;
+          break;
+        }
+      }
+    } catch(e) {}
+    if (!results) {
+      var ld = _kisoState.lastDone;                      // フォールバック（初回合格ならこれもフル）
+      results = (ld && Array.isArray(ld.results)) ? ld.results : [];
+    }
+
+    var metaEl = document.getElementById('kiso-answers-meta');
+    if (metaEl) metaEl.textContent = (metaRankName || '') + (metaCount ? '・' + metaCount + '題' : '');
+
+    var listEl = document.getElementById('kiso-answers-list');
+    if (listEl) {
+      if (!results.length) {
+        listEl.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:30px 0">正解データが見つかりませんでした。</div>';
+      } else {
+        listEl.innerHTML = results.map(function(r){
+          var problemTex   = '\\(' + String(r.problemLatex || '') + '\\)';
+          var canonicalTex = r.answerCanonical
+            ? '\\(' + String(r.answerCanonical) + '\\)'
+            : '<span style="color:#94a3b8">（正解情報なし）</span>';
+          return '<div class="kiso-review-card">'
+               +   '<div class="kiso-rev-section">'
+               +     '<span class="kiso-rev-label">問題 ' + (r.no || '') + '</span>'
+               +     '<div class="kiso-rev-problem">' + problemTex + '</div>'
+               +   '</div>'
+               +   '<div class="kiso-rev-section">'
+               +     '<span class="kiso-rev-label">正解</span>'
+               +     '<div class="kiso-rev-canonical">' + canonicalTex + '</div>'
+               +   '</div>'
+               + '</div>';
+        }).join('');
+      }
+    }
+    showScreen('screen-kiso-answers');
+    _kisoTypeset(listEl);
+  }
+
   // =====================================================
   // 撮影前確認画面（途中式の写真も送る？）
   // =====================================================
@@ -19890,7 +19958,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260807-2237</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260807-2344</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
