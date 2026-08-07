@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260808-0409"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260808-0428"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -390,7 +390,7 @@
   .dw-cell { width: 128px; }
   .dw-thumb { width: 128px; height: 96px; border: 1.5px solid #bae6fd; border-radius: 8px; background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; }
   .dw-thumb-ph { font-size: 12px; color: #0369a1; text-align: center; padding: 4px; }
-  .dw-img { max-width: 100%; height: auto; display: block; border-radius: 6px; }
+  .dw-img { max-width: 100%; height: auto; display: block; border-radius: 6px; cursor: zoom-in; }
   .dw-cell-meta { font-size: 11px; color: #64748b; margin-top: 4px; display: flex; flex-direction: column; gap: 1px; }
   .dw-cell-label { font-weight: 700; color: #0f172a; }
   .dw-audio-row { background: #fff; border: 1.5px solid #bae6fd; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
@@ -8133,7 +8133,16 @@
         return;
       }
       box.setAttribute('data-loaded', '1');
-      box.innerHTML = '<img class="dw-img" src="data:' + (res.mime || 'image/jpeg') + ';base64,' + res.base64 + '" alt="">';
+      // 取得済み base64 を data: URL として保持し、画像タップで既存ライトボックス（_showKisoPhotoModal）で
+      // 拡大表示する（答案が読めるサイズ）。再取得はしない。kiso/mytask 共通・両者は同時表示されない。
+      var dataUrl = 'data:' + (res.mime || 'image/jpeg') + ';base64,' + res.base64;
+      box.innerHTML = '<img class="dw-img" src="' + dataUrl + '" alt="" title="タップで拡大">';
+      var imgEl = box.querySelector('img.dw-img');
+      if (imgEl) {
+        imgEl.onclick = function() {
+          if (typeof _showKisoPhotoModal === 'function') _showKisoPhotoModal({ dataUrl: dataUrl });
+        };
+      }
     }).catch(function() {
       box.removeAttribute('data-loading');
       box.innerHTML = '<span class="dw-thumb-ph">⚠ 通信エラー</span>';
@@ -14255,7 +14264,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260808-0409</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260808-0428</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
