@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260808-2058"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260808-2108"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -375,6 +375,40 @@
   .reply-stamp-btn { padding: 6px 10px; background: #fff; color: #5b21b6; border: 1.5px solid #c4b5fd; border-radius: 16px; font-size: 12px; font-weight: 700; cursor: pointer; line-height: 1.3; transition: transform .1s, background .12s, box-shadow .12s; }
   .reply-stamp-btn:hover { background: #f5f3ff; transform: translateY(-1px); box-shadow: 0 2px 6px rgba(124,58,237,.2); }
   .reply-stamp-btn:active { transform: translateY(0); }
+  /* 第3群②（2026-08）：振り返り返信カードから「この日の作品」をインライン展開（アコーディオン）。
+     メディアは既存 Blob proxy を「押して表示」でオンデマンド取得（画像=data:URL / 音声=Blob URL）。 */
+  .day-works-wrap { margin-top: 10px; }
+  .day-works-toggle { padding: 8px 16px; background: linear-gradient(135deg,#0ea5e9,#0369a1); color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 13px; transition: transform .12s, box-shadow .12s; }
+  .day-works-toggle:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(3,105,161,.3); }
+  .day-works-panel { display: none; margin-top: 10px; padding: 12px; background: #f0f9ff; border: 1.5px solid #bae6fd; border-radius: 10px; }
+  .day-works-panel.active { display: block; }
+  .dw-loading, .dw-empty { font-size: 13px; color: #64748b; padding: 8px 4px; text-align: center; }
+  .dw-section { margin-bottom: 14px; }
+  .dw-section:last-child { margin-bottom: 0; }
+  .dw-section-title { font-size: 13px; font-weight: 700; color: #075985; margin-bottom: 8px; }
+  .dw-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+  .dw-cell { width: 128px; }
+  .dw-thumb { width: 128px; height: 96px; border: 1.5px solid #bae6fd; border-radius: 8px; background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; }
+  .dw-thumb-ph { font-size: 12px; color: #0369a1; text-align: center; padding: 4px; }
+  .dw-img { max-width: 100%; height: auto; display: block; border-radius: 6px; cursor: zoom-in; }
+  .dw-cell-meta { font-size: 11px; color: #64748b; margin-top: 4px; display: flex; flex-direction: column; gap: 1px; }
+  .dw-cell-label { font-weight: 700; color: #0f172a; }
+  .dw-audio-row { background: #fff; border: 1.5px solid #bae6fd; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  .dw-audio-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .dw-audio-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: #475569; }
+  .dw-audio-btn { padding: 6px 12px; background: linear-gradient(135deg,#8b5cf6,#7c3aed); color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 12px; white-space: nowrap; }
+  .dw-audio-btn:disabled { background: linear-gradient(135deg,#cbd5e1,#94a3b8); cursor: default; }
+  .dw-audio-player { display: none; margin-top: 8px; }
+  .dw-audio-player.active { display: block; }
+  .dw-audio-el { width: 100%; }
+  .dw-audio-note { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+  .dw-text-card { background: #fff; border: 1.5px solid #bae6fd; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  .dw-text-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: #64748b; margin-bottom: 6px; }
+  .dw-text-body { font-size: 13px; color: #333; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+  .dw-oriwan-q { border-top: 1px dashed #e2e8f0; padding-top: 6px; margin-top: 6px; font-size: 12px; color: #333; line-height: 1.5; }
+  .dw-oriwan-q:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+  .dw-oriwan-qno { display: inline-block; font-weight: 700; color: #0369a1; margin-right: 6px; }
+  .dw-oriwan-sa { display: block; color: #15803d; margin-top: 2px; }
 
   @media (max-width: 480px) {
     .cal-cell { min-height: 48px; padding: 4px 2px; gap: 2px; }
@@ -448,10 +482,14 @@
   .kiso-photo-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.85); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
   .kiso-photo-modal-inner { position: relative; max-width: 95vw; max-height: 95vh; }
   .kiso-photo-modal-inner img { max-width: 95vw; max-height: 95vh; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,.5); display: block; }
-  .kiso-photo-modal-close { position: absolute; top: -44px; right: 0; background: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  /* 2026-08 修正：✕ を position:fixed でビューポート右上に固定する。
+     旧実装は position:absolute; top:-44px（インナー上端の外側）で、縦長の答案画像（最大95vh）を
+     広いPC画面で中央寄せ表示すると ✕ がビューポート上端より上にはみ出て押せなかった。
+     fixed 化＋画像より前面の z-index で、画像がどれだけ大きく/縦長でも ✕ が常に画面内で押せる。
+     kiso/mytask の解答確認 + 当日作品ビューアが同じ _showKisoPhotoModal を使う共有モーダルのため、
+     全経路で改善される（mytask 専用の枠内 override は不要になり撤去して統一）。 */
+  .kiso-photo-modal-close { position: fixed; top: 16px; right: 16px; z-index: 10000; background: #fff; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 20px; line-height: 1; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
   .kiso-photo-modal-close:hover { background: #f3f4f6; }
-  /* マイ課題の拡大モーダルだけ、✕ を枠外上端（top:-44px）ではなく画像枠内の右上に収める（PC/スマホ両対応） */
-  .kiso-photo-modal-close.mytask-photo-modal-close { top: 8px; right: 8px; }
   .kiso-photo-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; background: #fff; border-radius: 12px; }
   /* セッションごとのグループ表示（解答写真 + 途中式写真をまとめる） */
   .kiso-session-group { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; margin-bottom: 18px; }
@@ -7954,6 +7992,15 @@
         var ridEsc = _esc(r.reflectionId || '');
         var replies = Array.isArray(r.replies) ? r.replies : [];
         var threadHtml = _renderReplyThread(replies);
+        // 第3群②：この日の作品ビューア用に studentId(student_code) と 教育日(ds) を onclick に渡す。
+        var sidJs = String(r.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var dsJs  = String(ds || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var dayWorksHtml = sidJs
+          ? '<div class="day-works-wrap">' +
+              '<button class="day-works-toggle" id="day-works-btn-' + ridEsc + '" onclick="toggleDayWorks(\'' + ridEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📎 この日の作品を見る</button>' +
+              '<div class="day-works-panel" id="day-works-' + ridEsc + '"></div>' +
+            '</div>'
+          : '';
         return '<div class="refl-day-card" data-rid="' + ridEsc + '">' +
                  '<div class="head-row">' +
                    '<div>' +
@@ -7965,6 +8012,7 @@
                  '</div>' +
                  '<div class="refl-content">' + _esc(r.content || '') + '</div>' +
                  '<div class="refl-len">' + len + ' 文字</div>' +
+                 dayWorksHtml +
                  '<div class="reply-thread" id="reply-thread-' + ridEsc + '">' + threadHtml + '</div>' +
                  '<button class="reply-form-toggle" onclick="toggleReplyForm(\'' + ridEsc + '\')">💬 返信を書く</button>' +
                  _renderReplyForm(ridEsc) +
@@ -7974,6 +8022,264 @@
     }).catch(function() {
       wrapEl.innerHTML = '<div class="refl-day-empty">通信エラーが発生しました</div>';
     });
+  }
+
+  // =============================================================
+  // 第3群②（2026-08）：振り返り返信画面「この日の作品を見る」ビューア
+  // -------------------------------------------------------------
+  // バックエンド getStudentDayWorks({studentId, educationalDate}) が教育日で絞済の
+  //   軽量メタ（fileId / テキスト / 種別 / submittedAt / 件数）を返す（base64 は含まない）。
+  // メディア本体は既存 Blob proxy を「押して表示」でオンデマンド取得：
+  //   画像 getKisoPhotoBlob / getMyTaskPhotoBlob → {base64,mime} を data: URL で <img>、
+  //   音声 getLisonRecordingBlob → base64 → Blob URL を <audio controlsList="nodownload">。
+  // テキスト系（oriwantes/sango/wabun1）はメタ内テキストをそのまま表示。
+  // 【インライン展開を選択した理由】返信しながら当日作品を確認したい要件のため、専用画面へ
+  //   遷移するより返信カード直下にアコーディオン展開する方が自然。メディア取得は既存の
+  //   「押してオンデマンド」作法をそのまま踏襲し、既存の解答確認ビューアと乖離しない。
+  var _dayWorksBlobUrls = {};   // 音声 Blob URL 管理（key: uid）
+  var _dayWorksSeq = 0;         // メディア要素の一意 suffix
+
+  function _dwArr(v) { return Array.isArray(v) ? v : (v ? [v] : []); }
+  function _dwFileId(it) { return String((it && (it.fileId || it.driveFileId)) || '').trim(); }
+  function _dwSubmittedAt(it) {
+    var t = (it && (it.submittedAt || it.timestamp || it.date)) || '';
+    return String(t).replace('T', ' ').slice(0, 16);
+  }
+  function _dwMethodLabel(m) {
+    m = String(m || '');
+    return m === 'photo' ? '📷 写真' : m === 'text' ? '✏️ 直接入力' : (m ? _esc(m) : '');
+  }
+  function _dwMetaSpans(parts) {
+    var s = parts.filter(Boolean).map(function(x){ return '<span>' + x + '</span>'; }).join('');
+    return s;
+  }
+
+  // 「この日の作品を見る」トグル（アコーディオン開閉 + 初回開で取得・描画）
+  function toggleDayWorks(rid, sid, ds) {
+    var panel = document.getElementById('day-works-' + rid);
+    var btn   = document.getElementById('day-works-btn-' + rid);
+    if (!panel) return;
+    var willOpen = !panel.classList.contains('active');
+    if (!willOpen) {
+      panel.classList.remove('active');
+      panel.innerHTML = '';
+      if (btn) btn.textContent = '📎 この日の作品を見る';
+      return;
+    }
+    panel.classList.add('active');
+    panel.innerHTML = '<div class="dw-loading">⏳ 読み込み中...</div>';
+    if (btn) btn.textContent = '📎 閉じる';
+    adminGasGet({ action: 'getStudentDayWorks', studentId: sid, educationalDate: ds, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (_handleAdminApiError(msg)) { panel.classList.remove('active'); if (btn) btn.textContent = '📎 この日の作品を見る'; return; }
+        panel.innerHTML = '<div class="dw-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      panel.innerHTML = _renderDayWorks(res);
+    }).catch(function() {
+      panel.innerHTML = '<div class="dw-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  // works（教育日で絞済）を種別ごとに描画。提出が無い種別はセクションごと非表示（見やすさ優先）。
+  function _renderDayWorks(res) {
+    var works = (res && res.works) || {};
+    var out = '';
+    out += _dwImageSection('🧮 基礎計算 答案写真', works.kiso,   'getKisoPhotoBlob');
+    out += _dwImageSection('📸 マイ課題 画像',    works.mytask, 'getMyTaskPhotoBlob');
+    out += _dwAudioSection('🎧 リスオン録音',     works.lison);
+    out += _dwOriwantesSection('🧩 オリワンテス', works.oriwantes);
+    out += _dwTextSection('🐠 三語短文',          works.sango);
+    out += _dwTextSection('📘 和文英訳①',         works.wabun1);
+    if (!out) return '<div class="dw-empty">この日の提出作品はありません。</div>';
+    return out;
+  }
+
+  // 画像セクション（kiso / mytask）：サムネ枠は初期プレースホルダー、押下で Blob proxy → data: URL で表示。
+  function _dwImageSection(title, items, blobAction) {
+    var arr = _dwArr(items);
+    if (!arr.length) return '';
+    var cells = arr.map(function(it) {
+      var fid = _dwFileId(it);
+      var label = String((it && (it.label || it.type || it.kind)) || '');
+      var when  = _dwSubmittedAt(it);
+      var meta  = (label ? '<span class="dw-cell-label">' + _esc(label) + '</span>' : '') +
+                  (when  ? '<span>' + _esc(when) + '</span>' : '');
+      var metaHtml = meta ? '<div class="dw-cell-meta">' + meta + '</div>' : '';
+      if (!fid) {
+        return '<div class="dw-cell"><div class="dw-thumb"><span class="dw-thumb-ph">⚠ ファイルIDなし</span></div>' + metaHtml + '</div>';
+      }
+      var uid = 'dw-img-' + (++_dayWorksSeq);
+      var fidJs = fid.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<div class="dw-cell">' +
+               '<div class="dw-thumb" id="' + uid + '" onclick="dwLoadImage(\'' + uid + '\',\'' + fidJs + '\',\'' + blobAction + '\')">' +
+                 '<span class="dw-thumb-ph">📷 押して表示</span>' +
+               '</div>' + metaHtml +
+             '</div>';
+    }).join('');
+    return '<div class="dw-section"><div class="dw-section-title">' + title + '（' + arr.length + '）</div><div class="dw-grid">' + cells + '</div></div>';
+  }
+
+  // 画像オンデマンド取得（既存 getKisoPhotoBlob / getMyTaskPhotoBlob 流用）。二重取得はガード。
+  function dwLoadImage(uid, fileId, blobAction) {
+    var box = document.getElementById(uid);
+    if (!box || !fileId) return;
+    if (box.getAttribute('data-loaded') === '1' || box.getAttribute('data-loading') === '1') return;
+    box.setAttribute('data-loading', '1');
+    box.innerHTML = '<span class="dw-thumb-ph">⏳ 取得中…</span>';
+    adminGasGet({ action: blobAction, fileId: fileId }).then(function(res) {
+      box.removeAttribute('data-loading');
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '取得に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        box.innerHTML = '<span class="dw-thumb-ph">⚠ 取得失敗</span>';
+        return;
+      }
+      box.setAttribute('data-loaded', '1');
+      // 取得済み base64 を data: URL として保持し、画像タップで既存ライトボックス（_showKisoPhotoModal）で
+      // 拡大表示する（答案が読めるサイズ）。再取得はしない。kiso/mytask 共通・両者は同時表示されない。
+      var dataUrl = 'data:' + (res.mime || 'image/jpeg') + ';base64,' + res.base64;
+      box.innerHTML = '<img class="dw-img" src="' + dataUrl + '" alt="" title="タップで拡大">';
+      var imgEl = box.querySelector('img.dw-img');
+      if (imgEl) {
+        imgEl.onclick = function() {
+          if (typeof _showKisoPhotoModal === 'function') _showKisoPhotoModal({ dataUrl: dataUrl });
+        };
+      }
+    }).catch(function() {
+      box.removeAttribute('data-loading');
+      box.innerHTML = '<span class="dw-thumb-ph">⚠ 通信エラー</span>';
+    });
+  }
+
+  // 音声セクション（lison）：<audio controlsList="nodownload" preload="none"> ＋ 押下で Blob URL 生成。
+  function _dwAudioSection(title, items) {
+    var arr = _dwArr(items);
+    if (!arr.length) return '';
+    var rows = arr.map(function(it) {
+      var fid = _dwFileId(it);
+      var when = _dwSubmittedAt(it);
+      var lv   = String((it && it.level) || '');
+      var qs   = (it && it.quizScore != null) ? ('クイズ ' + Number(it.quizScore) + '/3') : '';
+      var metaHtml = _dwMetaSpans([_esc(when), _esc(lv), _esc(qs)]);
+      if (!fid) {
+        return '<div class="dw-audio-row"><div class="dw-audio-meta">' + metaHtml + '</div><span class="dw-thumb-ph">⚠ ファイルIDなし</span></div>';
+      }
+      var uid = 'dw-aud-' + (++_dayWorksSeq);
+      var fidJs = fid.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<div class="dw-audio-row">' +
+               '<div class="dw-audio-head">' +
+                 '<div class="dw-audio-meta">' + metaHtml + '</div>' +
+                 '<button type="button" class="dw-audio-btn" id="' + uid + '-btn" onclick="dwToggleAudio(\'' + uid + '\',\'' + fidJs + '\')">▶️ 再生</button>' +
+               '</div>' +
+               '<div class="dw-audio-player" id="' + uid + '-player">' +
+                 '<audio class="dw-audio-el" id="' + uid + '-audio" controls controlsList="nodownload" preload="none"></audio>' +
+                 '<div class="dw-audio-note">※ 録音データは再生専用です。</div>' +
+               '</div>' +
+             '</div>';
+    }).join('');
+    return '<div class="dw-section"><div class="dw-section-title">' + title + '（' + arr.length + '）</div>' + rows + '</div>';
+  }
+
+  // 音声再生トグル（既存 getLisonRecordingBlob 流用。base64→Blob→Blob URL）
+  function dwToggleAudio(uid, fileId) {
+    var player = document.getElementById(uid + '-player');
+    var btn    = document.getElementById(uid + '-btn');
+    if (!player) return;
+    var willOpen = !player.classList.contains('active');
+    if (!willOpen) { dwCloseAudio(uid); return; }
+    if (!fileId) { showToast('ファイル ID が取得できません', 'error'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 取得中…'; }
+    player.classList.add('active');
+    adminGasGet({ action: 'getLisonRecordingBlob', fileId: fileId }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '取得に失敗しました';
+        if (_handleAdminApiError(em)) { dwCloseAudio(uid); return; }
+        showToast(em, 'error'); dwCloseAudio(uid); return;
+      }
+      try {
+        var b64 = res.base64 || '';
+        var mime = res.mime || 'audio/webm';
+        var bin = atob(b64);
+        var n = bin.length;
+        var bytes = new Uint8Array(n);
+        for (var i = 0; i < n; i++) bytes[i] = bin.charCodeAt(i);
+        var blob = new Blob([bytes], { type: mime });
+        if (_dayWorksBlobUrls[uid]) { try { URL.revokeObjectURL(_dayWorksBlobUrls[uid]); } catch (e) {} }
+        var blobUrl = URL.createObjectURL(blob);
+        _dayWorksBlobUrls[uid] = blobUrl;
+        var audio = document.getElementById(uid + '-audio');
+        if (audio) { audio.src = blobUrl; try { audio.load(); } catch (e) {} }
+        if (btn) { btn.disabled = false; btn.textContent = '⏹ 閉じる'; }
+      } catch (e) {
+        showToast('音声データの変換に失敗しました', 'error');
+        dwCloseAudio(uid);
+      }
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+      dwCloseAudio(uid);
+    });
+  }
+  function dwCloseAudio(uid) {
+    var player = document.getElementById(uid + '-player');
+    var audio  = document.getElementById(uid + '-audio');
+    var btn    = document.getElementById(uid + '-btn');
+    if (audio) {
+      try { audio.pause(); } catch (e) {}
+      try { audio.removeAttribute('src'); audio.load(); } catch (e) {}
+    }
+    if (_dayWorksBlobUrls[uid]) { try { URL.revokeObjectURL(_dayWorksBlobUrls[uid]); } catch (e) {} delete _dayWorksBlobUrls[uid]; }
+    if (player) player.classList.remove('active');
+    if (btn) { btn.disabled = false; btn.textContent = '▶️ 再生'; }
+  }
+
+  // テキストセクション（sango / wabun1）：メタ内テキストをそのまま表示。
+  function _dwTextSection(title, items) {
+    var arr = _dwArr(items);
+    if (!arr.length) return '';
+    var rows = arr.map(function(it) {
+      var when   = _dwSubmittedAt(it);
+      var lv     = String((it && it.level) || '');
+      var method = _dwMethodLabel(it && it.method);
+      var body   = String((it && (it.work || it.text || it.content)) || '');
+      var metaHtml = _dwMetaSpans([_esc(when), _esc(lv), method]);
+      return '<div class="dw-text-card">' +
+               (metaHtml ? '<div class="dw-text-meta">' + metaHtml + '</div>' : '') +
+               '<div class="dw-text-body">' + (body ? _esc(body) : '（本文なし）') + '</div>' +
+             '</div>';
+    }).join('');
+    return '<div class="dw-section"><div class="dw-section-title">' + title + '（' + arr.length + '）</div>' + rows + '</div>';
+  }
+
+  // オリワンテス：questions[] があれば問ごとに（問題文 / 生徒の解答）、無ければテキストを表示。
+  function _dwOriwantesSection(title, items) {
+    var arr = _dwArr(items);
+    if (!arr.length) return '';
+    var rows = arr.map(function(it) {
+      var when = _dwSubmittedAt(it);
+      var subj = String((it && it.subject) || '');
+      var metaHtml = _dwMetaSpans([_esc(when), _esc(subj)]);
+      var body = '';
+      var qs = (it && it.questions) || null;
+      if (Array.isArray(qs) && qs.length) {
+        body = qs.map(function(q, i) {
+          var sa = String((q && q.studentAnswer != null) ? q.studentAnswer : '').trim();
+          return '<div class="dw-oriwan-q">' +
+                   '<span class="dw-oriwan-qno">問' + (i + 1) + '</span>' +
+                   '<span>' + _esc(String((q && q.questionText) || '')) + '</span>' +
+                   '<span class="dw-oriwan-sa">解答：' + (sa ? _esc(sa) : '（未回答）') + '</span>' +
+                 '</div>';
+        }).join('');
+      } else {
+        body = '<div class="dw-text-body">' + _esc(String((it && (it.text || it.work || it.content)) || '')) + '</div>';
+      }
+      return '<div class="dw-text-card">' +
+               (metaHtml ? '<div class="dw-text-meta">' + metaHtml + '</div>' : '') +
+               body +
+             '</div>';
+    }).join('');
+    return '<div class="dw-section"><div class="dw-section-title">' + title + '（' + arr.length + '）</div>' + rows + '</div>';
   }
 
   // 振り返り返信機能（マイ活アプリ_11、2026-05-22）
@@ -13962,7 +14268,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260808-2058</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260808-2108</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
