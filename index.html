@@ -3332,10 +3332,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260808-0503"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260808-2108"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260808-0503">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260808-0503"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260808-2108">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260808-2108"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5376,6 +5376,8 @@
   <div class="container" style="padding-top:14px">
     <!-- 2026-05-21 Recovery バリアント：再開バナー（resume 中の表示） -->
     <div id="kanji-resume-banner" class="kanji-resume-banner" style="display:none">📂 未送信のセッションを再開しました。<br>もう一度「読み」テストからで、ゴメンナサイ！🙇‍♂️💦</div>
+    <!-- 2026-08-08：自動再開後に「最初から新しくやり直す」導線（読み自動再開時のみ表示） -->
+    <button class="btn-wide" id="kanji-yomi-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin:0 0 10px" onclick="kanjiRestartFresh()">🆕 最初から新しくやり直す</button>
     <!-- 2026-05-21 Recovery バリアント：プロモバナー（未送信の前回セッションがあるときだけ表示） -->
     <div id="kanji-resume-promo" class="kanji-resume-promo" style="display:none">
       <div class="kanji-resume-promo-note">📂（撮影前にログイン画面に戻ってしまった場合）</div>
@@ -5422,12 +5424,12 @@
       <div class="kanjii-bubble" id="kanjii-bubble-kaki">ノートに書いてキミの字、見せて〜！</div>
     </div>
     <div id="kanji-kaki-list" class="kanji-kaki-list"></div>
-    <div class="reload-warn-banner redo" data-content="カンジー">
-      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
-      もう一度ログインしてから、<strong>同じ級・同じ問題数でもう一度挑戦してね</strong>。<span class="reload-warn-apology">面倒くさくてゴメンナサイ🙇‍♂️💦</span>
-    </div>
+    <!-- 2026-08-08：自動再開の導入により「撮影後に戻ったら同じ級・問題数でやり直して」の注意は不要になったため、
+         書き段階から自動再開できる旨の軽い案内に置き換え。 -->
+    <div class="kanji-kaki-resume-note" style="font-size:13px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin:8px 0;line-height:1.6">📂 撮影後にログイン画面に戻っても大丈夫。次に開くと<strong>「書き」の続きから自動で再開</strong>できるよ（読みのやり直しは不要）。</div>
     <input type="file" id="kanji-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKanjiPhotoSelected(event)">
     <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを写真に撮って送る</button>
+    <button class="btn-wide" id="kanji-kaki-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:10px" onclick="kanjiRestartFresh()">🆕 最初から（読みから）やり直す</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -5447,10 +5449,8 @@
           <li>AIが誤って読み取ることがあるよ。違う場合は「もう一度撮る」を押してね（同じ写真でも結果が変わることがあるよ）</li>
         </ul>
       </div>
-      <div class="reload-warn-banner redo" data-content="カンジー">
-        <div class="reload-warn-title">⚠️ 送信後にログイン画面に戻ってしまった場合</div>
-        もう一度ログインしてから、<strong>同じ級・同じ問題数でもう一度挑戦してね</strong>。<span class="reload-warn-apology">面倒くさくてゴメンナサイ🙇‍♂️💦</span>
-      </div>
+      <!-- 2026-08-08：自動再開の導入により「同じ級・問題数でやり直して」の注意は不要。書き自動再開の案内に置換。 -->
+      <div class="kanji-kaki-resume-note" style="font-size:13px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin:8px 0;line-height:1.6">📂 送信後にログイン画面に戻っても大丈夫。次に開くと<strong>「書き」の続きから自動で再開</strong>できるよ（読みのやり直しは不要）。</div>
       <div class="kiso-confirm-btns">
         <button class="kiso-confirm-retake" onclick="retakeKanjiPhoto()">📸 撮り直す</button>
         <button class="kiso-confirm-submit" id="kanji-kaki-submit-btn" onclick="submitKanjiKakiPhoto()">🚀 送信して採点</button>
@@ -6261,8 +6261,22 @@
   // 既定ON：未設定や 'off' 以外はすべて鳴らす。maika_voice と同じ localStorage 方式。
   var _sfxEnabled = true;
   try { _sfxEnabled = (localStorage.getItem('maika_sfx_enabled') !== 'off'); } catch(e) {}
+  // 効果音がオフかを「localStorage の最新値を優先」して毎回判定する。
+  //   - init 時の in-memory 変数(_sfxEnabled)とのズレ／初期化タイミング差を排除。
+  //   - 同一ストレージコンテナ内では「オフ」が確実に持続（再起動後もオフのまま鳴らさない）。
+  //   - localStorage が読めない環境のみ in-memory にフォールバック。
+  //   ※ iOS の webclip(ホーム画面追加)と Safari タブはストレージコンテナが別＝
+  //     クライアントだけでは統一不可（既知の限界。各コンテナで一度オフにする必要あり）。
+  function _sfxOff() {
+    try {
+      var v = localStorage.getItem('maika_sfx_enabled');
+      if (v === 'off') return true;
+      if (v === 'on')  return false;
+    } catch(e) {}
+    return !_sfxEnabled;
+  }
   function playSfx(name) {
-    if (!_sfxEnabled) return;  // 効果音オフ時は何もしない（学習音声には影響しない）
+    if (_sfxOff()) return;  // 効果音オフ時は何もしない（学習音声には影響しない）
     var a = SFX[name]; if (!a) return;
     try {
       a.pause(); a.currentTime = 0;
@@ -7068,16 +7082,21 @@
     var btn = document.getElementById('sfx-toggle-btn');
     var lbl = document.getElementById('sfx-toggle-label');
     if (!btn) return;
-    btn.classList.toggle('on',  _sfxEnabled);
-    btn.classList.toggle('off', !_sfxEnabled);
-    btn.setAttribute('aria-pressed', _sfxEnabled ? 'true' : 'false');
-    if (lbl) lbl.textContent = _sfxEnabled ? '🔔 効果音：オン' : '🔕 効果音：オフ';
+    // 保存値(localStorage)を真実として表示（起動時に UI と保存状態が食い違わないように）。
+    var on = !_sfxOff();
+    _sfxEnabled = on;  // in-memory も保存値に同期
+    btn.classList.toggle('on',  on);
+    btn.classList.toggle('off', !on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (lbl) lbl.textContent = on ? '🔔 効果音：オン' : '🔕 効果音：オフ';
   }
 
   // 効果音オン/オフを切り替え、localStorage に保存して表示を即更新する。
+  // ★現在の「保存値」を基準に反転（in-memory の可能なズレに引きずられない）。
   function toggleSfx() {
-    _sfxEnabled = !_sfxEnabled;
-    try { localStorage.setItem('maika_sfx_enabled', _sfxEnabled ? 'on' : 'off'); } catch(e) {}
+    var turnOn = _sfxOff();  // 今オフなら → オンにする
+    _sfxEnabled = turnOn;
+    try { localStorage.setItem('maika_sfx_enabled', turnOn ? 'on' : 'off'); } catch(e) {}
     _renderSfxToggle();
   }
 
@@ -14260,6 +14279,20 @@
     }
     _kanjiSaveRecentSessions(level, arr);
   }
+  // 中断エントリに「学習段階」印を残す（submission は null のまま＝未完了を維持）。
+  // stage==='kaki' は「読み合格済みで書き段階に到達した」ことを表し、自動再開で読みをスキップする判定に使う。
+  function _kanjiMarkRecentStage(level, sessionId, stage) {
+    if (!level || !sessionId) return;
+    var arr = _kanjiLoadRecentSessions(level);
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i].sessionId === sessionId) {
+        arr[i].stage = stage;
+        if (stage === 'kaki') arr[i].yomiPassed = true;
+        break;
+      }
+    }
+    _kanjiSaveRecentSessions(level, arr);
+  }
   // 読み問題画面で過去セッションボタン群を描画 + プロモバナーを判定
   // 表示条件：past を線形走査して最初の未送信エントリがあれば promo を表示
   // （076e64b で基礎計算に適用した「採点済の裏に隠れる未送信を救済」ロジックと同じ）
@@ -14338,6 +14371,25 @@
     _renderKanjiYomiQuestion();
     // 過去セクション再描画
     _kanjiRenderPastButtons();
+  }
+  // ★書き段階まで進んでいた中断セッションを「書きの頭から」再開（読みはスキップ）。
+  //   読みは合格済みのため yomiPassed=true とし、同一 sessionId を流用して書き一覧へ直行。
+  function _resumeKanjiKakiStage(entry) {
+    if (!entry || !entry.sessionId) return;
+    _kanjiResetState();
+    _kanjiState.sessionId  = entry.sessionId;
+    _kanjiState.level      = entry.level || '';
+    _kanjiState.count      = entry.count || (entry.questions ? entry.questions.length : 0);
+    _kanjiState.questions  = entry.questions || [];
+    _kanjiState.yomiPassed = true;    // 読みは合格済み → スキップ
+    _kanjiState.isResumed  = true;
+    startKanjiKaki();                 // 書き一覧へ直行（startKanjiKaki が stage='kaki' を再マーク）
+  }
+  // 自動再開後の「最初から（読みから）やり直す」導線。強制的に新規セッションを取り直す。
+  function kanjiRestartFresh() {
+    if (!confirm('最初から（読みテストから）やり直しますか？\n※新しい問題セットになります')) return;
+    var cnt = _kanjiState.count || 5;
+    startKanjiSession(cnt, true);     // forceFresh=true で自動再開をスキップして新規開始
   }
   // ボタン押下：1つ前 / 2つ前のセッションを再開
   function onKanjiPastBtnClick(pos) {
@@ -16294,7 +16346,7 @@
     }).catch(function(){ notice.style.display = 'none'; });
   }
   // ----- セッション開始（getKanjiSet 呼び出し） -----
-  function startKanjiSession(count) {
+  function startKanjiSession(count, forceFresh) {
     var btn10 = document.getElementById('kanji-count-btn-10');
     var btn20 = document.getElementById('kanji-count-btn-20');
     if ((count === 5 && btn10.classList.contains('disabled')) || (count === 10 && btn20.classList.contains('disabled'))) {
@@ -16303,6 +16355,25 @@
       if (!confirm('本日の素点上限に達しています。練習モードで進めますか？（HPは付与されません）')) return;
     }
     _kanjiState.count = count;
+    // ★自動再開：当日の「未完了(submission===null)」セッションがあれば復元する（forceFresh でスキップ）。
+    //   stage==='kaki'（読み合格済み）→ 書きの頭から直行（読みスキップ）。それ以外 → 読みの最初から。
+    //   当日エントリが無い／前日以前のみ → 通常どおり新規（getKanjiSet）。
+    if (!forceFresh) {
+      try {
+        var _lv = _kanjiState.level;
+        var _arr = _kanjiLoadRecentSessions(_lv);
+        var _today = _todayKeyJST3am();
+        var _resume = null;
+        for (var _i = 0; _i < _arr.length; _i++) {
+          var _e = _arr[_i];
+          if (_e && !_e.submission && _e.seenDateKey === _today && _e.questions && _e.questions.length) { _resume = _e; break; }
+        }
+        if (_resume) {
+          if (_resume.stage === 'kaki') { _resumeKanjiKakiStage(_resume); return; }
+          _resumeKanjiSession(_resume); return;
+        }
+      } catch(e) {}
+    }
     var bodyEl = document.getElementById('kanji-count-notice');
     if (bodyEl) bodyEl.textContent = '⏳ 問題を読み込み中...';
     gasGet({ action:'getKanjiSet', studentId:_studentId, level:_kanjiState.level, count:count, _ts: Date.now() }).then(function(res){
@@ -16340,6 +16411,9 @@
   function _renderKanjiYomiQuestion() {
     var total = _kanjiState.questions.length;
     var idx = _kanjiState.yomiCurrent;
+    // 自動再開（読み）時のみ「最初から新しくやり直す」導線を表示（新規開始時は非表示）
+    var yFresh = document.getElementById('kanji-yomi-fresh-btn');
+    if (yFresh) yFresh.style.display = _kanjiState.isResumed ? '' : 'none';
     if (idx >= total) { _finishKanjiYomi(); return; }
     var q = _kanjiState.questions[idx].yomi;
     document.getElementById('kanji-yomi-prog').textContent = (idx + 1) + ' / ' + total;
@@ -16479,12 +16553,20 @@
   function startKanjiKaki() {
     _kanjiState.isKakiRetry = false;
     _kanjiState.retryAnswers = [];
-    _kanjiSetMascot('kanjii-img-kaki', 'thinking', 'kanjii-bubble-kaki', _pickBubble(KANJI_BUBBLES.kakiStart));
+    // ★書き段階到達を中断エントリに永続化（自動再開で読みスキップの判定に使う）
+    try { _kanjiMarkRecentStage(_kanjiState.level, _kanjiState.sessionId, 'kaki'); } catch(e){}
+    var kakiBubble = _kanjiState.isResumed
+      ? '書きの続きから再開したよ！ノートをもう一度撮って送ってね📷'
+      : _pickBubble(KANJI_BUBBLES.kakiStart);
+    _kanjiSetMascot('kanjii-img-kaki', 'thinking', 'kanjii-bubble-kaki', kakiBubble);
     document.getElementById('kanji-kaki-meta').textContent = '漢検 ' + _kanjiState.level + '級｜書き ' + _kanjiState.questions.length + '問';
     _renderKanjiKakiList(_kanjiState.questions);
     var input = document.getElementById('kanji-photo-input');
     if (input) input.value = '';
     document.getElementById('kanji-kaki-msg').style.display = 'none';
+    // 自動再開時のみ「最初から（読みから）やり直す」導線を表示
+    var freshBtn = document.getElementById('kanji-kaki-fresh-btn');
+    if (freshBtn) freshBtn.style.display = _kanjiState.isResumed ? '' : 'none';
     showScreen('screen-kanji-kaki');
   }
   function _renderKanjiKakiList(questions) {
@@ -19958,7 +20040,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260808-0503</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260808-2108</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
