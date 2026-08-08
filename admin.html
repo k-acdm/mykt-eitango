@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260808-2221"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-0017"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -345,6 +345,21 @@
   .refl-day-card .refl-content { font-size: 14px; color: #333; line-height: 1.7; white-space: pre-wrap; word-break: break-word; padding-top: 8px; border-top: 1px dashed #eef1f7; }
   .refl-day-card .refl-len { font-size: 11px; color: #888; text-align: right; margin-top: 6px; }
   .refl-day-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; background: #fff; border-radius: 8px; border: 2px dashed #e1e5ee; }
+  /* ②拡張（2026-08）：日付別画面の学習履歴サマリー / 未記入生徒カード / 小見出し */
+  .refl-day-subhead { font-size: 13px; font-weight: 700; color: #b45309; background: #fff7ed; border: 1px dashed #fdba74; border-radius: 8px; padding: 8px 12px; margin: 16px 0 10px; }
+  .refl-day-card .refl-content.no-reflection { color: #dc2626; font-weight: 700; }
+  .hp-bd-toggle { padding: 8px 16px; background: linear-gradient(135deg,#10b981,#059669); color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 13px; transition: transform .12s, box-shadow .12s; }
+  .hp-bd-toggle:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(5,150,105,.3); }
+  .hp-bd-wrap { font-size: 14px; }
+  .hp-bd-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 6px 2px; border-bottom: 1px dashed #d1fae5; }
+  .hp-bd-label { color: #333; }
+  .hp-bd-hp { color: #047857; font-weight: 700; white-space: nowrap; }
+  .hp-bd-total { text-align: right; font-size: 16px; font-weight: 800; color: #065f46; margin-top: 8px; }
+  .hp-bd-meta { font-size: 12px; color: #6b7280; margin-top: 6px; text-align: right; }
+  .refl-reminder-btn { margin-top: 10px; padding: 8px 16px; background: linear-gradient(135deg,#f59e0b,#d97706); color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 13px; transition: transform .12s, box-shadow .12s; }
+  .refl-reminder-btn:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(217,119,6,.3); }
+  .refl-reminder-btn:disabled { opacity: .6; cursor: default; box-shadow: none; transform: none; }
+  .refl-reminder-msg { font-size: 13px; margin-top: 6px; }
   /* 振り返り返信機能（マイ活アプリ_11、2026-05-22）：各 refl-day-card 下部のスレッド + 返信フォーム */
   .reply-thread { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #eef1f7; }
   .reply-thread-title { font-size: 12px; color: #6d28d9; font-weight: 700; margin-bottom: 8px; }
@@ -7959,69 +7974,128 @@
     loadReflectionsDay(ds);
   }
 
+  // ②拡張（2026-08）：記入者（getReflectionDayDetail）＋その日の全学習者（getCalendarDayDetail）を
+  //   student_code で突合して1つの日付別一覧に合流する。記入者＝従来カード、非記入者＝注意喚起カード。
   function loadReflectionsDay(ds) {
     var wrapEl = document.getElementById('refl-day-list-wrap');
     wrapEl.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    adminGasGet({
-      action: 'getReflectionDayDetail',
-      date:   ds,
-      _ts:    Date.now()
-    }).then(function(res) {
+    adminGasGet({ action: 'getReflectionDayDetail', date: ds, _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
         if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
         wrapEl.innerHTML = '<div class="refl-day-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var arr = res.reflections || [];
-      if (arr.length === 0) {
-        wrapEl.innerHTML = '<div class="refl-day-empty">この日の振り返りはありません。</div>';
-        return;
-      }
-      var cards = arr.map(function(r) {
-        var nameEsc  = _esc(r.studentName || '（未登録）');
-        var nickEsc  = _esc(r.nickname || '');
-        var gradeEsc = _esc(r.grade || '');
-        var ts       = String(r.timestamp || '');
-        // 'yyyy-MM-dd HH:mm:ss' から時刻部分 HH:MM のみ抽出（秒は省く）
-        var timeOnly = ts.length >= 16 ? ts.slice(11, 16) : (ts.length > 11 ? ts.slice(11) : ts);
-        var len      = Number(r.wordCount || (r.content ? r.content.length : 0));
-        var gradeBadge = gradeEsc ? '<span class="head-grade">' + gradeEsc + '</span>' : '';
-        var nickHtml   = nickEsc ? '<span class="head-nick">（' + nickEsc + '）</span>' : '';
-        // マイ活アプリ_11 / 2026-05-22：reflectionId をカードに埋め込み + 返信スレッド表示
-        var ridEsc = _esc(r.reflectionId || '');
-        var replies = Array.isArray(r.replies) ? r.replies : [];
-        var threadHtml = _renderReplyThread(replies);
-        // 第3群②：この日の作品ビューア用に studentId(student_code) と 教育日(ds) を onclick に渡す。
-        var sidJs = String(r.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var dsJs  = String(ds || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var dayWorksHtml = sidJs
-          ? '<div class="day-works-wrap">' +
-              '<button class="day-works-toggle" id="day-works-btn-' + ridEsc + '" onclick="toggleDayWorks(\'' + ridEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📎 この日の作品を見る</button>' +
-              '<div class="day-works-panel" id="day-works-' + ridEsc + '"></div>' +
-            '</div>'
-          : '';
-        return '<div class="refl-day-card" data-rid="' + ridEsc + '">' +
-                 '<div class="head-row">' +
-                   '<div>' +
-                     '<span class="head-name">' + nameEsc + '</span>' +
-                     nickHtml +
-                     gradeBadge +
-                   '</div>' +
-                   '<span class="head-time">' + _esc(timeOnly) + '</span>' +
-                 '</div>' +
-                 '<div class="refl-content">' + _esc(r.content || '') + '</div>' +
-                 '<div class="refl-len">' + len + ' 文字</div>' +
-                 dayWorksHtml +
-                 '<div class="reply-thread" id="reply-thread-' + ridEsc + '">' + threadHtml + '</div>' +
-                 '<button class="reply-form-toggle" onclick="toggleReplyForm(\'' + ridEsc + '\')">💬 返信を書く</button>' +
-                 _renderReplyForm(ridEsc) +
-               '</div>';
-      }).join('');
-      wrapEl.innerHTML = cards;
+      var writers = res.reflections || [];
+      // 続けて「その日の全学習者」を取得して合流（取得失敗でも記入者は表示する）
+      adminGasGet({ action: 'getCalendarDayDetail', date: ds, _ts: Date.now() }).then(function(cres) {
+        var learners = (cres && cres.ok && Array.isArray(cres.students)) ? cres.students : [];
+        _renderReflectionsDayMerged(wrapEl, ds, writers, learners);
+      }).catch(function() {
+        _renderReflectionsDayMerged(wrapEl, ds, writers, []);
+      });
     }).catch(function() {
       wrapEl.innerHTML = '<div class="refl-day-empty">通信エラーが発生しました</div>';
     });
+  }
+
+  function _reflJs(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+  function _renderReflectionsDayMerged(wrapEl, ds, writers, learners) {
+    // 記入者の student_code 集合（突合キー）
+    var wroteSet = {};
+    writers.forEach(function(w) { if (w && w.studentId) wroteSet[String(w.studentId)] = true; });
+    // 非記入者＝その日の学習者のうち記入者集合に居ない生徒
+    var nonWriters = learners.filter(function(s) { return s && s.studentId && !wroteSet[String(s.studentId)]; });
+    // 並び：非記入者は 氏名 → 生徒コード 順
+    nonWriters.sort(function(a, b) {
+      var an = String(a.name || ''), bn = String(b.name || '');
+      if (an !== bn) return an < bn ? -1 : 1;
+      return String(a.studentId) < String(b.studentId) ? -1 : 1;
+    });
+    if (writers.length === 0 && nonWriters.length === 0) {
+      wrapEl.innerHTML = '<div class="refl-day-empty">この日は振り返り・学習活動ともにありません。</div>';
+      return;
+    }
+    var html = '';
+    // 記入者（従来どおり occurred_at 昇順で受領済）
+    html += writers.map(function(r) { return _reflWriterCard(r, ds); }).join('');
+    // 非記入者（この日に学習ありだが振り返り未記入）
+    if (nonWriters.length > 0) {
+      html += '<div class="refl-day-subhead">📝 振り返り未記入（この日に学習あり ' + nonWriters.length + ' 名）</div>';
+      html += nonWriters.map(function(s) { return _reflNonWriterCard(s, ds); }).join('');
+    }
+    wrapEl.innerHTML = html;
+  }
+
+  // 記入者カード（従来の 本文/作品/返信スレッド/返信フォーム を維持 ＋「この日の学習履歴を見る」ボタン追加）
+  function _reflWriterCard(r, ds) {
+    var nameEsc  = _esc(r.studentName || '（未登録）');
+    var nickEsc  = _esc(r.nickname || '');
+    var gradeEsc = _esc(r.grade || '');
+    var ts       = String(r.timestamp || '');
+    var timeOnly = ts.length >= 16 ? ts.slice(11, 16) : (ts.length > 11 ? ts.slice(11) : ts);
+    var len      = Number(r.wordCount || (r.content ? r.content.length : 0));
+    var gradeBadge = gradeEsc ? '<span class="head-grade">' + gradeEsc + '</span>' : '';
+    var nickHtml   = nickEsc ? '<span class="head-nick">（' + nickEsc + '）</span>' : '';
+    var ridEsc = _esc(r.reflectionId || '');
+    var replies = Array.isArray(r.replies) ? r.replies : [];
+    var threadHtml = _renderReplyThread(replies);
+    var sidJs = _reflJs(r.studentId || '');
+    var dsJs  = _reflJs(ds || '');
+    var dayWorksHtml = sidJs
+      ? '<div class="day-works-wrap">' +
+          '<button class="day-works-toggle" id="day-works-btn-' + ridEsc + '" onclick="toggleDayWorks(\'' + ridEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📎 この日の作品を見る</button>' +
+          '<button class="hp-bd-toggle" style="margin-left:8px" id="hp-bd-btn-' + ridEsc + '" onclick="toggleHpBreakdown(\'' + ridEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📊 この日の学習履歴を見る</button>' +
+          '<div class="day-works-panel" id="day-works-' + ridEsc + '"></div>' +
+          '<div class="day-works-panel" id="hp-bd-' + ridEsc + '"></div>' +
+        '</div>'
+      : '';
+    return '<div class="refl-day-card" data-rid="' + ridEsc + '">' +
+             '<div class="head-row">' +
+               '<div>' +
+                 '<span class="head-name">' + nameEsc + '</span>' +
+                 nickHtml +
+                 gradeBadge +
+               '</div>' +
+               '<span class="head-time">' + _esc(timeOnly) + '</span>' +
+             '</div>' +
+             '<div class="refl-content">' + _esc(r.content || '') + '</div>' +
+             '<div class="refl-len">' + len + ' 文字</div>' +
+             dayWorksHtml +
+             '<div class="reply-thread" id="reply-thread-' + ridEsc + '">' + threadHtml + '</div>' +
+             '<button class="reply-form-toggle" onclick="toggleReplyForm(\'' + ridEsc + '\')">💬 返信を書く</button>' +
+             _renderReplyForm(ridEsc) +
+           '</div>';
+  }
+
+  // 非記入者カード（本文＝赤文字「振り返りコメントなし」／作品・学習履歴ボタンは併存／返信の代わりに注意喚起ボタン）
+  function _reflNonWriterCard(s, ds) {
+    var nameEsc = _esc(s.name || '（未登録）');
+    var nickEsc = _esc(s.nickname || '');
+    var nickHtml = nickEsc ? '<span class="head-nick">（' + nickEsc + '）</span>' : '';
+    var sid = String(s.studentId || '');
+    var key = 'nw_' + sid.replace(/[^0-9A-Za-z_]/g, '');   // 要素id用の安全キー（student_codeは英数想定）
+    var keyEsc = _esc(key);
+    var sidJs = _reflJs(sid);
+    var dsJs  = _reflJs(ds || '');
+    var dayWorksHtml = sid
+      ? '<div class="day-works-wrap">' +
+          '<button class="day-works-toggle" id="day-works-btn-' + keyEsc + '" onclick="toggleDayWorks(\'' + keyEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📎 この日の作品を見る</button>' +
+          '<button class="hp-bd-toggle" style="margin-left:8px" id="hp-bd-btn-' + keyEsc + '" onclick="toggleHpBreakdown(\'' + keyEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📊 この日の学習履歴を見る</button>' +
+          '<div class="day-works-panel" id="day-works-' + keyEsc + '"></div>' +
+          '<div class="day-works-panel" id="hp-bd-' + keyEsc + '"></div>' +
+        '</div>'
+      : '';
+    return '<div class="refl-day-card" data-nw="' + _esc(sid) + '">' +
+             '<div class="head-row">' +
+               '<div><span class="head-name">' + nameEsc + '</span>' + nickHtml + '</div>' +
+             '</div>' +
+             '<div class="refl-content no-reflection">振り返りコメントなし</div>' +
+             dayWorksHtml +
+             '<button class="refl-reminder-btn" id="reminder-btn-' + keyEsc + '" onclick="sendReflectionReminder(\'' + keyEsc + '\',\'' + sidJs + '\')">⚠️ 振り返りを書くよう促す</button>' +
+             '<div class="refl-reminder-msg" id="reminder-msg-' + keyEsc + '"></div>' +
+           '</div>';
   }
 
   // =============================================================
@@ -8079,6 +8153,85 @@
       panel.innerHTML = _renderDayWorks(res);
     }).catch(function() {
       panel.innerHTML = '<div class="dw-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  // ②拡張（2026-08）：「この日の学習履歴を見る」トグル。生徒の“最後の画面”フルHPサマリーを
+  //   adminGetStudentHpBreakdown で取得しカード直下にインライン展開（作品ビューアと同じアコーディオン作法）。
+  function toggleHpBreakdown(key, sid, ds) {
+    var panel = document.getElementById('hp-bd-' + key);
+    var btn   = document.getElementById('hp-bd-btn-' + key);
+    if (!panel) return;
+    var willOpen = !panel.classList.contains('active');
+    if (!willOpen) {
+      panel.classList.remove('active');
+      panel.innerHTML = '';
+      if (btn) btn.textContent = '📊 この日の学習履歴を見る';
+      return;
+    }
+    panel.classList.add('active');
+    panel.innerHTML = '<div class="dw-loading">⏳ 読み込み中...</div>';
+    if (btn) btn.textContent = '📊 閉じる';
+    adminGasGet({ action: 'adminGetStudentHpBreakdown', studentId: sid, educationalDate: ds, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (_handleAdminApiError(msg)) { panel.classList.remove('active'); if (btn) btn.textContent = '📊 この日の学習履歴を見る'; return; }
+        panel.innerHTML = '<div class="dw-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      panel.innerHTML = _renderHpBreakdown(res.hpBreakdown);
+    }).catch(function() {
+      panel.innerHTML = '<div class="dw-empty">通信エラーが発生しました</div>';
+    });
+  }
+  function _hpBdRow(label, hp) {
+    return '<div class="hp-bd-row"><span class="hp-bd-label">' + label + '</span><span class="hp-bd-hp">+' + Number(hp || 0) + ' HP</span></div>';
+  }
+  // 生徒ログアウト時の最終画面と同じ内容（合計 / 絶対ミッション達成ボーナス / 各コンテンツ内訳 / 連続日数等）。
+  function _renderHpBreakdown(bd) {
+    if (!bd || !Number(bd.total)) {
+      return '<div class="dw-empty">この日の学習履歴はありません（HP獲得なし）。</div>';
+    }
+    var cat = bd.byCategory || {};
+    var rows = '';
+    var cb = Number(cat.completion_bonus || 0);
+    if (cb > 0) rows += _hpBdRow('🎯 絶対ミッション達成ボーナス', cb);
+    var bc = bd.byContent || {};
+    Object.keys(bc).forEach(function(k) { rows += _hpBdRow(_esc(k), Number(bc[k] || 0)); });
+    var lb = Number(cat.login_bonus || 0);
+    if (lb > 0) rows += _hpBdRow('🔑 ログインボーナス', lb);
+    var meta = '';
+    if (bd.consecutiveDays != null) {
+      meta = '<div class="hp-bd-meta">連続 ' + Number(bd.consecutiveDays) + ' 日 ／ ' + Number(bd.weekStreak || 0) + ' 週目 ×' + Number(bd.weekMultiplier || 1) + ' 倍' +
+             (bd.isAbsoluteMissionComplete ? ' ／ 絶対ミッション達成 ✅' : '') + '</div>';
+    }
+    return '<div class="hp-bd-wrap">' + rows + '<div class="hp-bd-total">合計 +' + Number(bd.total) + ' HP</div>' + meta + '</div>';
+  }
+
+  // ②拡張（2026-08）：振り返り未記入の生徒へ「振り返りを書くよう促す」定型メッセージを個別送信。
+  //   既存 sendTeacherMessage（targetType=individual / targetIds=[student_code] / replyToReflectionId 空）を流用。
+  //   生徒はログイン時に赤バッジ（pull 通知）で気づく。二重送信防止でボタンは送信後に無効化。
+  var REFL_REMINDER_TEXT = '今日やった分を無駄にしないために、終わる前に必ず振り返りコメントを書いて正しくログアウトすること📝　やったまま放置は絶対に厳禁⚠️';
+  function sendReflectionReminder(key, sid) {
+    if (!sid) return;
+    var btn = document.getElementById('reminder-btn-' + key);
+    var msg = document.getElementById('reminder-msg-' + key);
+    if (!window.confirm('この生徒に「振り返りを書いてね」の注意メッセージを送りますか？')) return;
+    if (btn) { btn.disabled = true; btn.textContent = '送信中...'; }
+    if (msg) { msg.textContent = ''; msg.style.color = ''; }
+    adminGasPost({ action: 'sendTeacherMessage', targetType: 'individual', targetIds: [sid], content: REFL_REMINDER_TEXT }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '送信に失敗しました';
+        if (/認証|パスワード/.test(em)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
+        if (msg) { msg.style.color = '#dc2626'; msg.textContent = '⚠️ ' + em; }
+        if (btn) { btn.disabled = false; btn.textContent = '⚠️ 振り返りを書くよう促す'; }
+        return;
+      }
+      if (msg) { msg.style.color = '#16a34a'; msg.textContent = '✅ 送信しました'; }
+      if (btn) { btn.disabled = true; btn.textContent = '送信済み'; }   // 二重送信防止（無効維持）
+    }).catch(function() {
+      if (msg) { msg.style.color = '#dc2626'; msg.textContent = '⚠️ 通信エラーが発生しました'; }
+      if (btn) { btn.disabled = false; btn.textContent = '⚠️ 振り返りを書くよう促す'; }
     });
   }
 
@@ -14268,7 +14421,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260808-2221</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-0017</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
