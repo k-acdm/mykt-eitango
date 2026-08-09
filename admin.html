@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-1753"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-1835"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -8110,6 +8110,8 @@
              '</div>' +
              '<div class="refl-content no-reflection">振り返りコメントなし</div>' +
              dayWorksHtml +
+             // ②拡張：未記入者は初期スレッド無し（空div）。送信成功後に記入者と同じ返信スレッド表示を差し込む。
+             '<div class="reply-thread" id="reply-thread-' + keyEsc + '"></div>' +
              // ②拡張 修正B：即送信ではなく「返信を書く」→注意喚起文を prefill した返信欄を開く方式。
              '<button class="reply-form-toggle" id="reply-toggle-' + keyEsc + '" onclick="toggleReplyForm(\'' + keyEsc + '\')">💬 返信を書く（振り返りを促す）</button>' +
              _renderReplyFormNonWriter(key, sid) +
@@ -8318,10 +8320,36 @@
         btn.disabled = false; btn.textContent = '送信する';
         return;
       }
-      if (msg) { msg.style.color = '#16a34a'; msg.textContent = '✅ 送信しました'; }
-      btn.disabled = true; btn.textContent = '送信済み';   // 二重送信防止（無効維持）
-      var tgl = document.getElementById('reply-toggle-' + key);
-      if (tgl) { tgl.disabled = true; tgl.textContent = '✅ 促し送信済み'; }
+      // 成功 → 記入者パターンに統一：送信内容を返信スレッドに反映＋フォームを閉じてクリア
+      //   （「送信済み」「促し送信済み」等の未記入者専用の中途半端な残留UIは出さない）
+      var threadWrap = document.getElementById('reply-thread-' + key);
+      if (threadWrap) {
+        var title = threadWrap.querySelector('.reply-thread-title');
+        if (!title) {
+          // 未記入者は初期スレッド無し → 1件目のタイトルを立てる
+          threadWrap.innerHTML = '<div class="reply-thread-title">💬 返信スレッド（1件）</div>';
+        } else {
+          var existingCount = threadWrap.querySelectorAll('.reply-item').length;
+          title.textContent = '💬 返信スレッド（' + (existingCount + 1) + '件）';
+        }
+        var newTs = String(res.createdAt || res.timestamp || '').slice(0, 16);
+        var newSender = _esc(res.senderNickname || 'あなた');
+        var item = document.createElement('div');
+        item.className = 'reply-item';
+        item.innerHTML =
+          '<div class="reply-item-head">' +
+            '<span class="reply-item-sender">' + newSender + '</span>' +
+            '<span class="reply-item-time">' + _esc(newTs) + '</span>' +
+          '</div>' +
+          '<div class="reply-item-body">' + _esc(content) + '</div>';
+        threadWrap.appendChild(item);
+      }
+      // フォームを閉じてクリア（記入者と同じ二重送信防止：内容クリア＋送信ボタン無効化）
+      ta.value = '';
+      onReplyInput(key);
+      toggleReplyForm(key);
+      btn.disabled = true; btn.textContent = '送信する';
+      showToast('返信を送信しました', 'success');
     }).catch(function() {
       if (msg) { msg.style.color = '#dc2626'; msg.textContent = '⚠️ 通信エラーが発生しました'; }
       btn.disabled = false; btn.textContent = '送信する';
@@ -14514,7 +14542,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-1753</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-1835</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
