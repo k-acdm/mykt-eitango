@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-2150"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-2317"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -8340,7 +8340,10 @@
              '</div>' +
            '</div>';
   }
-  // 未記入者への個別送信（sendTeacherMessage individual・student_code 起点・reflectionId 無し）。二重送信防止つき。
+  // 未記入者への個別送信（(い)厳密方式：sendReflectionReminder・student_code 起点・reflectionId 無し）。二重送信防止つき。
+  // ★対象教育日 educationalDate=_reflDayStr（今表示中の教育日）を渡して reminder_educational_date に確定保存する。
+  //   これにより「どの日の未記入への促しか」が保存され、その日の画面をリロードすると adminGetDayReminders(date) が
+  //   対象教育日ベースで正確に拾って復元表示できる（(あ)方式の送信日ズレを解消）。生徒には通常の個別メッセージとして届く。
   function submitNonWriterReply(key, sid) {
     var ta = document.getElementById('reply-text-' + key);
     var btn = document.getElementById('reply-submit-' + key);
@@ -8352,7 +8355,7 @@
     if (!window.confirm('この生徒にメッセージを送信しますか？（編集・削除はできません）')) return;
     btn.disabled = true; btn.textContent = '送信中...';
     if (msg) { msg.textContent = ''; msg.style.color = ''; }
-    adminGasPost({ action: 'sendTeacherMessage', targetType: 'individual', targetIds: [sid], content: content }).then(function(res) {
+    adminGasPost({ action: 'sendReflectionReminder', studentCode: sid, educationalDate: _reflDayStr, content: content }).then(function(res) {
       if (!res || !res.ok) {
         var em = (res && res.message) ? res.message : '送信に失敗しました';
         if (/認証|パスワード/.test(em)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
@@ -14582,7 +14585,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-2150</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-2317</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
