@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-2006"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-2041"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -8017,9 +8017,12 @@
 
   function _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders) {
     // (あ)方式：未記入者へ送った促しを student_code でグルーピング（sent_at 昇順はサーバ側で担保済）。
+    // ★バックエンド(PHP)は snake_case で返す（admin.html:14180 の SheetGridActions 契約と同様）。
+    //   将来 camelCase に変わっても壊れないよう snake ?? camel の両対応で突合キーを取る。
     var remindersByCode = {};
     (reminders || []).forEach(function(rm) {
-      var code = String((rm && rm.studentCode) || '').trim();
+      var rawCode = rm ? (rm.student_code != null ? rm.student_code : rm.studentCode) : '';
+      var code = String(rawCode || '').trim();
       if (!code) return;
       if (!remindersByCode[code]) remindersByCode[code] = [];
       remindersByCode[code].push(rm);
@@ -8135,17 +8138,19 @@
   }
 
   // (あ)方式：未記入者へ送った促し（adminGetDayReminders の reminders[]）を、記入者と同じ見た目の
-  //   返信スレッドHTMLに変換する。reminder は {studentCode, content, sentAt, senderNickname}。
-  //   sentAt→timestamp に正規化して _renderReplyThread を流用＝見た目/件数表示が記入者と完全一致。
+  //   返信スレッドHTMLに変換する。reminder は snake_case（student_code/sent_at/sender_nickname/content）で
+  //   来る（バックエンド PHP 契約）。将来 camelCase 化しても壊れないよう snake ?? camel の両対応で読む。
+  //   sent_at→timestamp に正規化して _renderReplyThread を流用＝見た目/件数表示が記入者と完全一致。
   //   促し無し（空配列）は '' を返す＝返信スレッドは空div（従来どおり）。
   function _renderNonWriterReminderThread(reminders) {
     var arr = Array.isArray(reminders) ? reminders : [];
     if (arr.length === 0) return '';
     var items = arr.map(function(rm) {
+      rm = rm || {};
       return {
-        senderNickname: (rm && rm.senderNickname) || '',
-        timestamp:      (rm && (rm.sentAt || rm.timestamp || rm.createdAt)) || '',
-        content:        (rm && rm.content) || ''
+        senderNickname: (rm.sender_nickname != null ? rm.sender_nickname : rm.senderNickname) || '',
+        timestamp:      (rm.sent_at != null ? rm.sent_at : (rm.sentAt || rm.timestamp || rm.createdAt)) || '',
+        content:        (rm.content != null ? rm.content : rm.body) || ''
       };
     });
     return _renderReplyThread(items);
@@ -14575,7 +14580,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-2006</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-2041</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
