@@ -3332,10 +3332,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260809-2317"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260809-2355"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260809-2317">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260809-2317"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260809-2355">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260809-2355"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9804,7 +9804,12 @@
     }
     ov.classList.add('active');
   }
-  function _hideReflectionSendingOverlay() {
+  //   2026-08-09：hp-confirming 側（_hideHpConfirmingOverlay(onHidden)）に揃える。onHidden（次画面 active 化＋
+  //   効果音＋演出）を、overlay を remove する「まさにその瞬間・同一タスク内」で呼ぶ。これにより
+  //   「6秒間は半透明 overlay 越しに"送信直前の画面"がそのまま透けて残り」「6秒後に overlay が消えるのと同時に
+  //   次画面(振り返りを受け取ったよ！)＋効果音＋演出が同時発火」となる（次画面は6秒間 active にならない＝透けない）。
+  //   onHidden は optional（既存の失敗経路の引数なし呼び出しは後方互換で維持）。
+  function _hideReflectionSendingOverlay(onHidden) {
     var ov = document.getElementById('reflection-sending-overlay');
     // §6-A23 ②：送信 overlay を最低6秒は被せたまま。経過が足りなければ差分だけ待ってから消す。
     //   z-index 10100 で解放モーダル(10000)を覆うので、消えた瞬間に「画面を閉じる」ボタン画面が現れる。
@@ -9812,6 +9817,7 @@
     var _doHide = function(){
       if (_reflOverlayShownAt !== shownAt) return;   // 別の送信が始まっていたら無効
       if (ov) ov.classList.remove('active');
+      if (typeof onHidden === 'function') onHidden();   // remove と同一タスクで次画面 active＋SFX＋演出（同時発火）
     };
     var remain = MIN_REFL_OVERLAY_MS - (Date.now() - shownAt);
     if (remain > 0) setTimeout(_doHide, remain);
@@ -9904,8 +9910,8 @@
     var breakdown  = res && res.hpBreakdown;
     var totalAddedFromRelease = releasedHp + compRel + bonusHp;
 
-    // 送信中オーバーレイを必ず閉じる
-    _hideReflectionSendingOverlay();
+    // 2026-08-09：送信 overlay の hide は各経路で onHidden 付き呼び出しに一本化（top での無条件 hide は廃止）。
+    //   html 構築・結果計算は覆いの裏で今のまま行い、「見せる／鳴らす／演出開始」だけを overlay 消去の瞬間(6秒後)へ移す。
 
     // §6-A23 ③(B)：演出不要（hpBreakdown 無し + リリース系ゼロ + justComp 無し）でも一瞬で閉じない。
     //   新画面は作らず、既存の解放モーダルを「HP行なし＋既存の"画面を閉じる"ボタン」で表示し、押下で onComplete。
@@ -9915,21 +9921,24 @@
       var bodyB = document.getElementById('refl-release-body');
       var ovB   = document.getElementById('reflection-release-modal');
       if (bodyB && ovB) {
+        // 構築は覆いの裏で（active はまだしない）
         bodyB.innerHTML =
           '<button id="refl-release-close-btn" class="refl-release-close-btn">画面を閉じる</button>' +
           '<div class="refl-release-close-note">✅ サーバーで受信確認しました。画面を閉じても大丈夫です。</div>';
-        ovB.classList.add('active');
         var _cbtnB = document.getElementById('refl-release-close-btn');
         if (_cbtnB) {
           _cbtnB.onclick = function(){
             ovB.classList.remove('active');
             if (typeof onComplete === 'function') onComplete();
           };
-        } else if (typeof onComplete === 'function') {
-          onComplete();
         }
+        // overlay が消える瞬間(6秒後)に次画面を active 化（それまでは送信直前の画面が半透明越しに残る）
+        _hideReflectionSendingOverlay(function(){
+          ovB.classList.add('active');
+        });
       } else {
-        // モーダル要素が無い異常系のみ：従来どおり即 onComplete（画面が固まらない安全弁）
+        // モーダル要素が無い異常系のみ：overlay は閉じ、従来どおり即 onComplete（画面が固まらない安全弁）
+        _hideReflectionSendingOverlay();
         if (typeof onComplete === 'function') onComplete();
       }
       return;
@@ -9970,8 +9979,6 @@
       body.innerHTML = lines;
     }
     var ov = document.getElementById('reflection-release-modal');
-    if (ov) ov.classList.add('active');
-    try { playSfx('chime'); } catch(_e) {}
     // §6-A23 ③(C)：2.8s 自動遷移を撤去し、「画面を閉じる」ボタン押下で閉じる（押下先＝onComplete）。
     var _cbtnC = document.getElementById('refl-release-close-btn');
     if (_cbtnC) {
@@ -9979,8 +9986,16 @@
         if (ov) ov.classList.remove('active');
         if (typeof onComplete === 'function') onComplete();
       };
+    }
+    // overlay が消える瞬間(6秒後)に次画面 active＋効果音を同時発火（それまでは送信直前の画面が半透明越しに残る）。
+    // ボタンが無い異常系（refl-release-body 欠落等）は overlay を閉じて即 onComplete（安全弁）。
+    if (ov && _cbtnC) {
+      _hideReflectionSendingOverlay(function(){
+        ov.classList.add('active');
+        try { playSfx('chime'); } catch(_e) {}
+      });
     } else {
-      // ボタンが無い異常系（refl-release-body 欠落等）のみ：従来どおり onComplete で閉じる（安全弁）
+      _hideReflectionSendingOverlay();
       if (typeof onComplete === 'function') onComplete();
     }
   }
@@ -9997,6 +10012,8 @@
     var body = document.getElementById('refl-release-body');
     var ov   = document.getElementById('reflection-release-modal');
     if (!body || !ov) {
+      // モーダル要素が無い異常系：overlay を閉じて即 onComplete（画面が固まらない安全弁）
+      _hideReflectionSendingOverlay();
       if (typeof onComplete === 'function') onComplete();
       return;
     }
@@ -10088,26 +10105,10 @@
     html += '<button id="refl-release-close-btn" class="refl-release-close-btn">画面を閉じる</button>';
     html += '<div class="refl-release-close-note">✅ サーバーで受信確認しました。画面を閉じても大丈夫です。</div>';
 
+    // 構築は覆いの裏で（active・演出・SFX はまだ発火しない）
     body.innerHTML = html;
 
-    // モーダル表示
-    ov.classList.add('active');
-
-    // 紙吹雪
-    var card = ov.querySelector('.refl-modal-card');
-    if (card) {
-      // overflow を一時的に hidden に（紙吹雪を card 内に閉じる必要はないので body に直挿し）
-      _showReflectionConfetti(document.body);
-    }
-
-    // HP 数字カウントアップ
-    var hpEl = document.getElementById('refl-release-hp-num');
-    _animateReflectionHp(hpEl, total, 1400);
-
-    // SFX
-    try { playSfx('chime'); } catch(_e) {}
-
-    // 手動閉じるボタン
+    // 手動閉じるボタン（ハンドラは先に付けておく）
     var btn = document.getElementById('refl-release-close-btn');
     if (btn) {
       btn.onclick = function(){
@@ -10122,6 +10123,21 @@
         if (typeof onComplete === 'function') onComplete();
       };
     }
+
+    // 2026-08-09：overlay が消える瞬間(6秒後)に「次画面 active＋紙吹雪＋カウントアップ＋効果音」を同時発火。
+    //   それまでは半透明 overlay 越しに"送信直前の画面"がそのまま残る（次画面は active にしない＝透けない）。
+    _hideReflectionSendingOverlay(function(){
+      // モーダル表示
+      ov.classList.add('active');
+      // 紙吹雪（body に直挿し）
+      var card = ov.querySelector('.refl-modal-card');
+      if (card) { _showReflectionConfetti(document.body); }
+      // HP 数字カウントアップ（reveal と同時に開始＝覆いの裏で走り終える綻びも解消）
+      var hpEl = document.getElementById('refl-release-hp-num');
+      _animateReflectionHp(hpEl, total, 1400);
+      // SFX（消えた瞬間に鳴る）
+      try { playSfx('chime'); } catch(_e) {}
+    });
   }
 
   // ================== Phase 5（2026-05-27）：特殊アカウント選択モーダル ==================
@@ -20043,7 +20059,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-2317</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-2355</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
