@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-1835"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-2006"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -7994,12 +7994,19 @@
         var learnerCodes = (lres && lres.ok && Array.isArray(lres.learners)) ? lres.learners : [];
         adminGasGet({ action: 'getStudentsListForGrant', _ts: Date.now() }).then(function(sres) {
           var roster = (sres && sres.ok && Array.isArray(sres.students)) ? sres.students : [];
-          _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster);
+          // (あ)方式：未記入者へ送った促し（reply_to_reflectionId 無し）をその教育日ぶん取得し、
+          //   未記入カードの返信スレッドにマージ復元する。取得失敗でも記入者/未記入者は必ず表示（graceful）。
+          adminGasGet({ action: 'adminGetDayReminders', date: ds, _ts: Date.now() }).then(function(rres) {
+            var reminders = (rres && rres.ok && Array.isArray(rres.reminders)) ? rres.reminders : [];
+            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders);
+          }).catch(function() {
+            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, []);
+          });
         }).catch(function() {
-          _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, []);
+          _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, [], []);
         });
       }).catch(function() {
-        _renderReflectionsDayMerged(wrapEl, ds, writers, [], []);
+        _renderReflectionsDayMerged(wrapEl, ds, writers, [], [], []);
       });
     }).catch(function() {
       wrapEl.innerHTML = '<div class="refl-day-empty">通信エラーが発生しました</div>';
@@ -8008,7 +8015,15 @@
 
   function _reflJs(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
-  function _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster) {
+  function _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders) {
+    // (あ)方式：未記入者へ送った促しを student_code でグルーピング（sent_at 昇順はサーバ側で担保済）。
+    var remindersByCode = {};
+    (reminders || []).forEach(function(rm) {
+      var code = String((rm && rm.studentCode) || '').trim();
+      if (!code) return;
+      if (!remindersByCode[code]) remindersByCode[code] = [];
+      remindersByCode[code].push(rm);
+    });
     // 記入者の student_code 集合（突合キー）
     var wroteSet = {};
     writers.forEach(function(w) { if (w && w.studentId) wroteSet[String(w.studentId)] = true; });
@@ -8037,7 +8052,7 @@
     // 非記入者（この日に学習ありだが振り返り未記入）
     if (nonWriters.length > 0) {
       html += '<div class="refl-day-subhead">📝 振り返り未記入（この日に学習あり ' + nonWriters.length + ' 名）</div>';
-      html += nonWriters.map(function(s) { return _reflNonWriterCard(s, ds); }).join('');
+      html += nonWriters.map(function(s) { return _reflNonWriterCard(s, ds, remindersByCode[String(s.studentId)] || []); }).join('');
     }
     wrapEl.innerHTML = html;
   }
@@ -8084,7 +8099,7 @@
   }
 
   // 非記入者カード（本文＝赤文字「振り返りコメントなし」／作品・学習履歴ボタンは併存／返信の代わりに注意喚起ボタン）
-  function _reflNonWriterCard(s, ds) {
+  function _reflNonWriterCard(s, ds, reminders) {
     var sid = String(s.studentId || '');
     // 氏名は名簿で解決。未取得（HP没収のみ等で名簿に無い稀ケース）は生徒コードをフォールバック表示。
     var nameEsc = s.name ? _esc(s.name) : ('（' + _esc(sid) + '）');
@@ -8110,12 +8125,30 @@
              '</div>' +
              '<div class="refl-content no-reflection">振り返りコメントなし</div>' +
              dayWorksHtml +
-             // ②拡張：未記入者は初期スレッド無し（空div）。送信成功後に記入者と同じ返信スレッド表示を差し込む。
-             '<div class="reply-thread" id="reply-thread-' + keyEsc + '"></div>' +
+             // (あ)方式：促し済みなら記入者と同じ見た目の返信スレッドを初期描画（リロード後も復元）。
+             //   促しが無ければ従来どおり空div（送信成功後に submitNonWriterReply がスレッドを立てる）。
+             '<div class="reply-thread" id="reply-thread-' + keyEsc + '">' + _renderNonWriterReminderThread(reminders) + '</div>' +
              // ②拡張 修正B：即送信ではなく「返信を書く」→注意喚起文を prefill した返信欄を開く方式。
              '<button class="reply-form-toggle" id="reply-toggle-' + keyEsc + '" onclick="toggleReplyForm(\'' + keyEsc + '\')">💬 返信を書く（振り返りを促す）</button>' +
              _renderReplyFormNonWriter(key, sid) +
            '</div>';
+  }
+
+  // (あ)方式：未記入者へ送った促し（adminGetDayReminders の reminders[]）を、記入者と同じ見た目の
+  //   返信スレッドHTMLに変換する。reminder は {studentCode, content, sentAt, senderNickname}。
+  //   sentAt→timestamp に正規化して _renderReplyThread を流用＝見た目/件数表示が記入者と完全一致。
+  //   促し無し（空配列）は '' を返す＝返信スレッドは空div（従来どおり）。
+  function _renderNonWriterReminderThread(reminders) {
+    var arr = Array.isArray(reminders) ? reminders : [];
+    if (arr.length === 0) return '';
+    var items = arr.map(function(rm) {
+      return {
+        senderNickname: (rm && rm.senderNickname) || '',
+        timestamp:      (rm && (rm.sentAt || rm.timestamp || rm.createdAt)) || '',
+        content:        (rm && rm.content) || ''
+      };
+    });
+    return _renderReplyThread(items);
   }
 
   // =============================================================
@@ -14542,7 +14575,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-1835</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-2006</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
