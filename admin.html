@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-1657"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-1753"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -8110,8 +8110,9 @@
              '</div>' +
              '<div class="refl-content no-reflection">振り返りコメントなし</div>' +
              dayWorksHtml +
-             '<button class="refl-reminder-btn" id="reminder-btn-' + keyEsc + '" onclick="sendReflectionReminder(\'' + keyEsc + '\',\'' + sidJs + '\')">⚠️ 振り返りを書くよう促す</button>' +
-             '<div class="refl-reminder-msg" id="reminder-msg-' + keyEsc + '"></div>' +
+             // ②拡張 修正B：即送信ではなく「返信を書く」→注意喚起文を prefill した返信欄を開く方式。
+             '<button class="reply-form-toggle" id="reply-toggle-' + keyEsc + '" onclick="toggleReplyForm(\'' + keyEsc + '\')">💬 返信を書く（振り返りを促す）</button>' +
+             _renderReplyFormNonWriter(key, sid) +
            '</div>';
   }
 
@@ -8196,7 +8197,10 @@
         panel.innerHTML = '<div class="dw-empty">' + _esc(msg) + '</div>';
         return;
       }
-      panel.innerHTML = _renderHpBreakdown(res.hpBreakdown);
+      // ★修正A：byContentNamed（正式名称）は応答の直下。hpBreakdown の中に無いため注入してから描画。
+      var bd = res.hpBreakdown || {};
+      if (Array.isArray(res.byContentNamed)) { bd.byContentNamed = res.byContentNamed; }
+      panel.innerHTML = _renderHpBreakdown(bd);
     }).catch(function() {
       panel.innerHTML = '<div class="dw-empty">通信エラーが発生しました</div>';
     });
@@ -8274,30 +8278,53 @@
     return '<div class="hp-bd-wrap">' + rows + note + '</div>';
   }
 
-  // ②拡張（2026-08）：振り返り未記入の生徒へ「振り返りを書くよう促す」定型メッセージを個別送信。
-  //   既存 sendTeacherMessage（targetType=individual / targetIds=[student_code] / replyToReflectionId 空）を流用。
-  //   生徒はログイン時に赤バッジ（pull 通知）で気づく。二重送信防止でボタンは送信後に無効化。
+  // ②拡張 修正B/C：未記入者の注意喚起は「返信欄プレフィル方式」。
+  //   REFL_REMINDER_TEXT を最初から textarea に prefill（ふくちはそのまま or 追記して送信）。
+  //   ★定型候補ボタン（.reply-stamps）は出さない（修正C）。送信は個別送信（student_code 起点・reflectionId 無し）。
   var REFL_REMINDER_TEXT = '今日やった分を無駄にしないために、終わる前に必ず振り返りコメントを書いて正しくログアウトすること📝　やったまま放置は絶対に厳禁⚠️';
-  function sendReflectionReminder(key, sid) {
-    if (!sid) return;
-    var btn = document.getElementById('reminder-btn-' + key);
-    var msg = document.getElementById('reminder-msg-' + key);
-    if (!window.confirm('この生徒に「振り返りを書いてね」の注意メッセージを送りますか？')) return;
-    if (btn) { btn.disabled = true; btn.textContent = '送信中...'; }
+  function _renderReplyFormNonWriter(key, sid) {
+    var kEsc = _esc(key);
+    var sidJs = _reflJs(sid);
+    var prefill = _esc(REFL_REMINDER_TEXT);
+    var initLen = REFL_REMINDER_TEXT.length;
+    return '<div class="reply-form" id="reply-form-' + kEsc + '">' +
+             // ★修正C：定型候補（.reply-stamps）は出さない
+             '<textarea id="reply-text-' + kEsc + '" maxlength="500" placeholder="メッセージ（500 文字以内）" oninput="onReplyInput(\'' + kEsc + '\')">' + prefill + '</textarea>' +
+             '<div class="reply-form-counter" id="reply-counter-' + kEsc + '">' + initLen + ' / 500</div>' +
+             '<div class="reply-form-msg" id="reply-msg-' + kEsc + '"></div>' +
+             '<div class="reply-form-actions">' +
+               '<button class="reply-form-submit" id="reply-submit-' + kEsc + '" onclick="submitNonWriterReply(\'' + kEsc + '\',\'' + sidJs + '\')">送信する</button>' +
+               '<button class="reply-form-cancel" onclick="toggleReplyForm(\'' + kEsc + '\')">キャンセル</button>' +
+             '</div>' +
+           '</div>';
+  }
+  // 未記入者への個別送信（sendTeacherMessage individual・student_code 起点・reflectionId 無し）。二重送信防止つき。
+  function submitNonWriterReply(key, sid) {
+    var ta = document.getElementById('reply-text-' + key);
+    var btn = document.getElementById('reply-submit-' + key);
+    var msg = document.getElementById('reply-msg-' + key);
+    if (!ta || !btn) return;
+    var content = String(ta.value || '').trim();
+    if (!content) { if (msg) msg.textContent = '⚠️ 内容を入力してください'; return; }
+    if (content.length > 500) { if (msg) msg.textContent = '⚠️ 500 文字以内にしてください'; return; }
+    if (!window.confirm('この生徒にメッセージを送信しますか？（編集・削除はできません）')) return;
+    btn.disabled = true; btn.textContent = '送信中...';
     if (msg) { msg.textContent = ''; msg.style.color = ''; }
-    adminGasPost({ action: 'sendTeacherMessage', targetType: 'individual', targetIds: [sid], content: REFL_REMINDER_TEXT }).then(function(res) {
+    adminGasPost({ action: 'sendTeacherMessage', targetType: 'individual', targetIds: [sid], content: content }).then(function(res) {
       if (!res || !res.ok) {
         var em = (res && res.message) ? res.message : '送信に失敗しました';
         if (/認証|パスワード/.test(em)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
         if (msg) { msg.style.color = '#dc2626'; msg.textContent = '⚠️ ' + em; }
-        if (btn) { btn.disabled = false; btn.textContent = '⚠️ 振り返りを書くよう促す'; }
+        btn.disabled = false; btn.textContent = '送信する';
         return;
       }
       if (msg) { msg.style.color = '#16a34a'; msg.textContent = '✅ 送信しました'; }
-      if (btn) { btn.disabled = true; btn.textContent = '送信済み'; }   // 二重送信防止（無効維持）
+      btn.disabled = true; btn.textContent = '送信済み';   // 二重送信防止（無効維持）
+      var tgl = document.getElementById('reply-toggle-' + key);
+      if (tgl) { tgl.disabled = true; tgl.textContent = '✅ 促し送信済み'; }
     }).catch(function() {
       if (msg) { msg.style.color = '#dc2626'; msg.textContent = '⚠️ 通信エラーが発生しました'; }
-      if (btn) { btn.disabled = false; btn.textContent = '⚠️ 振り返りを書くよう促す'; }
+      btn.disabled = false; btn.textContent = '送信する';
     });
   }
 
@@ -14487,7 +14514,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-1657</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-1753</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
