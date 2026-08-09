@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-0017"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260809-1657"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -7987,12 +7987,19 @@
         return;
       }
       var writers = res.reflections || [];
-      // 続けて「その日の全学習者」を取得して合流（取得失敗でも記入者は表示する）
-      adminGasGet({ action: 'getCalendarDayDetail', date: ds, _ts: Date.now() }).then(function(cres) {
-        var learners = (cres && cres.ok && Array.isArray(cres.students)) ? cres.students : [];
-        _renderReflectionsDayMerged(wrapEl, ds, writers, learners);
+      // ②拡張 修正2：未記入一覧は「実施事実ベース」の adminListDayLearners（login のみ/未ログインを除外・
+      //   HP没収された学習者も含む）で絞る。氏名は getStudentsListForGrant（teacher 可・全生徒名簿）で解決。
+      //   いずれか取得失敗でも記入者は必ず表示する（graceful）。
+      adminGasGet({ action: 'adminListDayLearners', date: ds, _ts: Date.now() }).then(function(lres) {
+        var learnerCodes = (lres && lres.ok && Array.isArray(lres.learners)) ? lres.learners : [];
+        adminGasGet({ action: 'getStudentsListForGrant', _ts: Date.now() }).then(function(sres) {
+          var roster = (sres && sres.ok && Array.isArray(sres.students)) ? sres.students : [];
+          _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster);
+        }).catch(function() {
+          _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, []);
+        });
       }).catch(function() {
-        _renderReflectionsDayMerged(wrapEl, ds, writers, []);
+        _renderReflectionsDayMerged(wrapEl, ds, writers, [], []);
       });
     }).catch(function() {
       wrapEl.innerHTML = '<div class="refl-day-empty">通信エラーが発生しました</div>';
@@ -8001,12 +8008,19 @@
 
   function _reflJs(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
-  function _renderReflectionsDayMerged(wrapEl, ds, writers, learners) {
+  function _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster) {
     // 記入者の student_code 集合（突合キー）
     var wroteSet = {};
     writers.forEach(function(w) { if (w && w.studentId) wroteSet[String(w.studentId)] = true; });
-    // 非記入者＝その日の学習者のうち記入者集合に居ない生徒
-    var nonWriters = learners.filter(function(s) { return s && s.studentId && !wroteSet[String(s.studentId)]; });
+    // 名簿 code → {name,nickname}
+    var rosterMap = {};
+    (roster || []).forEach(function(s) { if (s && s.studentId) rosterMap[String(s.studentId)] = s; });
+    // 非記入者＝その日に「実際に学習した」学習者(adminListDayLearners)のうち記入者集合に居ない生徒
+    var nonWriters = (learnerCodes || []).filter(function(c) { return c && !wroteSet[String(c)]; })
+      .map(function(c) {
+        var s = rosterMap[String(c)] || {};
+        return { studentId: String(c), name: String(s.name || ''), nickname: String(s.nickname || '') };
+      });
     // 並び：非記入者は 氏名 → 生徒コード 順
     nonWriters.sort(function(a, b) {
       var an = String(a.name || ''), bn = String(b.name || '');
@@ -8071,18 +8085,21 @@
 
   // 非記入者カード（本文＝赤文字「振り返りコメントなし」／作品・学習履歴ボタンは併存／返信の代わりに注意喚起ボタン）
   function _reflNonWriterCard(s, ds) {
-    var nameEsc = _esc(s.name || '（未登録）');
+    var sid = String(s.studentId || '');
+    // 氏名は名簿で解決。未取得（HP没収のみ等で名簿に無い稀ケース）は生徒コードをフォールバック表示。
+    var nameEsc = s.name ? _esc(s.name) : ('（' + _esc(sid) + '）');
     var nickEsc = _esc(s.nickname || '');
     var nickHtml = nickEsc ? '<span class="head-nick">（' + nickEsc + '）</span>' : '';
-    var sid = String(s.studentId || '');
     var key = 'nw_' + sid.replace(/[^0-9A-Za-z_]/g, '');   // 要素id用の安全キー（student_codeは英数想定）
     var keyEsc = _esc(key);
     var sidJs = _reflJs(sid);
     var dsJs  = _reflJs(ds || '');
+    // ②拡張 修正3：未記入者の学習履歴は adminGetStudentDayActivity（やった内容＝name+件数・HP額なし）。
+    //   記入者の toggleHpBreakdown（HP内訳）とは別経路＝HP没収されていても「何をやったか」が見える。
     var dayWorksHtml = sid
       ? '<div class="day-works-wrap">' +
           '<button class="day-works-toggle" id="day-works-btn-' + keyEsc + '" onclick="toggleDayWorks(\'' + keyEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📎 この日の作品を見る</button>' +
-          '<button class="hp-bd-toggle" style="margin-left:8px" id="hp-bd-btn-' + keyEsc + '" onclick="toggleHpBreakdown(\'' + keyEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📊 この日の学習履歴を見る</button>' +
+          '<button class="hp-bd-toggle" style="margin-left:8px" id="hp-bd-btn-' + keyEsc + '" onclick="toggleDayActivity(\'' + keyEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📊 この日の学習履歴を見る</button>' +
           '<div class="day-works-panel" id="day-works-' + keyEsc + '"></div>' +
           '<div class="day-works-panel" id="hp-bd-' + keyEsc + '"></div>' +
         '</div>'
@@ -8188,6 +8205,8 @@
     return '<div class="hp-bd-row"><span class="hp-bd-label">' + label + '</span><span class="hp-bd-hp">+' + Number(hp || 0) + ' HP</span></div>';
   }
   // 生徒ログアウト時の最終画面と同じ内容（合計 / 絶対ミッション達成ボーナス / 各コンテンツ内訳 / 連続日数等）。
+  // ②拡張 修正1：各コンテンツ内訳は byContentNamed の正式名称（英単語RUSH/フォニックスゲーム等）で表示。
+  //   byContentNamed が無い後方互換時のみ従来の byContent(内部名) にフォールバック。
   function _renderHpBreakdown(bd) {
     if (!bd || !Number(bd.total)) {
       return '<div class="dw-empty">この日の学習履歴はありません（HP獲得なし）。</div>';
@@ -8196,8 +8215,12 @@
     var rows = '';
     var cb = Number(cat.completion_bonus || 0);
     if (cb > 0) rows += _hpBdRow('🎯 絶対ミッション達成ボーナス', cb);
-    var bc = bd.byContent || {};
-    Object.keys(bc).forEach(function(k) { rows += _hpBdRow(_esc(k), Number(bc[k] || 0)); });
+    if (Array.isArray(bd.byContentNamed)) {
+      bd.byContentNamed.forEach(function(c) { rows += _hpBdRow(_esc(c && c.name ? c.name : (c && c.key) || ''), Number((c && c.hp) || 0)); });
+    } else {
+      var bc = bd.byContent || {};
+      Object.keys(bc).forEach(function(k) { rows += _hpBdRow(_esc(k), Number(bc[k] || 0)); });
+    }
     var lb = Number(cat.login_bonus || 0);
     if (lb > 0) rows += _hpBdRow('🔑 ログインボーナス', lb);
     var meta = '';
@@ -8206,6 +8229,49 @@
              (bd.isAbsoluteMissionComplete ? ' ／ 絶対ミッション達成 ✅' : '') + '</div>';
     }
     return '<div class="hp-bd-wrap">' + rows + '<div class="hp-bd-total">合計 +' + Number(bd.total) + ' HP</div>' + meta + '</div>';
+  }
+
+  // ②拡張 修正3：未記入者の「この日の学習履歴を見る」＝adminGetStudentDayActivity（やった内容＝件数・HP額なし）。
+  //   HP没収されていても「何をやったか」が見える。記入者の toggleHpBreakdown（HP内訳）とは別経路。
+  function toggleDayActivity(key, sid, ds) {
+    var panel = document.getElementById('hp-bd-' + key);
+    var btn   = document.getElementById('hp-bd-btn-' + key);
+    if (!panel) return;
+    var willOpen = !panel.classList.contains('active');
+    if (!willOpen) {
+      panel.classList.remove('active');
+      panel.innerHTML = '';
+      if (btn) btn.textContent = '📊 この日の学習履歴を見る';
+      return;
+    }
+    panel.classList.add('active');
+    panel.innerHTML = '<div class="dw-loading">⏳ 読み込み中...</div>';
+    if (btn) btn.textContent = '📊 閉じる';
+    adminGasGet({ action: 'adminGetStudentDayActivity', studentId: sid, educationalDate: ds, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        if (_handleAdminApiError(msg)) { panel.classList.remove('active'); if (btn) btn.textContent = '📊 この日の学習履歴を見る'; return; }
+        panel.innerHTML = '<div class="dw-empty">' + _esc(msg) + '</div>';
+        return;
+      }
+      panel.innerHTML = _renderDayActivity(res);
+    }).catch(function() {
+      panel.innerHTML = '<div class="dw-empty">通信エラーが発生しました</div>';
+    });
+  }
+  // 「やった内容」一覧（コンテンツ名＋件数・HP額なし）。hasActivity=false は「学習記録なし」。
+  function _renderDayActivity(res) {
+    var acts = (res && Array.isArray(res.activities)) ? res.activities : [];
+    if (!res || !res.hasActivity || acts.length === 0) {
+      return '<div class="dw-empty">この日の学習記録はありません。</div>';
+    }
+    var rows = acts.map(function(a) {
+      var nm = _esc((a && a.name) ? a.name : (a && a.key) || '');
+      var cnt = Number((a && a.count) || 0);
+      return '<div class="hp-bd-row"><span class="hp-bd-label">' + nm + '</span><span class="hp-bd-hp">' + cnt + ' 件</span></div>';
+    }).join('');
+    var note = '<div class="hp-bd-meta">※ この日に取り組んだ内容です（HP額は表示しません）。</div>';
+    return '<div class="hp-bd-wrap">' + rows + note + '</div>';
   }
 
   // ②拡張（2026-08）：振り返り未記入の生徒へ「振り返りを書くよう促す」定型メッセージを個別送信。
@@ -14421,7 +14487,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-0017</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-1657</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
