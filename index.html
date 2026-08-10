@@ -2953,6 +2953,12 @@
     .mykt-overlay-btns button { flex: 1; padding: 11px 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: bold; cursor: pointer; }
     .mykt-overlay-btns .btn-retry { background: linear-gradient(135deg, #fb923c, #f97316); color: #fff; }
     .mykt-overlay-btns .btn-cancel { background: #e5e7eb; color: #374151; }
+    /* ===== 第4群A：絶対ミッション強制ブロック画面 ===== */
+    .req-block-card { background: #fff; border-radius: 18px; padding: 22px 18px; max-width: 380px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,.25); max-height: 88vh; overflow-y: auto; }
+    .req-block-heading { margin-top: 16px; font-size: 13px; font-weight: bold; color: #6b7280; text-align: center; }
+    .req-block-links { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+    .req-block-link { display: block; width: 100%; padding: 14px 16px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; color: #fff; cursor: pointer; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,.18); text-shadow: 0 1px 2px rgba(0,0,0,.2); }
+    .req-block-link:active { transform: translateY(1px); }
     /* ===== オリワンテス（③-A）トップ／チャットUI ===== */
     /* 2026-06-17：結果画面の獲得HP内訳の式（特大の +90 より控えめ。オリワンテス専用）。 */
     .oriwan-hp-breakdown { font-size: 13px; color: #9a7b3a; opacity: .9; margin: 2px 0 4px; text-align: center; letter-spacing: .3px; }
@@ -3332,10 +3338,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260809-2355"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260810-1904"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260809-2355">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260809-2355"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260810-1904">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260810-1904"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6508,6 +6514,106 @@
     }
   }
 
+  // ===== 第4群A：絶対ミッション強制ブロック =====
+  // 絶対ミッションが 1 つでも設定された生徒（required.length>0）で、その日の未達成（remaining.length>0）が
+  // 残っているとき、「マイ課題」と絶対ミッション 5 つ以外のコンテンツを開こうとしたらブロック画面を出す。
+  //
+  // 仕様の優先順位（三語→和文英訳①→英単語→基礎計算→カンジー）。サーバ getRequiredProgress の
+  // remaining は eitango 先頭で返るため、フロントでこの順に並べ替える。
+  var REQUIRED_PRIORITY_ORDER = ['sango', 'wabun1', 'eitango', 'kiso', 'kanji'];
+  // リンクボタンの配色（ホームのコンテンツボタンと同じグラデで識別性を確保）
+  var REQUIRED_BLOCK_LINK_BG = {
+    sango:   'linear-gradient(135deg,#ffcb77,#fe6d73)',
+    wabun1:  'linear-gradient(135deg,#b28dff,#7c4fff)',
+    eitango: 'linear-gradient(135deg,#17c3b2,#227c9d)',
+    kiso:    'linear-gradient(135deg,#4fc3f7,#2979ff)',
+    kanji:   'linear-gradient(135deg,#ff8a8a,#c92a2a)'
+  };
+
+  // ブロック判定：システム稼働中（5/25 以降）かつ 絶対ミッション設定あり かつ 未達成が残る → true。
+  // ★_requiredProgress が未取得/取得失敗(null)なら false（フェイルオープン＝生徒を締め出さない・ふくち確定）。
+  function _shouldBlockForRequired() {
+    if (!_isReqSystemActive()) return false;      // 5/25 前は非稼働 → ブロックしない
+    var rp = _requiredProgress;
+    if (!rp) return false;                        // 未取得/失敗 → フェイルオープン
+    var required  = Array.isArray(rp.required)  ? rp.required  : [];
+    var remaining = Array.isArray(rp.remaining) ? rp.remaining : [];
+    return required.length > 0 && remaining.length > 0;
+  }
+
+  // 未達成の絶対ミッションを仕様優先順で並べ替えて返す（remaining に含まれるものだけ）。
+  function _orderedRemainingMissions() {
+    var rp = _requiredProgress;
+    var remaining = (rp && Array.isArray(rp.remaining)) ? rp.remaining : [];
+    var set = {};
+    for (var i = 0; i < remaining.length; i++) set[remaining[i]] = true;
+    var out = [];
+    for (var j = 0; j < REQUIRED_PRIORITY_ORDER.length; j++) {
+      var rc = REQUIRED_PRIORITY_ORDER[j];
+      if (set[rc]) out.push(rc);
+    }
+    return out;
+  }
+
+  function _hideRequiredBlockScreen() {
+    var ov = document.getElementById('required-block-overlay');
+    if (ov) ov.classList.remove('active');
+  }
+
+  // 絶対ミッション識別子 → 起動関数（クリックでそのミッションが始まる）。
+  // 起動関数は showScreen で画面遷移するので、先に overlay を閉じる。
+  // ★これら 5 つの launcher にはブロックガードを付けていない（除外）ため、ここから起動しても再ブロックされない。
+  function _launchRequiredMission(rc) {
+    _hideRequiredBlockScreen();
+    switch (rc) {
+      case 'eitango': showLevelSelect();      break;
+      case 'sango':   showSangoTopic();        break;
+      case 'wabun1':  showWabun1Topic();       break;
+      case 'kiso':    showKisoRankSelect();    break;
+      case 'kanji':   showKanjiLevelSelect();  break;
+    }
+  }
+
+  // 強制ブロック画面を表示。マイカツ君の促し＋未達成ミッションへのリンク（仕様順）。
+  // ★ホームに戻る／閉じる導線は一切置かない（戻れない強制。既存 popstateHandler でブラウザ戻るも無効）。
+  //   リンクを押して絶対ミッションを始める以外の選択肢を与えない。
+  function _showRequiredBlockScreen() {
+    var ov = document.getElementById('required-block-overlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'required-block-overlay';
+      ov.className = 'mykt-overlay';
+      document.body.appendChild(ov);
+    }
+    var missions = _orderedRemainingMissions();
+    // フェイルセーフ：万一未達成が無ければ何も出さない（本来 _shouldBlockForRequired で弾かれる）。
+    if (!missions.length) { ov.classList.remove('active'); return; }
+    var linksHtml = '';
+    for (var i = 0; i < missions.length; i++) {
+      var rc = missions[i];
+      var label = REQUIRED_CONTENT_LABELS[rc] || rc;   // 正式名称（三語短文/和文英訳①/英単語RUSH/基礎計算/カンジー）
+      var bg = REQUIRED_BLOCK_LINK_BG[rc] || 'linear-gradient(135deg,#fb923c,#f97316)';
+      linksHtml += '<button type="button" class="req-block-link" data-rc="' + rc + '" style="background:' + bg + '">▶ ' + label + '</button>';
+    }
+    ov.innerHTML =
+      '<div class="req-block-card">' +
+        '<div class="mykt-overlay-row">' +
+          '<img src="./character.jpg" class="chara-img" alt="マイカツ君">' +
+          '<div class="mykt-overlay-bubble hp-confirming">これをやる前に、<br>今日の絶対ミッションを<br>全部やり終えよう！</div>' +
+        '</div>' +
+        '<div class="req-block-heading">▼ この中からえらんでね</div>' +
+        '<div class="req-block-links">' + linksHtml + '</div>' +
+      '</div>';
+    // inline onclick を避け、data-rc から起動（起動関数の巻き上げ済み参照を click 時に解決）
+    var btns = ov.querySelectorAll('.req-block-link');
+    for (var k = 0; k < btns.length; k++) {
+      btns[k].addEventListener('click', function(){
+        _launchRequiredMission(this.getAttribute('data-rc'));
+      });
+    }
+    ov.classList.add('active');
+  }
+
   // HP獲得画面の末尾に「権利ゲット通知」「完走演出」HTML を追記する共通ヘルパー。
   // bodyEl: 結果カードを innerHTML 設定済のコンテナ
   // res:    submit レスポンス（または hpInfo）。hpGained / hpReserved / justCompleted /
@@ -8731,6 +8837,7 @@
   //   GAS 側 ZODIAC_PRESETS_DUMMY を差し替えるだけで OK。
   var _fortuneMetaCache = null;  // 誕生日入力画面で初期値を使うため、最後に取得した meta を保持
   function showFortuneScreen() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     var body   = document.getElementById('fortune-body');
     var banner = document.getElementById('fortune-birthday-banner');
     var cta    = document.getElementById('fortune-birthday-cta');
@@ -13591,6 +13698,7 @@
   // 級選択画面
   // -----------------------------------------------------
   function showLisonRankSelect() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
     _lisonResetState();
     var listEl = document.getElementById('lison-level-list');
@@ -15093,6 +15201,7 @@
   window._oriwantesLastQuestions = null; // 問題完成時の questions（③-Bで使用）
 
   function goOriwantesHome() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     showScreen('screen-oriwantes-home');
     _setContentMascot('mate-img-oriwantes-home', 'default', 'mate-bubble-oriwantes-home',
       '私はオリワンテス。君だけの、世界でたった一つのテストを作って差し上げよう。', 'oriwantes');
@@ -15890,6 +15999,7 @@
 
   // エントリポイント：ホーム画面の「📖 国語長文読解」カードから呼ぶ
   function showKokugoStart() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     if (!_studentId) { alert('ログインしてください'); return; }
     _kokugoResetState();
     // 着手中チェック（仕様書 5 節リトライ仕様）
@@ -17171,6 +17281,7 @@
 
   // ホームカードから起動：全問データを取得して設定画面へ
   function showPhonicsStart() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     if (typeof _ensureOnlineThenStart === 'function' && !_ensureOnlineThenStart()) return;
     _phonicsResetState();
     // 取得済みなら再利用、未取得なら getPhonicsQuestions を1回だけ呼ぶ
@@ -18274,6 +18385,7 @@
   }
   // ----- エントリポイント：ホーム画面ボタンから呼ばれる -----
   function showKobunStart() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     _kobunResetState();
     _kobunSetMascot('kobun-img-vocab', 'default', 'kobun-bubble-vocab', _pickBubble(KOBUN_BUBBLES.vocab));
     var listEl = document.getElementById('kobun-vocab-list');
@@ -18754,6 +18866,7 @@
 
   // ----- イントロ画面 -----
   function showCalcTrialIntro() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     if (!_studentId) return;
     _ctReset();
     _ctState = _ctNewState();
@@ -19270,6 +19383,7 @@
 
   // ──── ホームから開始 ────
   function showRishaStart(subject) {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック（理科・社会 共通）
     if (!_studentId) { alert('ログインしてください'); return; }
     if (subject !== 'rika' && subject !== 'shakai') { alert('subject が不正です'); return; }
     _rishaResetState();
@@ -20059,7 +20173,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-2355</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260810-1904</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
