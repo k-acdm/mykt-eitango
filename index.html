@@ -2990,6 +2990,20 @@
     .oriwan-result-correct { color: #047857; }
     .oriwan-result-correct .oriwan-result-rlabel { color: #047857; }
     .oriwan-result-explain { color: #3a2c0a; background: #fff7e0; border-radius: 8px; padding: 6px 10px; }
+    /* 2026-第2段-2a：採点結果（○×・判定理由・正答数・合否）。○×色は既存 correct=緑#047857 と揃える。 */
+    .oriwan-result-reason { color: #7a5210; background: #fff2d6; border-radius: 8px; padding: 6px 10px; }
+    .oriwan-result-reason .oriwan-result-rlabel { color: #7a5210; }
+    .oriwan-judge-badge { display: inline-block; margin-left: 8px; font-size: 13px; font-weight: bold; padding: 1px 8px; border-radius: 999px; vertical-align: middle; }
+    .oriwan-judge-ok { color: #047857; background: #d9f2e6; }
+    .oriwan-judge-ng { color: #c0392b; background: #fbe2df; }
+    .oriwan-score-line { font-size: 20px; font-weight: bold; color: #7a5210; margin: 6px 0 2px; }
+    .oriwan-score-line .oriwan-score-total { font-size: 14px; font-weight: normal; color: #9a7b3a; }
+    .oriwan-verdict { font-size: 15px; font-weight: bold; border-radius: 10px; padding: 6px 12px; margin: 4px auto 6px; display: inline-block; }
+    .oriwan-verdict-pass { color: #047857; background: #d9f2e6; }
+    .oriwan-verdict-fail { color: #c0392b; background: #fbe2df; }
+    .oriwan-result-fail { text-align: center; background: #fffdf5; border: 1px solid #f0e2b8; border-radius: 14px; padding: 14px; margin: 4px 0; }
+    .oriwan-fail-note { font-size: 14px; line-height: 1.7; color: #5a3e10; margin-top: 4px; }
+    .oriwan-grade-note { margin-top: 4px; }
     /* ===== オリワンテス（③-C）履歴一覧／詳細 ===== */
     .oriwan-history-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: #fffdf5; border: 1px solid #f0e2b8; border-radius: 12px; padding: 12px 14px; margin: 8px 0; cursor: pointer; font-size: 15px; color: #3a2c0a; }
     .oriwan-history-item:hover { background: #fff7e0; }
@@ -3338,10 +3352,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260810-2105"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260811-0513"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260810-2105">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260810-2105"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260811-0513">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260811-0513"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -15485,24 +15499,44 @@
       });
   }
 
-  // 結果画面：上部に100HP獲得演出（or HP失敗注記）、下に採点なしの結果リスト。
+  // 結果画面：採点結果（正答数・合否・各問○×＋判定理由）＋HP演出（合格時のみ）。
+  //   subMode の決定（第2段-2a）：
+  //     hp_failed      … HP付与のみ失敗（保存は成立）。採点情報は使わず従来のHP失敗メッセージ。
+  //     grading_failed … 採点AI不具合（res.gradingFailed=true）。HPは付与済み。○×は出さない。
+  //     passed         … 8問以上正解（res.passed=true・HP獲得）。紙吹雪＋HPカウントアップ＋chime。
+  //     failed         … 7問以下（HP未獲得）。再挑戦予告（第3段への布石・テキストのみ）。
   function _showOriwantesResult(res, questions, mode) {
     showScreen('screen-oriwantes-result');
+    var gradingFailed = !!(res && res.gradingFailed === true);
+    var passed        = !!(res && res.passed === true);
+    var subMode;
+    if (mode === 'hp_failed')     subMode = 'hp_failed';
+    else if (gradingFailed)       subMode = 'grading_failed';
+    else if (passed)              subMode = 'passed';
+    else                          subMode = 'failed';
+
     var bodyEl = document.getElementById('oriwantes-result-body');
     if (bodyEl) {
-      bodyEl.innerHTML = (mode === 'ok') ? _buildOriwantesSuccessHtml(res) : _buildOriwantesHpFailedHtml();
+      if (subMode === 'hp_failed')            bodyEl.innerHTML = _buildOriwantesHpFailedHtml();
+      else if (subMode === 'grading_failed')  bodyEl.innerHTML = _buildOriwantesGradingFailedHtml(res);
+      else if (subMode === 'passed')          bodyEl.innerHTML = _buildOriwantesSuccessHtml(res);
+      else                                    bodyEl.innerHTML = _buildOriwantesFailHtml(res);
     }
-    _renderOriwantesResultList(questions);
-    if (mode === 'ok') {
+
+    // ○×＋判定理由は「採点が成立している（gradingFailed でない）かつ results がある」ときのみ。
+    //   履歴詳細は results を渡さない → 自動的に従来表示（○×・理由なし）にフォールバック。
+    var resultsForCards = (!gradingFailed && res && res.results && res.results.length) ? res.results : null;
+    _renderOriwantesResultList(questions, resultsForCards);
+
+    if (subMode === 'passed') {
       // 【用件4 第3段】① 満額（fullHp = 90 × week²）へカウントアップ（他コンテンツと同一の _wabun1AnimateHp / duration 1000）。
-      //   旧版は grantedRawHp(=90素点) を表示していたが、統一方針により満額表示へ変更。
       //   サーバ確定値・素通し（フロント再計算なし）。無ければ hpGained+hpReserved にフォールバック。
       var fullHpDisp = Number(res.fullHp != null ? res.fullHp : ((Number(res.hpGained) || 0) + (Number(res.hpReserved) || 0))) || 0;
       var numEl = document.getElementById('oriwantes-result-hp-num');
       if (numEl && fullHpDisp > 0) _wabun1AnimateHp(numEl, fullHpDisp, 1000);
       try { playSfx('chime'); } catch(e){}
     }
-    // 送信成立（ok / hp_failed どちらも保存済み）→ 重複送信防止のため保持データをクリア。
+    // 送信成立（保存済み）→ 重複送信防止のため保持データをクリア。
     window._oriwantesLastQuestions = null;
     window._oriwantesLastSubject = '';
   }
@@ -15522,6 +15556,9 @@
         '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
         '<div style="font-size:52px">🎉</div>' +
         '<div class="wabun1-result-title">解答を送信したぞ！</div>' +
+        // 採点結果（正答数・合格）を特大HPの上に表示。correctCount/totalCount はサーバ確定値。
+        _oriwantesScoreLineHtml(res) +
+        '<div class="oriwan-verdict oriwan-verdict-pass">🎉 合格！HPを獲得したぞ</div>' +
         // 【用件4 第3段】① 特大ヒーロー＝満額 fullHp（90 × week²）。下の _wabun1AnimateHp でカウントアップ。
         '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="oriwantes-result-hp-num">0</span> HP 獲得！</div>' +
         // 2026-06-17：作成料の内訳（オリワンテス専用＝作成料の概念があるため）。①と②の間に小さめ（.oriwan-hp-breakdown=13px）で残す。
@@ -15538,6 +15575,33 @@
     return html;
   }
 
+  // 採点結果の正答数ライン（「N問正解！（全10問中）」）。合格・不合格 共通。
+  function _oriwantesScoreLineHtml(res) {
+    var correct = Number(res && res.correctCount) || 0;
+    var total   = Number(res && res.totalCount) || 0;
+    if (total <= 0) return '';
+    return '<div class="oriwan-score-line">' + correct + '問正解！<span class="oriwan-score-total">（全' + total + '問中）</span></div>';
+  }
+
+  // 不合格（passed=false／7問以下＝HP未獲得）：紙吹雪・HPヒーローなし。再挑戦予告（第3段の布石・テキストのみ）。
+  function _buildOriwantesFailHtml(res) {
+    return '<div class="mate-row"><img class="mate-img" src="images/oriwantes-encourage.png" alt="オリワンテス"><div class="mate-bubble">惜しかったな。だが、間違いこそ学びの種だ。</div></div>' +
+      '<div class="oriwan-result-fail">' +
+        _oriwantesScoreLineHtml(res) +
+        '<div class="oriwan-verdict oriwan-verdict-fail">残念、8問以上正解でHP獲得だよ</div>' +
+        '<div class="oriwan-fail-note">今回はHPを獲得できなかったよ。<br>でも大丈夫。明日以降、まちがえた問題にもう一度挑戦すれば、HPを取り戻せるぞ。</div>' +
+      '</div>';
+  }
+
+  // 採点AI不具合（gradingFailed=true）：HPは付与済み。○×は出さず、下は従来の解答／正解／解説のみ。
+  function _buildOriwantesGradingFailedHtml(res) {
+    return '<div class="mate-row"><img class="mate-img" src="images/oriwantes-encourage.png" alt="オリワンテス"><div class="mate-bubble">すまぬ。採点の仕組みに不具合が起きておるようだ。</div></div>' +
+      '<div class="wabun1-period-warn"><span class="warn-title">⚠️ 採点AIに不具合が発生中です。ごめんなさい</span><ul>' +
+        '<li>今回は自動採点ができなかったよ。○×はつかないけど、下で正解と解説を確認してね。</li>' +
+        '<li>HPはちゃんと付与されているから、安心してね。</li>' +
+      '</ul></div>';
+  }
+
   // HP付与のみ失敗（HP_LOG_FAILED）：結果は見せつつ、HPの問題は控えめに伝える（紙吹雪・chime なし）。
   function _buildOriwantesHpFailedHtml() {
     return '<div class="mate-row"><img class="mate-img" src="images/oriwantes-encourage.png" alt="オリワンテス"><div class="mate-bubble">答えはちゃんと受け取ったぞ。下で確かめるがよい。</div></div>' +
@@ -15547,10 +15611,11 @@
       '</ul></div>';
   }
 
-  // 結果リスト：採点なし。問N／問題文／あなたの解答（空欄は「（未回答）」）／正解／解説（すべて textContent）。
-  function _renderOriwantesResultList(questions) {
+  // 結果リスト：問N／○×／問題文／あなたの解答（空欄は「（未回答）」）／正解／解説／判定理由（すべて textContent）。
+  //   results（任意）があれば○×＋判定理由を出し、注意書き2点を先頭に表示。無ければ従来表示（履歴詳細）。
+  function _renderOriwantesResultList(questions, results) {
     var listEl = document.getElementById('oriwantes-result-list');
-    _renderOriwantesQuestionCards(listEl, questions);
+    _renderOriwantesQuestionCards(listEl, questions, results);
     // 復習を促す文言を結果リストの先頭に挿入（オリワンテスのセリフ風）。
     // 解答送信直後の復習喚起が目的のため、結果画面のみ。履歴詳細（共用の _renderOriwantesQuestionCards）には出さない。
     if (listEl) {
@@ -15566,12 +15631,35 @@
       review.appendChild(img);
       review.appendChild(bubble);
       listEl.insertBefore(review, listEl.firstChild);
+      // 注意書き2点：○×採点が出ているとき（results あり）のみ、最上部に視認性高く表示。
+      //   静的文言のみのため innerHTML 可（ユーザー入力は含まない）。
+      if (results && results.length) {
+        var warn = document.createElement('div');
+        warn.className = 'wabun1-period-warn oriwan-grade-note';
+        warn.innerHTML = '<span class="warn-title">採点についてのお願い</span><ul>'
+          + '<li>※ 採点はAIによるものです。まちがっていることもあります。</li>'
+          + '<li>※ なぜ不正解か分からないときは、先生に直接聞いてください。</li>'
+          + '</ul>';
+        listEl.insertBefore(warn, listEl.firstChild);
+      }
     }
   }
-  // 採点なし・閲覧用の問題カード描画（結果画面と履歴詳細画面で共用）。本文は textContent（XSS回避）。
-  function _renderOriwantesQuestionCards(listEl, questions) {
+  // 問題カード描画（結果画面と履歴詳細画面で共用）。本文は textContent（XSS回避）。
+  //   results（任意・[{qNo,correct,reason}]）があれば qNo 対応の○×バッジと判定理由を追加。
+  //   無い場合（履歴詳細＝第1段以前の過去問も含む）は従来表示（○×・理由なし）にフォールバック。
+  function _renderOriwantesQuestionCards(listEl, questions, results) {
     if (!listEl) return;
     questions = questions || [];
+    // results を qNo→判定 のマップ化（任意）。
+    var resultMap = null;
+    if (results && results.length) {
+      resultMap = {};
+      for (var r = 0; r < results.length; r++) {
+        var rr = results[r] || {};
+        var qn = Number(rr.qNo);
+        if (qn > 0) resultMap[qn] = rr;
+      }
+    }
     listEl.innerHTML = '';
     for (var i = 0; i < questions.length; i++) {
       var q = questions[i] || {};
@@ -15581,6 +15669,15 @@
       var qno = document.createElement('div');
       qno.className = 'oriwan-result-qno';
       qno.textContent = '問' + (i + 1);
+      // ○×バッジ（results があり、該当 qNo の判定があるときのみ）。
+      var jr = resultMap ? resultMap[i + 1] : null;
+      if (jr) {
+        var badge = document.createElement('span');
+        var isCorrect = (jr.correct === true);
+        badge.className = 'oriwan-judge-badge ' + (isCorrect ? 'oriwan-judge-ok' : 'oriwan-judge-ng');
+        badge.textContent = isCorrect ? '⭕ 正解' : '❌ 不正解';
+        qno.appendChild(badge);
+      }
       card.appendChild(qno);
 
       var qtext = document.createElement('div');
@@ -15592,6 +15689,12 @@
       card.appendChild(_oriwantesResultRow('oriwan-result-your',    'あなたの解答：', sa ? sa : '（未回答）'));
       card.appendChild(_oriwantesResultRow('oriwan-result-correct', '正解：',        String(q.answer      == null ? '' : q.answer)));
       card.appendChild(_oriwantesResultRow('oriwan-result-explain', '解説：',        String(q.explanation == null ? '' : q.explanation)));
+
+      // 判定理由（results があり reason があるときのみ）。
+      if (jr) {
+        var reason = String(jr.reason == null ? '' : jr.reason).trim();
+        if (reason) card.appendChild(_oriwantesResultRow('oriwan-result-reason', '判定理由：', reason));
+      }
 
       listEl.appendChild(card);
     }
@@ -20172,7 +20275,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260810-2105</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260811-0513</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
