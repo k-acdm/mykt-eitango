@@ -2971,6 +2971,10 @@
     .oriwan-bubble { max-width: 78%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
     .oriwan-bubble.mate { background: #fff; border: 2px solid #e6c25a; color: #5a3e10; border-top-left-radius: 4px; }
     .oriwan-bubble.student { background: linear-gradient(135deg,#c8941c,#a9780f); color: #fff; border-top-right-radius: 4px; }
+    /* 第2段-2b：構造化入力のレベル選択（中/高） */
+    .oriwan-level-row-label { font-size: 13px; color: #7a5210; font-weight: bold; align-self: center; }
+    .oriwan-level-btn { flex: 1; min-width: 110px; padding: 10px 8px; border: 2px solid #e6c25a; border-radius: 12px; background: #fffdf5; color: #7a5210; font-size: 15px; font-weight: bold; cursor: pointer; }
+    .oriwan-level-btn.sel { background: linear-gradient(135deg,#c8941c,#7a5210); color: #fff; border-color: #7a5210; }
     .oriwan-msg-photos { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .oriwan-msg-photos img { width: 62px; height: 62px; object-fit: cover; border-radius: 8px; }
     .oriwan-help-card { background: #fff; border-radius: 16px; padding: 20px 18px; max-width: 340px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
@@ -3352,10 +3356,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260811-0513"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260811-0528"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260811-0513">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260811-0513"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260811-0528">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260811-0528"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5108,13 +5112,19 @@
   <div class="container" style="padding-top:16px">
     <div id="oriwantes-chat" class="oriwan-chat"></div>
     <div id="oriwantes-photo-list" class="mytask-photo-list"></div>
-    <textarea class="sango-textarea" id="oriwantes-input" rows="2" placeholder="英語、数学、論理表現、物理、日本史　など"></textarea>
+    <!-- 第2段-2b：レベル選択（詳細段でのみ表示）。教科は上のチャットで自由入力、ここは中/高の2択。 -->
+    <div id="oriwantes-level-row" style="display:none;gap:8px;margin:8px 0 4px;flex-wrap:wrap">
+      <span class="oriwan-level-row-label">レベル：</span>
+      <button type="button" id="oriwantes-level-chu" class="oriwan-level-btn" onclick="setOriwantesLevel('中学')">中学</button>
+      <button type="button" id="oriwantes-level-kou" class="oriwan-level-btn" onclick="setOriwantesLevel('高校')">高校</button>
+    </div>
+    <textarea class="sango-textarea" id="oriwantes-input" rows="2" placeholder="教科を入力（例：数学、英語、日本史）"></textarea>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
       <input type="file" id="oriwantes-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onOriwantesPhotoSelected(event)"/>
       <button class="btn-camera" style="flex:1;min-width:130px;margin:0" onclick="document.getElementById('oriwantes-photo-input').click()">📷 写真を添付</button>
       <button class="btn-wide" style="flex:1;min-width:130px;margin:0;background:linear-gradient(135deg,#7a8a99,#566270)" onclick="showOriwantesPromptHelp()">💡 書き方のヒント</button>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:10px" onclick="sendOriwantesMessage()">📨 オリワンテスに伝える</button>
+    <button id="oriwantes-send-btn" class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:10px" onclick="sendOriwantesMessage()">📨 この教科で伝える</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
   </div>
 </div>
@@ -5149,10 +5159,11 @@
 <div id="oriwantes-prompt-help-modal" class="modal-overlay" onclick="if(event.target===this)closeOriwantesPromptHelp()">
   <div class="oriwan-help-card">
     <h3 style="margin:0 0 10px;color:#7a5210">💡 こう頼むと作りやすい</h3>
+    <p style="text-align:left;font-size:13px;line-height:1.6;color:#7a5210;margin:0 0 8px">まず教科を伝えて、次に「中学／高校」とくわしい内容を伝えるだけでよい。問題数や形式は言わなくてよいぞ。</p>
     <ul style="text-align:left;font-size:14px;line-height:1.7;color:#5a3e10;padding-left:18px;margin:0 0 14px">
-      <li>「明治維新について10問のテストを作って」</li>
+      <li>「明治維新のできごとについて問題を作って」</li>
       <li>「化学反応式の問題を作って」</li>
-      <li>「（写真を撮って）この英語の教科書の文章で問題を5つ作って」</li>
+      <li>「（写真を撮って）この英語の教科書の文章で問題を作って」</li>
     </ul>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin:0" onclick="closeOriwantesPromptHelp()">閉じる</button>
   </div>
@@ -15212,6 +15223,10 @@
   var _oriwantesPhotos = [];            // 添付中の生base64配列（送信でクリア）
   var _oriwantesBusy = false;           // 二重送信防止
   window._oriwantesLastQuestions = null; // 問題完成時の questions（③-Bで使用）
+  // 第2段-2b：構造化入力の段階。'subject'（教科・自由入力）→ 'detail'（レベル中/高＋詳細）→ 'chat'（以降はサーバとの対話往復＝従来）。
+  var _oriwantesStage = 'subject';
+  var _oriwantesSubject = '';           // 生徒が入力した教科（自由入力・messages には detail 段でまとめて構造化）
+  var _oriwantesLevel = '';             // '中学' | '高校'
 
   function goOriwantesHome() {
     if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
@@ -15240,15 +15255,53 @@
     window._oriwantesLastQuestions = null;
     window._oriwantesLastSubject = '';
     _oriwantesBusy = false;
+    // 第2段-2b：段階を教科入力からやり直し。
+    _oriwantesStage = 'subject';
+    _oriwantesSubject = '';
+    _oriwantesLevel = '';
     var chat = document.getElementById('oriwantes-chat');
     if (chat) chat.innerHTML = '';
     var ta = document.getElementById('oriwantes-input');
     if (ta) ta.value = '';
     _renderOriwantesPhotos();
+    _setOriwantesStageUI('subject');   // レベル行を隠す・placeholder/送信ボタン文言を教科段に
     showScreen('screen-oriwantes-create');
-    // 導入＋最初の教科確認（②-A のシステムプロンプトが最初に教科を聞く設計と整合）。
-    // この挨拶は表示専用で _oriwantesMessages には積まない（最初の API 送信は user 発言のみ）。
+    // 導入＋最初の教科確認。この挨拶は表示専用で _oriwantesMessages には積まない（教科は detail 段でまとめて構造化）。
     _appendOriwantesMate('ようこそ。世界でたった一つのテストを作ろうではないか。まず初めに、教科から教えてくれ。');
+  }
+
+  // 段階に応じた入力UIの切替（レベル行の表示 / placeholder / 送信ボタン文言）。
+  function _setOriwantesStageUI(stage) {
+    var levelRow = document.getElementById('oriwantes-level-row');
+    var ta = document.getElementById('oriwantes-input');
+    var sendBtn = document.getElementById('oriwantes-send-btn');
+    if (stage === 'detail') {
+      if (levelRow) levelRow.style.display = 'flex';
+      if (ta) ta.placeholder = '例：一次方程式の文章題、光合成のしくみ、明治維新のできごと　など';
+      if (sendBtn) sendBtn.textContent = '📨 この内容で問題を作ってもらう';
+    } else if (stage === 'chat') {
+      if (levelRow) levelRow.style.display = 'none';
+      if (ta) ta.placeholder = 'オリワンテスに返事を書く';
+      if (sendBtn) sendBtn.textContent = '📨 オリワンテスに伝える';
+    } else { // 'subject'
+      if (levelRow) levelRow.style.display = 'none';
+      if (ta) ta.placeholder = '教科を入力（例：数学、英語、日本史）';
+      if (sendBtn) sendBtn.textContent = '📨 この教科で伝える';
+    }
+    // レベル選択の見た目もリセット（段が変わるたび）。
+    var chu = document.getElementById('oriwantes-level-chu');
+    var kou = document.getElementById('oriwantes-level-kou');
+    if (chu) chu.classList.toggle('sel', _oriwantesLevel === '中学');
+    if (kou) kou.classList.toggle('sel', _oriwantesLevel === '高校');
+  }
+
+  // レベル選択（中学/高校の2ボタン）。
+  function setOriwantesLevel(level) {
+    _oriwantesLevel = level;
+    var chu = document.getElementById('oriwantes-level-chu');
+    var kou = document.getElementById('oriwantes-level-kou');
+    if (chu) chu.classList.toggle('sel', level === '中学');
+    if (kou) kou.classList.toggle('sel', level === '高校');
   }
 
   // チャット描画（本文は textContent で入れる＝XSS回避）
@@ -15332,9 +15385,68 @@
     _renderOriwantesPhotos();
   }
 
-  // 送信：生徒発言を messages に積み（画像があればブロック配列）→ generateOriwantes（120秒）→ 3分岐
+  // 送信（第2段-2b）：段階に応じて分岐。
+  //   subject … 教科（自由入力）を受けて詳細段へ（generate は呼ばない）。
+  //   detail  … レベル(中/高)＋詳細を1つの user 発言に構造化して積み → generate。以降は chat 段。
+  //   chat    … 従来のフリーチャット（サーバとの対話往復）。
   function sendOriwantesMessage() {
     if (_oriwantesBusy) return;
+    if (_oriwantesStage === 'subject') { _oriwantesSubmitSubject(); return; }
+    if (_oriwantesStage === 'detail')  { _oriwantesSubmitDetail();  return; }
+    _oriwantesSubmitChat();
+  }
+
+  // 段① 教科（自由入力）を受ける。messages には積まず client 側に保持し、詳細段へ進む。
+  function _oriwantesSubmitSubject() {
+    var ta = document.getElementById('oriwantes-input');
+    var text = ta ? String(ta.value || '').trim() : '';
+    if (!text) { alert('教科を入力してね（例：数学、英語、日本史）。'); return; }
+    _oriwantesSubject = text;
+    _appendOriwantesStudent(text, null);
+    _appendOriwantesMate('なるほど、' + text + 'だな。では、どんな問題を作りたいか、より詳細な内容を教えてくれ。中学レベルか高校レベルかだけは前もって教えておくれ。');
+    if (ta) ta.value = '';
+    _oriwantesStage = 'detail';
+    _oriwantesLevel = '';
+    _setOriwantesStageUI('detail');
+  }
+
+  // 段② レベル(中/高)＋詳細を1つの user 発言に構造化して積み、generate を呼ぶ。写真添付も可。
+  function _oriwantesSubmitDetail() {
+    var ta = document.getElementById('oriwantes-input');
+    var detail = ta ? String(ta.value || '').trim() : '';
+    var photos = _oriwantesPhotos.slice();
+    if (!_oriwantesLevel) { alert('「中学」か「高校」かを選んでね。'); return; }
+    if (!detail && photos.length === 0) { alert('どんな問題にしたいか、内容を入力するか写真を添付してね。'); return; }
+    var detailText = detail || 'この写真をもとに問題を作ってください。';
+    // 教科・レベル・詳細を1発言に構造化（問題数10固定・記述5問はサーバのプロンプトが担保）。
+    var structured =
+      '教科：' + _oriwantesSubject + '\n' +
+      'レベル：' + _oriwantesLevel + '\n' +
+      '詳細：' + detailText + '\n' +
+      '（この教科・レベル・詳細で問題を作ってください）';
+    // 画像ありはブロック配列 [{image}..., {text}]、なしは文字列。
+    var content;
+    if (photos.length > 0) {
+      content = [];
+      photos.forEach(function(b64){
+        content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } });
+      });
+      content.push({ type: 'text', text: structured });
+    } else {
+      content = structured;
+    }
+    _oriwantesMessages.push({ role: 'user', content: content });
+    _appendOriwantesStudent(structured, photos);
+    if (ta) ta.value = '';
+    _oriwantesPhotos = [];
+    _renderOriwantesPhotos();
+    _oriwantesStage = 'chat';          // 以降はサーバとの対話往復（従来）。
+    _setOriwantesStageUI('chat');
+    _oriwantesCallGenerate();
+  }
+
+  // 段③ 従来のフリーチャット（サーバが追加で聞いてきた場合の往復）。
+  function _oriwantesSubmitChat() {
     var ta = document.getElementById('oriwantes-input');
     var text = ta ? String(ta.value || '').trim() : '';
     var photos = _oriwantesPhotos.slice();
@@ -15342,7 +15454,6 @@
       alert('メッセージを入力するか、写真を添付してね。');
       return;
     }
-    // ②-A 仕様の messages 組み立て：画像ありはブロック配列 [{image}, {text}]、なしは文字列。
     var content;
     if (photos.length > 0) {
       content = [];
@@ -15358,10 +15469,13 @@
     if (ta) ta.value = '';
     _oriwantesPhotos = [];
     _renderOriwantesPhotos();
+    _oriwantesCallGenerate();
+  }
 
+  // generateOriwantes（120秒）→ 3分岐（HP不足 / isComplete→solve / 対話途中text）。※2a 以前と同一のレスポンス処理。
+  function _oriwantesCallGenerate() {
     _oriwantesBusy = true;
     _showOriwantesThinking();
-    // 生成は30秒超あり得るのでタイムアウト120秒を明示。
     gasPost({ action: 'generateOriwantes', studentId: _studentId, messages: _oriwantesMessages }, 120000)
       .then(function(res){
         _hideOriwantesThinking();
@@ -15378,7 +15492,7 @@
         if (res.isComplete === true) {
           // 問題完成：questions と subject（②-A改善の正規化済み教科名）を保持（③-Bの解く画面・解答送信で使う）。
           window._oriwantesLastQuestions = res.questions || [];
-          window._oriwantesLastSubject = res.subject || '';
+          window._oriwantesLastSubject = res.subject || _oriwantesSubject || '';
           if (res.intro) _appendOriwantesMate(res.intro);
           var n = (res.questions || []).length;
           _appendOriwantesMate('問題が ' + n + ' 問完成したぞ！');
@@ -20275,7 +20389,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260811-0513</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260811-0528</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
