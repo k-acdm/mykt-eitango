@@ -857,6 +857,9 @@
     .closed-card h2 { color: #1a1a2e; margin-bottom: 10px; font-size: 22px; }
     .closed-card p  { color: #666; font-size: 16px; }
     .back-warning { position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; pointer-events: none; z-index: 9999; line-height: 1.6; }
+    /* 第4群B：実施時間タイマー（全画面共通・body直下の固定要素。ログイン中のみ表示） */
+    #study-timer { position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,.5); color: #fff; font-size: 12px; font-family: 'Courier New', monospace; letter-spacing: 1px; padding: 5px 9px; border-radius: 8px; pointer-events: none; z-index: 9000; display: none; }
+    @media (max-width: 480px) { #study-timer { font-size: 11px; padding: 4px 7px; } }
     .chara-wrap { text-align: center; margin: 0; position: relative; height: 200px; display: flex; align-items: flex-end; justify-content: center; }
     .chara-img  { width: 150px; height: 150px; object-fit: contain; transition: filter .5s, opacity .5s; }
     .chara-fx   { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 180px; height: 180px; pointer-events: none; }
@@ -2953,6 +2956,12 @@
     .mykt-overlay-btns button { flex: 1; padding: 11px 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: bold; cursor: pointer; }
     .mykt-overlay-btns .btn-retry { background: linear-gradient(135deg, #fb923c, #f97316); color: #fff; }
     .mykt-overlay-btns .btn-cancel { background: #e5e7eb; color: #374151; }
+    /* ===== 第4群A：絶対ミッション強制ブロック画面 ===== */
+    .req-block-card { background: #fff; border-radius: 18px; padding: 22px 18px; max-width: 380px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,.25); max-height: 88vh; overflow-y: auto; }
+    .req-block-heading { margin-top: 16px; font-size: 13px; font-weight: bold; color: #6b7280; text-align: center; }
+    .req-block-links { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+    .req-block-link { display: block; width: 100%; padding: 14px 16px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; color: #fff; cursor: pointer; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,.18); text-shadow: 0 1px 2px rgba(0,0,0,.2); }
+    .req-block-link:active { transform: translateY(1px); }
     /* ===== オリワンテス（③-A）トップ／チャットUI ===== */
     /* 2026-06-17：結果画面の獲得HP内訳の式（特大の +90 より控えめ。オリワンテス専用）。 */
     .oriwan-hp-breakdown { font-size: 13px; color: #9a7b3a; opacity: .9; margin: 2px 0 4px; text-align: center; letter-spacing: .3px; }
@@ -2965,6 +2974,10 @@
     .oriwan-bubble { max-width: 78%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
     .oriwan-bubble.mate { background: #fff; border: 2px solid #e6c25a; color: #5a3e10; border-top-left-radius: 4px; }
     .oriwan-bubble.student { background: linear-gradient(135deg,#c8941c,#a9780f); color: #fff; border-top-right-radius: 4px; }
+    /* 第2段-2b：構造化入力のレベル選択（中/高） */
+    .oriwan-level-row-label { font-size: 13px; color: #7a5210; font-weight: bold; align-self: center; }
+    .oriwan-level-btn { flex: 1; min-width: 110px; padding: 10px 8px; border: 2px solid #e6c25a; border-radius: 12px; background: #fffdf5; color: #7a5210; font-size: 15px; font-weight: bold; cursor: pointer; }
+    .oriwan-level-btn.sel { background: linear-gradient(135deg,#c8941c,#7a5210); color: #fff; border-color: #7a5210; }
     .oriwan-msg-photos { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .oriwan-msg-photos img { width: 62px; height: 62px; object-fit: cover; border-radius: 8px; }
     .oriwan-help-card { background: #fff; border-radius: 16px; padding: 20px 18px; max-width: 340px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
@@ -2984,6 +2997,20 @@
     .oriwan-result-correct { color: #047857; }
     .oriwan-result-correct .oriwan-result-rlabel { color: #047857; }
     .oriwan-result-explain { color: #3a2c0a; background: #fff7e0; border-radius: 8px; padding: 6px 10px; }
+    /* 2026-第2段-2a：採点結果（○×・判定理由・正答数・合否）。○×色は既存 correct=緑#047857 と揃える。 */
+    .oriwan-result-reason { color: #7a5210; background: #fff2d6; border-radius: 8px; padding: 6px 10px; }
+    .oriwan-result-reason .oriwan-result-rlabel { color: #7a5210; }
+    .oriwan-judge-badge { display: inline-block; margin-left: 8px; font-size: 13px; font-weight: bold; padding: 1px 8px; border-radius: 999px; vertical-align: middle; }
+    .oriwan-judge-ok { color: #047857; background: #d9f2e6; }
+    .oriwan-judge-ng { color: #c0392b; background: #fbe2df; }
+    .oriwan-score-line { font-size: 20px; font-weight: bold; color: #7a5210; margin: 6px 0 2px; }
+    .oriwan-score-line .oriwan-score-total { font-size: 14px; font-weight: normal; color: #9a7b3a; }
+    .oriwan-verdict { font-size: 15px; font-weight: bold; border-radius: 10px; padding: 6px 12px; margin: 4px auto 6px; display: inline-block; }
+    .oriwan-verdict-pass { color: #047857; background: #d9f2e6; }
+    .oriwan-verdict-fail { color: #c0392b; background: #fbe2df; }
+    .oriwan-result-fail { text-align: center; background: #fffdf5; border: 1px solid #f0e2b8; border-radius: 14px; padding: 14px; margin: 4px 0; }
+    .oriwan-fail-note { font-size: 14px; line-height: 1.7; color: #5a3e10; margin-top: 4px; }
+    .oriwan-grade-note { margin-top: 4px; }
     /* ===== オリワンテス（③-C）履歴一覧／詳細 ===== */
     .oriwan-history-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: #fffdf5; border: 1px solid #f0e2b8; border-radius: 12px; padding: 12px 14px; margin: 8px 0; cursor: pointer; font-size: 15px; color: #3a2c0a; }
     .oriwan-history-item:hover { background: #fff7e0; }
@@ -3332,10 +3359,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260809-2355"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260811-2149"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260809-2355">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260809-2355"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260811-2149">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260811-2149"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3481,6 +3508,8 @@
   </div>
 </div>
 <div class="back-warning">⚠️ 「戻る」ボタンは押さないでね</div>
+<!-- 第4群B：実施時間タイマー（ログイン中のみ表示。_startStudyTimer/_stopStudyTimer で制御） -->
+<div id="study-timer" aria-hidden="true"></div>
 <div id="screen-login" class="screen active">
   <div class="login-body">
     <!-- ============================================================ -->
@@ -5078,6 +5107,7 @@
     <div class="oriwan-hp-line" id="oriwantes-hp-line">現在の交換可能HP：読み込み中…</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:8px" onclick="goOriwantesCreate()">✨ 新しい問題を作成する</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#e3c887,#bfa05f);margin-top:12px" onclick="goOriwantesHistory()">📜 今までに作成した問題を見る</button>
+    <button id="oriwantes-retry-entry" class="btn-wide" style="background:linear-gradient(135deg,#e17055,#c0392b);margin-top:12px;display:none" onclick="goOriwantesRetryList()">🔁 不合格だった問題に再挑戦する</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -5088,13 +5118,19 @@
   <div class="container" style="padding-top:16px">
     <div id="oriwantes-chat" class="oriwan-chat"></div>
     <div id="oriwantes-photo-list" class="mytask-photo-list"></div>
-    <textarea class="sango-textarea" id="oriwantes-input" rows="2" placeholder="英語、数学、論理表現、物理、日本史　など"></textarea>
+    <!-- 第2段-2b：レベル選択（詳細段でのみ表示）。教科は上のチャットで自由入力、ここは中/高の2択。 -->
+    <div id="oriwantes-level-row" style="display:none;gap:8px;margin:8px 0 4px;flex-wrap:wrap">
+      <span class="oriwan-level-row-label">レベル：</span>
+      <button type="button" id="oriwantes-level-chu" class="oriwan-level-btn" onclick="setOriwantesLevel('中学')">中学</button>
+      <button type="button" id="oriwantes-level-kou" class="oriwan-level-btn" onclick="setOriwantesLevel('高校')">高校</button>
+    </div>
+    <textarea class="sango-textarea" id="oriwantes-input" rows="2" placeholder="教科を入力（例：数学、英語、日本史）"></textarea>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
       <input type="file" id="oriwantes-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onOriwantesPhotoSelected(event)"/>
       <button class="btn-camera" style="flex:1;min-width:130px;margin:0" onclick="document.getElementById('oriwantes-photo-input').click()">📷 写真を添付</button>
       <button class="btn-wide" style="flex:1;min-width:130px;margin:0;background:linear-gradient(135deg,#7a8a99,#566270)" onclick="showOriwantesPromptHelp()">💡 書き方のヒント</button>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:10px" onclick="sendOriwantesMessage()">📨 オリワンテスに伝える</button>
+    <button id="oriwantes-send-btn" class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:10px" onclick="sendOriwantesMessage()">📨 この教科で伝える</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
   </div>
 </div>
@@ -5129,10 +5165,11 @@
 <div id="oriwantes-prompt-help-modal" class="modal-overlay" onclick="if(event.target===this)closeOriwantesPromptHelp()">
   <div class="oriwan-help-card">
     <h3 style="margin:0 0 10px;color:#7a5210">💡 こう頼むと作りやすい</h3>
+    <p style="text-align:left;font-size:13px;line-height:1.6;color:#7a5210;margin:0 0 8px">まず教科を伝えて、次に「中学／高校」とくわしい内容を伝えるだけでよい。問題数や形式は言わなくてよいぞ。</p>
     <ul style="text-align:left;font-size:14px;line-height:1.7;color:#5a3e10;padding-left:18px;margin:0 0 14px">
-      <li>「明治維新について10問のテストを作って」</li>
+      <li>「明治維新のできごとについて問題を作って」</li>
       <li>「化学反応式の問題を作って」</li>
-      <li>「（写真を撮って）この英語の教科書の文章で問題を5つ作って」</li>
+      <li>「（写真を撮って）この英語の教科書の文章で問題を作って」</li>
     </ul>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin:0" onclick="closeOriwantesPromptHelp()">閉じる</button>
   </div>
@@ -5190,6 +5227,43 @@
     <div id="oriwantes-history-detail-comment"></div>
     <div id="oriwantes-history-detail-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:14px" onclick="showScreen('screen-oriwantes-history')">← 一覧に戻る</button>
+  </div>
+</div>
+
+<!-- オリワンテス（③-D：不合格分に再挑戦・一覧）。getOriwantesRetrySet の提出を選ぶ。★1件でも一覧を挟む。 -->
+<div id="screen-oriwantes-retry-list" class="screen">
+  <header><h1>🔁 再挑戦する問題を選ぶ</h1><span>不合格だった問題にもう一度</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-oriwantes-retry-list" src="images/oriwantes-default.png" alt="オリワンテス">
+      <div class="mate-bubble" id="mate-bubble-oriwantes-retry-list">まだ正解できていない問題があるな。挑戦するものを選ぶがよい。</div>
+    </div>
+    <div id="oriwantes-retry-list"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
+  </div>
+</div>
+
+<!-- オリワンテス（③-D：再挑戦・解く）。_oriwantesRetryState.questions の不正解問だけ。★solve 中は解説を出さない。 -->
+<div id="screen-oriwantes-retry-solve" class="screen">
+  <header><h1>✏️ 不合格分に再挑戦</h1><span>不正解だった問題に挑戦</span></header>
+  <div class="container" style="padding-top:16px">
+    <div class="mate-row">
+      <img class="mate-img" id="mate-img-oriwantes-retry-solve" src="images/oriwantes-encourage.png" alt="オリワンテス">
+      <div class="mate-bubble" id="mate-bubble-oriwantes-retry-solve">不正解だった問題にもう一度挑戦だ。全問正解でHPを取り戻せるぞ。</div>
+    </div>
+    <div id="oriwantes-retry-solve-list"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:12px" onclick="submitOriwantesRetryAnswers()">📨 解答を送信する</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goOriwantesRetryList()">← 一覧に戻る</button>
+  </div>
+</div>
+
+<!-- オリワンテス（③-D：再挑戦・結果）。全問正解=HP獲得演出／部分正解=未獲得＋また挑戦。○×＋理由＋解説。★正解は出さない。 -->
+<div id="screen-oriwantes-retry-result" class="screen">
+  <header><h1>📋 再挑戦の結果</h1><span>○×と解説を確かめよう</span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="oriwantes-retry-result-body"></div>
+    <div id="oriwantes-retry-result-list"></div>
+    <div id="oriwantes-retry-result-actions"></div>
   </div>
 </div>
 
@@ -6508,6 +6582,106 @@
     }
   }
 
+  // ===== 第4群A：絶対ミッション強制ブロック =====
+  // 絶対ミッションが 1 つでも設定された生徒（required.length>0）で、その日の未達成（remaining.length>0）が
+  // 残っているとき、「マイ課題」と絶対ミッション 5 つ以外のコンテンツを開こうとしたらブロック画面を出す。
+  //
+  // 仕様の優先順位（三語→和文英訳①→英単語→基礎計算→カンジー）。サーバ getRequiredProgress の
+  // remaining は eitango 先頭で返るため、フロントでこの順に並べ替える。
+  var REQUIRED_PRIORITY_ORDER = ['sango', 'wabun1', 'eitango', 'kiso', 'kanji'];
+  // リンクボタンの配色（ホームのコンテンツボタンと同じグラデで識別性を確保）
+  var REQUIRED_BLOCK_LINK_BG = {
+    sango:   'linear-gradient(135deg,#ffcb77,#fe6d73)',
+    wabun1:  'linear-gradient(135deg,#b28dff,#7c4fff)',
+    eitango: 'linear-gradient(135deg,#17c3b2,#227c9d)',
+    kiso:    'linear-gradient(135deg,#4fc3f7,#2979ff)',
+    kanji:   'linear-gradient(135deg,#ff8a8a,#c92a2a)'
+  };
+
+  // ブロック判定：システム稼働中（5/25 以降）かつ 絶対ミッション設定あり かつ 未達成が残る → true。
+  // ★_requiredProgress が未取得/取得失敗(null)なら false（フェイルオープン＝生徒を締め出さない・ふくち確定）。
+  function _shouldBlockForRequired() {
+    if (!_isReqSystemActive()) return false;      // 5/25 前は非稼働 → ブロックしない
+    var rp = _requiredProgress;
+    if (!rp) return false;                        // 未取得/失敗 → フェイルオープン
+    var required  = Array.isArray(rp.required)  ? rp.required  : [];
+    var remaining = Array.isArray(rp.remaining) ? rp.remaining : [];
+    return required.length > 0 && remaining.length > 0;
+  }
+
+  // 未達成の絶対ミッションを仕様優先順で並べ替えて返す（remaining に含まれるものだけ）。
+  function _orderedRemainingMissions() {
+    var rp = _requiredProgress;
+    var remaining = (rp && Array.isArray(rp.remaining)) ? rp.remaining : [];
+    var set = {};
+    for (var i = 0; i < remaining.length; i++) set[remaining[i]] = true;
+    var out = [];
+    for (var j = 0; j < REQUIRED_PRIORITY_ORDER.length; j++) {
+      var rc = REQUIRED_PRIORITY_ORDER[j];
+      if (set[rc]) out.push(rc);
+    }
+    return out;
+  }
+
+  function _hideRequiredBlockScreen() {
+    var ov = document.getElementById('required-block-overlay');
+    if (ov) ov.classList.remove('active');
+  }
+
+  // 絶対ミッション識別子 → 起動関数（クリックでそのミッションが始まる）。
+  // 起動関数は showScreen で画面遷移するので、先に overlay を閉じる。
+  // ★これら 5 つの launcher にはブロックガードを付けていない（除外）ため、ここから起動しても再ブロックされない。
+  function _launchRequiredMission(rc) {
+    _hideRequiredBlockScreen();
+    switch (rc) {
+      case 'eitango': showLevelSelect();      break;
+      case 'sango':   showSangoTopic();        break;
+      case 'wabun1':  showWabun1Topic();       break;
+      case 'kiso':    showKisoRankSelect();    break;
+      case 'kanji':   showKanjiLevelSelect();  break;
+    }
+  }
+
+  // 強制ブロック画面を表示。マイカツ君の促し＋未達成ミッションへのリンク（仕様順）。
+  // ★ホームに戻る／閉じる導線は一切置かない（戻れない強制。既存 popstateHandler でブラウザ戻るも無効）。
+  //   リンクを押して絶対ミッションを始める以外の選択肢を与えない。
+  function _showRequiredBlockScreen() {
+    var ov = document.getElementById('required-block-overlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'required-block-overlay';
+      ov.className = 'mykt-overlay';
+      document.body.appendChild(ov);
+    }
+    var missions = _orderedRemainingMissions();
+    // フェイルセーフ：万一未達成が無ければ何も出さない（本来 _shouldBlockForRequired で弾かれる）。
+    if (!missions.length) { ov.classList.remove('active'); return; }
+    var linksHtml = '';
+    for (var i = 0; i < missions.length; i++) {
+      var rc = missions[i];
+      var label = REQUIRED_CONTENT_LABELS[rc] || rc;   // 正式名称（三語短文/和文英訳①/英単語RUSH/基礎計算/カンジー）
+      var bg = REQUIRED_BLOCK_LINK_BG[rc] || 'linear-gradient(135deg,#fb923c,#f97316)';
+      linksHtml += '<button type="button" class="req-block-link" data-rc="' + rc + '" style="background:' + bg + '">▶ ' + label + '</button>';
+    }
+    ov.innerHTML =
+      '<div class="req-block-card">' +
+        '<div class="mykt-overlay-row">' +
+          '<img src="./character.jpg" class="chara-img" alt="マイカツ君">' +
+          '<div class="mykt-overlay-bubble hp-confirming">これをやる前に、<br>今日の絶対ミッションを<br>全部やり終えよう！</div>' +
+        '</div>' +
+        '<div class="req-block-heading">▼ この中からえらんでね</div>' +
+        '<div class="req-block-links">' + linksHtml + '</div>' +
+      '</div>';
+    // inline onclick を避け、data-rc から起動（起動関数の巻き上げ済み参照を click 時に解決）
+    var btns = ov.querySelectorAll('.req-block-link');
+    for (var k = 0; k < btns.length; k++) {
+      btns[k].addEventListener('click', function(){
+        _launchRequiredMission(this.getAttribute('data-rc'));
+      });
+    }
+    ov.classList.add('active');
+  }
+
   // HP獲得画面の末尾に「権利ゲット通知」「完走演出」HTML を追記する共通ヘルパー。
   // bodyEl: 結果カードを innerHTML 設定済のコンテナ
   // res:    submit レスポンス（または hpInfo）。hpGained / hpReserved / justCompleted /
@@ -7344,6 +7518,7 @@
       document.getElementById('login-btn').disabled = false;
       if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
       _studentId   = res.studentId;
+      _beginStudySession();   // 第4群B：実施時間タイマー開始（★二重開始ガードあり＝resume/再loginStudentで誤発火しない）
       // 防護柵1枚目（セッション堅牢化）：生徒ロールのときのみ studentId を localStorage に永続化する。
       //   - 保存するのは studentId と保存時刻のみ（HP/名前/streak/accountType/V2 等の可変・機微データは保存しない）。
       //   - 復元時は必ず loginStudent で再検証する（mykt_session_sid を信用して直接ホームには入らない）。
@@ -9903,6 +10078,10 @@
   //   - 「画面を閉じても大丈夫です」を明示してユーザーの不安を解消
   //   - 紙吹雪 + chime SFX + HP 数字カウントアップで達成感を演出
   function _showReflectionReleaseModal(res, onComplete) {
+    // 第4群B：ログアウト経路（onComplete===_doLogoutFinalize）のときだけ実施時間を確定し、
+    //   当日合計(todayTotalSeconds)を最終画面「今日の実施時間」行へ反映する。
+    //   ★キャッチアップ振り返り（onComplete が別関数）ではセッションを締めない（誤終了防止）。
+    if (onComplete === _doLogoutFinalize) { _endStudySession().then(_fillReflStudyLine); }
     var releasedHp = Number(res && res.releasedHp) || 0;
     var compRel    = Number(res && res.completionReleasedHp) || 0;
     var bonusHp    = Number(res && res.completionBonusHp) || 0;
@@ -10042,6 +10221,8 @@
     // 2026-06-05：大数値の直下に生涯HPを追加（サイズ・色は headline と同じ 14px/#92400e）。
     //   値はスコープ内の最新生涯HP _totalHP（8417 で今回解放分まで同期済、ホーム/他画面の生涯HPと一致）。
     html += '<div class="refl-release-hp-headline">生涯HP ' + (Number(_totalHP) || 0).toLocaleString() + ' HP</div>';
+    // 第4群B：今日の実施時間（当日合計）。_endStudySession の submitSessionTime 応答で _fillReflStudyLine が埋める。
+    html += '<div class="refl-release-hp-headline" id="refl-release-study" style="display:none"></div>';
 
     // 修正3：ヘッダーに連続日数 + 連続週数ボーナス
     var headerSub = '連続日数 ' + consecutiveDays + '日 / 連続週数ボーナス ×' + weekMultiplier
@@ -10198,7 +10379,75 @@
   }
 
   // 実ログアウト処理（submit 成功時のみ呼ばれる）。旧 doLogout 後半をそのまま移植。
+  // ============================================================================
+  // 第4群B：実施時間タイマー（ログイン〜明示ログアウトの生時間を計測。タブ閉じは計測しない）
+  //   開始 = doLogin 成功時 _beginStudySession（二重開始ガード）。
+  //   終了 = _doLogoutFinalize 冒頭 or ログアウト経路の最終画面表示時 _endStudySession（1回だけ POST）。
+  //   表示 = 片隅 #study-timer（mm:ss、Date.now() 差分方式でドリフトなし）＋ 振り返り最終画面の当日合計。
+  // ============================================================================
+  var _studyStartMs = null;            // このセッションのログイン時刻（計測中のみ非 null）
+  var _studyTimerInterval = null;      // 片隅タイマーの setInterval ハンドル
+  var _studyTodayTotalSec = null;      // submitSessionTime が返す当日合計秒（最終画面表示用）
+
+  function _fmtStudyMMSS(ms) {
+    var sec = Math.max(0, Math.floor(ms / 1000));
+    var mm = String(Math.floor(sec / 60));
+    var ss = String(sec % 60);
+    if (mm.length < 2) mm = '0' + mm;
+    if (ss.length < 2) ss = '0' + ss;
+    return mm + ':' + ss;
+  }
+  function _startStudyTimer() {
+    var paint = function() {
+      var el = document.getElementById('study-timer');
+      if (el && _studyStartMs) el.textContent = '⏱ ' + _fmtStudyMMSS(Date.now() - _studyStartMs);
+    };
+    var el0 = document.getElementById('study-timer');
+    if (el0) el0.style.display = '';
+    paint();
+    if (_studyTimerInterval) clearInterval(_studyTimerInterval);
+    _studyTimerInterval = setInterval(paint, 1000);   // Date.now() 差分なのでタブ throttle でもドリフトしない
+  }
+  function _stopStudyTimer() {
+    if (_studyTimerInterval) { clearInterval(_studyTimerInterval); _studyTimerInterval = null; }
+    var el = document.getElementById('study-timer');
+    if (el) { el.style.display = 'none'; el.textContent = ''; }
+  }
+  // ログイン成功時に呼ぶ。★二重開始ガード：既に計測中（resume / 再 loginStudent）なら何もしない。
+  function _beginStudySession() {
+    if (_studyStartMs) return;                 // 計測中 → 二重開始しない（開始時刻を維持）
+    _studyStartMs = Date.now();
+    _studyTodayTotalSec = null;
+    _startStudyTimer();
+  }
+  // 明示ログアウトの締め。★_studyStartMs を先に無効化して多重 POST を防止（1セッション1回）。
+  //   戻り値 Promise は当日合計秒（サーバ todayTotalSeconds）。締め済み/失敗時は _studyTodayTotalSec を返す。
+  function _endStudySession() {
+    if (!_studyStartMs) return Promise.resolve(_studyTodayTotalSec);   // 既に締め済み → no-op（多重防止）
+    var seconds = Math.round((Date.now() - _studyStartMs) / 1000);
+    var sid = _studentId;                       // _studentId クリア前に捕捉
+    _studyStartMs = null;
+    _stopStudyTimer();
+    if (!sid || seconds <= 0) return Promise.resolve(_studyTodayTotalSec);
+    return gasPost({ action: 'submitSessionTime', studentId: sid, seconds: seconds, endedAt: Date.now() })
+      .then(function(res){
+        if (res && res.ok && res.todayTotalSeconds != null) _studyTodayTotalSec = Number(res.todayTotalSeconds) || 0;
+        return _studyTodayTotalSec;
+      })
+      .catch(function(err){ console.error('[submitSessionTime]', err); return _studyTodayTotalSec; });
+  }
+  // 振り返り最終画面の「今日の実施時間」行を当日合計で埋める（合計不明/0 は出さない）。
+  function _fillReflStudyLine(totalSec) {
+    var el = document.getElementById('refl-release-study');
+    if (!el) return;
+    var s = Number(totalSec);
+    if (!isFinite(s) || s <= 0) return;
+    el.textContent = '今日の実施時間 ' + Math.round(s / 60) + '分';
+    el.style.display = '';
+  }
+
   function _doLogoutFinalize() {
+    _endStudySession();   // 第4群B：実施時間を確定して submitSessionTime（多重防止済み・_studentId クリア前に実行）
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('popstate', popstateHandler);
     _stopAudio();
@@ -13591,6 +13840,7 @@
   // 級選択画面
   // -----------------------------------------------------
   function showLisonRankSelect() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
     _lisonResetState();
     var listEl = document.getElementById('lison-level-list');
@@ -15091,12 +15341,18 @@
   var _oriwantesPhotos = [];            // 添付中の生base64配列（送信でクリア）
   var _oriwantesBusy = false;           // 二重送信防止
   window._oriwantesLastQuestions = null; // 問題完成時の questions（③-Bで使用）
+  // 第2段-2b：構造化入力の段階。'subject'（教科・自由入力）→ 'detail'（レベル中/高＋詳細）→ 'chat'（以降はサーバとの対話往復＝従来）。
+  var _oriwantesStage = 'subject';
+  var _oriwantesSubject = '';           // 生徒が入力した教科（自由入力・messages には detail 段でまとめて構造化）
+  var _oriwantesLevel = '';             // '中学' | '高校'
 
   function goOriwantesHome() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     showScreen('screen-oriwantes-home');
     _setContentMascot('mate-img-oriwantes-home', 'default', 'mate-bubble-oriwantes-home',
       '私はオリワンテス。君だけの、世界でたった一つのテストを作って差し上げよう。', 'oriwantes');
     _loadOriwantesHp();
+    _loadOriwantesRetryEntry();   // 第4群C 第3段：再挑戦可能な提出があれば入口を出す
   }
   function _loadOriwantesHp() {
     var el = document.getElementById('oriwantes-hp-line');
@@ -15118,15 +15374,53 @@
     window._oriwantesLastQuestions = null;
     window._oriwantesLastSubject = '';
     _oriwantesBusy = false;
+    // 第2段-2b：段階を教科入力からやり直し。
+    _oriwantesStage = 'subject';
+    _oriwantesSubject = '';
+    _oriwantesLevel = '';
     var chat = document.getElementById('oriwantes-chat');
     if (chat) chat.innerHTML = '';
     var ta = document.getElementById('oriwantes-input');
     if (ta) ta.value = '';
     _renderOriwantesPhotos();
+    _setOriwantesStageUI('subject');   // レベル行を隠す・placeholder/送信ボタン文言を教科段に
     showScreen('screen-oriwantes-create');
-    // 導入＋最初の教科確認（②-A のシステムプロンプトが最初に教科を聞く設計と整合）。
-    // この挨拶は表示専用で _oriwantesMessages には積まない（最初の API 送信は user 発言のみ）。
+    // 導入＋最初の教科確認。この挨拶は表示専用で _oriwantesMessages には積まない（教科は detail 段でまとめて構造化）。
     _appendOriwantesMate('ようこそ。世界でたった一つのテストを作ろうではないか。まず初めに、教科から教えてくれ。');
+  }
+
+  // 段階に応じた入力UIの切替（レベル行の表示 / placeholder / 送信ボタン文言）。
+  function _setOriwantesStageUI(stage) {
+    var levelRow = document.getElementById('oriwantes-level-row');
+    var ta = document.getElementById('oriwantes-input');
+    var sendBtn = document.getElementById('oriwantes-send-btn');
+    if (stage === 'detail') {
+      if (levelRow) levelRow.style.display = 'flex';
+      if (ta) ta.placeholder = '例：一次方程式の文章題、光合成のしくみ、明治維新のできごと　など';
+      if (sendBtn) sendBtn.textContent = '📨 この内容で問題を作ってもらう';
+    } else if (stage === 'chat') {
+      if (levelRow) levelRow.style.display = 'none';
+      if (ta) ta.placeholder = 'オリワンテスに返事を書く';
+      if (sendBtn) sendBtn.textContent = '📨 オリワンテスに伝える';
+    } else { // 'subject'
+      if (levelRow) levelRow.style.display = 'none';
+      if (ta) ta.placeholder = '教科を入力（例：数学、英語、日本史）';
+      if (sendBtn) sendBtn.textContent = '📨 この教科で伝える';
+    }
+    // レベル選択の見た目もリセット（段が変わるたび）。
+    var chu = document.getElementById('oriwantes-level-chu');
+    var kou = document.getElementById('oriwantes-level-kou');
+    if (chu) chu.classList.toggle('sel', _oriwantesLevel === '中学');
+    if (kou) kou.classList.toggle('sel', _oriwantesLevel === '高校');
+  }
+
+  // レベル選択（中学/高校の2ボタン）。
+  function setOriwantesLevel(level) {
+    _oriwantesLevel = level;
+    var chu = document.getElementById('oriwantes-level-chu');
+    var kou = document.getElementById('oriwantes-level-kou');
+    if (chu) chu.classList.toggle('sel', level === '中学');
+    if (kou) kou.classList.toggle('sel', level === '高校');
   }
 
   // チャット描画（本文は textContent で入れる＝XSS回避）
@@ -15210,9 +15504,68 @@
     _renderOriwantesPhotos();
   }
 
-  // 送信：生徒発言を messages に積み（画像があればブロック配列）→ generateOriwantes（120秒）→ 3分岐
+  // 送信（第2段-2b）：段階に応じて分岐。
+  //   subject … 教科（自由入力）を受けて詳細段へ（generate は呼ばない）。
+  //   detail  … レベル(中/高)＋詳細を1つの user 発言に構造化して積み → generate。以降は chat 段。
+  //   chat    … 従来のフリーチャット（サーバとの対話往復）。
   function sendOriwantesMessage() {
     if (_oriwantesBusy) return;
+    if (_oriwantesStage === 'subject') { _oriwantesSubmitSubject(); return; }
+    if (_oriwantesStage === 'detail')  { _oriwantesSubmitDetail();  return; }
+    _oriwantesSubmitChat();
+  }
+
+  // 段① 教科（自由入力）を受ける。messages には積まず client 側に保持し、詳細段へ進む。
+  function _oriwantesSubmitSubject() {
+    var ta = document.getElementById('oriwantes-input');
+    var text = ta ? String(ta.value || '').trim() : '';
+    if (!text) { alert('教科を入力してね（例：数学、英語、日本史）。'); return; }
+    _oriwantesSubject = text;
+    _appendOriwantesStudent(text, null);
+    _appendOriwantesMate('なるほど、' + text + 'だな。では、どんな問題を作りたいか、より詳細な内容を教えてくれ。中学レベルか高校レベルかだけは前もって教えておくれ。');
+    if (ta) ta.value = '';
+    _oriwantesStage = 'detail';
+    _oriwantesLevel = '';
+    _setOriwantesStageUI('detail');
+  }
+
+  // 段② レベル(中/高)＋詳細を1つの user 発言に構造化して積み、generate を呼ぶ。写真添付も可。
+  function _oriwantesSubmitDetail() {
+    var ta = document.getElementById('oriwantes-input');
+    var detail = ta ? String(ta.value || '').trim() : '';
+    var photos = _oriwantesPhotos.slice();
+    if (!_oriwantesLevel) { alert('「中学」か「高校」かを選んでね。'); return; }
+    if (!detail && photos.length === 0) { alert('どんな問題にしたいか、内容を入力するか写真を添付してね。'); return; }
+    var detailText = detail || 'この写真をもとに問題を作ってください。';
+    // 教科・レベル・詳細を1発言に構造化（問題数10固定・記述5問はサーバのプロンプトが担保）。
+    var structured =
+      '教科：' + _oriwantesSubject + '\n' +
+      'レベル：' + _oriwantesLevel + '\n' +
+      '詳細：' + detailText + '\n' +
+      '（この教科・レベル・詳細で問題を作ってください）';
+    // 画像ありはブロック配列 [{image}..., {text}]、なしは文字列。
+    var content;
+    if (photos.length > 0) {
+      content = [];
+      photos.forEach(function(b64){
+        content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } });
+      });
+      content.push({ type: 'text', text: structured });
+    } else {
+      content = structured;
+    }
+    _oriwantesMessages.push({ role: 'user', content: content });
+    _appendOriwantesStudent(structured, photos);
+    if (ta) ta.value = '';
+    _oriwantesPhotos = [];
+    _renderOriwantesPhotos();
+    _oriwantesStage = 'chat';          // 以降はサーバとの対話往復（従来）。
+    _setOriwantesStageUI('chat');
+    _oriwantesCallGenerate();
+  }
+
+  // 段③ 従来のフリーチャット（サーバが追加で聞いてきた場合の往復）。
+  function _oriwantesSubmitChat() {
     var ta = document.getElementById('oriwantes-input');
     var text = ta ? String(ta.value || '').trim() : '';
     var photos = _oriwantesPhotos.slice();
@@ -15220,7 +15573,6 @@
       alert('メッセージを入力するか、写真を添付してね。');
       return;
     }
-    // ②-A 仕様の messages 組み立て：画像ありはブロック配列 [{image}, {text}]、なしは文字列。
     var content;
     if (photos.length > 0) {
       content = [];
@@ -15236,10 +15588,13 @@
     if (ta) ta.value = '';
     _oriwantesPhotos = [];
     _renderOriwantesPhotos();
+    _oriwantesCallGenerate();
+  }
 
+  // generateOriwantes（120秒）→ 3分岐（HP不足 / isComplete→solve / 対話途中text）。※2a 以前と同一のレスポンス処理。
+  function _oriwantesCallGenerate() {
     _oriwantesBusy = true;
     _showOriwantesThinking();
-    // 生成は30秒超あり得るのでタイムアウト120秒を明示。
     gasPost({ action: 'generateOriwantes', studentId: _studentId, messages: _oriwantesMessages }, 120000)
       .then(function(res){
         _hideOriwantesThinking();
@@ -15256,7 +15611,7 @@
         if (res.isComplete === true) {
           // 問題完成：questions と subject（②-A改善の正規化済み教科名）を保持（③-Bの解く画面・解答送信で使う）。
           window._oriwantesLastQuestions = res.questions || [];
-          window._oriwantesLastSubject = res.subject || '';
+          window._oriwantesLastSubject = res.subject || _oriwantesSubject || '';
           if (res.intro) _appendOriwantesMate(res.intro);
           var n = (res.questions || []).length;
           _appendOriwantesMate('問題が ' + n + ' 問完成したぞ！');
@@ -15377,24 +15732,44 @@
       });
   }
 
-  // 結果画面：上部に100HP獲得演出（or HP失敗注記）、下に採点なしの結果リスト。
+  // 結果画面：採点結果（正答数・合否・各問○×＋判定理由）＋HP演出（合格時のみ）。
+  //   subMode の決定（第2段-2a）：
+  //     hp_failed      … HP付与のみ失敗（保存は成立）。採点情報は使わず従来のHP失敗メッセージ。
+  //     grading_failed … 採点AI不具合（res.gradingFailed=true）。HPは付与済み。○×は出さない。
+  //     passed         … 8問以上正解（res.passed=true・HP獲得）。紙吹雪＋HPカウントアップ＋chime。
+  //     failed         … 7問以下（HP未獲得）。再挑戦予告（第3段への布石・テキストのみ）。
   function _showOriwantesResult(res, questions, mode) {
     showScreen('screen-oriwantes-result');
+    var gradingFailed = !!(res && res.gradingFailed === true);
+    var passed        = !!(res && res.passed === true);
+    var subMode;
+    if (mode === 'hp_failed')     subMode = 'hp_failed';
+    else if (gradingFailed)       subMode = 'grading_failed';
+    else if (passed)              subMode = 'passed';
+    else                          subMode = 'failed';
+
     var bodyEl = document.getElementById('oriwantes-result-body');
     if (bodyEl) {
-      bodyEl.innerHTML = (mode === 'ok') ? _buildOriwantesSuccessHtml(res) : _buildOriwantesHpFailedHtml();
+      if (subMode === 'hp_failed')            bodyEl.innerHTML = _buildOriwantesHpFailedHtml();
+      else if (subMode === 'grading_failed')  bodyEl.innerHTML = _buildOriwantesGradingFailedHtml(res);
+      else if (subMode === 'passed')          bodyEl.innerHTML = _buildOriwantesSuccessHtml(res);
+      else                                    bodyEl.innerHTML = _buildOriwantesFailHtml(res);
     }
-    _renderOriwantesResultList(questions);
-    if (mode === 'ok') {
+
+    // ○×＋判定理由は「採点が成立している（gradingFailed でない）かつ results がある」ときのみ。
+    //   履歴詳細は results を渡さない → 自動的に従来表示（○×・理由なし）にフォールバック。
+    var resultsForCards = (!gradingFailed && res && res.results && res.results.length) ? res.results : null;
+    _renderOriwantesResultList(questions, resultsForCards);
+
+    if (subMode === 'passed') {
       // 【用件4 第3段】① 満額（fullHp = 90 × week²）へカウントアップ（他コンテンツと同一の _wabun1AnimateHp / duration 1000）。
-      //   旧版は grantedRawHp(=90素点) を表示していたが、統一方針により満額表示へ変更。
       //   サーバ確定値・素通し（フロント再計算なし）。無ければ hpGained+hpReserved にフォールバック。
       var fullHpDisp = Number(res.fullHp != null ? res.fullHp : ((Number(res.hpGained) || 0) + (Number(res.hpReserved) || 0))) || 0;
       var numEl = document.getElementById('oriwantes-result-hp-num');
       if (numEl && fullHpDisp > 0) _wabun1AnimateHp(numEl, fullHpDisp, 1000);
       try { playSfx('chime'); } catch(e){}
     }
-    // 送信成立（ok / hp_failed どちらも保存済み）→ 重複送信防止のため保持データをクリア。
+    // 送信成立（保存済み）→ 重複送信防止のため保持データをクリア。
     window._oriwantesLastQuestions = null;
     window._oriwantesLastSubject = '';
   }
@@ -15414,6 +15789,9 @@
         '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
         '<div style="font-size:52px">🎉</div>' +
         '<div class="wabun1-result-title">解答を送信したぞ！</div>' +
+        // 採点結果（正答数・合格）を特大HPの上に表示。correctCount/totalCount はサーバ確定値。
+        _oriwantesScoreLineHtml(res) +
+        '<div class="oriwan-verdict oriwan-verdict-pass">🎉 合格！HPを獲得したぞ</div>' +
         // 【用件4 第3段】① 特大ヒーロー＝満額 fullHp（90 × week²）。下の _wabun1AnimateHp でカウントアップ。
         '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="oriwantes-result-hp-num">0</span> HP 獲得！</div>' +
         // 2026-06-17：作成料の内訳（オリワンテス専用＝作成料の概念があるため）。①と②の間に小さめ（.oriwan-hp-breakdown=13px）で残す。
@@ -15430,6 +15808,33 @@
     return html;
   }
 
+  // 採点結果の正答数ライン（「N問正解！（全10問中）」）。合格・不合格 共通。
+  function _oriwantesScoreLineHtml(res) {
+    var correct = Number(res && res.correctCount) || 0;
+    var total   = Number(res && res.totalCount) || 0;
+    if (total <= 0) return '';
+    return '<div class="oriwan-score-line">' + correct + '問正解！<span class="oriwan-score-total">（全' + total + '問中）</span></div>';
+  }
+
+  // 不合格（passed=false／7問以下＝HP未獲得）：紙吹雪・HPヒーローなし。再挑戦予告（第3段の布石・テキストのみ）。
+  function _buildOriwantesFailHtml(res) {
+    return '<div class="mate-row"><img class="mate-img" src="images/oriwantes-encourage.png" alt="オリワンテス"><div class="mate-bubble">惜しかったな。だが、間違いこそ学びの種だ。</div></div>' +
+      '<div class="oriwan-result-fail">' +
+        _oriwantesScoreLineHtml(res) +
+        '<div class="oriwan-verdict oriwan-verdict-fail">残念、8問以上正解でHP獲得だよ</div>' +
+        '<div class="oriwan-fail-note">今回はHPを獲得できなかったよ。<br>でも大丈夫。明日以降、まちがえた問題にもう一度挑戦すれば、HPを取り戻せるぞ。</div>' +
+      '</div>';
+  }
+
+  // 採点AI不具合（gradingFailed=true）：HPは付与済み。○×は出さず、下は従来の解答／正解／解説のみ。
+  function _buildOriwantesGradingFailedHtml(res) {
+    return '<div class="mate-row"><img class="mate-img" src="images/oriwantes-encourage.png" alt="オリワンテス"><div class="mate-bubble">すまぬ。採点の仕組みに不具合が起きておるようだ。</div></div>' +
+      '<div class="wabun1-period-warn"><span class="warn-title">⚠️ 採点AIに不具合が発生中です。ごめんなさい</span><ul>' +
+        '<li>今回は自動採点ができなかったよ。○×はつかないけど、下で正解と解説を確認してね。</li>' +
+        '<li>HPはちゃんと付与されているから、安心してね。</li>' +
+      '</ul></div>';
+  }
+
   // HP付与のみ失敗（HP_LOG_FAILED）：結果は見せつつ、HPの問題は控えめに伝える（紙吹雪・chime なし）。
   function _buildOriwantesHpFailedHtml() {
     return '<div class="mate-row"><img class="mate-img" src="images/oriwantes-encourage.png" alt="オリワンテス"><div class="mate-bubble">答えはちゃんと受け取ったぞ。下で確かめるがよい。</div></div>' +
@@ -15439,10 +15844,11 @@
       '</ul></div>';
   }
 
-  // 結果リスト：採点なし。問N／問題文／あなたの解答（空欄は「（未回答）」）／正解／解説（すべて textContent）。
-  function _renderOriwantesResultList(questions) {
+  // 結果リスト：問N／○×／問題文／あなたの解答（空欄は「（未回答）」）／正解／解説／判定理由（すべて textContent）。
+  //   results（任意）があれば○×＋判定理由を出し、注意書き2点を先頭に表示。無ければ従来表示（履歴詳細）。
+  function _renderOriwantesResultList(questions, results) {
     var listEl = document.getElementById('oriwantes-result-list');
-    _renderOriwantesQuestionCards(listEl, questions);
+    _renderOriwantesQuestionCards(listEl, questions, results);
     // 復習を促す文言を結果リストの先頭に挿入（オリワンテスのセリフ風）。
     // 解答送信直後の復習喚起が目的のため、結果画面のみ。履歴詳細（共用の _renderOriwantesQuestionCards）には出さない。
     if (listEl) {
@@ -15458,12 +15864,35 @@
       review.appendChild(img);
       review.appendChild(bubble);
       listEl.insertBefore(review, listEl.firstChild);
+      // 注意書き2点：○×採点が出ているとき（results あり）のみ、最上部に視認性高く表示。
+      //   静的文言のみのため innerHTML 可（ユーザー入力は含まない）。
+      if (results && results.length) {
+        var warn = document.createElement('div');
+        warn.className = 'wabun1-period-warn oriwan-grade-note';
+        warn.innerHTML = '<span class="warn-title">採点についてのお願い</span><ul>'
+          + '<li>※ 採点はAIによるものです。まちがっていることもあります。</li>'
+          + '<li>※ なぜ不正解か分からないときは、先生に直接聞いてください。</li>'
+          + '</ul>';
+        listEl.insertBefore(warn, listEl.firstChild);
+      }
     }
   }
-  // 採点なし・閲覧用の問題カード描画（結果画面と履歴詳細画面で共用）。本文は textContent（XSS回避）。
-  function _renderOriwantesQuestionCards(listEl, questions) {
+  // 問題カード描画（結果画面と履歴詳細画面で共用）。本文は textContent（XSS回避）。
+  //   results（任意・[{qNo,correct,reason}]）があれば qNo 対応の○×バッジと判定理由を追加。
+  //   無い場合（履歴詳細＝第1段以前の過去問も含む）は従来表示（○×・理由なし）にフォールバック。
+  function _renderOriwantesQuestionCards(listEl, questions, results) {
     if (!listEl) return;
     questions = questions || [];
+    // results を qNo→判定 のマップ化（任意）。
+    var resultMap = null;
+    if (results && results.length) {
+      resultMap = {};
+      for (var r = 0; r < results.length; r++) {
+        var rr = results[r] || {};
+        var qn = Number(rr.qNo);
+        if (qn > 0) resultMap[qn] = rr;
+      }
+    }
     listEl.innerHTML = '';
     for (var i = 0; i < questions.length; i++) {
       var q = questions[i] || {};
@@ -15473,6 +15902,15 @@
       var qno = document.createElement('div');
       qno.className = 'oriwan-result-qno';
       qno.textContent = '問' + (i + 1);
+      // ○×バッジ（results があり、該当 qNo の判定があるときのみ）。
+      var jr = resultMap ? resultMap[i + 1] : null;
+      if (jr) {
+        var badge = document.createElement('span');
+        var isCorrect = (jr.correct === true);
+        badge.className = 'oriwan-judge-badge ' + (isCorrect ? 'oriwan-judge-ok' : 'oriwan-judge-ng');
+        badge.textContent = isCorrect ? '⭕ 正解' : '❌ 不正解';
+        qno.appendChild(badge);
+      }
       card.appendChild(qno);
 
       var qtext = document.createElement('div');
@@ -15484,6 +15922,12 @@
       card.appendChild(_oriwantesResultRow('oriwan-result-your',    'あなたの解答：', sa ? sa : '（未回答）'));
       card.appendChild(_oriwantesResultRow('oriwan-result-correct', '正解：',        String(q.answer      == null ? '' : q.answer)));
       card.appendChild(_oriwantesResultRow('oriwan-result-explain', '解説：',        String(q.explanation == null ? '' : q.explanation)));
+
+      // 判定理由（results があり reason があるときのみ）。
+      if (jr) {
+        var reason = String(jr.reason == null ? '' : jr.reason).trim();
+        if (reason) card.appendChild(_oriwantesResultRow('oriwan-result-reason', '判定理由：', reason));
+      }
 
       listEl.appendChild(card);
     }
@@ -15688,6 +16132,279 @@
     if (m) m.classList.remove('active');
   }
 
+  // ============================================================================
+  // オリワンテス（③-D）：不合格分に再挑戦（第4群C 第3段フロント）
+  //   getOriwantesRetrySet（GET）で「翌日以降・不合格・未成功」の不正解問を取得し、不正解問だけ解かせ、
+  //   全問正解で submitOriwantesRetry（POST）が HP を付与する。全問正解まで複数回可。
+  //   ★新規画面のみ・既存の作成/solve/結果/履歴は非破壊（window._oriwantesLastQuestions とは別変数）。
+  //   ★solve 中は解説を出さず、結果画面で解説を出す。1 件でも一覧を挟む。★正解 answer は出さない（未同梱）。
+  // ============================================================================
+  var _oriwantesRetrySet = [];           // getOriwantesRetrySet の提出配列
+  var _oriwantesRetryState = null;       // 挑戦中 {submissionId, subject, educationalDate, questions:[{qNo,questionText,explanation}]}
+  var _oriwantesRetryAnswers = [];       // 直近送信した解答（questions と同順・結果カード表示用）
+  var _oriwantesRetrySubmitting = false; // 二重送信防止
+
+  // レスポンスの提出配列をキー揺れに強く取り出す。
+  function _extractOriwantesRetryList(res) {
+    if (res && Array.isArray(res.submissions)) return res.submissions;
+    if (res && Array.isArray(res.retrySet))    return res.retrySet;
+    if (res && Array.isArray(res.items))        return res.items;
+    if (Array.isArray(res))                     return res;
+    return [];
+  }
+
+  // ホーム表示時に呼ぶ：再挑戦可能な提出があるときだけ入口ボタンを出す。失敗/0件は非表示。
+  function _loadOriwantesRetryEntry() {
+    var btn = document.getElementById('oriwantes-retry-entry');
+    if (btn) btn.style.display = 'none';   // まず隠す（前回表示の残留対策）
+    _oriwantesRetrySet = [];
+    if (!_studentId) return;
+    gasGet({ action: 'getOriwantesRetrySet', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      _oriwantesRetrySet = _extractOriwantesRetryList(res && res.ok ? res : res) || [];
+      var b = document.getElementById('oriwantes-retry-entry');
+      if (b) b.style.display = (_oriwantesRetrySet.length >= 1) ? '' : 'none';
+    }).catch(function(err){
+      console.error('[getOriwantesRetrySet]', err);
+      _oriwantesRetrySet = [];
+      var b = document.getElementById('oriwantes-retry-entry');
+      if (b) b.style.display = 'none';
+    });
+  }
+
+  // 再挑戦一覧（提出を選ぶ。既存 oriwan-history-item スタイル流用。★1 件でも一覧を挟む）
+  function goOriwantesRetryList() {
+    showScreen('screen-oriwantes-retry-list');
+    _setContentMascot('mate-img-oriwantes-retry-list', 'default', 'mate-bubble-oriwantes-retry-list',
+      'まだ正解できていない問題があるな。挑戦するものを選ぶがよい。', 'oriwantes');
+    _renderOriwantesRetryList();
+  }
+  function _renderOriwantesRetryList() {
+    var listEl = document.getElementById('oriwantes-retry-list');
+    if (!listEl) return;
+    var items = _oriwantesRetrySet || [];
+    if (!items.length) {
+      listEl.innerHTML = '<div class="oriwan-history-empty">再挑戦できる問題はないぞ。<br>まずは新しい問題に挑戦だ。</div>';
+      return;
+    }
+    listEl.innerHTML = '';
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i] || {};
+      var wq = it.wrongQuestions || [];
+      var btn = document.createElement('button');
+      btn.className = 'oriwan-history-item';
+      var subj = document.createElement('span'); subj.className = 'oh-subject'; subj.textContent = String(it.subject ? it.subject : '（教科なし）');
+      var s1   = document.createElement('span'); s1.className = 'oh-sep'; s1.textContent = '｜';
+      var d    = document.createElement('span'); d.className = 'oh-date'; d.textContent = String(it.educationalDate == null ? '' : it.educationalDate);
+      var s2   = document.createElement('span'); s2.className = 'oh-sep'; s2.textContent = '｜';
+      var cnt  = document.createElement('span'); cnt.className = 'oh-count'; cnt.textContent = '残り' + wq.length + '問';
+      btn.appendChild(subj); btn.appendChild(s1); btn.appendChild(d); btn.appendChild(s2); btn.appendChild(cnt);
+      (function(item){ btn.onclick = function(){ _startOriwantesRetry(item); }; })(it);
+      listEl.appendChild(btn);
+    }
+  }
+
+  // 選んだ提出の不正解問を保持して再挑戦 solve へ（★qNo 付きで独立保持＝作成フローと競合しない）
+  function _startOriwantesRetry(item) {
+    item = item || {};
+    var wq = (item.wrongQuestions || []).map(function(q){
+      return {
+        qNo:          q.qNo,
+        questionText: String(q.questionText == null ? '' : q.questionText),
+        explanation:  String(q.explanation  == null ? '' : q.explanation)
+      };
+    });
+    if (!wq.length) { alert('再挑戦できる問題がないよ。'); return; }
+    _oriwantesRetryState = { submissionId: item.submissionId, subject: item.subject || '', educationalDate: item.educationalDate || '', questions: wq };
+    _oriwantesRetryAnswers = [];
+    showScreen('screen-oriwantes-retry-solve');
+    _setContentMascot('mate-img-oriwantes-retry-solve', 'encourage', 'mate-bubble-oriwantes-retry-solve',
+      '不正解だった問題にもう一度挑戦だ。全問正解でHPを取り戻せるぞ。', 'oriwantes');
+    _renderOriwantesRetrySolveList(wq);
+  }
+
+  // 各問：問N＋問題文（questionText のみ）＋解答入力欄。★solve 中は解説を出さない。ids は作成フローと別。
+  function _renderOriwantesRetrySolveList(qs) {
+    var listEl = document.getElementById('oriwantes-retry-solve-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    for (var i = 0; i < qs.length; i++) {
+      var q = qs[i] || {};
+      var card = document.createElement('div'); card.className = 'oriwan-solve-card';
+      var qno = document.createElement('div'); qno.className = 'oriwan-solve-qno'; qno.textContent = '問' + (i + 1);
+      var qtext = document.createElement('div'); qtext.className = 'oriwan-solve-qtext'; qtext.textContent = String(q.questionText == null ? '' : q.questionText);
+      var ta = document.createElement('textarea'); ta.className = 'sango-textarea oriwan-solve-input'; ta.id = 'oriwantes-retry-ans-' + i; ta.rows = 2;
+      ta.placeholder = 'ここに解答を書く（分からなければ空欄でもOK）';
+      card.appendChild(qno); card.appendChild(qtext); card.appendChild(ta);
+      listEl.appendChild(card);
+    }
+  }
+
+  // 解答送信：#oriwantes-retry-ans-<i>.value と questions[i].qNo を対応づけて submitOriwantesRetry を POST。
+  function submitOriwantesRetryAnswers() {
+    if (_oriwantesRetrySubmitting) return;
+    var st = _oriwantesRetryState;
+    if (!st || !st.questions || !st.questions.length) { alert('再挑戦する問題がまだないよ。'); return; }
+    var answers = [];
+    _oriwantesRetryAnswers = [];
+    for (var i = 0; i < st.questions.length; i++) {
+      var q = st.questions[i] || {};
+      var inp = document.getElementById('oriwantes-retry-ans-' + i);
+      var ans = inp ? String(inp.value || '').trim() : '';
+      answers.push({ qNo: q.qNo, studentAnswer: ans });
+      _oriwantesRetryAnswers.push(ans);
+    }
+    _oriwantesRetrySubmitting = true;
+    _showOriwantesSending();   // 送信中オーバーレイは既存流用
+    gasPost({ action: 'submitOriwantesRetry', studentId: _studentId, submissionId: st.submissionId, answers: answers })
+      .then(function(res){
+        _hideOriwantesSending();
+        _oriwantesRetrySubmitting = false;
+        if (res && res.ok) {
+          _showOriwantesRetryResult(res);
+        } else {
+          var msg = (res && res.message) ? res.message : '送信できなかったみたい。もう一度試してね。';
+          alert(msg);
+        }
+      })
+      .catch(function(err){
+        _hideOriwantesSending();
+        _oriwantesRetrySubmitting = false;
+        console.error('[submitOriwantesRetryAnswers]', err);
+        alert('通信がうまくいかなかったみたい。電波の良い場所で、もう一度送ってね。');
+      });
+  }
+
+  // 再挑戦結果：全問正解=HP獲得演出／部分正解=未獲得＋また挑戦。○×＋理由＋解説（★正解は出さない）。
+  function _showOriwantesRetryResult(res) {
+    showScreen('screen-oriwantes-retry-result');
+    var passed = !!(res && res.passed);
+    var bodyEl = document.getElementById('oriwantes-retry-result-body');
+    if (bodyEl) bodyEl.innerHTML = passed ? _buildOriwantesRetrySuccessHtml(res) : _buildOriwantesRetryPartialHtml();
+    _renderOriwantesRetryCards(
+      document.getElementById('oriwantes-retry-result-list'),
+      (_oriwantesRetryState && _oriwantesRetryState.questions) || [],
+      (res && res.results) || [],
+      _oriwantesRetryAnswers || []
+    );
+    var act = document.getElementById('oriwantes-retry-result-actions');
+    if (act) {
+      act.innerHTML = '';
+      if (passed) {
+        act.appendChild(_oriwantesRetryBtn('← オリワンテスのトップに戻る', 'linear-gradient(135deg,#c8941c,#7a5210)', goOriwantesHome));
+        act.appendChild(_oriwantesRetryBtn('🏠 ホーム画面に戻る', 'linear-gradient(135deg,#636e72,#2d3436)', goHome));
+      } else {
+        act.appendChild(_oriwantesRetryBtn('🔄 もう一度挑戦する', 'linear-gradient(135deg,#c8941c,#7a5210)', _retryOriwantesAgain));
+        act.appendChild(_oriwantesRetryBtn('← オリワンテスのトップに戻る', 'linear-gradient(135deg,#636e72,#2d3436)', goOriwantesHome));
+      }
+    }
+    if (passed) {
+      var fullHpDisp = Number(res.fullHp != null ? res.fullHp : ((Number(res.hpGained) || 0) + (Number(res.hpReserved) || 0))) || 0;
+      var numEl = document.getElementById('oriwantes-retry-hp-num');
+      if (numEl && fullHpDisp > 0) _wabun1AnimateHp(numEl, fullHpDisp, 1000);
+      try { playSfx('chime'); } catch(e){}
+      _oriwantesRetryState = null;   // 全問正解 → 保持解除（次回は取り直し）
+    }
+  }
+  function _oriwantesRetryBtn(label, bg, fn) {
+    var b = document.createElement('button');
+    b.className = 'btn-wide';
+    b.style.cssText = 'margin-top:10px;background:' + bg;
+    b.textContent = label;
+    b.onclick = fn;
+    return b;
+  }
+
+  // 全問正解 HP 獲得演出（既存 _buildOriwantesSuccessHtml 系の流用。★再挑戦は作成料の内訳を出さない）。
+  function _buildOriwantesRetrySuccessHtml(res) {
+    var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
+    var confetti = '';
+    for (var i = 0; i < 8; i++) {
+      var left = Math.floor(Math.random() * 90) + 5;
+      var delay = (Math.random() * 0.6).toFixed(2);
+      confetti += '<span class="wabun1-confetti" style="left:' + left + '%;animation-delay:' + delay + 's">' + emojis[i] + '</span>';
+    }
+    var html =
+      '<div class="mate-row"><img class="mate-img" src="images/oriwantes-celebrate.png" alt="オリワンテス"><div class="mate-bubble">見事だ！HPを取り戻したな。</div></div>' +
+      '<div class="wabun1-result-success">' +
+        '<div class="wabun1-confetti-wrap">' + confetti + '</div>' +
+        '<div style="font-size:52px">🎉</div>' +
+        '<div class="wabun1-result-title">全問正解！</div>' +
+        '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="oriwantes-retry-hp-num">0</span> HP 獲得！</div>' +
+        _buildHpConditionBlock(res) +
+      '</div>';
+    var hpReserved = Number(res.hpReserved) || 0;
+    if (hpReserved > 0) html += _reflectionWarnHtml(res);
+    return html;
+  }
+
+  // 部分正解（未獲得＋また挑戦）。_buildOriwantesHpFailedHtml を型の参考にした暖色ボックス。
+  function _buildOriwantesRetryPartialHtml() {
+    return '<div class="mate-row"><img class="mate-img" src="images/oriwantes-encourage.png" alt="オリワンテス"><div class="mate-bubble">まだ間違いが残っているぞ。また挑戦しよう。</div></div>' +
+      '<div class="wabun1-period-warn"><span class="warn-title">🔄 まだ全問正解ではないぞ</span><ul>' +
+        '<li>下の ○× と解説を確認して、間違えた問題をもう一度解いてみよう。</li>' +
+        '<li>全問正解できれば HP を取り戻せるぞ。何度でも挑戦してよい。</li>' +
+      '</ul></div>';
+  }
+
+  // 再挑戦専用の結果カード：問題文（retrySet由来）／あなたの解答（入力値）／○×（results.correct）／
+  //   判定理由（results.reason）／解説（retrySet由来）。★正解 answer は出さない（クライアントに来ない）。
+  function _renderOriwantesRetryCards(listEl, questions, results, studentAnswers) {
+    if (!listEl) return;
+    questions = questions || []; results = results || []; studentAnswers = studentAnswers || [];
+    var byNo = {};
+    for (var r = 0; r < results.length; r++) { var rr = results[r] || {}; byNo[String(rr.qNo)] = rr; }
+    listEl.innerHTML = '';
+    for (var i = 0; i < questions.length; i++) {
+      var q = questions[i] || {};
+      var rslt = byNo[String(q.qNo)] || {};
+      var correct = !!rslt.correct;
+      var card = document.createElement('div');
+      card.className = 'oriwan-result-card';
+
+      var qno = document.createElement('div');
+      qno.className = 'oriwan-result-qno';
+      qno.textContent = '問' + (i + 1) + '　' + (correct ? '⭕ 正解' : '❌ 不正解');
+      qno.style.color = correct ? '#1b7a3d' : '#c0392b';
+      card.appendChild(qno);
+
+      var qtext = document.createElement('div');
+      qtext.className = 'oriwan-result-qtext';
+      qtext.textContent = String(q.questionText == null ? '' : q.questionText);
+      card.appendChild(qtext);
+
+      var sa = String(studentAnswers[i] == null ? '' : studentAnswers[i]).trim();
+      card.appendChild(_oriwantesResultRow('oriwan-result-your', 'あなたの解答：', sa ? sa : '（未回答）'));
+      var reason = String(rslt.reason == null ? '' : rslt.reason).trim();
+      if (reason) card.appendChild(_oriwantesResultRow('oriwan-result-explain', '判定：', reason));
+      card.appendChild(_oriwantesResultRow('oriwan-result-explain', '解説：', String(q.explanation == null ? '' : q.explanation)));
+
+      listEl.appendChild(card);
+    }
+  }
+
+  // 「もう一度挑戦」：getOriwantesRetrySet を取り直し、同じ提出の更新後の不正解問で再 solve（複数回可）。
+  function _retryOriwantesAgain() {
+    var sid = _oriwantesRetryState && _oriwantesRetryState.submissionId;
+    if (!_studentId || sid == null) { goOriwantesHome(); return; }
+    gasGet({ action: 'getOriwantesRetrySet', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      _oriwantesRetrySet = _extractOriwantesRetryList(res && res.ok ? res : res) || [];
+      var found = null;
+      for (var i = 0; i < _oriwantesRetrySet.length; i++) {
+        if (String(_oriwantesRetrySet[i].submissionId) === String(sid)) { found = _oriwantesRetrySet[i]; break; }
+      }
+      if (found && (found.wrongQuestions || []).length) {
+        _startOriwantesRetry(found);          // 更新後の不正解問で再挑戦
+      } else if (_oriwantesRetrySet.length) {
+        goOriwantesRetryList();               // この提出は消えたが他が残る
+      } else {
+        goOriwantesHome();                    // もう再挑戦対象なし
+      }
+    }).catch(function(err){
+      console.error('[retryAgain getOriwantesRetrySet]', err);
+      goOriwantesHome();
+    });
+  }
+
   // (2-D) 送信前確認
   function goMyTaskSelfConfirm() {
     if (!_myTaskState.photos.length) { goMyTaskSelfCapture(); return; }
@@ -15890,6 +16607,7 @@
 
   // エントリポイント：ホーム画面の「📖 国語長文読解」カードから呼ぶ
   function showKokugoStart() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     if (!_studentId) { alert('ログインしてください'); return; }
     _kokugoResetState();
     // 着手中チェック（仕様書 5 節リトライ仕様）
@@ -17171,6 +17889,7 @@
 
   // ホームカードから起動：全問データを取得して設定画面へ
   function showPhonicsStart() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     if (typeof _ensureOnlineThenStart === 'function' && !_ensureOnlineThenStart()) return;
     _phonicsResetState();
     // 取得済みなら再利用、未取得なら getPhonicsQuestions を1回だけ呼ぶ
@@ -18274,6 +18993,7 @@
   }
   // ----- エントリポイント：ホーム画面ボタンから呼ばれる -----
   function showKobunStart() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     _kobunResetState();
     _kobunSetMascot('kobun-img-vocab', 'default', 'kobun-bubble-vocab', _pickBubble(KOBUN_BUBBLES.vocab));
     var listEl = document.getElementById('kobun-vocab-list');
@@ -18754,6 +19474,7 @@
 
   // ----- イントロ画面 -----
   function showCalcTrialIntro() {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック
     if (!_studentId) return;
     _ctReset();
     _ctState = _ctNewState();
@@ -19270,6 +19991,7 @@
 
   // ──── ホームから開始 ────
   function showRishaStart(subject) {
+    if (_shouldBlockForRequired()) { _showRequiredBlockScreen(); return; }  // 第4群A：絶対ミッション強制ブロック（理科・社会 共通）
     if (!_studentId) { alert('ログインしてください'); return; }
     if (subject !== 'rika' && subject !== 'shakai') { alert('subject が不正です'); return; }
     _rishaResetState();
@@ -20059,7 +20781,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260809-2355</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260811-2149</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
