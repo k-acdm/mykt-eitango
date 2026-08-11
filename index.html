@@ -3359,10 +3359,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260811-2149"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260812-0354"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260811-2149">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260811-2149"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260812-0354">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260812-0354"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10403,7 +10403,7 @@
       if (el && _studyStartMs) el.textContent = '⏱ ' + _fmtStudyMMSS(Date.now() - _studyStartMs);
     };
     var el0 = document.getElementById('study-timer');
-    if (el0) el0.style.display = '';
+    if (el0) el0.style.display = 'block';
     paint();
     if (_studyTimerInterval) clearInterval(_studyTimerInterval);
     _studyTimerInterval = setInterval(paint, 1000);   // Date.now() 差分なのでタブ throttle でもドリフトしない
@@ -10442,7 +10442,7 @@
     if (!el) return;
     var s = Number(totalSec);
     if (!isFinite(s) || s <= 0) return;
-    el.textContent = '今日の実施時間 ' + Math.round(s / 60) + '分';
+    el.textContent = '今日の実施時間 ' + Math.floor(s / 60) + '分' + (s % 60) + '秒';
     el.style.display = '';
   }
 
@@ -20781,7 +20781,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260811-2149</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260812-0354</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

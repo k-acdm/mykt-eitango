@@ -1750,7 +1750,7 @@
     {
       // 第4群B：その教育日の実施時間（複数回ログインは合計）。getChildActivityRecent の d.studySeconds。
       label: '実施時間',
-      render: function(d) { var s = Number(d && d.studySeconds) || 0; return s > 0 ? Math.round(s / 60) + '分' : '—'; }
+      render: function(d) { var s = Number(d && d.studySeconds) || 0; return s > 0 ? Math.floor(s / 60) + '分' + (s % 60) + '秒' : '—'; }
     },
     {
       label: 'ログイン',
@@ -2096,7 +2096,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260811-2149</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260812-0354</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
