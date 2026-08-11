@@ -857,6 +857,9 @@
     .closed-card h2 { color: #1a1a2e; margin-bottom: 10px; font-size: 22px; }
     .closed-card p  { color: #666; font-size: 16px; }
     .back-warning { position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; pointer-events: none; z-index: 9999; line-height: 1.6; }
+    /* 第4群B：実施時間タイマー（全画面共通・body直下の固定要素。ログイン中のみ表示） */
+    #study-timer { position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,.5); color: #fff; font-size: 12px; font-family: 'Courier New', monospace; letter-spacing: 1px; padding: 5px 9px; border-radius: 8px; pointer-events: none; z-index: 9000; display: none; }
+    @media (max-width: 480px) { #study-timer { font-size: 11px; padding: 4px 7px; } }
     .chara-wrap { text-align: center; margin: 0; position: relative; height: 200px; display: flex; align-items: flex-end; justify-content: center; }
     .chara-img  { width: 150px; height: 150px; object-fit: contain; transition: filter .5s, opacity .5s; }
     .chara-fx   { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 180px; height: 180px; pointer-events: none; }
@@ -3356,10 +3359,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260811-1908"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260811-2149"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260811-1908">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260811-1908"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260811-2149">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260811-2149"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3505,6 +3508,8 @@
   </div>
 </div>
 <div class="back-warning">⚠️ 「戻る」ボタンは押さないでね</div>
+<!-- 第4群B：実施時間タイマー（ログイン中のみ表示。_startStudyTimer/_stopStudyTimer で制御） -->
+<div id="study-timer" aria-hidden="true"></div>
 <div id="screen-login" class="screen active">
   <div class="login-body">
     <!-- ============================================================ -->
@@ -7513,6 +7518,7 @@
       document.getElementById('login-btn').disabled = false;
       if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
       _studentId   = res.studentId;
+      _beginStudySession();   // 第4群B：実施時間タイマー開始（★二重開始ガードあり＝resume/再loginStudentで誤発火しない）
       // 防護柵1枚目（セッション堅牢化）：生徒ロールのときのみ studentId を localStorage に永続化する。
       //   - 保存するのは studentId と保存時刻のみ（HP/名前/streak/accountType/V2 等の可変・機微データは保存しない）。
       //   - 復元時は必ず loginStudent で再検証する（mykt_session_sid を信用して直接ホームには入らない）。
@@ -10072,6 +10078,10 @@
   //   - 「画面を閉じても大丈夫です」を明示してユーザーの不安を解消
   //   - 紙吹雪 + chime SFX + HP 数字カウントアップで達成感を演出
   function _showReflectionReleaseModal(res, onComplete) {
+    // 第4群B：ログアウト経路（onComplete===_doLogoutFinalize）のときだけ実施時間を確定し、
+    //   当日合計(todayTotalSeconds)を最終画面「今日の実施時間」行へ反映する。
+    //   ★キャッチアップ振り返り（onComplete が別関数）ではセッションを締めない（誤終了防止）。
+    if (onComplete === _doLogoutFinalize) { _endStudySession().then(_fillReflStudyLine); }
     var releasedHp = Number(res && res.releasedHp) || 0;
     var compRel    = Number(res && res.completionReleasedHp) || 0;
     var bonusHp    = Number(res && res.completionBonusHp) || 0;
@@ -10211,6 +10221,8 @@
     // 2026-06-05：大数値の直下に生涯HPを追加（サイズ・色は headline と同じ 14px/#92400e）。
     //   値はスコープ内の最新生涯HP _totalHP（8417 で今回解放分まで同期済、ホーム/他画面の生涯HPと一致）。
     html += '<div class="refl-release-hp-headline">生涯HP ' + (Number(_totalHP) || 0).toLocaleString() + ' HP</div>';
+    // 第4群B：今日の実施時間（当日合計）。_endStudySession の submitSessionTime 応答で _fillReflStudyLine が埋める。
+    html += '<div class="refl-release-hp-headline" id="refl-release-study" style="display:none"></div>';
 
     // 修正3：ヘッダーに連続日数 + 連続週数ボーナス
     var headerSub = '連続日数 ' + consecutiveDays + '日 / 連続週数ボーナス ×' + weekMultiplier
@@ -10367,7 +10379,75 @@
   }
 
   // 実ログアウト処理（submit 成功時のみ呼ばれる）。旧 doLogout 後半をそのまま移植。
+  // ============================================================================
+  // 第4群B：実施時間タイマー（ログイン〜明示ログアウトの生時間を計測。タブ閉じは計測しない）
+  //   開始 = doLogin 成功時 _beginStudySession（二重開始ガード）。
+  //   終了 = _doLogoutFinalize 冒頭 or ログアウト経路の最終画面表示時 _endStudySession（1回だけ POST）。
+  //   表示 = 片隅 #study-timer（mm:ss、Date.now() 差分方式でドリフトなし）＋ 振り返り最終画面の当日合計。
+  // ============================================================================
+  var _studyStartMs = null;            // このセッションのログイン時刻（計測中のみ非 null）
+  var _studyTimerInterval = null;      // 片隅タイマーの setInterval ハンドル
+  var _studyTodayTotalSec = null;      // submitSessionTime が返す当日合計秒（最終画面表示用）
+
+  function _fmtStudyMMSS(ms) {
+    var sec = Math.max(0, Math.floor(ms / 1000));
+    var mm = String(Math.floor(sec / 60));
+    var ss = String(sec % 60);
+    if (mm.length < 2) mm = '0' + mm;
+    if (ss.length < 2) ss = '0' + ss;
+    return mm + ':' + ss;
+  }
+  function _startStudyTimer() {
+    var paint = function() {
+      var el = document.getElementById('study-timer');
+      if (el && _studyStartMs) el.textContent = '⏱ ' + _fmtStudyMMSS(Date.now() - _studyStartMs);
+    };
+    var el0 = document.getElementById('study-timer');
+    if (el0) el0.style.display = '';
+    paint();
+    if (_studyTimerInterval) clearInterval(_studyTimerInterval);
+    _studyTimerInterval = setInterval(paint, 1000);   // Date.now() 差分なのでタブ throttle でもドリフトしない
+  }
+  function _stopStudyTimer() {
+    if (_studyTimerInterval) { clearInterval(_studyTimerInterval); _studyTimerInterval = null; }
+    var el = document.getElementById('study-timer');
+    if (el) { el.style.display = 'none'; el.textContent = ''; }
+  }
+  // ログイン成功時に呼ぶ。★二重開始ガード：既に計測中（resume / 再 loginStudent）なら何もしない。
+  function _beginStudySession() {
+    if (_studyStartMs) return;                 // 計測中 → 二重開始しない（開始時刻を維持）
+    _studyStartMs = Date.now();
+    _studyTodayTotalSec = null;
+    _startStudyTimer();
+  }
+  // 明示ログアウトの締め。★_studyStartMs を先に無効化して多重 POST を防止（1セッション1回）。
+  //   戻り値 Promise は当日合計秒（サーバ todayTotalSeconds）。締め済み/失敗時は _studyTodayTotalSec を返す。
+  function _endStudySession() {
+    if (!_studyStartMs) return Promise.resolve(_studyTodayTotalSec);   // 既に締め済み → no-op（多重防止）
+    var seconds = Math.round((Date.now() - _studyStartMs) / 1000);
+    var sid = _studentId;                       // _studentId クリア前に捕捉
+    _studyStartMs = null;
+    _stopStudyTimer();
+    if (!sid || seconds <= 0) return Promise.resolve(_studyTodayTotalSec);
+    return gasPost({ action: 'submitSessionTime', studentId: sid, seconds: seconds, endedAt: Date.now() })
+      .then(function(res){
+        if (res && res.ok && res.todayTotalSeconds != null) _studyTodayTotalSec = Number(res.todayTotalSeconds) || 0;
+        return _studyTodayTotalSec;
+      })
+      .catch(function(err){ console.error('[submitSessionTime]', err); return _studyTodayTotalSec; });
+  }
+  // 振り返り最終画面の「今日の実施時間」行を当日合計で埋める（合計不明/0 は出さない）。
+  function _fillReflStudyLine(totalSec) {
+    var el = document.getElementById('refl-release-study');
+    if (!el) return;
+    var s = Number(totalSec);
+    if (!isFinite(s) || s <= 0) return;
+    el.textContent = '今日の実施時間 ' + Math.round(s / 60) + '分';
+    el.style.display = '';
+  }
+
   function _doLogoutFinalize() {
+    _endStudySession();   // 第4群B：実施時間を確定して submitSessionTime（多重防止済み・_studentId クリア前に実行）
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('popstate', popstateHandler);
     _stopAudio();
@@ -20701,7 +20781,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260811-1908</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260811-2149</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
