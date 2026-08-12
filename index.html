@@ -858,7 +858,8 @@
     .closed-card p  { color: #666; font-size: 16px; }
     .back-warning { position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; pointer-events: none; z-index: 9999; line-height: 1.6; }
     /* 第4群B：実施時間タイマー（全画面共通・body直下の固定要素。ログイン中のみ表示） */
-    #study-timer { position: fixed; top: 10px; right: 10px; background: #dc2626; color: #fff; font-size: 24px; font-weight: bold; font-family: 'Courier New', monospace; letter-spacing: 1px; padding: 10px 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.35); pointer-events: none; z-index: 9000; display: none; }
+    /* 第4群B：右上固定→ヘッダー内インライン子へ（配置のみ変更／色・サイズ・太字・影は現状維持）。showScreen が h1 と span の間へ移設する。 */
+    #study-timer { background: #dc2626; color: #fff; font-size: 24px; font-weight: bold; font-family: 'Courier New', monospace; letter-spacing: 1px; padding: 10px 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.35); pointer-events: none; white-space: nowrap; display: none; }
     @media (max-width: 480px) { #study-timer { font-size: 22px; padding: 8px 14px; } }
     .chara-wrap { text-align: center; margin: 0; position: relative; height: 200px; display: flex; align-items: flex-end; justify-content: center; }
     .chara-img  { width: 150px; height: 150px; object-fit: contain; transition: filter .5s, opacity .5s; }
@@ -3359,10 +3360,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260812-0407"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260812-2235"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260812-0407">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260812-0407"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260812-2235">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260812-2235"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7290,6 +7291,19 @@
       }
       _renderSfxToggle();  // 効果音トグルの現在状態を反映
     }
+    // 第4群B：実施時間タイマーをアクティブ画面のヘッダー内（<h1> と <span> の間＝中央）へ移設。
+    //   right span（進捗カウンタ B系・ヒント C系）は右端に不動のまま、タイマーは中央の空きに入り被らない。
+    //   ★screen-login 等ヘッダー無し画面は挿入スキップ（タイマーは非表示のまま実害なし）。表示/非表示は _start/_stopStudyTimer が制御。
+    try {
+      var _tmr = document.getElementById('study-timer');
+      var _scr = document.getElementById(id);
+      var _hdr = _scr ? _scr.querySelector('header') : null;
+      if (_tmr && _hdr) {
+        var _hsp = _hdr.querySelector('span');
+        if (_hsp) _hdr.insertBefore(_tmr, _hsp);   // h1 | timer | span（span は右端のまま）
+        else      _hdr.appendChild(_tmr);          // span が無いヘッダーは末尾へ
+      }
+    } catch(e){}
   }
   // showScreen は音声システム内で定義済み
   function showMsg(id, text, kind) { var el = document.getElementById(id); el.textContent = text; el.className = 'msg ' + kind; el.style.display = 'block'; }
@@ -20781,7 +20795,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260812-0407</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260812-2235</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
