@@ -860,6 +860,8 @@
     /* 第4群B：実施時間タイマー（全画面共通・body直下の固定要素。ログイン中のみ表示） */
     /* 第4群B：右上固定→ヘッダー内インライン子へ（配置のみ変更／色・サイズ・太字・影は現状維持）。showScreen が h1 と span の間へ移設する。 */
     #study-timer { background: #dc2626; color: #fff; font-size: 24px; font-weight: bold; font-family: 'Courier New', monospace; letter-spacing: 1px; padding: 10px 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.35); pointer-events: none; white-space: nowrap; display: none; }
+    #study-timer.study-on { display: inline-block; }                                   /* 表示中：内容幅（ヘッダー内/通常。横長化しない） */
+    #study-timer.study-on.study-home { display: block; margin: 6px auto 0; width: -moz-fit-content; width: fit-content; }  /* ヘッダー無し画面（ホーム）：中央・コンパクト */
     @media (max-width: 480px) { #study-timer { font-size: 22px; padding: 8px 14px; } }
     .chara-wrap { text-align: center; margin: 0; position: relative; height: 200px; display: flex; align-items: flex-end; justify-content: center; }
     .chara-img  { width: 150px; height: 150px; object-fit: contain; transition: filter .5s, opacity .5s; }
@@ -3360,10 +3362,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260812-2235"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260812-2255"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260812-2235">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260812-2235"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260812-2255">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260812-2255"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7291,17 +7293,24 @@
       }
       _renderSfxToggle();  // 効果音トグルの現在状態を反映
     }
-    // 第4群B：実施時間タイマーをアクティブ画面のヘッダー内（<h1> と <span> の間＝中央）へ移設。
-    //   right span（進捗カウンタ B系・ヒント C系）は右端に不動のまま、タイマーは中央の空きに入り被らない。
-    //   ★screen-login 等ヘッダー無し画面は挿入スキップ（タイマーは非表示のまま実害なし）。表示/非表示は _start/_stopStudyTimer が制御。
+    // 第4群B：実施時間タイマーをアクティブ画面へ移設。
+    //   ・ヘッダーがある画面：<h1> と <span> の間へ（右span＝進捗B系/ヒントC系は右端に不動。他画面は従来どおり不変）。
+    //   ・★ヘッダーが無い画面（ホーム screen-welcome 等）：画面先頭へ入れ study-home で中央・コンパクト表示。
+    //     これでホーム復帰でもタイマーが消えず（問題2）、横長にもならない（問題1）。表示/非表示は study-on（_start/_stop）が制御。
     try {
       var _tmr = document.getElementById('study-timer');
       var _scr = document.getElementById(id);
       var _hdr = _scr ? _scr.querySelector('header') : null;
-      if (_tmr && _hdr) {
-        var _hsp = _hdr.querySelector('span');
-        if (_hsp) _hdr.insertBefore(_tmr, _hsp);   // h1 | timer | span（span は右端のまま）
-        else      _hdr.appendChild(_tmr);          // span が無いヘッダーは末尾へ
+      if (_tmr && _scr) {
+        if (_hdr) {
+          var _hsp = _hdr.querySelector('span');
+          if (_hsp) _hdr.insertBefore(_tmr, _hsp);   // h1 | timer | span（span は右端のまま）
+          else      _hdr.appendChild(_tmr);          // span が無いヘッダーは末尾へ
+          _tmr.classList.remove('study-home');        // ヘッダー内モード（他画面は不変）
+        } else {
+          _scr.insertBefore(_tmr, _scr.firstChild);   // ヘッダー無し画面（ホーム等）→ 画面先頭へ
+          _tmr.classList.add('study-home');            // 中央・コンパクト（横長化防止）
+        }
       }
     } catch(e){}
   }
@@ -10417,7 +10426,7 @@
       if (el && _studyStartMs) el.textContent = '⏱ ' + _fmtStudyMMSS(Date.now() - _studyStartMs);
     };
     var el0 = document.getElementById('study-timer');
-    if (el0) el0.style.display = 'block';
+    if (el0) { el0.style.display = ''; el0.classList.add('study-on'); }   // 表示は class 制御（内容幅＝横長化しない）
     paint();
     if (_studyTimerInterval) clearInterval(_studyTimerInterval);
     _studyTimerInterval = setInterval(paint, 1000);   // Date.now() 差分なのでタブ throttle でもドリフトしない
@@ -10425,7 +10434,7 @@
   function _stopStudyTimer() {
     if (_studyTimerInterval) { clearInterval(_studyTimerInterval); _studyTimerInterval = null; }
     var el = document.getElementById('study-timer');
-    if (el) { el.style.display = 'none'; el.textContent = ''; }
+    if (el) { el.classList.remove('study-on'); el.classList.remove('study-home'); el.style.display = ''; el.textContent = ''; }
   }
   // ログイン成功時に呼ぶ。★二重開始ガード：既に計測中（resume / 再 loginStudent）なら何もしない。
   function _beginStudySession() {
@@ -20795,7 +20804,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260812-2235</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260812-2255</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
