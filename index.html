@@ -3373,10 +3373,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-0511"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-0525"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-0511">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-0511"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-0525">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-0525"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3758,6 +3758,37 @@
     <button class="btn-login" id="setup-btn" onclick="submitStudentSetup()" style="margin-top:6px">決定</button>
     <div id="setup-msg" class="msg"></div>
     <div><button type="button" onclick="pinBackToLogin()" style="margin-top:8px;background:none;border:none;color:#888;font-size:13px;cursor:pointer">← 戻る</button></div>
+  </div>
+</div>
+
+<!-- 第2群③：合言葉で暗証番号を再設定する画面（screen-pin-entry の「暗証番号を忘れた？」から遷移。
+     対象生徒は _pinFlowSid を引き継ぐ。サーバ resetPinByPassphrase：合言葉照合→新暗証番号設定・5回誤りで locked） -->
+<div id="screen-passphrase-reset" class="screen">
+  <div class="container" style="max-width:460px;margin:0 auto;padding-top:40px;text-align:center">
+    <div class="login-emoji">🗝️</div>
+    <h1 class="login-title">暗証番号の再設定</h1>
+    <p class="login-subtitle">暗証番号を忘れたときは、設定した合言葉を入れて<br>新しい暗証番号を決めよう。</p>
+    <div class="setup-field">
+      <label for="reset-pass">合言葉</label>
+      <input id="reset-pass" type="text" autocomplete="off" placeholder="設定した合言葉"/>
+    </div>
+    <div class="setup-field">
+      <label for="reset-pin">新しい暗証番号（４ケタの数字）</label>
+      <div class="pin-input-wrap">
+        <input id="reset-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="● ● ● ●" style="text-align:center;letter-spacing:10px"/>
+        <button type="button" class="pin-eye" aria-label="暗証番号を表示" title="表示" onclick="togglePinVisibility('reset-pin', this)">👁</button>
+      </div>
+    </div>
+    <div class="setup-field">
+      <label for="reset-pin2">確認のためにもう一度入力</label>
+      <div class="pin-input-wrap">
+        <input id="reset-pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="● ● ● ●" style="text-align:center;letter-spacing:10px"/>
+        <button type="button" class="pin-eye" aria-label="暗証番号を表示" title="表示" onclick="togglePinVisibility('reset-pin2', this)">👁</button>
+      </div>
+    </div>
+    <button class="btn-login" id="reset-pin-btn" onclick="submitPassphraseReset()" style="margin-top:6px">新しい暗証番号にする</button>
+    <div id="reset-pin-msg" class="msg"></div>
+    <div><button type="button" onclick="passphraseResetBack()" style="margin-top:10px;background:none;border:none;color:#888;font-size:13px;cursor:pointer">← 戻る</button></div>
   </div>
 </div>
 
@@ -7726,9 +7757,58 @@
       var inp = document.getElementById('pin-entry-input'); if (inp) { inp.value=''; try{inp.focus();}catch(e){} }
     }).catch(function(){ if (btn) btn.disabled = false; showMsg('pin-entry-msg','つうしんエラー。もう一度ためしてね','ng'); });
   }
-  // 「暗証番号を忘れた？」：合言葉での再設定フローは段階が次。今回は入口だけ（たたき台文言）。
+  // 「暗証番号を忘れた？」→ 合言葉での暗証番号再設定画面へ。
+  //   対象生徒は暗証番号入力画面の _pinFlowSid を引き継ぐ（ID→暗証番号入力→忘れた の流れで sid は確定済）。
   function pinForgot() {
-    showMsg('pin-entry-msg','暗証番号をわすれたら、先生に相談してね。','ok');
+    if (!_pinFlowSid) { showMsg('pin-entry-msg','もう一度、最初からログインしてね','ng'); return; }
+    _openPassphraseReset(_pinFlowSid);
+  }
+  // --- 合言葉で暗証番号を再設定する画面（screen-passphrase-reset） ---
+  function _openPassphraseReset(sid) {
+    _pinFlowSid = String(sid || _pinFlowSid || '');
+    ['reset-pass','reset-pin','reset-pin2'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+    _resetPinEye('reset-pin'); _resetPinEye('reset-pin2');   // 開くたびマスク状態へ戻す（前回入力・表示状態を持ち越さない）
+    showMsg('reset-pin-msg','','');
+    showScreen('screen-passphrase-reset');
+    try { document.getElementById('reset-pass').focus(); } catch(e){}
+  }
+  function submitPassphraseReset() {
+    var pass = String((document.getElementById('reset-pass') || {}).value || '').trim();
+    var pin  = String((document.getElementById('reset-pin')  || {}).value || '').trim();
+    var pin2 = String((document.getElementById('reset-pin2') || {}).value || '').trim();
+    if (!pass)                { showMsg('reset-pin-msg','合言葉を入れてね','ng'); return; }
+    if (!/^\d{4}$/.test(pin)) { showMsg('reset-pin-msg','暗証番号は4けたの数字だよ','ng'); return; }
+    if (pin !== pin2)         { showMsg('reset-pin-msg','確認が一致しないよ。もう一度入れてね','ng'); return; }
+    var btn = document.getElementById('reset-pin-btn'); if (btn) btn.disabled = true;
+    showMsg('reset-pin-msg','かくにん中…','ok');
+    // サーバ resetPinByPassphrase（POST）：合言葉照合→暗証番号再設定・5回誤りで locked。
+    gasPost({ action:'resetPinByPassphrase', studentId:_pinFlowSid, passphrase:pass, newPin:pin, newPinConfirm:pin2 }).then(function(res){
+      if (btn) btn.disabled = false;
+      res = res || {};
+      if (res.ok) {
+        // ★成功応答は完全なログイン情報を含まないため、新暗証番号で loginStudent を1回呼び直して
+        //   完全なログイン状態(r2)を確定→そのままホーム（completeStudentSetup 成功後と同じ・再入力させない）。
+        showMsg('reset-pin-msg','新しい暗証番号を設定できたよ！','ok');
+        gasGet({ action:'loginStudent', studentId:_pinFlowSid, pin:pin }).then(function(r2){
+          r2 = r2 || {};
+          if (r2.ok && r2.studentId) { _finishStudentLogin(r2); }
+          else { _openPinEntry(_pinFlowSid); }
+        }).catch(function(){ _openPinEntry(_pinFlowSid); });
+        return;
+      }
+      // locked（5回失敗）：それ以上受け付けず、塾の強制リセット待ち
+      if (res.locked) {
+        showMsg('reset-pin-msg', res.message || '合言葉を何回もまちがえたよ。先生に相談してね', 'ng');
+        return;
+      }
+      // 合言葉誤り（locked=false）：再入力
+      showMsg('reset-pin-msg', res.message || '合言葉がちがうみたい。もう一度入れてね', 'ng');
+      var pf = document.getElementById('reset-pass'); if (pf) { try { pf.focus(); } catch(e){} }
+    }).catch(function(){ if (btn) btn.disabled = false; showMsg('reset-pin-msg','つうしんエラー。もう一度ためしてね','ng'); });
+  }
+  // 「戻る」→ 暗証番号入力画面へ戻る（同じ生徒で再ログイン可能）
+  function passphraseResetBack() {
+    _openPinEntry(_pinFlowSid);
   }
   // 暗証番号の表示/隠す切替（目のアイコン）。★type 属性だけを password⇔text でトグル。
   //   inputmode=numeric / maxlength=4 / pattern 等の既存属性は type を変えても保持される＝見た目だけの変更。
@@ -21017,7 +21097,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-0511</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-0525</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
