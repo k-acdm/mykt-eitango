@@ -3368,10 +3368,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-0031"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-0459"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-0031">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-0031"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-0459">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-0459"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3704,8 +3704,8 @@
 <div id="screen-pin-entry" class="screen">
   <div class="container" style="max-width:440px;margin:0 auto;padding-top:48px;text-align:center">
     <div class="login-emoji">🔒</div>
-    <h1 class="login-title">あんしょう番号</h1>
-    <p class="login-subtitle">4けたのあんしょう番号を入力してね</p>
+    <h1 class="login-title">暗証番号</h1>
+    <p class="login-subtitle">４ケタの暗証番号を入力</p>
     <div class="setup-field">
       <input id="pin-entry-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"
              placeholder="● ● ● ●" style="text-align:center;letter-spacing:10px;font-size:22px"
@@ -3713,8 +3713,8 @@
     </div>
     <button class="btn-login" id="pin-entry-btn" onclick="submitPinEntry()">ログイン</button>
     <div id="pin-entry-msg" class="msg"></div>
-    <button type="button" onclick="pinForgot()" style="margin-top:14px;background:none;border:none;color:#5b6ee0;text-decoration:underline;font-size:14px;cursor:pointer">あんしょう番号をわすれた？</button>
-    <div><button type="button" onclick="pinBackToLogin()" style="margin-top:8px;background:none;border:none;color:#888;font-size:13px;cursor:pointer">← もどる</button></div>
+    <button type="button" onclick="pinForgot()" style="margin-top:14px;background:none;border:none;color:#5b6ee0;text-decoration:underline;font-size:14px;cursor:pointer">暗証番号を忘れた？</button>
+    <div><button type="button" onclick="pinBackToLogin()" style="margin-top:8px;background:none;border:none;color:#888;font-size:13px;cursor:pointer">← 戻る</button></div>
   </div>
 </div>
 
@@ -3722,28 +3722,28 @@
 <div id="screen-student-setup" class="screen">
   <div class="container" style="max-width:460px;margin:0 auto;padding-top:36px;text-align:center">
     <div class="login-emoji">🔑</div>
-    <h1 class="login-title">はじめての設定</h1>
-    <p class="login-subtitle">はじめまして！配られた紙の「初回キー」を入れて、<br>自分だけのあんしょう番号を決めよう。</p>
-    <div class="setup-notice">⚠️ あんしょう番号と合言葉は、先生も見られないよ。<br>かならず紙に書いて、なくさないようにしよう！</div>
+    <h1 class="login-title">暗証番号の設定</h1>
+    <p class="login-subtitle">最初に、先生から渡された紙に書いてある『初回キー』を入力。<br>その後に自分だけの暗証番号を決めよう。</p>
     <div class="setup-field">
-      <label for="setup-key">初回キー（配られた紙に書いてあるよ）</label>
+      <label for="setup-key">初回キー（配られた紙に書かれてます）</label>
       <input id="setup-key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="初回キー"/>
     </div>
     <div class="setup-field">
-      <label for="setup-pin">あんしょう番号（4けたの数字）</label>
+      <label for="setup-pin">暗証番号（４ケタの数字）</label>
       <input id="setup-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="● ● ● ●" style="text-align:center;letter-spacing:10px"/>
     </div>
     <div class="setup-field">
-      <label for="setup-pin2">あんしょう番号（もう一度）</label>
+      <label for="setup-pin2">確認のためにもう一度入力</label>
       <input id="setup-pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="● ● ● ●" style="text-align:center;letter-spacing:10px"/>
     </div>
     <div class="setup-field">
-      <label for="setup-pass">合言葉（あんしょう番号をわすれたとき用）</label>
-      <input id="setup-pass" type="text" autocomplete="off" placeholder="すきな ことば"/>
+      <label for="setup-pass">合言葉（暗証番号を忘れた時の再設定用）</label>
+      <input id="setup-pass" type="text" autocomplete="off" placeholder="好きな言葉。何でもOK。"/>
     </div>
-    <button class="btn-login" id="setup-btn" onclick="submitStudentSetup()" style="margin-top:6px">これで決定！</button>
+    <div class="setup-notice">⚠️ 暗証番号と合言葉は、先生も見ることができません。<br>必ずメモをして無くさないようにしてください。</div>
+    <button class="btn-login" id="setup-btn" onclick="submitStudentSetup()" style="margin-top:6px">決定</button>
     <div id="setup-msg" class="msg"></div>
-    <div><button type="button" onclick="pinBackToLogin()" style="margin-top:8px;background:none;border:none;color:#888;font-size:13px;cursor:pointer">← もどる</button></div>
+    <div><button type="button" onclick="pinBackToLogin()" style="margin-top:8px;background:none;border:none;color:#888;font-size:13px;cursor:pointer">← 戻る</button></div>
   </div>
 </div>
 
@@ -7707,13 +7707,13 @@
       res = res || {};
       if (res.ok && res.studentId) { showMsg('pin-entry-msg','',''); _finishStudentLogin(res); return; }
       // needsPin 継続 or 失敗 = 暗証番号ちがい（誤り回数のレートリミットはサーバ F2 で後日）
-      showMsg('pin-entry-msg','あんしょう番号がちがうよ。もう一度入れてね','ng');
+      showMsg('pin-entry-msg','暗証番号がちがうよ。もう一度入れてね','ng');
       var inp = document.getElementById('pin-entry-input'); if (inp) { inp.value=''; try{inp.focus();}catch(e){} }
     }).catch(function(){ if (btn) btn.disabled = false; showMsg('pin-entry-msg','つうしんエラー。もう一度ためしてね','ng'); });
   }
   // 「暗証番号を忘れた？」：合言葉での再設定フローは段階が次。今回は入口だけ（たたき台文言）。
   function pinForgot() {
-    showMsg('pin-entry-msg','あんしょう番号をわすれたら、先生に相談してね。','ok');
+    showMsg('pin-entry-msg','暗証番号をわすれたら、先生に相談してね。','ok');
   }
 
   // --- 初回設定画面（key_issued 生徒） ---
@@ -7730,8 +7730,8 @@
     var pin2 = String((document.getElementById('setup-pin2') || {}).value || '').trim();
     var pass = String((document.getElementById('setup-pass') || {}).value || '').trim();
     if (!key)                 { showMsg('setup-msg','初回キーを入れてね','ng'); return; }
-    if (!/^\d{4}$/.test(pin)) { showMsg('setup-msg','あんしょう番号は4けたの数字だよ','ng'); return; }
-    if (pin !== pin2)         { showMsg('setup-msg','あんしょう番号がそろってないよ','ng'); return; }
+    if (!/^\d{4}$/.test(pin)) { showMsg('setup-msg','暗証番号は4けたの数字だよ','ng'); return; }
+    if (pin !== pin2)         { showMsg('setup-msg','暗証番号がそろってないよ','ng'); return; }
     if (!pass)                { showMsg('setup-msg','合言葉を入れてね','ng'); return; }
     var btn = document.getElementById('setup-btn'); if (btn) btn.disabled = true;
     showMsg('setup-msg','とうろく中…','ok');
@@ -7739,14 +7739,16 @@
       if (btn) btn.disabled = false;
       res = res || {};
       if (res.ok) {
+        // ★サーバ completeStudentSetup の成功応答は {ok,studentId} のみで nickname/totalHP 等を含まない。
+        //   その truncated res を直接 _finishStudentLogin に渡すとホームが空データで壊れ、ログイン画面に戻る。
+        //   → 今決めた暗証番号で loginStudent を1回呼び、完全なログイン状態(r2)を確定してからホームへ。
+        //   （設定直後は set_up 状態ゆえ pin で通る＝生徒に再入力を求めない）
         showMsg('setup-msg','設定できたよ！','ok');
-        if (res.studentId) { _finishStudentLogin(res); }                       // サーバが login 情報を返す → そのままホーム
-        else {                                                                 // 念のため：新しい暗証番号でログインし直す
-          gasGet({ action:'loginStudent', studentId:_pinFlowSid, pin:pin }).then(function(r2){
-            r2 = r2 || {};
-            if (r2.ok && r2.studentId) _finishStudentLogin(r2); else _openPinEntry(_pinFlowSid);
-          }).catch(function(){ _openPinEntry(_pinFlowSid); });
-        }
+        gasGet({ action:'loginStudent', studentId:_pinFlowSid, pin:pin }).then(function(r2){
+          r2 = r2 || {};
+          if (r2.ok && r2.studentId) { _finishStudentLogin(r2); }
+          else { _openPinEntry(_pinFlowSid); }
+        }).catch(function(){ _openPinEntry(_pinFlowSid); });
         return;
       }
       // 失敗：初回キー誤り/使用済み等（サーバ message 優先、たたき台文言）
@@ -20976,7 +20978,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-0031</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-0459</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
