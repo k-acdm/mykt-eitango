@@ -869,6 +869,11 @@
     .setup-field label { display: block; font-size: 13px; color: #444; margin-bottom: 4px; font-weight: bold; }
     .setup-field input, #pin-entry-input { width: 100%; box-sizing: border-box; padding: 12px 14px; font-size: 16px; border: 2px solid #d0d7e6; border-radius: 10px; }
     .setup-field input:focus, #pin-entry-input:focus { border-color: #4f7df0; outline: none; }
+    /* 暗証番号の表示/隠す切替（目のアイコン）。入力欄を relative ラッパで包み、右端にボタンを重ねる */
+    .pin-input-wrap { position: relative; }
+    .pin-input-wrap > input { padding-right: 44px; }   /* 目アイコンと文字が重ならない余白 */
+    .pin-eye { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); background: none; border: none; padding: 4px 6px; font-size: 20px; line-height: 1; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+    .pin-eye:active { opacity: .6; }
     .chara-wrap { text-align: center; margin: 0; position: relative; height: 200px; display: flex; align-items: flex-end; justify-content: center; }
     .chara-img  { width: 150px; height: 150px; object-fit: contain; transition: filter .5s, opacity .5s; }
     .chara-fx   { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 180px; height: 180px; pointer-events: none; }
@@ -3368,10 +3373,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-0459"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-0511"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-0459">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-0459"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-0511">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-0511"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3707,9 +3712,12 @@
     <h1 class="login-title">暗証番号</h1>
     <p class="login-subtitle">４ケタの暗証番号を入力</p>
     <div class="setup-field">
-      <input id="pin-entry-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"
-             placeholder="● ● ● ●" style="text-align:center;letter-spacing:10px;font-size:22px"
-             onkeydown="if(event.key==='Enter')submitPinEntry()"/>
+      <div class="pin-input-wrap">
+        <input id="pin-entry-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"
+               placeholder="● ● ● ●" style="text-align:center;letter-spacing:10px;font-size:22px"
+               onkeydown="if(event.key==='Enter')submitPinEntry()"/>
+        <button type="button" class="pin-eye" aria-label="暗証番号を表示" title="表示" onclick="togglePinVisibility('pin-entry-input', this)">👁</button>
+      </div>
     </div>
     <button class="btn-login" id="pin-entry-btn" onclick="submitPinEntry()">ログイン</button>
     <div id="pin-entry-msg" class="msg"></div>
@@ -3730,11 +3738,17 @@
     </div>
     <div class="setup-field">
       <label for="setup-pin">暗証番号（４ケタの数字）</label>
-      <input id="setup-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="● ● ● ●" style="text-align:center;letter-spacing:10px"/>
+      <div class="pin-input-wrap">
+        <input id="setup-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="● ● ● ●" style="text-align:center;letter-spacing:10px"/>
+        <button type="button" class="pin-eye" aria-label="暗証番号を表示" title="表示" onclick="togglePinVisibility('setup-pin', this)">👁</button>
+      </div>
     </div>
     <div class="setup-field">
       <label for="setup-pin2">確認のためにもう一度入力</label>
-      <input id="setup-pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="● ● ● ●" style="text-align:center;letter-spacing:10px"/>
+      <div class="pin-input-wrap">
+        <input id="setup-pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="● ● ● ●" style="text-align:center;letter-spacing:10px"/>
+        <button type="button" class="pin-eye" aria-label="暗証番号を表示" title="表示" onclick="togglePinVisibility('setup-pin2', this)">👁</button>
+      </div>
     </div>
     <div class="setup-field">
       <label for="setup-pass">合言葉（暗証番号を忘れた時の再設定用）</label>
@@ -7692,6 +7706,7 @@
   function _openPinEntry(sid) {
     _pinFlowSid = String(sid || '');
     var inp = document.getElementById('pin-entry-input'); if (inp) inp.value = '';
+    _resetPinEye('pin-entry-input');
     showMsg('pin-entry-msg','','');
     showScreen('screen-pin-entry');
     try { if (inp) inp.focus(); } catch(e){}
@@ -7715,11 +7730,35 @@
   function pinForgot() {
     showMsg('pin-entry-msg','暗証番号をわすれたら、先生に相談してね。','ok');
   }
+  // 暗証番号の表示/隠す切替（目のアイコン）。★type 属性だけを password⇔text でトグル。
+  //   inputmode=numeric / maxlength=4 / pattern 等の既存属性は type を変えても保持される＝見た目だけの変更。
+  //   照合・設定・ログインのロジック（value 参照）には一切触れない。各欄それぞれ独立して切替。
+  function togglePinVisibility(inputId, btn) {
+    var inp = document.getElementById(inputId);
+    if (!inp) return;
+    var willShow = (inp.type === 'password');      // 今マスク中なら → 数字を見せる
+    inp.type = willShow ? 'text' : 'password';
+    if (btn) {
+      btn.textContent = willShow ? '🙈' : '👁';    // 表示中は🙈(隠す)／マスク中は👁(見せる)
+      btn.setAttribute('aria-label', willShow ? '暗証番号を隠す' : '暗証番号を表示');
+      btn.setAttribute('title',      willShow ? '隠す' : '表示');
+    }
+    try { inp.focus(); } catch(e){}
+  }
+  // 画面を開き直すたびに暗証番号欄をマスク(●●●●)状態へ戻す（前回の「表示」状態を持ち越さない）
+  function _resetPinEye(inputId) {
+    var inp = document.getElementById(inputId);
+    if (inp) inp.type = 'password';
+    var wrap = inp && inp.parentNode;
+    var btn = wrap && wrap.querySelector ? wrap.querySelector('.pin-eye') : null;
+    if (btn) { btn.textContent = '👁'; btn.setAttribute('aria-label','暗証番号を表示'); btn.setAttribute('title','表示'); }
+  }
 
   // --- 初回設定画面（key_issued 生徒） ---
   function _openStudentSetup(sid) {
     _pinFlowSid = String(sid || '');
     ['setup-key','setup-pin','setup-pin2','setup-pass'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+    _resetPinEye('setup-pin'); _resetPinEye('setup-pin2');
     showMsg('setup-msg','','');
     showScreen('screen-student-setup');
     try { document.getElementById('setup-key').focus(); } catch(e){}
@@ -20978,7 +21017,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-0459</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-0511</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
