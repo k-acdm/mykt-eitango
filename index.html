@@ -3373,10 +3373,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-1852"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-2141"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-1852">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-1852"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-2141">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-2141"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9534,7 +9534,13 @@
       // completed：この級・種別の全ブロック完了（既習）
       if (res.completed) {
         document.getElementById('today-set-label').textContent = '英検' + (res.level || _level) + 'レベル';
-        document.getElementById('today-word-list').innerHTML = '<div style="text-align:center;padding:40px 16px"><div style="font-size:56px">🏆</div><div style="font-size:20px;font-weight:bold;color:#2d3a8c;margin:16px 0">この級は全部やり終えたよ！</div><div style="font-size:15px;color:#666">よくがんばったね！別の級にも挑戦してみよう！</div></div>';
+        // 完走🏆の達成感を消さず、その下に「もう一度最初からやる？」を添える（英単語RUSH=eitango 限定。
+        //   古文単語=コブタンは自動周回で本画面に来ない想定だが、念のため grade で除外）。
+        //   grade/groupType は現在の英単語RUSH 文脈（_level / _v2GroupType）＝getTodaysSetV2 と同じ形式。
+        var _againBtnHtml = (_level !== '古文単語')
+          ? '<button id="today-eitango-again-btn" onclick="_resetEitangoCycle()" style="margin-top:22px;padding:13px 24px;font-size:16px;font-weight:bold;color:#fff;background:linear-gradient(135deg,#ff9f7a,#ff6ea0);border:none;border-radius:12px;box-shadow:0 4px 14px rgba(255,110,160,.4);cursor:pointer">🔄 もう一度、最初からやる？</button>'
+          : '';
+        document.getElementById('today-word-list').innerHTML = '<div style="text-align:center;padding:40px 16px"><div style="font-size:56px">🏆</div><div style="font-size:20px;font-weight:bold;color:#2d3a8c;margin:16px 0">この級は全部やり終えたよ！</div><div style="font-size:15px;color:#666">よくがんばったね！もう一度おさらいしても、別の級に挑戦してもいいよ！</div>' + _againBtnHtml + '</div>';
         var b2 = document.getElementById('today-btn'); b2.textContent = '← レベル選択に戻る'; b2.onclick = showLevelSelect; b2.style.display = 'block'; return;
       }
       // noData / 出題語なし
@@ -9552,6 +9558,40 @@
       if (_level === '5級') { showDictation(res.words, res.blockNo, sl); }
       else { renderWords(res.words); var b3 = document.getElementById('today-btn'); b3.textContent = '✏️ テストに挑戦する'; b3.onclick = showTest; b3.style.display = 'block'; }
     }).catch(function(){ document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
+  }
+  // 英単語RUSH 完走級の再挑戦：完走🏆画面の「🔄 もう一度、最初からやる？」から呼ばれる。
+  //   サーバ resetEitangoVocabCycle(POST・studentId+grade+groupType[word/idiom]) が、その級を
+  //   position=0/is_done=false に戻し、セット1から再開できるようにする（完走済みチェック付き）。
+  //   ★HP周りは不変（2周目も既存の 50HP/セット・1日2セットゲート）。
+  //   ★grade/groupType は現在の英単語RUSH 文脈（_level / _v2GroupType）から取得＝getTodaysSetV2 と同じ形式。
+  //   ★文言はたたき台（ふくちが実機で調整）。
+  function _resetEitangoCycle() {
+    var grade = _level;
+    var groupType = (_v2GroupType === 'idiom') ? 'idiom' : 'word';
+    if (grade === '古文単語') return;   // eitango 限定（コブタン=自動周回は対象外）
+    if (!window.confirm('もう一度、この級を「セット1」から最初にもどしてやり直す？')) return;   // 誤タップ防止
+    var btn = document.getElementById('today-eitango-again-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '準備中…'; }
+    var _restore = function(){ if (btn) { btn.disabled = false; btn.textContent = '🔄 もう一度、最初からやる？'; } };
+    gasPost({ action:'resetEitangoVocabCycle', studentId:_studentId, grade:grade, groupType:groupType }).then(function(res){
+      res = res || {};
+      if (res.ok) {
+        // リセット成功 → その級のセット1から再開（showToday→_showTodayV2 を再実行＝position 0 で最初のブロックが出る）。
+        try { alert(res.message || 'セット1から再挑戦できるよ！'); } catch(e){}
+        showToday();
+        return;
+      }
+      if (res.notCompleted) {   // まだ完走してない（保険。通常は完走画面からしか押せない）
+        _restore();
+        try { alert(res.message || 'まだ全部やり終えていないみたい。最後までやってからもう一度ためしてね。'); } catch(e){}
+        return;
+      }
+      _restore();   // その他の失敗
+      try { alert(res.message || 'うまくいかなかったみたい。もう一度ためしてね。'); } catch(e){}
+    }).catch(function(){
+      _restore();
+      try { alert('つうしんエラー。電波の良いところでもう一度ためしてね。'); } catch(e){}
+    });
   }
   function renderWords(words) {
     document.getElementById('today-word-list').innerHTML = words.map(function(w,i){ return '<div class="word-card"><div class="num">'+(i+1)+'</div><div class="word-block"><div class="word">'+w.word+'</div><div class="meaning">'+w.meaning+'</div></div><button class="btn-speak" onclick="speakWord(this,\''+esc(w.word)+'\')">🔊</button></div>'; }).join('');
@@ -21143,7 +21183,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-1852</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-2141</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
