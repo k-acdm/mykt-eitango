@@ -3373,10 +3373,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-0525"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-1852"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-0525">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-0525"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-1852">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-1852"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6351,8 +6351,46 @@
 <script>
   var GAS_URL    = 'https://mykt-eitango.com/exec';
   var VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
+  // =============================================================
+  // 第2群③ F3トークン層 段階2：ログインで発行された sessionToken を保持し、
+  //   後続の生徒系リクエストに token として併送する（サーバ StudentTokenGate が params.token を読む）。
+  //   ★この段階ではサーバは observe（ブロックしない）＝トークンが無くても誰も締め出されない（fail-safe）。
+  //     目的は observe ログの tokenPresent を true にして enforce 切替の準備を整えること。
+  //   ★保存キーは mykt_session_token（リスオンの per-set sessionToken＝別概念とは無関係。param 名も token で衝突なし）。
+  // =============================================================
+  // トークン発行前のログイン系（併送不要）。これらには token を付けない。
+  var _LOGIN_ACTIONS = { loginStudent: 1, completeStudentSetup: 1, resetPinByPassphrase: 1 };
+  function _getSessionToken() {
+    try { return String(localStorage.getItem('mykt_session_token') || ''); } catch(e){ return ''; }
+  }
+  // ログイン応答（loginStudent / completeStudentSetup / resetPinByPassphrase の成功応答）に含まれる
+  //   sessionToken を localStorage に保持する。★生徒ロールのみ（sid 保存ゲートと同一）。
+  //   応答に sessionToken が無い（旧サーバ等）場合は何もしない＝従来どおり動く。
+  function _saveSessionToken(res) {
+    try {
+      if (_loginRole === 'parent') return;
+      var tok = (res && res.sessionToken) ? String(res.sessionToken) : '';
+      if (tok) localStorage.setItem('mykt_session_token', tok);
+    } catch(e){}
+  }
+  // 保持中トークンがあれば params のコピーに token を足して返す（呼び出し側の params は変更しない
+  //   ＝キャッシュキーや risha の sessionToken 等に影響させない）。
+  //   併送しないケース：トークン未保持／ログイン系（発行前）／呼び出し側が token を明示指定済み。
+  function _withSessionToken(params) {
+    params = params || {};
+    var tok = _getSessionToken();
+    if (!tok) return params;
+    if (params.action && _LOGIN_ACTIONS[params.action]) return params;
+    if (params.token) return params;
+    var sent = {};
+    for (var k in params) { if (Object.prototype.hasOwnProperty.call(params, k)) sent[k] = params[k]; }
+    sent.token = tok;
+    return sent;
+  }
+
   // GAS通信
   function gasGet(params) {
+    params = _withSessionToken(params);   // F3段階2：保持中トークンを token として併送（observe）
     return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
       .then(function(r){ return r.json(); });
   }
@@ -6361,6 +6399,7 @@
   // timeoutMs: 既定 90 秒。応答が無い場合は AbortError を reject する。
   function gasPost(params, timeoutMs) {
     var ms = timeoutMs || 90000;
+    params = _withSessionToken(params);   // F3段階2：保持中トークンを token として併送（observe）
     var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var timer = setTimeout(function(){ if (ctrl) ctrl.abort(); }, ms);
     return fetch(GAS_URL, {
@@ -7655,6 +7694,7 @@
           localStorage.setItem('mykt_session_sid', String(res.studentId));
           localStorage.setItem('mykt_session_ts', String(Date.now()));
         } catch(e){}
+        _saveSessionToken(res);   // F3段階2：legacy 生徒のログイン応答 sessionToken を保持（後続に token 併送）
       }
       _lastServerOkTs = Date.now();  // 防護柵2枚目：サーバー成功時刻を記録（復帰再検証のスロットル用）
       // 応急処置①：期待版数より古いクライアントなら強制更新（セッション保存後・以降の処理前）。
@@ -7712,6 +7752,7 @@
         localStorage.setItem('mykt_session_sid', String(res.studentId));
         localStorage.setItem('mykt_session_ts', String(Date.now()));
       } catch(e){}
+      _saveSessionToken(res);   // F3段階2：pin/setup/reset 経路（最終 res は loginStudent 応答）の sessionToken を保持
     }
     _lastServerOkTs = Date.now();
     if (_maybeForceClientUpdate(res.expectedClientVersion)) return;   // 古い版 → リロード開始、以降中断
@@ -8130,6 +8171,10 @@
   //   ★ silent でも「ホームへ直接入れる」ことはしない。localStorage の studentId を ID 入力欄に
   //     充填し、生徒ロールとして必ず doLogin（loginStudent でサーバー再検証）を通す。
   //     再検証失敗（res.ok=false / .catch）は既存挙動どおりログイン画面に留まる＝安全なフォールバック。
+  //   ★F3段階2：保持中の sessionToken(mykt_session_token) は localStorage に残っているので「復元」は自動
+  //     （後続の生徒系リクエストに _withSessionToken が token を併送する）。ここでの再検証は doLogin→
+  //     loginStudent（ログイン系＝token 併送しない）で通り、応答の新しい sessionToken で自動リフレッシュされる。
+  //     ★トークンが期限切れ(30日)/無効でも observe ゆえ締め出されず、通常ログイン（暗証番号/legacy）に戻る（fail-safe）。
   function resumeContinueLogin() {
     var sid = '';
     try { sid = String(localStorage.getItem('mykt_session_sid') || '').trim(); } catch(e){}
@@ -10770,7 +10815,8 @@
     // アバター localStorage キャッシュをクリア（別アカウントへの混在防止、_studentId クリア前に実行）
     _clearCachedAvatarBase(_studentId);
     // 防護柵1枚目：永続化したセッション(studentId)も必ずクリア（共用端末で前の生徒が残らないように）
-    try { localStorage.removeItem('mykt_session_sid'); localStorage.removeItem('mykt_session_ts'); } catch(e){}
+    //   F3段階2：保持中の sessionToken(mykt_session_token) も同時に破棄（前の生徒のトークンを残さない）。
+    try { localStorage.removeItem('mykt_session_sid'); localStorage.removeItem('mykt_session_ts'); localStorage.removeItem('mykt_session_token'); } catch(e){}
     // 防護柵2枚目：オフライン検知の状態もリセット
     _offline = false; _lastServerOkTs = 0; _revalidating = false; try { _hideOfflineBanner(); } catch(e){}
     _studentId = null; _questions = []; _score = 0; _current = 0;
@@ -21097,7 +21143,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-0525</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-1852</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
