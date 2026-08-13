@@ -2610,10 +2610,16 @@
     }
 
     /* フォニックスゲーム 風船割り本体（2026-07-04 第2段階） */
-    .phonics-topbar { display: flex; justify-content: space-between; align-items: center; margin: 2px 2px 4px; gap: 8px; }
-    .phonics-hp-tally { font-size: 13px; font-weight: bold; color: #be185d; }
+    .phonics-topbar { display: flex; justify-content: flex-end; align-items: center; margin: 2px 2px 4px; gap: 8px; }
     .phonics-progress { text-align: right; font-size: 13px; font-weight: bold; color: #9d174d; }
-    .phonics-question { text-align: center; margin: 6px 0 2px; }
+    /* 出題エリア（問題文）と リアルタイムHPタリーを横並びに（HPタリーを問題文の右側へ）。
+       flex なので互いに重ならず、狭い画面では問題文側が縮む（HPバッジは nowrap で保持）。 */
+    .phonics-q-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 6px 2px 2px; }
+    .phonics-question { text-align: center; margin: 0; flex: 1 1 auto; min-width: 0; }
+    /* リアルタイムHPタリー：問題文の右側に「大きめ・太字・前向きな色」の前向きバッジで表示して視認性を上げる。
+       ★大きさ/位置(CSS)のみ変更。id(#phonics-hp-tally)・更新ロジック(_phonicsUpdateTally)・浮遊演出は不変。
+       ★フォント21px＝出題文字(.pq-main 30px)より小さめ・従来13pxより大きめ。 */
+    .phonics-hp-tally { flex: 0 0 auto; font-size: 21px; font-weight: 800; color: #fff; background: linear-gradient(135deg,#fb7185,#ec4899); padding: 7px 13px; border-radius: 14px; box-shadow: 0 3px 10px rgba(236,72,153,.35); white-space: nowrap; line-height: 1.2; letter-spacing: .3px; }
     .phonics-question .pq-label { font-size: 18px; font-weight: bold; color: #be185d; margin-bottom: 2px; }  /* char/add のラベル（上・大きめ） */
     /* 読み方が2つある問題の強調バッジ（両方割る必要があると分かるように） */
     .phonics-question .pq-two { display: inline-block; margin: 4px 0 0; padding: 4px 12px; border-radius: 999px; font-size: 15px; font-weight: bold; color: #b45309; background: #fff7cc; border: 2px solid #f59e0b; box-shadow: 0 1px 4px rgba(245,158,11,.3); }
@@ -2769,6 +2775,9 @@
       .phonics-mole-reading.long  { font-size: 15px; }
       .phonics-mole-reading.long2 { font-size: 12px; }
       .phonics-question .pq-main { font-size: 26px; }
+      /* 狭い画面：HPバッジを少し小さく＋間隔を詰めて、問題文の右側に無理なく収める（重なり防止は flex が担保） */
+      .phonics-q-row { gap: 6px; }
+      .phonics-hp-tally { font-size: 17px; padding: 6px 10px; border-radius: 12px; }
     }
 
     .kiso-count-card { background: #fff; border-radius: 14px; padding: 22px; margin: 14px 0; box-shadow: 0 3px 12px rgba(0,0,0,.08); text-align: center; }
@@ -3373,10 +3382,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-0525"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-2333"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-0525">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-0525"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-2333">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-2333"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6118,14 +6127,17 @@
     <!-- 風船割り／モグラ叩き 共通の本体 -->
     <div id="phonics-game-play">
       <div class="phonics-topbar">
-        <span id="phonics-hp-tally" class="phonics-hp-tally"></span>
         <span id="phonics-progress" class="phonics-progress"></span>
       </div>
       <div class="mate-row">
         <img class="mate-img" id="mate-img-phonics-game" src="images/phony-default.png" alt="フォニー">
         <div class="mate-bubble" id="mate-bubble-phonics-game">よーし、はじめよう！</div>
       </div>
-      <div id="phonics-question" class="phonics-question"></div>
+      <!-- 出題エリア（左）＋ リアルタイムHPタリー（右・大きめバッジ）を横並びに -->
+      <div class="phonics-q-row">
+        <div id="phonics-question" class="phonics-question"></div>
+        <span id="phonics-hp-tally" class="phonics-hp-tally"></span>
+      </div>
       <!-- 風船割りのフィールド（gameType=balloon のとき表示） -->
       <div id="phonics-field" class="phonics-field"></div>
       <!-- モグラ叩きのフィールド（gameType=mole のとき表示。3×3 の穴グリッドを JS で描画） -->
@@ -6351,8 +6363,46 @@
 <script>
   var GAS_URL    = 'https://mykt-eitango.com/exec';
   var VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
+  // =============================================================
+  // 第2群③ F3トークン層 段階2：ログインで発行された sessionToken を保持し、
+  //   後続の生徒系リクエストに token として併送する（サーバ StudentTokenGate が params.token を読む）。
+  //   ★この段階ではサーバは observe（ブロックしない）＝トークンが無くても誰も締め出されない（fail-safe）。
+  //     目的は observe ログの tokenPresent を true にして enforce 切替の準備を整えること。
+  //   ★保存キーは mykt_session_token（リスオンの per-set sessionToken＝別概念とは無関係。param 名も token で衝突なし）。
+  // =============================================================
+  // トークン発行前のログイン系（併送不要）。これらには token を付けない。
+  var _LOGIN_ACTIONS = { loginStudent: 1, completeStudentSetup: 1, resetPinByPassphrase: 1 };
+  function _getSessionToken() {
+    try { return String(localStorage.getItem('mykt_session_token') || ''); } catch(e){ return ''; }
+  }
+  // ログイン応答（loginStudent / completeStudentSetup / resetPinByPassphrase の成功応答）に含まれる
+  //   sessionToken を localStorage に保持する。★生徒ロールのみ（sid 保存ゲートと同一）。
+  //   応答に sessionToken が無い（旧サーバ等）場合は何もしない＝従来どおり動く。
+  function _saveSessionToken(res) {
+    try {
+      if (_loginRole === 'parent') return;
+      var tok = (res && res.sessionToken) ? String(res.sessionToken) : '';
+      if (tok) localStorage.setItem('mykt_session_token', tok);
+    } catch(e){}
+  }
+  // 保持中トークンがあれば params のコピーに token を足して返す（呼び出し側の params は変更しない
+  //   ＝キャッシュキーや risha の sessionToken 等に影響させない）。
+  //   併送しないケース：トークン未保持／ログイン系（発行前）／呼び出し側が token を明示指定済み。
+  function _withSessionToken(params) {
+    params = params || {};
+    var tok = _getSessionToken();
+    if (!tok) return params;
+    if (params.action && _LOGIN_ACTIONS[params.action]) return params;
+    if (params.token) return params;
+    var sent = {};
+    for (var k in params) { if (Object.prototype.hasOwnProperty.call(params, k)) sent[k] = params[k]; }
+    sent.token = tok;
+    return sent;
+  }
+
   // GAS通信
   function gasGet(params) {
+    params = _withSessionToken(params);   // F3段階2：保持中トークンを token として併送（observe）
     return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
       .then(function(r){ return r.json(); });
   }
@@ -6361,6 +6411,7 @@
   // timeoutMs: 既定 90 秒。応答が無い場合は AbortError を reject する。
   function gasPost(params, timeoutMs) {
     var ms = timeoutMs || 90000;
+    params = _withSessionToken(params);   // F3段階2：保持中トークンを token として併送（observe）
     var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var timer = setTimeout(function(){ if (ctrl) ctrl.abort(); }, ms);
     return fetch(GAS_URL, {
@@ -7655,6 +7706,7 @@
           localStorage.setItem('mykt_session_sid', String(res.studentId));
           localStorage.setItem('mykt_session_ts', String(Date.now()));
         } catch(e){}
+        _saveSessionToken(res);   // F3段階2：legacy 生徒のログイン応答 sessionToken を保持（後続に token 併送）
       }
       _lastServerOkTs = Date.now();  // 防護柵2枚目：サーバー成功時刻を記録（復帰再検証のスロットル用）
       // 応急処置①：期待版数より古いクライアントなら強制更新（セッション保存後・以降の処理前）。
@@ -7712,6 +7764,7 @@
         localStorage.setItem('mykt_session_sid', String(res.studentId));
         localStorage.setItem('mykt_session_ts', String(Date.now()));
       } catch(e){}
+      _saveSessionToken(res);   // F3段階2：pin/setup/reset 経路（最終 res は loginStudent 応答）の sessionToken を保持
     }
     _lastServerOkTs = Date.now();
     if (_maybeForceClientUpdate(res.expectedClientVersion)) return;   // 古い版 → リロード開始、以降中断
@@ -8130,6 +8183,10 @@
   //   ★ silent でも「ホームへ直接入れる」ことはしない。localStorage の studentId を ID 入力欄に
   //     充填し、生徒ロールとして必ず doLogin（loginStudent でサーバー再検証）を通す。
   //     再検証失敗（res.ok=false / .catch）は既存挙動どおりログイン画面に留まる＝安全なフォールバック。
+  //   ★F3段階2：保持中の sessionToken(mykt_session_token) は localStorage に残っているので「復元」は自動
+  //     （後続の生徒系リクエストに _withSessionToken が token を併送する）。ここでの再検証は doLogin→
+  //     loginStudent（ログイン系＝token 併送しない）で通り、応答の新しい sessionToken で自動リフレッシュされる。
+  //     ★トークンが期限切れ(30日)/無効でも observe ゆえ締め出されず、通常ログイン（暗証番号/legacy）に戻る（fail-safe）。
   function resumeContinueLogin() {
     var sid = '';
     try { sid = String(localStorage.getItem('mykt_session_sid') || '').trim(); } catch(e){}
@@ -9489,7 +9546,13 @@
       // completed：この級・種別の全ブロック完了（既習）
       if (res.completed) {
         document.getElementById('today-set-label').textContent = '英検' + (res.level || _level) + 'レベル';
-        document.getElementById('today-word-list').innerHTML = '<div style="text-align:center;padding:40px 16px"><div style="font-size:56px">🏆</div><div style="font-size:20px;font-weight:bold;color:#2d3a8c;margin:16px 0">この級は全部やり終えたよ！</div><div style="font-size:15px;color:#666">よくがんばったね！別の級にも挑戦してみよう！</div></div>';
+        // 完走🏆の達成感を消さず、その下に「もう一度最初からやる？」を添える（英単語RUSH=eitango 限定。
+        //   古文単語=コブタンは自動周回で本画面に来ない想定だが、念のため grade で除外）。
+        //   grade/groupType は現在の英単語RUSH 文脈（_level / _v2GroupType）＝getTodaysSetV2 と同じ形式。
+        var _againBtnHtml = (_level !== '古文単語')
+          ? '<button id="today-eitango-again-btn" onclick="_resetEitangoCycle()" style="margin-top:22px;padding:13px 24px;font-size:16px;font-weight:bold;color:#fff;background:linear-gradient(135deg,#ff9f7a,#ff6ea0);border:none;border-radius:12px;box-shadow:0 4px 14px rgba(255,110,160,.4);cursor:pointer">🔄 もう一度、最初からやる？</button>'
+          : '';
+        document.getElementById('today-word-list').innerHTML = '<div style="text-align:center;padding:40px 16px"><div style="font-size:56px">🏆</div><div style="font-size:20px;font-weight:bold;color:#2d3a8c;margin:16px 0">この級は全部やり終えたよ！</div><div style="font-size:15px;color:#666">よくがんばったね！もう一度おさらいしても、別の級に挑戦してもいいよ！</div>' + _againBtnHtml + '</div>';
         var b2 = document.getElementById('today-btn'); b2.textContent = '← レベル選択に戻る'; b2.onclick = showLevelSelect; b2.style.display = 'block'; return;
       }
       // noData / 出題語なし
@@ -9507,6 +9570,40 @@
       if (_level === '5級') { showDictation(res.words, res.blockNo, sl); }
       else { renderWords(res.words); var b3 = document.getElementById('today-btn'); b3.textContent = '✏️ テストに挑戦する'; b3.onclick = showTest; b3.style.display = 'block'; }
     }).catch(function(){ document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
+  }
+  // 英単語RUSH 完走級の再挑戦：完走🏆画面の「🔄 もう一度、最初からやる？」から呼ばれる。
+  //   サーバ resetEitangoVocabCycle(POST・studentId+grade+groupType[word/idiom]) が、その級を
+  //   position=0/is_done=false に戻し、セット1から再開できるようにする（完走済みチェック付き）。
+  //   ★HP周りは不変（2周目も既存の 50HP/セット・1日2セットゲート）。
+  //   ★grade/groupType は現在の英単語RUSH 文脈（_level / _v2GroupType）から取得＝getTodaysSetV2 と同じ形式。
+  //   ★文言はたたき台（ふくちが実機で調整）。
+  function _resetEitangoCycle() {
+    var grade = _level;
+    var groupType = (_v2GroupType === 'idiom') ? 'idiom' : 'word';
+    if (grade === '古文単語') return;   // eitango 限定（コブタン=自動周回は対象外）
+    if (!window.confirm('もう一度、この級を「セット1」から最初にもどしてやり直す？')) return;   // 誤タップ防止
+    var btn = document.getElementById('today-eitango-again-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '準備中…'; }
+    var _restore = function(){ if (btn) { btn.disabled = false; btn.textContent = '🔄 もう一度、最初からやる？'; } };
+    gasPost({ action:'resetEitangoVocabCycle', studentId:_studentId, grade:grade, groupType:groupType }).then(function(res){
+      res = res || {};
+      if (res.ok) {
+        // リセット成功 → その級のセット1から再開（showToday→_showTodayV2 を再実行＝position 0 で最初のブロックが出る）。
+        try { alert(res.message || 'セット1から再挑戦できるよ！'); } catch(e){}
+        showToday();
+        return;
+      }
+      if (res.notCompleted) {   // まだ完走してない（保険。通常は完走画面からしか押せない）
+        _restore();
+        try { alert(res.message || 'まだ全部やり終えていないみたい。最後までやってからもう一度ためしてね。'); } catch(e){}
+        return;
+      }
+      _restore();   // その他の失敗
+      try { alert(res.message || 'うまくいかなかったみたい。もう一度ためしてね。'); } catch(e){}
+    }).catch(function(){
+      _restore();
+      try { alert('つうしんエラー。電波の良いところでもう一度ためしてね。'); } catch(e){}
+    });
   }
   function renderWords(words) {
     document.getElementById('today-word-list').innerHTML = words.map(function(w,i){ return '<div class="word-card"><div class="num">'+(i+1)+'</div><div class="word-block"><div class="word">'+w.word+'</div><div class="meaning">'+w.meaning+'</div></div><button class="btn-speak" onclick="speakWord(this,\''+esc(w.word)+'\')">🔊</button></div>'; }).join('');
@@ -10770,7 +10867,8 @@
     // アバター localStorage キャッシュをクリア（別アカウントへの混在防止、_studentId クリア前に実行）
     _clearCachedAvatarBase(_studentId);
     // 防護柵1枚目：永続化したセッション(studentId)も必ずクリア（共用端末で前の生徒が残らないように）
-    try { localStorage.removeItem('mykt_session_sid'); localStorage.removeItem('mykt_session_ts'); } catch(e){}
+    //   F3段階2：保持中の sessionToken(mykt_session_token) も同時に破棄（前の生徒のトークンを残さない）。
+    try { localStorage.removeItem('mykt_session_sid'); localStorage.removeItem('mykt_session_ts'); localStorage.removeItem('mykt_session_token'); } catch(e){}
     // 防護柵2枚目：オフライン検知の状態もリセット
     _offline = false; _lastServerOkTs = 0; _revalidating = false; try { _hideOfflineBanner(); } catch(e){}
     _studentId = null; _questions = []; _score = 0; _current = 0;
@@ -21097,7 +21195,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-0525</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-2333</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
