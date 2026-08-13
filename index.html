@@ -2610,10 +2610,16 @@
     }
 
     /* フォニックスゲーム 風船割り本体（2026-07-04 第2段階） */
-    .phonics-topbar { display: flex; justify-content: space-between; align-items: center; margin: 2px 2px 4px; gap: 8px; }
-    .phonics-hp-tally { font-size: 13px; font-weight: bold; color: #be185d; }
+    .phonics-topbar { display: flex; justify-content: flex-end; align-items: center; margin: 2px 2px 4px; gap: 8px; }
     .phonics-progress { text-align: right; font-size: 13px; font-weight: bold; color: #9d174d; }
-    .phonics-question { text-align: center; margin: 6px 0 2px; }
+    /* 出題エリア（問題文）と リアルタイムHPタリーを横並びに（HPタリーを問題文の右側へ）。
+       flex なので互いに重ならず、狭い画面では問題文側が縮む（HPバッジは nowrap で保持）。 */
+    .phonics-q-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 6px 2px 2px; }
+    .phonics-question { text-align: center; margin: 0; flex: 1 1 auto; min-width: 0; }
+    /* リアルタイムHPタリー：問題文の右側に「大きめ・太字・前向きな色」の前向きバッジで表示して視認性を上げる。
+       ★大きさ/位置(CSS)のみ変更。id(#phonics-hp-tally)・更新ロジック(_phonicsUpdateTally)・浮遊演出は不変。
+       ★フォント21px＝出題文字(.pq-main 30px)より小さめ・従来13pxより大きめ。 */
+    .phonics-hp-tally { flex: 0 0 auto; font-size: 21px; font-weight: 800; color: #fff; background: linear-gradient(135deg,#fb7185,#ec4899); padding: 7px 13px; border-radius: 14px; box-shadow: 0 3px 10px rgba(236,72,153,.35); white-space: nowrap; line-height: 1.2; letter-spacing: .3px; }
     .phonics-question .pq-label { font-size: 18px; font-weight: bold; color: #be185d; margin-bottom: 2px; }  /* char/add のラベル（上・大きめ） */
     /* 読み方が2つある問題の強調バッジ（両方割る必要があると分かるように） */
     .phonics-question .pq-two { display: inline-block; margin: 4px 0 0; padding: 4px 12px; border-radius: 999px; font-size: 15px; font-weight: bold; color: #b45309; background: #fff7cc; border: 2px solid #f59e0b; box-shadow: 0 1px 4px rgba(245,158,11,.3); }
@@ -2769,6 +2775,9 @@
       .phonics-mole-reading.long  { font-size: 15px; }
       .phonics-mole-reading.long2 { font-size: 12px; }
       .phonics-question .pq-main { font-size: 26px; }
+      /* 狭い画面：HPバッジを少し小さく＋間隔を詰めて、問題文の右側に無理なく収める（重なり防止は flex が担保） */
+      .phonics-q-row { gap: 6px; }
+      .phonics-hp-tally { font-size: 17px; padding: 6px 10px; border-radius: 12px; }
     }
 
     .kiso-count-card { background: #fff; border-radius: 14px; padding: 22px; margin: 14px 0; box-shadow: 0 3px 12px rgba(0,0,0,.08); text-align: center; }
@@ -3373,10 +3382,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-2141"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-2300"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-2141">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-2141"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-2300">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-2300"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6118,14 +6127,17 @@
     <!-- 風船割り／モグラ叩き 共通の本体 -->
     <div id="phonics-game-play">
       <div class="phonics-topbar">
-        <span id="phonics-hp-tally" class="phonics-hp-tally"></span>
         <span id="phonics-progress" class="phonics-progress"></span>
       </div>
       <div class="mate-row">
         <img class="mate-img" id="mate-img-phonics-game" src="images/phony-default.png" alt="フォニー">
         <div class="mate-bubble" id="mate-bubble-phonics-game">よーし、はじめよう！</div>
       </div>
-      <div id="phonics-question" class="phonics-question"></div>
+      <!-- 出題エリア（左）＋ リアルタイムHPタリー（右・大きめバッジ）を横並びに -->
+      <div class="phonics-q-row">
+        <div id="phonics-question" class="phonics-question"></div>
+        <span id="phonics-hp-tally" class="phonics-hp-tally"></span>
+      </div>
       <!-- 風船割りのフィールド（gameType=balloon のとき表示） -->
       <div id="phonics-field" class="phonics-field"></div>
       <!-- モグラ叩きのフィールド（gameType=mole のとき表示。3×3 の穴グリッドを JS で描画） -->
@@ -21183,7 +21195,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-2141</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-2300</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
