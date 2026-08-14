@@ -3382,10 +3382,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260814-0526"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260814-2154"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260814-0526">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260814-0526"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260814-2154">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260814-2154"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5559,14 +5559,14 @@
   <header><h1>🖌️ 読み問題</h1><span id="kanji-yomi-prog">0 / 0</span></header>
   <div class="container" style="padding-top:14px">
     <!-- 2026-05-21 Recovery バリアント：再開バナー（resume 中の表示） -->
-    <div id="kanji-resume-banner" class="kanji-resume-banner" style="display:none">📂 未送信のセッションを再開しました。<br>もう一度「読み」テストからで、ゴメンナサイ！🙇‍♂️💦</div>
+    <div id="kanji-resume-banner" class="kanji-resume-banner" style="display:none">📂 前回のセッションを再開したよ。<br>続きから挑戦できるよ！🔥</div>
     <!-- 2026-08-08：自動再開後に「最初から新しくやり直す」導線（読み自動再開時のみ表示） -->
     <button class="btn-wide" id="kanji-yomi-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin:0 0 10px" onclick="kanjiRestartFresh()">🆕 最初から新しくやり直す</button>
     <!-- 2026-05-21 Recovery バリアント：プロモバナー（未送信の前回セッションがあるときだけ表示） -->
     <div id="kanji-resume-promo" class="kanji-resume-promo" style="display:none">
       <div class="kanji-resume-promo-note">📂（撮影前にログイン画面に戻ってしまった場合）</div>
       <div class="kanji-resume-promo-title">前回の続きから再開できます！</div>
-      <div class="kanji-resume-promo-apology">※もう一度「読み」テストからで、ゴメンナサイ！🙇‍♂️💦</div>
+      <div class="kanji-resume-promo-apology">※前回の続きから再開できるよ！🔥</div>
       <button class="kanji-resume-promo-btn" onclick="onKanjiResumePromoClick()">👉 ログイン画面に戻る直前の問題を再表示する</button>
     </div>
     <div class="kanjii-mate-row">
@@ -15103,7 +15103,9 @@
     var current = _kanjiState.sessionId;
     for (var i = 0; i < arr.length; i++) {
       if (arr[i] && arr[i].sessionId === targetSid && arr[i].sessionId !== current) {
-        _resumeKanjiSession(arr[i]);
+        // ★書き段階まで進んでいた中断セッションは「書きの続きから」再開（自動再開:startKanjiSession と同じ stage 判定）。
+        //   読み段階なら従来どおり読みから。手動の過去ボタン(onKanjiPastBtnClick)は据え置き（読みからやり直し用）。
+        if (arr[i].stage === 'kaki') { _resumeKanjiKakiStage(arr[i]); } else { _resumeKanjiSession(arr[i]); }
         return;
       }
     }
@@ -21195,7 +21197,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260814-0526</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260814-2154</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
