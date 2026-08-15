@@ -3382,10 +3382,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260813-2333"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260816-0017"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260813-2333">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260813-2333"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260816-0017">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260816-0017"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5559,14 +5559,14 @@
   <header><h1>🖌️ 読み問題</h1><span id="kanji-yomi-prog">0 / 0</span></header>
   <div class="container" style="padding-top:14px">
     <!-- 2026-05-21 Recovery バリアント：再開バナー（resume 中の表示） -->
-    <div id="kanji-resume-banner" class="kanji-resume-banner" style="display:none">📂 未送信のセッションを再開しました。<br>もう一度「読み」テストからで、ゴメンナサイ！🙇‍♂️💦</div>
+    <div id="kanji-resume-banner" class="kanji-resume-banner" style="display:none">📂 前回のセッションを再開したよ。<br>続きから挑戦できるよ！🔥</div>
     <!-- 2026-08-08：自動再開後に「最初から新しくやり直す」導線（読み自動再開時のみ表示） -->
     <button class="btn-wide" id="kanji-yomi-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin:0 0 10px" onclick="kanjiRestartFresh()">🆕 最初から新しくやり直す</button>
     <!-- 2026-05-21 Recovery バリアント：プロモバナー（未送信の前回セッションがあるときだけ表示） -->
     <div id="kanji-resume-promo" class="kanji-resume-promo" style="display:none">
       <div class="kanji-resume-promo-note">📂（撮影前にログイン画面に戻ってしまった場合）</div>
       <div class="kanji-resume-promo-title">前回の続きから再開できます！</div>
-      <div class="kanji-resume-promo-apology">※もう一度「読み」テストからで、ゴメンナサイ！🙇‍♂️💦</div>
+      <div class="kanji-resume-promo-apology">※前回の続きから再開できるよ！🔥</div>
       <button class="kanji-resume-promo-btn" onclick="onKanjiResumePromoClick()">👉 ログイン画面に戻る直前の問題を再表示する</button>
     </div>
     <div class="kanjii-mate-row">
@@ -6401,7 +6401,28 @@
   }
 
   // GAS通信
+  // 案4：教育日境界ログアウト（方式A＝教育日比較）。
+  //   ログイン時に保存した教育日(mykt_session_eduday)が現在の教育日と変わっていたら、
+  //   開きっぱなしで日をまたいだ稼働中タブを「次の操作(gasGet/gasPost)」で強制ログアウトし、
+  //   再ログイン→案1(pendingReflectionDate 強制振り返り)に乗せる。true を返したら呼び出し元は中断する。
+  //   ★同一教育日なら何もしない（回帰なし）。★保存値が無い(legacy)なら何もしない（既存非破壊）。
+  //   ★ログイン系/疎通/実施時間などの内部アクションは対象外（再認証・再検証・ログアウト処理を妨げない）。
+  var _EDUDAY_ROLLOVER_EXEMPT = { loginStudent: 1, ping: 1, submitSessionTime: 1 };
+  function _maybeLogoutOnEdudayRollover(params) {
+    try {
+      if (_logoutInProgress) return false;          // ログアウト処理中は介入しない（再入防止）
+      if (!_studentId) return false;                // 未ログイン（ログイン/復元ハンドシェイク中）は対象外
+      var action = params && params.action;
+      if (action && _EDUDAY_ROLLOVER_EXEMPT[action]) return false;  // 内部アクションは除外
+      var saved = String(localStorage.getItem('mykt_session_eduday') || '').trim();
+      if (!saved) return false;                     // legacy セッション（保存値なし）は従来どおり
+      if (saved === _todayKeyJST3am()) return false; // 同一教育日 → 何もしない（正常時の回帰なし）
+      _doLogoutFinalize();                          // 教育日が変わった稼働中タブ → 強制ログアウト
+      return true;
+    } catch(e) { return false; }
+  }
   function gasGet(params) {
+    if (_maybeLogoutOnEdudayRollover(params)) return new Promise(function(){});  // 案4：教育日境界 → ログアウト済み。このリクエストは中断（never-resolve）
     params = _withSessionToken(params);   // F3段階2：保持中トークンを token として併送（observe）
     return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
       .then(function(r){ return r.json(); });
@@ -6410,6 +6431,7 @@
   // Content-Type: text/plain にすることで CORS preflight を回避（Apps Script は OPTIONS に応答しない）。
   // timeoutMs: 既定 90 秒。応答が無い場合は AbortError を reject する。
   function gasPost(params, timeoutMs) {
+    if (_maybeLogoutOnEdudayRollover(params)) return new Promise(function(){});  // 案4：教育日境界 → ログアウト済み。このリクエストは中断（never-resolve）
     var ms = timeoutMs || 90000;
     params = _withSessionToken(params);   // F3段階2：保持中トークンを token として併送（observe）
     var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -7705,6 +7727,7 @@
         try {
           localStorage.setItem('mykt_session_sid', String(res.studentId));
           localStorage.setItem('mykt_session_ts', String(Date.now()));
+          localStorage.setItem('mykt_session_eduday', _todayKeyJST3am());  // 案4：ログイン時の教育日を保存（境界ログアウト判定用）
         } catch(e){}
         _saveSessionToken(res);   // F3段階2：legacy 生徒のログイン応答 sessionToken を保持（後続に token 併送）
       }
@@ -7763,6 +7786,7 @@
       try {
         localStorage.setItem('mykt_session_sid', String(res.studentId));
         localStorage.setItem('mykt_session_ts', String(Date.now()));
+        localStorage.setItem('mykt_session_eduday', _todayKeyJST3am());  // 案4：ログイン時の教育日を保存（境界ログアウト判定用）
       } catch(e){}
       _saveSessionToken(res);   // F3段階2：pin/setup/reset 経路（最終 res は loginStudent 応答）の sessionToken を保持
     }
@@ -8024,6 +8048,10 @@
       if (!sid) return;
       var ts = parseInt(localStorage.getItem('mykt_session_ts') || '0', 10);
       if (!ts) return;
+      // 案4：ログイン時の教育日が現在の教育日と変わっていたら復元しない（ログイン画面に留め、再ログインで案1 強制振り返りへ乗せる）。
+      //   ★保存値が無い(legacy セッション)なら従来どおり下の TTL 判定へ（既存非破壊）。
+      var eduday = String(localStorage.getItem('mykt_session_eduday') || '').trim();
+      if (eduday && eduday !== _todayKeyJST3am()) return;
       // TTL：保存時刻から 7 日以内なら有効（旧：_eduDayKeyFromTs === _todayKeyJST3am の当日限定を置換）
       if ((Date.now() - ts) > _SESSION_TTL_MS) return;
       // silent 自動復帰：復元ステップの提示を挟まず、その場で復帰を実行する。
@@ -10868,7 +10896,7 @@
     _clearCachedAvatarBase(_studentId);
     // 防護柵1枚目：永続化したセッション(studentId)も必ずクリア（共用端末で前の生徒が残らないように）
     //   F3段階2：保持中の sessionToken(mykt_session_token) も同時に破棄（前の生徒のトークンを残さない）。
-    try { localStorage.removeItem('mykt_session_sid'); localStorage.removeItem('mykt_session_ts'); localStorage.removeItem('mykt_session_token'); } catch(e){}
+    try { localStorage.removeItem('mykt_session_sid'); localStorage.removeItem('mykt_session_ts'); localStorage.removeItem('mykt_session_token'); localStorage.removeItem('mykt_session_eduday'); } catch(e){}
     // 防護柵2枚目：オフライン検知の状態もリセット
     _offline = false; _lastServerOkTs = 0; _revalidating = false; try { _hideOfflineBanner(); } catch(e){}
     _studentId = null; _questions = []; _score = 0; _current = 0;
@@ -15103,7 +15131,9 @@
     var current = _kanjiState.sessionId;
     for (var i = 0; i < arr.length; i++) {
       if (arr[i] && arr[i].sessionId === targetSid && arr[i].sessionId !== current) {
-        _resumeKanjiSession(arr[i]);
+        // ★書き段階まで進んでいた中断セッションは「書きの続きから」再開（自動再開:startKanjiSession と同じ stage 判定）。
+        //   読み段階なら従来どおり読みから。手動の過去ボタン(onKanjiPastBtnClick)は据え置き（読みからやり直し用）。
+        if (arr[i].stage === 'kaki') { _resumeKanjiKakiStage(arr[i]); } else { _resumeKanjiSession(arr[i]); }
         return;
       }
     }
@@ -21195,7 +21225,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-2333</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260816-0017</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

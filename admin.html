@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260813-2333"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260816-0017"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -359,6 +359,9 @@
   .refl-day-card .head-nick { color: #888; font-size: 12px; font-weight: 400; margin-left: 6px; }
   .refl-day-card .head-grade { display: inline-block; font-size: 11px; padding: 2px 8px; margin-left: 6px; background: #eef4ff; color: #4f7df0; border-radius: 10px; font-weight: 600; vertical-align: middle; }
   .refl-day-card .head-time { color: #6d28d9; font-weight: 700; font-size: 13px; background: #f5f3ff; padding: 3px 10px; border-radius: 12px; white-space: nowrap; }
+  /* 実施時間（第4群B）：氏名/学年バッジと時刻の間に控えめに表示。時刻(紫)と区別できるティール系。 */
+  .refl-day-card .head-right { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .refl-day-card .head-study { color: #0f766e; font-weight: 700; font-size: 12px; background: #ecfdf5; padding: 3px 9px; border-radius: 12px; white-space: nowrap; }
   .refl-day-card .refl-content { font-size: 14px; color: #333; line-height: 1.7; white-space: pre-wrap; word-break: break-word; padding-top: 8px; border-top: 1px dashed #eef1f7; }
   .refl-day-card .refl-len { font-size: 11px; color: #888; text-align: right; margin-top: 6px; }
   .refl-day-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; background: #fff; border-radius: 8px; border: 2px dashed #e1e5ee; }
@@ -458,6 +461,7 @@
     .refl-day-card .head-name { font-size: 14px; }
     .refl-day-card .head-grade { font-size: 10px; padding: 1px 6px; }
     .refl-day-card .head-time { font-size: 12px; }
+    .refl-day-card .head-study { font-size: 11px; padding: 2px 7px; }
     .refl-day-card .refl-content { font-size: 13px; }
   }
 
@@ -8171,21 +8175,25 @@
       //   いずれか取得失敗でも記入者は必ず表示する（graceful）。
       adminGasGet({ action: 'adminListDayLearners', date: ds, _ts: Date.now() }).then(function(lres) {
         var learnerCodes = (lres && lres.ok && Array.isArray(lres.learners)) ? lres.learners : [];
+        // 実施時間（第4群B）：adminListDayLearners が返す「その教育日の実施秒マップ」（student_code → 合計秒）。
+        //   child-history と同じ study_sessions の SUM(seconds)。★サーバ未対応の間は undefined → {} で全「—」（既存非破壊）。
+        //   PHP は snake_case で返す想定のため studySecondsByCode / study_seconds_by_code の両対応。
+        var studyByCode = (lres && lres.ok) ? (lres.studySecondsByCode || lres.study_seconds_by_code || {}) : {};
         adminGasGet({ action: 'getStudentsListForGrant', _ts: Date.now() }).then(function(sres) {
           var roster = (sres && sres.ok && Array.isArray(sres.students)) ? sres.students : [];
           // (あ)方式：未記入者へ送った促し（reply_to_reflectionId 無し）をその教育日ぶん取得し、
           //   未記入カードの返信スレッドにマージ復元する。取得失敗でも記入者/未記入者は必ず表示（graceful）。
           adminGasGet({ action: 'adminGetDayReminders', date: ds, _ts: Date.now() }).then(function(rres) {
             var reminders = (rres && rres.ok && Array.isArray(rres.reminders)) ? rres.reminders : [];
-            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders);
+            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode);
           }).catch(function() {
-            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, []);
+            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, [], studyByCode);
           });
         }).catch(function() {
-          _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, [], []);
+          _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, [], [], studyByCode);
         });
       }).catch(function() {
-        _renderReflectionsDayMerged(wrapEl, ds, writers, [], [], []);
+        _renderReflectionsDayMerged(wrapEl, ds, writers, [], [], [], {});
       });
     }).catch(function() {
       wrapEl.innerHTML = '<div class="refl-day-empty">通信エラーが発生しました</div>';
@@ -8194,7 +8202,15 @@
 
   function _reflJs(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
-  function _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders) {
+  // 実施時間の表示書式：child-history（getChildActivityRecent の studySeconds）と完全に同一。
+  //   値は study_sessions を student×教育日で SUM(seconds) した秒数。0/未取得は「—」（学習履歴と同じ挙動）。
+  function _reflFormatStudySeconds(sec) {
+    var s = Number(sec) || 0;
+    return s > 0 ? (Math.floor(s / 60) + '分' + (s % 60) + '秒') : '—';
+  }
+
+  function _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode) {
+    studyByCode = studyByCode || {};   // 実施時間マップ（student_code → 合計秒）。未取得時は空＝全「—」。
     // (あ)方式：未記入者へ送った促しを student_code でグルーピング（sent_at 昇順はサーバ側で担保済）。
     // ★バックエンド(PHP)は snake_case で返す（admin.html:14180 の SheetGridActions 契約と同様）。
     //   将来 camelCase に変わっても壊れないよう snake ?? camel の両対応で突合キーを取る。
@@ -8232,17 +8248,17 @@
     }
     var html = '';
     // 記入者（従来どおり occurred_at 昇順で受領済）
-    html += writers.map(function(r) { return _reflWriterCard(r, ds); }).join('');
+    html += writers.map(function(r) { return _reflWriterCard(r, ds, studyByCode); }).join('');
     // 非記入者（この日に学習ありだが振り返り未記入）
     if (nonWriters.length > 0) {
       html += '<div class="refl-day-subhead">📝 振り返り未記入（この日に学習あり ' + nonWriters.length + ' 名）</div>';
-      html += nonWriters.map(function(s) { return _reflNonWriterCard(s, ds, remindersByCode[String(s.studentId).trim()] || []); }).join('');
+      html += nonWriters.map(function(s) { return _reflNonWriterCard(s, ds, remindersByCode[String(s.studentId).trim()] || [], studyByCode); }).join('');
     }
     wrapEl.innerHTML = html;
   }
 
   // 記入者カード（従来の 本文/作品/返信スレッド/返信フォーム を維持 ＋「この日の学習履歴を見る」ボタン追加）
-  function _reflWriterCard(r, ds) {
+  function _reflWriterCard(r, ds, studyByCode) {
     var nameEsc  = _esc(r.studentName || '（未登録）');
     var nickEsc  = _esc(r.nickname || '');
     var gradeEsc = _esc(r.grade || '');
@@ -8256,6 +8272,9 @@
     var threadHtml = _renderReplyThread(replies);
     var sidJs = _reflJs(r.studentId || '');
     var dsJs  = _reflJs(ds || '');
+    // 実施時間（第4群B）：氏名/学年バッジと時刻の間に表示。未取得/0 は「—」（child-history と同一書式）。
+    var studySec  = (studyByCode || {})[String(r.studentId || '').trim()];
+    var studyHtml = '<span class="head-study">' + _esc(_reflFormatStudySeconds(studySec)) + '</span>';
     var dayWorksHtml = sidJs
       ? '<div class="day-works-wrap">' +
           '<button class="day-works-toggle" id="day-works-btn-' + ridEsc + '" onclick="toggleDayWorks(\'' + ridEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📎 この日の作品を見る</button>' +
@@ -8271,7 +8290,9 @@
                  nickHtml +
                  gradeBadge +
                '</div>' +
-               '<span class="head-time">' + _esc(timeOnly) + '</span>' +
+               '<div class="head-right">' + studyHtml +
+                 '<span class="head-time">' + _esc(timeOnly) + '</span>' +
+               '</div>' +
              '</div>' +
              '<div class="refl-content">' + _esc(r.content || '') + '</div>' +
              '<div class="refl-len">' + len + ' 文字</div>' +
@@ -8283,7 +8304,7 @@
   }
 
   // 非記入者カード（本文＝赤文字「振り返りコメントなし」／作品・学習履歴ボタンは併存／返信の代わりに注意喚起ボタン）
-  function _reflNonWriterCard(s, ds, reminders) {
+  function _reflNonWriterCard(s, ds, reminders, studyByCode) {
     var sid = String(s.studentId || '');
     // 氏名は名簿で解決。未取得（HP没収のみ等で名簿に無い稀ケース）は生徒コードをフォールバック表示。
     var nameEsc = s.name ? _esc(s.name) : ('（' + _esc(sid) + '）');
@@ -8303,9 +8324,13 @@
           '<div class="day-works-panel" id="hp-bd-' + keyEsc + '"></div>' +
         '</div>'
       : '';
+    // 実施時間（第4群B）：未記入者にも同様に表示（その日の実施時間は記入有無に関係なくあり得る）。未取得/0 は「—」。
+    var studySec  = (studyByCode || {})[sid.trim()];
+    var studyHtml = '<span class="head-study">' + _esc(_reflFormatStudySeconds(studySec)) + '</span>';
     return '<div class="refl-day-card" data-nw="' + _esc(sid) + '">' +
              '<div class="head-row">' +
                '<div><span class="head-name">' + nameEsc + '</span>' + nickHtml + '</div>' +
+               '<div class="head-right">' + studyHtml + '</div>' +
              '</div>' +
              '<div class="refl-content no-reflection">振り返りコメントなし</div>' +
              dayWorksHtml +
@@ -14769,7 +14794,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-2333</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260816-0017</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

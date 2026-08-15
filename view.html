@@ -26,6 +26,11 @@
   .login-card button:hover:not(:disabled) { transform: translateY(-1px); }
   .login-card button:disabled { opacity: .5; cursor: not-allowed; }
   .login-note { margin-top: 16px; font-size: 12px; color: #888; line-height: 1.6; }
+  /* 第2群③ F6-PF4：保護者ログイン/設定画面のパスワード欄と目のアイコン・戻るボタン */
+  .login-card .pw-field { position: relative; }
+  .login-card .pw-field input { padding-right: 46px; }
+  .login-card .pw-eye { position: absolute; right: 6px; top: 8px; width: auto; margin: 0; padding: 6px 8px; background: none; color: #888; font-size: 18px; font-weight: normal; border: none; box-shadow: none; }
+  .login-card .parent-login-back { width: auto; margin-top: 14px; padding: 4px 8px; background: none; color: #43a047; font-size: 13px; font-weight: normal; text-decoration: underline; box-shadow: none; }
 
   /* メイン画面 */
   #screen-view header { background: linear-gradient(135deg, #43a047, #26a69a); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); position: sticky; top: 0; z-index: 10; }
@@ -194,6 +199,44 @@
     <button id="view-login-btn" onclick="doViewLogin()">閲覧する</button>
     <div id="view-login-msg" class="msg"></div>
     <div class="login-note">※ この画面は閲覧専用です。<br>テストや学習は生徒本人のみご利用ください。</div>
+  </div>
+</div>
+
+<!-- 保護者ログイン画面（第2群③ F6-PF4）
+     set_up / pw_issued 保護者のみここを通る。legacy 保護者は ?sid= で直接閲覧（この画面を見ない）。 -->
+<div id="screen-parent-login" class="screen">
+  <div class="login-card">
+    <div class="login-emoji">🔒</div>
+    <h1>保護者ログイン</h1>
+    <p>お子様（ID：<span id="parent-login-sid">—</span>）の<br>保護者パスワードを入力してください</p>
+    <div class="pw-field">
+      <input type="password" id="parent-login-pw" placeholder="パスワード" autocomplete="current-password" />
+      <button type="button" class="pw-eye" onclick="_toggleParentPwVisibility('parent-login-pw', this)" aria-label="パスワードを表示" title="表示">👁</button>
+    </div>
+    <button id="parent-login-btn" onclick="doParentLogin()">ログイン</button>
+    <div id="parent-login-msg" class="msg"></div>
+    <button type="button" class="parent-login-back" onclick="doViewLogout()">← 別のIDでやり直す</button>
+  </div>
+</div>
+
+<!-- 保護者 本人パスワード設定画面（第2群③ F6-PF4）
+     pw_issued 保護者：共通初回PWでログイン → あなた専用の新しいPWへ変更 -->
+<div id="screen-parent-setup" class="screen">
+  <div class="login-card">
+    <div class="login-emoji">🔑</div>
+    <h1>パスワードの設定</h1>
+    <p>初回ログインです。<br>あなた専用の新しいパスワードを決めてください<br>（6文字以上・共通の初回パスワードとは別のもの）</p>
+    <div class="pw-field">
+      <input type="password" id="parent-setup-new" placeholder="新しいパスワード" autocomplete="new-password" />
+      <button type="button" class="pw-eye" onclick="_toggleParentPwVisibility('parent-setup-new', this)" aria-label="パスワードを表示" title="表示">👁</button>
+    </div>
+    <div class="pw-field">
+      <input type="password" id="parent-setup-new2" placeholder="新しいパスワード（確認）" autocomplete="new-password" />
+      <button type="button" class="pw-eye" onclick="_toggleParentPwVisibility('parent-setup-new2', this)" aria-label="パスワードを表示" title="表示">👁</button>
+    </div>
+    <button id="parent-setup-btn" onclick="doParentSetup()">設定してログイン</button>
+    <div id="parent-setup-msg" class="msg"></div>
+    <button type="button" class="parent-login-back" onclick="doViewLogout()">← やり直す</button>
   </div>
 </div>
 
@@ -550,9 +593,60 @@
 <script>
   var GAS_URL = 'https://mykt-eitango.com/exec';
 
+  // =============================================================
+  // 第2群③ F6-PF4：保護者トークン層（parentToken 併送・observe）
+  //   PF3 で parentLogin 成功応答に parentToken(role='parent') が含まれる。
+  //   保持中の parentToken を後続の保護者系リクエストに parentToken として併送し、
+  //   サーバの observe ゲートが「保護者コンテキスト」を記録できるようにする（★ブロックはしない＝fail-safe）。
+  //   ★保存キーは mykt_parent_token。ログイン系（＝トークン発行前）には併送しない。
+  //   ★トークンが無くても従来どおり動く（応答に parentToken が無い旧サーバでも回帰なし）。
+  // =============================================================
+  var _PARENT_LOGIN_ACTIONS = { parentLogin: 1, completeParentSetup: 1, getParentAuthState: 1 };
+  function _getParentToken() {
+    try { return String(localStorage.getItem('mykt_parent_token') || ''); } catch(e){ return ''; }
+  }
+  function _saveParentToken(res) {
+    try {
+      var tok = (res && res.parentToken) ? String(res.parentToken) : '';
+      if (tok) localStorage.setItem('mykt_parent_token', tok);
+    } catch(e){}
+  }
+  function _clearParentToken() {
+    try { localStorage.removeItem('mykt_parent_token'); } catch(e){}
+  }
+  // 保持中トークンがあれば params のコピーに parentToken を足して返す（呼び出し側の params は不変）。
+  //   併送しないケース：トークン未保持／ログイン系（発行前）／呼び出し側が parentToken を明示済み。
+  function _withParentToken(params) {
+    params = params || {};
+    var tok = _getParentToken();
+    if (!tok) return params;
+    if (params.action && _PARENT_LOGIN_ACTIONS[params.action]) return params;
+    if (params.parentToken) return params;
+    var sent = {};
+    for (var k in params) { if (Object.prototype.hasOwnProperty.call(params, k)) sent[k] = params[k]; }
+    sent.parentToken = tok;
+    return sent;
+  }
+
   function gasGet(params) {
+    params = _withParentToken(params);   // F6-PF4：保持中 parentToken を併送（observe）
     return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
       .then(function(r){ return r.json(); });
+  }
+  // POST 送信（GAS doPost）。completeParentSetup（本人PW設定）など。
+  //   Content-Type: text/plain で CORS preflight を回避（Apps Script は OPTIONS に応答しない）。
+  function gasPost(params, timeoutMs) {
+    var ms = timeoutMs || 60000;
+    params = _withParentToken(params);   // F6-PF4：保持中 parentToken を併送（observe）
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = setTimeout(function(){ if (ctrl) ctrl.abort(); }, ms);
+    return fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(params),
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function(r){ clearTimeout(timer); return r.json(); })
+      .catch(function(e){ clearTimeout(timer); throw e; });
   }
 
   // キャラクターのステージ別ビジュアル（index.html と同期、保護者向けは sparkles/sw 省略）
@@ -879,14 +973,45 @@
   // ============================
   // ログイン（読み取り専用 getStudentView）
   // ============================
+  // ============================
+  // ログイン入口（第2群③ F6-PF4：保護者ログイン層）
+  //   ?sid= 自動 or 手動入力 → まず parent_auth_state を確認して分岐：
+  //     legacy（or 未対応サーバ / 通信エラー） → 従来どおり直接閲覧（getStudentView）＝据え置き・締め出さない
+  //     set_up / pw_issued                    → 保護者ログイン画面（パスワード入力）へ
+  //   ★observe ゆえ parentToken 未送でもブロックされない。legacy は完全に従来動作（回帰なし）。
+  //   ★生徒の段階3（legacy 据え置き）と同じ思想。
+  // ============================
+  var _parentFlowSid = '';       // 保護者ログイン/設定フローの対象生徒ID
+  var _parentFlowCommonPw = '';  // pw_issued：ログインで入力した共通初回PW（setup へ引き継ぐ）
+
   function doViewLogin() {
     var sid = document.getElementById('view-id').value.trim();
     if (!sid) { _showLoginMsg('生徒IDを入力してください', 'ng'); return; }
     var btn = document.getElementById('view-login-btn');
     btn.disabled = true;
+    _showLoginMsg('確認中…', 'ok');
+    // 状態確認（getParentAuthState）。未対応サーバ / エラー / legacy は直接閲覧にフォールバック（fail-safe）。
+    gasGet({ action: 'getParentAuthState', studentId: sid, _ts: Date.now() }).then(function(st) {
+      btn.disabled = false;
+      var state = st && (st.authState || st.parentAuthState || st.state);
+      if (st && st.ok && (state === 'set_up' || state === 'pw_issued')) {
+        _showLoginMsg('', '');
+        _openParentLogin(sid);
+        return;
+      }
+      _doDirectView(sid, btn);   // legacy / 未対応 / エラー → 従来どおり直接閲覧
+    }).catch(function() {
+      btn.disabled = false;
+      _doDirectView(sid, btn);   // 状態確認に失敗 → fail-safe で直接閲覧
+    });
+  }
+
+  // 直接閲覧（従来の getStudentView 経路）。legacy 保護者・set_up ログイン成功後の両方がここへ来る。
+  function _doDirectView(sid, btn) {
+    if (btn) btn.disabled = true;
     _showLoginMsg('読み込み中…', 'ok');
     gasGet({ action: 'getStudentView', studentId: sid, _ts: Date.now() }).then(function(res) {
-      btn.disabled = false;
+      if (btn) btn.disabled = false;
       if (!res || !res.ok) {
         _showLoginMsg((res && res.message) || '生徒IDが見つかりません', 'ng');
         return;
@@ -899,13 +1024,142 @@
       loadWeeklyRanking();
       loadLatestNotice();
     }).catch(function() {
-      btn.disabled = false;
+      if (btn) btn.disabled = false;
       _showLoginMsg('通信エラーが発生しました', 'ng');
     });
   }
 
+  // --- 保護者ログイン画面（set_up / pw_issued） ---
+  function _openParentLogin(sid) {
+    _parentFlowSid = String(sid || '');
+    var el = document.getElementById('parent-login-sid'); if (el) el.textContent = sid;
+    var inp = document.getElementById('parent-login-pw'); if (inp) { inp.value = ''; }
+    _resetParentEye('parent-login-pw');
+    _showParentMsg('parent-login-msg', '', '');
+    _showScreen('screen-parent-login');
+    try { if (inp) inp.focus(); } catch(e){}
+  }
+  function doParentLogin() {
+    var pw = String((document.getElementById('parent-login-pw') || {}).value || '');
+    if (!pw) { _showParentMsg('parent-login-msg', 'パスワードを入力してください', 'ng'); return; }
+    var btn = document.getElementById('parent-login-btn'); if (btn) btn.disabled = true;
+    _showParentMsg('parent-login-msg', '確認中…', 'ok');
+    // parentLogin（PF2：GET・IN studentId+parentPassword）。loginStudent と同じく GET。
+    gasGet({ action: 'parentLogin', studentId: _parentFlowSid, parentPassword: pw, _ts: Date.now() }).then(function(res) {
+      if (btn) btn.disabled = false;
+      res = res || {};
+      // レートリミット（throttled）：しばらく待ってから
+      if (res.throttled) {
+        _showParentMsg('parent-login-msg', res.message || 'しばらく待ってから、もう一度お試しください', 'ng');
+        return;
+      }
+      // pw_issued：共通初回PWでのログイン → 本人PW変更画面へ（共通PWを引き継ぐ）
+      if (res.needsParentSetup) {
+        _parentFlowCommonPw = pw;
+        _showParentMsg('parent-login-msg', '', '');
+        _openParentSetup(_parentFlowSid);
+        return;
+      }
+      // 成功（set_up）：parentToken 保持 → 閲覧
+      if (res.ok) {
+        _saveParentToken(res);   // 以降の保護者系 API に parentToken 併送（observe）
+        _showParentMsg('parent-login-msg', '', '');
+        _doDirectView(_parentFlowSid, null);
+        return;
+      }
+      // 誤り：再入力
+      _showParentMsg('parent-login-msg', res.message || 'パスワードが違います', 'ng');
+      var inp = document.getElementById('parent-login-pw'); if (inp) { inp.value = ''; try { inp.focus(); } catch(e){} }
+    }).catch(function() {
+      if (btn) btn.disabled = false;
+      _showParentMsg('parent-login-msg', '通信エラーが発生しました', 'ng');
+    });
+  }
+
+  // --- 保護者 本人PW設定画面（pw_issued） ---
+  function _openParentSetup(sid) {
+    _parentFlowSid = String(sid || _parentFlowSid || '');
+    ['parent-setup-new','parent-setup-new2'].forEach(function(id){ var e=document.getElementById(id); if(e){ e.value=''; } });
+    _resetParentEye('parent-setup-new'); _resetParentEye('parent-setup-new2');
+    _showParentMsg('parent-setup-msg', '', '');
+    _showScreen('screen-parent-setup');
+    try { document.getElementById('parent-setup-new').focus(); } catch(e){}
+  }
+  function doParentSetup() {
+    var np  = String((document.getElementById('parent-setup-new')  || {}).value || '');
+    var np2 = String((document.getElementById('parent-setup-new2') || {}).value || '');
+    if (np.length < 6)              { _showParentMsg('parent-setup-msg', 'パスワードは6文字以上にしてください', 'ng'); return; }
+    if (np !== np2)                 { _showParentMsg('parent-setup-msg', '確認用パスワードが一致しません', 'ng'); return; }
+    if (np === _parentFlowCommonPw) { _showParentMsg('parent-setup-msg', '共通の初回パスワードとは別のものにしてください', 'ng'); return; }
+    var btn = document.getElementById('parent-setup-btn'); if (btn) btn.disabled = true;
+    _showParentMsg('parent-setup-msg', '設定中…', 'ok');
+    // completeParentSetup（PF2：POST・共通初回PW→本人PW）。共通PWは _parentFlowCommonPw を送る。
+    gasPost({ action: 'completeParentSetup', studentId: _parentFlowSid, currentPassword: _parentFlowCommonPw, newPassword: np, newPasswordConfirm: np2 }).then(function(res) {
+      if (btn) btn.disabled = false;
+      res = res || {};
+      if (res.ok) {
+        _showParentMsg('parent-setup-msg', '設定できました！', 'ok');
+        var settledPw = np;
+        _parentFlowCommonPw = '';
+        // 成功応答に parentToken があれば保持。無ければ新PWで parentLogin を1回呼んでトークン確定
+        //   （生徒の completeStudentSetup と同じ・保護者に再入力を求めない）。
+        if (res.parentToken) {
+          _saveParentToken(res);
+          _doDirectView(_parentFlowSid, null);
+        } else {
+          gasGet({ action: 'parentLogin', studentId: _parentFlowSid, parentPassword: settledPw, _ts: Date.now() }).then(function(r2) {
+            r2 = r2 || {};
+            if (r2.ok && !r2.needsParentSetup) { _saveParentToken(r2); _doDirectView(_parentFlowSid, null); }
+            else { _openParentLogin(_parentFlowSid); }
+          }).catch(function() { _openParentLogin(_parentFlowSid); });
+        }
+        return;
+      }
+      _showParentMsg('parent-setup-msg', res.message || '設定に失敗しました。もう一度お試しください', 'ng');
+    }).catch(function() {
+      if (btn) btn.disabled = false;
+      _showParentMsg('parent-setup-msg', '通信エラーが発生しました', 'ng');
+    });
+  }
+
+  // 保護者ログイン/設定画面のメッセージ表示（画面別 msg 要素）。
+  //   ★inline display を毎回明示（CLAUDE.md #259：一度書いた inline none が CSS class を上書きするバグ回避）。
+  //     同一ページ内でログイン→誤り→再入力…とループするため、この明示は必須。
+  function _showParentMsg(elId, text, kind) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'msg ' + (kind || '');
+    el.style.display = text ? '' : 'none';
+  }
+  // パスワード表示/隠す（目のアイコン）。value 参照ロジックには触れない＝見た目だけ。
+  function _toggleParentPwVisibility(inputId, btn) {
+    var inp = document.getElementById(inputId);
+    if (!inp) return;
+    var willShow = (inp.type === 'password');
+    inp.type = willShow ? 'text' : 'password';
+    if (btn) {
+      btn.textContent = willShow ? '🙈' : '👁';
+      btn.setAttribute('aria-label', willShow ? 'パスワードを隠す' : 'パスワードを表示');
+      btn.setAttribute('title', willShow ? '隠す' : '表示');
+    }
+    try { inp.focus(); } catch(e){}
+  }
+  // 画面を開き直すたびにパスワード欄をマスク状態へ戻す（前回の「表示」状態を持ち越さない）
+  function _resetParentEye(inputId) {
+    var inp = document.getElementById(inputId);
+    if (inp) inp.type = 'password';
+    var wrap = inp && inp.parentNode;
+    var b = wrap && wrap.querySelector ? wrap.querySelector('.pw-eye') : null;
+    if (b) { b.textContent = '👁'; b.setAttribute('aria-label','パスワードを表示'); b.setAttribute('title','表示'); }
+  }
+
   function doViewLogout() {
     _studentId = null;
+    // F6-PF4：保持中の parentToken とフロー状態を破棄（前の保護者のトークンを残さない）。
+    _clearParentToken();
+    _parentFlowSid = '';
+    _parentFlowCommonPw = '';
     _showScreen('screen-login');
     // ログアウト後は統合ログイン画面（index.html）に戻す。
     // 直接 view.html?sid=xxx で来た保護者・統合画面から来た保護者・手動入力した保護者、
@@ -2096,7 +2350,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260813-2333</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260816-0017</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
