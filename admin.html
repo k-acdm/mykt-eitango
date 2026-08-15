@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260816-0452"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260816-0519"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -171,6 +171,15 @@
   .auth-keybox .akb-key   { font-size: 30px; font-weight: 800; letter-spacing: 3px; color: #7c2d12; font-family: 'Courier New', monospace; background: #fff; border: 2px dashed #f59e0b; border-radius: 10px; padding: 14px 12px; text-align: center; margin: 8px 0; word-break: break-all; }
   .auth-keybox .akb-warn  { font-size: 13px; color: #b91c1c; font-weight: bold; line-height: 1.7; }
   .auth-keybox .akb-close { margin-top: 12px; background: #64748b; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: bold; cursor: pointer; }
+  /* F6：保護者パスワードのリセット（同じ「ログイン認証アラート」画面内のセクション） */
+  .parent-reset-lead { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 12px; }
+  .parent-reset-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .parent-reset-row select { flex: 1 1 260px; min-width: 0; padding: 10px 12px; font-size: 15px; border: 2px solid #e1e5ee; border-radius: 8px; background: #fff; font-family: inherit; }
+  .parent-reset-resultbox { background: linear-gradient(135deg,#f0fdf4,#dcfce7); border: 3px solid #22c55e; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .parent-reset-resultbox .prb-title { font-size: 16px; font-weight: bold; color: #15803d; margin-bottom: 8px; }
+  .parent-reset-resultbox .prb-pw    { font-size: 26px; font-weight: 800; letter-spacing: 2px; color: #14532d; font-family: 'Courier New', monospace; background: #fff; border: 2px dashed #22c55e; border-radius: 10px; padding: 12px; text-align: center; margin: 8px 0; word-break: break-all; }
+  .parent-reset-resultbox .prb-note  { font-size: 13px; color: #166534; line-height: 1.7; }
+  .parent-reset-resultbox .prb-close { margin-top: 12px; background: #64748b; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: bold; cursor: pointer; }
 
   /* ヘッダー右ボタン群（ホーム + ログアウト） */
   .header-btns { display: flex; gap: 8px; align-items: center; }
@@ -1757,6 +1766,22 @@
       <h2>⚠️ 合言葉の失敗が続いている生徒</h2>
       <div id="auth-alert-summary" class="auth-alert-summary"></div>
       <div id="auth-alerts-wrap"><div class="students-empty">⏳ 読み込み中...</div></div>
+    </div>
+
+    <!-- F6：保護者パスワードのリセット（保護者がご自身で設定したPWを忘れた場合）。
+         ★生徒版と違い自動検知（合言葉◯回失敗）が無いので、生徒を選んでリセットする形。 -->
+    <div class="form-card">
+      <h2>👨‍👩‍👦 保護者パスワードのリセット</h2>
+      <div class="parent-reset-lead">
+        保護者がご自身で設定したパスワードを忘れた場合に、<b>共通の初回パスワード</b>に戻します。<br>
+        リセット後は、保護者に初回パスワードでログインし直して、新しいパスワードを設定してもらってください。<br>
+        ※ 生徒本人のログイン（暗証番号・合言葉）には影響しません。
+      </div>
+      <div id="parent-reset-resultbox" class="parent-reset-resultbox" style="display:none"></div>
+      <div class="parent-reset-row">
+        <select id="parent-reset-select"><option value="">⏳ 読み込み中...</option></select>
+        <button type="button" class="btn-reset-auth" onclick="resetParentAuth()">🔑 保護者パスワードをリセット</button>
+      </div>
     </div>
   </div>
 </div>
@@ -5023,7 +5048,8 @@
   function goAdminAuthAlerts() {
     _showScreen('screen-admin-auth-alerts');
     window.scrollTo(0, 0);
-    _hideAuthResetKeybox();     // 前回の初回キー表示は持ち越さない
+    _hideAuthResetKeybox();      // 前回の初回キー表示は持ち越さない
+    _hideParentResetResult();    // 前回の保護者リセット結果も持ち越さない
     loadAuthAlerts();
   }
 
@@ -5032,17 +5058,21 @@
     var summary = document.getElementById('auth-alert-summary');
     if (wrap)    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
     if (summary) { summary.className = 'auth-alert-summary'; summary.textContent = ''; }
+    _setParentResetSelectMsg('⏳ 読み込み中...');
     adminGasGet({ action: 'getStudentsAuthStatus', _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        _setParentResetSelectMsg('（生徒を取得できませんでした）');
         if (_handleAdminApiError(msg)) return;
         if (wrap) wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
         return;
       }
       _authAlertData = res;
       _renderAuthAlerts();
+      _renderParentResetSelect();   // 同じ生徒一覧を保護者リセットの選択肢にも流用（追加の API 呼び出しなし）
     }).catch(function() {
       if (wrap) wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+      _setParentResetSelectMsg('（生徒を取得できませんでした）');
     });
   }
 
@@ -5139,6 +5169,86 @@
   }
   function _hideAuthResetKeybox() {
     var box = document.getElementById('auth-reset-keybox');
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  }
+
+  // -------------------------------------------------------------
+  // F6：保護者パスワードのリセット（admin限定・同じ「ログイン認証アラート」画面内）
+  //   保護者がご自身で設定したパスワードを忘れたとき、共通の初回パスワードに戻す。
+  //   - adminResetParentAuth（admin限定・書き込み／GET・POST 両受け）：入力は studentId（子の生徒ID）のみ。
+  //     共通初回PWはサーバ config（gas.parent_initial_password）が持つのでフロントからは渡さない。
+  //     応答 = { ok, studentId, name, parentAuthState:'pw_issued', parentMustReset:true }。
+  //     ★平文PWは返らない（塾が既に知っている固定値のため）→ 画面側の定数で案内する。
+  //   ★生徒版と違い自動検知が無いため、生徒を選んでリセットする形。
+  //   ★この画面自体が admin専用（システム系 hub の admin-only カード経由）＋ サーバ側 requireAdmin の二重防御。
+  //   ★生徒一覧は同画面が既に読んだ getStudentsAuthStatus の結果を再利用（追加の API 呼び出しなし）。
+  // -------------------------------------------------------------
+  // サーバ config gas.parent_initial_password と同じ固定値。リセット後の案内表示にのみ使う。
+  //   ★講師の初期パスワード（noblesse0311）を画面に出しているのと同じ扱い。
+  var PARENT_INITIAL_PASSWORD = 'kac-mykt';
+
+  // select に一言メッセージだけ出す（読み込み中／取得失敗）。
+  function _setParentResetSelectMsg(msg) {
+    var sel = document.getElementById('parent-reset-select');
+    if (sel) sel.innerHTML = '<option value="">' + _esc(msg) + '</option>';
+  }
+
+  function _renderParentResetSelect() {
+    var sel = document.getElementById('parent-reset-select');
+    if (!sel) return;
+    var students = (_authAlertData && _authAlertData.students) ? _authAlertData.students : [];
+    var opts = [];
+    students.forEach(function(s) {
+      var sid = String((s && s.studentId) || '').trim();
+      if (!sid) return;
+      var name = (s.name || s.studentName || '') || '（未登録）';
+      var nick = s.nickname || '';
+      var label = sid + '　' + name + (nick ? '（' + nick + '）' : '');
+      opts.push('<option value="' + _esc(sid) + '">' + _esc(label) + '</option>');
+    });
+    if (opts.length === 0) { _setParentResetSelectMsg('（生徒がいません）'); return; }
+    sel.innerHTML = '<option value="">-- 生徒を選んでください --</option>' + opts.join('');
+  }
+
+  function resetParentAuth() {
+    var sel = document.getElementById('parent-reset-select');
+    var sid = sel ? String(sel.value || '').trim() : '';
+    if (!sid) { showToast('生徒を選んでください', 'error'); return; }
+    var opt   = (sel.options && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex] : null;
+    var label = (opt && opt.text) ? opt.text : sid;
+    if (!confirm('この生徒の【保護者】パスワードをリセットしますか？\n\n' + label +
+                 '\n\n保護者がご自身で設定したパスワードは無効になり、\n共通の初回パスワードに戻ります。' +
+                 '\n（生徒本人のログインには影響しません）')) return;
+    adminGasPost({ action: 'adminResetParentAuth', studentId: sid }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : 'リセットに失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error');
+        return;
+      }
+      // ★取り違え防止のため、応答の name で対象を確認表示する。
+      _showParentResetResult(res.studentId || sid, res.name || '');
+      showToast(sid + ' の保護者パスワードをリセットしました', 'success');
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  function _showParentResetResult(studentId, name) {
+    var box = document.getElementById('parent-reset-resultbox');
+    if (!box) return;
+    var label = String(studentId || '') + (name ? '　' + name : '');
+    box.innerHTML =
+      '<div class="prb-title">✅ ' + _esc(label) + ' の保護者パスワードをリセットしました</div>' +
+      '<div class="prb-note">保護者の方に、下の<b>共通の初回パスワード</b>でログインし直してもらってください。</div>' +
+      '<div class="prb-pw">' + _esc(PARENT_INITIAL_PASSWORD) + '</div>' +
+      '<div class="prb-note">ログイン後、保護者ご自身で新しいパスワードを設定する画面になります。</div>' +
+      '<button type="button" class="prb-close" onclick="_hideParentResetResult()">閉じる</button>';
+    box.style.display = 'block';
+    try { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
+  }
+  function _hideParentResetResult() {
+    var box = document.getElementById('parent-reset-resultbox');
     if (box) { box.style.display = 'none'; box.innerHTML = ''; }
   }
 
@@ -14794,7 +14904,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260816-0452</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260816-0519</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
