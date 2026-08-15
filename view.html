@@ -1043,12 +1043,19 @@
     pw_issued: 'お伝えした初回パスワードを入力してください',
     set_up:    'ご自身で設定したパスワードを入力してください'
   };
+  //   ★入力欄の placeholder も同じ state で出し分ける（設定前後で画面がほぼ同じで紛らわしいため）。
+  //     こちらも不明・未指定のときは従来の「パスワード」にフォールバック（回帰なし）。
+  var _PARENT_LOGIN_PH = {
+    pw_issued: '初回パスワード',
+    set_up:    'ご自身で設定したパスワード'
+  };
   function _openParentLogin(sid, authState) {
     _parentFlowSid = String(sid || '');
     var el = document.getElementById('parent-login-sid'); if (el) el.textContent = sid;
     var desc = document.getElementById('parent-login-desc');
     if (desc) desc.textContent = _PARENT_LOGIN_DESC[String(authState || '')] || '保護者パスワードを入力してください';
-    var inp = document.getElementById('parent-login-pw'); if (inp) { inp.value = ''; }
+    var inp = document.getElementById('parent-login-pw');
+    if (inp) { inp.value = ''; inp.placeholder = _PARENT_LOGIN_PH[String(authState || '')] || 'パスワード'; }
     _resetParentEye('parent-login-pw');
     _showParentMsg('parent-login-msg', '', '');
     _showScreen('screen-parent-login');
@@ -2365,7 +2372,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260816-0438</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260816-0452</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
