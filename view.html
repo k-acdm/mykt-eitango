@@ -31,6 +31,13 @@
   .login-card .pw-field input { padding-right: 46px; }
   .login-card .pw-eye { position: absolute; right: 6px; top: 8px; width: auto; margin: 0; padding: 6px 8px; background: none; color: #888; font-size: 18px; font-weight: normal; border: none; box-shadow: none; }
   .login-card .parent-login-back { width: auto; margin-top: 14px; padding: 4px 8px; background: none; color: #43a047; font-size: 13px; font-weight: normal; text-decoration: underline; box-shadow: none; }
+  /* 第2群③ F6-PF4：保護者ログイン/設定画面を PC（481px 以上）で中央寄せ。
+     ★481px 未満（スマホ）は従来どおり .screen.active の block 表示のまま＝見た目の回帰なし。
+       （スマホは .login-card が width:100% で画面幅いっぱいのため元々中央に見えている） */
+  @media (min-width: 481px) {
+    #screen-parent-login.active,
+    #screen-parent-setup.active { display: flex; align-items: center; justify-content: center; padding: 20px; }
+  }
 
   /* メイン画面 */
   #screen-view header { background: linear-gradient(135deg, #43a047, #26a69a); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); position: sticky; top: 0; z-index: 10; }
@@ -208,7 +215,7 @@
   <div class="login-card">
     <div class="login-emoji">🔒</div>
     <h1>保護者ログイン</h1>
-    <p>お子様（ID：<span id="parent-login-sid">—</span>）の<br>保護者パスワードを入力してください</p>
+    <p>お子様（ID：<span id="parent-login-sid">—</span>）<br><span id="parent-login-desc">保護者パスワードを入力してください</span></p>
     <div class="pw-field">
       <input type="password" id="parent-login-pw" placeholder="パスワード" autocomplete="current-password" />
       <button type="button" class="pw-eye" onclick="_toggleParentPwVisibility('parent-login-pw', this)" aria-label="パスワードを表示" title="表示">👁</button>
@@ -996,7 +1003,7 @@
       var state = st && (st.authState || st.parentAuthState || st.state);
       if (st && st.ok && (state === 'set_up' || state === 'pw_issued')) {
         _showLoginMsg('', '');
-        _openParentLogin(sid);
+        _openParentLogin(sid, state);   // ★state で説明文を出し分け（pw_issued / set_up）
         return;
       }
       _doDirectView(sid, btn);   // legacy / 未対応 / エラー → 従来どおり直接閲覧
@@ -1030,9 +1037,17 @@
   }
 
   // --- 保護者ログイン画面（set_up / pw_issued） ---
-  function _openParentLogin(sid) {
+  //   ★説明文は authState で出し分ける（pw_issued＝共通初回PWのまま／set_up＝本人設定済み）。
+  //     不明・未指定のときは従来の汎用文言にフォールバック（回帰なし）。
+  var _PARENT_LOGIN_DESC = {
+    pw_issued: 'お伝えした初回パスワードを入力してください',
+    set_up:    'ご自身で設定したパスワードを入力してください'
+  };
+  function _openParentLogin(sid, authState) {
     _parentFlowSid = String(sid || '');
     var el = document.getElementById('parent-login-sid'); if (el) el.textContent = sid;
+    var desc = document.getElementById('parent-login-desc');
+    if (desc) desc.textContent = _PARENT_LOGIN_DESC[String(authState || '')] || '保護者パスワードを入力してください';
     var inp = document.getElementById('parent-login-pw'); if (inp) { inp.value = ''; }
     _resetParentEye('parent-login-pw');
     _showParentMsg('parent-login-msg', '', '');
@@ -1110,8 +1125,8 @@
           gasGet({ action: 'parentLogin', studentId: _parentFlowSid, parentPassword: settledPw, _ts: Date.now() }).then(function(r2) {
             r2 = r2 || {};
             if (r2.ok && !r2.needsParentSetup) { _saveParentToken(r2); _doDirectView(_parentFlowSid, null); }
-            else { _openParentLogin(_parentFlowSid); }
-          }).catch(function() { _openParentLogin(_parentFlowSid); });
+            else { _openParentLogin(_parentFlowSid, 'set_up'); }   // ★本人PW設定直後ゆえ set_up
+          }).catch(function() { _openParentLogin(_parentFlowSid, 'set_up'); });
         }
         return;
       }
@@ -2350,7 +2365,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260816-0017</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260816-0438</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
