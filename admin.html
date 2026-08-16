@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260816-0519"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260817-0517"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -180,6 +180,21 @@
   .parent-reset-resultbox .prb-pw    { font-size: 26px; font-weight: 800; letter-spacing: 2px; color: #14532d; font-family: 'Courier New', monospace; background: #fff; border: 2px dashed #22c55e; border-radius: 10px; padding: 12px; text-align: center; margin: 8px 0; word-break: break-all; }
   .parent-reset-resultbox .prb-note  { font-size: 13px; color: #166534; line-height: 1.7; }
   .parent-reset-resultbox .prb-close { margin-top: 12px; background: #64748b; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: bold; cursor: pointer; }
+  /* 新規入塾者の初回設定（同じ「ログイン認証アラート」画面内のセクション）。
+     ★ボタンは既存の .submit-btn、初回キー表示は既存の .auth-keybox、保護者PW案内は既存の
+       .parent-reset-resultbox を流用する（新しい見た目は持ち込まない）。 */
+  .ni-lead { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 12px; }
+  .ni-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .ni-row select { flex: 1 1 260px; min-width: 0; padding: 10px 12px; font-size: 15px; border: 2px solid #e1e5ee; border-radius: 8px; background: #fff; font-family: inherit; }
+  .ni-status { background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 13px; line-height: 1.9; color: #334155; }
+  .ni-status .nis-label   { display: inline-block; min-width: 13em; color: #64748b; }
+  .ni-status .nis-done    { color: #15803d; font-weight: bold; }
+  .ni-status .nis-todo    { color: #b45309; font-weight: bold; }
+  .ni-status .nis-unknown { color: #64748b; font-weight: bold; }
+  .ni-step { border: 2px solid #e1e5ee; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+  .ni-step .nist-head { font-size: 15px; font-weight: bold; color: #333; margin-bottom: 4px; }
+  .ni-step .nist-desc { font-size: 12px; color: #666; line-height: 1.7; margin-bottom: 10px; }
+  .ni-step .nist-hint { font-size: 12px; color: #b45309; font-weight: bold; margin-top: 8px; }
 
   /* ヘッダー右ボタン群（ホーム + ログアウト） */
   .header-btns { display: flex; gap: 8px; align-items: center; }
@@ -1781,6 +1796,55 @@
       <div class="parent-reset-row">
         <select id="parent-reset-select"><option value="">⏳ 読み込み中...</option></select>
         <button type="button" class="btn-reset-auth" onclick="resetParentAuth()">🔑 保護者パスワードをリセット</button>
+      </div>
+    </div>
+
+    <!-- 新規入塾者の初回設定（① 初回キー発行 → 本人へ配布 → ② 有効化 → ③ 保護者PW発行）。
+         ★サーバ側は 2026-08-17 実装（AWS 5ecfaf7）。
+         ★①→②→③ の順序、とくに「配布し終えてから ②」が最重要。②には確認ダイアログを出す。 -->
+    <div class="form-card">
+      <h2>🆕 新規入塾者の初回設定</h2>
+      <div class="ni-lead">
+        新しく入塾した生徒に、初回キー（生徒用）と初回パスワード（保護者用）を発行します。<br>
+        <b>①→②→③ の順に進めてください。</b>とくに <b>② は初回キーを本人に配布し終えてから</b>押してください。
+      </div>
+
+      <div class="ni-row">
+        <select id="ni-select" onfocus="niEnsureStudents()" onchange="niOnSelectChange()">
+          <option value="">-- 生徒を選んでください --</option>
+        </select>
+      </div>
+
+      <div id="ni-status" class="ni-status">生徒を選ぶと、いまどこまで済んでいるかを表示します。</div>
+
+      <!-- ① の結果（初回キー）は既存の .auth-keybox、③ の結果は既存の .parent-reset-resultbox を流用 -->
+      <div id="ni-keybox" class="auth-keybox" style="display:none"></div>
+      <div id="ni-parent-resultbox" class="parent-reset-resultbox" style="display:none"></div>
+
+      <div class="ni-step">
+        <div class="nist-head">① 初回キーを発行</div>
+        <div class="nist-desc">
+          生徒に渡す初回キーを発行します。<b>発行しても生徒のログイン方法はまだ変わりません</b>
+          （② を押すまでは、今までどおりログインできます）。<br>
+          ★キーは発行した直後の1回しか表示できません。必ず配布物に転記してください。
+        </div>
+        <button type="button" id="ni-btn-issue" class="submit-btn" onclick="niIssueInitialKey()" disabled>🔑 初回キーを発行する</button>
+      </div>
+
+      <div class="ni-step">
+        <div class="nist-head">② ログインを有効化</div>
+        <div class="nist-desc">
+          初回キーでのログインを有効にします。<b>初回キーを本人に配布し終えてから</b>押してください。<br>
+          配布前に押すと、次回ログインで初回設定画面が出て、キーを持っていない生徒が入れなくなります。
+        </div>
+        <button type="button" id="ni-btn-activate" class="submit-btn" style="background:linear-gradient(135deg,#ef4444,#b91c1c)" onclick="niActivateInitialKey()" disabled>✅ ログインを有効化する</button>
+        <div id="ni-activate-hint" class="nist-hint" style="display:none"></div>
+      </div>
+
+      <div class="ni-step">
+        <div class="nist-head">③ 保護者の初回パスワードを発行</div>
+        <div class="nist-desc">保護者が閲覧画面にログインするための、共通の初回パスワードを発行します。</div>
+        <button type="button" id="ni-btn-parent" class="submit-btn" onclick="niIssueParentPassword()" disabled>👨‍👩‍👦 保護者の初回パスワードを発行する</button>
       </div>
     </div>
   </div>
@@ -5249,6 +5313,275 @@
   }
   function _hideParentResetResult() {
     var box = document.getElementById('parent-reset-resultbox');
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  }
+
+  // -------------------------------------------------------------
+  // 新規入塾者の初回設定（admin限定・同じ「ログイン認証アラート」画面内）
+  //   サーバ側は 2026-08-17 実装（AWS 5ecfaf7）：
+  //     - adminIssueInitialKey             初回キーの発行。auth_state は legacy のまま。
+  //                                        応答に平文キー（1回だけ）／既発行なら reissued:true。
+  //     - adminActivateInitialKey          legacy → key_issued。★キー未発行なら拒否される。
+  //     - adminIssueParentInitialPassword  保護者に共通初回PWを発行。
+  //   ★① と ② の間に「本人へのキー配布」が入る。配布前に ② を押すとキーを持っていない生徒が
+  //     入れなくなるため、② には必ず確認ダイアログを出し、キー未発行なら押せなくする（画面側の防御）。
+  //   ★生徒一覧は同画面が既に読んだ getStudentsAuthStatus の結果を再利用（API 追加なし）。
+  //     ★既存関数（loadAuthAlerts / goAdminAuthAlerts など）には手を入れないため、
+  //       select は自分の onfocus で必要になった時に組み立てる。まだ読めていない場合のみ自分で取得する。
+  //   ★見た目は既存クラスを流用（ボタン=.submit-btn／初回キー=.auth-keybox／保護者PW=.parent-reset-resultbox）。
+  // -------------------------------------------------------------
+  var _niIssuedThisSession = {};   // この画面で ① を実行した生徒（サーバが発行済みフラグを返さない場合の手がかり）
+  var _niSelectBuilt = false;      // select を組み立て済みか
+  var _niFetching = false;         // 自前取得の多重発火防止
+
+  // 生徒一覧を用意する。既に _authAlertData があればそれを使い、無ければ同じ action を1回だけ取得する。
+  function niEnsureStudents() {
+    if (_authAlertData && _authAlertData.students) { if (!_niSelectBuilt) _niRenderSelect(); return; }
+    if (_niFetching) return;
+    _niFetching = true;
+    _niSetSelectMsg('⏳ 読み込み中...');
+    adminGasGet({ action: 'getStudentsAuthStatus', _ts: Date.now() }).then(function(res) {
+      _niFetching = false;
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '取得に失敗しました';
+        _niSetSelectMsg('（生徒を取得できませんでした）');
+        _handleAdminApiError(msg);
+        return;
+      }
+      _authAlertData = res;
+      _niRenderSelect();
+    }).catch(function() {
+      _niFetching = false;
+      _niSetSelectMsg('（生徒を取得できませんでした）');
+    });
+  }
+
+  function _niSetSelectMsg(msg) {
+    var sel = document.getElementById('ni-select');
+    if (sel) sel.innerHTML = '<option value="">' + _esc(msg) + '</option>';
+  }
+
+  function _niRenderSelect() {
+    var sel = document.getElementById('ni-select');
+    if (!sel) return;
+    var students = (_authAlertData && _authAlertData.students) ? _authAlertData.students : [];
+    var keep = String(sel.value || '');
+    var opts = [];
+    students.forEach(function(s) {
+      var sid = String((s && s.studentId) || '').trim();
+      if (!sid) return;
+      var name = (s.name || s.studentName || '') || '（未登録）';
+      var nick = s.nickname || '';
+      var label = sid + '　' + name + (nick ? '（' + nick + '）' : '');
+      opts.push('<option value="' + _esc(sid) + '">' + _esc(label) + '</option>');
+    });
+    if (opts.length === 0) { _niSetSelectMsg('（生徒がいません）'); return; }
+    sel.innerHTML = '<option value="">-- 生徒を選んでください --</option>' + opts.join('');
+    if (keep) sel.value = keep;
+    _niSelectBuilt = true;
+  }
+
+  function _niStudent(sid) {
+    var list = (_authAlertData && _authAlertData.students) ? _authAlertData.students : [];
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].studentId) === String(sid)) return list[i];
+    }
+    return null;
+  }
+
+  // 初回キーが発行済みか。true / false / null（不明）を返す。
+  //   ★auth_state は ① の前後どちらも legacy なので、auth_state だけでは判別できない。
+  //     サーバが発行済みフラグを返すならそれを優先し、返さない場合はこの画面での ① 実行を手がかりにする。
+  //     どちらも無ければ null（不明）＝ ② は押せるままにして、サーバ側の拒否に委ねる。
+  function _niKeyIssued(s, sid) {
+    if (_niIssuedThisSession[String(sid)]) return true;
+    if (!s) return null;
+    if (s.initialKeyIssued   != null) return !!s.initialKeyIssued;
+    if (s.hasInitialKey      != null) return !!s.hasInitialKey;
+    if (s.initialKeyIssuedAt != null) return !!s.initialKeyIssuedAt;
+    return null;
+  }
+
+  function niOnSelectChange() {
+    _niHideKeybox();
+    _niHideParentResult();
+    _niRenderStatus();
+  }
+
+  // 選んだ生徒の「いまどこまで済んでいるか」を表示し、①②③ の押せる/押せないを決める。
+  function _niRenderStatus() {
+    var sel = document.getElementById('ni-select');
+    var box = document.getElementById('ni-status');
+    var bIssue = document.getElementById('ni-btn-issue');
+    var bAct   = document.getElementById('ni-btn-activate');
+    var bPar   = document.getElementById('ni-btn-parent');
+    var hint   = document.getElementById('ni-activate-hint');
+    var sid = sel ? String(sel.value || '').trim() : '';
+
+    if (!sid) {
+      if (box) box.innerHTML = '生徒を選ぶと、いまどこまで済んでいるかを表示します。';
+      if (bIssue) bIssue.disabled = true;
+      if (bAct)   bAct.disabled   = true;
+      if (bPar)   bPar.disabled   = true;
+      if (hint) { hint.style.display = 'none'; hint.textContent = ''; }
+      return;
+    }
+
+    var s = _niStudent(sid);
+    var authState   = String((s && s.authState) || '');
+    var parentState = String((s && (s.parentAuthState || s.parent_auth_state)) || '');
+    var issued      = _niKeyIssued(s, sid);
+    var activated   = !!authState && authState !== 'legacy';   // legacy 以外＝すでに ② 済み
+
+    var issuedTxt = (issued === true)  ? '<span class="nis-done">発行済み</span>'
+                  : (issued === false) ? '<span class="nis-todo">まだ（① が必要）</span>'
+                  : '<span class="nis-unknown">不明（サーバから取得できません）</span>';
+    var actTxt    = activated ? '<span class="nis-done">有効化済み（' + _esc(authState) + '）</span>'
+                              : '<span class="nis-todo">まだ（legacy のまま）</span>';
+    var parTxt    = parentState ? '<span class="nis-done">' + _esc(parentState) + '</span>'
+                                : '<span class="nis-unknown">—（サーバから取得できません）</span>';
+
+    if (box) {
+      box.innerHTML =
+        '<div><span class="nis-label">生徒の認証状態</span>' + (authState ? _esc(authState) : '<span class="nis-unknown">—</span>') + '</div>' +
+        '<div><span class="nis-label">① 初回キー</span>' + issuedTxt + '</div>' +
+        '<div><span class="nis-label">② ログイン有効化</span>' + actTxt + '</div>' +
+        '<div><span class="nis-label">③ 保護者の認証状態</span>' + parTxt + '</div>';
+    }
+
+    if (bIssue) bIssue.disabled = false;
+    if (bPar)   bPar.disabled   = false;
+
+    // ② は「キー未発行が確定している」か「すでに有効化済み」なら押させない。
+    var actDisabled = (issued === false) || activated;
+    if (bAct) bAct.disabled = actDisabled;
+    if (hint) {
+      if (activated)            { hint.style.display = 'block'; hint.textContent = 'この生徒はすでに有効化済みです（② は不要）。'; }
+      else if (issued === false){ hint.style.display = 'block'; hint.textContent = '先に ① で初回キーを発行し、本人に配布してから押してください。'; }
+      else                      { hint.style.display = 'none';  hint.textContent = ''; }
+    }
+  }
+
+  // ① 初回キーの発行。★平文キーは応答の1回だけ。auth_state は legacy のまま変わらない。
+  function niIssueInitialKey() {
+    var sel = document.getElementById('ni-select');
+    var sid = sel ? String(sel.value || '').trim() : '';
+    if (!sid) { showToast('生徒を選んでください', 'error'); return; }
+    var opt   = (sel.options && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex] : null;
+    var label = (opt && opt.text) ? opt.text : sid;
+    adminGasPost({ action: 'adminIssueInitialKey', studentId: sid }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '初回キーの発行に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error');
+        return;
+      }
+      _niIssuedThisSession[sid] = true;
+      var key = res.initialKey || res.newInitialKey || res.initial_key || res.plaintextKey || res.newKey || '';
+      _niShowKeybox(label, key, !!res.reissued);
+      showToast(sid + ' の初回キーを発行しました', 'success');
+      _niRenderStatus();   // ① 済みになったので ② の押下可否を更新
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // ② ログインの有効化（legacy → key_issued）。★配布前に押させないための確認を必ず出す。
+  function niActivateInitialKey() {
+    var sel = document.getElementById('ni-select');
+    var sid = sel ? String(sel.value || '').trim() : '';
+    if (!sid) { showToast('生徒を選んでください', 'error'); return; }
+    var opt   = (sel.options && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex] : null;
+    var label = (opt && opt.text) ? opt.text : sid;
+    if (!confirm('初回キーを本人に配布し終えていますか？\n\n' + label +
+                 '\n\n配布前に有効化すると、次回ログインで初回設定画面が出て、\n' +
+                 'キーを持っていない生徒が入れなくなります。\n\n配布済みの場合のみ「OK」を押してください。')) return;
+    adminGasPost({ action: 'adminActivateInitialKey', studentId: sid }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '有効化に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error');
+        return;
+      }
+      // 手元の状態も更新して、表示を「有効化済み」に反映する。
+      var s = _niStudent(sid);
+      if (s) s.authState = res.authState || res.auth_state || 'key_issued';
+      showToast(sid + ' のログインを有効化しました', 'success');
+      _niRenderStatus();
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // ③ 保護者の初回パスワードを発行。★共通初回PWは既存の PARENT_INITIAL_PASSWORD を流用する。
+  function niIssueParentPassword() {
+    var sel = document.getElementById('ni-select');
+    var sid = sel ? String(sel.value || '').trim() : '';
+    if (!sid) { showToast('生徒を選んでください', 'error'); return; }
+    var opt   = (sel.options && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex] : null;
+    var label = (opt && opt.text) ? opt.text : sid;
+    adminGasPost({ action: 'adminIssueParentInitialPassword', studentId: sid }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '保護者の初回パスワードの発行に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error');
+        return;
+      }
+      var s = _niStudent(sid);
+      if (s) s.parentAuthState = res.parentAuthState || res.parent_auth_state || 'pw_issued';
+      _niShowParentResult(res.studentId || sid, res.name || '', label);
+      showToast(sid + ' の保護者に初回パスワードを発行しました', 'success');
+      _niRenderStatus();
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // ① の結果表示。★あとから取得できないので、必ず控えるよう強く注意する（既存 .auth-keybox を流用）。
+  function _niShowKeybox(label, key, reissued) {
+    var box = document.getElementById('ni-keybox');
+    if (!box) return;
+    var keyStr = String(key || '').trim();
+    var keyHtml, warn;
+    if (keyStr) {
+      keyHtml = '<div class="akb-key">' + _esc(keyStr) + '</div>';
+      warn = (reissued ? '⚠️ <b>再発行しました。古いキーは無効です。</b><br>' : '') +
+             '⚠️ この初回キーは<b>この画面でしか確認できません</b>（あとから取得できません）。<br>' +
+             '<b>必ず配布物に転記して、本人に渡してください。</b><br>' +
+             'この時点ではログイン方法はまだ変わりません。<b>渡し終えてから ② を押してください。</b>';
+    } else {
+      keyHtml = '<div class="akb-key" style="color:#b91c1c;font-size:16px">（初回キーを取得できませんでした）</div>';
+      warn = '⚠️ 初回キーがサーバ応答に含まれていませんでした。サーバの応答をご確認のうえ、もう一度発行してください。';
+    }
+    box.innerHTML =
+      '<div class="akb-title">🔑 ' + _esc(label) + ' の初回キー</div>' +
+      keyHtml +
+      '<div class="akb-warn">' + warn + '</div>' +
+      '<button type="button" class="akb-close" onclick="_niHideKeybox()">閉じる</button>';
+    box.style.display = 'block';
+    try { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
+  }
+  function _niHideKeybox() {
+    var box = document.getElementById('ni-keybox');
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  }
+
+  // ③ の結果表示（既存 .parent-reset-resultbox を流用）。
+  function _niShowParentResult(studentId, name, fallbackLabel) {
+    var box = document.getElementById('ni-parent-resultbox');
+    if (!box) return;
+    var label = name ? (String(studentId || '') + '　' + name) : (fallbackLabel || String(studentId || ''));
+    box.innerHTML =
+      '<div class="prb-title">✅ ' + _esc(label) + ' の保護者に初回パスワードを発行しました</div>' +
+      '<div class="prb-note">保護者の方に、下の<b>共通の初回パスワード</b>でログインしてもらってください。</div>' +
+      '<div class="prb-pw">' + _esc(PARENT_INITIAL_PASSWORD) + '</div>' +
+      '<div class="prb-note">ログイン後、保護者ご自身で新しいパスワードを設定する画面になります。</div>' +
+      '<button type="button" class="prb-close" onclick="_niHideParentResult()">閉じる</button>';
+    box.style.display = 'block';
+    try { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
+  }
+  function _niHideParentResult() {
+    var box = document.getElementById('ni-parent-resultbox');
     if (box) { box.style.display = 'none'; box.innerHTML = ''; }
   }
 
@@ -14904,7 +15237,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260816-0519</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260817-0517</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
