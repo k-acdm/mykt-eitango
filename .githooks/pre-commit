@@ -9,6 +9,9 @@
 # 以降、対象 HTML を含む commit のたびに自動で stamp される。
 # 注：stamp-version は 3 ファイルとも同一 version に更新するため、1 ファイルだけ変更した commit でも
 #     3 ファイルとも stamp され得る（同一 version 刻印で整合を取る意図）。
+#     ★この副作用により、admin.html 単独の変更でも index.html / view.html に差分が出る。
+#       本番反映前のゲート判定は「バッジ行と ?v= 行を除外して残りを数える」方式で行うこと。
+#       判定コマンドは CLAUDE.md の「★ 本番反映前のゲート判定基準」に記載。
 
 CHANGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(index|view|admin)\.html$' || true)
 if [ -z "$CHANGED" ]; then
