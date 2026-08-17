@@ -39,10 +39,19 @@
 - **※ Script Cache（GAS の CacheService）運用も廃止**（2026-08 AWS 移行）。旧「`clearAllCache()` を手動実行」等は不要。キャッシュ制御はバックエンド（Laravel）側の責務
 - **★ admin.html 新規画面追加時は必ずヘッダーセレクタリストに追加**（2026-05-04 確立）: 新画面（`screen-admin-...`）を追加するとき、[admin.html](admin.html) 先頭の `#screen-admin-... header { ... }` および `#screen-admin-... header h1 { ... }` セレクタリスト（通常版 + `@media (max-width: 480px)` レスポンシブ版の計 3 行）に新画面 ID を**末尾追記必須**。リストに含まれていないと `display:flex` / 青紫グラデ背景 / 白文字 / padding が未適用となり、`header-btns` 内の絵文字（🏠🚪）が改行されてヘッダー直下に表示崩れする。カレンダー追加時に発覚し過去 5 画面（kiso-students / kiso-photos / hp-grant 系）も同根バグだったことが判明（2026-05-04 #167/#168 で全画面修正済）
 - **★ 本番反映手順（唯一・フロントのみ）**（2026-08 AWS 移行後の確定版）:
+  0. **【ゲート】生徒・保護者画面に未完成の変更が混ざっていないか確認する**（下記「★ 本番反映前のゲート判定基準」参照）
   1. **dev で作業 → commit → `git push origin dev`**
   2. **`git checkout main && git merge dev && git push origin main`**（GitHub Pages に反映）→ **`git checkout dev`**（作業ブランチへ戻る）
   3. **生徒端末で強制リロード**：PC / Android は `Ctrl + F5`（Mac は `Cmd + Shift + R`）、iPad は左下バージョンバッジをタップして `?v=` 付き強制リロード
   - ※ 旧「GAS 変更時の必須 4 ステップ」の ③ `clasp push` / ④ Apps Script デプロイは**廃止**。このリポの本番反映は**フロント（GitHub Pages）のみ**。バックエンド（Laravel）の反映は別リポ `mykt-eitango-aws`／AWS 側で行う
+- **★ 本番反映前のゲート判定基準**（2026-08-17 改定）: 本番反映（dev→main）の前に、生徒（`index.html`）・保護者（`view.html`）画面へ**未完成の変更が混ざっていないか**を必ず確認する。
+  - **判定コマンド**（返り値が `0` なら進んでよい／`1` 以上なら止めて内容を確認する）:
+    ```bash
+    git fetch origin -q && git diff origin/main..dev -- index.html view.html | grep -E '^[-+]' | grep -v '^[-+][-+][-+]' | grep -vE 'app-version|\?v=[0-9]{8}-[0-9]{4}' | wc -l
+    ```
+  - **旧基準からの変更点**：旧は「差分に `index.html` / `view.html` が含まれていたら止める」だったが、`.githooks/pre-commit` の `stamp-version` が**3 ファイルを同一バージョンで刻む**ため、`admin.html` 単独の変更でも index/view のバージョンバッジと `?v=` は必ず動く。旧基準では毎回止まってゲートが形骸化し、**本当に止めるべき差分を見逃す**ようになるため、バッジ行と `?v=` 行を除外して判定する新基準に改めた。
+  - 除外するのは **バージョンバッジ行（`app-version`）** と **キャッシュバスト行（`?v=YYYYMMDD-HHMM`）** の 2 種類のみ。それ以外が 1 行でも残るなら、内容を確認するまで反映しない。
+  - `0` 以外だった場合は**コミットの選り分けや cherry-pick はせず**、まず何の差分かを報告して判断を仰ぐ。
 - **GitHub Web UI からのファイルアップロード時の事故防止**（2026-05-03 確立）: 画像等を Web UI からアップロードする際は、**先に対象フォルダ（`images/` 等）の中に入ってから**「Add file → Upload files」をクリックする。リポジトリのルートに居るままアップロードするとルート直下に置かれ、`index.html` 側の `images/...` 参照と不整合になる。事故が起きた場合は `git mv` で履歴保持しながら正しい場所に移動して再 push（過去事例：2026-05-03 のカンジー画像 4 ファイル / `git mv` で復旧）。**ブランチも `dev` に切り替えてからアップロード**すること（main 直 push を避けるため）
 - **★ iframe の初期 `src=""` は罠**（2026-05-04 夕方確立）: HTML 仕様で空文字 src は「現在のドキュメント URL」に解決される。`<iframe src="">` を作ると iframe が**親ページ自身を再帰ロード**してしまう。さらに JS 側で `if (!iframe.src)` のような空文字判定ガードを置くと、`iframe.src` は親ページの絶対 URL（truthy）になっているため**条件が常に false で代入が走らない**という二重バグになる。使うべき初期値は **`src="about:blank"`**。リセット時も `iframe.src = ''` ではなく `iframe.src = 'about:blank'` を使う。リスオン録音再生（コミット d9c08c8）で実機まで気付けなかった
 - **★ `window.location.href` で外部 URL 遷移する処理の前に beforeunload を解除**（2026-05-04 夜確立）: `index.html` には [index.html:5955](index.html:5955) で `beforeUnloadHandler` がページロード時にグローバル登録されている。内部画面遷移（`showScreen`）は問題ないが、`window.location.href = '...'` 等で外部 URL に飛ぶ前に `removeEventListener('beforeunload', beforeUnloadHandler)` をしないと「このサイトを離れますか？」確認ダイアログが出る。`doLogout` は元々これを呼んでいたが、新規追加した遷移処理（保護者ログイン経路）で漏れた実績あり（コミット 0e7e0a3 で修正、CLAUDE.md 内 #176 相当）

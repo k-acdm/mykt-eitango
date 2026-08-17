@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260817-0517"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260817-2235"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -400,6 +400,21 @@
   .hp-bd-hp { color: #047857; font-weight: 700; white-space: nowrap; }
   .hp-bd-total { text-align: right; font-size: 16px; font-weight: 800; color: #065f46; margin-top: 8px; }
   .hp-bd-meta { font-size: 12px; color: #6b7280; margin-top: 6px; text-align: right; }
+  /* 振り返り確認の追加表示（既存内訳の下に別枠。合計には混ぜない） */
+  .hp-bd-late { margin-top: 8px; font-size: 13px; font-weight: 700; color: #b91c1c; }
+  .hp-bd-hidden { margin-top: 10px; padding: 8px 10px; border-radius: 8px; }
+  .hp-bd-hidden.forfeit { background: #fffbeb; border: 1px solid #fcd34d; }
+  .hp-bd-hidden.pending { background: #eff6ff; border: 1px solid #bfdbfe; }
+  .hp-bd-hidden-head { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .hp-bd-hidden.forfeit .hp-bd-hidden-head { color: #92400e; }
+  .hp-bd-hidden.pending .hp-bd-hidden-head { color: #1d4ed8; }
+  .hp-bd-hidden-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 5px 2px; border-bottom: 1px dashed rgba(0,0,0,.08); }
+  .hp-bd-hidden-row .amt { font-weight: 700; white-space: nowrap; color: #374151; }
+  .hp-bd-hidden-total { text-align: right; font-size: 14px; font-weight: 800; margin-top: 6px; }
+  .hp-bd-hidden.forfeit .hp-bd-hidden-total { color: #92400e; }
+  .hp-bd-hidden.pending .hp-bd-hidden-total { color: #1d4ed8; }
+  .hp-bd-hidden-note { font-size: 12px; color: #6b7280; margin-top: 5px; line-height: 1.5; }
+  .hp-bd-histweek { font-size: 12px; color: #6b7280; margin-top: 8px; text-align: right; }
   .refl-reminder-btn { margin-top: 10px; padding: 8px 16px; background: linear-gradient(135deg,#f59e0b,#d97706); color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 13px; transition: transform .12s, box-shadow .12s; }
   .refl-reminder-btn:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(217,119,6,.3); }
   .refl-reminder-btn:disabled { opacity: .6; cursor: default; box-shadow: none; transform: none; }
@@ -8889,7 +8904,9 @@
       // ★修正A：byContentNamed（正式名称）は応答の直下。hpBreakdown の中に無いため注入してから描画。
       var bd = res.hpBreakdown || {};
       if (Array.isArray(res.byContentNamed)) { bd.byContentNamed = res.byContentNamed; }
-      panel.innerHTML = _renderHpBreakdown(bd);
+      // ★純追加：既存内訳は不変のまま、その「下」に「期限切れ／振り返り待ちHP・提出日・当時の週数」を別枠で追記。
+      //   3キー（reservedDetail/historicalWeek/reflectionTiming）が無い旧応答では '' を返し従来表示のまま。
+      panel.innerHTML = _renderHpBreakdown(bd) + _renderReflectionExtras(res);
     }).catch(function() {
       panel.innerHTML = '<div class="dw-empty">通信エラーが発生しました</div>';
     });
@@ -8922,6 +8939,77 @@
              (bd.isAbsoluteMissionComplete ? ' ／ 絶対ミッション達成 ✅' : '') + '</div>';
     }
     return '<div class="hp-bd-wrap">' + rows + '<div class="hp-bd-total">合計 +' + Number(bd.total) + ' HP</div>' + meta + '</div>';
+  }
+
+  // ★純追加（2026-08）：adminGetStudentHpBreakdown の追加3キーを、既存内訳の「下」に別枠で描画する。
+  //   ・既存の内訳/合計には一切混ぜない（合計を狂わせない）。
+  //   ・3キーが全て欠ける旧応答では '' を返す＝従来表示のまま（フォールバック）。
+  //   res: { reservedDetail?, historicalWeek?, reflectionTiming? , ... }
+  function _renderReflectionExtras(res) {
+    if (!res) return '';
+    var out = '';
+    // 表示2：実際に書かれた日（締切超過のときだけ足す。false は現状のまま＝何も足さない）。
+    var rt = res.reflectionTiming;
+    if (rt && rt.exists && rt.lateSubmission && rt.submittedDate) {
+      out += '<div class="hp-bd-late">★ この振り返りは ' + _esc(_reflMd(rt.submittedDate)) + ' に提出（締切超過）</div>';
+    }
+    // 表示1：内訳に出ていない学習（別枠）。releasedTotal は既に既存内訳に出ているので出さない。
+    var rd = res.reservedDetail;
+    if (rd && rd.hasHiddenLearning) {
+      var f = rd.forfeited;
+      if (f && Array.isArray(f.items) && f.items.length && Number(f.total) > 0) {
+        out += _renderHiddenBlock('forfeit', f.items, Number(f.total));
+      }
+      var p = rd.pending;
+      if (p && Array.isArray(p.items) && p.items.length && Number(p.total) > 0) {
+        out += _renderHiddenBlock('pending', p.items, Number(p.total));
+      }
+    }
+    // 表示3：その日（当時）の週数・倍率。resolved のときだけ。現在値は出さない。
+    var hw = res.historicalWeek;
+    if (hw && hw.resolved) {
+      out += _renderHistoricalWeek(hw);
+    }
+    return out;
+  }
+  // 期限切れ没収 / 振り返り待ち の別枠ブロック（項目＋額＋合計＋説明文）。合計は既存内訳に混ぜない。
+  function _renderHiddenBlock(kind, items, total) {
+    var isForfeit = (kind === 'forfeit');
+    var heading = isForfeit ? '⏰ 期限切れ（振り返り未提出）' : '⏳ 振り返り待ち';
+    // ★要点：「やっていないのではなく、振り返りが出ていないのでHPになっていない」を一目で。
+    var note = isForfeit
+      ? '※ 学習は実施済みですが、振り返りが締切までに出なかったため HP になっていません（没収済み）。'
+      : '※ 学習は実施済みで、まだ失っていません。振り返りを書けば HP になります。';
+    var rows = (items || []).map(function(it) {
+      var nm = _esc((it && it.name) ? it.name : (it && it.key) || '');
+      var hp = Number((it && it.hp) || 0);
+      return '<div class="hp-bd-hidden-row"><span class="hp-bd-label">' + nm + '</span><span class="amt">' + hp + ' HP</span></div>';
+    }).join('');
+    return '<div class="hp-bd-hidden ' + (isForfeit ? 'forfeit' : 'pending') + '">' +
+             '<div class="hp-bd-hidden-head">' + heading + '</div>' +
+             rows +
+             '<div class="hp-bd-hidden-total">計 ' + Number(total || 0) + ' HP</div>' +
+             '<div class="hp-bd-hidden-note">' + note + '</div>' +
+           '</div>';
+  }
+  // その日（当時）の週数・倍率。連続日数は confirmed 値が無いため、範囲があれば「推定」表記、無ければ非表示。
+  function _renderHistoricalWeek(hw) {
+    var segs = [];
+    if (hw.streakRangeMin != null && hw.streakRangeMax != null) {
+      segs.push('連続 ' + Number(hw.streakRangeMin) + '〜' + Number(hw.streakRangeMax) + '日（推定）');
+    }
+    if (hw.week != null) {
+      var w = '' + Number(hw.week) + ' 週目';
+      if (hw.multiplier != null) w += ' ×' + Number(hw.multiplier) + ' 倍';
+      segs.push(w);
+    }
+    if (!segs.length) return '';
+    return '<div class="hp-bd-histweek">📅 この日（当時）：' + _esc(segs.join(' ／ ')) + '</div>';
+  }
+  // 日付文字列（YYYY-MM-DD...）から「M/D」を取り出す。パース不能ならそのまま返す。
+  function _reflMd(s) {
+    var m = String(s == null ? '' : s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? (Number(m[2]) + '/' + Number(m[3])) : String(s == null ? '' : s);
   }
 
   // ②拡張 修正3：未記入者の「この日の学習履歴を見る」＝adminGetStudentDayActivity（やった内容＝件数・HP額なし）。
@@ -15237,7 +15325,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260817-0517</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260817-2235</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
