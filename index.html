@@ -3382,10 +3382,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260817-2235"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260817-2333"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260817-2235">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260817-2235"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260817-2333">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260817-2333"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -8031,17 +8031,33 @@
     try { _applyLineRegisteredButtons(); } catch(e){}
   })();
 
-  // 防護柵1枚目：起動時のセッション自動復帰（silent）。
-  //   2026-08-04 変更：個人端末前提のため silent 自動復帰を全面解禁（カメラ起動→WebView 強制
-  //   リロードで in-memory の _studentId が消えても、タップ不要で元のログイン済み状態へ戻す）。
-  //   - 保存済み studentId があり、かつ保存時刻から 7 日以内（TTL）なら、タップ待ちの復元
-  //     プロンプト（.login-step-resume）を出さず、その場で resumeContinueLogin() を自動実行する。
-  //   - resumeContinueLogin() は doLogin（loginStudent）でサーバー再検証を必ず通すため、
-  //     無効ID / 期限切れ等では復帰しない（既存挙動どおりログイン画面へフォールバック）。
+  // 防護柵1枚目：起動時のセッション復帰。
+  //   2026-08-04：個人端末前提で silent 自動復帰を解禁していたが、塾の共有iPadで「前の生徒として
+  //     自動ログイン→別人の名前で強制振り返りが出る」誤ログインが多発したため撤回。
+  //   2026-08-17 変更：silent 自動復帰をやめ、必ず確認プロンプト（.login-step-resume）を挟む。
+  //   - 保存済み studentId があり、かつ保存時刻から 7 日以内（TTL）なら、確認プロンプトを表示する
+  //     （＝タップ不要の自動ログインはしない）。前回IDを見せて「このまま続ける／別の生徒はこちら」を選ばせる。
+  //   - 「このまま続ける」= resumeContinueLogin() → doLogin（loginStudent）でサーバー再検証を必ず通す。
+  //     ★通常のログイン処理に合流するため、暗証番号切替後（2026-08-24〜）はサーバー応答に従い自動で
+  //       暗証番号画面へ進む（画面側で日付や認証状態を判定しない）。無効ID/期限切れは既存どおりフォールバック。
+  //   - 「別の生徒はこちら」= dismissResumePrompt() → 保存セッションを消して通常のログイン画面（役割選択）へ。
   //   - sid 無し / TTL 外 / 例外時は何もしない＝通常のログイン画面（役割選択）を表示（既存フロー不変）。
-  //   ★ 手動の復元 UI（.login-step-resume / resumeContinueLogin / dismissResumePrompt）は
-  //     コードとして残す（挙動は壊さない）。ただし全面自動化により通常フローでは経由しなくなる。
+  //   ★ _SESSION_TTL_MS（7日）は不変。今回の対策は「確認を挟む」こと。
   var _SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;  // セッション永続化 TTL：7 日（旧：教育日一致=実質当日限定）
+  // 起動時の確認プロンプト表示（silent 自動復帰の置換）。前回IDを見せて本人確認を挟む。
+  //   ★名前は localStorage に持たないため生徒IDを表示（無理に取りに行かない）。
+  function _showSessionResumePrompt(sid) {
+    try {
+      var label = document.getElementById('resume-sid-label');
+      if (label) label.textContent = sid;
+      var stepRole   = document.querySelector('.login-step-role');
+      var stepId     = document.querySelector('.login-step-id');
+      var stepResume = document.querySelector('.login-step-resume');
+      if (stepRole)   stepRole.style.display   = 'none';
+      if (stepId)     stepId.style.display     = 'none';
+      if (stepResume) stepResume.style.display = '';
+    } catch(e){}
+  }
   (function _initSessionResumePrompt(){
     try {
       var sid = String(localStorage.getItem('mykt_session_sid') || '').trim();
@@ -8054,9 +8070,9 @@
       if (eduday && eduday !== _todayKeyJST3am()) return;
       // TTL：保存時刻から 7 日以内なら有効（旧：_eduDayKeyFromTs === _todayKeyJST3am の当日限定を置換）
       if ((Date.now() - ts) > _SESSION_TTL_MS) return;
-      // silent 自動復帰：復元ステップの提示を挟まず、その場で復帰を実行する。
-      // 失敗（無効ID/期限切れ）は resumeContinueLogin → doLogin 内で処理され、ログイン画面に留まる。
-      resumeContinueLogin();
+      // 2026-08-17：共有端末での誤ログイン防止。silent 自動復帰をやめ、確認プロンプトを表示する。
+      //   本人が「このまま続ける」を押した時だけ resumeContinueLogin() → doLogin（通常ログイン）に進む。
+      _showSessionResumePrompt(sid);
     } catch(e){}
   })();
 
@@ -8229,8 +8245,16 @@
     if (input) input.value = sid;
     doLogin();
   }
-  // 「別の生徒はこちら」：復元プロンプトを閉じ、通常の役割選択（手入力）フローに戻す。
+  // 「別の生徒はこちら」：★共有端末対策。保存セッションを消してから通常の役割選択（手入力）フローに戻す。
+  //   ★消す値は _doLogoutFinalize（index.html のログアウト処理）と同一の4値に揃える（消し漏れ・消しすぎ防止）。
+  //     消さないと次回起動でまた前の生徒の確認プロンプトが出てしまう。
   function dismissResumePrompt() {
+    try {
+      localStorage.removeItem('mykt_session_sid');
+      localStorage.removeItem('mykt_session_ts');
+      localStorage.removeItem('mykt_session_token');
+      localStorage.removeItem('mykt_session_eduday');
+    } catch(e){}
     var stepResume = document.querySelector('.login-step-resume');
     if (stepResume) stepResume.style.display = 'none';
     try { backToRoleSelect(); } catch(e){}  // 役割選択ステップを表示し直す（既存挙動を再利用）
@@ -21225,7 +21249,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260817-2235</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260817-2333</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
