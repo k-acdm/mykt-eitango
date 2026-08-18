@@ -862,6 +862,9 @@
     #study-timer { background: #dc2626; color: #fff; font-size: 24px; font-weight: bold; font-family: 'Courier New', monospace; letter-spacing: 1px; padding: 10px 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.35); pointer-events: none; white-space: nowrap; display: none; }
     #study-timer.study-on { display: inline-block; }                                   /* 表示中：内容幅（ヘッダー内/通常。横長化しない） */
     #study-timer.study-on.study-home { display: block; margin: 6px auto 0; width: -moz-fit-content; width: fit-content; }  /* ヘッダー無し画面（ホーム）：中央・コンパクト */
+    /* 2026-08-19 要望1：生徒が「非表示」を選んだときだけ隠す（計測・送信は従来どおり継続）。
+       ★絶対ミッションが残っている間は _applyStudyTimerVisibility が付与しない＝消せない。 */
+    #study-timer.study-hidden { display: none !important; }
     @media (max-width: 480px) { #study-timer { font-size: 22px; padding: 8px 14px; } }
     /* 第2群③：暗証番号入力/初回設定画面 */
     .setup-notice { background: #fff7ed; border: 2px solid #fb923c; color: #9a3412; font-weight: bold; font-size: 14px; line-height: 1.7; border-radius: 10px; padding: 12px 14px; margin: 12px 0 16px; text-align: left; }
@@ -3382,10 +3385,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-0137"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-0454"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-0137">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-0137"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-0454">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-0454"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4373,6 +4376,16 @@
       <p class="sfx-setting-desc">クイズの正解・不正解の音や、HPをもらうときの音を、鳴らす/鳴らさないを切り替えられるよ。<br><span class="sfx-note">※英語や国語の読み上げの声は、この設定では消えません。</span></p>
       <button type="button" id="sfx-toggle-btn" class="sfx-toggle on" onclick="toggleSfx()" aria-pressed="true">
         <span class="sfx-toggle-label" id="sfx-toggle-label">🔔 効果音：オン</span>
+        <span class="sfx-toggle-switch"><span class="sfx-toggle-knob"></span></span>
+      </button>
+    </div>
+    <!-- 2026-08-19 要望1：実施時間タイマーの表示切替。
+         ★絶対ミッションが残っている間はカードごと非表示（＝消せない）。達成後のみ出る。 -->
+    <div class="setting-card" id="study-timer-setting-card" style="display:none">
+      <h3>⏱ 実施時間タイマー</h3>
+      <p class="sfx-setting-desc">画面に出ている「⏱ 実施時間」を、消す/出すを切り替えられるよ。<br><span class="sfx-note">※消しても時間はきちんと計られているよ（HP や記録には影響しません）。</span></p>
+      <button type="button" id="study-timer-toggle-btn" class="sfx-toggle on" onclick="toggleStudyTimerVisibility()" aria-pressed="true">
+        <span class="sfx-toggle-label" id="study-timer-toggle-label">⏱ タイマー：表示する</span>
         <span class="sfx-toggle-switch"><span class="sfx-toggle-knob"></span></span>
       </button>
     </div>
@@ -6653,6 +6666,7 @@
         if (!res || !res.ok) { _renderRequiredUI(null); return null; }
         _requiredProgress = res;
         _renderRequiredUI(res);
+        _applyStudyTimerVisibility();   // 2026-08-19 要望1：達成/未達の変化をタイマー表示へ反映
         return res;
       })
       .catch(function(err){
@@ -7467,6 +7481,7 @@
         if (b) b.classList.toggle('selected', i === _voiceIdx);
       }
       _renderSfxToggle();  // 効果音トグルの現在状態を反映
+      _renderStudyTimerToggle();  // 2026-08-19 要望1：タイマー切替の表示可否と現在状態を反映
     }
     // 第4群B：実施時間タイマーをアクティブ画面へ移設。
     //   ・ヘッダーがある画面：<h1> と <span> の間へ（右span＝進捗B系/ヒントC系は右端に不動。他画面は従来どおり不変）。
@@ -7488,6 +7503,7 @@
         }
       }
     } catch(e){}
+    _applyStudyTimerVisibility();   // 2026-08-19 要望1：移設後に表示/非表示を再適用（ミッション達成の反映もここで拾う）
   }
   // showScreen は音声システム内で定義済み
   function showMsg(id, text, kind) { var el = document.getElementById(id); el.textContent = text; el.className = 'msg ' + kind; el.style.display = 'block'; }
@@ -10876,6 +10892,7 @@
     };
     var el0 = document.getElementById('study-timer');
     if (el0) { el0.style.display = ''; el0.classList.add('study-on'); }   // 表示は class 制御（内容幅＝横長化しない）
+    _applyStudyTimerVisibility();   // 2026-08-19 要望1：保存済みの表示/非表示を復元（ミッション未達なら必ず表示）
     paint();
     if (_studyTimerInterval) clearInterval(_studyTimerInterval);
     _studyTimerInterval = setInterval(paint, 1000);   // Date.now() 差分なのでタブ throttle でもドリフトしない
@@ -10883,7 +10900,54 @@
   function _stopStudyTimer() {
     if (_studyTimerInterval) { clearInterval(_studyTimerInterval); _studyTimerInterval = null; }
     var el = document.getElementById('study-timer');
-    if (el) { el.classList.remove('study-on'); el.classList.remove('study-home'); el.style.display = ''; el.textContent = ''; }
+    if (el) { el.classList.remove('study-on'); el.classList.remove('study-home'); el.classList.remove('study-hidden'); el.style.display = ''; el.textContent = ''; }
+  }
+
+  // ============================================================================
+  // 2026-08-19 要望1：実施時間タイマーの表示/非表示を生徒が選べるようにする。
+  //   ★絶対ミッションが残っている間は選べない（常時表示）。判定は既存 _shouldBlockForRequired を再利用。
+  //   ★選んだ状態は localStorage に保存し、アプリを閉じても次回そのまま復元される。
+  //   ★計測・submitSessionTime・振り返り最終画面の当日合計は一切変更しない（見た目だけ）。
+  // ============================================================================
+  var STUDY_TIMER_HIDDEN_KEY = 'mykt_study_timer_hidden';
+
+  // 生徒が「非表示」を選んでいるか（保存値が真実）
+  function _studyTimerHidden() {
+    try { return localStorage.getItem(STUDY_TIMER_HIDDEN_KEY) === '1'; } catch(e) { return false; }
+  }
+  // 消してよい状態か＝絶対ミッションのブロックが掛かっていない。
+  //   ★新しい判定は作らず、強制ブロックと同じ _shouldBlockForRequired を反転して使う
+  //     （未取得/失敗時のフェイルオープンも既存挙動にそのまま追従する）。
+  function _studyTimerCanHide() {
+    try { return !_shouldBlockForRequired(); } catch(e) { return false; }
+  }
+  // 現在の状態を #study-timer に反映。★ミッション未達なら保存値に関わらず必ず表示に戻す。
+  function _applyStudyTimerVisibility() {
+    var el = document.getElementById('study-timer');
+    if (!el) return;
+    el.classList.toggle('study-hidden', _studyTimerCanHide() && _studyTimerHidden());
+  }
+  // 設定画面のカード表示 + トグル見た目を保存値に同期（_renderSfxToggle と同じ作法）。
+  function _renderStudyTimerToggle() {
+    var card = document.getElementById('study-timer-setting-card');
+    var btn  = document.getElementById('study-timer-toggle-btn');
+    var lbl  = document.getElementById('study-timer-toggle-label');
+    var canHide = _studyTimerCanHide();
+    if (card) card.style.display = canHide ? '' : 'none';   // ミッション未達 → カードごと出さない
+    if (!btn) return;
+    var shown = !_studyTimerHidden();     // on = 表示する
+    btn.classList.toggle('on',  shown);
+    btn.classList.toggle('off', !shown);
+    btn.setAttribute('aria-pressed', shown ? 'true' : 'false');
+    if (lbl) lbl.textContent = shown ? '⏱ タイマー：表示する' : '⏱ タイマー：表示しない';
+  }
+  // 切り替え＋保存＋即反映。★ミッション未達のうちは何もしない（消せない）。
+  function toggleStudyTimerVisibility() {
+    if (!_studyTimerCanHide()) { _renderStudyTimerToggle(); return; }
+    var nextHidden = !_studyTimerHidden();   // 保存値を基準に反転（in-memory のズレに引きずられない）
+    try { localStorage.setItem(STUDY_TIMER_HIDDEN_KEY, nextHidden ? '1' : '0'); } catch(e) {}
+    _applyStudyTimerVisibility();
+    _renderStudyTimerToggle();
   }
   // ログイン成功時に呼ぶ。★二重開始ガード：既に計測中（resume / 再 loginStudent）なら何もしない。
   function _beginStudySession() {
@@ -21313,7 +21377,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-0137</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-0454</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
