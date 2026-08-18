@@ -3385,10 +3385,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-0454"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-0533"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-0454">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-0454"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-0533">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-0533"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6591,6 +6591,11 @@
   // スキップ判定に使う）。'student' / 'test' / 'teacher' / 'invited' / 'experience' /
   // 'unknown' のいずれか。空文字は「未確定」扱いで通常生徒として扱う。
   var _accountType = '';
+  // 2026-08-19：loginStudent 応答の canSkipReflection（サーバー AWS 179cfef）をセッション中保持。
+  //   true = 特殊アカウント、または「その教育日の振り返りを提出済み」→ ログアウト時に3択モーダルを出す。
+  //   ★フロントでログイン回数を数えたりせず、サーバーの判定をそのまま使う。
+  //   ★応答に無い（古いサーバー・通信失敗）ときは false のまま＝従来どおりキャンセル不可（安全側）。
+  var _canSkipReflection = false;
 
   // ========================================================================
   // 両輪システム Phase A フロント（2026-05-16）：
@@ -7761,6 +7766,7 @@
       _totalHP     = Number(res.totalHP) || 0;
       _streak      = Number(res.streak) || 0;
       _accountType = String(res.accountType || ''); // Task 3：振り返りモーダルスキップ判定用
+      _canSkipReflection = (res.canSkipReflection === true);  // 2026-08-19：厳密比較＝未定義なら false（安全側）
       // commit 6b-1：V2 フラグをセッション中保持（英単語RUSH の V1/V2 出し分けに使用）
       _vocabV2Mode    = String(res.vocabV2Mode || 'off');
       _vocabV2Enabled = (res.vocabV2Enabled === true);
@@ -7818,6 +7824,7 @@
     _totalHP     = Number(res.totalHP) || 0;
     _streak      = Number(res.streak) || 0;
     _accountType = String(res.accountType || '');
+    _canSkipReflection = (res.canSkipReflection === true);  // 2026-08-19：厳密比較＝未定義なら false（安全側）
     _vocabV2Mode    = String(res.vocabV2Mode || 'off');
     _vocabV2Enabled = (res.vocabV2Enabled === true);
     _pendingCatchupDate = (res.pendingReflectionDate && String(res.pendingReflectionDate).match(/^\d{4}-\d{2}-\d{2}$/))
@@ -10143,7 +10150,12 @@
   // Task 3（2026-05-19）：テスト / 講師 / 招待アカウントは振り返り不要として判定する。
   // 動作確認時に毎回 100 文字書くのは非現実的なため。
   // 'student' / 'experience' / 'unknown' / '' は通常通り振り返りモーダル経由。
+  //   2026-08-19：これに加えて、サーバーが canSkipReflection=true を返したときも3択モーダルにする
+  //   （特殊アカウント / その教育日の振り返りを提出済み＝2回目以降のログイン）。
+  //   ★true のとき「だけ」通す厳密比較。応答に無い・通信失敗・古いサーバーでは false のままなので、
+  //     従来どおりキャンセル不可に倒れる。★accountType 判定は残す（サーバーが未対応でも特殊枠は従来動作）。
   function _shouldSkipReflectionLogout() {
+    if (_canSkipReflection === true) return true;
     var t = String(_accountType || '').trim().toLowerCase();
     return (t === 'test' || t === 'teacher' || t === 'invited');
   }
@@ -11000,6 +11012,7 @@
     _historyMode = false; _finishing = false; _totalHP = 0; _prefetched = {}; _gasCache = {};
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
     _accountType = '';
+    _canSkipReflection = false;   // 2026-08-19：次のログインまで持ち越さない（共用端末で前の生徒の状態を残さない）
     // commit 6b-1：V2 フラグ/セッション状態もリセット
     _vocabV2Mode = 'off'; _vocabV2Enabled = false; _isV2Session = false;
     _v2BlockNo = 0; _v2Round = 0; _v2Position = 0; _v2GroupType = 'word';
@@ -21188,6 +21201,7 @@
           _totalHP = Number(res.totalHP) || _totalHP;
           if (Number(res.streak) > 0) _streak = Number(res.streak);
           if (res.accountType != null) _accountType = String(res.accountType);
+          if (res.canSkipReflection != null) _canSkipReflection = (res.canSkipReflection === true);  // 2026-08-19：返ってきた時だけ更新（古いサーバーでは現状維持）
           try { _flushResendQueue(); } catch(e){}  // 防護柵3枚目：疎通回復時に未送信を自動再送
           _revalidating = false;
         } else {
@@ -21377,7 +21391,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-0454</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-0533</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
