@@ -3382,10 +3382,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260817-2333"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260818-1540"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260817-2333">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260817-2333"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260818-1540">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260818-1540"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4703,6 +4703,10 @@
   <header><h1>🧮 問題</h1><span id="kiso-problem-meta-label"></span></header>
   <div class="container" style="padding-top:16px">
     <div id="kiso-resume-banner" class="kiso-resume-banner" style="display:none">📂 未送信のセッションを再開しています。<br>もう一度写真を撮影して提出してね。</div>
+    <!-- 2026-08-18：自動再開／手動復元の最中だけ出す「新しい問題でやり直す」導線。
+         基礎計算は「毎回違う問題」が売りなので、自動再開だけにすると練習を繰り返せなくなる。
+         カンジー kanji-yomi-fresh-btn（ce08961）と同型・同スタイル。 -->
+    <button class="btn-wide" id="kiso-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin:0 0 10px" onclick="kisoRestartFresh()">🆕 新しい問題でやり直す</button>
     <!-- 2026-05-20 過去セッション復元プロモバナー：未送信の前回セッションがあるときだけ表示
          data-resume-session-id 属性に対象 sessionId を保持し、ボタンタップで該当エントリを直接 resume -->
     <div id="kiso-resume-promo" class="kiso-resume-promo" style="display:none" data-resume-session-id="">
@@ -4808,8 +4812,8 @@
       <input type="file" id="kiso-work-photo-input-1" accept="image/*" capture="environment" style="display:none" onchange="onKisoWorkPhotoSelected(event)"/>
     </div>
     <div class="reload-warn-banner recovery" data-content="基礎計算">
-      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
-      もう一度ログインしてから「📐 基礎計算」→ <strong>同じ単元</strong> →「<strong>過去のセッションを見直す → 1 つ前</strong>」で再開できるよ。<span class="reload-warn-apology">面倒くさくてゴメンナサイ🙇‍♂️💦</span>
+      <div class="reload-warn-title">📂 撮影後にログイン画面に戻っても大丈夫</div>
+      もう一度ログインして「📐 基礎計算」→ <strong>同じ単元・同じ問題数</strong> を選べば、<strong>同じ問題で自動で再開</strong>できるよ。
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-kiso-pre-confirm')">← 戻る</button>
   </div>
@@ -4836,8 +4840,8 @@
       <input type="file" id="kiso-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKisoPhotoSelected(event)"/>
     </div>
     <div class="reload-warn-banner recovery" data-content="基礎計算">
-      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
-      もう一度ログインしてから「📐 基礎計算」→ <strong>同じ単元</strong> →「<strong>過去のセッションを見直す → 1 つ前</strong>」で再開できるよ。<span class="reload-warn-apology">面倒くさくてゴメンナサイ🙇‍♂️💦</span>
+      <div class="reload-warn-title">📂 撮影後にログイン画面に戻っても大丈夫</div>
+      もう一度ログインして「📐 基礎計算」→ <strong>同じ単元・同じ問題数</strong> を選べば、<strong>同じ問題で自動で再開</strong>できるよ。
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
@@ -4864,8 +4868,8 @@
         </ul>
       </div>
       <div class="reload-warn-banner recovery" data-content="基礎計算">
-        <div class="reload-warn-title">⚠️ 送信後にログイン画面に戻ってしまった場合</div>
-        もう一度ログインしてから「📐 基礎計算」→ <strong>同じ単元</strong> →「<strong>過去のセッションを見直す → 1 つ前</strong>」で再開できるよ。<span class="reload-warn-apology">面倒くさくてゴメンナサイ🙇‍♂️💦</span>
+        <div class="reload-warn-title">📂 送信後にログイン画面に戻っても大丈夫</div>
+        もう一度ログインして「📐 基礎計算」→ <strong>同じ単元・同じ問題数</strong> を選べば、<strong>同じ問題で自動で再開</strong>できるよ。
       </div>
       <div class="kiso-confirm-btns">
         <button class="kiso-confirm-retake" onclick="retakeKisoPhoto()">📸 撮り直す</button>
@@ -12948,9 +12952,9 @@
   // - mykt_kiso_recent_<rank> = [ { sessionId, rank, rankName, count, seenAt, seenDateKey,
   //                                  questions:[...], submission:null|{...} } ]
   // - 新しい順で arr[0] = 「現在進行中のセッション」、arr[1] = 「1つ前」、arr[2] = 「2つ前」
-  // - 当日 + 前日のエントリのみ残す（古いものは破棄）。上限 5 件で安全側
+  // - 当日 + 前日のエントリのみ残す（古いものは破棄）。上限 10 件で安全側
   // - submission === null → Mode A（再開）、submission !== null → Mode B（閲覧）
-  var KISO_RECENT_MAX = 5;
+  var KISO_RECENT_MAX = 10;  // 2026-08-18：5 → 10。カメラ起動リロードのループを数周しても復元候補が localStorage に残るように
   function _kisoRecentKey(rank) { return 'mykt_kiso_recent_' + Number(rank || 0); }
   function _kisoLoadRecentSessions(rank) {
     if (!rank) return [];
@@ -13229,9 +13233,12 @@
   // 写真は再撮影必須（前回撮影分は端末側にもサーバ側にも保持していないため、技術的に必然）。
   // 同じ sessionId を再利用するため、GAS 側 KisoSessions の attempts=0 状態の行に対して
   // 通常の submitKisoAnswer 経路（初回提出扱い）が走る。
-  function _resumeKisoSession(entry) {
+  function _resumeKisoSession(entry, silent) {
     if (!entry || !entry.sessionId) return;
-    var ok = confirm(
+    // 2026-08-18：silent === true のとき（startKisoSession の自動再開経路）だけ confirm を出さない。
+    //   既存の手動経路（onKisoPastBtnClick / onKisoResumePromoClick）は第 2 引数を渡さないので
+    //   従来どおり確認ダイアログが出る＝手動復元の挙動は完全に不変。復元本体のロジックは無変更。
+    var ok = (silent === true) ? true : confirm(
       '未送信のセッションを再開しますか？\n\n' +
       '・問題セットは前回と同じものを表示します\n' +
       '・写真は最初から撮影し直しになります\n' +
@@ -13265,6 +13272,46 @@
     document.getElementById('kiso-problem-meta-label').textContent = _kisoState.rank + '級・' + _kisoState.count + '題';
     _renderKisoProblemList();
     showScreen('screen-kiso-problem');
+  }
+
+  // -----------------------------------------------------
+  // 自動再開（2026-08-18、カンジー ce08961 と同型）
+  // -----------------------------------------------------
+  // カメラ起動で WebView が強制リロードされると in-memory の _kisoState が消える。
+  // 従来は「同じ級・同じ問題数」で入り直しても startKisoSession が新規セッションを引き直すため、
+  // 手元の紙（前の問題への答え）が新しい問題で採点されて必ず不正解になりループしていた。
+  // そこで、当日の未送信セッションが残っていれば無言で同じ問題を復元する。
+  //
+  // 復元条件（★すべて満たすときだけ。1 つでも外れたら従来どおり新規セッションを取得する）
+  //   ・当日（_todayKeyJST3am：カンジーの自動再開と同じ日付キー）
+  //   ・未送信（submission が無い）
+  //   ・同じ級（rank）
+  //   ・同じ問題数（count）
+  //   ・questions が存在し空でない
+  // 該当が複数あれば最新を採用（_kisoLoadRecentSessions は新しい順＝プロモバナーと同じ選び方）。
+  function _kisoFindResumableEntry(rank, count) {
+    try {
+      var arr   = _kisoLoadRecentSessions(rank);   // 当日 + 前日でフィルタ済み
+      var today = _todayKeyJST3am();
+      for (var i = 0; i < arr.length; i++) {
+        var e = arr[i];
+        if (!e) continue;
+        if (e.submission) continue;                           // 送信済み → 対象外
+        if (e.seenDateKey !== today) continue;                // 前日以前 → 対象外
+        if (Number(e.rank)  !== Number(rank))  continue;       // 級ちがい → 対象外
+        if (Number(e.count) !== Number(count)) continue;       // 問題数ちがい → 対象外
+        if (!e.questions || !e.questions.length) continue;     // 問題が無い → 対象外
+        return e;
+      }
+    } catch(e) {}
+    return null;
+  }
+  // 自動再開中に出す「新しい問題でやり直す」導線（カンジー kanjiRestartFresh と同型）。
+  // forceFresh=true で自動再開をスキップし、確実に新規セッションを取り直す。
+  function kisoRestartFresh() {
+    if (!confirm('新しい問題でやり直しますか？（いま表示している問題は無くなります）')) return;
+    var cnt = Number(_kisoState.count) || 5;
+    startKisoSession(cnt, true);
   }
 
   // -----------------------------------------------------
@@ -13491,9 +13538,17 @@
   }
 
   // §4.3 → §4.4 → §4.5 セッション開始（GAS で問題を抽出 → 問題表示画面へ）
-  function startKisoSession(count) {
+  function startKisoSession(count, forceFresh) {
     if (!_kisoState.selected) return;
     var def = _kisoState.selected;
+    // ★2026-08-18 自動再開：当日の未送信セッション（同じ級・同じ問題数）が残っていれば
+    //   新規取得せず、その問題セットをそのまま復元する（confirm は出さない＝無言で再開）。
+    //   条件を満たさない場合／kisoRestartFresh からの forceFresh=true のときは、
+    //   下の従来どおりの新規取得（gasGet startKisoSession）にそのまま進む。
+    if (!forceFresh) {
+      var _resumeEntry = _kisoFindResumableEntry(def.rank, count);
+      if (_resumeEntry) { _resumeKisoSession(_resumeEntry, true); return; }
+    }
     // 待機演出（軽いスピナー）
     var problemList = document.getElementById('kiso-problem-list');
     problemList.innerHTML = '<div class="loading" style="padding:30px 0">⏳ 問題を取得中...</div>';
@@ -13566,6 +13621,9 @@
     // Mode A 再開時のバナー表示（通常開始時は隠す）
     var banner = document.getElementById('kiso-resume-banner');
     if (banner) banner.style.display = _kisoState.isResumed ? 'block' : 'none';
+    // 2026-08-18：「新しい問題でやり直す」導線は再開中のみ表示（新規開始時・再挑戦中は隠す）
+    var freshBtn = document.getElementById('kiso-fresh-btn');
+    if (freshBtn) freshBtn.style.display = (_kisoState.isResumed && !_kisoState.isRetry) ? '' : 'none';
     // 過去セッションボタン（再挑戦中は隠す）
     var pastSection = document.getElementById('kiso-past-section');
     var resumePromo = document.getElementById('kiso-resume-promo');  // 2026-05-20 プロモバナーも同期で制御
@@ -21249,7 +21307,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260817-2333</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260818-1540</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
