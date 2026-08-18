@@ -998,7 +998,8 @@
     btn.disabled = true;
     _showLoginMsg('確認中…', 'ok');
     // 状態確認（getParentAuthState）。未対応サーバ / エラー / legacy は直接閲覧にフォールバック（fail-safe）。
-    gasGet({ action: 'getParentAuthState', studentId: sid, _ts: Date.now() }).then(function(st) {
+    //   2026-08-19：ログイン系 POST 化（パラメータの形は不変・fail-safe の分岐も不変）。
+    gasPost({ action: 'getParentAuthState', studentId: sid, _ts: Date.now() }).then(function(st) {
       btn.disabled = false;
       var state = st && (st.authState || st.parentAuthState || st.state);
       if (st && st.ok && (state === 'set_up' || state === 'pw_issued')) {
@@ -1066,8 +1067,9 @@
     if (!pw) { _showParentMsg('parent-login-msg', 'パスワードを入力してください', 'ng'); return; }
     var btn = document.getElementById('parent-login-btn'); if (btn) btn.disabled = true;
     _showParentMsg('parent-login-msg', '確認中…', 'ok');
-    // parentLogin（PF2：GET・IN studentId+parentPassword）。loginStudent と同じく GET。
-    gasGet({ action: 'parentLogin', studentId: _parentFlowSid, parentPassword: pw, _ts: Date.now() }).then(function(res) {
+    // parentLogin（PF2：IN studentId+parentPassword）。loginStudent と同じ経路。
+    //   2026-08-19：保護者パスワードを URL に載せないため POST 送信に変更（パラメータの形は不変）。
+    gasPost({ action: 'parentLogin', studentId: _parentFlowSid, parentPassword: pw, _ts: Date.now() }).then(function(res) {
       if (btn) btn.disabled = false;
       res = res || {};
       // レートリミット（throttled）：しばらく待ってから
@@ -1129,7 +1131,7 @@
           _saveParentToken(res);
           _doDirectView(_parentFlowSid, null);
         } else {
-          gasGet({ action: 'parentLogin', studentId: _parentFlowSid, parentPassword: settledPw, _ts: Date.now() }).then(function(r2) {
+          gasPost({ action: 'parentLogin', studentId: _parentFlowSid, parentPassword: settledPw, _ts: Date.now() }).then(function(r2) {
             r2 = r2 || {};
             if (r2.ok && !r2.needsParentSetup) { _saveParentToken(r2); _doDirectView(_parentFlowSid, null); }
             else { _openParentLogin(_parentFlowSid, 'set_up'); }   // ★本人PW設定直後ゆえ set_up
@@ -2372,7 +2374,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260818-1540</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-0137</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
