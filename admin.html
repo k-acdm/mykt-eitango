@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260818-1540"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260819-0137"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -4985,7 +4985,9 @@
     var btn = document.getElementById('admin-login-btn');
     btn.disabled = true;
     _showLoginMsg('確認中…', 'ok');
-    gasGet({ action: 'adminLogin', teacherId: teacherId, password: pw }).then(function(res) {
+    // 2026-08-19：ログイン系は POST 送信（講師IDとパスワードを URL に載せない）。
+    //   サーバ側は GET も継続受付のため段階移行可。パラメータの形は GET 時代と同一。
+    gasPost({ action: 'adminLogin', teacherId: teacherId, password: pw }).then(function(res) {
       btn.disabled = false;
       if (res && res.ok) {
         sessionStorage.setItem('adminTeacherId',           res.teacherId || teacherId);
@@ -5138,7 +5140,7 @@
     if (wrap)    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
     if (summary) { summary.className = 'auth-alert-summary'; summary.textContent = ''; }
     _setParentResetSelectMsg('⏳ 読み込み中...');
-    adminGasGet({ action: 'getStudentsAuthStatus', _ts: Date.now() }).then(function(res) {
+    adminGasPost({ action: 'getStudentsAuthStatus', _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
         _setParentResetSelectMsg('（生徒を取得できませんでした）');
@@ -5355,7 +5357,7 @@
     if (_niFetching) return;
     _niFetching = true;
     _niSetSelectMsg('⏳ 読み込み中...');
-    adminGasGet({ action: 'getStudentsAuthStatus', _ts: Date.now() }).then(function(res) {
+    adminGasPost({ action: 'getStudentsAuthStatus', _ts: Date.now() }).then(function(res) {
       _niFetching = false;
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
@@ -7321,7 +7323,8 @@
     if (btn) btn.disabled = true;
     _showFirstLoginMsg('設定中…', 'ok');
 
-    gasGet({
+    // 2026-08-19：ログイン系は POST 送信（現/新パスワードを URL に載せない）。
+    gasPost({
       action:              'completeFirstLogin',
       teacherId:           teacherId,
       password:            password,
@@ -15325,7 +15328,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260818-1540</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-0137</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

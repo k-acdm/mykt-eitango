@@ -3382,10 +3382,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260818-1540"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-0137"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260818-1540">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260818-1540"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-0137">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-0137"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7712,7 +7712,9 @@
     var sid = document.getElementById('login-id').value.trim();
     if (!sid) { showMsg('login-msg','生徒IDを入力してください。','ng'); return; }
     showMsg('login-msg','マイカツ君が準備中…','ok'); document.getElementById('login-btn').disabled = true;
-    gasGet({ action:'loginStudent', studentId:sid }).then(function(res){
+    // 2026-08-19：ログイン系は POST 送信（生徒ID・暗証番号を URL に載せない＝履歴/Referer に残さない）。
+    //   サーバ側は GET も継続受付のため段階移行可。パラメータの形は GET 時代と同一。
+    gasPost({ action:'loginStudent', studentId:sid }).then(function(res){
       document.getElementById('login-btn').disabled = false;
       res = res || {};
       // 第2群③：暗証番号フロー分岐（サーバ F5 の auth_state 応答）。
@@ -7828,8 +7830,9 @@
     if (!/^\d{4}$/.test(pin)) { showMsg('pin-entry-msg','4けたの数字を入れてね','ng'); return; }
     var btn = document.getElementById('pin-entry-btn'); if (btn) btn.disabled = true;
     showMsg('pin-entry-msg','かくにん中…','ok');
-    // ★loginStudent の再呼出（既存 GET エンドポイントに pin を付与＝サーバ F5 契約）。
-    gasGet({ action:'loginStudent', studentId:_pinFlowSid, pin:pin }).then(function(res){
+    // ★loginStudent の再呼出（既存エンドポイントに pin を付与＝サーバ F5 契約）。
+    //   2026-08-19：暗証番号を URL に載せないため POST 送信に変更（パラメータの形は不変）。
+    gasPost({ action:'loginStudent', studentId:_pinFlowSid, pin:pin }).then(function(res){
       if (btn) btn.disabled = false;
       res = res || {};
       if (res.ok && res.studentId) { showMsg('pin-entry-msg','',''); _finishStudentLogin(res); return; }
@@ -7870,7 +7873,7 @@
         // ★成功応答は完全なログイン情報を含まないため、新暗証番号で loginStudent を1回呼び直して
         //   完全なログイン状態(r2)を確定→そのままホーム（completeStudentSetup 成功後と同じ・再入力させない）。
         showMsg('reset-pin-msg','新しい暗証番号を設定できたよ！','ok');
-        gasGet({ action:'loginStudent', studentId:_pinFlowSid, pin:pin }).then(function(r2){
+        gasPost({ action:'loginStudent', studentId:_pinFlowSid, pin:pin }).then(function(r2){
           r2 = r2 || {};
           if (r2.ok && r2.studentId) { _finishStudentLogin(r2); }
           else { _openPinEntry(_pinFlowSid); }
@@ -7944,7 +7947,7 @@
         //   → 今決めた暗証番号で loginStudent を1回呼び、完全なログイン状態(r2)を確定してからホームへ。
         //   （設定直後は set_up 状態ゆえ pin で通る＝生徒に再入力を求めない）
         showMsg('setup-msg','設定できたよ！','ok');
-        gasGet({ action:'loginStudent', studentId:_pinFlowSid, pin:pin }).then(function(r2){
+        gasPost({ action:'loginStudent', studentId:_pinFlowSid, pin:pin }).then(function(r2){
           r2 = r2 || {};
           if (r2.ok && r2.studentId) { _finishStudentLogin(r2); }
           else { _openPinEntry(_pinFlowSid); }
@@ -21111,7 +21114,10 @@
     var sid = _studentId;
     // 甘めタイムアウト(10s)＋1回リトライ（瞬断の誤ブロック回避）
     function attempt(retryLeft) {
-      gasGetWithTimeout({ action: 'loginStudent', studentId: sid }, 10000).then(function(res){
+      // 2026-08-19：ログイン系 POST 化。gasPost はタイムアウトを内蔵しているため
+      //   （index.html の gasGetWithTimeout 定義コメント参照）POST 版ラッパーは新設せず
+      //   第2引数で 10000ms を明示する。reject 条件・リトライ挙動は従来と同じ。
+      gasPost({ action: 'loginStudent', studentId: sid }, 10000).then(function(res){
         if (res && res.ok) {
           // 疎通あり：当日 login 行が生成される。状態を静かに更新（画面遷移しない）。
           _offline = false; _lastServerOkTs = Date.now(); _hideOfflineBanner();
@@ -21307,7 +21313,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260818-1540</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-0137</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
