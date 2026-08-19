@@ -3385,10 +3385,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-2155"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-2244"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-2155">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-2155"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-2244">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-2244"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -16364,6 +16364,24 @@
   }
 
   function goOriwantesCreate() {
+    // 2026-08-20：前回の続きが端末に残っていれば、生徒に確認したうえで復元する。
+    //   ★復元処理はサーバーへ一切リクエストを出さない（＝HP は 1 円たりとも動かない）。
+    //   ★「いいえ」を選べば保存を破棄して従来どおり最初から作れるので、生徒が閉じ込められることはない。
+    try {
+      var _oriSaved = _pendingPhotoLoad(ORIWANTES_KEY, function(x){
+        return !!(x && ((x.questions && x.questions.length) || (x.transcript && x.transcript.length > 1)));
+      });
+      if (_oriSaved) {
+        var _hasQ = !!(_oriSaved.questions && _oriSaved.questions.length);
+        var _msg = _hasQ
+          ? '前回つくった問題が残っているよ。続きから再開する？\n\n・「OK」＝前回の問題をそのまま解ける（HPは新しくかからないよ）\n・「キャンセル」＝最初から作り直す'
+          : '前回の続きが残っているよ。続きから再開する？\n\n・「OK」＝前回の会話の続きから\n・「キャンセル」＝最初から作り直す';
+        if (confirm(_msg)) {
+          if (_oriwantesRestorePending(_oriSaved)) return;
+        }
+        _pendingPhotoClear(ORIWANTES_KEY);   // 復元しない／できなかった → 残さない
+      }
+    } catch(e) { try { _pendingPhotoClear(ORIWANTES_KEY); } catch(_e){} }
     _oriwantesMessages = [];
     _oriwantesPhotos = [];
     window._oriwantesLastQuestions = null;
@@ -16373,6 +16391,8 @@
     _oriwantesStage = 'subject';
     _oriwantesSubject = '';
     _oriwantesLevel = '';
+    _oriwantesTranscript = [];
+    _oriwantesPendingGenerate = false;
     var chat = document.getElementById('oriwantes-chat');
     if (chat) chat.innerHTML = '';
     var ta = document.getElementById('oriwantes-input');
@@ -16416,6 +16436,7 @@
     var kou = document.getElementById('oriwantes-level-kou');
     if (chu) chu.classList.toggle('sel', level === '中学');
     if (kou) kou.classList.toggle('sel', level === '高校');
+    try { _oriwantesSavePending(); } catch(e){}   // 2026-08-20：選んだレベルも保存
   }
 
   // チャット描画（本文は textContent で入れる＝XSS回避）
@@ -16435,6 +16456,7 @@
     row.appendChild(bubble);
     chat.appendChild(row);
     chat.scrollTop = chat.scrollHeight;
+    try { _oriwantesRecord('m', text, 0); } catch(e){}   // 2026-08-20：復元時の再描画用に記録
   }
   function _appendOriwantesStudent(text, photos) {
     var chat = document.getElementById('oriwantes-chat');
@@ -16458,6 +16480,7 @@
     row.appendChild(bubble);
     chat.appendChild(row);
     chat.scrollTop = chat.scrollHeight;
+    try { _oriwantesRecord('s', text, (photos && photos.length) || 0); } catch(e){}   // 2026-08-20：同上
   }
 
   // 写真撮影・圧縮（onMyTaskPhotoSelected と同型：長辺1000px / JPEG0.6 / 生base64保持）
@@ -16482,6 +16505,7 @@
         var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         _oriwantesPhotos.push(dataUrl.split(',')[1]);  // 生base64（プレフィックスなし）
         _renderOriwantesPhotos();
+        try { _oriwantesSavePending(); } catch(e){}   // 2026-08-20：リロードで消えないよう端末にも保存
       };
       img.src = e.target.result;
     };
@@ -16503,6 +16527,146 @@
   function removeOriwantesPhoto(i) {
     _oriwantesPhotos.splice(i, 1);
     _renderOriwantesPhotos();
+    try { _oriwantesSavePending(); } catch(e){}   // 2026-08-20：削除後の枚数で保存を更新
+  }
+
+  // ================================================================
+  // オリワンテス：会話と添付写真の永続化（2026-08-20）
+  // ================================================================
+  // ★最優先＝HP の二重消費を起こさないこと。
+  //   HP はサーバー側の generateOriwantes で消費され、その「支払いの成果物」が
+  //   生成済みの questions（window._oriwantesLastQuestions）である。
+  //   ・従来（永続化なし）：完成後にリロードすると questions が消え、生徒はもう一度
+  //     問題を作り直す＝同じ 1 セットに対して HP を 2 回払っていた（既存の二重消費）。
+  //   ・本実装：isComplete が返った瞬間（＝支払いが確定した瞬間）に questions を保存する。
+  //     リロード後は保存済みの問題をそのまま解けるので、2 回目の支払いが発生しない。
+  //   ★復元処理はサーバーへ一切リクエストを出さない（localStorage 読み出しと DOM 再描画のみ）。
+  //     したがって「復元したせいで HP が減る」経路は構造的に存在しない。
+  //   ★generate 実行中にリロードされた場合（結果を受け取れなかった場合）は pendingGenerate を
+  //     立てて保存し、復元時に自動再送はせず、生徒に状況を伝えるだけに留める。
+  // ★サーバーは会話状態を持たない（generateOriwantes は毎回 messages 全体を受け取る）ため、
+  //   会話履歴を復元して続けることは「リロードしなかった場合」と完全に等価。文脈のズレは起きない。
+  //
+  // 容量：写真は base64 で messages に埋まるため肥大しうる。3 段階で保存する。
+  //   tier 1 … 全部（messages に写真を含む＋未送信の添付＋会話表示＋questions）
+  //   tier 2 … messages から過去の写真データだけ落とす（「写真N枚を添付しました」に置換）
+  //   tier 3 … questions と表示用の会話だけ（messages / 写真は諦める）。★questions がある時のみ。
+  //   どの段でも入らなければ保存しない＝従来どおり（アプリは壊れない）。
+  var ORIWANTES_KEY = 'mykt_oriwantes_session';
+  var _oriwantesTranscript = [];        // 画面再現用の会話ログ（画像は枚数のみ＝小さい）
+  var _oriwantesPendingGenerate = false; // generate 応答待ちのままリロードされたかの目印
+  var _oriwantesRedrawing = false;       // 再描画中は transcript に二重記録しない
+
+  // 表示した発言を記録する（_appendOriwantesMate / _appendOriwantesStudent から呼ばれる）。
+  function _oriwantesRecord(who, text, photoCount) {
+    if (_oriwantesRedrawing) return;
+    _oriwantesTranscript.push({ w: who, t: String(text == null ? '' : text), p: Number(photoCount) || 0 });
+    if (_oriwantesTranscript.length > 60) _oriwantesTranscript.shift();   // 上限（古いものから捨てる）
+  }
+  // messages から画像データだけ落とす（枚数はテキストで残すので、AI も「写真を見せた」ことは分かる）。
+  function _oriwantesStripImages(msgs) {
+    var out = [];
+    for (var i = 0; i < (msgs || []).length; i++) {
+      var m = msgs[i];
+      if (!m || !Array.isArray(m.content)) { out.push(m); continue; }
+      var parts = [], nImg = 0;
+      for (var j = 0; j < m.content.length; j++) {
+        var c = m.content[j];
+        if (c && c.type === 'image') { nImg++; continue; }
+        parts.push(c);
+      }
+      if (nImg > 0) parts.unshift({ type: 'text', text: '（写真 ' + nImg + ' 枚を添付しました）' });
+      out.push({ role: m.role, content: parts });
+    }
+    return out;
+  }
+  // 保存。戻り値は採用した tier（0 = 保存しなかった）。失敗しても例外は投げない。
+  function _oriwantesSavePending() {
+    try {
+      var qs = (window._oriwantesLastQuestions && window._oriwantesLastQuestions.length)
+             ? window._oriwantesLastQuestions : null;
+      var hasAny = qs || (_oriwantesMessages && _oriwantesMessages.length) || _oriwantesTranscript.length > 1;
+      if (!hasAny) { _pendingPhotoClear(ORIWANTES_KEY); return 0; }
+      var base = {
+        stage:            String(_oriwantesStage || 'subject'),
+        subject:          String(_oriwantesSubject || ''),
+        level:            String(_oriwantesLevel || ''),
+        transcript:       _oriwantesTranscript.slice(),
+        questions:        qs,
+        questionsSubject: String(window._oriwantesLastSubject || ''),
+        pendingGenerate:  !!_oriwantesPendingGenerate
+      };
+      var mk = function(tier, msgs, photos) {
+        var o = JSON.parse(JSON.stringify(base));
+        o.tier = tier; o.messages = msgs; o.photos = photos;
+        return o;
+      };
+      // tier 1：全部
+      var t1 = mk(1, _oriwantesMessages || [], (_oriwantesPhotos || []).slice());
+      if (_pendingPhotoSave(ORIWANTES_KEY, t1, JSON.stringify(t1).length, PENDING_PHOTOS_MAX_CHARS)) return 1;
+      // tier 2：過去の写真データを落とす
+      var t2 = mk(2, _oriwantesStripImages(_oriwantesMessages || []), (_oriwantesPhotos || []).slice());
+      if (_pendingPhotoSave(ORIWANTES_KEY, t2, JSON.stringify(t2).length, PENDING_PHOTOS_MAX_CHARS)) return 2;
+      // tier 3：★HP を払って手に入れた questions だけは何としても残す
+      if (!qs) { _pendingPhotoClear(ORIWANTES_KEY); return 0; }
+      var t3 = mk(3, null, []);
+      if (_pendingPhotoSave(ORIWANTES_KEY, t3, JSON.stringify(t3).length, PENDING_TEXT_MAX_CHARS)) return 3;
+      _pendingPhotoClear(ORIWANTES_KEY);
+      return 0;
+    } catch(e) { return 0; }
+  }
+  // 保存済みの会話を画面に描き直す。★ここでもサーバーへは一切問い合わせない。
+  function _oriwantesRedrawChat(transcript, hasQuestions) {
+    var chat = document.getElementById('oriwantes-chat');
+    if (chat) chat.innerHTML = '';
+    _oriwantesRedrawing = true;
+    try {
+      for (var i = 0; i < (transcript || []).length; i++) {
+        var e = transcript[i] || {};
+        if (e.w === 's') {
+          // 過去の添付写真そのものは再現しない（容量のため）。枚数だけ文中に残す。
+          var t = e.t || '';
+          if (e.p > 0) t = (t ? t + '\n' : '') + '（写真 ' + e.p + ' 枚を添付）';
+          _appendOriwantesStudent(t, null);
+        } else {
+          _appendOriwantesMate(e.t || '');
+        }
+      }
+    } finally { _oriwantesRedrawing = false; }
+    if (hasQuestions) _appendOriwantesSolveButton();
+  }
+  // 復元。★サーバー呼び出しゼロ。戻り値 true = 復元した。
+  function _oriwantesRestorePending(o) {
+    try {
+      if (!o) return false;
+      _oriwantesMessages = Array.isArray(o.messages) ? o.messages : [];
+      _oriwantesPhotos   = Array.isArray(o.photos)   ? o.photos   : [];
+      _oriwantesTranscript = Array.isArray(o.transcript) ? o.transcript.slice() : [];
+      _oriwantesStage    = String(o.stage || 'subject');
+      _oriwantesSubject  = String(o.subject || '');
+      _oriwantesLevel    = String(o.level || '');
+      _oriwantesBusy     = false;   // 応答待ちのまま固まらないように必ず解除
+      _oriwantesPendingGenerate = false;
+      window._oriwantesLastQuestions = (o.questions && o.questions.length) ? o.questions : null;
+      window._oriwantesLastSubject   = String(o.questionsSubject || '');
+      var ta = document.getElementById('oriwantes-input');
+      if (ta) ta.value = '';
+      _renderOriwantesPhotos();
+      _setOriwantesStageUI(_oriwantesStage);
+      showScreen('screen-oriwantes-create');
+      _oriwantesRedrawChat(_oriwantesTranscript, !!window._oriwantesLastQuestions);
+      // ★generate の結果を受け取れないままリロードされていた場合は、自動で送り直さず状況だけ伝える。
+      //   （勝手に再送すると HP をもう一度払わせてしまうため）
+      if (o.pendingGenerate && !window._oriwantesLastQuestions) {
+        _appendOriwantesMate('前回の問題づくりは、途中で通信が切れたようだ。続きを入力して、もう一度送ってくれ。');
+      }
+      // tier 3（会話は諦めた）で問題だけ残っている場合の案内
+      if (Number(o.tier) === 3 && window._oriwantesLastQuestions) {
+        _appendOriwantesMate('前回作った問題は、ちゃんと取ってあるぞ。下のボタンから解くがよい。');
+      }
+      _oriwantesSavePending();   // 復元後の状態で保存し直す（tier が上がることもある）
+      return true;
+    } catch(e) { return false; }
   }
 
   // 送信（第2段-2b）：段階に応じて分岐。
@@ -16528,6 +16692,7 @@
     _oriwantesStage = 'detail';
     _oriwantesLevel = '';
     _setOriwantesStageUI('detail');
+    try { _oriwantesSavePending(); } catch(e){}   // 2026-08-20：教科まで進んだ状態を保存
   }
 
   // 段② レベル(中/高)＋詳細を1つの user 発言に構造化して積み、generate を呼ぶ。写真添付も可。
@@ -16595,6 +16760,10 @@
   // generateOriwantes（120秒）→ 3分岐（HP不足 / isComplete→solve / 対話途中text）。※2a 以前と同一のレスポンス処理。
   function _oriwantesCallGenerate() {
     _oriwantesBusy = true;
+    // 2026-08-20【HP二重消費対策】送信直前の状態を保存し「応答待ち」の目印を立てる。
+    //   復元時はこの目印を見て ★自動再送はせず 状況を伝えるだけにする（勝手に再送＝再課金を防ぐ）。
+    _oriwantesPendingGenerate = true;
+    try { _oriwantesSavePending(); } catch(e){}
     _showOriwantesThinking();
     gasPost({ action: 'generateOriwantes', studentId: _studentId, messages: _oriwantesMessages }, 120000)
       .then(function(res){
@@ -16602,6 +16771,8 @@
         _oriwantesBusy = false;
         if (!res) { _appendOriwantesMate('うむ、うまく作れなかった。もう一度送ってくれ。'); return; }
         if (res.ok === false) {
+          _oriwantesPendingGenerate = false;
+          try { _oriwantesSavePending(); } catch(e){}
           if (res.error === 'insufficient_hp' || res.needHp) {
             _appendOriwantesMate('ふむ、HPが足りぬようだ。まずはHPを貯めてから、また来るがよい。');
           } else {
@@ -16613,6 +16784,11 @@
           // 問題完成：questions と subject（②-A改善の正規化済み教科名）を保持（③-Bの解く画面・解答送信で使う）。
           window._oriwantesLastQuestions = res.questions || [];
           window._oriwantesLastSubject = res.subject || _oriwantesSubject || '';
+          // ★★HP 二重消費対策の要：ここが「HP を払い終えた瞬間」。
+          //   この時点で問題を端末に保存しておけば、リロードで問題を失って
+          //   もう一度作り直す（＝もう一度 HP を払う）事態が起きない。
+          _oriwantesPendingGenerate = false;
+          try { _oriwantesSavePending(); } catch(e){}
           if (res.intro) _appendOriwantesMate(res.intro);
           var n = (res.questions || []).length;
           _appendOriwantesMate('問題が ' + n + ' 問完成したぞ！');
@@ -16624,10 +16800,15 @@
         var t = String(res.text || '');
         _oriwantesMessages.push({ role: 'assistant', content: t });
         _appendOriwantesMate(t);
+        _oriwantesPendingGenerate = false;
+        try { _oriwantesSavePending(); } catch(e){}   // 2026-08-20：応答を受け取った状態を保存
       })
       .catch(function(){
         _hideOriwantesThinking();
         _oriwantesBusy = false;
+        // ★結果が分からない（サーバー側で HP を消費した可能性がある）ので目印は立てたまま保存する。
+        //   復元時に自動再送はせず、生徒に状況を伝えるだけに留める。
+        try { _oriwantesSavePending(); } catch(e){}
         _appendOriwantesMate('うむ、通信がうまくいかなかった。電波の良い場所で、もう一度送ってくれ。');
       });
   }
@@ -16715,9 +16896,11 @@
         _hideOriwantesSending();
         _oriwantesSubmitting = false;
         if (res && res.ok) {
+          try { _pendingPhotoClear(ORIWANTES_KEY); } catch(e){}  // 2026-08-20：解答まで完了したので保存は破棄
           _showOriwantesResult(res, questions, 'ok');
         } else if (res && res.errorCode === 'HP_LOG_FAILED') {
           // 保存は成立・HP付与のみ失敗 → 結果は見せる（HPの問題は控えめに）。
+          try { _pendingPhotoClear(ORIWANTES_KEY); } catch(e){}  // 2026-08-20：保存は成立しているので破棄
           _showOriwantesResult(res, questions, 'hp_failed');
         } else {
           // 保存自体に失敗 → 解く画面のまま（入力を保持して再送できるように）。
@@ -21838,7 +22021,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-2155</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-2244</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
