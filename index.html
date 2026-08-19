@@ -3385,10 +3385,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-1858"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-2133"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-1858">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-1858"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-2133">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-2133"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9702,7 +9702,12 @@
   // 切り抜き救済機能用：直近に撮影した（or 切り抜いた）画像の dataUrl を保持
   var _eikenLastSourceDataUrl = '';
   function onPhotoSelected(event) {
-    var file = event.target.files[0]; if (!file) return;
+    var file = event.target.files[0];
+    if (!file) {
+      // 2026-08-20：従来は無言 return だった。5 級は「撮影＝送信」なので、ここが写真が無い唯一の分岐。
+      _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', NO_PHOTO_LINES.eiken5, 'rushkun');
+      return;
+    }
     var reader = new FileReader();
     reader.onload = function(e) {
       var preview = document.getElementById('photo-preview'); preview.src = e.target.result; preview.style.display = 'block';
@@ -9740,6 +9745,11 @@
     return String(s || '').toLowerCase().replace(/[\s　​‌‍⁠﻿]+/g, '');
   }
   function sendPhoto(base64) {
+    if (!base64) {
+      // 2026-08-20：写真が無いまま送信に来た場合も無言にしない（防御的分岐）。
+      _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', NO_PHOTO_LINES.eiken5, 'rushkun');
+      return;
+    }
     var msgEl = document.getElementById('photo-msg'); msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...'; msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     _setContentMascot('mate-img-eitan-dictation', 'thinking', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoTry), 'rushkun');
     var wordList = _questions.map(function(w){ return w.word; });
@@ -11728,7 +11738,11 @@
       msgEl.className = 'msg'; msgEl.style.color = '#e67e22'; msgEl.style.display = 'block';
       return;
     }
-    if (!_sangoOcrText || !_sangoCurrentLevel) return;
+    if (!_sangoOcrText || !_sangoCurrentLevel) {
+      // 2026-08-20：従来は無言 return だった。既存のサンゴタン吹き出しで知らせる。
+      _setContentMascot('mate-img-sango-photo', 'encourage', 'mate-bubble-sango-photo', NO_PHOTO_LINES.sango, 'sangotan');
+      return;
+    }
     var topic = (_sangoTopics || []).find(function(t){ return t.level === _sangoCurrentLevel; });
     var words = topic ? (topic.words || []).join(' / ') : '';
     var levelSnap = _sangoCurrentLevel, sidSnap = _studentId, ocrSnap = _sangoOcrText;
@@ -12695,7 +12709,11 @@
   //     参照されるため関数本体は温存
   function submitWabun1Answer() {
     if (_wabun1State.submitting) return;
-    if (!_wabun1State.ocrText) return;
+    if (!_wabun1State.ocrText) {
+      // 2026-08-20：従来は無言 return だった。既存のニチエイ吹き出しで知らせる。
+      _setContentMascot('mate-img-wabun1-confirm', 'encourage', 'mate-bubble-wabun1-confirm', NO_PHOTO_LINES.wabun1, 'nichiei');
+      return;
+    }
     _wabun1State.submitting = true;
     var btn = document.getElementById('wabun1-confirm-submit-btn'); btn.disabled = true;
     var msgEl = document.getElementById('wabun1-confirm-msg');
@@ -13035,6 +13053,40 @@
   // - submission === null → Mode A（再開）、submission !== null → Mode B（閲覧）
   var KISO_RECENT_MAX = 10;  // 2026-08-18：5 → 10。カメラ起動リロードのループを数周しても復元候補が localStorage に残るように
   function _kisoRecentKey(rank) { return 'mykt_kiso_recent_' + Number(rank || 0); }
+  // 2026-08-20：解答写真の永続化（カンジー 055f988 と同型）。★セッション保存キーとは別スロット。
+  var KISO_PHOTO_KEY = 'mykt_kiso_photo';
+  function _kisoSavePendingPhoto(dataUrl) {
+    // ★再挑戦（isRetry）中は対象問題が絞られており、復元して通常扱いで送ると誤採点になるので保存しない。
+    if (_kisoState.isRetry) { _pendingPhotoClear(KISO_PHOTO_KEY); return false; }
+    if (!_kisoState.sessionId || !dataUrl) return false;
+    return _pendingPhotoSave(KISO_PHOTO_KEY,
+      { sessionId: String(_kisoState.sessionId), rank: Number(_kisoState.rank) || 0, dataUrl: String(dataUrl) },
+      String(dataUrl).length, PENDING_PHOTO_MAX_CHARS);
+  }
+  // 解答撮影の案内画面に着いた時点で呼ぶ。同一セッションの撮影済み写真があれば復元し、
+  // 撮影確認画面まで進める（＝撮り直さずそのまま送信できる）。無ければ何もしない＝従来どおり。
+  function _kisoRestorePendingPhotoIfAny() {
+    try {
+      if (_kisoState.isRetry) return false;
+      if (_kisoState.photoBase64) return false;   // 既にメモリにある（通常フロー）なら触らない
+      var o = _pendingPhotoLoad(KISO_PHOTO_KEY, function(x){
+        return String(x.sessionId) === String(_kisoState.sessionId) && String(x.dataUrl || '').indexOf('data:image/') === 0;
+      });
+      if (!o) return false;
+      var b64 = String(o.dataUrl).split(',')[1] || '';
+      if (!b64) return false;
+      _kisoState.photoDataUrl = o.dataUrl;
+      _kisoState.photoBase64  = b64;
+      _kisoState.previewAnswers = null;
+      _kisoState.previewOcrText = '';
+      var pv = document.getElementById('kiso-confirm-preview');
+      if (pv) pv.src = o.dataUrl;
+      var sb = document.getElementById('kiso-confirm-submit-btn');
+      if (sb) sb.disabled = false;
+      showScreen('screen-kiso-confirm');
+      return true;
+    } catch(e) { return false; }
+  }
   function _kisoLoadRecentSessions(rank) {
     if (!rank) return [];
     try {
@@ -13763,6 +13815,7 @@
         _kisoState.photoDataUrl = dataUrl;  // 切り抜き救済用にフル dataUrl も保持
         _kisoState.previewAnswers = null;   // 新しい写真 → 前回の OCR プレビューは破棄
         _kisoState.previewOcrText = '';
+        try { _kisoSavePendingPhoto(dataUrl); } catch(e){}  // 2026-08-20：リロードで消えないよう端末にも保存
         document.getElementById('kiso-confirm-preview').src = dataUrl;
         document.getElementById('kiso-confirm-submit-btn').disabled = false;
         _setContentMascot('mate-img-kiso-confirm', 'thinking', 'mate-bubble-kiso-confirm', _pickBubble(KISOK_BUBBLES.answer), 'kisoK');
@@ -13785,6 +13838,7 @@
         _kisoState.photoBase64  = croppedDataUrl.split(',')[1];
         _kisoState.previewAnswers = null;   // 切り抜きで画像が変わった → OCR プレビュー破棄
         _kisoState.previewOcrText = '';
+        try { _kisoSavePendingPhoto(croppedDataUrl); } catch(e){}  // 2026-08-20：保存分も切り抜き後に差し替え
         var preview = document.getElementById('kiso-confirm-preview');
         if (preview) preview.src = croppedDataUrl;
         showScreen('screen-kiso-confirm');
@@ -13795,6 +13849,7 @@
   function retakeKisoPhoto() {
     _kisoState.photoBase64 = '';
     _kisoState.photoDataUrl = '';
+    try { _pendingPhotoClear(KISO_PHOTO_KEY); } catch(e){}  // 2026-08-20：破棄した写真を復元しない
     _kisoState.previewAnswers = null;   // 撮り直し → OCR プレビュー破棄
     _kisoState.previewOcrText = '';
     document.getElementById('kiso-photo-input').value = '';
@@ -13928,7 +13983,14 @@
   //   - _kisoShowGrading 関数本体は途中式写真送信フロー（submitKisoWorkPhoto）と
   //     ログアウト cleanup から参照されるため温存
   function submitKisoPhoto() {
-    if (!_kisoState.sessionId || !_kisoState.photoBase64) return;
+    if (!_kisoState.sessionId || !_kisoState.photoBase64) {
+      // 2026-08-20：従来は無言 return だった。既存のキソ"K"さん吹き出しで知らせる。
+      //   確認画面は 2 種類（kiso-confirm / kiso-answer-confirm）あるため両方に反映する（見えるのは表示中の 1 つだけ）。
+      try { _pendingPhotoClear(KISO_PHOTO_KEY); } catch(e){}
+      _setContentMascot('mate-img-kiso-confirm', 'encourage', 'mate-bubble-kiso-confirm', NO_PHOTO_LINES.kiso, 'kisoK');
+      _setContentMascot('mate-img-kiso-answer-confirm', 'encourage', 'mate-bubble-kiso-answer-confirm', NO_PHOTO_LINES.kiso, 'kisoK');
+      return;
+    }
     // 採点ボタンは答え確認画面（screen-kiso-answer-confirm）側。旧 confirm 画面の
     // ボタンにもフォールバックして disable する（二重押し防止）。
     var btn = document.getElementById('kiso-answer-confirm-submit-btn') || document.getElementById('kiso-confirm-submit-btn');
@@ -13959,6 +14021,7 @@
               // 旧 retake フロー：OCR 信頼度低 → 撮り直し誘導（既存挙動維持）
               _pendingRetry = null;
               _pendingDismiss = null;
+              try { _pendingPhotoClear(KISO_PHOTO_KEY); } catch(e){}  // 2026-08-20：読めなかった写真は復元不要
               alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
               showScreen('screen-kiso-problem');
               return;
@@ -13971,6 +14034,7 @@
           _pendingRetry = null;
           _pendingDismiss = null;
           _kisoState.attempts = res.attempts || (_kisoState.attempts + 1);
+          try { _pendingPhotoClear(KISO_PHOTO_KEY); } catch(e){}  // 2026-08-20：送信成功したので端末の写真は必ず破棄
           // 提出に使った base64 はもう保持しなくて OK（メモリ節約）
           _kisoState.photoBase64 = '';
           _kisoState.photoDataUrl = '';
@@ -14116,6 +14180,7 @@
       _kisoState.questions = res.questions || [];
       _kisoState.rankName  = String(res.rankName || _kisoState.rankName);
       _kisoState.isRetry   = true;
+      try { _pendingPhotoClear(KISO_PHOTO_KEY); } catch(e){}  // 2026-08-20：再挑戦は対象問題が違うので保存写真を破棄
       _renderKisoProblemList();
     }).catch(function(err){
       listEl.innerHTML = '<div style="text-align:center;color:#c0392b;padding:30px 0">⚠️ 通信エラー：<br><small>' + _kisoEsc(String(err)) + '</small></div>';
@@ -14255,6 +14320,7 @@
       // 途中式は不要 → 解答の案内画面へ直行
       _renderKisoAnswerIntro();
       showScreen('screen-kiso-answer-intro');
+      try { _kisoRestorePendingPhotoIfAny(); } catch(e){}  // 2026-08-20：撮影済み写真があれば確認画面へ
     }
   }
 
@@ -14371,6 +14437,7 @@
     // 途中式写真の送信を終わらせて、解答の撮影案内画面へ
     _renderKisoAnswerIntro();
     showScreen('screen-kiso-answer-intro');
+    try { _kisoRestorePendingPhotoIfAny(); } catch(e){}  // 2026-08-20：撮影済み写真があれば確認画面へ
   }
 
   // =====================================================
@@ -15178,6 +15245,63 @@
   function _kanjiClearPendingPhoto() {
     try { localStorage.removeItem(KANJI_PHOTO_KEY); } catch(e){}
   }
+
+  // ---------------------------------------------------------------
+  // 撮影写真の永続化：共通コア（2026-08-20、カンジー 055f988 の横展開）
+  // ---------------------------------------------------------------
+  // カンジーで実証した作法（localStorage + JSON + 教育日キー + 上限ガード + 失敗握り潰し
+  // + 単一スロット）をそのまま他コンテンツへ広げるための共通部分。
+  // ★カンジーの _kanjiSavePendingPhoto / _kanjiLoadPendingPhoto / _kanjiClearPendingPhoto は
+  //   本番稼働中（055f988）のため一切変更しない。ここは「同じ作法の再利用可能版」であり、
+  //   新しい保存方式を作ったわけではない（保存先も localStorage、鍵の形も同じ）。
+  // ★キーはコンテンツごとに専用（単一スロット）。既存のセッション保存キー
+  //   （mykt_kiso_recent_* / mykt_kanji_recent_* 等）とは必ず分離する。
+  //   画像で Quota 超過してもセッション側を巻き添えにしないため。
+  var PENDING_PHOTO_MAX_CHARS  = 3000000;   // 単一写真の上限（カンジーと同値）
+  var PENDING_PHOTOS_MAX_CHARS = 1500000;   // 複数枚コンテンツの合計上限（1000px/0.6 で概ね 4〜6 枚相当）
+  // 保存：成功なら true。失敗しても例外は投げない（呼び出し側は戻り値を無視してよい）。
+  //   obj には dateKey / savedAt を自動付与する。totalChars は上限判定に使う実データ量。
+  function _pendingPhotoSave(key, obj, totalChars, maxChars) {
+    if (!key || !obj) return false;
+    var cap = maxChars || PENDING_PHOTO_MAX_CHARS;
+    if (!totalChars || totalChars > cap) { _pendingPhotoClear(key); return false; }
+    try {
+      obj.dateKey = _todayKeyJST3am();
+      obj.savedAt = Date.now();
+      // 先に消してから入れる（旧スロット分を空けてから書く＝古いものが消える／溜め込まない）
+      localStorage.removeItem(key);
+      localStorage.setItem(key, JSON.stringify(obj));
+      return true;
+    } catch(e) {
+      // QuotaExceededError 等。残骸を消して、そのまま従来動作（メモリのみ）に戻る。
+      try { localStorage.removeItem(key); } catch(_e){}
+      return false;
+    }
+  }
+  // 復元：期限（当日 or 前日）内で、matchFn が true を返したときだけ保存オブジェクトを返す。
+  //   条件に合わない／壊れている場合は null を返し、呼び出し側は従来どおり撮り直しになる（エラーにしない）。
+  function _pendingPhotoLoad(key, matchFn) {
+    if (!key) return null;
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return null;
+      var o = JSON.parse(raw);
+      if (!o) return null;
+      var today = _todayKeyJST3am(), yest = _yesterdayKeyJST3am();
+      if (o.dateKey !== today && o.dateKey !== yest) { _pendingPhotoClear(key); return null; }
+      if (typeof matchFn === 'function' && !matchFn(o)) return null;
+      return o;
+    } catch(e) { return null; }
+  }
+  function _pendingPhotoClear(key) {
+    try { if (key) localStorage.removeItem(key); } catch(e){}
+  }
+  // 生 base64 配列（プレフィックスなし）の合計文字数。複数枚コンテンツの上限判定用。
+  function _pendingPhotosTotalChars(arr) {
+    var n = 0;
+    for (var i = 0; i < (arr || []).length; i++) n += String(arr[i] || '').length;
+    return n;
+  }
   // セッション開始直後に呼ぶ：localStorage の先頭に 1 件追加（submission は null）
   function _kanjiSaveSessionStart(sessionMeta) {
     if (!sessionMeta || !sessionMeta.level || !sessionMeta.sessionId) return;
@@ -15523,6 +15647,17 @@
     cooldown:     ['同じセットを続けるのは控えなさい', '別のセットを 2 つ完了してから戻ってきて']
   };
   // マイカダイ（マイ課題、元気な世話焼き口調）。2026-06-13 採用。場面キーで管理（将来パターン1用も足せる）。
+  // 2026-08-20：送信時に写真が無かったときの案内セリフ（★文言は指定どおり・変更禁止）。
+  //   従来は無言で return していたため、生徒には「押しても何も起きない」ように見えていた。
+  var NO_PHOTO_LINES = {
+    kanji:     'むむ、写真がうまく撮れておらぬようじゃ。すまぬが、もう一度撮影してくれるか。',
+    kiso:      '写真が正しく撮影できていない💦　ごめん、もう一度撮ってほしい🙏',
+    sango:     'あれ〜、うまく撮れてなかったみたい〜。ぽこぽこ〜、もう一度撮って送ってみて～',
+    wabun1:    'あれ？うまく撮れてなかったみたい！ごめん、もう一回だけ撮ってくれる？',
+    eiken5:    'Oops! うまく撮れてなかったようだ。もう一度お願い！',
+    mytask:    'あれ、うまく撮れてなかった！ごめん、もう一回撮って！',
+    oriwantes: 'おっと、うまく撮れてないようだ。手間をかけるが、もう一度撮って送ってくれ。'
+  };
   var MAIKADAI_BUBBLES = {
     home:    ['最初にどっちかを選んで！'],
     input:   ['やった課題の内容を詳しく教えて！'],
@@ -15545,6 +15680,31 @@
   // ============================================================================
   var _myTaskState = { taskType: 'self', content: '', photos: [], lastFailedPhotos: [] };
   function _myTaskResetState() { _myTaskState = { taskType: 'self', content: '', photos: [], lastFailedPhotos: [] }; }
+  // 2026-08-20：撮影写真の永続化（カンジー 055f988 / 基礎計算と同型）。★専用キー・単一スロット。
+  //   ★複数枚は all-or-nothing。合計が上限を超えたら「保存しない」（部分保存はしない）。
+  //   理由：一部だけ復元すると生徒が欠けたまま提出してしまい、しかもそれに気づけないため。
+  //   本文(content)も一緒に保存する。photos だけ戻しても submitMyTaskSelf は content 必須で先へ進めないため。
+  var MYTASK_PHOTOS_KEY = 'mykt_mytask_photos';
+  function _myTaskSavePendingPhotos() {
+    var photos = _myTaskState.photos || [];
+    if (!photos.length) { _pendingPhotoClear(MYTASK_PHOTOS_KEY); return false; }
+    return _pendingPhotoSave(MYTASK_PHOTOS_KEY,
+      { content: String(_myTaskState.content || ''), photos: photos.slice() },
+      _pendingPhotosTotalChars(photos), PENDING_PHOTOS_MAX_CHARS);
+  }
+  // 撮影画面に入った時点で呼ぶ。メモリが空で保存済みがあれば丸ごと復元する（全枚数そろって初めて復元）。
+  function _myTaskRestorePendingPhotosIfAny() {
+    try {
+      if ((_myTaskState.photos || []).length) return false;   // 既にメモリにある＝通常フロー
+      var o = _pendingPhotoLoad(MYTASK_PHOTOS_KEY, function(x){
+        return Array.isArray(x.photos) && x.photos.length > 0;
+      });
+      if (!o) return false;
+      _myTaskState.photos = o.photos.slice();
+      if (!_myTaskState.content && o.content) _myTaskState.content = String(o.content);
+      return true;
+    } catch(e) { return false; }
+  }
   function _myTaskEsc(s) {
     return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -15945,6 +16105,7 @@
   // (2-C) 撮影＋複数枚管理
   function goMyTaskSelfCapture() {
     _setContentMascot('mate-img-mytask-self-capture', 'encourage', 'mate-bubble-mytask-self-capture', '何枚でも撮れるよ。いらない写真は消してね！', 'maikadai');
+    try { _myTaskRestorePendingPhotosIfAny(); } catch(e){}  // 2026-08-20：撮影済み写真があれば復元
     _renderMyTaskPhotos();
     showScreen('screen-mytask-self-capture');
   }
@@ -15963,6 +16124,7 @@
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         _myTaskState.photos.push(dataUrl.split(',')[1]);
+        try { _myTaskSavePendingPhotos(); } catch(e){}  // 2026-08-20：リロードで消えないよう端末にも保存
         _renderMyTaskPhotos();
       };
       img.src = e.target.result;
@@ -15990,6 +16152,7 @@
   }
   function removeMyTaskPhoto(i) {
     _myTaskState.photos.splice(i, 1);
+    try { _myTaskSavePendingPhotos(); } catch(e){}  // 2026-08-20：削除後の枚数で保存を更新（0枚なら破棄）
     _renderMyTaskPhotos();
   }
 
@@ -16129,7 +16292,13 @@
 
   // 写真撮影・圧縮（onMyTaskPhotoSelected と同型：長辺1000px / JPEG0.6 / 生base64保持）
   function onOriwantesPhotoSelected(event) {
-    var file = event.target.files[0]; if (!file) return;
+    var file = event.target.files[0];
+    if (!file) {
+      // 2026-08-20：従来は無言 return だった。オリワンテスは *_BUBBLES を持たない（チャット形式）ため、
+      //   既存の _appendOriwantesMate（HTML 直書きの発言追加）でそのまま知らせる。
+      _appendOriwantesMate(NO_PHOTO_LINES.oriwantes);
+      return;
+    }
     var reader = new FileReader();
     reader.onload = function(e) {
       var img = new Image();
@@ -17104,7 +17273,12 @@
   // (2-E) 送信。content 必須・photos 1枚以上必須をフロントでも検証。
   function submitMyTaskSelf() {
     if (!_myTaskState.content || !_myTaskState.content.trim()) { goMyTaskSelfEntry(); return; }
-    if (!_myTaskState.photos.length) { goMyTaskSelfCapture(); return; }
+    if (!_myTaskState.photos.length) {
+      // 2026-08-20：従来は無言で撮影画面に戻すだけだった。既存のマイカダイ吹き出しで理由を知らせる。
+      goMyTaskSelfCapture();
+      _setContentMascot('mate-img-mytask-self-capture', 'encourage', 'mate-bubble-mytask-self-capture', NO_PHOTO_LINES.mytask, 'maikadai');
+      return;
+    }
     _doSubmitMyTask(_myTaskState.content, _myTaskState.photos.slice());
   }
   // 失敗分のみ再送（仕様：失敗写真だけで再度 submitMyTask＝新しい提出）。
@@ -17133,6 +17307,9 @@
   }
   function _handleMyTaskResult(res, sentPhotos) {
     if (res && res.ok) {
+      // 2026-08-20：サーバが受理したので端末の保存写真は必ず破棄（溜め込み防止）。
+      //   一部失敗分は _myTaskState.lastFailedPhotos（メモリ）で従来どおり再送できる。
+      try { _pendingPhotoClear(MYTASK_PHOTOS_KEY); } catch(e){}
       var failed = res.failedIndexes || [];
       if (failed.length > 0) {
         // 一部失敗：失敗した写真だけ再送できるよう保持
@@ -18070,7 +18247,14 @@
   //   - Gemini Vision OCR + 採点で 10〜30 秒かかるため、25 秒タイムアウトは短すぎる可能性あり。
   //     gasPost のデフォルト 90 秒を維持しつつ、_logHP 防御層のリトライを信頼する。
   function submitKanjiKakiPhoto() {
-    if (!_kanjiState.kakiPhotoBase64) return;
+    if (!_kanjiState.kakiPhotoBase64) {
+      // 2026-08-20：従来は無言 return だった。撮影画面へ戻し、既存のカンジー吹き出しで知らせる。
+      //   （確認画面にはマスコット要素が無いため、カメラを押せる画面まで戻してから表示する）
+      try { _pendingPhotoClear(KANJI_PHOTO_KEY); } catch(e){}
+      showScreen('screen-kanji-kaki');
+      _kanjiSetMascot('kanjii-img-kaki', 'encourage', 'kanjii-bubble-kaki', NO_PHOTO_LINES.kanji);
+      return;
+    }
     var submitBtn = document.getElementById('kanji-kaki-submit-btn');
     submitBtn.disabled = true;
     var msgEl = document.getElementById('kanji-kaki-msg');
@@ -21484,7 +21668,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-1858</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-2133</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
