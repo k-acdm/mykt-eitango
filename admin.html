@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260819-2300"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260820-0021"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -8640,21 +8640,24 @@
         //   child-history と同じ study_sessions の SUM(seconds)。★サーバ未対応の間は undefined → {} で全「—」（既存非破壊）。
         //   PHP は snake_case で返す想定のため studySecondsByCode / study_seconds_by_code の両対応。
         var studyByCode = (lres && lres.ok) ? (lres.studySecondsByCode || lres.study_seconds_by_code || {}) : {};
+        // 2026-08-20：3時間クランプの目印マップ（student_code → bool）。★サーバー未対応の間は
+        //   undefined → {} となり、従来どおりの分秒表記のまま（既存非破壊）。命名は snake/camel 両対応。
+        var studyCappedByCode = (lres && lres.ok) ? (lres.studySecondsCappedByCode || lres.study_seconds_capped_by_code || {}) : {};
         adminGasGet({ action: 'getStudentsListForGrant', _ts: Date.now() }).then(function(sres) {
           var roster = (sres && sres.ok && Array.isArray(sres.students)) ? sres.students : [];
           // (あ)方式：未記入者へ送った促し（reply_to_reflectionId 無し）をその教育日ぶん取得し、
           //   未記入カードの返信スレッドにマージ復元する。取得失敗でも記入者/未記入者は必ず表示（graceful）。
           adminGasGet({ action: 'adminGetDayReminders', date: ds, _ts: Date.now() }).then(function(rres) {
             var reminders = (rres && rres.ok && Array.isArray(rres.reminders)) ? rres.reminders : [];
-            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode);
+            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode, studyCappedByCode);
           }).catch(function() {
-            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, [], studyByCode);
+            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, [], studyByCode, studyCappedByCode);
           });
         }).catch(function() {
-          _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, [], [], studyByCode);
+          _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, [], [], studyByCode, studyCappedByCode);
         });
       }).catch(function() {
-        _renderReflectionsDayMerged(wrapEl, ds, writers, [], [], [], {});
+        _renderReflectionsDayMerged(wrapEl, ds, writers, [], [], [], {}, {});
       });
     }).catch(function() {
       wrapEl.innerHTML = '<div class="refl-day-empty">通信エラーが発生しました</div>';
@@ -8665,13 +8668,20 @@
 
   // 実施時間の表示書式：child-history（getChildActivityRecent の studySeconds）と完全に同一。
   //   値は study_sessions を student×教育日で SUM(seconds) した秒数。0/未取得は「—」（学習履歴と同じ挙動）。
-  function _reflFormatStudySeconds(sec) {
+  // 2026-08-20：サーバー側(AWS 0361531)が実施時間を3時間(10800秒)でクランプするようになった。
+  //   クランプされた場合は capped=true が渡るので「3時間以上」と表記する（3時間を超えた時点で
+  //   放置と判断でき、正確な数字を出す意味がないため）。
+  //   ★capped が false / 未指定のときは従来どおりの分秒表記（1文字も変えない）。
+  //   ★0秒・記録なしは capped に関係なく従来どおり「—」。
+  function _reflFormatStudySeconds(sec, capped) {
     var s = Number(sec) || 0;
+    if (s > 0 && capped === true) return '3時間以上';
     return s > 0 ? (Math.floor(s / 60) + '分' + (s % 60) + '秒') : '—';
   }
 
-  function _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode) {
+  function _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode, studyCappedByCode) {
     studyByCode = studyByCode || {};   // 実施時間マップ（student_code → 合計秒）。未取得時は空＝全「—」。
+    studyCappedByCode = studyCappedByCode || {};   // 2026-08-20：3時間クランプ目印。未取得時は空＝全て従来表記。
     // (あ)方式：未記入者へ送った促しを student_code でグルーピング（sent_at 昇順はサーバ側で担保済）。
     // ★バックエンド(PHP)は snake_case で返す（admin.html:14180 の SheetGridActions 契約と同様）。
     //   将来 camelCase に変わっても壊れないよう snake ?? camel の両対応で突合キーを取る。
@@ -8735,7 +8745,8 @@
     var dsJs  = _reflJs(ds || '');
     // 実施時間（第4群B）：氏名/学年バッジと時刻の間に表示。未取得/0 は「—」（child-history と同一書式）。
     var studySec  = (studyByCode || {})[String(r.studentId || '').trim()];
-    var studyHtml = '<span class="head-study">' + _esc(_reflFormatStudySeconds(studySec)) + '</span>';
+    var studyCap  = (studyCappedByCode || {})[String(r.studentId || '').trim()];
+    var studyHtml = '<span class="head-study">' + _esc(_reflFormatStudySeconds(studySec, studyCap)) + '</span>';
     var dayWorksHtml = sidJs
       ? '<div class="day-works-wrap">' +
           '<button class="day-works-toggle" id="day-works-btn-' + ridEsc + '" onclick="toggleDayWorks(\'' + ridEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📎 この日の作品を見る</button>' +
@@ -8787,7 +8798,8 @@
       : '';
     // 実施時間（第4群B）：未記入者にも同様に表示（その日の実施時間は記入有無に関係なくあり得る）。未取得/0 は「—」。
     var studySec  = (studyByCode || {})[sid.trim()];
-    var studyHtml = '<span class="head-study">' + _esc(_reflFormatStudySeconds(studySec)) + '</span>';
+    var studyCap  = (studyCappedByCode || {})[sid.trim()];
+    var studyHtml = '<span class="head-study">' + _esc(_reflFormatStudySeconds(studySec, studyCap)) + '</span>';
     return '<div class="refl-day-card" data-nw="' + _esc(sid) + '">' +
              '<div class="head-row">' +
                '<div><span class="head-name">' + nameEsc + '</span>' + nickHtml + '</div>' +
@@ -12474,7 +12486,9 @@
     {
       // 第4群B：その教育日の実施時間（複数回ログインは合計）。getChildActivityRecent の d.studySeconds。
       label: '実施時間',
-      render: function(d) { var s = Number(d && d.studySeconds) || 0; return s > 0 ? Math.floor(s / 60) + '分' + (s % 60) + '秒' : '—'; }
+      // 2026-08-20：サーバー(AWS 0361531)が3時間(10800秒)でクランプした場合は studySecondsCapped=true が返る。
+      //   true のときだけ「3時間以上」と表記。false / キー無し は従来どおりの分秒表記（既存非破壊）。
+      render: function(d) { var s = Number(d && d.studySeconds) || 0; if (s > 0 && d && d.studySecondsCapped === true) return '3時間以上'; return s > 0 ? Math.floor(s / 60) + '分' + (s % 60) + '秒' : '—'; }
     },
     {
       label: 'ログイン',
@@ -15328,7 +15342,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-2300</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-0021</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
