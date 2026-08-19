@@ -3385,10 +3385,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-1500"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-1858"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-1500">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-1500"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-1858">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-1858"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -15121,6 +15121,63 @@
   function _kanjiSaveRecentSessions(level, arr) {
     try { localStorage.setItem(_kanjiRecentKey(level), JSON.stringify(arr || [])); } catch(e){}
   }
+  // ---------------------------------------------------------------
+  // 撮影済み写真の永続化（2026-08-19）
+  // ---------------------------------------------------------------
+  // 背景：カメラ起動時に端末メモリ不足で WebView が強制リロードされることがあり、
+  //   _kanjiState.kakiPhotoDataUrl（メモリ上）に載っていた撮影画像が消えて
+  //   「写真を撮ったのに送れない／最初の画面に戻る」状態になっていた。
+  //   セッション自体は _kanjiLoadRecentSessions の自動再開で戻るが、写真だけが失われる。
+  // 方針：上の Recovery と同じ作法（localStorage + JSON + 教育日キー + 失敗握り潰し）に乗せる。
+  //   ただし ★保存先キーは分離する。画像は数百KB〜1MB超と大きく、recent セッション本体と
+  //   同居させると QuotaExceeded で「セッション配列ごと保存失敗」＝自動再開が壊れるため。
+  //   sessionId で recent エントリと紐付けることで、仕組みとしては同じライフサイクルに乗る。
+  // 容量対策：★単一スロット（常に1枚だけ）。保存前に必ず removeItem して古い写真を捨てるので
+  //   溜まらない。上限超過・保存失敗時は握り潰して false を返すだけで、従来どおり動く。
+  var KANJI_PHOTO_KEY = 'mykt_kanji_photo';
+  var KANJI_PHOTO_MAX_CHARS = 3000000;  // これを超える dataUrl は保存を試みない（確実に溢れるため）
+  // 保存：成功なら true。失敗しても例外は投げない（呼び出し側は結果を無視してよい）。
+  function _kanjiSavePendingPhoto(level, sessionId, dataUrl) {
+    if (!level || !sessionId || !dataUrl) return false;
+    if (String(dataUrl).length > KANJI_PHOTO_MAX_CHARS) { _kanjiClearPendingPhoto(); return false; }
+    try {
+      // 先に消してから入れる（旧スロット分を空けてから書くことで通りやすくする＝古いものが消える挙動）
+      localStorage.removeItem(KANJI_PHOTO_KEY);
+      localStorage.setItem(KANJI_PHOTO_KEY, JSON.stringify({
+        sessionId: String(sessionId),
+        level:     String(level),
+        dateKey:   _todayKeyJST3am(),
+        savedAt:   Date.now(),
+        dataUrl:   String(dataUrl)
+      }));
+      return true;
+    } catch(e) {
+      // QuotaExceededError 等。中途半端な残骸を消して、そのまま従来動作（メモリのみ）に戻る。
+      try { localStorage.removeItem(KANJI_PHOTO_KEY); } catch(_e){}
+      return false;
+    }
+  }
+  // 復元：同じ級・同じセッション・retention 期間内（当日 or 前日＝recent と同じ窓）のときだけ dataUrl を返す。
+  //   条件に合わなければ '' を返し、呼び出し側は従来どおり「撮り直し」になる（エラーにしない）。
+  function _kanjiLoadPendingPhoto(level, sessionId) {
+    if (!level || !sessionId) return '';
+    try {
+      var raw = localStorage.getItem(KANJI_PHOTO_KEY);
+      if (!raw) return '';
+      var o = JSON.parse(raw);
+      if (!o || !o.dataUrl) return '';
+      if (String(o.level) !== String(level)) return '';
+      if (String(o.sessionId) !== String(sessionId)) return '';
+      var today = _todayKeyJST3am(), yest = _yesterdayKeyJST3am();
+      if (o.dateKey !== today && o.dateKey !== yest) { _kanjiClearPendingPhoto(); return ''; }
+      if (String(o.dataUrl).indexOf('data:image/') !== 0) return '';
+      return String(o.dataUrl);
+    } catch(e) { return ''; }
+  }
+  // 破棄：送信成功・撮り直し・再挑戦入りなど「その写真がもう不要になった」瞬間に必ず呼ぶ（溜め込み防止）。
+  function _kanjiClearPendingPhoto() {
+    try { localStorage.removeItem(KANJI_PHOTO_KEY); } catch(e){}
+  }
   // セッション開始直後に呼ぶ：localStorage の先頭に 1 件追加（submission は null）
   function _kanjiSaveSessionStart(sessionMeta) {
     if (!sessionMeta || !sessionMeta.level || !sessionMeta.sessionId) return;
@@ -17910,6 +17967,24 @@
     var freshBtn = document.getElementById('kanji-kaki-fresh-btn');
     if (freshBtn) freshBtn.style.display = _kanjiState.isResumed ? '' : 'none';
     showScreen('screen-kanji-kaki');
+    // 2026-08-19：リロード復元。同じ級・同じセッションの撮影済み写真が端末に残っていれば
+    //   メモリへ戻して撮影確認画面まで進める（＝撮り直さずそのまま送信できる）。
+    //   ★見つからない／壊れている場合は何もしない＝従来どおり screen-kanji-kaki で撮り直し。
+    try {
+      if (!_kanjiState.isKakiRetry) {
+        var _pendPhoto = _kanjiLoadPendingPhoto(_kanjiState.level, _kanjiState.sessionId);
+        var _pendB64   = _pendPhoto ? (_pendPhoto.split(',')[1] || '') : '';
+        if (_pendPhoto && _pendB64) {
+          _kanjiState.kakiPhotoDataUrl = _pendPhoto;
+          _kanjiState.kakiPhotoBase64  = _pendB64;
+          var _pendPv = document.getElementById('kanji-kaki-preview');
+          if (_pendPv) _pendPv.src = _pendPhoto;
+          var _pendBtn = document.getElementById('kanji-kaki-submit-btn');
+          if (_pendBtn) _pendBtn.disabled = false;
+          showScreen('screen-kanji-kaki-confirm');
+        }
+      }
+    } catch(e) {}
   }
   function _renderKanjiKakiList(questions) {
     var html = questions.map(function(q, i){
@@ -17938,6 +18013,13 @@
         var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         _kanjiState.kakiPhotoDataUrl = dataUrl;
         _kanjiState.kakiPhotoBase64 = dataUrl.split(',')[1];
+        // 2026-08-19：カメラ起動によるリロードで写真が消える対策。メモリと同時に端末にも保存。
+        //   ★再挑戦（isKakiRetry）中は期待解答リストが不正解分だけに絞られており、復元して
+        //     全問扱いで送ると誤採点になるため保存しない（従来どおり撮り直し）。
+        try {
+          if (_kanjiState.isKakiRetry) { _kanjiClearPendingPhoto(); }
+          else { _kanjiSavePendingPhoto(_kanjiState.level, _kanjiState.sessionId, dataUrl); }
+        } catch(e){}
         document.getElementById('kanji-kaki-preview').src = dataUrl;
         document.getElementById('kanji-kaki-submit-btn').disabled = false;
         document.getElementById('kanji-kaki-msg').style.display = 'none';
@@ -17950,6 +18032,7 @@
   function retakeKanjiPhoto() {
     _kanjiState.kakiPhotoDataUrl = '';
     _kanjiState.kakiPhotoBase64 = '';
+    try { _kanjiClearPendingPhoto(); } catch(e){}  // 2026-08-19：破棄した写真を復元しないよう端末側も消す
     var input = document.getElementById('kanji-photo-input');
     if (input) input.value = '';
     document.getElementById('kanji-kaki-preview').src = '';
@@ -17965,6 +18048,11 @@
       onCropped: function(croppedDataUrl) {
         _kanjiState.kakiPhotoDataUrl = croppedDataUrl;
         _kanjiState.kakiPhotoBase64 = croppedDataUrl.split(',')[1];
+        // 2026-08-19：端末保存分も切り抜き後の画像へ差し替え（復元時に切り抜き結果が生きる）
+        try {
+          if (_kanjiState.isKakiRetry) { _kanjiClearPendingPhoto(); }
+          else { _kanjiSavePendingPhoto(_kanjiState.level, _kanjiState.sessionId, croppedDataUrl); }
+        } catch(e){}
         var preview = document.getElementById('kanji-kaki-preview');
         if (preview) preview.src = croppedDataUrl;
         showScreen('screen-kanji-kaki-confirm');
@@ -18023,6 +18111,7 @@
             // 旧 retake フロー：OCR 信頼度低 → 撮り直し誘導（既存挙動維持）
             _pendingRetry = null;
             _pendingDismiss = null;
+            try { _kanjiClearPendingPhoto(); } catch(e){}  // 2026-08-19：読めなかった写真は復元不要
             alert('📸 写真が読み取れなかったみたい！\nもう一回明るい場所で撮ってみてね。');
             showScreen('screen-kanji-kaki');
             return;
@@ -18039,6 +18128,7 @@
         if (res.needsRetake) {
           _pendingRetry = null;
           _pendingDismiss = null;
+          try { _kanjiClearPendingPhoto(); } catch(e){}  // 2026-08-19：撮り直し確定の写真は復元不要
           // 2026-08-05 追修正：撮り直し画面への切替を overlay 消滅と同時に
           _hideHpConfirmingOverlay(function(){ _showKanjiKakiRetake(res); });
           return;
@@ -18046,6 +18136,7 @@
         // 成功：pending ハンドラをクリアして結果画面を描画
         _pendingRetry = null;
         _pendingDismiss = null;
+        try { _kanjiClearPendingPhoto(); } catch(e){}  // 2026-08-19：送信成功したので端末の写真は必ず破棄
         _kanjiState.kakiResults = res.results || [];
         _kanjiState.kakiPassed = !!res.passed;
         // 2026-05-21 Recovery バリアント：採点完了 → localStorage の submission を更新
@@ -18178,6 +18269,9 @@
     showScreen('screen-kanji-kaki-retake');
   }
   function _retryKanjiKaki() {
+    // 2026-08-19：再挑戦は期待解答が不正解分だけに絞られる。全問分の保存写真が残っていると
+    //   誤って復元されうるのでここで確実に破棄する（再挑戦中は保存もしない）。
+    try { _kanjiClearPendingPhoto(); } catch(e){}
     // 不正解のみを再挑戦対象に
     _kanjiState.isKakiRetry = true;
     _kanjiState.retryAnswers = (_kanjiState.kakiResults || [])
@@ -21390,7 +21484,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-1500</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-1858</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
