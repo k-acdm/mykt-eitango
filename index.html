@@ -3385,10 +3385,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-0533"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-1500"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-0533">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-0533"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-1500">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-1500"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4130,9 +4130,8 @@
     </div>
 
     <!-- サブ操作（音声設定 / 効果音オンオフ切替）。ログアウトは最上部バナーに併設のため下部からは廃止。 -->
-    <div class="sub-action-row">
-      <button class="sub-action-btn settings" onclick="showScreen('screen-settings')">🔊 音声設定</button>
-      <button class="sub-action-btn sfx-link" onclick="showScreen('screen-settings')">🔔 効果音のオン／オフ切替</button>
+    <div class="sub-action-row single">
+      <button class="sub-action-btn settings" onclick="showScreen('screen-settings')">⚙️ 各種設定</button>
     </div>
   </div>
 </div>
@@ -4355,10 +4354,10 @@
   </div>
 </div>
 <div id="screen-settings" class="screen">
-  <header><h1>🔊 音声の設定</h1></header>
+  <header><h1>⚙️ 各種設定</h1></header>
   <div class="container" style="padding-top:20px">
     <div class="setting-card">
-      <h3>🔊 音声の種類を選んでください</h3>
+      <h3>🔊 音声の種類</h3>
       <div class="voice-grid">
         <button class="voice-btn" id="voice-btn-0" onclick="selectVoice(0)">
           <div><div>👩 女性の声</div><div class="voice-sample">高めのピッチ</div></div>
@@ -4373,9 +4372,9 @@
     </div>
     <div class="setting-card">
       <h3>🔔 効果音</h3>
-      <p class="sfx-setting-desc">クイズの正解・不正解の音や、HPをもらうときの音を、鳴らす/鳴らさないを切り替えられるよ。<br><span class="sfx-note">※英語や国語の読み上げの声は、この設定では消えません。</span></p>
+      <p class="sfx-setting-desc">クイズの正解・不正解の音や、HPをもらうときの音の「鳴らす/鳴らさない」を切り替えられるよ。<br><span class="sfx-note">※英語や国語の読み上げの声は、この設定では消えません。</span></p>
       <button type="button" id="sfx-toggle-btn" class="sfx-toggle on" onclick="toggleSfx()" aria-pressed="true">
-        <span class="sfx-toggle-label" id="sfx-toggle-label">🔔 効果音：オン</span>
+        <span class="sfx-toggle-label" id="sfx-toggle-label">🔔 効果音：鳴らす</span>
         <span class="sfx-toggle-switch"><span class="sfx-toggle-knob"></span></span>
       </button>
     </div>
@@ -4383,7 +4382,7 @@
          ★絶対ミッションが残っている間はカードごと非表示（＝消せない）。達成後のみ出る。 -->
     <div class="setting-card" id="study-timer-setting-card" style="display:none">
       <h3>⏱ 実施時間タイマー</h3>
-      <p class="sfx-setting-desc">画面に出ている「⏱ 実施時間」を、消す/出すを切り替えられるよ。<br><span class="sfx-note">※消しても時間はきちんと計られているよ（HP や記録には影響しません）。</span></p>
+      <p class="sfx-setting-desc">画面に出ている「⏱ 実施時間」の「表示する/表示しない」を切り替えられるよ。<br><span class="sfx-note">※絶対ミッションの最中は常に表示されます。</span></p>
       <button type="button" id="study-timer-toggle-btn" class="sfx-toggle on" onclick="toggleStudyTimerVisibility()" aria-pressed="true">
         <span class="sfx-toggle-label" id="study-timer-toggle-label">⏱ タイマー：表示する</span>
         <span class="sfx-toggle-switch"><span class="sfx-toggle-knob"></span></span>
@@ -7459,7 +7458,7 @@
     btn.classList.toggle('on',  on);
     btn.classList.toggle('off', !on);
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    if (lbl) lbl.textContent = on ? '🔔 効果音：オン' : '🔕 効果音：オフ';
+    if (lbl) lbl.textContent = on ? '🔔 効果音：鳴らす' : '🔕 効果音：鳴らさない';
   }
 
   // 効果音オン/オフを切り替え、localStorage に保存して表示を即更新する。
@@ -21391,7 +21390,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-0533</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-1500</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
