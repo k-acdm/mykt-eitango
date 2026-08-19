@@ -3385,10 +3385,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-2133"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260819-2155"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-2133">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-2133"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260819-2155">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260819-2155"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4941,6 +4941,14 @@
         ✅ 途中式がはっきり写っているかを確認してね。<br>
         OK なら「送信する」を押してね。<br>
         <span style="color:#92400e;font-size:13px">※ 途中式は AI 採点はせず、<strong>リアル福地</strong>が確認用に保存します。</span>
+      </div>
+      <!-- 2026-08-20【B】写真が無いときのセリフ専用。既存の説明文には触れず、その下に 1 つ追加するだけ。
+           通常は display:none で、送信時に写真が無かったときだけ表示する（見た目は既存のマスコット吹き出しに合わせる）。 -->
+      <div class="kiso-camera-intro-card kiso-work-nophoto" id="kiso-work-nophoto" style="display:none;margin-top:12px">
+        <div class="mascot-row">
+          <img src="images/kisoK-encourage.png" alt="キソKさん">
+          <div class="mascot-bubble" id="kiso-work-nophoto-bubble"></div>
+        </div>
       </div>
       <div class="kiso-confirm-btns">
         <button class="kiso-confirm-retake" onclick="retakeKisoWorkPhoto()">📸 撮り直す</button>
@@ -11580,6 +11588,9 @@
       var msg = document.getElementById('sango-text-msg'); msg.style.display = 'none';
     } else {
       _resetSangoPhoto();
+      // 2026-08-20：このレベルの読み取り済みテキストが端末に残っていれば確認ブロックを復元。
+      //   入場時・レベルタブ切替のどちらもここを通るので、フックは 1 箇所で足りる。
+      try { _sangoRestorePendingOcrIfAny(); } catch(e){}
     }
   }
   function startSangoTextSubmit() {
@@ -11671,6 +11682,32 @@
     _setContentMascot('mate-img-sango-photo', 'thinking', 'mate-bubble-sango-photo', _pickBubble(SANGOTAN_BUBBLES.photo), 'sangotan');
     showScreen('screen-sango-photo');
   }
+  // 2026-08-20【A】三語短文は OCR テキスト（work）を送るため、テキスト側を永続化する。
+  //   ★共通コア（_pendingPhotoSave/Load/Clear）に相乗り。専用キー・単一スロット・期限ガードも同じ。
+  var SANGO_OCR_KEY = 'mykt_sango_ocr';
+  function _sangoSavePendingOcr() {
+    if (!_sangoOcrText || !_sangoCurrentLevel) { _pendingPhotoClear(SANGO_OCR_KEY); return false; }
+    var payload = { date: String(_sangoDate || ''), level: String(_sangoCurrentLevel), ocrText: String(_sangoOcrText) };
+    return _pendingPhotoSave(SANGO_OCR_KEY, payload, JSON.stringify(payload).length, PENDING_TEXT_MAX_CHARS);
+  }
+  // 写真提出画面に入った時点で呼ぶ。同じ日・同じレベルの読み取り結果が残っていれば確認ブロックまで戻す。
+  //   ★条件に合わない／壊れている場合は何もしない＝従来どおり撮り直し（エラーにしない）。
+  function _sangoRestorePendingOcrIfAny() {
+    try {
+      if (_sangoOcrText) return false;   // 既にメモリにある＝通常フロー
+      var o = _pendingPhotoLoad(SANGO_OCR_KEY, function(x){
+        return String(x.date || '') === String(_sangoDate || '')
+            && String(x.level || '') === String(_sangoCurrentLevel || '')
+            && !!x.ocrText;
+      });
+      if (!o) return false;
+      _sangoOcrText = String(o.ocrText);
+      var t = document.getElementById('sango-ocr-text');   if (t) t.textContent = _sangoOcrText;
+      var c = document.getElementById('sango-ocr-confirm'); if (c) c.style.display = 'block';
+      var m = document.getElementById('sango-photo-msg');   if (m) m.style.display = 'none';
+      return true;
+    } catch(e) { return false; }
+  }
   function _resetSangoPhoto() {
     _sangoOcrText = '';
     _sangoLastSourceDataUrl = '';
@@ -11725,6 +11762,7 @@
         showMsg('sango-photo-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng'); return;
       }
       _sangoOcrText = String(response.fullTextAnnotation.text || '').trim();
+      try { _sangoSavePendingOcr(); } catch(e){}  // 2026-08-20：リロードで消えないよう端末にも保存
       msgEl.style.display = 'none';
       document.getElementById('sango-ocr-text').textContent = _sangoOcrText;
       document.getElementById('sango-ocr-confirm').style.display = 'block';
@@ -11732,6 +11770,7 @@
   }
   function confirmSangoPhoto(ok) {
     if (!ok) {
+      try { _pendingPhotoClear(SANGO_OCR_KEY); } catch(e){}  // 2026-08-20：生徒が却下した読み取り結果は復元しない
       _resetSangoPhoto();
       var msgEl = document.getElementById('sango-photo-msg');
       msgEl.textContent = '📝 もう一度、きれいに書いて写真を撮り直してください。';
@@ -11765,6 +11804,7 @@
         }
         // 成功：pending ハンドラをクリアして feedback 画面へ
         _pendingRetry = null; _pendingDismiss = null;
+        try { _pendingPhotoClear(SANGO_OCR_KEY); } catch(e){}  // 2026-08-20：送信成功したので端末の保存は必ず破棄
         _invalidateCacheByAction('getSangoSubmissions');
         var actualHp = Number(res.hpGained || 0);
         if (typeof _totalHP === 'number' && actualHp > 0) _totalHP += actualHp;
@@ -12468,6 +12508,7 @@
       _wabun1State.topic = res.today || null;
       _wabun1State.yesterday = res.yesterday || null;
       _renderWabun1Topic();
+      try { _wabun1RestorePendingOcrIfAny(); } catch(e){}  // 2026-08-20：読み取り済みなら確認画面まで復元
     }).catch(function(){ bodyEl.innerHTML = '<div class="error">エラーが発生しました。</div>'; });
   }
 
@@ -12548,11 +12589,55 @@
     var topic = _wabun1State.topic;
     if (!topic || !Array.isArray(topic.skip_questions) || topic.skip_questions.length === 0) return;
     _wabun1State.skipApplied = true;
+    try { if (_wabun1State.ocrText) _wabun1SavePendingOcr(); } catch(e){}  // 2026-08-20：保存側の skip 状態も同期
     _renderWabun1Topic();
   }
   function cancelWabun1Skip() {
     _wabun1State.skipApplied = false;
+    try { if (_wabun1State.ocrText) _wabun1SavePendingOcr(); } catch(e){}  // 2026-08-20：保存側の skip 状態も同期
     _renderWabun1Topic();
+  }
+  // 2026-08-20【A】和文英訳①も写真ではなく OCR テキストを送るため、テキスト側を永続化する。
+  //   ★parsedAnswers（採点に実際に使う問題ごとの答え）も必ず一緒に保存する。
+  //     テキストだけ戻して解答が消えていたら復元の意味がないため。
+  //   ★共通コア（_pendingPhotoSave/Load/Clear）に相乗り。専用キー・単一スロット・期限ガードも同じ。
+  var WABUN1_OCR_KEY = 'mykt_wabun1_ocr';
+  function _wabun1SavePendingOcr() {
+    var topic = _wabun1State.topic;
+    if (!_wabun1State.ocrText || !topic || !topic.date) { _pendingPhotoClear(WABUN1_OCR_KEY); return false; }
+    var payload = {
+      date:          String(topic.date),
+      ocrText:       String(_wabun1State.ocrText),
+      parsedAnswers: _wabun1State.parsedAnswers || null,
+      skipApplied:   !!_wabun1State.skipApplied
+    };
+    return _pendingPhotoSave(WABUN1_OCR_KEY, payload, JSON.stringify(payload).length, PENDING_TEXT_MAX_CHARS);
+  }
+  // 問題を読み込んだ直後に呼ぶ。同じ日の読み取り結果が残っていれば確認画面まで戻す。
+  //   ★日付が違う（＝別の日の問題）なら復元しない。壊れていれば何もしない＝従来どおり撮り直し。
+  function _wabun1RestorePendingOcrIfAny() {
+    try {
+      if (_wabun1State.ocrText) return false;   // 既にメモリにある＝通常フロー
+      var topic = _wabun1State.topic;
+      if (!topic || !topic.date) return false;
+      var o = _pendingPhotoLoad(WABUN1_OCR_KEY, function(x){
+        return String(x.date || '') === String(topic.date) && !!x.ocrText;
+      });
+      if (!o) return false;
+      _wabun1State.ocrText       = String(o.ocrText);
+      _wabun1State.parsedAnswers = o.parsedAnswers || _wabun1ParseWork(_wabun1State.ocrText);
+      _wabun1State.skipApplied   = !!o.skipApplied;
+      var t = document.getElementById('wabun1-ocr-text'); if (t) t.textContent = _wabun1State.ocrText;
+      _renderWabun1ParsedList(_wabun1State.parsedAnswers);
+      _wabun1RenderAnomalyWarn(_wabun1State.ocrText, _wabun1State.parsedAnswers);
+      var cm = document.getElementById('wabun1-confirm-msg'); if (cm) cm.style.display = 'none';
+      var sb = document.getElementById('wabun1-confirm-submit-btn'); if (sb) sb.disabled = false;
+      var sa = document.getElementById('wabun1-show-answer-confirm');
+      if (sa) sa.style.display = _wabun1State.hasSubmitted ? 'block' : 'none';
+      _setContentMascot('mate-img-wabun1-confirm', 'thinking', 'mate-bubble-wabun1-confirm', _pickBubble(NICHIEI_BUBBLES.confirm), 'nichiei');
+      showScreen('screen-wabun1-confirm');
+      return true;
+    } catch(e) { return false; }
   }
   function _wabun1AppliedSkipNums() {
     var topic = _wabun1State.topic;
@@ -12636,6 +12721,7 @@
       _wabun1State.ocrText = ocrText;
       // 案C：採点に使う「問題ごとの答え」をフロントで先行パースし、確認画面の表示と完全一致させる
       _wabun1State.parsedAnswers = _wabun1ParseWork(ocrText);
+      try { _wabun1SavePendingOcr(); } catch(e){}  // 2026-08-20：リロードで消えないよう端末にも保存（解答も一緒に）
       msgEl.style.display = 'none';
       document.getElementById('wabun1-photo-input').value = '';
       document.getElementById('wabun1-ocr-text').textContent = ocrText;
@@ -12677,6 +12763,7 @@
     _wabun1State.ocrText = '';
     _wabun1State.parsedAnswers = null;
     _wabun1State.lastSourceDataUrl = '';
+    try { _pendingPhotoClear(WABUN1_OCR_KEY); } catch(e){}  // 2026-08-20：破棄した読み取り結果は復元しない
     document.getElementById('wabun1-photo-input').value = '';
     document.getElementById('wabun1-photo-preview').style.display = 'none';
     document.getElementById('wabun1-photo-preview').src = '';
@@ -12688,6 +12775,7 @@
     _wabun1State.ocrText = '';
     _wabun1State.parsedAnswers = null;
     _wabun1State.lastSourceDataUrl = '';
+    try { _pendingPhotoClear(WABUN1_OCR_KEY); } catch(e){}  // 2026-08-20：破棄した読み取り結果は復元しない
     var input = document.getElementById('wabun1-photo-input');
     if (input) input.value = '';
     var preview = document.getElementById('wabun1-photo-preview');
@@ -12744,6 +12832,7 @@
         }
         // 成功：pending ハンドラをクリアして result 画面を描画
         _pendingRetry = null; _pendingDismiss = null;
+        try { _pendingPhotoClear(WABUN1_OCR_KEY); } catch(e){}  // 2026-08-20：送信成功したので端末の保存は必ず破棄
         _wabun1State.hasSubmitted = true;
         _invalidateCacheByAction('getWabun1AnswersAfterSubmit');
         // 2026-08-05 追修正：result 画面への切替を overlay 消滅と同時に
@@ -14377,6 +14466,8 @@
   }
   function retakeKisoWorkPhoto() {
     _kisoState.workPhotoBase64 = '';
+    var _wnpR = document.getElementById('kiso-work-nophoto');
+    if (_wnpR) _wnpR.style.display = 'none';   // 2026-08-20：撮り直しに入ったら案内を隠す
     var i1 = document.getElementById('kiso-work-photo-input-1'); if (i1) i1.value = '';
     var i2 = document.getElementById('kiso-work-photo-input-2'); if (i2) i2.value = '';
     document.getElementById('kiso-work-confirm-preview').src = '';
@@ -14390,7 +14481,18 @@
     }
   }
   function submitKisoWorkPhoto() {
-    if (!_kisoState.sessionId || !_kisoState.workPhotoBase64) return;
+    if (!_kisoState.sessionId || !_kisoState.workPhotoBase64) {
+      // 2026-08-20【B】従来は無言 return だった。途中式フローには既存のマスコット要素が無いため、
+      //   ★既存の説明文には触れず、専用の吹き出し要素（#kiso-work-nophoto）を出して知らせる。
+      var _wnp = document.getElementById('kiso-work-nophoto');
+      var _wnb = document.getElementById('kiso-work-nophoto-bubble');
+      if (_wnb) _wnb.textContent = NO_PHOTO_LINES.kiso;
+      if (_wnp) _wnp.style.display = 'block';
+      return;
+    }
+    // 写真が有るときは案内を隠す（前回の表示を残さない）
+    var _wnpOk = document.getElementById('kiso-work-nophoto');
+    if (_wnpOk) _wnpOk.style.display = 'none';
     var nextIdx = (_kisoState.workPhotoIndex || 0) + 1;
     document.getElementById('kiso-work-confirm-submit-btn').disabled = true;
     _kisoShowGrading(true);
@@ -15302,6 +15404,11 @@
     for (var i = 0; i < (arr || []).length; i++) n += String(arr[i] || '').length;
     return n;
   }
+  // 2026-08-20【A】OCR テキスト用の上限。三語短文・和文英訳①は写真ではなく
+  //   「OCR で読み取ったテキスト」をサーバへ送るため、写真を戻しても送信できない。
+  //   保存すべきはテキスト側。実測で数百〜数千文字なので、写真（3,000,000）に比べ桁違いに小さい。
+  //   ★保存/復元/破棄は上の共通コア（_pendingPhotoSave/Load/Clear）をそのまま流用する。
+  var PENDING_TEXT_MAX_CHARS = 100000;
   // セッション開始直後に呼ぶ：localStorage の先頭に 1 件追加（submission は null）
   function _kanjiSaveSessionStart(sessionMeta) {
     if (!sessionMeta || !sessionMeta.level || !sessionMeta.sessionId) return;
@@ -15746,6 +15853,60 @@
   // ============================================================================
   var _myTaskHwState = { announcements: [], subjects: {}, current: null, lastResults: [] };
   function _myTaskHwResetState() { _myTaskHwState = { announcements: [], subjects: {}, current: null, lastResults: [] }; }
+  // 2026-08-20【C】宿題（教科別）の撮影写真を永続化する。★専用キー・単一スロット・共通コアに相乗り。
+  //   ★識別子は announcementId を使う（教科名ではない）。
+  //     理由：教科名（「数学」等）は別の日の別の告知でも同じ値になり得るため、教科名だけで突き合わせると
+  //     「昨日の数学の宿題の写真」が「今日の数学の宿題」に付いてしまう事故が起こる。
+  //     announcementId は告知そのものを一意に指すので、同じ宿題であることを確実に判定できる。
+  //   ★復元は announcementId と教科名が両方一致した告知が今も出ている場合だけ。
+  //     一致しなければその分は復元せず、どれも一致しなければスロットごと破棄する。
+  var MYTASK_HW_PHOTOS_KEY = 'mykt_mytask_hw_photos';
+  function _myTaskHwSavePendingPhotos() {
+    var items = [], total = 0;
+    for (var subj in _myTaskHwState.subjects) {
+      var e = _myTaskHwState.subjects[subj];
+      if (!e || !e.photos || !e.photos.length) continue;
+      if (!e.announcementId) continue;              // 識別子が無いものは復元の突き合わせができないので保存しない
+      items.push({ announcementId: String(e.announcementId), subject: String(subj), photos: e.photos.slice() });
+      total += _pendingPhotosTotalChars(e.photos);
+    }
+    if (!items.length) { _pendingPhotoClear(MYTASK_HW_PHOTOS_KEY); return false; }
+    return _pendingPhotoSave(MYTASK_HW_PHOTOS_KEY, { items: items }, total, PENDING_PHOTOS_MAX_CHARS);
+  }
+  // 告知一覧を取得し終えた時点で呼ぶ。★announcementId + 教科名が一致した分だけ復元する。
+  function _myTaskHwRestorePendingPhotosIfAny() {
+    try {
+      var anns = _myTaskHwState.announcements || [];
+      if (!anns.length) return false;
+      // 既に写真を持っているなら通常フロー中なので触らない
+      for (var k in _myTaskHwState.subjects) {
+        if (_myTaskHwState.subjects[k] && (_myTaskHwState.subjects[k].photos || []).length) return false;
+      }
+      var o = _pendingPhotoLoad(MYTASK_HW_PHOTOS_KEY, function(x){ return Array.isArray(x.items) && x.items.length > 0; });
+      if (!o) return false;
+      var restored = 0;
+      for (var i = 0; i < o.items.length; i++) {
+        var it = o.items[i];
+        if (!it || !it.announcementId || !Array.isArray(it.photos) || !it.photos.length) continue;
+        var match = null;
+        for (var j = 0; j < anns.length; j++) {
+          if (String(anns[j].announcementId || '') === String(it.announcementId)
+              && String(anns[j].subject || '') === String(it.subject)) { match = anns[j]; break; }
+        }
+        if (!match) continue;   // ★告知が変わった／無くなった → この分は復元しない
+        _myTaskHwState.subjects[match.subject] = {
+          announcementId: String(match.announcementId || ''),
+          content:        match.content || '',
+          announcedDate:  match.announcedDate || '',
+          photos:         it.photos.slice()
+        };
+        restored++;
+      }
+      // ★1 件も一致しなければ、古い写真を残さず破棄する
+      if (!restored) { _pendingPhotoClear(MYTASK_HW_PHOTOS_KEY); return false; }
+      return true;
+    } catch(e) { return false; }
+  }
   function _myTaskFmtDate(s) {
     var m = String(s == null ? '' : s).match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (!m) return String(s == null ? '' : s);
@@ -15762,12 +15923,16 @@
   function goMyTaskHwSelect() {
     _setContentMascot('mate-img-mytask-hw-select', 'default', 'mate-bubble-mytask-hw-select', _pickBubble(MAIKADAI_BUBBLES.p1_select), 'maikadai');
     showScreen('screen-mytask-hw-select');
-    if (_myTaskHwState.announcements && _myTaskHwState.announcements.length) { _renderMyTaskHwSelect(); return; }
+    if (_myTaskHwState.announcements && _myTaskHwState.announcements.length) {
+      try { _myTaskHwRestorePendingPhotosIfAny(); } catch(e){}  // 2026-08-20：撮影済み写真があれば復元
+      _renderMyTaskHwSelect(); return;
+    }
     var listEl = document.getElementById('mytask-hw-select-list');
     if (listEl) listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     gasGet({ action: 'listMyTaskAnnouncementsForStudent', studentId: _studentId, _ts: Date.now() }).then(function(res){
       if (!res || !res.ok) { _myTaskHwState.announcements = []; }
       else { _myTaskHwState.announcements = res.announcements || []; }
+      try { _myTaskHwRestorePendingPhotosIfAny(); } catch(e){}  // 2026-08-20：撮影済み写真があれば復元
       _renderMyTaskHwSelect();
     }).catch(function(){
       _myTaskHwState.announcements = [];
@@ -15862,6 +16027,7 @@
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         _myTaskHwState.subjects[subj].photos.push(dataUrl.split(',')[1]);
+        try { _myTaskHwSavePendingPhotos(); } catch(e){}  // 2026-08-20：リロードで消えないよう端末にも保存
         _renderMyTaskHwPhotos();
       };
       img.src = e.target.result;
@@ -15892,6 +16058,7 @@
     var subj = _myTaskHwState.current;
     if (_myTaskHwState.subjects[subj] && _myTaskHwState.subjects[subj].photos) {
       _myTaskHwState.subjects[subj].photos.splice(i, 1);
+      try { _myTaskHwSavePendingPhotos(); } catch(e){}  // 2026-08-20：削除後の枚数で保存を更新（0枚なら破棄）
       _renderMyTaskHwPhotos();
     }
   }
@@ -15966,6 +16133,9 @@
 
   // (1-F) 結果集約。各教科の grantedRawHp（素点）を合計表示。失敗教科は教科別に再送導線。
   function _showMyTaskHwDone(results) {
+    // 2026-08-20：送信まで到達したので端末の保存写真は破棄（溜め込み防止）。
+    //   失敗分は _myTaskHwState.lastResults（メモリ）で従来どおり教科別に再送できる。
+    try { _pendingPhotoClear(MYTASK_HW_PHOTOS_KEY); } catch(e){}
     _myTaskHwState.lastResults = results;
     // 各 result の失敗写真を計算（partial=ok+failedIndexes / error=全 sentPhotos）
     for (var i = 0; i < results.length; i++) {
@@ -21668,7 +21838,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-2133</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-2155</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
