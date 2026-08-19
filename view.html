@@ -2028,7 +2028,9 @@
     {
       // 第4群B：その教育日の実施時間（複数回ログインは合計）。getChildActivityRecent の d.studySeconds。
       label: '実施時間',
-      render: function(d) { var s = Number(d && d.studySeconds) || 0; return s > 0 ? Math.floor(s / 60) + '分' + (s % 60) + '秒' : '—'; }
+      // 2026-08-20：サーバー(AWS 0361531)が3時間(10800秒)でクランプした場合は studySecondsCapped=true が返る。
+      //   true のときだけ「3時間以上」と表記。false / キー無し は従来どおりの分秒表記（既存非破壊）。
+      render: function(d) { var s = Number(d && d.studySeconds) || 0; if (s > 0 && d && d.studySecondsCapped === true) return '3時間以上'; return s > 0 ? Math.floor(s / 60) + '分' + (s % 60) + '秒' : '—'; }
     },
     {
       label: 'ログイン',
@@ -2374,7 +2376,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260819-2300</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-0021</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
