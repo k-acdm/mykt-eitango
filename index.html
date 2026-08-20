@@ -1955,6 +1955,20 @@
     .refl-card-len  { font-size: 12px; color: #888; font-weight: 600; }
     .refl-card-body { font-size: 14px; line-height: 1.75; color: #333; white-space: pre-wrap; word-wrap: break-word; }
     .refl-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 16px; background: #fafbff; border-radius: 12px; }
+    /* 2026-08-20：自分の振り返りに付いた返信（マイカツ君のAI / 先生）。
+       ★配色は管理画面の返信スレッド（admin.html .reply-item / .is-ai / .reply-item-ai）と完全に同一。
+       先生＝紫系（#f5f3ff / #a78bfa / #5b21b6）、AI＝青系（#eff6ff / #60a5fa / #1d4ed8）。 */
+    .refl-reply-label { font-size: 12px; font-weight: 700; color: #14532d; margin: 12px 0 6px; }
+    .refl-reply { background: #f5f3ff; border-left: 3px solid #a78bfa; padding: 8px 10px; border-radius: 4px; margin-bottom: 6px; }
+    .refl-reply.is-ai { background: #eff6ff; border-left-color: #60a5fa; }
+    .refl-reply-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+    .refl-reply-sender { font-size: 13px; font-weight: 700; color: #5b21b6; }
+    .refl-reply.is-ai .refl-reply-sender { color: #1d4ed8; }
+    .refl-reply-ai { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 10px; background: #dbeafe; color: #1d4ed8; font-size: 11px; font-weight: 700; vertical-align: middle; }
+    .refl-reply-time { font-size: 11px; color: #888; }
+    .refl-reply-body { font-size: 14px; line-height: 1.7; color: #333; white-space: pre-wrap; word-wrap: break-word; }
+    /* 免責の帯：カード下端に食い込ませる（三語短文 .sango-fb-excuse と同じ考え方） */
+    .refl-reply-excuse { margin: 8px -10px -8px; padding: 7px 10px; background: rgba(0,0,0,.06); border-top: 1px solid rgba(0,0,0,.08); border-radius: 0 0 4px 4px; font-size: 11px; color: #4a6fa5; line-height: 1.6; text-align: center; }
     /* 振り返りモーダル（ログアウト直前の必須記録）。z-index 10000 で他オーバーレイの上に常駐。 */
     .refl-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 10000; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
     .refl-modal-overlay.active { display: flex; }
@@ -3389,10 +3403,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-1501"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-1533"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-1501">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-1501"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-1533">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-1533"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -11125,6 +11139,43 @@
     if (s.length >= 16) return s.substring(0, 16);
     return s;
   }
+  // 2026-08-20：自分の振り返りに付いた返信（AWS 2d7e2f2 の replies）を描画する。
+  //   replies[] = { messageId, senderNickname, content, timestamp, isAi }（sent_at 昇順＝古い→新しい）
+  // ★AI（isAi=true）と先生（isAi=false）は配色で区別する。配色は管理画面の返信スレッドと同一。
+  // ★免責について：AI の返信は content の末尾にサーバーが免責文を付けてくるため、
+  //   前回 _reflAiCommentHtml で確立したのと同じ作法で「目印文字列で剥がして帯に出し直す」。
+  //   ★目印は 'マイカツ君はAI'。見つからなければ本文をそのまま出す（サーバー文言が変わっても壊れない）。
+  //   ★剥がす／帯を出すのは AI の返信だけ。先生の返信は本文のみで免責を出さない。
+  // ★この関数は表示専用。既読 API（markMessageAsRead 等）は一切呼ばない＝未読は変化しない。
+  function _reflRepliesHtml(replies) {
+    if (!replies || !Array.isArray(replies) || replies.length === 0) return '';   // 返信なし → 従来どおりの見た目
+    var items = replies.map(function(m) {
+      if (!m) return '';
+      var aiRaw = (m.isAi !== undefined ? m.isAi : m.is_ai);
+      var isAi = (aiRaw === true || aiRaw === 1 || aiRaw === '1' || aiRaw === 'true');
+      var raw = String(m.content == null ? '' : m.content);
+      var body = raw, excuseHtml = '';
+      if (isAi) {
+        var idx = raw.indexOf('マイカツ君はAI');
+        if (idx > 0)       body = raw.substring(0, idx).replace(/\s+$/, '');
+        else if (idx === 0) body = '';
+        excuseHtml = '<div class="refl-reply-excuse">⚠️ ' + _reflEscHtml(REFL_AI_EXCUSE) + '</div>';
+      }
+      var sender = String(m.senderNickname == null ? '' : m.senderNickname) || (isAi ? 'マイカツ君' : '先生');
+      var aiBadge = isAi ? '<span class="refl-reply-ai">🤖 AI</span>' : '';
+      return '<div class="refl-reply' + (isAi ? ' is-ai' : '') + '">' +
+               '<div class="refl-reply-head">' +
+                 '<span class="refl-reply-sender">' + _reflEscHtml(sender) + aiBadge + '</span>' +
+                 '<span class="refl-reply-time">' + _reflEscHtml(_reflFormatDate(m.timestamp)) + '</span>' +
+               '</div>' +
+               '<div class="refl-reply-body">' + _reflEscHtml(body) + '</div>' +
+               excuseHtml +
+             '</div>';
+    }).join('');
+    if (!items) return '';
+    return '<div class="refl-reply-label">💬 コメント（' + replies.length + '件）</div>' + items;
+  }
+
   function showStudentReflections() {
     if (!_studentId) return;
     var sidLabel = document.getElementById('student-reflections-sid');
@@ -11153,6 +11204,7 @@
                    '<div class="refl-card-len">'  + lenLabel  + '</div>' +
                  '</div>' +
                  '<div class="refl-card-body">' + _reflEscHtml(r.content || '') + '</div>' +
+                 _reflRepliesHtml(r.replies) +   // 2026-08-20：返信が無ければ '' ＝従来どおりの見た目
                '</div>';
       }).join('');
     }).catch(function(){
@@ -22092,7 +22144,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-1501</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-1533</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
