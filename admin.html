@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260820-1533"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260820-1903"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -8722,17 +8722,17 @@
     }
     var html = '';
     // 記入者（従来どおり occurred_at 昇順で受領済）
-    html += writers.map(function(r) { return _reflWriterCard(r, ds, studyByCode); }).join('');
+    html += writers.map(function(r) { return _reflWriterCard(r, ds, studyByCode, studyCappedByCode); }).join('');
     // 非記入者（この日に学習ありだが振り返り未記入）
     if (nonWriters.length > 0) {
       html += '<div class="refl-day-subhead">📝 振り返り未記入（この日に学習あり ' + nonWriters.length + ' 名）</div>';
-      html += nonWriters.map(function(s) { return _reflNonWriterCard(s, ds, remindersByCode[String(s.studentId).trim()] || [], studyByCode); }).join('');
+      html += nonWriters.map(function(s) { return _reflNonWriterCard(s, ds, remindersByCode[String(s.studentId).trim()] || [], studyByCode, studyCappedByCode); }).join('');
     }
     wrapEl.innerHTML = html;
   }
 
   // 記入者カード（従来の 本文/作品/返信スレッド/返信フォーム を維持 ＋「この日の学習履歴を見る」ボタン追加）
-  function _reflWriterCard(r, ds, studyByCode) {
+  function _reflWriterCard(r, ds, studyByCode, studyCappedByCode) {
     var nameEsc  = _esc(r.studentName || '（未登録）');
     var nickEsc  = _esc(r.nickname || '');
     var gradeEsc = _esc(r.grade || '');
@@ -8779,7 +8779,7 @@
   }
 
   // 非記入者カード（本文＝赤文字「振り返りコメントなし」／作品・学習履歴ボタンは併存／返信の代わりに注意喚起ボタン）
-  function _reflNonWriterCard(s, ds, reminders, studyByCode) {
+  function _reflNonWriterCard(s, ds, reminders, studyByCode, studyCappedByCode) {
     var sid = String(s.studentId || '');
     // 氏名は名簿で解決。未取得（HP没収のみ等で名簿に無い稀ケース）は生徒コードをフォールバック表示。
     var nameEsc = s.name ? _esc(s.name) : ('（' + _esc(sid) + '）');
@@ -15386,7 +15386,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-1533</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-1903</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
