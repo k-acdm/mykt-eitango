@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260820-0021"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260820-1903"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -423,6 +423,9 @@
   .reply-thread { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #eef1f7; }
   .reply-thread-title { font-size: 12px; color: #6d28d9; font-weight: 700; margin-bottom: 8px; }
   .reply-item { background: #f5f3ff; border-left: 3px solid #a78bfa; padding: 8px 10px; border-radius: 4px; margin-bottom: 6px; }
+  /* 2026-08-20：マイカツ君のAI返信は先生の返信（紫）と一目で区別できるよう青系＋🤖バッジにする。 */
+  .reply-item.is-ai { background: #eff6ff; border-left-color: #60a5fa; }
+  .reply-item-ai { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 10px; background: #dbeafe; color: #1d4ed8; font-size: 11px; font-weight: 700; vertical-align: middle; }
   .reply-item-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
   .reply-item-sender { font-size: 13px; font-weight: 700; color: #5b21b6; }
   .reply-item-time { font-size: 11px; color: #888; white-space: nowrap; }
@@ -8719,17 +8722,17 @@
     }
     var html = '';
     // 記入者（従来どおり occurred_at 昇順で受領済）
-    html += writers.map(function(r) { return _reflWriterCard(r, ds, studyByCode); }).join('');
+    html += writers.map(function(r) { return _reflWriterCard(r, ds, studyByCode, studyCappedByCode); }).join('');
     // 非記入者（この日に学習ありだが振り返り未記入）
     if (nonWriters.length > 0) {
       html += '<div class="refl-day-subhead">📝 振り返り未記入（この日に学習あり ' + nonWriters.length + ' 名）</div>';
-      html += nonWriters.map(function(s) { return _reflNonWriterCard(s, ds, remindersByCode[String(s.studentId).trim()] || [], studyByCode); }).join('');
+      html += nonWriters.map(function(s) { return _reflNonWriterCard(s, ds, remindersByCode[String(s.studentId).trim()] || [], studyByCode, studyCappedByCode); }).join('');
     }
     wrapEl.innerHTML = html;
   }
 
   // 記入者カード（従来の 本文/作品/返信スレッド/返信フォーム を維持 ＋「この日の学習履歴を見る」ボタン追加）
-  function _reflWriterCard(r, ds, studyByCode) {
+  function _reflWriterCard(r, ds, studyByCode, studyCappedByCode) {
     var nameEsc  = _esc(r.studentName || '（未登録）');
     var nickEsc  = _esc(r.nickname || '');
     var gradeEsc = _esc(r.grade || '');
@@ -8776,7 +8779,7 @@
   }
 
   // 非記入者カード（本文＝赤文字「振り返りコメントなし」／作品・学習履歴ボタンは併存／返信の代わりに注意喚起ボタン）
-  function _reflNonWriterCard(s, ds, reminders, studyByCode) {
+  function _reflNonWriterCard(s, ds, reminders, studyByCode, studyCappedByCode) {
     var sid = String(s.studentId || '');
     // 氏名は名簿で解決。未取得（HP没収のみ等で名簿に無い稀ケース）は生徒コードをフォールバック表示。
     var nameEsc = s.name ? _esc(s.name) : ('（' + _esc(sid) + '）');
@@ -9055,10 +9058,46 @@
       panel.innerHTML = '<div class="dw-empty">通信エラーが発生しました</div>';
     });
   }
+  // 2026-08-20：実施時間ペナルティ（放置による減算）の説明文を組み立てる。
+  //   adminGetStudentDayActivity の studyPenalties（起点・課金開始・終端・分数・猶予）から
+  //   「なぜ減ったか」を先生が一読で分かる日本語にする。
+  //   ★9/1 発動。それまでサーバーは常に空配列を返すので、ここは何も描画されない（既存非破壊）。
+  //   ★フィールド名はサーバーの命名ゆれに備えて camel / snake の両対応。
+  function _penaltyPick(o, camel, snake) {
+    if (!o) return undefined;
+    return (o[camel] !== undefined) ? o[camel] : o[snake];
+  }
+  function _renderStudyPenalties(penalties) {
+    if (!penalties || !penalties.length) return '';
+    var rows = penalties.map(function(pn) {
+      var startAt   = _penaltyPick(pn, 'startAt',      'start_at');        // 起点（放置が始まった時刻）
+      var chargeAt  = _penaltyPick(pn, 'chargeStartAt','charge_start_at'); // 課金開始（猶予を過ぎた時刻）
+      var endAt     = _penaltyPick(pn, 'endAt',        'end_at');          // 終端
+      var minutes   = Number(_penaltyPick(pn, 'minutes',    'minutes')) || 0;
+      var graceMin  = Number(_penaltyPick(pn, 'graceMinutes','grace_minutes')) || 0;
+      var hp        = Number(_penaltyPick(pn, 'hp',         'hp')) || 0;
+      var shortTs = function(v) { var t = String(v == null ? '' : v); return t.length >= 16 ? t.slice(11, 16) : t; };
+      // 例：「19:20 に学習が止まり、猶予30分を過ぎた 19:50 から 21:00 まで 70分ぶん」
+      var parts = [];
+      if (startAt)  parts.push(shortTs(startAt) + ' に学習が止まり');
+      if (graceMin > 0 && chargeAt) parts.push('猶予' + graceMin + '分を過ぎた ' + shortTs(chargeAt) + ' から');
+      else if (chargeAt)            parts.push(shortTs(chargeAt) + ' から');
+      if (endAt)    parts.push(shortTs(endAt) + ' まで');
+      if (minutes > 0) parts.push(minutes + '分ぶん');
+      var why = parts.length ? parts.join('、') : '放置時間ぶん';
+      var hpLabel = hp !== 0 ? (hp > 0 ? '+' : '') + hp.toLocaleString() + ' HP' : '—';
+      return '<div class="hp-bd-row"><span class="hp-bd-label">⏱ ' + _esc(why) + '</span><span class="hp-bd-hp">' + _esc(hpLabel) + '</span></div>';
+    }).join('');
+    return '<div class="hp-bd-meta" style="margin-top:10px">⚠️ 実施時間の減算（放置ぶん）</div>' + rows;
+  }
+
   // 「やった内容」一覧（コンテンツ名＋件数・HP額なし）。hasActivity=false は「学習記録なし」。
   function _renderDayActivity(res) {
     var acts = (res && Array.isArray(res.activities)) ? res.activities : [];
+    // 2026-08-20：減算は「学習記録なし」の日にも出しうるので、activities とは独立に組み立てる。
+    var penaltiesHtml = _renderStudyPenalties(res && (res.studyPenalties || res.study_penalties));
     if (!res || !res.hasActivity || acts.length === 0) {
+      if (penaltiesHtml) return '<div class="hp-bd-wrap">' + penaltiesHtml + '</div>';
       return '<div class="dw-empty">この日の学習記録はありません。</div>';
     }
     var rows = acts.map(function(a) {
@@ -9067,7 +9106,7 @@
       return '<div class="hp-bd-row"><span class="hp-bd-label">' + nm + '</span><span class="hp-bd-hp">' + cnt + ' 件</span></div>';
     }).join('');
     var note = '<div class="hp-bd-meta">※ この日に取り組んだ内容です（HP額は表示しません）。</div>';
-    return '<div class="hp-bd-wrap">' + rows + note + '</div>';
+    return '<div class="hp-bd-wrap">' + rows + note + penaltiesHtml + '</div>';
   }
 
   // ②拡張 修正B/C：未記入者の注意喚起は「返信欄プレフィル方式」。
@@ -9359,9 +9398,14 @@
     var items = replies.map(function(p){
       var ts = String(p.timestamp || p.createdAt || '');
       var tsShort = ts.length >= 16 ? ts.slice(0, 16) : ts;
-      return '<div class="reply-item">' +
+      // 2026-08-20：マイカツ君のAI返信（is_ai=1）は先生の返信と見分けが付くよう印を付ける。
+      //   ★サーバーの命名ゆれに備えて isAi / is_ai の両対応。真偽値・数値 1・文字列 '1' を真として扱う。
+      var aiRaw = (p && (p.isAi !== undefined ? p.isAi : p.is_ai));
+      var isAi = (aiRaw === true || aiRaw === 1 || aiRaw === '1' || aiRaw === 'true');
+      var aiBadge = isAi ? '<span class="reply-item-ai">🤖 AI</span>' : '';
+      return '<div class="reply-item' + (isAi ? ' is-ai' : '') + '">' +
                '<div class="reply-item-head">' +
-                 '<span class="reply-item-sender">' + _esc(p.senderNickname || '先生') + '</span>' +
+                 '<span class="reply-item-sender">' + _esc(p.senderNickname || '先生') + aiBadge + '</span>' +
                  '<span class="reply-item-time">' + _esc(tsShort) + '</span>' +
                '</div>' +
                '<div class="reply-item-body">' + _esc(p.content || '') + '</div>' +
@@ -15342,7 +15386,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-0021</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-1903</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
