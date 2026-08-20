@@ -3403,10 +3403,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-2138"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-2336"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-2138">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-2138"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-2336">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-2336"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7213,7 +7213,12 @@
     'japanin':  { img: 'images/japanin-thinking.png',  text: '只今マイカツ君が獲得HPを最終確認中でござる' },
     // 2026-05-23 新規：理社重要語句（中学理科・社会）
     'rika':      { img: 'images/rika-thinking.png',      text: '只今マイカツ君が獲得HPを最終確認中…' },
-    'shakaneki': { img: 'images/shakaneki-thinking.png', text: '只今マイカツ君が獲得HPを最終確認中…' }
+    'shakaneki': { img: 'images/shakaneki-thinking.png', text: '只今マイカツ君が獲得HPを最終確認中…' },
+    // 2026-08-20：この2キャラだけ未登録だったため追加（未登録だと rushkun のセリフに
+    //   フォールバックしてしまい、そのキャラの口調でなくなる）。
+    //   ★型は他12キャラと同じ「（時間表現）マイカツ君が獲得HPを最終確認中」＋各自の語尾。
+    'maikadai':  { img: 'images/maikadai-thinking.png',  text: 'いまマイカツ君が獲得HPを最終確認中！ちょっと待ってて！' },
+    'oriwantes': { img: 'images/oriwantes-thinking.png', text: '只今マイカツ君が獲得HPを最終確認中である。しばし待っておれ' }
   };
   var _hpConfirmingDotsTimer = null;
   // 2026-08-05 §6-A23（速すぎ④ cover方式）：overlay を最低時間だけ被せてから消す。
@@ -7557,7 +7562,7 @@
     5: function(s,t){ return 'よし、きたな。'+t+'の道、着実に歩んでるぞ。'; },
     4: function(s,t){ return 'ログインはできたな。せっかくだから課題もやっておけよ。'; },
     3: function(s,t){ return '久しぶりだな…、ちょっと心配してたぞ。'; },
-    2: function(s,t){ return '2日も経ったか。早く課題やって、ワシに元気をおくれ。'; },
+    2: function(s,t){ return '2日も経ったか。早く課題やって、ボクに元気をおくれ。'; },
     1: function(s,t){ return '頼む…、もう限界だ。早く何とかしてくれ～。'; }
   };
   function _getMilestoneMsg(info) {
@@ -22166,7 +22171,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-2138</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-2336</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
