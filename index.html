@@ -2372,6 +2372,10 @@
     /* 2026-05-12 改善2：エクスキューズはカード下端の「枠下の濃い部分」に分離 */
     /* sango-fb-card の padding（22px 18px）を打ち消してフチまで広げる */
     .sango-fb-excuse { margin:14px -18px -22px; padding:10px 18px; background:rgba(0,0,0,.10); border-top:1px solid rgba(0,0,0,.10); border-radius:0 0 15px 15px; font-size:12px; color:#4a6fa5; line-height:1.6; text-align:center; }
+    /* 2026-08-20：マイカツ君のAIコメント。★見た目・免責の帯の位置はサンゴタン(.sango-fb-*)と完全に同一。
+       色だけマイカツ君の青系（.chara-bubble の #c8dcff / #2d3a8c と揃える）にした派生クラス。 */
+    .sango-fb-card.maikatsu { background:linear-gradient(135deg,#eff6ff,#dbeafe); border:3px solid #c8dcff; }
+    .sango-fb-card.maikatsu .sango-fb-title { color:#2d3a8c; }
     @media (max-width:480px) {
       .sango-fb-mate img { width:72px; }
       .sango-fb-title { font-size:16px; }
@@ -3385,10 +3389,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-0021"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-1501"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-0021">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-0021"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-1501">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-1501"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7752,6 +7756,9 @@
       if (res.needsPin)   { showMsg('login-msg','',''); _openPinEntry(sid);     return; }   // set_up     → 暗証番号入力画面
       if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
       _studentId   = res.studentId;
+      // 2026-08-20：実施時間ペナルティの通知（AWS b7b3c2c）。★9/1 発動、それまでは常に空配列。
+      //   ここでは保管だけして、ホーム画面が出てから知らせる（ログイン処理は止めない）。
+      try { _studyPenaltyNotices = (res.studyPenaltyNotices || res.study_penalty_notices || []); } catch(e){ _studyPenaltyNotices = []; }
       _beginStudySession();   // 第4群B：実施時間タイマー開始（★二重開始ガードあり＝resume/再loginStudentで誤発火しない）
       // 防護柵1枚目（セッション堅牢化）：生徒ロールのときのみ studentId を localStorage に永続化する。
       //   - 保存するのは studentId と保存時刻のみ（HP/名前/streak/accountType/V2 等の可変・機微データは保存しない）。
@@ -9087,6 +9094,7 @@
     try { loadLatestNotice();               } catch(e){ console.error('[showWelcome] loadLatestNotice',               e); }
     try { loadWeeklyRanking();              } catch(e){ console.error('[showWelcome] loadWeeklyRanking',              e); }
     try { loadUnreadMessageCount();         } catch(e){ console.error('[showWelcome] loadUnreadMessageCount',         e); }
+    try { _showStudyPenaltyNotices();       } catch(e){ console.error('[showWelcome] _showStudyPenaltyNotices',       e); }
     try { _prefetchTopics();                } catch(e){ console.error('[showWelcome] _prefetchTopics',                e); }
     // 2026-05-12 サンゴタン関連
     try { loadSangoWeeklyFeatured();        } catch(e){ console.error('[showWelcome] loadSangoWeeklyFeatured',        e); }
@@ -10594,6 +10602,66 @@
   //   - 新フロー：onComplete はユーザーが「閉じる」ボタンを押した時に呼ばれる
   //   - 「画面を閉じても大丈夫です」を明示してユーザーの不安を解消
   //   - 紙吹雪 + chime SFX + HP 数字カウントアップで達成感を演出
+  // ================================================================
+  // マイカツ君のAIコメント（2026-08-20 / AWS b7b3c2c と結線）
+  // ================================================================
+  // submitReflection の応答 aiReply.comment を、送信後の最後の画面に表示する。
+  // ★見本は三語短文のサンゴタン（_showSangoFeedback）。カード構造・免責の帯の位置は同一。
+  // ★aiReply.ok が false / aiReply 自体が無い場合は '' を返す＝何も出さない（画面は壊れない）。
+  // ★免責について：サーバー側が本文末尾に免責文を付けてくるため、サンゴタンと同じ作法で
+  //   本文から剥がし、カード下端の帯（.sango-fb-excuse）として出し直す。こうすると
+  //   「本文にも帯にも免責」という重複が起きず、本文の印象も弱まらない。
+  //   ★剥がす目印は「マイカツ君はAI」。サーバーの文言が多少変わっても本文が壊れないよう、
+  //     見つからなければ本文をそのまま出す（安全側）。
+  var REFL_AI_EXCUSE = 'マイカツ君はAIなのでおかしなことを言う可能性もあります。ゴメンナサイ🙇‍♂️💦';
+
+  // ================================================================
+  // 実施時間ペナルティの通知（2026-08-20 / AWS b7b3c2c と結線）
+  // ================================================================
+  // loginStudent の studyPenaltyNotices を、ホーム画面が出てから生徒に知らせる。
+  // ★9/1 発動。それまでサーバーは常に空配列を返すので、ここは何も出ない（既存非破壊）。
+  // ★見せ方は既存の作法に合わせて「マイカツ君のセリフ（吹き出し）」を使う。
+  //   理由：ログイン直後は誕生日サプライズ / マイルストーン / アンケート等のポップアップが
+  //   既に順番待ちしており、ここでモーダルを足すと衝突して生徒が閉じ作業に追われるため。
+  //   吹き出しなら既存ポップアップ群と競合せず、ホームに留まっている間ずっと読める。
+  var _studyPenaltyNotices = [];
+  function _showStudyPenaltyNotices() {
+    var arr = _studyPenaltyNotices || [];
+    _studyPenaltyNotices = [];              // 一度きり（goHome のたびに再表示しない）
+    if (!arr.length) return;
+    // 複数日ぶん溜まっていても吹き出しは 1 つ。合計 HP と件数でまとめて伝える。
+    var totalHp = 0;
+    for (var i = 0; i < arr.length; i++) totalHp += Number(arr[i] && (arr[i].hp !== undefined ? arr[i].hp : arr[i].HP)) || 0;
+    var hpPart = totalHp !== 0 ? '（合計 ' + Math.abs(totalHp).toLocaleString() + ' HP）' : '';
+    var msg = (arr.length === 1)
+      ? '⏱ 学習が止まったまま放置された時間があったので、HPが減っているよ' + hpPart + '。終わったら必ずログアウトしてね。'
+      : '⏱ 放置された時間が ' + arr.length + ' 日ぶんあったので、HPが減っているよ' + hpPart + '。終わったら必ずログアウトしてね。';
+    var bubble = document.getElementById('chara-msg');
+    if (bubble) bubble.textContent = msg;   // マイカツ君の吹き出し（既存要素）を使う
+  }
+  function _reflAiCommentHtml(res) {
+    try {
+      var ai = res && res.aiReply;
+      if (!ai || ai.ok !== true) return '';
+      var raw = String(ai.comment == null ? '' : ai.comment);
+      // サーバーが付けた免責を本文から剥がす（重複防止）
+      var idx = raw.indexOf('マイカツ君はAI');
+      var mainBody = (idx > 0) ? raw.substring(0, idx).replace(/\s+$/, '') : (idx === 0 ? '' : raw);
+      if (!mainBody) return '';
+      return '<div class="sango-fb-card maikatsu" style="margin:16px 0">' +
+               '<div class="sango-fb-mate">' +
+                 '<img src="./character.jpg" alt="マイカツ君">' +
+                 '<div>' +
+                   '<div class="sango-fb-title">📝 マイカツ君からのコメント</div>' +
+                   '<div style="font-size:13px;color:#6b7280;margin-top:4px">今日の振り返り、読ませてもらったよ！</div>' +
+                 '</div>' +
+               '</div>' +
+               '<div class="sango-fb-body">' + _reflEscHtml(mainBody) + '</div>' +
+               '<div class="sango-fb-excuse">⚠️ ' + _reflEscHtml(REFL_AI_EXCUSE) + '</div>' +
+             '</div>';
+    } catch(e) { return ''; }
+  }
+
   function _showReflectionReleaseModal(res, onComplete) {
     // 第4群B：ログアウト経路（onComplete===_doLogoutFinalize）のときだけ実施時間を確定し、
     //   当日合計(todayTotalSeconds)を最終画面「今日の実施時間」行へ反映する。
@@ -10619,6 +10687,7 @@
       if (bodyB && ovB) {
         // 構築は覆いの裏で（active はまだしない）
         bodyB.innerHTML =
+          _reflAiCommentHtml(res) +   // 2026-08-20：マイカツ君のAIコメント（無ければ '' ＝何も出ない）
           '<button id="refl-release-close-btn" class="refl-release-close-btn">画面を閉じる</button>' +
           '<div class="refl-release-close-note">✅ サーバーで受信確認しました。画面を閉じても大丈夫です。</div>';
         var _cbtnB = document.getElementById('refl-release-close-btn');
@@ -10670,6 +10739,7 @@
         lines += '<div class="refl-release-line rl-total"><span class="rl-label">合計</span><span class="rl-value">+' + totalAddedFromRelease.toLocaleString() + ' HP</span></div>';
       }
       // §6-A23 ③(C)：自動遷移(2.8s)を廃止。既存の「画面を閉じる」ボタン＋既存の受信確認ノートを付けてボタン式に統一。
+      lines += _reflAiCommentHtml(res);   // 2026-08-20：マイカツ君のAIコメント（無ければ '' ＝何も出ない）
       lines += '<button id="refl-release-close-btn" class="refl-release-close-btn">画面を閉じる</button>';
       lines += '<div class="refl-release-close-note">✅ サーバーで受信確認しました。画面を閉じても大丈夫です。</div>';
       body.innerHTML = lines;
@@ -10800,6 +10870,7 @@
     html += '</div>'; // .refl-release-breakdown
 
     // 手動閉じるボタン + 安心メッセージ
+    html += _reflAiCommentHtml(res);   // 2026-08-20：マイカツ君のAIコメント（無ければ '' ＝何も出ない）
     html += '<button id="refl-release-close-btn" class="refl-release-close-btn">画面を閉じる</button>';
     html += '<div class="refl-release-close-note">✅ サーバーで受信確認しました。画面を閉じても大丈夫です。</div>';
 
@@ -22021,7 +22092,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-0021</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-1501</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
