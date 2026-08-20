@@ -3403,10 +3403,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-1903"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-2108"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-1903">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-1903"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-2108">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-2108"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -11872,19 +11872,27 @@
       }
     });
   }
+  // 2026-08-20：Vision APIキー撤去 段階2（三語短文のみ）。
+  //   従来はブラウザから Google Vision を直接叩いており、APIキーが
+  //   GitHub Pages 上に平文で露出していた。サーバー（AWS ab41e9d）の受け口
+  //   action:'ocrSangoPhoto' 経由に付け替え、鍵をブラウザに置かない形にする。
+  //   ★サーバー応答：成功 {ok:true, ocrText, readable:'yes'}
+  //                  読み取れず {ok:false, retake:true, readable:'no', message:'文字が読み取れませんでした。明るい場所で撮り直してください。'}
+  //                  画像なし / Vision 失敗 {ok:false, message}
+  //   ★no-text 時の message は現行フロントの文言と同一に揃えてあるため、'❌ ' を前置すれば
+  //     従来とまったく同じ文字列になる（message が無い異常時は従来の固定文をフォールバックに使う）。
+  //   ★成功時の処理（_sangoOcrText 代入 → 永続化 → 確認ブロック表示）は従来と同じ順序のまま。
+  //   ★5級（sendPhoto）はこの段階では触らない。VISION_KEY 定数も残す。
   function sendSangoPhoto(base64) {
     var msgEl = document.getElementById('sango-photo-msg');
     msgEl.textContent = '⏳ AIが文字を読み取り中です...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
     document.getElementById('sango-ocr-confirm').style.display = 'none';
-    fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}] }] })
-    }).then(function(r){ return r.json(); }).then(function(json) {
-      var response = json.responses && json.responses[0];
-      if (!response || !response.fullTextAnnotation) {
-        showMsg('sango-photo-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng'); return;
+    gasPost({ action: 'ocrSangoPhoto', imageBase64: base64 }).then(function(res) {
+      if (!res || !res.ok) {
+        var m = (res && res.message) ? String(res.message) : '文字が読み取れませんでした。明るい場所で撮り直してください。';
+        showMsg('sango-photo-msg', '❌ ' + m, 'ng'); return;
       }
-      _sangoOcrText = String(response.fullTextAnnotation.text || '').trim();
+      _sangoOcrText = String(res.ocrText || '').trim();
       try { _sangoSavePendingOcr(); } catch(e){}  // 2026-08-20：リロードで消えないよう端末にも保存
       msgEl.style.display = 'none';
       document.getElementById('sango-ocr-text').textContent = _sangoOcrText;
@@ -22144,7 +22152,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-1903</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-2108</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
