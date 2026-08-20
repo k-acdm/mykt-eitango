@@ -3403,10 +3403,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-2108"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-2138"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-2108">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-2108"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-2138">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-2138"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6404,7 +6404,9 @@
 
 <script>
   var GAS_URL    = 'https://mykt-eitango.com/exec';
-  var VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
+  // 2026-08-20：Vision APIキー撤去 完了。生徒画面(GitHub Pages)に平文で置かれていた
+  //   VISION_KEY はここから削除した。OCR は 5級=ocrEikenPhoto / 三語短文=ocrSangoPhoto の
+  //   サーバー経由に付け替え済みで、ブラウザから Google Vision を直接叩く箇所は無い。
   // =============================================================
   // 第2群③ F3トークン層 段階2：ログインで発行された sessionToken を保持し、
   //   後続の生徒系リクエストに token として併送する（サーバ StudentTokenGate が params.token を読む）。
@@ -9783,15 +9785,27 @@
     var msgEl = document.getElementById('photo-msg'); msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...'; msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     _setContentMascot('mate-img-eitan-dictation', 'thinking', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoTry), 'rushkun');
     var wordList = _questions.map(function(w){ return w.word; });
-    fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}], imageContext:{languageHints:['ja','en']} }] }) })
-    .then(function(r){ return r.json(); }).then(function(json) {
-      var response = json.responses && json.responses[0];
-      if (!response || !response.fullTextAnnotation) { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','❌ 文字が読み取れませんでした。明るい場所で撮り直してください。','ng'); return; }
-      var pages = response.fullTextAnnotation.pages || [], totalConf = 0, confCount = 0;
-      pages.forEach(function(page){ (page.blocks||[]).forEach(function(block){ (block.paragraphs||[]).forEach(function(para){ (para.words||[]).forEach(function(word){ if (word.confidence !== undefined) { totalConf += word.confidence; confCount++; } }); }); }); });
-      var avgConf = confCount > 0 ? totalConf/confCount : 1, confPct = Math.round(avgConf*100);
+    // 2026-08-20：Vision APIキー撤去 段階3（5級）。
+    //   従来はブラウザから Google Vision を直接叩いており、APIキーが GitHub Pages 上に
+    //   平文で露出していた。サーバー（AWS 5b9aa9d）の受け口 action:'ocrEikenPhoto' 経由に
+    //   付け替え、鍵をブラウザに置かない形にする。★これで直叩きはゼロになり定数を削除できる。
+    //   ★サーバー応答：成功 {ok:true, ocrText, readable:'yes', avgConfidence(0.0〜1.0), confPct(0〜100)}
+    //                  読み取り不可 {ok:false, retake:true, readable:'no', message:'文字が読み取れませんでした。明るい場所で撮り直してください。'}
+    //                  画像なし / Vision 失敗 {ok:false, message}
+    //   ★判定（丁寧さ 0.75 未満で差し戻し／各単語3回カウント）は★フロントに残す。閾値・文言・
+    //     見た目は一切変えない。サーバーへ移すと5級の挙動が変わるため、ここでは移さない。
+    //   ★従来クライアント側で pages→blocks→paragraphs→words を舐めて出していた平均信頼度は
+    //     res.avgConfidence をそのまま使う（サーバーが同じ計算をして返す）。
+    //     欠落時は従来の「信頼度が1件も取れなかった場合」と同じく 1（＝通過）にフォールバックする。
+    gasPost({ action: 'ocrEikenPhoto', imageBase64: base64 }).then(function(res) {
+      if (!res || !res.ok) {
+        var _m = (res && res.message) ? String(res.message) : '文字が読み取れませんでした。明るい場所で撮り直してください。';
+        _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','❌ ' + _m,'ng'); return;
+      }
+      var avgConf = (typeof res.avgConfidence === 'number') ? res.avgConfidence : 1;
+      var confPct = (typeof res.confPct === 'number') ? res.confPct : Math.round(avgConf*100);
       if (avgConf < 0.75) { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','❌ 字が雑すぎます（丁寧さスコア：'+confPct+'%）。もっと丁寧に書いてみよう！','ng'); return; }
-      var rawText = response.fullTextAnnotation.text || '';
+      var rawText = res.ocrText || '';
       var detected = _normalizeForDictation(rawText), failedWords = [];
       wordList.forEach(function(w){
         var normalized = _normalizeForDictation(w);
@@ -11882,7 +11896,7 @@
   //   ★no-text 時の message は現行フロントの文言と同一に揃えてあるため、'❌ ' を前置すれば
   //     従来とまったく同じ文字列になる（message が無い異常時は従来の固定文をフォールバックに使う）。
   //   ★成功時の処理（_sangoOcrText 代入 → 永続化 → 確認ブロック表示）は従来と同じ順序のまま。
-  //   ★5級（sendPhoto）はこの段階では触らない。VISION_KEY 定数も残す。
+  //   ★段階3（2026-08-20）で5級も付け替え済み。VISION_KEY 定数は削除された。
   function sendSangoPhoto(base64) {
     var msgEl = document.getElementById('sango-photo-msg');
     msgEl.textContent = '⏳ AIが文字を読み取り中です...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
@@ -22152,7 +22166,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-2108</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-2138</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
