@@ -3074,6 +3074,22 @@
     .lison-mascot-row { display: flex; gap: 12px; align-items: center; background: linear-gradient(135deg, #eef9f3, #d6f0e3); border: 2px solid #34a884; border-radius: 14px; padding: 12px 14px; margin: 12px 0; box-shadow: 0 3px 10px rgba(52,168,132,.18); }
     .lison-mascot-row .mascot-img { width: 64px; height: 64px; border-radius: 50%; flex: 0 0 auto; object-fit: contain; background: rgba(255,255,255,.65); padding: 4px; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
     .lison-mascot-row .mascot-bubble { flex: 1; font-size: 15px; font-weight: bold; color: #14532d; line-height: 1.55; }
+    /* 2026-08-21：生徒が自分のリスオン録音を聞く画面。
+       ★保護者画面（view.html の .crec-*）と完全に同じ作り・同じクラス名を移植したもの。
+       新しいデザインは持ち込まない。ダウンロードボタンは出さない（audio は controlsList="nodownload"）。 */
+    .crec-card { background:#fff; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.08); padding:12px 14px; margin-bottom:12px; border-left:6px solid #4f46e5; }
+    .crec-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
+    .crec-title { font-size:15px; font-weight:800; color:#3730a3; }
+    .crec-time { font-size:12px; color:#888; }
+    .crec-meta { font-size:12px; color:#555; margin:4px 0 8px; line-height:1.7; }
+    .crec-play-btn { display:inline-block; background:linear-gradient(135deg,#818cf8,#4f46e5); color:#fff; border:none; border-radius:10px; padding:9px 16px; font-size:14px; font-weight:bold; cursor:pointer; box-shadow:0 2px 8px rgba(79,70,229,.3); font-family:inherit; }
+    .crec-play-btn:disabled { opacity:.6; cursor:default; }
+    .crec-player { display:none; margin-top:10px; }
+    .crec-player.active { display:block; }
+    .crec-player audio { width:100%; }
+    .crec-deleted { font-size:13px; color:#9ca3af; background:#f3f4f6; border-radius:10px; padding:9px 12px; }
+    .crec-note { text-align:center; color:#666; font-size:13px; margin:8px 0 14px; line-height:1.8; }
+    .crec-empty { text-align:center; color:#888; font-size:14px; padding:36px 16px; background:#fafbff; border-radius:12px; line-height:1.8; }
     /* 級選択画面 */
     .lison-level-list { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 14px; }
     .lison-level-btn { width: 100%; padding: 16px 18px; background: linear-gradient(135deg,#1e3c72,#2a5298); color: #fff; border: none; border-radius: 14px; font-size: 17px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(30,60,114,.28); display: flex; align-items: center; gap: 12px; text-align: left; transition: transform .12s; }
@@ -3403,10 +3419,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260821-2308"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260822-0000"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260821-2308">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260821-2308"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260822-0000">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260822-0000"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5433,7 +5449,23 @@
     </div>
     <div id="lison-level-list" class="lison-level-list"></div>
     <div id="lison-rank-msg" class="msg" style="display:none"></div>
+    <!-- 2026-08-21：自分の録音を聞き返す導線。英単語RUSH「おさらい」/ 三語短文「過去の提出作品」と
+         同じく、入口ハブ（級選択画面）の「ホームに戻る」直前に置く。 -->
+    <button class="btn-wide" style="background:linear-gradient(135deg,#818cf8,#4f46e5);margin-top:14px" onclick="showLisonMyRecordings()">🎧 自分の録音を聞く</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">← ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- 2026-08-21：生徒が自分のリスオン録音を聞く画面（純追加）。
+     ・一覧＝getLisonSubmissionsListForStudent（サーバ側で本人の行のみ返す）
+     ・音声＝getLisonRecordingBlobForSelf（★studentId は渡さない。studentToken から本人を特定）
+     ・保護者画面 screen-child-lison-recordings と同じ作り。ダウンロードボタンは出さない。 -->
+<div id="screen-lison-my-recordings" class="screen">
+  <header><h1>🎧 自分の録音</h1><span id="lison-my-rec-sid"></span></header>
+  <div class="container" style="padding-top:16px">
+    <p class="crec-note">自分が録音した音読を聞き返せるよ（新しい順）。<br>録音は約 15 日で自動的に消えます。聞きたいときは早めにね。<br>消えたあとも、取り組んだ記録は残ります。</p>
+    <div id="lison-my-rec-list"><div class="crec-empty">⏳ 読み込み中…</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="showLisonRankSelect()">← 級を選ぶ画面に戻る</button>
   </div>
 </div>
 
@@ -14758,6 +14790,156 @@
     _lisonState.mediaStream = null;
   }
 
+  // ============================================================
+  // 生徒が自分のリスオン録音を聞く（2026-08-21・純追加）
+  // ============================================================
+  // ★保護者画面（view.html の loadChildLisonRecordings / toggleChildLisonRec）を手本に移植。
+  //   一覧・再生の作り・クラス名・文言の型まで揃えてあり、新しい仕組みは持ち込んでいない。
+  // ★一覧：getLisonSubmissionsListForStudent（サーバ側で studentId 一致行のみ返す）
+  // ★音声：getLisonRecordingBlobForSelf（AWS ec33159）
+  //   ★studentId は渡さない。studentToken（ログイン時のトークン）から本人を特定する仕様。
+  //   gasGet は保持中トークンを token として自動併送するが、本 API の受け口名は studentToken なので明示で渡す。
+  // ★再生は base64→Blob→ObjectURL→<audio>。controlsList="nodownload" でダウンロードボタンを出さない
+  //   （保護者画面・管理画面と同じ作法）。
+  // ★15日で消えた録音は hasRecording=false / deleted:true。エラーにせず「保存期間を過ぎました」と見せる。
+  // ★fileId は onclick に文字列で埋めず、キャッシュ配列から index で引く（admin の _sangoSubCache と同じ作法）。
+  var _lisonMyRecBlobUrls = {};   // idx → ObjectURL（画面入場時・閉時に revoke してメモリリークを防ぐ）
+  var _lisonMyRecCache = [];      // idx → submission（onclick へ文字列を埋めないための受け皿）
+  function _clearLisonMyRecPlayers() {
+    for (var k in _lisonMyRecBlobUrls) {
+      if (!_lisonMyRecBlobUrls.hasOwnProperty(k)) continue;
+      try { URL.revokeObjectURL(_lisonMyRecBlobUrls[k]); } catch (e) {}
+    }
+    _lisonMyRecBlobUrls = {};
+  }
+  function _lisonMyEsc(v) {
+    return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  var LISON_MY_LEVEL_LABELS = { '4': '英検4級', '3': '英検3級', 'pre2': '英検準2級', '2': '英検2級', 'pre1': '英検準1級' };
+  function _lisonMyLevelLabel(lv) {
+    var v = String(lv || '').trim();
+    return LISON_MY_LEVEL_LABELS[v] || (v ? ('英検' + v + '級') : 'リスオン');
+  }
+  function showLisonMyRecordings() {
+    var listEl = document.getElementById('lison-my-rec-list');
+    var sidEl  = document.getElementById('lison-my-rec-sid');
+    if (sidEl) sidEl.textContent = _studentId ? (_studentId + ' さん') : '';
+    if (listEl) listEl.innerHTML = '<div class="crec-empty">⏳ 読み込み中…</div>';
+    _clearLisonMyRecPlayers();
+    _lisonMyRecCache = [];
+    showScreen('screen-lison-my-recordings');
+    if (!_studentId) {
+      if (listEl) listEl.innerHTML = '<div class="crec-empty">ログイン情報が見つかりません。<br>一度ログインし直してね。</div>';
+      return;
+    }
+    gasGet({ action: 'getLisonSubmissionsListForStudent', studentId: _studentId, _ts: Date.now() }).then(function (res) {
+      var box = document.getElementById('lison-my-rec-list');
+      if (!box) return;
+      if (!res || !res.ok) {
+        box.innerHTML = '<div class="crec-empty">⚠️ 読み込みに失敗しました。</div>';
+        return;
+      }
+      var subs = res.submissions || [];
+      if (subs.length === 0) {
+        box.innerHTML = '<div class="crec-empty">まだ録音はありません。<br>リスオンで音読を提出すると、ここに並びます（録音は約 15 日で自動的に消えます）。</div>';
+        return;
+      }
+      _lisonMyRecCache = subs;
+      box.innerHTML = subs.map(function (sb, idx) {
+        var ts = String(sb.timestamp || '').replace('T', ' ').slice(0, 16);
+        var ws = String(sb.weekStart || '').trim();
+        var metaParts = [];
+        if (ws) metaParts.push('週：' + _lisonMyEsc(ws));
+        metaParts.push('クイズ：' + (Number(sb.quizScore) || 0) + ' 点');
+        var head = '<div class="crec-head">' +
+                     '<div class="crec-title">' + _lisonMyEsc(_lisonMyLevelLabel(sb.level)) + '</div>' +
+                     '<div class="crec-time">提出：' + _lisonMyEsc(ts) + '</div>' +
+                   '</div>' +
+                   '<div class="crec-meta">' + metaParts.join('　/　') + '</div>';
+        var body;
+        if (sb.hasRecording && sb.fileId) {
+          body = '<button type="button" class="crec-play-btn" id="lison-my-rec-btn-' + idx + '" onclick="toggleLisonMyRec(' + idx + ')">▶️ 再生</button>' +
+                 '<div class="crec-player" id="lison-my-rec-player-' + idx + '">' +
+                   '<audio class="crec-audio" id="lison-my-rec-audio-' + idx + '" controls controlsList="nodownload" preload="none"></audio>' +
+                 '</div>';
+        } else {
+          body = '<div class="crec-deleted">🎧 録音は保存期間（15日）を過ぎました</div>';
+        }
+        return '<div class="crec-card">' + head + body + '</div>';
+      }).join('');
+    }).catch(function () {
+      var box = document.getElementById('lison-my-rec-list');
+      if (box) box.innerHTML = '<div class="crec-empty">⚠️ 通信エラーが発生しました。</div>';
+    });
+  }
+  // 再生ボタン：押下でオンデマンド取得 → Blob URL を <audio> に流し込む。再押下で閉じる。
+  function toggleLisonMyRec(idx) {
+    var el = document.getElementById('lison-my-rec-player-' + idx);
+    if (!el) return;
+    var btn = document.getElementById('lison-my-rec-btn-' + idx);
+    var willActivate = !el.classList.contains('active');
+    if (!willActivate) { _closeLisonMyRec(idx); return; }
+    var fileId = String((_lisonMyRecCache[idx] || {}).fileId || '');
+    if (!fileId) { alert('録音ファイルが取得できません'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 取得中…'; }
+    el.classList.add('active');
+    // ★studentId は送らない（サーバが studentToken から本人を特定する）
+    gasGet({ action: 'getLisonRecordingBlobForSelf', studentToken: _getSessionToken(), fileId: fileId, _ts: Date.now() }).then(function (res) {
+      if (!res || !res.ok) {
+        // 15日で消えた録音（deleted:true）はエラー扱いにせず、その場を「保存期間を過ぎました」に差し替える
+        if (res && res.deleted) {
+          el.classList.remove('active');
+          var card = btn ? btn.parentNode : null;
+          if (card) card.innerHTML = '<div class="crec-deleted">🎧 録音は保存期間（15日）を過ぎました</div>';
+          return;
+        }
+        if (btn) { btn.disabled = false; btn.textContent = '▶️ 再生'; }
+        el.classList.remove('active');
+        alert((res && res.message) || '録音の取得に失敗しました');
+        return;
+      }
+      try {
+        var b64 = res.base64 || '';
+        var mime = res.mime || 'audio/webm';
+        var bin = atob(b64);
+        var len = bin.length;
+        var bytes = new Uint8Array(len);
+        for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+        var blob = new Blob([bytes], { type: mime });
+        if (_lisonMyRecBlobUrls[idx]) { try { URL.revokeObjectURL(_lisonMyRecBlobUrls[idx]); } catch (e) {} }
+        var blobUrl = URL.createObjectURL(blob);
+        _lisonMyRecBlobUrls[idx] = blobUrl;
+        var audio = document.getElementById('lison-my-rec-audio-' + idx);
+        if (audio) { audio.src = blobUrl; try { audio.load(); } catch (e) {} }
+        if (btn) { btn.disabled = false; btn.textContent = '⏹ 閉じる'; }
+      } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = '▶️ 再生'; }
+        el.classList.remove('active');
+        alert('音声データの変換に失敗しました');
+      }
+    }).catch(function () {
+      if (btn) { btn.disabled = false; btn.textContent = '▶️ 再生'; }
+      el.classList.remove('active');
+      alert('通信エラーが発生しました');
+    });
+  }
+  // 閉じる：audio 停止 + src クリア + ObjectURL revoke + ボタン文言戻し
+  function _closeLisonMyRec(idx) {
+    var el = document.getElementById('lison-my-rec-player-' + idx);
+    var audio = document.getElementById('lison-my-rec-audio-' + idx);
+    var btn = document.getElementById('lison-my-rec-btn-' + idx);
+    if (audio) {
+      try { audio.pause(); } catch (e) {}
+      try { audio.removeAttribute('src'); audio.load(); } catch (e) {}
+    }
+    if (_lisonMyRecBlobUrls[idx]) {
+      try { URL.revokeObjectURL(_lisonMyRecBlobUrls[idx]); } catch (e) {}
+      delete _lisonMyRecBlobUrls[idx];
+    }
+    if (el) el.classList.remove('active');
+    if (btn) { btn.disabled = false; btn.textContent = '▶️ 再生'; }
+  }
+
   // -----------------------------------------------------
   // 級選択画面
   // -----------------------------------------------------
@@ -22161,7 +22343,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260821-2308</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260822-0000</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
