@@ -3403,10 +3403,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-2336"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260821-2308"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-2336">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-2336"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260821-2308">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260821-2308"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -16255,8 +16255,8 @@
     var idx = 0;
     function next() {
       if (idx >= subs.length) {
-        _hideMyTaskSending();
-        _showMyTaskHwDone(results);
+        // 2026-08-20：overlay を消す瞬間に次画面を出す（他コンテンツと同じ「同時遷移」）
+        _hideMyTaskSending(function(){ _showMyTaskHwDone(results); });
         return;
       }
       var subj = subs[idx];
@@ -16394,11 +16394,9 @@
       content: entry.content || '',
       photos: sending
     }, 120000).then(function(res){
-      _hideMyTaskSending();
-      _afterMyTaskHwResend(i, res, sending);
+      _hideMyTaskSending(function(){ _afterMyTaskHwResend(i, res, sending); });
     }, function(err){
-      _hideMyTaskSending();
-      _afterMyTaskHwResend(i, { ok: false, message: String(err && err.message ? err.message : err) }, sending);
+      _hideMyTaskSending(function(){ _afterMyTaskHwResend(i, { ok: false, message: String(err && err.message ? err.message : err) }, sending); });
     });
   }
   function _afterMyTaskHwResend(i, res, sentPhotos) {
@@ -17043,17 +17041,20 @@
     _showOriwantesSending();   // オリワンテスのキャラの送信中オーバーレイ
     gasPost({ action: 'submitOriwantes', studentId: _studentId, subject: window._oriwantesLastSubject || '', questions: questions })
       .then(function(res){
-        _hideOriwantesSending();
+        // 2026-08-20：共通機構に合わせ、★結果画面へ進むときは overlay を消す瞬間に切替（同時遷移）、
+        //   ★その場に留まるエラー時は従来どおり即座に alert（カンジー等と同じ作法）。
+        //   二重送信ガードの解除は視覚要素ではないので即座に行う（overlay が操作を遮っている間も安全）。
         _oriwantesSubmitting = false;
         if (res && res.ok) {
           try { _pendingPhotoClear(ORIWANTES_KEY); } catch(e){}  // 2026-08-20：解答まで完了したので保存は破棄
-          _showOriwantesResult(res, questions, 'ok');
+          _hideOriwantesSending(function(){ _showOriwantesResult(res, questions, 'ok'); });
         } else if (res && res.errorCode === 'HP_LOG_FAILED') {
           // 保存は成立・HP付与のみ失敗 → 結果は見せる（HPの問題は控えめに）。
           try { _pendingPhotoClear(ORIWANTES_KEY); } catch(e){}  // 2026-08-20：保存は成立しているので破棄
-          _showOriwantesResult(res, questions, 'hp_failed');
+          _hideOriwantesSending(function(){ _showOriwantesResult(res, questions, 'hp_failed'); });
         } else {
           // 保存自体に失敗 → 解く画面のまま（入力を保持して再送できるように）。
+          _hideOriwantesSending();
           var msg = (res && res.message) ? res.message : '送信できなかったみたい。もう一度試してね。';
           alert(msg);
         }
@@ -17438,22 +17439,15 @@
 
   // ③-B 解答送信中オーバーレイ（オリワンテスのキャラ。マイ課題の _showMyTaskSending とは別物）
   var _oriwantesSendDotsTimer = null;
+  // 2026-08-20：独自オーバーレイ（oriwantes-sending-overlay）から共通機構へ乗せ替え。
+  //   ★これは「解答送信＝HPを獲得する場面」なので共通機構（獲得HPを最終確認中）と意味が一致する。
+  //   ★一方 _showOriwantesThinking（問題生成中）は「HPを消費する場面」で意味が違うため乗せ替えない。
+  //   ★関数名は維持。旧 DOM は未参照になるが残置（無害）。
   function _showOriwantesSending() {
-    var ov = document.getElementById('oriwantes-sending-overlay');
-    if (!ov) return;
-    ov.classList.add('active');
-    var dotsEl = document.getElementById('oriwantes-sending-dots');
-    var n = 3;
-    if (_oriwantesSendDotsTimer) clearInterval(_oriwantesSendDotsTimer);
-    _oriwantesSendDotsTimer = setInterval(function(){
-      n = (n % 3) + 1;
-      if (dotsEl) dotsEl.textContent = n === 1 ? '.' : (n === 2 ? '..' : '...');
-    }, 400);
+    _showHpConfirmingOverlay('oriwantes');
   }
-  function _hideOriwantesSending() {
-    var ov = document.getElementById('oriwantes-sending-overlay');
-    if (ov) ov.classList.remove('active');
-    if (_oriwantesSendDotsTimer) { clearInterval(_oriwantesSendDotsTimer); _oriwantesSendDotsTimer = null; }
+  function _hideOriwantesSending(onHidden) {
+    _hideHpConfirmingOverlay(onHidden);
   }
 
   // プロンプトの書き方ヒント モーダル
@@ -17591,11 +17585,12 @@
     _showOriwantesSending();   // 送信中オーバーレイは既存流用
     gasPost({ action: 'submitOriwantesRetry', studentId: _studentId, submissionId: st.submissionId, answers: answers })
       .then(function(res){
-        _hideOriwantesSending();
+        // 2026-08-20：通常送信と同じ作法（結果画面は同時遷移／エラーは即座に alert）。
         _oriwantesRetrySubmitting = false;
         if (res && res.ok) {
-          _showOriwantesRetryResult(res);
+          _hideOriwantesSending(function(){ _showOriwantesRetryResult(res); });
         } else {
+          _hideOriwantesSending();
           var msg = (res && res.message) ? res.message : '送信できなかったみたい。もう一度試してね。';
           alert(msg);
         }
@@ -17758,19 +17753,16 @@
 
   // 送信中オーバーレイ
   var _myTaskSendingDotsTimer = null;
+  // 2026-08-20：独自オーバーレイ（mytask-sending-overlay）から共通機構へ乗せ替え。
+  //   ・キャラ別セリフ（HP_CONFIRMING_BY_CHAR['maikadai']）が実際に出るようになる
+  //   ・§6-A23「速すぎ④」の最低3秒表示（cover方式）が効くようになる
+  //   ・onHidden で「overlay を消す瞬間＝次画面を出す瞬間」を揃えられる（45%半透明ごしの先見え防止）
+  //   ★関数名は維持。呼び出し箇所はそのまま動く。旧 DOM は未参照になるが残置（無害）。
   function _showMyTaskSending() {
-    var ov = document.getElementById('mytask-sending-overlay');
-    if (!ov) return;
-    ov.classList.add('active');
-    var dotsEl = document.getElementById('mytask-sending-dots');
-    var n = 3;
-    if (_myTaskSendingDotsTimer) clearInterval(_myTaskSendingDotsTimer);
-    _myTaskSendingDotsTimer = setInterval(function(){ n = (n % 3) + 1; if (dotsEl) dotsEl.textContent = n === 1 ? '.' : (n === 2 ? '..' : '...'); }, 400);
+    _showHpConfirmingOverlay('maikadai');
   }
-  function _hideMyTaskSending() {
-    var ov = document.getElementById('mytask-sending-overlay');
-    if (ov) ov.classList.remove('active');
-    if (_myTaskSendingDotsTimer) { clearInterval(_myTaskSendingDotsTimer); _myTaskSendingDotsTimer = null; }
+  function _hideMyTaskSending(onHidden) {
+    _hideHpConfirmingOverlay(onHidden);
   }
 
   // (2-E) 送信。content 必須・photos 1枚以上必須をフロントでも検証。
@@ -17801,11 +17793,9 @@
       content: content,
       photos: photos
     }, 120000).then(function(res){
-      _hideMyTaskSending();
-      _handleMyTaskResult(res, photos);
+      _hideMyTaskSending(function(){ _handleMyTaskResult(res, photos); });
     }).catch(function(err){
-      _hideMyTaskSending();
-      _handleMyTaskResult({ ok: false, message: String(err && err.message ? err.message : err) }, photos);
+      _hideMyTaskSending(function(){ _handleMyTaskResult({ ok: false, message: String(err && err.message ? err.message : err) }, photos); });
     });
   }
   function _handleMyTaskResult(res, sentPhotos) {
@@ -22171,7 +22161,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-2336</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260821-2308</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
