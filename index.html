@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260823-2036"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260823-2045"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260823-2036">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260823-2036"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260823-2045">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260823-2045"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6971,7 +6971,7 @@
     // ★注意書きは常に全文表示（申し込めないときも読ませる）。
     if (res.notice) html += '<div class="me-notice">' + _meLinesHtml(res.notice) + '</div>';
     if (res.canRequest === true) {
-      html += '<label class="me-reason-label" for="mission-exempt-reason">申し込む理由 <span class="me-req">（かならず書いてね）</span></label>' +
+      html += '<label class="me-reason-label" for="mission-exempt-reason">申し込む理由 <span class="me-req">（必ず書く）</span></label>' +
               '<textarea id="mission-exempt-reason" class="me-reason" maxlength="200" placeholder="例：スマホだけでできるものを先にやりたい"></textarea>' +
               '<button class="btn-wide" style="margin-top:12px;background:linear-gradient(135deg,#f6b93b,#e58e26)" id="mission-exempt-submit" onclick="submitMissionExemption()">⭐ この内容で申し込む</button>';
     }
@@ -6988,7 +6988,7 @@
     //   空欄・空白だけ（全角スペース含む。trim が U+3000 も落とす）は送らない。
     if (!reason) {
       if (ta) { ta.classList.add('ng'); try { ta.focus(); } catch(e){} }
-      if (msg) { msg.className = 'me-msg ng'; msg.textContent = '⚠️ 申し込む理由を書いてね。先生が「外すかどうか」を決めるときに読みます。'; }
+      if (msg) { msg.className = 'me-msg ng'; msg.textContent = '⚠️ 申請する理由を書いてね。これを読んで先生が「外すかどうか」の最終判断をします。'; }
       return;
     }
     if (ta) ta.classList.remove('ng');
@@ -22498,7 +22498,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2036</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2045</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
