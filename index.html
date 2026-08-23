@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260824-0446"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260824-0519"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260824-0446">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260824-0446"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260824-0519">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260824-0519"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -12206,7 +12206,7 @@
       msgEl.style.display = 'none';
       document.getElementById('sango-ocr-text').textContent = _sangoOcrText;
       document.getElementById('sango-ocr-confirm').style.display = 'block';
-    }).catch(function(err){ showMsg('sango-photo-msg', 'エラー：' + String(err), 'ng'); });
+    }).catch(function(err){ try { _recordUnsentAwareness('三語短文(写真の読み取り)'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ showMsg('sango-photo-msg', 'エラー：' + String(err), 'ng'); });
   }
   function confirmSangoPhoto(ok) {
     if (!ok) {
@@ -13175,6 +13175,7 @@
       _setContentMascot('mate-img-wabun1-confirm', 'thinking', 'mate-bubble-wabun1-confirm', _pickBubble(NICHIEI_BUBBLES.confirm), 'nichiei');
       showScreen('screen-wabun1-confirm');
     }).catch(function(err){
+      try { _recordUnsentAwareness('和文英訳①(写真の読み取り)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
       var emsg = (err && err.message) ? err.message : String(err);
       showMsg('wabun1-camera-msg', 'エラー：' + emsg, 'ng');
       document.getElementById('wabun1-photo-input').value = '';
@@ -14435,6 +14436,7 @@
           showScreen('screen-kiso-answer-confirm');
         });
       }).catch(function(err){
+        try { _recordUnsentAwareness('基礎計算(答えの読み取り)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
         _kisoShowGrading(false);
         if (btn) btn.disabled = false;
         alert('⚠️ 通信エラー：' + String(err) + '\nネットワークが不安定な可能性があります。少し待ってからもう一度お試しください。');
@@ -14959,6 +14961,7 @@
         // 2026-08-05 追修正：次表示への切替を overlay 消滅と同時に
         _kisoShowGrading(false, function(){ _renderKisoWorkAfter(); });
       }).catch(function(err){
+        try { _recordUnsentAwareness('基礎計算(途中式の写真)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
         _kisoShowGrading(false);
         if (msgEl && msgOriginal) msgEl.innerHTML = msgOriginal;
         document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
@@ -16715,6 +16718,7 @@
         results.push({ subject: subj, res: res, sentPhotos: photos, failedPhotos: [] });
         idx++; next();
       }, function(err){
+        try { _recordUnsentAwareness('マイ課題(宿題)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
         results.push({ subject: subj, res: { ok: false, message: String(err && err.message ? err.message : err) }, sentPhotos: photos, failedPhotos: [] });
         idx++; next();
       });
@@ -16837,6 +16841,7 @@
     }, 120000).then(function(res){
       _hideMyTaskSending(function(){ _afterMyTaskHwResend(i, res, sending); });
     }, function(err){
+      try { _recordUnsentAwareness('マイ課題(宿題の再送)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
       _hideMyTaskSending(function(){ _afterMyTaskHwResend(i, { ok: false, message: String(err && err.message ? err.message : err) }, sending); });
     });
   }
@@ -18236,6 +18241,7 @@
     }, 120000).then(function(res){
       _hideMyTaskSending(function(){ _handleMyTaskResult(res, photos); });
     }).catch(function(err){
+      try { _recordUnsentAwareness('マイ課題(自主)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
       _hideMyTaskSending(function(){ _handleMyTaskResult({ ok: false, message: String(err && err.message ? err.message : err) }, photos); });
     });
   }
@@ -22554,6 +22560,24 @@
   function _unsentManualCount() {
     try { var sid = String(_studentId || '').trim(); if (!sid) return 0; return _unsentManualLoad().filter(function(it){ return it.sid === sid; }).length; } catch(e){ return 0; }
   }
+  // 2026-08-24 ③：失敗時刻の表示用（JST・MM-DD HH:mm）。JST 換算は _todayKeyJST3am と同じ作法。
+  function _fmtUnsentTs(ms) {
+    try {
+      var d = new Date(Number(ms) || 0);
+      if (!isFinite(d.getTime())) return '';
+      var j = new Date(d.getTime() + (d.getTimezoneOffset() + 540) * 60000);
+      var p = function(n){ return (n < 10 ? '0' : '') + n; };
+      return p(j.getMonth() + 1) + '-' + p(j.getDate()) + ' ' + p(j.getHours()) + ':' + p(j.getMinutes());
+    } catch(e) { return ''; }
+  }
+  // 2026-08-24 ②：自動再送キューの action を、管理画面で塾長が読める日本語名にする。
+  var RESEND_ACTION_LABELS = {
+    submitAttemptV2:  '英単語RUSH',
+    submitReflection: '振り返り',
+    submitSango:      '三語短文',
+    submitWabun1:     '和文英訳①',
+    submitLison:      '英語リスオン'
+  };
   // 送信失敗（通信断/タイムアウト）を表示専用で記録。payload は保持しない（自動再送しないため）。
   function _recordUnsentAwareness(label) {
     try {
@@ -22578,10 +22602,33 @@
       var resendCount = _resendQueueCount();
       var manualN = _unsentManualCount();
       if (resendCount === 0 && manualN === 0) return;
-      var labels = {};
-      try { _unsentManualLoad().filter(function(it){ return it.sid === sid; }).forEach(function(it){ labels[it.label] = (labels[it.label] || 0) + 1; }); } catch(e){}
-      var parts = Object.keys(labels).map(function(k){ return k + '×' + labels[k]; });
-      if (resendCount > 0) parts.push('自動再送待ち×' + resendCount);
+      // 2026-08-24 ③：失敗した時刻（ts）は記録済みなのに捨てていたので summary に載せる。
+      //   同じ種類が複数あるときは「最終」＝いちばん新しい失敗時刻を出す。
+      var labels = {}, lastTs = {};
+      try {
+        _unsentManualLoad().filter(function(it){ return it.sid === sid; }).forEach(function(it){
+          labels[it.label] = (labels[it.label] || 0) + 1;
+          var t = Number(it && it.ts) || 0;
+          if (t > (lastTs[it.label] || 0)) lastTs[it.label] = t;
+        });
+      } catch(e){}
+      var parts = Object.keys(labels).map(function(k){
+        var t = lastTs[k];
+        return k + '×' + labels[k] + (t ? '（最終 ' + _fmtUnsentTs(t) + '）' : '');
+      });
+      // 2026-08-24 ②：自動再送待ちも中身が分かるように action を日本語名にして数える。
+      //   ★読めなかったときは従来どおり件数だけ出す（安全側）。
+      if (resendCount > 0) {
+        var rc = {}, rParts = [];
+        try {
+          _resendQueueLoad().filter(function(it){ return it && it.sid === sid; }).forEach(function(it){
+            var nm = RESEND_ACTION_LABELS[it && it.action] || String((it && it.action) || '不明');
+            rc[nm] = (rc[nm] || 0) + 1;
+          });
+          rParts = Object.keys(rc).map(function(k){ return k + '×' + rc[k]; });
+        } catch(e){}
+        parts.push('自動再送待ち：' + (rParts.length ? rParts.join('・') : resendCount + '件'));
+      }
       var summary = parts.join(', ');
       gasPost({ action: 'reportUnsentOnLogin', studentId: sid, resendCount: resendCount, manualCount: manualN, summary: summary }, 20000)
         .then(function(res){
@@ -22602,7 +22649,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260824-0446</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260824-0519</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
