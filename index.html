@@ -1110,6 +1110,20 @@
     /* ===== 効果音オン/オフ トグル（2026-06-05）。学習音声は対象外、効果音(playSfx)のみ ===== */
     .sfx-setting-desc { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 14px; }
     .sfx-setting-desc .sfx-note { color: #c0392b; font-weight: bold; }
+    /* 絶対ミッション解除申請（各種設定の中）。注意書きは notice をそのまま出す。★行だけ強調する。 */
+    .me-status { font-size: 14px; font-weight: bold; line-height: 1.7; padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; background: #f4f6fb; color: #2d3a8c; }
+    .me-status.ok   { background: #e8f8f0; color: #0b7a4b; }
+    .me-status.wait { background: #fff7e6; color: #9a5b00; }
+    .me-status.ng   { background: #fdecec; color: #b02a37; }
+    .me-note { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 12px; }
+    .me-notice { background: #fffdf5; border: 2px solid #f0c36d; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+    .me-notice-line { font-size: 13px; color: #4a4a4a; line-height: 1.8; }
+    .me-notice-line.strong { font-size: 15px; font-weight: bold; color: #b02a37; background: #fdecec; border-radius: 6px; padding: 8px 10px; margin-top: 8px; line-height: 1.7; }
+    .me-reason { width: 100%; box-sizing: border-box; min-height: 76px; padding: 10px 12px; border: 2px solid #dfe6f5; border-radius: 10px; font-size: 14px; font-family: inherit; line-height: 1.6; resize: vertical; }
+    .me-reason-label { display: block; font-size: 13px; color: #555; font-weight: bold; margin-bottom: 6px; }
+    .me-msg { font-size: 13px; line-height: 1.8; margin-top: 10px; }
+    .me-msg.ok { color: #0b7a4b; }
+    .me-msg.ng { color: #b02a37; font-weight: bold; }
     .sfx-toggle { width: 100%; display: flex; align-items: center; gap: 14px; padding: 16px 18px; border: 3px solid #ccc; border-radius: 14px; background: #f4f5f7; cursor: pointer; transition: all .18s; }
     .sfx-toggle .sfx-toggle-label { font-size: 20px; font-weight: bold; flex: 1; text-align: left; }
     /* スイッチ風つまみ：トラックの中をノブが左右に動く */
@@ -3423,10 +3437,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260823-1840"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260823-2010"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260823-1840">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260823-1840"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260823-2010">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260823-2010"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4425,6 +4439,13 @@
         <span class="sfx-toggle-label" id="study-timer-toggle-label">⏱ タイマー：表示する</span>
         <span class="sfx-toggle-switch"><span class="sfx-toggle-knob"></span></span>
       </button>
+    </div>
+    <!-- 2026-08-23：絶対ミッションの「順番のきまり」解除申請（生徒 → 塾長が手動で判断）。
+         ★状況と注意書きはサーバー（getMissionExemptionStatus）の応答をそのまま出す。
+         ★この画面を開いたときだけ 1 回取得する（ホーム表示の通信は増やさない）。 -->
+    <div class="setting-card" id="mission-exempt-card" style="display:none">
+      <h3>⭐ 絶対ミッションの解除を申し込む</h3>
+      <div id="mission-exempt-body"><div class="me-note">⏳ 読み込み中...</div></div>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:4px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
@@ -6864,6 +6885,7 @@
     if (!_isReqSystemActive()) return false;      // 5/25 前は非稼働 → ブロックしない
     var rp = _requiredProgress;
     if (!rp) return false;                        // 未取得/失敗 → フェイルオープン
+    if (rp.missionExempted) return false;         // ★解除申請が承認済み → 順番のきまりを外す（恒久。塾長が戻すまで有効）
     var required  = Array.isArray(rp.required)  ? rp.required  : [];
     var remaining = Array.isArray(rp.remaining) ? rp.remaining : [];
     return required.length > 0 && remaining.length > 0;
@@ -6881,6 +6903,111 @@
       if (set[rc]) out.push(rc);
     }
     return out;
+  }
+
+  // ===== 絶対ミッション「順番のきまり」解除申請（2026-08-23 純追加） =====
+  // 生徒が申請 → 塾長が管理画面で判断（承認 / 却下 / 戻す）。承認は恒久（塾長が戻すまで有効）。
+  // ★ホーム表示の通信は増やさない：ブロック解除の判定は getRequiredProgress の missionExempted を使い、
+  //   この状況取得（getMissionExemptionStatus）は「各種設定」を開いたときだけ 1 回だけ呼ぶ。
+  var _meLoading = false;
+  function _meEscHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  // 注意書き（notice）／申請後メッセージを ★1文字も変えずに 表示する。
+  // 行頭が ★ の行だけ強調（文字は一切変えない）。★HP の 40% の 2 行が埋もれないようにするため。
+  function _meLinesHtml(text) {
+    var lines = String(text == null ? '' : text).split('\n');
+    var out = '';
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      var strong = (ln.replace(/^[\s　]+/, '').charAt(0) === '★');
+      out += '<div class="me-notice-line' + (strong ? ' strong' : '') + '">' + _meEscHtml(ln) + '</div>';
+    }
+    return out;
+  }
+  // 状況行。★未知の status では何も出さない（間違った説明を出さない）。
+  function _meStatusView(res) {
+    if (res.isExempted === true) return { cls: 'ok',   text: '✅ いまは解除中です（先生が元に戻すまで続きます）' };
+    var st = String(res.status == null ? '' : res.status);
+    if (st === 'pending')  return { cls: 'wait', text: '⏳ いま先生が確認しています。決まるまでは今までどおりです。' };
+    if (st === 'rejected') return { cls: 'ng',   text: '今回は解除されませんでした。' };
+    if (st === 'revoked')  return { cls: 'ng',   text: '解除は終わりました。いまは元に戻っています。' };
+    if (st === 'none' || st === '') return { cls: '', text: 'まだ申し込んでいません。' };
+    return { cls: '', text: '' };
+  }
+  function loadMissionExemptionStatus() {
+    var card = document.getElementById('mission-exempt-card');
+    var body = document.getElementById('mission-exempt-body');
+    if (!card || !body) return;
+    if (!_studentId || !_isReqSystemActive()) { card.style.display = 'none'; return; }
+    // ★絶対ミッションが 1 つも無い生徒には出さない（順番のきまり自体が無いので申し込む意味がない）。
+    //   判定は取得済みの getRequiredProgress を使う＝通信は増やさない。未取得(null)のときは出す（誤って隠さない）。
+    var _rp = _requiredProgress;
+    if (_rp && Array.isArray(_rp.required) && _rp.required.length === 0) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    body.innerHTML = '<div class="me-note">⏳ 読み込み中...</div>';
+    gasGet({ action: 'getMissionExemptionStatus', studentId: _studentId, _ts: Date.now() })
+      .then(function(res) {
+        if (!res || !res.ok) { card.style.display = 'none'; return; }   // 取れなければカードごと出さない（既存画面を汚さない）
+        _renderMissionExemption(res);
+      })
+      .catch(function(err) {
+        console.error('[loadMissionExemptionStatus]', err);
+        card.style.display = 'none';
+      });
+  }
+  function _renderMissionExemption(res) {
+    var body = document.getElementById('mission-exempt-body');
+    if (!body) return;
+    var html = '';
+    var sv = _meStatusView(res);
+    if (sv.text) html += '<div class="me-status' + (sv.cls ? ' ' + sv.cls : '') + '">' + _meEscHtml(sv.text) + '</div>';
+    var note = String(res.decisionNote == null ? '' : res.decisionNote);
+    if (note) html += '<div class="me-note">先生から：' + _meEscHtml(note) + '</div>';
+    var reason = String(res.reason == null ? '' : res.reason);
+    if (reason) html += '<div class="me-note">申し込んだ理由：' + _meEscHtml(reason) + '</div>';
+    // ★注意書きは常に全文表示（申し込めないときも読ませる）。
+    if (res.notice) html += '<div class="me-notice">' + _meLinesHtml(res.notice) + '</div>';
+    if (res.canRequest === true) {
+      html += '<label class="me-reason-label" for="mission-exempt-reason">申し込む理由（書かなくてもOK）</label>' +
+              '<textarea id="mission-exempt-reason" class="me-reason" maxlength="200" placeholder="例：スマホだけでできるものを先にやりたい"></textarea>' +
+              '<button class="btn-wide" style="margin-top:12px;background:linear-gradient(135deg,#f6b93b,#e58e26)" id="mission-exempt-submit" onclick="submitMissionExemption()">⭐ この内容で申し込む</button>';
+    }
+    html += '<div class="me-msg" id="mission-exempt-msg"></div>';
+    body.innerHTML = html;
+  }
+  function submitMissionExemption() {
+    if (_meLoading) return;
+    var btn = document.getElementById('mission-exempt-submit');
+    var msg = document.getElementById('mission-exempt-msg');
+    var ta  = document.getElementById('mission-exempt-reason');
+    var reason = ta ? String(ta.value || '').trim() : '';
+    _meLoading = true;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 送信中...'; }
+    if (msg) { msg.className = 'me-msg'; msg.textContent = ''; }
+    var params = { action: 'submitMissionExemptionRequest', studentId: _studentId };
+    if (reason) params.reason = reason;
+    gasPost(params).then(function(res) {
+      _meLoading = false;
+      if (!res || !res.ok) {
+        if (btn) { btn.disabled = false; btn.textContent = '⭐ この内容で申し込む'; }
+        if (msg) { msg.className = 'me-msg ng'; msg.textContent = (res && res.message) ? res.message : '送信できませんでした。もう一度お試しください。'; }
+        return;
+      }
+      // ★サーバーの message も 1文字も変えずに表示（★の行は強調）。そのあと状況を取り直す。
+      if (msg) { msg.className = 'me-msg ok'; msg.innerHTML = _meLinesHtml(res.message || '申し込みました！'); }
+      var keep = msg ? msg.outerHTML : '';
+      loadMissionExemptionStatus();
+      setTimeout(function() {
+        var m2 = document.getElementById('mission-exempt-msg');
+        if (m2 && keep) m2.outerHTML = keep;
+      }, 400);
+    }).catch(function(err) {
+      _meLoading = false;
+      console.error('[submitMissionExemption]', err);
+      if (btn) { btn.disabled = false; btn.textContent = '⭐ この内容で申し込む'; }
+      if (msg) { msg.className = 'me-msg ng'; msg.textContent = (err && err.message) ? err.message : '通信エラーが発生しました。'; }
+    });
   }
 
   function _hideRequiredBlockScreen() {
@@ -7555,6 +7682,7 @@
       }
       _renderSfxToggle();  // 効果音トグルの現在状態を反映
       _renderStudyTimerToggle();  // 2026-08-19 要望1：タイマー切替の表示可否と現在状態を反映
+      loadMissionExemptionStatus();  // 2026-08-23：絶対ミッション解除申請の状況（この画面を開いたときだけ 1 回）
     }
     // 第4群B：実施時間タイマーをアクティブ画面へ移設。
     //   ・ヘッダーがある画面：<h1> と <span> の間へ（右span＝進捗B系/ヒントC系は右端に不動。他画面は従来どおり不変）。
@@ -22361,7 +22489,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-1840</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2010</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

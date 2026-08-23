@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260823-1840"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260823-2010"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -941,6 +941,31 @@
   .admin-mgmt-empty { text-align: center; color: #888; font-size: 14px; padding: 40px 20px; }
   .admin-mgmt-lead { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 14px; padding: 10px 14px; background: #f0f9ff; border-left: 3px solid #4f7df0; border-radius: 4px; }
   .admin-mgmt-lead strong { color: #0c4a6e; }
+  /* 絶対ミッション解除申請（絶対ミッション設定 画面の下部に純追加。新画面は作らない） */
+  .me-adm-sec { margin-top: 26px; }
+  .me-adm-h2 { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 10px; }
+  .me-adm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .me-adm-table th { background: #f8fafc; color: #475569; font-weight: 700; text-align: left; padding: 9px 10px; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+  .me-adm-table td { padding: 9px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .me-adm-name { font-weight: 700; color: #1e293b; }
+  .me-adm-sub { display: block; font-size: 11px; color: #94a3b8; font-weight: 400; }
+  .me-adm-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .me-adm-badge.pending  { background: #fef3c7; color: #92400e; }
+  .me-adm-badge.approved { background: #dcfce7; color: #15803d; }
+  .me-adm-badge.rejected { background: #fee2e2; color: #b91c1c; }
+  .me-adm-badge.revoked  { background: #e2e8f0; color: #475569; }
+  .me-adm-badge.other    { background: #e2e8f0; color: #475569; }
+  /* ★通算申請回数：機械で回数制限をかけていない歯止めなので目立たせる */
+  .me-adm-count { font-weight: 800; font-size: 15px; color: #b45309; text-align: center; white-space: nowrap; }
+  .me-adm-count.many { color: #b91c1c; }
+  .me-adm-reason { color: #475569; line-height: 1.6; word-break: break-all; max-width: 320px; }
+  .me-adm-reason.empty { color: #cbd5e1; }
+  .me-adm-act { display: flex; gap: 6px; flex-wrap: wrap; }
+  .me-adm-btn { padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; color: #fff; white-space: nowrap; }
+  .me-adm-btn:disabled { opacity: .55; cursor: default; }
+  .me-adm-btn.approve { background: linear-gradient(135deg,#22c55e,#15803d); }
+  .me-adm-btn.reject  { background: linear-gradient(135deg,#f87171,#b91c1c); }
+  .me-adm-btn.revoke  { background: linear-gradient(135deg,#f59e0b,#b45309); }
   @media (max-width: 480px) {
     .admin-mgmt-table { font-size: 12px; min-width: 480px; }
     .admin-mgmt-table th, .admin-mgmt-table td { padding: 7px 8px; }
@@ -3822,6 +3847,29 @@
     </div>
     <div class="admin-mgmt-wrap">
       <div id="required-missions-body"><div class="admin-mgmt-empty">⏳ 読み込み中...</div></div>
+    </div>
+
+    <!-- 2026-08-23 純追加：絶対ミッション「順番のきまり」解除の申請一覧。
+         ★新しい画面は作らず、この既存画面（screen-admin-required-missions）の下に足す。 -->
+    <div class="me-adm-sec">
+      <div class="me-adm-h2">⭐ 解除の申し込み（順番のきまりを外す）</div>
+      <div class="admin-mgmt-lead">
+        生徒からの <strong>絶対ミッション解除</strong> の申し込みです。<br>
+        <strong>承認</strong>：順番のきまり（絶対ミッションを先にやらないと他が開けない）を外します。<strong>恒久</strong>で、<strong>戻す</strong>まで有効です。<br>
+        <strong>戻す</strong>：解除を終わりにして元に戻します。達成率が下がったらここで戻してください。<br>
+        <strong>※ 解除しても HP の 40% の預かりは続きます</strong>（絶対ミッションを全部やらないと翌朝 4 時に消えます）。<br>
+        <strong>通算申し込み回数</strong>は、機械で回数制限をかけていないための歯止めです。多い生徒はご注意ください。
+      </div>
+      <div class="admin-mgmt-toolbar">
+        <button type="button" class="submit-btn" onclick="loadMissionExemptions()">🔄 最新データ取得</button>
+        <label style="font-size:13px;color:#475569;display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="me-adm-show-all" onchange="loadMissionExemptions()"> 決まったものも表示する
+        </label>
+        <span id="me-adm-msg" class="admin-mgmt-msg"></span>
+      </div>
+      <div class="admin-mgmt-wrap">
+        <div id="me-adm-body"><div class="admin-mgmt-empty">⏳ 読み込み中...</div></div>
+      </div>
     </div>
   </div>
 </div>
@@ -7128,6 +7176,155 @@
     _showScreen('screen-admin-required-missions');
     window.scrollTo(0, 0);
     loadRequiredMissionsManagement();
+    loadMissionExemptions();   // 2026-08-23 純追加：解除申請の一覧（同じ画面の下部）
+  }
+
+  // ===== 絶対ミッション解除申請の承認（2026-08-23 純追加） =====
+  // サーバー：adminListMissionExemptions（GET）／adminDecideMissionExemption（POST, decision=approve|reject|revoke）
+  // ★応答のキー名は環境によりゆらぎ得るため、_mePick で複数候補から拾う（既存 _penaltyPick と同じ作法）。
+  var _meAdmRows = [];
+  function _mePick(o) {
+    if (!o) return '';
+    for (var i = 1; i < arguments.length; i++) {
+      var k = arguments[i];
+      if (o[k] !== undefined && o[k] !== null && o[k] !== '') return o[k];
+    }
+    return '';
+  }
+  function _meAdmList(res) {
+    if (!res) return [];
+    var keys = ['items', 'requests', 'exemptions', 'list', 'rows', 'data', 'students'];
+    for (var i = 0; i < keys.length; i++) {
+      if (Array.isArray(res[keys[i]])) return res[keys[i]];
+    }
+    return [];
+  }
+  function _meAdmStatus(r) {
+    var st = String(_mePick(r, 'status', 'state') || '');
+    if (!st && r && (r.isExempted === true || r.exempted === true)) st = 'approved';
+    return st;
+  }
+  function _meAdmStatusBadge(st) {
+    var map = { pending: '⏳ 審査中', approved: '✅ 解除中', rejected: '却下', revoked: '↩ 戻し済み' };
+    var cls = map[st] ? st : 'other';
+    var txt = map[st] || (st || '—');
+    return '<span class="me-adm-badge ' + cls + '">' + _esc(txt) + '</span>';
+  }
+  function _meAdmMsg(text, kind) {
+    var el = document.getElementById('me-adm-msg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'admin-mgmt-msg' + (kind ? ' ' + kind : '');
+  }
+  function loadMissionExemptions() {
+    var body = document.getElementById('me-adm-body');
+    if (!body) return;
+    var chk = document.getElementById('me-adm-show-all');
+    var showAll = !!(chk && chk.checked);
+    body.innerHTML = '<div class="admin-mgmt-empty">⏳ 読み込み中...</div>';
+    _meAdmMsg('');
+    var params = { action: 'adminListMissionExemptions', _ts: Date.now() };
+    if (showAll) params.status = 'all';   // 既定は pending のみ。チェック時だけ全件。
+    adminGasGet(params).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '取得に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        body.innerHTML = '<div class="admin-mgmt-empty">' + _esc(em) + '</div>';
+        return;
+      }
+      _meAdmRows = _meAdmList(res);
+      _renderMissionExemptions(_meAdmRows, showAll);
+    }).catch(function() {
+      body.innerHTML = '<div class="admin-mgmt-empty">通信エラーが発生しました</div>';
+    });
+  }
+  function _renderMissionExemptions(rows, showAll) {
+    var body = document.getElementById('me-adm-body');
+    if (!body) return;
+    if (!rows || !rows.length) {
+      body.innerHTML = '<div class="admin-mgmt-empty">' + (showAll ? '申し込みはありません' : '審査中の申し込みはありません') + '</div>';
+      return;
+    }
+    var trs = rows.map(function(r, i) {
+      var sid   = String(_mePick(r, 'studentId', 'sid', 'student_id') || '');
+      var name  = String(_mePick(r, 'studentName', 'name', 'student_name') || '');
+      var nick  = String(_mePick(r, 'nickname', 'nick') || '');
+      var grade = String(_mePick(r, 'gradeLevel', 'grade', 'grade_level') || '');
+      var st    = _meAdmStatus(r);
+      var cnt   = Number(_mePick(r, 'requestCount', 'request_count', 'count') || 0);
+      var reqAt = String(_mePick(r, 'requestedAt', 'requested_at', 'createdAt', 'created_at') || '');
+      var decAt = String(_mePick(r, 'decidedAt', 'decided_at') || '');
+      var reason = String(_mePick(r, 'reason', 'note') || '');
+      var dnote  = String(_mePick(r, 'decisionNote', 'decision_note') || '');
+      var disp = _esc(name || nick || sid || '（不明）');
+      var sub  = (name && nick) ? '<span class="me-adm-sub">' + _esc(nick) + '</span>' : '';
+      if (sid) sub += '<span class="me-adm-sub">' + _esc(sid) + '</span>';
+      // ★通算申し込み回数：3 回以上は赤く出して目に留める（機械制限が無いための歯止め）
+      var cntCls = (cnt >= 3) ? 'me-adm-count many' : 'me-adm-count';
+      var when = _esc(reqAt || '—') + (decAt ? '<span class="me-adm-sub">決定 ' + _esc(decAt) + '</span>' : '');
+      var reasonHtml = reason
+        ? '<div class="me-adm-reason">' + _esc(reason) + '</div>'
+        : '<div class="me-adm-reason empty">（理由なし）</div>';
+      if (dnote) reasonHtml += '<div class="me-adm-reason"><span class="me-adm-sub">先生メモ：' + _esc(dnote) + '</span></div>';
+      var acts = '';
+      if (st === 'pending') {
+        acts = '<button type="button" class="me-adm-btn approve" onclick="decideMissionExemption(' + i + ',&quot;approve&quot;)">承認する</button>' +
+               '<button type="button" class="me-adm-btn reject" onclick="decideMissionExemption(' + i + ',&quot;reject&quot;)">却下する</button>';
+      } else if (st === 'approved') {
+        acts = '<button type="button" class="me-adm-btn revoke" onclick="decideMissionExemption(' + i + ',&quot;revoke&quot;)">↩ 元に戻す</button>';
+      } else {
+        acts = '<span class="me-adm-sub">—</span>';
+      }
+      return '<tr>' +
+               '<td><span class="me-adm-name">' + disp + '</span>' + sub + '</td>' +
+               '<td>' + _esc(grade || '—') + '</td>' +
+               '<td>' + _meAdmStatusBadge(st) + '</td>' +
+               '<td class="' + cntCls + '">' + cnt + '</td>' +
+               '<td>' + when + '</td>' +
+               '<td>' + reasonHtml + '</td>' +
+               '<td><div class="me-adm-act">' + acts + '</div></td>' +
+             '</tr>';
+    }).join('');
+    body.innerHTML =
+      '<table class="me-adm-table">' +
+        '<thead><tr>' +
+          '<th>生徒</th><th>学年</th><th>状態</th><th>通算申込</th><th>申し込み日時</th><th>理由</th><th>操作</th>' +
+        '</tr></thead>' +
+        '<tbody>' + trs + '</tbody>' +
+      '</table>';
+  }
+  function decideMissionExemption(idx, decision) {
+    var r = _meAdmRows[idx];
+    if (!r) return;
+    var sid  = String(_mePick(r, 'studentId', 'sid', 'student_id') || '');
+    var disp = String(_mePick(r, 'studentName', 'name', 'nickname') || sid || 'この生徒');
+    var label = (decision === 'approve') ? '承認（順番のきまりを外す）'
+              : (decision === 'reject')  ? '却下'
+              : '元に戻す（解除を終わりにする）';
+    if (!confirm(disp + ' さんの申し込みを「' + label + '」にします。よろしいですか？')) return;
+    var note = '';
+    if (decision === 'reject' || decision === 'revoke') {
+      note = prompt('生徒に伝えるひとこと（空欄でもOK）', '');
+      if (note === null) return;   // キャンセル
+    }
+    _meAdmMsg('⏳ 送信中...');
+    var params = { action: 'adminDecideMissionExemption', decision: decision, studentId: sid };
+    // ★行が個別 ID を持つ実装にも備えて併送（サーバーが使わなければ無視されるだけ）。
+    var rid = _mePick(r, 'requestId', 'request_id', 'id');
+    if (rid !== '') params.requestId = rid;
+    if (note) params.decisionNote = note;
+    adminGasPost(params).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '更新に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        _meAdmMsg(em, 'ng');
+        return;
+      }
+      _meAdmMsg((res.message ? String(res.message) : '更新しました'), 'ok');
+      loadMissionExemptions();
+    }).catch(function() {
+      _meAdmMsg('通信エラーが発生しました', 'ng');
+    });
   }
 
   function loadRequiredMissionsManagement() {
@@ -15436,7 +15633,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-1840</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2010</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
