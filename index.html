@@ -1110,6 +1110,22 @@
     /* ===== 効果音オン/オフ トグル（2026-06-05）。学習音声は対象外、効果音(playSfx)のみ ===== */
     .sfx-setting-desc { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 14px; }
     .sfx-setting-desc .sfx-note { color: #c0392b; font-weight: bold; }
+    /* 絶対ミッション解除申請（各種設定の中）。注意書きは notice をそのまま出す。★行だけ強調する。 */
+    .me-status { font-size: 14px; font-weight: bold; line-height: 1.7; padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; background: #f4f6fb; color: #2d3a8c; }
+    .me-status.ok   { background: #e8f8f0; color: #0b7a4b; }
+    .me-status.wait { background: #fff7e6; color: #9a5b00; }
+    .me-status.ng   { background: #fdecec; color: #b02a37; }
+    .me-note { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 12px; }
+    .me-notice { background: #fffdf5; border: 2px solid #f0c36d; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+    .me-notice-line { font-size: 13px; color: #4a4a4a; line-height: 1.8; }
+    .me-notice-line.strong { font-size: 15px; font-weight: bold; color: #b02a37; background: #fdecec; border-radius: 6px; padding: 8px 10px; margin-top: 8px; line-height: 1.7; }
+    .me-reason { width: 100%; box-sizing: border-box; min-height: 76px; padding: 10px 12px; border: 2px solid #dfe6f5; border-radius: 10px; font-size: 14px; font-family: inherit; line-height: 1.6; resize: vertical; }
+    .me-reason.ng { border-color: #e74c3c; background: #fff8f8; }
+    .me-reason-label { display: block; font-size: 13px; color: #555; font-weight: bold; margin-bottom: 6px; }
+    .me-reason-label .me-req { color: #b02a37; }
+    .me-msg { font-size: 13px; line-height: 1.8; margin-top: 10px; }
+    .me-msg.ok { color: #0b7a4b; }
+    .me-msg.ng { color: #b02a37; font-weight: bold; }
     .sfx-toggle { width: 100%; display: flex; align-items: center; gap: 14px; padding: 16px 18px; border: 3px solid #ccc; border-radius: 14px; background: #f4f5f7; cursor: pointer; transition: all .18s; }
     .sfx-toggle .sfx-toggle-label { font-size: 20px; font-weight: bold; flex: 1; text-align: left; }
     /* スイッチ風つまみ：トラックの中をノブが左右に動く */
@@ -1906,6 +1922,10 @@
     .notice-date  { font-size: 12px; color: #a07030; font-weight: bold; }
     .notice-body  { font-size: 14px; line-height: 1.75; color: #4b3000; white-space: pre-wrap; word-wrap: break-word; }
     .notice-empty { text-align: center; color: #a07030; font-size: 14px; padding: 6px 0; }
+    /* 2026-08-22：連絡事項の添付画像。★imageUrl がある行だけ描画されるので、
+       画像が無い連絡事項の見え方は 1 ドットも変わらない。ダウンロード導線は付けない。 */
+    .notice-image { margin-top: 10px; }
+    .notice-image img { display: block; max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
     /* 先生からのメッセージ：ホーム画面ボタン + 一覧画面 */
     /* 2026-06-16：ラベルを中央寄せに。バッジは絶対配置にしてラベルの中央寄せを崩さない。 */
     .msg-home-btn { position: relative; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; background: linear-gradient(135deg,#fff4d6,#ffe5b4); border: 2px solid #ff8a3d; border-radius: 14px; box-shadow: 0 3px 12px rgba(255,138,61,.2); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; }
@@ -3074,6 +3094,22 @@
     .lison-mascot-row { display: flex; gap: 12px; align-items: center; background: linear-gradient(135deg, #eef9f3, #d6f0e3); border: 2px solid #34a884; border-radius: 14px; padding: 12px 14px; margin: 12px 0; box-shadow: 0 3px 10px rgba(52,168,132,.18); }
     .lison-mascot-row .mascot-img { width: 64px; height: 64px; border-radius: 50%; flex: 0 0 auto; object-fit: contain; background: rgba(255,255,255,.65); padding: 4px; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
     .lison-mascot-row .mascot-bubble { flex: 1; font-size: 15px; font-weight: bold; color: #14532d; line-height: 1.55; }
+    /* 2026-08-21：生徒が自分のリスオン録音を聞く画面。
+       ★保護者画面（view.html の .crec-*）と完全に同じ作り・同じクラス名を移植したもの。
+       新しいデザインは持ち込まない。ダウンロードボタンは出さない（audio は controlsList="nodownload"）。 */
+    .crec-card { background:#fff; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.08); padding:12px 14px; margin-bottom:12px; border-left:6px solid #4f46e5; }
+    .crec-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
+    .crec-title { font-size:15px; font-weight:800; color:#3730a3; }
+    .crec-time { font-size:12px; color:#888; }
+    .crec-meta { font-size:12px; color:#555; margin:4px 0 8px; line-height:1.7; }
+    .crec-play-btn { display:inline-block; background:linear-gradient(135deg,#818cf8,#4f46e5); color:#fff; border:none; border-radius:10px; padding:9px 16px; font-size:14px; font-weight:bold; cursor:pointer; box-shadow:0 2px 8px rgba(79,70,229,.3); font-family:inherit; }
+    .crec-play-btn:disabled { opacity:.6; cursor:default; }
+    .crec-player { display:none; margin-top:10px; }
+    .crec-player.active { display:block; }
+    .crec-player audio { width:100%; }
+    .crec-deleted { font-size:13px; color:#9ca3af; background:#f3f4f6; border-radius:10px; padding:9px 12px; }
+    .crec-note { text-align:center; color:#666; font-size:13px; margin:8px 0 14px; line-height:1.8; }
+    .crec-empty { text-align:center; color:#888; font-size:14px; padding:36px 16px; background:#fafbff; border-radius:12px; line-height:1.8; }
     /* 級選択画面 */
     .lison-level-list { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 14px; }
     .lison-level-btn { width: 100%; padding: 16px 18px; background: linear-gradient(135deg,#1e3c72,#2a5298); color: #fff; border: none; border-radius: 14px; font-size: 17px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(30,60,114,.28); display: flex; align-items: center; gap: 12px; text-align: left; transition: transform .12s; }
@@ -3403,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260820-1903"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260823-2355"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260820-1903">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260820-1903"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260823-2355">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260823-2355"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4405,6 +4441,13 @@
         <span class="sfx-toggle-label" id="study-timer-toggle-label">⏱ タイマー：表示する</span>
         <span class="sfx-toggle-switch"><span class="sfx-toggle-knob"></span></span>
       </button>
+    </div>
+    <!-- 2026-08-23：絶対ミッションの「順番のきまり」解除申請（生徒 → 塾長が手動で判断）。
+         ★状況と注意書きはサーバー（getMissionExemptionStatus）の応答をそのまま出す。
+         ★この画面を開いたときだけ 1 回取得する（ホーム表示の通信は増やさない）。 -->
+    <div class="setting-card" id="mission-exempt-card" style="display:none">
+      <h3>⭐ 絶対ミッションの解除を申し込む</h3>
+      <div id="mission-exempt-body"><div class="me-note">⏳ 読み込み中...</div></div>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:4px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
@@ -5433,7 +5476,23 @@
     </div>
     <div id="lison-level-list" class="lison-level-list"></div>
     <div id="lison-rank-msg" class="msg" style="display:none"></div>
+    <!-- 2026-08-21：自分の録音を聞き返す導線。英単語RUSH「おさらい」/ 三語短文「過去の提出作品」と
+         同じく、入口ハブ（級選択画面）の「ホームに戻る」直前に置く。 -->
+    <button class="btn-wide" style="background:linear-gradient(135deg,#818cf8,#4f46e5);margin-top:14px" onclick="showLisonMyRecordings()">🎧 自分の録音を聞く</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">← ホーム画面に戻る</button>
+  </div>
+</div>
+
+<!-- 2026-08-21：生徒が自分のリスオン録音を聞く画面（純追加）。
+     ・一覧＝getLisonSubmissionsListForStudent（サーバ側で本人の行のみ返す）
+     ・音声＝getLisonRecordingBlobForSelf（★studentId は渡さない。studentToken から本人を特定）
+     ・保護者画面 screen-child-lison-recordings と同じ作り。ダウンロードボタンは出さない。 -->
+<div id="screen-lison-my-recordings" class="screen">
+  <header><h1>🎧 自分の録音</h1><span id="lison-my-rec-sid"></span></header>
+  <div class="container" style="padding-top:16px">
+    <p class="crec-note">自分が録音した音読を聞き返せるよ（新しい順）。<br>録音は約 15 日で自動的に消えます。聞きたいときは早めにね。<br>消えたあとも、取り組んだ記録は残ります。</p>
+    <div id="lison-my-rec-list"><div class="crec-empty">⏳ 読み込み中…</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="showLisonRankSelect()">← 級を選ぶ画面に戻る</button>
   </div>
 </div>
 
@@ -6404,7 +6463,9 @@
 
 <script>
   var GAS_URL    = 'https://mykt-eitango.com/exec';
-  var VISION_KEY = 'AIzaSyAe3MO_B9wkbHzXQEv4v8GhxDGo8H-lQg4';
+  // 2026-08-20：Vision APIキー撤去 完了。生徒画面(GitHub Pages)に平文で置かれていた
+  //   VISION_KEY はここから削除した。OCR は 5級=ocrEikenPhoto / 三語短文=ocrSangoPhoto の
+  //   サーバー経由に付け替え済みで、ブラウザから Google Vision を直接叩く箇所は無い。
   // =============================================================
   // 第2群③ F3トークン層 段階2：ログインで発行された sessionToken を保持し、
   //   後続の生徒系リクエストに token として併送する（サーバ StudentTokenGate が params.token を読む）。
@@ -6826,6 +6887,7 @@
     if (!_isReqSystemActive()) return false;      // 5/25 前は非稼働 → ブロックしない
     var rp = _requiredProgress;
     if (!rp) return false;                        // 未取得/失敗 → フェイルオープン
+    if (rp.missionExempted) return false;         // ★解除申請が承認済み → 順番のきまりを外す（恒久。塾長が戻すまで有効）
     var required  = Array.isArray(rp.required)  ? rp.required  : [];
     var remaining = Array.isArray(rp.remaining) ? rp.remaining : [];
     return required.length > 0 && remaining.length > 0;
@@ -6843,6 +6905,118 @@
       if (set[rc]) out.push(rc);
     }
     return out;
+  }
+
+  // ===== 絶対ミッション「順番のきまり」解除申請（2026-08-23 純追加） =====
+  // 生徒が申請 → 塾長が管理画面で判断（承認 / 却下 / 戻す）。承認は恒久（塾長が戻すまで有効）。
+  // ★ホーム表示の通信は増やさない：ブロック解除の判定は getRequiredProgress の missionExempted を使い、
+  //   この状況取得（getMissionExemptionStatus）は「各種設定」を開いたときだけ 1 回だけ呼ぶ。
+  var _meLoading = false;
+  function _meEscHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  // 注意書き（notice）／申請後メッセージを ★1文字も変えずに 表示する。
+  // 行頭が ★ の行だけ強調（文字は一切変えない）。★HP の 40% の 2 行が埋もれないようにするため。
+  function _meLinesHtml(text) {
+    var lines = String(text == null ? '' : text).split('\n');
+    var out = '';
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      var strong = (ln.replace(/^[\s　]+/, '').charAt(0) === '★');
+      out += '<div class="me-notice-line' + (strong ? ' strong' : '') + '">' + _meEscHtml(ln) + '</div>';
+    }
+    return out;
+  }
+  // 状況行。★未知の status では何も出さない（間違った説明を出さない）。
+  function _meStatusView(res) {
+    if (res.isExempted === true) return { cls: 'ok',   text: '✅ いまは解除中です（先生が元に戻すまで続きます）' };
+    var st = String(res.status == null ? '' : res.status);
+    if (st === 'pending')  return { cls: 'wait', text: '⏳ いま先生が確認しています。決まるまでは今までどおりです。' };
+    if (st === 'rejected') return { cls: 'ng',   text: '今回は解除されませんでした。' };
+    if (st === 'revoked')  return { cls: 'ng',   text: '解除は終わりました。いまは元に戻っています。' };
+    if (st === 'none' || st === '') return { cls: '', text: 'まだ申し込んでいません。' };
+    return { cls: '', text: '' };
+  }
+  function loadMissionExemptionStatus() {
+    var card = document.getElementById('mission-exempt-card');
+    var body = document.getElementById('mission-exempt-body');
+    if (!card || !body) return;
+    if (!_studentId || !_isReqSystemActive()) { card.style.display = 'none'; return; }
+    // ★絶対ミッションが 1 つも無い生徒には出さない（順番のきまり自体が無いので申し込む意味がない）。
+    //   判定は取得済みの getRequiredProgress を使う＝通信は増やさない。未取得(null)のときは出す（誤って隠さない）。
+    var _rp = _requiredProgress;
+    if (_rp && Array.isArray(_rp.required) && _rp.required.length === 0) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    body.innerHTML = '<div class="me-note">⏳ 読み込み中...</div>';
+    gasGet({ action: 'getMissionExemptionStatus', studentId: _studentId, _ts: Date.now() })
+      .then(function(res) {
+        if (!res || !res.ok) { card.style.display = 'none'; return; }   // 取れなければカードごと出さない（既存画面を汚さない）
+        _renderMissionExemption(res);
+      })
+      .catch(function(err) {
+        console.error('[loadMissionExemptionStatus]', err);
+        card.style.display = 'none';
+      });
+  }
+  function _renderMissionExemption(res) {
+    var body = document.getElementById('mission-exempt-body');
+    if (!body) return;
+    var html = '';
+    var sv = _meStatusView(res);
+    if (sv.text) html += '<div class="me-status' + (sv.cls ? ' ' + sv.cls : '') + '">' + _meEscHtml(sv.text) + '</div>';
+    var note = String(res.decisionNote == null ? '' : res.decisionNote);
+    if (note) html += '<div class="me-note">先生から：' + _meEscHtml(note) + '</div>';
+    var reason = String(res.reason == null ? '' : res.reason);
+    if (reason) html += '<div class="me-note">申し込んだ理由：' + _meEscHtml(reason) + '</div>';
+    // ★注意書きは常に全文表示（申し込めないときも読ませる）。
+    if (res.notice) html += '<div class="me-notice">' + _meLinesHtml(res.notice) + '</div>';
+    if (res.canRequest === true) {
+      html += '<label class="me-reason-label" for="mission-exempt-reason">申し込む理由 <span class="me-req">（必ず書く）</span></label>' +
+              '<textarea id="mission-exempt-reason" class="me-reason" maxlength="200" placeholder="例：スマホだけでできるものを先にやりたい"></textarea>' +
+              '<button class="btn-wide" style="margin-top:12px;background:linear-gradient(135deg,#f6b93b,#e58e26)" id="mission-exempt-submit" onclick="submitMissionExemption()">⭐ この内容で申し込む</button>';
+    }
+    html += '<div class="me-msg" id="mission-exempt-msg"></div>';
+    body.innerHTML = html;
+  }
+  function submitMissionExemption() {
+    if (_meLoading) return;
+    var btn = document.getElementById('mission-exempt-submit');
+    var msg = document.getElementById('mission-exempt-msg');
+    var ta  = document.getElementById('mission-exempt-reason');
+    var reason = ta ? String(ta.value || '').trim() : '';
+    // ★理由は必須（塾長の判断）。サーバーは必須にしていないので、ここで止める。
+    //   空欄・空白だけ（全角スペース含む。trim が U+3000 も落とす）は送らない。
+    if (!reason) {
+      if (ta) { ta.classList.add('ng'); try { ta.focus(); } catch(e){} }
+      if (msg) { msg.className = 'me-msg ng'; msg.textContent = '⚠️ 申請する理由を書いてね。これを読んで先生が「外すかどうか」の最終判断をします。'; }
+      return;
+    }
+    if (ta) ta.classList.remove('ng');
+    _meLoading = true;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 送信中...'; }
+    if (msg) { msg.className = 'me-msg'; msg.textContent = ''; }
+    var params = { action: 'submitMissionExemptionRequest', studentId: _studentId, reason: reason };
+    gasPost(params).then(function(res) {
+      _meLoading = false;
+      if (!res || !res.ok) {
+        if (btn) { btn.disabled = false; btn.textContent = '⭐ この内容で申し込む'; }
+        if (msg) { msg.className = 'me-msg ng'; msg.textContent = (res && res.message) ? res.message : '送信できませんでした。もう一度お試しください。'; }
+        return;
+      }
+      // ★サーバーの message も 1文字も変えずに表示（★の行は強調）。そのあと状況を取り直す。
+      if (msg) { msg.className = 'me-msg ok'; msg.innerHTML = _meLinesHtml(res.message || '申し込みました！'); }
+      var keep = msg ? msg.outerHTML : '';
+      loadMissionExemptionStatus();
+      setTimeout(function() {
+        var m2 = document.getElementById('mission-exempt-msg');
+        if (m2 && keep) m2.outerHTML = keep;
+      }, 400);
+    }).catch(function(err) {
+      _meLoading = false;
+      console.error('[submitMissionExemption]', err);
+      if (btn) { btn.disabled = false; btn.textContent = '⭐ この内容で申し込む'; }
+      if (msg) { msg.className = 'me-msg ng'; msg.textContent = (err && err.message) ? err.message : '通信エラーが発生しました。'; }
+    });
   }
 
   function _hideRequiredBlockScreen() {
@@ -7211,7 +7385,12 @@
     'japanin':  { img: 'images/japanin-thinking.png',  text: '只今マイカツ君が獲得HPを最終確認中でござる' },
     // 2026-05-23 新規：理社重要語句（中学理科・社会）
     'rika':      { img: 'images/rika-thinking.png',      text: '只今マイカツ君が獲得HPを最終確認中…' },
-    'shakaneki': { img: 'images/shakaneki-thinking.png', text: '只今マイカツ君が獲得HPを最終確認中…' }
+    'shakaneki': { img: 'images/shakaneki-thinking.png', text: '只今マイカツ君が獲得HPを最終確認中…' },
+    // 2026-08-20：この2キャラだけ未登録だったため追加（未登録だと rushkun のセリフに
+    //   フォールバックしてしまい、そのキャラの口調でなくなる）。
+    //   ★型は他12キャラと同じ「（時間表現）マイカツ君が獲得HPを最終確認中」＋各自の語尾。
+    'maikadai':  { img: 'images/maikadai-thinking.png',  text: 'いまマイカツ君が獲得HPを最終確認中！ちょっと待ってて！' },
+    'oriwantes': { img: 'images/oriwantes-thinking.png', text: '只今マイカツ君が獲得HPを最終確認中である。しばし待っておれ' }
   };
   var _hpConfirmingDotsTimer = null;
   // 2026-08-05 §6-A23（速すぎ④ cover方式）：overlay を最低時間だけ被せてから消す。
@@ -7463,6 +7642,7 @@
   function selectVoice(idx) {
     _voiceIdx = idx;
     try { localStorage.setItem('maika_voice', String(idx)); } catch(e) {}
+    saveStudentSettings({ voiceIndex: idx });   // 2026-08-23：サーバーにも保存（失敗は無視）
     for (var i = 0; i < VOICE_LIST.length; i++) {
       var b = document.getElementById('voice-btn-' + i);
       if (b) b.classList.toggle('selected', i === _voiceIdx);
@@ -7493,6 +7673,7 @@
     var turnOn = _sfxOff();  // 今オフなら → オンにする
     _sfxEnabled = turnOn;
     try { localStorage.setItem('maika_sfx_enabled', turnOn ? 'on' : 'off'); } catch(e) {}
+    saveStudentSettings({ sfxEnabled: turnOn ? 'on' : 'off' });   // 2026-08-23：サーバーにも保存（失敗は無視）
     _renderSfxToggle();
   }
 
@@ -7512,6 +7693,7 @@
       }
       _renderSfxToggle();  // 効果音トグルの現在状態を反映
       _renderStudyTimerToggle();  // 2026-08-19 要望1：タイマー切替の表示可否と現在状態を反映
+      loadMissionExemptionStatus();  // 2026-08-23：絶対ミッション解除申請の状況（この画面を開いたときだけ 1 回）
     }
     // 第4群B：実施時間タイマーをアクティブ画面へ移設。
     //   ・ヘッダーがある画面：<h1> と <span> の間へ（右span＝進捗B系/ヒントC系は右端に不動。他画面は従来どおり不変）。
@@ -7555,7 +7737,7 @@
     5: function(s,t){ return 'よし、きたな。'+t+'の道、着実に歩んでるぞ。'; },
     4: function(s,t){ return 'ログインはできたな。せっかくだから課題もやっておけよ。'; },
     3: function(s,t){ return '久しぶりだな…、ちょっと心配してたぞ。'; },
-    2: function(s,t){ return '2日も経ったか。早く課題やって、ワシに元気をおくれ。'; },
+    2: function(s,t){ return '2日も経ったか。早く課題やって、ボクに元気をおくれ。'; },
     1: function(s,t){ return '頼む…、もう限界だ。早く何とかしてくれ～。'; }
   };
   function _getMilestoneMsg(info) {
@@ -7643,6 +7825,18 @@
       document.getElementById('quote-author').textContent = q.author ? '— ' + q.author : '';
     }).catch(function(){ document.getElementById('quote-text').textContent = '今日も一歩ずつ、コツコツ頑張ろう！'; document.getElementById('quote-author').textContent = ''; });
   }
+  // 2026-08-22：連絡事項の添付画像（AWS a262b8c）。
+  //   ★画像がある行だけ imageUrl が生える。無い行は date/title/body の3キーのみ＝従来と完全同一なので、
+  //     ここで '' を返せば画像なしの連絡事項の見え方は 1 ドットも変わらない。
+  //   ★ダウンロードボタンは出さない（既存の作法）。画像は max-width:100% で画面に収める。
+  //   ★src に入るのはサーバーが返す URL。念のため http/https のみ通す（想定外スキームは描かない）。
+  function _noticeImageHtml(n) {
+    var u = (n && n.imageUrl) ? String(n.imageUrl).trim() : '';
+    if (!u) return '';
+    if (!/^https?:\/\//i.test(u)) return '';
+    var safe = u.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return '<div class="notice-image"><img src="' + safe + '" alt="連絡事項の画像" loading="lazy"></div>';
+  }
   function loadLatestNotice() {
     var listEl = document.getElementById('notice-list');
     cachedGasGet({ action: 'getNotice' }).then(function(res) {
@@ -7662,6 +7856,7 @@
                    '<div class="notice-date">'  + esc2(date)  + '</div>' +
                  '</div>' +
                  '<div class="notice-body">' + esc2(body) + '</div>' +
+                 _noticeImageHtml(n) +   // 2026-08-22：画像が無ければ '' ＝従来どおりの見え方
                '</div>';
       }).join('');
     }).catch(function(){
@@ -7770,6 +7965,7 @@
       if (res.needsPin)   { showMsg('login-msg','',''); _openPinEntry(sid);     return; }   // set_up     → 暗証番号入力画面
       if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
       _studentId   = res.studentId;
+      try { _applyServerSettings(res); } catch(e){}   // 2026-08-23：サーバーの設定を取り込む（null は触らない）
       // 2026-08-20：実施時間ペナルティの通知（AWS b7b3c2c）。★9/1 発動、それまでは常に空配列。
       //   ここでは保管だけして、ホーム画面が出てから知らせる（ログイン処理は止めない）。
       try { _studyPenaltyNotices = (res.studyPenaltyNotices || res.study_penalty_notices || []); } catch(e){ _studyPenaltyNotices = []; }
@@ -7834,9 +8030,109 @@
   var _pinFlowSid = '';   // 暗証番号/初回設定フローで対象の生徒IDを保持（loginStudent 再呼出・completeStudentSetup 用）
 
   // ログイン確定処理（doLogin の成功 tail と同一挙動。pin/setup 経由のログインでも同じホーム遷移にする）。
+  // ============================================================================
+  // 生徒の設定をサーバーと同期（2026-08-23 純追加 / AWS a6201e6）
+  //   背景：設定は localStorage にしか無いため、ブラウザ側で消えると既定に戻る。
+  //         iOS はホーム画面アイコンと Safari でストレージが別＝開き方が変わると設定が効かない。
+  //   方針：
+  //     ① ログイン後、サーバーの settings を取り込む。
+  //        ★null（未設定）は「何もしない」。＝いま静かに使っている生徒が急に鳴り出さないための担保。
+  //     ② 設定を変えたらサーバーへ送る。★失敗は無視（localStorage には従来どおり保存済み）。
+  //     ③ 「サーバー null かつ端末に値あり」なら取り込み直後に1回だけ送る（初回移行）。
+  //        ★1回で済む理由：送信が通ればサーバーは null でなくなり、次回ログインでは①の取り込みに入る。
+  //          通らなければサーバーは null のままなので、次回ログインで自動的に再試行される。
+  //          （＝毎回送るのではなく「サーバーが空の間だけ」送る）
+  //   ★localStorage のキー名・保存値は一切変えない（既に設定済みの生徒の状態を壊さないため）。
+  // ============================================================================
+  var SETTINGS_SFX_KEY   = 'maika_sfx_enabled';   // 'on' / 'off'（既存）
+  var SETTINGS_VOICE_KEY = 'maika_voice';         // '0' / '1'（既存）
+  // タイマーは既存の STUDY_TIMER_HIDDEN_KEY（'1' / '0'）をそのまま使う。
+  var _settingsSyncDone = false;   // 同一ページ内での二重実行ガード
+
+  function _settingsRaw(key) {
+    try { return localStorage.getItem(key); } catch(e) { return null; }
+  }
+  // サーバーは true/false・0/1・'on'/'off'・'1'/'0' のいずれで返ってきてもよい。
+  function _settingsTruthy(v) {
+    if (v === true  || v === 1) return true;
+    if (v === false || v === 0) return false;
+    var s = String(v == null ? '' : v).trim().toLowerCase();
+    if (s === 'on'  || s === 'true'  || s === '1') return true;
+    if (s === 'off' || s === 'false' || s === '0') return false;
+    return null;   // 判定できない → 触らない（安全側）
+  }
+  function _settingsIsUnset(v) { return (v === null || v === undefined || v === ''); }
+
+  // サーバーへ保存（部分更新）。★fire-and-forget：失敗しても画面も動作も変えない。
+  function saveStudentSettings(patch) {
+    try {
+      if (!_studentId || !patch) return;
+      var keys = Object.keys(patch);
+      if (!keys.length) return;
+      var p = { action: 'saveStudentSettings', studentId: _studentId };
+      for (var i = 0; i < keys.length; i++) p[keys[i]] = patch[keys[i]];
+      gasPost(p, 15000).catch(function(){ /* 失敗は無視（localStorage が従来どおり効く） */ });
+    } catch(e) { /* 何もしない */ }
+  }
+
+  // ★ログイン応答の settings を取り込む。null は触らない。旧サーバー（settings 無し）も従来どおり。
+  function _applyServerSettings(res) {
+    try {
+      if (_settingsSyncDone) return;
+      var s = res && res.settings;
+      if (!s || typeof s !== 'object') return;   // settings が無い応答 → 何もしない（既存挙動）
+      _settingsSyncDone = true;
+      var migrate = {};
+
+      // --- 効果音 ---
+      if (_settingsIsUnset(s.sfxEnabled)) {
+        var lsSfx = _settingsRaw(SETTINGS_SFX_KEY);
+        if (lsSfx !== null) migrate.sfxEnabled = (lsSfx === 'off') ? 'off' : 'on';   // ③ 端末の値を引き上げ
+      } else {
+        var on = _settingsTruthy(s.sfxEnabled);
+        if (on !== null) {
+          try { localStorage.setItem(SETTINGS_SFX_KEY, on ? 'on' : 'off'); } catch(e){}
+          _sfxEnabled = on;
+          try { _renderSfxToggle(); } catch(e){}
+        }
+      }
+
+      // --- 音声の種類 ---
+      if (_settingsIsUnset(s.voiceIndex)) {
+        var lsVoice = _settingsRaw(SETTINGS_VOICE_KEY);
+        if (lsVoice !== null) {
+          var lv = parseInt(lsVoice, 10);
+          if (!isNaN(lv) && lv >= 0 && lv < VOICE_LIST.length) migrate.voiceIndex = lv;   // ③
+        }
+      } else {
+        var vi = parseInt(s.voiceIndex, 10);
+        if (!isNaN(vi) && vi >= 0 && vi < VOICE_LIST.length) {
+          try { localStorage.setItem(SETTINGS_VOICE_KEY, String(vi)); } catch(e){}
+          _voiceIdx = vi;
+        }
+      }
+
+      // --- 実施時間タイマーの表示 ---
+      if (_settingsIsUnset(s.studyTimerHidden)) {
+        var lsTimer = _settingsRaw(STUDY_TIMER_HIDDEN_KEY);
+        if (lsTimer !== null) migrate.studyTimerHidden = (lsTimer === '1');   // ③
+      } else {
+        var hid = _settingsTruthy(s.studyTimerHidden);
+        if (hid !== null) {
+          try { localStorage.setItem(STUDY_TIMER_HIDDEN_KEY, hid ? '1' : '0'); } catch(e){}
+          try { _applyStudyTimerVisibility(); } catch(e){}
+        }
+      }
+
+      // ③ 初回移行：サーバーが空で端末に値がある項目だけを、この1回で送る。
+      if (Object.keys(migrate).length) saveStudentSettings(migrate);
+    } catch(e) { /* 取り込みで失敗しても、従来どおり localStorage の値で動く */ }
+  }
+
   function _finishStudentLogin(res) {
     res = res || {};
     _studentId = res.studentId;
+    try { _applyServerSettings(res); } catch(e){}   // 2026-08-23：サーバーの設定を取り込む（null は触らない）
     _beginStudySession();   // 第4群B：実施時間タイマー開始（二重開始ガードあり）
     if (_loginRole !== 'parent') {
       try {
@@ -9783,15 +10079,27 @@
     var msgEl = document.getElementById('photo-msg'); msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...'; msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     _setContentMascot('mate-img-eitan-dictation', 'thinking', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoTry), 'rushkun');
     var wordList = _questions.map(function(w){ return w.word; });
-    fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}], imageContext:{languageHints:['ja','en']} }] }) })
-    .then(function(r){ return r.json(); }).then(function(json) {
-      var response = json.responses && json.responses[0];
-      if (!response || !response.fullTextAnnotation) { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','❌ 文字が読み取れませんでした。明るい場所で撮り直してください。','ng'); return; }
-      var pages = response.fullTextAnnotation.pages || [], totalConf = 0, confCount = 0;
-      pages.forEach(function(page){ (page.blocks||[]).forEach(function(block){ (block.paragraphs||[]).forEach(function(para){ (para.words||[]).forEach(function(word){ if (word.confidence !== undefined) { totalConf += word.confidence; confCount++; } }); }); }); });
-      var avgConf = confCount > 0 ? totalConf/confCount : 1, confPct = Math.round(avgConf*100);
+    // 2026-08-20：Vision APIキー撤去 段階3（5級）。
+    //   従来はブラウザから Google Vision を直接叩いており、APIキーが GitHub Pages 上に
+    //   平文で露出していた。サーバー（AWS 5b9aa9d）の受け口 action:'ocrEikenPhoto' 経由に
+    //   付け替え、鍵をブラウザに置かない形にする。★これで直叩きはゼロになり定数を削除できる。
+    //   ★サーバー応答：成功 {ok:true, ocrText, readable:'yes', avgConfidence(0.0〜1.0), confPct(0〜100)}
+    //                  読み取り不可 {ok:false, retake:true, readable:'no', message:'文字が読み取れませんでした。明るい場所で撮り直してください。'}
+    //                  画像なし / Vision 失敗 {ok:false, message}
+    //   ★判定（丁寧さ 0.75 未満で差し戻し／各単語3回カウント）は★フロントに残す。閾値・文言・
+    //     見た目は一切変えない。サーバーへ移すと5級の挙動が変わるため、ここでは移さない。
+    //   ★従来クライアント側で pages→blocks→paragraphs→words を舐めて出していた平均信頼度は
+    //     res.avgConfidence をそのまま使う（サーバーが同じ計算をして返す）。
+    //     欠落時は従来の「信頼度が1件も取れなかった場合」と同じく 1（＝通過）にフォールバックする。
+    gasPost({ action: 'ocrEikenPhoto', imageBase64: base64 }).then(function(res) {
+      if (!res || !res.ok) {
+        var _m = (res && res.message) ? String(res.message) : '文字が読み取れませんでした。明るい場所で撮り直してください。';
+        _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','❌ ' + _m,'ng'); return;
+      }
+      var avgConf = (typeof res.avgConfidence === 'number') ? res.avgConfidence : 1;
+      var confPct = (typeof res.confPct === 'number') ? res.confPct : Math.round(avgConf*100);
       if (avgConf < 0.75) { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','❌ 字が雑すぎます（丁寧さスコア：'+confPct+'%）。もっと丁寧に書いてみよう！','ng'); return; }
-      var rawText = response.fullTextAnnotation.text || '';
+      var rawText = res.ocrText || '';
       var detected = _normalizeForDictation(rawText), failedWords = [];
       wordList.forEach(function(w){
         var normalized = _normalizeForDictation(w);
@@ -11060,6 +11368,7 @@
     if (!_studyTimerCanHide()) { _renderStudyTimerToggle(); return; }
     var nextHidden = !_studyTimerHidden();   // 保存値を基準に反転（in-memory のズレに引きずられない）
     try { localStorage.setItem(STUDY_TIMER_HIDDEN_KEY, nextHidden ? '1' : '0'); } catch(e) {}
+    saveStudentSettings({ studyTimerHidden: nextHidden });   // 2026-08-23：サーバーにも保存（失敗は無視）
     _applyStudyTimerVisibility();
     _renderStudyTimerToggle();
   }
@@ -11872,19 +12181,27 @@
       }
     });
   }
+  // 2026-08-20：Vision APIキー撤去 段階2（三語短文のみ）。
+  //   従来はブラウザから Google Vision を直接叩いており、APIキーが
+  //   GitHub Pages 上に平文で露出していた。サーバー（AWS ab41e9d）の受け口
+  //   action:'ocrSangoPhoto' 経由に付け替え、鍵をブラウザに置かない形にする。
+  //   ★サーバー応答：成功 {ok:true, ocrText, readable:'yes'}
+  //                  読み取れず {ok:false, retake:true, readable:'no', message:'文字が読み取れませんでした。明るい場所で撮り直してください。'}
+  //                  画像なし / Vision 失敗 {ok:false, message}
+  //   ★no-text 時の message は現行フロントの文言と同一に揃えてあるため、'❌ ' を前置すれば
+  //     従来とまったく同じ文字列になる（message が無い異常時は従来の固定文をフォールバックに使う）。
+  //   ★成功時の処理（_sangoOcrText 代入 → 永続化 → 確認ブロック表示）は従来と同じ順序のまま。
+  //   ★段階3（2026-08-20）で5級も付け替え済み。VISION_KEY 定数は削除された。
   function sendSangoPhoto(base64) {
     var msgEl = document.getElementById('sango-photo-msg');
     msgEl.textContent = '⏳ AIが文字を読み取り中です...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
     document.getElementById('sango-ocr-confirm').style.display = 'none';
-    fetch('https://vision.googleapis.com/v1/images:annotate?key=' + VISION_KEY, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ requests:[{ image:{content:base64}, features:[{type:'DOCUMENT_TEXT_DETECTION',maxResults:1}] }] })
-    }).then(function(r){ return r.json(); }).then(function(json) {
-      var response = json.responses && json.responses[0];
-      if (!response || !response.fullTextAnnotation) {
-        showMsg('sango-photo-msg', '❌ 文字が読み取れませんでした。明るい場所で撮り直してください。', 'ng'); return;
+    gasPost({ action: 'ocrSangoPhoto', imageBase64: base64 }).then(function(res) {
+      if (!res || !res.ok) {
+        var m = (res && res.message) ? String(res.message) : '文字が読み取れませんでした。明るい場所で撮り直してください。';
+        showMsg('sango-photo-msg', '❌ ' + m, 'ng'); return;
       }
-      _sangoOcrText = String(response.fullTextAnnotation.text || '').trim();
+      _sangoOcrText = String(res.ocrText || '').trim();
       try { _sangoSavePendingOcr(); } catch(e){}  // 2026-08-20：リロードで消えないよう端末にも保存
       msgEl.style.display = 'none';
       document.getElementById('sango-ocr-text').textContent = _sangoOcrText;
@@ -12408,6 +12725,7 @@
                    '<div class="notice-date">'  + esc2(date)  + '</div>' +
                  '</div>' +
                  '<div class="notice-body">' + esc2(body) + '</div>' +
+                 _noticeImageHtml(n) +   // 2026-08-22：画像が無ければ '' ＝従来どおりの見え方
                '</div>';
       }).join('');
     }).catch(function(){
@@ -14731,6 +15049,156 @@
     _lisonState.mediaStream = null;
   }
 
+  // ============================================================
+  // 生徒が自分のリスオン録音を聞く（2026-08-21・純追加）
+  // ============================================================
+  // ★保護者画面（view.html の loadChildLisonRecordings / toggleChildLisonRec）を手本に移植。
+  //   一覧・再生の作り・クラス名・文言の型まで揃えてあり、新しい仕組みは持ち込んでいない。
+  // ★一覧：getLisonSubmissionsListForStudent（サーバ側で studentId 一致行のみ返す）
+  // ★音声：getLisonRecordingBlobForSelf（AWS ec33159）
+  //   ★studentId は渡さない。studentToken（ログイン時のトークン）から本人を特定する仕様。
+  //   gasGet は保持中トークンを token として自動併送するが、本 API の受け口名は studentToken なので明示で渡す。
+  // ★再生は base64→Blob→ObjectURL→<audio>。controlsList="nodownload" でダウンロードボタンを出さない
+  //   （保護者画面・管理画面と同じ作法）。
+  // ★15日で消えた録音は hasRecording=false / deleted:true。エラーにせず「保存期間を過ぎました」と見せる。
+  // ★fileId は onclick に文字列で埋めず、キャッシュ配列から index で引く（admin の _sangoSubCache と同じ作法）。
+  var _lisonMyRecBlobUrls = {};   // idx → ObjectURL（画面入場時・閉時に revoke してメモリリークを防ぐ）
+  var _lisonMyRecCache = [];      // idx → submission（onclick へ文字列を埋めないための受け皿）
+  function _clearLisonMyRecPlayers() {
+    for (var k in _lisonMyRecBlobUrls) {
+      if (!_lisonMyRecBlobUrls.hasOwnProperty(k)) continue;
+      try { URL.revokeObjectURL(_lisonMyRecBlobUrls[k]); } catch (e) {}
+    }
+    _lisonMyRecBlobUrls = {};
+  }
+  function _lisonMyEsc(v) {
+    return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  var LISON_MY_LEVEL_LABELS = { '4': '英検4級', '3': '英検3級', 'pre2': '英検準2級', '2': '英検2級', 'pre1': '英検準1級' };
+  function _lisonMyLevelLabel(lv) {
+    var v = String(lv || '').trim();
+    return LISON_MY_LEVEL_LABELS[v] || (v ? ('英検' + v + '級') : 'リスオン');
+  }
+  function showLisonMyRecordings() {
+    var listEl = document.getElementById('lison-my-rec-list');
+    var sidEl  = document.getElementById('lison-my-rec-sid');
+    if (sidEl) sidEl.textContent = _studentId ? (_studentId + ' さん') : '';
+    if (listEl) listEl.innerHTML = '<div class="crec-empty">⏳ 読み込み中…</div>';
+    _clearLisonMyRecPlayers();
+    _lisonMyRecCache = [];
+    showScreen('screen-lison-my-recordings');
+    if (!_studentId) {
+      if (listEl) listEl.innerHTML = '<div class="crec-empty">ログイン情報が見つかりません。<br>一度ログインし直してね。</div>';
+      return;
+    }
+    gasGet({ action: 'getLisonSubmissionsListForStudent', studentId: _studentId, _ts: Date.now() }).then(function (res) {
+      var box = document.getElementById('lison-my-rec-list');
+      if (!box) return;
+      if (!res || !res.ok) {
+        box.innerHTML = '<div class="crec-empty">⚠️ 読み込みに失敗しました。</div>';
+        return;
+      }
+      var subs = res.submissions || [];
+      if (subs.length === 0) {
+        box.innerHTML = '<div class="crec-empty">まだ録音はありません。<br>リスオンで音読を提出すると、ここに並びます（録音は約 15 日で自動的に消えます）。</div>';
+        return;
+      }
+      _lisonMyRecCache = subs;
+      box.innerHTML = subs.map(function (sb, idx) {
+        var ts = String(sb.timestamp || '').replace('T', ' ').slice(0, 16);
+        var ws = String(sb.weekStart || '').trim();
+        var metaParts = [];
+        if (ws) metaParts.push('週：' + _lisonMyEsc(ws));
+        metaParts.push('クイズ：' + (Number(sb.quizScore) || 0) + ' 点');
+        var head = '<div class="crec-head">' +
+                     '<div class="crec-title">' + _lisonMyEsc(_lisonMyLevelLabel(sb.level)) + '</div>' +
+                     '<div class="crec-time">提出：' + _lisonMyEsc(ts) + '</div>' +
+                   '</div>' +
+                   '<div class="crec-meta">' + metaParts.join('　/　') + '</div>';
+        var body;
+        if (sb.hasRecording && sb.fileId) {
+          body = '<button type="button" class="crec-play-btn" id="lison-my-rec-btn-' + idx + '" onclick="toggleLisonMyRec(' + idx + ')">▶️ 再生</button>' +
+                 '<div class="crec-player" id="lison-my-rec-player-' + idx + '">' +
+                   '<audio class="crec-audio" id="lison-my-rec-audio-' + idx + '" controls controlsList="nodownload" preload="none"></audio>' +
+                 '</div>';
+        } else {
+          body = '<div class="crec-deleted">🎧 録音は保存期間（15日）を過ぎました</div>';
+        }
+        return '<div class="crec-card">' + head + body + '</div>';
+      }).join('');
+    }).catch(function () {
+      var box = document.getElementById('lison-my-rec-list');
+      if (box) box.innerHTML = '<div class="crec-empty">⚠️ 通信エラーが発生しました。</div>';
+    });
+  }
+  // 再生ボタン：押下でオンデマンド取得 → Blob URL を <audio> に流し込む。再押下で閉じる。
+  function toggleLisonMyRec(idx) {
+    var el = document.getElementById('lison-my-rec-player-' + idx);
+    if (!el) return;
+    var btn = document.getElementById('lison-my-rec-btn-' + idx);
+    var willActivate = !el.classList.contains('active');
+    if (!willActivate) { _closeLisonMyRec(idx); return; }
+    var fileId = String((_lisonMyRecCache[idx] || {}).fileId || '');
+    if (!fileId) { alert('録音ファイルが取得できません'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 取得中…'; }
+    el.classList.add('active');
+    // ★studentId は送らない（サーバが studentToken から本人を特定する）
+    gasGet({ action: 'getLisonRecordingBlobForSelf', studentToken: _getSessionToken(), fileId: fileId, _ts: Date.now() }).then(function (res) {
+      if (!res || !res.ok) {
+        // 15日で消えた録音（deleted:true）はエラー扱いにせず、その場を「保存期間を過ぎました」に差し替える
+        if (res && res.deleted) {
+          el.classList.remove('active');
+          var card = btn ? btn.parentNode : null;
+          if (card) card.innerHTML = '<div class="crec-deleted">🎧 録音は保存期間（15日）を過ぎました</div>';
+          return;
+        }
+        if (btn) { btn.disabled = false; btn.textContent = '▶️ 再生'; }
+        el.classList.remove('active');
+        alert((res && res.message) || '録音の取得に失敗しました');
+        return;
+      }
+      try {
+        var b64 = res.base64 || '';
+        var mime = res.mime || 'audio/webm';
+        var bin = atob(b64);
+        var len = bin.length;
+        var bytes = new Uint8Array(len);
+        for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+        var blob = new Blob([bytes], { type: mime });
+        if (_lisonMyRecBlobUrls[idx]) { try { URL.revokeObjectURL(_lisonMyRecBlobUrls[idx]); } catch (e) {} }
+        var blobUrl = URL.createObjectURL(blob);
+        _lisonMyRecBlobUrls[idx] = blobUrl;
+        var audio = document.getElementById('lison-my-rec-audio-' + idx);
+        if (audio) { audio.src = blobUrl; try { audio.load(); } catch (e) {} }
+        if (btn) { btn.disabled = false; btn.textContent = '⏹ 閉じる'; }
+      } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = '▶️ 再生'; }
+        el.classList.remove('active');
+        alert('音声データの変換に失敗しました');
+      }
+    }).catch(function () {
+      if (btn) { btn.disabled = false; btn.textContent = '▶️ 再生'; }
+      el.classList.remove('active');
+      alert('通信エラーが発生しました');
+    });
+  }
+  // 閉じる：audio 停止 + src クリア + ObjectURL revoke + ボタン文言戻し
+  function _closeLisonMyRec(idx) {
+    var el = document.getElementById('lison-my-rec-player-' + idx);
+    var audio = document.getElementById('lison-my-rec-audio-' + idx);
+    var btn = document.getElementById('lison-my-rec-btn-' + idx);
+    if (audio) {
+      try { audio.pause(); } catch (e) {}
+      try { audio.removeAttribute('src'); audio.load(); } catch (e) {}
+    }
+    if (_lisonMyRecBlobUrls[idx]) {
+      try { URL.revokeObjectURL(_lisonMyRecBlobUrls[idx]); } catch (e) {}
+      delete _lisonMyRecBlobUrls[idx];
+    }
+    if (el) el.classList.remove('active');
+    if (btn) { btn.disabled = false; btn.textContent = '▶️ 再生'; }
+  }
+
   // -----------------------------------------------------
   // 級選択画面
   // -----------------------------------------------------
@@ -16228,8 +16696,8 @@
     var idx = 0;
     function next() {
       if (idx >= subs.length) {
-        _hideMyTaskSending();
-        _showMyTaskHwDone(results);
+        // 2026-08-20：overlay を消す瞬間に次画面を出す（他コンテンツと同じ「同時遷移」）
+        _hideMyTaskSending(function(){ _showMyTaskHwDone(results); });
         return;
       }
       var subj = subs[idx];
@@ -16367,11 +16835,9 @@
       content: entry.content || '',
       photos: sending
     }, 120000).then(function(res){
-      _hideMyTaskSending();
-      _afterMyTaskHwResend(i, res, sending);
+      _hideMyTaskSending(function(){ _afterMyTaskHwResend(i, res, sending); });
     }, function(err){
-      _hideMyTaskSending();
-      _afterMyTaskHwResend(i, { ok: false, message: String(err && err.message ? err.message : err) }, sending);
+      _hideMyTaskSending(function(){ _afterMyTaskHwResend(i, { ok: false, message: String(err && err.message ? err.message : err) }, sending); });
     });
   }
   function _afterMyTaskHwResend(i, res, sentPhotos) {
@@ -17016,17 +17482,20 @@
     _showOriwantesSending();   // オリワンテスのキャラの送信中オーバーレイ
     gasPost({ action: 'submitOriwantes', studentId: _studentId, subject: window._oriwantesLastSubject || '', questions: questions })
       .then(function(res){
-        _hideOriwantesSending();
+        // 2026-08-20：共通機構に合わせ、★結果画面へ進むときは overlay を消す瞬間に切替（同時遷移）、
+        //   ★その場に留まるエラー時は従来どおり即座に alert（カンジー等と同じ作法）。
+        //   二重送信ガードの解除は視覚要素ではないので即座に行う（overlay が操作を遮っている間も安全）。
         _oriwantesSubmitting = false;
         if (res && res.ok) {
           try { _pendingPhotoClear(ORIWANTES_KEY); } catch(e){}  // 2026-08-20：解答まで完了したので保存は破棄
-          _showOriwantesResult(res, questions, 'ok');
+          _hideOriwantesSending(function(){ _showOriwantesResult(res, questions, 'ok'); });
         } else if (res && res.errorCode === 'HP_LOG_FAILED') {
           // 保存は成立・HP付与のみ失敗 → 結果は見せる（HPの問題は控えめに）。
           try { _pendingPhotoClear(ORIWANTES_KEY); } catch(e){}  // 2026-08-20：保存は成立しているので破棄
-          _showOriwantesResult(res, questions, 'hp_failed');
+          _hideOriwantesSending(function(){ _showOriwantesResult(res, questions, 'hp_failed'); });
         } else {
           // 保存自体に失敗 → 解く画面のまま（入力を保持して再送できるように）。
+          _hideOriwantesSending();
           var msg = (res && res.message) ? res.message : '送信できなかったみたい。もう一度試してね。';
           alert(msg);
         }
@@ -17411,22 +17880,15 @@
 
   // ③-B 解答送信中オーバーレイ（オリワンテスのキャラ。マイ課題の _showMyTaskSending とは別物）
   var _oriwantesSendDotsTimer = null;
+  // 2026-08-20：独自オーバーレイ（oriwantes-sending-overlay）から共通機構へ乗せ替え。
+  //   ★これは「解答送信＝HPを獲得する場面」なので共通機構（獲得HPを最終確認中）と意味が一致する。
+  //   ★一方 _showOriwantesThinking（問題生成中）は「HPを消費する場面」で意味が違うため乗せ替えない。
+  //   ★関数名は維持。旧 DOM は未参照になるが残置（無害）。
   function _showOriwantesSending() {
-    var ov = document.getElementById('oriwantes-sending-overlay');
-    if (!ov) return;
-    ov.classList.add('active');
-    var dotsEl = document.getElementById('oriwantes-sending-dots');
-    var n = 3;
-    if (_oriwantesSendDotsTimer) clearInterval(_oriwantesSendDotsTimer);
-    _oriwantesSendDotsTimer = setInterval(function(){
-      n = (n % 3) + 1;
-      if (dotsEl) dotsEl.textContent = n === 1 ? '.' : (n === 2 ? '..' : '...');
-    }, 400);
+    _showHpConfirmingOverlay('oriwantes');
   }
-  function _hideOriwantesSending() {
-    var ov = document.getElementById('oriwantes-sending-overlay');
-    if (ov) ov.classList.remove('active');
-    if (_oriwantesSendDotsTimer) { clearInterval(_oriwantesSendDotsTimer); _oriwantesSendDotsTimer = null; }
+  function _hideOriwantesSending(onHidden) {
+    _hideHpConfirmingOverlay(onHidden);
   }
 
   // プロンプトの書き方ヒント モーダル
@@ -17564,11 +18026,12 @@
     _showOriwantesSending();   // 送信中オーバーレイは既存流用
     gasPost({ action: 'submitOriwantesRetry', studentId: _studentId, submissionId: st.submissionId, answers: answers })
       .then(function(res){
-        _hideOriwantesSending();
+        // 2026-08-20：通常送信と同じ作法（結果画面は同時遷移／エラーは即座に alert）。
         _oriwantesRetrySubmitting = false;
         if (res && res.ok) {
-          _showOriwantesRetryResult(res);
+          _hideOriwantesSending(function(){ _showOriwantesRetryResult(res); });
         } else {
+          _hideOriwantesSending();
           var msg = (res && res.message) ? res.message : '送信できなかったみたい。もう一度試してね。';
           alert(msg);
         }
@@ -17731,19 +18194,16 @@
 
   // 送信中オーバーレイ
   var _myTaskSendingDotsTimer = null;
+  // 2026-08-20：独自オーバーレイ（mytask-sending-overlay）から共通機構へ乗せ替え。
+  //   ・キャラ別セリフ（HP_CONFIRMING_BY_CHAR['maikadai']）が実際に出るようになる
+  //   ・§6-A23「速すぎ④」の最低3秒表示（cover方式）が効くようになる
+  //   ・onHidden で「overlay を消す瞬間＝次画面を出す瞬間」を揃えられる（45%半透明ごしの先見え防止）
+  //   ★関数名は維持。呼び出し箇所はそのまま動く。旧 DOM は未参照になるが残置（無害）。
   function _showMyTaskSending() {
-    var ov = document.getElementById('mytask-sending-overlay');
-    if (!ov) return;
-    ov.classList.add('active');
-    var dotsEl = document.getElementById('mytask-sending-dots');
-    var n = 3;
-    if (_myTaskSendingDotsTimer) clearInterval(_myTaskSendingDotsTimer);
-    _myTaskSendingDotsTimer = setInterval(function(){ n = (n % 3) + 1; if (dotsEl) dotsEl.textContent = n === 1 ? '.' : (n === 2 ? '..' : '...'); }, 400);
+    _showHpConfirmingOverlay('maikadai');
   }
-  function _hideMyTaskSending() {
-    var ov = document.getElementById('mytask-sending-overlay');
-    if (ov) ov.classList.remove('active');
-    if (_myTaskSendingDotsTimer) { clearInterval(_myTaskSendingDotsTimer); _myTaskSendingDotsTimer = null; }
+  function _hideMyTaskSending(onHidden) {
+    _hideHpConfirmingOverlay(onHidden);
   }
 
   // (2-E) 送信。content 必須・photos 1枚以上必須をフロントでも検証。
@@ -17774,11 +18234,9 @@
       content: content,
       photos: photos
     }, 120000).then(function(res){
-      _hideMyTaskSending();
-      _handleMyTaskResult(res, photos);
+      _hideMyTaskSending(function(){ _handleMyTaskResult(res, photos); });
     }).catch(function(err){
-      _hideMyTaskSending();
-      _handleMyTaskResult({ ok: false, message: String(err && err.message ? err.message : err) }, photos);
+      _hideMyTaskSending(function(){ _handleMyTaskResult({ ok: false, message: String(err && err.message ? err.message : err) }, photos); });
     });
   }
   function _handleMyTaskResult(res, sentPhotos) {
@@ -22144,7 +22602,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-1903</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2355</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

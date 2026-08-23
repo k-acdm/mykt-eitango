@@ -83,6 +83,10 @@
   .notice-title { font-size: 14px; font-weight: bold; color: #c25b00; flex: 1; }
   .notice-date  { font-size: 11px; color: #a07030; font-weight: bold; white-space: nowrap; }
   .notice-body  { font-size: 13px; line-height: 1.75; color: #4b3000; white-space: pre-wrap; word-wrap: break-word; }
+  /* 2026-08-22：連絡事項の添付画像。★imageUrl がある行だけ描画されるので、
+     画像が無い連絡事項の見え方は 1 ドットも変わらない。ダウンロード導線は付けない。 */
+  .notice-image { margin-top: 10px; }
+  .notice-image img { display: block; max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
   .notice-empty { text-align: center; color: #a07030; font-size: 14px; padding: 12px 0; }
   .btn-more { width: 100%; padding: 10px; background: linear-gradient(135deg, #ff8a3d, #ff6a00); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; font-family: inherit; }
 
@@ -1284,6 +1288,17 @@
   // ============================
   // 連絡事項（最新3件）
   // ============================
+  // 2026-08-22：連絡事項の添付画像（AWS a262b8c）。
+  //   ★画像がある行だけ imageUrl が生える。無い行は date/title/body の3キーのみ＝従来と完全同一なので、
+  //     ここで '' を返せば画像なしの連絡事項の見え方は 1 ドットも変わらない。
+  //   ★ダウンロードボタンは出さない（既存の作法）。画像は max-width:100% で画面に収める。
+  //   ★src に入るのはサーバーが返す URL。念のため http/https のみ通す（想定外スキームは描かない）。
+  function _noticeImageHtml(n) {
+    var u = (n && n.imageUrl) ? String(n.imageUrl).trim() : '';
+    if (!u) return '';
+    if (!/^https?:\/\//i.test(u)) return '';
+    return '<div class="notice-image"><img src="' + _esc(u) + '" alt="連絡事項の画像" loading="lazy"></div>';
+  }
   function loadLatestNotice() {
     var listEl = document.getElementById('notice-list');
     gasGet({ action: 'getNotice', _ts: Date.now() }).then(function(res) {
@@ -1302,6 +1317,7 @@
                    '<div class="notice-date">'  + _esc(date)  + '</div>' +
                  '</div>' +
                  '<div class="notice-body">' + _esc(body) + '</div>' +
+                 _noticeImageHtml(n) +   // 2026-08-22：画像が無ければ '' ＝従来どおりの見え方
                '</div>';
       }).join('');
     }).catch(function() {
@@ -1331,6 +1347,7 @@
                    '<div class="notice-date">'  + _esc(date)  + '</div>' +
                  '</div>' +
                  '<div class="notice-body">' + _esc(body) + '</div>' +
+                 _noticeImageHtml(n) +   // 2026-08-22：画像が無ければ '' ＝従来どおりの見え方
                '</div>';
       }).join('');
     }).catch(function() {
@@ -2376,7 +2393,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260820-1903</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2355</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
