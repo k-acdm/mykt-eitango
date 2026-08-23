@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260823-2208"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260823-2355"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260823-2208">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260823-2208"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260823-2355">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260823-2355"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7642,6 +7642,7 @@
   function selectVoice(idx) {
     _voiceIdx = idx;
     try { localStorage.setItem('maika_voice', String(idx)); } catch(e) {}
+    saveStudentSettings({ voiceIndex: idx });   // 2026-08-23：サーバーにも保存（失敗は無視）
     for (var i = 0; i < VOICE_LIST.length; i++) {
       var b = document.getElementById('voice-btn-' + i);
       if (b) b.classList.toggle('selected', i === _voiceIdx);
@@ -7672,6 +7673,7 @@
     var turnOn = _sfxOff();  // 今オフなら → オンにする
     _sfxEnabled = turnOn;
     try { localStorage.setItem('maika_sfx_enabled', turnOn ? 'on' : 'off'); } catch(e) {}
+    saveStudentSettings({ sfxEnabled: turnOn ? 'on' : 'off' });   // 2026-08-23：サーバーにも保存（失敗は無視）
     _renderSfxToggle();
   }
 
@@ -7963,6 +7965,7 @@
       if (res.needsPin)   { showMsg('login-msg','',''); _openPinEntry(sid);     return; }   // set_up     → 暗証番号入力画面
       if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
       _studentId   = res.studentId;
+      try { _applyServerSettings(res); } catch(e){}   // 2026-08-23：サーバーの設定を取り込む（null は触らない）
       // 2026-08-20：実施時間ペナルティの通知（AWS b7b3c2c）。★9/1 発動、それまでは常に空配列。
       //   ここでは保管だけして、ホーム画面が出てから知らせる（ログイン処理は止めない）。
       try { _studyPenaltyNotices = (res.studyPenaltyNotices || res.study_penalty_notices || []); } catch(e){ _studyPenaltyNotices = []; }
@@ -8027,9 +8030,109 @@
   var _pinFlowSid = '';   // 暗証番号/初回設定フローで対象の生徒IDを保持（loginStudent 再呼出・completeStudentSetup 用）
 
   // ログイン確定処理（doLogin の成功 tail と同一挙動。pin/setup 経由のログインでも同じホーム遷移にする）。
+  // ============================================================================
+  // 生徒の設定をサーバーと同期（2026-08-23 純追加 / AWS a6201e6）
+  //   背景：設定は localStorage にしか無いため、ブラウザ側で消えると既定に戻る。
+  //         iOS はホーム画面アイコンと Safari でストレージが別＝開き方が変わると設定が効かない。
+  //   方針：
+  //     ① ログイン後、サーバーの settings を取り込む。
+  //        ★null（未設定）は「何もしない」。＝いま静かに使っている生徒が急に鳴り出さないための担保。
+  //     ② 設定を変えたらサーバーへ送る。★失敗は無視（localStorage には従来どおり保存済み）。
+  //     ③ 「サーバー null かつ端末に値あり」なら取り込み直後に1回だけ送る（初回移行）。
+  //        ★1回で済む理由：送信が通ればサーバーは null でなくなり、次回ログインでは①の取り込みに入る。
+  //          通らなければサーバーは null のままなので、次回ログインで自動的に再試行される。
+  //          （＝毎回送るのではなく「サーバーが空の間だけ」送る）
+  //   ★localStorage のキー名・保存値は一切変えない（既に設定済みの生徒の状態を壊さないため）。
+  // ============================================================================
+  var SETTINGS_SFX_KEY   = 'maika_sfx_enabled';   // 'on' / 'off'（既存）
+  var SETTINGS_VOICE_KEY = 'maika_voice';         // '0' / '1'（既存）
+  // タイマーは既存の STUDY_TIMER_HIDDEN_KEY（'1' / '0'）をそのまま使う。
+  var _settingsSyncDone = false;   // 同一ページ内での二重実行ガード
+
+  function _settingsRaw(key) {
+    try { return localStorage.getItem(key); } catch(e) { return null; }
+  }
+  // サーバーは true/false・0/1・'on'/'off'・'1'/'0' のいずれで返ってきてもよい。
+  function _settingsTruthy(v) {
+    if (v === true  || v === 1) return true;
+    if (v === false || v === 0) return false;
+    var s = String(v == null ? '' : v).trim().toLowerCase();
+    if (s === 'on'  || s === 'true'  || s === '1') return true;
+    if (s === 'off' || s === 'false' || s === '0') return false;
+    return null;   // 判定できない → 触らない（安全側）
+  }
+  function _settingsIsUnset(v) { return (v === null || v === undefined || v === ''); }
+
+  // サーバーへ保存（部分更新）。★fire-and-forget：失敗しても画面も動作も変えない。
+  function saveStudentSettings(patch) {
+    try {
+      if (!_studentId || !patch) return;
+      var keys = Object.keys(patch);
+      if (!keys.length) return;
+      var p = { action: 'saveStudentSettings', studentId: _studentId };
+      for (var i = 0; i < keys.length; i++) p[keys[i]] = patch[keys[i]];
+      gasPost(p, 15000).catch(function(){ /* 失敗は無視（localStorage が従来どおり効く） */ });
+    } catch(e) { /* 何もしない */ }
+  }
+
+  // ★ログイン応答の settings を取り込む。null は触らない。旧サーバー（settings 無し）も従来どおり。
+  function _applyServerSettings(res) {
+    try {
+      if (_settingsSyncDone) return;
+      var s = res && res.settings;
+      if (!s || typeof s !== 'object') return;   // settings が無い応答 → 何もしない（既存挙動）
+      _settingsSyncDone = true;
+      var migrate = {};
+
+      // --- 効果音 ---
+      if (_settingsIsUnset(s.sfxEnabled)) {
+        var lsSfx = _settingsRaw(SETTINGS_SFX_KEY);
+        if (lsSfx !== null) migrate.sfxEnabled = (lsSfx === 'off') ? 'off' : 'on';   // ③ 端末の値を引き上げ
+      } else {
+        var on = _settingsTruthy(s.sfxEnabled);
+        if (on !== null) {
+          try { localStorage.setItem(SETTINGS_SFX_KEY, on ? 'on' : 'off'); } catch(e){}
+          _sfxEnabled = on;
+          try { _renderSfxToggle(); } catch(e){}
+        }
+      }
+
+      // --- 音声の種類 ---
+      if (_settingsIsUnset(s.voiceIndex)) {
+        var lsVoice = _settingsRaw(SETTINGS_VOICE_KEY);
+        if (lsVoice !== null) {
+          var lv = parseInt(lsVoice, 10);
+          if (!isNaN(lv) && lv >= 0 && lv < VOICE_LIST.length) migrate.voiceIndex = lv;   // ③
+        }
+      } else {
+        var vi = parseInt(s.voiceIndex, 10);
+        if (!isNaN(vi) && vi >= 0 && vi < VOICE_LIST.length) {
+          try { localStorage.setItem(SETTINGS_VOICE_KEY, String(vi)); } catch(e){}
+          _voiceIdx = vi;
+        }
+      }
+
+      // --- 実施時間タイマーの表示 ---
+      if (_settingsIsUnset(s.studyTimerHidden)) {
+        var lsTimer = _settingsRaw(STUDY_TIMER_HIDDEN_KEY);
+        if (lsTimer !== null) migrate.studyTimerHidden = (lsTimer === '1');   // ③
+      } else {
+        var hid = _settingsTruthy(s.studyTimerHidden);
+        if (hid !== null) {
+          try { localStorage.setItem(STUDY_TIMER_HIDDEN_KEY, hid ? '1' : '0'); } catch(e){}
+          try { _applyStudyTimerVisibility(); } catch(e){}
+        }
+      }
+
+      // ③ 初回移行：サーバーが空で端末に値がある項目だけを、この1回で送る。
+      if (Object.keys(migrate).length) saveStudentSettings(migrate);
+    } catch(e) { /* 取り込みで失敗しても、従来どおり localStorage の値で動く */ }
+  }
+
   function _finishStudentLogin(res) {
     res = res || {};
     _studentId = res.studentId;
+    try { _applyServerSettings(res); } catch(e){}   // 2026-08-23：サーバーの設定を取り込む（null は触らない）
     _beginStudySession();   // 第4群B：実施時間タイマー開始（二重開始ガードあり）
     if (_loginRole !== 'parent') {
       try {
@@ -11265,6 +11368,7 @@
     if (!_studyTimerCanHide()) { _renderStudyTimerToggle(); return; }
     var nextHidden = !_studyTimerHidden();   // 保存値を基準に反転（in-memory のズレに引きずられない）
     try { localStorage.setItem(STUDY_TIMER_HIDDEN_KEY, nextHidden ? '1' : '0'); } catch(e) {}
+    saveStudentSettings({ studyTimerHidden: nextHidden });   // 2026-08-23：サーバーにも保存（失敗は無視）
     _applyStudyTimerVisibility();
     _renderStudyTimerToggle();
   }
@@ -22498,7 +22602,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2208</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2355</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
