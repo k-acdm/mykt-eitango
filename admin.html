@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260823-2159"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260823-2208"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -281,13 +281,6 @@
   #screen-admin-student-add .form-card select:focus { border-color: #4f7df0; }
   .sa-lead { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 18px; padding: 10px 14px; background: #f0f9ff; border-left: 3px solid #4f7df0; border-radius: 4px; }
   .sa-lead strong { color: #0c4a6e; }
-  .sa-cols { margin-top: 4px; font-size: 12px; color: #64748b; }
-  .sa-cols summary { cursor: pointer; color: #4f7df0; font-weight: 600; }
-  .sa-col-head { margin: 8px 0 6px; color: #475569; }
-  .sa-col-row { padding: 2px 0; }
-  .sa-col-row code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; color: #1e293b; }
-  .sa-col-ng { color: #b91c1c; font-weight: 700; }
-  .sa-col-warn { margin-top: 8px; color: #b91c1c; font-weight: 700; line-height: 1.6; }
   .sa-msg { margin-top: 12px; font-size: 14px; line-height: 1.8; }
   .sa-msg.ng { color: #b91c1c; font-weight: 700; }
   .sa-guide { margin-top: 16px; padding: 16px 18px; background: #fffbeb; border: 2px solid #fcd34d; border-radius: 12px; }
@@ -1972,10 +1965,6 @@
         <select id="sa-enrollment"></select>
       </label>
 
-      <details class="sa-cols">
-        <summary>保存先の列（確認用）</summary>
-        <div id="sa-cols-body">⏳ 読み込み中...</div>
-      </details>
     </div>
 
     <button class="submit-btn" id="sa-submit" style="margin-top:18px;background:linear-gradient(135deg,#22c55e,#16a34a)" onclick="submitStudentAdd()">✅ 登録する</button>
@@ -6188,9 +6177,7 @@
   //   ★送り先：account_type === 'student' → adminGridAddStudent
   //             それ以外                   → adminGridAddSpecialAccount
   //     （どちらもシート画面が使っている既存アクション。サーバー側の新設は不要）
-  //   ★保存先の列名はシートごとにサーバーが持っているため、推測せず
-  //     adminGridRead{Students,SpecialAccounts} の columns から解決する。
-  //     解決できない項目があれば送信せずに止める（誤った列に書かない）。
+  //   ★保存先の列名は SA_COLUMNS に固定（AWS 側で students の全35列を確認済／2026-08-23）。
   // =============================================================
 
   // プルダウン（表示は日本語 / 送るのは英字の値）。
@@ -6214,23 +6201,17 @@
     { label: '休塾',   value: 'suspended' }
   ];
 
-  // 画面の入力欄 → シート列の対応づけルール。
-  //   exact  : 列名がこれと一致すれば確定（塾長から提示された列名）
-  //   enumHas: 列メタの enum にこの値が含まれれば確定（サーバーの申告が根拠なので最も確実）
-  //   test   : 列名の形での判定（上2つで決まらなかったときの保険）
-  var SA_FIELDS = [
-    { id: 'code',  label: '生徒ID', el: 'sa-code',
-      test: function(k){ return /(code|コード|生徒id|student_?id)/i.test(k) && !/line|parent|guardian|teacher|zip/i.test(k); } },
-    { id: 'name',  label: '氏名', el: 'sa-name',
-      test: function(k){ return /(name|氏名|名前)/i.test(k) && !/nick|display|parent|guardian|teacher|file/i.test(k); } },
-    { id: 'grade', label: '学年', el: 'sa-grade', enumHas: '中1',
-      test: function(k){ return /(grade|学年)/i.test(k); } },
-    { id: 'membership_type',   label: '会員区分',       el: 'sa-membership', exact: 'membership_type',   enumHas: 'juku' },
-    { id: 'account_type',      label: 'アカウント種別', el: 'sa-account',    exact: 'account_type',      enumHas: 'student' },
-    { id: 'enrollment_status', label: '在籍状況',       el: 'sa-enrollment', exact: 'enrollment_status', enumHas: 'enrolled' }
-  ];
+  // 画面の入力欄 → シートの列名（AWS 側で students の全35列を確認済／2026-08-23）。
+  // ★grade_level は varchar(8) の自由文字列（enum ではない）。'grade' ではないので注意。
+  var SA_COLUMNS = {
+    code:              'student_code',
+    name:              'name',
+    grade:             'grade_level',
+    membership_type:   'membership_type',
+    account_type:      'account_type',
+    enrollment_status: 'enrollment_status'
+  };
 
-  var _saCols = {};        // sheetKey('students'|'special') → { map:{fieldId:colKey}, missing:[label], loaded:bool }
   var _saBusy = false;
 
   function _saFillSelect(id, items) {
@@ -6270,96 +6251,11 @@
     _saOnAccountTypeChange();
   }
   function _saOnAccountTypeChange() {
-    var sheet = _saTargetSheet();
     var hint = document.getElementById('sa-account-hint');
-    if (hint) {
-      hint.textContent = (sheet === 'students')
-        ? '「生徒」を選ぶと Students シートに登録します。'
-        : '「生徒」以外を選ぶと SpecialAccounts シートに登録します。';
-    }
-    _saLoadColumns(sheet);
-  }
-  // 保存先シートの列名をサーバーから取得して対応づける（1シートにつき1回だけ）。
-  function _saLoadColumns(sheet) {
-    var box = document.getElementById('sa-cols-body');
-    if (_saCols[sheet]) { _saRenderCols(sheet); return Promise.resolve(_saCols[sheet]); }
-    if (box) box.textContent = '⏳ 読み込み中...';
-    var cfg = GRID_TABS[sheet];
-    return adminGasGet({ action: cfg.readAction, _ts: Date.now() }).then(function(res) {
-      if (!res || !res.ok) {
-        var em = (res && res.message) ? res.message : '列の取得に失敗しました';
-        if (_handleAdminApiError(em)) return null;
-        if (box) box.textContent = em;
-        return null;
-      }
-      _saCols[sheet] = _saResolve(res);
-      _saRenderCols(sheet);
-      return _saCols[sheet];
-    }).catch(function() {
-      if (box) box.textContent = '通信エラーが発生しました';
-      return null;
-    });
-  }
-  // columns（{列名:{enum,...}} / 配列 / 文字列配列）から、画面の6項目に対応する列名を決める。
-  function _saResolve(res) {
-    var raw = res.columns || res.cols || {};
-    var cols = [];   // [{ key, enums }]
-    if (Array.isArray(raw)) {
-      cols = raw.map(function(c) {
-        if (typeof c === 'string') return { key: c, enums: [] };
-        var e = c.enum || c.options || c.values;
-        return { key: (c.key || c.field || c.name || c.id || ''), enums: Array.isArray(e) ? e : [] };
-      });
-    } else if (raw && typeof raw === 'object') {
-      cols = Object.keys(raw).map(function(k) {
-        var meta = (raw[k] && typeof raw[k] === 'object') ? raw[k] : {};
-        var e = meta.enum || meta.options || meta.values;
-        return { key: k, enums: Array.isArray(e) ? e : [] };
-      });
-    }
-    var map = {}, missing = [], used = {};
-    SA_FIELDS.forEach(function(f) {
-      var hit = '';
-      // ① 列名が完全一致（塾長から提示された列名）
-      if (!hit && f.exact) {
-        for (var i = 0; i < cols.length; i++) { if (cols[i].key === f.exact) { hit = cols[i].key; break; } }
-      }
-      // ② 列メタの enum に既定値が含まれる（サーバーの申告が根拠なので最も確実）
-      if (!hit && f.enumHas) {
-        for (var j = 0; j < cols.length; j++) {
-          if (used[cols[j].key]) continue;
-          if (cols[j].enums.indexOf(f.enumHas) >= 0) { hit = cols[j].key; break; }
-        }
-      }
-      // ③ 列名の形で判定（保険）
-      if (!hit && f.test) {
-        for (var k = 0; k < cols.length; k++) {
-          if (used[cols[k].key]) continue;
-          if (f.test(cols[k].key)) { hit = cols[k].key; break; }
-        }
-      }
-      if (hit) { map[f.id] = hit; used[hit] = true; }
-      else { missing.push(f.label); }
-    });
-    return { map: map, missing: missing, total: cols.length, loaded: true };
-  }
-  function _saRenderCols(sheet) {
-    var box = document.getElementById('sa-cols-body');
-    if (!box) return;
-    var info = _saCols[sheet];
-    if (!info) { box.textContent = '未取得'; return; }
-    var rows = SA_FIELDS.map(function(f) {
-      var k = info.map[f.id];
-      return '<div class="sa-col-row">' + _esc(f.label) + ' → ' +
-             (k ? '<code>' + _esc(k) + '</code>' : '<span class="sa-col-ng">見つかりません</span>') + '</div>';
-    }).join('');
-    var head = '<div class="sa-col-head">' + _esc(GRID_TABS[sheet].label) + ' シートの列に、次のように保存します。</div>';
-    var warn = info.missing.length
-      ? '<div class="sa-col-warn">⚠️ ' + _esc(info.missing.join('・')) + ' に対応する列が見つかりません。このままでは登録できません。</div>'
-      : '';
-    box.innerHTML = head + rows + warn;
-    var btn = document.getElementById('sa-submit');
-    if (btn) btn.disabled = info.missing.length > 0;
+    if (!hint) return;
+    hint.textContent = (_saTargetSheet() === 'students')
+      ? '「生徒」を選ぶと Students シートに登録します。'
+      : '「生徒」以外を選ぶと SpecialAccounts シートに登録します。';
   }
   function submitStudentAdd() {
     if (_saBusy) return;
@@ -6368,53 +6264,41 @@
     if (!code) { _saMsg('生徒IDを入力してください。', 'ng'); document.getElementById('sa-code').focus(); return; }
     if (!name) { _saMsg('氏名を入力してください。', 'ng'); document.getElementById('sa-name').focus(); return; }
     var sheet = _saTargetSheet();
-    _saMsg('⏳ 準備中...', '');
-    Promise.resolve(_saCols[sheet] || _saLoadColumns(sheet)).then(function(info) {
-      info = info || _saCols[sheet];
-      if (!info) { _saMsg('保存先の列を取得できませんでした。少し待ってからもう一度お試しください。', 'ng'); return; }
-      if (info.missing.length) {
-        _saMsg('保存先の列が特定できないため登録できません（' + info.missing.join('・') + '）。「保存先の列（確認用）」をご確認ください。', 'ng');
+    var row = {};
+    row[SA_COLUMNS.code]              = code;
+    row[SA_COLUMNS.name]              = name;
+    row[SA_COLUMNS.grade]             = document.getElementById('sa-grade').value;
+    row[SA_COLUMNS.membership_type]   = document.getElementById('sa-membership').value;
+    row[SA_COLUMNS.account_type]      = document.getElementById('sa-account').value;
+    row[SA_COLUMNS.enrollment_status] = document.getElementById('sa-enrollment').value;
+    var sheetLabel = GRID_TABS[sheet].label;
+    if (!confirm(name + '（' + code + '）を ' + sheetLabel + ' に登録します。よろしいですか？')) { _saMsg(''); return; }
+    _saBusy = true;
+    var btn = document.getElementById('sa-submit');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 登録中...'; }
+    _saMsg('⏳ 登録中...', '');
+    adminGasPost({ action: GRID_TABS[sheet].addAction, row: row }).then(function(res) {
+      _saBusy = false;
+      if (btn) { btn.disabled = false; btn.textContent = '✅ 登録する'; }
+      if (res && res.errorCode === 'DUPLICATE_CODE') {
+        _saMsg('⚠️ 生徒ID「' + code + '」はすでに使われています。別の生徒IDを入力してください（登録済みかどうかは「シート（データ直接編集）」で確認できます）。', 'ng');
+        document.getElementById('sa-code').focus();
         return;
       }
-      var vals = {
-        code: code,
-        name: name,
-        grade: document.getElementById('sa-grade').value,
-        membership_type: document.getElementById('sa-membership').value,
-        account_type: document.getElementById('sa-account').value,
-        enrollment_status: document.getElementById('sa-enrollment').value
-      };
-      var row = {};
-      SA_FIELDS.forEach(function(f) { row[info.map[f.id]] = vals[f.id]; });
-      var sheetLabel = GRID_TABS[sheet].label;
-      if (!confirm(name + '（' + code + '）を ' + sheetLabel + ' に登録します。よろしいですか？')) { _saMsg(''); return; }
-      _saBusy = true;
-      var btn = document.getElementById('sa-submit');
-      if (btn) { btn.disabled = true; btn.textContent = '⏳ 登録中...'; }
-      _saMsg('⏳ 登録中...', '');
-      adminGasPost({ action: GRID_TABS[sheet].addAction, row: row }).then(function(res) {
-        _saBusy = false;
-        if (btn) { btn.disabled = false; btn.textContent = '✅ 登録する'; }
-        if (res && res.errorCode === 'DUPLICATE_CODE') {
-          _saMsg('⚠️ 生徒ID「' + code + '」はすでに使われています。別の生徒IDを入力してください（登録済みかどうかは「シート（データ直接編集）」で確認できます）。', 'ng');
-          document.getElementById('sa-code').focus();
-          return;
-        }
-        if (!res || !res.ok) {
-          var em = (res && res.message) ? res.message : '登録に失敗しました';
-          if (_handleAdminApiError(em)) return;
-          _saMsg(em, 'ng');
-          return;
-        }
-        _saMsg('');
-        _saShowGuide(name, code, sheetLabel);
-        document.getElementById('sa-code').value = '';
-        document.getElementById('sa-name').value = '';
-      }).catch(function() {
-        _saBusy = false;
-        if (btn) { btn.disabled = false; btn.textContent = '✅ 登録する'; }
-        _saMsg('通信エラーが発生しました。', 'ng');
-      });
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '登録に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        _saMsg(em, 'ng');
+        return;
+      }
+      _saMsg('');
+      _saShowGuide(name, code, sheetLabel);
+      document.getElementById('sa-code').value = '';
+      document.getElementById('sa-name').value = '';
+    }).catch(function() {
+      _saBusy = false;
+      if (btn) { btn.disabled = false; btn.textContent = '✅ 登録する'; }
+      _saMsg('通信エラーが発生しました。', 'ng');
     });
   }
   // ★登録後の案内：登録しただけではログインできないことを塾長に必ず伝える。
@@ -15914,7 +15798,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2159</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2208</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
