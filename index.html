@@ -1120,7 +1120,9 @@
     .me-notice-line { font-size: 13px; color: #4a4a4a; line-height: 1.8; }
     .me-notice-line.strong { font-size: 15px; font-weight: bold; color: #b02a37; background: #fdecec; border-radius: 6px; padding: 8px 10px; margin-top: 8px; line-height: 1.7; }
     .me-reason { width: 100%; box-sizing: border-box; min-height: 76px; padding: 10px 12px; border: 2px solid #dfe6f5; border-radius: 10px; font-size: 14px; font-family: inherit; line-height: 1.6; resize: vertical; }
+    .me-reason.ng { border-color: #e74c3c; background: #fff8f8; }
     .me-reason-label { display: block; font-size: 13px; color: #555; font-weight: bold; margin-bottom: 6px; }
+    .me-reason-label .me-req { color: #b02a37; }
     .me-msg { font-size: 13px; line-height: 1.8; margin-top: 10px; }
     .me-msg.ok { color: #0b7a4b; }
     .me-msg.ng { color: #b02a37; font-weight: bold; }
@@ -3437,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260823-2010"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260823-2036"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260823-2010">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260823-2010"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260823-2036">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260823-2036"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6969,7 +6971,7 @@
     // ★注意書きは常に全文表示（申し込めないときも読ませる）。
     if (res.notice) html += '<div class="me-notice">' + _meLinesHtml(res.notice) + '</div>';
     if (res.canRequest === true) {
-      html += '<label class="me-reason-label" for="mission-exempt-reason">申し込む理由（書かなくてもOK）</label>' +
+      html += '<label class="me-reason-label" for="mission-exempt-reason">申し込む理由 <span class="me-req">（かならず書いてね）</span></label>' +
               '<textarea id="mission-exempt-reason" class="me-reason" maxlength="200" placeholder="例：スマホだけでできるものを先にやりたい"></textarea>' +
               '<button class="btn-wide" style="margin-top:12px;background:linear-gradient(135deg,#f6b93b,#e58e26)" id="mission-exempt-submit" onclick="submitMissionExemption()">⭐ この内容で申し込む</button>';
     }
@@ -6982,11 +6984,18 @@
     var msg = document.getElementById('mission-exempt-msg');
     var ta  = document.getElementById('mission-exempt-reason');
     var reason = ta ? String(ta.value || '').trim() : '';
+    // ★理由は必須（塾長の判断）。サーバーは必須にしていないので、ここで止める。
+    //   空欄・空白だけ（全角スペース含む。trim が U+3000 も落とす）は送らない。
+    if (!reason) {
+      if (ta) { ta.classList.add('ng'); try { ta.focus(); } catch(e){} }
+      if (msg) { msg.className = 'me-msg ng'; msg.textContent = '⚠️ 申し込む理由を書いてね。先生が「外すかどうか」を決めるときに読みます。'; }
+      return;
+    }
+    if (ta) ta.classList.remove('ng');
     _meLoading = true;
     if (btn) { btn.disabled = true; btn.textContent = '⏳ 送信中...'; }
     if (msg) { msg.className = 'me-msg'; msg.textContent = ''; }
-    var params = { action: 'submitMissionExemptionRequest', studentId: _studentId };
-    if (reason) params.reason = reason;
+    var params = { action: 'submitMissionExemptionRequest', studentId: _studentId, reason: reason };
     gasPost(params).then(function(res) {
       _meLoading = false;
       if (!res || !res.ok) {
@@ -22489,7 +22498,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2010</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2036</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
