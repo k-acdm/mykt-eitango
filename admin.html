@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260823-2045"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260823-2159"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -75,8 +75,8 @@
   }
 
   /* メイン系画面のヘッダー（ダッシュボード以外） */
-  #screen-admin-dashboard header, #screen-admin-learning-hub header, #screen-admin-achievement-hub header, #screen-admin-eitango-ach-students header, #screen-admin-eitango-ach-detail header, #screen-admin-kobun-ach-students header, #screen-admin-kobun-ach-detail header, #screen-admin-kiso-ach-students header, #screen-admin-kiso-ach-detail header, #screen-admin-kanji-ach-students header, #screen-admin-kanji-ach-detail header, #screen-admin-lison-ach-students header, #screen-admin-lison-ach-detail header, #screen-admin-answer-check-hub header, #screen-admin-input-hub header, #screen-admin-content-input-hub header, #screen-admin-other-input-hub header, #screen-admin-question-edit header, #screen-admin-student-care-hub header, #screen-admin-exchange-hub header, #screen-admin-system-hub header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-streak-modify header, #screen-admin-streak-modify-confirm header, #screen-admin-streak-modify-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header, #screen-admin-teachers header, #screen-admin-teacher-edit header, #screen-admin-teacher-add header, #screen-admin-action-log header, #screen-admin-hp-attempts header, #screen-admin-unsent-reports header, #screen-admin-line-notify header, #screen-admin-required-missions header, #screen-admin-reflections-students header, #screen-admin-reflections-list header, #screen-admin-reflections-select header, #screen-admin-reflections-calendar header, #screen-admin-reflections-day header, #screen-admin-form-quote header, #screen-admin-form-notice header, #screen-admin-form-sango-topic header, #screen-admin-form-sango-submissions header, #screen-admin-form-wabun1-topic header, #screen-admin-form-wabun1-submissions header, #screen-admin-kokugo-input header, #screen-admin-kokugo-history-select header, #screen-admin-kokugo-history-students header, #screen-admin-kokugo-history-list header, #screen-admin-kokugo-history-calendar header, #screen-admin-kokugo-history-day header, #screen-admin-risha-input header, #screen-admin-risha-history-select header, #screen-admin-risha-history-students header, #screen-admin-risha-history-list header, #screen-admin-risha-history-calendar header, #screen-admin-risha-history-day header, #screen-admin-surveys header, #screen-admin-survey-results header, #screen-admin-avatar-items header, #screen-admin-amazon-gift header, #screen-admin-mytask-announce header, #screen-admin-mytask-students header, #screen-admin-oriwantes-students header, #screen-admin-oriwantes-detail header, #screen-admin-mytask-photos header, #screen-admin-auth-alerts header, #screen-admin-grid header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-  #screen-admin-dashboard header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-question-edit header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-kokugo-input header h1, #screen-admin-kokugo-history-select header h1, #screen-admin-kokugo-history-students header h1, #screen-admin-kokugo-history-list header h1, #screen-admin-kokugo-history-calendar header h1, #screen-admin-kokugo-history-day header h1, #screen-admin-risha-input header h1, #screen-admin-risha-history-select header h1, #screen-admin-risha-history-students header h1, #screen-admin-risha-history-list header h1, #screen-admin-risha-history-calendar header h1, #screen-admin-risha-history-day header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-mytask-photos header h1, #screen-admin-auth-alerts header h1, #screen-admin-grid header h1 { font-size: 18px; font-weight: 600; }
+  #screen-admin-dashboard header, #screen-admin-learning-hub header, #screen-admin-achievement-hub header, #screen-admin-eitango-ach-students header, #screen-admin-eitango-ach-detail header, #screen-admin-kobun-ach-students header, #screen-admin-kobun-ach-detail header, #screen-admin-kiso-ach-students header, #screen-admin-kiso-ach-detail header, #screen-admin-kanji-ach-students header, #screen-admin-kanji-ach-detail header, #screen-admin-lison-ach-students header, #screen-admin-lison-ach-detail header, #screen-admin-answer-check-hub header, #screen-admin-input-hub header, #screen-admin-content-input-hub header, #screen-admin-other-input-hub header, #screen-admin-question-edit header, #screen-admin-student-care-hub header, #screen-admin-exchange-hub header, #screen-admin-system-hub header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-streak-modify header, #screen-admin-streak-modify-confirm header, #screen-admin-streak-modify-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header, #screen-admin-teachers header, #screen-admin-teacher-edit header, #screen-admin-teacher-add header, #screen-admin-action-log header, #screen-admin-hp-attempts header, #screen-admin-unsent-reports header, #screen-admin-line-notify header, #screen-admin-required-missions header, #screen-admin-reflections-students header, #screen-admin-reflections-list header, #screen-admin-reflections-select header, #screen-admin-reflections-calendar header, #screen-admin-reflections-day header, #screen-admin-form-quote header, #screen-admin-form-notice header, #screen-admin-form-sango-topic header, #screen-admin-form-sango-submissions header, #screen-admin-form-wabun1-topic header, #screen-admin-form-wabun1-submissions header, #screen-admin-kokugo-input header, #screen-admin-kokugo-history-select header, #screen-admin-kokugo-history-students header, #screen-admin-kokugo-history-list header, #screen-admin-kokugo-history-calendar header, #screen-admin-kokugo-history-day header, #screen-admin-risha-input header, #screen-admin-risha-history-select header, #screen-admin-risha-history-students header, #screen-admin-risha-history-list header, #screen-admin-risha-history-calendar header, #screen-admin-risha-history-day header, #screen-admin-surveys header, #screen-admin-survey-results header, #screen-admin-avatar-items header, #screen-admin-amazon-gift header, #screen-admin-mytask-announce header, #screen-admin-mytask-students header, #screen-admin-oriwantes-students header, #screen-admin-oriwantes-detail header, #screen-admin-mytask-photos header, #screen-admin-auth-alerts header, #screen-admin-student-add header, #screen-admin-grid header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  #screen-admin-dashboard header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-question-edit header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-kokugo-input header h1, #screen-admin-kokugo-history-select header h1, #screen-admin-kokugo-history-students header h1, #screen-admin-kokugo-history-list header h1, #screen-admin-kokugo-history-calendar header h1, #screen-admin-kokugo-history-day header h1, #screen-admin-risha-input header h1, #screen-admin-risha-history-select header h1, #screen-admin-risha-history-students header h1, #screen-admin-risha-history-list header h1, #screen-admin-risha-history-calendar header h1, #screen-admin-risha-history-day header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-mytask-photos header h1, #screen-admin-auth-alerts header h1, #screen-admin-student-add header h1, #screen-admin-grid header h1 { font-size: 18px; font-weight: 600; }
   .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
   .logout-btn:hover { background: rgba(255,255,255,.3); }
 
@@ -276,6 +276,25 @@
   .form-label { display: block; font-size: 14px; font-weight: 600; color: #333; margin-bottom: 6px; }
   .form-required { display: inline-block; font-size: 11px; color: #fff; background: #e74c3c; padding: 2px 6px; border-radius: 4px; margin-left: 6px; vertical-align: middle; font-weight: 600; }
   .form-hint { display: block; font-size: 12px; color: #888; margin-top: 4px; }
+  /* 新規生徒の追加（2026-08-23）。既存の .form-card にプルダウンが無かったため、この画面だけに足す。 */
+  #screen-admin-student-add .form-card select { width: 100%; padding: 10px 12px; font-size: 15px; border: 2px solid #e1e5ee; border-radius: 8px; outline: none; font-family: inherit; background: #fff; transition: border .2s; }
+  #screen-admin-student-add .form-card select:focus { border-color: #4f7df0; }
+  .sa-lead { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 18px; padding: 10px 14px; background: #f0f9ff; border-left: 3px solid #4f7df0; border-radius: 4px; }
+  .sa-lead strong { color: #0c4a6e; }
+  .sa-cols { margin-top: 4px; font-size: 12px; color: #64748b; }
+  .sa-cols summary { cursor: pointer; color: #4f7df0; font-weight: 600; }
+  .sa-col-head { margin: 8px 0 6px; color: #475569; }
+  .sa-col-row { padding: 2px 0; }
+  .sa-col-row code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; color: #1e293b; }
+  .sa-col-ng { color: #b91c1c; font-weight: 700; }
+  .sa-col-warn { margin-top: 8px; color: #b91c1c; font-weight: 700; line-height: 1.6; }
+  .sa-msg { margin-top: 12px; font-size: 14px; line-height: 1.8; }
+  .sa-msg.ng { color: #b91c1c; font-weight: 700; }
+  .sa-guide { margin-top: 16px; padding: 16px 18px; background: #fffbeb; border: 2px solid #fcd34d; border-radius: 12px; }
+  .sa-guide-head { font-size: 15px; font-weight: 800; color: #15803d; margin-bottom: 10px; }
+  .sa-guide-body { font-size: 14px; color: #92400e; line-height: 1.9; }
+  .sa-guide-body strong { color: #b45309; }
+  .sa-guide-btn { margin-top: 14px; background: linear-gradient(135deg,#4f7df0,#7c4fff); }
   .hp-grant-checkbox-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; padding: 10px; background: #fff7ed; border: 2px solid #fb923c; border-radius: 8px; margin-bottom: 6px; }
   .hp-grant-checkbox-row input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; cursor: pointer; }
   .hp-grant-checkbox-row span { font-size: 14px; color: #6b3a17; line-height: 1.5; }
@@ -712,7 +731,7 @@
   .tm-result-summary strong { color: #16a34a; }
 
   @media (max-width: 480px) {
-    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-question-edit header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-mytask-photos header h1, #screen-admin-auth-alerts header h1, #screen-admin-grid header h1 { font-size: 15px; }
+    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-question-edit header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-mytask-photos header h1, #screen-admin-auth-alerts header h1, #screen-admin-student-add header h1, #screen-admin-grid header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
     .admin-page { padding: 16px 12px 80px; }
     .form-card { padding: 18px; }
@@ -981,7 +1000,6 @@
   .grid-toolbar .submit-btn { padding:8px 14px; font-size:13px; flex:0 0 auto; }
   .grid-btn-save { background:linear-gradient(135deg,#16a34a,#15803d); }
   .grid-btn-undo { background:linear-gradient(135deg,#f59e0b,#d97706); }
-  .grid-btn-add  { background:linear-gradient(135deg,#3b82f6,#2563eb); }
   .grid-toolbar .submit-btn:disabled { opacity:.5; cursor:not-allowed; }
   .grid-msg { margin-left:auto; font-size:12px; color:#666; }
   .grid-msg.ok { color:#15803d; } .grid-msg.ng { color:#b91c1c; }
@@ -1795,8 +1813,13 @@
     </button>
     <button type="button" id="dash-card-auth-alerts" class="dashboard-card admin-only" onclick="goAdminAuthAlerts()">
       <div class="dashboard-card-icon">🔑</div>
-      <div class="dashboard-card-title">ログイン認証アラート</div>
+      <div class="dashboard-card-title">ログイン認証（設定、アラート）</div>
       <div class="dashboard-card-desc">合言葉の失敗が続く生徒を検知 / 暗証番号の強制リセット（新しい初回キーを発行）（admin専用）</div>
+    </button>
+    <button type="button" id="dash-card-student-add" class="dashboard-card admin-only" onclick="goAdminStudentAdd()">
+      <div class="dashboard-card-icon">🆕</div>
+      <div class="dashboard-card-title">新規生徒の追加</div>
+      <div class="dashboard-card-desc">生徒ID・氏名・学年などを登録（登録後はログイン認証の画面で初回キーの発行へ）（admin専用）</div>
     </button>
     <button type="button" id="dash-card-grid" class="dashboard-card admin-only" onclick="goAdminGrid()">
       <div class="dashboard-card-icon">🗂️</div>
@@ -1809,7 +1832,7 @@
 <!-- F4 フロント：ログイン認証アラート（合言葉失敗の検知＋暗証番号の強制リセット、admin専用） -->
 <div id="screen-admin-auth-alerts" class="screen">
   <header>
-    <h1>🔑 ログイン認証アラート</h1>
+    <h1>🔑 ログイン認証（設定、アラート）</h1>
     <div class="header-btns">
       <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
@@ -1896,6 +1919,71 @@
 </div>
 
 <!-- シート可視化グリッド画面（③ Excel風グリッド） -->
+<!-- 新規生徒の追加（2026-08-23 新設、admin専用）。★この画面は登録だけ。ログイン関連の設定は
+     「ログイン認証（設定、アラート）」画面のまま。構造は screen-admin-teacher-add を写した。
+     ★ヘッダーの CSS セレクタリスト 3 箇所（通常版 background / 通常版 h1 / レスポンシブ h1）に登録済。 -->
+<div id="screen-admin-student-add" class="screen">
+  <header>
+    <h1>🆕 新規生徒の追加</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminSystemHub()">← システム系に戻る</button>
+
+    <div class="form-card">
+      <h2>新規生徒の情報</h2>
+      <div class="sa-lead">
+        この画面では<strong>登録だけ</strong>を行います。ログイン関連の設定（合言葉・暗証番号・初回キー）は
+        <strong>「ログイン認証（設定、アラート）」</strong>の画面で行ってください。
+      </div>
+
+      <label>
+        <span class="form-label">生徒ID <span class="form-required">必須</span></span>
+        <input type="text" id="sa-code" maxlength="20" autocomplete="off" placeholder="例：26001" />
+        <span class="form-hint">既存の生徒IDと重複しない番号を入力してください。</span>
+      </label>
+
+      <label>
+        <span class="form-label">氏名 <span class="form-required">必須</span></span>
+        <input type="text" id="sa-name" maxlength="30" autocomplete="off" placeholder="例：春日部太郎" />
+      </label>
+
+      <label>
+        <span class="form-label">学年</span>
+        <select id="sa-grade"></select>
+      </label>
+
+      <label>
+        <span class="form-label">会員区分</span>
+        <select id="sa-membership"></select>
+      </label>
+
+      <label>
+        <span class="form-label">アカウント種別</span>
+        <select id="sa-account" onchange="_saOnAccountTypeChange()"></select>
+        <span class="form-hint" id="sa-account-hint"></span>
+      </label>
+
+      <label>
+        <span class="form-label">在籍状況</span>
+        <select id="sa-enrollment"></select>
+      </label>
+
+      <details class="sa-cols">
+        <summary>保存先の列（確認用）</summary>
+        <div id="sa-cols-body">⏳ 読み込み中...</div>
+      </details>
+    </div>
+
+    <button class="submit-btn" id="sa-submit" style="margin-top:18px;background:linear-gradient(135deg,#22c55e,#16a34a)" onclick="submitStudentAdd()">✅ 登録する</button>
+    <div id="sa-msg" class="sa-msg"></div>
+    <div id="sa-guide" class="sa-guide" style="display:none"></div>
+  </div>
+</div>
+
 <div id="screen-admin-grid" class="screen">
   <header>
     <h1>🗂️ シート（データ直接編集）</h1>
@@ -1919,7 +2007,6 @@
       <button type="button" class="submit-btn" onclick="gridReload()">🔄 再読み込み</button>
       <button type="button" class="submit-btn grid-btn-save" onclick="gridSave()">💾 保存</button>
       <button type="button" class="submit-btn grid-btn-undo" id="grid-undo-btn" onclick="gridUndo()" disabled>↶ 元に戻す</button>
-      <button type="button" class="submit-btn grid-btn-add" onclick="gridAddRow()">＋ 行を追加</button>
       <span class="grid-msg" id="grid-msg"></span>
     </div>
 
@@ -6092,6 +6179,257 @@
     }).catch(function() {
       showToast('通信エラーが発生しました', 'error');
     });
+  }
+
+  // =============================================================
+  // 新規生徒の追加（2026-08-23 新設、admin専用）
+  //   ★この画面は「登録」だけ。ログイン関連の設定は既存の
+  //     「ログイン認証（設定、アラート）」画面のまま。
+  //   ★送り先：account_type === 'student' → adminGridAddStudent
+  //             それ以外                   → adminGridAddSpecialAccount
+  //     （どちらもシート画面が使っている既存アクション。サーバー側の新設は不要）
+  //   ★保存先の列名はシートごとにサーバーが持っているため、推測せず
+  //     adminGridRead{Students,SpecialAccounts} の columns から解決する。
+  //     解決できない項目があれば送信せずに止める（誤った列に書かない）。
+  // =============================================================
+
+  // プルダウン（表示は日本語 / 送るのは英字の値）。
+  // ★学年は実データの表記と完全一致させること（表記が混ざると集計が壊れる）。
+  var SA_GRADES = ['小1','小2','小3','小4','小5','小6','中1','中2','中3','高1','高2','高3','高卒'];
+  var SA_MEMBERSHIP = [
+    { label: '塾生',     value: 'juku' },
+    { label: '外部会員', value: 'external' }
+  ];
+  var SA_ACCOUNT = [
+    { label: '生徒',     value: 'student' },
+    { label: 'テスト用', value: 'test' },
+    { label: '講師',     value: 'teacher' },
+    { label: '招待',     value: 'invited' },
+    { label: '体験',     value: 'experience' }
+  ];
+  var SA_ENROLLMENT = [
+    { label: '在籍中', value: 'enrolled' },
+    { label: '卒業',   value: 'graduated' },
+    { label: '退塾',   value: 'withdrawn' },
+    { label: '休塾',   value: 'suspended' }
+  ];
+
+  // 画面の入力欄 → シート列の対応づけルール。
+  //   exact  : 列名がこれと一致すれば確定（塾長から提示された列名）
+  //   enumHas: 列メタの enum にこの値が含まれれば確定（サーバーの申告が根拠なので最も確実）
+  //   test   : 列名の形での判定（上2つで決まらなかったときの保険）
+  var SA_FIELDS = [
+    { id: 'code',  label: '生徒ID', el: 'sa-code',
+      test: function(k){ return /(code|コード|生徒id|student_?id)/i.test(k) && !/line|parent|guardian|teacher|zip/i.test(k); } },
+    { id: 'name',  label: '氏名', el: 'sa-name',
+      test: function(k){ return /(name|氏名|名前)/i.test(k) && !/nick|display|parent|guardian|teacher|file/i.test(k); } },
+    { id: 'grade', label: '学年', el: 'sa-grade', enumHas: '中1',
+      test: function(k){ return /(grade|学年)/i.test(k); } },
+    { id: 'membership_type',   label: '会員区分',       el: 'sa-membership', exact: 'membership_type',   enumHas: 'juku' },
+    { id: 'account_type',      label: 'アカウント種別', el: 'sa-account',    exact: 'account_type',      enumHas: 'student' },
+    { id: 'enrollment_status', label: '在籍状況',       el: 'sa-enrollment', exact: 'enrollment_status', enumHas: 'enrolled' }
+  ];
+
+  var _saCols = {};        // sheetKey('students'|'special') → { map:{fieldId:colKey}, missing:[label], loaded:bool }
+  var _saBusy = false;
+
+  function _saFillSelect(id, items) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = items.map(function(it) {
+      var v = (typeof it === 'string') ? it : it.value;
+      var l = (typeof it === 'string') ? it : it.label;
+      return '<option value="' + _esc(v) + '">' + _esc(l) + '</option>';
+    }).join('');
+  }
+  function _saMsg(text, kind) {
+    var el = document.getElementById('sa-msg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'sa-msg' + (kind ? ' ' + kind : '');
+  }
+  function _saTargetSheet() {
+    var el = document.getElementById('sa-account');
+    return (el && el.value === 'student') ? 'students' : 'special';
+  }
+  function goAdminStudentAdd() {
+    _showScreen('screen-admin-student-add');
+    window.scrollTo(0, 0);
+    _saFillSelect('sa-grade', SA_GRADES);
+    _saFillSelect('sa-membership', SA_MEMBERSHIP);
+    _saFillSelect('sa-account', SA_ACCOUNT);
+    _saFillSelect('sa-enrollment', SA_ENROLLMENT);
+    // 既定値：会員区分=塾生 / アカウント種別=生徒 / 在籍状況=在籍中
+    document.getElementById('sa-membership').value = 'juku';
+    document.getElementById('sa-account').value    = 'student';
+    document.getElementById('sa-enrollment').value = 'enrolled';
+    document.getElementById('sa-code').value = '';
+    document.getElementById('sa-name').value = '';
+    _saMsg('');
+    var g = document.getElementById('sa-guide'); if (g) { g.style.display = 'none'; g.innerHTML = ''; }
+    _saOnAccountTypeChange();
+  }
+  function _saOnAccountTypeChange() {
+    var sheet = _saTargetSheet();
+    var hint = document.getElementById('sa-account-hint');
+    if (hint) {
+      hint.textContent = (sheet === 'students')
+        ? '「生徒」を選ぶと Students シートに登録します。'
+        : '「生徒」以外を選ぶと SpecialAccounts シートに登録します。';
+    }
+    _saLoadColumns(sheet);
+  }
+  // 保存先シートの列名をサーバーから取得して対応づける（1シートにつき1回だけ）。
+  function _saLoadColumns(sheet) {
+    var box = document.getElementById('sa-cols-body');
+    if (_saCols[sheet]) { _saRenderCols(sheet); return Promise.resolve(_saCols[sheet]); }
+    if (box) box.textContent = '⏳ 読み込み中...';
+    var cfg = GRID_TABS[sheet];
+    return adminGasGet({ action: cfg.readAction, _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '列の取得に失敗しました';
+        if (_handleAdminApiError(em)) return null;
+        if (box) box.textContent = em;
+        return null;
+      }
+      _saCols[sheet] = _saResolve(res);
+      _saRenderCols(sheet);
+      return _saCols[sheet];
+    }).catch(function() {
+      if (box) box.textContent = '通信エラーが発生しました';
+      return null;
+    });
+  }
+  // columns（{列名:{enum,...}} / 配列 / 文字列配列）から、画面の6項目に対応する列名を決める。
+  function _saResolve(res) {
+    var raw = res.columns || res.cols || {};
+    var cols = [];   // [{ key, enums }]
+    if (Array.isArray(raw)) {
+      cols = raw.map(function(c) {
+        if (typeof c === 'string') return { key: c, enums: [] };
+        var e = c.enum || c.options || c.values;
+        return { key: (c.key || c.field || c.name || c.id || ''), enums: Array.isArray(e) ? e : [] };
+      });
+    } else if (raw && typeof raw === 'object') {
+      cols = Object.keys(raw).map(function(k) {
+        var meta = (raw[k] && typeof raw[k] === 'object') ? raw[k] : {};
+        var e = meta.enum || meta.options || meta.values;
+        return { key: k, enums: Array.isArray(e) ? e : [] };
+      });
+    }
+    var map = {}, missing = [], used = {};
+    SA_FIELDS.forEach(function(f) {
+      var hit = '';
+      // ① 列名が完全一致（塾長から提示された列名）
+      if (!hit && f.exact) {
+        for (var i = 0; i < cols.length; i++) { if (cols[i].key === f.exact) { hit = cols[i].key; break; } }
+      }
+      // ② 列メタの enum に既定値が含まれる（サーバーの申告が根拠なので最も確実）
+      if (!hit && f.enumHas) {
+        for (var j = 0; j < cols.length; j++) {
+          if (used[cols[j].key]) continue;
+          if (cols[j].enums.indexOf(f.enumHas) >= 0) { hit = cols[j].key; break; }
+        }
+      }
+      // ③ 列名の形で判定（保険）
+      if (!hit && f.test) {
+        for (var k = 0; k < cols.length; k++) {
+          if (used[cols[k].key]) continue;
+          if (f.test(cols[k].key)) { hit = cols[k].key; break; }
+        }
+      }
+      if (hit) { map[f.id] = hit; used[hit] = true; }
+      else { missing.push(f.label); }
+    });
+    return { map: map, missing: missing, total: cols.length, loaded: true };
+  }
+  function _saRenderCols(sheet) {
+    var box = document.getElementById('sa-cols-body');
+    if (!box) return;
+    var info = _saCols[sheet];
+    if (!info) { box.textContent = '未取得'; return; }
+    var rows = SA_FIELDS.map(function(f) {
+      var k = info.map[f.id];
+      return '<div class="sa-col-row">' + _esc(f.label) + ' → ' +
+             (k ? '<code>' + _esc(k) + '</code>' : '<span class="sa-col-ng">見つかりません</span>') + '</div>';
+    }).join('');
+    var head = '<div class="sa-col-head">' + _esc(GRID_TABS[sheet].label) + ' シートの列に、次のように保存します。</div>';
+    var warn = info.missing.length
+      ? '<div class="sa-col-warn">⚠️ ' + _esc(info.missing.join('・')) + ' に対応する列が見つかりません。このままでは登録できません。</div>'
+      : '';
+    box.innerHTML = head + rows + warn;
+    var btn = document.getElementById('sa-submit');
+    if (btn) btn.disabled = info.missing.length > 0;
+  }
+  function submitStudentAdd() {
+    if (_saBusy) return;
+    var code = (document.getElementById('sa-code').value || '').trim();
+    var name = (document.getElementById('sa-name').value || '').trim();
+    if (!code) { _saMsg('生徒IDを入力してください。', 'ng'); document.getElementById('sa-code').focus(); return; }
+    if (!name) { _saMsg('氏名を入力してください。', 'ng'); document.getElementById('sa-name').focus(); return; }
+    var sheet = _saTargetSheet();
+    _saMsg('⏳ 準備中...', '');
+    Promise.resolve(_saCols[sheet] || _saLoadColumns(sheet)).then(function(info) {
+      info = info || _saCols[sheet];
+      if (!info) { _saMsg('保存先の列を取得できませんでした。少し待ってからもう一度お試しください。', 'ng'); return; }
+      if (info.missing.length) {
+        _saMsg('保存先の列が特定できないため登録できません（' + info.missing.join('・') + '）。「保存先の列（確認用）」をご確認ください。', 'ng');
+        return;
+      }
+      var vals = {
+        code: code,
+        name: name,
+        grade: document.getElementById('sa-grade').value,
+        membership_type: document.getElementById('sa-membership').value,
+        account_type: document.getElementById('sa-account').value,
+        enrollment_status: document.getElementById('sa-enrollment').value
+      };
+      var row = {};
+      SA_FIELDS.forEach(function(f) { row[info.map[f.id]] = vals[f.id]; });
+      var sheetLabel = GRID_TABS[sheet].label;
+      if (!confirm(name + '（' + code + '）を ' + sheetLabel + ' に登録します。よろしいですか？')) { _saMsg(''); return; }
+      _saBusy = true;
+      var btn = document.getElementById('sa-submit');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 登録中...'; }
+      _saMsg('⏳ 登録中...', '');
+      adminGasPost({ action: GRID_TABS[sheet].addAction, row: row }).then(function(res) {
+        _saBusy = false;
+        if (btn) { btn.disabled = false; btn.textContent = '✅ 登録する'; }
+        if (res && res.errorCode === 'DUPLICATE_CODE') {
+          _saMsg('⚠️ 生徒ID「' + code + '」はすでに使われています。別の生徒IDを入力してください（登録済みかどうかは「シート（データ直接編集）」で確認できます）。', 'ng');
+          document.getElementById('sa-code').focus();
+          return;
+        }
+        if (!res || !res.ok) {
+          var em = (res && res.message) ? res.message : '登録に失敗しました';
+          if (_handleAdminApiError(em)) return;
+          _saMsg(em, 'ng');
+          return;
+        }
+        _saMsg('');
+        _saShowGuide(name, code, sheetLabel);
+        document.getElementById('sa-code').value = '';
+        document.getElementById('sa-name').value = '';
+      }).catch(function() {
+        _saBusy = false;
+        if (btn) { btn.disabled = false; btn.textContent = '✅ 登録する'; }
+        _saMsg('通信エラーが発生しました。', 'ng');
+      });
+    });
+  }
+  // ★登録後の案内：登録しただけではログインできないことを塾長に必ず伝える。
+  function _saShowGuide(name, code, sheetLabel) {
+    var g = document.getElementById('sa-guide');
+    if (!g) return;
+    g.innerHTML =
+      '<div class="sa-guide-head">✅ ' + _esc(name) + '（' + _esc(code) + '）を ' + _esc(sheetLabel) + ' に登録しました。</div>' +
+      '<div class="sa-guide-body">' +
+        '<strong>登録しただけでは、この生徒はまだログインできません。</strong><br>' +
+        '「ログイン認証（設定、アラート）」の画面を開き、<strong>初回キーの発行</strong>から進めてください。' +
+      '</div>' +
+      '<button type="button" class="submit-btn sa-guide-btn" onclick="goAdminAuthAlerts()">🔑 ログイン認証（設定、アラート）へ進む</button>';
+    g.style.display = '';
+    try { g.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
   }
 
   // =============================================================
@@ -15007,7 +15345,7 @@
   var GRID_TABS = {
     students: { key:'students', label:'Students',        readAction:'adminGridReadStudents',        upsertAction:'adminGridUpsertStudents',        addAction:'adminGridAddStudent',        editable:true, pinCount:2 },
     special:  { key:'special',  label:'SpecialAccounts', readAction:'adminGridReadSpecialAccounts', upsertAction:'adminGridUpsertSpecialAccounts', addAction:'adminGridAddSpecialAccount', editable:true, pinCount:2 },
-    teachers: { key:'teachers', label:'Teachers',        readAction:'adminGridReadTeachers',        upsertAction:'adminGridUpsertTeachers',        addAction:'adminAddTeacher', teacherAdd:true, editable:true, pinCount:2 },
+    teachers: { key:'teachers', label:'Teachers',        readAction:'adminGridReadTeachers',        upsertAction:'adminGridUpsertTeachers',        editable:true, pinCount:2 },
     hplog:    { key:'hplog',    label:'HPLog',           readAction:'adminGridReadHpLog',           editable:false }
   };
   var _grid = {
@@ -15035,7 +15373,6 @@
   function _gridCellEl(r, c){ var w = document.getElementById('grid-table-wrap'); return w ? w.querySelector('td.grid-td[data-r="' + r + '"][data-c="' + c + '"]') : null; }
   function _gridSetMsg(txt, kind){ var el = document.getElementById('grid-msg'); if (!el) return; el.textContent = txt; el.className = 'grid-msg' + (kind ? (' ' + kind) : ''); }
   function _gridDisplayVal(r, c){ var col = _grid.columns[c], m = _grid.rows[r]; if (!col || !m) return ''; var v = _gridGet(m.data, col, c); return v == null ? '' : String(v); }
-  function _gridFirstCodeCol(){ for (var i = 0; i < _grid.columns.length; i++){ if (/code|コード/i.test(_gcKey(_grid.columns[i]))) return i; } return 0; }
   function _modelHasChange(m){ return Object.keys(m.changed).length > 0; }
   function _gridHasChanges(){ return _grid.rows.some(function(m){ return m.isNew || _modelHasChange(m); }); }
   function _gridClearErrCells(){ var w = document.getElementById('grid-table-wrap'); if (w) w.querySelectorAll('td.grid-err').forEach(function(td){ td.classList.remove('grid-err'); td.removeAttribute('title'); }); }
@@ -15371,21 +15708,6 @@
     td.classList.add('grid-changed');
   }
 
-  // ---- 行追加 ----
-  function gridAddRow(){
-    if (!_grid.cfg || !_grid.cfg.editable) return;
-    if (!_grid.columns.length){ showToast('先に読み込んでください', 'error'); return; }
-    var data; if (_grid.rowsAreArray){ data = _grid.columns.map(function(){ return ''; }); }
-    else { data = {}; _grid.columns.forEach(function(col){ data[_gcKey(col)] = ''; }); }
-    _grid.rows.push({ data: data, changed: {}, isNew: true });
-    _gridRenderTable();
-    var rIdx = _grid.rows.length - 1, fc = 0;
-    for (var c = 0; c < _grid.columns.length; c++){ if (_gcEditable(_grid.columns[c])){ fc = c; break; } }
-    _gridFocusCell(rIdx, fc, false);
-    var wrap = document.getElementById('grid-table-wrap'); if (wrap) wrap.scrollTop = wrap.scrollHeight;
-    _gridSetMsg('新規行を追加しました。入力して「💾 保存」を押してください', '');
-  }
-
   // ---- マスク列の形式検証 ----
   function _gridValidateMasked(){
     var bad = [], re = /^U[0-9a-f]{32}$/i;
@@ -15456,59 +15778,18 @@
     var bad = _gridValidateMasked();
     if (bad.length){ _gridClearErrCells(); bad.forEach(function(b){ _gridMarkErr(b.r, b.c, 'LINE IDは U＋英数字32桁で入力してください'); }); _gridSetMsg('LINE IDの形式エラー ' + bad.length + ' 件', 'ng'); alert('LINE ID（U＋32桁）の形式が正しくない箇所があります（赤枠）。修正してから保存してください。'); return; }
     _gridClearErrCells();
-    var newRows = _grid.rows.filter(function(m){ return m.isNew; });
-    var changed = _grid.rows.filter(function(m){ return !m.isNew && _modelHasChange(m); });
-    if (!newRows.length && !changed.length){ _gridSetMsg('変更はありません', ''); return; }
+    // ★行追加は廃止（2026-08-23）。新規登録は「新規生徒の追加」画面で行う。
+    //   ここでは既存行の更新（upsert）のみを扱う。
+    var changed = _grid.rows.filter(function(m){ return _modelHasChange(m); });
+    if (!changed.length){ _gridSetMsg('変更はありません', ''); return; }
     _gridSetMsg('保存中…', '');
-    _gridProcessAdds(newRows).then(function(addRes){
-      if (addRes.stopped){ _gridSetMsg('行追加を中断しました（' + addRes.reason + '）', 'ng'); return; }
-      var addedMsg = addRes.added ? ('追加 ' + addRes.added + ' 行 / ') : '';
-      if (!changed.length){ _gridSetMsg(addedMsg + '完了', addRes.added ? 'ok' : ''); if (addRes.added) gridReload(true); return; }
-      // ★送信直前の最終ガードで未編集マスク列/マスク値を確実に除外（サーバ形式検証での誤ロールバック防止）。
-      var payload = changed.map(function(m){ return _gridSanitizeSendRow(_gridClone(m.data), m); });
-      // クライアント側スナップショット（編集前 orig）。マスク列は実値を持たないため全除外（model=null）。UNDO 保険。
-      var clientSnaps = changed.map(function(m){ return _gridSanitizeSendRow(_gridClone(m.orig || m.data), null); });
-      _grid.lastSubmitted = { models: changed };
-      adminGasPost({ action: cfg.upsertAction, rows: payload }).then(function(res){ _gridHandleUpsertResp(res, changed, addedMsg, addRes.added > 0, clientSnaps); })
-        .catch(function(){ _gridSetMsg('通信エラー', 'ng'); });
-    });
-  }
-  function _gridPick(obj, keys){
-    for (var i = 0; i < keys.length; i++){ if (obj[keys[i]] != null && obj[keys[i]] !== '') return String(obj[keys[i]]); }
-    var lower = {}; Object.keys(obj || {}).forEach(function(k){ lower[k.toLowerCase()] = obj[k]; });
-    for (var j = 0; j < keys.length; j++){ var kk = keys[j].toLowerCase(); if (lower[kk] != null && lower[kk] !== '') return String(lower[kk]); }
-    return '';
-  }
-  function _gridProcessAdds(newRows){
-    var cfg = _grid.cfg, added = 0;
-    return newRows.reduce(function(chain, m){
-      return chain.then(function(state){
-        if (state.stopped) return state;
-        var p;
-        if (cfg.teacherAdd){
-          var d = m.data;
-          var name = _gridPick(d, ['teacherName', 'name', '氏名']);
-          var role = _gridPick(d, ['role', '役割']) || 'teacher';
-          var nick = _gridPick(d, ['displayNickname', 'nickname', '表示名']);
-          if (!name){ var riN = _grid.rows.indexOf(m); return { stopped: true, reason: (riN + 1) + '行目 講師の氏名が未入力', added: added }; }
-          p = adminGasPost({ action: 'adminAddTeacher', teacherName: name, role: role, displayNickname: nick });
-        } else {
-          p = adminGasPost({ action: cfg.addAction, row: _gridSanitizeSendRow(_gridClone(m.data), m) });
-        }
-        return p.then(function(res){
-          if (res && res.ok){ m.isNew = false; m.changed = {}; added++; return { stopped: false, added: added }; }
-          if (res && res.errorCode === 'DUPLICATE_CODE'){
-            var ri = _grid.rows.indexOf(m);
-            _gridMarkErr(ri, _gridFirstCodeCol(), 'コード重複');
-            alert('コードが重複しています（' + (ri + 1) + '行目）。別のコードにしてください。');
-            return { stopped: true, reason: (ri + 1) + '行目 コード重複', added: added };
-          }
-          var em = (res && res.message) || '行追加に失敗しました';
-          _handleAdminApiError(em);
-          return { stopped: true, reason: em, added: added };
-        });
-      });
-    }, Promise.resolve({ stopped: false, added: 0 }));
+    // ★送信直前の最終ガードで未編集マスク列/マスク値を確実に除外（サーバ形式検証での誤ロールバック防止）。
+    var payload = changed.map(function(m){ return _gridSanitizeSendRow(_gridClone(m.data), m); });
+    // クライアント側スナップショット（編集前 orig）。マスク列は実値を持たないため全除外（model=null）。UNDO 保険。
+    var clientSnaps = changed.map(function(m){ return _gridSanitizeSendRow(_gridClone(m.orig || m.data), null); });
+    _grid.lastSubmitted = { models: changed };
+    adminGasPost({ action: cfg.upsertAction, rows: payload }).then(function(res){ _gridHandleUpsertResp(res, changed, '', false, clientSnaps); })
+      .catch(function(){ _gridSetMsg('通信エラー', 'ng'); });
   }
   // 応答から snapshots を寛容に拾う（キー名ゆらぎに対応）。無ければ null。
   function _gridPickSnapshots(res){
@@ -15633,7 +15914,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2045</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2159</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
