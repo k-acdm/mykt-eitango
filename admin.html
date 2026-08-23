@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260822-0045"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260823-1840"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -408,6 +408,8 @@
   .hp-bd-hidden-head { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
   .hp-bd-hidden.forfeit .hp-bd-hidden-head { color: #92400e; }
   .hp-bd-hidden.pending .hp-bd-hidden-head { color: #1d4ed8; }
+  /* 没収は理由ごとに見出しを分けるため、2つ目以降の見出しの前に区切りを入れる（振り返り待ち側は見出し1つのため無影響） */
+  .hp-bd-hidden.forfeit .hp-bd-hidden-head ~ .hp-bd-hidden-head { margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(146,64,14,.3); }
   .hp-bd-hidden-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 5px 2px; border-bottom: 1px dashed rgba(0,0,0,.08); }
   .hp-bd-hidden-row .amt { font-weight: 700; white-space: nowrap; color: #374151; }
   .hp-bd-hidden-total { text-align: right; font-size: 14px; font-weight: 800; margin-top: 6px; }
@@ -8976,8 +8978,10 @@
       out += '<div class="hp-bd-late">★ この振り返りは ' + _esc(_reflMd(rt.submittedDate)) + ' に提出（締切超過）</div>';
     }
     // 表示1：内訳に出ていない学習（別枠）。releasedTotal は既に既存内訳に出ているので出さない。
+    //   ★hasHiddenLearning は pending||forfeited の OR で、過去日はほぼ常に true になる。
+    //   　そのため出し分けの根拠にしない。実際の根拠は各ブロックの「項目あり かつ 合計>0」だけ。
     var rd = res.reservedDetail;
-    if (rd && rd.hasHiddenLearning) {
+    if (rd) {
       var f = rd.forfeited;
       if (f && Array.isArray(f.items) && f.items.length && Number(f.total) > 0) {
         out += _renderHiddenBlock('forfeit', f.items, Number(f.total));
@@ -8994,24 +8998,66 @@
     }
     return out;
   }
-  // 期限切れ没収 / 振り返り待ち の別枠ブロック（項目＋額＋合計＋説明文）。合計は既存内訳に混ぜない。
-  function _renderHiddenBlock(kind, items, total) {
-    var isForfeit = (kind === 'forfeit');
-    var heading = isForfeit ? '⏰ 期限切れ（振り返り未提出）' : '⏳ 振り返り待ち';
-    // ★要点：「やっていないのではなく、振り返りが出ていないのでHPになっていない」を一目で。
-    var note = isForfeit
-      ? '※ 学習は実施済みですが、振り返りが締切までに出なかったため HP になっていません（没収済み）。'
-      : '※ 学習は実施済みで、まだ失っていません。振り返りを書けば HP になります。';
-    var rows = (items || []).map(function(it) {
-      var nm = _esc((it && it.name) ? it.name : (it && it.key) || '');
-      var hp = Number((it && it.hp) || 0);
-      return '<div class="hp-bd-hidden-row"><span class="hp-bd-label">' + nm + '</span><span class="amt">' + hp + ' HP</span></div>';
+  // ★没収の理由（forfeited.items[].reasonLabel）→ 見出し・説明文。
+  //   ★未知のラベル（将来 required_mission_exempted 等が増えた場合）と、
+  //   　reasonLabel が無い旧応答は _FORFEIT_REASON_DEFAULT にフォールバックする。
+  var _FORFEIT_REASON_MAP = {
+    required_mission: {
+      head: '🎯 絶対ミッション未達のため 40% を没収',
+      note: '※ 学習は実施済みです。絶対ミッションが未達だったため、保留されていた 40% が没収されました（振り返りの未提出とは別の理由です）。'
+    },
+    reflection_missing: {
+      head: '⏰ 振り返り未提出のため没収',
+      note: '※ 学習は実施済みですが、振り返りが提出されなかったため HP になっていません（没収済み）。'
+    },
+    reflection_late: {
+      head: '⏰ 締切（翌 04:00）に間に合わず没収',
+      note: '※ 学習も振り返りも実施済みですが、提出が締切（翌 04:00）に間に合わなかったため没収されました。'
+    }
+  };
+  var _FORFEIT_REASON_DEFAULT = {
+    head: '⏰ 没収',
+    note: '※ 学習は実施済みですが、HP になっていません（没収済み）。'
+  };
+  // 項目1行（名称＋額）。没収側・振り返り待ち側で共通。
+  function _hiddenRow(it) {
+    var nm = _esc((it && it.name) ? it.name : (it && it.key) || '');
+    var hp = Number((it && it.hp) || 0);
+    return '<div class="hp-bd-hidden-row"><span class="hp-bd-label">' + nm + '</span><span class="amt">' + hp + ' HP</span></div>';
+  }
+  // ★没収ブロック：理由（reasonLabel）ごとに見出しと説明文を出し分ける。
+  //   ・グループ分けは表示のみ。★額・件数には一切触れない
+  //   （項目は1つも間引かず、合計は常にサーバーの total をそのまま出す）。
+  //   ・未知のラベルと reasonLabel 無しは、既定の見出しの1グループにまとめる。
+  //   ・グループの順はサーバーから届いた順（初出順）を維持する。
+  function _renderForfeitBlock(items, total) {
+    var order = [], groups = {};
+    (items || []).forEach(function(it) {
+      var raw = (it && it.reasonLabel) ? String(it.reasonLabel) : '';
+      var key = _FORFEIT_REASON_MAP[raw] ? raw : '_default';
+      if (!groups[key]) { groups[key] = []; order.push(key); }
+      groups[key].push(it);
+    });
+    var body = order.map(function(key) {
+      var meta = _FORFEIT_REASON_MAP[key] || _FORFEIT_REASON_DEFAULT;
+      return '<div class="hp-bd-hidden-head">' + meta.head + '</div>' +
+             '<div class="hp-bd-hidden-note">' + meta.note + '</div>' +
+             groups[key].map(_hiddenRow).join('');
     }).join('');
-    return '<div class="hp-bd-hidden ' + (isForfeit ? 'forfeit' : 'pending') + '">' +
-             '<div class="hp-bd-hidden-head">' + heading + '</div>' +
-             rows +
+    return '<div class="hp-bd-hidden forfeit">' + body +
              '<div class="hp-bd-hidden-total">計 ' + Number(total || 0) + ' HP</div>' +
-             '<div class="hp-bd-hidden-note">' + note + '</div>' +
+           '</div>';
+  }
+  // 没収（⏰）/ 振り返り待ち（⏳）の別枠ブロック。合計は既存内訳に混ぜない。
+  function _renderHiddenBlock(kind, items, total) {
+    // ★没収側は理由ごとに見出しを出し分けるため委譲する。
+    if (kind === 'forfeit') return _renderForfeitBlock(items, total);
+    // ⏳ 振り返り待ち（従来どおり／変更なし）。
+    return '<div class="hp-bd-hidden pending">' +
+             '<div class="hp-bd-hidden-head">⏳ 振り返り待ち</div>' +
+             (items || []).map(_hiddenRow).join('') +
+             '<div class="hp-bd-hidden-total">計 ' + Number(total || 0) + ' HP</div>' +
+             '<div class="hp-bd-hidden-note">※ 学習は実施済みで、まだ失っていません。振り返りを書けば HP になります。</div>' +
            '</div>';
   }
   // その日（当時）の週数・倍率。連続日数は confirmed 値が無いため、範囲があれば「推定」表記、無ければ非表示。
@@ -15390,7 +15436,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260822-0045</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-1840</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
