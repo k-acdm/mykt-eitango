@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260823-2355"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260824-0446"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -9872,12 +9872,26 @@
       var aiRaw = (p && (p.isAi !== undefined ? p.isAi : p.is_ai));
       var isAi = (aiRaw === true || aiRaw === 1 || aiRaw === '1' || aiRaw === 'true');
       var aiBadge = isAi ? '<span class="reply-item-ai">🤖 AI</span>' : '';
+      // 2026-08-24：AI返信はサーバーが本文の末尾に免責文を連結しているため、表示前に剥がす。
+      //   ★作法は生徒画面（index.html の _reflRepliesHtml / _reflAiCommentHtml）をそのまま写す：
+      //     目印 'マイカツ君はAI' より前を本文とし、末尾の空白・改行を落とす。
+      //     ★目印が見つからないときは本文をそのまま出す（サーバー文言が変わっても壊れない＝安全側）。
+      //     ★目印が先頭（idx===0）なら本文は空になる。
+      //   ★剥がすのは AI返信だけ。講師のコメントには免責が無いので一切触らない。
+      //   ★管理画面では免責の帯は出さない（🤖AI バッジで判別でき、全件同一文言のため本文が読みにくくなる）。
+      var rawBody = String(p.content == null ? '' : p.content);
+      var body = rawBody;
+      if (isAi) {
+        var exIdx = rawBody.indexOf('マイカツ君はAI');
+        if (exIdx > 0)        body = rawBody.substring(0, exIdx).replace(/\s+$/, '');
+        else if (exIdx === 0) body = '';
+      }
       return '<div class="reply-item' + (isAi ? ' is-ai' : '') + '">' +
                '<div class="reply-item-head">' +
                  '<span class="reply-item-sender">' + _esc(p.senderNickname || '先生') + aiBadge + '</span>' +
                  '<span class="reply-item-time">' + _esc(tsShort) + '</span>' +
                '</div>' +
-               '<div class="reply-item-body">' + _esc(p.content || '') + '</div>' +
+               '<div class="reply-item-body">' + _esc(body) + '</div>' +
              '</div>';
     }).join('');
     return '<div class="reply-thread-title">💬 返信スレッド（' + replies.length + '件）</div>' + items;
@@ -15798,7 +15812,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260823-2355</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260824-0446</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
