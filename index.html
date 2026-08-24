@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260824-0519"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260824-2316"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260824-0519">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260824-0519"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260824-2316">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260824-2316"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7965,7 +7965,6 @@
       if (res.needsPin)   { showMsg('login-msg','',''); _openPinEntry(sid);     return; }   // set_up     → 暗証番号入力画面
       if (!res.ok) { showMsg('login-msg', res.message, 'ng'); return; }
       _studentId   = res.studentId;
-      try { _applyServerSettings(res); } catch(e){}   // 2026-08-23：サーバーの設定を取り込む（null は触らない）
       // 2026-08-20：実施時間ペナルティの通知（AWS b7b3c2c）。★9/1 発動、それまでは常に空配列。
       //   ここでは保管だけして、ホーム画面が出てから知らせる（ログイン処理は止めない）。
       try { _studyPenaltyNotices = (res.studyPenaltyNotices || res.study_penalty_notices || []); } catch(e){ _studyPenaltyNotices = []; }
@@ -7982,6 +7981,10 @@
         } catch(e){}
         _saveSessionToken(res);   // F3段階2：legacy 生徒のログイン応答 sessionToken を保持（後続に token 併送）
       }
+      // ★2026-08-24：設定の取り込みは _saveSessionToken の後で行う。
+      //   ここで走る初回移行の saveStudentSettings が gasPost の token 自動併送に乗るため
+      //   （順序が逆だとトークン保存前に送られ、併送されない）。
+      try { _applyServerSettings(res); } catch(e){}   // サーバーの設定を取り込む（null は触らない）
       _lastServerOkTs = Date.now();  // 防護柵2枚目：サーバー成功時刻を記録（復帰再検証のスロットル用）
       // 応急処置①：期待版数より古いクライアントなら強制更新（セッション保存後・以降の処理前）。
       //   セッション sid は保存済みなので、リロード後は自動復元→再検証で seamless に復帰する。
@@ -8132,7 +8135,6 @@
   function _finishStudentLogin(res) {
     res = res || {};
     _studentId = res.studentId;
-    try { _applyServerSettings(res); } catch(e){}   // 2026-08-23：サーバーの設定を取り込む（null は触らない）
     _beginStudySession();   // 第4群B：実施時間タイマー開始（二重開始ガードあり）
     if (_loginRole !== 'parent') {
       try {
@@ -8142,6 +8144,8 @@
       } catch(e){}
       _saveSessionToken(res);   // F3段階2：pin/setup/reset 経路（最終 res は loginStudent 応答）の sessionToken を保持
     }
+    // ★2026-08-24：doLogin と同じ理由で _saveSessionToken の後に移動（token 併送のため）。
+    try { _applyServerSettings(res); } catch(e){}   // サーバーの設定を取り込む（null は触らない）
     _lastServerOkTs = Date.now();
     if (_maybeForceClientUpdate(res.expectedClientVersion)) return;   // 古い版 → リロード開始、以降中断
     try { _reportUnsentOnLogin(); } catch(e){}
@@ -22649,7 +22653,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260824-0519</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260824-2316</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
