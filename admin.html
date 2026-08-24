@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260824-2316"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260825-0519"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -3818,6 +3818,22 @@
     <button class="submit-btn" style="margin-bottom:14px" onclick="loadUnsentReports(true)">🔄 最新データ取得</button>
     <div id="unsent-reports-summary" class="hp-attempts-summary"></div>
     <div id="unsent-reports-body"><div class="hp-attempts-empty">⏳ 読み込み中...</div></div>
+
+      <!-- 2026-08-25 純追加：写真送信不具合のお詫びHP（自動付与分）の一覧。
+           ★新画面は作らず、同じ「未送信の検知」画面に節として足す（CSS 登録漏れ事故の回避）。
+           ★見た目は既存の hp-attempts-* / me-adm-* をそのまま流用。新しい CSS は足していない。 -->
+      <div style="margin-top:26px;border-top:2px dashed #e5e7eb;padding-top:18px">
+        <h2 style="font-size:16px;color:#92400e;margin:0 0 10px">🙏 写真送信不具合のお詫びHP（自動付与）</h2>
+        <div class="page-lead">
+          写真が<strong>サーバーに届いたのに保存に失敗した</strong>ときに、<strong>1件につき 1,000HP</strong> を自動で出した記録です。
+          倍率はかからず<strong>予約</strong>に乗ります（振り返りを出すと解放されます）。<br>
+          ★生徒が特定できなかったものは <span class="hp-attempts-badge-failed">生徒不明</span> と出ます。
+          中身を確かめてから 1 件ずつ承認／却下してください（<strong>一括承認はありません</strong>）。
+        </div>
+        <button class="submit-btn" style="margin-bottom:14px" onclick="loadApologyGranted(true)">🔄 最新データ取得</button>
+        <div id="apology-granted-summary" class="hp-attempts-summary"></div>
+        <div id="apology-granted-body"><div class="hp-attempts-empty">⏳ 読み込み中...</div></div>
+      </div>
   </div>
 </div>
 
@@ -6521,8 +6537,116 @@
     _showScreen('screen-admin-unsent-reports');
     window.scrollTo(0, 0);
     loadUnsentReports(false);
+    loadApologyGranted(false);   // 2026-08-25 純追加：お詫びHP（自動付与）の一覧
   }
   var _unsentReportsLoaded = false;
+
+  // ===== 2026-08-25 純追加：写真送信不具合のお詫びHP（自動付与分）=====
+  //   ★adminListApologyCandidates を status=granted で呼ぶ。
+  //   ★応答の配列名・各フィールド名は _meAdmList / _mePick で吸収する
+  //     （2026-08-23 の絶対ミッション解除の承認画面と同じ作法。サーバー命名が違っても壊れない）。
+  //   ★studentId が空＝生徒が特定できていない行だけ承認／却下を出す（canApprove があればそちらを優先）。
+  //   ★一括承認は用意しない（誤って全件に出す事故を避けるため）。
+  var _apologyGrantedLoaded = false;
+  var _apologyRows = [];
+
+  function loadApologyGranted(force) {
+    var body  = document.getElementById('apology-granted-body');
+    var sumEl = document.getElementById('apology-granted-summary');
+    if (!force && _apologyGrantedLoaded) return;   // 再入場では再取得しない（🔄 で明示取得）
+    if (body) body.innerHTML = '<div class="hp-attempts-empty">⏳ 読み込み中...</div>';
+    if (sumEl) sumEl.innerHTML = '';
+    adminGasGet({ action: 'adminListApologyCandidates', status: 'granted', limit: 200, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) {
+        var em = (res && res.message) || '取得に失敗しました';
+        if (body) body.innerHTML = '<div class="hp-attempts-empty">⚠️ ' + _esc(em) + '</div>';
+        if (_handleAdminApiError(em)) return;
+        return;
+      }
+      _apologyGrantedLoaded = true;
+      _apologyRows = _meAdmList(res);
+      if (sumEl) sumEl.innerHTML = '自動で出した分 <strong>' + _apologyRows.length + '</strong> 件';
+      if (!_apologyRows.length) {
+        if (body) body.innerHTML = '<div class="hp-attempts-empty">お詫びHPの記録はまだありません（＝写真の保存失敗は起きていません）。</div>';
+        return;
+      }
+      if (body) body.innerHTML = _renderApologyRows(_apologyRows);
+    }).catch(function(err){
+      if (body) body.innerHTML = '<div class="hp-attempts-empty">⚠️ 通信エラー：' + _esc(String(err && err.message || err)) + '</div>';
+    });
+  }
+
+  function _renderApologyRows(rows) {
+    var trs = rows.map(function(r, i) {
+      var sid   = String(_mePick(r, 'studentId', 'sid', 'student_id') || '');
+      var name  = String(_mePick(r, 'studentName', 'name', 'nickname', 'student_name') || '');
+      var cname = String(_mePick(r, 'contentName', 'content_name', 'contentType', 'content', 'type') || '');
+      var when  = String(_mePick(r, 'occurredAt', 'occurred_at', 'failedAt', 'failed_at', 'timestamp') || '').replace('T', ' ').slice(0, 16);
+      var why   = String(_mePick(r, 'reason', 'label', 'note', 'message') || '');
+      var st    = _meAdmStatus(r);
+      var hp    = Number(_mePick(r, 'hp', 'hpGranted', 'grantedHp', 'granted_hp', 'amount') || 0);
+      var who = sid
+        ? (_esc(name || '') + '（' + _esc(sid) + '）')
+        : '<span class="hp-attempts-badge-failed">生徒不明</span>' + (name ? ' ' + _esc(name) : '');
+      // canApprove が来ていればそれに従う。無ければ「studentId が空」を条件にする。
+      var canRaw = (r && (r.canApprove !== undefined ? r.canApprove : r.can_approve));
+      var canApprove = (canRaw !== undefined && canRaw !== null && canRaw !== '')
+        ? (canRaw === true || canRaw === 1 || canRaw === '1' || canRaw === 'true')
+        : (sid === '');
+      var acts = canApprove
+        ? '<button type="button" class="me-adm-btn approve" onclick="decideApologyCandidate(' + i + ',&quot;approve&quot;)">承認する</button>' +
+          '<button type="button" class="me-adm-btn reject" onclick="decideApologyCandidate(' + i + ',&quot;reject&quot;)">却下する</button>'
+        : '<span class="me-adm-sub">—</span>';
+      return '<tr>' +
+               '<td>' + who + '</td>' +
+               '<td>' + (cname ? _esc(cname) : '—') + '</td>' +
+               '<td style="white-space:nowrap">' + (when ? _esc(when) : '—') + '</td>' +
+               '<td>' + (why ? _esc(why) : '—') + '</td>' +
+               '<td style="text-align:center">' + (st ? _esc(st) : '—') + '</td>' +
+               '<td style="text-align:right;white-space:nowrap">' + (hp > 0 ? hp.toLocaleString() + ' HP' : '—') + '</td>' +
+               '<td style="text-align:center">' + acts + '</td>' +
+             '</tr>';
+    }).join('');
+    return '<div style="overflow-x:auto"><table class="hp-attempts-table">' +
+             '<thead><tr><th>生徒</th><th>教科</th><th>失敗した日時</th><th>理由</th><th>状態</th><th>出したHP</th><th>操作</th></tr></thead>' +
+             '<tbody>' + trs + '</tbody></table></div>';
+  }
+
+  // 承認／却下。★作法は decideMissionExemption（2026-08-23）に合わせる：
+  //   decision を送り、行が個別 ID を持つ実装にも備えて ID を併送する（サーバーが使わなければ無視される）。
+  //   ★一括承認は用意しない（1 件ずつ確認して押す）。
+  function decideApologyCandidate(idx, decision) {
+    var r = _apologyRows[idx];
+    if (!r) return;
+    var sid   = String(_mePick(r, 'studentId', 'sid', 'student_id') || '');
+    var cname = String(_mePick(r, 'contentName', 'content_name', 'content', 'type') || 'この記録');
+    var when  = String(_mePick(r, 'occurredAt', 'occurred_at', 'timestamp') || '').replace('T', ' ').slice(0, 16);
+    var label = (decision === 'approve') ? '承認（お詫びHPを確定する）' : '却下';
+    var disp  = (sid ? sid + ' さんの ' : '') + cname + (when ? '（' + when + '）' : '');
+    if (!confirm(disp + ' を「' + label + '」にします。よろしいですか？')) return;
+    var note = '';
+    if (decision === 'reject') {
+      note = prompt('却下の理由（記録に残ります。空欄でもOK）', '');
+      if (note === null) return;   // キャンセル
+    }
+    var params = { action: 'adminDecideApologyCandidate', decision: decision };
+    var cid = _mePick(r, 'candidateId', 'candidate_id', 'id', 'recordId', 'record_id');
+    if (cid !== '') { params.candidateId = cid; params.id = cid; }
+    if (sid) params.studentId = sid;
+    if (note) params.decisionNote = note;
+    adminGasPost(params).then(function(res){
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '更新に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        showToast(em, 'error');
+        return;
+      }
+      showToast((res.message ? String(res.message) : '更新しました'), 'success');
+      loadApologyGranted(true);
+    }).catch(function(){
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
   function loadUnsentReports(force) {
     var body = document.getElementById('unsent-reports-body');
     var sumEl = document.getElementById('unsent-reports-summary');
@@ -9667,6 +9791,7 @@
     out += _dwOriwantesSection('🧩 オリワンテス', works.oriwantes);
     out += _dwTextSection('🐠 三語短文',          works.sango);
     out += _dwTextSection('📘 和文英訳①',         works.wabun1);
+    out += _dwApologySection('🙏 写真送信不具合のお詫び', works.apology);   // 2026-08-25 純追加
     if (!out) return '<div class="dw-empty">この日の提出作品はありません。</div>';
     return out;
   }
@@ -9822,6 +9947,32 @@
       return '<div class="dw-text-card">' +
                (metaHtml ? '<div class="dw-text-meta">' + metaHtml + '</div>' : '') +
                '<div class="dw-text-body">' + (body ? _esc(body) : '（本文なし）') + '</div>' +
+             '</div>';
+    }).join('');
+    return '<div class="dw-section"><div class="dw-section-title">' + title + '（' + arr.length + '）</div>' + rows + '</div>';
+  }
+
+  // 2026-08-25 純追加：写真送信不具合のお詫びHP（works.apology）。
+  //   ★既存6コンテンツと同じ見せ方に揃える（dw-section / dw-text-card / dw-text-meta / dw-text-body を流用）。
+  //     新しい CSS は足さない（新画面も作らない）。
+  //   ★フィールド名は _mePick で揺れを吸収（サーバー命名が変わっても壊れない）。
+  //   ★auto=true のときだけ「🤖 自動付与」の印を出す。手動付与分の見え方は変えない。
+  function _dwApologySection(title, items) {
+    var arr = _dwArr(items);
+    if (!arr.length) return '';
+    var rows = arr.map(function(it) {
+      var when  = _dwSubmittedAt(it) || String(_mePick(it, 'occurredAt', 'occurred_at', 'grantedAt', 'granted_at') || '').replace('T', ' ').slice(0, 16);
+      var cname = String(_mePick(it, 'contentName', 'content_name', 'contentType', 'content', 'type') || '');
+      var label = String(_mePick(it, 'label', 'reason', 'note', 'message') || '');
+      var hp    = Number(_mePick(it, 'hp', 'hpGranted', 'grantedHp', 'granted_hp', 'amount') || 0);
+      var autoRaw = (it && (it.auto !== undefined ? it.auto : it.isAuto));
+      var isAuto  = (autoRaw === true || autoRaw === 1 || autoRaw === '1' || autoRaw === 'true');
+      var metaHtml = _dwMetaSpans([_esc(when), _esc(cname), (isAuto ? '🤖 自動付与' : '')]);
+      var body = (label ? _esc(label) : '写真送信不具合のお詫び')
+               + (hp > 0 ? '　+' + hp.toLocaleString() + ' HP' : '');
+      return '<div class="dw-text-card">' +
+               (metaHtml ? '<div class="dw-text-meta">' + metaHtml + '</div>' : '') +
+               '<div class="dw-text-body">' + body + '</div>' +
              '</div>';
     }).join('');
     return '<div class="dw-section"><div class="dw-section-title">' + title + '（' + arr.length + '）</div>' + rows + '</div>';
@@ -15812,7 +15963,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260824-2316</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260825-0519</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
