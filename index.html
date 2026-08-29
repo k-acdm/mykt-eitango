@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260825-0527"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260830-0519"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260825-0527">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260825-0527"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260830-0519">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260830-0519"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10096,6 +10096,7 @@
     //     res.avgConfidence をそのまま使う（サーバーが同じ計算をして返す）。
     //     欠落時は従来の「信頼度が1件も取れなかった場合」と同じく 1（＝通過）にフォールバックする。
     gasPost({ action: 'ocrEikenPhoto', imageBase64: base64 }).then(function(res) {
+      _clearUnsentFlowIfOk(res, 'eiken5_ocr');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
       if (!res || !res.ok) {
         var _m = (res && res.message) ? String(res.message) : '文字が読み取れませんでした。明るい場所で撮り直してください。';
         _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','❌ ' + _m,'ng'); return;
@@ -10113,7 +10114,7 @@
       });
       if (failedWords.length === 0) { _setContentMascot('mate-img-eitan-dictation', 'celebrate', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.pass), 'rushkun'); msgEl.style.display = 'none'; showPhotoPassedScreen(); }
       else { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); _renderPhotoFail(failedWords, rawText, confPct); }
-    }).catch(function(err){ try { _recordUnsentAwareness('英単語RUSH(5級)'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','⚠️ 送信できませんでした。まだ記録されていません。電波の良い場所でもう一度送ってね。','ng'); });
+    }).catch(function(err){ try { _recordUnsentAwareness('英単語RUSH(5級)', 'eiken5_ocr'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','⚠️ 送信できませんでした。まだ記録されていません。電波の良い場所でもう一度送ってね。','ng'); });
   }
   function _renderPhotoFail(failedWords, rawText, confPct) {
     var escH = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
@@ -10246,6 +10247,7 @@
       _pendingRetry = function(){ _finishing = true; doSubmit(); };
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
       gasGetWithTimeout(payload, 60000).then(function(res){
+        _clearUnsentFlowIfOk(res, 'eitango_v1');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
         if (!res || !res.ok) {
           // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
           _hideHpConfirmingOverlay();
@@ -10264,7 +10266,7 @@
       }).catch(function(){
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
-        try { _recordUnsentAwareness('英単語RUSH'); } catch(e){}  // 応急処置②：未送信を可視化（V1 は自動再送しない）
+        try { _recordUnsentAwareness('英単語RUSH', 'eitango_v1'); } catch(e){}  // 応急処置②：未送信を可視化（V1 は自動再送しない）
         _showSubmitErrorWithRetryGuard(5000);
       });
     }
@@ -11428,6 +11430,7 @@
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
     _accountType = '';
     _canSkipReflection = false;   // 2026-08-19：次のログインまで持ち越さない（共用端末で前の生徒の状態を残さない）
+    _unsentFlowMarks = {};   // 2026-08-25：未送信の印の束もリセット（次の生徒に持ち越さない）
     // commit 6b-1：V2 フラグ/セッション状態もリセット
     _vocabV2Mode = 'off'; _vocabV2Enabled = false; _isV2Session = false;
     _v2BlockNo = 0; _v2Round = 0; _v2Position = 0; _v2GroupType = 'word';
@@ -12201,6 +12204,7 @@
     msgEl.textContent = '⏳ AIが文字を読み取り中です...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
     document.getElementById('sango-ocr-confirm').style.display = 'none';
     gasPost({ action: 'ocrSangoPhoto', imageBase64: base64 }).then(function(res) {
+      _clearUnsentFlowIfOk(res, 'sango_ocr');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
       if (!res || !res.ok) {
         var m = (res && res.message) ? String(res.message) : '文字が読み取れませんでした。明るい場所で撮り直してください。';
         showMsg('sango-photo-msg', '❌ ' + m, 'ng'); return;
@@ -12210,7 +12214,7 @@
       msgEl.style.display = 'none';
       document.getElementById('sango-ocr-text').textContent = _sangoOcrText;
       document.getElementById('sango-ocr-confirm').style.display = 'block';
-    }).catch(function(err){ try { _recordUnsentAwareness('三語短文(写真の読み取り)'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ showMsg('sango-photo-msg', 'エラー：' + String(err), 'ng'); });
+    }).catch(function(err){ try { _recordUnsentAwareness('三語短文(写真の読み取り)', 'sango_ocr'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ showMsg('sango-photo-msg', 'エラー：' + String(err), 'ng'); });
   }
   function confirmSangoPhoto(ok) {
     if (!ok) {
@@ -13142,6 +13146,7 @@
     var msgEl = document.getElementById('wabun1-camera-msg');
     msgEl.textContent = '⏳ AIが文字を読み取り中です（数秒かかります）...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
     gasPost({ action: 'ocrWabun1Photo', imageBase64: base64 }, 90000).then(function(res){
+      _clearUnsentFlowIfOk(res, 'wabun1_ocr');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
       if (!res || !res.ok) {
         var msg = (res && res.message) || '通信に失敗しました。';
         showMsg('wabun1-camera-msg', '❌ ' + msg, 'ng');
@@ -13179,7 +13184,7 @@
       _setContentMascot('mate-img-wabun1-confirm', 'thinking', 'mate-bubble-wabun1-confirm', _pickBubble(NICHIEI_BUBBLES.confirm), 'nichiei');
       showScreen('screen-wabun1-confirm');
     }).catch(function(err){
-      try { _recordUnsentAwareness('和文英訳①(写真の読み取り)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+      try { _recordUnsentAwareness('和文英訳①(写真の読み取り)', 'wabun1_ocr'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
       var emsg = (err && err.message) ? err.message : String(err);
       showMsg('wabun1-camera-msg', 'エラー：' + emsg, 'ng');
       document.getElementById('wabun1-photo-input').value = '';
@@ -14410,6 +14415,7 @@
     };
     try {
       gasPost(payload, 90000).then(function(res){
+        _clearUnsentFlowIfOk(res, 'kiso_ocr');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
         if (btn) btn.disabled = false;
         if (!res || !res.ok) {
           _kisoShowGrading(false);
@@ -14440,7 +14446,7 @@
           showScreen('screen-kiso-answer-confirm');
         });
       }).catch(function(err){
-        try { _recordUnsentAwareness('基礎計算(答えの読み取り)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+        try { _recordUnsentAwareness('基礎計算(答えの読み取り)', 'kiso_ocr'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
         _kisoShowGrading(false);
         if (btn) btn.disabled = false;
         alert('⚠️ 通信エラー：' + String(err) + '\nネットワークが不安定な可能性があります。少し待ってからもう一度お試しください。');
@@ -14550,6 +14556,7 @@
       // 同期 throw（ReferenceError 等）でも overlay が固まらないよう try/catch でラップ
       try {
         gasPost(payload, 90000).then(function(res){
+          _clearUnsentFlowIfOk(res, 'kiso_submit');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
           btn.disabled = false;
           if (!res || !res.ok) {
             _hideHpConfirmingOverlay();
@@ -14599,7 +14606,7 @@
           // 通信エラー / タイムアウト → エラーオーバーレイでリトライ誘導
           _hideHpConfirmingOverlay();
           btn.disabled = false;
-          try { _recordUnsentAwareness('基礎計算'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない）
+          try { _recordUnsentAwareness('基礎計算', 'kiso_submit'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない）
           _showSubmitError();
         });
       } catch (err) {
@@ -14953,6 +14960,7 @@
         imageBase64: _kisoState.workPhotoBase64,
         photoIndex: nextIdx
       }).then(function(res){
+        _clearUnsentFlowIfOk(res, 'kiso_work');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
         if (msgEl && msgOriginal) msgEl.innerHTML = msgOriginal;
         document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
         if (!res || !res.ok) {
@@ -14965,7 +14973,7 @@
         // 2026-08-05 追修正：次表示への切替を overlay 消滅と同時に
         _kisoShowGrading(false, function(){ _renderKisoWorkAfter(); });
       }).catch(function(err){
-        try { _recordUnsentAwareness('基礎計算(途中式の写真)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+        try { _recordUnsentAwareness('基礎計算(途中式の写真)', 'kiso_work'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
         _kisoShowGrading(false);
         if (msgEl && msgOriginal) msgEl.innerHTML = msgOriginal;
         document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
@@ -16719,10 +16727,11 @@
         content: entry.content || '',
         photos: photos
       }, 120000).then(function(res){
+        _clearUnsentFlowIfOk(res, 'mytask_hw:' + subj);   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
         results.push({ subject: subj, res: res, sentPhotos: photos, failedPhotos: [] });
         idx++; next();
       }, function(err){
-        try { _recordUnsentAwareness('マイ課題(宿題)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+        try { _recordUnsentAwareness('マイ課題(宿題)', 'mytask_hw:' + subj); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
         results.push({ subject: subj, res: { ok: false, message: String(err && err.message ? err.message : err) }, sentPhotos: photos, failedPhotos: [] });
         idx++; next();
       });
@@ -16843,9 +16852,10 @@
       content: entry.content || '',
       photos: sending
     }, 120000).then(function(res){
+      _clearUnsentFlowIfOk(res, 'mytask_hw:' + subj);   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
       _hideMyTaskSending(function(){ _afterMyTaskHwResend(i, res, sending); });
     }, function(err){
-      try { _recordUnsentAwareness('マイ課題(宿題の再送)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+      try { _recordUnsentAwareness('マイ課題(宿題の再送)', 'mytask_hw:' + subj); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
       _hideMyTaskSending(function(){ _afterMyTaskHwResend(i, { ok: false, message: String(err && err.message ? err.message : err) }, sending); });
     });
   }
@@ -18243,9 +18253,10 @@
       content: content,
       photos: photos
     }, 120000).then(function(res){
+      _clearUnsentFlowIfOk(res, 'mytask_self');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
       _hideMyTaskSending(function(){ _handleMyTaskResult(res, photos); });
     }).catch(function(err){
-      try { _recordUnsentAwareness('マイ課題(自主)'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+      try { _recordUnsentAwareness('マイ課題(自主)', 'mytask_self'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
       _hideMyTaskSending(function(){ _handleMyTaskResult({ ok: false, message: String(err && err.message ? err.message : err) }, photos); });
     });
   }
@@ -19232,6 +19243,7 @@
         // 撮影確認画面に留まり、生徒が「もう一度撮る」or「ホームに戻る」を選べるようにする
       };
       gasPost(payload, 90000).then(function(res){
+        _clearUnsentFlowIfOk(res, 'kanji');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
         submitBtn.disabled = false;
         if (!res || !res.ok) {
           _hideHpConfirmingOverlay();
@@ -19284,7 +19296,7 @@
         // 通信エラー / 90 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
         submitBtn.disabled = false;
-        try { _recordUnsentAwareness('カンジー'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない）
+        try { _recordUnsentAwareness('カンジー', 'kanji'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない）
         _showSubmitError();
       });
     }
@@ -20993,6 +21005,7 @@
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); goHome(); };
       var req = _kobunState.isV2 ? gasPost(payload, 25000) : gasGetWithTimeout(payload, 25000);
       req.then(function(res){
+        _clearUnsentFlowIfOk(res, 'kobun');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
         if (!res || !res.ok) {
           // サーバが ok:false を返した → エラーオーバーレイでリトライ誘導
           _hideHpConfirmingOverlay();
@@ -21017,7 +21030,7 @@
       }).catch(function(err){
         // 通信エラー / 25 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
-        try { _recordUnsentAwareness('コブタン'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない）
+        try { _recordUnsentAwareness('コブタン', 'kobun'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない）
         _showSubmitError();
       });
     }
@@ -22582,16 +22595,57 @@
     submitWabun1:     '和文英訳①',
     submitLison:      '英語リスオン'
   };
-  // 送信失敗（通信断/タイムアウト）を表示専用で記録。payload は保持しない（自動再送しないため）。
-  function _recordUnsentAwareness(label) {
+
+  // ===== 2026-08-25：未送信の印に id を振り、送信が成功したら消す（D案）=====
+  //   ★印を付けるとき id を振り、その操作の「束」に覚えておく。
+  //     同じ操作を何度やり直しても束に積まれ、成功したときにまとめて消える。
+  //     （失敗A → 再送も失敗B → 成功 で A も B も消える）
+  //   ★束はコンテンツごと（マイ課題の宿題は教科ごと）に分けてある。
+  //     別のコンテンツ・別の教科の印を巻き添えで消すことはない。
+  //   ★消すのは「束に入っている id」だけ。
+  //     id を持たない古い印（この変更より前に積まれたもの）は束に無いので絶対に消えない。
+  //   ★成功の判定は res.ok === true のみ。サーバーに断られた場合は印を残す。
+  var _unsentFlowMarks = {};   // 束：flowKey → [id, ...]（ログイン中だけ覚える）
+  var _unsentMarkSeq = 0;
+
+  // 送信が成功したときに呼ぶ。その束の id の印だけを消す。
+  function _clearUnsentFlow(flowKey) {
     try {
-      var sid = String(_studentId || '').trim(); if (!sid) return;
-      var a = _unsentManualLoad();
-      a.push({ sid: sid, label: String(label || '学習'), ts: Date.now() });
-      if (a.length > 50) a = a.slice(-50);   // 上限（暴走防止）
-      _unsentManualSave(a);
+      var k = String(flowKey || ''); if (!k) return;
+      var ids = _unsentFlowMarks[k];
+      if (!ids || !ids.length) return;
+      var del = {};
+      for (var i = 0; i < ids.length; i++) del[ids[i]] = true;
+      _unsentManualSave(_unsentManualLoad().filter(function(it){
+        return !(it && it.id && del[it.id]);   // ★id を持つ印のうち、束にあるものだけ落とす
+      }));
+      _unsentFlowMarks[k] = [];
       try { _updateResendBanner(); } catch(e){}
     } catch(e){}
+  }
+  // res.ok のときだけ束を消す薄い入口（各コンテンツの .then 先頭から1行で呼ぶ）。
+  function _clearUnsentFlowIfOk(res, flowKey) {
+    try { if (res && res.ok === true) _clearUnsentFlow(flowKey); } catch(e){}
+  }
+
+  // 送信失敗（通信断/タイムアウト）を表示専用で記録。payload は保持しない（自動再送しないため）。
+  //   ★2026-08-25：id を振って返す。flowKey を渡すと、その操作の束に id を覚えておく（成功時にまとめて消す）。
+  function _recordUnsentAwareness(label, flowKey) {
+    try {
+      var sid = String(_studentId || '').trim(); if (!sid) return '';
+      var id = 'um_' + Date.now() + '_' + (++_unsentMarkSeq);   // ★この印だけを指す一意の id
+      var a = _unsentManualLoad();
+      a.push({ sid: sid, label: String(label || '学習'), ts: Date.now(), id: id });
+      if (a.length > 50) a = a.slice(-50);   // 上限（暴走防止）
+      _unsentManualSave(a);
+      if (flowKey) {   // ★この操作の束に覚えておく（成功したらまとめて消す）
+        var fk = String(flowKey);
+        if (!_unsentFlowMarks[fk]) _unsentFlowMarks[fk] = [];
+        _unsentFlowMarks[fk].push(id);
+      }
+      try { _updateResendBanner(); } catch(e){}
+      return id;
+    } catch(e){ return ''; }
   }
   function _unsentManualClearForSid(sid) {
     try { sid = String(sid || '').trim(); _unsentManualSave(_unsentManualLoad().filter(function(it){ return it.sid !== sid; })); } catch(e){}
@@ -22653,7 +22707,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260825-0527</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260830-0519</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
