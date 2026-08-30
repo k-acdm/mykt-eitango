@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260830-2153"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260830-2359"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260830-2153">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260830-2153"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260830-2359">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260830-2359"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4840,7 +4840,7 @@
       </div>
     </div>
     <button class="btn-wide kiso-photo-btn" onclick="goKisoPreConfirm()">📷 写真を撮って提出する</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" id="kiso-problem-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -5717,7 +5717,7 @@
     <input type="file" id="kanji-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKanjiPhotoSelected(event)">
     <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを写真に撮って送る</button>
     <button class="btn-wide" id="kanji-kaki-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:10px" onclick="kanjiRestartFresh()">🆕 最初から（読みから）やり直す</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" id="kanji-kaki-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -13961,6 +13961,7 @@
     document.getElementById('kiso-problem-attempts').textContent = '';
     document.getElementById('kiso-problem-meta-label').textContent = _kisoState.rank + '級・' + _kisoState.count + '題';
     _renderKisoProblemList();
+    _setRetryHomeBtn('kiso-problem-home-btn', false);   // ★通常フロー → ホーム導線は従来どおり出す
     showScreen('screen-kiso-problem');
   }
 
@@ -14245,6 +14246,7 @@
     document.getElementById('kiso-problem-title').textContent = def.no + '. ' + def.name;
     document.getElementById('kiso-problem-attempts').textContent = '';
     document.getElementById('kiso-problem-meta-label').textContent = def.rank + '級・' + count + '題';
+    _setRetryHomeBtn('kiso-problem-home-btn', false);   // ★通常フロー → ホーム導線は従来どおり出す
     showScreen('screen-kiso-problem');
 
     // セッション開始は毎回新規 → クライアントキャッシュは使わない
@@ -14728,6 +14730,7 @@
     var listEl = document.getElementById('kiso-problem-list');
     listEl.innerHTML = '<div class="loading" style="padding:30px 0">⏳ 再挑戦の問題を取得中...</div>';
     document.getElementById('kiso-problem-attempts').textContent = '再挑戦中';
+    _setRetryHomeBtn('kiso-problem-home-btn', true);   // ★再挑戦中はホーム導線を出さない
     showScreen('screen-kiso-problem');
     // セッション状態が submitKisoAnswer で変わるため、毎回 fresh に取得（cachedGasGet は使わない）
     gasGet({
@@ -19110,6 +19113,7 @@
   // ----- 書き問題 -----
   function startKanjiKaki() {
     _kanjiState.isKakiRetry = false;
+    _setRetryHomeBtn('kanji-kaki-home-btn', false);   // ★通常開始 → ホーム導線は従来どおり出す
     _kanjiState.retryAnswers = [];
     // ★書き段階到達を中断エントリに永続化（自動再開で読みスキップの判定に使う）
     try { _kanjiMarkRecentStage(_kanjiState.level, _kanjiState.sessionId, 'kaki'); } catch(e){}
@@ -19430,9 +19434,9 @@
           '※ 答案ノートはそのまま使えるよ（今回の判定は保留されているので、HP は減らないよ）' +
         '</div>' +
       '</div>';
+    // ★2026-08-30：提出後の画面なので、合格しないまま抜けられないようにホーム導線は出さない。
     actions.innerHTML =
-      '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="retakeKanjiPhoto()">📷 もう一度撮影</button>' +
-      '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+      '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="retakeKanjiPhoto()">📷 もう一度撮影</button>';
     showScreen('screen-kanji-kaki-retake');
   }
   function _retryKanjiKaki() {
@@ -19463,6 +19467,7 @@
     document.getElementById('kanji-kaki-msg').style.display = 'none';
     var input = document.getElementById('kanji-photo-input');
     if (input) input.value = '';
+    _setRetryHomeBtn('kanji-kaki-home-btn', _kanjiState.isKakiRetry);   // ★再挑戦中はホーム導線を出さない
     showScreen('screen-kanji-kaki');
   }
   // ----- おさらい画面：HPLog からカンジー実施履歴を取得して一覧表示（2026-05-08 追加） -----
@@ -22657,6 +22662,15 @@
 
   // 送信失敗（通信断/タイムアウト）を表示専用で記録。payload は保持しない（自動再送しないため）。
   //   ★2026-08-25：id を振って返す。flowKey を渡すと、その操作の束に id を覚えておく（成功時にまとめて消す）。
+  // ★2026-08-30：再挑戦中はホームへ戻る導線を出さない（合格しないまま抜けさせない）。
+  //   ★初回に開いたときは従来どおり出す（まだ採点されていない＝「合格しないまま抜ける」に当たらない）。
+  function _setRetryHomeBtn(btnId, isRetry) {
+    try {
+      var el = document.getElementById(btnId);
+      if (el) el.style.display = isRetry ? 'none' : '';
+    } catch(e){}
+  }
+
   // ===== 2026-08-30：写真送信が失敗したときだけ出す逃げ道 =====
   //   背景：合格ラインのあるコンテンツは「合格しない限り抜けられない」に変えた。
   //         ただし★写真が送れないときだけは、生徒に責任がないので出口を用意する。
@@ -22791,7 +22805,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260830-2153</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260830-2359</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

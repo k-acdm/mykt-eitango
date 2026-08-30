@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260830-2153"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260830-2359"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -770,6 +770,10 @@
   .hp-attempts-summary strong { color: #c2410c; }
   .hp-attempts-empty { padding: 32px; text-align: center; color: #888; background: #f8f9fa; border-radius: 8px; }
   .hp-attempts-badge-failed { display: inline-block; padding: 2px 8px; background: #dc2626; color: #fff; border-radius: 4px; font-size: 11px; font-weight: bold; letter-spacing: 0.3px; }
+  /* 2026-08-30：新しい通知があることを知らせる印（見落とし防止）。件数が入るときは数字、入らないときは「!」。 */
+  .notify-badge { display: inline-block; min-width: 20px; padding: 1px 7px; margin-left: 8px; background: #dc2626; color: #fff; border-radius: 999px; font-size: 12px; font-weight: 800; line-height: 1.6; text-align: center; vertical-align: middle; box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(220,38,38,.45); animation: notifyPulse 1.8s ease-in-out infinite; }
+  @keyframes notifyPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+
   .hp-attempts-badge-ok     { display: inline-block; padding: 2px 8px; background: #16a34a; color: #fff; border-radius: 4px; font-size: 11px; font-weight: bold; letter-spacing: 0.3px; }
   .hp-attempts-table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
   .hp-attempts-table th { background: #fef3c7; padding: 10px 12px; text-align: left; border-bottom: 2px solid #fde68a; color: #7c2d12; font-weight: 600; font-size: 12px; white-space: nowrap; }
@@ -1133,15 +1137,15 @@
       <div class="dashboard-card-title">生徒対応</div>
       <div class="dashboard-card-desc">週間HPランキング / HP手動付与 / LINE通知管理 / 絶対ミッション設定</div>
     </button>
+    <button type="button" id="dash-card-system-hub" class="dashboard-card admin-only" onclick="goAdminSystemHub()">
+      <div class="dashboard-card-icon">⚙️</div>
+      <div class="dashboard-card-title">システム系<span id="sys-hub-badge" class="notify-badge" style="display:none">!</span></div>
+      <div class="dashboard-card-desc">講師管理 / 連続ログイン日数 自動復旧 / 各種ログ</div>
+    </button>
     <button type="button" class="dashboard-card admin-only" onclick="goAdminExchangeHub()">
       <div class="dashboard-card-icon">🛍️</div>
       <div class="dashboard-card-title">HP交換</div>
       <div class="dashboard-card-desc">アバターアイテム管理 / Amazonギフト交換申請</div>
-    </button>
-    <button type="button" class="dashboard-card admin-only" onclick="goAdminSystemHub()">
-      <div class="dashboard-card-icon">⚙️</div>
-      <div class="dashboard-card-title">システム系</div>
-      <div class="dashboard-card-desc">講師管理 / 連続ログイン日数 自動復旧 / 各種ログ</div>
     </button>
   </div>
 </div>
@@ -1796,7 +1800,7 @@
     </button>
     <button type="button" id="dash-card-unsent-reports" class="dashboard-card admin-only" onclick="goAdminUnsentReports()">
       <div class="dashboard-card-icon">📮</div>
-      <div class="dashboard-card-title">未送信の検知</div>
+      <div class="dashboard-card-title">未送信の検知<span id="unsent-reports-badge" class="notify-badge" style="display:none">!</span></div>
       <div class="dashboard-card-desc">生徒端末で「送れなかった学習」の件数を次回ログイン時に検知。通信未達の早期発見用（admin専用）</div>
     </button>
     <button type="button" id="dash-card-action-log" class="dashboard-card admin-only" onclick="goAdminActionLog()">
@@ -1806,7 +1810,7 @@
     </button>
     <button type="button" id="dash-card-auth-alerts" class="dashboard-card admin-only" onclick="goAdminAuthAlerts()">
       <div class="dashboard-card-icon">🔑</div>
-      <div class="dashboard-card-title">ログイン認証（設定、アラート）</div>
+      <div class="dashboard-card-title">ログイン認証（設定、アラート）<span id="auth-alerts-badge" class="notify-badge" style="display:none">!</span></div>
       <div class="dashboard-card-desc">合言葉の失敗が続く生徒を検知 / 暗証番号の強制リセット（新しい初回キーを発行）（admin専用）</div>
     </button>
     <button type="button" id="dash-card-student-add" class="dashboard-card admin-only" onclick="goAdminStudentAdd()">
@@ -2059,7 +2063,6 @@
   <div class="admin-page">
     <button class="submit-btn" style="margin-bottom:8px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminStudents()">← 生徒一覧に戻る</button>
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#7c4fff,#4f7df0)" onclick="goAdminActivityCalendar()">📅 カレンダーに戻る</button>
-    <div class="child-history-notice">⚠️ アプリ実装以前のLINEでの提出状況は反映されていません。</div>
     <div id="admin-child-history-list"><div class="child-history-empty">読み込み中…</div></div>
     <button id="admin-child-history-more" class="submit-btn" style="margin-top:12px;background:linear-gradient(135deg,#ff8a3d,#ff6a00);display:none" onclick="goAdminChildArchive()">📜 さらに過去の履歴を見る</button>
     <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
@@ -2083,7 +2086,6 @@
   </header>
   <div class="admin-page">
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminChildHistory()">← 直近7日間に戻る</button>
-    <div class="child-history-notice">⚠️ アプリ実装以前のLINEでの提出状況は反映されていません。</div>
     <div id="admin-child-archive-list"><div class="child-history-empty">読み込み中…</div></div>
     <div class="child-pager">
       <button type="button" class="prev" id="admin-child-archive-prev" onclick="adminChildArchivePrev()">← 新しいページへ</button>
@@ -5267,6 +5269,7 @@
     _showScreen('screen-admin-dashboard');
     window.scrollTo(0, 0);
     _refreshAmazonGiftBadge();  // Amazonギフト未対応バッジ（admin のみ、見落とし防止）
+    _refreshNotifyBadges();     // 2026-08-30：未送信の検知／ログイン認証の通知バッジ
   }
 
   // Phase 2：ダッシュボードカードのロール別表示分岐。
@@ -6551,6 +6554,9 @@
 
   // 応急処置④：未送信の検知（UnsentReports 一覧）
   function goAdminUnsentReports() {
+    // ★2026-08-30：開いた＝見たので、この時刻を覚えて未送信側の印を消す
+    //   （ログイン認証側は「対応が必要な人数」なので、見ただけでは消さない）。
+    try { _notifySeenSet(NOTIFY_SEEN_UNSENT); _notifyCounts.unsent = 0; _applyNotifyBadges(); } catch(e){}
     _showScreen('screen-admin-unsent-reports');
     window.scrollTo(0, 0);
     loadUnsentReports(false);
@@ -7680,6 +7686,85 @@
   }
 
   // ダッシュボードカードの未対応バッジ（N≥1 で赤表示）。
+  // ===== 2026-08-30：通知の見落とし防止（未送信の検知／ログイン認証） =====
+  //   ★何を「新しい」とみなすか：
+  //     ・未送信の検知 … その画面を最後に開いた時刻より後に届いたレポートの件数。
+  //       レポートは timestamp を持つので、それと突き合わせる。
+  //     ・ログイン認証 … 「いま対応が必要な人数」（合言葉の失敗が続いている生徒）。
+  //       こちらは時刻ではなく状態なので、★0 人になるまで印を出し続ける
+  //       （見ただけでは消さない＝対応するまで消えないのが正しい）。
+  //   ★印の見せ方：赤い丸に件数（1件以上のときだけ）。ゆっくり脈打たせて視線を引く。
+  //     ★システム系のボタンにも同じ印を出す（トップからでも気づけるように）。
+  //     ★件数が数えられないときだけ「!」を出す（0 件と区別するため）。
+  //   ★見た時刻は localStorage に置く（この端末のみ・サーバーには送らない）。
+  var NOTIFY_SEEN_UNSENT = 'mykt_admin_seen_unsent';   // 未送信の検知を最後に開いた時刻
+  var _notifyCounts = { unsent: 0, auth: 0 };
+
+  function _notifySeenGet(key) {
+    try { return Number(localStorage.getItem(key) || 0) || 0; } catch(e) { return 0; }
+  }
+  function _notifySeenSet(key) {
+    try { localStorage.setItem(key, String(Date.now())); } catch(e) {}
+  }
+  // 「2026-08-30 21:15:00」「2026-08-30T21:15:00」等 → ミリ秒。読めなければ 0。
+  function _notifyParseTs(v) {
+    try {
+      var t = String(v == null ? '' : v).trim();
+      if (!t) return 0;
+      var ms = Date.parse(t.replace(' ', 'T'));
+      return isNaN(ms) ? 0 : ms;
+    } catch(e) { return 0; }
+  }
+  // 1つのバッジに件数を反映（0 は非表示）。n が null なら「!」。
+  function _setNotifyBadge(id, n) {
+    try {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (n === null)      { el.textContent = '!'; el.style.display = ''; return; }
+      var c = Number(n) || 0;
+      if (c > 0) { el.textContent = (c > 99 ? '99+' : String(c)); el.style.display = ''; }
+      else       { el.style.display = 'none'; }
+    } catch(e) {}
+  }
+  // 2つの件数から、システム系（トップ）のまとめ印を更新する。
+  function _applyNotifyBadges() {
+    _setNotifyBadge('unsent-reports-badge', _notifyCounts.unsent);
+    _setNotifyBadge('auth-alerts-badge',    _notifyCounts.auth);
+    var total = (Number(_notifyCounts.unsent) || 0) + (Number(_notifyCounts.auth) || 0);
+    _setNotifyBadge('sys-hub-badge', total);
+  }
+  // ダッシュボード／システム系を開いたときに数え直す。★admin のみ・失敗しても画面は壊さない。
+  function _refreshNotifyBadges() {
+    if ((sessionStorage.getItem('adminRole') || '') !== 'admin') return;
+    // ① 未送信の検知：最後に開いた時刻より後に届いたレポートを数える
+    var seen = _notifySeenGet(NOTIFY_SEEN_UNSENT);
+    adminGasGet({ action: 'adminListUnsentReports', limit: 200, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) return;
+      var reports = res.reports || [];
+      var n = 0;
+      for (var i = 0; i < reports.length; i++) {
+        var ts = _notifyParseTs(reports[i] && reports[i].timestamp);
+        // ★一度も開いていない（seen=0）なら、届いている分をすべて新着として数える。
+        if (!seen || (ts && ts > seen)) n++;
+      }
+      _notifyCounts.unsent = n;
+      _applyNotifyBadges();
+    }).catch(function(){ /* 印は欠けても致命的でない */ });
+
+    // ② ログイン認証：いま対応が必要な人数（0 になるまで出し続ける）
+    adminGasPost({ action: 'getStudentsAuthStatus', _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) return;
+      var students = res.students || [];
+      var threshold = Number(res.alertThreshold != null ? res.alertThreshold : 3) || 3;
+      var n = (res.alertCount != null) ? (Number(res.alertCount) || 0)
+            : students.filter(function(s){
+                return (s.needsAlert === true) || ((Number(s.passphraseFailCount) || 0) >= threshold);
+              }).length;
+      _notifyCounts.auth = n;
+      _applyNotifyBadges();
+    }).catch(function(){ /* 印は欠けても致命的でない */ });
+  }
+
   function _setAmazonGiftBadge(n) {
     var badge = document.getElementById('amazon-gift-pending-badge');
     if (!badge) return;
@@ -13129,7 +13214,7 @@
   function goAdminOtherInputHub()   { _showScreen('screen-admin-other-input-hub');   window.scrollTo(0, 0); }
   function goAdminStudentCareHub()  { _showScreen('screen-admin-student-care-hub');  window.scrollTo(0, 0); }
   function goAdminExchangeHub()     { _showScreen('screen-admin-exchange-hub');      window.scrollTo(0, 0); }
-  function goAdminSystemHub()       { _showScreen('screen-admin-system-hub');        window.scrollTo(0, 0); }
+  function goAdminSystemHub()       { _showScreen('screen-admin-system-hub');        window.scrollTo(0, 0); _refreshNotifyBadges(); }
 
   function _todayJSTStr() {
     // 端末タイムゾーンに依存しないよう、Asia/Tokyo の今日を組み立てる
@@ -13627,7 +13712,7 @@
     if (!_selectedStudentId) { listEl.innerHTML = '<div class="child-history-empty">生徒が選択されていません</div>'; return; }
     listEl.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
     if (moreBtn) moreBtn.style.display = 'none';
-    gasGet({ action: 'getChildActivityRecent', studentId: _selectedStudentId, offset: 0, _ts: Date.now() }).then(function(res) {
+    adminGasGet({ action: 'getChildActivityRecent', studentId: _selectedStudentId, offset: 0, _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         listEl.innerHTML = '<div class="child-history-empty">読み込みに失敗しました。</div>';
         return;
@@ -13647,7 +13732,7 @@
     if (!_selectedStudentId) { listEl.innerHTML = '<div class="child-history-empty">生徒が選択されていません</div>'; return; }
     listEl.innerHTML = '<div class="child-history-empty">⏳ 読み込み中…</div>';
     if (nextBtn) nextBtn.disabled = true;
-    gasGet({ action: 'getChildActivityRecent', studentId: _selectedStudentId, offset: _adminChildArchiveOffset, _ts: Date.now() }).then(function(res) {
+    adminGasGet({ action: 'getChildActivityRecent', studentId: _selectedStudentId, offset: _adminChildArchiveOffset, _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         listEl.innerHTML = '<div class="child-history-empty">読み込みに失敗しました。</div>';
         return;
@@ -16144,7 +16229,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260830-2153</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260830-2359</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
