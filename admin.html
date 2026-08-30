@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260830-0519"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260830-2035"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -3819,16 +3819,33 @@
     <div id="unsent-reports-summary" class="hp-attempts-summary"></div>
     <div id="unsent-reports-body"><div class="hp-attempts-empty">⏳ 読み込み中...</div></div>
 
-      <!-- 2026-08-25 純追加：写真送信不具合のお詫びHP（自動付与分）の一覧。
+      <!-- 2026-08-25 純追加 / 2026-08-30 拡張：写真送信不具合のお詫びHP。
+           ★経路が 2 つある：① サーバーに届いたが保存に失敗（自動付与・granted）
+                             ② 端末からそもそも送れなかった（承認が要る・pending）
+           ★★塾長が「行動する必要があるもの」＝ ② を上に置く。
            ★新画面は作らず、同じ「未送信の検知」画面に節として足す（CSS 登録漏れ事故の回避）。
            ★見た目は既存の hp-attempts-* / me-adm-* をそのまま流用。新しい CSS は足していない。 -->
       <div style="margin-top:26px;border-top:2px dashed #e5e7eb;padding-top:18px">
-        <h2 style="font-size:16px;color:#92400e;margin:0 0 10px">🙏 写真送信不具合のお詫びHP（自動付与）</h2>
+        <h2 style="font-size:16px;color:#b91c1c;margin:0 0 10px">📋 お詫びHPの承認待ち（端末から送れなかった分）</h2>
+        <div class="page-lead">
+          生徒の端末から<strong>そもそも送信できなかった</strong>学習です。サーバーには何も届いていないため、
+          <strong>先生が中身を確かめて承認したときだけ</strong>お詫びHPを出します（<strong>1件につき 1,000HP</strong>）。<br>
+          <strong>件数</strong>は「何回送れなかったか」、<strong>出るHP</strong>はその件数分の合計です。
+          <span class="hp-attempts-badge-failed">⚠️ 多い</span> が付いた行は件数が 5 以上で、水増しの疑いがあります。中身をよくお確かめください。<br>
+          ★承認待ちがある日は<strong>毎朝 4:50 に LINE</strong> でお知らせします。1 件ずつ承認／却下してください（<strong>一括承認はありません</strong>）。
+        </div>
+        <button class="submit-btn" style="margin-bottom:14px" onclick="loadApologyPending(true)">🔄 最新データ取得</button>
+        <div id="apology-pending-summary" class="hp-attempts-summary"></div>
+        <div id="apology-pending-body"><div class="hp-attempts-empty">⏳ 読み込み中...</div></div>
+      </div>
+
+      <div style="margin-top:26px;border-top:2px dashed #e5e7eb;padding-top:18px">
+        <h2 style="font-size:16px;color:#92400e;margin:0 0 10px">🙏 お詫びHPの自動付与（サーバーで保存に失敗した分）</h2>
         <div class="page-lead">
           写真が<strong>サーバーに届いたのに保存に失敗した</strong>ときに、<strong>1件につき 1,000HP</strong> を自動で出した記録です。
-          倍率はかからず<strong>予約</strong>に乗ります（振り返りを出すと解放されます）。<br>
+          こちらは<strong>承認は要りません</strong>（すでに出ています）。<br>
+          倍率はかからず<strong>予約</strong>に乗ります（振り返りを出すと解放されます）。
           ★生徒が特定できなかったものは <span class="hp-attempts-badge-failed">生徒不明</span> と出ます。
-          中身を確かめてから 1 件ずつ承認／却下してください（<strong>一括承認はありません</strong>）。
         </div>
         <button class="submit-btn" style="margin-bottom:14px" onclick="loadApologyGranted(true)">🔄 最新データ取得</button>
         <div id="apology-granted-summary" class="hp-attempts-summary"></div>
@@ -6537,9 +6554,158 @@
     _showScreen('screen-admin-unsent-reports');
     window.scrollTo(0, 0);
     loadUnsentReports(false);
+    loadApologyPending(false);   // 2026-08-30 純追加：お詫びHP（承認待ち）の一覧 ★先生の対応が要るので先に読む
     loadApologyGranted(false);   // 2026-08-25 純追加：お詫びHP（自動付与）の一覧
   }
   var _unsentReportsLoaded = false;
+
+  // ===== 2026-08-30 純追加：お詫びHPの承認待ち（端末から送れなかった分＝pending）=====
+  //   ★経路② は「サーバーに何も届いていない」ので自動では出さず、先生の承認で初めて出す。
+  //   ★adminListApologyCandidates を status='pending' で呼ぶ。
+  //     ★★status の綴りを間違えるとエラーにならず 0 件が返る契約なので、定数で1箇所に固定する。
+  //   ★決着（承認／却下）は既存の decideApologyCandidate をそのまま使う（新しい仕組みは作らない）。
+  //   ★一括承認は用意しない（1 件ずつ確認して押す）。
+  var APOLOGY_STATUS_PENDING = 'pending';   // ★綴り固定（typo で無言の 0 件になるのを防ぐ）
+  var APOLOGY_SUSPICIOUS_MIN = 5;           // ★この件数以上で「⚠️ 多い」を出す
+  var _apologyPendingLoaded = false;
+  var _apologyPendingRows = [];
+
+  function loadApologyPending(force) {
+    var body  = document.getElementById('apology-pending-body');
+    var sumEl = document.getElementById('apology-pending-summary');
+    if (!force && _apologyPendingLoaded) return;   // 再入場では再取得しない（🔄 で明示取得）
+    if (body) body.innerHTML = '<div class="hp-attempts-empty">⏳ 読み込み中...</div>';
+    if (sumEl) sumEl.innerHTML = '';
+    adminGasGet({ action: 'adminListApologyCandidates', status: APOLOGY_STATUS_PENDING, limit: 200, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) {
+        var em = (res && res.message) ? res.message : '取得に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        if (body) body.innerHTML = '<div class="hp-attempts-empty">⚠️ ' + _esc(em) + '</div>';
+        return;
+      }
+      _apologyPendingLoaded = true;
+      _apologyPendingRows = Array.isArray(res.candidates) ? res.candidates : [];   // 配列名は candidates で確定
+      if (!_apologyPendingRows.length) {
+        if (sumEl) sumEl.innerHTML = '承認待ち <strong>0</strong> 件（対応が必要なものはありません）';
+        if (body) body.innerHTML = '<div class="hp-attempts-empty">承認待ちはありません。</div>';
+        return;
+      }
+      // 合計（件数・出るHP・⚠️多い の数）をひと目で分かるように出す。
+      var totalHp = 0, totalFail = 0, susp = 0;
+      _apologyPendingRows.forEach(function(r){
+        totalHp   += _apologyHpToGrant(r);
+        totalFail += _apologyFailureCount(r);
+        if (_apologyIsSuspicious(r)) susp++;
+      });
+      if (sumEl) {
+        sumEl.innerHTML = '承認待ち <strong>' + _apologyPendingRows.length + '</strong> 件'
+          + '（' + totalFail + ' 回分 ／ 全部承認すると <strong>' + totalHp.toLocaleString() + ' HP</strong>）'
+          + (susp ? ' ／ <strong>⚠️ 多い ' + susp + ' 件</strong>' : '');
+      }
+      if (body) body.innerHTML = _renderApologyPendingRows(_apologyPendingRows);
+    }).catch(function(err){
+      if (body) body.innerHTML = '<div class="hp-attempts-empty">⚠️ 通信エラー：' + _esc(String(err && err.message || err)) + '</div>';
+    });
+  }
+
+  // 件数・出るHP・多いかどうか。★サーバーが返す failureCount / hpToGrant / countSuspicious を使う。
+  //   hpToGrant が無い古い応答のときだけ「件数 × 1,000」で補う（表示だけ。付与額はサーバーが決める）。
+  function _apologyFailureCount(r) { return Number((r && r.failureCount) || 0); }
+  function _apologyHpToGrant(r) {
+    var v = Number((r && r.hpToGrant) || 0);
+    return v > 0 ? v : (_apologyFailureCount(r) * 1000);
+  }
+  function _apologyIsSuspicious(r) {
+    if (r && (r.countSuspicious === true || r.countSuspicious === 1 || r.countSuspicious === '1' || r.countSuspicious === 'true')) return true;
+    return _apologyFailureCount(r) >= APOLOGY_SUSPICIOUS_MIN;   // サーバーが返さないときの保険
+  }
+
+  function _renderApologyPendingRows(rows) {
+    var trs = rows.map(function(r, i) {
+      var sid   = String(r.studentId || '');
+      var name  = String(r.studentName || r.nickname || '');
+      var cname = String(r.contentName || '');
+      // 教育日：educationalDate が契約。無ければ occurredAt の日付部分で代用する。
+      var eduD  = String(r.educationalDate || String(r.occurredAt || '').replace('T', ' ').slice(0, 10));
+      var cnt   = _apologyFailureCount(r);
+      var hp    = _apologyHpToGrant(r);
+      var susp  = _apologyIsSuspicious(r);
+      var who = sid
+        ? (_esc(name || '') + '（' + _esc(sid) + '）')
+        : '<span class="hp-attempts-badge-failed">生徒不明</span>' + (name ? ' ' + _esc(name) : '');
+      // canApprove はサーバーが返す（生徒未特定でも承認できるかの判断はサーバー側の責務）。
+      var canApprove = (r.canApprove === true || r.canApprove === 1 || r.canApprove === '1' || r.canApprove === 'true');
+      var acts = canApprove
+        ? '<button type="button" class="me-adm-btn approve" onclick="decideApologyPending(' + i + ',&quot;approve&quot;)">承認する</button>' +
+          '<button type="button" class="me-adm-btn reject" onclick="decideApologyPending(' + i + ',&quot;reject&quot;)">却下する</button>'
+        : '<span class="me-adm-sub">—</span>';
+      return '<tr' + (susp ? ' class="row-failed"' : '') + '>' +
+               '<td>' + who + '</td>' +
+               '<td style="white-space:nowrap">' + (eduD ? _esc(eduD) : '—') + '</td>' +
+               '<td>' + (cname ? _esc(cname) : '—') + '</td>' +
+               '<td style="text-align:center;white-space:nowrap">' + (cnt > 0 ? cnt + ' 件' : '—') +
+                 (susp ? ' <span class="hp-attempts-badge-failed">⚠️ 多い</span>' : '') + '</td>' +
+               '<td style="text-align:right;white-space:nowrap">' + (hp > 0 ? hp.toLocaleString() + ' HP' : '—') + '</td>' +
+               '<td style="text-align:center">' + acts + '</td>' +
+             '</tr>';
+    }).join('');
+    return '<div style="overflow-x:auto"><table class="hp-attempts-table">' +
+             '<thead><tr><th>生徒</th><th>教育日</th><th>教科</th><th>件数</th><th>出るHP</th><th>操作</th></tr></thead>' +
+             '<tbody>' + trs + '</tbody></table></div>';
+  }
+
+  // 承認待ちの決着。★中身は既存 decideApologyCandidate と同じ契約。
+  //   ★参照する配列と、決着後に読み直す一覧だけが違うので、薄い専用入口にしてある。
+  function decideApologyPending(idx, decision) {
+    var r = _apologyPendingRows[idx];
+    if (!r) return;
+    var cid = String(r.candidateId || '');
+    if (!cid) { showToast('この記録には candidateId がありません（更新できません）', 'error'); return; }
+    var sid   = String(r.studentId || '');
+    var cname = String(r.contentName || 'この記録');
+    var eduD  = String(r.educationalDate || String(r.occurredAt || '').replace('T', ' ').slice(0, 10));
+    var cnt   = _apologyFailureCount(r);
+    var hp    = _apologyHpToGrant(r);
+    var disp  = (sid ? sid + ' さんの ' : '') + cname + (eduD ? '（' + eduD + '）' : '') + ' ' + cnt + ' 件';
+    var label = (decision === 'approve')
+      ? '承認（お詫びHP ' + hp.toLocaleString() + ' HP を出す）'
+      : '却下（お詫びHPを出さない）';
+    if (!confirm(disp + ' を「' + label + '」にします。よろしいですか？')) return;
+    var note = '';
+    if (decision === 'reject') {
+      note = prompt('却下の理由（記録に残ります。空欄でもOK）', '');
+      if (note === null) return;   // キャンセル
+    }
+    var params = { action: 'adminDecideApologyCandidate', candidateId: cid, decision: decision };
+    if (note) params.note = note;
+    adminGasPost(params).then(function(res){
+      if (!res || !res.ok) {
+        // already / needsStudent は契約で決まっている失敗。どの項目で返るかは決まっていないので
+        //   ★ここだけは複数の入れ物を見る（errorCode / error / code / reason / message）。
+        var mark = String((res && (res.errorCode || res.error || res.code || res.reason)) || '')
+                 + ' ' + String((res && res.message) || '');
+        if (/needsStudent/i.test(mark)) {
+          showToast('生徒が特定できていないため承認できません。先に生徒を特定してください', 'error');
+          loadApologyPending(true);
+          return;
+        }
+        if (/already/i.test(mark)) {
+          showToast('この記録はすでに決着しています（他の先生が処理した可能性があります）', 'error');
+          loadApologyPending(true);
+          return;
+        }
+        var em = (res && res.message) ? res.message : '更新に失敗しました';
+        if (_handleAdminApiError(em)) return;
+        showToast(em, 'error');
+        return;
+      }
+      showToast((res.message ? String(res.message) : '更新しました'), 'success');
+      loadApologyPending(true);
+      loadApologyGranted(true);   // 承認すると「自動付与」側にも現れうるので、両方を読み直す
+    }).catch(function(){
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
 
   // ===== 2026-08-25 純追加：写真送信不具合のお詫びHP（自動付与分）=====
   //   ★adminListApologyCandidates を status=granted で呼ぶ。
@@ -15978,7 +16144,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260830-0519</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260830-2035</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
