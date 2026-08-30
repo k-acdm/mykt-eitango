@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260830-2035"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260830-2153"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260830-2035">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260830-2035"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260830-2153">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260830-2153"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4976,6 +4976,8 @@
         <button class="kiso-confirm-submit" id="kiso-answer-confirm-submit-btn" onclick="submitKisoPhoto()">🚀 送信して採点</button>
       </div>
       <button class="btn-wide btn-crop-open" style="margin-top:10px" onclick="cropKisoPhoto()">✂️ 切り抜いて読み取り直す</button>
+      <!-- 2026-08-30：写真送信に失敗した後だけ出す逃げ道。既定は非表示（失敗していなければ出さない）。 -->
+      <button class="btn-wide" id="photo-escape-kiso" style="display:none;margin-top:10px;background:linear-gradient(135deg,#94a3b8,#64748b);font-size:14px" onclick="photoEscapeToHome('kiso')">📱 写真送信が上手くいかない場合はこれを押してホーム画面へ</button>
     </div>
   </div>
 </div>
@@ -5392,7 +5394,7 @@
     <div id="oriwantes-result-body"></div>
     <div id="oriwantes-result-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:14px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" id="oriwantes-result-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -5741,6 +5743,8 @@
         <button class="kiso-confirm-submit" id="kanji-kaki-submit-btn" onclick="submitKanjiKakiPhoto()">🚀 送信して採点</button>
       </div>
       <button class="btn-wide btn-crop-open" style="margin-top:10px" onclick="cropKanjiPhoto()">✂️ 切り抜いて再判定</button>
+      <!-- 2026-08-30：写真送信に失敗した後だけ出す逃げ道。既定は非表示（失敗していなければ出さない）。 -->
+      <button class="btn-wide" id="photo-escape-kanji" style="display:none;margin-top:10px;background:linear-gradient(135deg,#94a3b8,#64748b);font-size:14px" onclick="photoEscapeToHome('kanji')">📱 写真送信が上手くいかない場合はこれを押してホーム画面へ</button>
     </div>
     <div id="kanji-kaki-msg" class="msg" style="margin-top:10px"></div>
   </div>
@@ -6421,6 +6425,21 @@
     <div class="mykt-overlay-btns">
       <button class="btn-cancel" onclick="_dismissSubmitError()">キャンセル</button>
       <button class="btn-retry" onclick="_retryPendingSubmit()">もう一度送信する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2026-08-30：写真送信の逃げ道を押したときの案内。★「分かりました」でホームへ戻る。 -->
+<div id="photo-escape-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble">
+        写真は「春アカ公式LINE」の方に送り直してください。<br>先生がそれを見てHPを付与します。
+      </div>
+    </div>
+    <div class="mykt-overlay-btns">
+      <button class="btn-retry" onclick="_photoEscapeConfirmed()">分かりました</button>
     </div>
   </div>
 </div>
@@ -14446,7 +14465,7 @@
           showScreen('screen-kiso-answer-confirm');
         });
       }).catch(function(err){
-        try { _recordUnsentAwareness('基礎計算(答えの読み取り)', 'kiso_ocr'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+        try { _recordUnsentAwareness('基礎計算(答えの読み取り)', 'kiso_ocr'); } catch(e){}  try { _markPhotoSendFailed('kiso'); } catch(e){}   // 2026-08-30：写真が送れなかった → 逃げ道を出す  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
         _kisoShowGrading(false);
         if (btn) btn.disabled = false;
         alert('⚠️ 通信エラー：' + String(err) + '\nネットワークが不安定な可能性があります。少し待ってからもう一度お試しください。');
@@ -14606,7 +14625,7 @@
           // 通信エラー / タイムアウト → エラーオーバーレイでリトライ誘導
           _hideHpConfirmingOverlay();
           btn.disabled = false;
-          try { _recordUnsentAwareness('基礎計算', 'kiso_submit'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない）
+          try { _recordUnsentAwareness('基礎計算', 'kiso_submit'); } catch(e){}  try { _markPhotoSendFailed('kiso'); } catch(e){}   // 2026-08-30：写真が送れなかった → 逃げ道を出す  // 応急処置②：未送信を可視化（自動再送はしない）
           _showSubmitError();
         });
       } catch (err) {
@@ -14695,9 +14714,9 @@
       actionsEl.innerHTML =
         '<button class="btn-wide kiso-photo-btn" style="margin-top:14px" onclick="_showKisoDoneFromState()">' + nextLabel + '</button>';
     } else {
+      // ★2026-08-30：合格しない限り抜けられない（ホームへ戻る導線は出さない）。
       actionsEl.innerHTML =
-        '<button class="btn-wide kiso-photo-btn" style="margin-top:14px" onclick="showKisoRetry()">📝 間違えた問題をもう一度</button>' +
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+        '<button class="btn-wide kiso-photo-btn" style="margin-top:14px" onclick="showKisoRetry()">📝 間違えた問題をもう一度</button>';
     }
 
     showScreen('screen-kiso-result');
@@ -14973,7 +14992,7 @@
         // 2026-08-05 追修正：次表示への切替を overlay 消滅と同時に
         _kisoShowGrading(false, function(){ _renderKisoWorkAfter(); });
       }).catch(function(err){
-        try { _recordUnsentAwareness('基礎計算(途中式の写真)', 'kiso_work'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+        try { _recordUnsentAwareness('基礎計算(途中式の写真)', 'kiso_work'); } catch(e){}  try { _markPhotoSendFailed('kiso'); } catch(e){}   // 2026-08-30：写真が送れなかった → 逃げ道を出す  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
         _kisoShowGrading(false);
         if (msgEl && msgOriginal) msgEl.innerHTML = msgOriginal;
         document.getElementById('kiso-work-confirm-submit-btn').disabled = false;
@@ -17556,6 +17575,14 @@
     var resultsForCards = (!gradingFailed && res && res.results && res.results.length) ? res.results : null;
     _renderOriwantesResultList(questions, resultsForCards);
 
+    // ★2026-08-30：不合格（failed）のときだけ「ホーム画面に戻る」を隠す。
+    //   合格・採点不能・HP付与失敗のときは従来どおり出す（出口をゼロにしない）。
+    //   ★不合格でも「← オリワンテスのトップに戻る」は残す＝再挑戦の入口がそこにあるため。
+    try {
+      var _oriHomeBtn = document.getElementById('oriwantes-result-home-btn');
+      if (_oriHomeBtn) _oriHomeBtn.style.display = (subMode === 'failed') ? 'none' : '';
+    } catch(e){}
+
     if (subMode === 'passed') {
       // 【用件4 第3段】① 満額（fullHp = 90 × week²）へカウントアップ（他コンテンツと同一の _wabun1AnimateHp / duration 1000）。
       //   サーバ確定値・素通し（フロント再計算なし）。無ければ hpGained+hpReserved にフォールバック。
@@ -19059,9 +19086,9 @@
           '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
           '<div style="font-size:13px;color:#666;margin-top:6px">順序を変えて全問やり直しだよ</div>' +
         '</div>';
+      // ★2026-08-30：合格しない限り抜けられない（ホームへ戻る導線は出さない）。
       actions.innerHTML =
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKanjiYomi()">🔄 もう一度挑戦する</button>' +
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKanjiYomi()">🔄 もう一度挑戦する</button>';
       try { playSfx('fail'); } catch(e){}
     }
     showScreen('screen-kanji-yomi-result');
@@ -19296,7 +19323,7 @@
         // 通信エラー / 90 秒タイムアウト → エラーオーバーレイでリトライ誘導
         _hideHpConfirmingOverlay();
         submitBtn.disabled = false;
-        try { _recordUnsentAwareness('カンジー', 'kanji'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない）
+        try { _recordUnsentAwareness('カンジー', 'kanji'); } catch(e){}  try { _markPhotoSendFailed('kanji'); } catch(e){}   // 2026-08-30：写真が送れなかった → 逃げ道を出す  // 応急処置②：未送信を可視化（自動再送はしない）
         _showSubmitError();
       });
     }
@@ -19371,9 +19398,9 @@
           hintBlock +
         '</div>' +
       '</div>';
+    // ★2026-08-30：合格しない限り抜けられない（ホームへ戻る導線は出さない）。
     actions.innerHTML =
-      '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKanjiKaki()">📸 間違えた問題だけ もう一度</button>' +
-      '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+      '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKanjiKaki()">📸 間違えた問題だけ もう一度</button>';
     try { playSfx('fail'); } catch(e){}
     showScreen('screen-kanji-kaki-result');
   }
@@ -21060,9 +21087,9 @@
           '<div class="kobun-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
           '<div style="font-size:13px;color:#666;margin-top:6px">順序を変えて全問やり直しじゃ（用例画面はスキップ）</div>' +
         '</div>';
+      // ★2026-08-30：合格しない限り抜けられない（ホームへ戻る導線は出さない）。
       actions.innerHTML =
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKobun()">🔄 もう一度挑戦する</button>' +
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKobun()">🔄 もう一度挑戦する</button>';
       try { playSfx('fail'); } catch(e){}
     }
     showScreen('screen-kobun-result');
@@ -22630,6 +22657,63 @@
 
   // 送信失敗（通信断/タイムアウト）を表示専用で記録。payload は保持しない（自動再送しないため）。
   //   ★2026-08-25：id を振って返す。flowKey を渡すと、その操作の束に id を覚えておく（成功時にまとめて消す）。
+  // ===== 2026-08-30：写真送信が失敗したときだけ出す逃げ道 =====
+  //   背景：合格ラインのあるコンテンツは「合格しない限り抜けられない」に変えた。
+  //         ただし★写真が送れないときだけは、生徒に責任がないので出口を用意する。
+  //   ★出す条件：そのコンテンツで「写真の送信が実際に失敗した」ときだけ。
+  //     失敗していなければ button は display:none のまま＝出さない。
+  //   ★押すと案内（LINEに送り直す）を挟み、「分かりました」でホームへ戻る。
+  //   ★「分かりました」が押されたことは、既存の未送信の印と同じ作法で記録する
+  //     （_recordUnsentAwareness）。次回ログイン時に reportUnsentOnLogin で
+  //      先生へ通知され、管理画面「📮 未送信の検知」に出る。★サーバー側の追加は不要。
+  var PHOTO_ESCAPE_LABELS = {
+    kiso:  '基礎計算(LINEへ送り直す)',
+    kanji: 'カンジー(LINEへ送り直す)'
+  };
+  var _photoEscapeFailed = {};   // contentKey -> true（写真送信に失敗した後だけ true）
+  var _photoEscapePending = '';  // 案内オーバーレイで「分かりました」を待っているコンテンツ
+
+  // 写真送信が失敗したときに呼ぶ。以降、そのコンテンツの確認画面に逃げ道が出る。
+  function _markPhotoSendFailed(key) {
+    try {
+      if (!key) return;
+      _photoEscapeFailed[key] = true;
+      _applyPhotoEscapeVisibility(key);
+    } catch(e){}
+  }
+  // 失敗フラグに従って表示/非表示を反映する。★失敗していなければ必ず非表示。
+  function _applyPhotoEscapeVisibility(key) {
+    try {
+      var el = document.getElementById('photo-escape-' + key);
+      if (!el) return;
+      el.style.display = _photoEscapeFailed[key] ? '' : 'none';
+    } catch(e){}
+  }
+  // 逃げ道ボタン。★押しても即ホームには戻さず、必ず案内を挟む。
+  function photoEscapeToHome(key) {
+    try {
+      if (!key || !_photoEscapeFailed[key]) return;   // 失敗していないのに呼ばれたら何もしない（安全側）
+      _photoEscapePending = String(key);
+      var ov = document.getElementById('photo-escape-overlay');
+      if (ov) { ov.classList.add('active'); return; }
+      _photoEscapeConfirmed();   // オーバーレイが無い異常時でも詰まらせない
+    } catch(e){}
+  }
+  // 「分かりました」。★押されたことを記録してからホームへ戻る。
+  function _photoEscapeConfirmed() {
+    var key = _photoEscapePending;
+    _photoEscapePending = '';
+    try {
+      var ov = document.getElementById('photo-escape-overlay');
+      if (ov) ov.classList.remove('active');
+    } catch(e){}
+    // ★記録：既存の未送信の印と同じ作法。flowKey は渡さない
+    //   （＝あとで送信に成功しても消さない。「LINEへ回した」事実は残す）。
+    try { _recordUnsentAwareness(PHOTO_ESCAPE_LABELS[key] || '写真(LINEへ送り直す)'); } catch(e){}
+    try { if (key) { _photoEscapeFailed[key] = false; _applyPhotoEscapeVisibility(key); } } catch(e){}
+    try { goHome(); } catch(e){}
+  }
+
   function _recordUnsentAwareness(label, flowKey) {
     try {
       var sid = String(_studentId || '').trim(); if (!sid) return '';
@@ -22707,7 +22791,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260830-2035</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260830-2153</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
