@@ -695,3 +695,20 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 3790c580d0a05990af6a565ea6256e382e3cfb88 && git push origin main && git checkout dev
   ```
+
+### 送信が届いたことを各キャラクターが伝える受領メッセージ（2026-09-01）
+
+- 反映内容
+  - 7コンテンツ（基礎計算・カンジー・三語短文・和文英訳①・英単語RUSH5級書き取り・マイ課題・オリワンテス）で、
+    サーバーが受け取った後にだけキャラクターが「受け取ったよ」と伝える（文言は 2026-08-18 塾長確定版）
+  - マイ課題の宿題は全教科が届いたときだけ出す（一部成功では出さない）
+- 実装コミット：`15f92df`（受領メッセージ）／`87f1bbb`（マイ課題の全教科条件）
+  ＋ `06d1846`（HANDOVER 記録・コード差分なし）
+- **反映前の main（切り戻し先）：`3790c580d0a05990af6a565ea6256e382e3cfb88`**
+- **マージコミット：`660a95560d5503ea63d811c1a278597d25ed2f41`**
+- 版バッジ：`20260901-0453`（index / view / admin の3ファイル）
+- GitHub Actions：success ／ 配信物と origin/main の sha256 は3ファイルとも一致
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 660a95560d5503ea63d811c1a278597d25ed2f41 && git push origin main && git checkout dev
+  ```
