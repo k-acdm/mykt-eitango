@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260830-2359"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260901-0321"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260830-2359">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260830-2359"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260901-0321">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260901-0321"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5718,6 +5718,10 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを写真に撮って送る</button>
     <button class="btn-wide" id="kanji-kaki-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:10px" onclick="kanjiRestartFresh()">🆕 最初から（読みから）やり直す</button>
     <button class="btn-wide" id="kanji-kaki-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <!-- 2026-08-31：写真送信に失敗した後だけ出す逃げ道（確認画面の photo-escape-kanji と同じ入口）。
+         ★カメラが開かず撮影画面まで行けない生徒も、一度失敗していればここから抜けられる。
+         ★既定は非表示。失敗していなければ出さない（押せない）。 -->
+    <button class="btn-wide" id="photo-escape-kanji-kaki" style="display:none;margin-top:10px;background:linear-gradient(135deg,#94a3b8,#64748b);font-size:14px" onclick="photoEscapeToHome('kanji')">📱 写真送信が上手くいかない場合はこれを押してホーム画面へ</button>
   </div>
 </div>
 
@@ -19113,7 +19117,11 @@
   // ----- 書き問題 -----
   function startKanjiKaki() {
     _kanjiState.isKakiRetry = false;
-    _setRetryHomeBtn('kanji-kaki-home-btn', false);   // ★通常開始 → ホーム導線は従来どおり出す
+    // 2026-08-31：★再開した書き画面でもホーム導線を隠す（書いた分を捨てて帰れてしまう穴を塞ぐ）。
+    //   ★通常の初回（isResumed=false / isKakiRetry=false）は従来どおりホームを出す
+    //     ＝まだ何も書いていない生徒はここから帰れる。
+    //   ★再開時は「🆕 最初から（読みから）やり直す」と「📷 ノートを写真に撮って送る」が残るので詰まらない。
+    _setRetryHomeBtn('kanji-kaki-home-btn', _kanjiState.isKakiRetry || _kanjiState.isResumed);
     _kanjiState.retryAnswers = [];
     // ★書き段階到達を中断エントリに永続化（自動再開で読みスキップの判定に使う）
     try { _kanjiMarkRecentStage(_kanjiState.level, _kanjiState.sessionId, 'kaki'); } catch(e){}
@@ -19129,6 +19137,7 @@
     // 自動再開時のみ「最初から（読みから）やり直す」導線を表示
     var freshBtn = document.getElementById('kanji-kaki-fresh-btn');
     if (freshBtn) freshBtn.style.display = _kanjiState.isResumed ? '' : 'none';
+    try { _applyPhotoEscapeVisibility('kanji'); } catch(e){}   // 2026-08-31：逃げ道は失敗済みのときだけ出す
     showScreen('screen-kanji-kaki');
     // 2026-08-19：リロード復元。同じ級・同じセッションの撮影済み写真が端末に残っていれば
     //   メモリへ戻して撮影確認画面まで進める（＝撮り直さずそのまま送信できる）。
@@ -22695,12 +22704,18 @@
       _applyPhotoEscapeVisibility(key);
     } catch(e){}
   }
+  // 2026-08-31：同じコンテンツで逃げ道ボタンを2箇所以上に置くときの追加 id。
+  //   ★カンジーは撮影確認画面（photo-escape-kanji）に加えて、書き画面にも置く。
+  var PHOTO_ESCAPE_EXTRA_IDS = { kanji: ['photo-escape-kanji-kaki'] };
   // 失敗フラグに従って表示/非表示を反映する。★失敗していなければ必ず非表示。
   function _applyPhotoEscapeVisibility(key) {
     try {
-      var el = document.getElementById('photo-escape-' + key);
-      if (!el) return;
-      el.style.display = _photoEscapeFailed[key] ? '' : 'none';
+      var show = _photoEscapeFailed[key] ? '' : 'none';
+      var ids = ['photo-escape-' + key].concat(PHOTO_ESCAPE_EXTRA_IDS[key] || []);
+      for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if (el) el.style.display = show;   // ★失敗していなければ必ず none
+      }
     } catch(e){}
   }
   // 逃げ道ボタン。★押しても即ホームには戻さず、必ず案内を挟む。
@@ -22805,7 +22820,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260830-2359</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260901-0321</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
