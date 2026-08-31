@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260901-0321"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260901-0443"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260901-0321">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260901-0321"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260901-0443">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260901-0443"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10135,8 +10135,16 @@
         var count = (detected.match(regex)||[]).length;
         if (count < 3) failedWords.push({ word: w, count: count });
       });
-      if (failedWords.length === 0) { _setContentMascot('mate-img-eitan-dictation', 'celebrate', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.pass), 'rushkun'); msgEl.style.display = 'none'; showPhotoPassedScreen(); }
-      else { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); _renderPhotoFail(failedWords, rawText, confPct); }
+      // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す。
+      //   ★このコンテンツだけ HP 確認オーバーレイを通らない（写真の提出＝ocrEikenPhoto で完結）ため、
+      //     書き取り画面の既存マスコット（RUSH君）に出す。新しい要素は作らない。
+      //   ★他6コンテンツの overlay 最低表示と同じ 3 秒だけ見せてから、既存の合否表示へ進む
+      //     （既存の表示は消さず、順番を後ろにずらすだけ）。
+      _setContentMascot('mate-img-eitan-dictation', 'default', 'mate-bubble-eitan-dictation', RECEIVED_LINES.eiken5, 'rushkun');
+      setTimeout(function(){
+        if (failedWords.length === 0) { _setContentMascot('mate-img-eitan-dictation', 'celebrate', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.pass), 'rushkun'); msgEl.style.display = 'none'; showPhotoPassedScreen(); }
+        else { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); _renderPhotoFail(failedWords, rawText, confPct); }
+      }, MIN_HP_OVERLAY_MS);
     }).catch(function(err){ try { _recordUnsentAwareness('英単語RUSH(5級)', 'eiken5_ocr'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','⚠️ 送信できませんでした。まだ記録されていません。電波の良い場所でもう一度送ってね。','ng'); });
   }
   function _renderPhotoFail(failedWords, rawText, confPct) {
@@ -12127,6 +12135,7 @@
         };
         // サーバ ok 確認後に feedback 画面へ直接遷移（旧版の 1.8 秒待ちは overlay 表示時間で代替）
         // 2026-08-05 追修正：feedback 画面への切替を overlay 消滅と同時に
+        _showReceivedOnOverlay('sango');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
         _hideHpConfirmingOverlay(function(){ _showSangoFeedback(res.aiFeedback || null); });
       }).catch(function(){
         try { _resendQueueAdd({ action: 'submitSango', payload: payload, method: 'get', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
@@ -12300,6 +12309,7 @@
           hasRequiredMission:  res.hasRequiredMission
         };
         // 2026-08-05 追修正：feedback 画面への切替を overlay 消滅と同時に
+        _showReceivedOnOverlay('sango');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
         _hideHpConfirmingOverlay(function(){ _showSangoFeedback(res.aiFeedback || null); });
       }).catch(function(){
         try { _resendQueueAdd({ action: 'submitSango', payload: payload, method: 'get', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
@@ -13310,6 +13320,7 @@
         _wabun1State.hasSubmitted = true;
         _invalidateCacheByAction('getWabun1AnswersAfterSubmit');
         // 2026-08-05 追修正：result 画面への切替を overlay 消滅と同時に
+        _showReceivedOnOverlay('wabun1');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
         _hideHpConfirmingOverlay(function(){ _showWabun1Result(res); });
       }).catch(function(){
         try { _resendQueueAdd({ action: 'submitWabun1', payload: payload, method: 'get', sid: _studentId }); } catch(e){}  // 防護柵3枚目：通信断/タイムアウトのみ enqueue
@@ -14626,6 +14637,7 @@
             });
           }
           // 2026-08-05 追修正：結果画面への切替を overlay 消滅と同時に
+          _showReceivedOnOverlay('kiso');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
           _hideHpConfirmingOverlay(function(){ _renderKisoResult(res); });
         }).catch(function(err){
           // 通信エラー / タイムアウト → エラーオーバーレイでリトライ誘導
@@ -16397,6 +16409,46 @@
     mytask:    'あれ、うまく撮れてなかった！ごめん、もう一回撮って！',
     oriwantes: 'おっと、うまく撮れてないようだ。手間をかけるが、もう一度撮って送ってくれ。'
   };
+  // 2026-08-18 塾長確定文言：★サーバーが「受け取った」と返してきた後にだけ出す受領メッセージ。
+  //   背景：生徒が「写真がちゃんと届いたのか分からず、何度も送ってしまう」ことへの対策。
+  //   ★送信ボタンを押した瞬間には出さない（通信が失敗したときに嘘になるため）。
+  //   ★文言は1文字も変更しないこと。集約先は NO_PHOTO_LINES と同じここ。
+  var RECEIVED_LINES = {
+    kiso:      '答案は確かに受け取ったよ。あとはマイカツ君に渡しておく。心配いらない！',
+    kanji:     'しかと受け取ったぞ。あとはワシがマイカツ君に伝えておくゆえ、安心なされよ。',
+    sango:     'ちゃんと受け取ったよ〜。あとはボクがマイカツ君に届けておくね〜。ぽこぽこ〜',
+    wabun1:    '受け取ったよ！あとはボクがスイ〜っとマイカツ君に渡しておくから！',
+    eiken5:    'Got it! しっかり受け取ったよ。あとはマイカツ君に渡しておくから、まかせて！',
+    mytask:    'たしかに受け取った！あとはマイカツ君にちゃんと渡しておくから、大丈夫！',
+    oriwantes: '確かに受け取った。案ずるな、私が責任を持ってマイカツ君にも伝えておこう。'
+  };
+  // 受領メッセージを、既存の HP 確認オーバーレイのセリフに差し替える。
+  //   ★呼ぶのはサーバーが ok を返した後だけ（各コンテンツの成功分岐から呼んでいる）。
+  //   ★オーバーレイが出ていないときは何もしない（＝勝手に新しい表示を作らない）。
+  //   ★_hpOverlayShownAt を今に置き直すことで、既存の最低表示時間（MIN_HP_OVERLAY_MS = 3 秒）が
+  //     この受領メッセージに対して働く＝生徒が読む前に消えない。
+  //     ★必ず _hideHpConfirmingOverlay より前に呼ぶこと（後で呼ぶと hide が無効化され画面が固まる）。
+  //   ★キャラクターの絵は _showHpConfirmingOverlay が設定済みのものをそのまま使う（差し替えない）。
+  function _showReceivedOnOverlay(key) {
+    try {
+      var line = RECEIVED_LINES[key];
+      if (!line) return;
+      var ov = document.getElementById('hp-confirming-overlay');
+      if (!ov || !ov.classList.contains('active')) return;   // 出ていなければ何もしない
+      var txt = document.getElementById('hp-confirming-text');
+      if (txt) txt.textContent = line;
+      _hpOverlayShownAt = Date.now();   // 最低表示時間を測り直す（読む時間を確保）
+    } catch(e){}
+  }
+  // マイ課題の宿題は教科ごとにまとめて送るため、1教科でも受け取られたかで判断する。
+  function _myTaskAnyOk(results) {
+    try {
+      for (var i = 0; i < (results || []).length; i++) {
+        if (results[i] && results[i].res && results[i].res.ok === true) return true;
+      }
+    } catch(e){}
+    return false;
+  }
   var MAIKADAI_BUBBLES = {
     home:    ['最初にどっちかを選んで！'],
     input:   ['やった課題の内容を詳しく教えて！'],
@@ -16738,6 +16790,7 @@
     function next() {
       if (idx >= subs.length) {
         // 2026-08-20：overlay を消す瞬間に次画面を出す（他コンテンツと同じ「同時遷移」）
+        if (_myTaskAnyOk(results)) _showReceivedOnOverlay('mytask');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
         _hideMyTaskSending(function(){ _showMyTaskHwDone(results); });
         return;
       }
@@ -16879,6 +16932,7 @@
       photos: sending
     }, 120000).then(function(res){
       _clearUnsentFlowIfOk(res, 'mytask_hw:' + subj);   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
+      if (res && res.ok === true) _showReceivedOnOverlay('mytask');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
       _hideMyTaskSending(function(){ _afterMyTaskHwResend(i, res, sending); });
     }, function(err){
       try { _recordUnsentAwareness('マイ課題(宿題の再送)', 'mytask_hw:' + subj); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
@@ -17533,6 +17587,7 @@
         _oriwantesSubmitting = false;
         if (res && res.ok) {
           try { _pendingPhotoClear(ORIWANTES_KEY); } catch(e){}  // 2026-08-20：解答まで完了したので保存は破棄
+          _showReceivedOnOverlay('oriwantes');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
           _hideOriwantesSending(function(){ _showOriwantesResult(res, questions, 'ok'); });
         } else if (res && res.errorCode === 'HP_LOG_FAILED') {
           // 保存は成立・HP付与のみ失敗 → 結果は見せる（HPの問題は控えめに）。
@@ -18082,6 +18137,7 @@
         // 2026-08-20：通常送信と同じ作法（結果画面は同時遷移／エラーは即座に alert）。
         _oriwantesRetrySubmitting = false;
         if (res && res.ok) {
+          _showReceivedOnOverlay('oriwantes');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
           _hideOriwantesSending(function(){ _showOriwantesRetryResult(res); });
         } else {
           _hideOriwantesSending();
@@ -18288,6 +18344,7 @@
       photos: photos
     }, 120000).then(function(res){
       _clearUnsentFlowIfOk(res, 'mytask_self');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
+      if (res && res.ok === true) _showReceivedOnOverlay('mytask');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
       _hideMyTaskSending(function(){ _handleMyTaskResult(res, photos); });
     }).catch(function(err){
       try { _recordUnsentAwareness('マイ課題(自主)', 'mytask_self'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
@@ -19331,6 +19388,7 @@
           });
         } catch(_e) {}
         // 2026-08-05 追修正：結果画面への切替を overlay 消滅と同時に
+        _showReceivedOnOverlay('kanji');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
         _hideHpConfirmingOverlay(function(){ _showKanjiKakiResult(res); });
       }).catch(function(err){
         // 通信エラー / 90 秒タイムアウト → エラーオーバーレイでリトライ誘導
@@ -22820,7 +22878,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260901-0321</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260901-0443</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
