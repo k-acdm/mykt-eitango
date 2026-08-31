@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260901-0443"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260901-0453"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260901-0443">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260901-0443"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260901-0453">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260901-0453"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -16440,14 +16440,20 @@
       _hpOverlayShownAt = Date.now();   // 最低表示時間を測り直す（読む時間を確保）
     } catch(e){}
   }
-  // マイ課題の宿題は教科ごとにまとめて送るため、1教科でも受け取られたかで判断する。
-  function _myTaskAnyOk(results) {
+  // マイ課題の宿題は教科ごとにまとめて送るため、★全教科が受け取られたときだけ true。
+  //   ★一部だけ成功しているのに「たしかに受け取った！」と出すと、生徒は全部届いたと思い込み、
+  //     届いていない教科を放置して閉じてしまう。安心させてはいけない場面なので出さない。
+  //   ★一部成功・全部失敗のときは受領メッセージを出さず、既存の失敗表示（教科別の再送導線）に任せる。
+  //   ★送った教科が 1 件も無いとき（空）は false（＝出さない）。
+  function _myTaskAllOk(results) {
     try {
-      for (var i = 0; i < (results || []).length; i++) {
-        if (results[i] && results[i].res && results[i].res.ok === true) return true;
+      var arr = results || [];
+      if (!arr.length) return false;
+      for (var i = 0; i < arr.length; i++) {
+        if (!(arr[i] && arr[i].res && arr[i].res.ok === true)) return false;
       }
-    } catch(e){}
-    return false;
+      return true;
+    } catch(e){ return false; }
   }
   var MAIKADAI_BUBBLES = {
     home:    ['最初にどっちかを選んで！'],
@@ -16790,7 +16796,7 @@
     function next() {
       if (idx >= subs.length) {
         // 2026-08-20：overlay を消す瞬間に次画面を出す（他コンテンツと同じ「同時遷移」）
-        if (_myTaskAnyOk(results)) _showReceivedOnOverlay('mytask');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
+        if (_myTaskAllOk(results)) _showReceivedOnOverlay('mytask');   // 2026-08-18 確定文言：★全教科が受け取られたときだけ出す
         _hideMyTaskSending(function(){ _showMyTaskHwDone(results); });
         return;
       }
@@ -22878,7 +22884,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260901-0443</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260901-0453</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
