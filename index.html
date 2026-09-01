@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260901-0453"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260902-0114"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260901-0453">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260901-0453"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260902-0114">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260902-0114"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4379,7 +4379,8 @@
       <div id="photo-msg" class="msg" style="margin-top:10px"></div>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showLevelSelect()">← レベル選択に戻る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="photoEscapeToHome('eiken5', true)">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-test" class="screen">
@@ -4840,7 +4841,8 @@
       </div>
     </div>
     <button class="btn-wide kiso-photo-btn" onclick="goKisoPreConfirm()">📷 写真を撮って提出する</button>
-    <button class="btn-wide" id="kiso-problem-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
+    <button class="btn-wide" id="kiso-problem-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="photoEscapeToHome('kiso', true)">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -4916,7 +4918,8 @@
       <div class="reload-warn-title">📂 撮影後にログイン画面に戻っても大丈夫</div>
       もう一度ログインして「📐 基礎計算」→ <strong>同じ単元・同じ問題数</strong> を選べば、<strong>同じ問題で自動で再開</strong>できるよ。
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="photoEscapeToHome('kiso', true)">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -5717,7 +5720,8 @@
     <input type="file" id="kanji-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKanjiPhotoSelected(event)">
     <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを写真に撮って送る</button>
     <button class="btn-wide" id="kanji-kaki-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:10px" onclick="kanjiRestartFresh()">🆕 最初から（読みから）やり直す</button>
-    <button class="btn-wide" id="kanji-kaki-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
+    <button class="btn-wide" id="kanji-kaki-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="photoEscapeToHome('kanji', true)">🏠 ホーム画面に戻る</button>
     <!-- 2026-08-31：写真送信に失敗した後だけ出す逃げ道（確認画面の photo-escape-kanji と同じ入口）。
          ★カメラが開かず撮影画面まで行けない生徒も、一度失敗していればここから抜けられる。
          ★既定は非表示。失敗していなければ出さない（押せない）。 -->
@@ -7423,10 +7427,23 @@
   var MIN_HP_OVERLAY_MS   = 3000;
   var MIN_REFL_OVERLAY_MS = 6000;
   var _hpOverlayShownAt   = 0;
+  // 2026-09-02：受領メッセージ（RECEIVED_LINES）を出す順番と長さ。
+  //   ★従来はサーバーが返ってきた瞬間に文言を差し替えていたため、応答が速いと
+  //     「送信中」が一瞬も見えないまま「受け取ったよ」になり、押した直後に届いたように見えていた。
+  //   ★そこで「送信中」と「受領」それぞれに最低表示時間を持たせ、必ずこの順で見せる。
+  //   ★合計は 1.5 + 2.5 = 4.0 秒。従来の最低 3 秒から 1 秒だけ伸びる。
+  var MIN_SENDING_MS  = 1500;   // 「送信中」を必ず見せる時間
+  var MIN_RECEIVED_MS = 2500;   // 「受け取ったよ」を必ず見せる時間
+  //   ★オーバーレイを消してよい時刻（絶対時刻）。
+  //     ★_hpOverlayShownAt は「どの送信の表示か」を見分ける合図として使われており
+  //       （別の送信が始まったら古い hide を無効にする）、★受領メッセージのために
+  //       書き換えると hide が無効化されて画面が固まる。伸ばすのは必ずこちらだけにする。
+  var _hpOverlayHideNotBefore = 0;
   var _reflOverlayShownAt = 0;
   var _kisoGradingShownAt = 0;
   function _showHpConfirmingOverlay(charId) {
     _hpOverlayShownAt = Date.now();   // §6-A23 ①：cover方式の起点時刻
+    _hpOverlayHideNotBefore = _hpOverlayShownAt + MIN_HP_OVERLAY_MS;   // 2026-09-02：既定は従来どおり最低3秒
     var meta = HP_CONFIRMING_BY_CHAR[charId] || HP_CONFIRMING_BY_CHAR['rushkun'];
     var ov  = document.getElementById('hp-confirming-overlay');
     var img = document.getElementById('hp-confirming-mascot');
@@ -7459,7 +7476,8 @@
       if (_hpConfirmingDotsTimer) { clearInterval(_hpConfirmingDotsTimer); _hpConfirmingDotsTimer = null; }
       if (typeof onHidden === 'function') onHidden();   // remove と同一タスクで画面切替（同時遷移）
     };
-    var remain = MIN_HP_OVERLAY_MS - (Date.now() - shownAt);
+    // 2026-09-02：受領メッセージを出した場合は _hpOverlayHideNotBefore が後ろへ伸びている。
+    var remain = _hpOverlayHideNotBefore - Date.now();
     if (remain > 0) setTimeout(_doHide, remain);
     else _doHide();
   }
@@ -10105,6 +10123,7 @@
     }
     var msgEl = document.getElementById('photo-msg'); msgEl.textContent = '⏳ AIが判定中です。少々お待ちください...'; msgEl.className = 'msg ok'; msgEl.style.display = 'block';
     _setContentMascot('mate-img-eitan-dictation', 'thinking', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoTry), 'rushkun');
+    var _sendStartedAt = Date.now();   // 2026-09-02：この「送信中」を見せ切ってから受領メッセージへ移る
     var wordList = _questions.map(function(w){ return w.word; });
     // 2026-08-20：Vision APIキー撤去 段階3（5級）。
     //   従来はブラウザから Google Vision を直接叩いており、APIキーが GitHub Pages 上に
@@ -10140,11 +10159,16 @@
       //     書き取り画面の既存マスコット（RUSH君）に出す。新しい要素は作らない。
       //   ★他6コンテンツの overlay 最低表示と同じ 3 秒だけ見せてから、既存の合否表示へ進む
       //     （既存の表示は消さず、順番を後ろにずらすだけ）。
-      _setContentMascot('mate-img-eitan-dictation', 'default', 'mate-bubble-eitan-dictation', RECEIVED_LINES.eiken5, 'rushkun');
+      //   ★2026-09-02：他6コンテンツと同じ「送信中 → 受け取ったよ → 結果」の順に揃える。
+      //     サーバーが速く返ってきても、まず「送信中」を MIN_SENDING_MS だけ見せ切る。
       setTimeout(function(){
-        if (failedWords.length === 0) { _setContentMascot('mate-img-eitan-dictation', 'celebrate', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.pass), 'rushkun'); msgEl.style.display = 'none'; showPhotoPassedScreen(); }
-        else { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); _renderPhotoFail(failedWords, rawText, confPct); }
-      }, MIN_HP_OVERLAY_MS);
+        _setContentMascot('mate-img-eitan-dictation', 'default', 'mate-bubble-eitan-dictation', RECEIVED_LINES.eiken5, 'rushkun');
+        msgEl.style.display = 'none';   // 「AIが判定中です」は受領に切り替わった時点で消す
+        setTimeout(function(){
+          if (failedWords.length === 0) { _setContentMascot('mate-img-eitan-dictation', 'celebrate', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.pass), 'rushkun'); msgEl.style.display = 'none'; showPhotoPassedScreen(); }
+          else { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); _renderPhotoFail(failedWords, rawText, confPct); }
+        }, MIN_RECEIVED_MS);
+      }, Math.max(0, MIN_SENDING_MS - (Date.now() - _sendStartedAt)));
     }).catch(function(err){ try { _recordUnsentAwareness('英単語RUSH(5級)', 'eiken5_ocr'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','⚠️ 送信できませんでした。まだ記録されていません。電波の良い場所でもう一度送ってね。','ng'); });
   }
   function _renderPhotoFail(failedWords, rawText, confPct) {
@@ -16435,9 +16459,28 @@
       if (!line) return;
       var ov = document.getElementById('hp-confirming-overlay');
       if (!ov || !ov.classList.contains('active')) return;   // 出ていなければ何もしない
-      var txt = document.getElementById('hp-confirming-text');
-      if (txt) txt.textContent = line;
-      _hpOverlayShownAt = Date.now();   // 最低表示時間を測り直す（読む時間を確保）
+      var token  = _hpOverlayShownAt;                          // どの送信の表示かの合図（書き換えない）
+      var swapAt = _hpOverlayShownAt + MIN_SENDING_MS;         // 「送信中」を見せ切る時刻
+      // ★受領メッセージが実際に画面へ出る時刻。
+      //   サーバーの応答が MIN_SENDING_MS より遅かった場合は「いま」から出る。
+      //   ★ここを swapAt のままにすると、応答が遅いときに
+      //     「受け取ったよ」が出た直後に消えてしまう（読む時間がゼロになる）。
+      var showAt = Math.max(swapAt, Date.now());
+      // ★同期のうちに「消してよい時刻」を後ろへずらす。
+      //   （この直後に _hideHpConfirmingOverlay が呼ばれるので、非同期にすると間に合わない）
+      _hpOverlayHideNotBefore = Math.max(_hpOverlayHideNotBefore, showAt + MIN_RECEIVED_MS);
+      var swap = function(){
+        if (_hpOverlayShownAt !== token) return;   // 別の送信が始まっていたら何もしない
+        var txt = document.getElementById('hp-confirming-text');
+        if (txt) txt.textContent = line;
+        // 「受け取ったよ」に「...」が付いたままだと、まだ処理中に見える。ここで止める。
+        var dotsEl = document.getElementById('hp-confirming-dots');
+        if (dotsEl) dotsEl.textContent = '';
+        if (_hpConfirmingDotsTimer) { clearInterval(_hpConfirmingDotsTimer); _hpConfirmingDotsTimer = null; }
+      };
+      var wait = showAt - Date.now();
+      if (wait > 0) setTimeout(swap, wait);
+      else swap();
     } catch(e){}
   }
   // マイ課題の宿題は教科ごとにまとめて送るため、★全教科が受け取られたときだけ true。
@@ -22754,8 +22797,9 @@
   //     （_recordUnsentAwareness）。次回ログイン時に reportUnsentOnLogin で
   //      先生へ通知され、管理画面「📮 未送信の検知」に出る。★サーバー側の追加は不要。
   var PHOTO_ESCAPE_LABELS = {
-    kiso:  '基礎計算(LINEへ送り直す)',
-    kanji: 'カンジー(LINEへ送り直す)'
+    kiso:   '基礎計算(LINEへ送り直す)',
+    kanji:  'カンジー(LINEへ送り直す)',
+    eiken5: '英単語RUSH(5級)(LINEへ送り直す)'   // 2026-09-02：書き取り画面のホームを差し替えたぶん
   };
   var _photoEscapeFailed = {};   // contentKey -> true（写真送信に失敗した後だけ true）
   var _photoEscapePending = '';  // 案内オーバーレイで「分かりました」を待っているコンテンツ
@@ -22783,9 +22827,13 @@
     } catch(e){}
   }
   // 逃げ道ボタン。★押しても即ホームには戻さず、必ず案内を挟む。
-  function photoEscapeToHome(key) {
+  //   ★第2引数 force=true は「素のホームボタンから差し替えた入口」用。
+  //     写真の送信に失敗していなくても、必ず LINE 案内を出してから帰す。
+  //     ★これが無いと差し替えたボタンは押しても何も起きず、その画面の出口がゼロになる。
+  function photoEscapeToHome(key, force) {
     try {
-      if (!key || !_photoEscapeFailed[key]) return;   // 失敗していないのに呼ばれたら何もしない（安全側）
+      if (!key) return;
+      if (!force && !_photoEscapeFailed[key]) return;   // 失敗していないのに呼ばれたら何もしない（安全側）
       _photoEscapePending = String(key);
       var ov = document.getElementById('photo-escape-overlay');
       if (ov) { ov.classList.add('active'); return; }
@@ -22884,7 +22932,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260901-0453</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260902-0114</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
