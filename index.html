@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260902-0114"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260902-0425"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260902-0114">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260902-0114"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260902-0425">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260902-0425"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4378,7 +4378,7 @@
       <img id="photo-preview" class="photo-preview"/>
       <div id="photo-msg" class="msg" style="margin-top:10px"></div>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showLevelSelect()">← レベル選択に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px;display:none" onclick="showLevelSelect()">← レベル選択に戻る</button>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="photoEscapeToHome('eiken5', true)">🏠 ホーム画面に戻る</button>
   </div>
@@ -4485,7 +4485,7 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#4fc3f7,#2979ff);margin-top:8px" onclick="startSangoPhotoSubmit()">📷 作品を提出する（写真に撮って送る）</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:8px;color:#6d2c4a" onclick="showSangoPast()">📚 過去のお題と福地の作品</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d" onclick="showSangoHistory()">📖 過去の提出作品</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="photoEscapeToHome('sango', true)">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-sango-past" class="screen">
@@ -4649,7 +4649,7 @@
         <span class="wabun1-video-arrow">▶</span>
       </a>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="photoEscapeToHome('wabun1', true)">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -22799,7 +22799,9 @@
   var PHOTO_ESCAPE_LABELS = {
     kiso:   '基礎計算(LINEへ送り直す)',
     kanji:  'カンジー(LINEへ送り直す)',
-    eiken5: '英単語RUSH(5級)(LINEへ送り直す)'   // 2026-09-02：書き取り画面のホームを差し替えたぶん
+    eiken5: '英単語RUSH(5級)(LINEへ送り直す)',  // 2026-09-02：書き取り画面のホームを差し替えたぶん
+    sango:  '三語短文(LINEへ送り直す)',
+    wabun1: '和文英訳①(LINEへ送り直す)'   // 2026-09-02：問題画面のホームを差し替えたぶん
   };
   var _photoEscapeFailed = {};   // contentKey -> true（写真送信に失敗した後だけ true）
   var _photoEscapePending = '';  // 案内オーバーレイで「分かりました」を待っているコンテンツ
@@ -22816,9 +22818,40 @@
   //   ★カンジーは撮影確認画面（photo-escape-kanji）に加えて、書き画面にも置く。
   var PHOTO_ESCAPE_EXTRA_IDS = { kanji: ['photo-escape-kanji-kaki'] };
   // 失敗フラグに従って表示/非表示を反映する。★失敗していなければ必ず非表示。
+  // 2026-09-02：この端末に「未送信の印」が残っているコンテンツを見分けるための頭文字。
+  //   ★印のラベル（_recordUnsentAwareness の第1引数）は必ずコンテンツ名で始まるので、それで判別する。
+  //   ★eiken5 は「英単語RUSH(5級)」まで見る。V1の4択は「英単語RUSH」なので、短い方だと取り違える。
+  var PHOTO_ESCAPE_MARK_PREFIX = {
+    kiso:   '基礎計算',
+    kanji:  'カンジー',
+    eiken5: '英単語RUSH(5級)',
+    sango:  '三語短文',
+    wabun1: '和文英訳①'
+  };
+  // 2026-09-02：メモリのフラグは読み込み直すと消えるので、この端末に残る未送信の印でも見る。
+  //   ★保存先は 2026-09-01 の mykt_unsent_manual をそのまま読むだけ（新しい保存先は作らない）。
+  //   ★逃げ道を通ったときの印（「(LINEへ送り直す)」）は数えない。
+  //     これを数えると、一度逃げ道を使っただけで以後ずっとボタンが出続けてしまう。
+  function _photoEscapeHasUnsentMark(key) {
+    try {
+      var pre = PHOTO_ESCAPE_MARK_PREFIX[key];
+      if (!pre) return false;
+      var sid = String(_studentId || '').trim();
+      if (!sid) return false;
+      var a = _unsentManualLoad();
+      for (var n = 0; n < a.length; n++) {
+        var m = a[n] || {};
+        if (String(m.sid || '') !== sid) continue;
+        var lb = String(m.label || '');
+        if (lb.indexOf('(LINEへ送り直す)') >= 0) continue;   // ★逃げ道の印は数えない
+        if (lb.indexOf(pre) === 0) return true;
+      }
+    } catch(e){}
+    return false;
+  }
   function _applyPhotoEscapeVisibility(key) {
     try {
-      var show = _photoEscapeFailed[key] ? '' : 'none';
+      var show = (_photoEscapeFailed[key] || _photoEscapeHasUnsentMark(key)) ? '' : 'none';
       var ids = ['photo-escape-' + key].concat(PHOTO_ESCAPE_EXTRA_IDS[key] || []);
       for (var i = 0; i < ids.length; i++) {
         var el = document.getElementById(ids[i]);
@@ -22932,7 +22965,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260902-0114</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260902-0425</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
