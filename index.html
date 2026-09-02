@@ -148,7 +148,14 @@
     @keyframes kanjiResumePromoPulse { 0%, 100% { box-shadow: 0 4px 14px rgba(249,115,22,.18); } 50% { box-shadow: 0 4px 22px rgba(249,115,22,.45); } }
     /* 過去セッションセクション（読み問題画面の下部） */
     .kanji-past-section { margin-top: 24px; padding: 16px 14px 18px; background: #f5f3ff; border: 2px solid #c4b5fd; border-radius: 12px; }
-    .kanji-past-section-title { font-size: 14px; font-weight: bold; color: #5b21b6; margin-bottom: 4px; }
+    .kanji-past-section-title { font-size: 14px; font-weight: bold; color: #5b21b6; }
+    /* 2026-09-03：過去のセッションは畳む。見出しだけは常に見えるようにして「ここにある」と分かるようにする。 */
+    .kanji-past-summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0; }
+    .kanji-past-summary-hint { font-size: 11px; color: #7c3aed; opacity: .8; white-space: nowrap; }
+    .kanji-past-details[open] .kanji-past-summary { margin-bottom: 8px; }
+    .kanji-past-details[open] .kanji-past-summary-hint::after { content: '（閉じる）'; }
+    /* 2026-09-03：「最初から新しくやり直す」の説明（押すと書いた分が無駄になることを先に伝える） */
+    .kanji-fresh-note { font-size: 12px; color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 7px 10px; margin: 0 0 10px; line-height: 1.5; }
     .kanji-past-section-desc { font-size: 12px; color: #6d28d9; opacity: .85; line-height: 1.5; margin-bottom: 12px; }
     .kanji-past-section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .kanji-past-btn { padding: 12px 10px; border: 2px solid; border-radius: 10px; background: #fff; font-family: inherit; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; flex-direction: column; gap: 4px; align-items: center; transition: transform .1s, box-shadow .1s; }
@@ -3439,10 +3446,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260902-2251"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260903-0058"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260902-2251">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260902-2251"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260903-0058">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260903-0058"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5667,7 +5674,9 @@
     <!-- 2026-05-21 Recovery バリアント：再開バナー（resume 中の表示） -->
     <div id="kanji-resume-banner" class="kanji-resume-banner" style="display:none">📂 前回のセッションを再開したよ。<br>続きから挑戦できるよ！🔥</div>
     <!-- 2026-08-08：自動再開後に「最初から新しくやり直す」導線（読み自動再開時のみ表示） -->
-    <button class="btn-wide" id="kanji-yomi-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin:0 0 10px" onclick="kanjiRestartFresh()">🆕 最初から新しくやり直す</button>
+    <button class="btn-wide" id="kanji-yomi-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin:0 0 4px" onclick="kanjiRestartFresh()">🆕 最初から新しくやり直す</button>
+    <!-- 2026-09-03：押すと新しい問題セットになるので、書いた分が無駄になることを先に伝える（塾長確定文言）。 -->
+    <div id="kanji-yomi-fresh-note" class="kanji-fresh-note" style="display:none">問題が新しくなるので、今書いた分は使えなくなります</div>
     <!-- 2026-05-21 Recovery バリアント：プロモバナー（未送信の前回セッションがあるときだけ表示） -->
     <div id="kanji-resume-promo" class="kanji-resume-promo" style="display:none">
       <div class="kanji-resume-promo-note">📂（撮影前にログイン画面に戻ってしまった場合）</div>
@@ -5684,12 +5693,16 @@
     <button class="btn-wide" id="kanji-yomi-next-btn" style="display:none" onclick="kanjiYomiNext()">次の問題へ →</button>
     <!-- 2026-05-21 Recovery バリアント：過去セッションセクション（当日+前日の直近 1-2 件） -->
     <div id="kanji-past-section" class="kanji-past-section" style="display:none">
-      <div class="kanji-past-section-title">📚 過去のセッションを見直す</div>
+      <!-- 2026-09-03：常に開いていると、上の「👉 ログイン画面に戻る直前の問題を再表示する」（＝続きから戻れる道）と
+           見分けが付きにくかった。★見出しは残したまま畳み、タップで開く形にする。 -->
+      <details class="kanji-past-details">
+      <summary class="kanji-past-summary"><span class="kanji-past-section-title">📚 過去のセッションを見直す</span><span class="kanji-past-summary-hint">タップで開く</span></summary>
       <div class="kanji-past-section-desc">当日 + 前日の直近セッションを再表示できます。<br>「未送信」をタップ → 同じ問題で再開（読みからやり直し）。</div>
       <div class="kanji-past-section-grid">
         <button class="kanji-past-btn empty" id="kanji-past-btn-1" disabled onclick="onKanjiPastBtnClick(1)"><span class="kanji-past-btn-label">1つ前</span><span class="kanji-past-btn-badge">該当なし</span></button>
         <button class="kanji-past-btn empty" id="kanji-past-btn-2" disabled onclick="onKanjiPastBtnClick(2)"><span class="kanji-past-btn-label">2つ前</span><span class="kanji-past-btn-badge">該当なし</span></button>
       </div>
+      </details>
     </div>
   </div>
 </div>
@@ -5720,6 +5733,8 @@
     <input type="file" id="kanji-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKanjiPhotoSelected(event)">
     <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを写真に撮って送る</button>
     <button class="btn-wide" id="kanji-kaki-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:10px" onclick="kanjiRestartFresh()">🆕 最初から（読みから）やり直す</button>
+    <!-- 2026-09-03：読み画面と同じ説明。★書き画面こそ「今書いた分」が実際にあるので必ず出す。 -->
+    <div id="kanji-kaki-fresh-note" class="kanji-fresh-note" style="display:none">問題が新しくなるので、今書いた分は使えなくなります</div>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
     <button class="btn-wide" id="kanji-kaki-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="photoEscapeToHome('kanji', true)">🏠 ホーム画面に戻る</button>
     <!-- 2026-08-31：写真送信に失敗した後だけ出す逃げ道（確認画面の photo-escape-kanji と同じ入口）。
@@ -16127,13 +16142,24 @@
   }
   // 中断エントリに「学習段階」印を残す（submission は null のまま＝未完了を維持）。
   // stage==='kaki' は「読み合格済みで書き段階に到達した」ことを表し、自動再開で読みをスキップする判定に使う。
-  function _kanjiMarkRecentStage(level, sessionId, stage) {
+  //   ★2026-09-03：第4引数 questions を渡すと、そのときの並びも一緒に保存する。
+  //     読みの不合格でシャッフルした並びは、これまでメモリにしか無かったため、
+  //     生徒が紙に書いた順（シャッフル後）と、再開後に出る順（シャッフル前）が食い違っていた。
+  //     ★書きに入った時点の並びを「確定版」として残すことで、どの経路で再開しても同じ順で出る。
+  //     ★念のため、件数が合わないときは書き換えない（問題を取りこぼさないため）。
+  function _kanjiMarkRecentStage(level, sessionId, stage, questions) {
     if (!level || !sessionId) return;
     var arr = _kanjiLoadRecentSessions(level);
     for (var i = 0; i < arr.length; i++) {
       if (arr[i].sessionId === sessionId) {
         arr[i].stage = stage;
         if (stage === 'kaki') arr[i].yomiPassed = true;
+        if (Array.isArray(questions) && questions.length) {
+          var cur = arr[i].questions;
+          if (!Array.isArray(cur) || !cur.length || cur.length === questions.length) {
+            arr[i].questions = questions;   // ★並びを確定
+          }
+        }
         break;
       }
     }
@@ -16209,6 +16235,11 @@
       count:     entry.count,
       questions: entry.questions
     });
+    // ★2026-09-03：_kanjiSaveSessionStart は「新規セッション用」なので stage / yomiPassed が落ちる。
+    //   ★過去ボタンは従来どおり読みからやり直す（挙動は変えない）が、
+    //     「書きまで進んだ」印まで消すと、以後の自動再開がずっと読みからになってしまう。
+    //   ★印だけ書き戻す。並びは上で entry.questions を保存済みなので触らない。
+    try { if (entry.stage) _kanjiMarkRecentStage(entry.level, entry.sessionId, entry.stage); } catch(e){}
     showScreen('screen-kanji-yomi');
     // 再開バナー表示
     var banner = document.getElementById('kanji-resume-banner');
@@ -19103,6 +19134,9 @@
     // 自動再開（読み）時のみ「最初から新しくやり直す」導線を表示（新規開始時は非表示）
     var yFresh = document.getElementById('kanji-yomi-fresh-btn');
     if (yFresh) yFresh.style.display = _kanjiState.isResumed ? '' : 'none';
+    // 2026-09-03：説明はボタンと必ず一緒に出す（ボタンだけ出て説明が無い状態を作らない）。
+    var yFreshNote = document.getElementById('kanji-yomi-fresh-note');
+    if (yFreshNote) yFreshNote.style.display = _kanjiState.isResumed ? '' : 'none';
     if (idx >= total) { _finishKanjiYomi(); return; }
     var q = _kanjiState.questions[idx].yomi;
     document.getElementById('kanji-yomi-prog').textContent = (idx + 1) + ' / ' + total;
@@ -19248,7 +19282,10 @@
     _setRetryHomeBtn('kanji-kaki-home-btn', _kanjiState.isKakiRetry || _kanjiState.isResumed);
     _kanjiState.retryAnswers = [];
     // ★書き段階到達を中断エントリに永続化（自動再開で読みスキップの判定に使う）
-    try { _kanjiMarkRecentStage(_kanjiState.level, _kanjiState.sessionId, 'kaki'); } catch(e){}
+    //   ★2026-09-03：このとき「いま画面に出す並び」も一緒に確定させる。
+    //     生徒はこの並びで紙に書くので、再開したときも必ず同じ並びで出す必要がある。
+    //     （読みのシャッフルは四択のために残すが、書きには持ち込まない）
+    try { _kanjiMarkRecentStage(_kanjiState.level, _kanjiState.sessionId, 'kaki', _kanjiState.questions); } catch(e){}
     var kakiBubble = _kanjiState.isResumed
       ? '書きの続きから再開したよ！ノートをもう一度撮って送ってね📷'
       : _pickBubble(KANJI_BUBBLES.kakiStart);
@@ -19261,6 +19298,9 @@
     // 自動再開時のみ「最初から（読みから）やり直す」導線を表示
     var freshBtn = document.getElementById('kanji-kaki-fresh-btn');
     if (freshBtn) freshBtn.style.display = _kanjiState.isResumed ? '' : 'none';
+    // 2026-09-03：説明はボタンと必ず一緒に出す。
+    var freshNote = document.getElementById('kanji-kaki-fresh-note');
+    if (freshNote) freshNote.style.display = _kanjiState.isResumed ? '' : 'none';
     try { _applyPhotoEscapeVisibility('kanji'); } catch(e){}   // 2026-08-31：逃げ道は失敗済みのときだけ出す
     showScreen('screen-kanji-kaki');
     // 2026-08-19：リロード復元。同じ級・同じセッションの撮影済み写真が端末に残っていれば
@@ -23087,7 +23127,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260902-2251</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260903-0058</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
