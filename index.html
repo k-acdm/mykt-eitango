@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260902-1701"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260902-2251"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260902-1701">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260902-1701"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260902-2251">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260902-2251"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -11486,6 +11486,11 @@
     _stopAudio();
     // アバター localStorage キャッシュをクリア（別アカウントへの混在防止、_studentId クリア前に実行）
     _clearCachedAvatarBase(_studentId);
+    // 2026-08-25：未送信の印の束もリセット（次の生徒に持ち越さない）
+    //   ★2026-09-02：束は端末に残すようになったので、この生徒のぶんだけ捨てる（_studentId クリア前に実行）。
+    //     ★印そのもの（mykt_unsent_manual）は sid 紐付けで残す（次回ログインで先生へ通知するため）。
+    //     ★他の生徒の束を巻き添えで消さないよう、必ず sid で絞る。
+    try { _unsentFlowClearForSid(_studentId); } catch(e){}
     // 防護柵1枚目：永続化したセッション(studentId)も必ずクリア（共用端末で前の生徒が残らないように）
     //   F3段階2：保持中の sessionToken(mykt_session_token) も同時に破棄（前の生徒のトークンを残さない）。
     try { localStorage.removeItem('mykt_session_sid'); localStorage.removeItem('mykt_session_ts'); localStorage.removeItem('mykt_session_token'); localStorage.removeItem('mykt_session_eduday'); } catch(e){}
@@ -11498,7 +11503,7 @@
     _streak = 0; _pendingRetry = null; _pendingDismiss = null;
     _accountType = '';
     _canSkipReflection = false;   // 2026-08-19：次のログインまで持ち越さない（共用端末で前の生徒の状態を残さない）
-    _unsentFlowMarks = {};   // 2026-08-25：未送信の印の束もリセット（次の生徒に持ち越さない）
+
     // commit 6b-1：V2 フラグ/セッション状態もリセット
     _vocabV2Mode = 'off'; _vocabV2Enabled = false; _isV2Session = false;
     _v2BlockNo = 0; _v2Round = 0; _v2Position = 0; _v2GroupType = 'word';
@@ -22704,7 +22709,7 @@
       var mine = sid ? _resendQueueLoad().filter(function(it){ return it.sid === sid; }) : [];
       var manualN = _unsentManualCount();  // 応急処置②：kiso/kanji/kobun/V1 の「送れなかった」気づき件数
       var label = document.getElementById('mykt-resend-banner-label');
-      if (mine.length === 0 && manualN === 0) { b.style.display = 'none'; return; }
+      if (mine.length === 0 && manualN === 0) { b.style.display = 'none'; _applyResendBannerSpacer(false); return; }
       var txt;
       if (mine.length > 0) {
         // 自動再送できるキューがある → タップで再送。手動やり直し分があれば併記。
@@ -22718,6 +22723,21 @@
       }
       if (label) label.textContent = txt;
       b.style.display = 'block';
+      _applyResendBannerSpacer(true);
+    } catch(e) {}
+  }
+  // 2026-09-02：帯は画面下に貼り付いているので、本文の最後がその下に隠れる。
+  //   ★実測で、基礎計算の問題10 が帯に隠れていた（問題文が読めない＝実害）。
+  //   ★位置は変えず、帯が出ている間だけ本文の下に帯の高さぶんの余白を足す。
+  //     ★body に余白を足す（.screen.active は通常のブロックなので、これで押し下がる）。
+  //     ★帯は position:fixed なので、余白を足しても帯自身は動かない。
+  //     ★文言が1行/2行で高さが変わるため、実際の高さを測って合わせる。
+  function _applyResendBannerSpacer(show) {
+    try {
+      var b = document.getElementById('mykt-resend-banner');
+      if (!show || !b) { document.body.style.paddingBottom = ''; return; }
+      var h = b.offsetHeight || 0;
+      document.body.style.paddingBottom = h ? (h + 8) + 'px' : '';
     } catch(e) {}
   }
 
@@ -22766,21 +22786,59 @@
   //   ★消すのは「束に入っている id」だけ。
   //     id を持たない古い印（この変更より前に積まれたもの）は束に無いので絶対に消えない。
   //   ★成功の判定は res.ok === true のみ。サーバーに断られた場合は印を残す。
-  var _unsentFlowMarks = {};   // 束：flowKey → [id, ...]（ログイン中だけ覚える）
+  //   ★2026-09-02：束を端末にも残す。
+  //     カメラ起動で画面が読み込み直されると、メモリの束が消えて
+  //     「やり直して成功したのに印が残る」ことが実際に起きていたため。
+  //     ★束の名前に生徒IDを含める（共有端末で、別の生徒の成功が
+  //       前の生徒の印を巻き添えで消さないようにするため）。
+  //     ★消すのは従来どおり「その束に入っている id」だけ。コンテンツ間の分離は不変。
+  var _UNSENT_FLOW_KEY = 'mykt_unsent_flow';
   var _unsentMarkSeq = 0;
+  function _unsentFlowLoad() {
+    try { var o = JSON.parse(localStorage.getItem(_UNSENT_FLOW_KEY) || '{}'); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch(e){ return {}; }
+  }
+  function _unsentFlowSave(o) { try { localStorage.setItem(_UNSENT_FLOW_KEY, JSON.stringify(o || {})); } catch(e){} }
+  // 束の名前：生徒ID + flowKey。生徒IDが無いときは束を使わない（従来どおり消えない）。
+  function _unsentFlowName(flowKey) {
+    var sid = String(_studentId || '').trim();
+    var k   = String(flowKey || '');
+    return (sid && k) ? (sid + '|' + k) : '';
+  }
+  function _unsentFlowPush(flowKey, id) {
+    try {
+      var name = _unsentFlowName(flowKey); if (!name || !id) return;
+      var all = _unsentFlowLoad();
+      var arr = Array.isArray(all[name]) ? all[name] : [];
+      arr.push(id);
+      if (arr.length > 50) arr = arr.slice(-50);   // 上限（暴走防止）
+      all[name] = arr;
+      _unsentFlowSave(all);
+    } catch(e){}
+  }
+  // その生徒の束をまとめて捨てる（印そのものが消えたあとの後片付け）。
+  function _unsentFlowClearForSid(sid) {
+    try {
+      var pre = String(sid || '').trim() + '|'; if (pre === '|') return;
+      var all = _unsentFlowLoad(), out = {};
+      for (var k in all) { if (String(k).indexOf(pre) !== 0) out[k] = all[k]; }
+      _unsentFlowSave(out);
+    } catch(e){}
+  }
 
   // 送信が成功したときに呼ぶ。その束の id の印だけを消す。
   function _clearUnsentFlow(flowKey) {
     try {
-      var k = String(flowKey || ''); if (!k) return;
-      var ids = _unsentFlowMarks[k];
+      var name = _unsentFlowName(flowKey); if (!name) return;
+      var all = _unsentFlowLoad();
+      var ids = all[name];
       if (!ids || !ids.length) return;
       var del = {};
       for (var i = 0; i < ids.length; i++) del[ids[i]] = true;
       _unsentManualSave(_unsentManualLoad().filter(function(it){
         return !(it && it.id && del[it.id]);   // ★id を持つ印のうち、束にあるものだけ落とす
       }));
-      _unsentFlowMarks[k] = [];
+      delete all[name];
+      _unsentFlowSave(all);
       try { _updateResendBanner(); } catch(e){}
     } catch(e){}
   }
@@ -22856,7 +22914,9 @@
         var m = a[n] || {};
         if (String(m.sid || '') !== sid) continue;
         var lb = String(m.label || '');
-        if (lb.indexOf('(LINEへ送り直す)') >= 0) continue;   // ★逃げ道の印は数えない
+        // 2026-09-02：LINE案内を通った記録は mykt_line_handoff に移したので、
+        //   ここにはもう入ってこない。★古い端末に残っている分だけを弾くための保険として残す。
+        if (lb.indexOf('(LINEへ送り直す)') >= 0) continue;
         if (lb.indexOf(pre) === 0) return true;
       }
     } catch(e){}
@@ -22894,9 +22954,15 @@
       var ov = document.getElementById('photo-escape-overlay');
       if (ov) ov.classList.remove('active');
     } catch(e){}
-    // ★記録：既存の未送信の印と同じ作法。flowKey は渡さない
-    //   （＝あとで送信に成功しても消さない。「LINEへ回した」事実は残す）。
-    try { _recordUnsentAwareness(PHOTO_ESCAPE_LABELS[key] || '写真(LINEへ送り直す)'); } catch(e){}
+    // ★記録：★2026-09-02 変更。
+    //   これまでは未送信の印（mykt_unsent_manual）に書いていたが、
+    //   ★ホームボタンを押しただけの生徒が「送れなかった学習が1件あります」と言われる
+    //     （しかも、そのあと提出に成功しても消えない）事故になっていた。
+    //   ★保存先を分ける。未送信を数える関数はこちらを見ないので、
+    //     帯・ログアウト警告・先生への通知・逃げ道ボタンの4つすべてから構造的に外れる
+    //     （＝どこかで除外を書き忘れて再発する、ということが起きない）。
+    //   ★「LINEへ回した」事実は残す（生徒から報告があったときに辿れるようにするため）。
+    try { _recordLineHandoff(PHOTO_ESCAPE_LABELS[key] || '写真(LINEへ送り直す)'); } catch(e){}
     try { if (key) { _photoEscapeFailed[key] = false; _applyPhotoEscapeVisibility(key); } } catch(e){}
     try { goHome(); } catch(e){}
   }
@@ -22909,15 +22975,53 @@
       a.push({ sid: sid, label: String(label || '学習'), ts: Date.now(), id: id });
       if (a.length > 50) a = a.slice(-50);   // 上限（暴走防止）
       _unsentManualSave(a);
-      if (flowKey) {   // ★この操作の束に覚えておく（成功したらまとめて消す）
-        var fk = String(flowKey);
-        if (!_unsentFlowMarks[fk]) _unsentFlowMarks[fk] = [];
-        _unsentFlowMarks[fk].push(id);
-      }
+      // ★この操作の束に覚えておく（成功したらまとめて消す）。
+      //   2026-09-02：束は端末に残す。読み込み直しが入っても「やり直して成功」で印が消えるように。
+      if (flowKey) _unsentFlowPush(flowKey, id);
       try { _updateResendBanner(); } catch(e){}
       return id;
     } catch(e){ return ''; }
   }
+  // ===== 2026-09-02：「LINEへ回した」記録（★未送信とは別物）=====
+  //   ★写真がどうしても送れないときの案内を読んで「分かりました」を押した、という記録。
+  //   ★これは「送信の失敗」ではないので、未送信の印（mykt_unsent_manual）には入れない。
+  //     入れると、帯・ログアウト警告・先生への通知・逃げ道ボタンが誤って動く。
+  //   ★残す理由：生徒から「LINEに送りました」と報告があったとき、
+  //     いつ・どの学習で案内を通ったのかを辿れるようにするため。
+  //   ★先生への通知には、別の用事で通知が飛ぶときだけ「参考」として書き添える
+  //     （これ単独では通知を飛ばさない＝失敗していない生徒には何も起こさない）。
+  var _LINE_HANDOFF_KEY = 'mykt_line_handoff';
+  function _lineHandoffLoad() {
+    try { var a = JSON.parse(localStorage.getItem(_LINE_HANDOFF_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; }
+  }
+  function _lineHandoffSave(a) { try { localStorage.setItem(_LINE_HANDOFF_KEY, JSON.stringify(a || [])); } catch(e){} }
+  function _recordLineHandoff(label) {
+    try {
+      var sid = String(_studentId || '').trim(); if (!sid) return '';
+      var a = _lineHandoffLoad();
+      a.push({ sid: sid, label: String(label || '写真(LINEへ送り直す)'), ts: Date.now() });
+      if (a.length > 50) a = a.slice(-50);   // 上限（暴走防止）
+      _lineHandoffSave(a);
+      return true;
+    } catch(e){ return false; }
+  }
+  // 先生への通知に書き添える一文（この生徒ぶん）。無ければ空文字。
+  function _lineHandoffSummary(sid) {
+    try {
+      var c = {}, last = {};
+      _lineHandoffLoad().filter(function(it){ return it && it.sid === sid; }).forEach(function(it){
+        var k = String(it.label || '');
+        c[k] = (c[k] || 0) + 1;
+        var t = Number(it.ts) || 0; if (t > (last[k] || 0)) last[k] = t;
+      });
+      var parts = Object.keys(c).map(function(k){
+        var t = last[k];
+        return k + '×' + c[k] + (t ? '（最終 ' + _fmtUnsentTs(t) + '）' : '');
+      });
+      return parts.length ? ('LINEへ回した：' + parts.join('・')) : '';
+    } catch(e){ return ''; }
+  }
+
   function _unsentManualClearForSid(sid) {
     try { sid = String(sid || '').trim(); _unsentManualSave(_unsentManualLoad().filter(function(it){ return it.sid !== sid; })); } catch(e){}
   }
@@ -22958,6 +23062,11 @@
         } catch(e){}
         parts.push('自動再送待ち：' + (rParts.length ? rParts.join('・') : resendCount + '件'));
       }
+      // 2026-09-02：「LINEへ回した」記録は未送信には数えないが、
+      //   ★どうせ通知が飛ぶときには参考として書き添える（報告があったとき辿れるように）。
+      //   ★これ単独では通知を飛ばさない（上の early return で弾かれる）＝
+      //     ただ帰っただけの生徒については、先生に何も上がらない。
+      try { var _lh = _lineHandoffSummary(sid); if (_lh) parts.push('参考／' + _lh); } catch(e){}
       var summary = parts.join(', ');
       gasPost({ action: 'reportUnsentOnLogin', studentId: sid, resendCount: resendCount, manualCount: manualN, summary: summary }, 20000)
         .then(function(res){
@@ -22978,7 +23087,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260902-1701</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260902-2251</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
