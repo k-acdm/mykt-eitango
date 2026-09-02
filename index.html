@@ -3439,10 +3439,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260902-0425"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260902-1701"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260902-0425">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260902-0425"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260902-1701">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260902-1701"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -8127,6 +8127,14 @@
       if (!s || typeof s !== 'object') return;   // settings が無い応答 → 何もしない（既存挙動）
       _settingsSyncDone = true;
       var migrate = {};
+      // 2026-09-02 案A：★初回移行を送るのは「サーバーが 3 項目とも未設定」のときだけに絞る。
+      //   ★1 つでもサーバーに値が入っている生徒は「設定を持っている生徒」なので、
+      //     残りの項目を端末の値で埋めない（＝生徒が選んでいない値を本人の設定として固定しない）。
+      //   ★判定はここで先に取る。下の分岐でサーバー値を端末へ書き戻すため、
+      //     後から s を見ても同じ結果になるが、意図を読み違えないよう入口で確定させる。
+      var serverAllUnset = _settingsIsUnset(s.sfxEnabled)
+                        && _settingsIsUnset(s.voiceIndex)
+                        && _settingsIsUnset(s.studyTimerHidden);
 
       // --- 効果音 ---
       if (_settingsIsUnset(s.sfxEnabled)) {
@@ -8168,8 +8176,13 @@
         }
       }
 
-      // ③ 初回移行：サーバーが空で端末に値がある項目だけを、この1回で送る。
-      if (Object.keys(migrate).length) saveStudentSettings(migrate);
+      // ③ 初回移行：★サーバーが 3 項目とも空で、★端末に値がある項目だけを、この 1 回で送る。
+      //   ★端末にも値が無い生徒には何も送らない（migrate が空のまま＝初期値を本人の設定にしない）。
+      //   ★応答は待たない（saveStudentSettings は fire-and-forget）。失敗してもログインは進む。
+      //   ★2 回送らない理由：同じページでは _settingsSyncDone、次回以降は
+      //     保存が通っていればサーバーが空でなくなり serverAllUnset が false になるため。
+      //     （通らなかった場合だけ、次回ログインで自動的に再試行される＝従来どおり）
+      if (serverAllUnset && Object.keys(migrate).length) saveStudentSettings(migrate);
     } catch(e) { /* 取り込みで失敗しても、従来どおり localStorage の値で動く */ }
   }
 
@@ -22965,7 +22978,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260902-0425</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260902-1701</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
