@@ -802,3 +802,39 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 17d4fda883b9da5cbedc58e62d88b8a848ab9c1b && git push origin main && git checkout dev
   ```
+
+### 管理画面：写真・録音・HP内訳の取得をPOST化しURLにパスワードを載せない（2026-09-03 夜）
+
+- 背景
+  - admin.html の adminGasGet は全リクエストに講師の teacherId + password を自動付与する。
+    GET だとそれが URL に載り、アクセスログに平文で残る。
+  - サーバー（AWS）は GET と POST で別ルーティングのため、POST 未登録の action を
+    POST に変えると unknown action で管理画面が壊れる。よって「サーバーが既に POST を
+    受け付ける」ことを実測できた 11 箇所だけを、この第1段で置き換えた。
+- 反映内容（adminGasGet → adminGasPost の1語置換のみ・11箇所）
+  - getKisoPhotosList / getKisoPhotoBlob / logKisoPhotoDownload
+  - getMyTaskPhotosList / getMyTaskPhotoBlob
+  - getLisonRecordingBlob / adminGetStudentHpBreakdown / setSurveyActive
+  - ★残り 78 箇所（POST 未登録）は1文字も触れていない。GET のまま
+  - 写真・録音の DL は JSON の base64 をクライアント側で Blob 化しており、
+    URL を直接叩かないため POST 化しても壊れない
+- POST で正しいデータが返ることは塾長がコンソールで実測済み
+  （getKisoPhotosList / getMyTaskPhotosList / adminGetStudentHpBreakdown の
+   GET/POST 応答一致、写真一覧が生徒25名分 POST で返ることを確認）
+- 実装コミット：`5e904eb`
+  ＋ `5867269`（前回分の HANDOVER 記録・コード差分なし）
+- **反映前の main（切り戻し先）：`17d4fda883b9da5cbedc58e62d88b8a848ab9c1b`**
+- **マージコミット：`ead584d31baff7e0bc948e9b23bee49c8acb557c`**
+- 版バッジ：`20260903-2333`（index / view / admin の3ファイル）
+- GitHub Actions：success ／ 配信物と origin/main の sha256 は3ファイルとも一致
+- 反映後、配信物で確認したこと
+  - admin.html：adminGasGet 80 / adminGasPost 59（置換前 91/48 から ±11 で整合）
+  - 11 action が POST 側にある／78 箇所の代表 action（adminListStudents 等）は GET のまま
+  - 生徒画面（index / view）はバッジ以外の実質差分ゼロ
+- ★次の段（第2段・書き込み系6種のPOST登録）は AWS 側の作業。別途投げる：
+  adminSangoStar / adminSangoPublish / adminSetSangoComment /
+  adminSetWabun1Comment / adminSetSangoTeacherWork / adminQuestionRead
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 ead584d31baff7e0bc948e9b23bee49c8acb557c && git push origin main && git checkout dev
+  ```
