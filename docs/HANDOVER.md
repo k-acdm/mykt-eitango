@@ -782,3 +782,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 c100faa6f980b1b4f15ee760046e7493349a9ea3 && git push origin main && git checkout dev
   ```
+
+### カンジー：書きに進んだ時点で問題の並びを確定する（2026-09-03）
+
+- 反映内容
+  - 書き画面に入った時点で「いま出している並び」を端末に保存し、再開しても同じ並びで出す
+    （読みのシャッフルは四択のために残すが、書きには持ち込まない）
+  - 過去のセッションボタンを押しても「書きまで進んだ」印を消さないようにした
+    （消すと以後の自動再開がずっと読みからになってしまうため）
+  - 「最初から新しくやり直す」に「問題が新しくなるので、今書いた分は使えなくなります」を添えた
+  - 過去のセッションボタンを畳んだ（見出し「📚 過去のセッションを見直す」は残す）
+- 実装コミット：`1507218`（カンジーの並び確定ほか）
+  ＋ `d672b2e`（前回分の HANDOVER 記録・コード差分なし）
+- **反映前の main（切り戻し先）：`c100faa6f980b1b4f15ee760046e7493349a9ea3`**
+- **マージコミット：`17d4fda883b9da5cbedc58e62d88b8a848ab9c1b`**
+- 版バッジ：`20260903-0058`（index / view / admin の3ファイル）
+- GitHub Actions：success ／ 配信物と origin/main の sha256 は3ファイルとも一致
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 17d4fda883b9da5cbedc58e62d88b8a848ab9c1b && git push origin main && git checkout dev
+  ```

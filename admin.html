@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260903-0058"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260903-2333"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -8256,7 +8256,7 @@
   function loadKisoStudents() {
     var wrap = document.getElementById('kiso-students-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    adminGasGet({
+    adminGasPost({
       action: 'getKisoPhotosList',
       _ts: Date.now()
     }).then(function(res) {
@@ -8353,7 +8353,7 @@
   var _kisoPhotoBlobCache = {};
 
   function _kisoFetchPhoto(fileId) {
-    return adminGasGet({ action: 'getKisoPhotoBlob', fileId: fileId }).then(function(res) {
+    return adminGasPost({ action: 'getKisoPhotoBlob', fileId: fileId }).then(function(res) {
       if (!res || !res.ok) {
         var em = (res && res.message) ? res.message : '取得に失敗しました';
         if (_handleAdminApiError(em)) throw new Error('auth');
@@ -8471,7 +8471,7 @@
         setTimeout(function(){ try { URL.revokeObjectURL(url); } catch (e) {} }, 30000);
         // 操作ログ：DL を独立記録（getKisoPhotoBlob のキャッシュヒット時でも確実に記録）。
         // 失敗してもユーザー体験は壊さない（fire-and-forget、認証エラーはサイレントに）。
-        adminGasGet({ action: 'logKisoPhotoDownload', fileId: fileId }).catch(function(){});
+        adminGasPost({ action: 'logKisoPhotoDownload', fileId: fileId }).catch(function(){});
       } catch (e) {
         showToast('ダウンロードに失敗しました', 'error');
       }
@@ -8487,7 +8487,7 @@
   function loadKisoPhotos(studentId) {
     var wrap = document.getElementById('kiso-photos-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    adminGasGet({
+    adminGasPost({
       action: 'getKisoPhotosList',
       studentId: studentId,
       _ts: Date.now()
@@ -8607,7 +8607,7 @@
   function loadMyTaskStudents() {
     var wrap = document.getElementById('mytask-students-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    adminGasGet({ action: 'getMyTaskPhotosList', _ts: Date.now() }).then(function(res) {
+    adminGasPost({ action: 'getMyTaskPhotosList', _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
         if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
@@ -8909,7 +8909,7 @@
   var _myTaskCurrentSid = '';
 
   function _myTaskFetchPhoto(fileId) {
-    return adminGasGet({ action: 'getMyTaskPhotoBlob', fileId: fileId }).then(function(res) {
+    return adminGasPost({ action: 'getMyTaskPhotoBlob', fileId: fileId }).then(function(res) {
       if (!res || !res.ok) {
         var em = (res && res.message) ? res.message : '取得に失敗しました';
         if (_handleAdminApiError(em)) throw new Error('auth');
@@ -9033,7 +9033,7 @@
     _myTaskCurrentSid = studentId;
     var wrap = document.getElementById('mytask-photos-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
-    adminGasGet({ action: 'getMyTaskPhotosList', studentId: studentId, _ts: Date.now() }).then(function(res) {
+    adminGasPost({ action: 'getMyTaskPhotosList', studentId: studentId, _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
         if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
@@ -9727,7 +9727,7 @@
     panel.classList.add('active');
     panel.innerHTML = '<div class="dw-loading">⏳ 読み込み中...</div>';
     if (btn) btn.textContent = '📊 閉じる';
-    adminGasGet({ action: 'adminGetStudentHpBreakdown', studentId: sid, educationalDate: ds, _ts: Date.now() }).then(function(res) {
+    adminGasPost({ action: 'adminGetStudentHpBreakdown', studentId: sid, educationalDate: ds, _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
         if (_handleAdminApiError(msg)) { panel.classList.remove('active'); if (btn) btn.textContent = '📊 この日の学習履歴を見る'; return; }
@@ -10158,7 +10158,7 @@
     if (!fileId) { showToast('ファイル ID が取得できません', 'error'); return; }
     if (btn) { btn.disabled = true; btn.textContent = '⏳ 取得中…'; }
     player.classList.add('active');
-    adminGasGet({ action: 'getLisonRecordingBlob', fileId: fileId }).then(function(res) {
+    adminGasPost({ action: 'getLisonRecordingBlob', fileId: fileId }).then(function(res) {
       if (!res || !res.ok) {
         var em = (res && res.message) ? res.message : '取得に失敗しました';
         if (_handleAdminApiError(em)) { dwCloseAudio(uid); return; }
@@ -10655,7 +10655,7 @@
     if (btn) { btn.disabled = true; btn.textContent = '⏳ 取得中…'; }
     el.classList.add('active');
 
-    adminGasGet({ action: 'getLisonRecordingBlob', fileId: fileId }).then(function(res) {
+    adminGasPost({ action: 'getLisonRecordingBlob', fileId: fileId }).then(function(res) {
       if (!res || !res.ok) {
         var em = (res && res.message) ? res.message : '取得に失敗しました';
         if (_handleAdminApiError(em)) { _closeLisonRecPlayer(idx); return; }
@@ -15547,7 +15547,7 @@
   function toggleSurveyActive(surveyId, currentActive) {
     var newActive = !currentActive;
     if (!confirm(newActive ? 'このアンケートを「公開」しますか？\n（生徒のログイン後ポップアップに表示されます）' : 'このアンケートを「停止」しますか？\n（生徒のポップアップに表示されなくなります。既存の回答は保持されます）')) return;
-    adminGasGet({
+    adminGasPost({
       action:   'setSurveyActive',
       surveyId: surveyId,
       active:   newActive ? 'true' : 'false'
@@ -16229,7 +16229,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260903-0058</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260903-2333</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
