@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260903-2333"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260904-0520"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -4394,7 +4394,7 @@
     if (!work) { showToast('先生の作品を入力してください', 'error'); return; }
     var btn = document.getElementById('sango-tw-submit');
     if (btn) btn.disabled = true;
-    adminGasGet({
+    adminGasPost({
       action: 'adminSetSangoTeacherWork',
       date: date, level: level, teacher_work: work
     }).then(function(res) {
@@ -11895,7 +11895,7 @@
     if (msg) { msg.textContent = ''; msg.style.color = ''; }
     window.scrollTo(0, 0);
 
-    adminGasGet({
+    adminGasPost({
       action:      'adminQuestionRead',
       sourceTable: row.source_table,
       sourceId:    row.source_id,
@@ -13914,7 +13914,7 @@
   function _toggleSangoStar(idx, star) {
     var s = _sangoSubCache[idx];
     if (!s) return;
-    adminGasGet({
+    adminGasPost({
       action: 'adminSangoStar',
       timestamp: s.timestamp,
       studentId: s.studentId,
@@ -13941,7 +13941,7 @@
     var s = _sangoSubCache[idx];
     if (!s) return;
     var cb = document.getElementById('sango-pub-' + idx);
-    adminGasGet({
+    adminGasPost({
       action: 'adminSangoPublish',
       timestamp: s.timestamp,
       studentId: s.studentId,
@@ -14012,7 +14012,7 @@
     var inputEl = document.getElementById('sango-comment-input-' + idx);
     if (!inputEl) return;
     var comment = inputEl.value;
-    adminGasGet({
+    adminGasPost({
       action: 'adminSetSangoComment',
       timestamp: s.timestamp,
       studentId: s.studentId,
@@ -14223,7 +14223,7 @@
     var inputEl = document.getElementById('wabun1-comment-input-' + idx);
     if (!inputEl) return;
     var comment = inputEl.value;
-    adminGasGet({
+    adminGasPost({
       action: 'adminSetWabun1Comment',
       timestamp: s.timestamp,
       studentId: s.studentId,
@@ -16229,7 +16229,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260903-2333</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260904-0520</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
