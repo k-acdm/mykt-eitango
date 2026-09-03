@@ -838,3 +838,24 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 ead584d31baff7e0bc948e9b23bee49c8acb557c && git push origin main && git checkout dev
   ```
+
+### 管理画面：書き込み系6種を POST 化しURLに本文とパスワードを載せない（2026-09-04）
+
+- 反映内容
+  - 三語短文の星付け／公開／コメント、和文英訳①のコメント、先生の作品登録、問題の読み取りの6種を
+    `adminGasGet` → `adminGasPost` に切り替え（サーバー側 03361dc で POST 受付の登録済み、GET も残っている）
+  - コメント本文とパスワードが URL に載らなくなる
+  - 6種はいずれも `adminGasGet` の直接呼び出し1箇所ずつで、`submitAdminForm` 等の共通経路は通っていないため
+    他の action への巻き込みなし（配信物で 6種=POST / 6種以外86種は従来どおりを確認）
+  - 生徒画面（index / view）はバージョンバッジ以外の変更なし
+- 実装コミット：`0017711`（6種の POST 化）
+  ＋ `208f67a`（前回分の HANDOVER 記録・コード差分なし）
+- **反映前の main（切り戻し先）：`ead584d31baff7e0bc948e9b23bee49c8acb557c`**
+- **マージコミット：`7974dec3a0be9aad82ddf7be7c82a038d6d59733`**
+- 版バッジ：`20260904-0520`（index / view / admin の3ファイル）
+- GitHub Actions：success ／ 配信物と origin/main の sha256 は3ファイルとも一致
+- 実際の書き込み動作はテスト枠で要確認（ローカルでは通信を差し替えた経路確認まで）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 7974dec3a0be9aad82ddf7be7c82a038d6d59733 && git push origin main && git checkout dev
+  ```
