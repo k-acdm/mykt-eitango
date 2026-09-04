@@ -3446,10 +3446,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260905-0438"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260905-0520"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260905-0438">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260905-0438"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260905-0520">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260905-0520"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4620,7 +4620,7 @@
     <div id="wabun1-camera-msg" class="msg" style="margin-top:10px"></div>
     <img id="wabun1-photo-preview" class="photo-preview" style="display:none;margin-top:10px"/>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:14px;color:#6d2c4a" onclick="showWabun1Past()">📚 過去の問題と正解</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d" onclick="showWabun1History()">📖 過去の提出作品</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d;position:relative" onclick="showWabun1History()">📖 過去の提出作品<span class="msg-home-badge" id="wabun1-comment-badge">🔴 NEW</span></button>
     <div class="wabun1-fixed-tip">
       <div class="wabun1-fixed-title">🔴 注目！ ＜英語の名詞の使い方＞</div>
       <div class="wabun1-fixed-body">
@@ -9487,6 +9487,7 @@
     try { loadLatestNotice();               } catch(e){ console.error('[showWelcome] loadLatestNotice',               e); }
     try { loadWeeklyRanking();              } catch(e){ console.error('[showWelcome] loadWeeklyRanking',              e); }
     try { loadUnreadMessageCount();         } catch(e){ console.error('[showWelcome] loadUnreadMessageCount',         e); }
+    try { loadWabun1CommentBadge();         } catch(e){ console.error('[showWelcome] loadWabun1CommentBadge',         e); }
     try { _showStudyPenaltyNotices();       } catch(e){ console.error('[showWelcome] _showStudyPenaltyNotices',       e); }
     try { _prefetchTopics();                } catch(e){ console.error('[showWelcome] _prefetchTopics',                e); }
     // 2026-05-12 サンゴタン関連
@@ -10538,6 +10539,7 @@
     showScreen('screen-welcome');
     // 2026-05-15 バグ修正：個別 try-catch でアバター再描画が必ず実行されるようにする
     try { loadUnreadMessageCount();         } catch(e){ console.error('[goHome] loadUnreadMessageCount',         e); }
+    try { loadWabun1CommentBadge();         } catch(e){ console.error('[goHome] loadWabun1CommentBadge',         e); }
     try { checkSangoStarredNotifications(); } catch(e){ console.error('[goHome] checkSangoStarredNotifications', e); }
     // 2026-05-15 防御層：base が空のままならサーバから再取得を試みる
     // （showWelcome の初期 fetch が失敗していた場合のリカバリ）
@@ -11851,6 +11853,21 @@
       badge.classList.remove('show');
     });
   }
+  // 和文英訳①の先生コメント「新着あり」バッジ更新（getUnreadCommentCount, content='wabun1'）。
+  //   ★件数は出さず「新着の有無」だけで表示（バッジ本文は固定の印）。
+  //   ★msg-home-badge の作法を流用（.show トグル）。失敗時（テーブル未作成含む）は黙って非表示。
+  function loadWabun1CommentBadge() {
+    var badge = document.getElementById('wabun1-comment-badge');
+    if (!badge || !_studentId) return;
+    gasGet({ action:'getUnreadCommentCount', studentId:_studentId, content:'wabun1', _ts:Date.now() }).then(function(res){
+      // 応答の形ゆれに耐える：count>0 / hasUnread / unread のいずれかで「新着あり」と判定
+      var hasNew = !!(res && res.ok && (Number(res.count) > 0 || res.hasUnread === true || res.unread === true));
+      if (hasNew) badge.classList.add('show');
+      else        badge.classList.remove('show');
+    }).catch(function(){
+      badge.classList.remove('show');
+    });
+  }
   function _msgEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function _formatMsgDate(ts) {
     if (!ts) return '';
@@ -12817,6 +12834,11 @@
     var listEl = document.getElementById('wabun1-history-list');
     listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     showScreen('screen-wabun1-history');
+    // 履歴を開いた＝既読にする（markCommentsViewed）＋バッジを即消し。失敗しても画面は壊さない。
+    try {
+      gasPost({ action:'markCommentsViewed', studentId:_studentId, content:'wabun1' }).catch(function(){});
+      var _cb = document.getElementById('wabun1-comment-badge'); if (_cb) _cb.classList.remove('show');
+    } catch(e){}
     cachedGasGet({ action:'getWabun1Submissions', studentId:_studentId }).then(function(res) {
       if (!res || !res.ok) { listEl.innerHTML = '<div style="text-align:center;color:#c0392b;padding:30px">読み込みに失敗しました。</div>'; return; }
       var items = res.submissions || [];
@@ -23182,7 +23204,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260905-0438</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260905-0520</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

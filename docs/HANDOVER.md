@@ -960,3 +960,35 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 7c5fa8d64ad1847466b518e76eac019941bbd91d && git push origin main && git checkout dev
   ```
+
+### 写真送信LINE案内カードの文言変更（見出し追加＋「ボクら」）（2026-09-05）
+
+- 背景・内容
+  - 写真送信の逃げ道カード（`#photo-escape-overlay`）の文言が「送り直してください」
+    のみで、★問題画面から帰っただけ（force=true）でも出るため「送ってないのに
+    送り直せ」と不自然だった。見出しを足し「送った／送っていない」両方を拾う文言に。
+  - このカードは5コンテンツ（eiken5 / sango / wabun1 / kiso / kanji）が共通で使う
+    1箇所（index.html:6470）。ここを直すと5コンテンツ全部に反映される。
+- 反映内容（index.html の文言のみ・1箇所）
+  - 見出し（太字・error バブル色 #9a3412）「答案の写真が届いてないけど、送りましたか？」を新設。
+  - 本文「もし送ったのであれば、通信の不具合によってボクらの方に届いてないので、
+    『春アカ公式LINE』の方に送り直してください。先生がそれを見てHPを付与します。」
+  - ★photoEscapeToHome / _photoEscapeConfirmed / LINE handoff 記録には一切触れず。
+  - カードが出る条件（5コンテンツ・force / 失敗後）は不変。リスオン録音には従来どおり出ない。
+  - view.html / admin.html は無変更（版バッジのみ stamp-version が更新）。
+- 実装コミット：`f53c088`
+- **反映前の main（切り戻し先）：`7c5fa8d64ad1847466b518e76eac019941bbd91d`**
+- **マージコミット：`8979defc14bf0cdb191bbe5e74aa5c38e7a6855d`**
+- 版バッジ：`20260905-0438`（index / view / admin の3ファイル）
+- GitHub Actions：success ／ 配信物と origin/main の sha256 は3ファイルとも一致
+- 反映後、配信物そのもので確認したこと
+  - ゲート判定 3 行は全て意図した文言変更（旧文言1行削除＋新見出し・新本文2行追加）。
+  - 削除行の全数：実コード削除は旧文言1行のみ、残り7行は版バッジ／CDNの `?v=` 更新。
+  - 配信 index.html に新文言（見出し「答案の写真が届いてないけど…」・本文「ボクら…」）が載っている。
+  - view.html の差分は版バッジ1行のみ（ロジック混入なし）。
+  - 反映前のローカル実測：5コンテンツすべてでカード表示・見出し太字(#9a3412)・本文「ボクら」・
+    「分かりました」でホーム復帰・LINE handoff 5件記録・リスオン非表示（配線0）を DOM 実測で PASS。
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 8979defc14bf0cdb191bbe5e74aa5c38e7a6855d && git push origin main && git checkout dev
+  ```
