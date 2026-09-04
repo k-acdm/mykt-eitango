@@ -992,3 +992,41 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 8979defc14bf0cdb191bbe5e74aa5c38e7a6855d && git push origin main && git checkout dev
   ```
+
+### 和文英訳①：先生コメントの「新着あり」バッジを履歴入口に追加（2026-09-05）
+
+- 背景・内容
+  - 生徒が先生コメントの新着に気づけるよう、和文英訳①の履歴入口ボタン
+    「📖 過去の提出作品」に赤い新着バッジ（🔴 NEW）を追加。
+  - サーバー側は実装済（59e421b、`getUnreadCommentCount` / `markCommentsViewed`）。
+    案2＝「最後に履歴を開いた日時より後のコメントを新着」。★本反映でDBテーブルも作成済＝バッジが実際に生きる。
+- 反映内容（index.html のみ）
+  - 入口ボタンに既存 `.msg-home-badge` クラスを流用（新部品は作らない）、id は別 `wabun1-comment-badge`。
+    件数は出さず「🔴 NEW」の印のみ。
+  - `loadWabun1CommentBadge()` を新設し、ホーム表示時（`showWelcome` / `goHome`）に
+    `loadUnreadMessageCount` の隣で `getUnreadCommentCount(content='wabun1')` を取得。
+  - 履歴を開いたら `markCommentsViewed(content='wabun1')` を呼びバッジを即消し。
+  - 失敗（テーブル未作成含む reject / ok:false）は黙って非表示＝画面は壊さない。
+  - 先生メッセージ未読バッジ（`msg-home-badge`）・HP/提出/採点ロジックには一切触れない。
+  - view.html / admin.html は無変更（版バッジのみ stamp-version が更新）。
+- 実装コミット：`6fb6025`
+- **反映前の main（切り戻し先）：`8979defc14bf0cdb191bbe5e74aa5c38e7a6855d`**
+- **マージコミット：`0c9e78d6485ff4c6db77be92d665cd9870a98d44`**
+- 版バッジ：`20260905-0520`（index / view / admin の3ファイル）
+- GitHub Actions：success ／ 配信物と origin/main の sha256 は3ファイルとも一致
+- 反映後、配信物そのもので確認したこと
+  - ゲート判定 24 行は全て意図したバッジ実装（旧・入口ボタン1行削除＋バッジ付き版・関数・呼出）。
+  - 削除行の全数：実コード削除は旧・入口ボタン1行のみ、残り7行は版バッジ／CDNの `?v=` 更新。
+  - 配信 index.html に `wabun1-comment-badge` / `loadWabun1CommentBadge` /
+    `getUnreadCommentCount` / `markCommentsViewed` が載っている。
+  - view.html の差分は版バッジ1行のみ（ロジック混入なし）。
+  - 反映前のローカル実測（スタブ）：新着あり→バッジ表示（🔴 NEW・件数なし）／履歴を開く→
+    markCommentsViewed(content=wabun1) 呼出＋バッジ消滅／失敗(reject・ok:false)でも壊れず非表示／
+    先生メッセージ未読バッジ併存／9/5 履歴画面の非回帰、を DOM 実測で PASS。
+  - ※実DBテーブルでの実データ挙動（実際に新着が出て既読で消える）の最終確認は、先生コメント付き
+    提出データと生徒ログインが必要なため配信環境では未実施（＝確かめていない）。表示経路は
+    ローカル実測でPASS、テーブルは本反映で作成済み。
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 0c9e78d6485ff4c6db77be92d665cd9870a98d44 && git push origin main && git checkout dev
+  ```
