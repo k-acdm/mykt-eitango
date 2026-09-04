@@ -3446,10 +3446,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260905-0028"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260905-0349"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260905-0028">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260905-0028"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260905-0349">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260905-0349"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4620,6 +4620,7 @@
     <div id="wabun1-camera-msg" class="msg" style="margin-top:10px"></div>
     <img id="wabun1-photo-preview" class="photo-preview" style="display:none;margin-top:10px"/>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:14px;color:#6d2c4a" onclick="showWabun1Past()">📚 過去の問題と正解</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d" onclick="showWabun1History()">📖 過去の提出作品</button>
     <div class="wabun1-fixed-tip">
       <div class="wabun1-fixed-title">🔴 注目！ ＜英語の名詞の使い方＞</div>
       <div class="wabun1-fixed-body">
@@ -4728,6 +4729,14 @@
     <div id="wabun1-archive-body"><div class="loading">⏳ 読み込み中...</div></div>
     <div class="wabun1-past-pager" id="wabun1-archive-pager"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
+  </div>
+</div>
+
+<div id="screen-wabun1-history" class="screen">
+  <header><h1>📖 過去の提出作品</h1><span id="wabun1-history-student"></span></header>
+  <div class="container" style="padding-top:16px">
+    <div id="wabun1-history-list"><div class="loading">⏳ 読み込み中...</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
   </div>
 </div>
 
@@ -12793,6 +12802,46 @@
                    '<div style="font-size:12px;color:#888">' + _sangoEscHtml(s.timestamp || '') + ' / ' + methodLabel + '</div>' +
                  '</div>' +
                  (words ? '<div class="sango-words">' + words + '</div>' : '') +
+                 '<div style="background:#fff8e1;border-radius:10px;padding:10px 12px;margin-top:6px;white-space:pre-wrap;word-wrap:break-word;font-size:14px;line-height:1.7;color:#333">' + _sangoEscHtml(s.work || '') + '</div>' +
+                 commentHtml +
+               '</div>';
+      }).join('');
+    }).catch(function(){
+      listEl.innerHTML = '<div style="text-align:center;color:#c0392b;padding:30px">エラーが発生しました。</div>';
+    });
+  }
+
+  function showWabun1History() {
+    document.getElementById('wabun1-history-student').textContent = _studentId + ' さん';
+    var listEl = document.getElementById('wabun1-history-list');
+    listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    showScreen('screen-wabun1-history');
+    cachedGasGet({ action:'getWabun1Submissions', studentId:_studentId }).then(function(res) {
+      if (!res || !res.ok) { listEl.innerHTML = '<div style="text-align:center;color:#c0392b;padding:30px">読み込みに失敗しました。</div>'; return; }
+      var items = res.submissions || [];
+      if (items.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;color:#888;padding:40px 0">まだ提出した作品はありません。</div>';
+        return;
+      }
+      listEl.innerHTML = items.map(function(s){
+        var methodLabel = s.method === 'photo' ? '📷 写真' : '✏️ 直接入力';
+        var skips = (s.skip_questions && s.skip_questions.length)
+          ? '<div style="font-size:12px;color:#c2410c;margin-bottom:6px">⊘ スキップ：' + _sangoEscHtml(s.skip_questions.join('・')) + '番</div>'
+          : '';
+        var comment = String(s.teacher_comment || '').trim();
+        var commentHtml = comment
+          ? '<div style="background:#e3f2fd;border-left:4px solid #1976d2;border-radius:10px;padding:10px 12px;margin-top:8px;white-space:pre-wrap;word-wrap:break-word;font-size:13px;line-height:1.7;color:#0d47a1">' +
+              '<div style="font-weight:bold;color:#1565c0;margin-bottom:4px">💬 先生からのコメント</div>' +
+              _sangoEscHtml(comment) +
+            '</div>'
+          : '';
+        var dateLabel = String(s.date || (s.timestamp || '').slice(0,10) || '').trim();
+        return '<div class="sango-level-card">' +
+                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">' +
+                   '<div class="sango-level-label" style="margin-bottom:0">' + _sangoEscHtml(dateLabel) + '</div>' +
+                   '<div style="font-size:12px;color:#888">' + _sangoEscHtml(s.timestamp || '') + ' / ' + methodLabel + '</div>' +
+                 '</div>' +
+                 skips +
                  '<div style="background:#fff8e1;border-radius:10px;padding:10px 12px;margin-top:6px;white-space:pre-wrap;word-wrap:break-word;font-size:14px;line-height:1.7;color:#333">' + _sangoEscHtml(s.work || '') + '</div>' +
                  commentHtml +
                '</div>';
@@ -23132,7 +23181,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260905-0028</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260905-0349</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
