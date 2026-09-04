@@ -3446,10 +3446,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260904-0520"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260904-2254"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260904-0520">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260904-0520"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260904-2254">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260904-2254"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -13422,7 +13422,12 @@
           '<div class="wabun1-result-title">やったね！全問正解！</div>' +
           hpBlock +
         '</div>' +
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);margin-top:14px" onclick="showWabun1Answers()">💡 正解を表示する</button>';
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);margin-top:14px" onclick="showWabun1Answers()">💡 正解を表示する</button>' +
+        // 2026-09-04：★合格（allCorrect=true）のときだけ、直接ホームへ帰れる出口を出す。
+        //   ★不合格（else 節）には足さない＝逃げ道にならない。提出未完了・送信失敗では本関数が呼ばれない。
+        //   ★問題画面のホーム（photoEscapeToHome）は従来どおり＝「問題画面で黙って帰らせない」意図は維持。
+        //   ★成功して帰る生徒が、差し替え済みの問題画面を経由せずに帰れるようにするのが狙い。
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
       showScreen('screen-wabun1-result');
       if (!res.alreadyGranted && fullHpDisp > 0) {
         var numEl = document.getElementById('wabun1-hp-num');
@@ -23127,7 +23132,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260904-0520</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260904-2254</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
