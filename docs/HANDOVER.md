@@ -891,3 +891,38 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 cf1c34c2f83646033913ed8f98ce208ba34f78ae && git push origin main && git checkout dev
   ```
+
+### サンゴタンの今週の秀逸作品を保護者画面(view.html)にも表示 ＋ 生徒画面タイトル文言更新（2026-09-05）
+
+- 背景・内容
+  - 生徒画面(index.html)にあった「サンゴタンが選んだ今週の秀逸作品」を、
+    保護者画面(view.html)にも新規表示（保護者にも子ども達の良い作品を見せる）。
+  - 併せて両画面のセクションタイトルを新文言
+    「🐠 サンゴタンが選んだ今週の三語短文秀逸作品」に統一（コンテンツ名を明示）。
+- 反映内容（view.html への移植）
+  - 置き場所＝ランキングの下・連絡事項の上（dash-section）。
+  - 今週の秀逸作品カードのみ（★殿堂アーカイブは含めない）。
+  - ★保護者はクリック遷移しないのでカードに onclick を付けない。
+  - エスケープは view.html 既存の `_esc` を使用（他生徒作品の XSS 対策）。
+  - `_doDirectView` の `loadLatestNotice()` 直後に `loadSangoWeeklyFeatured()` を呼ぶ。
+  - `getSangoWeeklyFeatured` は無認証パブリックのため★サーバー(GAS)変更なし。
+  - 本人向け既読管理（`_isSangoStarredSeen` 等）は保護者に不要なので写していない。
+  - 生徒画面は【B】タイトル1行の変更のみ（殿堂ボタン等は不変）。
+- 実装コミット：`9312ac5`
+- **反映前の main（切り戻し先）：`cf1c34c2f83646033913ed8f98ce208ba34f78ae`**
+- **マージコミット：`b2a1b4b1f5dfcc2a3e566d8f7bf539aba12bfd0a`**
+- 版バッジ：`20260905-0028`（index / view / admin の3ファイル）
+- GitHub Actions：success ／ 配信物と origin/main の sha256 は3ファイルとも一致
+- 反映後、配信物そのもので確認したこと
+  - 生徒画面のタイトルが新文言「🐠 サンゴタンが選んだ今週の三語短文秀逸作品」
+  - 保護者画面に秀逸作品セクション（loadSangoWeeklyFeatured / _renderSangoFeaturedCard）が載っている
+  - 保護者画面のタイトルも新文言
+  - 保護者の既存表示（ランキング・連絡事項・「お子様の学習状況を見る」）が健在
+  - 削除行は全8行のうち実コード削除は index.html の旧タイトル1行のみ、残り7行は版スタンプ
+  - ※ライブGASの実データでカードが実際に描画される最終確認は、有効な保護者トークンと
+    「今週の⭐認定作品」が必要なため未実施（＝確かめていない）。表示経路はコードと
+    静的スナップショットのDOM実測でPASS。
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 b2a1b4b1f5dfcc2a3e566d8f7bf539aba12bfd0a && git push origin main && git checkout dev
+  ```
