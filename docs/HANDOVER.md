@@ -926,3 +926,37 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 b2a1b4b1f5dfcc2a3e566d8f7bf539aba12bfd0a && git push origin main && git checkout dev
   ```
+
+### 和文英訳①：生徒用「過去の提出とコメント」履歴画面を追加（2026-09-05）
+
+- 背景・内容
+  - 生徒が自分の和文英訳①の過去提出と、そこに付いた**先生コメントを見られる**ようにする。
+  - 保護者画面(view.html)の `getWabun1Submissions` は既に teacher_comment を返して
+    いたが、生徒画面がそれを呼んでいなかっただけ。★サーバー(GAS)変更なし。
+- 反映内容（index.html への追加のみ・削除ゼロ）
+  - 手本＝三語短文の `showSangoHistory()` をそのまま踏襲。
+  - 入口ボタン「📖 過去の提出作品」＝問題画面(screen-wabun1-topic)の
+    「📚 過去の問題と正解」直下（三語短文と同じく復習系ボタンをまとめる配置）。
+  - 新画面 `screen-wabun1-history` ＋ `showWabun1History()`。
+  - `cachedGasGet({action:'getWabun1Submissions', studentId:_studentId})` で本人の提出のみ取得。
+  - 三語短文との差異：level/words 無し、date（YYYY-MM-DD）表示、skip_questions 対応。
+  - コメントは既存と同じ青枠（💬 先生からのコメント）で表示。
+  - view.html は無変更（版バッジのみ stamp-version が更新）。三語短文の履歴と
+    9/4 の和文英訳①合格画面ホームボタンは無改変。
+- 実装コミット：`e326323`
+- **反映前の main（切り戻し先）：`b2a1b4b1f5dfcc2a3e566d8f7bf539aba12bfd0a`**
+- **マージコミット：`7c5fa8d64ad1847466b518e76eac019941bbd91d`**
+- 版バッジ：`20260905-0349`（index / view / admin の3ファイル）
+- GitHub Actions：success ／ 配信物と origin/main の sha256 は3ファイルとも一致
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `showWabun1History` / `screen-wabun1-history` が載っている
+  - ゲート判定 49 行は全て `+`（追加のみ）＝本履歴機能そのもの、削除行ゼロ
+  - view.html の差分は版バッジ1行のみ（履歴ロジックの混入なし）
+  - ※ライブGASの実データでの提出一覧・コメント描画の最終確認は、有効な生徒ログインと
+    先生コメント付き提出データが必要なため未実施（＝確かめていない）。表示経路は
+    ローカル配信＋スタブ応答での DOM 実測（date/コメント青枠/skip/level無し/語チップ無し・
+    空/失敗/戻る導線・三語短文の非回帰）で PASS。
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 7c5fa8d64ad1847466b518e76eac019941bbd91d && git push origin main && git checkout dev
+  ```
