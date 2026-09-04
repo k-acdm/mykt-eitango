@@ -859,3 +859,35 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 7974dec3a0be9aad82ddf7be7c82a038d6d59733 && git push origin main && git checkout dev
   ```
+
+### 和文英訳①：合格の結果画面に直接ホームの出口を追加（2026-09-04）
+
+- 背景・事象
+  - 和文英訳①で写真送信に成功しHPを獲得した後、ホームへ戻ると
+    LINE案内（「写真を送り直してください」）が出ていた（送信成功なのに出る＝実害）。
+  - 原因＝結果画面にホームボタンが無く、唯一の出口「← 問題画面に戻る」が
+    9/2に差し替えた問題画面（photoEscapeToHome force=true）へ導くため。
+    force=true は送信成否に関わらず必ずLINE案内を出す。
+- 反映内容
+  - _showWabun1Result の合格分岐（res.allCorrect が真）の body にだけ、
+    goHome() を呼ぶ直接ホームボタンを動的に足した。
+  - ★不合格（else節）には足さない＝逃げ道にならない。
+    提出未完了・送信失敗では本関数自体が呼ばれない＝途中では出ない。
+  - alreadyGranted（当日2回目の合格）も allCorrect=true なので含まれる。
+  - 問題画面のホームは photoEscapeToHome のまま＝「問題画面で黙って帰らせない」を維持。
+  - 三語短文は完了画面(sango-done)に既に goHome() の直接ホームがあり、採点が無く
+    完了画面は提出成功でのみ到達するため、追加不要と判断（既存で成功後に直接帰れる）。
+- 実装コミット：`0d3469d`
+  ＋ `d050b20`（前回分の HANDOVER 記録・コード差分なし）
+- **反映前の main（切り戻し先）：`7974dec3a0be9aad82ddf7be7c82a038d6d59733`**
+- **マージコミット：`cf1c34c2f83646033913ed8f98ce208ba34f78ae`**
+- 版バッジ：`20260904-2254`（index / view / admin の3ファイル）
+- GitHub Actions：success ／ 配信物と origin/main の sha256 は3ファイルとも一致
+- 反映後、配信物そのもので確認したこと
+  - 合格の結果画面 → 足したホーム（goHome）で直接帰れる（LINE案内なし）
+  - 不合格の結果画面 → ホームボタンが出ない（逃げ道でない）
+  - 問題画面のホーム → photoEscapeToHome('wabun1', true) のまま
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 cf1c34c2f83646033913ed8f98ce208ba34f78ae && git push origin main && git checkout dev
+  ```
