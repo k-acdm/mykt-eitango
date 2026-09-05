@@ -3446,10 +3446,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260906-0030"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260906-0120"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260906-0030">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260906-0030"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260906-0120">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260906-0120"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -8015,9 +8015,24 @@
       return false;                                             // 例外時はリロードしない（安全側）
     }
   }
+  // 2026-09-06：この err が「通信の失敗（タイムアウト / 通信断）」らしいかを判定する。
+  //   ★gasPost は「サーバー応答が無いとき」だけ reject する（AbortError→'サーバー応答がありません…' に再throw／
+  //     fetch 失敗は TypeError）。＝ここに来る err は基本 通信起因。
+  //   ★navigator.onLine===false は明確に不通。情報が無い（err が空）ときも通信扱い（安全側）。
+  //   ★res.ok===false（サーバーが応答して拒否）は catch に来ないので、この判定とは無関係（従来メッセージのまま）。
+  function _isNetworkLikeError(err) {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+      if (!err) return true;
+      if (err.name === 'TypeError' || err.name === 'AbortError') return true;
+      var m = String(err.message || err);
+      return /サーバー応答がありません|タイムアウト|timeout|failed to fetch|networkerror|network error|load failed|abort/i.test(m);
+    } catch(e) { return true; }
+  }
   function doLogin() {
     var sid = document.getElementById('login-id').value.trim();
     if (!sid) { showMsg('login-msg','生徒IDを入力してください。','ng'); return; }
+    try { _hideOfflineBanner(); } catch(e){}   // 2026-09-06：前回失敗で出したオフラインバナーを、再ログイン開始時に消す（成功時に残らないように）
     showMsg('login-msg','マイカツ君が準備中…','ok'); document.getElementById('login-btn').disabled = true;
     // 2026-08-19：ログイン系は POST 送信（生徒ID・暗証番号を URL に載せない＝履歴/Referer に残さない）。
     //   サーバ側は GET も継続受付のため段階移行可。パラメータの形は GET 時代と同一。
@@ -8085,7 +8100,19 @@
           }
         });
       }
-    }).catch(function(){ document.getElementById('login-btn').disabled = false; showMsg('login-msg','エラーが発生しました。','ng'); });
+    }).catch(function(err){
+      document.getElementById('login-btn').disabled = false;
+      // 2026-09-06 案A：ここに来るのは「サーバーが応答しなかった」とき（タイムアウト / 通信断）。
+      //   ★通信系なら「つながっていない」と分かる文言＋オフラインバナーで知らせる（_offline は立てない
+      //     ＝立てると成功後も学習がブロックされ残るため。バナーは doLogin 冒頭で消える）。
+      //   ★通信系でない想定外エラーは従来どおりの汎用文言（通信メッセージと混ざらないように出し分け）。
+      if (_isNetworkLikeError(err)) {
+        try { _showOfflineBanner(); } catch(e){}
+        showMsg('login-msg','今サーバーにつながらなかったみたい。📶 電波のいい場所で、もう一度ログインしてね。','ng');
+      } else {
+        showMsg('login-msg','エラーが発生しました。もう一度ログインしてね。','ng');
+      }
+    });
   }
 
   // =============================================================
@@ -23271,7 +23298,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260906-0030</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260906-0120</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
