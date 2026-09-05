@@ -1111,3 +1111,39 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 93881537a812dd1a081fecc448b796dd1e71fc4a && git push origin main && git checkout dev
   ```
+
+### ログイン失敗時に「通信の問題」を分かりやすく伝える（案A）（2026-09-06）
+
+- 背景・内容
+  - ログインが通信失敗（タイムアウト / 通信断）したとき、`doLogin.catch` が汎用「エラーが発生しました。」を
+    出すだけで、生徒に「通信の問題」だと伝わらなかった。
+- 反映内容（index.html のみ。doLogin 周辺のみ）
+  - 区別は構造的に既に分離：`res.ok===false`（サーバーが応答して拒否＝合言葉違い等）は従来の
+    サーバーメッセージのまま（無変更）。`.catch`（gasPost の reject＝サーバー無応答＝タイムアウト/通信断）が通信失敗経路。
+  - `_isNetworkLikeError(err)` を新設（`navigator.onLine===false` / `err.name==='TypeError'|'AbortError'` /
+    `サーバー応答がありません|timeout|failed to fetch|networkerror|load failed|abort` 系メッセージ）。
+    通信系なら「今サーバーにつながらなかったみたい。📶 電波のいい場所で、もう一度ログインしてね。」＋ `_showOfflineBanner()`。
+    通信系でない想定外エラーは従来どおり汎用文言（通信メッセージと混ざらない）。
+  - 副作用回避：`_offline` は立てない（doLogin 成功時にクリアされず、成功後も学習がブロックされ残るため）。
+    バナー残存防止に doLogin 冒頭で `_hideOfflineBanner()`（再試行で成功したら残らない）。
+  - ログイン画面に留まる・`ok:false` 経路・HP/提出ロジックは無変更。
+  - view.html / admin.html は無変更（版バッジのみ stamp-version が更新）。
+- 実装コミット：`ee3d34a`
+- **反映前の main（切り戻し先）：`ee216ef990c9c21cce86d4db9c5f2a208892dc12`**
+- **マージコミット：`343125beabfaa09b443ec95742db182734060502`**
+- 版バッジ：`20260906-0120`（index / view / admin の3ファイル）
+- GitHub Actions：success（run 33977812891）／git blob（コミット実体）と配信物の sha256 が3ファイルとも一致
+  （index `2e025075…` / view `d1f3a85b…` / admin `83a2179b…`）。
+- 反映後、配信物そのもので確認したこと
+  - ゲート判定 29 行は全て doLogin/通信メッセージ関連（他機能キーワードなし）。想定外なし。
+  - 削除行：実コード削除は旧・単独 catch の1行のみ（新・出し分け catch への置換）。他はスタンプ。
+  - 配信 index.html に `function _isNetworkLikeError` と「今サーバーにつながらなかったみたい」が載っている。
+  - 反映前のローカル実測（doLogin 制御フローと `_isNetworkLikeError` をNodeで再現）：
+    タイムアウト/fetch失敗/onLine=false → 通信メッセージ＋バナー＋ログイン画面に留まる／
+    合言葉違い(ok:false) → 従来サーバーメッセージ・バナー無し（通信と混ざらない）／正常ログイン→ホーム／
+    失敗→再試行成功でバナー残らない／非通信エラー→汎用文言、を 14/14 PASS。
+  - ※実機（機内モード等で実際に通信断→ログイン）での end-to-end は配信環境では未実施（＝確かめていない）。
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 343125beabfaa09b443ec95742db182734060502 && git push origin main && git checkout dev
+  ```
