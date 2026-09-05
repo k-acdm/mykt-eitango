@@ -3446,10 +3446,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260905-1906"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260906-0030"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260905-1906">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260905-1906"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260906-0030">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260906-0030"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10143,6 +10143,10 @@
         _eikenLastSourceDataUrl = croppedDataUrl;
         var preview = document.getElementById('photo-preview');
         if (preview) { preview.src = croppedDataUrl; preview.style.display = 'block'; }
+        // 2026-09-06：切り抜きモーダルから出てから再OCRする（kiso/kanji に倣う）。
+        //   ★合否メッセージ・字が雑い時の表示は書き取り画面（screen-dictation）に出るため戻す。
+        //   ★合格時は sendPhoto が showPhotoPassedScreen で screen-today へ遷移する。
+        showScreen('screen-dictation');
         sendPhoto(croppedDataUrl.split(',')[1]);
       }
     });
@@ -12335,6 +12339,9 @@
         _sangoLastSourceDataUrl = croppedDataUrl;
         var preview = document.getElementById('sango-photo-preview');
         if (preview) { preview.src = croppedDataUrl; preview.style.display = 'block'; }
+        // 2026-09-06：切り抜きモーダルから出てから再OCRする（kiso/kanji に倣う）。
+        //   ★これが無いと再OCR結果が写真画面に描かれても画面はモーダルのままで「フリーズ」に見える。
+        showScreen('screen-sango-photo');
         sendSangoPhoto(croppedDataUrl.split(',')[1]);
       }
     });
@@ -13346,6 +13353,10 @@
         // プレビュー更新
         var preview = document.getElementById('wabun1-photo-preview');
         if (preview) { preview.src = croppedDataUrl; preview.style.display = 'block'; }
+        // 2026-09-06：切り抜きモーダルから出てから再OCRする（kiso/kanji に倣う）。
+        //   ★失敗メッセージ（wabun1-camera-msg）は topic 画面にあるため topic に戻す。
+        //   ★成功時は sendWabun1Photo が screen-wabun1-confirm へ遷移する。
+        showScreen('screen-wabun1-topic');
         // 既存の OCR 関数を再実行（base64 部分のみ抽出）
         sendWabun1Photo(croppedDataUrl.split(',')[1]);
       }
@@ -23260,7 +23271,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260905-1906</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260906-0030</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
