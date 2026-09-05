@@ -1030,3 +1030,50 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 0c9e78d6485ff4c6db77be92d665cd9870a98d44 && git push origin main && git checkout dev
   ```
+
+### 三語短文：提出したらカード非表示＋先生コメント「注目！」バッジ ／ 和文英訳①：合格したらカード非表示・バッジ文言（2026-09-05）
+
+- 背景・内容（塾長方針＝「問題に足を踏み入れたら合格/提出まで逃がさない。正規に完了したら邪魔物は出さない」）
+  - 和文英訳①：合格した生徒が結果画面→「← 問題画面に戻る」→問題画面→ホームと進むと
+    LINE案内カード（`photo-escape-overlay`）が出る2段階経路の罠が残っていた（生徒「いつも出る」）。
+  - 三語短文：採点が無い＝提出で完了。提出後にお題画面へ戻ってホームを押すと同じカードが出ていた。
+  - 併せて、和文英訳①バッジ文言を「NEW」→「注目！」に変更。三語短文にも同じ先生コメント新着バッジを新設。
+- 反映内容（index.html のみ。ロジックは生徒画面のみ）
+  - 和文英訳①：`_wabun1State.passedToday` を新設。**`res.allCorrect === true` のときだけ**立てる
+    （`hasSubmitted` は不合格でも立つため使わない）。問題画面ホームを `wabun1HomeFromTopic()` に差し替え、
+    真なら `goHome()`（カード無し）／偽なら従来どおり `photoEscapeToHome('wabun1', true)`。
+  - 三語短文：`_sangoSubmittedToday` を新設。**提出成功の一点でだけ**立てる
+    （`submitSangoText` 成功／`confirmSangoPhoto` 成功）。お題画面ホームを `sangoHomeFromTopic()` に差し替え。
+  - 逃げ道防止：どちらも新規入場（`showWabun1Topic`／`showSangoTopic`）でリセット、
+    ログアウト（`_doLogoutFinalize`）でクリア、localStorage 不使用（サーバー真実のみをキーに）。
+  - 三語短文バッジ：履歴入口「📖 過去の提出作品」に `.msg-home-badge` を流用（id は別 `sango-comment-badge`）。
+    `loadSangoCommentBadge()` を新設し `showWelcome`／`goHome` で `getUnreadCommentCount(content='sango')` を取得（件数なし・「🔴 注目！」の印のみ）。
+    履歴を開いたら `markCommentsViewed(content='sango')` を呼び即消し。失敗は握り潰して非表示（画面は壊さない）。
+  - 先生メッセージ未読バッジ（`msg-home-badge`）・和文英訳①バッジ（content='wabun1'）・他コンテンツ（kiso/kanji/eiken5）・星付け/公開/提出/採点ロジックには一切触れない。
+  - view.html / admin.html は無変更（版バッジのみ stamp-version が更新）。
+- 実装コミット：`8e3327d`（和文英訳①合格カード非表示）／`7a93a6c`（バッジ文言 注目！）／`83c62d6`（三語短文）
+- **反映前の main（切り戻し先）：`0c9e78d6485ff4c6db77be92d665cd9870a98d44`**
+- **マージコミット：`13ea84f86d59f8c4cef92b7c8cdba46e6021bf25`**
+- 版バッジ：`20260905-1906`（index / view / admin の3ファイル）
+- 反映前チェック：本番 `getUnreadCommentCount?content=sango` が正常応答することを確認
+  （`?params=` 形式で実測 → `{"ok":true,"content":"sango","hasUnread":false}`。対照 content=wabun1 も同形で正常）。
+  ＝サーバー側（5772780）と `comment_updated_at` 列は本番稼働中で、今日のような「列が無いのに呼ぶ」ずれは起きない。
+- GitHub Actions：success（run 33967426932）／git blob（コミット実体）と配信物の sha256 が3ファイルとも一致
+  （index `72ae27fb…` / view `161dcc6c…` / admin `7149f29e…`。※ローカル作業ツリーは CRLF のため一致比較は git blob 基準で実施）。
+- 反映後、配信物そのもので確認したこと
+  - ゲート判定 68 行は全て意図した三語/wabun1 の変更（`_sangoSubmittedToday`×7・`loadSangoCommentBadge`・
+    `sango-comment-badge`・`sangoHomeFromTopic`・`passedToday`×10・`wabun1HomeFromTopic`・「注目！」）。想定外なし。
+  - 削除行の全数：実コード削除はお題/問題画面ホームの旧 onclick 2行（分岐関数へ差し替え）＋版バッジ/CDN `?v=` 更新のみ。
+  - 配信 index.html にホーム分岐関数（`onclick="sangoHomeFromTopic()"`／`onclick="wabun1HomeFromTopic()"`）が載り、
+    ボタンからの旧 `photoEscapeToHome('sango'/'wabun1', true)` 直呼びは消滅（分岐関数内のみ）。
+  - 反映前のローカル実測（実コード関数本体をNodeで再現）：
+    A1 合格/提出→戻る→ホーム=カード無し／A2 未提出→ホーム=カード（逃げ道でない）／
+    A3 提出→ログアウト→再入場=非継承カード／B4 新着→バッジ表示／B5 履歴で markCommentsViewed(sango) 呼出+消灯／
+    B6 `getUnreadCommentCount` 失敗でも壊れず非表示、を PASS（wabun1 5/5・三語+バッジ 10/10）。
+  - ※実DBテーブルでの実データ挙動（実際に新着が出て既読で消える／実機で罠が消える）の最終確認は、
+    先生コメント付き提出データと生徒ログインが必要なため配信環境では未実施（＝確かめていない）。
+    表示経路・分岐ロジックはローカル実測でPASS、本番APIは正常応答を確認済み。
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 13ea84f86d59f8c4cef92b7c8cdba46e6021bf25 && git push origin main && git checkout dev
+  ```
