@@ -1077,3 +1077,37 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 13ea84f86d59f8c4cef92b7c8cdba46e6021bf25 && git push origin main && git checkout dev
   ```
+
+### 切り抜き「✂️ 切り抜いて再判定」後のフリーズ修正（2026-09-06）
+
+- 背景・内容（2026-05-02 の切り抜き機能追加以来の既存バグ。今日の改修とは無関係）
+  - 切り抜きモーダル（`screen-crop-modal`）で「✂️ 切り抜いて再判定」を押すと、再OCRは走って結果も出るが、
+    モーダルから出る `showScreen` が抜けていたため結果が裏の写真画面に描かれ、画面がフリーズしたように見えていた。
+  - `kiso`/`kanji` は `onCropped` で `showScreen(confirm)` 済み＝固まらない。抜けていたのは `sango`/`wabun1`/`eiken5` の3つ。
+- 反映内容（index.html のみ。各 `onCropped` の再OCR呼び出しの直前に `showScreen` を1行追加）
+  - 三語短文：`sendSangoPhoto` の前に `showScreen('screen-sango-photo')`
+  - 和文英訳①：`sendWabun1Photo` の前に `showScreen('screen-wabun1-topic')`
+    （失敗メッセージ `wabun1-camera-msg` は topic 画面にあるため topic に戻す。成功時は `sendWabun1Photo` が `screen-wabun1-confirm` へ遷移）
+  - 英検5級：`sendPhoto` の前に `showScreen('screen-dictation')`
+  - 切り抜き機構（`openCropForReOcr`/`applyCropForReOcr`/`cancelCropForReOcr`）・再OCR関数・HP/提出/採点・
+    今日の基本方針/バッジ/受領メッセージには不干渉。`kiso`/`kanji` は無変更。追加のみ（実コード削除ゼロ）。
+  - view.html / admin.html は無変更（版バッジのみ stamp-version が更新）。
+- 実装コミット：`37512da`
+- **反映前の main（切り戻し先）：`63c318653011a5d8e21f9e58dbbf7144601a8644`**
+- **マージコミット：`93881537a812dd1a081fecc448b796dd1e71fc4a`**
+- 版バッジ：`20260906-0030`（index / view / admin の3ファイル）
+- GitHub Actions：success（run 33975891257）／git blob（コミット実体）と配信物の sha256 が3ファイルとも一致
+  （index `f2996051…` / view `a7824a93…` / admin `715629d5…`）。
+- 反映後、配信物そのもので確認したこと
+  - ゲート判定 11 行は全て意図した3つの `showScreen` 追加＋説明コメント（sango-photo / wabun1-topic / dictation）。想定外なし。
+  - 削除行：スタンプ（版バッジ・CDN `?v=`）以外の実コード削除はゼロ（追加のみの修正）。
+  - 配信 index.html に `showScreen('screen-sango-photo')` / `showScreen('screen-wabun1-topic')` / `showScreen('screen-dictation')` が載っている。
+  - 反映前のローカル実測（実 crop フロー＋各 send関数の遷移をNodeで再現）：
+    三語=結果が見える／和文英訳①成功=confirm・失敗=topic camera-msg で見える／
+    英検5級 合格=today・不合格/字雑=dictation で見える／kiso・kanji 従来どおり／切り抜き画像が再OCRに渡る／
+    キャンセルは returnScreen へ／対照:showScreen無ならモーダル残留を検知、を 11/11 PASS。
+  - ※実機（iPad/Android の Cropper.js 実物・サーバー往復・実写真）での end-to-end は配信環境では未実施（＝確かめていない）。
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 93881537a812dd1a081fecc448b796dd1e71fc4a && git push origin main && git checkout dev
+  ```
