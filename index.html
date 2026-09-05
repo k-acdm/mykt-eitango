@@ -3446,10 +3446,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260905-0520"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260905-1906"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260905-0520">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260905-0520"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260905-1906">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260905-1906"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4491,8 +4491,8 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffcb77,#fe6d73);margin-top:14px" onclick="startSangoTextSubmit()">✏️ 作品を提出する（直接入力）</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#4fc3f7,#2979ff);margin-top:8px" onclick="startSangoPhotoSubmit()">📷 作品を提出する（写真に撮って送る）</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:8px;color:#6d2c4a" onclick="showSangoPast()">📚 過去のお題と福地の作品</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d" onclick="showSangoHistory()">📖 過去の提出作品</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="photoEscapeToHome('sango', true)">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d;position:relative" onclick="showSangoHistory()">📖 過去の提出作品<span class="msg-home-badge" id="sango-comment-badge">🔴 注目！</span></button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="sangoHomeFromTopic()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-sango-past" class="screen">
@@ -4620,7 +4620,7 @@
     <div id="wabun1-camera-msg" class="msg" style="margin-top:10px"></div>
     <img id="wabun1-photo-preview" class="photo-preview" style="display:none;margin-top:10px"/>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:14px;color:#6d2c4a" onclick="showWabun1Past()">📚 過去の問題と正解</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d;position:relative" onclick="showWabun1History()">📖 過去の提出作品<span class="msg-home-badge" id="wabun1-comment-badge">🔴 NEW</span></button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d;position:relative" onclick="showWabun1History()">📖 過去の提出作品<span class="msg-home-badge" id="wabun1-comment-badge">🔴 注目！</span></button>
     <div class="wabun1-fixed-tip">
       <div class="wabun1-fixed-title">🔴 注目！ ＜英語の名詞の使い方＞</div>
       <div class="wabun1-fixed-body">
@@ -4657,7 +4657,7 @@
         <span class="wabun1-video-arrow">▶</span>
       </a>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="photoEscapeToHome('wabun1', true)">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="wabun1HomeFromTopic()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 
@@ -9488,6 +9488,7 @@
     try { loadWeeklyRanking();              } catch(e){ console.error('[showWelcome] loadWeeklyRanking',              e); }
     try { loadUnreadMessageCount();         } catch(e){ console.error('[showWelcome] loadUnreadMessageCount',         e); }
     try { loadWabun1CommentBadge();         } catch(e){ console.error('[showWelcome] loadWabun1CommentBadge',         e); }
+    try { loadSangoCommentBadge();          } catch(e){ console.error('[showWelcome] loadSangoCommentBadge',          e); }
     try { _showStudyPenaltyNotices();       } catch(e){ console.error('[showWelcome] _showStudyPenaltyNotices',       e); }
     try { _prefetchTopics();                } catch(e){ console.error('[showWelcome] _prefetchTopics',                e); }
     // 2026-05-12 サンゴタン関連
@@ -10540,6 +10541,7 @@
     // 2026-05-15 バグ修正：個別 try-catch でアバター再描画が必ず実行されるようにする
     try { loadUnreadMessageCount();         } catch(e){ console.error('[goHome] loadUnreadMessageCount',         e); }
     try { loadWabun1CommentBadge();         } catch(e){ console.error('[goHome] loadWabun1CommentBadge',         e); }
+    try { loadSangoCommentBadge();          } catch(e){ console.error('[goHome] loadSangoCommentBadge',          e); }
     try { checkSangoStarredNotifications(); } catch(e){ console.error('[goHome] checkSangoStarredNotifications', e); }
     // 2026-05-15 防御層：base が空のままならサーバから再取得を試みる
     // （showWelcome の初期 fetch が失敗していた場合のリカバリ）
@@ -11537,6 +11539,10 @@
     _pendingCatchupDate = null;  // 2026-05-21：翌日キャッチアップ state も同時クリア
     _requiredProgress = null;
     _avatarState = { base: '', items: [], equipped: {}, nickname: '' };
+    // 2026-09-05：和文英訳①の合格フラグ（passedToday）を含む state を丸ごとリセット。
+    //   ★共用端末で次の生徒に「合格済み（＝カードを出さない）」状態を持ち越さないため。
+    _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false, lastSourceDataUrl: '', passedToday: false };
+    _sangoSubmittedToday = false;   // 2026-09-05：三語短文の提出済みフラグも同時にクリア（別生徒に持ち越さない）
     try { _lisonResetState(); } catch(e){}
     _clearAllLogoutOverlays();
     _closeReflectionLogoutModal();
@@ -11868,6 +11874,20 @@
       badge.classList.remove('show');
     });
   }
+  // 三語短文の先生コメント「新着あり」バッジ更新（getUnreadCommentCount, content='sango'）。
+  //   ★loadWabun1CommentBadge をそのまま写す（content と要素 id だけ 'sango' 系に差し替え）。
+  //   ★件数は出さず「新着の有無」だけで表示。失敗時（テーブル未作成含む）は黙って非表示（画面は壊さない）。
+  function loadSangoCommentBadge() {
+    var badge = document.getElementById('sango-comment-badge');
+    if (!badge || !_studentId) return;
+    gasGet({ action:'getUnreadCommentCount', studentId:_studentId, content:'sango', _ts:Date.now() }).then(function(res){
+      var hasNew = !!(res && res.ok && (Number(res.count) > 0 || res.hasUnread === true || res.unread === true));
+      if (hasNew) badge.classList.add('show');
+      else        badge.classList.remove('show');
+    }).catch(function(){
+      badge.classList.remove('show');
+    });
+  }
   function _msgEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function _formatMsgDate(ts) {
     if (!ts) return '';
@@ -12071,9 +12091,15 @@
   var _sangoCurrentLevel = null;
   var _sangoOcrText = '';
   var _sangoLastSourceDataUrl = '';   // 切り抜き救済用：直近に撮影した（or 切り抜いた）画像
+  // 2026-09-05：submittedToday＝この端末の現在セッションで「本日、三語短文を提出成功した」ことだけを表すフラグ。
+  //   ★三語短文は採点が無い＝提出で完了。提出成功のときだけ立てる。お題画面ホームの分岐にのみ使う。
+  //   ★新規入場（showSangoTopic）とログアウト（_doLogoutFinalize）で false に戻す＝別入場・別生徒に持ち越さない。
+  //   ★和文英訳①の passedToday 方式（8e3327d）を踏襲。
+  var _sangoSubmittedToday = false;
   function _sangoEscHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function showSangoTopic() {
     if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
+    _sangoSubmittedToday = false;   // 2026-09-05：新規入場でフラグを必ず false へ（未提出入場は従来どおりカードを出す）
     document.getElementById('sango-student').textContent = _studentId + ' さん';
     document.getElementById('sango-topic-body').innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     _setContentMascot('mate-img-sango-topic', 'default', 'mate-bubble-sango-topic', _pickBubble(SANGOTAN_BUBBLES.topic), 'sangotan');
@@ -12090,6 +12116,14 @@
       _sangoWeekNo = res.weekNo || '';
       _renderSangoTopic();
     }).catch(function(){ document.getElementById('sango-topic-body').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
+  }
+  // 2026-09-05：お題画面（screen-sango-topic）のホームボタン専用の分岐（和文英訳①の wabun1HomeFromTopic を踏襲）。
+  //   ★このセッションで本日の三語短文を提出済み（submittedToday）なら、カードを出さず直接ホームへ。
+  //   ★未提出（submittedToday が偽）なら従来どおり LINE案内カードを挟む（黙って帰らせない）。
+  //   ★判定は _sangoSubmittedToday のみ（提出成功由来）。
+  function sangoHomeFromTopic() {
+    if (_sangoSubmittedToday) { goHome(); return; }
+    photoEscapeToHome('sango', true);
   }
   function _renderSangoTopic() {
     var body = document.getElementById('sango-topic-body');
@@ -12193,6 +12227,7 @@
         }
         // 成功：pending ハンドラをクリアして feedback 画面へ
         _pendingRetry = null; _pendingDismiss = null;
+        _sangoSubmittedToday = true;   // 2026-09-05：★提出成功の一点でだけ立てる（三語短文は提出＝完了）。お題画面ホームでカードを出さないため
         _invalidateCacheByAction('getSangoSubmissions');
         var actualHp = Number(res.hpGained || 0);
         if (typeof _totalHP === 'number' && actualHp > 0) _totalHP += actualHp;
@@ -12368,6 +12403,7 @@
         }
         // 成功：pending ハンドラをクリアして feedback 画面へ
         _pendingRetry = null; _pendingDismiss = null;
+        _sangoSubmittedToday = true;   // 2026-09-05：★提出成功の一点でだけ立てる（三語短文は提出＝完了）。お題画面ホームでカードを出さないため
         try { _pendingPhotoClear(SANGO_OCR_KEY); } catch(e){}  // 2026-08-20：送信成功したので端末の保存は必ず破棄
         _invalidateCacheByAction('getSangoSubmissions');
         var actualHp = Number(res.hpGained || 0);
@@ -12795,6 +12831,11 @@
     var listEl = document.getElementById('sango-history-list');
     listEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     showScreen('screen-sango-history');
+    // 履歴を開いた＝既読にする（markCommentsViewed, content='sango'）＋バッジを即消し。失敗しても画面は壊さない。
+    try {
+      gasPost({ action:'markCommentsViewed', studentId:_studentId, content:'sango' }).catch(function(){});
+      var _cb = document.getElementById('sango-comment-badge'); if (_cb) _cb.classList.remove('show');
+    } catch(e){}
     cachedGasGet({ action:'getSangoSubmissions', studentId:_studentId }).then(function(res) {
       if (!res || !res.ok) { listEl.innerHTML = '<div style="text-align:center;color:#c0392b;padding:30px">読み込みに失敗しました。</div>'; return; }
       var items = res.submissions || [];
@@ -12906,7 +12947,10 @@
   // =============================================
   // 和文英訳①
   // =============================================
-  var _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false, lastSourceDataUrl: '' };
+  // 2026-09-05：passedToday＝この端末の現在セッションで「本日の問題に合格（allCorrect）した」ことだけを表すフラグ。
+  //   ★合格したときだけ立てる（hasSubmitted は不合格でも立つので使わない）。問題画面ホームの分岐にのみ使う。
+  //   ★新規入場（showWabun1Topic）とログアウト（_doLogoutFinalize）で false に戻す＝別入場・別生徒に持ち越さない。
+  var _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false, lastSourceDataUrl: '', passedToday: false };
   var _WABUN1_WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
 
   function _wabun1Esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -13101,7 +13145,7 @@
 
   function showWabun1Topic() {
     if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
-    _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false, lastSourceDataUrl: '' };
+    _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false, lastSourceDataUrl: '', passedToday: false };  // 2026-09-05：新規入場でフラグを必ず false へ（未提出入場は従来どおりカードを出す）
     var bodyEl = document.getElementById('wabun1-topic-body');
     bodyEl.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
     _setContentMascot('mate-img-wabun1-topic', 'default', 'mate-bubble-wabun1-topic', _pickBubble(NICHIEI_BUBBLES.topic), 'nichiei');
@@ -13121,6 +13165,15 @@
       _renderWabun1Topic();
       try { _wabun1RestorePendingOcrIfAny(); } catch(e){}  // 2026-08-20：読み取り済みなら確認画面まで復元
     }).catch(function(){ bodyEl.innerHTML = '<div class="error">エラーが発生しました。</div>'; });
+  }
+
+  // 2026-09-05：問題画面（screen-wabun1-topic）のホームボタン専用の分岐。
+  //   ★このセッションで本日の問題に合格（allCorrect）済みなら、カードを出さず直接ホームへ。
+  //   ★未提出・不合格（passedToday が偽）なら従来どおり LINE案内カードを挟む（黙って帰らせない）。
+  //   ★合格判定は _wabun1State.passedToday のみ（allCorrect 由来）。hasSubmitted は使わない。
+  function wabun1HomeFromTopic() {
+    if (_wabun1State && _wabun1State.passedToday) { goHome(); return; }
+    photoEscapeToHome('wabun1', true);
   }
 
   function _renderWabun1Topic() {
@@ -13472,6 +13525,9 @@
     // 【用件4 第2段】① 特大ヒーロー＝fullHp（サーバ確定値・素通し）。無ければ hpGained+hpReserved にフォールバック。
     var fullHpDisp = Number(res && res.fullHp != null ? res.fullHp : (hp + (Number(res && res.hpReserved) || 0))) || 0;
     if (res.allCorrect) {
+      // 2026-09-05：★合格したこのセッションに限り、問題画面へ戻ってもホームでカードを出さない。
+      //   ★必ず allCorrect（サーバー真実）だけをキーにする。hasSubmitted は不合格でも立つため使わない。
+      _wabun1State.passedToday = true;
       var confetti = '';
       var emojis = ['🎉','✨','🏆','⭐','🌟','💫','🎊','✨'];
       for (var i = 0; i < 8; i++) {
@@ -23204,7 +23260,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260905-0520</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260905-1906</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
