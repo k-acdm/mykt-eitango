@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260907-0410"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260907-0443"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -10047,16 +10047,196 @@
     });
   }
 
+  // ============================================================
+  // 第3群②拡張（2026-09）：作品カードからその場で先生コメント／秀逸認定／公開を行う。
+  //   ・手本＝解答確認ページの _renderSangoComment*/_renderWabun1Comment*/_renderOriwantesComment*
+  //     および star/publish UI。★元（解答確認ページ）は無改変・作法だけ写す。
+  //   ・★書き込みキーは getStudentDayWorks の「生 submittedAt（秒まで）」＋トップ studentId。
+  //     表示用に整形した _dwSubmittedAt は絶対に使わない（別レコード事故防止）。
+  //     オリワンテスは submissionId をキーにする。
+  //   ・出し分け：コメント＝三語/和文①/オリワンテス、認定・公開＝三語のみ。他は付けない。
+  //   ・書き込みは adminGasPost（teacherId/password 自動付与）＝POST・認証ガード済み。
+  // ------------------------------------------------------------
+  var _dwEdit = {};   // uid → { kind, studentId, submittedAt(生), submissionId, teacherComment, starred, publishedInWeek, currentWeek }
+
+  // ★生 submittedAt（秒まで完全一致・書き込みキー）。表示用整形は絶対に使わない。
+  function _dwRawSubmittedAt(it) {
+    return String(_mePick(it, 'submittedAt', 'occurredAt', 'occurred_at') || '');
+  }
+
+  // カード末尾に足す「先生コメント（＋三語は認定/公開行）」ブロック。
+  function _dwEditBlock(it, kind, sid, curWeek) {
+    var uid = 'dw-edit-' + (++_dayWorksSeq);
+    var starredRaw = (it && (it.starred !== undefined ? it.starred : it.is_starred));
+    _dwEdit[uid] = {
+      kind: kind,
+      studentId: String(sid || ''),
+      submittedAt: _dwRawSubmittedAt(it),
+      submissionId: String(_mePick(it, 'submissionId', 'submission_id') || ''),
+      teacherComment: String(_mePick(it, 'teacherComment', 'teacher_comment', 'comment') || ''),
+      starred: (starredRaw === true || starredRaw === 1 || starredRaw === '1' || starredRaw === 'true'),
+      publishedInWeek: String(_mePick(it, 'publishedInWeek', 'published_in_week') || ''),
+      currentWeek: String(curWeek || '')
+    };
+    var html = '';
+    if (kind === 'sango') html += '<div id="' + uid + '-star">' + _dwSangoStarRow(uid) + '</div>';
+    html += '<div id="' + uid + '-comment">' + _dwCommentView(uid) + '</div>';
+    return html;
+  }
+
+  // コメント3状態（表示／編集／未入力）。手本 _renderSangoCommentView/Edit を写す。
+  function _dwCommentView(uid) {
+    var e = _dwEdit[uid] || {};
+    var c = String(e.teacherComment || '');
+    if (c.trim()) {
+      return '<div style="background:#e3f2fd;border-left:3px solid #1976d2;border-radius:8px;padding:10px 12px;margin-top:10px">' +
+               '<div style="font-size:12px;color:#1976d2;font-weight:bold;margin-bottom:4px">💬 先生のコメント</div>' +
+               '<div style="font-size:13px;color:#0d47a1;white-space:pre-wrap;word-wrap:break-word;line-height:1.7;margin-bottom:8px">' + _esc(c) + '</div>' +
+               '<button onclick="dwEditComment(\'' + uid + '\')" style="font-size:12px;padding:4px 12px;background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer">編集</button>' +
+             '</div>';
+    }
+    return '<div style="background:#f5f5f5;border-radius:8px;padding:10px;margin-top:10px">' +
+             '<div style="font-size:12px;color:#555;font-weight:bold;margin-bottom:6px">💬 先生のコメント</div>' +
+             '<textarea id="' + uid + '-input" placeholder="コメントを入力..." style="width:100%;min-height:60px;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box;font-family:inherit"></textarea>' +
+             '<button onclick="dwSaveComment(\'' + uid + '\')" style="font-size:12px;padding:4px 14px;margin-top:6px;background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer">送信</button>' +
+           '</div>';
+  }
+  function _dwCommentEdit(uid) {
+    var e = _dwEdit[uid] || {};
+    return '<div style="background:#fff3e0;border-left:3px solid #ff9800;border-radius:8px;padding:10px;margin-top:10px">' +
+             '<div style="font-size:12px;color:#e65100;font-weight:bold;margin-bottom:6px">💬 先生のコメント（編集中）</div>' +
+             '<textarea id="' + uid + '-input" style="width:100%;min-height:60px;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box;font-family:inherit">' + _esc(e.teacherComment || '') + '</textarea>' +
+             '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' +
+               '<button onclick="dwSaveComment(\'' + uid + '\')" style="font-size:12px;padding:4px 14px;background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer">保存</button>' +
+               '<button onclick="dwCancelComment(\'' + uid + '\')" style="font-size:12px;padding:4px 14px;background:#999;color:#fff;border:none;border-radius:4px;cursor:pointer">キャンセル</button>' +
+             '</div>' +
+           '</div>';
+  }
+  function dwEditComment(uid) {
+    var el = document.getElementById(uid + '-comment');
+    if (el) el.innerHTML = _dwCommentEdit(uid);
+  }
+  function dwCancelComment(uid) {
+    var el = document.getElementById(uid + '-comment');
+    if (el) el.innerHTML = _dwCommentView(uid);
+  }
+  function dwSaveComment(uid) {
+    var e = _dwEdit[uid];
+    if (!e) return;
+    var inputEl = document.getElementById(uid + '-input');
+    if (!inputEl) return;
+    var comment = inputEl.value;
+    var params;
+    if (e.kind === 'oriwantes') {
+      if (!e.submissionId) { showToast('提出IDが取得できません', 'error'); return; }
+      params = { action: 'adminSetOriwantesComment', submissionId: e.submissionId, comment: comment };
+    } else {
+      var action = (e.kind === 'wabun1') ? 'adminSetWabun1Comment' : 'adminSetSangoComment';
+      if (!e.submittedAt || !e.studentId) { showToast('提出キーが取得できません', 'error'); return; }
+      // ★キーは生 submittedAt（秒まで）＋ studentId。timestamp パラメータに生値をそのまま渡す。
+      params = { action: action, timestamp: e.submittedAt, studentId: e.studentId, comment: comment, _ts: Date.now() };
+    }
+    adminGasPost(params).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '保存に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error');
+        return;
+      }
+      e.teacherComment = comment;
+      var el = document.getElementById(uid + '-comment');
+      if (el) el.innerHTML = _dwCommentView(uid);   // ★送信後その場で「表示」に更新
+      if (e.kind === 'oriwantes' && comment.trim()) {
+        if (res.notified) showToast('コメントを送信しました（生徒に通知されました）', 'success');
+        else              showToast('コメントを保存しました（通知は失敗しました）', 'error');
+      } else {
+        showToast(comment.trim() ? 'コメントを保存しました' : 'コメントを削除しました', 'success');
+      }
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // 三語のみ：秀逸認定 / 今週分として公開（手本 starSangoSub/togglePublishSangoSub を写す）。
+  function _dwSangoStarRow(uid) {
+    var e = _dwEdit[uid] || {};
+    var isStarred = !!e.starred;
+    var pw = String(e.publishedInWeek || '');
+    var cw = String(e.currentWeek || '');
+    var isPublishedThisWeek = (isStarred && pw !== '' && pw === cw);   // ★starred && publishedInWeek === currentWeek
+    var badge = isStarred ? '<span style="color:#b45309;font-weight:bold;font-size:12px">⭐ 認定済</span>' : '';
+    var starBtn = isStarred
+      ? '<button onclick="dwUnstarSango(\'' + uid + '\')" style="font-size:12px;padding:5px 12px;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold">⭐ 認定取消</button>'
+      : '<button onclick="dwStarSango(\'' + uid + '\')" style="font-size:12px;padding:5px 12px;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold">⭐ 認定する</button>';
+    var publishCb = '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:' + (isStarred ? '#333' : '#999') + ';cursor:' + (isStarred ? 'pointer' : 'not-allowed') + '">' +
+      '<input type="checkbox" ' + (isPublishedThisWeek ? 'checked' : '') + ' ' + (isStarred ? '' : 'disabled') + ' onchange="dwTogglePublishSango(\'' + uid + '\', this.checked)">' +
+      '今週分として公開' + (isPublishedThisWeek ? '（公開中）' : '') +
+    '</label>';
+    return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;padding:8px 10px;background:#f9fafb;border-radius:6px">' +
+             badge + starBtn + publishCb +
+           '</div>';
+  }
+  function dwStarSango(uid) { _dwToggleSangoStar(uid, true); }
+  function dwUnstarSango(uid) {
+    if (!confirm('⭐認定を取り消します。公開設定もクリアされますが、よろしいですか？')) return;
+    _dwToggleSangoStar(uid, false);
+  }
+  function _dwToggleSangoStar(uid, star) {
+    var e = _dwEdit[uid];
+    if (!e) return;
+    if (!e.submittedAt || !e.studentId) { showToast('提出キーが取得できません', 'error'); return; }
+    adminGasPost({ action: 'adminSangoStar', timestamp: e.submittedAt, studentId: e.studentId, star: star ? 'true' : 'false', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '更新に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error');
+        return;
+      }
+      e.starred = !!star;
+      if (!star) e.publishedInWeek = '';   // 認定取消で公開もクリア（手本と同じ）
+      var el = document.getElementById(uid + '-star');
+      if (el) el.innerHTML = _dwSangoStarRow(uid);   // ★その場で「認定済」表示に更新
+      showToast(star ? '⭐認定しました' : '⭐認定を取り消しました', 'success');
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+  function dwTogglePublishSango(uid, publish) {
+    var e = _dwEdit[uid];
+    if (!e) return;
+    if (!e.submittedAt || !e.studentId) { showToast('提出キーが取得できません', 'error'); return; }
+    adminGasPost({ action: 'adminSangoPublish', timestamp: e.submittedAt, studentId: e.studentId, publish: publish ? 'true' : 'false', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '更新に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error');
+        var el0 = document.getElementById(uid + '-star');
+        if (el0) el0.innerHTML = _dwSangoStarRow(uid);   // チェック状態をロールバック
+        return;
+      }
+      e.publishedInWeek = publish ? String(res.publishedWeek || e.currentWeek || '') : '';
+      var el = document.getElementById(uid + '-star');
+      if (el) el.innerHTML = _dwSangoStarRow(uid);   // ★その場で「公開中」表示に更新
+      showToast(publish ? '今週分として公開しました（ホーム画面に表示）' : '公開を停止しました', 'success');
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+      var el = document.getElementById(uid + '-star');
+      if (el) el.innerHTML = _dwSangoStarRow(uid);
+    });
+  }
+
   // works（教育日で絞済）を種別ごとに描画。提出が無い種別はセクションごと非表示（見やすさ優先）。
   function _renderDayWorks(res) {
     var works = (res && res.works) || {};
+    var sid = String((res && res.studentId) || '');           // ★書き込みキー（トップ studentId）
+    var curWeek = String((res && res.currentWeek) || '');      // ★公開状態判定（トップ currentWeek）
     var out = '';
     out += _dwImageSection('🧮 基礎計算 答案写真', works.kiso,   'getKisoPhotoBlob');
     out += _dwImageSection('📸 マイ課題 画像',    works.mytask, 'getMyTaskPhotoBlob');
     out += _dwAudioSection('🎧 リスオン録音',     works.lison);
     out += _dwOriwantesSection('🧩 オリワンテス', works.oriwantes);
-    out += _dwTextSection('🐠 三語短文',          works.sango);
-    out += _dwTextSection('📘 和文英訳①',         works.wabun1);
+    out += _dwTextSection('🐠 三語短文',          works.sango,  'sango',  sid, curWeek);
+    out += _dwTextSection('📘 和文英訳①',         works.wabun1, 'wabun1', sid, curWeek);
     out += _dwApologySection('🙏 写真送信不具合のお詫び', works.apology);   // 2026-08-25 純追加
     if (!out) return '<div class="dw-empty">この日の提出作品はありません。</div>';
     return out;
@@ -10201,7 +10381,8 @@
   }
 
   // テキストセクション（sango / wabun1）：メタ内テキストをそのまま表示。
-  function _dwTextSection(title, items) {
+  //   kind（'sango'/'wabun1'）指定時はカード末尾に先生コメント（三語はさらに認定/公開行）を付ける。
+  function _dwTextSection(title, items, kind, sid, curWeek) {
     var arr = _dwArr(items);
     if (!arr.length) return '';
     var rows = arr.map(function(it) {
@@ -10210,9 +10391,11 @@
       var method = _dwMethodLabel(it && it.method);
       var body   = String((it && (it.work || it.text || it.content)) || '');
       var metaHtml = _dwMetaSpans([_esc(when), _esc(lv), method]);
+      var editHtml = (kind === 'sango' || kind === 'wabun1') ? _dwEditBlock(it, kind, sid, curWeek) : '';
       return '<div class="dw-text-card">' +
                (metaHtml ? '<div class="dw-text-meta">' + metaHtml + '</div>' : '') +
                '<div class="dw-text-body">' + (body ? _esc(body) : '（本文なし）') + '</div>' +
+               editHtml +
              '</div>';
     }).join('');
     return '<div class="dw-section"><div class="dw-section-title">' + title + '（' + arr.length + '）</div>' + rows + '</div>';
@@ -10269,6 +10452,7 @@
       return '<div class="dw-text-card">' +
                (metaHtml ? '<div class="dw-text-meta">' + metaHtml + '</div>' : '') +
                body +
+               _dwEditBlock(it, 'oriwantes', '', '') +   // コメントのみ（キー＝submissionId）。認定/公開は付けない
              '</div>';
     }).join('');
     return '<div class="dw-section"><div class="dw-section-title">' + title + '（' + arr.length + '）</div>' + rows + '</div>';
@@ -16229,7 +16413,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260907-0410</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260907-0443</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
