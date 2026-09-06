@@ -3446,10 +3446,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260907-0443"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260907-0518"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260907-0443">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260907-0443"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260907-0518">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260907-0518"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -22786,6 +22786,71 @@
     if (typeof startFn === 'function') startFn();
     return true;
   }
+
+  // ============================================================
+  // 【Stage A・2026-09-07】学習開始直前の疎通チェック部品（案C）
+  //   ★仕組みだけ作る。まだどの入口にも本番適用しない（7入口は同期版 _ensureOnlineThenStart のまま）。
+  //   ★実際にコンテンツへ繋ぐのは次段（写真OCR系での実機確認とセット）。
+  //   ★最優先＝誤検知（つながっているのに止める）を避ける：条件付き ping＋2回リトライ、既定は「警告して続行」。
+  // ------------------------------------------------------------
+  var CONNECTIVITY_BLOCK = false;              // false=警告して続行（既定）／true=止める。1フラグで即切替。
+  var CONNECTIVITY_FRESH_MS = 90 * 1000;       // 直近この時間内にサーバー成功していれば ping 省略（待ち0秒）
+  var CONNECTIVITY_PING_TIMEOUT_MS = 6000;     // ping 1回のタイムアウト（5〜6秒）
+  var CONNECTIVITY_PING_ATTEMPTS = 2;          // 最大試行回数（2回連続失敗でのみ false）
+
+  // ping のリトライ版（既存 _pingOnline を手本に、タイムアウト短め×最大 maxAttempts 回）。
+  //   ★navigator.onLine===false は即 false（機内モード等の高速パス・ping しない）。
+  //   ★2回連続失敗でのみ false（瞬断の誤検知回避）。1回成功すれば即 true。
+  //   ★ping 成功時に _lastServerOkTs を更新（連続開始で ping が省略されるように＝【4】）。
+  //   ★_offline は触らない（立てると学習開始がブロックされ残る回帰を避ける・案A同様）。
+  //   戻り値 Promise<boolean>。
+  function _pingOnlineWithRetry(timeoutMs, maxAttempts) {
+    timeoutMs = timeoutMs || CONNECTIVITY_PING_TIMEOUT_MS;
+    maxAttempts = maxAttempts || CONNECTIVITY_PING_ATTEMPTS;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return Promise.resolve(false);  // 高速パス：ping せず即 false
+    }
+    function attempt(n) {
+      return gasGetWithTimeout({ action: 'ping' }, timeoutMs)
+        .then(function(r){
+          if (r && r.ok) { _lastServerOkTs = Date.now(); return true; }  // 成功時刻を更新（【4】）
+          if (n < maxAttempts) return attempt(n + 1);
+          return false;
+        })
+        .catch(function(){
+          if (n < maxAttempts) return attempt(n + 1);
+          return false;  // 連続失敗でのみ false
+        });
+    }
+    return attempt(1);
+  }
+
+  // 非同期版・学習開始ガード（Stage A の部品。★まだどの入口も差し替えない）。
+  //   条件付き：Date.now() - _lastServerOkTs <= CONNECTIVITY_FRESH_MS のときは ping 省略（待ち0秒）。
+  //   古ければ（or 未成功なら）_pingOnlineWithRetry で開始直前に疎通確認する。
+  //   戻り値 Promise<boolean>：true=開始してよい／false=開始を止める。startFn 指定時は true のとき startFn() を実行。
+  //   ★CONNECTIVITY_BLOCK=false（既定）＝疎通不可でも警告して続行（true）。true＝止める（false）。
+  //   ★_offline は立てない（案A同様：ブロック残留の回帰を避ける）。警告表示は既存 _showOfflineBanner を活用。
+  function _ensureOnlineThenStartAsync(startFn) {
+    if (_offline) { try { _showOfflineBanner(); } catch(e){} return Promise.resolve(false); }  // 既存フラグは尊重（同期版と同じ入口挙動）
+    var fresh = (_lastServerOkTs > 0) && ((Date.now() - _lastServerOkTs) <= CONNECTIVITY_FRESH_MS);
+    if (fresh) {
+      if (typeof startFn === 'function') startFn();
+      return Promise.resolve(true);  // 直近成功済み → ping 省略・待ち0秒
+    }
+    return _pingOnlineWithRetry().then(function(online){
+      if (online) {
+        try { _hideOfflineBanner(); } catch(e){}
+        if (typeof startFn === 'function') startFn();
+        return true;
+      }
+      try { _showOfflineBanner(); } catch(e){}   // 疎通不可 → 警告（既存バナー）
+      if (CONNECTIVITY_BLOCK) return false;       // 「止める」：開始しない
+      if (typeof startFn === 'function') startFn();  // 既定「警告して続行」：警告だけ出して開始（_offline は立てない）
+      return true;
+    });
+  }
+
   // アプリ復帰時の再検証（主柵）。
   //   スロットル：教育日が変わった or 最後のサーバー成功から30分以上のときだけ実行（頻発抑制）。
   //   再検証は loginStudent 流用＝疎通確認＋セッション再検証＋当日 login 行生成 を同時達成。
@@ -23298,7 +23363,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260907-0443</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260907-0518</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
