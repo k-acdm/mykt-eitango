@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260906-0120"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260907-0410"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -9567,7 +9567,7 @@
     var studyHtml = '<span class="head-study">' + _esc(_reflFormatStudySeconds(studySec, studyCap)) + '</span>';
     var dayWorksHtml = sidJs
       ? '<div class="day-works-wrap">' +
-          '<button class="day-works-toggle" id="day-works-btn-' + ridEsc + '" onclick="toggleDayWorks(\'' + ridEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📎 この日の作品を見る</button>' +
+          '<button class="day-works-toggle" id="day-works-btn-' + ridEsc + '" onclick="toggleDayWorks(\'' + ridEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">👀 この日の作品を見る</button>' +
           '<button class="hp-bd-toggle" style="margin-left:8px" id="hp-bd-btn-' + ridEsc + '" onclick="toggleHpBreakdown(\'' + ridEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📊 この日の学習履歴を見る</button>' +
           '<div class="day-works-panel" id="day-works-' + ridEsc + '"></div>' +
           '<div class="day-works-panel" id="hp-bd-' + ridEsc + '"></div>' +
@@ -9608,7 +9608,7 @@
     //   記入者の toggleHpBreakdown（HP内訳）とは別経路＝HP没収されていても「何をやったか」が見える。
     var dayWorksHtml = sid
       ? '<div class="day-works-wrap">' +
-          '<button class="day-works-toggle" id="day-works-btn-' + keyEsc + '" onclick="toggleDayWorks(\'' + keyEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📎 この日の作品を見る</button>' +
+          '<button class="day-works-toggle" id="day-works-btn-' + keyEsc + '" onclick="toggleDayWorks(\'' + keyEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">👀 この日の作品を見る</button>' +
           '<button class="hp-bd-toggle" style="margin-left:8px" id="hp-bd-btn-' + keyEsc + '" onclick="toggleDayActivity(\'' + keyEsc + '\',\'' + sidJs + '\',\'' + dsJs + '\')">📊 この日の学習履歴を見る</button>' +
           '<div class="day-works-panel" id="day-works-' + keyEsc + '"></div>' +
           '<div class="day-works-panel" id="hp-bd-' + keyEsc + '"></div>' +
@@ -9692,16 +9692,16 @@
     if (!willOpen) {
       panel.classList.remove('active');
       panel.innerHTML = '';
-      if (btn) btn.textContent = '📎 この日の作品を見る';
+      if (btn) btn.textContent = '👀 この日の作品を見る';
       return;
     }
     panel.classList.add('active');
     panel.innerHTML = '<div class="dw-loading">⏳ 読み込み中...</div>';
-    if (btn) btn.textContent = '📎 閉じる';
+    if (btn) btn.textContent = '👀 閉じる';
     adminGasGet({ action: 'getStudentDayWorks', studentId: sid, educationalDate: ds, _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
-        if (_handleAdminApiError(msg)) { panel.classList.remove('active'); if (btn) btn.textContent = '📎 この日の作品を見る'; return; }
+        if (_handleAdminApiError(msg)) { panel.classList.remove('active'); if (btn) btn.textContent = '👀 この日の作品を見る'; return; }
         panel.innerHTML = '<div class="dw-empty">' + _esc(msg) + '</div>';
         return;
       }
@@ -16229,7 +16229,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260906-0120</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260907-0410</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
