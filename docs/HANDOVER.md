@@ -1191,3 +1191,34 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 27b853343e564ffd698d4a473de607bee85b29d4 && git push origin main && git checkout dev
   ```
+
+### 疎通チェック Stage A/B：基礎計算の学習開始に「通信切れ警告」（学習は止めない）（2026-09-08）
+- 中身（生徒画面）：基礎計算を始めるとき、通信が切れている/不安定だと警告バナーを出す。ただし
+  **学習は止めない**（既定 `CONNECTIVITY_BLOCK=false`＝警告して続行）。つながっているときは従来どおり
+  （直近90秒にサーバー成功していれば ping 省略＝**待ち0秒・警告なし**）。**基礎計算だけ**（他6入口は同期版のまま）。
+- 実装：`showKisoRankSelect` を `_ensureOnlineThenStartAsync(_showKisoRankSelectStart)` に差し替え、開始本体を
+  `_showKisoRankSelectStart()` に切り出し（本体は不変）。Stage A の部品（`_pingOnlineWithRetry` 2回リトライ・
+  機内モード即false・成功で `_lastServerOkTs` 更新／`CONNECTIVITY_FRESH_MS=90000`／`PING_TIMEOUT=6000`／
+  `ATTEMPTS=2`）を接続。続行時の警告文言は「続行できるが注意」に：`_showOfflineBanner(msg)` に任意引数を追加し、
+  引数なしは従来の強い文言（`OFFLINE_BANNER_DEFAULT_MSG`）を完全維持、soft 文言 `CONNECTIVITY_SOFT_WARN`＝
+  「⚠️ 通信が不安定かも。このまま進めるけど、切れていると記録されないことがあるよ」。HP・提出・採点・写真は無改変、`_offline` も新設しない。
+- 実装コミット：`fdff6f9`（Stage A 部品・未適用）／`e394342`（Stage B 基礎計算入口の接続＋soft文言）
+- **反映前の main（切り戻し先）：`27b853343e564ffd698d4a473de607bee85b29d4`**
+- **マージコミット：`31f08a9c6f0b2f15d608ed840c0cfb02e6ecbc10`**
+- 版バッジ：`20260908-0008`（index / view / admin の3ファイル）
+- GitHub Actions：配信物の版バッジが `20260908-0008` に切り替わったことでデプロイ成功を確認
+  （gh 未導入のため run 番号は未取得）／`git rev-parse origin/main`＝`31f08a9…` 実体と配信物の sha256 が3ファイルとも一致
+  （index `bb394619…` / view `04e097c4…` / admin `a6424022…`。`core.autocrlf=true` のため比較は `git show origin/main:` のLF blob で実施）。
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `_ensureOnlineThenStartAsync(_showKisoRankSelectStart)` が1件・`function _showKisoRankSelectStart()` が1件。
+  - 他6入口（showToday / showSangoTopic / showWabun1Topic / showLisonRankSelect / showKanjiLevelSelect）は同期版
+    `if (!_ensureOnlineThenStart()) return;` を保持・async は0。showPhonicsStart は従来の typeof 同期ガードを保持（async 0）。
+  - 削除行 全10：旧版バッジ/CDN `?v=`（20260907-0443）7行＋「📶 オフラインです…」旧テキスト行（span化で移動）＋
+    基礎計算入口の旧同期ガード1行＋`_showOfflineBanner` 1行版（複数行版へ置換）。旧版バッジ `20260907-` は配信物に0件。
+  - ブラウザ実測（前セッション）：ping省略で待ち0秒／ping成功で開始／**BLOCK=false + ping失敗＝警告バナー(soft)出るが開始できる**／
+    BLOCK=true で停止（切替有効）／機内モードは ping せず即警告。級選択で20ボタン描画。
+  - ※実機（iPad 実機・実サーバー）での「通信切れ時に基礎計算を始めて soft バナーが出る」end-to-end は配信環境では未実施（横展開の実機確認とセットで別途）。
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 31f08a9c6f0b2f15d608ed840c0cfb02e6ecbc10 && git push origin main && git checkout dev
+  ```
