@@ -3446,10 +3446,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260907-0443"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260908-0008"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260907-0443">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260907-0443"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260908-0008">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260908-0008"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6423,7 +6423,7 @@
 <!-- 防護柵2枚目：オフライン検知バナー（既定 display:none）。復帰再検証 or 学習開始ガードが offline を検知したとき表示。
      回復可能：「再接続を確認」で ping し、疎通すれば自動解除する。 -->
 <div id="mykt-offline-banner" style="display:none;position:fixed;left:0;right:0;top:0;z-index:11000;background:#b91c1c;color:#fff;padding:10px 14px;text-align:center;font-size:14px;line-height:1.5;box-shadow:0 2px 8px rgba(0,0,0,.3);">
-  📶 オフラインです。再接続してから始めてね
+  <span id="mykt-offline-banner-msg">📶 オフラインです。再接続してから始めてね</span>
   <button type="button" onclick="_recheckOnline()" style="margin-left:10px;background:#fff;color:#b91c1c;border:none;border-radius:6px;padding:4px 12px;font-size:13px;font-weight:bold;cursor:pointer;">再接続を確認</button>
 </div>
 
@@ -14358,8 +14358,14 @@
   }
 
   // §4.2 級選択画面
+  //   【Stage B・2026-09-08】基礎計算だけ非同期版の疎通ガードに差し替え（他6入口は同期版のまま）。
+  //   条件付き ping：直近 CONNECTIVITY_FRESH_MS 内にサーバー成功していれば ping 省略＝待ち0秒。
+  //   CONNECTIVITY_BLOCK=false（既定）なので、疎通不可でも警告バナーを出したうえで続行する
+  //   （正常につながっている生徒を止めない＝最優先の事故回避）。開始本体は _showKisoRankSelectStart。
   function showKisoRankSelect() {
-    if (!_ensureOnlineThenStart()) return;  // 防護柵2枚目：学習開始ガード（往復なし、_offline フラグ判定のみ）
+    _ensureOnlineThenStartAsync(_showKisoRankSelectStart);
+  }
+  function _showKisoRankSelectStart() {
     var el = document.getElementById('kiso-rank-list');
     var html = '';
     // 教育的メッセージ（級選択画面 最上部、＜無学年＞の上）
@@ -22764,7 +22770,15 @@
   //   狙い：23014ケース（タブ無リロードで翌日継続＋通信断→全空振り）を、
   //         「復帰時に1回の再検証」で前倒し検知する。正常時は往復を増やさない。
   // ============================================================
-  function _showOfflineBanner() { var b = document.getElementById('mykt-offline-banner'); if (b) b.style.display = 'block'; }
+  // 既定文言（引数なし＝従来どおり「オフライン＝止まっている」を意味する強い文言）。
+  var OFFLINE_BANNER_DEFAULT_MSG = '📶 オフラインです。再接続してから始めてね';
+  //   msg 省略時は既定文言（従来の全呼び出し元と完全に同一表示）。msg 指定時のみ差し替える（Stage B の「続行できるが注意」用）。
+  function _showOfflineBanner(msg) {
+    var b = document.getElementById('mykt-offline-banner'); if (!b) return;
+    var m = document.getElementById('mykt-offline-banner-msg');
+    if (m) m.textContent = (typeof msg === 'string' && msg) ? msg : OFFLINE_BANNER_DEFAULT_MSG;
+    b.style.display = 'block';
+  }
   function _hideOfflineBanner() { var b = document.getElementById('mykt-offline-banner'); if (b) b.style.display = 'none'; }
   // 軽量 ping（gas/Code.js の action==='ping' → {ok:true}）。短いタイムアウトで疎通だけ確認。
   function _pingOnline() {
@@ -22786,6 +22800,77 @@
     if (typeof startFn === 'function') startFn();
     return true;
   }
+
+  // ============================================================
+  // 【Stage A・2026-09-07】学習開始直前の疎通チェック部品（案C）
+  //   ★仕組みだけ作る。まだどの入口にも本番適用しない（7入口は同期版 _ensureOnlineThenStart のまま）。
+  //   ★実際にコンテンツへ繋ぐのは次段（写真OCR系での実機確認とセット）。
+  //   ★最優先＝誤検知（つながっているのに止める）を避ける：条件付き ping＋2回リトライ、既定は「警告して続行」。
+  // ------------------------------------------------------------
+  var CONNECTIVITY_BLOCK = false;              // false=警告して続行（既定）／true=止める。1フラグで即切替。
+  var CONNECTIVITY_FRESH_MS = 90 * 1000;       // 直近この時間内にサーバー成功していれば ping 省略（待ち0秒）
+  var CONNECTIVITY_PING_TIMEOUT_MS = 6000;     // ping 1回のタイムアウト（5〜6秒）
+  var CONNECTIVITY_PING_ATTEMPTS = 2;          // 最大試行回数（2回連続失敗でのみ false）
+  // 「警告して続行」時の文言。「オフライン＝止まる」ではなく「続行できるが注意」を伝える（誤解防止）。
+  var CONNECTIVITY_SOFT_WARN = '⚠️ 通信が不安定かも。このまま進めるけど、切れていると記録されないことがあるよ';
+
+  // ping のリトライ版（既存 _pingOnline を手本に、タイムアウト短め×最大 maxAttempts 回）。
+  //   ★navigator.onLine===false は即 false（機内モード等の高速パス・ping しない）。
+  //   ★2回連続失敗でのみ false（瞬断の誤検知回避）。1回成功すれば即 true。
+  //   ★ping 成功時に _lastServerOkTs を更新（連続開始で ping が省略されるように＝【4】）。
+  //   ★_offline は触らない（立てると学習開始がブロックされ残る回帰を避ける・案A同様）。
+  //   戻り値 Promise<boolean>。
+  function _pingOnlineWithRetry(timeoutMs, maxAttempts) {
+    timeoutMs = timeoutMs || CONNECTIVITY_PING_TIMEOUT_MS;
+    maxAttempts = maxAttempts || CONNECTIVITY_PING_ATTEMPTS;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return Promise.resolve(false);  // 高速パス：ping せず即 false
+    }
+    function attempt(n) {
+      return gasGetWithTimeout({ action: 'ping' }, timeoutMs)
+        .then(function(r){
+          if (r && r.ok) { _lastServerOkTs = Date.now(); return true; }  // 成功時刻を更新（【4】）
+          if (n < maxAttempts) return attempt(n + 1);
+          return false;
+        })
+        .catch(function(){
+          if (n < maxAttempts) return attempt(n + 1);
+          return false;  // 連続失敗でのみ false
+        });
+    }
+    return attempt(1);
+  }
+
+  // 非同期版・学習開始ガード（Stage A の部品。★まだどの入口も差し替えない）。
+  //   条件付き：Date.now() - _lastServerOkTs <= CONNECTIVITY_FRESH_MS のときは ping 省略（待ち0秒）。
+  //   古ければ（or 未成功なら）_pingOnlineWithRetry で開始直前に疎通確認する。
+  //   戻り値 Promise<boolean>：true=開始してよい／false=開始を止める。startFn 指定時は true のとき startFn() を実行。
+  //   ★CONNECTIVITY_BLOCK=false（既定）＝疎通不可でも警告して続行（true）。true＝止める（false）。
+  //   ★_offline は立てない（案A同様：ブロック残留の回帰を避ける）。警告表示は既存 _showOfflineBanner を活用。
+  function _ensureOnlineThenStartAsync(startFn) {
+    if (_offline) { try { _showOfflineBanner(); } catch(e){} return Promise.resolve(false); }  // 既存フラグは尊重（同期版と同じ入口挙動）
+    var fresh = (_lastServerOkTs > 0) && ((Date.now() - _lastServerOkTs) <= CONNECTIVITY_FRESH_MS);
+    if (fresh) {
+      if (typeof startFn === 'function') startFn();
+      return Promise.resolve(true);  // 直近成功済み → ping 省略・待ち0秒
+    }
+    return _pingOnlineWithRetry().then(function(online){
+      if (online) {
+        try { _hideOfflineBanner(); } catch(e){}
+        if (typeof startFn === 'function') startFn();
+        return true;
+      }
+      if (CONNECTIVITY_BLOCK) {                    // 「止める」設定：強い文言のまま停止
+        try { _showOfflineBanner(); } catch(e){}
+        return false;
+      }
+      // 既定「警告して続行」：止めずに開始する。文言は「続行できるが注意」に（_offline は立てない）。
+      try { _showOfflineBanner(CONNECTIVITY_SOFT_WARN); } catch(e){}
+      if (typeof startFn === 'function') startFn();
+      return true;
+    });
+  }
+
   // アプリ復帰時の再検証（主柵）。
   //   スロットル：教育日が変わった or 最後のサーバー成功から30分以上のときだけ実行（頻発抑制）。
   //   再検証は loginStudent 流用＝疎通確認＋セッション再検証＋当日 login 行生成 を同時達成。
@@ -23298,7 +23383,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260907-0443</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260908-0008</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

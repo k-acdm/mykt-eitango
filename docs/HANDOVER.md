@@ -1147,3 +1147,47 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 343125beabfaa09b443ec95742db182734060502 && git push origin main && git checkout dev
   ```
+
+### 「この日の作品を見る」に先生コメント・秀逸認定・公開を追加＋アイコン 📎→👀（2026-09-07）
+
+- 背景・内容
+  - 管理画面「生徒の振り返りコメント」→カレンダー→日付→振り返り日別画面（`screen-admin-reflections-day`）の
+    各カードの「この日の作品を見る」（`toggleDayWorks` → `_renderDayWorks`）に、これまで解答確認ページでしか
+    できなかった操作をインラインで持ち込み、ページ移動なしで完結させる。
+  - あわせて「この日の作品を見る」ボタンのアイコン 📎（灰/銀色で青系グラデ背景に沈む）を 👀 に変更（視認性）。
+- 反映内容（admin.html のみ。生徒画面 index / view は不変）
+  - 先生コメント：三語短文・和文英訳①・オリワンテスの3カードに3状態（表示/編集/未入力）でインライン付与。
+    送信後その場で表示に更新。action＝`adminSetSangoComment` / `adminSetWabun1Comment` / `adminSetOriwantesComment`。
+  - 秀逸認定・今週分として公開：三語短文のみ。認定済バッジ・公開中表示をその場更新。
+    action＝`adminSangoStar` / `adminSangoPublish`。
+  - ★書き込みキー＝`getStudentDayWorks` の生 `submittedAt`（秒まで）＋トップ `studentId`。表示用整形は不使用。
+    オリワンテスは `submissionId`。状態＝`starred` で認定済、`starred && publishedInWeek === currentWeek` で公開中。
+  - 出し分け：他コンテンツ（kiso/mytask/lison/apology 等）には付けない。書き込みは `adminGasPost`
+    （teacherId/password 自動付与・POST・認証ガード済み）。
+  - day-works 専用の `_dwEdit` キャッシュ／`_dw*` 関数を新設（既存 `_xxxSubCache` は流用せず衝突回避）。
+    解答確認ページ（既存の `saveSangoComment`/`starSangoSub`/`saveWabun1Comment`/`saveOriwantesComment` 等）は無改変。
+  - アイコンは 📎→👀 を day-works の5箇所（開/閉/リセット）で一貫置換。フォームの「📎 画像」は対象外。
+  - index / view は無変更（版バッジ・CDN `?v=` のみ stamp-version が更新）。
+- 実装コミット：`81de7bb`（アイコン 📎→👀）／`07051b1`（先生コメント・秀逸認定・公開 本体）
+- **反映前の main（切り戻し先）：`3a9f3f96be23d251d9abacab4b001da391420ac1`**
+- **マージコミット：`27b853343e564ffd698d4a473de607bee85b29d4`**
+- 版バッジ：`20260907-0443`（index / view / admin の3ファイル）
+- GitHub Actions：配信物の版バッジが `20260907-0443` に切り替わったことでデプロイ成功を確認
+  （gh 未導入のため run 番号は未取得）／git HEAD（`27b8533`）実体と配信物の sha256 が3ファイルとも一致
+  （admin `b7a5a9f8…` / index `b383bc61…` / view `85748312…`）。
+- 反映後、配信物そのもので確認したこと
+  - ゲート判定（index/view から版バッジ・CDN `?v=` を除外）＝0 行＝生徒/保護者画面は実質不変。
+  - 削除行：admin 10 / index 4 / view 1 ＝計15（版バッジ・CDN `?v=` のスタンプと、コメント/認定/公開追加に伴う
+    `_dwTextSection`/`_dwOriwantesSection` の差し替え分。既存機能の削除はなし）。
+  - 配信 admin.html に `dwSaveComment` / `_dwToggleSangoStar` / `dwTogglePublishSango` / `_dwRawSubmittedAt` が載り、
+    👀 が5箇所・旧📎（この日の作品/閉じる）は0。
+  - 反映前のローカル実測（admin.html をブラウザにロードし、モックデータ＋モック `adminGasPost` で）：
+    出し分け（コメント＝三語/和文/オリの3、認定・公開＝三語のみ、他コンテンツ無し）／
+    書き込みキー＝生 `submittedAt`（秒まで）＋`studentId`／オリは `submissionId`／
+    送信・認定・公開後にカードがその場更新（表示/認定済/公開中）／既存の解答確認ページ関数は無改変、を実測 PASS。
+  - ※実機（実サーバーの `getStudentDayWorks` 実データ＋実書き込み＝実際にコメント/認定/公開を1件保存）での
+    end-to-end は配信環境では未実施（＝確かめていない）。反映後に実データ1件で「送信→反映」を1回試すのが確実。
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 27b853343e564ffd698d4a473de607bee85b29d4 && git push origin main && git checkout dev
+  ```
