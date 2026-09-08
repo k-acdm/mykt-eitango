@@ -1256,3 +1256,26 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 536698016c3d11068b90989381a641b5d09cfdcc && git push origin main && git checkout dev
   ```
+
+---
+
+## 2026-09-09 本番反映：生徒ホーム改良（学習コンテンツ画面 screen-content-menu 新設）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `a78b9b2` feat(生徒ホーム)：学習コンテンツを別画面 `screen-content-menu` に移動／ホームに「今日の学習を始める」「今日の運勢」を配置／各コンテンツの出口を「学習コンテンツ画面に戻る」に／特典3ボタンをランキング下に移動＋順序変更／「英単語ゲーム（準備中）」を追加
+  - `98e0db7` docs(handover)：基礎計算・試作 ページ内カメラ getUserMedia 従来併設 の本番反映を記録
+- **反映前の main（切り戻し先）：`536698016c3d11068b90989381a641b5d09cfdcc`**（＝`5366980`）
+- **マージコミット：`c8ba5810220b95bc29aa4aea42ca1ad1865cc1c1`**（＝`c8ba581`）
+- 版バッジ：`20260908-1739`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `c8ba581` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`c8ba581…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show main:` の LF blob と完全一致（`core.autocrlf=true` のため作業コピー CRLF ではなく blob で照合）
+  - index `bab7d7c2…` / view `c8793617…` / admin `a538bc7f…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `screen-content-menu`＝4・`goContentMenu`＝36・「今日の学習を始める」＝3・「今日の運勢」＝6・「英単語ゲーム」＝3 が載っている
+  - ゲート：`origin/main..dev` は2本のみ（想定通り）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+  - 無変更確認：`goHome` / `photoEscape` / `_setRetryHomeBtn` は差分の変更行に一切出現せず（0 行）
+  - 削除行：admin・view は版バッジのみ。index.html は実コード削除 108 行あるが、これは学習コンテンツ画面移設・ホーム再構成・出口変更の意図した大規模リファクタの一部（sha256 完全一致でリファクタ後コードがそのまま配信されていることを確認済み）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 c8ba5810220b95bc29aa4aea42ca1ad1865cc1c1 && git push origin main && git checkout dev
+  ```
