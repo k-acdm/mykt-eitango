@@ -1279,3 +1279,25 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 c8ba5810220b95bc29aa4aea42ca1ad1865cc1c1 && git push origin main && git checkout dev
   ```
+
+---
+
+## 2026-09-09 本番反映：ホーム2ボタンの見た目調整（CSSのみ・動作不変）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `1d375f3` style(生徒ホーム)：「今日の学習を始める」(start-learning-btn) を暖色グラデ `linear-gradient(135deg,#ff5252,#ff8f3c,#ffca28)`（赤→橙→黄）＋影を暖色化＋両脇に ✨（`::before`/`::after` 絶対配置）／「今日の運勢」(fortune-home-btn) を中央寄せ（`align-items:center`・`text-align:center`・左右 padding 40px）＋両脇に ✨。**CSS のみ・onclick 等の動作は無変更**
+  - `478d7d8` docs(handover)：生徒ホーム改良(screen-content-menu 新設)の本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`c8ba5810220b95bc29aa4aea42ca1ad1865cc1c1`**（＝`c8ba581`）
+- **マージコミット：`4ca2c5a86219e3e43e51c054a9f1b34caefbe6f9`**（＝`4ca2c5a`）
+- 版バッジ：`20260909-0427`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `4ca2c5a` で `completed / success` を確認（API 確認）。`git rev-parse origin/main`＝`4ca2c5a…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show main:` の LF blob と完全一致（`core.autocrlf=true` のため blob で照合）
+  - index `78122d23…` / view `9c4f6fe2…` / admin `99e29e04…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に 暖色グラデ `#ff5252,#ff8f3c,#ffca28`＝1・`start-learning-btn::before/::after`(✨)＝1・`fortune-home-btn::before/::after`(✨)＝1 が載っている
+  - onclick 無変更：`class="start-learning-btn" onclick="goContentMenu()"`＝1・`class="fortune-home-btn" onclick="showFortuneScreen()"`＝1（従来どおり）
+  - 削除行 全数：index.html 7（版バッジ/`?v=` 4＋実コード削除 3＝旧CSS 2ブロックの旧行）／ view.html 1（版バッジのみ）／ admin.html 2（版バッジ＋`?v=`）。実コード削除は CSS のみで想定どおり
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 4ca2c5a86219e3e43e51c054a9f1b34caefbe6f9 && git push origin main && git checkout dev
+  ```
