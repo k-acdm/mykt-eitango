@@ -1653,6 +1653,7 @@
     .content-btn.c-sango     { background: linear-gradient(135deg,#ffcb77,#fe6d73); }
     .content-btn.c-wabun1    { background: linear-gradient(135deg,#b28dff,#7c4fff); }
     .content-btn.c-wabun2    { background: linear-gradient(135deg,#f093fb,#f5576c); }
+    .content-btn.c-eigogame  { background: linear-gradient(135deg,#38bdf8,#0369a1); }
     .content-btn.c-lison     { background: linear-gradient(135deg,#1e3c72,#2a5298); }
     /* アバターコーナー：薄ラベンダー系（今日の運勢の深紫より淡く、別物と分かる差別化）。 */
     .content-btn.c-avatar    { background: linear-gradient(135deg,#a78bfa,#7c3aed); }
@@ -2238,6 +2239,16 @@
     .hp-check-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(217,119,6,.4); }
     .hp-check-home-title { font-size: 16px; font-weight: bold; color: #fff; letter-spacing: .3px; text-shadow: 0 1px 2px rgba(0,0,0,.15); }
     .hp-check-home-sub { font-size: 13px; color: #fff; line-height: 1.5; opacity: .96; }
+    /* ---- 2026-09-08 ホーム再構成：今日の学習を始める（大ボタン）＋ 今日の運勢（細長・運勢色そのまま） ---- */
+    .start-learning-btn { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 18px; background: linear-gradient(135deg,#ff6ea0,#b24bf3,#4f7df0); border: none; border-radius: 18px; box-shadow: 0 6px 20px rgba(124,58,237,.32); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; }
+    .start-learning-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(124,58,237,.42); }
+    .start-learning-icon { font-size: 34px; line-height: 1; }
+    .start-learning-label { font-size: 21px; font-weight: bold; color: #fff; letter-spacing: 1px; text-shadow: 0 1px 3px rgba(0,0,0,.25); }
+    @media (max-width: 480px) { .start-learning-label { font-size: 19px; } .start-learning-icon { font-size: 30px; } }
+    .fortune-home-btn { position: relative; width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 16px 18px; background: linear-gradient(135deg,#ede9fe,#ddd6fe); border: 2px solid #a78bfa; border-radius: 14px; box-shadow: 0 3px 12px rgba(91,33,182,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; text-align: left; }
+    .fortune-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(91,33,182,.28); }
+    .fortune-home-title { font-size: 16px; font-weight: bold; color: #4c1d95; letter-spacing: .3px; }
+    .fortune-home-sub { font-size: 13px; color: #5b21b6; line-height: 1.5; opacity: .9; }
     .hp-check-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 10001; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
     .hp-check-overlay.active { display: flex; }
     .hp-check-card { width: 100%; max-width: 360px; background: linear-gradient(180deg,#fffdf7,#fff7ea); border: 2px solid #f5c66b; border-radius: 18px; padding: 22px 20px; box-shadow: 0 10px 40px rgba(0,0,0,.3); box-sizing: border-box; }
@@ -3446,10 +3457,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260908-1351"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260908-1739"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260908-1351">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260908-1351"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260908-1739">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260908-1739"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3999,6 +4010,98 @@
       <div class="reserve-hp-line" id="reserve-hp-line" style="display:none"></div>
     </div>
 
+    <!-- ③ 今日の学習を始める（2026-09-08：コンテンツ塊は screen-content-menu へ分離） -->
+    <div class="dash-section">
+      <button type="button" class="start-learning-btn" onclick="goContentMenu()">
+        <span class="start-learning-icon">📚</span>
+        <span class="start-learning-label">今日の学習を始める</span>
+      </button>
+    </div>
+
+    <!-- ③-2 今日の運勢（コンテンツ塊からホームに残置。細長ボタン＝アバターショップ調・運勢色そのまま） -->
+    <div class="dash-section">
+      <button type="button" class="fortune-home-btn" onclick="showFortuneScreen()">
+        <span class="fortune-home-title">🔮 今日の運勢</span>
+        <span class="fortune-home-sub">今日のあなたの運勢を占ってみよう</span>
+      </button>
+    </div>
+
+    <!-- ③-2 サンゴタンが選んだ今週の秀逸作品（2026-05-12 新機能） -->
+    <div class="dash-section" id="sango-featured-section" style="display:none">
+      <div class="section-title">🐠 サンゴタンが選んだ今週の三語短文秀逸作品</div>
+      <div id="sango-featured-list" class="sango-featured-list"></div>
+      <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:10px;font-size:14px;padding:10px" onclick="showSangoHallOfFame()">🏆 殿堂アーカイブを見る</button>
+    </div>
+
+    <!-- ④ 塾からの連絡事項（最新3件） -->
+    <div class="dash-section">
+      <div class="section-title">📢 塾からの連絡事項</div>
+      <div id="notice-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
+      <button class="btn-wide" style="background:linear-gradient(135deg,#ff8a3d,#ff6a00);margin-top:10px;font-size:14px;padding:10px" onclick="showNoticeHistory()">📜 過去の連絡事項を見る</button>
+    </div>
+
+    <!-- ④-2 キャラクター紹介 -->
+    <div class="dash-section">
+      <button type="button" class="char-intro-home-btn" onclick="showCharacterIntro()">
+        🎭 マイ活アプリのキャラクター紹介
+      </button>
+    </div>
+
+    <!-- ⑤ 週間HPランキング -->
+    <div class="dash-section">
+      <div class="ranking-wrap" id="ranking-wrap">
+        <div class="ranking-title">🏆 先週の週間HPランキング</div>
+        <div class="ranking-period" id="ranking-period">読み込み中...</div>
+        <div id="ranking-list"><div class="ranking-loading">⏳ 集計中...</div></div>
+        <!-- Phase 5 / 2026-05-22：保留 HP との関係を生徒が混同しないよう、簡単な注記を追加 -->
+        <div class="ranking-note" style="margin-top:10px; font-size:11px; color:rgba(255,255,255,.85); text-align:center; line-height:1.5;">
+          ※ ランキングは先週の HP の集計だよ。<br>ただし、連続週数のボーナス加算前の数字にしてある。
+        </div>
+        <!-- ハンデ補正の注意書き（第2段・2026-06-24）。getWeeklyRanking の handicapApplied=true の週のみ表示 -->
+        <div class="ranking-handicap-note" id="ranking-handicap-note" style="display:none; margin-top:8px; font-size:11px; color:rgba(255,255,255,.85); text-align:center; line-height:1.5;">
+          小学生と高校生は対象コンテンツが少ないため、公平にするためHPに補正をかけています。
+        </div>
+      </div>
+    </div>
+
+    <!-- ③-3b HP確認（HP交換 Phase 2 / 2026-05-30。読むだけ・消費なし） -->
+    <div class="dash-section">
+      <button type="button" class="hp-check-home-btn" onclick="showHpCheck()">
+        <span class="hp-check-home-title">💎 HPを確認する</span>
+        <span class="hp-check-home-sub">いまの生涯HPと、交換できるHPを見てみよう（交換は近日公開）</span>
+      </button>
+    </div>
+
+    <!-- ③-3 アバターショップ（2026-05-15 学習コンテンツ群から分離して横長ボタン化）。
+         未選択生徒には NEW バッジを表示して導線を強調（_renderAvatarSlot で制御）。
+         onclick は内部で「未選択→選択画面 / 選択済→コーナー画面」を分岐する。 -->
+    <div class="dash-section">
+      <button type="button" class="avatar-corner-home-btn" id="card-avatar-corner" onclick="onAvatarCardTap()">
+        <span class="avatar-corner-home-title">✨ アバターショップ ✨</span>
+        <span class="avatar-corner-home-sub">アバターを変更したり、着せ替えで楽しもう（着せ替えは近日公開）</span>
+        <span class="avatar-corner-home-badge" id="card-avatar-new-badge" style="display:none">NEW</span>
+      </button>
+    </div>
+
+    <!-- ③-3a Amazonギフト交換専用ページへの独立導線（2026-06-02 アバターショップから分離）。
+         Amazon ギフトはアバターと無関係な交換のため、ホームから直接入れる独立ボタンに。 -->
+    <div class="dash-section">
+      <button type="button" class="amazon-gift-entry" onclick="showAmazonGift()">
+        <div class="ttl">🎁 Amazonギフトカード5000円分 交換専用ページ</div>
+        <div class="sub">ためたHPで本物のAmazonギフトと交換できる！　必要HPはこちら →</div>
+      </button>
+    </div>
+
+    <!-- サブ操作（音声設定 / 効果音オンオフ切替）。ログアウトは最上部バナーに併設のため下部からは廃止。 -->
+    <div class="sub-action-row single">
+      <button class="sub-action-btn settings" onclick="showScreen('screen-settings')">⚙️ 各種設定</button>
+    </div>
+  </div>
+</div>
+<div id="screen-content-menu" class="screen">
+  <header><h1>📚 学習コンテンツ</h1><span></span></header>
+  <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
     <!-- ③ コンテンツ選択 -->
     <div class="dash-section">
       <div class="section-title">📚 コンテンツを選ぼう</div>
@@ -4089,8 +4192,10 @@
           <span class="content-btn-sub">春アカフォニックスをルールでマスター</span>
           <span class="content-btn-hot">🔥 HP大量GETのチャンス！</span>
         </button>
-        <button class="content-btn c-himitsu" onclick="showFortuneScreen()">
-          <span class="ico">🔮</span>今日の運勢
+        <!-- 英単語ゲーム（準備中）：今日の運勢の跡地。和文英訳②と同型（showComingSoon）。中身は未実装。 -->
+        <button class="content-btn c-eigogame disabled" onclick="showComingSoon('英単語ゲーム')">
+          <span class="badge-soon">準備中</span>
+          <span class="ico">🎮</span>英単語ゲーム
         </button>
       </div>
     </div>
@@ -4124,76 +4229,7 @@
       </div>
     </div>
 
-    <!-- ③-3 アバターショップ（2026-05-15 学習コンテンツ群から分離して横長ボタン化）。
-         未選択生徒には NEW バッジを表示して導線を強調（_renderAvatarSlot で制御）。
-         onclick は内部で「未選択→選択画面 / 選択済→コーナー画面」を分岐する。 -->
-    <div class="dash-section">
-      <button type="button" class="avatar-corner-home-btn" id="card-avatar-corner" onclick="onAvatarCardTap()">
-        <span class="avatar-corner-home-title">✨ アバターショップ ✨</span>
-        <span class="avatar-corner-home-sub">アバターを変更したり、着せ替えで楽しもう（着せ替えは近日公開）</span>
-        <span class="avatar-corner-home-badge" id="card-avatar-new-badge" style="display:none">NEW</span>
-      </button>
-    </div>
-
-    <!-- ③-3a Amazonギフト交換専用ページへの独立導線（2026-06-02 アバターショップから分離）。
-         Amazon ギフトはアバターと無関係な交換のため、ホームから直接入れる独立ボタンに。 -->
-    <div class="dash-section">
-      <button type="button" class="amazon-gift-entry" onclick="showAmazonGift()">
-        <div class="ttl">🎁 Amazonギフトカード5000円分 交換専用ページ</div>
-        <div class="sub">ためたHPで本物のAmazonギフトと交換できる！　必要HPはこちら →</div>
-      </button>
-    </div>
-
-    <!-- ③-3b HP確認（HP交換 Phase 2 / 2026-05-30。読むだけ・消費なし） -->
-    <div class="dash-section">
-      <button type="button" class="hp-check-home-btn" onclick="showHpCheck()">
-        <span class="hp-check-home-title">💎 HPを確認する</span>
-        <span class="hp-check-home-sub">いまの生涯HPと、交換できるHPを見てみよう（交換は近日公開）</span>
-      </button>
-    </div>
-
-    <!-- ③-2 サンゴタンが選んだ今週の秀逸作品（2026-05-12 新機能） -->
-    <div class="dash-section" id="sango-featured-section" style="display:none">
-      <div class="section-title">🐠 サンゴタンが選んだ今週の三語短文秀逸作品</div>
-      <div id="sango-featured-list" class="sango-featured-list"></div>
-      <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:10px;font-size:14px;padding:10px" onclick="showSangoHallOfFame()">🏆 殿堂アーカイブを見る</button>
-    </div>
-
-    <!-- ④ 塾からの連絡事項（最新3件） -->
-    <div class="dash-section">
-      <div class="section-title">📢 塾からの連絡事項</div>
-      <div id="notice-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
-      <button class="btn-wide" style="background:linear-gradient(135deg,#ff8a3d,#ff6a00);margin-top:10px;font-size:14px;padding:10px" onclick="showNoticeHistory()">📜 過去の連絡事項を見る</button>
-    </div>
-
-    <!-- ④-2 キャラクター紹介 -->
-    <div class="dash-section">
-      <button type="button" class="char-intro-home-btn" onclick="showCharacterIntro()">
-        🎭 マイ活アプリのキャラクター紹介
-      </button>
-    </div>
-
-    <!-- ⑤ 週間HPランキング -->
-    <div class="dash-section">
-      <div class="ranking-wrap" id="ranking-wrap">
-        <div class="ranking-title">🏆 先週の週間HPランキング</div>
-        <div class="ranking-period" id="ranking-period">読み込み中...</div>
-        <div id="ranking-list"><div class="ranking-loading">⏳ 集計中...</div></div>
-        <!-- Phase 5 / 2026-05-22：保留 HP との関係を生徒が混同しないよう、簡単な注記を追加 -->
-        <div class="ranking-note" style="margin-top:10px; font-size:11px; color:rgba(255,255,255,.85); text-align:center; line-height:1.5;">
-          ※ ランキングは先週の HP の集計だよ。<br>ただし、連続週数のボーナス加算前の数字にしてある。
-        </div>
-        <!-- ハンデ補正の注意書き（第2段・2026-06-24）。getWeeklyRanking の handicapApplied=true の週のみ表示 -->
-        <div class="ranking-handicap-note" id="ranking-handicap-note" style="display:none; margin-top:8px; font-size:11px; color:rgba(255,255,255,.85); text-align:center; line-height:1.5;">
-          小学生と高校生は対象コンテンツが少ないため、公平にするためHPに補正をかけています。
-        </div>
-      </div>
-    </div>
-
-    <!-- サブ操作（音声設定 / 効果音オンオフ切替）。ログアウトは最上部バナーに併設のため下部からは廃止。 -->
-    <div class="sub-action-row single">
-      <button class="sub-action-btn settings" onclick="showScreen('screen-settings')">⚙️ 各種設定</button>
-    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <div id="screen-student-messages" class="screen">
@@ -4326,7 +4362,7 @@
       <button class="level-btn" onclick="selectLevel('1級')"><span class="level-btn-main"><span class="level-btn-name">📒 英検１級レベル</span><span class="level-btn-sub">～ 計2,400語｜480セットで全クリア！ ～</span></span><span class="badge-arrow">›</span></button>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60);margin-top:20px" onclick="showHistory()">📖 今までの単語をおさらいする</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 <!-- commit 6b-2：V2（語彙ランダム化）の単語/熟語選択画面。英単語RUSHのみ・レベル選択後に表示。
@@ -4344,7 +4380,7 @@
       <button class="level-btn" onclick="selectEitanGroupType('idiom')"><span class="level-btn-main"><span class="level-btn-name">📘 熟語の学習</span></span><span class="badge-arrow">›</span></button>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:20px" onclick="showLevelSelect()">← レベル選択に戻る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 <div id="screen-today" class="screen">
@@ -4354,7 +4390,7 @@
     <div id="today-word-list"><div class="loading">⏳ 単語を読み込んでいます...</div></div>
     <button class="btn-wide" id="today-btn" style="display:none">✏️ テストに挑戦する</button>
     <button class="btn-wide" id="today-back-levelselect" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showLevelSelect()">← レベル選択に戻る</button>
-    <button class="btn-wide" id="today-back-home" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" id="today-back-home" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 <div id="screen-dictation" class="screen">
@@ -4412,7 +4448,7 @@
   <div class="container">
     <div id="review-list"></div>
     <button class="btn-wide" id="review-back-btn" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);margin-top:12px">← 戻る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 <div id="screen-settings" class="screen">
@@ -4464,7 +4500,7 @@
   <header><h1>📖 今までのおさらい</h1><span id="history-student"></span></header>
   <div class="container" style="padding-top:16px">
     <div id="history-list"><div class="loading">⏳ 読み込み中...</div></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 <div id="screen-notice-history" class="screen">
@@ -4492,7 +4528,7 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#4fc3f7,#2979ff);margin-top:8px" onclick="startSangoPhotoSubmit()">📷 作品を提出する（写真に撮って送る）</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:8px;color:#6d2c4a" onclick="showSangoPast()">📚 過去のお題と福地の作品</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d;position:relative" onclick="showSangoHistory()">📖 過去の提出作品<span class="msg-home-badge" id="sango-comment-badge">🔴 注目！</span></button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="sangoHomeFromTopic()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="sangoHomeFromTopic()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 <div id="screen-sango-past" class="screen">
@@ -4579,7 +4615,7 @@
   <div class="container" style="padding-top:16px">
     <div id="sango-done-body"></div>
     <!-- 2026-05-12 仕上げ修正3：ホーム画面に戻るボタンを追加（既存パターンに合わせて配置） -->
-    <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
   </div>
 </div>
@@ -4657,7 +4693,7 @@
         <span class="wabun1-video-arrow">▶</span>
       </a>
     </div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="wabun1HomeFromTopic()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="wabun1HomeFromTopic()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -4760,7 +4796,7 @@
     </div>
     <div id="kiso-rank-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:16px" onclick="showKisoHistory()">📖 過去の実施履歴を見る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">← ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5086,7 +5122,7 @@
   <div class="container" style="padding-top:14px">
     <p style="text-align:center;color:#666;font-size:13px;margin-bottom:12px">今回といた問題の正解だよ。答え合わせをして、しっかり身につけよう！</p>
     <div id="kiso-answers-list"></div>
-    <button class="btn-wide" style="margin-top:18px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="margin-top:18px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5134,7 +5170,7 @@
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#5c6bc0,#3949ab);margin-top:8px" onclick="goMyTaskHomework()">1. 塾の授業で出された宿題</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:12px" onclick="goMyTaskSelfEntry()">2. 自発的に取り組んだ課題</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5202,7 +5238,7 @@
   <header><h1>✅ 提出完了</h1><span></span></header>
   <div class="container" style="padding-top:16px">
     <div id="mytask-self-done-body"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5300,7 +5336,7 @@
   <header><h1>✅ 提出完了</h1><span></span></header>
   <div class="container" style="padding-top:16px">
     <div id="mytask-hw-done-body"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5334,7 +5370,7 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:8px" onclick="goOriwantesCreate()">✨ 新しい問題を作成する</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#e3c887,#bfa05f);margin-top:12px" onclick="goOriwantesHistory()">📜 今までに作成した問題を見る</button>
     <button id="oriwantes-retry-entry" class="btn-wide" style="background:linear-gradient(135deg,#e17055,#c0392b);margin-top:12px;display:none" onclick="goOriwantesRetryList()">🔁 不合格だった問題に再挑戦する</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5423,7 +5459,7 @@
     <div id="oriwantes-result-body"></div>
     <div id="oriwantes-result-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:14px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
-    <button class="btn-wide" id="oriwantes-result-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" id="oriwantes-result-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5510,7 +5546,7 @@
     <!-- 2026-08-21：自分の録音を聞き返す導線。英単語RUSH「おさらい」/ 三語短文「過去の提出作品」と
          同じく、入口ハブ（級選択画面）の「ホームに戻る」直前に置く。 -->
     <button class="btn-wide" style="background:linear-gradient(135deg,#818cf8,#4f46e5);margin-top:14px" onclick="showLisonMyRecordings()">🎧 自分の録音を聞く</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">← ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5642,7 +5678,7 @@
   <header><h1>🎉 完了！</h1><span></span></header>
   <div class="container" style="padding-top:18px">
     <div id="lison-done-body"></div>
-    <button class="btn-wide" style="margin-top:18px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="margin-top:18px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5667,7 +5703,7 @@
       <button class="kanji-level-btn kanji-level-btn-2"  onclick="showKanjiCountSelect('2')">漢検 2級レベル<small>高校3年生程度</small></button>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:16px" onclick="showKanjiHistory()">📖 今までの実施履歴を見る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5824,7 +5860,7 @@
   <header><h1>✅ 提出完了</h1><span></span></header>
   <div class="container" style="padding-top:16px">
     <div id="kanji-done-body"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5850,7 +5886,7 @@
     <div id="kobun-vocab-list" class="kobun-vocab-list"></div>
     <div class="kobun-vocab-note">📜 ※ 用例文は AI が過去の文献等を参考にしてオリジナルで作成しています。学習用の参考としてご利用ください。</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#d97706,#b45309)" onclick="proceedKobunVocab()">問題に進む →</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5883,7 +5919,7 @@
   <header><h1>✅ 提出完了</h1><span></span></header>
   <div class="container" style="padding-top:16px">
     <div id="kobun-done-body"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5896,7 +5932,7 @@
     </div>
     <div id="kobun-history-list"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showKobunStart()">← 古文単語のトップに戻る</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#94a3b8,#64748b);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#94a3b8,#64748b);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -5913,7 +5949,7 @@
 <div id="screen-kokugo-charcount-select" class="screen">
   <header><h1>📖 国語長文読解</h1></header>
   <div class="container" style="padding-top:16px">
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">← ホームに戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
     <div class="kokugo-mate-row">
       <img class="kokugo-img" id="kokugo-img-charcount" src="images/japanin-default.png" alt="ジャパニン">
       <div class="kokugo-bubble" id="kokugo-bubble-charcount">どちらに挑むでござるか？</div>
@@ -5999,7 +6035,7 @@
   <header><h1>✅ 提出完了</h1></header>
   <div class="container" style="padding-top:16px">
     <div id="kokugo-hp-grant-body"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -6019,7 +6055,7 @@
       <div class="mate-bubble" id="risha-major-bubble">論理で解き明かしましょう</div>
     </div>
     <div id="risha-major-buttons" class="risha-btn-grid"></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -6085,7 +6121,7 @@
   <div class="container" style="padding-top:16px">
     <div id="risha-done-body"></div>
     <button class="btn-wide" id="risha-done-again-btn" style="display:none;margin-top:14px;background:linear-gradient(135deg,#10b981,#059669)" onclick="_rishaContinueAnother()">📚 別のセットに挑戦する</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -6097,7 +6133,7 @@
 <div id="screen-calctrial-intro" class="screen">
   <header><h1>📐 計算タイムトライアル</h1></header>
   <div class="container" style="padding-top:16px">
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">← ホームに戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
     <div class="ct-intro-wrap">
       <div class="ct-intro-title">🐯 ようこそ、計算タイムトライアル！</div>
       <div class="ct-intro-mascot-row">
@@ -6212,7 +6248,7 @@
       </div>
       <!-- 2026-06-05：他コンテンツと同じ保留(reserve)/完走演出ブロックの挿入先 -->
       <div id="ct-result-reserve-wrap"></div>
-      <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:6px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+      <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:6px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
     </div>
   </div>
 </div>
@@ -6261,7 +6297,7 @@
 
     <div id="phonics-setup-msg" class="msg" style="display:none"></div>
     <button id="phonics-start-btn" class="btn-wide phonics-start-btn" onclick="startPhonicsGame()" disabled>▶ ゲーム開始</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">← ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -6312,7 +6348,7 @@
     <!-- 6回目以降：練習モード（HP0）のお知らせ -->
     <div id="phonics-result-practice" class="phonics-result-practice" style="display:none"></div>
     <button class="btn-wide phonics-start-btn" style="margin-top:16px" onclick="showPhonicsStart()">🔁 もう一回あそぶ</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">← ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
 
@@ -10492,7 +10528,7 @@
       '<div class="mate-row"><img class="mate-img" src="images/rushkun-celebrate.png" alt="RUSH君"><div class="mate-bubble">'+_pickBubble(RUSHKUN_BUBBLES.pass)+'</div></div>' +
       '<div class="result-card"><div class="badge">🏆</div><div class="verdict pass">満点合格！</div><div class="score-display">'+_score+' / '+total+'</div><div class="score-sub">英検'+_level+'レベル｜セット '+_setNo+'（'+(isSession1?'1セット目':'2セット目')+'）</div><div class="result-msg">'+msgs[_score%3]+'</div></div>' +
       '<div class="hp-card"><div class="hp-title">⚡ 獲得 HP</div><div class="hp-row"><div class="hp-item"><div class="label">クリアボーナス</div><div class="value">+<span id="result-hp-num">0</span></div></div></div>'+_buildHpConditionBlock(saveRes||{})+'<div class="hp-total-wrap"><div class="hp-total-label">生涯HP</div><div class="hp-total-value">⚡ '+totalHP.toLocaleString()+' HP</div></div>'+(streak>=2?'<div class="hp-streak">🔥 '+streak+'日連続継続中！この調子で続けよう！</div>':'')+'</div>' +
-      '<div class="btn-wrap">'+(isSession1?'<button class="btn-result" style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;font-size:19px" onclick="goNextSession()">📚 次の10題に進む →</button>':'')+'<button class="btn-result btn-review" onclick="showHistory()">📖 今までの単語をおさらいする</button><button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button><button class="btn-result btn-close" onclick="goHome()">🏠 ホーム画面に戻る</button></div>';
+      '<div class="btn-wrap">'+(isSession1?'<button class="btn-result" style="background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;font-size:19px" onclick="goNextSession()">📚 次の10題に進む →</button>':'')+'<button class="btn-result btn-review" onclick="showHistory()">📖 今までの単語をおさらいする</button><button class="btn-result" style="background:linear-gradient(135deg,#4f7df0,#7c4fff);color:#fff" onclick="showLevelSelect()">← レベル選択に戻る</button><button class="btn-result btn-close" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button></div>';
     // 【用件4 第2段】① クリアボーナス値を 0→fullHp へカウントアップ（他コンテンツと同じ _wabun1AnimateHp / duration 1000）
     if (fullHpDisp > 0) {
       var rHpEl = document.getElementById('result-hp-num');
@@ -10561,6 +10597,14 @@
     }).catch(function(){ if (el) el.textContent = '―'; });
   }
 
+  // 2026-09-08：学習コンテンツ画面（screen-content-menu）へ戻す。各コンテンツの出口はここへ。
+  //   ★goHome() は非コンテンツ画面（メッセージ/振り返り/アバター/設定/殿堂 等）が使うので絶対に触らない。
+  //   ★HP/交換HP/アバター再描画は content-menu に無いので不要。音声停止と履歴モード解除だけ行う。
+  function goContentMenu() {
+    try { _stopAudio(); } catch(e){}
+    _historyMode = false;
+    showScreen('screen-content-menu');
+  }
   function goHome() {
     _stopAudio();
     _historyMode = false;
@@ -12163,7 +12207,7 @@
   //   ★未提出（submittedToday が偽）なら従来どおり LINE案内カードを挟む（黙って帰らせない）。
   //   ★判定は _sangoSubmittedToday のみ（提出成功由来）。
   function sangoHomeFromTopic() {
-    if (_sangoSubmittedToday) { goHome(); return; }
+    if (_sangoSubmittedToday) { goContentMenu(); return; }
     photoEscapeToHome('sango', true);
   }
   function _renderSangoTopic() {
@@ -13216,7 +13260,7 @@
   //   ★未提出・不合格（passedToday が偽）なら従来どおり LINE案内カードを挟む（黙って帰らせない）。
   //   ★合格判定は _wabun1State.passedToday のみ（allCorrect 由来）。hasSubmitted は使わない。
   function wabun1HomeFromTopic() {
-    if (_wabun1State && _wabun1State.passedToday) { goHome(); return; }
+    if (_wabun1State && _wabun1State.passedToday) { goContentMenu(); return; }
     photoEscapeToHome('wabun1', true);
   }
 
@@ -13603,7 +13647,7 @@
         //   ★不合格（else 節）には足さない＝逃げ道にならない。提出未完了・送信失敗では本関数が呼ばれない。
         //   ★問題画面のホーム（photoEscapeToHome）は従来どおり＝「問題画面で黙って帰らせない」意図は維持。
         //   ★成功して帰る生徒が、差し替え済みの問題画面を経由せずに帰れるようにするのが狙い。
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>';
       showScreen('screen-wabun1-result');
       if (!res.alreadyGranted && fullHpDisp > 0) {
         var numEl = document.getElementById('wabun1-hp-num');
@@ -21522,7 +21566,7 @@
           '<div class="kobun-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
         '</div>';
       actions.innerHTML =
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goHome()">🏠 ホーム画面に戻る</button>';
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>';
       try { playSfx('chime'); } catch(e){}
     } else {
       _kobunSetMascot('kobun-img-result', 'encourage', 'kobun-bubble-result', _pickBubble(KOBUN_BUBBLES.resultFail));
@@ -23350,7 +23394,8 @@
     //   ★「LINEへ回した」事実は残す（生徒から報告があったときに辿れるようにするため）。
     try { _recordLineHandoff(PHOTO_ESCAPE_LABELS[key] || '写真(LINEへ送り直す)'); } catch(e){}
     try { if (key) { _photoEscapeFailed[key] = false; _applyPhotoEscapeVisibility(key); } } catch(e){}
-    try { goHome(); } catch(e){}
+    // 2026-09-08：LINE案内後の最終行き先を学習コンテンツ画面へ（写真提出5コンテンツ一括。判定・仕組みは無変更）。
+    try { goContentMenu(); } catch(e){}
   }
 
   function _recordUnsentAwareness(label, flowKey) {
@@ -23473,7 +23518,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260908-1351</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260908-1739</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

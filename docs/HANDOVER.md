@@ -1222,3 +1222,37 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 31f08a9c6f0b2f15d608ed840c0cfb02e6ecbc10 && git push origin main && git checkout dev
   ```
+
+### 基礎計算・試作：解答の写真に「ページ内カメラ（getUserMedia）」を従来併設（2026-09-08）
+- 中身（生徒画面）：基礎計算の「解答の写真」画面（`screen-kiso-answer-intro`）に、ページ内カメラの
+  試作ボタン **「📷 撮影と送信がうまく行かない場合はこちらから試してみて」** を従来の「📷 撮影する」の直下に併設。
+  従来の capture 方式（`kiso-photo-input` / `onKisoPhotoSelected`）は**1文字も変更なし**（他生徒は従来どおり）。
+- 狙い：`capture` 付き input はシステムカメラUIを起動して WebView を読み込み直し、撮った写真が消える
+  （藤生さん端末・iOS26 で顕著）。`getUserMedia` はページ内でカメラを扱いアプリ切替をしないので、
+  読み込み直しの引き金を引かない見込み（音声 getUserMedia＝リスオン録音が本番稼働・reload バナー無しが傍証）。
+- 実装：`startKisoInPageCamera`（getUserMedia video facingMode environment / ideal 1920x1080・audio:false、
+  playsinline+muted+srcObject+play()）→ `<video>` 表示 → 「✅ この画面で撮る」で `captureKisoInPagePhoto`
+  （video フレームを canvas に drawImage → 既存と同じ縮小 長辺1000px/JPEG0.6）→ `_kisoState` に載せ確認画面へ。
+  以降（プレビュー・端末保存・送信・採点）は既存流用・無変更。`stopKisoInPageCamera` で `track.stop`
+  （撮影後・やめる・pagehide）＝カメラ解放。非対応/拒否は throw せず従来ボタンへ誘導するフォールバック。
+- ブラウザ実測（前セッション、getUserMedia を canvas.captureStream でスタブ）：起動→video表示→撮影で
+  base64(data:image/jpeg)生成→確認画面遷移→track が `ended`（解放）→box非表示、拒否/非対応で画面が壊れず
+  従来ボタン健在、を PASS。従来 `onKisoPhotoSelected` は無変更。
+- 実装コミット：`8b359c5`（ページ内カメラ試作 併設）／`f37a2ff`（ボタン文言変更・動作は無変更）
+- **反映前の main（切り戻し先）：`31f08a9c6f0b2f15d608ed840c0cfb02e6ecbc10`**
+- **マージコミット：`536698016c3d11068b90989381a641b5d09cfdcc`**
+- 版バッジ：`20260908-1351`（index / view / admin の3ファイル）
+- GitHub Actions：配信物の版バッジが `20260908-1351` に切り替わったことでデプロイ成功を確認
+  （gh 未導入のため run 番号は未取得）／`git rev-parse origin/main`＝`5366980…` 実体と配信物の sha256 が3ファイルとも一致
+  （index `4b4bc006…` / view `003696ad…` / admin `33be47f8…`。`core.autocrlf=true` のため比較は `git show origin/main:` のLF blob で実施）。
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `function startKisoInPageCamera()`＝1・新ボタン文言＝1・`function stopKisoInPageCamera()`＝1、
+    従来 `function onKisoPhotoSelected(event)`＝1・`id="kiso-photo-input"`＝1・`>📷 撮影する<`＝2（解答画面＋途中式案内）健在、
+    旧文言「その場で撮る（試験）」＝0。削除行 全7＝旧版バッジ/CDN `?v=`(20260908-0008) のみ（実コード削除0）。
+  - ※**藤生さんの実機（iOS26）でしか確かめられない項目は未確認**：①ページ内カメラで読み込み直しが起きないこと（＝目的達成の可否）
+    ②背面カメラ起動 ③答案の文字が読める解像度か ④インライン表示（全画面化しない）⑤カメラ許可ダイアログの出方。
+    まずは藤生さんに新ボタンで試してもらい上記を確認するのが次段。読み込み直しが起きるならこの方向は見直し。
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 536698016c3d11068b90989381a641b5d09cfdcc && git push origin main && git checkout dev
+  ```
