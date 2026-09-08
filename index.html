@@ -3446,10 +3446,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260908-1321"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260908-1351"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260908-1321">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260908-1321"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260908-1351">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260908-1351"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4930,7 +4930,7 @@
       <button class="kiso-camera-launch-btn" onclick="document.getElementById('kiso-photo-input').click()">📷 撮影する</button>
       <input type="file" id="kiso-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKisoPhotoSelected(event)"/>
       <!-- 2026-09-08 Stage 1 試作：ページ内カメラ（getUserMedia）を併設。従来の「📷 撮影する」は無変更。 -->
-      <button class="kiso-camera-launch-btn" id="kiso-inpage-cam-btn" style="margin-top:10px;background:linear-gradient(135deg,#16a34a,#065f46)" onclick="startKisoInPageCamera()">📷 その場で撮る（試験）</button>
+      <button class="kiso-camera-launch-btn" id="kiso-inpage-cam-btn" style="margin-top:10px;background:linear-gradient(135deg,#16a34a,#065f46)" onclick="startKisoInPageCamera()">📷 撮影と送信がうまく行かない場合はこちらから試してみて</button>
       <div id="kiso-inpage-cam" style="display:none;margin-top:12px">
         <video id="kiso-inpage-video" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
         <div id="kiso-inpage-cam-msg" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
@@ -23473,7 +23473,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260908-1321</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260908-1351</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
