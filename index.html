@@ -3446,10 +3446,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260908-0008"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260908-1321"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260908-0008">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260908-0008"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260908-1321">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260908-1321"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4929,6 +4929,16 @@
       </div>
       <button class="kiso-camera-launch-btn" onclick="document.getElementById('kiso-photo-input').click()">📷 撮影する</button>
       <input type="file" id="kiso-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKisoPhotoSelected(event)"/>
+      <!-- 2026-09-08 Stage 1 試作：ページ内カメラ（getUserMedia）を併設。従来の「📷 撮影する」は無変更。 -->
+      <button class="kiso-camera-launch-btn" id="kiso-inpage-cam-btn" style="margin-top:10px;background:linear-gradient(135deg,#16a34a,#065f46)" onclick="startKisoInPageCamera()">📷 その場で撮る（試験）</button>
+      <div id="kiso-inpage-cam" style="display:none;margin-top:12px">
+        <video id="kiso-inpage-video" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
+        <div id="kiso-inpage-cam-msg" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="kiso-camera-launch-btn" style="flex:1;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureKisoInPagePhoto()">✅ この画面で撮る</button>
+          <button class="btn-wide" style="flex:0 0 auto;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopKisoInPageCamera()">やめる</button>
+        </div>
+      </div>
     </div>
     <div class="reload-warn-banner recovery" data-content="基礎計算">
       <div class="reload-warn-title">📂 撮影後にログイン画面に戻っても大丈夫</div>
@@ -14635,6 +14645,86 @@
     };
     reader.readAsDataURL(file);
   }
+  // ===== 2026-09-08 Stage 1 試作：基礎計算「解答の写真」ページ内カメラ（getUserMedia）=====
+  //   従来の capture 方式（kiso-photo-input / onKisoPhotoSelected）は無変更のまま併設。
+  //   カメラアプリに切り替えないので WebView 読み込み直しの引き金を引かない狙い（実機確認は別途）。
+  //   キャプチャ後は既存 onKisoPhotoSelected と同じ縮小パラメータ（長辺1000px / JPEG 0.6）で
+  //   _kisoState に載せ、確認画面（screen-kiso-confirm）へ。以降（プレビュー・端末保存・送信）は既存流用。
+  var _kisoInPageStream = null;
+  var _kisoInPagePagehideBound = false;
+  function _kisoInPageCamMsg(t) {
+    var el = document.getElementById('kiso-inpage-cam-msg'); if (el) el.textContent = t || '';
+  }
+  function stopKisoInPageCamera() {
+    try {
+      if (_kisoInPageStream) { _kisoInPageStream.getTracks().forEach(function(tr){ try { tr.stop(); } catch(e){} }); }
+    } catch(e){}
+    _kisoInPageStream = null;
+    var v = document.getElementById('kiso-inpage-video');
+    if (v) { try { v.pause(); } catch(e){} try { v.srcObject = null; } catch(e){} }
+    var box = document.getElementById('kiso-inpage-cam'); if (box) box.style.display = 'none';
+  }
+  function startKisoInPageCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('このブラウザはページ内カメラに対応していません。上の「📷 撮影する」から送ってください。');
+      return;   // フォールバック：従来の capture ボタンはそのまま使える
+    }
+    stopKisoInPageCamera();   // 再入時は前のストリームを解放してから
+    // 万一ページ遷移/離脱してもカメラを消す保険（追加のみ・既存には触れない）
+    if (!_kisoInPagePagehideBound) {
+      try { window.addEventListener('pagehide', stopKisoInPageCamera); } catch(e){}
+      _kisoInPagePagehideBound = true;
+    }
+    var box = document.getElementById('kiso-inpage-cam');
+    var v   = document.getElementById('kiso-inpage-video');
+    if (box) box.style.display = 'block';
+    _kisoInPageCamMsg('カメラを準備中…');
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    }).then(function(stream){
+      _kisoInPageStream = stream;
+      if (!v) return;
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      v.muted = true;
+      try { v.srcObject = stream; } catch(e){ try { v.src = URL.createObjectURL(stream); } catch(e2){} }
+      var p = v.play();
+      if (p && p.catch) p.catch(function(){ /* 自動再生ブロックはフレーム取得に影響しないので無視 */ });
+      _kisoInPageCamMsg('');
+    }).catch(function(err){
+      // 拒否 / 非対応 / 使用中 等：画面を壊さず従来ボタンへ誘導（フォールバック）
+      stopKisoInPageCamera();
+      alert('カメラを起動できませんでした（' + (err && err.name ? err.name : 'エラー') + '）。上の「📷 撮影する」から送ってください。');
+    });
+  }
+  function captureKisoInPagePhoto() {
+    var v = document.getElementById('kiso-inpage-video');
+    if (!v || !_kisoInPageStream || !v.videoWidth || !v.videoHeight) {
+      _kisoInPageCamMsg('まだカメラの準備ができていません。少し待ってからもう一度押してね。');
+      return;
+    }
+    // 既存 onKisoPhotoSelected と同じ縮小（長辺 1000px / JPEG 0.6）。供給元が Image → video に変わるだけ。
+    var maxSize = 1000, w = v.videoWidth, h = v.videoHeight;
+    if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
+    else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+    stopKisoInPageCamera();   // 撮り終えたら必ずカメラ解放（点きっぱなし防止）
+    // 以降は既存の受け取り処理と同一形で _kisoState に載せて確認画面へ（送信・採点ロジックは無変更）
+    _kisoState.photoBase64  = dataUrl.split(',')[1];
+    _kisoState.photoDataUrl = dataUrl;
+    _kisoState.previewAnswers = null;
+    _kisoState.previewOcrText = '';
+    try { _kisoSavePendingPhoto(dataUrl); } catch(e){}
+    var pv = document.getElementById('kiso-confirm-preview'); if (pv) pv.src = dataUrl;
+    var sb = document.getElementById('kiso-confirm-submit-btn'); if (sb) sb.disabled = false;
+    try { _setContentMascot('mate-img-kiso-confirm', 'thinking', 'mate-bubble-kiso-confirm', _pickBubble(KISOK_BUBBLES.answer), 'kisoK'); } catch(e){}
+    showScreen('screen-kiso-confirm');
+  }
+
   // 切り抜き起動：基礎計算 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
   // 注：基礎計算は OCR が GAS 側で送信時に走るため、ここでは画像差し替えのみ
   // （実際の「再判定」は「🚀 送信して採点」ボタン押下時に新しい画像で実行される）
@@ -23383,7 +23473,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260908-0008</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260908-1321</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
