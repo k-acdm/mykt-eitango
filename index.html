@@ -2240,13 +2240,19 @@
     .hp-check-home-title { font-size: 16px; font-weight: bold; color: #fff; letter-spacing: .3px; text-shadow: 0 1px 2px rgba(0,0,0,.15); }
     .hp-check-home-sub { font-size: 13px; color: #fff; line-height: 1.5; opacity: .96; }
     /* ---- 2026-09-08 ホーム再構成：今日の学習を始める（大ボタン）＋ 今日の運勢（細長・運勢色そのまま） ---- */
-    .start-learning-btn { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 18px; background: linear-gradient(135deg,#ff6ea0,#b24bf3,#4f7df0); border: none; border-radius: 18px; box-shadow: 0 6px 20px rgba(124,58,237,.32); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; }
-    .start-learning-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(124,58,237,.42); }
+    .start-learning-btn { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 18px; background: linear-gradient(135deg,#ff5252,#ff8f3c,#ffca28); border: none; border-radius: 18px; box-shadow: 0 6px 20px rgba(255,122,0,.34); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; }
+    .start-learning-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(255,122,0,.46); }
+    .start-learning-btn::before, .start-learning-btn::after { content: "✨"; position: absolute; top: 50%; transform: translateY(-50%); font-size: 22px; opacity: .9; pointer-events: none; }
+    .start-learning-btn::before { left: 18px; }
+    .start-learning-btn::after { right: 18px; }
     .start-learning-icon { font-size: 34px; line-height: 1; }
     .start-learning-label { font-size: 21px; font-weight: bold; color: #fff; letter-spacing: 1px; text-shadow: 0 1px 3px rgba(0,0,0,.25); }
     @media (max-width: 480px) { .start-learning-label { font-size: 19px; } .start-learning-icon { font-size: 30px; } }
-    .fortune-home-btn { position: relative; width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 16px 18px; background: linear-gradient(135deg,#ede9fe,#ddd6fe); border: 2px solid #a78bfa; border-radius: 14px; box-shadow: 0 3px 12px rgba(91,33,182,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; text-align: left; }
+    .fortune-home-btn { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 40px; background: linear-gradient(135deg,#ede9fe,#ddd6fe); border: 2px solid #a78bfa; border-radius: 14px; box-shadow: 0 3px 12px rgba(91,33,182,.18); cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .15s; text-align: center; }
     .fortune-home-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(91,33,182,.28); }
+    .fortune-home-btn::before, .fortune-home-btn::after { content: "✨"; position: absolute; top: 50%; transform: translateY(-50%); font-size: 18px; opacity: .8; pointer-events: none; }
+    .fortune-home-btn::before { left: 16px; }
+    .fortune-home-btn::after { right: 16px; }
     .fortune-home-title { font-size: 16px; font-weight: bold; color: #4c1d95; letter-spacing: .3px; }
     .fortune-home-sub { font-size: 13px; color: #5b21b6; line-height: 1.5; opacity: .9; }
     .hp-check-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 10001; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
@@ -3457,10 +3463,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260908-1739"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260909-0427"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260908-1739">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260908-1739"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260909-0427">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260909-0427"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -23518,7 +23524,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260908-1739</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260909-0427</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
