@@ -3463,10 +3463,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260909-0427"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260910-2232"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260909-0427">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260909-0427"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260910-2232">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260910-2232"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5582,7 +5582,7 @@
     <button id="lison-step1-play" class="btn-wide lison-play-btn" onclick="playLisonStep1()">🎧 最初に1回聴いてみよう</button>
     <button id="lison-step1-stop" class="btn-wide lison-stop-btn" onclick="stopLisonStep1Audio()" style="display:none">⏹ 停止</button>
     <button id="lison-step1-next" class="btn-wide lison-next-btn" onclick="goLisonStep2()" disabled>次へ進む →</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（最初からやり直しになるよ）</button>
+    <!-- 2026-09-10：Step1〜4（録音前）の途中脱出（ホームに戻る）を撤去。カンジー読みに倣い、始めたら提出まで途中で帰れない。前進導線（次へ）は残す。 -->
   </div>
 </div>
 
@@ -5600,7 +5600,7 @@
     <button id="lison-step2-play" class="btn-wide lison-play-btn" onclick="playLisonStep2()">🎧 日本語を見ながら聴いてみよう</button>
     <button id="lison-step2-stop" class="btn-wide lison-stop-btn" onclick="stopLisonStep2Audio()" style="display:none">⏹ 停止</button>
     <button id="lison-step2-next" class="btn-wide lison-next-btn" onclick="goLisonStep3()" disabled>次へ進む →</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（最初からやり直しになるよ）</button>
+    <!-- 2026-09-10：Step1〜4（録音前）の途中脱出（ホームに戻る）を撤去。前進導線（次へ）は残す。 -->
   </div>
 </div>
 
@@ -5619,7 +5619,7 @@
     </details>
     <div id="lison-step3-quiz" class="lison-quiz-list"></div>
     <button id="lison-step3-next" class="btn-wide lison-next-btn" onclick="goLisonStep4()" disabled>📖 解答と解説を確認</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（最初からやり直しになるよ）</button>
+    <!-- 2026-09-10：Step1〜4（録音前）の途中脱出（ホームに戻る）を撤去。前進導線（解答確認へ）は残す。 -->
   </div>
 </div>
 
@@ -5634,7 +5634,7 @@
     </div>
     <div id="lison-step4-list"></div>
     <button class="btn-wide lison-next-btn" onclick="goLisonStep5()">🎤 次へ進む（音読録音）</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（最初からやり直しになるよ）</button>
+    <!-- 2026-09-10：Step1〜4（録音前）の途中脱出（ホームに戻る）を撤去。前進導線（録音へ）は残す。 -->
   </div>
 </div>
 
@@ -5675,7 +5675,11 @@
       <button class="btn-wide lison-rec-redo-btn" onclick="retakeLisonRecording()">🔄 もう一度読んで録音する</button>
     </div>
 
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="confirmLisonExit()">🏠 ホームに戻る（最初からやり直しになるよ）</button>
+    <!-- 2026-09-10：素の「ホームに戻る（goHome）」を撤去し、写真系 photoEscapeToHome と同型の
+         「録音できないとき」の案内経由の逃げ道に差し替え。
+         ★録音は LINE 内ブラウザ等で getUserMedia が使えず、この画面に閉じ込められる生徒がいる（藤生さんの症状）。
+         ★正常に録音できる生徒は上の「✅ 今の音読を送信」で完了画面へ（正規フローは無変更）。 -->
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="lisonEscapeToHome()">🎤 録音がうまくいかない場合はこちら</button>
   </div>
 </div>
 
@@ -6525,6 +6529,24 @@
     </div>
     <div class="mykt-overlay-btns">
       <button class="btn-retry" onclick="_photoEscapeConfirmed()">分かりました</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2026-09-10：リスオン録音が「うまくいかないとき」の案内 overlay。
+     写真系 photo-escape-overlay と同型（LINE へ回して先生が HP 付与）。録音向け文言に調整。
+     「分かりました」→ _lisonEscapeConfirmed() で LINE 回送を記録し goContentMenu へ（閉じ込め回避）。 -->
+<div id="lison-escape-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble">
+        <div style="font-weight:bold;font-size:15px;color:#9a3412;margin-bottom:6px">録音がうまくできないときは</div>
+        お使いの端末やアプリ内ブラウザ（LINE など）では、録音ができないことがあります。<br>その場合は「春アカ公式LINE」に音読を送ってください。<br>先生がそれを聞いてHPを付与します。
+      </div>
+    </div>
+    <div class="mykt-overlay-btns">
+      <button class="btn-retry" onclick="_lisonEscapeConfirmed()">分かりました</button>
     </div>
   </div>
 </div>
@@ -16243,11 +16265,35 @@
   }
 
   // 戻る確認（途中で抜けると最初からやり直しになる）
+  // 2026-09-10：出口を goHome → goContentMenu に統一（他コンテンツと揃える）。
+  //   ★Step1〜4 の「ホームに戻る」撤去 + Step5 を lisonEscapeToHome に差し替えたため、
+  //     この関数は現状どこからも呼ばれない（将来の再利用に備え行き先だけ正しくしておく）。
   function confirmLisonExit() {
-    if (!confirm('最初からやり直しになるよ。本当にホームに戻る？')) return;
+    if (!confirm('最初からやり直しになるよ。本当に学習コンテンツ画面に戻る？')) return;
     _lisonStopSpeakingAll();
     _lisonResetState();
-    goHome();
+    goContentMenu();
+  }
+
+  // 2026-09-10：Step5（録音）専用の逃げ道。写真系 photoEscapeToHome と同型。
+  //   ★録音できない端末（LINE 内ブラウザ等）で閉じ込められないための出口。
+  //   案内 overlay を必ず挟み、「分かりました」で LINE 回送を記録して goContentMenu へ。
+  //   ★正常に録音・提出できる生徒はこの関数を通らない（正規フローは無変更）。
+  function lisonEscapeToHome() {
+    var ov = document.getElementById('lison-escape-overlay');
+    if (ov) { ov.classList.add('active'); return; }
+    _lisonEscapeConfirmed();   // overlay が無い異常時でも詰まらせない
+  }
+  function _lisonEscapeConfirmed() {
+    try {
+      var ov = document.getElementById('lison-escape-overlay');
+      if (ov) ov.classList.remove('active');
+    } catch(e){}
+    // 「LINE へ回した」記録（写真系 _recordLineHandoff を流用。未送信の印とは別物）。
+    try { _recordLineHandoff('英語リスオン(録音をLINEへ)'); } catch(e){}
+    try { _lisonStopSpeakingAll(); } catch(e){}
+    try { _lisonResetState(); } catch(e){}   // 録音ストリーム完全停止 + 状態リセット
+    try { goContentMenu(); } catch(e){}
   }
 
   // ============================================================
@@ -23524,7 +23570,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260909-0427</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260910-2232</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
