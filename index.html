@@ -3463,10 +3463,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260910-2232"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260911-2326"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260910-2232">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260910-2232"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260911-2326">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260911-2326"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4505,6 +4505,7 @@
 <div id="screen-history" class="screen">
   <header><h1>📖 今までのおさらい</h1><span id="history-student"></span></header>
   <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
     <div id="history-list"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
   </div>
@@ -4512,6 +4513,7 @@
 <div id="screen-notice-history" class="screen">
   <header><h1>📜 過去の連絡事項</h1></header>
   <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">🏠 ホーム画面に戻る</button>
     <div id="notice-history-list"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goHome()">🏠 ホーム画面に戻る</button>
   </div>
@@ -4540,6 +4542,7 @@
 <div id="screen-sango-past" class="screen">
   <header><h1>📚 過去のお題と福地の作品</h1></header>
   <main>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showScreen('screen-sango-topic')">🏠 本日のお題画面に戻る</button>
     <div id="sango-past-body"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#8e9eab,#4b6cb7);margin-top:14px" onclick="showSangoArchive(1)">📜 さらに過去のもの</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="showScreen('screen-sango-topic')">🏠 本日のお題画面に戻る</button>
@@ -4549,6 +4552,7 @@
 <div id="screen-sango-archive" class="screen">
   <header><h1>📜 さらに過去のもの</h1><span id="sango-archive-label"></span></header>
   <main>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showScreen('screen-sango-topic')">🏠 本日のお題画面に戻る</button>
     <div id="sango-archive-body"><div class="loading">⏳ 読み込み中...</div></div>
     <div class="sango-archive-pager" id="sango-archive-pager"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="showScreen('screen-sango-topic')">🏠 本日のお題画面に戻る</button>
@@ -4558,6 +4562,7 @@
 <div id="screen-sango-history" class="screen">
   <header><h1>📖 過去の提出作品</h1><span id="sango-history-student"></span></header>
   <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
     <div id="sango-history-list"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
   </div>
@@ -4640,6 +4645,7 @@
 <div id="screen-sango-hall-of-fame" class="screen">
   <header><h1>🏆 サンゴタン殿堂</h1></header>
   <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-bottom:14px" onclick="goHome()">🏠 ホームに戻る</button>
     <div class="sango-hof-intro">⭐ サンゴタンに認められた素敵な作品たち〜！</div>
     <div id="sango-hof-body"></div>
     <div id="sango-hof-pager" class="sango-hof-pager"></div>
@@ -4755,6 +4761,7 @@
 <div id="screen-wabun1-past" class="screen">
   <header><h1>📚 過去の問題と正解</h1></header>
   <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
     <div class="mate-row">
       <img class="mate-img" id="mate-img-wabun1-past" src="images/nichiei-default.png" alt="ニチエイ">
       <div class="mate-bubble" id="mate-bubble-wabun1-past">復習はいいね〜</div>
@@ -4768,6 +4775,7 @@
 <div id="screen-wabun1-archive" class="screen">
   <header><h1>📜 さらに過去のもの</h1><span id="wabun1-archive-label"></span></header>
   <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
     <div id="wabun1-archive-body"><div class="loading">⏳ 読み込み中...</div></div>
     <div class="wabun1-past-pager" id="wabun1-archive-pager"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
@@ -4777,6 +4785,7 @@
 <div id="screen-wabun1-history" class="screen">
   <header><h1>📖 過去の提出作品</h1><span id="wabun1-history-student"></span></header>
   <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
     <div id="wabun1-history-list"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showScreen('screen-wabun1-topic')">← 問題画面に戻る</button>
   </div>
@@ -5136,6 +5145,7 @@
 <div id="screen-kiso-review" class="screen">
   <header><h1>📚 採点済みセッション</h1><span id="kiso-review-meta"></span></header>
   <div class="container" style="padding-top:14px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="closeKisoReview()">← 戻る</button>
     <div id="kiso-review-summary"></div>
     <div id="kiso-review-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="closeKisoReview()">← 戻る</button>
@@ -5146,6 +5156,7 @@
 <div id="screen-kiso-history" class="screen">
   <header><h1>📖 基礎計算 履歴</h1><span id="kiso-history-student"></span></header>
   <div class="container" style="padding-top:14px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showKisoRankSelect()">← 単元選択に戻る</button>
     <div style="font-size:12px;color:#94a3b8;margin-bottom:12px;text-align:center">※ 自分の履歴のみ閲覧できます。タップで内容を確認できます。</div>
     <div id="kiso-history-list"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showKisoRankSelect()">← 単元選択に戻る</button>
@@ -5563,6 +5574,7 @@
 <div id="screen-lison-my-recordings" class="screen">
   <header><h1>🎧 自分の録音</h1><span id="lison-my-rec-sid"></span></header>
   <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showLisonRankSelect()">← 級を選ぶ画面に戻る</button>
     <p class="crec-note">自分が録音した音読を聞き返せるよ（新しい順）。<br>録音は約 15 日で自動的に消えます。聞きたいときは早めにね。<br>消えたあとも、取り組んだ記録は残ります。</p>
     <div id="lison-my-rec-list"><div class="crec-empty">⏳ 読み込み中…</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="showLisonRankSelect()">← 級を選ぶ画面に戻る</button>
@@ -5877,6 +5889,7 @@
 <div id="screen-kanji-history" class="screen">
   <header><h1>📖 カンジー おさらい</h1><span id="kanji-history-student"></span></header>
   <div class="container" style="padding-top:16px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showKanjiLevelSelect()">← 級選択に戻る</button>
     <div id="kanji-history-list"><div class="loading">⏳ 読み込み中...</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showKanjiLevelSelect()">← 級選択に戻る</button>
   </div>
@@ -23570,7 +23583,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260910-2232</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260911-2326</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

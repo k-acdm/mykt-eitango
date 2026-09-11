@@ -1301,3 +1301,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 4ca2c5a86219e3e43e51c054a9f1b34caefbe6f9 && git push origin main && git checkout dev
   ```
+
+## 2026-09-10 本番反映：リスオン 録音前ステップの逃げ道撤去＋録音画面の案内経由出口（案2）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `e1517a6` fix(リスオン)：Step1〜4（録音前）の「🏠 ホームに戻る（最初からやり直しになるよ）」を撤去（カンジー読みに倣い、始めたら提出まで途中で帰れない。前進導線＝「次へ進む」「解答と解説を確認」「次へ進む（音読録音）」は温存）／Step5（録音）は素の `goHome` を撤去し、写真系 `photoEscapeToHome` と同型の「録音がうまくいかない場合はこちら」案内 overlay（`#lison-escape-overlay`）→ `goContentMenu` に差し替え（LINE 内ブラウザ等で `getUserMedia` が使えず録音不可な生徒がこの画面に閉じ込められる事象＝藤生さんの症状への出口。「分かりました」で LINE 回送を記録し学習コンテンツ画面へ）／`confirmLisonExit` の出口を `goHome`→`goContentMenu` に統一。**HP・提出・採点・完了画面（screen-lison-done は従来どおり goContentMenu）・他コンテンツは無変更**
+  - `395e1ad` docs(handover)：ホーム2ボタンの見た目調整の本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`4ca2c5a86219e3e43e51c054a9f1b34caefbe6f9`**（＝`4ca2c5a`）
+- **マージコミット：`14a1eacb319c04ad171a3685cf40cdce20fbc8ac`**（＝`14a1eac`）
+- 版バッジ：`20260910-2232`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `14a1eac` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`14a1eac…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show main:` の LF blob と完全一致（`core.autocrlf=true` のため blob で照合）
+  - index `e4579b1b…` / view `5ac59a12…` / admin `e0e343f2…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に 旧逃げ道「ホームに戻る（最初からやり直しになるよ）」＝0（Step1〜4 撤去・Step5 差し替え済）／`lisonEscapeToHome`＝3／`id="lison-escape-overlay"`＝1／「録音がうまくいかない場合はこちら」＝1
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`e1517a6` リスオン／`395e1ad` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+  - 削除行 全数：index.html 11（版バッジ/`?v=` 4＋実コード削除 7＝Step1〜4 の逃げ道ボタン4＋Step5 旧ボタン1＋`confirmLisonExit` の confirm 文言/`goHome` 2）／ view.html 1（版バッジのみ）／ admin.html 2（版バッジ＋`?v=`）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 14a1eacb319c04ad171a3685cf40cdce20fbc8ac && git push origin main && git checkout dev
+  ```
