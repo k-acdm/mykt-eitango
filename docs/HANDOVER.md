@@ -1321,3 +1321,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 14a1eacb319c04ad171a3685cf40cdce20fbc8ac && git push origin main && git checkout dev
   ```
+
+## 2026-09-11 本番反映：長い一覧13画面の先頭にも「戻る」ボタン（上下両方・生徒リクエスト）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `ab6ee69` feat(一覧画面)：長い一覧13画面（過去の提出作品・履歴・おさらい・アーカイブ等）の `.container`／`<main>` 先頭に、各画面の下ボタンと文言・onclick・見た目を完全同一にした「戻る」ボタン（`margin-bottom:14px`）を1個ずつ追加。手本＝`screen-student-messages`／`screen-student-reflections`（上下両方に同一の戻るボタン）。**下ボタン・「📜さらに過去のもの」等は無変更、一覧の動的生成にも非干渉（一覧要素の id は不変）**。対象13画面：sango-history／wabun1-history／history／kanji-history／kiso-history／lison-my-recordings／notice-history／sango-past／sango-archive／sango-hall-of-fame／wabun1-past／wabun1-archive／kiso-review
+  - `a350f1b` docs(handover)：リスオン逃げ道撤去＋録音案内出口(案2)の本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`14a1eacb319c04ad171a3685cf40cdce20fbc8ac`**（＝`14a1eac`）
+- **マージコミット：`fcfbdbaa4c75ae21eed67844145f7623969a1f3f`**（＝`fcfbdba`）
+- 版バッジ：`20260911-2326`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `fcfbdba` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`fcfbdba…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show main:` の LF blob と完全一致（`core.autocrlf=true` のため blob で照合）
+  - index `608badc1…` / view `3038eafd…` / admin `beedc8f9…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html の13画面すべてで、一覧本体の直前（container/main 先頭）に**下と同一の戻るボタン**が載っている（各画面で「上ボタン→一覧要素」の順・onclick 一致を正規表現で全数 ALL PASS）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`ab6ee69` 上戻るボタン／`395e1ad`→`a350f1b` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+  - 削除行 全数：index.html 4（**すべて版バッジ/`?v=`。実コード削除ゼロ＝13ボタンは純追加**）／ view.html 1（版バッジ）／ admin.html 2（版バッジ＋`?v=`）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 fcfbdbaa4c75ae21eed67844145f7623969a1f3f && git push origin main && git checkout dev
+  ```
