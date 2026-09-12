@@ -953,12 +953,13 @@
     .avatar-slot .avatar-img { position: relative; z-index: 1; width: auto; height: 240px; max-width: 200px; object-fit: contain; transition: transform .2s, filter .2s; border-radius: 16px; }
     .avatar-slot:hover .avatar-img { transform: scale(1.04); filter: drop-shadow(0 2px 6px rgba(124,58,237,.2)); }
     .avatar-slot .avatar-placeholder { position: relative; z-index: 1; width: 180px; height: 240px; display: none; align-items: center; justify-content: center; background: rgba(200,220,255,.25); border: 2px dashed #b0c0e0; border-radius: 16px; color: #6b7a99; font-size: 96px; font-weight: bold; line-height: 1; transition: transform .2s, background .2s; }
-    /* HP交換 Phase3-A：中央ゾーンの背景画像（縦合わせcover・中央寄せ・横はみ出しはwrapでクリップ）+ 左右の飾りゾーン置物 */
-    .avatar-bg-img { position: absolute; top: 0; left: 50%; transform: translateX(-50%); height: 100%; width: auto; z-index: 0; border-radius: 16px; pointer-events: none; }
+    /* HP交換 Phase3-A：背景画像は .avatar-stage 全体に cover で敷く（2026-09 Step3 枠全体cover化）+ 左右の飾りゾーン置物 */
+    .avatar-bg-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; border-radius: 22px; pointer-events: none; }
     .avatar-stage.has-bg .avatar-wrap { overflow: hidden; border-radius: 16px; }
     .avatar-stage.has-bg .avatar-seasonal,
     .avatar-stage.has-bg .avatar-stage-light,
-    .avatar-stage.has-bg .avatar-stage-spot { display: none !important; }
+    .avatar-stage.has-bg .avatar-stage-spot,
+    .avatar-stage.has-bg .avatar-deco { display: none !important; }
     .avatar-deco { position: absolute; bottom: 12px; width: 46px; height: auto; z-index: 3; opacity: .92; pointer-events: none; filter: drop-shadow(0 2px 4px rgba(0,0,0,.18)); border-radius: 8px; }
     .avatar-deco.left  { left: 4px;  transform: rotate(-6deg); }
     .avatar-deco.right { right: 4px; transform: rotate(6deg) scaleX(-1); }
@@ -2319,6 +2320,7 @@
          強化版に合わせて横幅と微光サイズも調整。
          2026-05-16 視認性改善：スポットを 200→240px に拡大（desktop 280→320 と比率合わせ）。 */
       .avatar-stage { padding: 16px 32px 14px; min-width: 240px; border-radius: 20px; }
+      .avatar-bg-img { border-radius: 20px; }
       .avatar-stage-light { width: 240px; height: 180px; bottom: 22px; }
       .avatar-stage-spot  { width: 240px; height: 28px; bottom: 20px; }
       .avatar-corner-pic img { width: 70%; }
@@ -3463,10 +3465,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260911-2326"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260912-2357"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260911-2326">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260911-2326"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260912-2357">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260912-2357"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3955,6 +3957,8 @@
            季節モチーフ（JS で月別生成）を重ねて、アバターに温度感を持たせる。 -->
       <div class="avatar-home-row">
         <div class="avatar-stage" id="avatar-home-stage">
+          <!-- 背景画像は .avatar-stage 全体に cover で敷く（2026-09 Step3：wrap内→stage直下へ移動） -->
+          <img class="avatar-bg-img" id="avatar-bg-img" alt="" aria-hidden="true" style="display:none">
           <div class="avatar-seasonal" id="avatar-seasonal"></div>
           <div class="avatar-stage-light"></div>
           <div class="avatar-stage-spot"></div>
@@ -3963,7 +3967,6 @@
           <img class="avatar-deco right" src="./character.jpg" alt="" aria-hidden="true">
           <div class="avatar-slot" id="avatar-slot" onclick="onAvatarSlotTap()" role="button" tabindex="0">
             <div class="avatar-wrap">
-              <img class="avatar-bg-img" id="avatar-bg-img" alt="" aria-hidden="true" style="display:none">
               <img class="avatar-img" id="avatar-img" alt="アバター" style="display:none">
               <div class="avatar-placeholder" id="avatar-placeholder">？</div>
             </div>
@@ -4277,6 +4280,8 @@
       <!-- 3 分割ステージ（ホームと同じ構造。背景適用時は花吹雪/オーラを隠して背景画像を中央に表示） -->
       <div class="avatar-home-row" style="margin-bottom:8px">
         <div class="avatar-stage" id="avatar-corner-stage">
+          <!-- 背景画像は .avatar-stage 全体に cover で敷く（2026-09 Step3：wrap内→stage直下へ移動） -->
+          <img class="avatar-bg-img" id="avatar-corner-bg-img" alt="" aria-hidden="true" style="display:none">
           <div class="avatar-seasonal" id="avatar-corner-seasonal"></div>
           <div class="avatar-stage-light"></div>
           <div class="avatar-stage-spot"></div>
@@ -4284,7 +4289,6 @@
           <img class="avatar-deco right" src="./character.jpg" alt="" aria-hidden="true">
           <div class="avatar-slot" style="cursor:default">
             <div class="avatar-wrap">
-              <img class="avatar-bg-img" id="avatar-corner-bg-img" alt="" aria-hidden="true" style="display:none">
               <img class="avatar-img" id="avatar-corner-img" alt="アバター" style="display:none">
             </div>
           </div>
@@ -23583,7 +23587,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260911-2326</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260912-2357</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
