@@ -1404,3 +1404,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 ce32a891eaa64e755606216f8311b2050eeb90e1 && git push origin main && git checkout dev
   ```
+
+## 2026-09-17 本番反映：三語短文秀逸作品タイトルから「今週の」を削除（文言のみ）
+
+- 背景：サーバー側が秀逸作品を「直近2日で選ばれたもの表示」に変更済のため、ホーム画面タイトルの「今週の」が実態と不整合になっていた
+- 反映内容（dev→main マージ、2 コミット）
+  - `539a09f` style(三語短文)：ホーム画面の秀逸作品タイトル `🐠 サンゴタンが選んだ今週の三語短文秀逸作品` → **`🐠 サンゴタンが選んだ三語短文秀逸作品`**（「今週の」削除・絵文字🐠維持）。文言のみ、描画/殿堂導線は無変更
+  - `40e06c8` docs(handover)：前回反映（LINE注意書きタイトル拡大）の記録
+- **反映前の main（切り戻し先）：`ce32a891eaa64e755606216f8311b2050eeb90e1`**（＝`ce32a89`）
+- **マージコミット：`b1028fcf0996c5bf451ac7a584e7d3a747cf8c56`**（＝`b1028fc`）
+- 版バッジ：`20260917-0510`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `b1028fc` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`b1028fc…` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show HEAD:` blob と完全一致
+  - index `a2f7288d…` / view `7c449c3a…` / admin `23c36b45…`
+- 配信 index.html でタイトルが「🐠 サンゴタンが選んだ三語短文秀逸作品」であること、旧文言「今週の」が 0 件（消滅）を確認
+- ゲート：`origin/main..dev` は2本のみ（想定通り＝`539a09f` タイトル変更／`40e06c8` HANDOVER記録）／CLAUDE.md ゲート判定数値=2（タイトル1行変更）／admin・view の差分は版バッジ・`?v=` スタンプのみ／想定外の混入なし
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 b1028fcf0996c5bf451ac7a584e7d3a747cf8c56 && git push origin main && git checkout dev
+  ```
