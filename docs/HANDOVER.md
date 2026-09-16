@@ -1341,3 +1341,25 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 fcfbdbaa4c75ae21eed67844145f7623969a1f3f && git push origin main && git checkout dev
   ```
+
+## 2026-09-13 本番反映：アバター背景37枚を正方形配置＋背景装着時は枠全体cover（置物・桜を消す）
+
+- 反映内容（dev→main マージ、3 コミット）
+  - `35e3204` feat(アバター)：背景を `.avatar-stage` 全体に **cover** で敷く表示改修（Step3）。`.avatar-bg-img` を `.avatar-wrap` 内→`.avatar-stage` 直下（home/corner の2箇所）へ移動し、CSS を `position:absolute; inset:0; width/height:100%; object-fit:cover; border-radius:22px（モバイル20px）; z-index:0` に変更。背景装着時（`.avatar-stage.has-bg`）は桜/オーラに加え**置物（`.avatar-deco`）も非表示**に。アバター本体（`.avatar-slot` z-index:2）は背景の手前・中央下を維持。**`_applyStageBackground` の JS は無変更（id参照のまま動作）**
+  - `d458aef` feat(アバター背景)：背景37枚を正方形 **1254×1254** で更新（`bg_01`〜`bg_30` を旧縦長887×1774から上書き・`bg_31`〜`bg_37` を新規追加）。配置先は `images/avatar/backgrounds/` のみ、`base_*.png`/`hats`/`makeup` は無変更
+  - `a8257be` docs(handover)：一覧13画面の上戻るボタン追加の本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`fcfbdbaa4c75ae21eed67844145f7623969a1f3f`**（＝`fcfbdba`）
+- **マージコミット：`a6a3a5ce722b69c2d5231c63d44181d3d9782bff`**（＝`a6a3a5c`）
+- 版バッジ：`20260912-2357`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `a6a3a5c` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`a6a3a5c…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の LF blob と完全一致
+  - index `b76b5558…` / view `32438bfb…` / admin `9b1a308c…`
+- 反映後、配信物そのもので確認したこと
+  - 背景 `bg_01`〜`bg_37` の **37枚すべてが本番配信（HTTP 206 Range）** され、**全て 1254×1254 正方形**（IHDR を実測）。うち **`bg_31`〜`bg_37`（新規7枚）** も全数配信・正方形（マージ diff で `create mode 100644`＝新規追加）
+  - 配信 index.html に cover 化 CSS（`object-fit: cover; z-index: 0; border-radius: 22px`）＝1、`has-bg .avatar-deco { display:none }`＝あり、bg-img の stage 直下移動コメント＝2（home/corner）
+  - ゲート：`origin/main..dev` は3本のみ（想定通り＝`35e3204` 表示改修／`d458aef` 背景37枚／`a8257be` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ／想定外の混入なし
+- **生徒の見た目への影響**：背景アイテムは全て「予告（非公開）」で生徒はまだ装着できないため、**デフォルト（背景未装着）の見た目は無変更＝生徒の通常表示に変化は出ない**（置物・桜・ラベンダー枠のまま）。変わるのは将来背景を装着できるようになった時のみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 a6a3a5ce722b69c2d5231c63d44181d3d9782bff && git push origin main && git checkout dev
+  ```

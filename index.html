@@ -1237,6 +1237,23 @@
       line-height: 1.5;
       letter-spacing: .3px;
     }
+    /* ★ 2026-09-17：LINE から直接開かないでの注意書き（LINE登録ボタンの位置に差し替え） */
+    .line-open-warning-title {
+      font-size: 15px;
+      font-weight: bold;
+      color: #d32f2f;
+      text-align: center;
+      letter-spacing: .3px;
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+    .line-open-warning-body {
+      font-size: 12px;
+      color: #7a2b2b;
+      text-align: left;
+      line-height: 1.7;
+      letter-spacing: .2px;
+    }
     @media (max-width: 480px) {
       .line-register-section { margin-top: 18px; padding: 12px 12px 10px; }
       .line-register-title { font-size: 13px; }
@@ -1244,6 +1261,8 @@
       .line-register-btn   { padding: 10px 12px; }
       .line-register-main  { font-size: 13px; }
       .line-register-note  { font-size: 10px; }
+      .line-open-warning-title { font-size: 14px; }
+      .line-open-warning-body  { font-size: 11px; }
     }
 
     /* ===== Step 2 の保護者モード時のスタイル切替 ===== */
@@ -3465,10 +3484,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260912-2357"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260917-0357"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260912-2357">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260912-2357"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260917-0357">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260917-0357"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3685,15 +3704,28 @@
                ボタンタップ → GAS Web App → LINE 認可 → 生徒ID入力 → 完了。
                GAS_URL は本ファイル冒頭で定義済の定数を使う。 -->
           <div class="line-register-section">
-            <div class="line-register-title">📲 LINE 通知の登録</div>
-            <div class="line-register-desc">アプリ側でも公式LINEへの<br>登録をお願いします。</div>
-            <button type="button" id="line-register-btn-student" class="line-register-btn line-register-btn-student" onclick="startLineLoginFlow('student')">
-              <span class="line-register-main" id="line-register-label-student">🧒 生徒として LINE を登録</span>
-            </button>
-            <button type="button" id="line-register-btn-parent" class="line-register-btn line-register-btn-parent" onclick="startLineLoginFlow('parent')">
-              <span class="line-register-main" id="line-register-label-parent">👨‍👩‍👧 保護者として LINE を登録</span>
-            </button>
-            <div class="line-register-note">⚠️ 既に登録済みの方は、ボタンを押す必要はありません。</div>
+            <!-- ★ 2026-09-17: LINE通知登録ボタンの「表示」を注意書きに差し替え。
+                 LINEから直接開くと不具合（音・写真・録音・ログイン）が出るため、
+                 その位置に「LINEから開かないで」の注意書きを出す。
+                 ★ 機能（startLineLoginFlow / _applyLineRegisteredButtons /
+                    _initLineRegisteredFlag）は温存。ボタン/タイトルは display:none で
+                    DOM に残し（label ID 参照を壊さない）、将来また表示に戻せるようにする。 -->
+            <div class="line-open-warning">
+              <div class="line-open-warning-title">⚠️ LINEから直接開かないでください</div>
+              <div class="line-open-warning-body">このアプリはLINEからではなく、通常のブラウザ（SafariやChrome）から開いてください。LINEから開くと、「音が聞こえない」「写真が送れない」「録音できない」「ログインができない」等の不具合が生じます。（実際に報告されてます）</div>
+            </div>
+            <!-- 以下は非表示（機能温存のため DOM に残す）。将来表示に戻す場合はこのブロックの display:none を外す。 -->
+            <div style="display:none">
+              <div class="line-register-title">📲 LINE 通知の登録</div>
+              <div class="line-register-desc">アプリ側でも公式LINEへの<br>登録をお願いします。</div>
+              <button type="button" id="line-register-btn-student" class="line-register-btn line-register-btn-student" onclick="startLineLoginFlow('student')">
+                <span class="line-register-main" id="line-register-label-student">🧒 生徒として LINE を登録</span>
+              </button>
+              <button type="button" id="line-register-btn-parent" class="line-register-btn line-register-btn-parent" onclick="startLineLoginFlow('parent')">
+                <span class="line-register-main" id="line-register-label-parent">👨‍👩‍👧 保護者として LINE を登録</span>
+              </button>
+              <div class="line-register-note">⚠️ 既に登録済みの方は、ボタンを押す必要はありません。</div>
+            </div>
           </div>
         </div>
 
@@ -23587,7 +23619,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260912-2357</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260917-0357</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
