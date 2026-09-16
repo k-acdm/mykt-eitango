@@ -1384,3 +1384,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 c60bac952fbf198dba2e368ba5fcea07ae935cb8 && git push origin main && git checkout dev
   ```
+
+## 2026-09-17 本番反映：ログイン注意書きタイトルを枠いっぱいに拡大（CSSのみ・見た目）
+
+- 背景：「⚠️ LINEから直接開かないでください」（`.line-open-warning-title`）が本文と同程度で目立ちが弱かったため、枠の横幅いっぱいに1行で収まる範囲で大きくする（見た目のみ）
+- 反映内容（dev→main マージ、2 コミット）
+  - `daf9db7` style(ログイン)：`.line-open-warning-title` の `font-size` を `15px` → **`clamp(15px, 4.2vw, 21px)`** に変更（画面幅連動）。≤480px の固定 `font-size:14px` 上書きを削除しグローバル clamp に委譲。**色（#d32f2f）・太字（700）・文言・本文（.line-open-warning-body）は無変更**。実機検証：デスクトップ21px / モバイル375px 約15.76px、両方1行・はみ出しなし（`scrollWidth==clientWidth`）
+  - `58a840d` docs(handover)：前回反映（LINE注意書き差し替え）の記録
+- **反映前の main（切り戻し先）：`c60bac952fbf198dba2e368ba5fcea07ae935cb8`**（＝`c60bac9`）
+- **マージコミット：`ce32a891eaa64e755606216f8311b2050eeb90e1`**（＝`ce32a89`）
+- 版バッジ：`20260917-0421`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `ce32a89` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`ce32a89…` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show HEAD:` blob と完全一致
+  - index `f690a407…` / view `094d36e0…` / admin `cb4abe99…`
+- 配信 index.html に `clamp(15px, 4.2vw, 21px)` が載っていることを確認
+- ゲート：`origin/main..dev` は2本のみ（想定通り＝`daf9db7` タイトル拡大／`58a840d` HANDOVER記録）／CLAUDE.md ゲート判定数値=6（タイトルCSSの実変更行）／admin・view の差分は版バッジ・`?v=` スタンプのみ／想定外の混入なし
+- **生徒の見た目への影響**：ログイン画面の注意書きタイトルが枠いっぱいに大きく1行表示されるのみ（機能・文言・色は不変）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 ce32a891eaa64e755606216f8311b2050eeb90e1 && git push origin main && git checkout dev
+  ```
