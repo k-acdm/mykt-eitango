@@ -1363,3 +1363,24 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 a6a3a5ce722b69c2d5231c63d44181d3d9782bff && git push origin main && git checkout dev
   ```
+
+## 2026-09-17 本番反映：ログインの「LINE通知の登録」を「LINEから直接開かないで」注意書きに差し替え
+
+- 背景：LINEから直接アプリを開くと音・写真・録音・ログインの不具合が出る（藤生さん・小林青空さんで実発生）。全生徒への予防として、ログイン画面のLINE通知登録ボタン2つ＋タイトルを非表示にし、同じ位置に注意書きを表示
+- 反映内容（dev→main マージ、2 コミット）
+  - `031946b` feat(ログイン)：`.line-register-section` 内のLINE登録ボタン2つ＋タイトル＋説明を `display:none` ブロックに退避し、同位置に注意書きを表示。タイトルは赤文字（`.line-open-warning-title`＝`#d32f2f` 太字）、本文（`.line-open-warning-body`）＝「通常のブラウザ（Safari/Chrome）から開いて。LINEから開くと音・写真・録音・ログインの不具合が生じます。（実際に報告されてます）」。CSS新設＋≤480pxレスポンシブ。**機能温存**：`startLineLoginFlow` / `_applyLineRegisteredButtons` / `_initLineRegisteredFlag` は削除せず、ボタン/ラベル要素もDOMに残す（`line-register-label-*` の ID 参照を壊さない・将来また表示に戻せる）
+  - `5c306da` docs(handover)：前回反映（アバター背景37枚）の記録
+- **反映前の main（切り戻し先）：`a6a3a5ce722b69c2d5231c63d44181d3d9782bff`**（＝`a6a3a5c`）
+- **マージコミット：`c60bac952fbf198dba2e368ba5fcea07ae935cb8`**（＝`c60bac9`）
+- 版バッジ：`20260917-0357`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `c60bac9` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`c60bac9…` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show HEAD:` blob と完全一致
+  - index `51854a10…` / view `71b49e80…` / admin `27c04cb3…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に注意書き「LINEから直接開かないでください」「実際に報告されてます」＝あり
+  - LINE登録関数の温存＝`startLineLoginFlow`/`_applyLineRegisteredButtons`/`_initLineRegisteredFlag` の grep ヒット（定義3＋コメント1＝4）／登録ボタン要素（`id="line-register-btn-*"`）2件がDOMに残存
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`031946b` 注意書き差し替え／`5c306da` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ／想定外の混入なし
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 c60bac952fbf198dba2e368ba5fcea07ae935cb8 && git push origin main && git checkout dev
+  ```

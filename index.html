@@ -1239,7 +1239,9 @@
     }
     /* ★ 2026-09-17：LINE から直接開かないでの注意書き（LINE登録ボタンの位置に差し替え） */
     .line-open-warning-title {
-      font-size: 15px;
+      /* ★ 2026-09-17：枠の横幅いっぱいに大きく（1行で収まる範囲、はみ出さない）。
+         画面幅連動 clamp でデスクトップ最大21px・モバイル約15.75px。色/太字は維持。 */
+      font-size: clamp(15px, 4.2vw, 21px);
       font-weight: bold;
       color: #d32f2f;
       text-align: center;
@@ -1261,7 +1263,7 @@
       .line-register-btn   { padding: 10px 12px; }
       .line-register-main  { font-size: 13px; }
       .line-register-note  { font-size: 10px; }
-      .line-open-warning-title { font-size: 14px; }
+      /* .line-open-warning-title はグローバルの clamp() に委ねる（モバイルでも枠いっぱい・はみ出さない） */
       .line-open-warning-body  { font-size: 11px; }
     }
 
@@ -3484,10 +3486,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260917-0357"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260917-0421"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260917-0357">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260917-0357"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260917-0421">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260917-0421"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -23619,7 +23621,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260917-0357</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260917-0421</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
