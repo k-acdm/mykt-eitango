@@ -1482,3 +1482,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 a7a9a8c33e9eebf6d0ec0fc425feabd2794b5cd5 && git push origin main && git checkout dev
   ```
+
+## 2026-09-18 本番反映：HP手動付与の対象生徒に Students/SpecialAccounts タブ（マイ課題と同作法）
+
+- 反映内容（dev→main マージ、2 コミット。管理画面 admin.html のみ実質変更／生徒画面は不変）
+  - `0ccac9a` feat(HP手動付与)：対象生徒一覧（`_renderHpGrantStudentsTable`）の上に **Students / SpecialAccounts タブ**を追加。マイ課題告知と同基準・同作法（`_hpGrantIsStudentAcct`＝`accountType==='student'`→Students、それ以外→SpecialAccounts／`setHpGrantTab`／状態 `_hpGrantTab`。件数付き）。タブ切替は表示行を絞るだけで**選択状態 `_hpGrantSelected` は保持**。連続日数列は維持。**全選択/全解除/再読み込み/付与実行は無改修で温存**。CSS は既存 `.kadai-tab-bar`/`.kadai-tab-btn` を流用。マイ課題側（`_kadai*`/`setKadaiTab`）には非影響（別変数・別関数）
+  - `c4bb656` docs(handover)：三語短文秀逸作品カードの区切り「/」丸囲み外しの本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`a7a9a8c33e9eebf6d0ec0fc425feabd2794b5cd5`**（＝`a7a9a8c`）
+- **マージコミット：`c1d5864383ebceb6030626f885e342349bf97642`**（＝`c1d5864`）
+- 版バッジ：`20260918-0032`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `c1d5864` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`c1d5864…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の LF blob と完全一致
+  - index `fe01728b…` / view `357b627c…` / admin `cce0bc0a…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 admin.html に `function setHpGrantTab`＝1・`function _hpGrantIsStudentAcct`＝1・`_hpGrantTab`＝4（HP付与タブが載っている）
+  - **生徒画面（index/view）は実質不変**：`origin/main~1..origin/main` の index/view 差分は版バッジ・`?v=` スタンプのみ（実コード差分ゼロ）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`0ccac9a` HP付与タブ／`c4bb656` HANDOVER記録）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 c1d5864383ebceb6030626f885e342349bf97642 && git push origin main && git checkout dev
+  ```
