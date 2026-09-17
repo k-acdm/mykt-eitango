@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260917-1819"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260918-0032"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -10964,6 +10964,7 @@
   var _hpGrantStudents = [];
   var _hpGrantSelected = {};
   var _hpGrantConfirm = null;
+  var _hpGrantTab = 'student';   // 対象生徒タブ：'student'（Students）/ 'special'（SpecialAccounts＝accountType!=='student'）※マイ課題告知と同作法
 
   // preserveInput=true なら入力欄と選択状態を保持して入力画面に戻る（確認画面の「戻る」用）
   function goAdminHpGrant(preserveInput) {
@@ -11001,6 +11002,16 @@
     });
   }
 
+  // accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  // SpecialAccounts とみなす（マイ課題告知の _kadaiIsStudentAcct と同基準・同作法）。
+  function _hpGrantIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setHpGrantTab(key) {
+    _hpGrantTab = (key === 'special') ? 'special' : 'student';
+    _renderHpGrantStudentsTable();  // 表示行だけ絞る。_hpGrantSelected は保持。
+  }
+
   function _renderHpGrantStudentsTable() {
     var wrap = document.getElementById('hp-grant-students-wrap');
     if (_hpGrantStudents.length === 0) {
@@ -11008,7 +11019,33 @@
       _updateHpGrantCount();
       return;
     }
-    var rows = _hpGrantStudents.map(function(s) {
+    // Students / SpecialAccounts タブ（件数付き）
+    var studentCount = 0;
+    for (var i = 0; i < _hpGrantStudents.length; i++) {
+      if (_hpGrantIsStudentAcct(_hpGrantStudents[i])) studentCount++;
+    }
+    var specialCount = _hpGrantStudents.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_hpGrantTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setHpGrantTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = _hpGrantStudents.filter(function(s) {
+      var isStudent = _hpGrantIsStudentAcct(s);
+      return (_hpGrantTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="students-empty">このタブに該当する生徒がいません</div>';
+      _updateHpGrantCount();
+      return;
+    }
+
+    var rows = filtered.map(function(s) {
       var sidEsc  = _esc(s.studentId);
       var nameEsc = _esc(s.name || '');
       var nickEsc = _esc(s.nickname || '');
@@ -11023,6 +11060,7 @@
              '</tr>';
     }).join('');
     wrap.innerHTML =
+      tabBar +
       '<div class="students-table-wrap">' +
         '<table class="hp-grant-table">' +
           '<thead><tr><th>選択</th><th>生徒ID</th><th>氏名</th><th>ニックネーム</th><th class="col-streak">連続日数</th></tr></thead>' +
@@ -16648,7 +16686,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260917-1819</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260918-0032</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
