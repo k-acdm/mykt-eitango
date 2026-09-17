@@ -1075,6 +1075,8 @@
     @keyframes bigbounce { 0%,100%{transform:translateY(0) scale(1) rotate(0deg)} 30%{transform:translateY(-26px) scale(1.08) rotate(-3deg)} 60%{transform:translateY(-10px) scale(1.04) rotate(2deg)} }
     @keyframes cbounce  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-16px)} }
     @keyframes cbob     { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
+    /* stage 4 用：cbob より控えめ（振幅3px）＆ゆっくり（周期2.8s）。stage 5 の cbob（元気）とは差別化 */
+    @keyframes cbob-slow { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
     @keyframes cdroop   { 0%,100%{transform:translateY(0) rotate(-1deg)} 50%{transform:translateY(4px) rotate(1deg)} }
     @keyframes cshake   { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
     @keyframes cheavy   { 0%,100%{transform:translateX(0) rotate(0deg)} 25%{transform:translateX(-9px) rotate(-3deg)} 75%{transform:translateX(9px) rotate(3deg)} }
@@ -3488,10 +3490,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260918-0140"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260918-0403"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260918-0140">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260918-0140"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260918-0403">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260918-0403"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7938,7 +7940,7 @@
     7: { filt:'brightness(1.25) saturate(1.4)', op:1, anim:'bigbounce .5s ease-in-out infinite', bg:'#fff9c4', fc:'#e65100', sparks:[{x:10,y:10,r:7,c:'#FFD700',d:'0s'},{x:140,y:15,r:6,c:'#FF69B4',d:'.3s'},{x:80,y:0,r:8,c:'#FFD700',d:'.5s'},{x:5,y:70,r:5,c:'#FF69B4',d:'.2s'},{x:148,y:65,r:6,c:'#FFD700',d:'.4s'}], sw:[] },
     6: { filt:'brightness(1.1) saturate(1.2)',  op:1, anim:'cbounce .7s ease-in-out infinite', bg:'#e8f5e9', fc:'#2e7d32', sparks:[{x:20,y:20,r:5,c:'#FFD700',d:'0s'},{x:138,y:25,r:5,c:'#FFD700',d:'.35s'}], sw:[] },
     5: { filt:'brightness(1.0) saturate(1.1)',  op:1, anim:'cbob 1.2s ease-in-out infinite',   bg:'#f1f8e9', fc:'#558b2f', sparks:[], sw:[] },
-    4: { filt:'brightness(1.0)',                op:1, anim:'none',                              bg:'#fffde7', fc:'#f57f17', sparks:[], sw:[] },
+    4: { filt:'brightness(1.0)',                op:1, anim:'cbob-slow 2.8s ease-in-out infinite', bg:'#fffde7', fc:'#f57f17', sparks:[], sw:[] },
     3: { filt:'brightness(0.9) saturate(0.7) sepia(0.2)', op:.95, anim:'cdroop 2s ease-in-out infinite', bg:'#fff3e0', fc:'#bf360c', sparks:[], sw:[{x:30,y:20,c:'#4fc3f7',d:'0s'},{x:128,y:30,c:'#4fc3f7',d:'.8s'}] },
     2: { filt:'brightness(0.8) saturate(0.4) sepia(0.3)', op:.85, anim:'cshake .5s ease-in-out infinite', bg:'#ffebee', fc:'#b71c1c', sparks:[], sw:[{x:20,y:15,c:'#4fc3f7',d:'0s'},{x:138,y:25,c:'#4fc3f7',d:'.6s'},{x:80,y:10,c:'#81d4fa',d:'1s'}] },
     1: { filt:'brightness(0.65) saturate(0) sepia(0.5)', op:.7, anim:'cheavy .4s ease-in-out infinite', bg:'#fce4ec', fc:'#880e4f', sparks:[], sw:[{x:15,y:10,c:'#4fc3f7',d:'0s'},{x:138,y:20,c:'#4fc3f7',d:'.5s'},{x:80,y:5,c:'#81d4fa',d:'.9s'},{x:48,y:30,c:'#4fc3f7',d:'1.3s'}] }
@@ -23672,7 +23674,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260918-0140</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260918-0403</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
