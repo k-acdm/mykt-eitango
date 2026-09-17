@@ -2473,6 +2473,8 @@
     .sango-featured-level { font-size:12px; color:#92400e; background:rgba(255,255,255,.6); padding:2px 8px; border-radius:8px; }
     .sango-featured-words { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; position:relative; z-index:1; }
     .sango-featured-word { display:inline-block; background:#fff; color:#b45309; font-size:13px; font-weight:bold; padding:4px 10px; border-radius:14px; border:1.5px solid #f59e0b; }
+    /* 3語の区切り「/」は丸囲みチップにせず素のテキスト（丸囲みは言葉だけ） */
+    .sango-featured-sep { display:inline-flex; align-items:center; color:#92400e; font-size:13px; font-weight:bold; }
     .sango-featured-work { font-size:15px; color:#1f2937; line-height:1.7; padding:10px 12px; background:rgba(255,255,255,.7); border-radius:10px; white-space:pre-wrap; position:relative; z-index:1; }
     @media (max-width:480px) {
       .sango-featured-card { padding:12px 14px; }
@@ -3486,10 +3488,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260917-1755"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260917-1819"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260917-1755">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260917-1755"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260917-1819">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260917-1819"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -12768,7 +12770,11 @@
   }
   function _renderSangoFeaturedCard(item) {
     var wordsArr = String(item.words || '').split(/[,、,，\s]+/).filter(function(s){ return s && s.trim(); }).map(function(s){ return s.trim(); });
-    var wordsHtml = wordsArr.map(function(w){ return '<span class="sango-featured-word">' + _sangoEscHtml(w) + '</span>'; }).join('');
+    // 区切りの「/」（半角/全角）はチップにせず素のテキストにする。丸囲みチップは3語（言葉）だけ。
+    var wordsHtml = wordsArr.map(function(w){
+      if (/^[\/／]+$/.test(w)) return '<span class="sango-featured-sep">' + _sangoEscHtml(w) + '</span>';
+      return '<span class="sango-featured-word">' + _sangoEscHtml(w) + '</span>';
+    }).join('');
     var nick = String(item.studentNickname || '名無し');
     var lv   = String(item.level || '');
     var work = String(item.work || '');
@@ -23621,7 +23627,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260917-1755</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260917-1819</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

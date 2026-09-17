@@ -1443,3 +1443,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 26e74a6af69c65728fe97ce51d6c989b74a41809 && git push origin main && git checkout dev
   ```
+
+## 2026-09-17（第2段階）本番反映：マイ課題告知状況に Students/SpecialAccounts タブ + 行内「修正」「削除」
+
+- 反映内容（dev→main マージ、2 コミット。管理画面 admin.html のみ実質変更／生徒画面は不変）
+  - `d98cbac` feat(マイ課題告知)：告知状況（`_renderKadaiAnnouncements`）に対象生徒一覧と同じ **Students / SpecialAccounts タブ**（`accountType==='student'` か否か・件数付き・切替で絞る。サーバーが listAll に accountType を返すようになったため第1段階で見送っていたタブを実装）。各告知の行に **「修正」「削除」** ボタン（操作列）を追加。**修正＝行内インライン編集**（教科＝`<select>` / 宿題内容＝`<input>` の両方）で、保存は `updateMyTaskAnnouncement` を **studentId + oldSubject（元の教科）** で特定し newSubject/newContent を送信。**衝突エラー（案B）は握りつぶさず、編集行の⚠️メッセージ＋トーストで講師に表示**（編集行は開いたまま・再読込しない）。**削除＝confirm 確認ダイアログ**（誤削除防止・元に戻せない旨明記）→ `deleteMyTaskAnnouncement` を studentId + subject で送信。修正・削除の成功後は `loadKadaiAnnouncements`（listAll）で再読込＋「修正しました」「取り消しました」トースト。**既存の告知作成（`submitKadaiAnnounce`・行内 `kadaiAnnounceOne`・対象生徒タブ）は無改修で温存**
+  - `dd677d2` docs(handover)：マイ課題告知タブ+行内告知ボタンの本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`26e74a6af69c65728fe97ce51d6c989b74a41809`**（＝`26e74a6`）
+- **マージコミット：`1363ca4f6aab46913ba2975ecf7663451c215302`**（＝`1363ca4`）
+- 版バッジ：`20260917-1755`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `1363ca4` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`1363ca4…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の LF blob と完全一致
+  - index `cd219979…` / view `f85e1ef7…` / admin `122133d4…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 admin.html に `function kadaiSaveAnnounceEdit`／`kadaiDeleteAnnounce`／`setKadaiAnnounceTab`＝各1、`updateMyTaskAnnouncement`／`deleteMyTaskAnnouncement`＝各1、`kadai-ann-edit-btn`＝2、確認ダイアログ文言「この告知を取り消しますか」＝1
+  - **生徒画面（index/view）は実質不変**：`origin/main~1..origin/main` の index/view 差分は版バッジ・`?v=` スタンプのみ（実コード差分ゼロ）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`d98cbac` 修正/削除UI／`dd677d2` HANDOVER記録）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 1363ca4f6aab46913ba2975ecf7663451c215302 && git push origin main && git checkout dev
+  ```
