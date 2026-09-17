@@ -3488,10 +3488,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260918-0032"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260918-0140"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260918-0032">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260918-0032"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260918-0140">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260918-0140"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6600,6 +6600,25 @@
     </div>
     <div class="mykt-overlay-btns">
       <button class="btn-retry" onclick="_lisonEscapeConfirmed()">分かりました</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2026-09-18：カンジー「書き」の採点がサーバー側で失敗（Gemini 落ち・通信・タイムアウト）した時の案内。
+     lison-escape-overlay / photo-escape-overlay と同型（LINE へ回して先生が HP 付与）。
+     ★res.retake（写真がぼやけて読めない＝撮り直しで直る）には出さない。採点そのものが止まった時だけ。
+     「分かりました」→ _kanjiLineConfirmed() で LINE 回送を記録し goContentMenu へ（閉じ込め回避）。 -->
+<div id="kanji-line-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble">
+        <div style="font-weight:bold;font-size:15px;color:#9a3412;margin-bottom:6px">カンジーの「書き」は春アカ公式LINEで採点します。</div>
+        いま採点サーバーがエラーで止まっているので、カンジーの「書き」は「春アカ公式LINE」で採点します。<br>ノートの写真を「春アカ公式LINE」に送ってください。<br>後ほど先生が見てHPを付与します。
+      </div>
+    </div>
+    <div class="mykt-overlay-btns">
+      <button class="btn-retry" onclick="_kanjiLineConfirmed()">分かりました</button>
     </div>
   </div>
 </div>
@@ -19880,8 +19899,10 @@
             showScreen('screen-kanji-kaki');
             return;
           }
-          // サーバが ok:false（HP_LOG_FAILED 等）→ エラーオーバーレイでリトライ誘導
-          _showSubmitError();
+          // 2026-09-18：サーバ側の採点が失敗（Gemini 落ち・429・HP_LOG_FAILED 等、採点そのものが止まった）
+          //   → リトライで直らないため、汎用エラー（もう一度送信）ではなくカンジー『書き』の LINE 案内を出す。
+          //   ★res.retake（撮り直しで直る）は上で分岐済み。ここは「システムが止まっている失敗」だけ。
+          _showKanjiLineHandoff();
           return;
         }
         // 2026-05-12 バグ⑤ Phase B：再撮影誘導（採点保留）。
@@ -19918,14 +19939,38 @@
         _showReceivedOnOverlay('kanji');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
         _hideHpConfirmingOverlay(function(){ _showKanjiKakiResult(res); });
       }).catch(function(err){
-        // 通信エラー / 90 秒タイムアウト → エラーオーバーレイでリトライ誘導
+        // 2026-09-18：通信エラー / 90 秒タイムアウト（採点サーバーに届いていない/応答なし）も
+        //   「採点が止まっている失敗」として、カンジー『書き』の LINE 案内へ一本化する。
+        //   ★未送信の印（帯・逃げ道ボタン）は付けない：LINE 案内と二重にならないよう、
+        //     photo-escape と同じ「LINE 回送は別管理（_recordLineHandoff）」の方針に揃える。
         _hideHpConfirmingOverlay();
         submitBtn.disabled = false;
-        try { _recordUnsentAwareness('カンジー', 'kanji'); } catch(e){}  try { _markPhotoSendFailed('kanji'); } catch(e){}   // 2026-08-30：写真が送れなかった → 逃げ道を出す  // 応急処置②：未送信を可視化（自動再送はしない）
-        _showSubmitError();
+        _showKanjiLineHandoff();
       });
     }
     doSubmit();
+  }
+
+  // 2026-09-18：カンジー『書き』の採点がサーバー側で失敗（Gemini 落ち・429・通信・タイムアウト）した時の LINE 案内。
+  //   ★res.retake（写真が読めない＝撮り直しで直る）には使わない。採点そのものが止まった時だけ。
+  //   手本＝lison-escape-overlay / photo-escape-overlay（LINE へ回して先生が HP 付与）。
+  function _showKanjiLineHandoff() {
+    // 採点失敗はリトライで直らない（サーバーが止まっている）ため、共通エラーの
+    // 「もう一度送信する」経路（_pendingRetry/_pendingDismiss）はクリアして誤発火を防ぐ。
+    _pendingRetry = null;
+    _pendingDismiss = null;
+    var ov = document.getElementById('kanji-line-overlay');
+    if (ov) { ov.classList.add('active'); return; }
+    _kanjiLineConfirmed();   // オーバーレイが無い異常時でも詰まらせない
+  }
+  // 「分かりました」→ LINE 回送を記録して学習メニューへ（リスオン _lisonEscapeConfirmed と同作法・閉じ込め回避）。
+  function _kanjiLineConfirmed() {
+    try {
+      var ov = document.getElementById('kanji-line-overlay');
+      if (ov) ov.classList.remove('active');
+    } catch(e){}
+    try { _recordLineHandoff('カンジー書き(LINEへ)'); } catch(e){}
+    try { goContentMenu(); } catch(e){}
   }
   function _showKanjiKakiResult(res) {
     var passed = !!res.passed;
@@ -23627,7 +23672,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260918-0032</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260918-0140</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
