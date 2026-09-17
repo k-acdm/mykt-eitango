@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260917-0510"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260917-1612"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -595,6 +595,11 @@
   .kiso-photo-card.work { border: 2px solid #c4b5fd; }
   /* マイ課題⑦ 管理B：差し戻し済みバッジ（kiso 写真確認の CSS を流用しつつ、目立つ赤系で 1 クラスのみ追加） */
   .mytask-revert-badge { display: inline-block; background: #dc2626; color: #fff; font-size: 12px; font-weight: bold; padding: 2px 10px; border-radius: 999px; margin-left: 8px; }
+  /* マイ課題 告知：対象生徒の Students / SpecialAccounts タブ + 行内「この生徒に告知」ボタン（2026-09 追加） */
+  .kadai-tab-bar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .kadai-tab-btn { padding: 7px 16px; border: 1px solid #c7d2fe; background: #eef2ff; color: #4f46e5; border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .kadai-tab-btn.active { background: linear-gradient(135deg,#4f7df0,#6366f1); color: #fff; border-color: transparent; }
+  .kadai-row-announce-btn:disabled { opacity: .45; cursor: not-allowed; }
 
   /* リスオン録音一覧 */
   .lison-rec-list { display: flex; flex-direction: column; gap: 10px; }
@@ -11192,6 +11197,7 @@
   var MYTASK_SUBJECTS = ['英語', '数学・算数', '理科', '社会', '国語'];  // 教科の並び順（バックエンドと同一）
   var _kadaiStudents = [];
   var _kadaiSelected = {};
+  var _kadaiTab = 'student';   // 対象生徒タブ：'student'（Students）/ 'special'（SpecialAccounts＝accountType!=='student'）
 
   function goAdminMyTaskAnnounce() {
     _showScreen('screen-admin-mytask-announce');
@@ -11232,6 +11238,16 @@
     });
   }
 
+  // accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  // SpecialAccounts とみなす（シート可視化と同基準）。
+  function _kadaiIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setKadaiTab(key) {
+    _kadaiTab = (key === 'special') ? 'special' : 'student';
+    _renderKadaiStudentsTable();  // 表示行だけ絞る。_kadaiSelected は保持。
+  }
+
   function _renderKadaiStudentsTable() {
     var wrap = document.getElementById('kadai-students-wrap');
     if (_kadaiStudents.length === 0) {
@@ -11239,23 +11255,53 @@
       _updateKadaiCount();
       return;
     }
-    var rows = _kadaiStudents.map(function(s) {
+    // Students / SpecialAccounts タブ（件数付き）
+    var studentCount = 0;
+    for (var i = 0; i < _kadaiStudents.length; i++) {
+      if (_kadaiIsStudentAcct(_kadaiStudents[i])) studentCount++;
+    }
+    var specialCount = _kadaiStudents.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_kadaiTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setKadaiTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = _kadaiStudents.filter(function(s) {
+      var isStudent = _kadaiIsStudentAcct(s);
+      return (_kadaiTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="students-empty">このタブに該当する生徒がいません</div>';
+      _updateKadaiCount();
+      return;
+    }
+
+    var rows = filtered.map(function(s) {
       var sidEsc  = _esc(s.studentId);
       var nameEsc = _esc(s.name || '');
       var nickEsc = _esc(s.nickname || '');
-      var checked = _kadaiSelected[s.studentId] ? 'checked' : '';
-      var rowCls  = _kadaiSelected[s.studentId] ? ' class="selected"' : '';
+      var sel     = !!_kadaiSelected[s.studentId];
+      var checked = sel ? 'checked' : '';
+      var rowCls  = sel ? ' class="selected"' : '';
       return '<tr' + rowCls + ' data-sid="' + sidEsc + '" onclick="kadaiToggleRow(\'' + sidEsc + '\')">' +
                '<td><input type="checkbox" ' + checked + ' onclick="event.stopPropagation();kadaiToggleRow(\'' + sidEsc + '\')" /></td>' +
                '<td>' + sidEsc + '</td>' +
                '<td>' + (nameEsc || '（未登録）') + '</td>' +
                '<td>' + (nickEsc || '—') + '</td>' +
+               '<td><button type="button" class="btn-mini kadai-row-announce-btn"' + (sel ? '' : ' disabled') +
+                   ' onclick="event.stopPropagation();kadaiAnnounceOne(\'' + sidEsc + '\')">この生徒に告知</button></td>' +
              '</tr>';
     }).join('');
     wrap.innerHTML =
+      tabBar +
       '<div class="students-table-wrap">' +
         '<table class="hp-grant-table">' +
-          '<thead><tr><th>選択</th><th>生徒ID</th><th>氏名</th><th>ニックネーム</th></tr></thead>' +
+          '<thead><tr><th>選択</th><th>生徒ID</th><th>氏名</th><th>ニックネーム</th><th>告知</th></tr></thead>' +
           '<tbody>' + rows + '</tbody>' +
         '</table>' +
       '</div>';
@@ -11271,6 +11317,9 @@
       tr.classList.toggle('selected', sel);
       var cb = tr.querySelector('input[type=checkbox]');
       if (cb) cb.checked = sel;
+      // 行内「この生徒に告知」ボタンは ✅ が入っているときだけ有効
+      var abtn = tr.querySelector('.kadai-row-announce-btn');
+      if (abtn) abtn.disabled = !sel;
     }
     _updateKadaiCount();
   }
@@ -11287,6 +11336,38 @@
     var n = Object.keys(_kadaiSelected).length;
     var el = document.getElementById('kadai-count');
     if (el) el.textContent = n + ' 名選択中';
+  }
+
+  // --- (A') 行内ボタン：その1名だけに告知 ---
+  // 入力欄（subject/content/announcedDate）は一括ボタンと同じ現在値を使う。
+  // saveMyTaskAnnouncement の呼び方は submitKadaiAnnounce を踏襲し studentIds に1名だけ入れる。
+  function kadaiAnnounceOne(sid) {
+    if (!sid || !_kadaiSelected[sid]) return;  // ✅ が入っている行だけ（ボタンは disabled 済だが二重ガード）
+    var subject       = (document.getElementById('kadai-subject').value || '').trim();
+    var content       = (document.getElementById('kadai-content').value || '').trim();
+    var announcedDate = (document.getElementById('kadai-date').value || '').trim();
+    if (!subject) { alert('教科を選択してください'); return; }
+    if (!content) { alert('宿題内容を入力してください'); return; }
+
+    adminGasPost({
+      action:        'saveMyTaskAnnouncement',
+      subject:       subject,
+      content:       content,
+      announcedDate: announcedDate,
+      studentIds:    [sid]
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : 'エラーが発生しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error');
+        return;
+      }
+      showToast('告知しました（1 名）', 'success');
+      // 入力欄・選択状態は保持（同じ内容を個別に続けて告知できるように）。告知状況のみ最新化。
+      loadKadaiAnnouncements();
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
   }
 
   // --- (A) 送信 ---
@@ -16413,7 +16494,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260917-0510</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260917-1612</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
