@@ -1502,3 +1502,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 c1d5864383ebceb6030626f885e342349bf97642 && git push origin main && git checkout dev
   ```
+
+## 2026-09-18 本番反映：カンジー書きの採点失敗時に「春アカ公式LINEで採点」案内（ループ解消）
+
+- 反映内容（dev→main マージ、2 コミット。生徒画面 index.html の変更）
+  - `0fde950` feat(カンジー書き)：`submitKanjiKakiPhoto` の採点失敗（`!res.ok`＝Gemini429/HP_LOG_FAILED 等・`.catch`＝通信/90秒タイムアウト）時に、汎用エラー（`_showSubmitError`「あ、失敗したみたい！もう一回押してね」）ではなく **新規オーバーレイ `#kanji-line-overlay`** で「春アカ公式LINEで採点します」案内を表示（`_showKanjiLineHandoff`）。「分かりました」→ `_kanjiLineConfirmed`：**`_recordLineHandoff('カンジー書き(LINEへ)')` + `goContentMenu()`**（リスオン `_lisonEscapeConfirmed` と同作法・LINE回送を記録・閉じ込め回避）。**`res.retake`（写真が読めない＝撮り直しで直る）/ `needsRetake` は従来どおり撮り直し誘導のまま**（LINE案内にしない）。**Gemini 成功時の通常フロー（採点・合格・HP付与・結果画面）は無改修**。`.catch` では未送信の印・逃げ道ボタン（`_recordUnsentAwareness`/`_markPhotoSendFailed`）を外し LINE案内に一本化（二重表示回避）。**カンジーのみ変更**、基礎計算・和文英訳①等の `_showSubmitError` は無傷
+  - `1d94463` docs(handover)：HP手動付与の対象生徒タブの本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`c1d5864383ebceb6030626f885e342349bf97642`**（＝`c1d5864`）
+- **マージコミット：`a70c639dd3171671233852800a5727e9b5ca6e89`**（＝`a70c639`）
+- 版バッジ：`20260918-0140`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `a70c639` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`a70c639…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の LF blob と完全一致
+  - index `1981d907…` / view `058f1de2…` / admin `7af1fdb5…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `id="kanji-line-overlay"`＝1・`function _showKanjiLineHandoff`＝1・`function _kanjiLineConfirmed`＝1・ラベル「カンジー書き(LINEへ)」＝1・文面「カンジーの「書き」は春アカ公式LINEで採点します」＝1
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`0fde950` カンジーLINE案内／`1d94463` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 a70c639dd3171671233852800a5727e9b5ca6e89 && git push origin main && git checkout dev
+  ```
