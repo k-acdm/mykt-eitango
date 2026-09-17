@@ -1463,3 +1463,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 1363ca4f6aab46913ba2975ecf7663451c215302 && git push origin main && git checkout dev
   ```
+
+## 2026-09-17（見た目修正）本番反映：三語短文秀逸作品カードの区切り「/」の丸囲みを外す
+
+- 反映内容（dev→main マージ、2 コミット。生徒画面 index.html の見た目のみ変更）
+  - `c2cca3d` fix(三語短文秀逸作品)：`_renderSangoFeaturedCard` で、お題の3語を空白区切りで分割する際に**空白で囲まれた「/」（半角/全角）が独立トークン化**し、3語と同じ `.sango-featured-word` 丸囲みチップが付いていた不具合を修正。区切りトークン（`/^[\/／]+$/`）は素のテキスト `.sango-featured-sep` で描画し、**3つの言葉だけ丸囲みチップを維持**。ニックネーム・レベル・本文の表示は無変更。**共有関数のためホーム秀逸カードと殿堂アーカイブ（`_renderSangoHofWeekBlock`）の両方が一貫して修正される**
+  - `65e0f20` docs(handover)：マイ課題告知状況タブ+修正/削除UIの本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`1363ca4f6aab46913ba2975ecf7663451c215302`**（＝`1363ca4`）
+- **マージコミット：`a7a9a8c33e9eebf6d0ec0fc425feabd2794b5cd5`**（＝`a7a9a8c`）
+- 版バッジ：`20260917-1819`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `a7a9a8c` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`a7a9a8c…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の LF blob と完全一致
+  - index `91c3925a…` / view `a99119e4…` / admin `c38fb085…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `.sango-featured-sep` が CSS 定義＋JS 使用で計2出現（区切り「/」を素テキスト化する分岐が載っている）。3語は `.sango-featured-word` チップのまま
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`c2cca3d`「/」丸囲み外し／`65e0f20` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 a7a9a8c33e9eebf6d0ec0fc425feabd2794b5cd5 && git push origin main && git checkout dev
+  ```
