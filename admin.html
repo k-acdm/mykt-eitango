@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260917-1612"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260917-1755"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -600,6 +600,14 @@
   .kadai-tab-btn { padding: 7px 16px; border: 1px solid #c7d2fe; background: #eef2ff; color: #4f46e5; border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; }
   .kadai-tab-btn.active { background: linear-gradient(135deg,#4f7df0,#6366f1); color: #fff; border-color: transparent; }
   .kadai-row-announce-btn:disabled { opacity: .45; cursor: not-allowed; }
+  /* マイ課題 告知状況：修正（インライン編集）/ 削除（2026-09 第2段階） */
+  .kadai-ann-edit-btn { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+  .kadai-ann-del-btn  { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+  .kadai-ann-save-btn { background: linear-gradient(135deg,#10b981,#059669); color: #fff; }
+  .kadai-ann-cancel-btn { background: #f3f4f6; color: #4b5563; }
+  .kadai-ann-editing { background: #fffbeb; }
+  .kadai-ann-edit-input { width: 100%; box-sizing: border-box; padding: 5px 8px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 6px; }
+  .kadai-ann-edit-msg { color: #b91c1c; font-size: 12px; font-weight: bold; margin-top: 6px; }
 
   /* リスオン録音一覧 */
   .lison-rec-list { display: flex; flex-direction: column; gap: 10px; }
@@ -11428,32 +11436,178 @@
     });
   }
 
+  // 告知状況：Students/SpecialAccounts タブ + 行内「修正」（インライン編集）/「削除」（第2段階）
+  // サーバーが listAllActiveMyTaskAnnouncements の各行に accountType を返すようになったのでタブ分け可能。
+  var _kadaiAnnounceTab  = 'student';  // 'student' / 'special'
+  var _kadaiAnnounceList = [];          // listAll の戻り（全件・未フィルタ）。操作は全体基準の index で特定。
+  var _kadaiEditIdx      = -1;          // インライン編集中の全体 index（-1 = 編集なし）
+
+  function setKadaiAnnounceTab(key) {
+    _kadaiAnnounceTab = (key === 'special') ? 'special' : 'student';
+    _kadaiEditIdx = -1;                 // タブ切替で編集は解除
+    _renderKadaiAnnouncementsView();
+  }
+
+  // loadKadaiAnnouncements から呼ばれる入口：リストをキャッシュしてビュー描画
   function _renderKadaiAnnouncements(list) {
+    _kadaiAnnounceList = Array.isArray(list) ? list : [];
+    _kadaiEditIdx = -1;
+    _renderKadaiAnnouncementsView();
+  }
+
+  function _renderKadaiAnnouncementsView() {
     var cntEl = document.getElementById('kadai-announce-count');
-    if (cntEl) cntEl.textContent = list.length + ' 件';
-    var wrap = document.getElementById('kadai-announce-wrap');
-    if (list.length === 0) {
+    var wrap  = document.getElementById('kadai-announce-wrap');
+    var full  = _kadaiAnnounceList;
+    if (cntEl) cntEl.textContent = full.length + ' 件';
+    if (full.length === 0) {
       wrap.innerHTML = '<div class="students-empty">現在 active な告知はありません</div>';
       return;
     }
-    var rows = list.map(function(a) {
-      var nameDisp = _esc(a.name || '（未登録）');
-      if (a.nickname) nameDisp += '（' + _esc(a.nickname) + '）';
-      return '<tr>' +
-               '<td>' + _esc(a.studentId || '') + '</td>' +
-               '<td>' + nameDisp + '</td>' +
-               '<td>' + _esc(a.subject || '') + '</td>' +
-               '<td>' + _esc(a.content || '') + '</td>' +
-               '<td>' + _esc(a.announcedDate || '') + '</td>' +
-             '</tr>';
-    }).join('');
+    // タブ（件数付き、対象生徒一覧と同基準 accountType==='student'）
+    var studentCount = 0;
+    for (var i = 0; i < full.length; i++) {
+      if (_kadaiIsStudentAcct(full[i])) studentCount++;
+    }
+    var specialCount = full.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_kadaiAnnounceTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setKadaiAnnounceTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var rowsHtml = '';
+    var shown = 0;
+    for (var idx = 0; idx < full.length; idx++) {
+      var a = full[idx];
+      var isStudent = _kadaiIsStudentAcct(a);
+      if ((_kadaiAnnounceTab === 'student') ? !isStudent : isStudent) continue;
+      shown++;
+      rowsHtml += (idx === _kadaiEditIdx) ? _kadaiAnnounceEditRow(idx, a) : _kadaiAnnounceViewRow(idx, a);
+    }
+    if (shown === 0) {
+      wrap.innerHTML = tabBar + '<div class="students-empty">このタブに該当する告知はありません</div>';
+      return;
+    }
     wrap.innerHTML =
+      tabBar +
       '<div class="students-table-wrap">' +
         '<table class="hp-grant-table">' +
-          '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>教科</th><th>宿題内容</th><th>告知日</th></tr></thead>' +
-          '<tbody>' + rows + '</tbody>' +
+          '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>教科</th><th>宿題内容</th><th>告知日</th><th>操作</th></tr></thead>' +
+          '<tbody>' + rowsHtml + '</tbody>' +
         '</table>' +
       '</div>';
+  }
+
+  function _kadaiAnnounceNameDisp(a) {
+    var nameDisp = _esc(a.name || '（未登録）');
+    if (a.nickname) nameDisp += '（' + _esc(a.nickname) + '）';
+    return nameDisp;
+  }
+
+  function _kadaiAnnounceViewRow(idx, a) {
+    return '<tr>' +
+             '<td>' + _esc(a.studentId || '') + '</td>' +
+             '<td>' + _kadaiAnnounceNameDisp(a) + '</td>' +
+             '<td>' + _esc(a.subject || '') + '</td>' +
+             '<td>' + _esc(a.content || '') + '</td>' +
+             '<td>' + _esc(a.announcedDate || '') + '</td>' +
+             '<td>' +
+               '<button type="button" class="btn-mini kadai-ann-edit-btn" onclick="kadaiEditAnnounce(' + idx + ')">修正</button> ' +
+               '<button type="button" class="btn-mini kadai-ann-del-btn" onclick="kadaiDeleteAnnounce(' + idx + ')">削除</button>' +
+             '</td>' +
+           '</tr>';
+  }
+
+  function _kadaiAnnounceEditRow(idx, a) {
+    var subjOpts = MYTASK_SUBJECTS.map(function(s) {
+      var selAttr = (String(a.subject || '') === s) ? ' selected' : '';
+      return '<option value="' + _esc(s) + '"' + selAttr + '>' + _esc(s) + '</option>';
+    }).join('');
+    return '<tr class="kadai-ann-editing">' +
+             '<td>' + _esc(a.studentId || '') + '</td>' +
+             '<td>' + _kadaiAnnounceNameDisp(a) + '</td>' +
+             '<td><select id="kadai-ann-edit-subject" class="kadai-ann-edit-input">' + subjOpts + '</select></td>' +
+             '<td><input type="text" id="kadai-ann-edit-content" class="kadai-ann-edit-input" value="' + _esc(a.content || '') + '" /></td>' +
+             '<td>' + _esc(a.announcedDate || '') + '</td>' +
+             '<td>' +
+               '<button type="button" class="btn-mini kadai-ann-save-btn" onclick="kadaiSaveAnnounceEdit(' + idx + ')">保存</button> ' +
+               '<button type="button" class="btn-mini kadai-ann-cancel-btn" onclick="kadaiCancelAnnounceEdit()">キャンセル</button>' +
+               '<div id="kadai-ann-edit-msg" class="kadai-ann-edit-msg"></div>' +
+             '</td>' +
+           '</tr>';
+  }
+
+  function kadaiEditAnnounce(idx) {
+    _kadaiEditIdx = idx;
+    _renderKadaiAnnouncementsView();
+  }
+  function kadaiCancelAnnounceEdit() {
+    _kadaiEditIdx = -1;
+    _renderKadaiAnnouncementsView();
+  }
+
+  // 修正保存：サーバー仕様どおり studentId + oldSubject で特定し newSubject/newContent を送る。
+  // 衝突エラー（案B）は握りつぶさず、行内メッセージ + トーストで講師に見せる。
+  function kadaiSaveAnnounceEdit(idx) {
+    var a = _kadaiAnnounceList[idx];
+    if (!a) return;
+    var newSubject = (document.getElementById('kadai-ann-edit-subject').value || '').trim();
+    var newContent = (document.getElementById('kadai-ann-edit-content').value || '').trim();
+    var msgEl = document.getElementById('kadai-ann-edit-msg');
+    if (!newSubject) { if (msgEl) msgEl.textContent = '教科を選択してください'; return; }
+    if (!newContent) { if (msgEl) msgEl.textContent = '宿題内容を入力してください'; return; }
+    adminGasPost({
+      action:     'updateMyTaskAnnouncement',
+      studentId:  a.studentId,
+      oldSubject: a.subject,     // ★元の教科で特定
+      newSubject: newSubject,
+      newContent: newContent
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : 'エラーが発生しました';
+        if (_handleAdminApiError(msg)) return;
+        // ★衝突エラー等を握りつぶさない：編集行に残しつつトーストでも通知
+        if (msgEl) msgEl.textContent = '⚠️ ' + msg;
+        showToast(msg, 'error');
+        return;
+      }
+      showToast('修正しました', 'success');
+      _kadaiEditIdx = -1;
+      loadKadaiAnnouncements();   // ★成功後は listAll で再読込して反映
+    }).catch(function() {
+      if (msgEl) msgEl.textContent = '通信エラーが発生しました';
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // 削除：確認ダイアログ必須（誤削除防止）。studentId + subject で特定。
+  function kadaiDeleteAnnounce(idx) {
+    var a = _kadaiAnnounceList[idx];
+    if (!a) return;
+    var who = a.name || a.studentId || '';
+    var label = (a.subject || '') + '（' + who + '）';
+    if (!confirm('この告知を取り消しますか？\n\n' + label + '\n\n※ この操作は元に戻せません。')) return;
+    adminGasPost({
+      action:    'deleteMyTaskAnnouncement',
+      studentId: a.studentId,
+      subject:   a.subject
+    }).then(function(res) {
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : 'エラーが発生しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error');
+        return;
+      }
+      showToast('取り消しました', 'success');
+      loadKadaiAnnouncements();   // ★削除後は listAll で再読込して反映
+    }).catch(function() {
+      showToast('通信エラーが発生しました', 'error');
+    });
   }
 
   // =============================================================
@@ -16494,7 +16648,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260917-1612</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260917-1755</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

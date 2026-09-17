@@ -1423,3 +1423,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 b1028fcf0996c5bf451ac7a584e7d3a747cf8c56 && git push origin main && git checkout dev
   ```
+
+## 2026-09-17 本番反映：マイ課題告知に Students/SpecialAccounts タブ + 行内「この生徒に告知」ボタン
+
+- 反映内容（dev→main マージ、2 コミット。管理画面 admin.html のみ実質変更／生徒画面は不変）
+  - `4655ff6` feat(マイ課題告知)：対象生徒一覧（`_renderKadaiStudentsTable`）の上に **Students / SpecialAccounts タブ**を追加。判定＝`accountType==='student'` を Students、それ以外（test/teacher/invited/experience/未設定）を SpecialAccounts（シート可視化と同基準）。件数付き。タブ切替は表示行を絞るだけで**選択状態 `_kadaiSelected` は保持**。各行に **「この生徒に告知」ボタン**を追加し、**その行の✅が入っている時だけ有効**（未選択は disabled、`kadaiToggleRow` で同期）。押下 `kadaiAnnounceOne(sid)` は `saveMyTaskAnnouncement` に `studentIds:[sid]`（1名）＋入力欄の現在値（subject/content/announcedDate）を送信。**一括ボタン `submitKadaiAnnounce` は無改修で温存**。告知状況（`listAllActiveMyTaskAnnouncements`）のタブは、当該 API が accountType を返すかバックエンド（別リポ `mykt-eitango-aws`）で確認できないため**第2段階に見送り**
+  - `7cd3a7a` docs(handover)：三語短文秀逸作品タイトルの「今週の」削除の本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`b1028fcf0996c5bf451ac7a584e7d3a747cf8c56`**（＝`b1028fc`）
+- **マージコミット：`26e74a6af69c65728fe97ce51d6c989b74a41809`**（＝`26e74a6`）
+- 版バッジ：`20260917-1612`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `26e74a6` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`26e74a6…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の LF blob と完全一致
+  - index `6e6d8167…` / view `ec01d78c…` / admin `b0e45495…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 admin.html に `kadai-tab-btn`＝3・`kadai-row-announce-btn`＝3・`function setKadaiTab`／`function kadaiAnnounceOne` 定義・「この生徒に告知」文言あり
+  - **生徒画面（index/view）は実質不変**：`origin/main..dev` の index/view 差分は版バッジ・`?v=` スタンプのみ（実コード差分ゼロ）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`4655ff6` タブ+行ボタン／`7cd3a7a` HANDOVER記録）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 26e74a6af69c65728fe97ce51d6c989b74a41809 && git push origin main && git checkout dev
+  ```
