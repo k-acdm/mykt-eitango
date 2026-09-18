@@ -1563,3 +1563,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 ba56bb5e73f8138ef30582bf8239c0a9760f1870 && git push origin main && git checkout dev
   ```
+
+## 2026-09-18 本番反映：アバター背景37枚を圧縮版に差し替え（90MB→29MB・見た目不変）
+
+- 反映内容（dev→main マージ、2 コミット。生徒画面の背景画像のみ差し替え）
+  - `cb52d51` chore(アバター背景)：`images/avatar/backgrounds/` の bg_01〜37（37枚）を圧縮版で上書き（同名・削除→再配置で確実に git 反映）。**37枚すべて md5 変化・全て小型化**、合計 **約90MB→約29MB（約1/3）**。**正方形 1254×1254px は維持**（減色済み・劣化なし確認済み）。表示ロジック・対応表・base_*/outfits/hats/makeup は無変更。差し替え前に現行37枚をリポジトリ外にバックアップ（`C:\Users\Manager\mykt-eitango_backups\backgrounds_backup_20260918\`、**本コミットには含めない**）
+  - `1b4007d` docs(handover)：アバター服(種別A)72枚+組み合わせ表示+itemId読取の本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`ba56bb5e73f8138ef30582bf8239c0a9760f1870`**（＝`ba56bb5`）
+- **マージコミット：`e76deb18ede7b4d674bfcc7790de584db1f58d7f`**（＝`e76deb1`）
+- 版バッジ：`20260918-1615`（画像のみ差し替えのため HTML 無変更＝版バッジ据え置き。index/view/admin の配信 sha256 は前回反映と MATCH）
+- GitHub Actions（pages build and deployment）：head_sha `e76deb1` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`e76deb1…` 実体を確認。
+- 反映後、配信物そのもので確認したこと
+  - 背景37枚すべて本番配信（HTTP 206/200・未配信0）、**全37枚 1254×1254 実測**（正方形維持）
+  - `bg_13_castle.png` の配信 Content-Length＝801,375 バイト＝origin/main の圧縮版 blob サイズと一致（＝圧縮版が確実に配信されている。旧版は約 2.58MB だった）
+  - **バックアップ（backgrounds_backup_*）は本番に載っていない**：ゲート・マージ差分とも backup の混入なしを確認
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`cb52d51` 背景圧縮版／`1b4007d` HANDOVER記録）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 e76deb18ede7b4d674bfcc7790de584db1f58d7f && git push origin main && git checkout dev
+  ```
