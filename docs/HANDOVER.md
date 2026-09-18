@@ -1521,3 +1521,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 a70c639dd3171671233852800a5727e9b5ca6e89 && git push origin main && git checkout dev
   ```
+
+## 2026-09-18 本番反映：マイカツ君 stage 4 を「ゆっくり控えめに揺れる」に（CSSのみ）
+
+- 背景：マイカツ君の stage 4（前日課題なしの標準状態）は元々 `anim:'none'`（揺れない）だった。ゆっくり控えめに揺れる状態にし、stage 5（元気な揺れ）との差別化は維持
+- 反映内容（dev→main マージ、2 コミット）
+  - `ba7bb26` feat(マイカツ君)：`@keyframes cbob-slow`（振幅3px）を新設し、STAGE_DEF の stage 4 の anim を `none` → **`cbob-slow 2.8s ease-in-out infinite`** に変更。stage 5 の `cbob`（振幅7px/1.2s・元気）は無変更。他stage（7/6/5/3/2/1）・状態表現ロジックは無変更。ブラウザ実測：stage4=cbob-slow/2.8s、stage5=cbob/1.2s で差を確認
+  - `d348d9c` docs(handover)：前回反映（カンジー書き採点失敗時のLINE案内）の記録
+- **反映前の main（切り戻し先）：`a70c639dd3171671233852800a5727e9b5ca6e89`**（＝`a70c639`）
+- **マージコミット：`2ea7807b24861b9531850a8f544fb80b19646ac7`**（＝`2ea7807`）
+- 版バッジ：`20260918-0403`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `2ea7807` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`2ea7807…` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show HEAD:` blob と完全一致
+  - index `5e6f9127…` / view `aa19da3f…` / admin `8802ed87…`
+- 配信 index.html に `@keyframes cbob-slow` と `cbob-slow 2.8s ease-in-out infinite` が載っていること、stage 5 の `cbob 1.2s ease-in-out infinite` が温存されていることを確認
+- ゲート：`origin/main..dev` は2本のみ（想定通り＝`ba7bb26` マイカツ君揺れ／`d348d9c` HANDOVER記録）／CLAUDE.md ゲート判定数値=4（keyframes追加2行 + stage4 anim変更の -1/+1）／admin・view の差分は版バッジ・`?v=` スタンプのみ／想定外の混入なし
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 2ea7807b24861b9531850a8f544fb80b19646ac7 && git push origin main && git checkout dev
+  ```
