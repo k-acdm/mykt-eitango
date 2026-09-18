@@ -1540,3 +1540,26 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 2ea7807b24861b9531850a8f544fb80b19646ac7 && git push origin main && git checkout dev
   ```
+
+## 2026-09-18 本番反映：アバター服（種別A）完成画像72枚 + 組み合わせ表示 + itemId 読取
+
+- 反映内容（dev→main マージ、4 コミット。生徒画面 index.html + 画像72枚。**服は全て非公開＝生徒の見た目に変化なし**）
+  - `8af3106` feat(アバター)：服の完成画像72枚 `images/avatar/outfits/AV0000001〜072.png`（887×1774・透過）を配置（A-1）
+  - `1573ae1` feat(アバター)：`AVATAR_OUTFIT_MAP`（base×tops×bottoms→AV番号1〜72、Excel対応表どおり）を定数化。`_renderAvatarSlot`（ホーム）/`showAvatarCorner`（コーナー）の人体 img を `_avatarBodyImgPath()` で決定（装着 tops/bottoms の item_code→対応表）。未装着・不明な組合せ・onerror は素体 `base_*.png` に安全フォールバック（割れ防止）。`_applyEquipResult` でホーム+コーナーを即再描画（A-3/A-5）。背景表示は無改修
+  - `a0c7362` fix(アバター)：`_equipItemCode` を `itemId || itemCode || item_code || code` に変更（サーバー実キー itemId＝AvatarActions.php:424 を最優先。従来 itemId が読めず常に素体に落ちていた不具合を解消）
+  - `9e3239f` docs(handover)：マイカツ君 stage 4 ゆらぎ追加の本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`2ea7807b24861b9531850a8f544fb80b19646ac7`**（＝`2ea7807`）
+- **マージコミット：`ba56bb5e73f8138ef30582bf8239c0a9760f1870`**（＝`ba56bb5`）
+- 版バッジ：`20260918-1615`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `ba56bb5` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`ba56bb5…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の LF blob と完全一致
+  - index `8ee226e9…` / view `50107967…` / admin `f5483856…`
+- 反映後、配信物そのもので確認したこと
+  - **`images/avatar/outfits/AV0000001〜072` の72枚すべて本番配信**（HTTP 206/200・未配信0、AV0000001 は 887×1774 実測）。マージ diff で全72枚 `create mode 100644`＝新規
+  - 配信 index.html に `AVATAR_OUTFIT_MAP`・`function _avatarBodyImgPath`・`detail.itemId ||`・`_applyAvatarCornerBody`・`AVATAR_OUTFIT_DIR` が載っている
+  - **服は全て非公開（予告）のまま**：フロントは「装着済みの tops/bottoms の描画」だけを変更。装着可否（購入・equip）はサーバー側で非公開のため生徒は服を装着できず、生徒の見た目に変化は出ない
+  - ゲート：`origin/main..dev` は4本のみ（想定通り＝`a0c7362`/`1573ae1`/`8af3106`/`9e3239f`）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 ba56bb5e73f8138ef30582bf8239c0a9760f1870 && git push origin main && git checkout dev
+  ```
