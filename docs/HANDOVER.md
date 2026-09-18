@@ -1602,3 +1602,25 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 ef57550f794498b5d6430cfce5137c4c60d4778b && git push origin main && git checkout dev
   ```
+
+## 2026-09-19 本番反映：アバター オーラ中間層（Phase2 種別B）を実装＋オーラ画像12枚を配置
+
+- 反映内容（dev→main マージ、3 コミット。生徒画面 index.html の実装＋画像追加）
+  - `9c506af` feat(アバター)：オーラ画像12枚 `aura_01`〜`aura_12` を `images/avatar/aura/` に新設配置（共通1枚・base非依存）
+  - `99847a0` feat(アバター)：オーラ中間層を実装（**背景 z:0 の上・人体 z:1 の下**に重ねる 1:1 overlay）。`.avatar-aura-img`（PC 240px/max200px・モバイル 180px/max150px）、ホーム/コーナー2枠に `#avatar-aura-img`／`#avatar-corner-aura-img` を追加。`_avatarAuraImgPath()`＝`equippedDetails.aura` の itemId（`_equipItemCode`）を `images/avatar/aura/<code>.png` に解決、未装着は `''`。`_applyAuraImg()` で src 反映＋読み込み失敗/未装着は非表示（割れ画像を出さない）。ベース未設定（プレースホルダ）ではオーラも非表示
+  - `c8bc1e7` docs(handover)：アバター画像タップ遷移外し（`ef57550`）の本番反映を記録（前回反映分の記録）
+  - **★ オーラは全て非公開（生徒はまだ装着不可）＝装着者ゼロのため見た目に変化なし**。装着経路が開くまで中間層は常に非表示
+- **反映前の main（切り戻し先）：`ef57550f794498b5d6430cfce5137c4c60d4778b`**（＝`ef57550`）
+- **マージコミット：`be58a2907fc105a9e582487517ca2202654bf5a8`**（＝`be58a29`）
+- 版バッジ：`20260919-0027`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `be58a29` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`be58a29…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `f79ed591…` / view `0b14b0be…` / admin `b6b87b94…`
+- 反映後、配信物そのもので確認したこと
+  - **オーラ画像12枚すべて本番配信（`aura_01`〜`aura_12` HTTP 200・未配信0）**、各 Content-Length が origin/main の blob サイズと一致
+  - 配信 index.html に `avatar-aura-img`＝6箇所ヒット（CSS 2＋img要素 2＋JS適用 2）＝オーラ中間層が確実に載っている
+  - ゲート：`origin/main..dev` は3本のみ（想定通り＝`99847a0` オーラ中間層／`9c506af` オーラ画像12枚／`c8bc1e7` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 be58a2907fc105a9e582487517ca2202654bf5a8 && git push origin main && git checkout dev
+  ```
