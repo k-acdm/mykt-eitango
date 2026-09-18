@@ -53,6 +53,9 @@
     .dictation-notice { background: linear-gradient(135deg, #fff5f5, #ffe8e8); border: 2px solid #e74c3c; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
     .dictation-notice .notice-title { color: #e74c3c; font-size: 17px; font-weight: bold; margin-bottom: 10px; }
     .dictation-notice .notice-body { font-size: 14px; color: #333; line-height: 1.9; }
+    /* 2026-09-19：撮影画面の共通注意帯（写真がカメラロールに溜まる件）。淡い黄背景＋濃いオレンジ枠/文字・太字・横長・角丸 */
+    .photo-storage-note { margin: 18px 0 4px; padding: 10px 14px; background: #fff8e1; border: 2px solid #f59e0b; border-radius: 10px; color: #b45309; font-size: 13px; font-weight: bold; line-height: 1.6; text-align: center; }
+    @media (max-width: 480px) { .photo-storage-note { font-size: 12px; padding: 9px 12px; } }
     .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,.7); z-index: 9998; justify-content: center; align-items: center; }
     .modal-overlay.active { display: flex; }
     .modal-overlay img { max-width: 95vw; max-height: 90vh; border-radius: 8px; }
@@ -3499,10 +3502,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260919-0027"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260919-0459"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260919-0027">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260919-0027"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260919-0459">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260919-0459"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4487,6 +4490,7 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px;display:none" onclick="showLevelSelect()">← レベル選択に戻る</button>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="photoEscapeToHome('eiken5', true)">🏠 ホーム画面に戻る</button>
+    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 <div id="screen-test" class="screen">
@@ -4676,6 +4680,7 @@
       </div>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
+    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 <div id="screen-sango-done" class="screen">
@@ -4763,6 +4768,7 @@
       </a>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="wabun1HomeFromTopic()">📚 学習コンテンツ画面に戻る</button>
+    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -5015,6 +5021,7 @@
       もう一度ログインして「📐 基礎計算」→ <strong>同じ単元・同じ問題数</strong> を選べば、<strong>同じ問題で自動で再開</strong>できるよ。
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-kiso-pre-confirm')">← 戻る</button>
+    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -5054,6 +5061,7 @@
     </div>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="photoEscapeToHome('kiso', true)">🏠 ホーム画面に戻る</button>
+    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -5287,6 +5295,7 @@
     <div id="mytask-photo-list" class="mytask-photo-list"></div>
     <button class="btn-wide" id="mytask-capture-next-btn" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:14px" onclick="goMyTaskSelfConfirm()" disabled>確認へ進む ▶</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskSelfEntry()">← 戻る</button>
+    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -5375,6 +5384,7 @@
     <div id="mytask-hw-photo-list" class="mytask-photo-list"></div>
     <button class="btn-wide" id="mytask-hw-capture-next-btn" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:14px" onclick="goMyTaskHwMore()" disabled>次へ ▶</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskHwNotice()">← 戻る</button>
+    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -5468,6 +5478,7 @@
     </div>
     <button id="oriwantes-send-btn" class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:10px" onclick="sendOriwantesMessage()">📨 この教科で伝える</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
+    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -5875,6 +5886,7 @@
          ★カメラが開かず撮影画面まで行けない生徒も、一度失敗していればここから抜けられる。
          ★既定は非表示。失敗していなければ出さない（押せない）。 -->
     <button class="btn-wide" id="photo-escape-kanji-kaki" style="display:none;margin-top:10px;background:linear-gradient(135deg,#94a3b8,#64748b);font-size:14px" onclick="photoEscapeToHome('kanji')">📱 写真送信が上手くいかない場合はこれを押してホーム画面へ</button>
+    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -23804,7 +23816,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260919-0027</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260919-0459</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
