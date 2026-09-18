@@ -1582,3 +1582,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 e76deb18ede7b4d674bfcc7790de584db1f58d7f && git push origin main && git checkout dev
   ```
+
+## 2026-09-18 本番反映：ホームのアバター画像タップ→ショップ遷移を外す（ミスタップ防止）
+
+- 反映内容（dev→main マージ、2 コミット。生徒画面 index.html の変更）
+  - `a4a5684` fix(ホーム)：ホームの `#avatar-slot` から `onclick="onAvatarSlotTap()"` / `role="button"` / `tabindex="0"` を除去し、アバター画像タップでのショップ（コーナー）遷移を無効化（ミスタップ防止）。クリック可能な見た目も無効化（`#avatar-slot { cursor:default }`＋hover の拡大/影を none、`#avatar-slot` 限定でコーナー枠は無影響）。**アバターショップ入口はホーム下部の「✨ アバターショップ ✨」ボタン（`#card-avatar-corner` / `onAvatarCardTap`）が温存**（未選択→選択画面 / 選択済→コーナー画面の分岐も健在）。`onAvatarSlotTap`/`onAvatarCardTap` 関数・アバター表示（背景/服/立ち位置）は無変更
+  - `7ab3eae` docs(handover)：背景37枚 圧縮版差し替えの本番反映を記録（前回反映分の記録）
+- **反映前の main（切り戻し先）：`e76deb18ede7b4d674bfcc7790de584db1f58d7f`**（＝`e76deb1`）
+- **マージコミット：`ef57550f794498b5d6430cfce5137c4c60d4778b`**（＝`ef57550`）
+- 版バッジ：`20260918-2347`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `ef57550` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`ef57550…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の LF blob と完全一致
+  - index `84b124e9…` / view `8ca53f12…` / admin `2f91e768…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html の `#avatar-slot` に `onclick="onAvatarSlotTap"` の直接付与＝0（タップ遷移が外れた）／`#avatar-slot { cursor: default }`＝1
+  - 下部入口 `id="card-avatar-corner" onclick="onAvatarCardTap"`＝1（温存）／`function onAvatarSlotTap` 定義＝1（健在）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`a4a5684` タップ遷移外し／`7ab3eae` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 ef57550f794498b5d6430cfce5137c4c60d4778b && git push origin main && git checkout dev
+  ```
