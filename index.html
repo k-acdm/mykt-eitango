@@ -3490,10 +3490,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260918-0403"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260918-1607"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260918-0403">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260918-0403"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260918-1607">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260918-1607"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9058,6 +9058,78 @@
     neutral: 'images/avatar/base_neutral.png'
   };
 
+  // ===== A-2：服の完成画像 対応表（種別A、images/avatar/outfits/AV0000001〜072）=====
+  // base × tops_code × bottoms_code → AV 番号（1〜72）。ファイルは AV + 7桁ゼロ埋め。
+  // Excel 対応表シート（item_code 変換済み）の並びどおりに生成する：
+  //   ・トップスのみ（ボトムスなし）：AV1-12
+  //   ・ボトムスのみ（トップスなし）：AV13-24
+  //   ・トップス×ボトムス：AV25-72
+  // 並び順：base = boy→girl→neutral、tops = 001,002,007,008、bottoms = 001,002,004,003。
+  //   （bottoms は「ジーンズ001→チノパン002→プリーツ004→ハーフ003」の順＝Excel どおり）
+  var AVATAR_OUTFIT_DIR     = 'images/avatar/outfits/';
+  var _OUTFIT_BASE_ORDER    = ['boy', 'girl', 'neutral'];
+  var _OUTFIT_TOPS_ORDER    = ['tops_001', 'tops_002', 'tops_007', 'tops_008'];
+  var _OUTFIT_BOTTOMS_ORDER = ['bottoms_001', 'bottoms_002', 'bottoms_004', 'bottoms_003'];
+  function _outfitKey(base, topsCode, bottomsCode) {
+    return String(base || '') + '|' + String(topsCode || '') + '|' + String(bottomsCode || '');
+  }
+  var AVATAR_OUTFIT_MAP = (function(){
+    var m = {}, n = 1, bi, ti, bj;
+    // トップスのみ（ボトムスなし）：AV1-12
+    for (bi = 0; bi < _OUTFIT_BASE_ORDER.length; bi++)
+      for (ti = 0; ti < _OUTFIT_TOPS_ORDER.length; ti++)
+        m[_outfitKey(_OUTFIT_BASE_ORDER[bi], _OUTFIT_TOPS_ORDER[ti], '')] = n++;
+    // ボトムスのみ（トップスなし）：AV13-24
+    for (bi = 0; bi < _OUTFIT_BASE_ORDER.length; bi++)
+      for (bj = 0; bj < _OUTFIT_BOTTOMS_ORDER.length; bj++)
+        m[_outfitKey(_OUTFIT_BASE_ORDER[bi], '', _OUTFIT_BOTTOMS_ORDER[bj])] = n++;
+    // トップス×ボトムス：AV25-72（base→tops→bottoms の順）
+    for (bi = 0; bi < _OUTFIT_BASE_ORDER.length; bi++)
+      for (ti = 0; ti < _OUTFIT_TOPS_ORDER.length; ti++)
+        for (bj = 0; bj < _OUTFIT_BOTTOMS_ORDER.length; bj++)
+          m[_outfitKey(_OUTFIT_BASE_ORDER[bi], _OUTFIT_TOPS_ORDER[ti], _OUTFIT_BOTTOMS_ORDER[bj])] = n++;
+    return m;
+  })();
+  // AV 番号 → outfits 画像パス（AV0000001.png 形式、7桁ゼロ埋め）
+  function _outfitAvPath(avNum) {
+    var s = String(avNum);
+    while (s.length < 7) s = '0' + s;
+    return AVATAR_OUTFIT_DIR + 'AV' + s + '.png';
+  }
+  // equippedDetails['tops'] / ['bottoms'] から item_code を取り出す。
+  //   ★サーバーのフィールド名ゆらぎに防御的（itemCode / item_code / code のいずれか）。
+  function _equipItemCode(detail) {
+    if (!detail || typeof detail !== 'object') return '';
+    return String(detail.itemCode || detail.item_code || detail.code || '');
+  }
+  // A-3：base + 装着中 tops/bottoms から、表示すべき人体（服）画像パスを決める。
+  //   ・トップスもボトムスも未装着 → 素体 base_*.png
+  //   ・対応表に無い組み合わせ → 素体 base_*.png に安全に落とす（割れ画像を出さない）
+  function _avatarBodyImgPath() {
+    var base = _avatarState.base;
+    if (!base || !AVATAR_BASE_IMG[base]) return '';   // base 未設定は呼び出し側で扱う
+    var d = _avatarState.equippedDetails || {};
+    var topsCode    = _equipItemCode(d.tops);
+    var bottomsCode = _equipItemCode(d.bottoms);
+    if (!topsCode && !bottomsCode) return AVATAR_BASE_IMG[base];   // 未装着＝素体
+    var avNum = AVATAR_OUTFIT_MAP[_outfitKey(base, topsCode, bottomsCode)];
+    if (!avNum) return AVATAR_BASE_IMG[base];   // 対応表に無い組み合わせ → 素体
+    return _outfitAvPath(avNum);
+  }
+  // コーナー枠の人体 img を _avatarBodyImgPath で設定（onerror で素体にフォールバック＝割れ防止）。
+  function _applyAvatarCornerBody() {
+    var img = document.getElementById('avatar-corner-img');
+    var base = _avatarState.base;
+    if (!img || !base || !AVATAR_BASE_IMG[base]) return;
+    var baseSrc = AVATAR_BASE_IMG[base];
+    img.onerror = function(){
+      if (baseSrc && (img.getAttribute('src') || '').indexOf(baseSrc) === -1) { img.onerror = null; img.src = baseSrc; return; }
+      img.onerror = null;
+    };
+    img.src = _avatarBodyImgPath();
+    img.style.display = '';
+  }
+
   // 2026-05-16 v2：アバター画像をページ読込時にブラウザキャッシュへ先読みする。
   // showWelcome での即時描画で img.src を切り替えても、画像本体がブラウザキャッシュに
   // 無いとデコードに時間がかかり、見た目上「空白 → アバター」になる。ここで Image()
@@ -9141,7 +9213,8 @@
     if (!img || !placeholder || !nameEl) return;
     var base = _avatarState.base;
     if (base && AVATAR_BASE_IMG[base]) {
-      var newSrc = AVATAR_BASE_IMG[base];
+      // A-3：装着中の tops/bottoms 組み合わせに応じた完成画像。未装着・不明は素体に落ちる。
+      var newSrc = _avatarBodyImgPath() || AVATAR_BASE_IMG[base];
       // 設定済み：プレースホルダー「？」は一切表示せず、img を即座に display 化。
       // 画像が DOM 上に乗るまでの空白期間も、placeholder ではなく透過状態にする。
       placeholder.style.display = 'none';
@@ -9158,7 +9231,16 @@
           img.onerror = null;
         };
         img.onload  = _fadeIn;
-        img.onerror = _fadeIn; // 読み込みに失敗してもとりあえず表示状態にする
+        // 服の完成画像が読めなければ素体 base_*.png に1回だけフォールバック（割れ画像防止）。
+        img.onerror = function(){
+          var baseSrc = AVATAR_BASE_IMG[base];
+          if (baseSrc && (img.getAttribute('src') || '').indexOf(baseSrc) === -1) {
+            img.onerror = _fadeIn;   // フォールバック画像でも失敗したら通常表示扱い
+            img.src = baseSrc;
+            return;
+          }
+          _fadeIn();
+        };
         img.src = newSrc;
         // ブラウザキャッシュにあり onload が即発火しなかった場合のフォールバック
         if (img.complete && img.naturalWidth > 0) _fadeIn();
@@ -9284,9 +9366,9 @@
       showAvatarSelect();
       return;
     }
-    var img = document.getElementById('avatar-corner-img');
     var nm  = document.getElementById('avatar-corner-name');
-    if (img && AVATAR_BASE_IMG[_avatarState.base]) { img.src = AVATAR_BASE_IMG[_avatarState.base]; img.style.display = ''; }
+    // A-3：コーナー枠も組み合わせ画像で描画（未装着・不明は素体、onerror で割れ防止）。
+    _applyAvatarCornerBody();
     if (nm)  nm.textContent  = _avatarState.nickname || '';
     // 3 分割ステージ：季節モチーフ注入 + 背景画像適用（ホームと同じ挙動）
     _renderAvatarSeasonal('avatar-corner-seasonal');
@@ -9619,7 +9701,9 @@
     _avatarState.equipped        = (res.equipped && typeof res.equipped === 'object') ? res.equipped : {};
     _avatarState.equippedDetails = (res.equippedDetails && typeof res.equippedDetails === 'object') ? res.equippedDetails : {};
     try { _invalidateCacheByAction('getAvatarState'); } catch(e){}
-    _renderAvatarSlot(); // ホーム側ステージの背景を即時反映
+    // A-5：着替え（tops/bottoms 変更）を即座に見た目へ反映。
+    _renderAvatarSlot();          // ホーム枠：背景 + 人体（服の組み合わせ）を再描画
+    _applyAvatarCornerBody();     // コーナー枠：人体（服の組み合わせ）を再描画
     // アバターコーナーが表示中なら背景も更新
     _applyStageBackground(
       document.getElementById('avatar-corner-stage'),
@@ -23674,7 +23758,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260918-0403</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260918-1607</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
