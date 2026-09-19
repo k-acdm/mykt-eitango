@@ -909,7 +909,7 @@
        季節モチーフ（D：JS で月別に桜/雲/紅葉/雪を生成）でアバターに温度感を持たせる。
        2026-05-15 強化版：ステージの横幅を縦と同程度（≒正方形）に拡大、季節モチーフの
        個数と視認性を上げ、微光・楕円スポットの明るさを強める（誕生日サプライズより控えめ）。 */
-    .avatar-home-row { display: flex; justify-content: center; margin: 6px 0 12px; }
+    .avatar-home-row { display: flex; justify-content: center; align-items: flex-end; gap: 4px; margin: 6px 0 12px; }
     /* ステージ枠：縦 ≒ 横の正方形寄り（min-width で横幅を明示確保、padding は左右余裕） */
     .avatar-stage { position: relative; padding: 20px 56px 18px; min-width: 320px; background: linear-gradient(180deg, rgba(243,240,255,.85) 0%, rgba(232,226,254,.9) 100%); border-radius: 22px; overflow: hidden; box-shadow: inset 0 0 28px rgba(167,139,250,.2); }
     /* 演出 C：ステージ風の微光（柔らかい放射グラデが脈動）。
@@ -975,14 +975,17 @@
        ★has-bg の非表示リストには含めない＝背景装着時も置物を残す（ふくち方針：背景と置物を両立）。 */
     .avatar-deco-zone { position: absolute; z-index: 3; pointer-events: none; display: flex; gap: 4px; }
     .avatar-deco-zone .avatar-deco-img { display: block; height: auto; object-fit: contain; border-radius: 8px; filter: drop-shadow(0 2px 4px rgba(0,0,0,.22)); }
-    /* 足元：ペット＝中央やや左（内側=中央寄り）／小物＝中央やや右。row/row-reverse で内→外。 */
-    .avatar-deco-pets  { bottom: 10px; right: 50%; margin-right: 8px; flex-direction: row-reverse; align-items: flex-end; }
-    .avatar-deco-items { bottom: 10px; left: 50%;  margin-left: 8px;  flex-direction: row;         align-items: flex-end; }
+    /* 足元：ペット＝中央やや左（内側=中央寄り）／小物＝中央やや右。row/row-reverse で内→外。
+       段階2修正②：bottom をアバターの足元ライン（stage 下端から約36px）に合わせ、
+       アバターと同じ地面に並んで立って見えるようにする。 */
+    .avatar-deco-pets  { bottom: 36px; right: 50%; margin-right: 8px; flex-direction: row-reverse; align-items: flex-end; }
+    .avatar-deco-items { bottom: 36px; left: 50%;  margin-left: 8px;  flex-direction: row;         align-items: flex-end; }
     .avatar-deco-pets  .avatar-deco-img,
     .avatar-deco-items .avatar-deco-img { width: 52px; }
-    /* 左：コラボ縦4／右：バッジ縦4。column-reverse で下→上（_1 が最下段）。 */
-    .avatar-deco-collab { left: 3px;  bottom: 10px; flex-direction: column-reverse; align-items: center; width: 46px; }
-    .avatar-deco-trophy { right: 3px; bottom: 10px; flex-direction: column-reverse; align-items: center; width: 46px; }
+    /* 段階2修正①：コラボ＝枠の【外】左／バッジ＝枠の【外】右。.avatar-home-row の flex 子として
+       static 化し、枠の左右に縦列を作る（column-reverse で下→上・_1 が最下段）。
+       padding-bottom で列の下端をアバターの足元ライン付近まで持ち上げる。 */
+    .avatar-deco-collab, .avatar-deco-trophy { position: static; flex-direction: column-reverse; align-items: center; width: 46px; padding-bottom: 24px; }
     .avatar-deco-collab .avatar-deco-img,
     .avatar-deco-trophy .avatar-deco-img { width: 100%; }
     .avatar-slot:hover .avatar-placeholder { transform: scale(1.04); background: rgba(200,220,255,.4); }
@@ -1088,10 +1091,11 @@
     @media (max-width: 480px) {
       .avatar-deco { width: 34px; bottom: 10px; }
       /* 段階2：置物系レイヤーのモバイル縮小（左右縦4つが枠内に収まるように）。 */
-      .avatar-deco-pets, .avatar-deco-items { bottom: 8px; }
+      /* 修正②：モバイルでも足元ライン（stage 下端から約35px）に合わせる。 */
+      .avatar-deco-pets, .avatar-deco-items { bottom: 35px; }
       .avatar-deco-pets  .avatar-deco-img,
       .avatar-deco-items .avatar-deco-img { width: 40px; }
-      .avatar-deco-collab, .avatar-deco-trophy { width: 30px; bottom: 8px; gap: 3px; }
+      .avatar-deco-collab, .avatar-deco-trophy { width: 30px; gap: 3px; padding-bottom: 18px; }
       .avatar-item-thumb, .avatar-item-thumb-ph { height: 92px; }
       .avatar-shop-balance .val { font-size: 22px; }
       .avatar-cat-btn-ico { font-size: 28px; }
@@ -3523,10 +3527,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-0020"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-0409"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-0020">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-0020"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-0409">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-0409"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4027,6 +4031,8 @@
            2026-05-15 演出追加：avatar-stage で薄ラベンダー枠 + 楕円スポット + 微光 +
            季節モチーフ（JS で月別生成）を重ねて、アバターに温度感を持たせる。 -->
       <div class="avatar-home-row">
+        <!-- 段階2修正①：コラボ＝枠の外・左（縦4・下→上） -->
+        <div class="avatar-deco-zone avatar-deco-collab" id="avatar-collab-zone" aria-hidden="true"></div>
         <div class="avatar-stage" id="avatar-home-stage">
           <!-- 背景画像は .avatar-stage 全体に cover で敷く（2026-09 Step3：wrap内→stage直下へ移動） -->
           <img class="avatar-bg-img" id="avatar-bg-img" alt="" aria-hidden="true" style="display:none">
@@ -4036,10 +4042,7 @@
           <!-- 左右の飾りゾーン置物（将来バッジ/トロフィー置き場、今はマイカツ君） -->
           <img class="avatar-deco left"  src="./character.jpg" alt="" aria-hidden="true">
           <img class="avatar-deco right" src="./character.jpg" alt="" aria-hidden="true">
-          <!-- 段階2：置物系4種の定位置レイヤー（スロット制。has-bg でも残す＝背景と両立）。
-               中身は _renderAvatarDecoZone が equippedDetails のスロット順に描画。 -->
-          <div class="avatar-deco-zone avatar-deco-collab" id="avatar-collab-zone" aria-hidden="true"></div>
-          <div class="avatar-deco-zone avatar-deco-trophy" id="avatar-trophy-zone" aria-hidden="true"></div>
+          <!-- 段階2：足元の置物（ペット＝中央やや左・小物＝中央やや右）は枠の中に残す（足元ライン）。 -->
           <div class="avatar-deco-zone avatar-deco-pets"   id="avatar-pets-zone"   aria-hidden="true"></div>
           <div class="avatar-deco-zone avatar-deco-items"  id="avatar-items-zone"  aria-hidden="true"></div>
           <!-- 2026-09：アバター画像のタップ遷移を除去（ミスタップ防止）。入口はホーム下部の
@@ -4054,6 +4057,8 @@
             <div class="avatar-name" id="avatar-name">アバターを選ぶ</div>
           </div>
         </div>
+        <!-- 段階2修正①：バッジ＝枠の外・右（縦4・下→上） -->
+        <div class="avatar-deco-zone avatar-deco-trophy" id="avatar-trophy-zone" aria-hidden="true"></div>
       </div>
       <!-- 2026-06-16：称号＋連続ログインをアバター枠の直下へ移動＋強調表示 -->
       <div class="chara-status-row" style="text-align:center">
@@ -4360,6 +4365,8 @@
     <div class="avatar-corner-wrap">
       <!-- 3 分割ステージ（ホームと同じ構造。背景適用時は花吹雪/オーラを隠して背景画像を中央に表示） -->
       <div class="avatar-home-row" style="margin-bottom:8px">
+        <!-- 段階2修正①：コラボ＝枠の外・左（縦4・下→上） -->
+        <div class="avatar-deco-zone avatar-deco-collab" id="avatar-corner-collab-zone" aria-hidden="true"></div>
         <div class="avatar-stage" id="avatar-corner-stage">
           <!-- 背景画像は .avatar-stage 全体に cover で敷く（2026-09 Step3：wrap内→stage直下へ移動） -->
           <img class="avatar-bg-img" id="avatar-corner-bg-img" alt="" aria-hidden="true" style="display:none">
@@ -4368,9 +4375,7 @@
           <div class="avatar-stage-spot"></div>
           <img class="avatar-deco left"  src="./character.jpg" alt="" aria-hidden="true">
           <img class="avatar-deco right" src="./character.jpg" alt="" aria-hidden="true">
-          <!-- 段階2：置物系4種の定位置レイヤー（コーナー枠。has-bg でも残す）。 -->
-          <div class="avatar-deco-zone avatar-deco-collab" id="avatar-corner-collab-zone" aria-hidden="true"></div>
-          <div class="avatar-deco-zone avatar-deco-trophy" id="avatar-corner-trophy-zone" aria-hidden="true"></div>
+          <!-- 段階2：足元の置物（ペット・小物）はコーナー枠の中に残す（足元ライン）。 -->
           <div class="avatar-deco-zone avatar-deco-pets"   id="avatar-corner-pets-zone"   aria-hidden="true"></div>
           <div class="avatar-deco-zone avatar-deco-items"  id="avatar-corner-items-zone"  aria-hidden="true"></div>
           <div class="avatar-slot" style="cursor:default">
@@ -4381,6 +4386,8 @@
             </div>
           </div>
         </div>
+        <!-- 段階2修正①：バッジ＝枠の外・右（縦4・下→上） -->
+        <div class="avatar-deco-zone avatar-deco-trophy" id="avatar-corner-trophy-zone" aria-hidden="true"></div>
       </div>
       <div class="avatar-corner-name" id="avatar-corner-name"></div>
       <button class="avatar-corner-change-btn" onclick="showAvatarSelect()">アバターを変更する</button>
@@ -23912,7 +23919,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-0020</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-0409</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
