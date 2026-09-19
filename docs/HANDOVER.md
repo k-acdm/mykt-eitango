@@ -1643,3 +1643,27 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 dddeaac0300bfb1c94a6fb4532a9103cbb8422ab && git push origin main && git checkout dev
   ```
+
+## 2026-09-20 本番反映：アバター段階2 置物系4種の定位置描画＋置物画像77枚配置
+
+- 反映内容（dev→main マージ、4 コミット。生徒画面。★置物は全て非公開＝生徒の見た目に変化なし）
+  - `ee1280e` feat(アバター)：コラボ背景15枚 `collab_01`〜`collab_15` を `images/avatar/collab/` に新設配置（DB collab_001〜015 紐付け用）
+  - `3e70a8c` feat(アバター)：置物系62枚を新設配置（`item_01`〜20 / `pet_01`〜15 / `trophy_01`〜27）
+  - `d2ca5e2` feat(アバター)：段階2 置物系4種を定位置に描画。`.avatar-stage` に置物4ゾーン（`avatar-deco-zone`＝collab/trophy/pets/items、z:3で背景/服/オーラの前面）を新設。`equippedDetails` のスロット別キー（pet_1/2・item_1/2・collab_1〜4・trophy_1〜4）をスロット順に描画（ペット/小物=足元・内→外／コラボ=左縦4・下→上／バッジ=右縦4・下→上）。imagePath 優先＋itemId フォールバック。未装着スロットは出さず onerror で割れ防止。**has-bg の非表示リストに含めない＝背景装着時も置物を残す（背景と両立）**。ホーム枠/コーナー枠の両方、着け外し即反映。置物がある側のマイカツ君プレースホルダ deco のみ隠す（無い側は従来表示＝回帰なし）
+  - `1e58cba` docs(handover)：撮影画面9箇所の写真容量注意帯の本番反映を記録（前回反映分）
+  - **★ 置物は全て非公開（予告）＝生徒はまだ装着不可。equippedDetails にスロットが入らない限り描画されないため見た目に変化なし**
+- **反映前の main（切り戻し先）：`dddeaac0300bfb1c94a6fb4532a9103cbb8422ab`**（＝`dddeaac`）
+- **マージコミット：`1f248f39ee946a6989ad25e709aa548fd2577293`**（＝`1f248f3`）
+- 版バッジ：`20260920-0020`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `1f248f3` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`1f248f3…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `7d2fd14d…` / view `bf464205…` / admin `658a4123…`
+- 反映後、配信物そのもので確認したこと
+  - **置物画像77枚すべて本番配信（HTTP 200・未配信0）**：collab 15 / item 20 / pet 15 / trophy 27
+  - 配信 index.html に `avatar-deco-zone`＝10ヒット（CSS 4＋ホーム枠4＋コーナー枠…実装分）＝置物描画ロジックが確実に載っている
+  - 置物は全て非公開のまま（描画はスロット装着時のみ＝生徒の見た目に影響なし）
+  - ゲート：`origin/main..dev` は4本のみ（想定通り＝`d2ca5e2` 置物描画／`3e70a8c` 置物62枚／`ee1280e` コラボ15枚／`1e58cba` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 1f248f39ee946a6989ad25e709aa548fd2577293 && git push origin main && git checkout dev
+  ```
