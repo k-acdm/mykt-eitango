@@ -1624,3 +1624,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 be58a2907fc105a9e582487517ca2202654bf5a8 && git push origin main && git checkout dev
   ```
+
+## 2026-09-19 本番反映：撮影画面9箇所に「写真がスマホに溜まる」注意帯を追加（CSSのみ）
+
+- 背景：撮った写真がカメラロールに溜まり「容量不足で撮れない」を防ぐため、各撮影画面の下部に整理を促す注意帯を常時表示
+- 反映内容（dev→main マージ、2 コミット）
+  - `a82db59` feat(撮影画面)：共通CSS `.photo-storage-note`（淡い黄背景 #fff8e1 + 濃いオレンジ枠 #f59e0b/文字 #b45309・太字・横長・角丸・≤480pxで縮小）を新設し、確定文面「📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。」を **9撮影画面の下部（コンテナ末尾）** に同一文面で追加。対象：dictation / sango-photo / wabun1-topic / kiso-work-intro / kiso-answer-intro / mytask-self-capture / mytask-hw-capture / oriwantes-create / kanji-kaki。**#6 kiso-work-after（もう1枚追加）は重複回避で除外**。撮影ロジック・file input（capture 10個健在）・他注意帯（reload-warn等）は無変更（表示のみ）
+  - `1d10d94` docs(handover)：前回反映（アバター オーラ中間層＋オーラ画像12枚）の記録
+- **反映前の main（切り戻し先）：`be58a2907fc105a9e582487517ca2202654bf5a8`**（＝`be58a29`）
+- **マージコミット：`dddeaac0300bfb1c94a6fb4532a9103cbb8422ab`**（＝`dddeaac`）
+- 版バッジ：`20260919-0459`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `dddeaac` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`dddeaac…` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show HEAD:` blob と完全一致
+  - index `45103c2f…` / view `71b49e80…` / admin `cb4abe99…`
+- 配信 index.html に `.photo-storage-note` CSS定義と、`class="photo-storage-note"` が **9箇所** 載っていることを確認（モバイル375pxで太字・目立つ配色・横長・はみ出しなしを実機確認）
+- ゲート：`origin/main..dev` は2本のみ（想定通り＝`a82db59` 注意帯／`1d10d94` HANDOVER記録）／CLAUDE.md ゲート判定数値=12（CSS 3行＋注意帯9箇所）／admin・view の差分は版バッジ・`?v=` スタンプのみ／想定外の混入なし
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 dddeaac0300bfb1c94a6fb4532a9103cbb8422ab && git push origin main && git checkout dev
+  ```
