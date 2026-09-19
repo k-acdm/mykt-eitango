@@ -969,6 +969,22 @@
     .avatar-deco { position: absolute; bottom: 12px; width: 46px; height: auto; z-index: 3; opacity: .92; pointer-events: none; filter: drop-shadow(0 2px 4px rgba(0,0,0,.18)); border-radius: 8px; }
     .avatar-deco.left  { left: 4px;  transform: rotate(-6deg); }
     .avatar-deco.right { right: 4px; transform: rotate(6deg) scaleX(-1); }
+    /* 段階2：置物系4種の定位置レイヤー（背景/服/オーラの前面。z:3＝マイカツ君 deco と同層）。
+       スロット制（pet_1/2・item_1/2・collab_1〜4・trophy_1〜4）を定位置に描画。
+       内→外・下→上の並びは flex 方向で制御（描画は _1→_2→… の順に append）。
+       ★has-bg の非表示リストには含めない＝背景装着時も置物を残す（ふくち方針：背景と置物を両立）。 */
+    .avatar-deco-zone { position: absolute; z-index: 3; pointer-events: none; display: flex; gap: 4px; }
+    .avatar-deco-zone .avatar-deco-img { display: block; height: auto; object-fit: contain; border-radius: 8px; filter: drop-shadow(0 2px 4px rgba(0,0,0,.22)); }
+    /* 足元：ペット＝中央やや左（内側=中央寄り）／小物＝中央やや右。row/row-reverse で内→外。 */
+    .avatar-deco-pets  { bottom: 10px; right: 50%; margin-right: 8px; flex-direction: row-reverse; align-items: flex-end; }
+    .avatar-deco-items { bottom: 10px; left: 50%;  margin-left: 8px;  flex-direction: row;         align-items: flex-end; }
+    .avatar-deco-pets  .avatar-deco-img,
+    .avatar-deco-items .avatar-deco-img { width: 52px; }
+    /* 左：コラボ縦4／右：バッジ縦4。column-reverse で下→上（_1 が最下段）。 */
+    .avatar-deco-collab { left: 3px;  bottom: 10px; flex-direction: column-reverse; align-items: center; width: 46px; }
+    .avatar-deco-trophy { right: 3px; bottom: 10px; flex-direction: column-reverse; align-items: center; width: 46px; }
+    .avatar-deco-collab .avatar-deco-img,
+    .avatar-deco-trophy .avatar-deco-img { width: 100%; }
     .avatar-slot:hover .avatar-placeholder { transform: scale(1.04); background: rgba(200,220,255,.4); }
     .avatar-slot .avatar-name { font-size: 13px; color: #666; font-weight: bold; margin-top: 4px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .avatar-slot .avatar-name.placeholder-label { color: #7c3aed; }
@@ -1071,6 +1087,11 @@
     .amazon-gift-applied-box { background: #eff6ff; border: 2px solid #93c5fd; border-radius: 14px; padding: 16px; text-align: center; color: #1e40af; font-weight: bold; line-height: 1.7; }
     @media (max-width: 480px) {
       .avatar-deco { width: 34px; bottom: 10px; }
+      /* 段階2：置物系レイヤーのモバイル縮小（左右縦4つが枠内に収まるように）。 */
+      .avatar-deco-pets, .avatar-deco-items { bottom: 8px; }
+      .avatar-deco-pets  .avatar-deco-img,
+      .avatar-deco-items .avatar-deco-img { width: 40px; }
+      .avatar-deco-collab, .avatar-deco-trophy { width: 30px; bottom: 8px; gap: 3px; }
       .avatar-item-thumb, .avatar-item-thumb-ph { height: 92px; }
       .avatar-shop-balance .val { font-size: 22px; }
       .avatar-cat-btn-ico { font-size: 28px; }
@@ -3502,10 +3523,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260919-0459"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-0020"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260919-0459">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260919-0459"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-0020">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-0020"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4015,6 +4036,12 @@
           <!-- 左右の飾りゾーン置物（将来バッジ/トロフィー置き場、今はマイカツ君） -->
           <img class="avatar-deco left"  src="./character.jpg" alt="" aria-hidden="true">
           <img class="avatar-deco right" src="./character.jpg" alt="" aria-hidden="true">
+          <!-- 段階2：置物系4種の定位置レイヤー（スロット制。has-bg でも残す＝背景と両立）。
+               中身は _renderAvatarDecoZone が equippedDetails のスロット順に描画。 -->
+          <div class="avatar-deco-zone avatar-deco-collab" id="avatar-collab-zone" aria-hidden="true"></div>
+          <div class="avatar-deco-zone avatar-deco-trophy" id="avatar-trophy-zone" aria-hidden="true"></div>
+          <div class="avatar-deco-zone avatar-deco-pets"   id="avatar-pets-zone"   aria-hidden="true"></div>
+          <div class="avatar-deco-zone avatar-deco-items"  id="avatar-items-zone"  aria-hidden="true"></div>
           <!-- 2026-09：アバター画像のタップ遷移を除去（ミスタップ防止）。入口はホーム下部の
                「✨ アバターショップ ✨」ボタン（#card-avatar-corner）が残る。onclick/role/tabindex を外す。 -->
           <div class="avatar-slot" id="avatar-slot">
@@ -4341,6 +4368,11 @@
           <div class="avatar-stage-spot"></div>
           <img class="avatar-deco left"  src="./character.jpg" alt="" aria-hidden="true">
           <img class="avatar-deco right" src="./character.jpg" alt="" aria-hidden="true">
+          <!-- 段階2：置物系4種の定位置レイヤー（コーナー枠。has-bg でも残す）。 -->
+          <div class="avatar-deco-zone avatar-deco-collab" id="avatar-corner-collab-zone" aria-hidden="true"></div>
+          <div class="avatar-deco-zone avatar-deco-trophy" id="avatar-corner-trophy-zone" aria-hidden="true"></div>
+          <div class="avatar-deco-zone avatar-deco-pets"   id="avatar-corner-pets-zone"   aria-hidden="true"></div>
+          <div class="avatar-deco-zone avatar-deco-items"  id="avatar-corner-items-zone"  aria-hidden="true"></div>
           <div class="avatar-slot" style="cursor:default">
             <div class="avatar-wrap">
               <!-- Phase2：オーラ中間層（背景の上・人体の下）。 -->
@@ -9167,6 +9199,66 @@
     imgEl.src = src;
     imgEl.style.display = '';
   }
+  // ===== 段階2：置物系4種（ペット・小物・コラボ・バッジ）の定位置描画 =====
+  //   段階0のスロット制（サーバー）の返り値を使う。getAvatarState / equip 系は equippedDetails に
+  //   スロット別キー（pet_1/pet_2・item_1/item_2・collab_1〜4・trophy_1〜4）を返す。
+  //   スロット順（_1→_2→…）に読み、装着済みだけ定位置ゾーンへ <img> を append する
+  //   （内→外・下→上の見た目は CSS の flex 方向で実現）。未装着スロットは何も出さない。
+  var AVATAR_DECO_SLOTS = {
+    pet:    { prefix: 'pet',    folder: 'pet',    max: 2 },
+    item:   { prefix: 'item',   folder: 'item',   max: 2 },
+    collab: { prefix: 'collab', folder: 'collab', max: 4 },
+    trophy: { prefix: 'trophy', folder: 'trophy', max: 4 }
+  };
+  // 置物スロットの画像パス。image_path 紐付け済み（imagePath）を最優先、無ければ itemId から
+  //   フォルダ規約で合成（服/オーラと同流儀）。どちらも無ければ '' を返す（呼び出し側で出さない）。
+  function _avatarDecoSlotPath(detail, folder) {
+    if (!detail || typeof detail !== 'object') return '';
+    if (detail.imagePath) return String(detail.imagePath);
+    var code = _equipItemCode(detail);
+    if (!code) return '';
+    return 'images/avatar/' + folder + '/' + code + '.png';
+  }
+  // 1 ゾーン（cat=pet/item/collab/trophy）を再描画。既存の子を消してスロット順に append。
+  function _renderAvatarDecoZone(zoneEl, cat) {
+    if (!zoneEl) return;
+    zoneEl.innerHTML = '';
+    var conf = AVATAR_DECO_SLOTS[cat];
+    if (!conf) return;
+    var d = _avatarState.equippedDetails || {};
+    for (var i = 1; i <= conf.max; i++) {
+      var src = _avatarDecoSlotPath(d[conf.prefix + '_' + i], conf.folder);
+      if (!src) continue;                                  // 未装着スロットは出さない（空きは表示しない）
+      var img = document.createElement('img');
+      img.className = 'avatar-deco-img';
+      img.alt = '';
+      img.setAttribute('aria-hidden', 'true');
+      img.onerror = (function(el){ return function(){ el.onerror = null; el.style.display = 'none'; }; })(img);   // 画像無しは非表示（割れない）
+      img.src = src;
+      zoneEl.appendChild(img);
+    }
+  }
+  // 指定ステージ（ホーム/コーナー）の 4 ゾーンをまとめて再描画。
+  //   併せて、置物がある側のマイカツ君プレースホルダ deco を隠す（無い側は従来表示＝回帰なし）。
+  //   ※has-bg 時は CSS が deco を !important で隠すので、ここでの display='' は影響しない。
+  function _renderAvatarDecosForStage(stageId, ids) {
+    _renderAvatarDecoZone(document.getElementById(ids.collab), 'collab');
+    _renderAvatarDecoZone(document.getElementById(ids.trophy), 'trophy');
+    _renderAvatarDecoZone(document.getElementById(ids.pets),   'pet');
+    _renderAvatarDecoZone(document.getElementById(ids.items),  'item');
+    var stage = document.getElementById(stageId);
+    if (!stage) return;
+    var d = _avatarState.equippedDetails || {};
+    var hasLeft  = !!(d.collab_1 || d.collab_2 || d.collab_3 || d.collab_4);   // 左＝コラボ
+    var hasRight = !!(d.trophy_1 || d.trophy_2 || d.trophy_3 || d.trophy_4);   // 右＝バッジ
+    var decoLeft  = stage.querySelector('.avatar-deco.left');
+    var decoRight = stage.querySelector('.avatar-deco.right');
+    if (decoLeft)  decoLeft.style.display  = hasLeft  ? 'none' : '';
+    if (decoRight) decoRight.style.display = hasRight ? 'none' : '';
+  }
+  var AVATAR_DECO_HOME_IDS   = { collab: 'avatar-collab-zone',        trophy: 'avatar-trophy-zone',        pets: 'avatar-pets-zone',        items: 'avatar-items-zone' };
+  var AVATAR_DECO_CORNER_IDS = { collab: 'avatar-corner-collab-zone', trophy: 'avatar-corner-trophy-zone', pets: 'avatar-corner-pets-zone', items: 'avatar-corner-items-zone' };
+
   // コーナー枠の人体 img を _avatarBodyImgPath で設定（onerror で素体にフォールバック＝割れ防止）。
   function _applyAvatarCornerBody() {
     var img = document.getElementById('avatar-corner-img');
@@ -9181,6 +9273,8 @@
     img.style.display = '';
     // Phase2：コーナー枠のオーラ中間層も反映（未装着は非表示）。
     _applyAuraImg(document.getElementById('avatar-corner-aura-img'));
+    // 段階2：コーナー枠の置物系4種も定位置に再描画（背景と両立）。
+    _renderAvatarDecosForStage('avatar-corner-stage', AVATAR_DECO_CORNER_IDS);
   }
 
   // 2026-05-16 v2：アバター画像をページ読込時にブラウザキャッシュへ先読みする。
@@ -9263,6 +9357,8 @@
       document.getElementById('avatar-home-stage'),
       document.getElementById('avatar-bg-img'),
       _avatarBgPath());
+    // 段階2：置物系4種（背景と両立＝has-bg でも残す）を定位置に再描画。
+    _renderAvatarDecosForStage('avatar-home-stage', AVATAR_DECO_HOME_IDS);
     if (!img || !placeholder || !nameEl) return;
     var base = _avatarState.base;
     if (base && AVATAR_BASE_IMG[base]) {
@@ -23816,7 +23912,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260919-0459</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-0020</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
