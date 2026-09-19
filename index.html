@@ -978,8 +978,9 @@
     /* 足元：ペット＝中央やや左（内側=中央寄り）／小物＝中央やや右。row/row-reverse で内→外。
        段階2修正②：bottom をアバターの足元ライン（stage 下端から約36px）に合わせ、
        アバターと同じ地面に並んで立って見えるようにする。 */
-    .avatar-deco-pets  { bottom: 36px; right: 50%; margin-right: 8px; flex-direction: row-reverse; align-items: flex-end; }
-    .avatar-deco-items { bottom: 36px; left: 50%;  margin-left: 8px;  flex-direction: row;         align-items: flex-end; }
+    /* 段階2追修：内側の置物がアバターの足先を隠さないよう、中央から外側へ寄せる（margin 8→38px）。高さ(bottom)は不変。 */
+    .avatar-deco-pets  { bottom: 36px; right: 50%; margin-right: 38px; flex-direction: row-reverse; align-items: flex-end; }
+    .avatar-deco-items { bottom: 36px; left: 50%;  margin-left: 38px;  flex-direction: row;         align-items: flex-end; }
     .avatar-deco-pets  .avatar-deco-img,
     .avatar-deco-items .avatar-deco-img { width: 52px; }
     /* 段階2修正①：コラボ＝枠の【外】左／バッジ＝枠の【外】右。.avatar-home-row の flex 子として
@@ -1092,7 +1093,9 @@
       .avatar-deco { width: 34px; bottom: 10px; }
       /* 段階2：置物系レイヤーのモバイル縮小（左右縦4つが枠内に収まるように）。 */
       /* 修正②：モバイルでも足元ライン（stage 下端から約35px）に合わせる。 */
-      .avatar-deco-pets, .avatar-deco-items { bottom: 35px; }
+      /* 追修：モバイルは枠が狭いので内側マージンは 30px（足先を出しつつ外側置物が枠で切れない範囲）。 */
+      .avatar-deco-pets  { bottom: 35px; margin-right: 30px; }
+      .avatar-deco-items { bottom: 35px; margin-left: 30px; }
       .avatar-deco-pets  .avatar-deco-img,
       .avatar-deco-items .avatar-deco-img { width: 40px; }
       .avatar-deco-collab, .avatar-deco-trophy { width: 30px; gap: 3px; padding-bottom: 18px; }
@@ -3527,10 +3530,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-0409"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-0430"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-0409">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-0409"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-0430">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-0430"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -23919,7 +23922,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-0409</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-0430</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
