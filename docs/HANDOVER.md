@@ -1667,3 +1667,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 1f248f39ee946a6989ad25e709aa548fd2577293 && git push origin main && git checkout dev
   ```
+
+## 2026-09-20 本番反映：アバター置物 段階2 配置修正①②（枠外コラボ/バッジ・足元ライン）
+
+- 背景：段階2で置物を描画したが配置が指示と相違。①コラボ/バッジを枠の外へ、②ペット/小物をアバター足元ラインへ、の2点修正。※置物は非公開のまま＝生徒への表示影響なし
+- 反映内容（dev→main マージ、2 コミット）
+  - `68d6474` fix(アバター置物)：**修正①** collab（左）/trophy（右）ゾーンを `.avatar-stage` の【外】へ移動（`.avatar-home-row` を flex `align-items:flex-end` にし、collab=stage前・trophy=stage後の枠外縦列に。CSS で collab/trophy を `position:static` 化・`column-reverse` 下→上・_1が最下段。ホーム/コーナー両方）。**修正②** ペット/小物の `bottom` を 10px→**36px**（モバイル 8px→**35px**）に上げ、アバター足元ライン（stage下端から約36px、実測差 -1〜-3px）へ整合。描画ロジック（`_renderAvatarDecoZone` 等）は無変更、段階0スロット制の返り値をそのまま使用。空状態はマイカツ君 deco 復活（回帰なし）
+  - `a648703` docs(handover)：前回反映（段階2 置物描画＋画像77枚）の記録
+- **反映前の main（切り戻し先）：`1f248f39ee946a6989ad25e709aa548fd2577293`**（＝`1f248f3`）
+- **マージコミット：`c20a03c356d69832d882f9d614752a6d40f0e355`**（＝`c20a03c`）
+- 版バッジ：`20260920-0409`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `c20a03c` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`c20a03c…` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show HEAD:` blob と完全一致
+  - index `3a6aa682…` / view `223d5fa1…` / admin `065915c1…`
+- 配信 index.html に `.avatar-deco-collab, .avatar-deco-trophy { position: static …}` と `bottom: 36px`（足元ライン）が載っていることを確認
+- 検証（ブラウザ実測 desktop900 / mobile375、ホーム・コーナー両方）：コラボ=枠外左に縦4（下→上）/ バッジ=枠外右に縦4 / ペット・小物=足元ライン（差 -1〜-3px）/ モバイル横スクロールなし（row303・stage240）/ 背景・服・オーラ・本体は従来どおり
+- ゲート：`origin/main..dev` は2本のみ（想定通り＝`68d6474` 配置修正／`a648703` HANDOVER記録）／CLAUDE.md ゲート判定数値=39（CSS 4箇所＋DOM 6箇所の移動・コメント）／admin・view の差分は版バッジ・`?v=` スタンプのみ／想定外の混入なし
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 c20a03c356d69832d882f9d614752a6d40f0e355 && git push origin main && git checkout dev
+  ```
