@@ -1752,3 +1752,27 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 742c874a9624c1fe84c0530e59e1928076146164 && git push origin main && git checkout dev
   ```
+
+## 2026-09-20 本番反映：バッジ保管庫の見た目改善（4段の棚＋戻り位置＋名称変更）
+
+- 反映内容（dev→main マージ、2 コミット。生徒画面。★バッジは非公開＝生徒の見た目に変化なし）
+  - `73d3c77` feat(アバター)：段階C-1 の見た目改善3点。
+    - **修正①**：保管庫を閉じる → `goHomeToAvatar()`（`goHome()` 後に `#screen-welcome .avatar-home-row` を `scrollIntoView({block:'center'})`）でアバター行（アバター＋置物＋バッジ＋きせかえ/保管庫ボタン）が見える位置へ戻す（最上部でない）。smooth はブラウザにより不発のため instant、フォールバック（`window.scrollTo` 計算）も実装
+    - **修正②-a**：枠外左右（コラボ左／バッジ右）を「4段の棚」に。`.avatar-deco-collab / .avatar-deco-trophy` の `:not(:empty)` 時のみ木目の保管庫背景を出し、各画像の下に棚板（`border-bottom`）を敷いて置物/バッジが各段に乗って見えるように。**配置（段階2：下→上4つ）は不変**＝背景と棚板を足すだけ。**未所持（ゾーン空）は従来どおり透明**（`:not(:empty)` ガード＝回帰なし）。ホーム/コーナー共通クラスのため両方に適用
+    - **修正②-b**：名称変更「バッジ棚」→「バッジ保管庫」（入口ボタン・画面ヘッダー）、「棚を閉じる」→「保管庫を閉じる」（上下2箇所）、intro「棚に飾れる」→「保管庫に飾れる」。関数名（`showBadgeShelf` 等）・入れ替え/拡大ロジックは不変
+  - `cfceff4` docs(handover)：バッジ飾り棚UI（段階C-1）の本番反映を記録（前回反映分）
+  - **★ バッジは非公開＝生徒はまだ所持しないため保管庫は空、枠外ゾーンも空（透明）＝見た目に影響なし**
+- **反映前の main（切り戻し先）：`742c874a9624c1fe84c0530e59e1928076146164`**（＝`742c874`）
+- **マージコミット：`f4d047f5a04ddb4abaeeab8bc16c9343033161dd`**（＝`f4d047f`）
+- 版バッジ：`20260920-2134`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `f4d047f` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`f4d047f…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `b08d186a…` / view `5141058a…` / admin `cfe661f3…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `バッジ保管庫`＝2／`保管庫を閉じる`＝2／`goHomeToAvatar`＝4／棚CSS `:not(:empty)`＝4＝名称変更・戻り関数・4段の棚が確実に載っている
+  - バッジは非公開のまま（生徒の見た目に影響なし）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`73d3c77` 保管庫の見た目改善／`cfceff4` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 f4d047f5a04ddb4abaeeab8bc16c9343033161dd && git push origin main && git checkout dev
+  ```
