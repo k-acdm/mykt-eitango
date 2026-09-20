@@ -3598,10 +3598,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-2134"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-2154"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-2134">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-2134"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-2154">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-2154"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9916,7 +9916,7 @@
     var cats = Array.isArray(res.categories) ? res.categories : [];
     var cat = null;
     for (var i = 0; i < cats.length; i++) { if (cats[i].categoryKey === 'trophy') { cat = cats[i]; break; } }
-    var intro = '<div class="badge-shelf-intro">🏆 がんばって手に入れたバッジを飾ろう！<br>保管庫に飾れるのは ' + (cat ? _catSlotLimit(cat, res) : 4) + ' つまで。バッジをタップすると大きく見られるよ。</div>';
+    var intro = '<div class="badge-shelf-intro">🏆 がんばって手に入れたバッジを飾ろう！<br>棚に飾れるのは ' + (cat ? _catSlotLimit(cat, res) : 4) + ' つまで。バッジをタップすると大きく見られるよ。</div>';
     if (!cat || !Array.isArray(cat.items) || cat.items.length === 0) {
       body.innerHTML = intro + '<div class="badge-shelf-empty">まだバッジがありません。<br>学習をがんばって、いろいろなバッジを集めよう！</div>';
       return;
@@ -24241,7 +24241,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-2134</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-2154</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
