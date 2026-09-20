@@ -1837,3 +1837,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 8e8c4b526b4c30c9a508b742817ada31db26784c && git push origin main && git checkout dev
   ```
+
+## 2026-09-21 本番反映：アバターショップ副題の文言修正
+
+- 反映内容（dev→main マージ、2 コミット。生徒画面。★文言1箇所のみ。★服・ショップは非公開のままで生徒にアバター/着せ替えは見えない＝見た目の実変化なし）
+  - `17d3816` fix(アバター)：ホームのアバターショップ副題（[index.html](index.html) `.avatar-corner-home-sub`）を「アバターを変更したり、着せ替えで楽しもう（着せ替えは近日公開）」→「アバターや背景を変更したり、着せ替えを楽しもう！」に更新。公開に向け「着せ替えは近日公開」を外し前向きな案内に。背景も変更対象のため「アバターや背景を」に。★HP交換副題「交換は近日公開」（[index.html](index.html) `.hp-check-home-sub`）は別件のため不変
+  - `4dd7ad3` docs(handover)：①服の試着・購入前プレビューの本番反映を記録（前回反映分）
+  - **★ 文言のみの修正。服カテゴリは予告のまま・アバター機能自体は非公開のため、生徒の見た目に実変化なし**
+- **反映前の main（切り戻し先）：`8e8c4b526b4c30c9a508b742817ada31db26784c`**（＝`8e8c4b5`）
+- **マージコミット：`32c78a63f70023007d55d364db5fd37a4a411633`**（＝`32c78a6`）
+- 版バッジ：`20260921-0524`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `32c78a6` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`32c78a6…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `93b7ca1e…` / view `2d4fbd7c…` / admin `7b689c77…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に新副題「アバターや背景を変更したり、着せ替えを楽しもう！」＝1件／「着せ替えは近日公開」＝0件／HP交換「交換は近日公開」＝1件（不変）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`17d3816` 副題修正／`4dd7ad3` HANDOVER記録）／index の実質差分は副題1行のみ／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 32c78a63f70023007d55d364db5fd37a4a411633 && git push origin main && git checkout dev
+  ```
