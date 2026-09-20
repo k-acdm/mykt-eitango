@@ -989,6 +989,25 @@
     .avatar-deco-collab, .avatar-deco-trophy { position: static; flex-direction: column-reverse; align-items: center; width: 46px; padding-bottom: 24px; }
     .avatar-deco-collab .avatar-deco-img,
     .avatar-deco-trophy .avatar-deco-img { width: 100%; }
+    /* 段階C-1 修正②-a：枠外左右を「4段の棚」に。アイテムがある時だけ（:not(:empty)）木目の
+       保管庫を表示し、各画像の下に棚板を敷いて「棚に乗っている」ように見せる。
+       置物・バッジの配置（段階2：下→上4つ）は不変＝背景と棚板を足すだけ。空きゾーンは従来どおり透明。 */
+    .avatar-deco-collab:not(:empty), .avatar-deco-trophy:not(:empty) {
+      background-color: #e9c9a1;
+      background-image: linear-gradient(180deg, rgba(255,255,255,.28) 0%, rgba(0,0,0,.05) 100%);
+      border: 1px solid #a9764e;
+      border-bottom: 5px solid #8a5f3d;
+      border-radius: 7px 7px 4px 4px;
+      box-shadow: inset 0 1px 3px rgba(255,255,255,.45), 0 2px 6px rgba(0,0,0,.16);
+      padding-top: 4px;
+    }
+    .avatar-deco-collab:not(:empty) .avatar-deco-img,
+    .avatar-deco-trophy:not(:empty) .avatar-deco-img {
+      border-bottom: 5px solid #a9764e;   /* 各段の棚板（画像の真下・自動整列） */
+      border-radius: 6px 6px 2px 2px;
+      background: rgba(255,255,255,.35);   /* 棚板の上に薄く敷いて立体感 */
+      box-shadow: 0 2px 3px rgba(0,0,0,.18);
+    }
     .avatar-slot:hover .avatar-placeholder { transform: scale(1.04); background: rgba(200,220,255,.4); }
     .avatar-slot .avatar-name { font-size: 13px; color: #666; font-weight: bold; margin-top: 4px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .avatar-slot .avatar-name.placeholder-label { color: #7c3aed; }
@@ -3579,10 +3598,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-2058"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-2134"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-2058">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-2058"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-2134">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-2134"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4115,7 +4134,7 @@
       <!-- 段階B：クローゼットへのリンク（枠の左下）。段階C-1：バッジ棚（枠の右下）。 -->
       <div class="avatar-closet-link-row">
         <button type="button" class="avatar-closet-link" onclick="showAvatarCloset()">👕 きせかえ</button>
-        <button type="button" class="avatar-shelf-link" onclick="showBadgeShelf()">🏆 バッジ棚</button>
+        <button type="button" class="avatar-shelf-link" onclick="showBadgeShelf()">🏆 バッジ保管庫</button>
       </div>
       <!-- 2026-06-16：称号＋連続ログインをアバター枠の直下へ移動＋強調表示 -->
       <div class="chara-status-row" style="text-align:center">
@@ -4499,11 +4518,11 @@
 </div>
 <!-- 段階C-1：バッジ飾り棚（枠外右下の入口から。装着枠4＋所持バッジ、B の trophy 入れ替えロジックを流用） -->
 <div id="screen-badge-shelf" class="screen">
-  <header><h1>🏆 バッジ棚</h1></header>
+  <header><h1>🏆 バッジ保管庫</h1></header>
   <div class="container" style="padding-top:20px">
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">🚪 棚を閉じる</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHomeToAvatar()">🚪 保管庫を閉じる</button>
     <div id="badge-shelf-body"><div class="avatar-shop-loading">読み込み中…</div></div>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🚪 棚を閉じる</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHomeToAvatar()">🚪 保管庫を閉じる</button>
   </div>
 </div>
 <!-- 段階C-1：バッジ拡大モーダル（.modal-overlay を流用・名前つき） -->
@@ -9897,7 +9916,7 @@
     var cats = Array.isArray(res.categories) ? res.categories : [];
     var cat = null;
     for (var i = 0; i < cats.length; i++) { if (cats[i].categoryKey === 'trophy') { cat = cats[i]; break; } }
-    var intro = '<div class="badge-shelf-intro">🏆 がんばって手に入れたバッジを飾ろう！<br>棚に飾れるのは ' + (cat ? _catSlotLimit(cat, res) : 4) + ' つまで。バッジをタップすると大きく見られるよ。</div>';
+    var intro = '<div class="badge-shelf-intro">🏆 がんばって手に入れたバッジを飾ろう！<br>保管庫に飾れるのは ' + (cat ? _catSlotLimit(cat, res) : 4) + ' つまで。バッジをタップすると大きく見られるよ。</div>';
     if (!cat || !Array.isArray(cat.items) || cat.items.length === 0) {
       body.innerHTML = intro + '<div class="badge-shelf-empty">まだバッジがありません。<br>学習をがんばって、いろいろなバッジを集めよう！</div>';
       return;
@@ -11270,6 +11289,23 @@
     } catch(e){ console.error('[goHome] _loadAvatarStateOnHome', e); }
     // 両輪 Phase A：ホーム戻り時にも絶対ミッション進捗を再ロード（提出後の reserved / 達成を反映）
     try { loadRequiredProgress(); } catch(e){ console.error('[goHome] loadRequiredProgress', e); }
+  }
+  // 段階C-1 修正①：ホームに戻った後、アバター行（＝アバター＋置物＋バッジ＋きせかえ/保管庫ボタン）が
+  //   見える位置までスクロールする。保管庫を閉じたときに最上部でなくアバター周辺へ戻すため。
+  function goHomeToAvatar() {
+    goHome();
+    setTimeout(function(){
+      try {
+        var row = document.querySelector('#screen-welcome .avatar-home-row');
+        if (!row) return;
+        if (row.scrollIntoView) {
+          row.scrollIntoView({ block: 'center' });   // instant（smooth はブラウザにより不発のことがある）
+        } else {
+          var rc = row.getBoundingClientRect();
+          window.scrollTo(0, window.scrollY + rc.top + rc.height / 2 - window.innerHeight / 2);
+        }
+      } catch(e){ console.error('[goHomeToAvatar] scroll', e); }
+    }, 80);
   }
   // ================= ログアウト（振り返り必須化、2026-05-19 Phase C 全面リファクタ） =================
   // 旧 doLogout は confirm() ベース + 4 オーバーレイクリアだった。今回 Phase C で以下を変更：
@@ -24205,7 +24241,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-2058</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-2134</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
