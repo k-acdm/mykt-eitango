@@ -1067,6 +1067,9 @@
     .avatar-item-btn.buy:hover { filter: brightness(1.05); }
     .avatar-item-btn.owned { background: #e5e7eb; color: #6b7280; cursor: default; }
     .avatar-item-btn.soon  { background: #e5e7eb; color: #9ca3af; cursor: default; }
+    /* ①試着プレビュー：購入/装着の主ボタンの下に置く副ボタン（紫系＝装着系と統一） */
+    .avatar-item-btn.tryon { background: linear-gradient(135deg,#8b5cf6,#7c3aed); color: #fff; margin-top: 6px; }
+    .avatar-item-btn.tryon:hover { filter: brightness(1.05); }
     .avatar-item-rarity { font-size: 11px; color: #7c3aed; margin-bottom: 4px; }
     /* クローゼット */
     .avatar-closet-empty { text-align: center; color: #888; padding: 24px 10px; line-height: 1.7; }
@@ -1118,6 +1121,16 @@
     #badge-zoom-modal .badge-zoom-img { max-width: 80vw; max-height: 66vh; border-radius: 12px; }
     #badge-zoom-modal .badge-zoom-name { color: #fff; font-size: 17px; font-weight: bold; text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,.5); max-width: 88vw; }
     #badge-zoom-modal .badge-zoom-hint { color: rgba(255,255,255,.75); font-size: 12px; }
+    /* ①試着プレビュー モーダル（.modal-overlay を流用・名前つき） */
+    #avatar-tryon-modal .avatar-tryon-inner { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 92vw; background: #fff; border-radius: 16px; padding: 20px 18px; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+    #avatar-tryon-modal .avatar-tryon-ttl { font-size: 17px; font-weight: bold; color: #6d28d9; }
+    #avatar-tryon-modal .avatar-tryon-imgwrap { background: linear-gradient(180deg,#f8f6ff,#efeaff); border-radius: 14px; padding: 10px; }
+    #avatar-tryon-modal .avatar-tryon-img { max-width: 66vw; max-height: 54vh; border-radius: 10px; display: block; }
+    #avatar-tryon-modal .avatar-tryon-name { font-size: 15px; font-weight: bold; color: #374151; text-align: center; max-width: 84vw; }
+    #avatar-tryon-modal .avatar-tryon-note { font-size: 12px; color: #9ca3af; text-align: center; }
+    #avatar-tryon-modal .avatar-tryon-actions { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+    #avatar-tryon-modal .avatar-tryon-actions .avatar-item-btn { margin-top: 0; width: 100%; }
+    #avatar-tryon-modal .avatar-tryon-close { padding: 9px 22px; border: none; border-radius: 9px; background: #e5e7eb; color: #374151; font-size: 14px; font-weight: bold; cursor: pointer; }
     /* 段階C-2：バッジ初取得演出（誕生日サプライズの背景/紙吹雪/カード/ボタン資産を流用し、
        中央をバッジ画像のズームアップ＋発光にしたもの）。 */
     #screen-badge-acquire { position: relative; overflow: hidden; min-height: 100vh; background: linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%); }
@@ -3615,10 +3628,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-2224"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260921-0335"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-2224">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-2224"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260921-0335">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260921-0335"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4548,6 +4561,17 @@
     <img class="badge-zoom-img" id="badge-zoom-img" src="" alt="">
     <div class="badge-zoom-name" id="badge-zoom-name"></div>
     <div class="badge-zoom-hint">タップで閉じる</div>
+  </div>
+</div>
+<!-- ①試着プレビュー モーダル（.modal-overlay を流用・名前つき。純プレビュー＝サーバー/DB/HP に触れない） -->
+<div class="modal-overlay" id="avatar-tryon-modal" onclick="if(event.target===this)closeAvatarTryOn()">
+  <div class="avatar-tryon-inner">
+    <div class="avatar-tryon-ttl">👗 試着プレビュー</div>
+    <div class="avatar-tryon-imgwrap"><img class="avatar-tryon-img" id="avatar-tryon-img" src="" alt="試着プレビュー"></div>
+    <div class="avatar-tryon-name" id="avatar-tryon-name"></div>
+    <div class="avatar-tryon-note">いま着ている服に重ねた姿だよ（まだ交換していないよ）</div>
+    <div class="avatar-tryon-actions" id="avatar-tryon-actions"></div>
+    <button type="button" class="avatar-tryon-close" onclick="closeAvatarTryOn()">閉じる</button>
   </div>
 </div>
 <!-- Amazonギフト交換専用ページ（HP交換 Phase4 新規、2026-06-01） -->
@@ -9444,6 +9468,27 @@
     if (!avNum) return AVATAR_BASE_IMG[base];   // 対応表に無い組み合わせ → 素体
     return _outfitAvPath(avNum);
   }
+  // ①試着プレビュー用：生徒自身の base（_avatarState.base）を使い、tops/bottoms を引数で
+  //   差し替えて着姿パスを求める純関数。★_avatarState を一切書き換えない（痕跡ゼロ）。
+  //   対応表に無い組み合わせは素体に安全落ち（割れ画像を出さない）。
+  function _avatarBodyImgPathWith(topsCode, bottomsCode) {
+    var base = _avatarState.base;
+    if (!base || !AVATAR_BASE_IMG[base]) return '';
+    if (!topsCode && !bottomsCode) return AVATAR_BASE_IMG[base];
+    var avNum = AVATAR_OUTFIT_MAP[_outfitKey(base, topsCode, bottomsCode)];
+    if (!avNum) return AVATAR_BASE_IMG[base];
+    return _outfitAvPath(avNum);
+  }
+  // ①試着ボタンを出してよいか＝その服単体が生徒の base で着姿を描けるか（対応表に載るか）。
+  //   ★コード直書きせず AVATAR_OUTFIT_MAP を引く → 将来マップが増えれば自動で試着対象も拡大。
+  //   ★base 照合を必ず生徒自身の base で行う（boy に girl 画像を出さない）。
+  function _avatarCanTryOn(categoryKey, itemCode) {
+    var base = _avatarState.base;
+    if (!base || !AVATAR_BASE_IMG[base] || !itemCode) return false;
+    if (categoryKey === 'tops')    return !!AVATAR_OUTFIT_MAP[_outfitKey(base, itemCode, '')];
+    if (categoryKey === 'bottoms') return !!AVATAR_OUTFIT_MAP[_outfitKey(base, '', itemCode)];
+    return false;   // 着姿を描けるのは tops/bottoms のみ（outfit 等には出さない）
+  }
   // Phase2：装着中のオーラ画像パス。equippedDetails['aura'] の itemId（例 'aura_01'）を
   //   そのままファイル名にして images/avatar/aura/aura_NN.png（共通1枚・base非依存）。
   //   未装着なら '' を返す（呼び出し側で非表示）。※服/背景と同じ itemId 流儀（_equipItemCode）。
@@ -9966,6 +10011,10 @@
           if (it.owned)            html += '<button class="avatar-item-btn owned" disabled>所持済み</button>';
           else if (it.purchasable) html += '<button class="avatar-item-btn buy" onclick="buyAvatarItem(\'' + _avEsc(it.itemId) + '\')">交換する</button>';
           else                     html += '<button class="avatar-item-btn soon" disabled>近日公開</button>';
+          // ①試着：着姿を描ける服（対応表に載る tops/bottoms）だけに「試着する」を追加（素体落ちする服には出さない）
+          if (_avatarCanTryOn(categoryKey, it.itemId)) {
+            html += '<button class="avatar-item-btn tryon" onclick="tryOnAvatarItem(\'' + _avEsc(it.itemId) + '\',\'' + _avEsc(categoryKey) + '\')">👗 試着する</button>';
+          }
           html += '</div>';
         });
         html += '</div>';
@@ -9989,6 +10038,58 @@
       alert('🎉 ' + (res.message || '交換しました！'));
       showAvatarShop(true); // 残高 + 所持状態の反映のため再取得（開いていたカテゴリに戻す）
     }).catch(function(){ _avatarBuyInFlight = false; alert('交換できませんでした：通信エラー'); });
+  }
+
+  // ①試着プレビュー：現在の装着（equippedDetails.tops/.bottoms）に、試着する1点を重ねた姿を
+  //   モーダルで表示する。★_avatarState を一切書き換えない純プレビュー＝サーバー/DB/HP に触れず、
+  //   setAvatarEquip も submitExchange も呼ばない。閉じても状態は元のまま（痕跡ゼロ）。
+  function tryOnAvatarItem(itemId, categoryKey) {
+    var base = _avatarState.base;
+    if (!base || !AVATAR_BASE_IMG[base]) return;
+    var d = _avatarState.equippedDetails || {};
+    // 現在の装着を土台に、試着する1点だけ差し替える（もう片方の装着はそのまま重ねる）
+    var topsCode    = _equipItemCode(d.tops);
+    var bottomsCode = _equipItemCode(d.bottoms);
+    if (categoryKey === 'tops')         topsCode    = String(itemId || '');
+    else if (categoryKey === 'bottoms') bottomsCode = String(itemId || '');
+    else return;   // 着姿対象は tops/bottoms のみ
+    var src = _avatarBodyImgPathWith(topsCode, bottomsCode) || AVATAR_BASE_IMG[base];
+    var img = document.getElementById('avatar-tryon-img');
+    if (img) {
+      img.onerror = function(){   // 完成画像が読めなければ素体に1回だけフォールバック（割れ画像防止）
+        var baseSrc = AVATAR_BASE_IMG[base];
+        if (baseSrc && (img.getAttribute('src') || '').indexOf(baseSrc) === -1) { img.onerror = null; img.src = baseSrc; return; }
+        img.onerror = null;
+      };
+      img.src = src;
+    }
+    var it = _avatarShopItemCache[itemId];
+    var nameEl = document.getElementById('avatar-tryon-name');
+    if (nameEl) nameEl.textContent = (it && it.name) ? it.name : '';
+    // 交換導線（任意）：購入可能・未所持なら「これを交換する」を出す（★既存 buyAvatarItem を流用）。
+    var actEl = document.getElementById('avatar-tryon-actions');
+    if (actEl) {
+      actEl.innerHTML = '';
+      if (it && it.purchasable && !it.owned) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'avatar-item-btn buy';
+        btn.textContent = '💎 これを交換する（' + _avNum(it.price) + ' HP）';
+        btn.onclick = function(){ closeAvatarTryOn(); buyAvatarItem(itemId); };
+        actEl.appendChild(btn);
+      }
+    }
+    var modal = document.getElementById('avatar-tryon-modal');
+    if (modal) modal.classList.add('active');
+  }
+  // 試着を閉じる＝プレビューの痕跡を消すだけ（_avatarState は元から不変なので復元処理は不要）。
+  function closeAvatarTryOn() {
+    var modal = document.getElementById('avatar-tryon-modal');
+    if (modal) modal.classList.remove('active');
+    var img = document.getElementById('avatar-tryon-img');
+    if (img) { img.onerror = null; img.removeAttribute('src'); }
+    var actEl = document.getElementById('avatar-tryon-actions');
+    if (actEl) actEl.innerHTML = '';
   }
 
   // ---- Amazonギフト交換専用ページ（HP交換 Phase4）----
@@ -24415,7 +24516,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-2224</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260921-0335</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

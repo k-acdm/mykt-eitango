@@ -1795,3 +1795,24 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 350fab54335e5b62aa11347707d1e8e4aae80e1c && git push origin main && git checkout dev
   ```
+
+## 2026-09-20 本番反映：バッジ初取得演出（段階C-2）
+
+- 反映内容（dev→main マージ、2 コミット。生徒画面。★バッジ非公開・本付与前＝生徒の見た目に変化なし＝休眠コード）
+  - `1fe03ab` feat(アバター)：段階C-2 バッジ初取得演出。トリガー＝`_loadAvatarStateOnHome` の `getAvatarState` 応答で `res.newlyAcquiredBadges` があればホーム表示後に `_maybeShowBadgeAcquire` を発火。新画面 `screen-badge-acquire`（誕生日サプライズの bsurprise 背景/紙吹雪/カード/ボタン資産を流用）でバッジ画像を `@keyframes bsurprise-pop` でズームアップ＋発光＋トロフィー系紙吹雪。お祝いコピー「やったね！バッジをゲット！」＋バッジ名。複数同時獲得は「つぎへ▶」で順に（カウント n/N）、最後は「とじる」。とじる→ `markBadgeSeen(itemIds)` を fire-and-forget（誕生日 `markBirthdayGreetShown` と同型）＋ getAvatarState キャッシュ破棄→ホーム復帰。セッション既読 `_badgeAcquireShownIds` で再演出しない保険。誕生日サプライズ表示中はスキップ（順序で競合回避）。`#screen-badge-acquire { overflow:hidden }` でモバイル横はみ出し防止。保管庫(C-1)・置物・背景・服・オーラは無変更
+  - `34140ce` docs(handover)：保管庫 intro 文言修正（棚に飾れるのは）の本番反映を記録（前回反映分）
+  - **★ バッジは非公開・本付与前＝newlyAcquiredBadges が空のため演出は発火しない（休眠コード）＝生徒の見た目に影響なし**
+- **反映前の main（切り戻し先）：`350fab54335e5b62aa11347707d1e8e4aae80e1c`**（＝`350fab5`）
+- **マージコミット：`4d336f504feaeefa0383121b860a5881f013bbb4`**（＝`4d336f5`）
+- 版バッジ：`20260920-2224`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `4d336f5` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`4d336f5…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `ed9c24b1…` / view `97e73ddf…` / admin `cb939c97…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `screen-badge-acquire`＝3／`newlyAcquiredBadges`＝4／`markBadgeSeen`＝4／`_maybeShowBadgeAcquire`＝3／`やったね！バッジをゲット`＝1＝C-2演出（画面・トリガー・既読化）が確実に載っている
+  - バッジは非公開・本付与前＝演出は発火しない（生徒の見た目に影響なし）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`1fe03ab` C-2演出／`34140ce` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 4d336f504feaeefa0383121b860a5881f013bbb4 && git push origin main && git checkout dev
+  ```
