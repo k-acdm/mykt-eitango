@@ -1816,3 +1816,24 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 4d336f504feaeefa0383121b860a5881f013bbb4 && git push origin main && git checkout dev
   ```
+
+## 2026-09-21 本番反映：①服の試着・購入前プレビュー
+
+- 反映内容（dev→main マージ、2 コミット。生徒画面。★フロント純追加・サーバー/DB/HP 不変。★服・ショップは非公開＝生徒の見た目に変化なし）
+  - `dee8294` feat(アバター)：①服の試着・購入前プレビュー。ショップの tops/bottoms カードに「👗 試着する」を追加。現在の装着（equippedDetails.tops/.bottoms）に試着1点を重ねた姿を専用モーダル `#avatar-tryon-modal` で表示する純プレビュー。★`_avatarState` を一切書き換えない非破壊方式（`_avatarBodyImgPathWith(topsCode, bottomsCode)` で合成パスだけ算出）＝`setAvatarEquip`・`submitExchange` を呼ばず、サーバー/DB/HP に一切触れない。試着ボタンは `_avatarCanTryOn(categoryKey, itemCode)` が `AVATAR_OUTFIT_MAP` を引いて着姿を描ける服だけに動的表示（コード直書きなし＝将来マップ拡張で自動追従、素体落ちする服・outfit には出さない）。base 照合は必ず生徒自身の base（boy/girl/neutral 取り違えなし）。完成画像が読めなければ素体に安全落ち。交換導線は任意で購入可能・未所持時のみ既存 `buyAvatarItem` を流用。閉じたら痕跡ゼロ（元から不変なので復元処理不要）。C-2演出・保管庫・置物・背景・オーラ・服の既存表示は無変更（`_renderAvatarShopCategory` にボタン1行追加した以外はすべて新規追加）
+  - `897a011` docs(handover)：バッジ初取得演出（段階C-2）の本番反映を記録（前回反映分）
+  - **★ 服・ショップは非公開＝生徒の見た目に変化なし。試着は「見るだけ」の一時プレビューで既存の購入・装着導線は不変**
+- **反映前の main（切り戻し先）：`4d336f504feaeefa0383121b860a5881f013bbb4`**（＝`4d336f5`）
+- **マージコミット：`8e8c4b526b4c30c9a508b742817ada31db26784c`**（＝`8e8c4b5`）
+- 版バッジ：`20260921-0335`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `8e8c4b5` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`8e8c4b5…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `73c8ec1a…` / view `f1967b03…` / admin `15a5f891…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `tryOnAvatarItem`／`試着する`／`_avatarCanTryOn` 系が計7ヒット＝試着機能が確実に載っている
+  - ローカル検証（モック `_avatarState`+`getAvatarShop` 注入）：描ける服 tops_002 に試着ボタン出る／描けない tops_005・outfit には出ない／3 base で正しい別AV（boy=AV2・girl=AV6・neutral=AV10、取り違えなし）／現装着に重ねる合成（boy×tops_001＋bottoms_003=AV28、girl×tops_002＋bottoms_003=AV48）／閉じたら `_avatarState` 不変・`setAvatarEquip`=0回・`submitExchange`=0回／モバイル375px 横スクロールなし
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`dee8294` 試着／`897a011` HANDOVER記録）／index の実質差分は+101行の純追加のみ／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 8e8c4b526b4c30c9a508b742817ada31db26784c && git push origin main && git checkout dev
+  ```
