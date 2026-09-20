@@ -1731,3 +1731,24 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 8dc08dc0aa33210305d51c8c998d8352dc4043cf && git push origin main && git checkout dev
   ```
+
+## 2026-09-20 本番反映：バッジ飾り棚UI（段階C-1）
+
+- 反映内容（dev→main マージ、2 コミット。生徒画面。★バッジは非公開＝生徒の見た目に変化なし）
+  - `06766a1` feat(アバター)：段階C-1 バッジ飾り棚UI。ホーム `.avatar-home-row` 直下・右下に「🏆バッジ棚」入口ボタン（左下＝👕きせかえ と対）→ `showBadgeShelf()`。新画面 `screen-badge-shelf`（trophy カテゴリ専用ビュー）＝金色の棚意匠（`.badge-shelf-rack`）に**装着枠4＋所持バッジ一覧**。飾る＝`equipAvatarItem`／しまう＝`unequipAvatarSlot(slotKey='trophy_n')`＝**段階B の入れ替えロジックを流用（重複実装なし）**。再描画は `_afterEquipReRender()` が「開いている画面（クローゼット/バッジ棚）」に分岐し B・C-1 が同じ equip/unequip を共有。各バッジ画像タップ→ `openBadgeZoom`（既存 `.modal-overlay` 流用・名前つき拡大）。「棚を閉じる」→ `goHome()`。排他カテゴリ（背景/服/オーラ）・置物クローゼット（段階B）は無変更。初取得演出（C-2、newlyAcquiredBadges）は未着手
+  - `747a771` docs(handover)：置物入れ替えUI（段階B）＋人体3体差し替えの本番反映を記録（前回反映分）
+  - **★ バッジは非公開（本付与は公開直前）＝生徒はまだ所持しないため飾り棚は空表示、見た目に影響なし**
+- **反映前の main（切り戻し先）：`8dc08dc0aa33210305d51c8c998d8352dc4043cf`**（＝`8dc08dc`）
+- **マージコミット：`742c874a9624c1fe84c0530e59e1928076146164`**（＝`742c874`）
+- 版バッジ：`20260920-2058`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `742c874` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`742c874…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `4a403803…` / view `08fd01c6…` / admin `51300d7a…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `showBadgeShelf`＝3／`screen-badge-shelf`＝3／`badge-shelf-rack`＝4／`openBadgeZoom`＝3／`avatar-shelf-link`＝3＝バッジ飾り棚UI（入口・棚・拡大）が確実に載っている
+  - バッジは非公開のまま（生徒の見た目に影響なし）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`06766a1` バッジ飾り棚／`747a771` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 742c874a9624c1fe84c0530e59e1928076146164 && git push origin main && git checkout dev
+  ```
