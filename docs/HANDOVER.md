@@ -1776,3 +1776,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 f4d047f5a04ddb4abaeeab8bc16c9343033161dd && git push origin main && git checkout dev
   ```
+
+## 2026-09-20 本番反映：バッジ保管庫 intro 文言修正（「棚に飾れるのは」に戻す）
+
+- 反映内容（dev→main マージ、2 コミット。生徒画面。★バッジは非公開＝生徒の見た目に変化なし）
+  - `5c3e588` fix(アバター)：保管庫画面 intro（`_renderBadgeShelf`）の文言を「保管庫に飾れるのは 4 つまで。」→**「棚に飾れるのは 4 つまで。」**の1箇所のみ修正（飾る先は枠外の「棚」が正しいため）。入口ボタン「バッジ保管庫」・ヘッダー「バッジ保管庫」・「保管庫を閉じる」×2 の名称は変更なし。関数名・入れ替え/拡大ロジックも不変
+  - `7876578` docs(handover)：バッジ保管庫の見た目改善（4段の棚＋戻り位置＋名称）の本番反映を記録（前回反映分）
+- **反映前の main（切り戻し先）：`f4d047f5a04ddb4abaeeab8bc16c9343033161dd`**（＝`f4d047f`）
+- **マージコミット：`350fab54335e5b62aa11347707d1e8e4aae80e1c`**（＝`350fab5`）
+- 版バッジ：`20260920-2154`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `350fab5` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`350fab5…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `1e4f80c4…` / view `87984d5d…` / admin `26aa6bda…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `棚に飾れるのは`＝1／`保管庫に飾れる`＝0＝intro が「棚に飾れるのは」に戻った／`バッジ保管庫`＝2（名称は維持）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`5c3e588` 文言修正／`7876578` HANDOVER記録）／index の実質差分は intro 1行のみ／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 350fab54335e5b62aa11347707d1e8e4aae80e1c && git push origin main && git checkout dev
+  ```
