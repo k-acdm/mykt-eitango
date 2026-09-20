@@ -1708,3 +1708,26 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 52fa8bb829e0c1c209082c514bba25871b7bfff2 && git push origin main && git checkout dev
   ```
+
+## 2026-09-20 本番反映：置物の自由入れ替えUI（段階B）＋人体3体差し替え
+
+- 反映内容（dev→main マージ、3 コミット。生徒画面。★置物・服とも非公開＝生徒の見た目に変化なし）
+  - `b5c0201` feat(アバター)：段階B 置物の自由入れ替えUI。クローゼットの置物カテゴリ（pet/item/collab/trophy）を「装着枠（slotLimit個）＋持ち物一覧」に拡張。装着枠＝埋（画像＋「外す」）/空（＋）、持ち物＝未装着を「装着する」。**外す＝`setAvatarEquip{unequip:true, categoryKey: slotKey}`（スロット指定・サーバー仕様）**／装着＝`setAvatarEquip{itemId}`（空きに入る/満杯で押し出し）。押し出しは `res.pushed` を見て軽量トースト「○○がクローゼットに戻りました」。**1排他カテゴリ（背景/服/オーラ）は従来の grid・`unequipAvatarCategory` のまま無変更**。着用案内バナー（買っただけでは着られない旨）をクローゼット上部に常時表示。ホーム `.avatar-home-row` 直下・左下に「👕きせかえ」リンク→`showAvatarCloset()`。slotLimits/slotKey/pushed はサーバー返り値を消費（フィールド名ゆらぎに防御的フォールバック）
+  - `e073c82` fix(アバター)：人体3体 `AV0000012`/`AV0000035`/`AV0000049` を画像の乱れ修正版に差し替え（887×1774・透過維持、**AV番号・対応表 `AVATAR_OUTFIT_MAP` は不変**、他69体・他フォルダ無変更）
+  - `869de7a` docs(handover)：足元置物の外側ずらしの本番反映を記録（前回反映分）
+  - **★ 置物は非公開のまま＝生徒はまだ装着不可。服も非公開のため3体差し替えも生徒の見た目に影響なし**
+- **反映前の main（切り戻し先）：`52fa8bb829e0c1c209082c514bba25871b7bfff2`**（＝`52fa8bb`）
+- **マージコミット：`8dc08dc0aa33210305d51c8c998d8352dc4043cf`**（＝`8dc08dc`）
+- 版バッジ：`20260920-1709`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `8dc08dc` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`8dc08dc…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `6fe49c8c…` / view `cef80a63…` / admin `bace4756…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `avatar-closet-link`＝5／`avatar-closet-guide`＝2／`unequipAvatarSlot`＝2／`avatar-slot-tray`＝2＝置物入れ替えUI（きせかえリンク・着用案内・スロット外す・装着枠）が確実に載っている
+  - **AV3体すべて修正版で本番配信（HTTP 200・配信md5＝origin/main blob md5 一致）**：`AV0000012`=d66ef84b / `AV0000035`=bf6ec0f8 / `AV0000049`=3c45eed8
+  - 置物・服とも非公開のまま（生徒の見た目に影響なし）
+  - ゲート：`origin/main..dev` は3本のみ（想定通り＝`e073c82` 3体差替／`b5c0201` 置物入れ替えUI／`869de7a` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 8dc08dc0aa33210305d51c8c998d8352dc4043cf && git push origin main && git checkout dev
+  ```

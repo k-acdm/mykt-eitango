@@ -1072,9 +1072,33 @@
     /* 着用案内（購入だけでは着られない旨） */
     .avatar-closet-guide { background: #fff7ed; border: 2px solid #fdba74; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; color: #9a3412; font-size: 13px; line-height: 1.65; font-weight: bold; }
     /* ホーム枠外左下の「きせかえ」リンク（配置図：枠の左下） */
-    .avatar-closet-link-row { text-align: left; margin: -4px 0 10px; padding-left: 6px; }
+    /* 段階B：左下＝きせかえ／段階C-1：右下＝バッジ棚。枠の左右下に配置。 */
+    .avatar-closet-link-row { display: flex; justify-content: space-between; align-items: center; margin: -4px 0 10px; padding: 0 6px; }
     .avatar-closet-link { display: inline-block; padding: 6px 14px; background: linear-gradient(135deg,#8b5cf6,#7c3aed); color: #fff; border: none; border-radius: 999px; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(124,58,237,.28); white-space: nowrap; }
     .avatar-closet-link:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(124,58,237,.36); }
+    .avatar-shelf-link { display: inline-block; padding: 6px 14px; background: linear-gradient(135deg,#f59e0b,#d97706); color: #fff; border: none; border-radius: 999px; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(217,119,6,.30); white-space: nowrap; }
+    .avatar-shelf-link:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(217,119,6,.4); }
+    /* 段階C-1：バッジ飾り棚。装着枠4＝棚板の上に飾る／所持一覧＝しまってあるバッジ。B の trophy 入れ替えロジックを流用。 */
+    .badge-shelf-intro { background: #fffbeb; border: 2px solid #fcd34d; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; color: #92400e; font-size: 13px; line-height: 1.6; font-weight: bold; }
+    .badge-shelf-rack-head { font-size: 15px; font-weight: bold; color: #92400e; margin: 4px 0 10px; padding-left: 4px; border-left: 5px solid #f59e0b; }
+    .badge-shelf-rack { display: flex; flex-wrap: wrap; gap: 10px; background: linear-gradient(180deg,#fef3c7 0%,#fde68a 100%); border: 2px solid #f59e0b; border-radius: 14px; padding: 14px 12px 12px; margin-bottom: 8px; box-shadow: inset 0 -6px 0 rgba(180,83,9,.25); }
+    .badge-shelf-slot { position: relative; width: 84px; min-height: 116px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6px; background: rgba(255,255,255,.7); }
+    .badge-shelf-slot.filled { border: 2px solid #d97706; box-shadow: 0 2px 8px rgba(180,83,9,.25); }
+    .badge-shelf-slot.empty  { border: 2px dashed #d9a441; color: #b45309; background: rgba(255,255,255,.4); }
+    .badge-shelf-slot .badge-shelf-thumb { width: 100%; height: 56px; object-fit: contain; border-radius: 8px; cursor: zoom-in; }
+    .badge-shelf-slot .badge-shelf-name { font-size: 11px; color: #7c2d12; margin: 3px 0 5px; max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .badge-shelf-slot .avatar-item-btn.unequip { font-size: 12px; padding: 5px 8px; margin-top: 0; width: 100%; }
+    .badge-shelf-slot .badge-shelf-empty-ico { font-size: 26px; line-height: 1; margin-bottom: 4px; }
+    .badge-shelf-slot .badge-shelf-empty-txt { font-size: 11px; }
+    .badge-shelf-subhead { font-size: 13px; font-weight: bold; color: #b45309; margin: 12px 0 8px; padding-left: 4px; }
+    .badge-shelf-allequipped { font-size: 13px; color: #888; padding: 6px 4px 2px; }
+    .badge-shelf-empty { text-align: center; color: #888; padding: 24px 10px; line-height: 1.7; }
+    .badge-shelf-item .avatar-item-thumb { cursor: zoom-in; }
+    /* バッジ拡大モーダル（.modal-overlay を流用・名前つき） */
+    #badge-zoom-modal .badge-zoom-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 92vw; }
+    #badge-zoom-modal .badge-zoom-img { max-width: 80vw; max-height: 66vh; border-radius: 12px; }
+    #badge-zoom-modal .badge-zoom-name { color: #fff; font-size: 17px; font-weight: bold; text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,.5); max-width: 88vw; }
+    #badge-zoom-modal .badge-zoom-hint { color: rgba(255,255,255,.75); font-size: 12px; }
     /* 軽量トースト（押し出し通知等） */
     .avatar-toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 9999; max-width: 88%; background: rgba(30,27,75,.94); color: #fff; padding: 12px 18px; border-radius: 12px; font-size: 14px; font-weight: bold; line-height: 1.5; box-shadow: 0 6px 20px rgba(0,0,0,.3); opacity: 0; transition: opacity .25s; text-align: center; pointer-events: none; }
     .avatar-toast.show { opacity: 1; }
@@ -1123,6 +1147,8 @@
       .avatar-item-thumb, .avatar-item-thumb-ph { height: 92px; }
       .avatar-slot-box { width: 72px; min-height: 100px; }
       .avatar-slot-box .avatar-slot-thumb { height: 48px; }
+      .badge-shelf-slot { width: 72px; min-height: 108px; }
+      .badge-shelf-slot .badge-shelf-thumb { height: 48px; }
       .avatar-shop-balance .val { font-size: 22px; }
       .avatar-cat-btn-ico { font-size: 28px; }
       .avatar-cat-btn-name { font-size: 13px; }
@@ -3553,10 +3579,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-1709"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-2058"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-1709">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-1709"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-2058">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-2058"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4086,9 +4112,10 @@
         <!-- 段階2修正①：バッジ＝枠の外・右（縦4・下→上） -->
         <div class="avatar-deco-zone avatar-deco-trophy" id="avatar-trophy-zone" aria-hidden="true"></div>
       </div>
-      <!-- 段階B：クローゼットへのリンク（配置図＝枠の左下）。持ち物のきせかえ／置物入れ替えへ。 -->
+      <!-- 段階B：クローゼットへのリンク（枠の左下）。段階C-1：バッジ棚（枠の右下）。 -->
       <div class="avatar-closet-link-row">
         <button type="button" class="avatar-closet-link" onclick="showAvatarCloset()">👕 きせかえ</button>
+        <button type="button" class="avatar-shelf-link" onclick="showBadgeShelf()">🏆 バッジ棚</button>
       </div>
       <!-- 2026-06-16：称号＋連続ログインをアバター枠の直下へ移動＋強調表示 -->
       <div class="chara-status-row" style="text-align:center">
@@ -4468,6 +4495,23 @@
     <div id="avatar-closet-body"><div class="avatar-shop-loading">読み込み中…</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:8px" onclick="showAvatarShop()">🛍 ショップでアイテムを増やす</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+  </div>
+</div>
+<!-- 段階C-1：バッジ飾り棚（枠外右下の入口から。装着枠4＋所持バッジ、B の trophy 入れ替えロジックを流用） -->
+<div id="screen-badge-shelf" class="screen">
+  <header><h1>🏆 バッジ棚</h1></header>
+  <div class="container" style="padding-top:20px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goHome()">🚪 棚を閉じる</button>
+    <div id="badge-shelf-body"><div class="avatar-shop-loading">読み込み中…</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🚪 棚を閉じる</button>
+  </div>
+</div>
+<!-- 段階C-1：バッジ拡大モーダル（.modal-overlay を流用・名前つき） -->
+<div class="modal-overlay" id="badge-zoom-modal" onclick="closeBadgeZoom()">
+  <div class="badge-zoom-inner">
+    <img class="badge-zoom-img" id="badge-zoom-img" src="" alt="">
+    <div class="badge-zoom-name" id="badge-zoom-name"></div>
+    <div class="badge-zoom-hint">タップで閉じる</div>
   </div>
 </div>
 <!-- Amazonギフト交換専用ページ（HP交換 Phase4 新規、2026-06-01） -->
@@ -9828,6 +9872,98 @@
   }
 
   // ---- クローゼット（所持品 / 装着 / 取り外し）----
+  // 段階B/C-1：装着・外すの後に、開いている画面（クローゼット or バッジ棚）で再描画する。
+  //   これにより段階B の equip/unequip ロジックを飾り棚でもそのまま流用（重複実装しない）。
+  function _afterEquipReRender() {
+    var shelf = document.getElementById('screen-badge-shelf');
+    if (shelf && shelf.classList.contains('active')) { showBadgeShelf(); return; }
+    showAvatarCloset();
+  }
+
+  // ===== 段階C-1：バッジ飾り棚（trophy カテゴリ専用ビュー。B の trophy 入れ替えを流用） =====
+  function showBadgeShelf() {
+    showScreen('screen-badge-shelf');
+    var body = document.getElementById('badge-shelf-body');
+    if (body) body.innerHTML = '<div class="avatar-shop-loading">読み込み中…</div>';
+    if (!_studentId) { if (body) body.innerHTML = '<div class="avatar-shop-loading">ログイン情報が見つかりません。</div>'; return; }
+    gasGet({ action: 'getAvatarCloset', studentId: _studentId, _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) { if (body) body.innerHTML = '<div class="avatar-shop-loading">❌ ' + _avEsc((res && res.message) || '取得に失敗しました。') + '</div>'; return; }
+      _renderBadgeShelf(res);
+    }).catch(function(){ if (body) body.innerHTML = '<div class="avatar-shop-loading">通信エラーが発生しました。</div>'; });
+  }
+  function _renderBadgeShelf(res) {
+    var body = document.getElementById('badge-shelf-body');
+    if (!body) return;
+    var cats = Array.isArray(res.categories) ? res.categories : [];
+    var cat = null;
+    for (var i = 0; i < cats.length; i++) { if (cats[i].categoryKey === 'trophy') { cat = cats[i]; break; } }
+    var intro = '<div class="badge-shelf-intro">🏆 がんばって手に入れたバッジを飾ろう！<br>棚に飾れるのは ' + (cat ? _catSlotLimit(cat, res) : 4) + ' つまで。バッジをタップすると大きく見られるよ。</div>';
+    if (!cat || !Array.isArray(cat.items) || cat.items.length === 0) {
+      body.innerHTML = intro + '<div class="badge-shelf-empty">まだバッジがありません。<br>学習をがんばって、いろいろなバッジを集めよう！</div>';
+      return;
+    }
+    var items = cat.items;
+    var limit = _catSlotLimit(cat, res);
+    var equipped   = items.filter(function(it){ return it.equipped; });
+    var unequipped = items.filter(function(it){ return !it.equipped; });
+    // スロット番号→アイテムの割当（B と同じ：slotKey 優先、無ければ順番に空き枠へ）
+    var slotMap = {}, leftover = [];
+    equipped.forEach(function(it){
+      var n = _slotKeyNum(it.slotKey);
+      if (n >= 1 && n <= limit && !slotMap[n]) slotMap[n] = it; else leftover.push(it);
+    });
+    var html = intro;
+    html += '<div class="badge-shelf-rack-head">飾っているバッジ（' + limit + 'つまで）</div>';
+    html += '<div class="badge-shelf-rack">';
+    for (var s = 1; s <= limit; s++) {
+      var it = slotMap[s] || leftover.shift();
+      if (it) {
+        var slotKey = it.slotKey || ('trophy_' + s);
+        html += '<div class="badge-shelf-slot filled">';
+        if (it.imagePath) html += '<img class="badge-shelf-thumb" src="' + _avEsc(it.imagePath) + '" alt="" onclick="openBadgeZoom(\'' + _avEsc(it.imagePath) + '\',\'' + _avEsc(it.name) + '\')">';
+        else              html += '<div class="badge-shelf-empty-ico">🏅</div>';
+        html += '<div class="badge-shelf-name">' + _avEsc(it.name) + '</div>';
+        html += '<button class="avatar-item-btn unequip" onclick="unequipAvatarSlot(\'' + _avEsc(slotKey) + '\',\'' + _avEsc(it.name) + '\')">しまう</button>';
+        html += '</div>';
+      } else {
+        html += '<div class="badge-shelf-slot empty"><div class="badge-shelf-empty-ico">＋</div><div class="badge-shelf-empty-txt">空き</div></div>';
+      }
+    }
+    html += '</div>';
+    // 所持バッジ（未装着＝しまってある）
+    if (unequipped.length > 0) {
+      html += '<div class="badge-shelf-subhead">持っているバッジ（タップで飾る／画像タップで拡大）</div>';
+      html += '<div class="avatar-item-grid">';
+      unequipped.forEach(function(it){
+        html += '<div class="avatar-item-card badge-shelf-item">';
+        if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="" onclick="openBadgeZoom(\'' + _avEsc(it.imagePath) + '\',\'' + _avEsc(it.name) + '\')">';
+        else              html += '<div class="avatar-item-thumb-ph">🏅</div>';
+        if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
+        html += '<div class="avatar-item-name">' + _avEsc(it.name) + '</div>';
+        html += '<button class="avatar-item-btn equip" onclick="equipAvatarItem(\'' + _avEsc(it.itemId) + '\')">飾る</button>';
+        html += '</div>';
+      });
+      html += '</div>';
+    } else if (equipped.length > 0) {
+      html += '<div class="badge-shelf-allequipped">持っているバッジはすべて飾っています。</div>';
+    }
+    body.innerHTML = html;
+  }
+  // バッジ拡大（.modal-overlay 流用・名前つき）。
+  function openBadgeZoom(imagePath, name) {
+    var m = document.getElementById('badge-zoom-modal');
+    var img = document.getElementById('badge-zoom-img');
+    var nm  = document.getElementById('badge-zoom-name');
+    if (!m || !img || !nm) return;
+    img.src = imagePath || '';
+    nm.textContent = name || '';
+    m.classList.add('active');
+  }
+  function closeBadgeZoom() {
+    var m = document.getElementById('badge-zoom-modal');
+    if (m) m.classList.remove('active');
+  }
+
   function showAvatarCloset() {
     showScreen('screen-avatar-closet');
     var body = document.getElementById('avatar-closet-body');
@@ -9985,7 +10121,7 @@
       // 満杯で押し出しがあれば通知（○○がクローゼットに戻りました）
       var names = _pushedNames(res);
       if (names.length) _avatarToast('「' + names.join('」「') + '」がクローゼットに戻りました');
-      showAvatarCloset();
+      _afterEquipReRender();
     }).catch(function(){ _avatarEquipInFlight = false; alert('装着できませんでした：通信エラー'); });
   }
   // 1排他カテゴリ（背景/服/オーラ）の「外す」：categoryKey にカテゴリ名を渡す（従来どおり）。
@@ -10004,7 +10140,7 @@
       _avatarEquipInFlight = false;
       if (!res || !res.ok) { alert(errPrefix + '：' + ((res && res.message) || '通信エラー')); return; }
       _applyEquipResult(res);
-      showAvatarCloset();
+      _afterEquipReRender();
     }).catch(function(){ _avatarEquipInFlight = false; alert(errPrefix + '：通信エラー'); });
   }
   // 装着結果を _avatarState に反映し、ホーム/コーナーの背景を即時更新。
@@ -24069,7 +24205,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-1709</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-2058</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
