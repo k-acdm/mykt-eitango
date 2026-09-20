@@ -1687,3 +1687,24 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 c20a03c356d69832d882f9d614752a6d40f0e355 && git push origin main && git checkout dev
   ```
+
+## 2026-09-20 本番反映：アバター足元の置物を外側へずらし足先を出す（横位置のみ）
+
+- 背景：足元のペット・小物（内側＝ハムスター/リンゴ）がアバターの足先を隠していたため、横位置だけ外側へ寄せた。高さ・コラボ/バッジ・スマホ表示は不変。※置物は非公開＝生徒表示影響なし
+- 反映内容（dev→main マージ、2 コミット）
+  - `973569d` fix(アバター置物)：足元 pets/items の中央からの内側マージンを **デスクトップ 8px→38px／モバイル 8px→30px** に拡大（外側置物が枠 overflow で切れない範囲）。高さ（bottom 36/35px）・左右内→外2つ・コラボ枠外左/バッジ枠外右・スマホ表示は無変更。実測：足先が見え、外側エッジは stage 半幅内（desktop 146<160 / mobile 114<120）、横スクロールなし
+  - `d6ca166` docs(handover)：前回反映（段階2 配置修正①②）の記録
+- **反映前の main（切り戻し先）：`c20a03c356d69832d882f9d614752a6d40f0e355`**（＝`c20a03c`）
+- **マージコミット：`52fa8bb829e0c1c209082c514bba25871b7bfff2`**（＝`52fa8bb`）
+- 版バッジ：`20260920-0430`（index / view / admin の3ファイル）
+- GitHub Actions（pages build and deployment）：head_sha `52fa8bb` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`52fa8bb…` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show HEAD:` blob と完全一致
+  - index `ba60905c…` / view `61427fa5…` / admin `67ab0fe9…`
+- 配信 index.html に `margin-right: 38px`（desktop）と `margin-right: 30px`（mobile）が載っていることを確認
+- 検証（ブラウザ実測 desktop900 / mobile375）：足先が見える／ペット左・小物右・内→外2つ維持／高さ従来どおり／コラボ枠外左・バッジ枠外右従来どおり／横スクロールなし／背景・服・オーラ・本体・空状態deco 従来どおり
+- ゲート：`origin/main..dev` は2本のみ（想定通り＝`973569d` 足元ずらし／`d6ca166` HANDOVER記録）／CLAUDE.md ゲート判定数値=9（pets/items margin＋コメント）／admin・view の差分は版バッジ・`?v=` スタンプのみ／想定外の混入なし
+- 補足：反映作業中、ツール出力に実体のない壊れた表示（誤った checkout/fast-forward ログ）が混入したが、`git rev-parse origin/main` の実体確認で origin は無変更（c20a03c）と判定し、正規手順で反映した（誤反映なし）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 52fa8bb829e0c1c209082c514bba25871b7bfff2 && git push origin main && git checkout dev
+  ```

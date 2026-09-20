@@ -1057,6 +1057,27 @@
     .avatar-closet-badge { font-size: 11px; font-weight: bold; color: #047857; background: #d1fae5; border-radius: 999px; padding: 2px 8px; margin-bottom: 4px; display: inline-block; }
     .avatar-item-btn.equip   { background: linear-gradient(135deg,#8b5cf6,#7c3aed); color: #fff; }
     .avatar-item-btn.unequip { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+    /* 段階B：置物カテゴリの「装着枠（スロット）＋持ち物」UI。1排他カテゴリ（背景/服/オーラ）は従来の grid のまま。 */
+    .avatar-slot-tray { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    .avatar-slot-box { position: relative; width: 84px; min-height: 108px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6px; }
+    .avatar-slot-box.filled { background: #fff; border: 2px solid #34d399; box-shadow: 0 0 0 2px rgba(52,211,153,.35), 0 2px 8px rgba(16,185,129,.15); }
+    .avatar-slot-box.empty  { background: #f8f6ff; border: 2px dashed #c4b5fd; color: #a78bfa; }
+    .avatar-slot-box .avatar-slot-thumb { width: 100%; height: 56px; object-fit: contain; border-radius: 8px; }
+    .avatar-slot-box .avatar-slot-name { font-size: 11px; color: #444; margin: 3px 0 5px; max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .avatar-slot-box .avatar-slot-empty-ico { font-size: 26px; line-height: 1; margin-bottom: 4px; }
+    .avatar-slot-box .avatar-slot-empty-txt { font-size: 11px; }
+    .avatar-slot-box .avatar-item-btn.unequip { font-size: 12px; padding: 5px 8px; margin-top: 0; width: 100%; }
+    .avatar-closet-subhead { font-size: 13px; font-weight: bold; color: #7c3aed; margin: 4px 0 8px; padding-left: 4px; }
+    .avatar-closet-allequipped { font-size: 13px; color: #888; padding: 6px 4px 2px; }
+    /* 着用案内（購入だけでは着られない旨） */
+    .avatar-closet-guide { background: #fff7ed; border: 2px solid #fdba74; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; color: #9a3412; font-size: 13px; line-height: 1.65; font-weight: bold; }
+    /* ホーム枠外左下の「きせかえ」リンク（配置図：枠の左下） */
+    .avatar-closet-link-row { text-align: left; margin: -4px 0 10px; padding-left: 6px; }
+    .avatar-closet-link { display: inline-block; padding: 6px 14px; background: linear-gradient(135deg,#8b5cf6,#7c3aed); color: #fff; border: none; border-radius: 999px; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(124,58,237,.28); white-space: nowrap; }
+    .avatar-closet-link:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(124,58,237,.36); }
+    /* 軽量トースト（押し出し通知等） */
+    .avatar-toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 9999; max-width: 88%; background: rgba(30,27,75,.94); color: #fff; padding: 12px 18px; border-radius: 12px; font-size: 14px; font-weight: bold; line-height: 1.5; box-shadow: 0 6px 20px rgba(0,0,0,.3); opacity: 0; transition: opacity .25s; text-align: center; pointer-events: none; }
+    .avatar-toast.show { opacity: 1; }
     /* ===== HP交換 Phase4：Amazonギフト交換専用ページへの導線 + 専用ページ ===== */
     .amazon-gift-entry { display: block; width: 100%; margin: 0 0 16px; padding: 16px 18px; border: none; border-radius: 16px;
       background: linear-gradient(135deg,#ffa726,#ff8a3d); color: #fff; font-weight: bold; cursor: pointer;
@@ -1100,6 +1121,8 @@
       .avatar-deco-items .avatar-deco-img { width: 40px; }
       .avatar-deco-collab, .avatar-deco-trophy { width: 30px; gap: 3px; padding-bottom: 18px; }
       .avatar-item-thumb, .avatar-item-thumb-ph { height: 92px; }
+      .avatar-slot-box { width: 72px; min-height: 100px; }
+      .avatar-slot-box .avatar-slot-thumb { height: 48px; }
       .avatar-shop-balance .val { font-size: 22px; }
       .avatar-cat-btn-ico { font-size: 28px; }
       .avatar-cat-btn-name { font-size: 13px; }
@@ -3530,10 +3553,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-0430"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-1709"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-0430">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-0430"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-1709">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-1709"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4062,6 +4085,10 @@
         </div>
         <!-- 段階2修正①：バッジ＝枠の外・右（縦4・下→上） -->
         <div class="avatar-deco-zone avatar-deco-trophy" id="avatar-trophy-zone" aria-hidden="true"></div>
+      </div>
+      <!-- 段階B：クローゼットへのリンク（配置図＝枠の左下）。持ち物のきせかえ／置物入れ替えへ。 -->
+      <div class="avatar-closet-link-row">
+        <button type="button" class="avatar-closet-link" onclick="showAvatarCloset()">👕 きせかえ</button>
       </div>
       <!-- 2026-06-16：称号＋連続ログインをアバター枠の直下へ移動＋強調表示 -->
       <div class="chara-status-row" style="text-align:center">
@@ -9811,34 +9838,142 @@
       _renderAvatarCloset(res);
     }).catch(function(){ if (body) body.innerHTML = '<div class="avatar-shop-loading">通信エラーが発生しました。</div>'; });
   }
+  // 段階B：置物（複数装着・スロット制）カテゴリの定義。slotLimit のフォールバック値。
+  var AVATAR_PLACEMENT_CATS = { pet: 2, item: 2, collab: 4, trophy: 4 };
+  // カテゴリが置物（複数スロット）か。categoryKey が既知の置物 or slotLimit>1 で判定。
+  function _isPlacementCat(cat, res) {
+    if (!cat) return false;
+    if (AVATAR_PLACEMENT_CATS.hasOwnProperty(cat.categoryKey)) return true;
+    var lim = _catSlotLimit(cat, res);
+    return lim > 1;
+  }
+  // カテゴリのスロット上限。cat.slotLimit / cat.slotLimits（数 or マップ）/ res.slotLimits[key] / フォールバック。
+  function _catSlotLimit(cat, res) {
+    var v = (cat.slotLimit != null) ? cat.slotLimit : cat.slotLimits;
+    if (v != null && typeof v === 'object') v = v[cat.categoryKey];
+    if (typeof v === 'number' && v > 0) return v;
+    if (res && res.slotLimits && typeof res.slotLimits === 'object' && Number(res.slotLimits[cat.categoryKey]) > 0) return Number(res.slotLimits[cat.categoryKey]);
+    return AVATAR_PLACEMENT_CATS[cat.categoryKey] || 1;
+  }
+  // itemId/slotKey の末尾番号を返す（'pet_2' → 2、無ければ 0）。
+  function _slotKeyNum(s) {
+    var m = /(\d+)\s*$/.exec(String(s || ''));
+    return m ? Number(m[1]) : 0;
+  }
+
   function _renderAvatarCloset(res) {
     var body = document.getElementById('avatar-closet-body');
     if (!body) return;
     var cats = Array.isArray(res.categories) ? res.categories : [];
+    // 着用案内（購入だけでは着られない旨）＋押し出し通知の残り
+    var guide = '<div class="avatar-closet-guide">💡 買っただけでは着られません。ここで「装着する」を押すとアバターに反映されます。<br>置物（ペット・小物・コラボ・バッジ）は枠の数だけ同時に飾れます。いっぱいの時に新しく装着すると、古いものは持ち物に戻ります。</div>';
     if (cats.length === 0) {
-      body.innerHTML = '<div class="avatar-closet-empty">まだ持ち物がありません。<br>ショップでHPを使ってアイテムを増やそう！</div>';
+      body.innerHTML = guide + '<div class="avatar-closet-empty">まだ持ち物がありません。<br>ショップでHPを使ってアイテムを増やそう！</div>';
       return;
     }
-    var html = '';
+    var html = guide;
     cats.forEach(function(cat){
+      var items = Array.isArray(cat.items) ? cat.items : [];
       html += '<div class="avatar-closet-cat">';
-      html += '<div class="avatar-closet-cat-head">' + _avEsc(cat.categoryJa) + '</div>';
-      html += '<div class="avatar-item-grid">';
-      (cat.items || []).forEach(function(it){
-        html += '<div class="avatar-item-card avatar-closet-item' + (it.equipped ? ' equipped' : '') + '">';
-        if (it.equipped) html += '<div class="avatar-closet-badge">✅ 装着中</div>';
-        if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="">';
-        else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
-        if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
-        html += '<div class="avatar-item-name">' + _avEsc(it.name) + '</div>';
-        if (it.equipped) html += '<button class="avatar-item-btn unequip" onclick="unequipAvatarCategory(\'' + _avEsc(cat.categoryKey) + '\')">外す</button>';
-        else             html += '<button class="avatar-item-btn equip" onclick="equipAvatarItem(\'' + _avEsc(it.itemId) + '\')">装着する</button>';
+      if (_isPlacementCat(cat, res)) {
+        // ---- 置物カテゴリ：装着枠（slotLimit個）＋持ち物一覧 ----
+        var limit = _catSlotLimit(cat, res);
+        html += '<div class="avatar-closet-cat-head">' + _avEsc(cat.categoryJa) + '（' + limit + 'つまで）</div>';
+        var equipped   = items.filter(function(it){ return it.equipped; });
+        var unequipped = items.filter(function(it){ return !it.equipped; });
+        // スロット番号→アイテムの割当（slotKey 優先、無ければ順番に空き枠へ）
+        var slotMap = {}, leftover = [];
+        equipped.forEach(function(it){
+          var n = _slotKeyNum(it.slotKey);
+          if (n >= 1 && n <= limit && !slotMap[n]) slotMap[n] = it; else leftover.push(it);
+        });
+        html += '<div class="avatar-slot-tray">';
+        for (var s = 1; s <= limit; s++) {
+          var it = slotMap[s] || leftover.shift();
+          if (it) {
+            var slotKey = it.slotKey || (cat.categoryKey + '_' + s);
+            html += '<div class="avatar-slot-box filled">';
+            if (it.imagePath) html += '<img class="avatar-slot-thumb" src="' + _avEsc(it.imagePath) + '" alt="">';
+            else              html += '<div class="avatar-slot-empty-ico">🎁</div>';
+            html += '<div class="avatar-slot-name">' + _avEsc(it.name) + '</div>';
+            html += '<button class="avatar-item-btn unequip" onclick="unequipAvatarSlot(\'' + _avEsc(slotKey) + '\',\'' + _avEsc(it.name) + '\')">外す</button>';
+            html += '</div>';
+          } else {
+            html += '<div class="avatar-slot-box empty"><div class="avatar-slot-empty-ico">＋</div><div class="avatar-slot-empty-txt">空き</div></div>';
+          }
+        }
         html += '</div>';
-      });
-      html += '</div></div>';
+        // 持ち物（未装着）
+        if (unequipped.length > 0) {
+          html += '<div class="avatar-closet-subhead">持ち物（タップで装着）</div>';
+          html += '<div class="avatar-item-grid">';
+          unequipped.forEach(function(it){
+            html += '<div class="avatar-item-card avatar-closet-item">';
+            if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="">';
+            else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
+            if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
+            html += '<div class="avatar-item-name">' + _avEsc(it.name) + '</div>';
+            html += '<button class="avatar-item-btn equip" onclick="equipAvatarItem(\'' + _avEsc(it.itemId) + '\')">装着する</button>';
+            html += '</div>';
+          });
+          html += '</div>';
+        } else if (equipped.length > 0) {
+          html += '<div class="avatar-closet-allequipped">持ち物はすべて装着中です。</div>';
+        }
+      } else {
+        // ---- 1排他カテゴリ（背景/服/オーラ等）：従来どおり ----
+        html += '<div class="avatar-closet-cat-head">' + _avEsc(cat.categoryJa) + '</div>';
+        html += '<div class="avatar-item-grid">';
+        items.forEach(function(it){
+          html += '<div class="avatar-item-card avatar-closet-item' + (it.equipped ? ' equipped' : '') + '">';
+          if (it.equipped) html += '<div class="avatar-closet-badge">✅ 装着中</div>';
+          if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="">';
+          else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
+          if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
+          html += '<div class="avatar-item-name">' + _avEsc(it.name) + '</div>';
+          if (it.equipped) html += '<button class="avatar-item-btn unequip" onclick="unequipAvatarCategory(\'' + _avEsc(cat.categoryKey) + '\')">外す</button>';
+          else             html += '<button class="avatar-item-btn equip" onclick="equipAvatarItem(\'' + _avEsc(it.itemId) + '\')">装着する</button>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
     });
     body.innerHTML = html;
   }
+  // 段階B：軽量トースト（押し出し通知等）。既存トーストが無いため最小実装。
+  var _avatarToastTimer = null;
+  function _avatarToast(msg) {
+    if (!msg) return;
+    var el = document.getElementById('avatar-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'avatar-toast';
+      el.className = 'avatar-toast';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    // reflow を挟んで確実にトランジションさせる
+    void el.offsetWidth;
+    el.classList.add('show');
+    if (_avatarToastTimer) clearTimeout(_avatarToastTimer);
+    _avatarToastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2600);
+  }
+  // サーバーの pushed（押し出されたアイテム）から表示名を取り出す。形状ゆらぎに防御的。
+  //   pushed: {name} / 文字列 / [{name}|文字列, ...] のいずれでも拾う。
+  function _pushedNames(res) {
+    var p = res && res.pushed;
+    if (!p) return [];
+    var arr = Array.isArray(p) ? p : [p];
+    var out = [];
+    arr.forEach(function(x){
+      if (!x) return;
+      var nm = (typeof x === 'string') ? x : (x.name || x.itemName || x.itemId || '');
+      if (nm) out.push(String(nm));
+    });
+    return out;
+  }
+
   var _avatarEquipInFlight = false;
   function equipAvatarItem(itemId) {
     if (_avatarEquipInFlight) return;
@@ -9847,18 +9982,30 @@
       _avatarEquipInFlight = false;
       if (!res || !res.ok) { alert('装着できませんでした：' + ((res && res.message) || '通信エラー')); return; }
       _applyEquipResult(res);
+      // 満杯で押し出しがあれば通知（○○がクローゼットに戻りました）
+      var names = _pushedNames(res);
+      if (names.length) _avatarToast('「' + names.join('」「') + '」がクローゼットに戻りました');
       showAvatarCloset();
     }).catch(function(){ _avatarEquipInFlight = false; alert('装着できませんでした：通信エラー'); });
   }
+  // 1排他カテゴリ（背景/服/オーラ）の「外す」：categoryKey にカテゴリ名を渡す（従来どおり）。
   function unequipAvatarCategory(categoryKey) {
+    _unequipAvatarBy(categoryKey, '外せませんでした');
+  }
+  // 段階B：置物スロットの「外す」：categoryKey にスロット名（例 'pet_1'）を渡す（サーバー仕様：categoryKey=スロット名）。
+  function unequipAvatarSlot(slotKey, name) {
+    _unequipAvatarBy(slotKey, ((name ? '「' + name + '」を' : '') + '外せませんでした'));
+  }
+  // 共通の外す処理（categoryKey にカテゴリ名 or スロット名を渡す）。
+  function _unequipAvatarBy(categoryKey, errPrefix) {
     if (_avatarEquipInFlight) return;
     _avatarEquipInFlight = true;
     gasPost({ action: 'setAvatarEquip', studentId: _studentId, unequip: true, categoryKey: categoryKey }).then(function(res){
       _avatarEquipInFlight = false;
-      if (!res || !res.ok) { alert('外せませんでした：' + ((res && res.message) || '通信エラー')); return; }
+      if (!res || !res.ok) { alert(errPrefix + '：' + ((res && res.message) || '通信エラー')); return; }
       _applyEquipResult(res);
       showAvatarCloset();
-    }).catch(function(){ _avatarEquipInFlight = false; alert('外せませんでした：通信エラー'); });
+    }).catch(function(){ _avatarEquipInFlight = false; alert(errPrefix + '：通信エラー'); });
   }
   // 装着結果を _avatarState に反映し、ホーム/コーナーの背景を即時更新。
   function _applyEquipResult(res) {
@@ -23922,7 +24069,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-0430</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-1709</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
