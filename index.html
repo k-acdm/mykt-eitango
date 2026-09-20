@@ -1118,6 +1118,23 @@
     #badge-zoom-modal .badge-zoom-img { max-width: 80vw; max-height: 66vh; border-radius: 12px; }
     #badge-zoom-modal .badge-zoom-name { color: #fff; font-size: 17px; font-weight: bold; text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,.5); max-width: 88vw; }
     #badge-zoom-modal .badge-zoom-hint { color: rgba(255,255,255,.75); font-size: 12px; }
+    /* 段階C-2：バッジ初取得演出（誕生日サプライズの背景/紙吹雪/カード/ボタン資産を流用し、
+       中央をバッジ画像のズームアップ＋発光にしたもの）。 */
+    #screen-badge-acquire { position: relative; overflow: hidden; min-height: 100vh; background: linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%); }
+    .badge-acquire-imgwrap { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; min-height: 210px; }
+    .badge-acquire-img { width: 200px; max-width: 62vw; height: auto; position: relative; z-index: 2; filter: drop-shadow(0 6px 20px rgba(0,0,0,.35)); }
+    .badge-acquire-img.pop { animation: bsurprise-pop 1s cubic-bezier(.34,1.8,.64,1) both, badge-acquire-float 2.6s ease-in-out 1s infinite; }
+    .badge-acquire-glow { position: absolute; width: 240px; height: 240px; max-width: 72vw; max-height: 72vw; border-radius: 50%; z-index: 1; pointer-events: none;
+      background: radial-gradient(circle, rgba(255,240,150,.9) 0%, rgba(255,215,80,.4) 42%, rgba(255,215,80,0) 70%);
+      animation: badge-acquire-glowpulse 1.8s ease-in-out infinite; }
+    @keyframes badge-acquire-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    @keyframes badge-acquire-glowpulse { 0%,100% { transform: scale(.9); opacity: .7; } 50% { transform: scale(1.12); opacity: 1; } }
+    .badge-acquire-count { margin-top: 8px; font-size: 13px; color: #fff; opacity: .9; font-weight: bold; }
+    @media (max-width: 480px) {
+      .badge-acquire-imgwrap { min-height: 168px; }
+      .badge-acquire-img { width: 160px; }
+      .badge-acquire-glow { width: 190px; height: 190px; }
+    }
     /* 軽量トースト（押し出し通知等） */
     .avatar-toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 9999; max-width: 88%; background: rgba(30,27,75,.94); color: #fff; padding: 12px 18px; border-radius: 12px; font-size: 14px; font-weight: bold; line-height: 1.5; box-shadow: 0 6px 20px rgba(0,0,0,.3); opacity: 0; transition: opacity .25s; text-align: center; pointer-events: none; }
     .avatar-toast.show { opacity: 1; }
@@ -3598,10 +3615,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-2154"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260920-2224"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-2154">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-2154"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260920-2224">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260920-2224"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6670,6 +6687,33 @@
   </div>
 </div>
 
+<!-- 段階C-2：バッジ初取得演出（誕生日サプライズ型。背景/紙吹雪/カード/ボタンの bsurprise 資産を流用） -->
+<div id="screen-badge-acquire" class="screen">
+  <div class="bsurprise-bg-shift"></div>
+  <div class="bsurprise-rays"></div>
+  <div class="bsurprise-confetti-wrap" id="badge-acquire-confetti-wrap"></div>
+  <div class="bsurprise-burst-wrap" id="badge-acquire-burst-wrap"></div>
+  <div class="bsurprise-flash"></div>
+  <div class="bsurprise-stage">
+    <div class="badge-acquire-imgwrap">
+      <div class="badge-acquire-glow"></div>
+      <img class="badge-acquire-img" id="badge-acquire-img" src="" alt="バッジ">
+    </div>
+    <div class="bsurprise-card">
+      <div class="bsurprise-card-title" id="badge-acquire-title">🎉 やったね！バッジをゲット！</div>
+      <div class="bsurprise-card-message" id="badge-acquire-name"></div>
+      <div class="badge-acquire-count" id="badge-acquire-count"></div>
+    </div>
+    <div class="bsurprise-btn-wrap">
+      <button class="bsurprise-btn" id="badge-acquire-btn" onclick="onBadgeAcquireNext()">とじる</button>
+      <span class="bsurprise-btn-spark bsurprise-btn-spark-1">✨</span>
+      <span class="bsurprise-btn-spark bsurprise-btn-spark-2">✨</span>
+      <span class="bsurprise-btn-spark bsurprise-btn-spark-3">✨</span>
+      <span class="bsurprise-btn-spark bsurprise-btn-spark-4">✨</span>
+    </div>
+  </div>
+</div>
+
 <!-- 送信中オーバーレイ（リス版） -->
 <div id="lison-submit-overlay" class="lison-submit-overlay">
   <div class="lison-submit-card">
@@ -9076,6 +9120,130 @@
 
   // サプライズ画面の表示。message は GAS 側で {nickname} 差し込み済み。
   // 紙吹雪は表示直前に動的生成（横位置・速度・遅延・絵文字をランダム化）。
+  // ===== 段階C-2：バッジ初取得演出（誕生日サプライズと同型の「サーバーフラグ→一度だけ演出→見たら消す」） =====
+  var _badgeAcquireQueue = [];       // これから見せるバッジ配列
+  var _badgeAcquireIndex = 0;        // 現在表示中のインデックス
+  var _badgeAcquireActive = false;   // 演出中フラグ（二重起動防止）
+  var _badgeAcquireShownIds = {};    // このセッションで演出済みの itemId（既読化が未反映でも再演出しない保険）
+
+  // getAvatarState の newlyAcquiredBadges があれば初取得演出を出す。
+  //   誕生日サプライズ表示中は競合回避のためスキップ（次回ホーム読込で出す）。
+  function _maybeShowBadgeAcquire(badges) {
+    try {
+      if (!Array.isArray(badges) || !badges.length) return;
+      if (_badgeAcquireActive) return;
+      var bday = document.getElementById('screen-birthday-surprise');
+      if (bday && bday.classList.contains('active')) return;   // 誕生日と競合しない（順序保証）
+      // 有効なバッジ かつ 未演出（セッション保険）だけに絞る
+      var list = badges.filter(function(b){
+        if (!b) return false;
+        var id = String(b.itemId || b.imagePath || b.name || '');
+        if (!id) return false;
+        if (_badgeAcquireShownIds[id]) return false;
+        return true;
+      });
+      if (!list.length) return;
+      _badgeAcquireQueue = list;
+      _badgeAcquireIndex = 0;
+      _badgeAcquireActive = true;
+      _showBadgeAcquireScreen();
+    } catch(e){ try { console.warn('[_maybeShowBadgeAcquire] threw', e); } catch(_){} }
+  }
+
+  function _showBadgeAcquireScreen() {
+    var b = _badgeAcquireQueue[_badgeAcquireIndex] || {};
+    var img   = document.getElementById('badge-acquire-img');
+    var nameE = document.getElementById('badge-acquire-name');
+    var countE= document.getElementById('badge-acquire-count');
+    var btn   = document.getElementById('badge-acquire-btn');
+    if (img) {
+      img.onerror = function(){ img.onerror = null; img.style.visibility = 'hidden'; };
+      img.style.visibility = '';
+      img.src = String(b.imagePath || '');
+      // ズームアップ（pop）を毎回リスタート：クラス外し→reflow→再付与
+      img.classList.remove('pop'); void img.offsetWidth; img.classList.add('pop');
+    }
+    if (nameE)  nameE.textContent = String(b.name || 'バッジ');
+    var total = _badgeAcquireQueue.length;
+    if (countE) countE.textContent = (total > 1) ? ('（' + (_badgeAcquireIndex + 1) + ' / ' + total + '）') : '';
+    if (btn) btn.textContent = (_badgeAcquireIndex < total - 1) ? 'つぎへ ▶' : 'とじる';
+    if (btn) btn.disabled = false;
+    _badgeAcquireRenderConfetti();
+    showScreen('screen-badge-acquire');
+  }
+
+  // 紙吹雪（誕生日の .bsurprise-confetti / .bsurprise-burst クラス＝演出資産を流用。
+  //   バッジ用にトロフィー系絵文字で軽量生成）。
+  function _badgeAcquireRenderConfetti() {
+    var fallWrap  = document.getElementById('badge-acquire-confetti-wrap');
+    var burstWrap = document.getElementById('badge-acquire-burst-wrap');
+    var emojis = ['🏆','🎉','✨','🌟','🎊','🥇','🎖️','👑'];
+    if (fallWrap) {
+      var fh = '';
+      for (var i = 0; i < 40; i++) {
+        var em = emojis[Math.floor(Math.random() * emojis.length)];
+        fh += '<span class="bsurprise-confetti" style="left:' + (Math.random()*100).toFixed(1) + 'vw;' +
+          'animation-delay:' + (Math.random()*4).toFixed(2) + 's;' +
+          'animation-duration:' + (3 + Math.random()*4.5).toFixed(2) + 's;' +
+          'font-size:' + (30 + Math.random()*26).toFixed(0) + 'px;' +
+          'opacity:' + (.8 + Math.random()*.2).toFixed(2) + ';">' + em + '</span>';
+      }
+      fallWrap.innerHTML = fh;
+    }
+    if (burstWrap) {
+      var bh = '';
+      for (var b2 = 0; b2 < 26; b2++) {
+        var bem = emojis[Math.floor(Math.random() * emojis.length)];
+        var angle = (-30 - Math.random()*120), rad = angle*Math.PI/180, dist = (32 + Math.random()*22);
+        bh += '<span class="bsurprise-burst" style="--tx:' + (Math.cos(rad)*dist).toFixed(1) + 'vh;' +
+          '--ty:' + (Math.sin(rad)*dist).toFixed(1) + 'vh;' +
+          'animation-delay:' + (Math.random()*.25).toFixed(2) + 's;' +
+          'animation-duration:' + (1.3 + Math.random()*.7).toFixed(2) + 's;' +
+          'font-size:' + (28 + Math.random()*28).toFixed(0) + 'px;">' + bem + '</span>';
+      }
+      burstWrap.innerHTML = bh;
+    }
+  }
+
+  // 「つぎへ／とじる」ボタン。まだ残りがあれば次のバッジへ、最後なら終了処理。
+  function onBadgeAcquireNext() {
+    // 表示中のバッジをセッション既読に記録（再演出しない保険）
+    try {
+      var cur = _badgeAcquireQueue[_badgeAcquireIndex];
+      if (cur) _badgeAcquireShownIds[String(cur.itemId || cur.imagePath || cur.name || '')] = true;
+    } catch(e){}
+    if (_badgeAcquireIndex < _badgeAcquireQueue.length - 1) {
+      _badgeAcquireIndex++;
+      _showBadgeAcquireScreen();
+      return;
+    }
+    _finishBadgeAcquire();
+  }
+
+  // 演出終了：markBadgeSeen（fire-and-forget）→ 紙吹雪クリア → ホームへ戻る。
+  function _finishBadgeAcquire() {
+    var btn = document.getElementById('badge-acquire-btn');
+    if (btn) btn.disabled = true;
+    // 見せた全バッジを既読化（seen_at=now）。fire-and-forget（誕生日 markBirthdayGreetShown と同型）。
+    try {
+      var ids = _badgeAcquireQueue.map(function(b){ return String((b && b.itemId) || ''); }).filter(Boolean);
+      _badgeAcquireQueue.forEach(function(b){ if (b) _badgeAcquireShownIds[String(b.itemId || b.imagePath || b.name || '')] = true; });
+      gasGet({ action: 'markBadgeSeen', studentId: _studentId, itemIds: JSON.stringify(ids), _ts: Date.now() })
+        .then(function(){ try { _invalidateCacheByAction('getAvatarState'); } catch(e){} })
+        .catch(function(err){ try { console.warn('[markBadgeSeen] failed', err); } catch(_){} });
+    } catch(e){ try { console.warn('[markBadgeSeen] threw', e); } catch(_){} }
+    // 紙吹雪クリア（無駄な animation を止める + 次回二重生成防止）
+    var fw = document.getElementById('badge-acquire-confetti-wrap');
+    var bw = document.getElementById('badge-acquire-burst-wrap');
+    if (fw) fw.innerHTML = '';
+    if (bw) bw.innerHTML = '';
+    _badgeAcquireActive = false;
+    _badgeAcquireQueue = [];
+    _badgeAcquireIndex = 0;
+    // ホーム画面へ戻る（getAvatarState を再発火させないよう showScreen のみ）。
+    showScreen('screen-welcome');
+  }
+
   function _showBirthdaySurpriseScreen(message, nickname) {
     var msgEl = document.getElementById('bsurprise-message');
     var titleEl = document.getElementById('bsurprise-title');
@@ -9561,6 +9729,12 @@
         console.warn('[avatar] getAvatarState failed', res);
       }
       _renderAvatarSlot();
+      // 段階C-2：初取得バッジがあればホーム表示後にズームアップ演出（誕生日とは順序で競合回避）。
+      try {
+        if (res && res.ok && Array.isArray(res.newlyAcquiredBadges) && res.newlyAcquiredBadges.length) {
+          _maybeShowBadgeAcquire(res.newlyAcquiredBadges);
+        }
+      } catch(e){ console.error('[avatar] newlyAcquiredBadges', e); }
     }).catch(function(err){
       console.error('[avatar] getAvatarState exception', err);
       // 通信エラー時は楽観表示を維持（cachedBase は既に _avatarState.base に入っている）
@@ -24241,7 +24415,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-2154</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260920-2224</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
