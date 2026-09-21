@@ -1938,3 +1938,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 d31bc2b2b7185f441603ebdf24586b7b825fa217 && git push origin main && git checkout dev
   ```
+
+## 2026-09-22 本番反映：makeup/hat を単体アイコンに差し替え
+
+- 反映内容（dev→main マージ、2 コミット。★画像アセット差し替えのみ。★生徒の見た目に変化なし）
+  - `876e5f4` feat(avatar)：makeup/hat の旧 base別3枚組を削除し単体アイコンに差し替え。削除129枚（makeup 54 + hats 75）／追加30枚（makeup 10 + hat 20）。`images/avatar/makeup/`（単数・既存）は makeup_01〜10、`images/avatar/hat/`（単数・新設）は hat_01〜20、旧 `images/avatar/hats/`（複数）は空に。★リネームなし
+  - `5a01c03` docs(handover)：outfit/glasses アイコン18枚配置の本番反映を記録（前回反映分）
+  - **★ 着せ替えレイヤー描画（AVATAR_DECO_SLOTS＝pet/item/collab/trophy のみ）は makeup/hat を参照しないため表示影響なし。makeup/hat は予告のまま＝生徒の見た目に実変化なし。DB（AvatarItems の image_path 登録）は次工程・バックエンド側で未実施（hat は単数 `images/avatar/hat/hat_NN.png` 規約に）**
+  - **★ tops/bottoms/outfit/glasses/outfits/item/pet/trophy/collab/aura/backgrounds は無変更。index.html/view.html/admin.html のコード変更なし（版バッジ・?v= スタンプも非発火＝画像のみの commit）**
+- **反映前の main（切り戻し先）：`d31bc2b2b7185f441603ebdf24586b7b825fa217`**（＝`d31bc2b`）
+- **マージコミット：`990ac5a715e00ecc7b77def55254e74ce2847775`**（＝`990ac5a`）
+- GitHub Actions（pages build and deployment）：head_sha `990ac5a` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`990ac5a…` 実体を確認。
+- 反映後、配信物そのもので確認したこと
+  - 新 配信：`images/avatar/makeup/makeup_01.png`＝HTTP 200 / image/png / 1365503 bytes ／ `images/avatar/hat/hat_01.png`（単数）＝HTTP 200 / image/png / 534276 bytes
+  - 旧 消失：`images/avatar/hats/hat_01_headband_classic_boy.png`＝HTTP 404 ／ `images/avatar/makeup/makeup_01_rabbit_boy.png`＝HTTP 404（旧 base別画像は配信から消滅）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`876e5f4` 差し替え／`5a01c03` HANDOVER記録）／diff は 削除129＋追加30＋HANDOVER.md（M1）のみ／index.html・view.html への変更なし＝生徒画面ロジック不変
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 990ac5a715e00ecc7b77def55254e74ce2847775 && git push origin main && git checkout dev
+  ```
