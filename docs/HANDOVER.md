@@ -1880,3 +1880,21 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 5fb8ff1ac9773c0d2ad72421c59c054baaa3861e && git push origin main && git checkout dev
   ```
+
+## 2026-09-22 本番反映：tops/bottoms 商品アイコン24枚を配置
+
+- 反映内容（dev→main マージ、2 コミット。★画像アセット追加のみ。★生徒の見た目に変化なし）
+  - `9dd1138` feat(avatar)：`images/avatar/tops/`（12枚）と `images/avatar/bottoms/`（12枚）を新設し服アイコンを配置。ファイル名は番号のみのまま（tops_01〜09,11,13,14／bottoms_01〜12）。★リネームなし
+  - `63d8083` docs(handover)：写真ループ文言（reload-warn 8バナー＋おかえりなさい注記）の本番反映を記録（前回反映分）
+  - **★ 画像アセット24枚の追加のみ。tops/bottoms は予告のまま・アバター機能は非公開＝生徒の見た目に実変化なし。DB（AvatarItems の image_path 登録）は次工程・バックエンド側で未実施**
+  - **★ makeup/hats/outfits/outfit/glasses/item/pet/trophy/collab/aura/backgrounds は無変更。index.html/view.html/admin.html のコード変更なし（版バッジ・?v= スタンプも非発火＝画像のみの commit）**
+- **反映前の main（切り戻し先）：`5fb8ff1ac9773c0d2ad72421c59c054baaa3861e`**（＝`5fb8ff1`）
+- **マージコミット：`f3ee0693a2f11af3ee1f3da30ae2dccfb8bc88c3`**（＝`f3ee069`）
+- GitHub Actions（pages build and deployment）：head_sha `f3ee069` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`f3ee069…` 実体を確認。
+- 反映後、配信物そのもので確認したこと
+  - GitHub Pages 配信：`images/avatar/tops/tops_01.png`＝HTTP 200 / image/png / 826288 bytes（ローカルと一致）／`images/avatar/bottoms/bottoms_01.png`＝HTTP 200 / image/png / 627018 bytes（ローカルと一致）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`9dd1138` アイコン24枚配置／`63d8083` HANDOVER記録）／diff は HANDOVER.md（+23）＋画像24枚のみ／index.html・view.html への変更なし＝生徒画面ロジック不変
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 f3ee0693a2f11af3ee1f3da30ae2dccfb8bc88c3 && git push origin main && git checkout dev
+  ```
