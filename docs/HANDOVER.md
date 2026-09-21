@@ -1898,3 +1898,25 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 f3ee0693a2f11af3ee1f3da30ae2dccfb8bc88c3 && git push origin main && git checkout dev
   ```
+
+## 2026-09-22 本番反映：アバター購入文脈の「交換」→「購入」統一（文言9箇所）
+
+- 反映内容（dev→main マージ、2 コミット。★生徒画面の文言のみ。★ロジック不変）
+  - `66d4ad0` feat(アバター)：アバターショップの購入導線の表示文言9箇所を「交換」→「購入」に統一。ショップ入口（4502）/ 購入ボタン（10005）/ 購入確認 confirm（10024）/ 失敗 alert（10029・10033）/ 成功 alert（10031）/ 試着モーダルの購入ボタン（10070）/ 注記（4573）/ HP確認からの導線（12716）。onclick・遷移・クラス・関数/変数/id は不変
+  - `900b433` docs(handover)：tops/bottoms アイコン24枚配置の本番反映を記録（前回反映分）
+  - **★ 据え置き（変更なし）**：残高呼称「交換できるHP」（4533・10024内・12703）・「交換可能HP」（4199・5619・18416-18422）／HP交換副題「交換は近日公開」（4273）／Amazonギフト交換系（4292・4293・4580・10140・10150）／内部識別子（buyAvatarItem・submitExchange・getExchangeableHp・welcome-exchangeable-hp・oriwantes-hp-line）・コメント（10062「交換導線」等）
+  - **★ サーバ連携**：成功 alert(10031) は `res.message`（サーバ応答）優先表示。サーバ側（`mykt-eitango-aws` submitExchange、コミット 24003d1 で反映済との連絡）で購入文言に揃えたため、ボタン/メッセージが一致
+  - **★ アバターは非公開（tops_001 のみ公開）＝実質まだ生徒に見えていない。見た目の実変化はほぼなし**
+- **反映前の main（切り戻し先）：`f3ee0693a2f11af3ee1f3da30ae2dccfb8bc88c3`**（＝`f3ee069`）
+- **マージコミット：`4ea197c3d6e54f2daa0f2dcfbd64272bfd3d9913`**（＝`4ea197c`）
+- 版バッジ：`20260922-0440`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `4ea197c` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`4ea197c…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `2d726ba8…` / view `08c0407b…` / admin `f1a1564a…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index：購入文脈が「購入」化（「HPでアイテム購入」「購入する」「HP で購入しますか」「これを購入する」「ショップでアイテムを購入する」「まだ購入していないよ」各1件）／生徒表示の購入文脈「交換する」＝0件（残存1件は 10062 のコメントのみ＝内部・据え置き対象）／残高呼称「交換できるHP」＝7件残存（据え置き成功）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`66d4ad0` 文言統一／`900b433` HANDOVER記録）／生徒画面（index/view）の実質差分（版バッジ・`?v=` 除外）は 18 行＝購入文脈9箇所×2 のみ／admin の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 4ea197c3d6e54f2daa0f2dcfbd64272bfd3d9913 && git push origin main && git checkout dev
+  ```
