@@ -1957,3 +1957,21 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 990ac5a715e00ecc7b77def55254e74ce2847775 && git push origin main && git checkout dev
   ```
+
+## 2026-09-22 本番反映：shoes 商品アイコン9枚を配置
+
+- 反映内容（dev→main マージ、2 コミット。★画像アセット追加のみ。★生徒の見た目に変化なし）
+  - `7b049bc` feat(avatar)：`images/avatar/shoes/`（単数・新設）に shoes_01〜09（9枚）を配置。★リネームなし。着せ替え表示経路は未実装のため当面ショップサムネのみ
+  - `cdeabb2` docs(handover)：makeup/hat 単体アイコン差し替えの本番反映を記録（前回反映分）
+  - **★ 画像アセット9枚の追加のみ。shoes は予告のまま＝生徒の見た目に実変化なし。aura は触っていない（既存＝Downloads が sha256 一致で配置済み）。DB（AvatarItems の image_path 登録）は次工程・バックエンド側で未実施**
+  - **★ aura/tops/bottoms/outfit/glasses/makeup/hat/outfits/item/pet/trophy/collab/backgrounds は無変更。index.html/view.html/admin.html のコード変更なし（版バッジ・?v= スタンプも非発火＝画像のみの commit）**
+- **反映前の main（切り戻し先）：`990ac5a715e00ecc7b77def55254e74ce2847775`**（＝`990ac5a`）
+- **マージコミット：`8153286830edd0e35979c8512aebdc9a863ee9e7`**（＝`8153286`）
+- GitHub Actions（pages build and deployment）：head_sha `8153286` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`8153286…` 実体を確認。
+- 反映後、配信物そのもので確認したこと
+  - GitHub Pages 配信：`images/avatar/shoes/shoes_01.png`＝HTTP 200 / image/png / 814307 bytes（ローカルと一致）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`7b049bc` shoes9枚／`cdeabb2` HANDOVER記録）／diff は HANDOVER.md（+19）＋画像9枚のみ／index.html・view.html への変更なし＝生徒画面ロジック不変
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 8153286830edd0e35979c8512aebdc9a863ee9e7 && git push origin main && git checkout dev
+  ```
