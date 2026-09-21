@@ -3628,10 +3628,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260921-0524"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260921-1818"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260921-0524">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260921-0524"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260921-1818">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260921-1818"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3881,6 +3881,7 @@
           <h1 class="login-title">おかえりなさい</h1>
           <p class="login-subtitle">前回のID：<span id="resume-sid-label"></span> で続けますか？</p>
           <button type="button" class="btn-login" id="resume-continue-btn" onclick="resumeContinueLogin()">このまま続ける</button>
+          <p style="margin-top:8px;font-size:13px;color:#666;">（※再度暗証番号の入力があります）</p>
           <button type="button" id="resume-other-btn" onclick="dismissResumePrompt()"
                   style="margin-top:14px;background:none;border:none;color:#5b6ee0;text-decoration:underline;font-size:14px;cursor:pointer;">別の生徒はこちら</button>
         </div>
@@ -4650,8 +4651,7 @@
     <div class="set-label" id="dictation-set-label"></div>
     <div id="dictation-word-list"></div>
     <div class="reload-warn-banner redo" data-content="英単語RUSH 書き取り">
-      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
-      もう一度ログインしてから、<strong>同じセットをもう一度撮影し直してね</strong>。<span class="reload-warn-apology">面倒くさくてゴメンナサイ🙇‍♂️💦</span>
+      ⚠️ 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、もう一度撮影できます。
     </div>
     <div class="photo-area">
       <p style="font-size:15px;color:#555;margin-bottom:8px">📷 書き終わったらノートを撮影して送ってください</p>
@@ -4826,8 +4826,7 @@
     <div class="sango-level-tabs" id="sango-photo-tabs"></div>
     <div id="sango-photo-words"></div>
     <div class="reload-warn-banner redo" data-content="三語短文">
-      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
-      もう一度ログインしてから、<strong>三語短文の写真提出をもう一度撮影し直してね</strong>。<span class="reload-warn-apology">面倒くさくてゴメンナサイ🙇‍♂️💦</span>
+      ⚠️ 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、もう一度撮影できます。
     </div>
     <div class="photo-area">
       <p style="font-size:15px;color:#555;margin-bottom:8px">📷 作品を書いたノート等を撮影して送ってください</p>
@@ -4896,8 +4895,7 @@
       <div class="mate-bubble" id="mate-bubble-wabun1-topic">今日の問題だよ！</div>
     </div>
     <div class="reload-warn-banner redo" data-content="和文英訳①">
-      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
-      もう一度ログインしてから、<strong>今日の和文英訳①をもう一度撮影し直してね</strong>。<span class="reload-warn-apology">面倒くさくてゴメンナサイ🙇‍♂️💦</span>
+      ⚠️ 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、もう一度撮影できます。
     </div>
     <div id="wabun1-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
     <div id="wabun1-camera-msg" class="msg" style="margin-top:10px"></div>
@@ -5190,8 +5188,7 @@
       <input type="file" id="kiso-work-photo-input-1" accept="image/*" capture="environment" style="display:none" onchange="onKisoWorkPhotoSelected(event)"/>
     </div>
     <div class="reload-warn-banner recovery" data-content="基礎計算">
-      <div class="reload-warn-title">📂 撮影後にログイン画面に戻っても大丈夫</div>
-      もう一度ログインして「📐 基礎計算」→ <strong>同じ単元・同じ問題数</strong> を選べば、<strong>同じ問題で自動で再開</strong>できるよ。
+      📂 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、続きから再開できます。
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-kiso-pre-confirm')">← 戻る</button>
     <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
@@ -5229,8 +5226,7 @@
       </div>
     </div>
     <div class="reload-warn-banner recovery" data-content="基礎計算">
-      <div class="reload-warn-title">📂 撮影後にログイン画面に戻っても大丈夫</div>
-      もう一度ログインして「📐 基礎計算」→ <strong>同じ単元・同じ問題数</strong> を選べば、<strong>同じ問題で自動で再開</strong>できるよ。
+      📂 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、続きから再開できます。
     </div>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="photoEscapeToHome('kiso', true)">🏠 ホーム画面に戻る</button>
@@ -5259,8 +5255,7 @@
         </ul>
       </div>
       <div class="reload-warn-banner recovery" data-content="基礎計算">
-        <div class="reload-warn-title">📂 送信後にログイン画面に戻っても大丈夫</div>
-        もう一度ログインして「📐 基礎計算」→ <strong>同じ単元・同じ問題数</strong> を選べば、<strong>同じ問題で自動で再開</strong>できるよ。
+        📂 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、続きから再開できます。
       </div>
       <div class="kiso-confirm-btns">
         <button class="kiso-confirm-retake" onclick="retakeKisoPhoto()">📸 撮り直す</button>
@@ -5460,8 +5455,7 @@
       <div class="mate-bubble" id="mate-bubble-mytask-self-capture">何枚でも撮れるよ。いらない写真は消してね！</div>
     </div>
     <div class="reload-warn-banner redo" data-content="マイ課題">
-      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
-      もう一度ログインしてから、<strong>マイ課題の写真をもう一度撮影し直してね</strong>。<span class="reload-warn-apology">面倒くさくてゴメンナサイ🙇‍♂️💦</span>
+      ⚠️ 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、もう一度撮影できます。
     </div>
     <input type="file" id="mytask-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onMyTaskPhotoSelected(event)"/>
     <button class="btn-camera" onclick="document.getElementById('mytask-photo-input').click()">📷 写真を撮る／追加する</button>
@@ -5549,8 +5543,7 @@
     </div>
     <div class="mytask-hw-capture-subject" id="mytask-hw-capture-subject"></div>
     <div class="reload-warn-banner redo" data-content="マイ課題">
-      <div class="reload-warn-title">⚠️ 撮影後にログイン画面に戻ってしまった場合</div>
-      もう一度ログインしてから、<strong>マイ課題の写真をもう一度撮影し直してね</strong>。<span class="reload-warn-apology">面倒くさくてゴメンナサイ🙇‍♂️💦</span>
+      ⚠️ 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、もう一度撮影できます。
     </div>
     <input type="file" id="mytask-hw-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onMyTaskHwPhotoSelected(event)"/>
     <button class="btn-camera" onclick="document.getElementById('mytask-hw-photo-input').click()">📷 写真を撮る／追加する</button>
@@ -24516,7 +24509,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260921-0524</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260921-1818</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
