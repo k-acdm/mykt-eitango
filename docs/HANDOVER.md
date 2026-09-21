@@ -1857,3 +1857,26 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 32c78a63f70023007d55d364db5fd37a4a411633 && git push origin main && git checkout dev
   ```
+
+## 2026-09-21 本番反映：写真ループの文言（reload-warn 8バナー差し替え＋おかえりなさい注記）
+
+- 反映内容（dev→main マージ、3 コミット。★生徒画面に見える文言変更。★文言のみ・ロジック不変）
+  - `864b579` style(写真ループ文言)：reload-warn 8バナー本文先頭に絵文字を復帰（recovery=📂 / redo=⚠️）。文面本体は不変、先頭に絵文字＋半角スペースを付与しただけ
+  - `773b1f4` feat(写真ループ文言)：「おかえりなさい」確認画面（`.login-step-resume`）の「このまま続ける」直下に「（※再度暗証番号の入力があります）」を追記＋reload-warn 8バナーを新文面に差し替え。recovery3画面（基礎計算 work/answer/confirm）＝「…続きから再開できます」／redo5画面（英単語RUSH書取・三語短文・和文英訳①・マイ課題self/hw）＝「…もう一度撮影できます」。バナーの class/data-content/配置/onclick/遷移は不変、本文テキストのみ差し替え（旧 `.reload-warn-title`/`.reload-warn-apology` を各バナーから撤去。CSS 定義は非破壊で据え置き）
+  - `bca25b2` docs(handover)：アバターショップ副題の文言修正の本番反映を記録（前回反映分）
+  - **★ カンジー書き（`.kanji-kaki-resume-note`/`.kanji-resume-banner`）・`.photo-storage-note`（カメラロール注意帯）は無変更。ロジック・遷移・関数は一切変えていない（純テキスト差し替え＋一文追加）**
+  - **★ 留意：新文面「暗証番号を入れれば」は暗証番号発行済みの生徒のみ該当（legacy 生徒はログイン後に暗証番号を挟まない）**
+- **反映前の main（切り戻し先）：`32c78a63f70023007d55d364db5fd37a4a411633`**（＝`32c78a6`）
+- **マージコミット：`5fb8ff1ac9773c0d2ad72421c59c054baaa3861e`**（＝`5fb8ff1`）
+- 版バッジ：`20260921-1818`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `5fb8ff1` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`5fb8ff1…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★ローカル作業ツリーは CRLF・配信/blob は LF のため、作業ツリー直の sha256 とは一致しないのが正常。blob と比較すること）
+  - index `7757609a…` / view `605f6d8d…` / admin `665fdcfc…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：「おかえりなさい画面」＝8件／「続きから再開できます」＝5件（うち3件が recovery バナー・2件は既存の `.kiso/kanji-resume-promo-title`「前回の続きから再開できます！」で無関係）／「もう一度撮影できます」＝5件（redo バナー）／「（※再度暗証番号の入力があります）」＝1件／旧「撮影し直してね」＝0件
+  - ゲート：`origin/main..dev` は3本のみ（想定通り＝`864b579` 絵文字復帰／`773b1f4` 文言／`bca25b2` HANDOVER記録）／生徒・保護者画面（index/view）の実質差分（版バッジ・`?v=` 除外）は index 25行のみ・view は版数のみ／admin の差分は版バッジ・`?v=` スタンプのみ
+  - モバイル375px：確認画面注記・recovery/redo 両バナーとも折返し正常・横スクロールなし（実機確認済）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 5fb8ff1ac9773c0d2ad72421c59c054baaa3861e && git push origin main && git checkout dev
+  ```
