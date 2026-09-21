@@ -1920,3 +1920,21 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 4ea197c3d6e54f2daa0f2dcfbd64272bfd3d9913 && git push origin main && git checkout dev
   ```
+
+## 2026-09-22 本番反映：outfit/glasses 商品アイコン18枚を配置
+
+- 反映内容（dev→main マージ、2 コミット。★画像アセット追加のみ。★生徒の見た目に変化なし）
+  - `3d694a5` feat(avatar)：`images/avatar/outfit/`（11枚・★単数フォルダ）と `images/avatar/glasses/`（7枚）を新設し服アイコンを配置。ファイル名は番号のみのまま（outfit_01〜11／glasses_01〜07）。★リネームなし。★着姿の `outfits/`（複数・AV72枚）とは別物
+  - `9cd9b70` docs(handover)：購入文脈「交換」→「購入」統一の本番反映を記録（前回反映分）
+  - **★ 画像アセット18枚の追加のみ。outfit/glasses は予告のまま＝生徒の見た目に実変化なし。DB（AvatarItems の image_path 登録）は次工程・バックエンド側で未実施**
+  - **★ outfits/makeup/hats/tops/bottoms/item/pet/trophy/collab/aura/backgrounds は無変更。index.html/view.html/admin.html のコード変更なし（版バッジ・?v= スタンプも非発火＝画像のみの commit）**
+- **反映前の main（切り戻し先）：`4ea197c3d6e54f2daa0f2dcfbd64272bfd3d9913`**（＝`4ea197c`）
+- **マージコミット：`d31bc2b2b7185f441603ebdf24586b7b825fa217`**（＝`d31bc2b`）
+- GitHub Actions（pages build and deployment）：head_sha `d31bc2b` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`d31bc2b…` 実体を確認。
+- 反映後、配信物そのもので確認したこと
+  - GitHub Pages 配信：`images/avatar/outfit/outfit_01.png`＝HTTP 200 / image/png / 689243 bytes（ローカルと一致）／`images/avatar/glasses/glasses_01.png`＝HTTP 200 / image/png / 216555 bytes（ローカルと一致）
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`3d694a5` アイコン18枚配置／`9cd9b70` HANDOVER記録）／diff は HANDOVER.md（+22）＋画像18枚のみ／index.html・view.html への変更なし＝生徒画面ロジック不変
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 d31bc2b2b7185f441603ebdf24586b7b825fa217 && git push origin main && git checkout dev
+  ```
