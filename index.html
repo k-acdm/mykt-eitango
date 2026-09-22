@@ -3644,10 +3644,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-0131"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-0205"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-0131">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-0131"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-0205">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-0205"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6080,8 +6080,19 @@
     <!-- 2026-08-08：自動再開の導入により「撮影後に戻ったら同じ級・問題数でやり直して」の注意は不要になったため、
          書き段階から自動再開できる旨の軽い案内に置き換え。 -->
     <div class="kanji-kaki-resume-note" style="font-size:13px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin:8px 0;line-height:1.6">📂 撮影後にログイン画面に戻っても大丈夫。次に開くと<strong>「書き」の続きから自動で再開</strong>できるよ（読みのやり直しは不要）。</div>
+    <!-- 2026-09-23 メイン＝ページ内カメラ（getUserMedia）。カメラアプリに切り替えないのでリロードの引き金を引かない。手書き可読性のため縮小は 1600px/0.85。 -->
+    <button class="kiso-camera-launch-btn" onclick="startKanjiInPageCamera()">📷 撮影する</button>
+    <div id="kanji-inpage-cam" style="display:none;margin-top:12px">
+      <video id="kanji-inpage-video" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
+      <div id="kanji-inpage-cam-msg" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="kiso-camera-launch-btn" style="flex:2;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureKanjiInPagePhoto()">✅ この画面で撮る</button>
+        <button class="btn-wide" style="flex:1;min-width:0;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopKanjiInPageCamera()">やめる</button>
+      </div>
+    </div>
+    <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・onKanjiPhotoSelected は無変更で残す・消さない） -->
+    <button class="kiso-camera-fallback-btn" onclick="document.getElementById('kanji-photo-input').click()">うまく撮れない場合はこちら</button>
     <input type="file" id="kanji-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKanjiPhotoSelected(event)">
-    <button class="btn-wide" style="background:linear-gradient(135deg,#06b6d4,#0891b2)" onclick="document.getElementById('kanji-photo-input').click()">📷 ノートを写真に撮って送る</button>
     <button class="btn-wide" id="kanji-kaki-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:10px" onclick="kanjiRestartFresh()">🆕 最初から（読みから）やり直す</button>
     <!-- 2026-09-03：読み画面と同じ説明。★書き画面こそ「今書いた分」が実際にあるので必ず出す。 -->
     <div id="kanji-kaki-fresh-note" class="kanji-fresh-note" style="display:none">問題が新しくなるので、今書いた分は使えなくなります</div>
@@ -15808,6 +15819,88 @@
     showScreen(cfg.confirmScreen);
   }
 
+  // ===== 2026-09-23 カンジー書き専用ページ内カメラ（案B：基礎計算パターンの複製・カンジー固有仕様で新設）=====
+  //   基礎計算(_kisoState/startKisoInPageCamera/_KISO_INPAGE_CFG)には一切触れない独立実装。
+  //   ★カンジー固有：縮小 1600px / JPEG 0.85（手書き漢字の細線・トメ・ハネを潰さない。既存 onKanjiPhotoSelected と同一。
+  //     絶対に 1000/0.6 にしない）／載せ先 _kanjiState.kakiPhotoBase64・kakiPhotoDataUrl／
+  //     pending は _kanjiSavePendingPhoto(level,sessionId,dataUrl)、isKakiRetry 中は保存せず _kanjiClearPendingPhoto()。
+  //   従来 capture(kanji-photo-input / onKanjiPhotoSelected)は「うまく撮れない場合はこちら」フォールバックとして残す。
+  var _kanjiInPageStream = null;
+  var _kanjiInPagePagehideBound = false;
+  var _KANJI_INPAGE_FALLBACK_HINT = '下の「うまく撮れない場合はこちら」から送ってください。';
+  function _kanjiInPageCamMsg(t) {
+    var el = document.getElementById('kanji-inpage-cam-msg'); if (el) el.textContent = t || '';
+  }
+  function stopKanjiInPageCamera() {
+    try {
+      if (_kanjiInPageStream) { _kanjiInPageStream.getTracks().forEach(function(tr){ try { tr.stop(); } catch(e){} }); }
+    } catch(e){}
+    _kanjiInPageStream = null;
+    var v = document.getElementById('kanji-inpage-video');
+    if (v) { try { v.pause(); } catch(e){} try { v.srcObject = null; } catch(e){} }
+    var box = document.getElementById('kanji-inpage-cam'); if (box) box.style.display = 'none';
+  }
+  function startKanjiInPageCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('このブラウザはページ内カメラに対応していません。' + _KANJI_INPAGE_FALLBACK_HINT);
+      return;   // フォールバック：従来の capture ボタンはそのまま使える
+    }
+    stopKanjiInPageCamera();   // 再入時は前のストリームを解放してから
+    if (!_kanjiInPagePagehideBound) {
+      try { window.addEventListener('pagehide', function(){ stopKanjiInPageCamera(); }); } catch(e){}
+      _kanjiInPagePagehideBound = true;
+    }
+    var box = document.getElementById('kanji-inpage-cam');
+    var v   = document.getElementById('kanji-inpage-video');
+    if (box) box.style.display = 'block';
+    _kanjiInPageCamMsg('カメラを準備中…');
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    }).then(function(stream){
+      _kanjiInPageStream = stream;
+      if (!v) return;
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      v.muted = true;
+      try { v.srcObject = stream; } catch(e){ try { v.src = URL.createObjectURL(stream); } catch(e2){} }
+      var p = v.play();
+      if (p && p.catch) p.catch(function(){ /* 自動再生ブロックはフレーム取得に影響しないので無視 */ });
+      _kanjiInPageCamMsg('');
+    }).catch(function(err){
+      stopKanjiInPageCamera();
+      alert('カメラを起動できませんでした（' + (err && err.name ? err.name : 'エラー') + '）。' + _KANJI_INPAGE_FALLBACK_HINT);
+    });
+  }
+  function captureKanjiInPagePhoto() {
+    var v = document.getElementById('kanji-inpage-video');
+    if (!v || !_kanjiInPageStream || !v.videoWidth || !v.videoHeight) {
+      _kanjiInPageCamMsg('まだカメラの準備ができていません。少し待ってからもう一度押してね。');
+      return;
+    }
+    // ★カンジー固有：既存 onKanjiPhotoSelected と同じ縮小（長辺 1600px / JPEG 0.85）。手書きの細部を潰さない。
+    var maxSize = 1600, w = v.videoWidth, h = v.videoHeight;
+    if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
+    else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    stopKanjiInPageCamera();   // 撮り終えたら必ずカメラ解放（点きっぱなし防止）
+    // 以降は既存 onKanjiPhotoSelected と同一形で _kanjiState に載せて確認画面へ（送信・採点ロジックは無変更）
+    _kanjiState.kakiPhotoDataUrl = dataUrl;
+    _kanjiState.kakiPhotoBase64  = dataUrl.split(',')[1];
+    // pending 保存：isKakiRetry 中は期待解答が絞られており復元すると誤採点になるため保存しない（既存と同一扱い）
+    try {
+      if (_kanjiState.isKakiRetry) { _kanjiClearPendingPhoto(); }
+      else { _kanjiSavePendingPhoto(_kanjiState.level, _kanjiState.sessionId, dataUrl); }
+    } catch(e){}
+    var pv = document.getElementById('kanji-kaki-preview'); if (pv) pv.src = dataUrl;
+    var sb = document.getElementById('kanji-kaki-submit-btn'); if (sb) sb.disabled = false;
+    var mv = document.getElementById('kanji-kaki-msg'); if (mv) mv.style.display = 'none';
+    showScreen('screen-kanji-kaki-confirm');
+  }
+
   // 切り抜き起動：基礎計算 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
   // 注：基礎計算は OCR が GAS 側で送信時に走るため、ここでは画像差し替えのみ
   // （実際の「再判定」は「🚀 送信して採点」ボタン押下時に新しい画像で実行される）
@@ -20749,8 +20842,10 @@
     var input = document.getElementById('kanji-photo-input');
     if (input) input.value = '';
     document.getElementById('kanji-kaki-preview').src = '';
+    // 2026-09-23 撮り直しもページ内カメラで起動（カメラアプリに飛ばずリロードの引き金を引かない）。
+    //   非対応/拒否時は startKanjiInPageCamera が「下の…から」alert → 同画面のフォールバックボタンで従来 capture に逃げられる。
     showScreen('screen-kanji-kaki');
-    setTimeout(function(){ if (input) input.click(); }, 80);
+    setTimeout(function(){ startKanjiInPageCamera(); }, 80);
   }
   // 切り抜き起動：カンジー書き 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
   function cropKanjiPhoto() {
@@ -24610,7 +24705,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-0131</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-0205</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

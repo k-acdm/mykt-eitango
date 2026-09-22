@@ -2153,3 +2153,26 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 344459e39c78bb69996bfe5a59e1f4dc6c1e6ea8 && git push origin main && git checkout dev
   ```
+
+## 2026-09-23 本番反映：ページ内カメラ 撮る/やめるボタンのバランス修正
+
+- 反映内容（dev→main マージ、2 コミット。★見た目のみ・onclick/ロジック不変。基礎計算のみ）
+  - `229a3f7` fix(基礎計算)：ページ内カメラ「撮る/やめる」ボタンのバランス修正（撮る:やめる=2:1・縦積み解消）
+    - 原因：やめる(.btn-wide width:100%)×inline flex:0 0 auto で親幅100%要求・非縮小→やめる巨大化・撮る極細→「この画面で撮る」が縦積み
+    - 修正（3箇所=解答/work-intro/work-after 一字一句同一）：撮る(kiso-camera-launch-btn) flex:1→flex:2（主・青維持）／やめる(btn-wide) flex:0 0 auto→flex:1;min-width:0（副・グレー維持・basis:0で width:100%破綻を実質上書き＝sangoパターン）
+    - ★onclick(captureKisoInPagePhoto/stopKisoInPageCamera)・撮影送信ロジック・従来capture・フォールバックは不変。他コンテンツ不変
+  - `c9fe77f` docs(handover)：基礎計算 撮り直しページ内カメラ化の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`344459e39c78bb69996bfe5a59e1f4dc6c1e6ea8`**（＝`344459e`）
+- **マージコミット：`bbc17a44ce373242167b12160201a92a42f8ef2b`**（＝`bbc17a4`）
+- 版バッジ：`20260923-0131`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `bbc17a4`。gh 未導入のため配信物 sha256 が blob と完全一致することで `success`／配信済みを確定。`git rev-parse origin/main`＝`bbc17a4…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `11054278…` / view `e6b03086…` / admin `2da71f48…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：撮る `flex:2;background:...#0ea5e9,#0369a1`＝3／やめる `flex:1;min-width:0;margin:0;padding:14px 18px`＝3
+  - 375px 実測（modal外モックHTML・本物CSS転記）：撮る209px/やめる126px・両ボタン高さ62px(単一行=縦積み解消)・やめる非占有・横スクロールなし・撮る青/やめるグレー
+  - ゲート：`origin/main..dev` は2本（想定通り＝`229a3f7` ボタン修正／`c9fe77f` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 bbc17a44ce373242167b12160201a92a42f8ef2b && git push origin main && git checkout dev
+  ```
