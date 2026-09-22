@@ -3628,10 +3628,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260922-0440"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260922-1645"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260922-0440">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260922-0440"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260922-1645">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260922-1645"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9482,12 +9482,16 @@
     if (categoryKey === 'bottoms') return !!AVATAR_OUTFIT_MAP[_outfitKey(base, '', itemCode)];
     return false;   // 着姿を描けるのは tops/bottoms のみ（outfit 等には出さない）
   }
-  // Phase2：装着中のオーラ画像パス。equippedDetails['aura'] の itemId（例 'aura_01'）を
-  //   そのままファイル名にして images/avatar/aura/aura_NN.png（共通1枚・base非依存）。
-  //   未装着なら '' を返す（呼び出し側で非表示）。※服/背景と同じ itemId 流儀（_equipItemCode）。
+  // Phase2：装着中のオーラ画像パス。★背景（_avatarBgPath）と同じ流儀で
+  //   サーバーの imagePath をそのまま使う（例 'images/avatar/aura/aura_03.png'）。
+  //   ★itemId 直組みは桁ズレ事故の元（itemId は 3桁 'aura_003' だが実ファイルは 2桁 'aura_03.png'）
+  //   のため使わない。imagePath が無い旧サーバー等のときだけ従来の itemId 直組みにフォールバック。
+  //   未装着なら '' を返す（呼び出し側で非表示・従来どおり）。
   function _avatarAuraImgPath() {
     var d = _avatarState.equippedDetails || {};
-    var code = _equipItemCode(d.aura);
+    if (!d.aura) return '';
+    if (d.aura.imagePath) return String(d.aura.imagePath);   // ★サーバーの正しいパスを優先
+    var code = _equipItemCode(d.aura);                        // 後方互換：imagePath 欠落時のみ
     if (!code) return '';
     return 'images/avatar/aura/' + code + '.png';
   }
@@ -24509,7 +24513,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260922-0440</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260922-1645</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
