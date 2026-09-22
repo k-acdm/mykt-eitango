@@ -2020,3 +2020,26 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 90794e1cc921b45688a0962a7081a4a00c9f3098 && git push origin main && git checkout dev
   ```
+
+## 2026-09-22 本番反映：ショップ導線2ボタン（上下）＋クローゼット閉じてアバター行へ
+
+- 反映内容（dev→main マージ、2 コミット。★生徒画面 UI 改善。呼ぶ関数は既存・ロジック不変）
+  - `f5e34ce` feat(アバターショップ/クローゼット)：
+    - **1番**：`_renderAvatarShopCategory` のカテゴリ詳細ビューに、目立つ `.btn-wide` 2ボタンセット（「← カテゴリ一覧に戻る」=`backToAvatarShopCatList()` / 「👕 クローゼット（購入したものを装着）」=`showAvatarCloset()`）を **上部（一覧の前）と下部（一覧の後）の2箇所**に設置。地味な `.avatar-cat-back-btn` の markup を置換（CSS 定義はそのまま休眠）。呼ぶ関数は既存のみ・新ロジックなし・文言と見た目だけ
+    - **4番**：クローゼット `screen-avatar-closet` の「🏠 ホーム画面に戻る」を `goHome()` → **`goHomeToAvatar()`**（既存・バッジ棚と同挙動＝閉じたらアバター行が中央に見える）
+  - `789408f` docs(handover)：アバターショップ予告ボタン文言の出し分けの本番反映を記録（前回反映分）
+  - **★ ショップの購入(`buyAvatarItem`)/試着(`tryOnAvatarItem`)/アイテム描画/予告文言、バッジ保管庫 `screen-badge-shelf` の `goHomeToAvatar` 呼び出しは無変更**
+- **反映前の main（切り戻し先）：`90794e1cc921b45688a0962a7081a4a00c9f3098`**（＝`90794e1`）
+- **マージコミット：`4faf6120e0fb3a03a2bd07de060554d3085323c2`**（＝`4faf612`）
+- 版バッジ：`20260922-1733`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `4faf612` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`4faf612…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `55ce9a0e…` / view `8b69d66d…` / admin `effd51af…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：`.btn-wide` の「👕 クローゼット（購入したものを装着）」（`showAvatarCloset()`）＝JS文字列1件（実行時に上下2箇所描画）／「← カテゴリ一覧に戻る」（`backToAvatarShopCatList()`）＝同1件／クローゼットのホーム=`goHomeToAvatar()`＝1件／旧 `.avatar-cat-back-btn` はCSS定義2行のみ残（button markup は撤去済）
+  - ローカル検証（モック `_avatarShopRes` 注入）：カテゴリ画面の上部・下部に2ボタン（`.btn-wide`・既存関数）／DOM順 上=一覧前・下=一覧後／クローゼット閉じ=`goHomeToAvatar()`（アバター行中央）／バッジ棚不変／購入・予告ボタン健在／モバイル375px「クローゼット（購入したものを装着）」1行・折り返し崩れなし
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`f5e34ce` 導線／`789408f` HANDOVER記録）／index の実質差分は 4番1行＋1番navBtns（上下）のみ／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 4faf6120e0fb3a03a2bd07de060554d3085323c2 && git push origin main && git checkout dev
+  ```
