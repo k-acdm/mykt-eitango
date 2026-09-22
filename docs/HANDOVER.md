@@ -1975,3 +1975,25 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 8153286830edd0e35979c8512aebdc9a863ee9e7 && git push origin main && git checkout dev
   ```
+
+## 2026-09-22 本番反映：オーラ非表示バグ修正（画像パスを imagePath 優先に）
+
+- 反映内容（dev→main マージ、2 コミット。★生徒画面。装着済みオーラがホーム/コーナー枠に表示されるようになる）
+  - `e76bcbd` fix(アバター)：`_avatarAuraImgPath()`（[index.html](index.html)）のパス生成を修正。原因＝itemId（3桁 `aura_003`）から `aura_003.png` を組んでいたが実ファイルは 2桁 `aura_03.png`＝**桁ズレで 404 → onerror 非表示**だった。背景（`_avatarBgPath`）と同じ流儀で **`equippedDetails.aura.imagePath` をそのまま使う**よう変更（imagePath 欠落時のみ従来の itemId 直組みにフォールバック＝後方互換）。★変更は `_avatarAuraImgPath()` のパス生成1点のみ。`_applyAuraImg`・`#avatar-aura-img`・`#avatar-corner-aura-img`・z-index（中間層：背景の上・人体の後ろ）・DOM・CSS・背景/服/他カテゴリは無変更
+  - `8e3d701` docs(handover)：shoes 商品アイコン9枚配置の本番反映を記録（前回反映分）
+  - **★ クローゼットの「✅装着中」は `equipped` フラグ由来で正常だったが、描画は `equippedDetails.aura.imagePath` 由来。フロントが imagePath を無視して itemId から桁違いのファイル名を組んでいたのが唯一の原因**
+- **反映前の main（切り戻し先）：`8153286830edd0e35979c8512aebdc9a863ee9e7`**（＝`8153286`）
+- **マージコミット：`9e9bd565460662102806a46145111a4c177ce84f`**（＝`9e9bd56`）
+- 版バッジ：`20260922-1645`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `9e9bd56` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`9e9bd56…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★ローカル作業ツリーは CRLF・配信/blob は LF のため、作業ツリー直の sha256 とは一致しないのが正常。blob と比較すること）
+  - index `b68bd68a…` / view `4e0844df…` / admin `9926c945…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html に `if (d.aura.imagePath) return String(d.aura.imagePath)` ＝1件（imagePath 優先が載っている）／旧コメント「そのままファイル名にして…aura_NN.png」＝0件
+  - ローカル検証（モック `equippedDetails.aura` 注入）：桜のオーラ `aura_003`+imagePath → `aura_03.png`（2桁・実在、`naturalWidth=887` で実ロード＝404でない）がホーム/コーナー両枠で人体の後ろに表示／重ね順 bg0<aura0(slot z2内)<body1 維持／未装着→''／imagePath 欠落時フォールバックOK／モバイル375px 横スクロールなし
+  - 裏取り：github.io で `aura_003.png`（3桁・旧itemId直組み）＝404、`aura_03.png`（2桁・imagePath）＝200
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`e76bcbd` オーラ修正／`8e3d701` HANDOVER記録）／index の実質差分は `_avatarAuraImgPath` 12行のみ／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 9e9bd565460662102806a46145111a4c177ce84f && git push origin main && git checkout dev
+  ```

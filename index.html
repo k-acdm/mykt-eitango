@@ -3628,10 +3628,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260922-1645"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260922-1716"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260922-1645">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260922-1645"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260922-1716">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260922-1716"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10007,7 +10007,7 @@
           html += '<div class="avatar-item-price">' + (Number(it.price) > 0 ? _avNum(it.price) + ' HP' : '—') + '</div>';
           if (it.owned)            html += '<button class="avatar-item-btn owned" disabled>所持済み</button>';
           else if (it.purchasable) html += '<button class="avatar-item-btn buy" onclick="buyAvatarItem(\'' + _avEsc(it.itemId) + '\')">購入する</button>';
-          else                     html += '<button class="avatar-item-btn soon" disabled>近日公開</button>';
+          else                     html += '<button class="avatar-item-btn soon" disabled>' + (categoryKey === 'trophy' ? '条件クリアでGET' : '近日発売予定') + '</button>';
           // ①試着：着姿を描ける服（対応表に載る tops/bottoms）だけに「試着する」を追加（素体落ちする服には出さない）
           if (_avatarCanTryOn(categoryKey, it.itemId)) {
             html += '<button class="avatar-item-btn tryon" onclick="tryOnAvatarItem(\'' + _avEsc(it.itemId) + '\',\'' + _avEsc(categoryKey) + '\')">👗 試着する</button>';
@@ -24513,7 +24513,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260922-1645</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260922-1716</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
