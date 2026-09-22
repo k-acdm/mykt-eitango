@@ -2088,3 +2088,19 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 1a1f10076d30ffec3725f6dc9f04519c24c1a32f && git push origin main && git checkout dev
   ```
+
+## 2026-09-22 本番反映：ホームのアバター要素タップ拡大（人体・置物・名前付き・ホームのみ）
+
+- 反映内容（dev→main マージ。★生徒画面の機能追加。既存 openBadgeZoom（バッジ拡大モーダル）流用・ロジック不変。ホームのみ・背景/オーラ/コーナーは対象外）
+  - `b089f93` feat(アバター)：ホームのアバター人体・置物をタップで拡大（画像＋名前・既存モーダル流用）
+- **反映前の main（切り戻し先）：`1a1f10076d30ffec3725f6dc9f04519c24c1a32f`**（＝`1a1f100`）
+- **マージコミット：`b01c385114dc6b303e7c3fa5a1cae8f21e2b6572`**（＝`b01c385`）
+- 版バッジ：`20260922-2303`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `b01c385`。gh 未導入のため配信物 sha256 が blob と完全一致することで `success`／配信済みを確定。`git rev-parse origin/main`＝`b01c385…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `9e3b053f…` / view `6dad4e50…` / admin `4dc1be19…`
+- ゲート：`origin/main..dev` は0本（コード反映は前回セッションで完了済み＝本記録は記録漏れの補完）／本セクションは HANDOVER 追記のみで生徒向けファイルに影響しない
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 b01c385114dc6b303e7c3fa5a1cae8f21e2b6572 && git push origin main && git checkout dev
+  ```
