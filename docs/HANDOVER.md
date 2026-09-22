@@ -2129,3 +2129,27 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 c1bbae98f4678679d51c53cbb3466721f62d6ae4 && git push origin main && git checkout dev
   ```
+
+## 2026-09-23 本番反映：基礎計算 撮り直しもページ内カメラ化（取りこぼし修正）
+
+- 反映内容（dev→main マージ、2 コミット。★撮り直しの従来 capture 起動を排除。採点・他コンテンツ不変）
+  - `9cae4ae` feat(基礎計算)：撮り直しもページ内カメラ化（`.click()` → `startKisoInPageCamera(cfg)` の差し替えのみ）
+    - `retakeKisoPhoto`：screen-kiso-answer-intro に戻り `kiso-photo-input.click()` → `startKisoInPageCamera()`（引数なし=解答cfg）。confirm/answer-confirm 両画面の撮り直しを一括カバー
+    - `retakeKisoWorkPhoto`：`workPhotoIndex` 分岐は維持し、1枚目=work-intro→`startKisoInPageCamera(_KISO_INPAGE_CFG.work1)` / 2枚目以降=work-after→`startKisoInPageCamera(_KISO_INPAGE_CFG.work2)`
+    - ★画面遷移・state リセット・pending 破棄・setTimeout(80ms) は維持。従来 capture の input・フォールバックボタン(5214/5253/5390)・onKisoPhotoSelected/onKisoWorkPhotoSelected・送信採点(submitKisoAnswer/submitKisoWorkPhoto)は無変更
+    - ★これで基礎計算の従来 capture 起動は「うまく撮れない場合はこちら」フォールバックのみ（撮り直しの取りこぼしを解消＝撮り直しでカメラアプリに飛ばずリロードの引き金を引かない）
+  - `4ace88c` docs(handover)：基礎計算ページ内カメラ・メイン化の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`c1bbae98f4678679d51c53cbb3466721f62d6ae4`**（＝`c1bbae9`）
+- **マージコミット：`344459e39c78bb69996bfe5a59e1f4dc6c1e6ea8`**（＝`344459e`）
+- 版バッジ：`20260923-0107`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `344459e`。gh 未導入のため配信物 sha256 が blob と完全一致することで `success`／配信済みを確定。`git rev-parse origin/main`＝`344459e…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `532f9127…` / view `4507c2d5…` / admin `f65e4c0a…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：`startKisoInPageCamera(); }, 80`（retake=解答）＝1／`startKisoInPageCamera(_KISO_INPAGE_CFG.work1)`＝2（主フロー+撮り直し）／`work2`＝2（主フロー+撮り直し）
+  - モック検証（16 PASS / 0 FAIL）：解答撮り直し＝従来click呼ばず・startKisoInPageCamera()引数なし=解答cfg・answer-intro遷移・state/pendingリセット維持／途中式1枚目=work1・work-intro遷移／2枚目以降=work2・work-after遷移
+  - ゲート：`origin/main..dev` は2本（想定通り＝`9cae4ae` 撮り直し／`4ace88c` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 344459e39c78bb69996bfe5a59e1f4dc6c1e6ea8 && git push origin main && git checkout dev
+  ```

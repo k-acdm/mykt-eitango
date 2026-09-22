@@ -3644,10 +3644,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-0107"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-0131"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-0107">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-0107"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-0131">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-0131"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5206,8 +5206,8 @@
         <video id="kiso-work-inpage-video-1" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
         <div id="kiso-work-inpage-cam-msg-1" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="kiso-camera-launch-btn" style="flex:1;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureKisoInPagePhoto(_KISO_INPAGE_CFG.work1)">✅ この画面で撮る</button>
-          <button class="btn-wide" style="flex:0 0 auto;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopKisoInPageCamera(_KISO_INPAGE_CFG.work1)">やめる</button>
+          <button class="kiso-camera-launch-btn" style="flex:2;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureKisoInPagePhoto(_KISO_INPAGE_CFG.work1)">✅ この画面で撮る</button>
+          <button class="btn-wide" style="flex:1;min-width:0;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopKisoInPageCamera(_KISO_INPAGE_CFG.work1)">やめる</button>
         </div>
       </div>
       <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・関数は無変更で残す・消さない） -->
@@ -5245,8 +5245,8 @@
         <video id="kiso-inpage-video" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
         <div id="kiso-inpage-cam-msg" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="kiso-camera-launch-btn" style="flex:1;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureKisoInPagePhoto()">✅ この画面で撮る</button>
-          <button class="btn-wide" style="flex:0 0 auto;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopKisoInPageCamera()">やめる</button>
+          <button class="kiso-camera-launch-btn" style="flex:2;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureKisoInPagePhoto()">✅ この画面で撮る</button>
+          <button class="btn-wide" style="flex:1;min-width:0;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopKisoInPageCamera()">やめる</button>
         </div>
       </div>
       <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・関数は無変更で残す・消さない） -->
@@ -5382,8 +5382,8 @@
         <video id="kiso-work-inpage-video-2" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
         <div id="kiso-work-inpage-cam-msg-2" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="kiso-camera-launch-btn" style="flex:1;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureKisoInPagePhoto(_KISO_INPAGE_CFG.work2)">✅ この画面で撮る</button>
-          <button class="btn-wide" style="flex:0 0 auto;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopKisoInPageCamera(_KISO_INPAGE_CFG.work2)">やめる</button>
+          <button class="kiso-camera-launch-btn" style="flex:2;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureKisoInPagePhoto(_KISO_INPAGE_CFG.work2)">✅ この画面で撮る</button>
+          <button class="btn-wide" style="flex:1;min-width:0;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopKisoInPageCamera(_KISO_INPAGE_CFG.work2)">やめる</button>
         </div>
       </div>
       <!-- フォールバック：従来 capture 方式（continueKisoWorkPhoto → input-2.click・非対応/拒否時の逃げ道・消さない） -->
@@ -24610,7 +24610,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-0107</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-0131</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
