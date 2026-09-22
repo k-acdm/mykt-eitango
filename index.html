@@ -3628,10 +3628,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260922-1716"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260922-1733"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260922-1716">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260922-1716"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260922-1733">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260922-1733"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4544,7 +4544,7 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="showAvatarCorner()">← アバターショップに戻る</button>
     <div id="avatar-closet-body"><div class="avatar-shop-loading">読み込み中…</div></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:8px" onclick="showAvatarShop()">🛍 ショップでアイテムを増やす</button>
-    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHome()">🏠 ホーム画面に戻る</button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goHomeToAvatar()">🏠 ホーム画面に戻る</button>
   </div>
 </div>
 <!-- 段階C-1：バッジ飾り棚（枠外右下の入口から。装着枠4＋所持バッジ、B の trophy 入れ替えロジックを流用） -->
@@ -9983,7 +9983,12 @@
     for (var i = 0; i < cats.length; i++) { if (cats[i].categoryKey === categoryKey) { cat = cats[i]; break; } }
     if (!cat) { backToAvatarShopCatList(); return; }
     var html = '';
-    html += '<button type="button" class="avatar-cat-back-btn" onclick="backToAvatarShopCatList()">← カテゴリ一覧に戻る</button>';
+    // 1番：カテゴリ詳細ビューの導線ボタン（上下2箇所に同じセットを置く）。見た目は主要ボタン .btn-wide に統一。
+    //   ★呼ぶ関数は既存（backToAvatarShopCatList / showAvatarCloset）＝新ロジックなし・文言と見た目だけ。
+    var navBtns =
+        '<button type="button" class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:0" onclick="backToAvatarShopCatList()">← カテゴリ一覧に戻る</button>'
+      + '<button type="button" class="btn-wide" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);margin-top:10px" onclick="showAvatarCloset()">👕 クローゼット（購入したものを装着）</button>';
+    html += navBtns;   // 上部（一覧の前）
     html += '<div class="avatar-shop-cat">';
     html += '<div class="avatar-shop-cat-head">' + _avatarCatIcon(cat.categoryKey) + ' ' + _avEsc(cat.categoryJa) + '</div>';
     if (cat.displayMode !== 'item') {
@@ -10017,6 +10022,7 @@
         html += '</div>';
       }
     }
+    html += '<div style="margin-top:16px">' + navBtns + '</div>';   // 下部（一覧の後）
     html += '</div>';
     body.innerHTML = html;
   }
@@ -24513,7 +24519,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260922-1716</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260922-1733</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
