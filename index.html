@@ -3644,10 +3644,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-0205"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-0534"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-0205">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-0205"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-0534">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-0534"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4914,6 +4914,19 @@
       ⚠️ 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、もう一度撮影できます。
     </div>
     <div id="wabun1-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
+    <!-- 2026-09-23 メイン＝ページ内カメラ（getUserMedia）。カメラアプリに切り替えないのでリロードの引き金を引かない。
+         ★和文英訳①固有：getUserMedia ideal 2560×1440（完全一致採点でピリオド/カンマを拾う）／縮小は 1600px/0.85。
+         ★★箱だけ静的・起動ボタンは _renderWabun1Topic の動的生成側に置く。
+            （問題未登録日は _renderWabun1Topic が早期 return してボタンを出さない＝カメラも開けない。
+              起動ボタンを静的に置くとこのガードが壊れるため、ボタンは動的のまま・箱だけ静的が正解） -->
+    <div id="wabun1-inpage-cam" style="display:none;margin-top:12px">
+      <video id="wabun1-inpage-video" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
+      <div id="wabun1-inpage-cam-msg" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="kiso-camera-launch-btn" style="flex:2;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureWabun1InPagePhoto()">✅ この画面で撮る</button>
+        <button class="btn-wide" style="flex:1;min-width:0;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopWabun1InPageCamera()">やめる</button>
+      </div>
+    </div>
     <div id="wabun1-camera-msg" class="msg" style="margin-top:10px"></div>
     <img id="wabun1-photo-preview" class="photo-preview" style="display:none;margin-top:10px"/>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:14px;color:#6d2c4a" onclick="showWabun1Past()">📚 過去の問題と正解</button>
@@ -14344,8 +14357,11 @@
         '</div>';
     }
 
+    // 2026-09-23 メイン昇格：主＝ページ内カメラ（getUserMedia）／従来 capture は「うまく撮れない場合はこちら」に降格。
+    //   ★ボタンはここ（動的生成）のまま。上の早期 return（問題未登録日）でボタンごと出ないため、カメラも開けない＝ガード維持。
     var submitHtml =
-      '<button class="btn-wide wabun1-submit-big" style="margin-top:18px" onclick="document.getElementById(\'wabun1-photo-input\').click()">📸 写真を撮って提出する</button>';
+      '<button class="kiso-camera-launch-btn" style="margin-top:18px" onclick="startWabun1InPageCamera()">📷 撮影する</button>' +
+      '<button class="kiso-camera-fallback-btn" onclick="document.getElementById(\'wabun1-photo-input\').click()">うまく撮れない場合はこちら</button>';
 
     bodyEl.innerHTML = warningHtml + tasksHtml + wordListHtml + submitHtml;
   }
@@ -14540,7 +14556,10 @@
     document.getElementById('wabun1-photo-preview').style.display = 'none';
     document.getElementById('wabun1-photo-preview').src = '';
     document.getElementById('wabun1-camera-msg').style.display = 'none';
+    // 2026-09-23 撮り直しもページ内カメラで起動（カメラアプリに飛ばずリロードの引き金を引かない）。
+    //   非対応/拒否時は startWabun1InPageCamera が「下の…から」alert → 同画面のフォールバックボタンで従来 capture に逃げられる。
     showScreen('screen-wabun1-topic');
+    setTimeout(function(){ startWabun1InPageCamera(); }, 80);
   }
 
   function retakeWabun1PhotoFromResult() {
@@ -14554,8 +14573,9 @@
     if (preview) { preview.style.display = 'none'; preview.src = ''; }
     var msg = document.getElementById('wabun1-camera-msg');
     if (msg) msg.style.display = 'none';
+    // 2026-09-23 撮り直しもページ内カメラで起動（従来 capture の自動起動を排除）。
     showScreen('screen-wabun1-topic');
-    setTimeout(function(){ if (input) input.click(); }, 50);
+    setTimeout(function(){ startWabun1InPageCamera(); }, 80);
   }
 
   // Phase 3 Step 6 / 2026-05-20：楽観的UI 廃止 + hp-confirming-overlay でサーバ ok 待機。
@@ -15899,6 +15919,93 @@
     var sb = document.getElementById('kanji-kaki-submit-btn'); if (sb) sb.disabled = false;
     var mv = document.getElementById('kanji-kaki-msg'); if (mv) mv.style.display = 'none';
     showScreen('screen-kanji-kaki-confirm');
+  }
+
+  // ===== 2026-09-23 和文英訳①専用ページ内カメラ（案B：基礎計算/カンジーパターンの複製・和文英訳①固有仕様で新設）=====
+  //   基礎計算(_kisoState/startKisoInPageCamera/_KISO_INPAGE_CFG)・カンジー(_kanji*/startKanjiInPageCamera)には
+  //   一切触れない独立実装（案B＝回帰ゼロ）。
+  //   ★和文英訳①固有①：getUserMedia の ideal を 2560×1440 に引き上げる。
+  //     和文英訳①は「ピリオド（.）カンマ（,）大文字小文字まで完全一致」で採点する唯一のコンテンツ。
+  //     1920×1080 だと縮小後 1600×900 となり、カメラアプリ経由（フル解像度→1600×1200）より情報量が落ちるため。
+  //     ideal なので非対応端末では自動で下がるだけ（壊れない）。
+  //   ★和文英訳①固有②：縮小は 長辺 1600px / JPEG 0.85（既存 onWabun1PhotoSelected と同一。絶対に 1000/0.6 にしない。
+  //     2026-05-30 に 1200/0.7 で近接行間が潰れ Gemini が行をまたいで読む事故があり、意図的に引き上げた値）。
+  //   ★和文英訳①固有③：base64 を state に持たず sendWabun1Photo() に委譲する。
+  //     和文英訳①は「撮影直後に OCR（ocrWabun1Photo）→ 成功時だけ確認画面」の 2 段階のため、
+  //     OCR 呼び出し・番号チェック差し戻し・pending 保存(_wabun1SavePendingOcr)・確認画面遷移・確認マスコットは
+  //     すべて既存の sendWabun1Photo が行う。ここで showScreen('screen-wabun1-confirm') 等を自前でやってはいけない。
+  //   従来 capture(wabun1-photo-input / onWabun1PhotoSelected)は「うまく撮れない場合はこちら」フォールバックとして残す。
+  var _wabun1InPageStream = null;
+  var _wabun1InPagePagehideBound = false;
+  var _WABUN1_INPAGE_FALLBACK_HINT = '下の「うまく撮れない場合はこちら」から送ってください。';
+  function _wabun1InPageCamMsg(t) {
+    var el = document.getElementById('wabun1-inpage-cam-msg'); if (el) el.textContent = t || '';
+  }
+  function stopWabun1InPageCamera() {
+    try {
+      if (_wabun1InPageStream) { _wabun1InPageStream.getTracks().forEach(function(tr){ try { tr.stop(); } catch(e){} }); }
+    } catch(e){}
+    _wabun1InPageStream = null;
+    var v = document.getElementById('wabun1-inpage-video');
+    if (v) { try { v.pause(); } catch(e){} try { v.srcObject = null; } catch(e){} }
+    var box = document.getElementById('wabun1-inpage-cam'); if (box) box.style.display = 'none';
+  }
+  function startWabun1InPageCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('このブラウザはページ内カメラに対応していません。' + _WABUN1_INPAGE_FALLBACK_HINT);
+      return;   // フォールバック：従来の capture ボタンはそのまま使える
+    }
+    stopWabun1InPageCamera();   // 再入時は前のストリームを解放してから
+    if (!_wabun1InPagePagehideBound) {
+      try { window.addEventListener('pagehide', function(){ stopWabun1InPageCamera(); }); } catch(e){}
+      _wabun1InPagePagehideBound = true;
+    }
+    var box = document.getElementById('wabun1-inpage-cam');
+    var v   = document.getElementById('wabun1-inpage-video');
+    if (box) box.style.display = 'block';
+    _wabun1InPageCamMsg('カメラを準備中…');
+    navigator.mediaDevices.getUserMedia({
+      // ★和文英訳①だけ高解像度（完全一致採点でピリオド/カンマを拾うため）。ideal＝非対応端末では自動で下がる。
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } },
+      audio: false
+    }).then(function(stream){
+      _wabun1InPageStream = stream;
+      if (!v) return;
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      v.muted = true;
+      try { v.srcObject = stream; } catch(e){ try { v.src = URL.createObjectURL(stream); } catch(e2){} }
+      var p = v.play();
+      if (p && p.catch) p.catch(function(){ /* 自動再生ブロックはフレーム取得に影響しないので無視 */ });
+      _wabun1InPageCamMsg('');
+    }).catch(function(err){
+      // 拒否 / 非対応 / 使用中 等：画面を壊さず従来ボタンへ誘導（フォールバック）
+      stopWabun1InPageCamera();
+      alert('カメラを起動できませんでした（' + (err && err.name ? err.name : 'エラー') + '）。' + _WABUN1_INPAGE_FALLBACK_HINT);
+    });
+  }
+  function captureWabun1InPagePhoto() {
+    var v = document.getElementById('wabun1-inpage-video');
+    if (!v || !_wabun1InPageStream || !v.videoWidth || !v.videoHeight) {
+      _wabun1InPageCamMsg('まだカメラの準備ができていません。少し待ってからもう一度押してね。');
+      return;
+    }
+    // ★和文英訳①固有：既存 onWabun1PhotoSelected と同じ縮小（長辺 1600px / JPEG 0.85）。行間・ピリオド・カンマを潰さない。
+    var maxSize = 1600, w = v.videoWidth, h = v.videoHeight;
+    if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
+    else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    stopWabun1InPageCamera();   // 撮り終えたら必ずカメラ解放（点きっぱなし防止）
+    // ★切り抜き救済（cropWabun1Photo）の起点。必ずセットする。
+    _wabun1State.lastSourceDataUrl = dataUrl;
+    var preview = document.getElementById('wabun1-photo-preview');
+    if (preview) { preview.src = dataUrl; preview.style.display = 'block'; }
+    // ★以降（ocrWabun1Photo 呼び出し・番号チェック・pending 保存・確認画面遷移・確認マスコット）は
+    //   すべて既存 sendWabun1Photo が行う。OCR 経路は従来 capture と完全に同一。
+    sendWabun1Photo(dataUrl.split(',')[1]);
   }
 
   // 切り抜き起動：基礎計算 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
@@ -24705,7 +24812,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-0205</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-0534</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
