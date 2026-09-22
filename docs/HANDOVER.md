@@ -2064,3 +2064,27 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 de9c8eea568571aa32547f2b6bf2b3bdba94e758 && git push origin main && git checkout dev
   ```
+
+## 2026-09-22 本番反映：オーラ演出をショップ/クローゼットのサムネに横展開（オーラのみ）
+
+- 反映内容（dev→main マージ、2 コミット。★生徒画面の演出。CSSと class 付与のみ・ロジック不変。オーラのサムネだけ・他カテゴリ不変）
+  - `bdec901` feat(アバター)：
+    - `@keyframes aura-shimmer-thumb`（★translateX なし・opacity 0.78⇔1.0 + scale 1.0⇔1.04・3s）＋ `.aura-thumb { animation: aura-shimmer-thumb 3s ease-in-out infinite; transform-origin: center; }` を新設（[index.html](index.html)）
+    - ショップ `_renderAvatarShopCategory`：`categoryKey === 'aura'` のサムネ img にだけ `aura-thumb` を付与
+    - クローゼット排他分岐 `_renderAvatarCloset`：`cat.categoryKey === 'aura'` のサムネ img にだけ `aura-thumb` を付与（装着中の桜のオーラ含む）
+    - ★他カテゴリ（服/背景/置物/バッジ）のサムネは素の `avatar-item-thumb` のまま（揺れない）。共通クラス `.avatar-item-thumb` 自体の CSS は不変。ホームの `aura-shimmer`（`.avatar-aura-img`）も不変。購入/装着/描画ロジックは class 文字列への条件付与のみで無変更
+  - `e793515` docs(handover)：オーラのゆらゆら演出（aura-shimmer）の本番反映を記録（前回反映分）
+- **反映前の main（切り戻し先）：`de9c8eea568571aa32547f2b6bf2b3bdba94e758`**（＝`de9c8ee`）
+- **マージコミット：`1a1f10076d30ffec3725f6dc9f04519c24c1a32f`**（＝`1a1f100`）
+- 版バッジ：`20260922-1841`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `1a1f100` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`1a1f100…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `82416f05…` / view `a9b3b4c7…` / admin `51b25cdd…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：`@keyframes aura-shimmer-thumb`＝1／`.aura-thumb { animation: aura-shimmer-thumb…`＝1／aura-thumb 付与はショップ（`categoryKey === 'aura'`）＋クローゼット（`cat.categoryKey === 'aura'`）の2箇所
+  - ローカル検証（モック）：ショップ/クローゼットのオーラサムネ=aura-shimmer-thumb running／トップス・背景「教室」・ペット「犬」は animName=none（揺れない）／translateX なし cx 不変（中央維持）・opacity 0.78→1.0/scale 1.0→1.04／scale 1.04 でカード内に収まり非破綻／ホーム aura-shimmer 維持／モバイル375px overflow なし
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`bdec901` 横展開／`e793515` HANDOVER記録）／index の実質差分は CSS新設＋サムネ class 条件付与2箇所のみ／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 1a1f10076d30ffec3725f6dc9f04519c24c1a32f && git push origin main && git checkout dev
+  ```
