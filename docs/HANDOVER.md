@@ -2176,3 +2176,29 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 bbc17a44ce373242167b12160201a92a42f8ef2b && git push origin main && git checkout dev
   ```
+
+## 2026-09-23 本番反映：カンジー書きのページ内カメラ化（案B・専用複製）
+
+- 反映内容（dev→main マージ、2 コミット。★生徒のカンジー書きの撮影方法が主＝ページ内カメラに。基礎計算は無変更・採点不変）
+  - `270c450` feat(カンジー)：書きのページ内カメラ化（基礎計算に一切触れない専用複製）
+    - カンジー専用関数 startKanjiInPageCamera / captureKanjiInPagePhoto / stopKanjiInPageCamera を新設（基礎計算 _kisoState/startKisoInPageCamera/_KISO_INPAGE_CFG とは独立）
+    - ★カンジー固有：縮小 1600px/JPEG 0.85（手書き漢字の細線を潰さない・既存 onKanjiPhotoSelected と同一・1000/0.6にしない）／載せ先 _kanjiState.kakiPhotoBase64・kakiPhotoDataUrl／pending は _kanjiSavePendingPhoto(level,sessionId,dataUrl)＋isKakiRetry中は_kanjiClearPendingPhoto()
+    - 撮影画面(screen-kanji-kaki)メイン昇格：主＝ページ内カメラ「📷撮影する」＋video/box、撮る flex:2 青 / やめる flex:1;min-width:0 グレー(2:1)、従来 capture を「うまく撮れない場合はこちら」フォールバックに降格（kanji-photo-input/onKanjiPhotoSelected は無変更で残す）
+    - 撮り直し retakeKanjiPhoto：kanji-photo-input.click() → startKanjiInPageCamera()（画面遷移・state リセット維持）
+    - 非対応/拒否は「下の…から」alert→従来ボタン誘導、track.stop で解放。★基礎計算(_kiso系)削除0＝回帰ゼロ、送信採点(submitKanjiKakiPhoto)・photo-escape・他コンテンツ無変更
+  - `c540b83` docs(handover)：撮る/やめるボタンのバランス修正の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`bbc17a44ce373242167b12160201a92a42f8ef2b`**（＝`bbc17a4`）
+- **マージコミット：`4574b478bceaff0fa141f87524d6353ff2098bee`**（＝`4574b47`）
+- 版バッジ：`20260923-0205`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `4574b47`。gh 未導入のため配信物 sha256 が blob と完全一致することで `success`／配信済みを確定。`git rev-parse origin/main`＝`4574b47…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `a37c95ab…` / view `eb33f3bf…` / admin `ff63114c…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：`function startKanjiInPageCamera`＝1／★`var maxSize = 1600`＝2（新設capture＋既存onKanjiPhotoSelected・可読性維持）／`0.85)`＝3（カンジー系）／`kiso-camera-fallback-btn`＝5（CSS定義1＋基礎計算3＋カンジー1）
+  - モック検証（30 PASS / 0 FAIL）：主フロー縮小1600/0.85→kanji-kaki-confirm／pending (level,sessionId,dataUrl)＋isKakiRetry中は保存せずクリア／撮り直しページ内カメラ起動／非対応・拒否は下フォールバック文言alert・画面壊さず／track.stop解放／準備前ガード
+  - 基礎計算回帰ゼロ：diff の _kiso系変更は新設コメント1行のみ・削除0
+  - ゲート：`origin/main..dev` は2本（想定通り＝`270c450` カンジー／`c540b83` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 4574b478bceaff0fa141f87524d6353ff2098bee && git push origin main && git checkout dev
+  ```
