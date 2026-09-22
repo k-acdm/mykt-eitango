@@ -2104,3 +2104,28 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 b01c385114dc6b303e7c3fa5a1cae8f21e2b6572 && git push origin main && git checkout dev
   ```
+
+## 2026-09-23 本番反映：基礎計算 ページ内カメラ・メイン化＋途中式展開
+
+- 反映内容（dev→main マージ、2 コミット。★生徒の撮影方法が変わる＝主＝ページ内カメラ。他コンテンツ・採点は不変）
+  - `87a1b84` feat(基礎計算)：ページ内カメラ（getUserMedia）をメイン昇格＋途中式に展開
+    - 試作を汎用化：`startKisoInPageCamera`/`captureKisoInPagePhoto`/`stopKisoInPageCamera` が載せ先設定(cfg)を引数に取る形へ。cfg 省略時は解答＝従来同一挙動
+    - 解答(screen-kiso-answer-intro)：主＝ページ内カメラ「📷 撮影する」、従来 capture を「うまく撮れない場合はこちら」に降格（グレー・下・残す）
+    - 途中式(work-intro=work1 / work-after=work2)：両画面にページ内カメラUIを展開、主＝ページ内カメラ、従来 capture を同様に降格（残す）
+    - ★従来 capture(kiso-photo-input / kiso-work-photo-input-1/2・onKisoPhotoSelected/onKisoWorkPhotoSelected)は無変更で残す＝非対応端末フォールバック。送信・採点(submitKisoAnswer/submitKisoWorkPhoto)も無変更
+    - alert 文言を新配置に合わせ「下の『うまく撮れない場合はこちら』から」に統一。track.stop で解放（撮影後/やめる/pagehide/再入）
+  - `d09b1c7` docs(handover)：ホームのアバター要素タップ拡大の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`b01c385114dc6b303e7c3fa5a1cae8f21e2b6572`**（＝`b01c385`）
+- **マージコミット：`c1bbae98f4678679d51c53cbb3466721f62d6ae4`**（＝`c1bbae9`）
+- 版バッジ：`20260923-0046`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `c1bbae9`。gh 未導入のため配信物 sha256 が blob と完全一致することで `success`／配信済みを確定。`git rev-parse origin/main`＝`c1bbae9…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `7cfc19d5…` / view `c0f63f78…` / admin `ec208bf6…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：`function startKisoInPageCamera(cfg)`＝1／`_KISO_INPAGE_CFG`＝10／「うまく撮れない場合はこちら」＝5（解答1＋途中式work1/work2の各主/確認/やめる由来）
+  - モック検証（getUserMedia スタブ、36 PASS / 0 FAIL）：解答＝photoBase64+pending保存+マスコット+kiso-confirm（従来同一）／途中式work1・work2＝workPhotoBase64・pending保存/マスコットなし・work-confirm／非対応・拒否は下フォールバック文言でalert・画面壊さず／track.stop 解放（撮影後/やめる/再入/pagehide）／解答用変数を途中式が汚さない
+  - ゲート：`origin/main..dev` は2本（想定通り＝`87a1b84` 基礎計算／`d09b1c7` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 c1bbae98f4678679d51c53cbb3466721f62d6ae4 && git push origin main && git checkout dev
+  ```
