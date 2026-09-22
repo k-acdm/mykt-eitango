@@ -3642,10 +3642,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260922-1841"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260922-2303"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260922-1841">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260922-1841"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260922-2303">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260922-2303"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9544,14 +9544,15 @@
     return 'images/avatar/' + folder + '/' + code + '.png';
   }
   // 1 ゾーン（cat=pet/item/collab/trophy）を再描画。既存の子を消してスロット順に append。
-  function _renderAvatarDecoZone(zoneEl, cat) {
+  function _renderAvatarDecoZone(zoneEl, cat, interactive) {
     if (!zoneEl) return;
     zoneEl.innerHTML = '';
     var conf = AVATAR_DECO_SLOTS[cat];
     if (!conf) return;
     var d = _avatarState.equippedDetails || {};
     for (var i = 1; i <= conf.max; i++) {
-      var src = _avatarDecoSlotPath(d[conf.prefix + '_' + i], conf.folder);
+      var detail = d[conf.prefix + '_' + i];
+      var src = _avatarDecoSlotPath(detail, conf.folder);
       if (!src) continue;                                  // 未装着スロットは出さない（空きは表示しない）
       var img = document.createElement('img');
       img.className = 'avatar-deco-img';
@@ -9559,6 +9560,13 @@
       img.setAttribute('aria-hidden', 'true');
       img.onerror = (function(el){ return function(){ el.onerror = null; el.style.display = 'none'; }; })(img);   // 画像無しは非表示（割れない）
       img.src = src;
+      // 6番：ホームのみ置物をタップで拡大（画像＋名前）。デコゾーンは pointer-events:none のため子 img だけ auto に。
+      if (interactive) {
+        var nm = (detail && typeof detail === 'object') ? String(detail.name || '') : '';
+        img.style.pointerEvents = 'auto';
+        img.style.cursor = 'zoom-in';
+        (function(s, n){ img.onclick = function(){ openBadgeZoom(s, n); }; })(src, nm);
+      }
       zoneEl.appendChild(img);
     }
   }
@@ -9566,10 +9574,11 @@
   //   併せて、置物がある側のマイカツ君プレースホルダ deco を隠す（無い側は従来表示＝回帰なし）。
   //   ※has-bg 時は CSS が deco を !important で隠すので、ここでの display='' は影響しない。
   function _renderAvatarDecosForStage(stageId, ids) {
-    _renderAvatarDecoZone(document.getElementById(ids.collab), 'collab');
-    _renderAvatarDecoZone(document.getElementById(ids.trophy), 'trophy');
-    _renderAvatarDecoZone(document.getElementById(ids.pets),   'pet');
-    _renderAvatarDecoZone(document.getElementById(ids.items),  'item');
+    var interactive = (stageId === 'avatar-home-stage');   // 6番：タップ拡大はホームのみ（コーナーは対象外）
+    _renderAvatarDecoZone(document.getElementById(ids.collab), 'collab', interactive);
+    _renderAvatarDecoZone(document.getElementById(ids.trophy), 'trophy', interactive);
+    _renderAvatarDecoZone(document.getElementById(ids.pets),   'pet',   interactive);
+    _renderAvatarDecoZone(document.getElementById(ids.items),  'item',  interactive);
     var stage = document.getElementById(stageId);
     if (!stage) return;
     var d = _avatarState.equippedDetails || {};
@@ -9692,6 +9701,9 @@
       // 画像が DOM 上に乗るまでの空白期間も、placeholder ではなく透過状態にする。
       placeholder.style.display = 'none';
       img.style.display = '';
+      // 6番：ホームの人体（着せ替えた姿＝合成画像・背景/オーラ抜き）をタップで拡大。名前はニックネーム or 'アバター'。
+      img.style.cursor = 'zoom-in';
+      img.onclick = function(){ openBadgeZoom(this.getAttribute('src') || '', _avatarState.nickname || 'アバター'); };
       // Phase2：オーラ中間層（背景の上・人体の下）を反映（未装着は非表示）。
       _applyAuraImg(document.getElementById('avatar-aura-img'));
       var currentSrc = img.getAttribute('src') || '';
@@ -9732,6 +9744,7 @@
       img.style.transition = '';
       img.onload  = null;
       img.onerror = null;
+      img.onclick = null; img.style.cursor = '';   // 6番：未設定時はタップ拡大を無効化
       // Phase2：ベース未設定（プレースホルダ表示）ではオーラも出さない。
       var _au = document.getElementById('avatar-aura-img');
       if (_au) { _au.onerror = null; _au.removeAttribute('src'); _au.style.display = 'none'; }
@@ -24533,7 +24546,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260922-1841</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260922-2303</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
