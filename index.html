@@ -3077,6 +3077,8 @@
     .kiso-camera-intro-card .ttl { font-size: 22px; font-weight: bold; color: #0c4a6e; margin-bottom: 8px; }
     .kiso-camera-intro-card .sub { font-size: 15px; color: #475569; margin-bottom: 20px; line-height: 1.8; }
     .kiso-camera-launch-btn { background: linear-gradient(135deg, #0ea5e9, #0369a1); color: #fff; padding: 18px 14px; font-size: 18px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 6px 18px rgba(14,165,233,.35); width: 100%; transition: transform .12s; }
+    /* 2026-09-23 従来 capture 方式をフォールバックに降格したときの控えめボタン（主＝ページ内カメラの下に置く） */
+    .kiso-camera-fallback-btn { background: #e5e7eb; color: #4b5563; padding: 10px 14px; font-size: 13px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 12px; }
     .kiso-camera-launch-btn:active { transform: scale(.97); }
     /* 撮影前確認画面（途中式の写真も送る？） */
     .kiso-pre-confirm-card { background: #fff; border-radius: 14px; padding: 22px 18px; margin: 14px 0; box-shadow: 0 3px 10px rgba(0,0,0,.08); text-align: center; }
@@ -3642,10 +3644,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260922-2303"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-0046"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260922-2303">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260922-2303"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-0046">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-0046"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5198,7 +5200,18 @@
         計算の<strong>途中式を書いた紙</strong>を撮影してね。<br>
         撮影が終わったら、その後で解答の写真も撮るよ。
       </div>
-      <button class="kiso-camera-launch-btn" onclick="document.getElementById('kiso-work-photo-input-1').click()">📷 撮影する</button>
+      <!-- 2026-09-23 メイン＝ページ内カメラ（途中式1枚目 work1）。リロードの引き金を引かない。 -->
+      <button class="kiso-camera-launch-btn" onclick="startKisoInPageCamera(_KISO_INPAGE_CFG.work1)">📷 撮影する</button>
+      <div id="kiso-work-inpage-cam-1" style="display:none;margin-top:12px">
+        <video id="kiso-work-inpage-video-1" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
+        <div id="kiso-work-inpage-cam-msg-1" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="kiso-camera-launch-btn" style="flex:1;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureKisoInPagePhoto(_KISO_INPAGE_CFG.work1)">✅ この画面で撮る</button>
+          <button class="btn-wide" style="flex:0 0 auto;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopKisoInPageCamera(_KISO_INPAGE_CFG.work1)">やめる</button>
+        </div>
+      </div>
+      <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・関数は無変更で残す・消さない） -->
+      <button class="kiso-camera-fallback-btn" onclick="document.getElementById('kiso-work-photo-input-1').click()">うまく撮れない場合はこちら</button>
       <input type="file" id="kiso-work-photo-input-1" accept="image/*" capture="environment" style="display:none" onchange="onKisoWorkPhotoSelected(event)"/>
     </div>
     <div class="reload-warn-banner recovery" data-content="基礎計算">
@@ -5226,10 +5239,8 @@
         <strong>答えだけを書いた紙</strong>を撮影してね。<br>
         AIが採点するから、丁寧にハッキリ書いてあるか確認！
       </div>
-      <button class="kiso-camera-launch-btn" onclick="document.getElementById('kiso-photo-input').click()">📷 撮影する</button>
-      <input type="file" id="kiso-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKisoPhotoSelected(event)"/>
-      <!-- 2026-09-08 Stage 1 試作：ページ内カメラ（getUserMedia）を併設。従来の「📷 撮影する」は無変更。 -->
-      <button class="kiso-camera-launch-btn" id="kiso-inpage-cam-btn" style="margin-top:10px;background:linear-gradient(135deg,#16a34a,#065f46)" onclick="startKisoInPageCamera()">📷 撮影と送信がうまく行かない場合はこちらから試してみて</button>
+      <!-- 2026-09-23 メイン＝ページ内カメラ（getUserMedia）。カメラアプリに切り替えないのでリロードの引き金を引かない。 -->
+      <button class="kiso-camera-launch-btn" onclick="startKisoInPageCamera()">📷 撮影する</button>
       <div id="kiso-inpage-cam" style="display:none;margin-top:12px">
         <video id="kiso-inpage-video" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
         <div id="kiso-inpage-cam-msg" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
@@ -5238,6 +5249,9 @@
           <button class="btn-wide" style="flex:0 0 auto;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopKisoInPageCamera()">やめる</button>
         </div>
       </div>
+      <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・関数は無変更で残す・消さない） -->
+      <button class="kiso-camera-fallback-btn" onclick="document.getElementById('kiso-photo-input').click()">うまく撮れない場合はこちら</button>
+      <input type="file" id="kiso-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKisoPhotoSelected(event)"/>
     </div>
     <div class="reload-warn-banner recovery" data-content="基礎計算">
       📂 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、続きから再開できます。
@@ -5360,9 +5374,20 @@
         終わったら「次へ進む」を押して、解答の撮影に進もう。
       </div>
       <div class="kiso-work-after-btns">
-        <button class="kiso-work-after-btn-more" onclick="continueKisoWorkPhoto()">📷 もう1枚追加する</button>
+        <!-- 2026-09-23 メイン＝ページ内カメラ（途中式2枚目以降 work2）。 -->
+        <button class="kiso-work-after-btn-more" onclick="startKisoInPageCamera(_KISO_INPAGE_CFG.work2)">📷 もう1枚追加する</button>
         <button class="kiso-work-after-btn-done" onclick="finishKisoWorkPhoto()">➡️ 次へ進む（解答の撮影へ）</button>
       </div>
+      <div id="kiso-work-inpage-cam-2" style="display:none;margin-top:12px">
+        <video id="kiso-work-inpage-video-2" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
+        <div id="kiso-work-inpage-cam-msg-2" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="kiso-camera-launch-btn" style="flex:1;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureKisoInPagePhoto(_KISO_INPAGE_CFG.work2)">✅ この画面で撮る</button>
+          <button class="btn-wide" style="flex:0 0 auto;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopKisoInPageCamera(_KISO_INPAGE_CFG.work2)">やめる</button>
+        </div>
+      </div>
+      <!-- フォールバック：従来 capture 方式（continueKisoWorkPhoto → input-2.click・非対応/拒否時の逃げ道・消さない） -->
+      <button class="kiso-camera-fallback-btn" onclick="continueKisoWorkPhoto()">うまく撮れない場合はこちら</button>
     </div>
     <input type="file" id="kiso-work-photo-input-2" accept="image/*" capture="environment" style="display:none" onchange="onKisoWorkPhotoSelected(event)"/>
   </div>
@@ -15667,40 +15692,70 @@
     };
     reader.readAsDataURL(file);
   }
-  // ===== 2026-09-08 Stage 1 試作：基礎計算「解答の写真」ページ内カメラ（getUserMedia）=====
-  //   従来の capture 方式（kiso-photo-input / onKisoPhotoSelected）は無変更のまま併設。
-  //   カメラアプリに切り替えないので WebView 読み込み直しの引き金を引かない狙い（実機確認は別途）。
-  //   キャプチャ後は既存 onKisoPhotoSelected と同じ縮小パラメータ（長辺1000px / JPEG 0.6）で
-  //   _kisoState に載せ、確認画面（screen-kiso-confirm）へ。以降（プレビュー・端末保存・送信）は既存流用。
+  // ===== 2026-09-08 試作 → 2026-09-23 汎用化：基礎計算のページ内カメラ（getUserMedia）をメイン化 =====
+  //   従来の capture 方式（kiso-photo-input / kiso-work-photo-input-1/2 と onKisoPhotoSelected / onKisoWorkPhotoSelected）は
+  //   無変更のまま「うまく撮れない場合はこちら」フォールバックとして残す（非対応/拒否時の逃げ道）。
+  //   カメラアプリに切り替えないので WebView 読み込み直しの引き金を引かない狙い。
+  //   キャプチャ後は既存ハンドラと同じ縮小（長辺1000px / JPEG 0.6）で _kisoState に載せ、確認画面へ。
+  //   ★載せ先（cfg）を引数で切替：解答（answer）と途中式（work1=1枚目 / work2=2枚目以降）。cfg 省略時は解答＝従来同一挙動。
   var _kisoInPageStream = null;
   var _kisoInPagePagehideBound = false;
-  function _kisoInPageCamMsg(t) {
-    var el = document.getElementById('kiso-inpage-cam-msg'); if (el) el.textContent = t || '';
+  var _kisoInPageActiveCfg = null;
+  var _KISO_INPAGE_CFG = {
+    // 解答：従来の onKisoPhotoSelected と同じ載せ先・pending保存あり・確認マスコットあり
+    answer: {
+      camBoxId: 'kiso-inpage-cam', videoId: 'kiso-inpage-video', msgId: 'kiso-inpage-cam-msg',
+      base64Key: 'photoBase64', dataUrlKey: 'photoDataUrl',
+      previewId: 'kiso-confirm-preview', submitId: 'kiso-confirm-submit-btn',
+      confirmScreen: 'screen-kiso-confirm', savePending: true, mascot: true
+    },
+    // 途中式1枚目（work-intro）：onKisoWorkPhotoSelected と同じ載せ先・pending保存なし・マスコットなし
+    work1: {
+      camBoxId: 'kiso-work-inpage-cam-1', videoId: 'kiso-work-inpage-video-1', msgId: 'kiso-work-inpage-cam-msg-1',
+      base64Key: 'workPhotoBase64', dataUrlKey: '',
+      previewId: 'kiso-work-confirm-preview', submitId: 'kiso-work-confirm-submit-btn',
+      confirmScreen: 'screen-kiso-work-confirm', savePending: false, mascot: false
+    },
+    // 途中式2枚目以降（work-after）：載せ先は work1 と同じ、UI だけ別 id
+    work2: {
+      camBoxId: 'kiso-work-inpage-cam-2', videoId: 'kiso-work-inpage-video-2', msgId: 'kiso-work-inpage-cam-msg-2',
+      base64Key: 'workPhotoBase64', dataUrlKey: '',
+      previewId: 'kiso-work-confirm-preview', submitId: 'kiso-work-confirm-submit-btn',
+      confirmScreen: 'screen-kiso-work-confirm', savePending: false, mascot: false
+    }
+  };
+  var _KISO_INPAGE_FALLBACK_HINT = '下の「うまく撮れない場合はこちら」から送ってください。';
+  function _kisoInPageCamMsg(cfg, t) {
+    var el = document.getElementById(cfg.msgId); if (el) el.textContent = t || '';
   }
-  function stopKisoInPageCamera() {
+  function stopKisoInPageCamera(cfg) {
+    cfg = cfg || _kisoInPageActiveCfg || _KISO_INPAGE_CFG.answer;
     try {
       if (_kisoInPageStream) { _kisoInPageStream.getTracks().forEach(function(tr){ try { tr.stop(); } catch(e){} }); }
     } catch(e){}
     _kisoInPageStream = null;
-    var v = document.getElementById('kiso-inpage-video');
+    var v = document.getElementById(cfg.videoId);
     if (v) { try { v.pause(); } catch(e){} try { v.srcObject = null; } catch(e){} }
-    var box = document.getElementById('kiso-inpage-cam'); if (box) box.style.display = 'none';
+    var box = document.getElementById(cfg.camBoxId); if (box) box.style.display = 'none';
+    _kisoInPageActiveCfg = null;
   }
-  function startKisoInPageCamera() {
+  function startKisoInPageCamera(cfg) {
+    cfg = cfg || _KISO_INPAGE_CFG.answer;   // 引数なし＝解答（従来同一挙動）
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      alert('このブラウザはページ内カメラに対応していません。上の「📷 撮影する」から送ってください。');
+      alert('このブラウザはページ内カメラに対応していません。' + _KISO_INPAGE_FALLBACK_HINT);
       return;   // フォールバック：従来の capture ボタンはそのまま使える
     }
-    stopKisoInPageCamera();   // 再入時は前のストリームを解放してから
+    stopKisoInPageCamera();   // 再入時／別画面のカメラが残っていれば先に解放（アクティブcfg基準）
+    _kisoInPageActiveCfg = cfg;
     // 万一ページ遷移/離脱してもカメラを消す保険（追加のみ・既存には触れない）
     if (!_kisoInPagePagehideBound) {
-      try { window.addEventListener('pagehide', stopKisoInPageCamera); } catch(e){}
+      try { window.addEventListener('pagehide', function(){ stopKisoInPageCamera(); }); } catch(e){}
       _kisoInPagePagehideBound = true;
     }
-    var box = document.getElementById('kiso-inpage-cam');
-    var v   = document.getElementById('kiso-inpage-video');
+    var box = document.getElementById(cfg.camBoxId);
+    var v   = document.getElementById(cfg.videoId);
     if (box) box.style.display = 'block';
-    _kisoInPageCamMsg('カメラを準備中…');
+    _kisoInPageCamMsg(cfg, 'カメラを準備中…');
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
       audio: false
@@ -15713,20 +15768,21 @@
       try { v.srcObject = stream; } catch(e){ try { v.src = URL.createObjectURL(stream); } catch(e2){} }
       var p = v.play();
       if (p && p.catch) p.catch(function(){ /* 自動再生ブロックはフレーム取得に影響しないので無視 */ });
-      _kisoInPageCamMsg('');
+      _kisoInPageCamMsg(cfg, '');
     }).catch(function(err){
       // 拒否 / 非対応 / 使用中 等：画面を壊さず従来ボタンへ誘導（フォールバック）
-      stopKisoInPageCamera();
-      alert('カメラを起動できませんでした（' + (err && err.name ? err.name : 'エラー') + '）。上の「📷 撮影する」から送ってください。');
+      stopKisoInPageCamera(cfg);
+      alert('カメラを起動できませんでした（' + (err && err.name ? err.name : 'エラー') + '）。' + _KISO_INPAGE_FALLBACK_HINT);
     });
   }
-  function captureKisoInPagePhoto() {
-    var v = document.getElementById('kiso-inpage-video');
+  function captureKisoInPagePhoto(cfg) {
+    cfg = cfg || _KISO_INPAGE_CFG.answer;   // 引数なし＝解答（従来同一挙動）
+    var v = document.getElementById(cfg.videoId);
     if (!v || !_kisoInPageStream || !v.videoWidth || !v.videoHeight) {
-      _kisoInPageCamMsg('まだカメラの準備ができていません。少し待ってからもう一度押してね。');
+      _kisoInPageCamMsg(cfg, 'まだカメラの準備ができていません。少し待ってからもう一度押してね。');
       return;
     }
-    // 既存 onKisoPhotoSelected と同じ縮小（長辺 1000px / JPEG 0.6）。供給元が Image → video に変わるだけ。
+    // 既存ハンドラと同じ縮小（長辺 1000px / JPEG 0.6）。供給元が Image → video に変わるだけ。
     var maxSize = 1000, w = v.videoWidth, h = v.videoHeight;
     if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
     else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
@@ -15734,17 +15790,22 @@
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(v, 0, 0, w, h);
     var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
-    stopKisoInPageCamera();   // 撮り終えたら必ずカメラ解放（点きっぱなし防止）
+    stopKisoInPageCamera(cfg);   // 撮り終えたら必ずカメラ解放（点きっぱなし防止）
     // 以降は既存の受け取り処理と同一形で _kisoState に載せて確認画面へ（送信・採点ロジックは無変更）
-    _kisoState.photoBase64  = dataUrl.split(',')[1];
-    _kisoState.photoDataUrl = dataUrl;
-    _kisoState.previewAnswers = null;
-    _kisoState.previewOcrText = '';
-    try { _kisoSavePendingPhoto(dataUrl); } catch(e){}
-    var pv = document.getElementById('kiso-confirm-preview'); if (pv) pv.src = dataUrl;
-    var sb = document.getElementById('kiso-confirm-submit-btn'); if (sb) sb.disabled = false;
-    try { _setContentMascot('mate-img-kiso-confirm', 'thinking', 'mate-bubble-kiso-confirm', _pickBubble(KISOK_BUBBLES.answer), 'kisoK'); } catch(e){}
-    showScreen('screen-kiso-confirm');
+    _kisoState[cfg.base64Key] = dataUrl.split(',')[1];
+    if (cfg.dataUrlKey) _kisoState[cfg.dataUrlKey] = dataUrl;
+    if (cfg.savePending) {
+      // 解答のみ：切り抜き救済用の全 dataUrl・前回OCRプレビュー破棄・端末保存（既存 onKisoPhotoSelected と同一）
+      _kisoState.previewAnswers = null;
+      _kisoState.previewOcrText = '';
+      try { _kisoSavePendingPhoto(dataUrl); } catch(e){}
+    }
+    var pv = document.getElementById(cfg.previewId); if (pv) pv.src = dataUrl;
+    var sb = document.getElementById(cfg.submitId); if (sb) sb.disabled = false;
+    if (cfg.mascot) {
+      try { _setContentMascot('mate-img-kiso-confirm', 'thinking', 'mate-bubble-kiso-confirm', _pickBubble(KISOK_BUBBLES.answer), 'kisoK'); } catch(e){}
+    }
+    showScreen(cfg.confirmScreen);
   }
 
   // 切り抜き起動：基礎計算 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
@@ -24546,7 +24607,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260922-2303</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-0046</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
