@@ -2043,3 +2043,24 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 4faf6120e0fb3a03a2bd07de060554d3085323c2 && git push origin main && git checkout dev
   ```
+
+## 2026-09-22 本番反映：オーラの「光がゆらゆら揺れる」演出（CSSのみ・叩き台）
+
+- 反映内容（dev→main マージ、2 コミット。★生徒画面の演出追加。CSSのみ・ロジック不変・実機調整前提の叩き台）
+  - `2cf1c75` feat(アバター)：`.avatar-slot .avatar-aura-img`（[index.html](index.html)）に `@keyframes aura-shimmer` を付与。**opacity 0.78⇔1.0 + scale 1.0⇔1.04・3s ease-in-out infinite**。★既存の中央寄せ `translateX(-50%)` を keyframe で必ず合成し位置ズレ防止、`transform-origin: center bottom` で足元固定。重ね順（z-index:0・背景の上/人体の後ろ）・位置・サイズは不変。ホーム/コーナー両枠に共通クラスで適用。人体/背景/服/置物は無変更、未装着(display:none)は演出も出ない、`_avatarAuraImgPath`/`_applyAuraImg` 等ロジックは無変更（CSSのみ）
+  - `74e2f1a` docs(handover)：ショップ導線2ボタン＋クローゼット戻り位置の本番反映を記録（前回反映分）
+  - **★ 叩き台の設定値：duration 3s / opacity 0.78⇔1.0 / scale 1.0⇔1.04。実機で速さ・揺れ幅を後調整予定（`@keyframes aura-shimmer` の値と `.avatar-aura-img` の `3s` を書き換えるだけ）**
+- **反映前の main（切り戻し先）：`4faf6120e0fb3a03a2bd07de060554d3085323c2`**（＝`4faf612`）
+- **マージコミット：`de9c8eea568571aa32547f2b6bf2b3bdba94e758`**（＝`de9c8ee`）
+- 版バッジ：`20260922-1803`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `de9c8ee` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`de9c8ee…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `9d5d7e62…` / view `1a875e9f…` / admin `dd1706f6…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：`@keyframes aura-shimmer`＝1／`animation: aura-shimmer 3s ease-in-out infinite`＝1／`transform-origin: center bottom`＝1
+  - ローカル検証（モック `equippedDetails.aura` 注入 + Web Animations API）：opacity 0.78→0.89→1.0→0.89／scale 1.0→1.02→1.04→1.02 で往復、全フレームで cx・bottom 不変（位置ズレなし・translateX(-50%) 合成維持）、ホーム/コーナー両枠 running、人体/背景 animationName=none、未装着 display:none、モバイル375px overflow なし
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`2cf1c75` オーラ演出／`74e2f1a` HANDOVER記録）／index の実質差分は `.avatar-aura-img` の animation 付与＋`@keyframes` のみ／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 de9c8eea568571aa32547f2b6bf2b3bdba94e758 && git push origin main && git checkout dev
+  ```

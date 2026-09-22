@@ -963,6 +963,14 @@
       0%, 100% { opacity: .78; transform: translateX(-50%) scale(1); }
       50%      { opacity: 1;   transform: translateX(-50%) scale(1.04); }
     }
+    /* オーラ演出の横展開：ショップ/クローゼットのオーラ「サムネ」用（★translateX なし・opacity+scale のみ）。
+       ★categoryKey==='aura' のサムネにだけ .aura-thumb を付与＝他カテゴリ（服/背景/置物）は揺らさない。
+       ★共通クラス .avatar-item-thumb 自体の CSS は変えない。ホームの aura-shimmer とは別物。 */
+    @keyframes aura-shimmer-thumb {
+      0%, 100% { opacity: .78; transform: scale(1); }
+      50%      { opacity: 1;   transform: scale(1.04); }
+    }
+    .aura-thumb { animation: aura-shimmer-thumb 3s ease-in-out infinite; transform-origin: center; }
     .avatar-slot:hover .avatar-img { transform: scale(1.04); filter: drop-shadow(0 2px 6px rgba(124,58,237,.2)); }
     .avatar-slot .avatar-placeholder { position: relative; z-index: 1; width: 180px; height: 240px; display: none; align-items: center; justify-content: center; background: rgba(200,220,255,.25); border: 2px dashed #b0c0e0; border-radius: 16px; color: #6b7a99; font-size: 96px; font-weight: bold; line-height: 1; transition: transform .2s, background .2s; }
     /* HP交換 Phase3-A：背景画像は .avatar-stage 全体に cover で敷く（2026-09 Step3 枠全体cover化）+ 左右の飾りゾーン置物 */
@@ -3634,10 +3642,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260922-1803"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260922-1841"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260922-1803">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260922-1803"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260922-1841">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260922-1841"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10011,7 +10019,7 @@
           html += '<div class="avatar-item-card' + (soon ? ' soon' : '') + '">';
           // 予告アイテム等で image_path のファイル未アップロード時にリンク切れにならないよう、
           // 読み込み失敗時は空 image_path と同じ 🎁 プレースホルダに差し替える（onerror=null で無限ループ防止）。
-          if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;avatar-item-thumb-ph&quot;>🎁</div>\'">';
+          if (it.imagePath) html += '<img class="avatar-item-thumb' + (categoryKey === 'aura' ? ' aura-thumb' : '') + '" src="' + _avEsc(it.imagePath) + '" alt="" onerror="this.onerror=null;this.outerHTML=\'<div class=&quot;avatar-item-thumb-ph&quot;>🎁</div>\'">';
           else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
           if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
           html += '<div class="avatar-item-name">' + _avEsc(it.name) + '</div>';
@@ -10366,7 +10374,7 @@
         items.forEach(function(it){
           html += '<div class="avatar-item-card avatar-closet-item' + (it.equipped ? ' equipped' : '') + '">';
           if (it.equipped) html += '<div class="avatar-closet-badge">✅ 装着中</div>';
-          if (it.imagePath) html += '<img class="avatar-item-thumb" src="' + _avEsc(it.imagePath) + '" alt="">';
+          if (it.imagePath) html += '<img class="avatar-item-thumb' + (cat.categoryKey === 'aura' ? ' aura-thumb' : '') + '" src="' + _avEsc(it.imagePath) + '" alt="">';
           else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
           if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
           html += '<div class="avatar-item-name">' + _avEsc(it.name) + '</div>';
@@ -24525,7 +24533,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260922-1803</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260922-1841</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
