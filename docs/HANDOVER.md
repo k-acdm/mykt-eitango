@@ -1997,3 +1997,26 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 9e9bd565460662102806a46145111a4c177ce84f && git push origin main && git checkout dev
   ```
+
+## 2026-09-22 本番反映：アバターショップ予告ボタン文言の出し分け（trophy/それ以外）
+
+- 反映内容（dev→main マージ、2 コミット。★生徒画面。ショップ予告アイテムのボタン文言）
+  - `2aa45f4` feat(アバターショップ)：予告（soon）ボタン（`!purchasable && !owned`）の「近日公開」を `_renderAvatarShopCategory` の引数 `categoryKey` で出し分け。**trophy →「条件クリアでGET」／それ以外 →「近日発売予定」**。★`class="avatar-item-btn soon" disabled`・HTML構造・onclick（無し）は不変、文言テキストのみ差し替え（[index.html](index.html) soon 分岐1箇所）
+  - `2c07881` docs(handover)：オーラ非表示バグ修正（imagePath 優先）の本番反映を記録（前回反映分）
+  - **★ 所持済み/購入する、(B)カテゴリ予告カード「近日公開、お楽しみに」、HP交換「交換は近日公開」、オリワンテスの「近日公開です」alert は無変更（別文脈のため据え置き）**
+  - **★ 補足：trophy がショップに `displayMode:'item'`＋非購入で並ぶかは `getAvatarShop`（サーバー）依存。並べば「条件クリアでGET」が表示される。現状 trophy はバッジ保管庫（獲得済み表示）で扱われる想定で、その場合ショップ側の本文言は表示されない（フロントの分岐足場は整備済み）**
+- **反映前の main（切り戻し先）：`9e9bd565460662102806a46145111a4c177ce84f`**（＝`9e9bd56`）
+- **マージコミット：`90794e1cc921b45688a0962a7081a4a00c9f3098`**（＝`90794e1`）
+- 版バッジ：`20260922-1716`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `90794e1` で `completed / success` を確認（gh 未導入のため API で確認）。`git rev-parse origin/main`＝`90794e1…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `0844d114…` / view `2931e077…` / admin `58ff1812…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：予告ボタン新「条件クリアでGET」＝1／「近日発売予定」＝1／予告旧「>近日公開</button>」＝0
+  - ★据え置き確認：HP交換「交換は近日公開」＝1／(B)カード「近日公開、お楽しみに」＝1／オリワンテス「は近日公開です」＝1（すべて残存）
+  - ローカル検証（モック `_avatarShopRes` 注入）：trophy未所持=「条件クリアでGET」/ outfit・glasses・tops予告=「近日発売予定」/ trophy所持=「所持済み」/ 公開=「購入する」／`class="soon" disabled` 維持／モバイル375pxで「条件クリアでGET」1行・折り返し崩れなし
+  - ゲート：`origin/main..dev` は2本のみ（想定通り＝`2aa45f4` 予告文言／`2c07881` HANDOVER記録）／index の実質差分は soon ボタン1行のみ／admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 90794e1cc921b45688a0962a7081a4a00c9f3098 && git push origin main && git checkout dev
+  ```
