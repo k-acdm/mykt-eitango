@@ -2236,3 +2236,30 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 ac2a755007710f38be34365df83a089e3625e158 && git push origin main && git checkout dev
   ```
+
+## 2026-09-23 本番反映：英単語RUSH 書取(5級)のページ内カメラ化（案B・専用複製・即送信）
+
+- 反映内容（dev→main マージ、2 コミット。★生徒のRUSH書取の撮影方法が主＝ページ内カメラに。基礎計算/カンジー/和文英訳①無変更・採点不変）
+  - `6bc0e6f` feat(英単語RUSH)：書取(5級)のページ内カメラ化（他コンテンツに一切触れない専用複製）
+    - カンジー専用関数 startDictationInPageCamera / captureDictationInPagePhoto / stopDictationInPageCamera を新設（基礎計算 _kisoState / カンジー _kanjiState / 和文英訳① _wabun1State 系とは独立）
+    - ★RUSH書取固有：縮小 800px/JPEG 0.5（既存 onPhotoSelected と同一・現行仕様。上げない・落とさない）
+    - ★撮影＝即送信：capture 末尾で _eikenLastSourceDataUrl をセット（切り抜き救済 cropEikenPhoto の継続）→ sendPhoto に即委譲。確認画面へ遷移しない・撮り直し関数なし。判定中表示・マスコット・合否遷移は既存 sendPhoto が担う
+    - 撮影画面(screen-dictation)メイン昇格：主＝ページ内カメラ「📷撮影する」＋video/box、撮る flex:2 青「✅撮って送る」/ やめる flex:1;min-width:0 グレー(2:1)、従来 capture を「うまく撮れない場合はこちら」フォールバックに降格（photo-input/onPhotoSelected は無変更で残す）
+    - 非対応/拒否は「下の…から」alert→従来ボタン誘導、track.stop で解放。★他コンテンツ(_kiso/_kanji/_wabun1系)削除0＝回帰ゼロ、sendPhoto/ocrEikenPhoto/onPhotoSelected・他コンテンツ無変更
+  - `642fe95` docs(handover)：和文英訳①ページ内カメラ化の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`ac2a755007710f38be34365df83a089e3625e158`**（＝`ac2a755`）
+- **マージコミット：`a466d924cc4ced7e548b333694ca32ec4a24a9aa`**（＝`a466d92`）
+- 版バッジ：`20260923-1542`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `a466d92`。gh 未導入のため配信物 sha256 が blob と完全一致することで `success`／配信済みを確定。`git rev-parse origin/main`＝`a466d92…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `8aade6cc…` / view `fe2d9cf8…` / admin `6b41ec61…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：`function startDictationInPageCamera`＝1／★`maxSize = 800`＝2（既存onPhotoSelected＋新設capture・現行仕様維持）／`image/jpeg', 0.5`＝2（RUSH書取品質維持）
+  - モック検証（21 PASS / 0 FAIL）：主フロー縮小800/0.5→即sendPhoto委譲→確認画面へ遷移しない（showScreen呼ばない）→_eikenLastSourceDataUrl セット／非対応・拒否は下フォールバック文言alert・画面壊さず・sendPhoto呼ばない／track.stop解放／準備前ガード
+  - 375px 実測：撮る209px/やめる126px(2:1)・単一行62px・横スクロールなし（初回「✅この画面で撮って送る」が2行折返しだったため「✅撮って送る」に短縮）
+  - 他コンテンツ回帰ゼロ：diff の _kiso/_kanji/_wabun1系変更は新設コメント1行のみ・削除0
+  - ゲート：`origin/main..dev` は2本（想定通り＝`6bc0e6f` RUSH書取／`642fe95` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 a466d924cc4ced7e548b333694ca32ec4a24a9aa && git push origin main && git checkout dev
+  ```
