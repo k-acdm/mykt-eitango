@@ -3644,10 +3644,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-1626"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-1651"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-1626">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-1626"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-1651">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-1651"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4857,8 +4857,19 @@
     </div>
     <div class="photo-area">
       <p style="font-size:15px;color:#555;margin-bottom:8px">📷 作品を書いたノート等を撮影して送ってください</p>
+      <!-- 2026-09-23 メイン＝ページ内カメラ（getUserMedia）。撮影＝即OCR。カメラアプリに切り替えないのでリロードの引き金を引かない。 -->
+      <button class="kiso-camera-launch-btn" onclick="startSangoInPageCamera()">📷 撮影する</button>
+      <div id="sango-inpage-cam" style="display:none;margin-top:12px">
+        <video id="sango-inpage-video" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
+        <div id="sango-inpage-cam-msg" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="kiso-camera-launch-btn" style="flex:2;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureSangoInPagePhoto()">✅ 撮って送る</button>
+          <button class="btn-wide" style="flex:1;min-width:0;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopSangoInPageCamera()">やめる</button>
+        </div>
+      </div>
+      <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・onSangoPhotoSelected は無変更で残す・消さない） -->
+      <button class="kiso-camera-fallback-btn" onclick="document.getElementById('sango-photo-input').click()">うまく撮れない場合はこちら</button>
       <input type="file" id="sango-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onSangoPhotoSelected(event)"/>
-      <button class="btn-camera" onclick="document.getElementById('sango-photo-input').click()">📷 写真を撮る</button>
       <img id="sango-photo-preview" class="photo-preview"/>
       <div id="sango-photo-msg" class="msg" style="margin-top:10px"></div>
     </div>
@@ -16314,6 +16325,83 @@
     try { _oriwantesSavePending(); } catch(e){}
   }
 
+  // ===== 2026-09-23 三語短文専用ページ内カメラ（案B：専用複製・カメラ展開の最後）=====
+  //   基礎計算/カンジー/和文英訳①/RUSH書取/マイ課題/オリワンテスには一切触れない独立実装。
+  //   ★三語短文固有①：縮小 1200px/JPEG 0.7（既存 onSangoPhotoSelected と同一・現行維持。上げない・落とさない。
+  //     三語短文は提出（OCRは確認用テキスト表示）で完全一致採点ではないため、和文英訳①のような高解像度は不要）。
+  //   ★三語短文固有②：撮影→即OCR。capture 末尾で _sangoLastSourceDataUrl をセット（切り抜き救済 cropSangoPhoto の起点）
+  //     → sendSangoPhoto に委譲。確認ブロック表示・OCR・_sangoSavePendingOcr・マスコットは既存 sendSangoPhoto が担う。
+  //   従来 capture(sango-photo-input / onSangoPhotoSelected)は「うまく撮れない場合はこちら」フォールバックとして残す。
+  var _sangoInPageStream = null;
+  var _sangoInPagePagehideBound = false;
+  var _SANGO_INPAGE_FALLBACK_HINT = '下の「うまく撮れない場合はこちら」から送ってください。';
+  function _sangoInPageCamMsg(t) {
+    var el = document.getElementById('sango-inpage-cam-msg'); if (el) el.textContent = t || '';
+  }
+  function stopSangoInPageCamera() {
+    try {
+      if (_sangoInPageStream) { _sangoInPageStream.getTracks().forEach(function(tr){ try { tr.stop(); } catch(e){} }); }
+    } catch(e){}
+    _sangoInPageStream = null;
+    var v = document.getElementById('sango-inpage-video');
+    if (v) { try { v.pause(); } catch(e){} try { v.srcObject = null; } catch(e){} }
+    var box = document.getElementById('sango-inpage-cam'); if (box) box.style.display = 'none';
+  }
+  function startSangoInPageCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('このブラウザはページ内カメラに対応していません。' + _SANGO_INPAGE_FALLBACK_HINT);
+      return;   // フォールバック：従来の capture ボタンはそのまま使える
+    }
+    stopSangoInPageCamera();   // 再入時は前のストリームを解放してから
+    if (!_sangoInPagePagehideBound) {
+      try { window.addEventListener('pagehide', function(){ stopSangoInPageCamera(); }); } catch(e){}
+      _sangoInPagePagehideBound = true;
+    }
+    var box = document.getElementById('sango-inpage-cam');
+    var v   = document.getElementById('sango-inpage-video');
+    if (box) box.style.display = 'block';
+    _sangoInPageCamMsg('カメラを準備中…');
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    }).then(function(stream){
+      _sangoInPageStream = stream;
+      if (!v) return;
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      v.muted = true;
+      try { v.srcObject = stream; } catch(e){ try { v.src = URL.createObjectURL(stream); } catch(e2){} }
+      var p = v.play();
+      if (p && p.catch) p.catch(function(){ /* 自動再生ブロックはフレーム取得に影響しないので無視 */ });
+      _sangoInPageCamMsg('');
+    }).catch(function(err){
+      // 拒否 / 非対応 / 使用中 等：画面を壊さず従来ボタンへ誘導（フォールバック）
+      stopSangoInPageCamera();
+      alert('カメラを起動できませんでした（' + (err && err.name ? err.name : 'エラー') + '）。' + _SANGO_INPAGE_FALLBACK_HINT);
+    });
+  }
+  function captureSangoInPagePhoto() {
+    var v = document.getElementById('sango-inpage-video');
+    if (!v || !_sangoInPageStream || !v.videoWidth || !v.videoHeight) {
+      _sangoInPageCamMsg('まだカメラの準備ができていません。少し待ってからもう一度押してね。');
+      return;
+    }
+    // ★三語短文固有：既存 onSangoPhotoSelected と同じ縮小（長辺 1200px / JPEG 0.7）。現行維持・上げない。
+    var maxSize = 1200, w = v.videoWidth, h = v.videoHeight;
+    if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
+    else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+    stopSangoInPageCamera();   // 撮り終えたら必ずカメラ解放（点きっぱなし防止）
+    var preview = document.getElementById('sango-photo-preview');
+    if (preview) { preview.src = dataUrl; preview.style.display = 'block'; }
+    _sangoLastSourceDataUrl = dataUrl;   // ★切り抜き救済用（継続・cropSangoPhoto の起点）
+    // ★即OCR：確認ブロック表示・OCR・pending 保存・マスコットはすべて既存 sendSangoPhoto が担う。
+    sendSangoPhoto(dataUrl.split(',')[1]);
+  }
+
   // 切り抜き起動：基礎計算 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
   // 注：基礎計算は OCR が GAS 側で送信時に走るため、ここでは画像差し替えのみ
   // （実際の「再判定」は「🚀 送信して採点」ボタン押下時に新しい画像で実行される）
@@ -25118,7 +25206,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-1626</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-1651</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
