@@ -2263,3 +2263,31 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 a466d924cc4ced7e548b333694ca32ec4a24a9aa && git push origin main && git checkout dev
   ```
+
+## 2026-09-23 本番反映：マイ課題 self/hw のページ内カメラ化（案B・専用複製・撮影画面に留まる）
+
+- 反映内容（dev→main マージ、2 コミット。★生徒のマイ課題の撮影方法が主＝ページ内カメラに。他4コンテンツ無変更・送信不変）
+  - `7fcaa1e` feat(マイ課題)：self/hw のページ内カメラ化（他コンテンツに一切触れない専用複製）
+    - マイ課題専用関数 startMyTaskInPageCamera(cfg) / captureMyTaskInPagePhoto(cfg) / stopMyTaskInPageCamera(cfg) を新設（基礎計算 _kisoState / カンジー _kanjiState / 和文英訳① _wabun1State / RUSH書取 _dictation系とは独立）
+    - ★マイ課題固有：縮小 1000px/JPEG 0.6（既存 onMyTaskPhotoSelected/onMyTaskHwPhotoSelected と同一）
+    - ★撮影画面に留まる（第3パターン＝即送信でも即確認画面でもない）：capture 末尾で cfg.onCaptured(base64) を呼ぶだけ。配列 push・pending 保存・サムネ再描画は cfg.onCaptured 内（self=_myTaskState.photos / hw=教科別 _myTaskHwState.subjects[subj].photos）。確認画面遷移・送信は自前でしない
+    - cfg 2つ（self/hw）：載せ先/pending/render/id を切替。★hw は教科未選択（current 無し）ならカメラを開かない（従来 onMyTaskHwPhotoSelected の教科ガード踏襲）
+    - self/hw 両撮影画面(screen-mytask-self-capture/hw-capture)メイン昇格：主＝ページ内カメラ「📷撮影する」＋video/box、撮る flex:2 青「✅この画面で撮る」/ やめる flex:1;min-width:0 グレー(2:1)、従来 capture を「うまく撮れない場合はこちら」フォールバックに降格（mytask-photo-input/mytask-hw-photo-input・両ハンドラは無変更で残す）
+    - 非対応/拒否は「下の…から」alert→従来ボタン誘導、track.stop で解放。撮り直しは削除方式のため差し替えなし。★他4コンテンツ削除0＝回帰ゼロ、submitMyTask/pending/render/remove/復元・他コンテンツ無変更
+  - `239aa44` docs(handover)：英単語RUSH書取ページ内カメラ化の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`a466d924cc4ced7e548b333694ca32ec4a24a9aa`**（＝`a466d92`）
+- **マージコミット：`7cb54e3c8ed34592c42ffd4ba03865a76b611375`**（＝`7cb54e3`）
+- 版バッジ：`20260923-1609`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `7cb54e3`。gh 未導入のため配信物 sha256 が blob と完全一致することで `success`／配信済みを確定。`git rev-parse origin/main`＝`7cb54e3…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `cb1b9218…` / view `7bbd63ae…` / admin `dcc4606c…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：`function startMyTaskInPageCamera`＝1／`_MYTASK_INPAGE_CFG.self`＝6・`.hw`＝3／★`maxSize = 1000`＝7（マイ課題capture＋基礎計算等の総数）・`0.6)`＝19（マイ課題含む総数）
+  - モック検証（27 PASS / 0 FAIL）：self 縮小1000/0.6→_myTaskState.photos push・pending・render・撮影画面に留まる（showScreen呼ばない）／hw 教科別 photos push・self配列汚さず／hw 教科未選択→getUserMedia呼ばない（撮らせない）／複数枚2枚push蓄積／非対応・拒否は下フォールバック文言alert・画面壊さず／track.stop解放
+  - 375px 実測（前回転用）：撮る209px/やめる126px(2:1)・単一行62px・横スクロールなし（self/hw とも同一構成）
+  - 他4コンテンツ回帰ゼロ：diff の他state/関数削除0
+  - ゲート：`origin/main..dev` は2本（想定通り＝`7fcaa1e` マイ課題／`239aa44` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 7cb54e3c8ed34592c42ffd4ba03865a76b611375 && git push origin main && git checkout dev
+  ```
