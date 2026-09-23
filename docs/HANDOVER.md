@@ -2347,3 +2347,28 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 0bde3e3399420d6e40ede6eafed8bf1a8c86b0fb && git push origin main && git checkout dev
   ```
+
+## 2026-09-24 本番反映：reload-warn 注意帯の統一（フォールバック向けの控えめ注記に一括見直し・カメラ機能/送信不変）
+
+- 反映内容（dev→main マージ、2 コミット。★生徒に見える文言・配置の変更のみ。カメラ機能/送信/採点ロジックは一切不変）
+  - `76b2312` refactor(注意帯)：reload 注意を「うまく撮れない場合はこちら（従来capture）」を使う人向けの控えめ統一注記に一括見直し
+    - ★背景：ページ内カメラがメインになった生徒はリロード（おかえりなさい画面）しないため、旧「戻ることがあります」バナーは誤解を招く。統一注記に置換し、フォールバックボタン直後に配置
+    - ★統一文言（8箇所同一）：「うまく撮れないときは下の「うまく撮れない場合はこちら」から撮れます。その方法だと、まれにおかえりなさい画面に戻ることがありますが、『このまま続ける』を押して暗証番号を入れれば続きから進められます。」
+    - 旧 `.reload-warn-banner redo`（黄・⚠️）/ `.reload-warn-banner recovery`（緑・📂）を全撤去 → 新 `.reload-warn-note`（薄グレー #6b7280 / 背景 #f3f4f6 / 11.5px・モバイル11px）に統一。redo黄/recovery緑の色分け廃止
+    - 対象8画面：英単語RUSH書取 / 三語短文 / 和文英訳①（JSテンプレート） / 基礎計算(work-intro / answer-intro) / マイ課題(self / hw) / カンジー書き。各フォールバックボタン「うまく撮れない場合はこちら」の直後に配置
+    - ★個別判断（依頼と差異あり・意図的）：基礎計算 kiso-confirm（撮影確認画面）はフォールバックボタンが無く撮り直しもページ内カメラのためバナー撤去のみ（統一注記なし）／カンジー kaki-confirm（確認画面）の resume-note（送信後の自動再開案内・機能案内）はフォールバックボタンが無いため温存
+    - ★オリワンテスは元々 reload-warn 無し＝対象外（新設せず）。photo-storage-note（📸写真がスマホに残る・別トピック）11箇所は不変。start*InPageCamera / send* / submit* は変更0＝回帰ゼロ
+  - `c401add` docs(handover)：三語短文ページ内カメラ化の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`0bde3e3399420d6e40ede6eafed8bf1a8c86b0fb`**（＝`0bde3e3`）
+- **マージコミット：`6cf9f9ea7717465132f8abf60f7364222c1bfc55`**（＝`6cf9f9e`）
+- 版バッジ：`20260923-2354`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：gh 未導入のため配信物 sha256 が blob と完全一致することで `success`／配信済みを確定。`git rev-parse origin/main`＝`6cf9f9e…` 実体を確認。版バッジは 1651→2354 へ配信更新を実測（ポーリング8回目・約70秒後）。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `01202e57…` / view `9d51885a…` / admin `39d223e5…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：`class="reload-warn-note"`＝8／統一文言「うまく撮れないときは下の…」＝8／旧 `reload-warn-banner redo`＝0／旧 `reload-warn-banner recovery`＝0
+  - ゲート：`origin/main..dev` は2本（想定通り＝`76b2312` reload-warn統一／`c401add` 三語短文HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）／index の実質差分42行は全て reload-warn 注記統一（CSSメディアクエリ・削除バナーの閉じdiv・不要コメント撤去）で想定外の混入なし
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 6cf9f9ea7717465132f8abf60f7364222c1bfc55 && git push origin main && git checkout dev
+  ```
