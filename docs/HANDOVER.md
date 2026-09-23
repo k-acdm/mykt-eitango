@@ -2319,3 +2319,31 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 355f6e3e1c952ea6a22f763a11c96de099349eb1 && git push origin main && git checkout dev
   ```
+
+## 2026-09-23 本番反映：三語短文のページ内カメラ化（案B・専用複製・即OCR）★カメラ展開の全7コンテンツ完了
+
+- 反映内容（dev→main マージ、2 コミット。★生徒の三語短文の撮影方法が主＝ページ内カメラに。他6コンテンツ無変更・OCR/採点不変）
+  - `1bd617e` feat(三語短文)：ページ内カメラ化（他コンテンツに一切触れない専用複製）
+    - 三語短文専用関数 startSangoInPageCamera / captureSangoInPagePhoto / stopSangoInPageCamera を新設（基礎計算/カンジー/和文英訳①/RUSH書取/マイ課題/オリワンテスの state・関数とは独立）
+    - ★三語短文固有：縮小 1200px/JPEG 0.7（既存 onSangoPhotoSelected と同一・現行維持。上げない・落とさない。三語短文は提出（OCRは確認用テキスト表示）で完全一致採点ではないため和文英訳①のような高解像度は不要）
+    - ★撮影＝即OCR：capture 末尾で _sangoLastSourceDataUrl をセット（切り抜き救済 cropSangoPhoto の起点）→ sendSangoPhoto に委譲。確認ブロック表示・OCR・_sangoSavePendingOcr・マスコットは既存 sendSangoPhoto が担う
+    - screen-sango-photo メイン昇格：主＝ページ内カメラ「📷撮影する」＋video/box、撮る flex:2 青「✅撮って送る」/ やめる flex:1;min-width:0 グレー(2:1)、従来 capture を「うまく撮れない場合はこちら」フォールバックに降格（sango-photo-input/onSangoPhotoSelected は無変更で残す）
+    - getUserMedia 1920×1080 ideal（和文英訳①の2560は不要）。非対応/拒否は「下の…から」alert→従来ボタン誘導、track.stop で解放。撮り直しは差し替えなし（confirmSangoPhoto(false)＝書き直しは状態リセットのみ）。★他6コンテンツ削除0＝回帰ゼロ
+  - `69544cc` docs(handover)：オリワンテスページ内カメラ化の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`355f6e3e1c952ea6a22f763a11c96de099349eb1`**（＝`355f6e3`）
+- **マージコミット：`0bde3e3399420d6e40ede6eafed8bf1a8c86b0fb`**（＝`0bde3e3`）
+- 版バッジ：`20260923-1651`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `0bde3e3`。gh 未導入のため配信物 sha256 が blob と完全一致することで `success`／配信済みを確定。`git rev-parse origin/main`＝`0bde3e3…` 実体を確認。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `ce16f10d…` / view `47fad2dd…` / admin `dcd5f230…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：`function startSangoInPageCamera`＝1／capture内 `maxSize = 1200`＝1・`0.7)`＝1（縮小維持）
+  - モック検証（21 PASS / 0 FAIL）：主フロー起動（1920制約・2560でない）→縮小1200/0.7→即sendSangoPhoto委譲→確認ブロック自前表示しない（showScreen呼ばない）→_sangoLastSourceDataUrl セット／非対応・拒否は下フォールバック文言alert・画面壊さず・sendSangoPhoto呼ばない／track.stop解放
+  - 375px：撮る「✅撮って送る」はRUSH書取で単一行62px実測済みの同一文言・同一構成（撮る209px/やめる126px 2:1・横スクロールなし）
+  - 他6コンテンツ回帰ゼロ：diff の他state/関数削除0
+  - ゲート：`origin/main..dev` は2本（想定通り＝`1bd617e` 三語短文／`69544cc` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）
+- ★★カメラ展開の全7コンテンツ完了：基礎計算・カンジー・和文英訳①・RUSH書取・マイ課題(self/hw)・オリワンテス・三語短文。全て案B専用複製で他コンテンツに触れず、各コンテンツ固有の縮小解像度を維持
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 0bde3e3399420d6e40ede6eafed8bf1a8c86b0fb && git push origin main && git checkout dev
+  ```
