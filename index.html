@@ -3644,10 +3644,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-1609"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-1626"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-1609">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-1609"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-1626">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-1626"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5724,9 +5724,20 @@
     <textarea class="sango-textarea" id="oriwantes-input" rows="2" placeholder="教科を入力（例：数学、英語、日本史）"></textarea>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
       <input type="file" id="oriwantes-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onOriwantesPhotoSelected(event)"/>
-      <button class="btn-camera" style="flex:1;min-width:130px;margin:0" onclick="document.getElementById('oriwantes-photo-input').click()">📷 写真を添付</button>
+      <!-- 2026-09-23 メイン＝ページ内カメラ（getUserMedia）。横並びレイアウト（flex:1;min-width:130px）は維持。💡ヒントは無変更。 -->
+      <button class="btn-camera" style="flex:1;min-width:130px;margin:0" onclick="startOriwantesInPageCamera()">📷 撮影する</button>
       <button class="btn-wide" style="flex:1;min-width:130px;margin:0;background:linear-gradient(135deg,#7a8a99,#566270)" onclick="showOriwantesPromptHelp()">💡 書き方のヒント</button>
     </div>
+    <div id="oriwantes-inpage-cam" style="display:none;margin-top:12px">
+      <video id="oriwantes-inpage-video" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
+      <div id="oriwantes-inpage-cam-msg" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="kiso-camera-launch-btn" style="flex:2;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureOriwantesInPagePhoto()">✅ この画面で撮る</button>
+        <button class="btn-wide" style="flex:1;min-width:0;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopOriwantesInPageCamera()">やめる</button>
+      </div>
+    </div>
+    <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・onOriwantesPhotoSelected は無変更で残す・消さない） -->
+    <button class="kiso-camera-fallback-btn" onclick="document.getElementById('oriwantes-photo-input').click()">うまく撮れない場合はこちら</button>
     <button id="oriwantes-send-btn" class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:10px" onclick="sendOriwantesMessage()">📨 この教科で伝える</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
     <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
@@ -16225,6 +16236,84 @@
     try { cfg.onCaptured(dataUrl.split(',')[1]); } catch(e){}
   }
 
+  // ===== 2026-09-23 オリワンテス専用ページ内カメラ（案B：専用複製）=====
+  //   基礎計算/カンジー/和文英訳①/RUSH書取/マイ課題には一切触れない独立実装。
+  //   ★オリワンテス固有①：写真は「AI 問題生成の材料（添付）」。縮小 1000px/JPEG 0.6（既存 onOriwantesPhotoSelected と同一）。
+  //   ★オリワンテス固有②：撮影画面（チャット）に留まる＝配列 _oriwantesPhotos に push するだけ（マイ課題 self と同型）。
+  //     確認画面遷移・AI 生成・課金は自前でしない。
+  //   ★★オリワンテス固有③（最重要）：sendOriwantesMessage / generateOriwantes を絶対に呼ばない。
+  //     写真添付＝課金ゼロの操作を維持し、二重課金の経路に一切入らない（HP 消費は「📨 この教科で伝える」側のみ・無変更）。
+  //   従来 capture(oriwantes-photo-input / onOriwantesPhotoSelected)は「うまく撮れない場合はこちら」フォールバックとして残す。
+  var _oriwantesInPageStream = null;
+  var _oriwantesInPagePagehideBound = false;
+  var _ORIWANTES_INPAGE_FALLBACK_HINT = '下の「うまく撮れない場合はこちら」から送ってください。';
+  function _oriwantesInPageCamMsg(t) {
+    var el = document.getElementById('oriwantes-inpage-cam-msg'); if (el) el.textContent = t || '';
+  }
+  function stopOriwantesInPageCamera() {
+    try {
+      if (_oriwantesInPageStream) { _oriwantesInPageStream.getTracks().forEach(function(tr){ try { tr.stop(); } catch(e){} }); }
+    } catch(e){}
+    _oriwantesInPageStream = null;
+    var v = document.getElementById('oriwantes-inpage-video');
+    if (v) { try { v.pause(); } catch(e){} try { v.srcObject = null; } catch(e){} }
+    var box = document.getElementById('oriwantes-inpage-cam'); if (box) box.style.display = 'none';
+  }
+  function startOriwantesInPageCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('このブラウザはページ内カメラに対応していません。' + _ORIWANTES_INPAGE_FALLBACK_HINT);
+      return;   // フォールバック：従来の capture ボタンはそのまま使える
+    }
+    stopOriwantesInPageCamera();   // 再入時は前のストリームを解放してから
+    if (!_oriwantesInPagePagehideBound) {
+      try { window.addEventListener('pagehide', function(){ stopOriwantesInPageCamera(); }); } catch(e){}
+      _oriwantesInPagePagehideBound = true;
+    }
+    var box = document.getElementById('oriwantes-inpage-cam');
+    var v   = document.getElementById('oriwantes-inpage-video');
+    if (box) box.style.display = 'block';
+    _oriwantesInPageCamMsg('カメラを準備中…');
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    }).then(function(stream){
+      _oriwantesInPageStream = stream;
+      if (!v) return;
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      v.muted = true;
+      try { v.srcObject = stream; } catch(e){ try { v.src = URL.createObjectURL(stream); } catch(e2){} }
+      var p = v.play();
+      if (p && p.catch) p.catch(function(){ /* 自動再生ブロックはフレーム取得に影響しないので無視 */ });
+      _oriwantesInPageCamMsg('');
+    }).catch(function(err){
+      // 拒否 / 非対応 / 使用中 等：画面を壊さず従来ボタンへ誘導（フォールバック）
+      stopOriwantesInPageCamera();
+      alert('カメラを起動できませんでした（' + (err && err.name ? err.name : 'エラー') + '）。' + _ORIWANTES_INPAGE_FALLBACK_HINT);
+    });
+  }
+  function captureOriwantesInPagePhoto() {
+    var v = document.getElementById('oriwantes-inpage-video');
+    if (!v || !_oriwantesInPageStream || !v.videoWidth || !v.videoHeight) {
+      _oriwantesInPageCamMsg('まだカメラの準備ができていません。少し待ってからもう一度押してね。');
+      return;
+    }
+    // ★オリワンテス固有：既存 onOriwantesPhotoSelected と同じ縮小（長辺 1000px / JPEG 0.6）。
+    var maxSize = 1000, w = v.videoWidth, h = v.videoHeight;
+    if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
+    else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+    stopOriwantesInPageCamera();   // 撮り終えたら必ずカメラ解放（点きっぱなし防止）
+    // ★撮影画面（チャット）に留まる：配列 push＋サムネ再描画＋添付pending 保存のみ。
+    //   ★★sendOriwantesMessage / generateOriwantes は呼ばない（写真添付＝課金ゼロ・二重課金の経路に入らない）。
+    _oriwantesPhotos.push(dataUrl.split(',')[1]);   // 既存 onOriwantesPhotoSelected と同一形（生base64）
+    _renderOriwantesPhotos();
+    try { _oriwantesSavePending(); } catch(e){}
+  }
+
   // 切り抜き起動：基礎計算 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
   // 注：基礎計算は OCR が GAS 側で送信時に走るため、ここでは画像差し替えのみ
   // （実際の「再判定」は「🚀 送信して採点」ボタン押下時に新しい画像で実行される）
@@ -25029,7 +25118,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-1609</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-1626</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
