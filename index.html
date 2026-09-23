@@ -3644,10 +3644,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-1542"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-1609"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-1542">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-1542"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-1609">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-1609"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5520,8 +5520,19 @@
     <div class="reload-warn-banner redo" data-content="マイ課題">
       ⚠️ 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、もう一度撮影できます。
     </div>
+    <!-- 2026-09-23 メイン＝ページ内カメラ（getUserMedia）。撮影画面に留まって複数枚蓄積。カメラアプリに切り替えないのでリロードの引き金を引かない。 -->
+    <button class="kiso-camera-launch-btn" onclick="startMyTaskInPageCamera(_MYTASK_INPAGE_CFG.self)">📷 撮影する</button>
+    <div id="mytask-inpage-cam" style="display:none;margin-top:12px">
+      <video id="mytask-inpage-video" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
+      <div id="mytask-inpage-cam-msg" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="kiso-camera-launch-btn" style="flex:2;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureMyTaskInPagePhoto(_MYTASK_INPAGE_CFG.self)">✅ この画面で撮る</button>
+        <button class="btn-wide" style="flex:1;min-width:0;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopMyTaskInPageCamera(_MYTASK_INPAGE_CFG.self)">やめる</button>
+      </div>
+    </div>
+    <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・onMyTaskPhotoSelected は無変更で残す・消さない） -->
+    <button class="kiso-camera-fallback-btn" onclick="document.getElementById('mytask-photo-input').click()">うまく撮れない場合はこちら</button>
     <input type="file" id="mytask-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onMyTaskPhotoSelected(event)"/>
-    <button class="btn-camera" onclick="document.getElementById('mytask-photo-input').click()">📷 写真を撮る／追加する</button>
     <div id="mytask-photo-list" class="mytask-photo-list"></div>
     <button class="btn-wide" id="mytask-capture-next-btn" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:14px" onclick="goMyTaskSelfConfirm()" disabled>確認へ進む ▶</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskSelfEntry()">← 戻る</button>
@@ -5608,8 +5619,19 @@
     <div class="reload-warn-banner redo" data-content="マイ課題">
       ⚠️ 写真を撮ったあと、スマホの都合で「おかえりなさい画面」に戻ることがあります。そのときは『このまま続ける』を押して暗証番号を入れれば、もう一度撮影できます。
     </div>
+    <!-- 2026-09-23 メイン＝ページ内カメラ（getUserMedia）。撮影画面に留まって複数枚蓄積。教科未選択なら開かない（従来ガード踏襲）。 -->
+    <button class="kiso-camera-launch-btn" onclick="startMyTaskInPageCamera(_MYTASK_INPAGE_CFG.hw)">📷 撮影する</button>
+    <div id="mytask-hw-inpage-cam" style="display:none;margin-top:12px">
+      <video id="mytask-hw-inpage-video" playsinline muted style="width:100%;max-height:60vh;background:#000;border-radius:10px"></video>
+      <div id="mytask-hw-inpage-cam-msg" style="font-size:13px;color:#b91c1c;margin:6px 0"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="kiso-camera-launch-btn" style="flex:2;background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="captureMyTaskInPagePhoto(_MYTASK_INPAGE_CFG.hw)">✅ この画面で撮る</button>
+        <button class="btn-wide" style="flex:1;min-width:0;margin:0;padding:14px 18px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="stopMyTaskInPageCamera(_MYTASK_INPAGE_CFG.hw)">やめる</button>
+      </div>
+    </div>
+    <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・onMyTaskHwPhotoSelected は無変更で残す・消さない） -->
+    <button class="kiso-camera-fallback-btn" onclick="document.getElementById('mytask-hw-photo-input').click()">うまく撮れない場合はこちら</button>
     <input type="file" id="mytask-hw-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onMyTaskHwPhotoSelected(event)"/>
-    <button class="btn-camera" onclick="document.getElementById('mytask-hw-photo-input').click()">📷 写真を撮る／追加する</button>
     <div id="mytask-hw-photo-list" class="mytask-photo-list"></div>
     <button class="btn-wide" id="mytask-hw-capture-next-btn" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:14px" onclick="goMyTaskHwMore()" disabled>次へ ▶</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskHwNotice()">← 戻る</button>
@@ -16096,6 +16118,113 @@
     sendPhoto(dataUrl.split(',')[1]);
   }
 
+  // ===== 2026-09-23 マイ課題専用ページ内カメラ（案B：専用複製・self/hw 2箇所）=====
+  //   基礎計算/カンジー/和文英訳①/RUSH書取には一切触れない独立実装。
+  //   ★マイ課題固有①：縮小 1000px/JPEG 0.6（既存 onMyTaskPhotoSelected/onMyTaskHwPhotoSelected と同一）。
+  //   ★マイ課題固有②：撮影画面に留まる（第3パターン＝即送信でも即確認画面でもない）。capture 末尾で cfg.onCaptured(base64) を呼ぶだけ。
+  //     配列 push・pending 保存・サムネ再描画は cfg.onCaptured 内（self/hw で載せ先/pending/render が違うため）。確認画面遷移・送信は自前でしない。
+  //   ★マイ課題固有③：hw は教科未選択（_myTaskHwState.current 無し）ならカメラを開かない（従来 onMyTaskHwPhotoSelected の教科ガードと同じ「撮らせない」挙動）。
+  //   従来 capture(mytask-photo-input/mytask-hw-photo-input・onMyTaskPhotoSelected/onMyTaskHwPhotoSelected)は「うまく撮れない場合はこちら」フォールバックとして残す。
+  var _myTaskInPageStream = null;
+  var _myTaskInPagePagehideBound = false;
+  var _myTaskInPageActiveCfg = null;
+  var _MYTASK_INPAGE_FALLBACK_HINT = '下の「うまく撮れない場合はこちら」から送ってください。';
+  var _MYTASK_INPAGE_CFG = {
+    self: {
+      camBoxId: 'mytask-inpage-cam', videoId: 'mytask-inpage-video', msgId: 'mytask-inpage-cam-msg',
+      onCaptured: function(b64) {
+        _myTaskState.photos.push(b64);
+        try { _myTaskSavePendingPhotos(); } catch(e){}
+        _renderMyTaskPhotos();
+      }
+    },
+    hw: {
+      camBoxId: 'mytask-hw-inpage-cam', videoId: 'mytask-hw-inpage-video', msgId: 'mytask-hw-inpage-cam-msg',
+      // ★教科未選択ガード：従来 onMyTaskHwPhotoSelected と同じ判定（current 無し / 教科不存在なら撮らせない）
+      guard: function() {
+        var subj = _myTaskHwState.current;
+        return !!(subj && _myTaskHwState.subjects[subj]);
+      },
+      onCaptured: function(b64) {
+        var subj = _myTaskHwState.current;
+        if (!subj || !_myTaskHwState.subjects[subj]) return;   // 二重ガード（撮影中に教科が変わっても安全）
+        _myTaskHwState.subjects[subj].photos.push(b64);
+        try { _myTaskHwSavePendingPhotos(); } catch(e){}
+        _renderMyTaskHwPhotos();
+      }
+    }
+  };
+  function _myTaskInPageCamMsg(cfg, t) {
+    var el = document.getElementById(cfg.msgId); if (el) el.textContent = t || '';
+  }
+  function stopMyTaskInPageCamera(cfg) {
+    cfg = cfg || _myTaskInPageActiveCfg || _MYTASK_INPAGE_CFG.self;
+    try {
+      if (_myTaskInPageStream) { _myTaskInPageStream.getTracks().forEach(function(tr){ try { tr.stop(); } catch(e){} }); }
+    } catch(e){}
+    _myTaskInPageStream = null;
+    var v = document.getElementById(cfg.videoId);
+    if (v) { try { v.pause(); } catch(e){} try { v.srcObject = null; } catch(e){} }
+    var box = document.getElementById(cfg.camBoxId); if (box) box.style.display = 'none';
+    _myTaskInPageActiveCfg = null;
+  }
+  function startMyTaskInPageCamera(cfg) {
+    cfg = cfg || _MYTASK_INPAGE_CFG.self;
+    // ★hw 教科未選択ガード：教科が選ばれていなければカメラを開かない（従来と同じ「撮らせない」挙動）
+    if (cfg.guard && !cfg.guard()) { return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('このブラウザはページ内カメラに対応していません。' + _MYTASK_INPAGE_FALLBACK_HINT);
+      return;   // フォールバック：従来の capture ボタンはそのまま使える
+    }
+    stopMyTaskInPageCamera();   // 再入時／別画面のカメラが残っていれば先に解放（アクティブcfg基準）
+    _myTaskInPageActiveCfg = cfg;
+    if (!_myTaskInPagePagehideBound) {
+      try { window.addEventListener('pagehide', function(){ stopMyTaskInPageCamera(); }); } catch(e){}
+      _myTaskInPagePagehideBound = true;
+    }
+    var box = document.getElementById(cfg.camBoxId);
+    var v   = document.getElementById(cfg.videoId);
+    if (box) box.style.display = 'block';
+    _myTaskInPageCamMsg(cfg, 'カメラを準備中…');
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    }).then(function(stream){
+      _myTaskInPageStream = stream;
+      if (!v) return;
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      v.muted = true;
+      try { v.srcObject = stream; } catch(e){ try { v.src = URL.createObjectURL(stream); } catch(e2){} }
+      var p = v.play();
+      if (p && p.catch) p.catch(function(){ /* 自動再生ブロックはフレーム取得に影響しないので無視 */ });
+      _myTaskInPageCamMsg(cfg, '');
+    }).catch(function(err){
+      // 拒否 / 非対応 / 使用中 等：画面を壊さず従来ボタンへ誘導（フォールバック）
+      stopMyTaskInPageCamera(cfg);
+      alert('カメラを起動できませんでした（' + (err && err.name ? err.name : 'エラー') + '）。' + _MYTASK_INPAGE_FALLBACK_HINT);
+    });
+  }
+  function captureMyTaskInPagePhoto(cfg) {
+    cfg = cfg || _MYTASK_INPAGE_CFG.self;
+    var v = document.getElementById(cfg.videoId);
+    if (!v || !_myTaskInPageStream || !v.videoWidth || !v.videoHeight) {
+      _myTaskInPageCamMsg(cfg, 'まだカメラの準備ができていません。少し待ってからもう一度押してね。');
+      return;
+    }
+    // ★マイ課題固有：既存ハンドラと同じ縮小（長辺 1000px / JPEG 0.6）。
+    var maxSize = 1000, w = v.videoWidth, h = v.videoHeight;
+    if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
+    else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+    stopMyTaskInPageCamera(cfg);   // 撮り終えたら必ずカメラ解放（点きっぱなし防止）
+    // ★撮影画面に留まる：push・pending 保存・サムネ再描画は cfg.onCaptured が担う。確認画面遷移・送信は自前でしない。
+    try { cfg.onCaptured(dataUrl.split(',')[1]); } catch(e){}
+  }
+
   // 切り抜き起動：基礎計算 確認画面の「✂️ 切り抜いて再判定」ボタンから呼ばれる
   // 注：基礎計算は OCR が GAS 側で送信時に走るため、ここでは画像差し替えのみ
   // （実際の「再判定」は「🚀 送信して採点」ボタン押下時に新しい画像で実行される）
@@ -24900,7 +25029,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-1542</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-1609</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
