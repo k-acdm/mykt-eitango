@@ -2202,3 +2202,37 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 4574b478bceaff0fa141f87524d6353ff2098bee && git push origin main && git checkout dev
   ```
+
+## 2026-09-23 本番反映：和文英訳①のページ内カメラ化（案B・専用複製）
+
+- 反映内容（dev→main マージ、2 コミット。★生徒の和文英訳①の撮影方法が主＝ページ内カメラに。基礎計算・カンジーは無変更・OCR採点不変）
+  - `6748a30` feat(和文英訳①)：ページ内カメラ化（基礎計算・カンジーに一切触れない専用複製）
+    - 和文英訳①専用関数 startWabun1InPageCamera / captureWabun1InPagePhoto / stopWabun1InPageCamera を新設（基礎計算 _kisoState/_KISO_INPAGE_CFG・カンジー _kanji* とは完全に独立＝案B 回帰ゼロ）
+    - ★和文英訳①固有①：getUserMedia ideal **2560×1440**（他コンテンツは 1920×1080）。ピリオド/カンマ/大文字小文字まで完全一致採点する唯一のコンテンツのため、縮小後の情報量を確保。ideal なので非対応端末では自動で下がる
+    - ★和文英訳①固有②：縮小 1600px / JPEG 0.85（既存 onWabun1PhotoSelected と同一・1000/0.6 にしない。2026-05-30 に 1200/0.7 で近接行間が潰れ Gemini が行をまたいで読む事故があった値）
+    - ★和文英訳①固有③：base64 を state に持たず **sendWabun1Photo() に委譲**。OCR(ocrWabun1Photo)・番号チェック差し戻し・pending 保存(_wabun1SavePendingOcr)・確認画面遷移・確認マスコットはすべて既存 sendWabun1Photo が実施＝OCR 経路は従来 capture と完全同一。★lastSourceDataUrl は必ずセット（切り抜き救済 cropWabun1Photo の起点）
+    - 問題画面(screen-wabun1-topic)メイン昇格：主＝ページ内カメラ「📷 撮影する」＋video/box、撮る flex:2 青 / やめる flex:1;min-width:0 グレー(2:1)、従来 capture を「うまく撮れない場合はこちら」フォールバックに降格（wabun1-photo-input / onWabun1PhotoSelected は無変更で残す）
+    - ★★起動ボタンは _renderWabun1Topic の**動的生成のまま・箱だけ静的HTML**。問題未登録日の早期 return ガードを壊さない（ボタンが出ない＝カメラも開けない）
+    - 撮り直し2箇所をページ内カメラ化：retakeWabun1Photo（従来は自動起動なし→起動するよう変更）／ retakeWabun1PhotoFromResult（input.click() を排除）。どちらも _pendingPhotoClear(WABUN1_OCR_KEY) の破棄は維持
+    - 非対応/拒否は「下の…から」alert→従来ボタン誘導、track.stop で解放（撮影後/やめる/再入/pagehide）
+  - `dad2c4c` docs(handover)：カンジー書きページ内カメラ化の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`4574b478bceaff0fa141f87524d6353ff2098bee`**（＝`4574b47`）
+- **マージコミット：`ac2a755007710f38be34365df83a089e3625e158`**（＝`ac2a755`）
+- 版バッジ：`20260923-0534`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `ac2a755` / run `35781347505` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`ac2a755007710f38be34365df83a089e3625e158` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `cc83254f…` / view `d8e520bd…` / admin `5e4293c3…`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index.html：`function startWabun1InPageCamera` / `captureWabun1InPagePhoto` / `stopWabun1InPageCamera` ＝各1／`id="wabun1-inpage-video"`＝1／`onclick="startWabun1InPageCamera()"`＝1
+  - ★`width: { ideal: 2560 }, height: { ideal: 1440 }`＝**1**（和文英訳①のみ）／`ideal: 1920`＝**2**（基礎計算＋カンジー＝無変更）
+  - ★captureWabun1InPagePhoto 内：`maxSize = 1600` / `toDataURL('image/jpeg', 0.85)`。既存 onWabun1PhotoSelected 内も同値のまま（無変更）
+  - 撮り直し：`setTimeout(function(){ startWabun1InPageCamera(); }, 80);`＝2箇所（確認画面／結果画面）
+  - 降格：動的 submitHtml が「📷 撮影する」＋「うまく撮れない場合はこちら」の2本。旧「📸 写真を撮って提出する」は消滅（残る「📷 写真を撮って提出する」1件は基礎計算の自前ボタンで無関係）
+  - 回帰ゼロ：`maxSize = 1000`（基礎計算）＝6／`maxSize = 1600`（和文英訳①×2＋カンジー×2）＝4。HEAD 版とのブロック逐語一致で 基礎計算ページ内カメラ一式(5,414字)・カンジー一式(3,741字)・onKisoPhotoSelected系(1,395字)・retakeKanjiPhoto+cropKanjiPhoto(1,471字) が無変更、識別子出現数も全11種一致
+  - 和文英訳①の既存ロジックも逐語一致で無変更：sendWabun1Photo(4,235字) / submitWabun1Answer(2,894字) / _wabun1SavePendingOcr+_wabun1RestorePendingOcrIfAny(2,073字) / onWabun1PhotoSelected+cropWabun1Photo(2,257字)。reload-warn-banner（注意帯）も原文のまま・総数18で不変
+  - 検証：モック34 PASS ＋ 構造47 PASS ＝ **81 PASS / 0 FAIL**、inline JS 構文チェック（node --check）OK
+  - ゲート：`origin/main..dev` は2本（想定通り＝`6748a30` 和文英訳①／`dad2c4c` HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 ac2a755007710f38be34365df83a089e3625e158 && git push origin main && git checkout dev
+  ```
