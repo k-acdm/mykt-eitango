@@ -3649,10 +3649,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260923-2354"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260924-0041"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260923-2354">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260923-2354"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260924-0041">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260924-0041"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4743,6 +4743,16 @@
       <p class="sfx-setting-desc">クイズの正解・不正解の音や、HPをもらうときの音の「鳴らす/鳴らさない」を切り替えられるよ。<br><span class="sfx-note">※英語や国語の読み上げの声は、この設定では消えません。</span></p>
       <button type="button" id="sfx-toggle-btn" class="sfx-toggle on" onclick="toggleSfx()" aria-pressed="true">
         <span class="sfx-toggle-label" id="sfx-toggle-label">🔔 効果音：鳴らす</span>
+        <span class="sfx-toggle-switch"><span class="sfx-toggle-knob"></span></span>
+      </button>
+    </div>
+    <!-- 2026-09-24：個人端末（silent自動復帰）トグル。★この端末が自分専用のときだけ ON にすると、
+         強制リロード後の「おかえりなさい」確認タップが省ける。共用端末では OFF のまま（既定 OFF）。 -->
+    <div class="setting-card">
+      <h3>📱 この端末はわたし専用</h3>
+      <p class="sfx-setting-desc">ONにすると、強制再ログインの時に手間が省けます。<br><span class="sfx-note">※塾や学校の共用タブレットでは「ON」にしないでください。</span></p>
+      <button type="button" id="personal-device-toggle-btn" class="sfx-toggle off" onclick="togglePersonalDevice()" aria-pressed="false">
+        <span class="sfx-toggle-label" id="personal-device-toggle-label">📱 この端末はわたし専用：OFF</span>
         <span class="sfx-toggle-switch"><span class="sfx-toggle-knob"></span></span>
       </button>
     </div>
@@ -8214,6 +8224,40 @@
     _renderSfxToggle();
   }
 
+  // 2026-09-24：個人端末（silent自動復帰）トグル。
+  //   ★localStorage の mykt_personal_device のみを見る/書く（端末単位）。サーバーには保存しない
+  //     （＝端末ごとに独立。共用iPadに個人端末の設定が伝播しないため）。
+  //   ★認証・セッション機構（mykt_session_*・doLogin・PIN）には一切触れない。silent の発火可否だけを切り替える。
+  function _personalDeviceOn() {
+    try { return localStorage.getItem('mykt_personal_device') === '1'; } catch(e){ return false; }
+  }
+  function _renderPersonalDeviceToggle() {
+    var btn = document.getElementById('personal-device-toggle-btn');
+    var lbl = document.getElementById('personal-device-toggle-label');
+    if (!btn) return;
+    var on = _personalDeviceOn();  // 保存値を真実として表示
+    btn.classList.toggle('on',  on);
+    btn.classList.toggle('off', !on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (lbl) lbl.textContent = on ? '📱 この端末はわたし専用：ON' : '📱 この端末はわたし専用：OFF';
+  }
+  function togglePersonalDevice() {
+    var turnOn = !_personalDeviceOn();  // 今の保存値を基準に反転
+    if (turnOn) {
+      // ★ON にする時だけ confirm を挟む（共用端末での誤 ON を防ぐ）。キャンセルなら OFF のまま。
+      var ok = false;
+      try {
+        ok = window.confirm('この端末が自分専用の場合は「ON」にする。（塾や学校の共用端末では「ON」にしないこと）');
+      } catch(e){ ok = false; }
+      if (!ok) { _renderPersonalDeviceToggle(); return; }   // キャンセル＝OFFのまま（表示だけ整える）
+      try { localStorage.setItem('mykt_personal_device', '1'); } catch(e){}
+    } else {
+      // ★OFF は確認なしで即 OFF（共用化するとき素早く戻せる）。
+      try { localStorage.removeItem('mykt_personal_device'); } catch(e){}
+    }
+    _renderPersonalDeviceToggle();
+  }
+
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
     document.getElementById(id).classList.add('active');
@@ -8230,6 +8274,7 @@
       }
       _renderSfxToggle();  // 効果音トグルの現在状態を反映
       _renderStudyTimerToggle();  // 2026-08-19 要望1：タイマー切替の表示可否と現在状態を反映
+      _renderPersonalDeviceToggle();  // 2026-09-24：個人端末（silent自動復帰）トグルの現在状態を反映
       loadMissionExemptionStatus();  // 2026-08-23：絶対ミッション解除申請の状況（この画面を開いたときだけ 1 回）
     }
     // 第4群B：実施時間タイマーをアクティブ画面へ移設。
@@ -9007,7 +9052,18 @@
       if ((Date.now() - ts) > _SESSION_TTL_MS) return;
       // 2026-08-17：共有端末での誤ログイン防止。silent 自動復帰をやめ、確認プロンプトを表示する。
       //   本人が「このまま続ける」を押した時だけ resumeContinueLogin() → doLogin（通常ログイン）に進む。
-      _showSessionResumePrompt(sid);
+      // 2026-09-24：個人端末に限り silent 自動復帰を解禁（純追加）。
+      //   ★フラグ mykt_personal_device==='1' のときだけ resumeContinueLogin() 直行（「このまま続ける」タップの1手間を省く）。
+      //   ★未設定＝OFF＝従来プロンプト（共用iPadは完全に従来どおり＝非破壊）。
+      //   ★silent でも resumeContinueLogin → doLogin → loginStudent のサーバー再検証・PINフローは従来どおり必ず通る（認証は省かない）。
+      //   ★このフラグは「全ゲート（sid有・eduday一致・TTL7日内）通過後」でしか読まれない＝本人・当日・7日内が保証された状態でのみ silent 発火。
+      var _personalDevice = false;
+      try { _personalDevice = (localStorage.getItem('mykt_personal_device') === '1'); } catch(e){ _personalDevice = false; }
+      if (_personalDevice) {
+        resumeContinueLogin();          // silent 直行（中身は doLogin 再検証・PINフローそのまま）
+      } else {
+        _showSessionResumePrompt(sid);  // 従来プロンプト（共用iPad 既定・誤ログイン防止）
+      }
     } catch(e){}
   })();
 
@@ -9190,6 +9246,9 @@
       localStorage.removeItem('mykt_session_token');
       localStorage.removeItem('mykt_session_eduday');
     } catch(e){}
+    // 2026-09-24：「別の生徒はこちら」は共用端末の明確なシグナル。個人端末フラグを OFF に戻して
+    //   誤 ON された共用 iPad を自浄する（次回以降は従来プロンプトに戻る＝別人 silent 復帰を防ぐ）。
+    try { localStorage.removeItem('mykt_personal_device'); } catch(e){}
     var stepResume = document.querySelector('.login-step-resume');
     if (stepResume) stepResume.style.display = 'none';
     try { backToRoleSelect(); } catch(e){}  // 役割選択ステップを表示し直す（既存挙動を再利用）
@@ -25192,7 +25251,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260923-2354</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-0041</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
