@@ -3649,10 +3649,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260924-1637"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260924-2318"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260924-1637">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260924-1637"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260924-2318">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260924-2318"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -8087,7 +8087,7 @@
   //   - returnScreen  : キャンセル時に戻る画面 ID
   //   - onCropped     : function(croppedDataUrl) - 切り抜き後に呼ばれる。
   //                     再OCR等は呼び出し側でこの中で行う。画面遷移も自由。
-  // 切り抜き後の dataUrl は image/jpeg, quality 0.8。長辺 1600px 上限。
+  // 切り抜き後の dataUrl は image/jpeg, quality 0.8。長辺 1600px 上限（opts.maxSize で上書き可。2026-09-24 カンジーのみ 2000）。
   var _cropper = null;
   var _cropContext = null;
   function _ensureCropperReady(callback) {
@@ -8108,7 +8108,8 @@
     _cropContext = {
       sourceDataUrl: opts.sourceDataUrl,
       returnScreen:  opts.returnScreen || '',
-      onCropped:     (typeof opts.onCropped === 'function') ? opts.onCropped : null
+      onCropped:     (typeof opts.onCropped === 'function') ? opts.onCropped : null,
+      maxSize:       (Number(opts.maxSize) > 0) ? Number(opts.maxSize) : 1600
     };
     _ensureCropperReady(function(){
       var img = document.getElementById('crop-image');
@@ -8149,8 +8150,8 @@
     if (msgEl) { msgEl.textContent = '⏳ 切り抜き中...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block'; }
     try {
       var canvas = _cropper.getCroppedCanvas({
-        maxWidth: 1600,
-        maxHeight: 1600,
+        maxWidth: _cropContext.maxSize,
+        maxHeight: _cropContext.maxSize,
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high'
       });
@@ -15966,7 +15967,8 @@
     if (box) box.style.display = 'block';
     _kanjiInPageCamMsg('カメラを準備中…');
     navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      // 2026-09-24 カンジーのみ 1920×1080→2560×1440（縮小2000pxが効くように。和文英訳①と同じ。ideal＝非対応端末は自動で下がる）
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } },
       audio: false
     }).then(function(stream){
       _kanjiInPageStream = stream;
@@ -15989,8 +15991,8 @@
       _kanjiInPageCamMsg('まだカメラの準備ができていません。少し待ってからもう一度押してね。');
       return;
     }
-    // ★カンジー固有：既存 onKanjiPhotoSelected と同じ縮小（長辺 1600px / JPEG 0.85）。手書きの細部を潰さない。
-    var maxSize = 1600, w = v.videoWidth, h = v.videoHeight;
+    // ★カンジー固有：既存 onKanjiPhotoSelected と同じ縮小（長辺 2000px / JPEG 0.85。2026-09-24 1600→2000）。手書きの細部を潰さない。
+    var maxSize = 2000, w = v.videoWidth, h = v.videoHeight;
     if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } }
     else       { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
     var canvas = document.createElement('canvas');
@@ -21348,7 +21350,8 @@
         // 字形を誤認識（怒鳴→焚き 等）。1600px / 0.85 で細部解像が向上し AI の判断
         // 材料が増える。ファイルサイズ 200〜400KB → 500〜900KB（API payload 上限の
         // 数 MB に対し余裕、通信 +1〜2 秒程度の許容範囲）。
-        var maxSize = 1600, w = img.width, h = img.height;
+        // 2026-09-24：カンジー採点精度向上のため 1600 → 2000（品質 0.85 維持）。
+        var maxSize = 2000, w = img.width, h = img.height;
         if (w > h) { if (w > maxSize) { h = h*maxSize/w; w = maxSize; } } else { if (h > maxSize) { w = w*maxSize/h; h = maxSize; } }
         var canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
@@ -21390,6 +21393,7 @@
     openCropForReOcr({
       sourceDataUrl: _kanjiState.kakiPhotoDataUrl,
       returnScreen:  'screen-kanji-kaki-confirm',
+      maxSize:       2000,   // 2026-09-24 カンジー限定：採点精度向上のため 1600→2000（他コンテンツは既定 1600 のまま）
       onCropped: function(croppedDataUrl) {
         _kanjiState.kakiPhotoDataUrl = croppedDataUrl;
         _kanjiState.kakiPhotoBase64 = croppedDataUrl.split(',')[1];
@@ -25242,7 +25246,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-1637</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-2318</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
