@@ -2427,3 +2427,36 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 b0f189600c2584315817c3c138fe11c10f18ae37 && git push origin main && git checkout dev
   ```
+
+## 2026-09-25 本番反映：管理画面20画面の Students/SpecialAccounts 2タブ分離＋三語短文カードのお題/AIフィードバック表示＋カンジー解像度アップ
+
+- 反映内容（dev→main マージ、8 コミット。★管理画面の生徒一覧が「Students（実生徒）／SpecialAccounts（テスト枠）」の件数付き2タブに。★生徒側はカンジーの撮影解像度のみ変化、他コンテンツは無変更）
+  - `1e51cee` feat(管理画面)：振り返り「この日の作品」の三語短文カードに**お題（📝 今日のお題）と AI フィードバック（判定／生徒向けコメント／判定理由＝内部）**を表示（フロント先行・値が無ければ行を出さない両対応。`_dwSangoTopicHtml` / `_dwSangoAiHtml` を新設、snake/camel/`aiFeedback` オブジェクトの揺れを `_mePick` で吸収）
+  - `765f41b` feat(管理画面)：提出系4画面の提出者一覧を件数付き2タブに分離
+  - `9345239` feat(管理画面)：日付別一覧4画面を件数付き2タブに分離
+  - `18cbb27` feat(管理画面)：`adminListStudents` を使う9画面の生徒一覧を件数付き2タブに分離
+  - `3681675` feat(管理画面)：連続日数の修正・先生メッセージ宛先・連絡事項の対象生徒を件数付き2タブに分離
+  - `ef08690` feat(カンジー)：ページ内カメラの取得解像度を 1920×1080 → **2560×1440**（カンジー限定・`ideal` なので非対応端末は自動で下がる）
+  - `2ac040f` feat(カンジー)：書き写真の縮小を長辺 1600 → **2000px**（カンジー限定・品質 0.85 維持）。併せて `openCropForReOcr` に `maxSize` オプションを新設（既定 1600・カンジー呼び出しのみ 2000）
+  - `f149b7a` docs(handover)：reload注記統合＋photo-storage撤去の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **★サーバー改修（`7e05a47`）で `accountType` が既に返るため、2タブ分離は過渡状態なしで成立**
+- **反映前の main（切り戻し先）：`b0f189600c2584315817c3c138fe11c10f18ae37`**（＝`b0f1896`）
+- **マージコミット：`26741e024794b509fe9d0f393099a4df4ae06aa1`**（＝`26741e0`）
+- 版バッジ：`20260924-2318`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `26741e0` / run `36055183713` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`26741e024794b509fe9d0f393099a4df4ae06aa1` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `b059116a…` / view `f30b48e4…` / admin `718c2278…`
+- 反映後、配信物そのもので確認したこと
+  - ★配信 admin.html：`kadai-tab-btn` ＝**25**（CSS 定義2 ＋ 呼び出し23）。反映前 main（`b0f1896`）は **5** だったので **+20 画面が新規に2タブ化**
+  - 新規2タブ化された20画面の `set*Tab`：setActivityDayTab / setActivityStudentsTab / setEitangoAchStudentsTab / setKanjiAchStudentsTab / setKisoAchStudentsTab / setKisoPhotoStudentsTab / setKobunAchStudentsTab / setKokugoDayTab / setKokugoHistStudentsTab / setLisonAchStudentsTab / setLisonRecStudentsTab / setMyTaskPhotoStudentsTab / setNoticeStudentsTab / setOriwantesStudentsTab / setReflDayTab / setReflStudentsTab / setRishaDayTab / setRishaHistStudentsTab / setStreakModifyTab / setTmStudentsTab
+  - ★配信 index.html（カンジー限定の解像度アップ）：`captureKanjiInPagePhoto` 内 `maxSize = 2000` / `toDataURL('image/jpeg', 0.85)`、`onKanjiPhotoSelected` 内 `maxSize = 2000` / `0.85`、`startKanjiInPageCamera` の getUserMedia `ideal: 2560 × 1440`、`cropKanjiPhoto` の `maxSize: 2000`
+  - ★他コンテンツ回帰ゼロ：配信 index のページ内カメラ7基を実測し、カンジー以外は全て据え置きを確認
+    - startKisoInPageCamera 1920×1080 / 1000・startWabun1InPageCamera 2560×1440 / 1600・startDictationInPageCamera 1920×1080 / 800・startMyTaskInPageCamera 1920×1080 / 1000・startOriwantesInPageCamera 1920×1080 / 1000・startSangoInPageCamera 1920×1080 / 1200
+    - **startKanjiInPageCamera のみ 2560×1440 / 2000**（今回の変更）。従来 capture の `onKanjiPhotoSelected` も 2000 に追従
+    - 基礎計算は `0.6`、和文英訳①・カンジーは `0.85` のまま
+  - ゲート：`origin/main..dev` は8本（想定通り＝`1e51cee` 三語短文作品表示／`765f41b` 提出系4画面／`9345239` 日付別4画面／`18cbb27` 生徒一覧9画面／`3681675` 第1段3画面／`ef08690` カンジー取得解像度／`2ac040f` カンジー縮小2000／`f149b7a` HANDOVER記録）
+  - CLAUDE.md ゲート判定値＝**20 行**、中身は全て**カンジー限定の解像度変更**（openCropForReOcr の maxSize オプション新設／getUserMedia 2560×1440／縮小 2000）。管理画面5コミットの index・view 差分は版バッジ・`?v=` スタンプのみ（実質差分0行）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 26741e024794b509fe9d0f393099a4df4ae06aa1 && git push origin main && git checkout dev
+  ```
