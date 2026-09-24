@@ -2400,3 +2400,30 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 5a94ca7ab6c4b4b8d4b0bb4917d17f0d2c1a9277 && git push origin main && git checkout dev
   ```
+
+## 2026-09-24 本番反映：reload-warn 注記に「写真が残る」を統合＋photo-storage-note 全撤去（ページ内カメラ化で通常撮影は端末に残らないため実態統一）
+
+- 反映内容（dev→main マージ、2 コミット。★文言統合＋撤去のみ。カメラ機能/送信は不変。★生徒に見える文言変更）
+  - `2a63c10` refactor(注意帯)：reload注記に「写真が残る」を統合＋photo-storage-note全撤去
+    - ★背景：全7コンテンツのページ内カメラ（getUserMedia）化で、通常撮影（メイン）は canvas→toDataURL→送信のみ＝端末（カメラロール）に写真が残らない。従来の photo-storage-note（全生徒に「スマホに残る」と案内）は実態とズレるため撤去し、フォールバック（従来 capture＝カメラアプリ起動で残る）絡みの案内を reload-warn 注記に統合
+    - ★reload-warn 注記（.reload-warn-note）の文言を8箇所すべて新文言に統一（薄グレー見た目・フォールバックボタン下の位置は維持）：「うまく撮れないときは下の『うまく撮れない場合はこちら』をクリック（この方法は写真がスマホに残るので時々整理が必要）。「おかえりなさい画面」が出たら、『このまま続ける』＋暗証番号で続けられます。」
+    - ★対象8箇所：英単語RUSH書取 / 三語短文 / 和文英訳①（JSテンプレート）/ 基礎計算2画面（work-intro・answer-intro）/ マイ課題2画面（self・hw）/ カンジー
+    - ★photo-storage-note の div を9箇所すべて撤去（screen-dictation / sango-photo / wabun1-topic / kiso-work-intro / kiso-answer-intro / mytask-self-capture / mytask-hw-capture / oriwantes-create / kanji-kaki）。CSS 定義（.photo-storage-note）は残置（無害）
+    - ★★オリワンテスは photo-storage 撤去のみ・reload-warn 注記は新設しない（確定）
+    - ★★カメラ機能（capture*InPagePhoto・start*InPageCamera）・撮影・送信・フォールバックボタン（kiso-camera-fallback-btn 等）は無変更。変えたのは reload-warn 注記の文言と photo-storage-note の全撤去だけ
+  - `cdcc795` docs(handover)：個人端末silent自動復帰の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`5a94ca7ab6c4b4b8d4b0bb4917d17f0d2c1a9277`**（＝`5a94ca7`）
+- **マージコミット：`b0f189600c2584315817c3c138fe11c10f18ae37`**（＝`b0f1896`）
+- 版バッジ：`20260924-1637`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：gh 未導入のため配信物 sha256 が blob と完全一致することで `success`／配信済みを確定。`git rev-parse origin/main`＝`b0f1896…` 実体を確認。版バッジは 0041→1637 へ配信更新を実測（ポーリング6回目・約60秒後）。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `4412f3aa…` / view `34ee605e…` / admin `b1adb030…`
+- 反映後、配信物そのもの（配信 index.html）で確認したこと
+  - 新文言「この方法は写真がスマホに残るので時々整理が必要」＝8／`class="reload-warn-note"`＝8／旧 photo-storage 文言「撮った写真はスマホに残ります」＝0／`<div class="photo-storage-note">`＝0
+  - モバイル375px（実機・screen-dictation）：reload-warn-note 幅304px・色 #6b7280・bg #f3f4f6・font 11px・フォールバックボタン直下・横スクロールなし。撮影する(青)→うまく撮れない場合はこちら(グレー)→薄グレー注記 の順で崩れなし。photo-storage-note（黄枠）消滅を視覚確認
+  - DOM 実測：オリワンテスは photoStorageNote=0 / reloadWarnNote=0（撤去のみ・新設なし）／inline JS 構文OK（wabun1テンプレート含む）
+  - ゲート：`origin/main..dev` は2本（想定通り＝`2a63c10` 注記統合＋photo-storage撤去／`cdcc795` 個人端末silent HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）／index の実質差分25行は全て reload-warn 文言入替（8）＋photo-storage 撤去（9行削除）で想定外の混入なし
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 b0f189600c2584315817c3c138fe11c10f18ae37 && git push origin main && git checkout dev
+  ```
