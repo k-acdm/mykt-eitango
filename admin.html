@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260924-2306"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260924-2318"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -10676,13 +10676,52 @@
       var body   = String((it && (it.work || it.text || it.content)) || '');
       var metaHtml = _dwMetaSpans([_esc(when), _esc(lv), method]);
       var editHtml = (kind === 'sango' || kind === 'wabun1') ? _dwEditBlock(it, kind, sid, curWeek) : '';
+      // 2026-09-24 三語短文のみ：お題（本文の上）と AI フィードバック（本文の下）。値が無ければ何も出さない。
+      var topicHtml = (kind === 'sango') ? _dwSangoTopicHtml(it) : '';
+      var aiHtml    = (kind === 'sango') ? _dwSangoAiHtml(it) : '';
       return '<div class="dw-text-card">' +
                (metaHtml ? '<div class="dw-text-meta">' + metaHtml + '</div>' : '') +
+               topicHtml +
                '<div class="dw-text-body">' + (body ? _esc(body) : '（本文なし）') + '</div>' +
+               aiHtml +
                editHtml +
              '</div>';
     }).join('');
     return '<div class="dw-section"><div class="dw-section-title">' + title + '（' + arr.length + '）</div>' + rows + '</div>';
+  }
+
+  // 2026-09-24 三語短文カード：その日のお題（提出時に保存された words）。
+  //   ★getStudentDayWorks が返す場合だけ表示（フロント先行）。名前の揺れは _mePick で吸収。
+  //   配列・文字列どちらでも可。値が無ければ '' ＝行を出さない。
+  function _dwSangoTopicHtml(it) {
+    var w = _mePick(it, 'words', 'topicWords', 'topic_words', 'topic');
+    if (Array.isArray(w)) w = w.filter(function(x) { return String(x || '').trim(); }).join('・');
+    w = String(w || '').trim();
+    if (!w) return '';
+    // 見た目は三語短文の提出一覧（loadSangoSubmissions）の「📝 お題」行に揃える
+    return '<div style="font-size:13px;color:#c0392b;margin-bottom:8px">📝 今日のお題：' + _esc(w) + '</div>';
+  }
+
+  // 2026-09-24 三語短文カード：AI フィードバック（判定／生徒向けコメント／判定理由＝内部用）。
+  //   ★getStudentDayWorks が返す場合だけ表示（フロント先行）。snake / camel / aiFeedback オブジェクト
+  //   （生徒画面の提出レスポンスと同形 {category, feedback, reasoning}）のいずれでも拾う。値が無ければ ''。
+  //   見た目は三語短文の提出一覧（loadSangoSubmissions の aiBlock）に揃える。
+  function _dwSangoAiHtml(it) {
+    var obj = (it && it.aiFeedback && typeof it.aiFeedback === 'object') ? it.aiFeedback : null;
+    var cat = String(_mePick(it, 'ai_category', 'aiCategory') || (obj && obj.category) || '').trim();
+    var fb  = (obj ? (obj.feedback || '') : _mePick(it, 'ai_feedback', 'aiFeedback'));
+    fb = String(_mePick(it, 'ai_feedback') || fb || '').trim();
+    var rs  = String(_mePick(it, 'ai_reasoning', 'aiReasoning') || (obj && obj.reasoning) || '').trim();
+    if (!cat && !fb && !rs) return '';
+    var catLabel = (cat === 'excellent') ? '⭐ 候補' : (cat === 'good') ? '👍 良い' : (cat === 'needs_improvement') ? '📝 要改善' : (cat ? _esc(cat) : '');
+    var bg      = (cat === 'excellent') ? '#fef3c7' : (cat === 'needs_improvement') ? '#fff5e1' : '#e0f7fa';
+    var borderL = (cat === 'excellent') ? '#f59e0b' : (cat === 'needs_improvement') ? '#fb923c' : '#5ec8c8';
+    return '<div style="background:' + bg + ';border-left:3px solid ' + borderL + ';border-radius:6px;padding:8px 10px;margin-top:8px;font-size:12px;line-height:1.6">' +
+             '<div style="color:#555;font-weight:bold;margin-bottom:3px">🤖 AIフィードバック</div>' +
+             (catLabel ? '<div style="color:#1f2937;margin-bottom:3px"><b>判定：</b>' + catLabel + '</div>' : '') +
+             (fb ? '<div style="color:#1f2937;white-space:pre-wrap;word-break:break-word">' + _esc(fb) + '</div>' : '') +
+             (rs ? '<div style="color:#6b7280;font-size:11px;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(0,0,0,.15)"><b>判定理由（内部）:</b> ' + _esc(rs) + '</div>' : '') +
+           '</div>';
   }
 
   // 2026-08-25 純追加：写真送信不具合のお詫びHP（works.apology）。
@@ -17550,7 +17589,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-2306</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-2318</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
