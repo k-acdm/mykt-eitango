@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260924-2252"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260924-2306"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -8302,6 +8302,79 @@
   }
 
   // 仕様書 §5.3 サマリ：getKisoPhotosList({password}) → 生徒一覧テーブル
+  // 提出者一覧の Students / SpecialAccounts タブ（2026-09-24、提出した生徒だけを分類）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・生徒一覧タブと同基準・同作法）。
+  //   ※ この提出系 action が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る（深夜のサーバー改修とセット）。
+  var _kisoPhotoStudents = [];
+  var _kisoPhotoStudentsTab = 'student';
+  function _kisoPhotoStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setKisoPhotoStudentsTab(key) {
+    _kisoPhotoStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderKisoPhotoStudents();  // 表示行だけ絞る
+  }
+  function _renderKisoPhotoStudents() {
+    var wrap = document.getElementById('kiso-students-wrap');
+    if (!wrap) return;
+    var students = _kisoPhotoStudents;
+    if (students.length === 0) {
+      wrap.innerHTML = '<div class="students-empty">保存中の答案写真はまだありません。</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き＝提出した生徒数。HP手動付与・生徒一覧タブと同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_kisoPhotoStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_kisoPhotoStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setKisoPhotoStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _kisoPhotoStudentsIsStudentAcct(s);
+      return (_kisoPhotoStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc  = _esc(s.studentId);
+      var realEsc = _esc(s.studentName || '');
+      var nickEsc = _esc(s.studentNickname || '');
+      var displayName;
+      if (realEsc && nickEsc) displayName = realEsc + '（' + nickEsc + '）';
+      else if (realEsc)        displayName = realEsc;
+      else if (nickEsc)        displayName = nickEsc;
+      else                     displayName = '（未登録）';
+      var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.studentName || s.studentNickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var ts = String(s.latestSubmittedAt || '').replace('T',' ').slice(0,16);
+      return '<tr>' +
+               '<td>' + sidEsc + '</td>' +
+               '<td><span class="name-link" onclick="goAdminKisoPhotos(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
+               '<td><span class="photos-count">' + Number(s.photoCount || 0) + ' 枚</span></td>' +
+               '<td>' + _esc(ts) + '</td>' +
+               '<td>' + _kisoDeleteAfterLabel(s.earliestDeleteAfter) + '</td>' +
+             '</tr>';
+    }).join('');
+    wrap.innerHTML = tabBar +
+      '<div class="students-table-wrap">' +
+        '<table class="students-table kiso-students-table">' +
+          '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>枚数</th><th>最新提出日時</th><th>最早削除予定日</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>' +
+      '</div>';
+  }
   function loadKisoStudents() {
     var wrap = document.getElementById('kiso-students-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
@@ -8315,38 +8388,8 @@
         wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (students.length === 0) {
-        wrap.innerHTML = '<div class="students-empty">保存中の答案写真はまだありません。</div>';
-        return;
-      }
-      var rows = students.map(function(s) {
-        var sidEsc  = _esc(s.studentId);
-        var realEsc = _esc(s.studentName || '');
-        var nickEsc = _esc(s.studentNickname || '');
-        var displayName;
-        if (realEsc && nickEsc) displayName = realEsc + '（' + nickEsc + '）';
-        else if (realEsc)        displayName = realEsc;
-        else if (nickEsc)        displayName = nickEsc;
-        else                     displayName = '（未登録）';
-        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.studentName || s.studentNickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var ts = String(s.latestSubmittedAt || '').replace('T',' ').slice(0,16);
-        return '<tr>' +
-                 '<td>' + sidEsc + '</td>' +
-                 '<td><span class="name-link" onclick="goAdminKisoPhotos(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
-                 '<td><span class="photos-count">' + Number(s.photoCount || 0) + ' 枚</span></td>' +
-                 '<td>' + _esc(ts) + '</td>' +
-                 '<td>' + _kisoDeleteAfterLabel(s.earliestDeleteAfter) + '</td>' +
-               '</tr>';
-      }).join('');
-      wrap.innerHTML =
-        '<div class="students-table-wrap">' +
-          '<table class="students-table kiso-students-table">' +
-            '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>枚数</th><th>最新提出日時</th><th>最早削除予定日</th></tr></thead>' +
-            '<tbody>' + rows + '</tbody>' +
-          '</table>' +
-        '</div>';
+      _kisoPhotoStudents = res.students || [];
+      _renderKisoPhotoStudents();
     }).catch(function() {
       wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
     });
@@ -8653,6 +8696,80 @@
   }
 
   // 提出生徒一覧（summary モード = studentId なし）。loadKisoStudents の複製 + 提出数列を追加。
+  // 提出者一覧の Students / SpecialAccounts タブ（2026-09-24、提出した生徒だけを分類）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・生徒一覧タブと同基準・同作法）。
+  //   ※ この提出系 action が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る（深夜のサーバー改修とセット）。
+  var _myTaskPhotoStudents = [];
+  var _myTaskPhotoStudentsTab = 'student';
+  function _myTaskPhotoStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setMyTaskPhotoStudentsTab(key) {
+    _myTaskPhotoStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderMyTaskPhotoStudents();  // 表示行だけ絞る
+  }
+  function _renderMyTaskPhotoStudents() {
+    var wrap = document.getElementById('mytask-students-wrap');
+    if (!wrap) return;
+    var students = _myTaskPhotoStudents;
+    if (students.length === 0) {
+      wrap.innerHTML = '<div class="students-empty">保存中のマイ課題写真はまだありません。</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き＝提出した生徒数。HP手動付与・生徒一覧タブと同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_myTaskPhotoStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_myTaskPhotoStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setMyTaskPhotoStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _myTaskPhotoStudentsIsStudentAcct(s);
+      return (_myTaskPhotoStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc  = _esc(s.studentId);
+      var realEsc = _esc(s.studentName || '');
+      var nickEsc = _esc(s.studentNickname || '');
+      var displayName;
+      if (realEsc && nickEsc) displayName = realEsc + '（' + nickEsc + '）';
+      else if (realEsc)        displayName = realEsc;
+      else if (nickEsc)        displayName = nickEsc;
+      else                     displayName = '（未登録）';
+      var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.studentName || s.studentNickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var ts = String(s.latestSubmittedAt || '').replace('T',' ').slice(0,16);
+      return '<tr>' +
+               '<td>' + sidEsc + '</td>' +
+               '<td><span class="name-link" onclick="goAdminMyTaskPhotos(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
+               '<td><span class="photos-count">' + Number(s.submissionCount || 0) + ' 件</span></td>' +
+               '<td><span class="photos-count">' + Number(s.photoCount || 0) + ' 枚</span></td>' +
+               '<td>' + _esc(ts) + '</td>' +
+               '<td>' + _kisoDeleteAfterLabel(s.earliestDeleteAfter) + '</td>' +
+             '</tr>';
+    }).join('');
+    wrap.innerHTML = tabBar +
+      '<div class="students-table-wrap">' +
+        '<table class="students-table kiso-students-table">' +
+          '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>提出数</th><th>枚数</th><th>最新提出日時</th><th>最早削除予定日</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>' +
+      '</div>';
+  }
   function loadMyTaskStudents() {
     var wrap = document.getElementById('mytask-students-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
@@ -8663,39 +8780,8 @@
         wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (students.length === 0) {
-        wrap.innerHTML = '<div class="students-empty">保存中のマイ課題写真はまだありません。</div>';
-        return;
-      }
-      var rows = students.map(function(s) {
-        var sidEsc  = _esc(s.studentId);
-        var realEsc = _esc(s.studentName || '');
-        var nickEsc = _esc(s.studentNickname || '');
-        var displayName;
-        if (realEsc && nickEsc) displayName = realEsc + '（' + nickEsc + '）';
-        else if (realEsc)        displayName = realEsc;
-        else if (nickEsc)        displayName = nickEsc;
-        else                     displayName = '（未登録）';
-        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.studentName || s.studentNickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var ts = String(s.latestSubmittedAt || '').replace('T',' ').slice(0,16);
-        return '<tr>' +
-                 '<td>' + sidEsc + '</td>' +
-                 '<td><span class="name-link" onclick="goAdminMyTaskPhotos(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
-                 '<td><span class="photos-count">' + Number(s.submissionCount || 0) + ' 件</span></td>' +
-                 '<td><span class="photos-count">' + Number(s.photoCount || 0) + ' 枚</span></td>' +
-                 '<td>' + _esc(ts) + '</td>' +
-                 '<td>' + _kisoDeleteAfterLabel(s.earliestDeleteAfter) + '</td>' +
-               '</tr>';
-      }).join('');
-      wrap.innerHTML =
-        '<div class="students-table-wrap">' +
-          '<table class="students-table kiso-students-table">' +
-            '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>提出数</th><th>枚数</th><th>最新提出日時</th><th>最早削除予定日</th></tr></thead>' +
-            '<tbody>' + rows + '</tbody>' +
-          '</table>' +
-        '</div>';
+      _myTaskPhotoStudents = res.students || [];
+      _renderMyTaskPhotoStudents();
     }).catch(function() {
       wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
     });
@@ -8716,6 +8802,78 @@
   }
 
   // 生徒一覧（summary モード = studentId なし）。loadMyTaskStudents と同型。
+  // 提出者一覧の Students / SpecialAccounts タブ（2026-09-24、提出した生徒だけを分類）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・生徒一覧タブと同基準・同作法）。
+  //   ※ この提出系 action が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る（深夜のサーバー改修とセット）。
+  var _oriwantesStudents = [];
+  var _oriwantesStudentsTab = 'student';
+  function _oriwantesStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setOriwantesStudentsTab(key) {
+    _oriwantesStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderOriwantesStudents();  // 表示行だけ絞る
+  }
+  function _renderOriwantesStudents() {
+    var wrap = document.getElementById('oriwantes-students-wrap');
+    if (!wrap) return;
+    var students = _oriwantesStudents;
+    if (students.length === 0) {
+      wrap.innerHTML = '<div class="students-empty">まだオリワンテスの提出はありません。</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き＝提出した生徒数。HP手動付与・生徒一覧タブと同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_oriwantesStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_oriwantesStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setOriwantesStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _oriwantesStudentsIsStudentAcct(s);
+      return (_oriwantesStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var realEsc = _esc(s.studentName || '');
+      var nickEsc = _esc(s.studentNickname || '');
+      var displayName;
+      if (realEsc && nickEsc) displayName = realEsc + '（' + nickEsc + '）';
+      else if (realEsc)        displayName = realEsc;
+      else if (nickEsc)        displayName = nickEsc;
+      else                     displayName = '（未登録）';
+      var sidEsc = _esc(s.studentId);
+      var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.studentName || s.studentNickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var latest = _esc(s.latestDate || '');
+      return '<tr>' +
+               '<td>' + sidEsc + '</td>' +
+               '<td><span class="name-link" onclick="goAdminOriwantesDetail(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
+               '<td><span class="photos-count">' + Number(s.submissionCount || 0) + ' 件</span></td>' +
+               '<td>' + latest + '</td>' +
+             '</tr>';
+    }).join('');
+    wrap.innerHTML = tabBar +
+      '<div class="students-table-wrap">' +
+        '<table class="students-table kiso-students-table">' +
+          '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>提出数</th><th>最新提出日</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>' +
+      '</div>';
+  }
   function loadOriwantesStudents() {
     var wrap = document.getElementById('oriwantes-students-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
@@ -8726,37 +8884,8 @@
         wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (students.length === 0) {
-        wrap.innerHTML = '<div class="students-empty">まだオリワンテスの提出はありません。</div>';
-        return;
-      }
-      var rows = students.map(function(s) {
-        var realEsc = _esc(s.studentName || '');
-        var nickEsc = _esc(s.studentNickname || '');
-        var displayName;
-        if (realEsc && nickEsc) displayName = realEsc + '（' + nickEsc + '）';
-        else if (realEsc)        displayName = realEsc;
-        else if (nickEsc)        displayName = nickEsc;
-        else                     displayName = '（未登録）';
-        var sidEsc = _esc(s.studentId);
-        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.studentName || s.studentNickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var latest = _esc(s.latestDate || '');
-        return '<tr>' +
-                 '<td>' + sidEsc + '</td>' +
-                 '<td><span class="name-link" onclick="goAdminOriwantesDetail(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
-                 '<td><span class="photos-count">' + Number(s.submissionCount || 0) + ' 件</span></td>' +
-                 '<td>' + latest + '</td>' +
-               '</tr>';
-      }).join('');
-      wrap.innerHTML =
-        '<div class="students-table-wrap">' +
-          '<table class="students-table kiso-students-table">' +
-            '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>提出数</th><th>最新提出日</th></tr></thead>' +
-            '<tbody>' + rows + '</tbody>' +
-          '</table>' +
-        '</div>';
+      _oriwantesStudents = res.students || [];
+      _renderOriwantesStudents();
     }).catch(function() {
       wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
     });
@@ -10829,6 +10958,111 @@
 
   // 直近 LISON_RETENTION_DAYS 日（現状 15 日）に録音した生徒の一覧
   // getLisonSubmissionsList を全件取得 → クライアント側で集約
+  // 提出者一覧の Students / SpecialAccounts タブ（2026-09-24、提出した生徒だけを分類）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・生徒一覧タブと同基準・同作法）。
+  //   ※ この提出系 action が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る（深夜のサーバー改修とセット）。
+  var _lisonRecStudents = [];
+  var _lisonRecStudentsTab = 'student';
+  function _lisonRecStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setLisonRecStudentsTab(key) {
+    _lisonRecStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderLisonRecStudents();  // 表示行だけ絞る
+  }
+  function _renderLisonRecStudents() {
+    var wrap = document.getElementById('lison-students-wrap');
+    if (!wrap) return;
+    var subs = _lisonRecStudents;
+    if (subs.length === 0) {
+      wrap.innerHTML = '<div class="lison-students-empty">直近 15 日のリスオン録音はまだありません。</div>';
+      return;
+    }
+    // sid 単位に集約。最新 timestamp と件数を保持
+    var bySid = {};
+    var order = [];
+    subs.forEach(function(s) {
+      var sid = String(s.studentId || '').trim();
+      if (!sid) return;
+      if (!bySid[sid]) {
+        bySid[sid] = {
+          studentId: sid,
+          studentName: s.studentName || '',
+          studentRealName: s.studentRealName || '',
+          count: 0,
+          latestTs: '',
+          accountType: s.accountType || ''
+        };
+        order.push(sid);
+      }
+      bySid[sid].count += 1;
+      if (!bySid[sid].accountType && s.accountType) bySid[sid].accountType = s.accountType;
+      if (!bySid[sid].latestTs || s.timestamp > bySid[sid].latestTs) {
+        bySid[sid].latestTs = s.timestamp;
+      }
+    });
+    // 最新提出降順でソート
+    order.sort(function(a, b) {
+      var ta = bySid[a].latestTs || '';
+      var tb = bySid[b].latestTs || '';
+      if (ta < tb) return 1;
+      if (ta > tb) return -1;
+      return 0;
+    });
+    var items = order.map(function(sid) { return bySid[sid]; });
+    // Students / SpecialAccounts タブ（件数付き＝提出した生徒数。HP手動付与・生徒一覧タブと同作法）
+    var studentCount = 0;
+    for (var i = 0; i < items.length; i++) {
+      if (_lisonRecStudentsIsStudentAcct(items[i])) studentCount++;
+    }
+    var specialCount = items.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_lisonRecStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setLisonRecStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = items.filter(function(s) {
+      var isStudent = _lisonRecStudentsIsStudentAcct(s);
+      return (_lisonRecStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="lison-students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var keepSid = {};
+    filtered.forEach(function(x) { keepSid[x.studentId] = true; });
+    var rows = order.filter(function(sid) { return keepSid[sid]; }).map(function(sid) {
+      var s = bySid[sid];
+      var sidEsc  = _esc(sid);
+      var realEsc = _esc(s.studentRealName);
+      var nickEsc = _esc(s.studentName);
+      var displayName;
+      if (realEsc && nickEsc)      displayName = realEsc + '（' + nickEsc + '）';
+      else if (realEsc)            displayName = realEsc;
+      else if (nickEsc)            displayName = nickEsc;
+      else                         displayName = '（未登録）';
+      var sidJs  = sid.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.studentRealName || s.studentName || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var ts = String(s.latestTs || '').slice(0, 16);
+      return '<tr>' +
+               '<td>' + sidEsc + '</td>' +
+               '<td><span class="name-link" onclick="goAdminLisonList(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
+               '<td>' + s.count + ' 件</td>' +
+               '<td>' + _esc(ts) + '</td>' +
+             '</tr>';
+    }).join('');
+    wrap.innerHTML = tabBar +
+      '<table class="lison-students-table">' +
+        '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>録音件数</th><th>最終録音日時</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>';
+  }
   function loadLisonRecordingStudents() {
     var wrap = document.getElementById('lison-students-wrap');
     wrap.innerHTML = '<div class="lison-students-empty">⏳ 読み込み中...</div>';
@@ -10842,65 +11076,8 @@
         wrap.innerHTML = '<div class="lison-students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var subs = res.submissions || [];
-      if (subs.length === 0) {
-        wrap.innerHTML = '<div class="lison-students-empty">直近 15 日のリスオン録音はまだありません。</div>';
-        return;
-      }
-      // sid 単位に集約。最新 timestamp と件数を保持
-      var bySid = {};
-      var order = [];
-      subs.forEach(function(s) {
-        var sid = String(s.studentId || '').trim();
-        if (!sid) return;
-        if (!bySid[sid]) {
-          bySid[sid] = {
-            studentId: sid,
-            studentName: s.studentName || '',
-            studentRealName: s.studentRealName || '',
-            count: 0,
-            latestTs: ''
-          };
-          order.push(sid);
-        }
-        bySid[sid].count += 1;
-        if (!bySid[sid].latestTs || s.timestamp > bySid[sid].latestTs) {
-          bySid[sid].latestTs = s.timestamp;
-        }
-      });
-      // 最新提出降順でソート
-      order.sort(function(a, b) {
-        var ta = bySid[a].latestTs || '';
-        var tb = bySid[b].latestTs || '';
-        if (ta < tb) return 1;
-        if (ta > tb) return -1;
-        return 0;
-      });
-      var rows = order.map(function(sid) {
-        var s = bySid[sid];
-        var sidEsc  = _esc(sid);
-        var realEsc = _esc(s.studentRealName);
-        var nickEsc = _esc(s.studentName);
-        var displayName;
-        if (realEsc && nickEsc)      displayName = realEsc + '（' + nickEsc + '）';
-        else if (realEsc)            displayName = realEsc;
-        else if (nickEsc)            displayName = nickEsc;
-        else                         displayName = '（未登録）';
-        var sidJs  = sid.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.studentRealName || s.studentName || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var ts = String(s.latestTs || '').slice(0, 16);
-        return '<tr>' +
-                 '<td>' + sidEsc + '</td>' +
-                 '<td><span class="name-link" onclick="goAdminLisonList(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
-                 '<td>' + s.count + ' 件</td>' +
-                 '<td>' + _esc(ts) + '</td>' +
-               '</tr>';
-      }).join('');
-      wrap.innerHTML =
-        '<table class="lison-students-table">' +
-          '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th><th>録音件数</th><th>最終録音日時</th></tr></thead>' +
-          '<tbody>' + rows + '</tbody>' +
-        '</table>';
+      _lisonRecStudents = res.submissions || [];
+      _renderLisonRecStudents();
     }).catch(function() {
       wrap.innerHTML = '<div class="lison-students-empty">通信エラーが発生しました</div>';
     });
@@ -17373,7 +17550,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-2252</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-2306</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
