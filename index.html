@@ -3649,10 +3649,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260924-2318"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260925-0556"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260924-2318">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260924-2318"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260925-0556">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260925-0556"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -21335,7 +21335,10 @@
     var html = questions.map(function(q, i){
       return '<div class="kanji-kaki-item"><span class="num">問 ' + (i + 1) + '</span>' + _kanjiRenderEmphasis(q.kaki.question) + '</div>';
     }).join('');
-    var note = '<div style="font-size:13px;color:#666;margin:6px 0 12px;line-height:1.7">📝 ノートに「番号 漢字」の形で書いて、写真に撮って送ってね。<br><span class="kanji-emphasis">赤い太字</span>のカタカナを漢字に直すよ。</div>';
+    // 2026-09-25：撮る前に必ず読める場所へ注意書きを追記（① ていねいに書く／② とめ・はね・はらいは判定できない場合がある）。
+    //   ★この note は初回入場・自動再開・再挑戦（_retryKanjiKaki）のすべてで再描画されるため、全経路に出る。
+    //   ★見た目は既存のグレー（#666 / 13px）をそのまま踏襲。新規 CSS は足さない。
+    var note = '<div style="font-size:13px;color:#666;margin:6px 0 12px;line-height:1.7">📝 ノートに「番号 漢字」の形で書いて、写真に撮って送ってね。<br><span class="kanji-emphasis">赤い太字</span>のカタカナを漢字に直すよ。<br>✏️ ていねいな字で書いてね。<br>※ とめ・はね・はらいの細かい部分は判定できない場合があるよ。</div>';
     document.getElementById('kanji-kaki-list').innerHTML = note + html;
   }
   function onKanjiPhotoSelected(event) {
@@ -21599,9 +21602,12 @@
                studentLine +
              '</div>';
     }).join('');
+    // 2026-09-25：②（とめ・はね・はらいは判定できない場合がある）を既存の注記に★統合する。
+    //   ★別ブロックにすると同じ場所に AI 関連の注意が 2 つ並んで冗長になるため、1 文だけ挟む。
     var hintBlock =
       '<div class="kanji-answer-hint">' +
         '※ AI が読み取った内容なので、書いた字とずれている場合があります。' +
+        'とめ・はね・はらいの細かい部分は判定できない場合があります。' +
         '間違えた問題は正解の字をよく見て、もう一度書いてみよう。' +
       '</div>';
     banner.innerHTML =
@@ -25246,7 +25252,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-2318</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260925-0556</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
