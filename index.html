@@ -3649,10 +3649,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260924-0041"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260924-1637"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260924-0041">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260924-0041"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260924-1637">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260924-1637"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4685,7 +4685,7 @@
       </div>
       <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・onPhotoSelected は無変更で残す・消さない） -->
       <button class="kiso-camera-fallback-btn" onclick="document.getElementById('photo-input').click()">うまく撮れない場合はこちら</button>
-      <div class="reload-warn-note">うまく撮れないときは下の「うまく撮れない場合はこちら」から撮れます。その方法だと、まれにおかえりなさい画面に戻ることがありますが、『このまま続ける』を押して暗証番号を入れれば続きから進められます。</div>
+      <div class="reload-warn-note">うまく撮れないときは下の『うまく撮れない場合はこちら』をクリック（この方法は写真がスマホに残るので時々整理が必要）。「おかえりなさい画面」が出たら、『このまま続ける』＋暗証番号で続けられます。</div>
       <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected(event)"/>
       <img id="photo-preview" class="photo-preview"/>
       <div id="photo-msg" class="msg" style="margin-top:10px"></div>
@@ -4693,7 +4693,6 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px;display:none" onclick="showLevelSelect()">← レベル選択に戻る</button>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="photoEscapeToHome('eiken5', true)">🏠 ホーム画面に戻る</button>
-    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 <div id="screen-test" class="screen">
@@ -4879,7 +4878,7 @@
       </div>
       <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・onSangoPhotoSelected は無変更で残す・消さない） -->
       <button class="kiso-camera-fallback-btn" onclick="document.getElementById('sango-photo-input').click()">うまく撮れない場合はこちら</button>
-      <div class="reload-warn-note">うまく撮れないときは下の「うまく撮れない場合はこちら」から撮れます。その方法だと、まれにおかえりなさい画面に戻ることがありますが、『このまま続ける』を押して暗証番号を入れれば続きから進められます。</div>
+      <div class="reload-warn-note">うまく撮れないときは下の『うまく撮れない場合はこちら』をクリック（この方法は写真がスマホに残るので時々整理が必要）。「おかえりなさい画面」が出たら、『このまま続ける』＋暗証番号で続けられます。</div>
       <input type="file" id="sango-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onSangoPhotoSelected(event)"/>
       <img id="sango-photo-preview" class="photo-preview"/>
       <div id="sango-photo-msg" class="msg" style="margin-top:10px"></div>
@@ -4901,7 +4900,6 @@
       </div>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-sango-topic')">← お題画面に戻る</button>
-    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 <div id="screen-sango-done" class="screen">
@@ -4998,7 +4996,6 @@
       </a>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="wabun1HomeFromTopic()">📚 学習コンテンツ画面に戻る</button>
-    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -5257,9 +5254,8 @@
       <button class="kiso-camera-fallback-btn" onclick="document.getElementById('kiso-work-photo-input-1').click()">うまく撮れない場合はこちら</button>
       <input type="file" id="kiso-work-photo-input-1" accept="image/*" capture="environment" style="display:none" onchange="onKisoWorkPhotoSelected(event)"/>
     </div>
-    <div class="reload-warn-note">うまく撮れないときは下の「うまく撮れない場合はこちら」から撮れます。その方法だと、まれにおかえりなさい画面に戻ることがありますが、『このまま続ける』を押して暗証番号を入れれば続きから進められます。</div>
+    <div class="reload-warn-note">うまく撮れないときは下の『うまく撮れない場合はこちら』をクリック（この方法は写真がスマホに残るので時々整理が必要）。「おかえりなさい画面」が出たら、『このまま続ける』＋暗証番号で続けられます。</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="showScreen('screen-kiso-pre-confirm')">← 戻る</button>
-    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -5294,10 +5290,9 @@
       <button class="kiso-camera-fallback-btn" onclick="document.getElementById('kiso-photo-input').click()">うまく撮れない場合はこちら</button>
       <input type="file" id="kiso-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKisoPhotoSelected(event)"/>
     </div>
-    <div class="reload-warn-note">うまく撮れないときは下の「うまく撮れない場合はこちら」から撮れます。その方法だと、まれにおかえりなさい画面に戻ることがありますが、『このまま続ける』を押して暗証番号を入れれば続きから進められます。</div>
+    <div class="reload-warn-note">うまく撮れないときは下の『うまく撮れない場合はこちら』をクリック（この方法は写真がスマホに残るので時々整理が必要）。「おかえりなさい画面」が出たら、『このまま続ける』＋暗証番号で続けられます。</div>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="photoEscapeToHome('kiso', true)">🏠 ホーム画面に戻る</button>
-    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -5541,12 +5536,11 @@
     </div>
     <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・onMyTaskPhotoSelected は無変更で残す・消さない） -->
     <button class="kiso-camera-fallback-btn" onclick="document.getElementById('mytask-photo-input').click()">うまく撮れない場合はこちら</button>
-    <div class="reload-warn-note">うまく撮れないときは下の「うまく撮れない場合はこちら」から撮れます。その方法だと、まれにおかえりなさい画面に戻ることがありますが、『このまま続ける』を押して暗証番号を入れれば続きから進められます。</div>
+    <div class="reload-warn-note">うまく撮れないときは下の『うまく撮れない場合はこちら』をクリック（この方法は写真がスマホに残るので時々整理が必要）。「おかえりなさい画面」が出たら、『このまま続ける』＋暗証番号で続けられます。</div>
     <input type="file" id="mytask-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onMyTaskPhotoSelected(event)"/>
     <div id="mytask-photo-list" class="mytask-photo-list"></div>
     <button class="btn-wide" id="mytask-capture-next-btn" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:14px" onclick="goMyTaskSelfConfirm()" disabled>確認へ進む ▶</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskSelfEntry()">← 戻る</button>
-    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -5638,12 +5632,11 @@
     </div>
     <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・onMyTaskHwPhotoSelected は無変更で残す・消さない） -->
     <button class="kiso-camera-fallback-btn" onclick="document.getElementById('mytask-hw-photo-input').click()">うまく撮れない場合はこちら</button>
-    <div class="reload-warn-note">うまく撮れないときは下の「うまく撮れない場合はこちら」から撮れます。その方法だと、まれにおかえりなさい画面に戻ることがありますが、『このまま続ける』を押して暗証番号を入れれば続きから進められます。</div>
+    <div class="reload-warn-note">うまく撮れないときは下の『うまく撮れない場合はこちら』をクリック（この方法は写真がスマホに残るので時々整理が必要）。「おかえりなさい画面」が出たら、『このまま続ける』＋暗証番号で続けられます。</div>
     <input type="file" id="mytask-hw-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onMyTaskHwPhotoSelected(event)"/>
     <div id="mytask-hw-photo-list" class="mytask-photo-list"></div>
     <button class="btn-wide" id="mytask-hw-capture-next-btn" style="background:linear-gradient(135deg,#2e9e6b,#1f7a50);margin-top:14px" onclick="goMyTaskHwMore()" disabled>次へ ▶</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goMyTaskHwNotice()">← 戻る</button>
-    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -5748,7 +5741,6 @@
     <button class="kiso-camera-fallback-btn" onclick="document.getElementById('oriwantes-photo-input').click()">うまく撮れない場合はこちら</button>
     <button id="oriwantes-send-btn" class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:10px" onclick="sendOriwantesMessage()">📨 この教科で伝える</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
-    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -6154,7 +6146,7 @@
     </div>
     <!-- フォールバック：従来 capture 方式（非対応/拒否時の逃げ道・onKanjiPhotoSelected は無変更で残す・消さない） -->
     <button class="kiso-camera-fallback-btn" onclick="document.getElementById('kanji-photo-input').click()">うまく撮れない場合はこちら</button>
-    <div class="reload-warn-note">うまく撮れないときは下の「うまく撮れない場合はこちら」から撮れます。その方法だと、まれにおかえりなさい画面に戻ることがありますが、『このまま続ける』を押して暗証番号を入れれば続きから進められます。</div>
+    <div class="reload-warn-note">うまく撮れないときは下の『うまく撮れない場合はこちら』をクリック（この方法は写真がスマホに残るので時々整理が必要）。「おかえりなさい画面」が出たら、『このまま続ける』＋暗証番号で続けられます。</div>
     <input type="file" id="kanji-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onKanjiPhotoSelected(event)">
     <button class="btn-wide" id="kanji-kaki-fresh-btn" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);margin-top:10px" onclick="kanjiRestartFresh()">🆕 最初から（読みから）やり直す</button>
     <!-- 2026-09-03：読み画面と同じ説明。★書き画面こそ「今書いた分」が実際にあるので必ず出す。 -->
@@ -6165,7 +6157,6 @@
          ★カメラが開かず撮影画面まで行けない生徒も、一度失敗していればここから抜けられる。
          ★既定は非表示。失敗していなければ出さない（押せない）。 -->
     <button class="btn-wide" id="photo-escape-kanji-kaki" style="display:none;margin-top:10px;background:linear-gradient(135deg,#94a3b8,#64748b);font-size:14px" onclick="photoEscapeToHome('kanji')">📱 写真送信が上手くいかない場合はこれを押してホーム画面へ</button>
-    <div class="photo-storage-note">📸 撮った写真はスマホに残ります。写真がいっぱいになると撮れなくなるので、ときどき「写真」アプリで整理（削除）してね。</div>
   </div>
 </div>
 
@@ -14461,7 +14452,7 @@
     var submitHtml =
       '<button class="kiso-camera-launch-btn" style="margin-top:18px" onclick="startWabun1InPageCamera()">📷 撮影する</button>' +
       '<button class="kiso-camera-fallback-btn" onclick="document.getElementById(\'wabun1-photo-input\').click()">うまく撮れない場合はこちら</button>' +
-      '<div class="reload-warn-note">うまく撮れないときは下の「うまく撮れない場合はこちら」から撮れます。その方法だと、まれにおかえりなさい画面に戻ることがありますが、『このまま続ける』を押して暗証番号を入れれば続きから進められます。</div>';
+      '<div class="reload-warn-note">うまく撮れないときは下の『うまく撮れない場合はこちら』をクリック（この方法は写真がスマホに残るので時々整理が必要）。「おかえりなさい画面」が出たら、『このまま続ける』＋暗証番号で続けられます。</div>';
 
     bodyEl.innerHTML = warningHtml + tasksHtml + wordListHtml + submitHtml;
   }
@@ -25251,7 +25242,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-0041</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-1637</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
