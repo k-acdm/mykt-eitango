@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260924-1846"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260924-2252"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -9559,15 +9559,15 @@
           //   未記入カードの返信スレッドにマージ復元する。取得失敗でも記入者/未記入者は必ず表示（graceful）。
           adminGasGet({ action: 'adminGetDayReminders', date: ds, _ts: Date.now() }).then(function(rres) {
             var reminders = (rres && rres.ok && Array.isArray(rres.reminders)) ? rres.reminders : [];
-            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode, studyCappedByCode);
+            _renderReflectionsDayTabbed(wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode, studyCappedByCode);
           }).catch(function() {
-            _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, [], studyByCode, studyCappedByCode);
+            _renderReflectionsDayTabbed(wrapEl, ds, writers, learnerCodes, roster, [], studyByCode, studyCappedByCode);
           });
         }).catch(function() {
-          _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, [], [], studyByCode, studyCappedByCode);
+          _renderReflectionsDayTabbed(wrapEl, ds, writers, learnerCodes, [], [], studyByCode, studyCappedByCode);
         });
       }).catch(function() {
-        _renderReflectionsDayMerged(wrapEl, ds, writers, [], [], [], {}, {});
+        _renderReflectionsDayTabbed(wrapEl, ds, writers, [], [], [], {}, {});
       });
     }).catch(function() {
       wrapEl.innerHTML = '<div class="refl-day-empty">通信エラーが発生しました</div>';
@@ -9587,6 +9587,69 @@
     var s = Number(sec) || 0;
     if (s > 0 && capped === true) return '3時間以上';
     return s > 0 ? (Math.floor(s / 60) + '分' + (s % 60) + '秒') : '—';
+  }
+
+  // 日付別一覧の Students / SpecialAccounts タブ（2026-09-24、その日の記入者＋学習者だけを分類）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・生徒一覧タブと同基準・同作法）。
+  //   判定は各行の accountType → 無ければ名簿（getStudentsListForGrant、既に accountType を返す）の順。
+  //   ★描画本体 _renderReflectionsDayMerged は無改修。渡す writers / learnerCodes をタブで絞るだけ。
+  var _reflDayArgs = null;
+  var _reflDayTab = 'student';
+  function _reflDayIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setReflDayTab(key) {
+    _reflDayTab = (key === 'special') ? 'special' : 'student';
+    if (_reflDayArgs) _renderReflectionsDayTabbed.apply(null, _reflDayArgs);  // 表示行だけ絞る
+  }
+  function _renderReflectionsDayTabbed(wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode, studyCappedByCode) {
+    _reflDayArgs = [wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode, studyCappedByCode];
+    var rosterMap = {};
+    (roster || []).forEach(function(s) { if (s && s.studentId) rosterMap[String(s.studentId).trim()] = s; });
+    function acctOf(code, row) {
+      if (row && row.accountType) return row;
+      return rosterMap[String(code || '').trim()] || {};
+    }
+    // その日の対象者（記入者 ∪ 学習者、生徒コードで重複排除）を分類して件数を出す
+    var seen = {}, studentCount = 0, specialCount = 0;
+    function tally(code, row) {
+      var c = String(code || '').trim();
+      if (!c || seen[c]) return;
+      seen[c] = true;
+      if (_reflDayIsStudentAcct(acctOf(c, row))) studentCount++; else specialCount++;
+    }
+    (writers || []).forEach(function(w) { if (w) tally(w.studentId, w); });
+    (learnerCodes || []).forEach(function(c) { tally(c, null); });
+    var total = studentCount + specialCount;
+    if (total === 0) {
+      _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode, studyCappedByCode);
+      return;
+    }
+    function _tabBtn(key, label, cnt) {
+      var active = (_reflDayTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setReflDayTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    function keep(code, row) {
+      var isStudent = _reflDayIsStudentAcct(acctOf(code, row));
+      return (_reflDayTab === 'student') ? isStudent : !isStudent;
+    }
+    var fWriters  = (writers || []).filter(function(w) { return w && keep(w.studentId, w); });
+    var fLearners = (learnerCodes || []).filter(function(c) { return keep(c, null); });
+    if (fWriters.length === 0 && fLearners.filter(function(c) {
+          return !fWriters.some(function(w) { return String(w.studentId) === String(c); });
+        }).length === 0) {
+      wrapEl.innerHTML = tabBar + '<div class="refl-day-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    _renderReflectionsDayMerged(wrapEl, ds, fWriters, fLearners, roster, reminders, studyByCode, studyCappedByCode);
+    wrapEl.insertAdjacentHTML('afterbegin', tabBar);
   }
 
   function _renderReflectionsDayMerged(wrapEl, ds, writers, learnerCodes, roster, reminders, studyByCode, studyCappedByCode) {
@@ -14237,6 +14300,72 @@
     loadActivityDay(ds);
   }
 
+  // 日付別一覧の Students / SpecialAccounts タブ（2026-09-24、その日の実施者だけを分類）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・生徒一覧タブと同基準・同作法）。
+  //   ※ この日付別 action が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る（深夜のサーバー改修とセット）。
+  var _activityDayStudents = [];
+  var _activityDayTab = 'student';
+  function _activityDayIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setActivityDayTab(key) {
+    _activityDayTab = (key === 'special') ? 'special' : 'student';
+    _renderActivityDay();  // 表示行だけ絞る
+  }
+  function _renderActivityDay() {
+    var wrapEl = document.getElementById('cal-day-list-wrap');
+    if (!wrapEl) return;
+    var students = _activityDayStudents;
+    if (students.length === 0) {
+      wrapEl.innerHTML = '<div class="cal-day-empty">この日は活動した生徒がいません。</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き＝その日の実施者数。HP手動付与・生徒一覧タブと同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_activityDayIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_activityDayTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setActivityDayTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _activityDayIsStudentAcct(s);
+      return (_activityDayTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrapEl.innerHTML = tabBar + '<div class="cal-day-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc = _esc(s.studentId);
+      var nameEsc = _esc(s.name || '（未登録）');
+      var nickEsc = _esc(s.nickname || '');
+      var nameJs  = String(s.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var totalStr = '+' + (Number(s.totalHp) || 0).toLocaleString('en-US') + ' HP';
+      var bdHtml = (s.breakdown || []).map(function(b){
+        return '<span class="b-content">' + _esc(b.content) + '</span> ' +
+               '<span class="b-hp">' + (Number(b.hp) || 0).toLocaleString('en-US') + 'HP</span>';
+      }).join(' / ');
+      if (!bdHtml) bdHtml = '<span style="color:#bbb">内訳なし</span>';
+      return '<button type="button" class="cal-day-card" onclick="selectStudent(\'' + sidEsc + '\', \'' + nameJs + '\')" style="display:block;width:100%;text-align:left;font-family:inherit;border-style:solid;">' +
+               '<div class="name-row">' +
+                 '<div class="name">' + nameEsc + (nickEsc ? '<span class="nick">（' + nickEsc + '）</span>' : '') + '</div>' +
+                 '<div class="total-hp">' + totalStr + '</div>' +
+               '</div>' +
+               '<div class="breakdown">' + bdHtml + '</div>' +
+             '</button>';
+    }).join('');
+    wrapEl.innerHTML = tabBar + rows;
+  }
   function loadActivityDay(ds) {
     var wrapEl = document.getElementById('cal-day-list-wrap');
     wrapEl.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
@@ -14251,31 +14380,8 @@
         wrapEl.innerHTML = '<div class="cal-day-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (students.length === 0) {
-        wrapEl.innerHTML = '<div class="cal-day-empty">この日は活動した生徒がいません。</div>';
-        return;
-      }
-      var rows = students.map(function(s) {
-        var sidEsc = _esc(s.studentId);
-        var nameEsc = _esc(s.name || '（未登録）');
-        var nickEsc = _esc(s.nickname || '');
-        var nameJs  = String(s.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var totalStr = '+' + (Number(s.totalHp) || 0).toLocaleString('en-US') + ' HP';
-        var bdHtml = (s.breakdown || []).map(function(b){
-          return '<span class="b-content">' + _esc(b.content) + '</span> ' +
-                 '<span class="b-hp">' + (Number(b.hp) || 0).toLocaleString('en-US') + 'HP</span>';
-        }).join(' / ');
-        if (!bdHtml) bdHtml = '<span style="color:#bbb">内訳なし</span>';
-        return '<button type="button" class="cal-day-card" onclick="selectStudent(\'' + sidEsc + '\', \'' + nameJs + '\')" style="display:block;width:100%;text-align:left;font-family:inherit;border-style:solid;">' +
-                 '<div class="name-row">' +
-                   '<div class="name">' + nameEsc + (nickEsc ? '<span class="nick">（' + nickEsc + '）</span>' : '') + '</div>' +
-                   '<div class="total-hp">' + totalStr + '</div>' +
-                 '</div>' +
-                 '<div class="breakdown">' + bdHtml + '</div>' +
-               '</button>';
-      }).join('');
-      wrapEl.innerHTML = rows;
+      _activityDayStudents = res.students || [];
+      _renderActivityDay();
     }).catch(function() {
       wrapEl.innerHTML = '<div class="cal-day-empty">通信エラーが発生しました</div>';
     });
@@ -15773,6 +15879,54 @@
     loadKokugoDay(ds);
   }
 
+  // 日付別一覧の Students / SpecialAccounts タブ（2026-09-24、その日の実施者だけを分類）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・生徒一覧タブと同基準・同作法）。
+  //   ※ この日付別 action が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る（深夜のサーバー改修とセット）。
+  var _kokugoDayAttempts = [];
+  var _kokugoDayTab = 'student';
+  function _kokugoDayIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setKokugoDayTab(key) {
+    _kokugoDayTab = (key === 'special') ? 'special' : 'student';
+    _renderKokugoDay();  // 表示行だけ絞る
+  }
+  function _renderKokugoDay() {
+    var wrapEl = document.getElementById('kokugo-day-list-wrap');
+    if (!wrapEl) return;
+    var attempts = _kokugoDayAttempts;
+    if (!attempts.length) {
+      wrapEl.innerHTML = '<div class="refl-day-empty">この日の挑戦履歴はありません。</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き＝その日の挑戦件数。HP手動付与・生徒一覧タブと同作法）
+    var studentCount = 0;
+    for (var i = 0; i < attempts.length; i++) {
+      if (_kokugoDayIsStudentAcct(attempts[i])) studentCount++;
+    }
+    var specialCount = attempts.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_kokugoDayTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setKokugoDayTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = attempts.filter(function(s) {
+      var isStudent = _kokugoDayIsStudentAcct(s);
+      return (_kokugoDayTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrapEl.innerHTML = tabBar + '<div class="refl-day-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var html = filtered.map(function(a){ return _renderKokugoAttemptCard(a, { includeStudent: true }); }).join('');
+    wrapEl.innerHTML = tabBar + html;
+  }
   function loadKokugoDay(ds) {
     var wrapEl = document.getElementById('kokugo-day-list-wrap');
     if (wrapEl) wrapEl.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
@@ -15787,13 +15941,8 @@
         if (wrapEl) wrapEl.innerHTML = '<div class="refl-day-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var attempts = res.attempts || [];
-      if (!attempts.length) {
-        if (wrapEl) wrapEl.innerHTML = '<div class="refl-day-empty">この日の挑戦履歴はありません。</div>';
-        return;
-      }
-      var html = attempts.map(function(a){ return _renderKokugoAttemptCard(a, { includeStudent: true }); }).join('');
-      if (wrapEl) wrapEl.innerHTML = html;
+      _kokugoDayAttempts = res.attempts || [];
+      _renderKokugoDay();
     }).catch(function() {
       if (wrapEl) wrapEl.innerHTML = '<div class="refl-day-empty">通信エラーが発生しました</div>';
     });
@@ -16300,6 +16449,54 @@
     window.scrollTo(0, 0);
     loadRishaDay(ds);
   }
+  // 日付別一覧の Students / SpecialAccounts タブ（2026-09-24、その日の実施者だけを分類）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・生徒一覧タブと同基準・同作法）。
+  //   ※ この日付別 action が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る（深夜のサーバー改修とセット）。
+  var _rishaDayAttempts = [];
+  var _rishaDayTab = 'student';
+  function _rishaDayIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setRishaDayTab(key) {
+    _rishaDayTab = (key === 'special') ? 'special' : 'student';
+    _renderRishaDay();  // 表示行だけ絞る
+  }
+  function _renderRishaDay() {
+    var wrapEl = document.getElementById('risha-history-day-wrap');
+    if (!wrapEl) return;
+    var attempts = _rishaDayAttempts;
+    if (!attempts.length) {
+      wrapEl.innerHTML = '<div class="refl-day-empty">この日の挑戦履歴はありません。</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き＝その日の挑戦件数。HP手動付与・生徒一覧タブと同作法）
+    var studentCount = 0;
+    for (var i = 0; i < attempts.length; i++) {
+      if (_rishaDayIsStudentAcct(attempts[i])) studentCount++;
+    }
+    var specialCount = attempts.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_rishaDayTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setRishaDayTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = attempts.filter(function(s) {
+      var isStudent = _rishaDayIsStudentAcct(s);
+      return (_rishaDayTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrapEl.innerHTML = tabBar + '<div class="refl-day-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var html = filtered.map(function(a){ return _renderRishaAttemptCard(a, { includeStudent: true }); }).join('');
+    wrapEl.innerHTML = tabBar + html;
+  }
   function loadRishaDay(ds) {
     var wrapEl = document.getElementById('risha-history-day-wrap');
     if (wrapEl) wrapEl.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
@@ -16311,13 +16508,8 @@
         if (wrapEl) wrapEl.innerHTML = '<div class="refl-day-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var attempts = res.attempts || [];
-      if (!attempts.length) {
-        if (wrapEl) wrapEl.innerHTML = '<div class="refl-day-empty">この日の挑戦履歴はありません。</div>';
-        return;
-      }
-      var html = attempts.map(function(a){ return _renderRishaAttemptCard(a, { includeStudent: true }); }).join('');
-      if (wrapEl) wrapEl.innerHTML = html;
+      _rishaDayAttempts = res.attempts || [];
+      _renderRishaDay();
     }).catch(function() {
       if (wrapEl) wrapEl.innerHTML = '<div class="refl-day-empty">通信エラーが発生しました</div>';
     });
@@ -17181,7 +17373,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-1846</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-2252</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
