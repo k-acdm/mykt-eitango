@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260924-1812"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20260924-1846"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -9223,6 +9223,73 @@
     loadReflectionsForStudent(sid);
   }
   // 生徒一覧（全生徒、振り返り未提出者も含む。adminListStudents を流用）
+  // 生徒一覧の Students / SpecialAccounts タブ（2026-09-24、adminListStudents の accountType で分離）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・連絡事項の対象生徒と同基準・同作法）。
+  //   ※ adminListStudents が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る。
+  var _reflStudents = [];
+  var _reflStudentsTab = 'student';
+  function _reflStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setReflStudentsTab(key) {
+    _reflStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderReflStudents();  // 表示行だけ絞る
+  }
+  function _renderReflStudents() {
+    var wrap = document.getElementById('refl-students-wrap');
+    if (!wrap) return;
+    var students = _reflStudents;
+    if (students.length === 0) {
+      wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き。HP手動付与・連絡事項の対象生徒と同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_reflStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_reflStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setReflStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _reflStudentsIsStudentAcct(s);
+      return (_reflStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="refl-adm-students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc = _esc(s.studentId);
+      var nameEsc = _esc(s.name || '');
+      var nickEsc = _esc(s.nickname || '');
+      var displayName;
+      if (nameEsc && nickEsc)      displayName = nameEsc + '（' + nickEsc + '）';
+      else if (nameEsc)            displayName = nameEsc;
+      else if (nickEsc)            displayName = nickEsc;
+      else                         displayName = '（未登録）';
+      var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<tr>' +
+               '<td>' + sidEsc + '</td>' +
+               '<td><span class="name-link" onclick="goAdminReflectionsList(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
+             '</tr>';
+    }).join('');
+    wrap.innerHTML = tabBar +
+      '<table class="lison-students-table">' +
+        '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>';
+  }
   function loadReflectionsStudents() {
     var wrap = document.getElementById('refl-students-wrap');
     wrap.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
@@ -9233,32 +9300,8 @@
         wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (students.length === 0) {
-        wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>';
-        return;
-      }
-      var rows = students.map(function(s) {
-        var sidEsc = _esc(s.studentId);
-        var nameEsc = _esc(s.name || '');
-        var nickEsc = _esc(s.nickname || '');
-        var displayName;
-        if (nameEsc && nickEsc)      displayName = nameEsc + '（' + nickEsc + '）';
-        else if (nameEsc)            displayName = nameEsc;
-        else if (nickEsc)            displayName = nickEsc;
-        else                         displayName = '（未登録）';
-        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        return '<tr>' +
-                 '<td>' + sidEsc + '</td>' +
-                 '<td><span class="name-link" onclick="goAdminReflectionsList(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
-               '</tr>';
-      }).join('');
-      wrap.innerHTML =
-        '<table class="lison-students-table">' +
-          '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead>' +
-          '<tbody>' + rows + '</tbody>' +
-        '</table>';
+      _reflStudents = res.students || [];
+      _renderReflStudents();
     }).catch(function() {
       wrap.innerHTML = '<div class="refl-adm-students-empty">通信エラーが発生しました</div>';
     });
@@ -10947,6 +10990,70 @@
   // =============================================================
   // 生徒一覧
   // =============================================================
+  // 生徒一覧の Students / SpecialAccounts タブ（2026-09-24、adminListStudents の accountType で分離）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・連絡事項の対象生徒と同基準・同作法）。
+  //   ※ adminListStudents が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る。
+  var _activityStudents = [];
+  var _activityStudentsTab = 'student';
+  function _activityStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setActivityStudentsTab(key) {
+    _activityStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderActivityStudents();  // 表示行だけ絞る
+  }
+  function _renderActivityStudents() {
+    var wrap = document.getElementById('students-list-wrap');
+    if (!wrap) return;
+    var students = _activityStudents;
+    if (students.length === 0) {
+      wrap.innerHTML = '<div class="students-empty">生徒データがありません</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き。HP手動付与・連絡事項の対象生徒と同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_activityStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_activityStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setActivityStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _activityStudentsIsStudentAcct(s);
+      return (_activityStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc = _esc(s.studentId);
+      var nameEsc = _esc(s.name || '');
+      var nickEsc = _esc(s.nickname || '');
+      var nameJs = String(s.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<tr>' +
+               '<td>' + sidEsc + '</td>' +
+               '<td><span class="name-link" onclick="selectStudent(\'' + sidEsc + '\', \'' + nameJs + '\')">' + (nameEsc || '（未登録）') + '</span></td>' +
+               '<td>' + (nickEsc || '—') + '</td>' +
+             '</tr>';
+    }).join('');
+    wrap.innerHTML = tabBar +
+      '<div class="students-table-wrap">' +
+        '<table class="students-table">' +
+          '<thead><tr><th>生徒ID</th><th>氏名</th><th>ニックネーム</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>' +
+      '</div>';
+  }
   function loadStudents() {
     var wrap = document.getElementById('students-list-wrap');
     wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
@@ -10957,29 +11064,8 @@
         wrap.innerHTML = '<div class="students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (students.length === 0) {
-        wrap.innerHTML = '<div class="students-empty">生徒データがありません</div>';
-        return;
-      }
-      var rows = students.map(function(s) {
-        var sidEsc = _esc(s.studentId);
-        var nameEsc = _esc(s.name || '');
-        var nickEsc = _esc(s.nickname || '');
-        var nameJs = String(s.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        return '<tr>' +
-                 '<td>' + sidEsc + '</td>' +
-                 '<td><span class="name-link" onclick="selectStudent(\'' + sidEsc + '\', \'' + nameJs + '\')">' + (nameEsc || '（未登録）') + '</span></td>' +
-                 '<td>' + (nickEsc || '—') + '</td>' +
-               '</tr>';
-      }).join('');
-      wrap.innerHTML =
-        '<div class="students-table-wrap">' +
-          '<table class="students-table">' +
-            '<thead><tr><th>生徒ID</th><th>氏名</th><th>ニックネーム</th></tr></thead>' +
-            '<tbody>' + rows + '</tbody>' +
-          '</table>' +
-        '</div>';
+      _activityStudents = res.students || [];
+      _renderActivityStudents();
     }).catch(function() {
       wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
     });
@@ -13294,6 +13380,58 @@
     loadEitangoAchStudents();
   }
   // 生徒一覧（全生徒。adminListStudents 流用、国語履歴の生徒一覧と同パターン）
+  // 生徒一覧の Students / SpecialAccounts タブ（2026-09-24、adminListStudents の accountType で分離）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・連絡事項の対象生徒と同基準・同作法）。
+  //   ※ adminListStudents が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る。
+  var _eitangoAchStudents = [];
+  var _eitangoAchStudentsTab = 'student';
+  function _eitangoAchStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setEitangoAchStudentsTab(key) {
+    _eitangoAchStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderEitangoAchStudents();  // 表示行だけ絞る
+  }
+  function _renderEitangoAchStudents() {
+    var wrap = document.getElementById('eitango-ach-students-wrap');
+    if (!wrap) return;
+    var students = _eitangoAchStudents;
+    if (!students.length) { if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>'; return; }
+    // Students / SpecialAccounts タブ（件数付き。HP手動付与・連絡事項の対象生徒と同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_eitangoAchStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_eitangoAchStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setEitangoAchStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _eitangoAchStudentsIsStudentAcct(s);
+      return (_eitangoAchStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="refl-adm-students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc  = _esc(s.studentId);
+      var nameEsc = _esc(s.name || ''), nickEsc = _esc(s.nickname || '');
+      var displayName = (nameEsc && nickEsc) ? (nameEsc + '（' + nickEsc + '）') : (nameEsc || nickEsc || '（未登録）');
+      var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<tr><td>' + sidEsc + '</td><td><span class="name-link" onclick="goAdminEitangoAchievement(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td></tr>';
+    }).join('');
+    if (wrap) wrap.innerHTML = tabBar + '<table class="lison-students-table"><thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
   function loadEitangoAchStudents() {
     var wrap = document.getElementById('eitango-ach-students-wrap');
     if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
@@ -13304,17 +13442,8 @@
         if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (!students.length) { if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>'; return; }
-      var rows = students.map(function(s) {
-        var sidEsc  = _esc(s.studentId);
-        var nameEsc = _esc(s.name || ''), nickEsc = _esc(s.nickname || '');
-        var displayName = (nameEsc && nickEsc) ? (nameEsc + '（' + nickEsc + '）') : (nameEsc || nickEsc || '（未登録）');
-        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        return '<tr><td>' + sidEsc + '</td><td><span class="name-link" onclick="goAdminEitangoAchievement(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td></tr>';
-      }).join('');
-      if (wrap) wrap.innerHTML = '<table class="lison-students-table"><thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      _eitangoAchStudents = res.students || [];
+      _renderEitangoAchStudents();
     }).catch(function() {
       if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">通信エラーが発生しました</div>';
     });
@@ -13402,6 +13531,58 @@
     loadKobunAchStudents();
   }
   // 生徒一覧（全生徒。adminListStudents 流用、英単語達成度と同パターン）
+  // 生徒一覧の Students / SpecialAccounts タブ（2026-09-24、adminListStudents の accountType で分離）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・連絡事項の対象生徒と同基準・同作法）。
+  //   ※ adminListStudents が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る。
+  var _kobunAchStudents = [];
+  var _kobunAchStudentsTab = 'student';
+  function _kobunAchStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setKobunAchStudentsTab(key) {
+    _kobunAchStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderKobunAchStudents();  // 表示行だけ絞る
+  }
+  function _renderKobunAchStudents() {
+    var wrap = document.getElementById('kobun-ach-students-wrap');
+    if (!wrap) return;
+    var students = _kobunAchStudents;
+    if (!students.length) { if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>'; return; }
+    // Students / SpecialAccounts タブ（件数付き。HP手動付与・連絡事項の対象生徒と同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_kobunAchStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_kobunAchStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setKobunAchStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _kobunAchStudentsIsStudentAcct(s);
+      return (_kobunAchStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="refl-adm-students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc  = _esc(s.studentId);
+      var nameEsc = _esc(s.name || ''), nickEsc = _esc(s.nickname || '');
+      var displayName = (nameEsc && nickEsc) ? (nameEsc + '（' + nickEsc + '）') : (nameEsc || nickEsc || '（未登録）');
+      var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<tr><td>' + sidEsc + '</td><td><span class="name-link" onclick="goAdminKobunAchievement(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td></tr>';
+    }).join('');
+    if (wrap) wrap.innerHTML = tabBar + '<table class="lison-students-table"><thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
   function loadKobunAchStudents() {
     var wrap = document.getElementById('kobun-ach-students-wrap');
     if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
@@ -13412,17 +13593,8 @@
         if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (!students.length) { if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>'; return; }
-      var rows = students.map(function(s) {
-        var sidEsc  = _esc(s.studentId);
-        var nameEsc = _esc(s.name || ''), nickEsc = _esc(s.nickname || '');
-        var displayName = (nameEsc && nickEsc) ? (nameEsc + '（' + nickEsc + '）') : (nameEsc || nickEsc || '（未登録）');
-        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        return '<tr><td>' + sidEsc + '</td><td><span class="name-link" onclick="goAdminKobunAchievement(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td></tr>';
-      }).join('');
-      if (wrap) wrap.innerHTML = '<table class="lison-students-table"><thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      _kobunAchStudents = res.students || [];
+      _renderKobunAchStudents();
     }).catch(function() {
       if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">通信エラーが発生しました</div>';
     });
@@ -13506,6 +13678,58 @@
     loadKisoAchStudents();
   }
   // 生徒一覧（全生徒。adminListStudents 流用、英単語/古文達成度と同パターン）
+  // 生徒一覧の Students / SpecialAccounts タブ（2026-09-24、adminListStudents の accountType で分離）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・連絡事項の対象生徒と同基準・同作法）。
+  //   ※ adminListStudents が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る。
+  var _kisoAchStudents = [];
+  var _kisoAchStudentsTab = 'student';
+  function _kisoAchStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setKisoAchStudentsTab(key) {
+    _kisoAchStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderKisoAchStudents();  // 表示行だけ絞る
+  }
+  function _renderKisoAchStudents() {
+    var wrap = document.getElementById('kiso-ach-students-wrap');
+    if (!wrap) return;
+    var students = _kisoAchStudents;
+    if (!students.length) { if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>'; return; }
+    // Students / SpecialAccounts タブ（件数付き。HP手動付与・連絡事項の対象生徒と同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_kisoAchStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_kisoAchStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setKisoAchStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _kisoAchStudentsIsStudentAcct(s);
+      return (_kisoAchStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="refl-adm-students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc  = _esc(s.studentId);
+      var nameEsc = _esc(s.name || ''), nickEsc = _esc(s.nickname || '');
+      var displayName = (nameEsc && nickEsc) ? (nameEsc + '（' + nickEsc + '）') : (nameEsc || nickEsc || '（未登録）');
+      var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<tr><td>' + sidEsc + '</td><td><span class="name-link" onclick="goAdminKisoAchievement(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td></tr>';
+    }).join('');
+    if (wrap) wrap.innerHTML = tabBar + '<table class="lison-students-table"><thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
   function loadKisoAchStudents() {
     var wrap = document.getElementById('kiso-ach-students-wrap');
     if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
@@ -13516,17 +13740,8 @@
         if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (!students.length) { if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>'; return; }
-      var rows = students.map(function(s) {
-        var sidEsc  = _esc(s.studentId);
-        var nameEsc = _esc(s.name || ''), nickEsc = _esc(s.nickname || '');
-        var displayName = (nameEsc && nickEsc) ? (nameEsc + '（' + nickEsc + '）') : (nameEsc || nickEsc || '（未登録）');
-        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        return '<tr><td>' + sidEsc + '</td><td><span class="name-link" onclick="goAdminKisoAchievement(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td></tr>';
-      }).join('');
-      if (wrap) wrap.innerHTML = '<table class="lison-students-table"><thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      _kisoAchStudents = res.students || [];
+      _renderKisoAchStudents();
     }).catch(function() {
       if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">通信エラーが発生しました</div>';
     });
@@ -13596,6 +13811,58 @@
     loadKanjiAchStudents();
   }
   // 生徒一覧（全生徒。adminListStudents 流用、英単語/古文/基礎計算 達成度と同パターン）
+  // 生徒一覧の Students / SpecialAccounts タブ（2026-09-24、adminListStudents の accountType で分離）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・連絡事項の対象生徒と同基準・同作法）。
+  //   ※ adminListStudents が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る。
+  var _kanjiAchStudents = [];
+  var _kanjiAchStudentsTab = 'student';
+  function _kanjiAchStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setKanjiAchStudentsTab(key) {
+    _kanjiAchStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderKanjiAchStudents();  // 表示行だけ絞る
+  }
+  function _renderKanjiAchStudents() {
+    var wrap = document.getElementById('kanji-ach-students-wrap');
+    if (!wrap) return;
+    var students = _kanjiAchStudents;
+    if (!students.length) { if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>'; return; }
+    // Students / SpecialAccounts タブ（件数付き。HP手動付与・連絡事項の対象生徒と同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_kanjiAchStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_kanjiAchStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setKanjiAchStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _kanjiAchStudentsIsStudentAcct(s);
+      return (_kanjiAchStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="refl-adm-students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc  = _esc(s.studentId);
+      var nameEsc = _esc(s.name || ''), nickEsc = _esc(s.nickname || '');
+      var displayName = (nameEsc && nickEsc) ? (nameEsc + '（' + nickEsc + '）') : (nameEsc || nickEsc || '（未登録）');
+      var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<tr><td>' + sidEsc + '</td><td><span class="name-link" onclick="goAdminKanjiAchievement(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td></tr>';
+    }).join('');
+    if (wrap) wrap.innerHTML = tabBar + '<table class="lison-students-table"><thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
   function loadKanjiAchStudents() {
     var wrap = document.getElementById('kanji-ach-students-wrap');
     if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
@@ -13606,17 +13873,8 @@
         if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (!students.length) { if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>'; return; }
-      var rows = students.map(function(s) {
-        var sidEsc  = _esc(s.studentId);
-        var nameEsc = _esc(s.name || ''), nickEsc = _esc(s.nickname || '');
-        var displayName = (nameEsc && nickEsc) ? (nameEsc + '（' + nickEsc + '）') : (nameEsc || nickEsc || '（未登録）');
-        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        return '<tr><td>' + sidEsc + '</td><td><span class="name-link" onclick="goAdminKanjiAchievement(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td></tr>';
-      }).join('');
-      if (wrap) wrap.innerHTML = '<table class="lison-students-table"><thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      _kanjiAchStudents = res.students || [];
+      _renderKanjiAchStudents();
     }).catch(function() {
       if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">通信エラーが発生しました</div>';
     });
@@ -13687,6 +13945,58 @@
     loadLisonAchStudents();
   }
   // 生徒一覧（全生徒。adminListStudents 流用、他達成度と同パターン）
+  // 生徒一覧の Students / SpecialAccounts タブ（2026-09-24、adminListStudents の accountType で分離）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・連絡事項の対象生徒と同基準・同作法）。
+  //   ※ adminListStudents が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る。
+  var _lisonAchStudents = [];
+  var _lisonAchStudentsTab = 'student';
+  function _lisonAchStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setLisonAchStudentsTab(key) {
+    _lisonAchStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderLisonAchStudents();  // 表示行だけ絞る
+  }
+  function _renderLisonAchStudents() {
+    var wrap = document.getElementById('lison-ach-students-wrap');
+    if (!wrap) return;
+    var students = _lisonAchStudents;
+    if (!students.length) { if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>'; return; }
+    // Students / SpecialAccounts タブ（件数付き。HP手動付与・連絡事項の対象生徒と同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_lisonAchStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_lisonAchStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setLisonAchStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _lisonAchStudentsIsStudentAcct(s);
+      return (_lisonAchStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="refl-adm-students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc  = _esc(s.studentId);
+      var nameEsc = _esc(s.name || ''), nickEsc = _esc(s.nickname || '');
+      var displayName = (nameEsc && nickEsc) ? (nameEsc + '（' + nickEsc + '）') : (nameEsc || nickEsc || '（未登録）');
+      var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<tr><td>' + sidEsc + '</td><td><span class="name-link" onclick="goAdminLisonAchievement(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td></tr>';
+    }).join('');
+    if (wrap) wrap.innerHTML = tabBar + '<table class="lison-students-table"><thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
   function loadLisonAchStudents() {
     var wrap = document.getElementById('lison-ach-students-wrap');
     if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
@@ -13697,17 +14007,8 @@
         if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (!students.length) { if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>'; return; }
-      var rows = students.map(function(s) {
-        var sidEsc  = _esc(s.studentId);
-        var nameEsc = _esc(s.name || ''), nickEsc = _esc(s.nickname || '');
-        var displayName = (nameEsc && nickEsc) ? (nameEsc + '（' + nickEsc + '）') : (nameEsc || nickEsc || '（未登録）');
-        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        return '<tr><td>' + sidEsc + '</td><td><span class="name-link" onclick="goAdminLisonAchievement(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td></tr>';
-      }).join('');
-      if (wrap) wrap.innerHTML = '<table class="lison-students-table"><thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      _lisonAchStudents = res.students || [];
+      _renderLisonAchStudents();
     }).catch(function() {
       if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">通信エラーが発生しました</div>';
     });
@@ -15175,6 +15476,75 @@
   }
 
   // 生徒一覧（全生徒、挑戦未着手者も含む。adminListStudents を流用、振り返りと同じパターン）
+  // 生徒一覧の Students / SpecialAccounts タブ（2026-09-24、adminListStudents の accountType で分離）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・連絡事項の対象生徒と同基準・同作法）。
+  //   ※ adminListStudents が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る。
+  var _kokugoHistStudents = [];
+  var _kokugoHistStudentsTab = 'student';
+  function _kokugoHistStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setKokugoHistStudentsTab(key) {
+    _kokugoHistStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderKokugoHistStudents();  // 表示行だけ絞る
+  }
+  function _renderKokugoHistStudents() {
+    var wrap = document.getElementById('kokugo-history-students-wrap');
+    if (!wrap) return;
+    var students = _kokugoHistStudents;
+    if (!students.length) {
+      if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き。HP手動付与・連絡事項の対象生徒と同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_kokugoHistStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_kokugoHistStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setKokugoHistStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _kokugoHistStudentsIsStudentAcct(s);
+      return (_kokugoHistStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="refl-adm-students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc  = _esc(s.studentId);
+      var nameEsc = _esc(s.name || '');
+      var nickEsc = _esc(s.nickname || '');
+      var displayName;
+      if (nameEsc && nickEsc)      displayName = nameEsc + '（' + nickEsc + '）';
+      else if (nameEsc)            displayName = nameEsc;
+      else if (nickEsc)            displayName = nickEsc;
+      else                         displayName = '（未登録）';
+      var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<tr>' +
+               '<td>' + sidEsc + '</td>' +
+               '<td><span class="name-link" onclick="goAdminKokugoList(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
+             '</tr>';
+    }).join('');
+    if (wrap) {
+      wrap.innerHTML = tabBar +
+        '<table class="lison-students-table">' +
+          '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>';
+    }
+  }
   function loadKokugoHistoryStudents() {
     var wrap = document.getElementById('kokugo-history-students-wrap');
     if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
@@ -15185,34 +15555,8 @@
         if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (!students.length) {
-        if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>';
-        return;
-      }
-      var rows = students.map(function(s) {
-        var sidEsc  = _esc(s.studentId);
-        var nameEsc = _esc(s.name || '');
-        var nickEsc = _esc(s.nickname || '');
-        var displayName;
-        if (nameEsc && nickEsc)      displayName = nameEsc + '（' + nickEsc + '）';
-        else if (nameEsc)            displayName = nameEsc;
-        else if (nickEsc)            displayName = nickEsc;
-        else                         displayName = '（未登録）';
-        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        return '<tr>' +
-                 '<td>' + sidEsc + '</td>' +
-                 '<td><span class="name-link" onclick="goAdminKokugoList(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
-               '</tr>';
-      }).join('');
-      if (wrap) {
-        wrap.innerHTML =
-          '<table class="lison-students-table">' +
-            '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead>' +
-            '<tbody>' + rows + '</tbody>' +
-          '</table>';
-      }
+      _kokugoHistStudents = res.students || [];
+      _renderKokugoHistStudents();
     }).catch(function() {
       if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">通信エラーが発生しました</div>';
     });
@@ -15689,6 +16033,75 @@
     window.scrollTo(0, 0);
     loadRishaHistoryForStudent(_rishaAdminSelectedSid);
   }
+  // 生徒一覧の Students / SpecialAccounts タブ（2026-09-24、adminListStudents の accountType で分離）
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を
+  //   SpecialAccounts とみなす（HP手動付与・連絡事項の対象生徒と同基準・同作法）。
+  //   ※ adminListStudents が accountType を返す前（未設定）は全員 SpecialAccounts 側に寄る。
+  var _rishaHistStudents = [];
+  var _rishaHistStudentsTab = 'student';
+  function _rishaHistStudentsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setRishaHistStudentsTab(key) {
+    _rishaHistStudentsTab = (key === 'special') ? 'special' : 'student';
+    _renderRishaHistStudents();  // 表示行だけ絞る
+  }
+  function _renderRishaHistStudents() {
+    var wrap = document.getElementById('risha-history-students-wrap');
+    if (!wrap) return;
+    var students = _rishaHistStudents;
+    if (!students.length) {
+      if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き。HP手動付与・連絡事項の対象生徒と同作法）
+    var studentCount = 0;
+    for (var i = 0; i < students.length; i++) {
+      if (_rishaHistStudentsIsStudentAcct(students[i])) studentCount++;
+    }
+    var specialCount = students.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_rishaHistStudentsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setRishaHistStudentsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+
+    var filtered = students.filter(function(s) {
+      var isStudent = _rishaHistStudentsIsStudentAcct(s);
+      return (_rishaHistStudentsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (filtered.length === 0) {
+      wrap.innerHTML = tabBar + '<div class="refl-adm-students-empty">このタブに該当する生徒がいません</div>';
+      return;
+    }
+    var rows = filtered.map(function(s) {
+      var sidEsc  = _esc(s.studentId);
+      var nameEsc = _esc(s.name || '');
+      var nickEsc = _esc(s.nickname || '');
+      var displayName;
+      if (nameEsc && nickEsc)      displayName = nameEsc + '（' + nickEsc + '）';
+      else if (nameEsc)            displayName = nameEsc;
+      else if (nickEsc)            displayName = nickEsc;
+      else                         displayName = '（未登録）';
+      var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<tr>' +
+               '<td>' + sidEsc + '</td>' +
+               '<td><span class="name-link" onclick="goAdminRishaList(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
+             '</tr>';
+    }).join('');
+    if (wrap) {
+      wrap.innerHTML = tabBar +
+        '<table class="lison-students-table">' +
+          '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>';
+    }
+  }
   function loadRishaHistoryStudents() {
     var wrap = document.getElementById('risha-history-students-wrap');
     if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">⏳ 読み込み中...</div>';
@@ -15699,34 +16112,8 @@
         if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">' + _esc(msg) + '</div>';
         return;
       }
-      var students = res.students || [];
-      if (!students.length) {
-        if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">生徒データがありません</div>';
-        return;
-      }
-      var rows = students.map(function(s) {
-        var sidEsc  = _esc(s.studentId);
-        var nameEsc = _esc(s.name || '');
-        var nickEsc = _esc(s.nickname || '');
-        var displayName;
-        if (nameEsc && nickEsc)      displayName = nameEsc + '（' + nickEsc + '）';
-        else if (nameEsc)            displayName = nameEsc;
-        else if (nickEsc)            displayName = nickEsc;
-        else                         displayName = '（未登録）';
-        var sidJs  = String(s.studentId || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var nameJs = String(s.name || s.nickname || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        return '<tr>' +
-                 '<td>' + sidEsc + '</td>' +
-                 '<td><span class="name-link" onclick="goAdminRishaList(\'' + sidJs + '\', \'' + nameJs + '\')">' + displayName + '</span></td>' +
-               '</tr>';
-      }).join('');
-      if (wrap) {
-        wrap.innerHTML =
-          '<table class="lison-students-table">' +
-            '<thead><tr><th>生徒ID</th><th>氏名（ニックネーム）</th></tr></thead>' +
-            '<tbody>' + rows + '</tbody>' +
-          '</table>';
-      }
+      _rishaHistStudents = res.students || [];
+      _renderRishaHistStudents();
     }).catch(function() {
       if (wrap) wrap.innerHTML = '<div class="refl-adm-students-empty">通信エラーが発生しました</div>';
     });
@@ -16794,7 +17181,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-1812</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260924-1846</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
