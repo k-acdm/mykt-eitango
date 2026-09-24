@@ -2372,3 +2372,31 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 6cf9f9ea7717465132f8abf60f7364222c1bfc55 && git push origin main && git checkout dev
   ```
+
+## 2026-09-24 本番反映：個人端末 silent 自動復帰（純追加・認証機構は不変・共用iPad既定OFFで非破壊）
+
+- 反映内容（dev→main マージ、2 コミット。★フラグON端末だけリロード後の「おかえりなさい」確認タップを省く。★生徒に見える設定トグル追加。認証・セッション機構は一切不変）
+  - `e16ba7b` feat(ログイン)：個人端末に限り silent 自動復帰（既定OFF・端末単位・認証機構は不変）
+    - ★新キー `mykt_personal_device`（localStorage・端末単位・'1'=ON / 未設定=OFF）。★既定OFF＝未設定＝従来プロンプト。既存の共用iPad は完全に従来どおり＝非破壊
+    - ★silent の分岐点（起動時 `_initSessionResumePrompt` の全ゲート（sid有・eduday一致・TTL7日内）通過後の唯一の箇所）：フラグ==='1' なら `resumeContinueLogin()` 直行（「このまま続ける」タップ省略）、else 従来 `_showSessionResumePrompt(sid)`
+    - ★★silent でも `resumeContinueLogin → doLogin → loginStudent` のサーバー再検証は必ず通る（認証を省かない）。PIN発行済み生徒（needsPin）は silent でも PIN 入力画面に進む＝PIN は残る。legacy生徒はタップもPINもなくホーム
+    - ★設定画面（screen-settings）に既存 sfx-toggle パターンで新カード「📱 この端末はわたし専用」追加。説明「ONにすると、強制再ログインの時に手間が省けます。」＋赤注記「※塾や学校の共用タブレットでは「ON」にしないでください。」。★ON押下時のみ confirm「この端末が自分専用の場合は「ON」にする。（塾や学校の共用端末では「ON」にしないこと）」＝キャンセルで ON しない。OFF は確認なしで即OFF。★サーバー保存なし（端末ごと独立・共用iPadに伝播しない）
+    - ★★おかえりなさい画面にはトグルを置かない（設定画面のみ・ログイン後限定＝誤ON防止）
+    - ★`dismissResumePrompt`（「別の生徒はこちら」）でフラグ削除＝共用端末の誤ONを自浄。★ログアウト（`_doLogoutFinalize`）はフラグ未変更で温存（silent は sid依存で単独発火しないため安全）
+    - ★★認証・セッション機構（`mykt_session_*`・TTL7日・`doLogin`・`loginStudent`・PINフロー）は一切不変。追加は新キーの読み書きと分岐のみ＝純追加
+  - `8b5a6c1` docs(handover)：reload-warn 注意帯の統一の本番反映を記録（前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`6cf9f9ea7717465132f8abf60f7364222c1bfc55`**（＝`6cf9f9e`）
+- **マージコミット：`5a94ca7ab6c4b4b8d4b0bb4917d17f0d2c1a9277`**（＝`5a94ca7`）
+- 版バッジ：`20260924-0041`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：gh 未導入のため配信物 sha256 が blob と完全一致することで `success`／配信済みを確定。`git rev-parse origin/main`＝`5a94ca7…` 実体を確認。版バッジは 2354→0041 へ配信更新を実測（ポーリング6回目・約60秒後）。
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `77c7e946…` / view `8f147bb1…` / admin `357b10ea…`
+- 反映後、配信物そのもの（配信 index.html）で確認したこと
+  - `mykt_personal_device` 出現＝7／設定トグル `id="personal-device-toggle-btn"`＝2／`function togglePersonalDevice`＝1／見出し「この端末はわたし専用」＝3／silent直行コメント行＝1／confirm文言「共用端末では「ON」にしないこと」＝1
+  - モック検証（14 PASS / 0 FAIL）：OFF→従来プロンプト／ON→silent直行／silentでもdoLogin→loginStudent再検証／PIN生徒はPIN残る／legacyはタップ&PINなくホーム／TTL超過・eduday不一致・sid無しは発火せず／トグルON confirm OK=ON・キャンセル=OFFのまま／OFF即OFF／dismissで自浄／共用iPad未設定は従来プロンプト
+  - 実機375px：新カードが既存 sfx-toggle と同一スタイルで正常表示（幅315px・横スクロールなし）／confirm挙動を実ページで再確認（キャンセル=OFFのまま・OK=ON・OFFはconfirm呼ばれず即OFF）／inline JS 構文OK
+  - ゲート：`origin/main..dev` は2本（想定通り＝`e16ba7b` 個人端末silent／`8b5a6c1` reload-warn HANDOVER記録）／admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）／index の実質差分61行は全て個人端末機能（設定カードHTML・新関数・else分岐）で想定外の混入なし
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 5a94ca7ab6c4b4b8d4b0bb4917d17f0d2c1a9277 && git push origin main && git checkout dev
+  ```
