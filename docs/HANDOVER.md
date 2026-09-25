@@ -2562,3 +2562,68 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 2224b515de2d70262e58a77aea9283b43e5928cc && git push origin main && git checkout dev
   ```
+
+## 2026-09-26 本番反映：カンジー「今回○○が覚える漢字」画面 段階A ＋ 常用漢字辞書（★test 枠限定表示）
+
+- **★実生徒には出ません**（`accountType === 'test'` の 1001 等だけ）。機能は開発途中だが test 枠限定なので、
+  生徒に中途半端な状態は見えない。★全機能（覚える漢字 → 書き練習 → 本番）完成後に限定を外して全員開放する。
+- 反映内容（dev→main マージ、6 コミット）
+  - `f0aa960` feat(カンジー)：段階A を **test 枠限定表示**に（開発中の一時制限）
+    - 判定 `_isKanjiLearnPreviewAllowed()`：★主判定は **サーバーが返す `accountType === 'test'`**（唯一の確実な真実。
+      loginStudent / セッション復元 / 再検証のいずれの経路でも `_accountType` に入る）。
+      ★保険として SpecialAccounts のテスト枠 ID **1001〜1005**（4 桁の厳密一致）も許可。
+    - ★★フェイルクローズ：`accountType` 空 / `_studentId` 未設定 / 例外 → **必ず false（出さない）**。
+      実生徒は `accountType='student'` かつ ID 5 桁（24003 等）でどちらにも一致しない＝**絶対に出ない**。
+      `'testing'` / `'tester'` も `===` の厳密比較で false。
+    - 呼び出し側（`startKanjiSession` の getKanjiSet 成功経路）を if/else に：
+      test 枠 → `_showKanjiLearnScreen()` ／ それ以外 → `showScreen('screen-kanji-yomi')`
+      ＝**実生徒は段階A 導入前とまったく同じ挙動**（読み問題へ直行）
+    - ★TODO コメントを両所に明記（完成時に if を外して 1 行に戻す）
+  - `5bd0362` feat(カンジー)：段階A「今回○○が覚える漢字」画面を読み問題の**前**に追加
+    - 新規画面 `screen-kanji-learn`（`screen-kanji-count` と `screen-kanji-yomi` の間）。
+      タイトル「今回 <nickname> が覚える漢字」（`_avatarState.nickname` ／ 未設定は「キミ」）、
+      ＜読み＞＜書き＞の 2 セクションに出題漢字をカードで縦に並べ、音訓・用例を表示
+    - 辞書ローダ：`data/kanji_dict.json` + `kanji_dict_extra.json` を fetch（カンジー開始時に 1 度・以後メモリ）。
+      `lookupKanji(ch)` は★**extra 優先・空なら本体にフォールバック**（extra で用例だけ補える）。
+      版バッジ(`app-version`)をキャッシュキーにして 220KB の毎回再取得を回避
+    - 漢字抽出：読みは `kanji` フィールド優先・無ければ問題文の `{…}` から補完 ／ 書きは `kaki.answer` から。
+      ★送り仮名・かな・`{}` を落とし熟語は 1 字ずつ（羞恥心→羞/恥/心、閉めて→閉、`{閉}める`→閉）
+    - 教科書体：**Klee One** を★使う瞬間に動的 `<link>` 注入し `document.fonts.load` で待つ
+      （stamp-version の `?v` 付与を避けるため HTML には書かない）。漢字は大きめ・**縦書き**(`writing-mode: vertical-rl`)
+    - ★音訓と用例は**別のまとまり**（ラベル付きの行を分け、各行内は「・」で連結）＝ズレて見えない
+    - ★耐障害性：辞書 fetch 失敗／8 秒タイムアウト／フォント失敗でも画面は必ず出る（漢字だけ表示）。
+      用例が空の字は「（用例なし）」、漢字が 1 字も取れない回は案内文でカードが崩れない
+    - ★新規セッションのみ：自動再開（`_resumeKanjiSession` / `_resumeKanjiKakiStage`）と
+      書き再挑戦（`_retryKanjiKaki`）は別経路なので通らない
+  - `f342dcc` fix(カンジー)：辞書の追加字を公式音訓・用例で整備（**2127 字**）
+    - 2125 → 2127 字（**奈・叱**を追加、削除ゼロ）。常用漢字表にない読みを除去して公式音訓に整備：
+      読み(y) が変わった字 **1708**（うち 1702 字で読みが減少）。例）一 はじ-め／右 たす-ける／
+      円 つぶら-か・まど-か・まろ-やか／王 きみ／火 コ を除去、崖 は かどだ-つ を除去して **ガイ・がけ** ＋ 用例 断崖・崖下
+    - 用例(r) を **185 字**ぶん追加（空→用例あり。消えた字はゼロ）。r が空のまま残るのは 12 字（昭茨岡埼阜弁串隙朕頓斑氾）※旧版は 197 字
+    - 学年(g) の変更はゼロ
+  - `947581e` fix(カンジー)：辞書を 2010 年版 2125 字に差し替え（音訓・用例・学年）
+  - `c676331` feat(カンジー)：常用漢字表の辞書 JSON を新規追加（`data/kanji_dict.json` / `data/kanji_dict_extra.json`）
+  - `583778e` docs(handover)：アバター人体画像72枚差し替えの本番反映を記録（`2224b51`・前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`2224b515de2d70262e58a77aea9283b43e5928cc`**（＝`2224b51`）
+- **マージコミット：`6026629c585aff88eb4a1d6968f002c964cf574f`**（＝`6026629`）
+- 版バッジ：`20260926-0516`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `6026629` / run `36184824044` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`6026629c585aff88eb4a1d6968f002c964cf574f` 実体を確認
+- 配信物 sha256 が `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `9f10a9fb…` / view `396e2f49…` / admin `6bac47d3…`
+  - ★**辞書も本番配信**：`data/kanji_dict.json` `00d379e9…` / `data/kanji_dict_extra.json` `169b6bdc…`（どちらも HTTP 200・blob と一致）
+- 反映後、配信物そのもので確認したこと
+  - ★配信 index.html：`id="screen-kanji-learn"` ＝1／`function _isKanjiLearnPreviewAllowed` ＝1／
+    `function _showKanjiLearnScreen` ＝1／`function lookupKanji` ＝1／`kanji_dict.json` 参照あり／
+    Klee One（fonts.googleapis.com css2 family=Klee+One）＝1／`kanji-learn-*` CSS 11 クラス
+  - ★配信 `data/kanji_dict.json` が HTTP 200 で取得でき、JSON.parse OK・**2127 字**・崖=`ガイ/がけ`＋用例 断崖・崖下・奈 あり
+  - ★test 枠限定ゲートが配信物に載っていること、実生徒側は `showScreen('screen-kanji-yomi')` に落ちることを実物で確認
+  - ゲート：`origin/main..dev` は6本（想定通り＝`f0aa960` test枠限定／`5bd0362` 段階A／`f342dcc` 辞書2127字／
+    `947581e` 辞書2125字／`c676331` 辞書JSON追加／`583778e` HANDOVER記録）。
+    CLAUDE.md ゲート判定値＝**298 行**（段階A の実装そのもの）。全行を目視し**カンジー以外の混入ゼロ**、
+    **削除は `showScreen('screen-kanji-yomi');` の 1 行のみ**（if/else へ差し替え）であることを確認
+  - 検証（コミット時）：段階A モック36 PASS ＋ 構造57 PASS、test枠ゲート モック54 PASS ＋ 構造39 PASS ＝ 計 **186 PASS / 0 FAIL**
+- ★次の段階（書き練習 → 本番）へ進み、全機能が揃ったら `_isKanjiLearnPreviewAllowed()` を削除して全員開放する
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 6026629c585aff88eb4a1d6968f002c964cf574f && git push origin main && git checkout dev
+  ```
