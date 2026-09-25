@@ -3676,10 +3676,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260926-0457"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260926-0516"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260926-0457">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260926-0457"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260926-0516">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260926-0516"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -21180,7 +21180,14 @@
       //   上の if で return 済み、書き再挑戦（_retryKanjiKaki）は screen-kanji-kaki へ直行するため、
       //   どちらもこの行を通らない＝この画面は出ない。
       //   読み画面自体は上で組み立て済みなので「▶ 読みテストに進む」で即座に表示できる。
-      _showKanjiLearnScreen();
+      // ★★ TODO: 全機能完成後に test 枠限定を解除する（開発中の一時的な制限・2026-09-26 追加）
+      //   一連の機能（覚える漢字 → 書き練習 → 本番）が揃うまでは、本番反映しても★実生徒には出さない。
+      //   完成したらこの if を外して `_showKanjiLearnScreen();` の 1 行に戻す（else 側が従来フロー）。
+      if (_isKanjiLearnPreviewAllowed()) {
+        _showKanjiLearnScreen();
+      } else {
+        showScreen('screen-kanji-yomi');   // ★実生徒は従来どおり読み問題へ直行（段階A 導入前と同じ挙動）
+      }
     }).catch(function(){
       alert('通信に失敗しました。もう一度お試しください。');
     });
@@ -21191,6 +21198,28 @@
   //   ★新規セッションのみ（startKanjiSession の getKanjiSet 成功時）。自動再開（_resumeKanjiSession /
   //     _resumeKanjiKakiStage）と書き再挑戦（_retryKanjiKaki）は別経路なのでこの画面を通らない。
   //   ★辞書の fetch に失敗／タイムアウトしても画面は必ず出る（漢字だけ表示）。
+
+  // --- ★★ 開発中の表示制限：test 枠でログインしたときだけ「覚える漢字」画面を出す -------------
+  //   TODO: 全機能（覚える漢字 → 書き練習 → 本番）完成後にこの関数ごと削除し、呼び出し側の if も外す。
+  //   ★判定は「サーバーが返す accountType === 'test'」を主とする（唯一の確実な真実。
+  //     loginStudent / セッション復元 / 再検証のいずれの経路でも _accountType に入る）。
+  //   ★保険として SpecialAccounts のテスト枠 ID（1001〜1005）も許可する。
+  //     accountType が取れない古い応答でも、ふくちさんが動作確認できるようにするため。
+  //   ★★実生徒は accountType === 'student' かつ ID が 5 桁（例 24003 / 22029）なので、
+  //     どちらの条件にも一致しない＝絶対に表示されない。
+  //   ★★判定できないとき（accountType 空・_studentId 未設定・例外）は必ず false に倒す＝出さない。
+  function _isKanjiLearnPreviewAllowed() {
+    try {
+      var t = String(_accountType || '').trim().toLowerCase();
+      if (t === 'test') return true;                 // ★主判定：サーバーの accountType
+      var sid = String(_studentId == null ? '' : _studentId).trim();
+      if (/^\d{4}$/.test(sid)) {                     // ★保険：4 桁のテスト枠 ID だけを対象（5 桁の実生徒 ID は除外）
+        var num = Number(sid);
+        if (num >= 1001 && num <= 1005) return true;
+      }
+    } catch(e) {}
+    return false;                                     // ★既定は「出さない」
+  }
 
   // --- 辞書ローダ（起動時ではなくカンジー開始時に 1 度だけ読み、以後はメモリにキャッシュ）---
   var _kanjiDict      = null;   // data/kanji_dict.json（本体・常用漢字 2127 字）
@@ -25521,7 +25550,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260926-0457</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260926-0516</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
