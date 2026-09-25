@@ -231,6 +231,33 @@
     @media (max-width: 480px) {
       .kanji-answer-student { padding-left: calc(1.2em + 2.5em + 14px); font-size: 13px; }
     }
+    /* 2026-09-26 段階A：カンジー「今回○○が覚える漢字」画面（読み問題の前に挟む予習画面）。
+       ★漢字は教科書体（Klee One / Google Fonts）を使い、端末の教科書体の有無に依存させない。
+       ★音訓と用例は「別のまとまり」（ラベル付きの行を分ける）。1 対 1 で並べるとズレて見えるため。 */
+    .kanji-learn-title { font-size: 20px; font-weight: bold; color: #7c2d12; text-align: center; line-height: 1.5; margin: 2px 0 4px; }
+    .kanji-learn-lead { font-size: 13px; color: #6b7280; text-align: center; line-height: 1.6; margin: 0 0 14px; }
+    .kanji-learn-sec { margin: 18px 0 8px; padding-left: 10px; border-left: 5px solid #f97316; font-size: 15px; font-weight: bold; color: #c2410c; }
+    .kanji-learn-list { display: flex; flex-direction: column; gap: 10px; }
+    .kanji-learn-card { display: flex; align-items: stretch; gap: 12px; padding: 12px 14px; background: #fff; border: 2px solid #fed7aa; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+    /* ★教科書体＋大きめ＋縦書き。Klee One が落ちても端末の教科書体→明朝にフォールバックする。 */
+    .kanji-learn-char { flex: 0 0 auto; width: 76px; display: flex; align-items: center; justify-content: center; background: #fff7ed; border-radius: 10px;
+      font-family: "Klee One", "UD デジタル 教科書体 NK-R", "UD Digi Kyokasho NK-R", "Hiragino Mincho ProN", "Yu Mincho", serif;
+      font-size: 52px; font-weight: 600; color: #1f2937; line-height: 1.1;
+      writing-mode: vertical-rl; text-orientation: upright; }
+    .kanji-learn-info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+    .kanji-learn-row { display: flex; align-items: flex-start; gap: 8px; }
+    .kanji-learn-label { flex: 0 0 auto; margin-top: 2px; padding: 3px 9px; border-radius: 999px; background: #ffedd5; color: #9a3412; font-size: 11px; font-weight: bold; }
+    .kanji-learn-vals { flex: 1; min-width: 0; font-size: 15px; line-height: 1.7; color: #374151; word-break: break-word; }
+    .kanji-learn-vals.yomi { font-weight: bold; color: #1f2937; }
+    .kanji-learn-vals.none { color: #9ca3af; font-weight: normal; font-size: 13px; }
+    .kanji-learn-note { margin: 12px 0 0; font-size: 12px; color: #6b7280; line-height: 1.6; }
+    @media (max-width: 480px) {
+      .kanji-learn-title { font-size: 17px; }
+      .kanji-learn-card { padding: 10px 11px; gap: 10px; }
+      .kanji-learn-char { width: 62px; font-size: 42px; }
+      .kanji-learn-vals { font-size: 14px; }
+      .kanji-learn-sec { font-size: 14px; }
+    }
     /* 古文単語「コブタン」（2026-05-08 枠組み実装）。暖色系 #d97706 で平安らしさを演出。 */
     .kobun-emphasis { color: #d97706; font-weight: bold; }
     .kobun-mate-row { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; }
@@ -3649,10 +3676,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260925-1602"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260926-0457"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260925-1602">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260925-1602"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260926-0457">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260926-0457"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6072,6 +6099,23 @@
       <button class="kanji-count-btn" id="kanji-count-btn-20" onclick="startKanjiSession(10)">20問<small>(読み10問+書き10問)<br>100HP</small></button>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="showKanjiLevelSelect()">← 級選択に戻る</button>
+  </div>
+</div>
+
+<!-- 2026-09-26 段階A：「今回○○が覚える漢字」画面。読み問題（screen-kanji-yomi）の★前に挟む予習画面。
+     ★新規セッションのみ表示（自動再開・書き再挑戦では出さない）。
+     ★辞書（data/kanji_dict.json）の読み込みに失敗しても、漢字だけ表示して画面は壊さない。 -->
+<div id="screen-kanji-learn" class="screen">
+  <header><h1>🖌️ 今回の漢字</h1><span id="kanji-learn-meta"></span></header>
+  <div class="container" style="padding-top:14px">
+    <div class="kanjii-mate-row">
+      <img class="kanjii-img" id="kanjii-img-learn" src="images/kanjii-default.png" alt="カンジー">
+      <div class="kanjii-bubble" id="kanjii-bubble-learn">まずはこの字をよく見ておくのじゃ</div>
+    </div>
+    <div class="kanji-learn-title" id="kanji-learn-title"></div>
+    <div class="kanji-learn-lead">読みテストの前に、今回出てくる漢字をここで確認しよう。</div>
+    <div id="kanji-learn-body"><div class="loading">⏳ 読み込み中...</div></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#f97316,#c2410c);margin-top:18px" onclick="goKanjiYomiFromLearn()">▶ 読みテストに進む</button>
   </div>
 </div>
 
@@ -21129,13 +21173,237 @@
       var resumeBn = document.getElementById('kanji-resume-banner');
       if (resumeBn) resumeBn.style.display = 'none';
       _renderKanjiYomiQuestion();
-      showScreen('screen-kanji-yomi');
       // 過去セッションボタン + プロモバナーの表示判定
       _kanjiRenderPastButtons();
+      // 2026-09-26 段階A：★新規セッションのみ「今回○○が覚える漢字」画面を読みの前に挟む。
+      //   ここは getKanjiSet 成功時の経路。自動再開（_resumeKanjiSession / _resumeKanjiKakiStage）は
+      //   上の if で return 済み、書き再挑戦（_retryKanjiKaki）は screen-kanji-kaki へ直行するため、
+      //   どちらもこの行を通らない＝この画面は出ない。
+      //   読み画面自体は上で組み立て済みなので「▶ 読みテストに進む」で即座に表示できる。
+      _showKanjiLearnScreen();
     }).catch(function(){
       alert('通信に失敗しました。もう一度お試しください。');
     });
   }
+  // ===== 2026-09-26 段階A：「今回○○が覚える漢字」画面 =====================================
+  //   読み問題の★前に挟む予習画面。その回の出題漢字を辞書（data/kanji_dict.json）から引いて
+  //   音訓・用例つきで見せる。★既存のカンジーのフロー（読み・書き・撮影・判定・送信）には触れない。
+  //   ★新規セッションのみ（startKanjiSession の getKanjiSet 成功時）。自動再開（_resumeKanjiSession /
+  //     _resumeKanjiKakiStage）と書き再挑戦（_retryKanjiKaki）は別経路なのでこの画面を通らない。
+  //   ★辞書の fetch に失敗／タイムアウトしても画面は必ず出る（漢字だけ表示）。
+
+  // --- 辞書ローダ（起動時ではなくカンジー開始時に 1 度だけ読み、以後はメモリにキャッシュ）---
+  var _kanjiDict      = null;   // data/kanji_dict.json（本体・常用漢字 2127 字）
+  var _kanjiDictExtra = null;   // data/kanji_dict_extra.json（読み・用例の追加分）
+  var _kanjiDictPromise = null; // 多重 fetch 防止
+  var KANJI_DICT_TIMEOUT_MS = 8000;
+  function _kanjiDictUrl(name) {
+    // 版バッジ（stamp-version が刻む）をキャッシュキーにする。毎回 Date.now() にすると
+    // 220KB を毎セッション再取得してしまうため、HTML が更新されたときだけ取り直す。
+    var v = '';
+    try { var el = document.getElementById('app-version'); v = el ? String(el.textContent || '').trim() : ''; } catch(e) {}
+    return 'data/' + name + (v ? ('?v=' + encodeURIComponent(v)) : '');
+  }
+  function _loadKanjiDict() {
+    if (_kanjiDictPromise) return _kanjiDictPromise;
+    var grab = function(name) {
+      try {
+        return fetch(_kanjiDictUrl(name))
+          .then(function(r){ return r && r.ok ? r.json() : null; })
+          .catch(function(){ return null; });
+      } catch(e) { return Promise.resolve(null); }
+    };
+    var load = Promise.all([grab('kanji_dict.json'), grab('kanji_dict_extra.json')]).then(function(a){
+      _kanjiDict      = (a[0] && typeof a[0] === 'object') ? a[0] : null;
+      _kanjiDictExtra = (a[1] && typeof a[1] === 'object') ? a[1] : null;
+      return !!_kanjiDict;
+    }).catch(function(){ _kanjiDict = null; _kanjiDictExtra = null; return false; });
+    // 遅い回線で画面が「読み込み中」のまま止まらないよう、一定時間で諦めて描画に進む
+    var timeout = new Promise(function(resolve){ setTimeout(function(){ resolve(false); }, KANJI_DICT_TIMEOUT_MS); });
+    _kanjiDictPromise = Promise.race([load, timeout]);
+    return _kanjiDictPromise;
+  }
+  // 1 字を引く。★extra を優先し、空なら本体にフォールバック（extra で用例だけ補える設計）。
+  //   戻り値 {y:[音訓], r:[用例], g:学年} / 辞書に無ければ null。
+  function lookupKanji(ch) {
+    var e = (_kanjiDictExtra && Object.prototype.hasOwnProperty.call(_kanjiDictExtra, ch)) ? _kanjiDictExtra[ch] : null;
+    var b = (_kanjiDict      && Object.prototype.hasOwnProperty.call(_kanjiDict, ch))      ? _kanjiDict[ch]      : null;
+    if (!e && !b) return null;
+    e = (e && typeof e === 'object') ? e : {};
+    b = (b && typeof b === 'object') ? b : {};
+    var pick = function(key) {
+      if (Array.isArray(e[key]) && e[key].length) return e[key];
+      if (Array.isArray(b[key]) && b[key].length) return b[key];
+      return [];
+    };
+    return { y: pick('y'), r: pick('r'), g: String(e.g || b.g || '') };
+  }
+
+  // --- 教科書体（Klee One）。Google Fonts を★使う瞬間に動的読み込み（stamp-version の ?v 付与も避ける）---
+  var _kleeOnePromise = null;
+  var KLEE_ONE_TIMEOUT_MS = 4000;
+  function _ensureKleeOneFont() {
+    if (_kleeOnePromise) return _kleeOnePromise;
+    _kleeOnePromise = new Promise(function(resolve){
+      var done = false;
+      var finish = function(okFlag){ if (!done) { done = true; resolve(!!okFlag); } };
+      var to = setTimeout(function(){ finish(false); }, KLEE_ONE_TIMEOUT_MS);
+      try {
+        var link = document.getElementById('klee-one-font');
+        if (!link) {
+          link = document.createElement('link');
+          link.id   = 'klee-one-font';
+          link.rel  = 'stylesheet';
+          link.href = 'https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap';
+          document.head.appendChild(link);
+        }
+        var afterCss = function() {
+          if (document.fonts && document.fonts.load) {
+            Promise.all([document.fonts.load('400 1em "Klee One"'), document.fonts.load('600 1em "Klee One"')])
+              .then(function(){ clearTimeout(to); finish(true); })
+              .catch(function(){ clearTimeout(to); finish(false); });
+          } else { clearTimeout(to); finish(false); }
+        };
+        if (link.sheet) afterCss();
+        else {
+          link.addEventListener('load', afterCss);
+          link.addEventListener('error', function(){ clearTimeout(to); finish(false); });
+        }
+      } catch(e) { clearTimeout(to); finish(false); }
+    });
+    return _kleeOnePromise;
+  }
+
+  // --- 出題漢字の抽出 ----------------------------------------------------------------
+  // 文字列から漢字だけを取り出す（★送り仮名・かな・記号・{}マーカーは落とす。熟語は 1 字ずつ）。
+  //   例）「羞恥心」→ 羞 / 恥 / 心   「閉めて」→ 閉   「{閉}める」→ 閉
+  function _kanjiLearnExtractKanji(text) {
+    var s = String(text == null ? '' : text);
+    var out = [];
+    for (var i = 0; i < s.length; i++) {
+      var code = s.charCodeAt(i);
+      // サロゲートペア（拡張漢字）は 2 コードユニットで 1 文字として拾う
+      if (code >= 0xD800 && code <= 0xDBFF && i + 1 < s.length) {
+        var lo = s.charCodeAt(i + 1);
+        if (lo >= 0xDC00 && lo <= 0xDFFF) { out.push(s.substr(i, 2)); i++; continue; }
+        continue;
+      }
+      if ((code >= 0x4E00 && code <= 0x9FFF) ||   // CJK 統合漢字
+          (code >= 0x3400 && code <= 0x4DBF) ||   // 拡張A
+          (code >= 0xF900 && code <= 0xFAFF)) {   // 互換漢字
+        out.push(s.charAt(i));
+      }
+    }
+    return out;
+  }
+  function _kanjiLearnUniq(arr) {
+    var seen = {}, out = [];
+    for (var i = 0; i < arr.length; i++) {
+      var c = arr[i];
+      if (!c || seen[c]) continue;
+      seen[c] = true; out.push(c);
+    }
+    return out;
+  }
+  // 読み問題の対象漢字：★kanji フィールド優先。無ければ問題文の {…} 強調部から拾う。
+  function _kanjiLearnYomiChars(questions) {
+    var all = [];
+    (questions || []).forEach(function(q){
+      if (!q) return;
+      var got = _kanjiLearnExtractKanji(q.kanji || '');
+      if (!got.length) {
+        var qt = (q.yomi && q.yomi.question) ? String(q.yomi.question) : '';
+        var m = qt.match(/\{([^}]*)\}/g);
+        var pick = m ? m.join('') : qt;   // 強調が無い問題文は全体から拾う（保険）
+        got = _kanjiLearnExtractKanji(pick);
+      }
+      all = all.concat(got);
+    });
+    return _kanjiLearnUniq(all);
+  }
+  // 書き問題の対象漢字：★kaki.answer（正解の漢字）から抽出。送り仮名は落ち、熟語は 1 字ずつになる。
+  function _kanjiLearnKakiChars(questions) {
+    var all = [];
+    (questions || []).forEach(function(q){
+      if (!q || !q.kaki) return;
+      all = all.concat(_kanjiLearnExtractKanji(q.kaki.answer || ''));
+    });
+    return _kanjiLearnUniq(all);
+  }
+
+  // --- 描画 --------------------------------------------------------------------------
+  function _kanjiLearnEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function _kanjiLearnCardHtml(ch) {
+    var info = null;
+    try { info = lookupKanji(ch); } catch(e) { info = null; }
+    var y = (info && info.y && info.y.length) ? info.y.join('・') : '';
+    var r = (info && info.r && info.r.length) ? info.r.join('・') : '';
+    // ★音訓と用例は「別の行（別のまとまり）」。1 対 1 で並べないのでズレて見えない。
+    //   辞書に無い字／用例が空の字はグレーの一言に落として、カードが崩れないようにする。
+    var yHtml = '<div class="kanji-learn-row"><span class="kanji-learn-label">音訓</span>' +
+                '<span class="kanji-learn-vals yomi' + (y ? '' : ' none') + '">' +
+                (y ? _kanjiLearnEsc(y) : '（辞書に読みがありません）') + '</span></div>';
+    var rHtml = '<div class="kanji-learn-row"><span class="kanji-learn-label">用例</span>' +
+                '<span class="kanji-learn-vals' + (r ? '' : ' none') + '">' +
+                (r ? _kanjiLearnEsc(r) : '（用例なし）') + '</span></div>';
+    return '<div class="kanji-learn-card">' +
+             '<div class="kanji-learn-char">' + _kanjiLearnEsc(ch) + '</div>' +
+             '<div class="kanji-learn-info">' + yHtml + rHtml + '</div>' +
+           '</div>';
+  }
+  function _kanjiLearnSectionHtml(title, chars) {
+    if (!chars || !chars.length) return '';
+    return '<div class="kanji-learn-sec">' + _kanjiLearnEsc(title) + '</div>' +
+           '<div class="kanji-learn-list">' + chars.map(_kanjiLearnCardHtml).join('') + '</div>';
+  }
+  function _renderKanjiLearnBody() {
+    var bodyEl = document.getElementById('kanji-learn-body');
+    if (!bodyEl) return;
+    var qs = _kanjiState.questions || [];
+    var yomiChars = _kanjiLearnYomiChars(qs);
+    var kakiChars = _kanjiLearnKakiChars(qs);
+    var html = _kanjiLearnSectionHtml('＜読み＞', yomiChars) +
+               _kanjiLearnSectionHtml('＜書き＞', kakiChars);
+    if (!html) {
+      bodyEl.innerHTML = '<div class="kanji-learn-note">今回の漢字を取り出せませんでした。そのまま読みテストに進んでね。</div>';
+      return;
+    }
+    // 辞書が落ちていても漢字は出す。その場合だけ理由を控えめに添える。
+    var note = _kanjiDict
+      ? '<div class="kanji-learn-note">※ 音訓・用例は常用漢字表（2010年改定）より。表に用例が無い字は「用例なし」と出ます。</div>'
+      : '<div class="kanji-learn-note">※ 辞書を読み込めなかったため、漢字だけ表示しています（学習には影響ありません）。</div>';
+    bodyEl.innerHTML = html + note;
+  }
+  // 画面を出す：★まず画面を表示 → 辞書とフォントが揃い次第、中身を描き直す。
+  //   辞書が落ちても必ず描画されるので「読み込み中」のまま固まらない。
+  function _showKanjiLearnScreen() {
+    var titleEl = document.getElementById('kanji-learn-title');
+    var metaEl  = document.getElementById('kanji-learn-meta');
+    var bodyEl  = document.getElementById('kanji-learn-body');
+    var nick = '';
+    try { nick = String((_avatarState && _avatarState.nickname) || '').trim(); } catch(e) { nick = ''; }
+    if (titleEl) titleEl.textContent = '今回 ' + (nick || 'キミ') + ' が覚える漢字';
+    if (metaEl)  metaEl.textContent  = '漢検 ' + _kanjiState.level + '級｜' + (_kanjiState.questions || []).length + '字ずつ';
+    if (bodyEl)  bodyEl.innerHTML    = '<div class="loading">⏳ 読み込み中...</div>';
+    try { _kanjiSetMascot('kanjii-img-learn', 'default', 'kanjii-bubble-learn', 'まずはこの字をよく見ておくのじゃ'); } catch(e) {}
+    showScreen('screen-kanji-learn');
+    var finish = function(){ try { _renderKanjiLearnBody(); } catch(e) {
+      if (bodyEl) bodyEl.innerHTML = '<div class="kanji-learn-note">表示に失敗しました。そのまま読みテストに進んでね。</div>';
+    } };
+    try {
+      Promise.all([_loadKanjiDict(), _ensureKleeOneFont()]).then(finish).catch(finish);
+    } catch(e) { finish(); }
+  }
+  // 「▶ 読みテストに進む」：既存の読み画面へ渡すだけ（読み問題の組み立ては既に済んでいる）。
+  function goKanjiYomiFromLearn() {
+    try { _renderKanjiYomiQuestion(); } catch(e) {}
+    showScreen('screen-kanji-yomi');
+  }
+
   // ----- 読み問題：1 問ずつ表示 -----
   function _renderKanjiYomiQuestion() {
     var total = _kanjiState.questions.length;
@@ -25253,7 +25521,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260925-1602</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260926-0457</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
