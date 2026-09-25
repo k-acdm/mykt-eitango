@@ -3649,10 +3649,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260925-1551"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260925-1602"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260925-1551">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260925-1551"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260925-1602">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260925-1602"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -21337,9 +21337,9 @@
     }).join('');
     // 2026-09-25：撮る前に必ず読める場所へ注意書きを追記（① ていねいに書く／② とめ・はね・はらいは判定できない場合がある）。
     //   ★この note は初回入場・自動再開・再挑戦（_retryKanjiKaki）のすべてで再描画されるため、全経路に出る。
-    //   ★お題の説明は既存のグレー（#666 / 13px）のまま。①②は青系の薄い枠に分けて区別する（2026-09-25 追記、inline のみ・新規 CSS なし）。
+    //   ★お題の説明は既存のグレー（#666 / 13px）のまま。①②は淡い黄色系の枠に分けて区別する（2026-09-25 追記、inline のみ・新規 CSS なし。青系は外側の背景と同系色で埋もれたため黄系へ。警告寄りの .kanji-fresh-note とはトーンを分ける）。
     var note = '<div style="font-size:13px;color:#666;margin:6px 0 8px;line-height:1.7">📝 ノートに「番号 漢字」の形で書いて、写真に撮って送ってね。<br><span class="kanji-emphasis">赤い太字</span>のカタカナを漢字に直そう。</div>' +
-               '<div style="font-size:13px;color:#374151;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin:0 0 12px;line-height:1.7">✏️ ていねいな字で書いてね。<br>※ とめ・はね・はらいの細かい部分は判定できない場合があるよ。</div>';
+               '<div style="font-size:13px;color:#374151;background:#fefce8;border:1px solid #fef08a;border-radius:8px;padding:8px 12px;margin:0 0 12px;line-height:1.7">✏️ ていねいな字で書いてね。<br>※ とめ・はね・はらいの細かい部分は判定できない場合があるよ。</div>';
     document.getElementById('kanji-kaki-list').innerHTML = note + html;
   }
   function onKanjiPhotoSelected(event) {
@@ -25253,7 +25253,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260925-1551</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260925-1602</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
