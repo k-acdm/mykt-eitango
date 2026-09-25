@@ -2460,3 +2460,36 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 26741e024794b509fe9d0f393099a4df4ae06aa1 && git push origin main && git checkout dev
   ```
+
+## 2026-09-25 本番反映：カンジー書きの注意書き①②（ていねいに書く／とめ・はね・はらいは判定できない場合がある）
+
+- 反映内容（dev→main マージ、2 コミット。★文言追記のみ。判定・撮影・送信ロジックは一切不変）
+  - `8d6095e` feat(カンジー)：書きの撮影画面と採点結果画面に注意書き①②を追記（文言のみ・新規CSSなし）
+    - **① ていねいな字で書いてね。／② とめ・はね・はらいの細かい部分は判定できない場合がある**
+    - 撮影画面：`_renderKanjiKakiList` の note（inline グレー `#666` / 13px）に `<br>` 区切りで2行追記。
+      ★この note は**初回入場・自動再開・再挑戦（`_retryKanjiKaki`）のすべてで再描画される**ため全経路に出る
+      （起動ボタンではなく note に置いたのは、問題リスト直上＝撮る前に必ず読める位置だから）
+    - 採点結果画面（**不合格時のみ**）：既存 `hintBlock`（`.kanji-answer-hint`）の1文目の後に②を★**統合**（別ブロックにしない）。
+      最終形＝「※ AI が読み取った内容なので、書いた字とずれている場合があります。とめ・はね・はらいの細かい部分は判定できない場合があります。間違えた問題は正解の字をよく見て、もう一度書いてみよう。」
+      ※合格時は `_showKanjiDone` へ早期 return するため答え合わせ・注記は出ない（従来どおり）
+    - ★★撮影確認画面の赤枠（`.wabun1-period-warn`「AIが誤って読み取ることがあるよ…」）は**無変更**。
+      「誤読み取り→撮り直し」の行動喚起と②（細部は判定できない＝撮り直しても変わらない）はメッセージの向きが逆のため、混ぜない
+  - `b15d282` docs(handover)：管理画面20画面2タブ分離＋三語短文作品表示＋カンジー解像度の本番反映を記録（`26741e0`・前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`26741e024794b509fe9d0f393099a4df4ae06aa1`**（＝`26741e0`）
+- **マージコミット：`2fd05f5e0339f47054817404ddb28b518e504b2b`**（＝`2fd05f5`）
+- 版バッジ：`20260925-0556`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `2fd05f5` / run `36058229726` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`2fd05f5e0339f47054817404ddb28b518e504b2b` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `84f4fa95…` / view `0b858b3d…` / admin `44bd2f11…`
+- 反映後、配信物そのもので確認したこと
+  - ★配信 index.html：「ていねいな字で書いてね」＝1／「とめ・はね・はらいの細かい部分は判定できない場合がある**よ**」（撮影画面）＝1／「…判定できない場合があり**ます**」（結果画面）＝1
+  - ★撮影確認画面の赤枠は無変更：「AIが誤って読み取ることがあるよ…」＝5（5コンテンツ分で不変）／`class="wabun1-period-warn"` ＝11（不変）
+  - ★判定・撮影・送信が無変更：`startKanjiInPageCamera` 5 ／ `captureKanjiInPagePhoto` 2 ／ `stopKanjiInPageCamera` 6 ／ `submitKanjiKakiPhoto` 2 ／ `onKanjiPhotoSelected` 7 ／ `retakeKanjiPhoto` 3 ／ `cropKanjiPhoto` 2 ／ `needsRetake` 5 ／ `isKakiRetry` 18 ／ `maxSize = 2000` 2 ／ `ideal: 2560` 2 — すべて反映前と同数
+  - ★新規 CSS ゼロ：`<style>` ブロックが完全無変更（299,925 chars 一致）／`class="` 総数 2782 で不変／`.kanji-answer-hint` の定義も原文のまま
+  - 検証：モック17 PASS（実コードを抜き出して実描画：①②の出力・既存文の残存・同じグレー div 内・note 内 class は `kanji-emphasis` の1つだけ・両経路の呼び出し・hintBlock の統合と語順）＋ 構造34 PASS（赤枠無変更・ロジック逐語一致・新規CSSなし・モバイル・削除行は1行のみ）＝ **51 PASS / 0 FAIL**、inline JS 構文チェック（node --check）OK
+  - モバイル375px：追加は `<br>` 区切りのテキストのみで新規タグ・固定幅・px 指定ゼロ。`@media (max-width: 480px)` の定義数も44で不変
+  - ゲート：`origin/main..dev` は2本（想定通り＝`8d6095e` カンジー注意書き①②／`b15d282` HANDOVER記録）。CLAUDE.md ゲート判定値＝**8行**（note 1行差し替え＋hintBlock 1行挿入＋日付コメント5行）。admin・view の差分は版バッジ・`?v=` スタンプのみ（実質差分0行）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 2fd05f5e0339f47054817404ddb28b518e504b2b && git push origin main && git checkout dev
+  ```
