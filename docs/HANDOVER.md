@@ -2493,3 +2493,29 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 2fd05f5e0339f47054817404ddb28b518e504b2b && git push origin main && git checkout dev
   ```
+
+## 2026-09-25 本番反映：カンジー撮影画面の注意書き①②を青系の枠に分離＋「直すよ」→「直そう」
+
+- 反映内容（dev→main マージ、2 コミット。★表示のみ。判定・撮影・送信ロジックは一切不変）
+  - `d182aad` style(カンジー)：撮影画面 `_renderKanjiKakiList` の note を2段に分割
+    - 上段（お題の説明・従来のグレー `#666` / 13px のまま）：「📝 ノートに「番号 漢字」の形で書いて、写真に撮って送ってね。」＋「<赤い太字>のカタカナを漢字に**直そう**。」（「直すよ」→「直そう」。`kanji-emphasis` の赤太字は維持）
+    - 下段（①②）：**青系の薄い枠**（背景 `#eff6ff`／枠 `1px solid #bfdbfe`／角丸 8px／文字 `#374151` 13px／padding 8px 12px）に「✏️ ていねいな字で書いてね。」「※ とめ・はね・はらいの細かい部分は判定できない場合があるよ。」。inline のみ・新規 CSS なし
+    - 初回入場・再挑戦（`_retryKanjiKaki`）とも `_renderKanjiKakiList` 経由のため両経路に出る
+    - ★結果画面の `hintBlock`（`.kanji-answer-hint`）は無変更
+  - `0d583e1` docs(handover)：前回反映（`2fd05f5`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`2fd05f5e0339f47054817404ddb28b518e504b2b`**（＝`2fd05f5`）
+- **マージコミット：`01136ddc3a8f0cc04fe4b2931bfb21b759b85f10`**（＝`01136dd`）
+- 版バッジ：`20260925-1551`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `01136dd` / run `36104912459` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`01136ddc3a8f0cc04fe4b2931bfb21b759b85f10` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（作業ツリーは CRLF のため blob と比較）
+  - index `581b4ac8…` / view `b6d26a15…` / admin `1f91ba26…`
+- 反映後、配信物そのもので確認したこと
+  - ★配信 index.html：`background:#eff6ff;border:1px solid #bfdbfe`＝1／「直すよ」＝**0**／「直そう」＝2（今回の1件＋既存の別箇所1件）
+  - ★①②・結果画面の文言は件数不変：「ていねいな字で書いてね」1／「…判定できない場合があるよ」1／「…判定できない場合があります」1／`kanji-answer-hint` 2
+  - ★判定・撮影・送信が無変更（反映前 main と同数）：`startKanjiInPageCamera` 5 ／ `captureKanjiInPagePhoto` 2 ／ `stopKanjiInPageCamera` 6 ／ `submitKanjiKakiPhoto` 2 ／ `onKanjiPhotoSelected` 7 ／ `retakeKanjiPhoto` 3 ／ `cropKanjiPhoto` 2 ／ `needsRetake` 5 ／ `isKakiRetry` 18 ／ `maxSize = 2000` 2 ／ `ideal: 2560` 2
+  - モバイル375px：枠は余白付きのブロック div で固定幅なし・テキストは折り返し（実機での目視確認は未実施）
+  - ゲート：`origin/main..dev` は2本（想定通り＝`d182aad` 注意書き枠化＋直そう／`0d583e1` HANDOVER記録）。CLAUDE.md ゲート判定値＝**5行**（note の差し替え＋日付コメント。すべて今回の承認済み変更）。admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 01136ddc3a8f0cc04fe4b2931bfb21b759b85f10 && git push origin main && git checkout dev
+  ```
