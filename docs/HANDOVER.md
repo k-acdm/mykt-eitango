@@ -2543,3 +2543,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 67727b34b532c9905797feacc623a4d215d7de7c && git push origin main && git checkout dev
   ```
+
+## 2026-09-25 本番反映：アバター人体画像 AV0000001〜072 の差し替え（72枚）
+
+- 反映内容（dev→main マージ、2 コミット。★画像72枚のみ。base画像・対応表 `AVATAR_OUTFIT_MAP`・コードは一切不変）
+  - `c38b300` feat(アバター)：`images/avatar/outfits/AV0000001〜072.png` を新版に上書き（顔/足を base に揃え・21枚作り直し）
+    - ファイル名・形式（887×1774・RGBA）不変。72枚すべて md5 が旧版から変化し、ソース（Downloads の72枚）と完全一致
+  - `0112880` docs(handover)：前回反映（`67727b3`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`67727b34b532c9905797feacc623a4d215d7de7c`**（＝`67727b3`）
+- **マージコミット：`2224b515de2d70262e58a77aea9283b43e5928cc`**（＝`2224b51`）
+- GitHub Actions（pages build and deployment）：head_sha `2224b51` / run `36108710300` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`2224b515de2d70262e58a77aea9283b43e5928cc` 実体を確認
+- ゲート：`origin/main..dev` は2本（想定通り）、73ファイル＝AV画像72＋HANDOVER.md。CLAUDE.md ゲート判定値＝**0行**（index/view 無変更）
+- 反映後、配信物（github.io）で確認したこと
+  - AV0000001 / 021 / 036 / 050 / 072 の配信 md5 が新版ソースと一致、旧版とは不一致
+    - 例：AV0000001 `c2e1c7c0…` ／ AV0000072 `5e137450…`
+  - ★base 画像は配信でも無変更（md5 がローカル・反映前と一致）：base_boy `ef6800e2…` ／ base_girl `edb870ab…` ／ base_neutral `b0198356…`
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 2224b515de2d70262e58a77aea9283b43e5928cc && git push origin main && git checkout dev
+  ```
