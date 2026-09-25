@@ -2519,3 +2519,27 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 01136ddc3a8f0cc04fe4b2931bfb21b759b85f10 && git push origin main && git checkout dev
   ```
+
+## 2026-09-25 本番反映：カンジー撮影画面の注意書き①②の枠を青系→淡い黄色系に
+
+- 反映内容（dev→main マージ、2 コミット。★色のみ。文言・構成・判定・撮影・送信ロジックは一切不変）
+  - `cbab335` style(カンジー)：`_renderKanjiKakiList` の note 下段（①②）の枠色を変更
+    - 背景 `#eff6ff` → **`#fefce8`**、枠線 `#bfdbfe` → **`#fef08a`**（実機で青枠が外側の背景と同系色で埋もれたため）
+    - 警告寄りの `.kanji-fresh-note`（`#fffbeb` / `#fcd34d`）より淡い別トーン（心構え/お知らせ向け）
+    - 文字色 `#374151`・角丸・padding・font・文言（✏️ていねいに／※とめ・はね・はらい）・上段のお題の説明（📝・赤い太字・直そう）は不変
+  - `0ef923f` docs(handover)：前回反映（`01136dd`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`01136ddc3a8f0cc04fe4b2931bfb21b759b85f10`**（＝`01136dd`）
+- **マージコミット：`67727b34b532c9905797feacc623a4d215d7de7c`**（＝`67727b3`）
+- 版バッジ：`20260925-1602`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `67727b3` / run `36105797179` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`67727b34b532c9905797feacc623a4d215d7de7c` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `abe29ed6…` / view `8e0a336b…` / admin `2cc1289e…`
+- 反映後、配信物そのもので確認したこと
+  - ★`background:#fefce8;border:1px solid #fef08a`＝1／旧 `background:#eff6ff;border:1px solid #bfdbfe`＝**0**（反映前1）／`_renderKanjiKakiList` 内の `#eff6ff`＝0
+    - ※ index 全体の `#eff6ff` は 12→11。残り11件は他画面の既存スタイル（今回の対象外）
+  - ★文言・判定・撮影・送信が無変更（反映前 main と同数）：「ていねいな字で書いてね」1 ／「直そう」2 ／ `kanji-answer-hint` 2 ／ `startKanjiInPageCamera` 5 ／ `captureKanjiInPagePhoto` 2 ／ `submitKanjiKakiPhoto` 2 ／ `onKanjiPhotoSelected` 7 ／ `isKakiRetry` 18 ／ `maxSize = 2000` 2 ／ `ideal: 2560` 2
+  - ゲート：`origin/main..dev` は2本（想定通り＝`cbab335` 枠を淡い黄色に／`0ef923f` HANDOVER記録）。CLAUDE.md ゲート判定値＝**4行**（枠色1行＋コメント1行の差し替え）。admin・view の差分は版バッジ・`?v=` スタンプのみ
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 67727b34b532c9905797feacc623a4d215d7de7c && git push origin main && git checkout dev
+  ```
