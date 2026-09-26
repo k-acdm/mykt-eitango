@@ -2701,3 +2701,27 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 48d6416ade678a116b9fa53de91f091c6ee63032 && git push origin main && git checkout dev
   ```
+
+## 2026-09-26 本番反映：カンジー段階B 書き練習の iPad 選択メニュー対策＋案内文言（test 枠限定）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `0cd7915` fix(カンジー)：実機フィードバック2点
+    - 案内画面の文言「練習なので判定はないよ。気軽にどうぞ。」→「**練習だけど丁寧に書くこと。**」
+    - iPad（iOS Safari）で書くと文字選択・長押しメニュー（コピー/調べる/翻訳）が出る問題への対策
+      - 書き練習画面全体に `user-select:none` / `-webkit-touch-callout:none` / tap-highlight 透明
+      - 書く領域（`kp-pad`）で touchstart/touchmove/touchend を `passive:false` で preventDefault、selectstart / contextmenu / dragstart も停止（pointer イベントは先に届くので描画は無影響）
+      - ボタン（消す・書けた・次へ・モード）は kp-pad の外なので操作性は従来どおり
+    - ★iOS の選択メニュー自体は Chromium のモックでは再現できないため、最終確認は iPad 実機で行うこと
+  - `d017526` docs(handover)：前回反映（`48d6416`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`48d6416ade678a116b9fa53de91f091c6ee63032`**（＝`48d6416`）
+- **マージコミット：`30e5b67a3337bd4ec4d2222fc50c208beba2d2ae`**（＝`30e5b67`）
+- 版バッジ：`20260926-2116`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `30e5b67` / run `36241696826` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`30e5b67a3337bd4ec4d2222fc50c208beba2d2ae` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `d31afdb5…` / view `84642c14…` / admin `c0391c59…`
+- 配信 index：`-webkit-touch-callout` 3 件、「練習だけど丁寧に書くこと」1 件、旧文言「練習なので判定はないよ」0 件、kp-pad の touchstart（passive:false）登録 1 件
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**24 行**（すべて index.html：追加23＋文言1行。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 30e5b67a3337bd4ec4d2222fc50c208beba2d2ae && git push origin main && git checkout dev
+  ```
