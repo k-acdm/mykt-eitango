@@ -2725,3 +2725,26 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 30e5b67a3337bd4ec4d2222fc50c208beba2d2ae && git push origin main && git checkout dev
   ```
+
+## 2026-09-26 本番反映：カンジー段階C 書きテストの画面入力版（test 枠限定）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `faa9047` feat(カンジー)：test 枠の書きテストを撮影 → 画面入力に置き換え（実生徒は従来の撮影テストのまま）
+    - 新画面 `screen-kanji-kaki-input`：一問ずつ問題文（{…}赤太字）→ 答え全体（送りがな込み）を字数分の★白紙マスに1字ずつ書く。消す／前の問題／次の問題、最後に「答え合わせをする」
+    - 一問ごとの判定なし。最後に全問を「番号.＋書いた字」の白背景 JPEG(0.85) 1枚に合成 → `_kanjiState.kakiPhotoBase64` に入れて現行 `submitKanjiKakiPhoto()`（`submitKanjiKaki`）で送信＝★サーバー無改修（送信パラメータ・判定・結果・HP・記録・再挑戦は現行）
+    - 入口の振り分け `_startKanjiKakiEntry()`（練習終了・段階B の予備経路・書き段階の自動再開）。実生徒は `startKanjiKaki` そのもの
+    - 現行関数へのガード付き分岐（画面入力モード＝`_kanjiKakiInputActive()` のときだけ）：needsRetake →「✏️ 書き直す」画面（線は残し該当問へ）／res.retake → 書く画面へ／`_retryKanjiKaki` → 間違えた問題だけ画面入力（番号は元のまま）／結果画面の再挑戦ボタンを ✏️ 表記
+    - ★実機で要確認：本物の Gemini が「番号＋手書き字」の合成画像を正しく読めるか（判定の指示文は紙答案の写真前提）
+  - `b777c30` docs(handover)：前回反映（`30e5b67`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`30e5b67a3337bd4ec4d2222fc50c208beba2d2ae`**（＝`30e5b67`）
+- **マージコミット：`7b66e1a29ac495f0f800693e04060f64d72eb6b2`**（＝`7b66e1a`）
+- 版バッジ：`20260926-2233`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `7b66e1a` / run `36247268800` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`7b66e1a29ac495f0f800693e04060f64d72eb6b2` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `f50299f6…` / view `0128b60c…` / admin `631c2d8f…`
+- 配信 index：`screen-kanji-kaki-input` 4 件、`_startKanjiKakiEntry` 7 件、`_kanjiKakiInputActive` 5 件、撮影経路 `function startKanjiKaki()` 1 件（残存）
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**364 行**（すべて index.html の段階C：追加357＋差し替え7。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 7b66e1a29ac495f0f800693e04060f64d72eb6b2 && git push origin main && git checkout dev
+  ```
