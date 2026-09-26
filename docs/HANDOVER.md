@@ -2627,3 +2627,53 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 6026629c585aff88eb4a1d6968f002c964cf574f && git push origin main && git checkout dev
   ```
+
+## 2026-09-26 本番反映：カンジー「覚える漢字」画面 実機フィードバック4点修正（★test 枠限定のまま）
+
+- **★実生徒には出ません**（`accountType === 'test'` の 1001 等だけ）。前回反映（`6026629`）の段階A に対する実機修正。
+- 反映内容（dev→main マージ、2 コミット）
+  - `05344e1` fix(カンジー)：段階A「覚える漢字」画面の実機フィードバック4点
+    - **【1】書きを「出題漢字 1 問 1 字」に修正（最重要）**
+      旧：`kaki.answer` を熟語分解していたため 5 問なのに 7 字出ていた（継続→継/続 で増える）
+      新：`_kanjiLearnKakiChars` を 1 問 1 字に。取り出す順番は
+      ① 書き問題の出題漢字（API が返す場合。`kaki.kanji` / `kaki.targetKanji` / `q.kakiKanji` 等）
+      ② 無ければ `kaki.answer` の★**先頭 1 字**（答えに含まれる＝必ず「書く字」）
+      ③ それも無ければ `q.kanji`（そのペアの出題漢字）
+      ★どの経路でも必ず 1 問 1 字 → **読み 5 字 ＋ 書き 5 字 ＝ 計 10 字**。
+      ヘルパー `_kanjiLearnFirstKanji`（最初の漢字 1 字だけ返す）を新設
+    - 【2】サブタイトル：「読みテストの前に、今回出てくる漢字をここで確認しよう。」→ **「今回出てくる漢字を最初に確認しよう。」**
+    - 【3】注記：「※ 音訓・用例は常用漢字表（2010年改定）より。表に用例が無い字は「用例なし」と出ます。」
+      → **「※ 音訓・用例は常用漢字表（2010年改定）より。」**（後半削除。「（用例なし）」の表示自体は従来どおり残る）
+    - 【4】横書き化：`.kanji-learn-char` から `writing-mode: vertical-rl` / `text-orientation: upright` を撤去
+      （教科書体 Klee One・font-size 52px / モバイル 42px は維持）
+    - ★読み側（`_kanjiLearnYomiChars`）・辞書の引き方（`lookupKanji`）・音訓用例の表示（`_kanjiLearnCardHtml`）は**無変更**
+    - ★test 枠限定（`_isKanjiLearnPreviewAllowed`）・既存フロー（読み/書き/撮影/判定/送信）も**逐語一致で無変更**
+  - `f411512` docs(handover)：カンジー段階A「覚える漢字」画面＋辞書の本番反映を記録（`6026629`・前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`6026629c585aff88eb4a1d6968f002c964cf574f`**（＝`6026629`）
+- **マージコミット：`051b781f4b55095ddd36035640bd9405c09c41f5`**（＝`051b781`）
+- 版バッジ：`20260926-0544`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `051b781` / run `36187662423` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`051b781f4b55095ddd36035640bd9405c09c41f5` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `11e5d23d…` / view `5323ec1a…` / admin `c3929148…`
+- 反映後、配信物そのもので確認したこと
+  - ★配信 index.html：新サブタイトル「今回出てくる漢字を最初に確認しよう。」＝1／旧サブタイトル＝0
+  - ★新注記「※ 音訓・用例は常用漢字表（2010年改定）より。</div>」＝1／旧注記の後半「表に用例が無い字は」＝0
+  - ★`function _kanjiLearnFirstKanji` ＝1／旧の熟語分解 `all.concat(_kanjiLearnExtractKanji(q.kaki.answer` ＝0
+  - ★CSS 本文（コメント除去後）に `writing-mode` / `text-orientation` が 0 件＝横書き
+  - ★test 枠限定が維持：`function _isKanjiLearnPreviewAllowed` ＝1／`if (_isKanjiLearnPreviewAllowed()) {` ＝1／
+    else の `showScreen('screen-kanji-yomi')`（実生徒は読みへ直行）＝1
+  - ★辞書は引き続き配信：`data/kanji_dict.json` / `data/kanji_dict_extra.json` とも HTTP 200・blob と sha256 一致
+  - ゲート：`origin/main..dev` は**2本**（`05344e1` 4点修正／`f411512` HANDOVER記録）。
+    ★想定では8本だったが、残り6本（`f0aa960` / `5bd0362` / `f342dcc` / `947581e` / `c676331` / `583778e`）は
+    前回反映 `6026629` で既に main に入っていることを `git merge-base --is-ancestor` で1本ずつ確認済み（異常ではない）。
+    CLAUDE.md ゲート判定値＝**31 行**で、全行が4点修正のみ（他の混入ゼロ）
+  - 検証（コミット時）：モック32 PASS ＋ 構造52 PASS ＝ **84 PASS / 0 FAIL**、inline JS 構文チェック OK
+- ★**残っている確認事項**：GAS リファレンス（`gas/Code.js` の `getKanjiSet`）では書きシートの漢字列が個別フィールドで返らず、
+  `kanji` は読みシートの漢字（`y[3]`）が優先される実装。現行 Laravel 版が `kaki.kanji` を返すかはフロントからは不明。
+  そのため上記①を最優先にしつつ②（answer の先頭 1 字）へフォールバックしている。**字数が 5 になる修正はどの経路でも確実**だが、
+  ＜書き＞に出る「字そのもの」が意図どおりかは実機確認が必要。意図と違う場合はサーバー側で `kaki.kanji` を返せば
+  フロントは①で自動的に正しい字を使う（フロント側の追加変更は不要）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 051b781f4b55095ddd36035640bd9405c09c41f5 && git push origin main && git checkout dev
+  ```

@@ -258,6 +258,34 @@
       .kanji-learn-vals { font-size: 14px; }
       .kanji-learn-sec { font-size: 14px; }
     }
+    /* 2026-09-26 段階B：カンジー書き練習（判定なし）。canvas は 4 層を重ねる（グリッド／お手本／書いた線／赤重ね）。
+       ★書いた線の層だけが入力を受ける（他の層は pointer-events:none）。★touch-action:none でスクロールさせない。 */
+    .kp-intro-card { background: #fff; border: 2px solid #fed7aa; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+    .kp-intro-title { font-size: 18px; font-weight: bold; color: #7c2d12; text-align: center; margin-bottom: 10px; }
+    .kp-intro-chars { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 0 12px; }
+    .kp-intro-chars span { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; background: #fff7ed; border: 1px solid #fdba74; border-radius: 10px;
+      font-family: "Klee One", "UD デジタル 教科書体 NK-R", "UD Digi Kyokasho NK-R", "Hiragino Mincho ProN", "Yu Mincho", serif; font-size: 34px; font-weight: 600; color: #1f2937; }
+    .kp-intro-list { margin: 0; padding-left: 1.3em; font-size: 14px; color: #374151; line-height: 1.8; }
+    .kp-mode-row { display: flex; gap: 8px; margin: 4px 0 10px; }
+    .kp-mode-btn { flex: 1; min-width: 0; padding: 10px 6px; border: 2px solid #fdba74; border-radius: 10px; background: #fff; color: #9a3412; font-size: 13px; font-weight: bold; cursor: pointer; font-family: inherit; }
+    .kp-mode-btn.active { background: linear-gradient(135deg,#f97316,#c2410c); border-color: #c2410c; color: #fff; }
+    .kp-model-wrap { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 0 10px; }
+    .kp-model-label { font-size: 12px; font-weight: bold; color: #9a3412; background: #ffedd5; border-radius: 999px; padding: 3px 10px; }
+    .kp-model-box { width: 96px; height: 96px; background: #fff; border-radius: 6px; }
+    .kp-model-box canvas { width: 96px; height: 96px; display: block; }
+    .kp-pad { position: relative; width: 100%; max-width: 320px; aspect-ratio: 1 / 1; margin: 0 auto; background: #fff; border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+    .kp-pad canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+    .kp-pad #kp-cv-ink { pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; cursor: crosshair; }
+    .kp-check-note { margin: 10px 0 0; font-size: 13px; color: #b91c1c; text-align: center; font-weight: bold; }
+    .kp-btn-row { display: flex; gap: 10px; margin-top: 12px; }
+    .kp-sub-btn, .kp-main-btn { flex: 1; min-width: 0; padding: 14px 8px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; font-family: inherit; color: #fff; }
+    .kp-sub-btn { flex: 0 0 38%; background: linear-gradient(135deg,#94a3b8,#64748b); }
+    .kp-main-btn { background: linear-gradient(135deg,#10b981,#059669); }
+    @media (max-width: 480px) {
+      .kp-mode-btn { font-size: 12px; padding: 9px 4px; }
+      .kp-model-box, .kp-model-box canvas { width: 80px; height: 80px; }
+      .kp-sub-btn, .kp-main-btn { font-size: 15px; padding: 13px 6px; }
+    }
     /* 古文単語「コブタン」（2026-05-08 枠組み実装）。暖色系 #d97706 で平安らしさを演出。 */
     .kobun-emphasis { color: #d97706; font-weight: bold; }
     .kobun-mate-row { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; }
@@ -3676,10 +3704,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260926-0544"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260926-1917"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260926-0544">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260926-0544"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260926-1917">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260926-1917"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6167,6 +6195,63 @@
     </div>
     <div id="kanji-yomi-result-banner"></div>
     <div id="kanji-yomi-result-actions"></div>
+  </div>
+</div>
+
+<!-- 2026-09-26 段階B：書き練習（読み合格 → ★案内 → 1字ずつ画面に書く → 書きテスト）。
+     ★判定・保存・HP なしの純粋な練習（gasGet/gasPost を呼ばない・_kanjiState の写真/判定に触れない）。
+     ★test 枠限定（_isKanjiLearnPreviewAllowed）。実生徒は goKanjiKakiFromYomi で従来どおり startKanjiKaki へ直行。 -->
+<div id="screen-kanji-practice-intro" class="screen">
+  <header><h1>🖌️ 書きの練習</h1><span id="kanji-practice-intro-meta"></span></header>
+  <div class="container" style="padding-top:14px">
+    <div class="kanjii-mate-row">
+      <img class="kanjii-img" id="kanjii-img-practice-intro" src="images/kanjii-default.png" alt="カンジー">
+      <div class="kanjii-bubble" id="kanjii-bubble-practice-intro">書きのテストの前に、一度書いて手に覚えさせるのじゃ</div>
+    </div>
+    <div class="kp-intro-card">
+      <div class="kp-intro-title">これから書きの練習をするよ</div>
+      <div class="kp-intro-chars" id="kanji-practice-intro-chars"></div>
+      <ul class="kp-intro-list">
+        <li>今回の書き問題に出てくる漢字を、1字ずつ画面に書いてみよう。</li>
+        <li>「お手本を見ながら書く」か「お手本をなぞる」を選べるよ。</li>
+        <li>書けたら、正しい字を赤で重ねて見比べよう。</li>
+        <li>練習なので判定はないよ。気軽にどうぞ。</li>
+      </ul>
+    </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#f97316,#c2410c);margin-top:16px" onclick="startKanjiPractice()">▶ 練習をはじめる</button>
+  </div>
+</div>
+
+<div id="screen-kanji-practice" class="screen">
+  <header><h1>🖌️ 書きの練習</h1><span id="kanji-practice-prog">1 / 1</span></header>
+  <div class="container" style="padding-top:12px">
+    <div class="kanjii-mate-row">
+      <img class="kanjii-img" id="kanjii-img-practice" src="images/kanjii-thinking.png" alt="カンジー">
+      <div class="kanjii-bubble" id="kanjii-bubble-practice">ゆっくり、ていねいに書いてみよう</div>
+    </div>
+    <div class="kp-mode-row">
+      <button class="kp-mode-btn" id="kp-mode-look" onclick="kanjiPracticeSetMode('look')">👀 お手本を見ながら書く</button>
+      <button class="kp-mode-btn" id="kp-mode-trace" onclick="kanjiPracticeSetMode('trace')">✍️ お手本をなぞる</button>
+    </div>
+    <div class="kp-model-wrap" id="kp-model-wrap">
+      <div class="kp-model-label">お手本</div>
+      <div class="kp-model-box"><canvas id="kp-cv-sample"></canvas></div>
+    </div>
+    <div class="kp-pad" id="kp-pad">
+      <canvas id="kp-cv-grid"></canvas>
+      <canvas id="kp-cv-model"></canvas>
+      <canvas id="kp-cv-ink"></canvas>
+      <canvas id="kp-cv-check"></canvas>
+    </div>
+    <div class="kp-check-note" id="kp-check-note" style="display:none">赤い字が正しい形だよ。自分の字と見比べてみよう。</div>
+    <div class="kp-btn-row" id="kp-btn-row-write">
+      <button class="kp-sub-btn" onclick="kanjiPracticeClear()">🧽 消す</button>
+      <button class="kp-main-btn" onclick="kanjiPracticeCheck()">✅ 書けた！</button>
+    </div>
+    <div class="kp-btn-row" id="kp-btn-row-check" style="display:none">
+      <button class="kp-sub-btn" onclick="kanjiPracticeRetry()">🔄 もう一度書く</button>
+      <button class="kp-main-btn" id="kp-next-btn" onclick="kanjiPracticeNext()">次の字へ →</button>
+    </div>
   </div>
 </div>
 
@@ -21450,6 +21535,279 @@
     showScreen('screen-kanji-yomi');
   }
 
+  // ===== 2026-09-26 段階B：書き練習（読み合格 → 案内 → 1字ずつ書く → 書きテスト） =================
+  //   ★判定・保存・HP なしの純粋な練習。gasGet/gasPost を呼ばず、_kanjiState は questions を★読むだけ
+  //     （写真・判定・送信の項目には一切触れない）。状態は _kanjiPractice に独立して持つ。
+  //   ★対象字は段階A の「＜書き＞」と同じ（_kanjiLearnKakiChars：1 問 1 字・重複なし）。
+  //   ★★ TODO: 全機能完成後に test 枠限定を解除する（段階A と同じ一時制限）。
+  //     解除時は goKanjiKakiFromYomi の if を外して _showKanjiPracticeIntro() だけにする。
+  //   ★自動再開（_resumeKanjiKakiStage）と書き再挑戦（_retryKanjiKaki）はこの経路を通らない＝練習は出ない。
+  //     練習中にリロードした場合は、書き段階の記録（startKanjiKaki が行う）がまだ無いので読みから再開になる。
+
+  // 読み合格ボタンの行き先。★実生徒は従来どおり startKanjiKaki へ直行（段階B 導入前と同じ挙動）。
+  function goKanjiKakiFromYomi() {
+    var allowed = false;
+    try { allowed = _isKanjiLearnPreviewAllowed(); } catch(e) { allowed = false; }
+    if (!allowed) { startKanjiKaki(); return; }
+    try { _showKanjiPracticeIntro(); } catch(e) { startKanjiKaki(); }   // 練習側の不具合で書きテストに行けなくならないように
+  }
+
+  var KP_FONT_STACK = '"Klee One", "UD デジタル 教科書体 NK-R", "UD Digi Kyokasho NK-R", "Hiragino Mincho ProN", "Yu Mincho", serif';
+  var KP_FONT_TIMEOUT_MS = 4000;
+  var _kanjiPractice = { chars: [], idx: 0, mode: 'look', strokes: [], current: null, checked: false, fontPromise: null, bound: false };
+
+  // その回の練習字だけを指定して Klee One を読み込む（★文字を指定しないと漢字の分は読み込まれず、
+  //   canvas の fillText が別フォントで描かれてしまうため）。失敗・タイムアウトでも先へ進む。
+  function _kanjiPracticeLoadFont(chars) {
+    var text = (chars || []).join('');
+    var base;
+    try { base = _ensureKleeOneFont(); } catch(e) { base = Promise.resolve(false); }
+    var load = Promise.resolve(base).then(function(){
+      if (!text || !document.fonts || !document.fonts.load) return false;
+      return Promise.all([document.fonts.load('600 1em "Klee One"', text), document.fonts.load('400 1em "Klee One"', text)])
+        .then(function(){ return true; });
+    }).catch(function(){ return false; });
+    var timeout = new Promise(function(resolve){ setTimeout(function(){ resolve(false); }, KP_FONT_TIMEOUT_MS); });
+    return Promise.race([load, timeout]);
+  }
+
+  function _showKanjiPracticeIntro() {
+    var chars = _kanjiLearnKakiChars(_kanjiState.questions || []);
+    if (!chars.length) { startKanjiKaki(); return; }   // 取り出せなければ練習を飛ばして従来の書きテストへ
+    _kanjiPractice = { chars: chars, idx: 0, mode: 'look', strokes: [], current: null, checked: false,
+                       fontPromise: _kanjiPracticeLoadFont(chars), bound: _kanjiPractice.bound };
+    var meta = document.getElementById('kanji-practice-intro-meta');
+    if (meta) meta.textContent = '漢検 ' + _kanjiState.level + '級｜' + chars.length + '字';
+    var box = document.getElementById('kanji-practice-intro-chars');
+    if (box) box.innerHTML = chars.map(function(c){ return '<span>' + _kanjiLearnEsc(c) + '</span>'; }).join('');
+    try { _kanjiSetMascot('kanjii-img-practice-intro', 'default', 'kanjii-bubble-practice-intro', '書きのテストの前に、一度書いて手に覚えさせるのじゃ'); } catch(e) {}
+    showScreen('screen-kanji-practice-intro');
+  }
+
+  function startKanjiPractice() {
+    if (!_kanjiPractice.chars.length) { startKanjiKaki(); return; }
+    _kanjiPractice.idx = 0;
+    _kanjiPracticeBind();
+    showScreen('screen-kanji-practice');
+    _kanjiPracticeShowChar();
+  }
+
+  // --- canvas まわり ------------------------------------------------------------------
+  // ★devicePixelRatio 倍の実ピクセルで持ち、描画座標は CSS px のまま使えるよう setTransform する。
+  function _kpSetupCanvas(cv, cssSize) {
+    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    cv.width = Math.round(cssSize * dpr);
+    cv.height = Math.round(cssSize * dpr);
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssSize, cssSize);
+    return ctx;
+  }
+  function _kpDrawGrid(ctx, s) {
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, s, s);
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 6]);                 // 十字：点線
+    ctx.beginPath();
+    ctx.moveTo(s / 2, 0); ctx.lineTo(s / 2, s);
+    ctx.moveTo(0, s / 2); ctx.lineTo(s, s / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);                     // 外枠：実線
+    ctx.strokeStyle = '#c2410c';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, s - 2, s - 2);
+    ctx.restore();
+  }
+  // 字形の見た目の中心がマスの中心に来るように描く（measureText の実寸で上下を補正）。
+  function _kpDrawGlyph(ctx, s, ch, color) {
+    if (!ch) return;
+    ctx.save();
+    ctx.font = '600 ' + Math.round(s * 0.78) + 'px ' + KP_FONT_STACK;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    var m = ctx.measureText(ch);
+    var asc = m.actualBoundingBoxAscent, desc = m.actualBoundingBoxDescent;
+    var y = (typeof asc === 'number' && typeof desc === 'number' && (asc + desc) > 0)
+      ? (s / 2 + (asc - desc) / 2)
+      : (s * 0.8);
+    ctx.fillText(ch, s / 2, y);
+    ctx.restore();
+  }
+  function _kpPadSize() {
+    var pad = document.getElementById('kp-pad');
+    var w = pad ? pad.getBoundingClientRect().width : 0;
+    return Math.max(120, Math.round(w || 300));
+  }
+  // 書いた線は 0〜1 の正規化座標で持つ（画面サイズが変わっても描き直せる）。
+  function _kpRedrawInk() {
+    var cv = document.getElementById('kp-cv-ink');
+    if (!cv) return;
+    var s = _kpPadSize();
+    var ctx = _kpSetupCanvas(cv, s);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = Math.max(4, s * 0.035);
+    var all = _kanjiPractice.strokes.slice();
+    if (_kanjiPractice.current) all.push(_kanjiPractice.current);
+    all.forEach(function(st){
+      if (!st || !st.length) return;
+      ctx.beginPath();
+      ctx.moveTo(st[0][0] * s, st[0][1] * s);
+      if (st.length === 1) ctx.lineTo(st[0][0] * s + 0.01, st[0][1] * s);   // 点も見えるように
+      for (var i = 1; i < st.length; i++) ctx.lineTo(st[i][0] * s, st[i][1] * s);
+      ctx.stroke();
+    });
+  }
+  // 層ごとに描き直す（グリッド／お手本（なぞり時のみ）／書いた線／赤重ね（確認時のみ））＋見ながら用の小さいお手本。
+  function _kpRenderAll() {
+    var ch = _kanjiPractice.chars[_kanjiPractice.idx] || '';
+    var s = _kpPadSize();
+    var g = document.getElementById('kp-cv-grid');
+    if (g) _kpDrawGrid(_kpSetupCanvas(g, s), s);
+    var mcv = document.getElementById('kp-cv-model');
+    if (mcv) {
+      var mctx = _kpSetupCanvas(mcv, s);
+      if (_kanjiPractice.mode === 'trace' && !_kanjiPractice.checked) _kpDrawGlyph(mctx, s, ch, 'rgba(156,163,175,0.45)');
+    }
+    _kpRedrawInk();
+    var ccv = document.getElementById('kp-cv-check');
+    if (ccv) {
+      var cctx = _kpSetupCanvas(ccv, s);
+      if (_kanjiPractice.checked) _kpDrawGlyph(cctx, s, ch, 'rgba(220,38,38,0.45)');
+    }
+    var sample = document.getElementById('kp-cv-sample');
+    if (sample) {
+      var ss = Math.round(sample.getBoundingClientRect().width || 96);
+      var sctx = _kpSetupCanvas(sample, ss);
+      _kpDrawGrid(sctx, ss);
+      _kpDrawGlyph(sctx, ss, ch, 'rgba(55,65,81,0.85)');
+    }
+    var wrap = document.getElementById('kp-model-wrap');
+    if (wrap) wrap.style.display = (_kanjiPractice.mode === 'look') ? '' : 'none';
+    var bl = document.getElementById('kp-mode-look'), bt = document.getElementById('kp-mode-trace');
+    if (bl) bl.classList.toggle('active', _kanjiPractice.mode === 'look');
+    if (bt) bt.classList.toggle('active', _kanjiPractice.mode === 'trace');
+  }
+
+  // --- 入力（pointer イベント。setPointerCapture で枠外に出ても線が途切れない）---------------
+  function _kpPointFromEvent(cv, e) {
+    var r = cv.getBoundingClientRect();
+    var x = (e.clientX - r.left) / (r.width || 1);
+    var y = (e.clientY - r.top) / (r.height || 1);
+    return [Math.max(0, Math.min(1, x)), Math.max(0, Math.min(1, y))];
+  }
+  function _kpOnDown(e) {
+    if (_kanjiPractice.checked) return;                 // 赤重ね確認中は書けない（「もう一度書く」で戻る）
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    var cv = e.currentTarget;
+    try { cv.setPointerCapture(e.pointerId); } catch(_e) {}
+    _kanjiPractice.pointerId = e.pointerId;
+    _kanjiPractice.current = [_kpPointFromEvent(cv, e)];
+    _kpRedrawInk();
+  }
+  function _kpOnMove(e) {
+    if (!_kanjiPractice.current || e.pointerId !== _kanjiPractice.pointerId) return;
+    e.preventDefault();
+    var cv = e.currentTarget;
+    var evs = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : null;
+    if (!evs || !evs.length) evs = [e];
+    for (var i = 0; i < evs.length; i++) _kanjiPractice.current.push(_kpPointFromEvent(cv, evs[i]));
+    _kpRedrawInk();
+  }
+  function _kpOnUp(e) {
+    if (!_kanjiPractice.current || e.pointerId !== _kanjiPractice.pointerId) return;
+    var cv = e.currentTarget;
+    try { cv.releasePointerCapture(e.pointerId); } catch(_e) {}
+    _kanjiPractice.strokes.push(_kanjiPractice.current);
+    _kanjiPractice.current = null;
+    _kanjiPractice.pointerId = null;
+    _kpRedrawInk();
+  }
+  function _kanjiPracticeBind() {
+    if (_kanjiPractice.bound) return;
+    var cv = document.getElementById('kp-cv-ink');
+    if (!cv) return;
+    cv.addEventListener('pointerdown', _kpOnDown);
+    cv.addEventListener('pointermove', _kpOnMove);
+    cv.addEventListener('pointerup', _kpOnUp);
+    cv.addEventListener('pointercancel', _kpOnUp);
+    // 画面サイズ・向きが変わったら描き直す（線は正規化座標なので崩れない）
+    window.addEventListener('resize', function(){
+      var sc = document.getElementById('screen-kanji-practice');
+      if (sc && sc.classList.contains('active')) { try { _kpRenderAll(); } catch(_e) {} }
+    });
+    _kanjiPractice.bound = true;
+  }
+
+  // --- 画面操作 ----------------------------------------------------------------------------
+  function _kanjiPracticeShowChar() {
+    var n = _kanjiPractice.chars.length;
+    _kanjiPractice.strokes = [];
+    _kanjiPractice.current = null;
+    _kanjiPractice.checked = false;
+    var prog = document.getElementById('kanji-practice-prog');
+    if (prog) prog.textContent = (_kanjiPractice.idx + 1) + ' / ' + n;
+    var last = (_kanjiPractice.idx + 1 >= n);
+    var nb = document.getElementById('kp-next-btn');
+    if (nb) nb.textContent = last ? '▶ 書きテストに進む' : '次の字へ →';
+    _kpSetCheckUi(false);
+    try { _kanjiSetMascot('kanjii-img-practice', 'thinking', 'kanjii-bubble-practice', 'ゆっくり、ていねいに書いてみよう'); } catch(e) {}
+    // レイアウト確定後に描く → フォントが揃ったらもう一度描く（先に出すので待たせない）
+    requestAnimationFrame(function(){ try { _kpRenderAll(); } catch(e) {} });
+    Promise.resolve(_kanjiPractice.fontPromise).then(function(){ try { _kpRenderAll(); } catch(e) {} });
+  }
+  function _kpSetCheckUi(checked) {
+    var w = document.getElementById('kp-btn-row-write'), c = document.getElementById('kp-btn-row-check');
+    var note = document.getElementById('kp-check-note');
+    if (w) w.style.display = checked ? 'none' : '';
+    if (c) c.style.display = checked ? '' : 'none';
+    if (note) note.style.display = checked ? '' : 'none';
+  }
+  function kanjiPracticeSetMode(mode) {
+    _kanjiPractice.mode = (mode === 'trace') ? 'trace' : 'look';
+    _kpRenderAll();
+  }
+  function kanjiPracticeClear() {
+    _kanjiPractice.strokes = [];
+    _kanjiPractice.current = null;
+    _kpRedrawInk();
+  }
+  // 「書けた！」→ 自分の字の上に正しい字を赤の半透明で重ねる（判定はしない）。
+  function kanjiPracticeCheck() {
+    if (!_kanjiPractice.strokes.length) {
+      try { _kanjiSetMascot('kanjii-img-practice', 'encourage', 'kanjii-bubble-practice', 'まずはマスの中に書いてみるのじゃ'); } catch(e) {}
+      return;
+    }
+    _kanjiPractice.checked = true;
+    _kpSetCheckUi(true);
+    try { _kanjiSetMascot('kanjii-img-practice', 'celebrate', 'kanjii-bubble-practice', '赤い字と重ねて、形を確かめてみよう'); } catch(e) {}
+    _kpRenderAll();
+  }
+  function kanjiPracticeRetry() {
+    _kanjiPractice.checked = false;
+    _kanjiPractice.strokes = [];
+    _kanjiPractice.current = null;
+    _kpSetCheckUi(false);
+    try { _kanjiSetMascot('kanjii-img-practice', 'thinking', 'kanjii-bubble-practice', 'もう一度、ゆっくり書いてみよう'); } catch(e) {}
+    _kpRenderAll();
+  }
+  function kanjiPracticeNext() {
+    if (_kanjiPractice.idx + 1 >= _kanjiPractice.chars.length) {
+      // 練習終了 → 現行の書きテストへ（段階C までは撮影テスト）。練習の状態は捨てる。
+      _kanjiPractice.strokes = [];
+      _kanjiPractice.current = null;
+      startKanjiKaki();
+      return;
+    }
+    _kanjiPractice.idx += 1;
+    _kanjiPracticeShowChar();
+  }
+
   // ----- 読み問題：1 問ずつ表示 -----
   function _renderKanjiYomiQuestion() {
     var total = _kanjiState.questions.length;
@@ -21563,7 +21921,7 @@
           '<div class="kanji-result-score">' + correctCount + ' / ' + total + ' 問正解</div>' +
         '</div>';
       actions.innerHTML =
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="startKanjiKaki()">✏️ 次は書きに挑戦！</button>';
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="goKanjiKakiFromYomi()">✏️ 次は書きに挑戦！</button>';
       try { playSfx('chime'); } catch(e){}
     } else {
       _kanjiSetMascot('kanjii-img-yomi-result', 'encourage', 'kanjii-bubble-yomi-result', _pickBubble(KANJI_BUBBLES.yomiFail));
@@ -25567,7 +25925,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260926-0544</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260926-1917</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
