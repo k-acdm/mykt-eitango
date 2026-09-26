@@ -2771,3 +2771,30 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 84d1f4e2b40b28d698a427c0b6c708ebd14a78b1 && git push origin main && git checkout dev
   ```
+
+## 2026-09-27 本番反映：カンジー辞書完成版＋注意書き文言＋問題数ボタンと再開のズレ修正＋書きテスト吹き出し文言
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `fa69f17` fix(カンジー)：4点
+    1. `data/kanji_dict.json` を完成版に差し替え（2127字・用例が空の字 0。昭茨岡埼阜弁串隙朕頓斑氾に用例追加）
+    2. 覚える漢字画面の注意書き →「※（一部を除き）音訓・用例は常用漢字表（2010年改定）より引用。」
+    3. ★問題数のズレ修正（10問を押したのに同日同級の中断中 20問セッションを自動再開 →「最初からやり直す」で 20問セット・覚える漢字に 10字ずつ）
+       - 自動再開は押した問題数と同じ問題数の中断セッションだけ（count の無い古い記録は questions.length で判定）
+       - `kanjiRestartFresh` は最後に押した問題数（`_kanjiPickedCount`）を優先
+       - ★★再開ロジックは実生徒と共通のため、この修正は★実生徒にも効く（問題取得・判定・テスト本体・撮影経路は無変更）
+    4. 書きテスト吹き出しの初期文言「マスに1字ずつ…」→「白い枠に、送りがなもふくめて ていねいに書くのじゃ」
+    - 覚える漢字／書き練習／画面入力の書きテストは★test 枠限定のまま（`_isKanjiLearnPreviewAllowed` 維持）
+  - `ad61473` docs(handover)：前回反映（`84d1f4e`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`84d1f4e2b40b28d698a427c0b6c708ebd14a78b1`**（＝`84d1f4e`）
+- **マージコミット：`03596731ed35969771ae6c36c9de5599ffb6d49e`**（＝`0359673`）
+- 版バッジ：`20260927-0102`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `0359673` / run `36254264736` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`03596731ed35969771ae6c36c9de5599ffb6d49e` 実体を確認
+- 配信物 sha256 が4ファイルとも `git show origin/main:` の blob と完全一致
+  - index `ec89488b…` / view `89779033…` / admin `108445ed…` / data/kanji_dict.json `dbc392b3…`
+- 配信 `data/kanji_dict.json`：2127字・用例が空の字 0（完成版）
+- 配信 index：「（一部を除き）」1 件、`_kanjiPickedCount` 3 行、旧吹き出し「マスに1字ずつ」0 件
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md / data/kanji_dict.json のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**18 行**（すべて index.html の4点修正。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 03596731ed35969771ae6c36c9de5599ffb6d49e && git push origin main && git checkout dev
+  ```

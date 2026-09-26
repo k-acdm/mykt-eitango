@@ -3719,10 +3719,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-0102"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-0120"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-0102">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-0102"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-0120">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-0120"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6215,7 +6215,7 @@
 
 <!-- 2026-09-26 段階B：書き練習（読み合格 → ★案内 → 1字ずつ画面に書く → 書きテスト）。
      ★判定・保存・HP なしの純粋な練習（gasGet/gasPost を呼ばない・_kanjiState の写真/判定に触れない）。
-     ★test 枠限定（_isKanjiLearnPreviewAllowed）。実生徒は goKanjiKakiFromYomi で従来どおり startKanjiKaki へ直行。 -->
+     ★2026-09-27 全生徒に開放（旧：test 枠限定。切り戻しは KANJI_NEW_FLOW_FOR_ALL=false）。切り戻し時は goKanjiKakiFromYomi で従来どおり startKanjiKaki へ直行。 -->
 <div id="screen-kanji-practice-intro" class="screen">
   <header><h1>🖌️ 書きの練習</h1><span id="kanji-practice-intro-meta"></span></header>
   <div class="container" style="padding-top:14px">
@@ -21344,7 +21344,14 @@
   //   ★★実生徒は accountType === 'student' かつ ID が 5 桁（例 24003 / 22029）なので、
   //     どちらの条件にも一致しない＝絶対に表示されない。
   //   ★★判定できないとき（accountType 空・_studentId 未設定・例外）は必ず false に倒す＝出さない。
+  //
+  // ★★2026-09-27 全生徒に開放：覚える漢字（段階A）・書き練習（段階B）・画面入力の書きテスト（段階C）を全員で有効化。
+  //   3 か所の分岐（startKanjiSession / goKanjiKakiFromYomi / _startKanjiKakiEntry）はすべてこの関数を見ているので、
+  //   ★ここ 1 か所のスイッチで切り替える。★切り戻しは KANJI_NEW_FLOW_FOR_ALL を false にするだけ
+  //   （以下の test 枠判定に戻る＝実生徒は従来の読み直行・撮影テスト。撮影テストのコードは残してある）。
+  var KANJI_NEW_FLOW_FOR_ALL = true;
   function _isKanjiLearnPreviewAllowed() {
+    if (KANJI_NEW_FLOW_FOR_ALL) return true;
     try {
       var t = String(_accountType || '').trim().toLowerCase();
       if (t === 'test') return true;                 // ★主判定：サーバーの accountType
@@ -21877,7 +21884,7 @@
   }
 
   // ===== 2026-09-26 段階C：書きテストの画面入力版（撮影の代わりに一問ずつ画面に書く） =====================
-  //   ★test 枠限定（_isKanjiLearnPreviewAllowed）。実生徒は従来どおり startKanjiKaki（撮影テスト）。
+  //   ★2026-09-27 全生徒に開放（旧：test 枠限定）。KANJI_NEW_FLOW_FOR_ALL=false で従来の撮影テストに戻る。
   //   ★答え全体（送りがな込み）を1問1枚の大きな白紙キャンバスに書く（2026-09-26 マス方式から変更）。一問ごとの判定は出さない。
   //   ★最後に全問を「番号＋書いた字」の白背景 JPEG 1 枚に合成し、_kanjiState.kakiPhotoBase64 に入れて
   //     現行の submitKanjiKakiPhoto() で送る＝送信パラメータ・判定・結果・HP・記録・再挑戦はすべて現行のまま。
@@ -26302,7 +26309,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-0102</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-0120</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
