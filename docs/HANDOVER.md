@@ -2748,3 +2748,26 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 7b66e1a29ac495f0f800693e04060f64d72eb6b2 && git push origin main && git checkout dev
   ```
+
+## 2026-09-27 本番反映：カンジー段階C 書きテストの入力欄をマス → 1問1枚の大きな白紙キャンバスに（test 枠限定）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `2481a6b` fix(カンジー)：実機で「1マス1字だと字数のズレで送りがなが合わない・生徒が混乱」の懸念 → 答え全体を1枚に自由に書く形へ
+    - 入力欄：字数分のマスを廃止し、1問1枚の大きな白紙キャンバス（5:3・グリッドなし・白背景。375px で約 346×209）
+    - 案内文言「↑ 赤い太字を、送りがなもふくめて漢字で書こう」（字数の案内は廃止）／吹き出し「白い枠に、送りがなもふくめて ていねいに書くのじゃ」
+    - 線は枠の幅・高さに対する割合で保持（比率固定で送信用画像でもゆがまない）。pointer・devicePixelRatio・iPad 選択抑制は従来どおり
+    - 合成：各行「番号.＋その問のキャンバス（600×360）」を縦に並べた白背景 JPEG 1枚 → 現行 `submitKanjiKakiPhoto()`（`submitKanjiKaki`）＝★サーバー無改修。一問ずつ・最後にまとめて判定・結果・再挑戦・書き直しは維持
+    - ★実機で要確認：本物の Gemini が1枚に並んだ答え全体（例「閉めて」）を正しく読めるか
+  - `0b5ac19` docs(handover)：前回反映（`7b66e1a`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`7b66e1a29ac495f0f800693e04060f64d72eb6b2`**（＝`7b66e1a`）
+- **マージコミット：`84d1f4e2b40b28d698a427c0b6c708ebd14a78b1`**（＝`84d1f4e`）
+- 版バッジ：`20260927-0002`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `84d1f4e` / run `36250722246` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`84d1f4e2b40b28d698a427c0b6c708ebd14a78b1` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `536eab07…` / view `f84a5a31…` / admin `df16440c…`
+- 配信 index：「送りがなもふくめて漢字で書こう」1 件、`kki-pad-wrap` 4 件、旧 `kki-boxes` 0 件、旧字数案内（`送りがなもふくめて ' + n`）0 件
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**137 行**（すべて index.html の段階C 修正。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 84d1f4e2b40b28d698a427c0b6c708ebd14a78b1 && git push origin main && git checkout dev
+  ```

@@ -3719,10 +3719,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-0002"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-0102"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-0002">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-0002"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-0102">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-0102"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6279,7 +6279,7 @@
   <div class="container" style="padding-top:12px">
     <div class="kanjii-mate-row">
       <img class="kanjii-img" id="kanjii-img-kki" src="images/kanjii-thinking.png" alt="カンジー">
-      <div class="kanjii-bubble" id="kanjii-bubble-kki">マスに1字ずつ、ていねいに書くのじゃ</div>
+      <div class="kanjii-bubble" id="kanjii-bubble-kki">白い枠に、送りがなもふくめて ていねいに書くのじゃ</div>
     </div>
     <div class="kki-q-card">
       <div class="kki-q-num" id="kki-q-num">問 1</div>
@@ -18442,9 +18442,12 @@
     _startKanjiKakiEntry();
   }
   // 自動再開後の「最初から（読みから）やり直す」導線。強制的に新規セッションを取り直す。
+  // 2026-09-27：最後に問題数ボタンで押した問題数（5＝10問セット／10＝20問セット）。
+  //   再開すると _kanjiState.count が再開したセッションの値に置き換わるため、やり直しはこちらを優先する。
+  var _kanjiPickedCount = 0;
   function kanjiRestartFresh() {
     if (!confirm('最初から（読みテストから）やり直しますか？\n※新しい問題セットになります')) return;
-    var cnt = _kanjiState.count || 5;
+    var cnt = (_kanjiPickedCount === 5 || _kanjiPickedCount === 10) ? _kanjiPickedCount : (_kanjiState.count || 5);
     startKanjiSession(cnt, true);     // forceFresh=true で自動再開をスキップして新規開始
   }
   // ボタン押下：1つ前 / 2つ前のセッションを再開
@@ -21254,7 +21257,10 @@
       if (!confirm('本日の素点上限に達しています。練習モードで進めますか？（HPは付与されません）')) return;
     }
     _kanjiState.count = count;
+    _kanjiPickedCount = count;   // 2026-09-27：押した問題数を別に覚えておく（再開で _kanjiState.count が置き換わっても守る）
     // ★自動再開：当日の「未完了(submission===null)」セッションがあれば復元する（forceFresh でスキップ）。
+    //   ★2026-09-27：押した問題数と同じ問題数の中断セッションだけを再開する（10問を押したのに 20問の中断分を
+    //     再開 →「やり直す」で 20問セットが始まる不具合の修正）。count が無い古い記録は問題数（questions.length）で判定。
     //   stage==='kaki'（読み合格済み）→ 書きの頭から直行（読みスキップ）。それ以外 → 読みの最初から。
     //   当日エントリが無い／前日以前のみ → 通常どおり新規（getKanjiSet）。
     if (!forceFresh) {
@@ -21265,7 +21271,11 @@
         var _resume = null;
         for (var _i = 0; _i < _arr.length; _i++) {
           var _e = _arr[_i];
-          if (_e && !_e.submission && _e.seenDateKey === _today && _e.questions && _e.questions.length) { _resume = _e; break; }
+          if (_e && !_e.submission && _e.seenDateKey === _today && _e.questions && _e.questions.length) {
+            var _ec = Number(_e.count) || _e.questions.length;
+            if (_ec !== count) continue;   // 問題数が違う中断セッションは再開しない
+            _resume = _e; break;
+          }
         }
         if (_resume) {
           if (_resume.stage === 'kaki') { _resumeKanjiKakiStage(_resume); return; }
@@ -21546,7 +21556,7 @@
     }
     // 辞書が落ちていても漢字は出す。その場合だけ理由を控えめに添える。
     var note = _kanjiDict
-      ? '<div class="kanji-learn-note">※ 音訓・用例は常用漢字表（2010年改定）より。</div>'
+      ? '<div class="kanji-learn-note">※（一部を除き）音訓・用例は常用漢字表（2010年改定）より引用。</div>'
       : '<div class="kanji-learn-note">※ 辞書を読み込めなかったため、漢字だけ表示しています（学習には影響ありません）。</div>';
     bodyEl.innerHTML = html + note;
   }
@@ -26292,7 +26302,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-0002</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-0102</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
