@@ -288,8 +288,9 @@
     .kki-q-num { display: inline-block; font-size: 12px; font-weight: bold; color: #fff; background: #f97316; border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; }
     .kki-q-text { font-size: 18px; line-height: 1.7; color: #1f2937; }
     .kki-q-hint { margin-top: 6px; font-size: 13px; color: #6b7280; }
-    .kki-boxes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; touch-action: none; }
-    .kki-box { display: block; background: #fff; border: 2px solid #d1d5db; border-radius: 6px; box-sizing: content-box; touch-action: none; cursor: crosshair; }
+    /* 2026-09-26：字数分のマス → 1問1枚の大きな白紙キャンバス（5:3）。答え全体を自由に書く。 */
+    .kki-pad-wrap { display: flex; justify-content: center; touch-action: none; }
+    .kki-pad { display: block; background: #fff; border: 2px solid #d1d5db; border-radius: 8px; box-sizing: content-box; touch-action: none; cursor: crosshair; }
     .kp-check-note { margin: 10px 0 0; font-size: 13px; color: #b91c1c; text-align: center; font-weight: bold; }
     .kp-btn-row { display: flex; gap: 10px; margin-top: 12px; }
     .kp-sub-btn, .kp-main-btn { flex: 1; min-width: 0; padding: 14px 8px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; font-family: inherit; color: #fff; }
@@ -3718,10 +3719,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260926-2233"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-0002"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260926-2233">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260926-2233"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-0002">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-0002"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6270,7 +6271,7 @@
 </div>
 
 <!-- 2026-09-26 段階C：書きテストの画面入力版（撮影の代わりに一問ずつ画面に書く・test 枠限定）。
-     ★答え全体（送りがな込み）を字数分の白紙マスに1字ずつ書く。★一問ごとの判定は出さず、最後に
+     ★答え全体（送りがな込み）を1問1枚の大きな白紙キャンバスに書く（2026-09-26 マス方式から変更）。★一問ごとの判定は出さず、最後に
        全問を「番号＋書いた字」の白背景 JPEG 1枚にまとめて、現行の submitKanjiKakiPhoto（submitKanjiKaki）で送る。
      ★判定・結果・HP・記録・再挑戦は現行をそのまま使う（サーバー無改修）。実生徒は従来の撮影テスト。 -->
 <div id="screen-kanji-kaki-input" class="screen">
@@ -6285,7 +6286,7 @@
       <div class="kki-q-text" id="kki-q-text"></div>
       <div class="kki-q-hint" id="kki-q-hint"></div>
     </div>
-    <div class="kki-boxes" id="kki-boxes"></div>
+    <div class="kki-pad-wrap" id="kki-pad-wrap"></div>
     <div class="kp-btn-row">
       <button class="kp-sub-btn" onclick="kanjiKakiInputClear()">🧽 消す</button>
       <button class="kp-main-btn" id="kki-next-btn" onclick="kanjiKakiInputNext()">次の問題へ →</button>
@@ -21867,7 +21868,7 @@
 
   // ===== 2026-09-26 段階C：書きテストの画面入力版（撮影の代わりに一問ずつ画面に書く） =====================
   //   ★test 枠限定（_isKanjiLearnPreviewAllowed）。実生徒は従来どおり startKanjiKaki（撮影テスト）。
-  //   ★答え全体（送りがな込み）を字数分の白紙マスに 1 字ずつ書く。一問ごとの判定は出さない。
+  //   ★答え全体（送りがな込み）を1問1枚の大きな白紙キャンバスに書く（2026-09-26 マス方式から変更）。一問ごとの判定は出さない。
   //   ★最後に全問を「番号＋書いた字」の白背景 JPEG 1 枚に合成し、_kanjiState.kakiPhotoBase64 に入れて
   //     現行の submitKanjiKakiPhoto() で送る＝送信パラメータ・判定・結果・HP・記録・再挑戦はすべて現行のまま。
   //   ★状態は _kanjiKakiInput に独立して持ち、sessionId が一致するときだけ「画面入力モード」とみなす
@@ -21887,15 +21888,10 @@
     if (!allowed) { startKanjiKaki(); return; }
     try { startKanjiKakiInput(); } catch(e) { startKanjiKaki(); }   // 画面入力側の不具合でテストに行けなくならないように
   }
-  function _kkiCharsOf(answer) {
-    var s = String(answer == null ? '' : answer).replace(/\s+/g, '');
-    var arr = Array.from ? Array.from(s) : s.split('');
-    return arr.length ? arr : [''];
-  }
+  // 2026-09-26：字数分のマス → ★1問1枚の大きな白紙キャンバスに変更（字数のズレで送りがなが合わない・混乱の懸念）。
+  //   strokes は「その問の答え全体」の線のリスト（座標は枠の幅・高さに対する 0〜1 の割合）。
   function _kkiMakeItem(no, kanjiId, question, answer) {
-    var chars = _kkiCharsOf(answer);
-    return { no: no, kanjiId: kanjiId, question: String(question || ''), answer: String(answer || ''),
-             chars: chars, strokes: chars.map(function(){ return []; }) };
+    return { no: no, kanjiId: kanjiId, question: String(question || ''), answer: String(answer || ''), strokes: [] };
   }
   // 通常の書きテスト（全問）を画面入力で始める。startKanjiKaki と同じく書き段階を端末に記録する（自動再開用）。
   function startKanjiKakiInput() {
@@ -21910,7 +21906,7 @@
     if (!items.length) { startKanjiKaki(); return; }
     _kanjiKakiInput = { active: true, sessionId: _kanjiState.sessionId, items: items, idx: 0, isRetry: false,
                         current: null, bound: _kanjiKakiInput.bound };
-    _kkiShow(_kanjiState.isResumed ? '書きの続きから再開したよ。マスに1字ずつ書くのじゃ' : 'マスに1字ずつ、ていねいに書くのじゃ');
+    _kkiShow(_kanjiState.isResumed ? '書きの続きから再開したよ。白い枠に答えを書くのじゃ' : '白い枠に、送りがなもふくめて ていねいに書くのじゃ');
   }
   // 間違えた問題だけの再挑戦（_retryKanjiKaki から呼ばれる）。番号は元の問題番号のまま（retryAnswers.no）。
   function _startKanjiKakiInputFromRetry() {
@@ -21942,46 +21938,50 @@
   }
 
   // --- 描画 ---------------------------------------------------------------------------
-  function _kkiBoxSize(n) {
-    var wrap = document.getElementById('kki-boxes');
-    var w = wrap ? wrap.getBoundingClientRect().width : 0;
-    if (!w) w = 320;
-    var gap = 8, border = 4;
-    var s = Math.floor((w - gap * (n - 1)) / n) - border;
-    return Math.max(56, Math.min(130, s));
+  // 白紙キャンバスの縦横比（幅:高さ = 5:3）。★保存する線は幅・高さに対する割合なので、画面サイズや
+  //   送信用画像の大きさが変わっても同じ形で描き直せる（比率を固定しているので字がゆがまない）。
+  var KKI_ASPECT = 3 / 5;
+  // 長方形の canvas を devicePixelRatio 倍の実ピクセルで用意（描画座標は CSS px のまま）。
+  function _kkiSetupRect(cv, w, h) {
+    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    return ctx;
   }
-  function _kkiDrawStrokes(ctx, strokes, s, color) {
+  function _kkiDrawStrokes(ctx, strokes, w, h, color) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = color || '#111827';
-    ctx.lineWidth = Math.max(3, s * 0.055);
+    ctx.lineWidth = Math.max(3, h * 0.03);
     (strokes || []).forEach(function(st){
       if (!st || !st.length) return;
       ctx.beginPath();
-      ctx.moveTo(st[0][0] * s, st[0][1] * s);
-      if (st.length === 1) ctx.lineTo(st[0][0] * s + 0.01, st[0][1] * s);
-      for (var i = 1; i < st.length; i++) ctx.lineTo(st[i][0] * s, st[i][1] * s);
+      ctx.moveTo(st[0][0] * w, st[0][1] * h);
+      if (st.length === 1) ctx.lineTo(st[0][0] * w + 0.01, st[0][1] * h);
+      for (var i = 1; i < st.length; i++) ctx.lineTo(st[i][0] * w, st[i][1] * h);
       ctx.stroke();
     });
   }
-  // マス 1 つを白紙で描き直す（★グリッドなし・白背景）。
-  function _kkiRedrawBox(b) {
-    var cv = document.querySelector('#kki-boxes canvas[data-box="' + b + '"]');
+  // 白紙キャンバスを描き直す（★グリッドなし・白背景）。
+  function _kkiRedrawPad() {
+    var cv = document.getElementById('kki-pad');
     var it = _kanjiKakiInput.items[_kanjiKakiInput.idx];
     if (!cv || !it) return;
-    var s = Number(cv.getAttribute('data-size')) || 100;
-    var ctx = _kpSetupCanvas(cv, s);           // 段階B の devicePixelRatio 対応を流用
+    var w = Number(cv.getAttribute('data-w')) || 300, h = Number(cv.getAttribute('data-h')) || 180;
+    var ctx = _kkiSetupRect(cv, w, h);
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, s, s);
-    var list = (it.strokes[b] || []).slice();
-    if (_kanjiKakiInput.current && _kanjiKakiInput.current.box === b) list.push(_kanjiKakiInput.current.pts);
-    _kkiDrawStrokes(ctx, list, s);
+    ctx.fillRect(0, 0, w, h);
+    var list = it.strokes.slice();
+    if (_kanjiKakiInput.current) list.push(_kanjiKakiInput.current.pts);
+    _kkiDrawStrokes(ctx, list, w, h);
   }
   function _kkiRenderQuestion() {
     var items = _kanjiKakiInput.items;
     var it = items[_kanjiKakiInput.idx];
     if (!it) return;
-    var n = it.chars.length;
     var prog = document.getElementById('kki-prog');
     if (prog) prog.textContent = (_kanjiKakiInput.isRetry ? '再挑戦 ' : '') + (_kanjiKakiInput.idx + 1) + ' / ' + items.length;
     var num = document.getElementById('kki-q-num');
@@ -21989,16 +21989,15 @@
     var qt = document.getElementById('kki-q-text');
     if (qt) qt.innerHTML = _kanjiRenderEmphasis(it.question);
     var hint = document.getElementById('kki-q-hint');
-    if (hint) hint.innerHTML = '↑ <span class="kanji-emphasis">赤い太字</span>を漢字で書こう（送りがなもふくめて ' + n + ' 字）';
-    var wrap = document.getElementById('kki-boxes');
+    if (hint) hint.innerHTML = '↑ <span class="kanji-emphasis">赤い太字</span>を、送りがなもふくめて漢字で書こう';
+    var wrap = document.getElementById('kki-pad-wrap');
     if (wrap) {
-      var s = _kkiBoxSize(n);
-      var html = '';
-      for (var b = 0; b < n; b++) {
-        html += '<canvas class="kki-box" data-box="' + b + '" data-size="' + s + '" style="width:' + s + 'px;height:' + s + 'px"></canvas>';
-      }
-      wrap.innerHTML = html;
-      for (var b2 = 0; b2 < n; b2++) _kkiRedrawBox(b2);
+      var border = 4;
+      var w = Math.floor((wrap.getBoundingClientRect().width || 320) - border);
+      w = Math.max(240, Math.min(560, w));
+      var h = Math.round(w * KKI_ASPECT);
+      wrap.innerHTML = '<canvas class="kki-pad" id="kki-pad" data-w="' + w + '" data-h="' + h + '" style="width:' + w + 'px;height:' + h + 'px"></canvas>';
+      _kkiRedrawPad();
     }
     var last = (_kanjiKakiInput.idx + 1 >= items.length);
     var nb = document.getElementById('kki-next-btn');
@@ -22010,7 +22009,7 @@
   // --- 入力（段階B と同じ作法：pointer＋setPointerCapture、iPad の既定ジェスチャはマス領域で停止）---------
   function _kkiPoint(cv, e) {
     var r = cv.getBoundingClientRect();
-    // マスの枠線（border）ぶんを除いた描画領域に対する割合
+    // 枠線（border）ぶんを除いた描画領域に対する割合
     var bl = cv.clientLeft || 0, bt = cv.clientTop || 0;
     var w = cv.clientWidth || r.width || 1, h = cv.clientHeight || r.height || 1;
     var x = (e.clientX - r.left - bl) / w, y = (e.clientY - r.top - bt) / h;
@@ -22018,13 +22017,12 @@
   }
   function _kkiOnDown(e) {
     var cv = e.target;
-    if (!cv || !cv.classList || !cv.classList.contains('kki-box')) return;
+    if (!cv || !cv.classList || !cv.classList.contains('kki-pad')) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
     try { cv.setPointerCapture(e.pointerId); } catch(_e) {}
-    var b = Number(cv.getAttribute('data-box'));
-    _kanjiKakiInput.current = { box: b, pid: e.pointerId, cv: cv, pts: [_kkiPoint(cv, e)] };
-    _kkiRedrawBox(b);
+    _kanjiKakiInput.current = { pid: e.pointerId, cv: cv, pts: [_kkiPoint(cv, e)] };
+    _kkiRedrawPad();
   }
   function _kkiOnMove(e) {
     var cur = _kanjiKakiInput.current;
@@ -22033,20 +22031,20 @@
     var evs = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : null;
     if (!evs || !evs.length) evs = [e];
     for (var i = 0; i < evs.length; i++) cur.pts.push(_kkiPoint(cur.cv, evs[i]));
-    _kkiRedrawBox(cur.box);
+    _kkiRedrawPad();
   }
   function _kkiOnUp(e) {
     var cur = _kanjiKakiInput.current;
     if (!cur || e.pointerId !== cur.pid) return;
     try { cur.cv.releasePointerCapture(e.pointerId); } catch(_e) {}
     var it = _kanjiKakiInput.items[_kanjiKakiInput.idx];
-    if (it && it.strokes[cur.box]) it.strokes[cur.box].push(cur.pts);
+    if (it) it.strokes.push(cur.pts);
     _kanjiKakiInput.current = null;
-    _kkiRedrawBox(cur.box);
+    _kkiRedrawPad();
   }
   function _kkiBind() {
     if (_kanjiKakiInput.bound) return;
-    var wrap = document.getElementById('kki-boxes');
+    var wrap = document.getElementById('kki-pad-wrap');
     if (!wrap) return;
     wrap.addEventListener('pointerdown', _kkiOnDown);
     wrap.addEventListener('pointermove', _kkiOnMove);
@@ -22070,12 +22068,12 @@
 
   // --- 操作 ---------------------------------------------------------------------------
   function _kkiItemBlank(it) {
-    return !it || it.strokes.every(function(list){ return !list || !list.length; });
+    return !it || !it.strokes.length;
   }
   function kanjiKakiInputClear() {
     var it = _kanjiKakiInput.items[_kanjiKakiInput.idx];
     if (!it) return;
-    it.strokes = it.chars.map(function(){ return []; });
+    it.strokes = [];
     _kanjiKakiInput.current = null;
     _kkiRenderQuestion();
   }
@@ -22097,34 +22095,31 @@
     }
     kanjiKakiInputSubmit();
   }
-  // 全問を 1 枚に合成：各行「番号.」＋書いた字（白背景・マスの枠線なし）。★JPEG は透明が黒になるので先に白で塗る。
+  // 全問を 1 枚に合成：各行「番号.」＋その問の白紙キャンバス（白背景・枠線なし）を縦に並べる。
+  //   ★JPEG は透明が黒になるので先に白で塗る。行の高さは白紙キャンバスと同じ 5:3 の比率。
   function _kkiComposeDataUrl() {
     var items = _kanjiKakiInput.items;
-    var B = 160, GAP = 16, LABEL = 150, ROWGAP = 40, PAD = 40;
-    var maxN = 1;
-    items.forEach(function(it){ if (it.chars.length > maxN) maxN = it.chars.length; });
-    var W = PAD * 2 + LABEL + maxN * B + (maxN - 1) * GAP;
-    var H = PAD * 2 + items.length * B + (items.length - 1) * ROWGAP;
+    var EW = 600, EH = Math.round(EW * KKI_ASPECT), LABEL = 150, ROWGAP = 40, PAD = 40;
+    var W = PAD * 2 + LABEL + EW;
+    var H = PAD * 2 + items.length * EH + (items.length - 1) * ROWGAP;
     var cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     var ctx = cv.getContext('2d');
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, W, H);
     items.forEach(function(it, r){
-      var y0 = PAD + r * (B + ROWGAP);
+      var y0 = PAD + r * (EH + ROWGAP);
       ctx.save();
       ctx.fillStyle = '#111827';
       ctx.font = 'bold 72px system-ui, Arial, sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillText(it.no + '.', PAD, y0 + B / 2);
+      ctx.fillText(it.no + '.', PAD, y0 + EH / 2);
       ctx.restore();
-      for (var b = 0; b < it.chars.length; b++) {
-        ctx.save();
-        ctx.translate(PAD + LABEL + b * (B + GAP), y0);
-        _kkiDrawStrokes(ctx, it.strokes[b], B, '#111827');
-        ctx.restore();
-      }
+      ctx.save();
+      ctx.translate(PAD + LABEL, y0);
+      _kkiDrawStrokes(ctx, it.strokes, EW, EH, '#111827');
+      ctx.restore();
     });
     return cv.toDataURL('image/jpeg', 0.85);
   }
@@ -26297,7 +26292,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260926-2233</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-0002</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
