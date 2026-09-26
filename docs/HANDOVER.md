@@ -2677,3 +2677,27 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 051b781f4b55095ddd36035640bd9405c09c41f5 && git push origin main && git checkout dev
   ```
+
+## 2026-09-26 本番反映：カンジー段階B 書き練習（test 枠限定）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `52fb049` feat(カンジー)：読み合格 →（test 枠のみ）案内画面 `screen-kanji-practice-intro` → 1字ずつ canvas に書く練習 `screen-kanji-practice` → 現行の書きテスト（`startKanjiKaki`）
+    - 対象字は段階A の＜書き＞と同じ（`_kanjiLearnKakiChars`・1問1字）
+    - canvas 4層（グリッド＝外枠実線＋十字点線／お手本／書いた線／赤重ね）、pointer＋setPointerCapture、touch-action:none、devicePixelRatio 対応
+    - モード「お手本を見ながら書く／なぞる」、「書けた！」で正しい字を赤の半透明で重ねる（判定なし）
+    - 描画前に `document.fonts.load('600 1em "Klee One"', 練習字)` で字ごとに読み込み
+    - 判定・保存・HP なし（gasGet/gasPost 不使用・`_kanjiState` の写真/判定に触れない）
+    - ★実生徒（`_isKanjiLearnPreviewAllowed()`=false）は従来どおり `startKanjiKaki` へ直行。既存行の変更は読み合格ボタンの onclick（`startKanjiKaki()`→`goKanjiKakiFromYomi()`）1行のみ
+  - `737fd5f` docs(handover)：前回反映（`051b781`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`051b781f4b55095ddd36035640bd9405c09c41f5`**（＝`051b781`）
+- **マージコミット：`48d6416ade678a116b9fa53de91f091c6ee63032`**（＝`48d6416`）
+- 版バッジ：`20260926-1917`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `48d6416` / run `36239716413` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`48d6416ade678a116b9fa53de91f091c6ee63032` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `757e33d0…` / view `cd5e5b2e…` / admin `fc6bd0f3…`
+- 配信 index：`screen-kanji-practice` 5 件、`goKanjiKakiFromYomi` 4 件、旧 `onclick="startKanjiKaki()">✏️ 次は書きに挑戦` 0 件
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（launch.json 等の混入なし）。CLAUDE.md ゲート判定値＝**360 行**（すべて index.html の段階B：追加359＋onclick 1行。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 48d6416ade678a116b9fa53de91f091c6ee63032 && git push origin main && git checkout dev
+  ```
