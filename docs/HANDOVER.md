@@ -2875,3 +2875,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 0b7392fe5cfc79b967ffac29852866f7381bc611 && git push origin main && git checkout dev
   ```
+
+## 2026-09-27 本番反映：試着の説明文を購入済み/未購入で出し分け
+
+- ★新アイテムは全て予告＝実生徒への影響なし
+- 反映内容（dev→main マージ、2 コミット）
+  - `518e57b` fix(アバター)：`tryOnAvatarItem` で試着プレビュー説明文の後半（括弧）だけを所持状況で出し分け。未所持＝「こんなイメージになるよ（まだ購入していないよ）」／所持＝「こんなイメージになるよ（既に購入済みだよ）」。所持判定はショップの「所持済み」表示と同じ `it.owned`（`_avatarShopItemCache`、新規通信なし）。試着の動作・表示画像・第2弾（上下セット表示・方式B・クローゼット順序・履物フラグ）・AV001〜072・base・サーバーは無変更
+  - `688ef0f` docs(handover)：前回反映（`0b7392f`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`0b7392fe5cfc79b967ffac29852866f7381bc611`**（＝`0b7392f`）
+- **マージコミット：`7e3f486eaf54ae095ad12ab27d9c34ad0c4ad2a5`**（＝`7e3f486`）
+- 版バッジ：`20260927-1833`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `7e3f486` / run `36311163105` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`7e3f486eaf54ae095ad12ab27d9c34ad0c4ad2a5` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `5206fd8b…` / view `cc2fa742…` / admin `991a45a2…`
+- 配信 index：「既に購入済みだよ」1か所を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**3 行**（すべて index.html の出し分け。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 7e3f486eaf54ae095ad12ab27d9c34ad0c4ad2a5 && git push origin main && git checkout dev
+  ```
