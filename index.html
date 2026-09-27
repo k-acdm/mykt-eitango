@@ -3719,10 +3719,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-1701"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-1817"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-1701">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-1701"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-1817">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-1817"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4661,7 +4661,7 @@
     <div class="avatar-tryon-ttl">👗 試着プレビュー</div>
     <div class="avatar-tryon-imgwrap"><img class="avatar-tryon-img" id="avatar-tryon-img" src="" alt="試着プレビュー"></div>
     <div class="avatar-tryon-name" id="avatar-tryon-name"></div>
-    <div class="avatar-tryon-note">いま着ている服に重ねた姿だよ（まだ購入していないよ）</div>
+    <div class="avatar-tryon-note">こんなイメージになるよ（まだ購入していないよ）</div>
     <div class="avatar-tryon-actions" id="avatar-tryon-actions"></div>
     <button type="button" class="avatar-tryon-close" onclick="closeAvatarTryOn()">閉じる</button>
   </div>
@@ -11144,10 +11144,23 @@
     return m ? Number(m[1]) : 0;
   }
 
+  // クローゼットの表示順：上下セット（outfit）だけをボトムス（bottoms）の直後に移す。
+  //   ★元配列は書き換えず新しい配列を返す。outfit / bottoms のどちらかが無ければサーバーの順序のまま。
+  function _closetOutfitAfterBottoms(cats) {
+    var oi = -1, i;
+    for (i = 0; i < cats.length; i++) { if (cats[i] && cats[i].categoryKey === 'outfit') { oi = i; break; } }
+    if (oi < 0) return cats;
+    var rest = cats.slice(0, oi).concat(cats.slice(oi + 1));
+    for (i = 0; i < rest.length; i++) {
+      if (rest[i] && rest[i].categoryKey === 'bottoms') { rest.splice(i + 1, 0, cats[oi]); return rest; }
+    }
+    return cats;
+  }
   function _renderAvatarCloset(res) {
     var body = document.getElementById('avatar-closet-body');
     if (!body) return;
     var cats = Array.isArray(res.categories) ? res.categories : [];
+    cats = _closetOutfitAfterBottoms(cats);   // 上下セットをボトムスの直後へ（他カテゴリの順序はサーバーのまま）
     // 着用案内（購入だけでは着られない旨）＋押し出し通知の残り
     var guide = '<div class="avatar-closet-guide">💡 買っただけでは着られません。ここで「装着する」を押すとアバターに反映されます。<br>置物（ペット・小物・コラボ・バッジ）は枠の数だけ同時に飾れます。いっぱいの時に新しく装着すると、古いものは持ち物に戻ります。</div>';
     if (cats.length === 0) {
@@ -26828,7 +26841,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-1701</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-1817</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
