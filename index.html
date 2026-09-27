@@ -3719,10 +3719,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-0120"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-1701"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-0120">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-0120"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-1701">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-1701"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9757,6 +9757,498 @@
           m[_outfitKey(_OUTFIT_BASE_ORDER[bi], _OUTFIT_TOPS_ORDER[ti], _OUTFIT_BOTTOMS_ORDER[bj])] = n++;
     return m;
   })();
+  // ===== 第2弾：服の完成画像 AV0000073〜537（avatar_map2.json を唯一の正として明示登録）=====
+  //   ★AV1〜72 は上のループ生成のまま（不変）。073 以降は推測で連番を組まず、対応表の行をそのまま登録する。
+  //   ★item_code は3桁（tops_003 等）。画像ファイル名（tops_03.png 等）の2桁とは別物。tops_010/012 は欠番（不使用）。
+  //   ・トップス/ボトムス：AV73〜504（432件）→ AVATAR_OUTFIT_MAP に _outfitKey で追加（試着・表示が自動で追従）
+  //   ・上下セット：AV505〜537（33件）→ AVATAR_OUTFIT_SET_MAP（'base|outfit_code'→AV番号）。★表示・排他・履物フラグは次段
+  //   行形式：[AV番号, base, tops_code, bottoms_code]（着ていない側は ''）
+  var _OUTFIT_MAP2_ROWS = [
+    [73, 'boy', 'tops_003', ''],
+    [74, 'boy', 'tops_004', ''],
+    [75, 'boy', 'tops_005', ''],
+    [76, 'boy', 'tops_006', ''],
+    [77, 'boy', 'tops_009', ''],
+    [78, 'boy', 'tops_011', ''],
+    [79, 'boy', 'tops_013', ''],
+    [80, 'boy', 'tops_014', ''],
+    [81, 'girl', 'tops_003', ''],
+    [82, 'girl', 'tops_004', ''],
+    [83, 'girl', 'tops_005', ''],
+    [84, 'girl', 'tops_006', ''],
+    [85, 'girl', 'tops_009', ''],
+    [86, 'girl', 'tops_011', ''],
+    [87, 'girl', 'tops_013', ''],
+    [88, 'girl', 'tops_014', ''],
+    [89, 'neutral', 'tops_003', ''],
+    [90, 'neutral', 'tops_004', ''],
+    [91, 'neutral', 'tops_005', ''],
+    [92, 'neutral', 'tops_006', ''],
+    [93, 'neutral', 'tops_009', ''],
+    [94, 'neutral', 'tops_011', ''],
+    [95, 'neutral', 'tops_013', ''],
+    [96, 'neutral', 'tops_014', ''],
+    [97, 'boy', '', 'bottoms_005'],
+    [98, 'boy', '', 'bottoms_006'],
+    [99, 'boy', '', 'bottoms_007'],
+    [100, 'boy', '', 'bottoms_008'],
+    [101, 'boy', '', 'bottoms_009'],
+    [102, 'boy', '', 'bottoms_010'],
+    [103, 'boy', '', 'bottoms_011'],
+    [104, 'boy', '', 'bottoms_012'],
+    [105, 'girl', '', 'bottoms_005'],
+    [106, 'girl', '', 'bottoms_006'],
+    [107, 'girl', '', 'bottoms_007'],
+    [108, 'girl', '', 'bottoms_008'],
+    [109, 'girl', '', 'bottoms_009'],
+    [110, 'girl', '', 'bottoms_010'],
+    [111, 'girl', '', 'bottoms_011'],
+    [112, 'girl', '', 'bottoms_012'],
+    [113, 'neutral', '', 'bottoms_005'],
+    [114, 'neutral', '', 'bottoms_006'],
+    [115, 'neutral', '', 'bottoms_007'],
+    [116, 'neutral', '', 'bottoms_008'],
+    [117, 'neutral', '', 'bottoms_009'],
+    [118, 'neutral', '', 'bottoms_010'],
+    [119, 'neutral', '', 'bottoms_011'],
+    [120, 'neutral', '', 'bottoms_012'],
+    [121, 'boy', 'tops_001', 'bottoms_005'],
+    [122, 'boy', 'tops_001', 'bottoms_006'],
+    [123, 'boy', 'tops_001', 'bottoms_007'],
+    [124, 'boy', 'tops_001', 'bottoms_008'],
+    [125, 'boy', 'tops_001', 'bottoms_009'],
+    [126, 'boy', 'tops_001', 'bottoms_010'],
+    [127, 'boy', 'tops_001', 'bottoms_011'],
+    [128, 'boy', 'tops_001', 'bottoms_012'],
+    [129, 'boy', 'tops_002', 'bottoms_005'],
+    [130, 'boy', 'tops_002', 'bottoms_006'],
+    [131, 'boy', 'tops_002', 'bottoms_007'],
+    [132, 'boy', 'tops_002', 'bottoms_008'],
+    [133, 'boy', 'tops_002', 'bottoms_009'],
+    [134, 'boy', 'tops_002', 'bottoms_010'],
+    [135, 'boy', 'tops_002', 'bottoms_011'],
+    [136, 'boy', 'tops_002', 'bottoms_012'],
+    [137, 'boy', 'tops_003', 'bottoms_001'],
+    [138, 'boy', 'tops_003', 'bottoms_002'],
+    [139, 'boy', 'tops_003', 'bottoms_003'],
+    [140, 'boy', 'tops_003', 'bottoms_004'],
+    [141, 'boy', 'tops_003', 'bottoms_005'],
+    [142, 'boy', 'tops_003', 'bottoms_006'],
+    [143, 'boy', 'tops_003', 'bottoms_007'],
+    [144, 'boy', 'tops_003', 'bottoms_008'],
+    [145, 'boy', 'tops_003', 'bottoms_009'],
+    [146, 'boy', 'tops_003', 'bottoms_010'],
+    [147, 'boy', 'tops_003', 'bottoms_011'],
+    [148, 'boy', 'tops_003', 'bottoms_012'],
+    [149, 'boy', 'tops_004', 'bottoms_001'],
+    [150, 'boy', 'tops_004', 'bottoms_002'],
+    [151, 'boy', 'tops_004', 'bottoms_003'],
+    [152, 'boy', 'tops_004', 'bottoms_004'],
+    [153, 'boy', 'tops_004', 'bottoms_005'],
+    [154, 'boy', 'tops_004', 'bottoms_006'],
+    [155, 'boy', 'tops_004', 'bottoms_007'],
+    [156, 'boy', 'tops_004', 'bottoms_008'],
+    [157, 'boy', 'tops_004', 'bottoms_009'],
+    [158, 'boy', 'tops_004', 'bottoms_010'],
+    [159, 'boy', 'tops_004', 'bottoms_011'],
+    [160, 'boy', 'tops_004', 'bottoms_012'],
+    [161, 'boy', 'tops_005', 'bottoms_001'],
+    [162, 'boy', 'tops_005', 'bottoms_002'],
+    [163, 'boy', 'tops_005', 'bottoms_003'],
+    [164, 'boy', 'tops_005', 'bottoms_004'],
+    [165, 'boy', 'tops_005', 'bottoms_005'],
+    [166, 'boy', 'tops_005', 'bottoms_006'],
+    [167, 'boy', 'tops_005', 'bottoms_007'],
+    [168, 'boy', 'tops_005', 'bottoms_008'],
+    [169, 'boy', 'tops_005', 'bottoms_009'],
+    [170, 'boy', 'tops_005', 'bottoms_010'],
+    [171, 'boy', 'tops_005', 'bottoms_011'],
+    [172, 'boy', 'tops_005', 'bottoms_012'],
+    [173, 'boy', 'tops_006', 'bottoms_001'],
+    [174, 'boy', 'tops_006', 'bottoms_002'],
+    [175, 'boy', 'tops_006', 'bottoms_003'],
+    [176, 'boy', 'tops_006', 'bottoms_004'],
+    [177, 'boy', 'tops_006', 'bottoms_005'],
+    [178, 'boy', 'tops_006', 'bottoms_006'],
+    [179, 'boy', 'tops_006', 'bottoms_007'],
+    [180, 'boy', 'tops_006', 'bottoms_008'],
+    [181, 'boy', 'tops_006', 'bottoms_009'],
+    [182, 'boy', 'tops_006', 'bottoms_010'],
+    [183, 'boy', 'tops_006', 'bottoms_011'],
+    [184, 'boy', 'tops_006', 'bottoms_012'],
+    [185, 'boy', 'tops_007', 'bottoms_005'],
+    [186, 'boy', 'tops_007', 'bottoms_006'],
+    [187, 'boy', 'tops_007', 'bottoms_007'],
+    [188, 'boy', 'tops_007', 'bottoms_008'],
+    [189, 'boy', 'tops_007', 'bottoms_009'],
+    [190, 'boy', 'tops_007', 'bottoms_010'],
+    [191, 'boy', 'tops_007', 'bottoms_011'],
+    [192, 'boy', 'tops_007', 'bottoms_012'],
+    [193, 'boy', 'tops_008', 'bottoms_005'],
+    [194, 'boy', 'tops_008', 'bottoms_006'],
+    [195, 'boy', 'tops_008', 'bottoms_007'],
+    [196, 'boy', 'tops_008', 'bottoms_008'],
+    [197, 'boy', 'tops_008', 'bottoms_009'],
+    [198, 'boy', 'tops_008', 'bottoms_010'],
+    [199, 'boy', 'tops_008', 'bottoms_011'],
+    [200, 'boy', 'tops_008', 'bottoms_012'],
+    [201, 'boy', 'tops_009', 'bottoms_001'],
+    [202, 'boy', 'tops_009', 'bottoms_002'],
+    [203, 'boy', 'tops_009', 'bottoms_003'],
+    [204, 'boy', 'tops_009', 'bottoms_004'],
+    [205, 'boy', 'tops_009', 'bottoms_005'],
+    [206, 'boy', 'tops_009', 'bottoms_006'],
+    [207, 'boy', 'tops_009', 'bottoms_007'],
+    [208, 'boy', 'tops_009', 'bottoms_008'],
+    [209, 'boy', 'tops_009', 'bottoms_009'],
+    [210, 'boy', 'tops_009', 'bottoms_010'],
+    [211, 'boy', 'tops_009', 'bottoms_011'],
+    [212, 'boy', 'tops_009', 'bottoms_012'],
+    [213, 'boy', 'tops_011', 'bottoms_001'],
+    [214, 'boy', 'tops_011', 'bottoms_002'],
+    [215, 'boy', 'tops_011', 'bottoms_003'],
+    [216, 'boy', 'tops_011', 'bottoms_004'],
+    [217, 'boy', 'tops_011', 'bottoms_005'],
+    [218, 'boy', 'tops_011', 'bottoms_006'],
+    [219, 'boy', 'tops_011', 'bottoms_007'],
+    [220, 'boy', 'tops_011', 'bottoms_008'],
+    [221, 'boy', 'tops_011', 'bottoms_009'],
+    [222, 'boy', 'tops_011', 'bottoms_010'],
+    [223, 'boy', 'tops_011', 'bottoms_011'],
+    [224, 'boy', 'tops_011', 'bottoms_012'],
+    [225, 'boy', 'tops_013', 'bottoms_001'],
+    [226, 'boy', 'tops_013', 'bottoms_002'],
+    [227, 'boy', 'tops_013', 'bottoms_003'],
+    [228, 'boy', 'tops_013', 'bottoms_004'],
+    [229, 'boy', 'tops_013', 'bottoms_005'],
+    [230, 'boy', 'tops_013', 'bottoms_006'],
+    [231, 'boy', 'tops_013', 'bottoms_007'],
+    [232, 'boy', 'tops_013', 'bottoms_008'],
+    [233, 'boy', 'tops_013', 'bottoms_009'],
+    [234, 'boy', 'tops_013', 'bottoms_010'],
+    [235, 'boy', 'tops_013', 'bottoms_011'],
+    [236, 'boy', 'tops_013', 'bottoms_012'],
+    [237, 'boy', 'tops_014', 'bottoms_001'],
+    [238, 'boy', 'tops_014', 'bottoms_002'],
+    [239, 'boy', 'tops_014', 'bottoms_003'],
+    [240, 'boy', 'tops_014', 'bottoms_004'],
+    [241, 'boy', 'tops_014', 'bottoms_005'],
+    [242, 'boy', 'tops_014', 'bottoms_006'],
+    [243, 'boy', 'tops_014', 'bottoms_007'],
+    [244, 'boy', 'tops_014', 'bottoms_008'],
+    [245, 'boy', 'tops_014', 'bottoms_009'],
+    [246, 'boy', 'tops_014', 'bottoms_010'],
+    [247, 'boy', 'tops_014', 'bottoms_011'],
+    [248, 'boy', 'tops_014', 'bottoms_012'],
+    [249, 'girl', 'tops_001', 'bottoms_005'],
+    [250, 'girl', 'tops_001', 'bottoms_006'],
+    [251, 'girl', 'tops_001', 'bottoms_007'],
+    [252, 'girl', 'tops_001', 'bottoms_008'],
+    [253, 'girl', 'tops_001', 'bottoms_009'],
+    [254, 'girl', 'tops_001', 'bottoms_010'],
+    [255, 'girl', 'tops_001', 'bottoms_011'],
+    [256, 'girl', 'tops_001', 'bottoms_012'],
+    [257, 'girl', 'tops_002', 'bottoms_005'],
+    [258, 'girl', 'tops_002', 'bottoms_006'],
+    [259, 'girl', 'tops_002', 'bottoms_007'],
+    [260, 'girl', 'tops_002', 'bottoms_008'],
+    [261, 'girl', 'tops_002', 'bottoms_009'],
+    [262, 'girl', 'tops_002', 'bottoms_010'],
+    [263, 'girl', 'tops_002', 'bottoms_011'],
+    [264, 'girl', 'tops_002', 'bottoms_012'],
+    [265, 'girl', 'tops_003', 'bottoms_001'],
+    [266, 'girl', 'tops_003', 'bottoms_002'],
+    [267, 'girl', 'tops_003', 'bottoms_003'],
+    [268, 'girl', 'tops_003', 'bottoms_004'],
+    [269, 'girl', 'tops_003', 'bottoms_005'],
+    [270, 'girl', 'tops_003', 'bottoms_006'],
+    [271, 'girl', 'tops_003', 'bottoms_007'],
+    [272, 'girl', 'tops_003', 'bottoms_008'],
+    [273, 'girl', 'tops_003', 'bottoms_009'],
+    [274, 'girl', 'tops_003', 'bottoms_010'],
+    [275, 'girl', 'tops_003', 'bottoms_011'],
+    [276, 'girl', 'tops_003', 'bottoms_012'],
+    [277, 'girl', 'tops_004', 'bottoms_001'],
+    [278, 'girl', 'tops_004', 'bottoms_002'],
+    [279, 'girl', 'tops_004', 'bottoms_003'],
+    [280, 'girl', 'tops_004', 'bottoms_004'],
+    [281, 'girl', 'tops_004', 'bottoms_005'],
+    [282, 'girl', 'tops_004', 'bottoms_006'],
+    [283, 'girl', 'tops_004', 'bottoms_007'],
+    [284, 'girl', 'tops_004', 'bottoms_008'],
+    [285, 'girl', 'tops_004', 'bottoms_009'],
+    [286, 'girl', 'tops_004', 'bottoms_010'],
+    [287, 'girl', 'tops_004', 'bottoms_011'],
+    [288, 'girl', 'tops_004', 'bottoms_012'],
+    [289, 'girl', 'tops_005', 'bottoms_001'],
+    [290, 'girl', 'tops_005', 'bottoms_002'],
+    [291, 'girl', 'tops_005', 'bottoms_003'],
+    [292, 'girl', 'tops_005', 'bottoms_004'],
+    [293, 'girl', 'tops_005', 'bottoms_005'],
+    [294, 'girl', 'tops_005', 'bottoms_006'],
+    [295, 'girl', 'tops_005', 'bottoms_007'],
+    [296, 'girl', 'tops_005', 'bottoms_008'],
+    [297, 'girl', 'tops_005', 'bottoms_009'],
+    [298, 'girl', 'tops_005', 'bottoms_010'],
+    [299, 'girl', 'tops_005', 'bottoms_011'],
+    [300, 'girl', 'tops_005', 'bottoms_012'],
+    [301, 'girl', 'tops_006', 'bottoms_001'],
+    [302, 'girl', 'tops_006', 'bottoms_002'],
+    [303, 'girl', 'tops_006', 'bottoms_003'],
+    [304, 'girl', 'tops_006', 'bottoms_004'],
+    [305, 'girl', 'tops_006', 'bottoms_005'],
+    [306, 'girl', 'tops_006', 'bottoms_006'],
+    [307, 'girl', 'tops_006', 'bottoms_007'],
+    [308, 'girl', 'tops_006', 'bottoms_008'],
+    [309, 'girl', 'tops_006', 'bottoms_009'],
+    [310, 'girl', 'tops_006', 'bottoms_010'],
+    [311, 'girl', 'tops_006', 'bottoms_011'],
+    [312, 'girl', 'tops_006', 'bottoms_012'],
+    [313, 'girl', 'tops_007', 'bottoms_005'],
+    [314, 'girl', 'tops_007', 'bottoms_006'],
+    [315, 'girl', 'tops_007', 'bottoms_007'],
+    [316, 'girl', 'tops_007', 'bottoms_008'],
+    [317, 'girl', 'tops_007', 'bottoms_009'],
+    [318, 'girl', 'tops_007', 'bottoms_010'],
+    [319, 'girl', 'tops_007', 'bottoms_011'],
+    [320, 'girl', 'tops_007', 'bottoms_012'],
+    [321, 'girl', 'tops_008', 'bottoms_005'],
+    [322, 'girl', 'tops_008', 'bottoms_006'],
+    [323, 'girl', 'tops_008', 'bottoms_007'],
+    [324, 'girl', 'tops_008', 'bottoms_008'],
+    [325, 'girl', 'tops_008', 'bottoms_009'],
+    [326, 'girl', 'tops_008', 'bottoms_010'],
+    [327, 'girl', 'tops_008', 'bottoms_011'],
+    [328, 'girl', 'tops_008', 'bottoms_012'],
+    [329, 'girl', 'tops_009', 'bottoms_001'],
+    [330, 'girl', 'tops_009', 'bottoms_002'],
+    [331, 'girl', 'tops_009', 'bottoms_003'],
+    [332, 'girl', 'tops_009', 'bottoms_004'],
+    [333, 'girl', 'tops_009', 'bottoms_005'],
+    [334, 'girl', 'tops_009', 'bottoms_006'],
+    [335, 'girl', 'tops_009', 'bottoms_007'],
+    [336, 'girl', 'tops_009', 'bottoms_008'],
+    [337, 'girl', 'tops_009', 'bottoms_009'],
+    [338, 'girl', 'tops_009', 'bottoms_010'],
+    [339, 'girl', 'tops_009', 'bottoms_011'],
+    [340, 'girl', 'tops_009', 'bottoms_012'],
+    [341, 'girl', 'tops_011', 'bottoms_001'],
+    [342, 'girl', 'tops_011', 'bottoms_002'],
+    [343, 'girl', 'tops_011', 'bottoms_003'],
+    [344, 'girl', 'tops_011', 'bottoms_004'],
+    [345, 'girl', 'tops_011', 'bottoms_005'],
+    [346, 'girl', 'tops_011', 'bottoms_006'],
+    [347, 'girl', 'tops_011', 'bottoms_007'],
+    [348, 'girl', 'tops_011', 'bottoms_008'],
+    [349, 'girl', 'tops_011', 'bottoms_009'],
+    [350, 'girl', 'tops_011', 'bottoms_010'],
+    [351, 'girl', 'tops_011', 'bottoms_011'],
+    [352, 'girl', 'tops_011', 'bottoms_012'],
+    [353, 'girl', 'tops_013', 'bottoms_001'],
+    [354, 'girl', 'tops_013', 'bottoms_002'],
+    [355, 'girl', 'tops_013', 'bottoms_003'],
+    [356, 'girl', 'tops_013', 'bottoms_004'],
+    [357, 'girl', 'tops_013', 'bottoms_005'],
+    [358, 'girl', 'tops_013', 'bottoms_006'],
+    [359, 'girl', 'tops_013', 'bottoms_007'],
+    [360, 'girl', 'tops_013', 'bottoms_008'],
+    [361, 'girl', 'tops_013', 'bottoms_009'],
+    [362, 'girl', 'tops_013', 'bottoms_010'],
+    [363, 'girl', 'tops_013', 'bottoms_011'],
+    [364, 'girl', 'tops_013', 'bottoms_012'],
+    [365, 'girl', 'tops_014', 'bottoms_001'],
+    [366, 'girl', 'tops_014', 'bottoms_002'],
+    [367, 'girl', 'tops_014', 'bottoms_003'],
+    [368, 'girl', 'tops_014', 'bottoms_004'],
+    [369, 'girl', 'tops_014', 'bottoms_005'],
+    [370, 'girl', 'tops_014', 'bottoms_006'],
+    [371, 'girl', 'tops_014', 'bottoms_007'],
+    [372, 'girl', 'tops_014', 'bottoms_008'],
+    [373, 'girl', 'tops_014', 'bottoms_009'],
+    [374, 'girl', 'tops_014', 'bottoms_010'],
+    [375, 'girl', 'tops_014', 'bottoms_011'],
+    [376, 'girl', 'tops_014', 'bottoms_012'],
+    [377, 'neutral', 'tops_001', 'bottoms_005'],
+    [378, 'neutral', 'tops_001', 'bottoms_006'],
+    [379, 'neutral', 'tops_001', 'bottoms_007'],
+    [380, 'neutral', 'tops_001', 'bottoms_008'],
+    [381, 'neutral', 'tops_001', 'bottoms_009'],
+    [382, 'neutral', 'tops_001', 'bottoms_010'],
+    [383, 'neutral', 'tops_001', 'bottoms_011'],
+    [384, 'neutral', 'tops_001', 'bottoms_012'],
+    [385, 'neutral', 'tops_002', 'bottoms_005'],
+    [386, 'neutral', 'tops_002', 'bottoms_006'],
+    [387, 'neutral', 'tops_002', 'bottoms_007'],
+    [388, 'neutral', 'tops_002', 'bottoms_008'],
+    [389, 'neutral', 'tops_002', 'bottoms_009'],
+    [390, 'neutral', 'tops_002', 'bottoms_010'],
+    [391, 'neutral', 'tops_002', 'bottoms_011'],
+    [392, 'neutral', 'tops_002', 'bottoms_012'],
+    [393, 'neutral', 'tops_003', 'bottoms_001'],
+    [394, 'neutral', 'tops_003', 'bottoms_002'],
+    [395, 'neutral', 'tops_003', 'bottoms_003'],
+    [396, 'neutral', 'tops_003', 'bottoms_004'],
+    [397, 'neutral', 'tops_003', 'bottoms_005'],
+    [398, 'neutral', 'tops_003', 'bottoms_006'],
+    [399, 'neutral', 'tops_003', 'bottoms_007'],
+    [400, 'neutral', 'tops_003', 'bottoms_008'],
+    [401, 'neutral', 'tops_003', 'bottoms_009'],
+    [402, 'neutral', 'tops_003', 'bottoms_010'],
+    [403, 'neutral', 'tops_003', 'bottoms_011'],
+    [404, 'neutral', 'tops_003', 'bottoms_012'],
+    [405, 'neutral', 'tops_004', 'bottoms_001'],
+    [406, 'neutral', 'tops_004', 'bottoms_002'],
+    [407, 'neutral', 'tops_004', 'bottoms_003'],
+    [408, 'neutral', 'tops_004', 'bottoms_004'],
+    [409, 'neutral', 'tops_004', 'bottoms_005'],
+    [410, 'neutral', 'tops_004', 'bottoms_006'],
+    [411, 'neutral', 'tops_004', 'bottoms_007'],
+    [412, 'neutral', 'tops_004', 'bottoms_008'],
+    [413, 'neutral', 'tops_004', 'bottoms_009'],
+    [414, 'neutral', 'tops_004', 'bottoms_010'],
+    [415, 'neutral', 'tops_004', 'bottoms_011'],
+    [416, 'neutral', 'tops_004', 'bottoms_012'],
+    [417, 'neutral', 'tops_005', 'bottoms_001'],
+    [418, 'neutral', 'tops_005', 'bottoms_002'],
+    [419, 'neutral', 'tops_005', 'bottoms_003'],
+    [420, 'neutral', 'tops_005', 'bottoms_004'],
+    [421, 'neutral', 'tops_005', 'bottoms_005'],
+    [422, 'neutral', 'tops_005', 'bottoms_006'],
+    [423, 'neutral', 'tops_005', 'bottoms_007'],
+    [424, 'neutral', 'tops_005', 'bottoms_008'],
+    [425, 'neutral', 'tops_005', 'bottoms_009'],
+    [426, 'neutral', 'tops_005', 'bottoms_010'],
+    [427, 'neutral', 'tops_005', 'bottoms_011'],
+    [428, 'neutral', 'tops_005', 'bottoms_012'],
+    [429, 'neutral', 'tops_006', 'bottoms_001'],
+    [430, 'neutral', 'tops_006', 'bottoms_002'],
+    [431, 'neutral', 'tops_006', 'bottoms_003'],
+    [432, 'neutral', 'tops_006', 'bottoms_004'],
+    [433, 'neutral', 'tops_006', 'bottoms_005'],
+    [434, 'neutral', 'tops_006', 'bottoms_006'],
+    [435, 'neutral', 'tops_006', 'bottoms_007'],
+    [436, 'neutral', 'tops_006', 'bottoms_008'],
+    [437, 'neutral', 'tops_006', 'bottoms_009'],
+    [438, 'neutral', 'tops_006', 'bottoms_010'],
+    [439, 'neutral', 'tops_006', 'bottoms_011'],
+    [440, 'neutral', 'tops_006', 'bottoms_012'],
+    [441, 'neutral', 'tops_007', 'bottoms_005'],
+    [442, 'neutral', 'tops_007', 'bottoms_006'],
+    [443, 'neutral', 'tops_007', 'bottoms_007'],
+    [444, 'neutral', 'tops_007', 'bottoms_008'],
+    [445, 'neutral', 'tops_007', 'bottoms_009'],
+    [446, 'neutral', 'tops_007', 'bottoms_010'],
+    [447, 'neutral', 'tops_007', 'bottoms_011'],
+    [448, 'neutral', 'tops_007', 'bottoms_012'],
+    [449, 'neutral', 'tops_008', 'bottoms_005'],
+    [450, 'neutral', 'tops_008', 'bottoms_006'],
+    [451, 'neutral', 'tops_008', 'bottoms_007'],
+    [452, 'neutral', 'tops_008', 'bottoms_008'],
+    [453, 'neutral', 'tops_008', 'bottoms_009'],
+    [454, 'neutral', 'tops_008', 'bottoms_010'],
+    [455, 'neutral', 'tops_008', 'bottoms_011'],
+    [456, 'neutral', 'tops_008', 'bottoms_012'],
+    [457, 'neutral', 'tops_009', 'bottoms_001'],
+    [458, 'neutral', 'tops_009', 'bottoms_002'],
+    [459, 'neutral', 'tops_009', 'bottoms_003'],
+    [460, 'neutral', 'tops_009', 'bottoms_004'],
+    [461, 'neutral', 'tops_009', 'bottoms_005'],
+    [462, 'neutral', 'tops_009', 'bottoms_006'],
+    [463, 'neutral', 'tops_009', 'bottoms_007'],
+    [464, 'neutral', 'tops_009', 'bottoms_008'],
+    [465, 'neutral', 'tops_009', 'bottoms_009'],
+    [466, 'neutral', 'tops_009', 'bottoms_010'],
+    [467, 'neutral', 'tops_009', 'bottoms_011'],
+    [468, 'neutral', 'tops_009', 'bottoms_012'],
+    [469, 'neutral', 'tops_011', 'bottoms_001'],
+    [470, 'neutral', 'tops_011', 'bottoms_002'],
+    [471, 'neutral', 'tops_011', 'bottoms_003'],
+    [472, 'neutral', 'tops_011', 'bottoms_004'],
+    [473, 'neutral', 'tops_011', 'bottoms_005'],
+    [474, 'neutral', 'tops_011', 'bottoms_006'],
+    [475, 'neutral', 'tops_011', 'bottoms_007'],
+    [476, 'neutral', 'tops_011', 'bottoms_008'],
+    [477, 'neutral', 'tops_011', 'bottoms_009'],
+    [478, 'neutral', 'tops_011', 'bottoms_010'],
+    [479, 'neutral', 'tops_011', 'bottoms_011'],
+    [480, 'neutral', 'tops_011', 'bottoms_012'],
+    [481, 'neutral', 'tops_013', 'bottoms_001'],
+    [482, 'neutral', 'tops_013', 'bottoms_002'],
+    [483, 'neutral', 'tops_013', 'bottoms_003'],
+    [484, 'neutral', 'tops_013', 'bottoms_004'],
+    [485, 'neutral', 'tops_013', 'bottoms_005'],
+    [486, 'neutral', 'tops_013', 'bottoms_006'],
+    [487, 'neutral', 'tops_013', 'bottoms_007'],
+    [488, 'neutral', 'tops_013', 'bottoms_008'],
+    [489, 'neutral', 'tops_013', 'bottoms_009'],
+    [490, 'neutral', 'tops_013', 'bottoms_010'],
+    [491, 'neutral', 'tops_013', 'bottoms_011'],
+    [492, 'neutral', 'tops_013', 'bottoms_012'],
+    [493, 'neutral', 'tops_014', 'bottoms_001'],
+    [494, 'neutral', 'tops_014', 'bottoms_002'],
+    [495, 'neutral', 'tops_014', 'bottoms_003'],
+    [496, 'neutral', 'tops_014', 'bottoms_004'],
+    [497, 'neutral', 'tops_014', 'bottoms_005'],
+    [498, 'neutral', 'tops_014', 'bottoms_006'],
+    [499, 'neutral', 'tops_014', 'bottoms_007'],
+    [500, 'neutral', 'tops_014', 'bottoms_008'],
+    [501, 'neutral', 'tops_014', 'bottoms_009'],
+    [502, 'neutral', 'tops_014', 'bottoms_010'],
+    [503, 'neutral', 'tops_014', 'bottoms_011'],
+    [504, 'neutral', 'tops_014', 'bottoms_012']
+  ];
+  (function(){
+    for (var i = 0; i < _OUTFIT_MAP2_ROWS.length; i++) {
+      var r = _OUTFIT_MAP2_ROWS[i], k = _outfitKey(r[1], r[2], r[3]);
+      if (AVATAR_OUTFIT_MAP[k]) continue;   // 既存（AV1〜72）は上書きしない（安全弁。対応表上は重複なし）
+      AVATAR_OUTFIT_MAP[k] = r[0];
+    }
+  })();
+  // 上下セット：'base|outfit_code' → AV番号（★データ登録のみ。表示ロジックは次段で追加）
+  //   行形式：[AV番号, base, outfit_code]
+  var _OUTFIT_SET_ROWS = [
+    [505, 'boy', 'outfit_001'],
+    [506, 'boy', 'outfit_002'],
+    [507, 'boy', 'outfit_003'],
+    [508, 'boy', 'outfit_004'],
+    [509, 'boy', 'outfit_005'],
+    [510, 'boy', 'outfit_006'],
+    [511, 'boy', 'outfit_007'],
+    [512, 'boy', 'outfit_008'],
+    [513, 'boy', 'outfit_009'],
+    [514, 'boy', 'outfit_010'],
+    [515, 'boy', 'outfit_011'],
+    [516, 'girl', 'outfit_001'],
+    [517, 'girl', 'outfit_002'],
+    [518, 'girl', 'outfit_003'],
+    [519, 'girl', 'outfit_004'],
+    [520, 'girl', 'outfit_005'],
+    [521, 'girl', 'outfit_006'],
+    [522, 'girl', 'outfit_007'],
+    [523, 'girl', 'outfit_008'],
+    [524, 'girl', 'outfit_009'],
+    [525, 'girl', 'outfit_010'],
+    [526, 'girl', 'outfit_011'],
+    [527, 'neutral', 'outfit_001'],
+    [528, 'neutral', 'outfit_002'],
+    [529, 'neutral', 'outfit_003'],
+    [530, 'neutral', 'outfit_004'],
+    [531, 'neutral', 'outfit_005'],
+    [532, 'neutral', 'outfit_006'],
+    [533, 'neutral', 'outfit_007'],
+    [534, 'neutral', 'outfit_008'],
+    [535, 'neutral', 'outfit_009'],
+    [536, 'neutral', 'outfit_010'],
+    [537, 'neutral', 'outfit_011']
+  ];
+  var AVATAR_OUTFIT_SET_MAP = (function(){
+    var m = {};
+    for (var i = 0; i < _OUTFIT_SET_ROWS.length; i++) {
+      var r = _OUTFIT_SET_ROWS[i];
+      m[String(r[1]) + '|' + String(r[2])] = r[0];
+    }
+    return m;
+  })();
   // AV 番号 → outfits 画像パス（AV0000001.png 形式、7桁ゼロ埋め）
   function _outfitAvPath(avNum) {
     var s = String(avNum);
@@ -9770,13 +10262,30 @@
     if (!detail || typeof detail !== 'object') return '';
     return String(detail.itemId || detail.itemCode || detail.item_code || detail.code || '');
   }
+  // 第2弾：履物着用不可の上下セット（靴付き＝6種×base3体＝18枚。avatar_map2.json の no_shoes_outfits と一致）。
+  //   ★履物（shoes）の着せ替え表示は未実装のため、現時点ではフラグを定義するだけ（どこからも参照しない）。
+  //   ★将来、履物を実装するときに「このフラグの上下セットを装着中は履物の装着・試着・描画を制限する」ために使う。
+  var AVATAR_OUTFIT_NO_SHOES = {
+    outfit_003: true, outfit_004: true, outfit_005: true,
+    outfit_006: true, outfit_007: true, outfit_011: true
+  };
+  // 第2弾：上下セット（outfit）の着姿パス。AVATAR_OUTFIT_SET_MAP に無ければ ''（呼び出し側で素体に落とす）。
+  function _outfitSetAvPath(base, outfitCode) {
+    if (!base || !outfitCode) return '';
+    var avNum = AVATAR_OUTFIT_SET_MAP[String(base) + '|' + String(outfitCode)];
+    return avNum ? _outfitAvPath(avNum) : '';
+  }
   // A-3：base + 装着中 tops/bottoms から、表示すべき人体（服）画像パスを決める。
   //   ・トップスもボトムスも未装着 → 素体 base_*.png
   //   ・対応表に無い組み合わせ → 素体 base_*.png に安全に落とす（割れ画像を出さない）
+  //   ・第2弾（方式B）：上下セット（outfit）装着中は見た目を outfit 優先にする。tops/bottoms の装着は
+  //     サーバー側でそのまま保持され、ここで見た目だけ無視する → outfit を外すと元の服が復活する。
   function _avatarBodyImgPath() {
     var base = _avatarState.base;
     if (!base || !AVATAR_BASE_IMG[base]) return '';   // base 未設定は呼び出し側で扱う
     var d = _avatarState.equippedDetails || {};
+    var outfitCode = _equipItemCode(d.outfit);
+    if (outfitCode) return _outfitSetAvPath(base, outfitCode) || AVATAR_BASE_IMG[base];   // 対応表に無い → 素体
     var topsCode    = _equipItemCode(d.tops);
     var bottomsCode = _equipItemCode(d.bottoms);
     if (!topsCode && !bottomsCode) return AVATAR_BASE_IMG[base];   // 未装着＝素体
@@ -9787,9 +10296,11 @@
   // ①試着プレビュー用：生徒自身の base（_avatarState.base）を使い、tops/bottoms を引数で
   //   差し替えて着姿パスを求める純関数。★_avatarState を一切書き換えない（痕跡ゼロ）。
   //   対応表に無い組み合わせは素体に安全落ち（割れ画像を出さない）。
-  function _avatarBodyImgPathWith(topsCode, bottomsCode) {
+  //   第2弾：第3引数 outfitCode を渡すと上下セットの着姿を優先（方式B と同じ優先順位）。省略時は従来どおり。
+  function _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) {
     var base = _avatarState.base;
     if (!base || !AVATAR_BASE_IMG[base]) return '';
+    if (outfitCode) return _outfitSetAvPath(base, outfitCode) || AVATAR_BASE_IMG[base];
     if (!topsCode && !bottomsCode) return AVATAR_BASE_IMG[base];
     var avNum = AVATAR_OUTFIT_MAP[_outfitKey(base, topsCode, bottomsCode)];
     if (!avNum) return AVATAR_BASE_IMG[base];
@@ -9803,7 +10314,8 @@
     if (!base || !AVATAR_BASE_IMG[base] || !itemCode) return false;
     if (categoryKey === 'tops')    return !!AVATAR_OUTFIT_MAP[_outfitKey(base, itemCode, '')];
     if (categoryKey === 'bottoms') return !!AVATAR_OUTFIT_MAP[_outfitKey(base, '', itemCode)];
-    return false;   // 着姿を描けるのは tops/bottoms のみ（outfit 等には出さない）
+    if (categoryKey === 'outfit')  return !!AVATAR_OUTFIT_SET_MAP[base + '|' + itemCode];   // 第2弾：上下セット
+    return false;   // 着姿を描けるのは tops/bottoms/outfit のみ（それ以外には出さない）
   }
   // Phase2：装着中のオーラ画像パス。★背景（_avatarBgPath）と同じ流儀で
   //   サーバーの imagePath をそのまま使う（例 'images/avatar/aura/aura_03.png'）。
@@ -10389,10 +10901,12 @@
     // 現在の装着を土台に、試着する1点だけ差し替える（もう片方の装着はそのまま重ねる）
     var topsCode    = _equipItemCode(d.tops);
     var bottomsCode = _equipItemCode(d.bottoms);
+    var outfitCode  = '';
     if (categoryKey === 'tops')         topsCode    = String(itemId || '');
     else if (categoryKey === 'bottoms') bottomsCode = String(itemId || '');
-    else return;   // 着姿対象は tops/bottoms のみ
-    var src = _avatarBodyImgPathWith(topsCode, bottomsCode) || AVATAR_BASE_IMG[base];
+    else if (categoryKey === 'outfit')  outfitCode  = String(itemId || '');   // 第2弾：上下セットはその1着の着姿
+    else return;   // 着姿対象は tops/bottoms/outfit のみ
+    var src = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
     var img = document.getElementById('avatar-tryon-img');
     if (img) {
       img.onerror = function(){   // 完成画像が読めなければ素体に1回だけフォールバック（割れ画像防止）
@@ -10695,7 +11209,12 @@
         html += '<div class="avatar-item-grid">';
         items.forEach(function(it){
           html += '<div class="avatar-item-card avatar-closet-item' + (it.equipped ? ' equipped' : '') + '">';
-          if (it.equipped) html += '<div class="avatar-closet-badge">✅ 装着中</div>';
+          if (it.equipped) {
+            // 第2弾（方式B）：上下セット装着中は tops/bottoms は装着のまま見た目だけ隠れる旨を控えめに添える
+            var hiddenBySet = (cat.categoryKey === 'tops' || cat.categoryKey === 'bottoms') && !!_equipItemCode((_avatarState.equippedDetails || {}).outfit);
+            html += '<div class="avatar-closet-badge">✅ 装着中</div>';
+            if (hiddenBySet) html += '<div style="font-size:11px;color:#6b7280;margin-bottom:4px">（上下セットで隠れています）</div>';
+          }
           if (it.imagePath) html += '<img class="avatar-item-thumb' + (cat.categoryKey === 'aura' ? ' aura-thumb' : '') + '" src="' + _avEsc(it.imagePath) + '" alt="">';
           else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
           if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
@@ -26309,7 +26828,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-0120</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-1701</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

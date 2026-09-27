@@ -2798,3 +2798,28 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 03596731ed35969771ae6c36c9de5599ffb6d49e && git push origin main && git checkout dev
   ```
+
+## 2026-09-27 本番反映：★カンジー新機能を全生徒に開放（覚える漢字・書き練習・画面入力の書きテスト）
+
+- ★★これ以降、全生徒のカンジーは「覚える漢字 → 読みテスト → 書き練習 → ★画面入力の書きテスト（撮影なし）→ 結果」になる
+- 反映内容（dev→main マージ、2 コミット）
+  - `e640ac9` feat(カンジー)：`_isKanjiLearnPreviewAllowed()` の先頭にスイッチ `var KANJI_NEW_FLOW_FOR_ALL = true;` を追加し、全生徒で true を返す
+    - 段階A（`startKanjiSession`）・段階B（`goKanjiKakiFromYomi`）・段階C（`_startKanjiKakiEntry`）の3分岐はすべてこの関数を参照＝1か所で全開放
+    - 判定・結果・HP・記録・問題取得・読みテスト・他コンテンツは無変更（スイッチ2行＋コメント更新のみ）
+    - 撮影テスト（`startKanjiKaki` ほか）のコードは残置（切り戻し用）
+  - `4e32d16` docs(handover)：前回反映（`0359673`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`03596731ed35969771ae6c36c9de5599ffb6d49e`**（＝`0359673`）
+- **マージコミット：`3f7238c5ecfeedfcb616435854b28a305cb1936e`**（＝`3f7238c`）
+- 版バッジ：`20260927-0120`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `3f7238c` / run `36255803369` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`3f7238c5ecfeedfcb616435854b28a305cb1936e` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `ac93f222…` / view `24234dfe…` / admin `d9e54c47…`
+- 配信 index：`var KANJI_NEW_FLOW_FOR_ALL = true;`（L21352）と `if (KANJI_NEW_FLOW_FOR_ALL) return true;`（L21354）を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**11 行**（スイッチ＋コメント更新。view・admin は版スタンプのみで 0）
+- ★切り戻し（push -f は使わない）。どちらか：
+  - A. ★新機能だけ止める（おすすめ）：`index.html` の `var KANJI_NEW_FLOW_FOR_ALL = true;` を `false` に変えて dev→main で反映（実生徒は従来の読み直行・撮影テストに戻り、test 枠だけ新機能が残る）
+  - B. この反映ごと戻す：
+    ```bash
+    git checkout main && git revert --no-edit -m 1 3f7238c5ecfeedfcb616435854b28a305cb1936e && git push origin main && git checkout dev
+    ```
+- ★要観察：本物の Gemini が画面入力の合成画像（「番号.＋書いた答え」）を正しく読めるか。誤判定・「読み取れませんでした」が多ければ判定の指示文の画面入力向け調整（バックエンド側）を検討
