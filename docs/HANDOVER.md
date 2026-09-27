@@ -2823,3 +2823,33 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
     git checkout main && git revert --no-edit -m 1 3f7238c5ecfeedfcb616435854b28a305cb1936e && git push origin main && git checkout dev
     ```
 - ★要観察：本物の Gemini が画面入力の合成画像（「番号.＋書いた答え」）を正しく読めるか。誤判定・「読み取れませんでした」が多ければ判定の指示文の画面入力向け調整（バックエンド側）を検討
+
+## 2026-09-27 本番反映：★第2弾アバター（服の完成画像465枚＋新トップス/ボトムス組合せ＋上下セット表示・試着・排他方式B・履物着用不可フラグ）
+
+- ★新アイテムはサーバー側で全て「予告」＝実生徒には見えない・買えない（装備者0）ため、反映時点の実害なし
+- 反映内容（dev→main マージ、3 コミット）
+  - `7a94a13` feat(アバター)：`images/avatar/outfits/AV0000073〜537.png`（465枚・887×1774・RGBA）を追加。`avatar_map2.json` を唯一の正として 073 以降を明示登録
+    - トップス/ボトムス AV73〜504（432件）→ `AVATAR_OUTFIT_MAP` に `_outfitKey` で追加（新トップス8・新ボトムス8。item_code は3桁、tops_010/012 は欠番）
+    - 上下セット AV505〜537（33件）→ `AVATAR_OUTFIT_SET_MAP`（`'base|outfit_code'`→AV番号）
+    - 既存 AV1〜72 のループ生成・base 3体は無変更
+  - `2733d59` feat(アバター)：上下セットの着せ替え表示（方式B）＋試着＋履物着用不可フラグ
+    - `_avatarBodyImgPath`：outfit 装着中は上下セットの着姿を最優先。tops/bottoms は装着を保持したまま見た目だけ無視（外すと元の服が復活）。対応表に無い outfit は素体に安全落ち
+    - `_avatarBodyImgPathWith` に第3引数 outfitCode（省略時は従来どおり）／`_avatarCanTryOn`・`tryOnAvatarItem` で上下セットの試着
+    - `AVATAR_OUTFIT_NO_SHOES`（outfit_003/004/005/006/007/011＝6種18枚）を定義のみ（履物未実装のため未参照。履物実装時にこのフラグで制限する）
+    - クローゼット：上下セット装着中の tops/bottoms に「（上下セットで隠れています）」を控えめに表示
+    - サーバー無改修
+  - `880d9a2` docs(handover)：前回反映（`3f7238c`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`3f7238c5ecfeedfcb616435854b28a305cb1936e`**（＝`3f7238c`）
+- **マージコミット：`306fb541c31193f59d1399a28afdf87d98de4103`**（＝`306fb54`）
+- 版バッジ：`20260927-1701`
+- GitHub Actions（pages build and deployment）：head_sha `306fb54` / run `36305267809` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`306fb541c31193f59d1399a28afdf87d98de4103` 実体を確認
+- 配信確認（github.io、キャッシュバスト付き）
+  - 新規 AV：AV0000073 `e305ca45…` / AV0000300 `461b73a7…` / AV0000505 `6af5f510…` / AV0000537 `76d75a16…`＝すべて HTTP 200・origin/main の blob md5 と一致
+  - 既存 AV0000001 `c2e1c7c0…` / AV0000072 `5e137450…` / base_boy `ef6800e2…` / base_girl `edb870ab…` / base_neutral `b0198356…`＝HTTP 200・反映前 main と同一（git 上も AV001〜072・base 3体の差分なし）
+  - 配信 index に `AVATAR_OUTFIT_SET_MAP`（5か所）・`AVATAR_OUTFIT_NO_SHOES`（1か所）を確認
+- ゲート：`origin/main..dev` は3本（想定通り）、469 ファイル＝AV 画像465（すべて新規追加）＋ index / admin / view / docs/HANDOVER.md（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**529 行**（すべて index.html のアバター部分＝対応表データ行465＋コード・コメント64。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 306fb541c31193f59d1399a28afdf87d98de4103 && git push origin main && git checkout dev
+  ```
+- 次段の候補：上下セット試着時の説明文「いま着ている服に重ねた姿だよ」が上下セットでは実態とずれる（その1着だけを表示）→ 文言調整の要否は判断待ち／履物の着せ替え表示（実装時に `AVATAR_OUTFIT_NO_SHOES` で制限）
