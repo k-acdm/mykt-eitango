@@ -3719,10 +3719,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-1634"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-1701"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-1634">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-1634"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-1701">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-1701"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10262,13 +10262,30 @@
     if (!detail || typeof detail !== 'object') return '';
     return String(detail.itemId || detail.itemCode || detail.item_code || detail.code || '');
   }
+  // 第2弾：履物着用不可の上下セット（靴付き＝6種×base3体＝18枚。avatar_map2.json の no_shoes_outfits と一致）。
+  //   ★履物（shoes）の着せ替え表示は未実装のため、現時点ではフラグを定義するだけ（どこからも参照しない）。
+  //   ★将来、履物を実装するときに「このフラグの上下セットを装着中は履物の装着・試着・描画を制限する」ために使う。
+  var AVATAR_OUTFIT_NO_SHOES = {
+    outfit_003: true, outfit_004: true, outfit_005: true,
+    outfit_006: true, outfit_007: true, outfit_011: true
+  };
+  // 第2弾：上下セット（outfit）の着姿パス。AVATAR_OUTFIT_SET_MAP に無ければ ''（呼び出し側で素体に落とす）。
+  function _outfitSetAvPath(base, outfitCode) {
+    if (!base || !outfitCode) return '';
+    var avNum = AVATAR_OUTFIT_SET_MAP[String(base) + '|' + String(outfitCode)];
+    return avNum ? _outfitAvPath(avNum) : '';
+  }
   // A-3：base + 装着中 tops/bottoms から、表示すべき人体（服）画像パスを決める。
   //   ・トップスもボトムスも未装着 → 素体 base_*.png
   //   ・対応表に無い組み合わせ → 素体 base_*.png に安全に落とす（割れ画像を出さない）
+  //   ・第2弾（方式B）：上下セット（outfit）装着中は見た目を outfit 優先にする。tops/bottoms の装着は
+  //     サーバー側でそのまま保持され、ここで見た目だけ無視する → outfit を外すと元の服が復活する。
   function _avatarBodyImgPath() {
     var base = _avatarState.base;
     if (!base || !AVATAR_BASE_IMG[base]) return '';   // base 未設定は呼び出し側で扱う
     var d = _avatarState.equippedDetails || {};
+    var outfitCode = _equipItemCode(d.outfit);
+    if (outfitCode) return _outfitSetAvPath(base, outfitCode) || AVATAR_BASE_IMG[base];   // 対応表に無い → 素体
     var topsCode    = _equipItemCode(d.tops);
     var bottomsCode = _equipItemCode(d.bottoms);
     if (!topsCode && !bottomsCode) return AVATAR_BASE_IMG[base];   // 未装着＝素体
@@ -10279,9 +10296,11 @@
   // ①試着プレビュー用：生徒自身の base（_avatarState.base）を使い、tops/bottoms を引数で
   //   差し替えて着姿パスを求める純関数。★_avatarState を一切書き換えない（痕跡ゼロ）。
   //   対応表に無い組み合わせは素体に安全落ち（割れ画像を出さない）。
-  function _avatarBodyImgPathWith(topsCode, bottomsCode) {
+  //   第2弾：第3引数 outfitCode を渡すと上下セットの着姿を優先（方式B と同じ優先順位）。省略時は従来どおり。
+  function _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) {
     var base = _avatarState.base;
     if (!base || !AVATAR_BASE_IMG[base]) return '';
+    if (outfitCode) return _outfitSetAvPath(base, outfitCode) || AVATAR_BASE_IMG[base];
     if (!topsCode && !bottomsCode) return AVATAR_BASE_IMG[base];
     var avNum = AVATAR_OUTFIT_MAP[_outfitKey(base, topsCode, bottomsCode)];
     if (!avNum) return AVATAR_BASE_IMG[base];
@@ -10295,7 +10314,8 @@
     if (!base || !AVATAR_BASE_IMG[base] || !itemCode) return false;
     if (categoryKey === 'tops')    return !!AVATAR_OUTFIT_MAP[_outfitKey(base, itemCode, '')];
     if (categoryKey === 'bottoms') return !!AVATAR_OUTFIT_MAP[_outfitKey(base, '', itemCode)];
-    return false;   // 着姿を描けるのは tops/bottoms のみ（outfit 等には出さない）
+    if (categoryKey === 'outfit')  return !!AVATAR_OUTFIT_SET_MAP[base + '|' + itemCode];   // 第2弾：上下セット
+    return false;   // 着姿を描けるのは tops/bottoms/outfit のみ（それ以外には出さない）
   }
   // Phase2：装着中のオーラ画像パス。★背景（_avatarBgPath）と同じ流儀で
   //   サーバーの imagePath をそのまま使う（例 'images/avatar/aura/aura_03.png'）。
@@ -10881,10 +10901,12 @@
     // 現在の装着を土台に、試着する1点だけ差し替える（もう片方の装着はそのまま重ねる）
     var topsCode    = _equipItemCode(d.tops);
     var bottomsCode = _equipItemCode(d.bottoms);
+    var outfitCode  = '';
     if (categoryKey === 'tops')         topsCode    = String(itemId || '');
     else if (categoryKey === 'bottoms') bottomsCode = String(itemId || '');
-    else return;   // 着姿対象は tops/bottoms のみ
-    var src = _avatarBodyImgPathWith(topsCode, bottomsCode) || AVATAR_BASE_IMG[base];
+    else if (categoryKey === 'outfit')  outfitCode  = String(itemId || '');   // 第2弾：上下セットはその1着の着姿
+    else return;   // 着姿対象は tops/bottoms/outfit のみ
+    var src = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
     var img = document.getElementById('avatar-tryon-img');
     if (img) {
       img.onerror = function(){   // 完成画像が読めなければ素体に1回だけフォールバック（割れ画像防止）
@@ -11187,7 +11209,12 @@
         html += '<div class="avatar-item-grid">';
         items.forEach(function(it){
           html += '<div class="avatar-item-card avatar-closet-item' + (it.equipped ? ' equipped' : '') + '">';
-          if (it.equipped) html += '<div class="avatar-closet-badge">✅ 装着中</div>';
+          if (it.equipped) {
+            // 第2弾（方式B）：上下セット装着中は tops/bottoms は装着のまま見た目だけ隠れる旨を控えめに添える
+            var hiddenBySet = (cat.categoryKey === 'tops' || cat.categoryKey === 'bottoms') && !!_equipItemCode((_avatarState.equippedDetails || {}).outfit);
+            html += '<div class="avatar-closet-badge">✅ 装着中</div>';
+            if (hiddenBySet) html += '<div style="font-size:11px;color:#6b7280;margin-bottom:4px">（上下セットで隠れています）</div>';
+          }
           if (it.imagePath) html += '<img class="avatar-item-thumb' + (cat.categoryKey === 'aura' ? ' aura-thumb' : '') + '" src="' + _avEsc(it.imagePath) + '" alt="">';
           else              html += '<div class="avatar-item-thumb-ph">🎁</div>';
           if (it.rarity) html += '<div class="avatar-item-rarity">' + _avEsc(it.rarity) + '</div>';
@@ -26801,7 +26828,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-1634</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-1701</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
