@@ -2853,3 +2853,25 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   git checkout main && git revert --no-edit -m 1 306fb541c31193f59d1399a28afdf87d98de4103 && git push origin main && git checkout dev
   ```
 - 次段の候補：上下セット試着時の説明文「いま着ている服に重ねた姿だよ」が上下セットでは実態とずれる（その1着だけを表示）→ 文言調整の要否は判断待ち／履物の着せ替え表示（実装時に `AVATAR_OUTFIT_NO_SHOES` で制限）
+
+## 2026-09-27 本番反映：第2弾アバターの微修正（クローゼットで上下セットをボトムスの直後へ＋試着の説明文を統一）
+
+- ★新アイテムは全て予告＝実生徒への影響なし
+- 反映内容（dev→main マージ、2 コミット）
+  - `5ec3d03` fix(アバター)：
+    - `_renderAvatarCloset` の表示直前に `_closetOutfitAfterBottoms` を追加し、上下セット（outfit）だけをボトムスの直後へ移動（カテゴリ順はサーバー `getAvatarCloset` の返り順のため、フロントで並べ替え。他カテゴリの順序はサーバーのまま・元配列は書き換えない・outfit/bottoms のどちらかが無ければ従来どおり。ショップの順序は無変更）
+    - 試着プレビューの説明文（全カテゴリ共通の1箇所）を「いま着ている服に重ねた姿だよ」→「こんなイメージになるよ」に（「（まだ購入していないよ）」は残置）
+    - 試着の動作・表示画像、第2弾（上下セット表示・方式B・履物フラグ・画像・MAP）、AV001〜072・base・サーバーは無変更
+  - `2c9983a` docs(handover)：前回反映（`306fb54`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`306fb541c31193f59d1399a28afdf87d98de4103`**（＝`306fb54`）
+- **マージコミット：`0b7392fe5cfc79b967ffac29852866f7381bc611`**（＝`0b7392f`）
+- 版バッジ：`20260927-1817`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `0b7392f` / run `36309128526` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`0b7392fe5cfc79b967ffac29852866f7381bc611` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `34de19ae…` / view `feeefb69…` / admin `79c26125…`
+- 配信 index：「こんなイメージになるよ」1か所・旧文言「重ねた姿だよ」0か所・`_closetOutfitAfterBottoms` 2か所（定義＋呼び出し）を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**15 行**（すべて index.html の2点修正。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 0b7392fe5cfc79b967ffac29852866f7381bc611 && git push origin main && git checkout dev
+  ```
