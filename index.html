@@ -3719,10 +3719,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-1817"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-1833"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-1817">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-1817"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-1833">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-1833"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10919,6 +10919,9 @@
     var it = _avatarShopItemCache[itemId];
     var nameEl = document.getElementById('avatar-tryon-name');
     if (nameEl) nameEl.textContent = (it && it.name) ? it.name : '';
+    // 説明文の後半（括弧）だけ所持状況で出し分け。所持判定はショップの「所持済み」と同じ it.owned（新規通信なし）。
+    var noteEl = document.querySelector('#avatar-tryon-modal .avatar-tryon-note');
+    if (noteEl) noteEl.textContent = 'こんなイメージになるよ' + ((it && it.owned) ? '（既に購入済みだよ）' : '（まだ購入していないよ）');
     // 交換導線（任意）：購入可能・未所持なら「これを交換する」を出す（★既存 buyAvatarItem を流用）。
     var actEl = document.getElementById('avatar-tryon-actions');
     if (actEl) {
@@ -26841,7 +26844,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-1817</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-1833</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
