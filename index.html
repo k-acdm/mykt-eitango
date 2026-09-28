@@ -3719,10 +3719,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260927-1833"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260928-1656"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260927-1833">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260927-1833"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260928-1656">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260928-1656"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -22684,7 +22684,7 @@
     _kanjiState.kakiPhotoDataUrl = dataUrl;
     _kanjiState.kakiPhotoBase64 = b64;
     _kanjiState.isKakiRetry = !!_kanjiKakiInput.isRetry;
-    submitKanjiKakiPhoto();
+    submitKanjiKakiPhoto('screen');   // 画面入力の目印（サーバーが画面入力向けの判定を使う）
   }
   // 判読できない答えがあった（needsRetake）ときの画面：現行の撮り直し画面を「書き直し」の文言で使う。
   function _showKanjiKakiInputRetake(res) {
@@ -22998,7 +22998,9 @@
   //   - 失敗 / タイムアウト時は _showSubmitError() でリトライ可（_pendingRetry 経由）
   //   - Gemini Vision OCR + 採点で 10〜30 秒かかるため、25 秒タイムアウトは短すぎる可能性あり。
   //     gasPost のデフォルト 90 秒を維持しつつ、_logHP 防御層のリトライを信頼する。
-  function submitKanjiKakiPhoto() {
+  //   inputMethod：画面入力（kanjiKakiInputSubmit）からだけ 'screen' を渡す。撮影の送信ボタンは引数なし
+  //   ＝未指定のまま送る（サーバーは未指定を写真として従来どおり判定）。
+  function submitKanjiKakiPhoto(inputMethod) {
     if (!_kanjiState.kakiPhotoBase64) {
       // 2026-08-20：従来は無言 return だった。撮影画面へ戻し、既存のカンジー吹き出しで知らせる。
       //   （確認画面にはマスコット要素が無いため、カメラを押せる画面まで戻してから表示する）
@@ -23030,6 +23032,7 @@
       expectedAnswers: expected,
       isRetry: _kanjiState.isKakiRetry
     };
+    if (inputMethod === 'screen') payload.inputMethod = 'screen';
     function doSubmit() {
       _showHpConfirmingOverlay('kanjii');
       submitBtn.disabled = true;
@@ -26844,7 +26847,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260927-1833</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20260928-1656</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
