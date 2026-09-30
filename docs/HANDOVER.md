@@ -2894,3 +2894,27 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 7e3f486eaf54ae095ad12ab27d9c34ad0c4ad2a5 && git push origin main && git checkout dev
   ```
+
+## 2026-09-28 本番反映：★カンジー画面入力の書きテスト提出に inputMethod='screen' を付与（誤判定の停止・至急）
+
+- ★背景：サーバーは画面入力向けの判定（とめ/はね/はらいを見ない・`mykt-eitango-aws` bcd591a）を準備済みだが、フロントが目印を送らず従来（写真向け）判定のままで、正しく書いた字が1回目で落ちる誤判定が全生徒に発生していた
+- 反映内容（dev→main マージ、2 コミット）
+  - `3ff5f1c` fix(カンジー)：
+    - `kanjiKakiInputSubmit()` → `submitKanjiKakiPhoto('screen')`（画面入力の送信元のみ）
+    - `submitKanjiKakiPhoto(inputMethod)` に引数追加、送信データ組み立て直後に `if (inputMethod === 'screen') payload.inputMethod = 'screen';`
+    - 画面入力は初回・再挑戦・送信エラー後の再送とも `inputMethod:'screen'` 付き／撮影の送信ボタン（`onclick="submitKanjiKakiPhoto()"`・引数なし）は未指定＝写真扱いのまま（切り戻し用）
+    - 他の送信項目（studentId・level・sessionId・photoBase64・count・expectedAnswers・isRetry）・判定・画像・結果・再挑戦の動作は無変更
+  - `b16062d` docs(handover)：前回反映（`7e3f486`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`7e3f486eaf54ae095ad12ab27d9c34ad0c4ad2a5`**（＝`7e3f486`）
+- **マージコミット：`ec82c740e7a6a322693bd4676e5c8b38743097c2`**（＝`ec82c74`）
+- 版バッジ：`20260928-1656`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `ec82c74` / run `36394654587` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`ec82c740e7a6a322693bd4676e5c8b38743097c2` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `6063709d…` / view `0d272560…` / admin `57a46afe…`
+- 配信 index：`submitKanjiKakiPhoto('screen')`（L22687）と `if (inputMethod === 'screen') payload.inputMethod = 'screen';`（L23035）を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**7 行**（すべて index.html の3か所。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 ec82c740e7a6a322693bd4676e5c8b38743097c2 && git push origin main && git checkout dev
+  ```
+- ★要観察：画面入力の1回目で正しく書いた字が通るようになったか（誤判定・「読み取れませんでした」の減少）

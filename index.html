@@ -3719,10 +3719,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20260928-1656"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261001-0058"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20260928-1656">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20260928-1656"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261001-0058">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261001-0058"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -13138,6 +13138,8 @@
     html += '<div class="refl-release-hp-headline">生涯HP ' + (Number(_totalHP) || 0).toLocaleString() + ' HP</div>';
     // 第4群B：今日の実施時間（当日合計）。_endStudySession の submitSessionTime 応答で _fillReflStudyLine が埋める。
     html += '<div class="refl-release-hp-headline" id="refl-release-study" style="display:none"></div>';
+    // 実施時間の説明（数字と同時にだけ出す＝_fillReflStudyLine が表示。控えめ・中央揃え）
+    html += '<div id="refl-release-study-note" style="display:none;font-size:11px;color:#78350f;opacity:.85;text-align:center;letter-spacing:.3px;margin:0 0 4px">※ ログインからログアウトまでの合計時間です。</div>';
 
     // 修正3：ヘッダーに連続日数 + 連続週数ボーナス
     var headerSub = '連続日数 ' + consecutiveDays + '日 / 連続週数ボーナス ×' + weekMultiplier
@@ -13409,6 +13411,8 @@
     if (!isFinite(s) || s <= 0) return;
     el.textContent = '今日の実施時間 ' + Math.floor(s / 60) + '分' + (s % 60) + '秒';
     el.style.display = '';
+    var note = document.getElementById('refl-release-study-note');   // 数字を出すときだけ説明文も出す
+    if (note) note.style.display = '';
   }
 
   function _doLogoutFinalize() {
@@ -26847,7 +26851,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20260928-1656</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261001-0058</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
