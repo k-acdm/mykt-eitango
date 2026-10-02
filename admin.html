@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261001-0058"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261002-2302"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -7253,11 +7253,46 @@
     });
   }
 
-  function _renderLineNotifyTable(students) {
+  // Students / SpecialAccounts タブ（HP手動付与 _renderHpGrantStudentsTable と同基準・同作法）。
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を SpecialAccounts。
+  //   タブ切替は表示行を絞るだけ。トグル・保存（onLineNotifyToggle）は studentId で動くので不変。
+  var _lineNotifyTab = 'student';
+  function _lineNotifyIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setLineNotifyTab(key) {
+    _lineNotifyTab = (key === 'special') ? 'special' : 'student';
+    _renderLineNotifyTable(_lineNotifyData);
+  }
+
+  function _renderLineNotifyTable(allStudents) {
     var body = document.getElementById('line-notify-body');
     if (!body) return;
-    if (!students || students.length === 0) {
+    if (!allStudents || allStudents.length === 0) {
       body.innerHTML = '<div class="admin-mgmt-empty">生徒データがありません</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き）
+    var studentCount = 0;
+    for (var i = 0; i < allStudents.length; i++) {
+      if (_lineNotifyIsStudentAcct(allStudents[i])) studentCount++;
+    }
+    var specialCount = allStudents.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_lineNotifyTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setLineNotifyTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+    var students = allStudents.filter(function(s) {
+      var isStudent = _lineNotifyIsStudentAcct(s);
+      return (_lineNotifyTab === 'student') ? isStudent : !isStudent;
+    });
+    if (students.length === 0) {
+      body.innerHTML = tabBar + '<div class="admin-mgmt-empty">このタブに該当する生徒がいません</div>';
       return;
     }
     var rows = students.map(function(s) {
@@ -7284,7 +7319,7 @@
         '<td class="col-toggle">' + studentTog + '</td>' +
       '</tr>';
     }).join('');
-    body.innerHTML =
+    body.innerHTML = tabBar +
       '<table class="admin-mgmt-table">' +
         '<thead><tr>' +
           '<th>生徒名</th><th>学齢</th><th>保護者LINE</th><th>生徒LINE</th><th>保護者通知</th><th>生徒通知</th>' +
@@ -8007,11 +8042,46 @@
     });
   }
 
-  function _renderRequiredMissionsTable(students) {
+  // Students / SpecialAccounts タブ（HP手動付与 _renderHpGrantStudentsTable と同基準・同作法）。
+  //   accountType==='student' を Students、それ以外（test/teacher/invited/experience/未設定）を SpecialAccounts。
+  //   タブ切替は表示行を絞るだけ。トグル・保存（onRequiredMissionToggle）は studentId で動くので不変。
+  var _requiredMissionsTab = 'student';
+  function _requiredMissionsIsStudentAcct(s) {
+    return String((s && s.accountType) || '') === 'student';
+  }
+  function setRequiredMissionsTab(key) {
+    _requiredMissionsTab = (key === 'special') ? 'special' : 'student';
+    _renderRequiredMissionsTable(_requiredMissionsData);
+  }
+
+  function _renderRequiredMissionsTable(allStudents) {
     var body = document.getElementById('required-missions-body');
     if (!body) return;
-    if (!students || students.length === 0) {
+    if (!allStudents || allStudents.length === 0) {
       body.innerHTML = '<div class="admin-mgmt-empty">生徒データがありません</div>';
+      return;
+    }
+    // Students / SpecialAccounts タブ（件数付き）
+    var studentCount = 0;
+    for (var i = 0; i < allStudents.length; i++) {
+      if (_requiredMissionsIsStudentAcct(allStudents[i])) studentCount++;
+    }
+    var specialCount = allStudents.length - studentCount;
+    function _tabBtn(key, label, cnt) {
+      var active = (_requiredMissionsTab === key) ? ' active' : '';
+      return '<button type="button" class="kadai-tab-btn' + active + '" onclick="setRequiredMissionsTab(\'' + key + '\')">' +
+             label + '（' + cnt + '）</button>';
+    }
+    var tabBar = '<div class="kadai-tab-bar">' +
+        _tabBtn('student', 'Students', studentCount) +
+        _tabBtn('special', 'SpecialAccounts', specialCount) +
+      '</div>';
+    var students = allStudents.filter(function(s) {
+      var isStudent = _requiredMissionsIsStudentAcct(s);
+      return (_requiredMissionsTab === 'student') ? isStudent : !isStudent;
+    });
+    if (students.length === 0) {
+      body.innerHTML = tabBar + '<div class="admin-mgmt-empty">このタブに該当する生徒がいません</div>';
       return;
     }
     var rows = students.map(function(s) {
@@ -8034,7 +8104,7 @@
         '<td class="col-toggle">' + kanji + '</td>' +
       '</tr>';
     }).join('');
-    body.innerHTML =
+    body.innerHTML = tabBar +
       '<table class="admin-mgmt-table">' +
         '<thead><tr>' +
           '<th>生徒名</th><th>学齢</th><th>英単語RUSH</th><th>三語短文</th><th>和文英訳①</th><th>基礎計算</th><th>カンジー</th>' +
@@ -17589,7 +17659,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261001-0058</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261002-2302</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
