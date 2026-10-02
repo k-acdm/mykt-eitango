@@ -2918,3 +2918,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   git checkout main && git revert --no-edit -m 1 ec82c740e7a6a322693bd4676e5c8b38743097c2 && git push origin main && git checkout dev
   ```
 - ★要観察：画面入力の1回目で正しく書いた字が通るようになったか（誤判定・「読み取れませんでした」の減少）
+
+## 2026-10-01 本番反映：振り返り完了画面の「今日の実施時間」に説明文を追加
+
+- ★背景：実施時間は放置込みで長く出ることがある（放置か紙作業か区別できない仕様）。計測は変えず、生徒が誤解しないよう説明を1行添える
+- 反映内容（dev→main マージ、2 コミット）
+  - `f9333bf` feat(実施時間)：振り返り完了モーダル（`_renderReflectionReleaseModalNew`）の「今日の実施時間」行の直後に説明文「※ ログインからログアウトまでの合計時間です。」（`#refl-release-study-note`・11px・#78350f・中央揃え・初期非表示）を追加。`_fillReflStudyLine` が数字を表示するときだけ一緒に表示（秒数が取れない/0 のときは数字も説明文も出ない）。計測（submitSessionTime・todayTotalSeconds）・値・⏱タイマー・設定画面・他画面は無変更
+  - `b1bea8d` docs(handover)：前回反映（`ec82c74`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`ec82c740e7a6a322693bd4676e5c8b38743097c2`**（＝`ec82c74`）
+- **マージコミット：`7e3c7d3b72fb99b960107c05fd8c99965ff87914`**（＝`7e3c7d3`）
+- 版バッジ：`20261001-0058`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `7e3c7d3` / run `36741115467` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`7e3c7d3b72fb99b960107c05fd8c99965ff87914` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `c34a03e5…` / view `91c8b4af…` / admin `a65dfc09…`
+- 配信 index：「ログインからログアウトまでの合計時間」（L13142）を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**4 行**（すべて index.html の説明文追加。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 7e3c7d3b72fb99b960107c05fd8c99965ff87914 && git push origin main && git checkout dev
+  ```
