@@ -2976,3 +2976,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 42dc40e6d626f3b536deb157595c0b38aece4cbb && git push origin main && git checkout dev
   ```
+
+## 2026-10-04 本番反映：右下固定の「戻る」注意帯に一番下のボタンが隠れる問題を body 下部余白で解消（22画面）
+
+- ★背景：スマホ幅で、全画面共通の固定帯「⚠️「戻る」ボタンは押さないでね」（`.back-warning`・fixed・下10〜41px・pointer-events:none）が一番下のボタンに重なり、生徒には押せないように見えていた（カンジー書き練習「✅書けた！」が約48%隠れる等）。原因はページ下に帯の高さぶんの余白が無いこと（`.container` の 14px のみ）
+- 反映内容（dev→main マージ、2 コミット）
+  - `4cc9d29` fix(画面)：`body { padding-bottom: 56px; }` を1行追加。下までスクロールしたとき一番下のボタンが帯より上で止まる。375×667 で重なっていた22画面（カンジー書き練習・国語「採点する/提出する」・計算トライアル「Enter」・フォニックス「ゲームを中断する」・各「ホーム/学習コンテンツに戻る」等）がすべて 0%（帯との隙間 29〜45px）。375×812・1024×768 も重なり0・横スクロール0。帯の仕組み・他の固定要素（版バッジ・送信中・未送信の帯）・レイアウト・機能は無変更
+  - `0be4023` docs(handover)：前回反映（`42dc40e`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`42dc40e6d626f3b536deb157595c0b38aece4cbb`**（＝`42dc40e`）
+- **マージコミット：`e2925f8517ea904b7c4d0796a415d0969a5ce9cf`**（＝`e2925f8`）
+- 版バッジ：`20261004-1938`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `e2925f8` / run `37196719863` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`e2925f8517ea904b7c4d0796a415d0969a5ce9cf` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `107ff47d…` / view `ee9bb250…` / admin `8005861c…`
+- 配信 index：`body { padding-bottom: 56px; }`（L17）を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**1 行**（index.html の余白1行。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 e2925f8517ea904b7c4d0796a415d0969a5ce9cf && git push origin main && git checkout dev
+  ```
