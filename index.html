@@ -14,6 +14,7 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, Arial, sans-serif; background: #f0f4f8; min-height: 100vh; }
+    body { padding-bottom: 56px; }   /* 右下固定の「戻る」注意帯（下10〜41px）に一番下のボタンが隠れないよう、ページ下に余白 */
     .screen { display: none; }
     .screen.active { display: block; }
     header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
@@ -3719,10 +3720,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261004-1729"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261004-1938"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261004-1729">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261004-1729"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261004-1938">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261004-1938"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -26854,7 +26855,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261004-1729</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261004-1938</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

@@ -2957,3 +2957,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   git checkout main && git revert --no-edit -m 1 52e62b911be6c45a21fd11137a8e3ee2a77561d6 && git push origin main && git checkout dev
   ```
 - 未分離で残っているもの（判断待ち）：認証アラート画面の生徒選択 select（getStudentsAuthStatus）／申請・記録系の一覧（Amazonギフト申請・未送信レポート・HPLog書き込み試行・ミッション解除申請・お詫び候補・三語短文提出一覧・操作ログ・ランキング・アンケート結果）
+
+## 2026-10-04 本番反映：カンジー書き結果「同じ字なのに✖」の表示改善＋「あなたが書いた文字」へ文言変更
+
+- ★背景：AI が崩れた字（実在しない字形）を近い字＝正解と同じ字に読み取り、「正解：探／あなたが書いた内容：探」なのに ❌ となって生徒が混乱していた
+- 反映内容（dev→main マージ、2 コミット）
+  - `d1eab1b` fix(カンジー)：`_showKanjiKakiResult` で、不正解かつ studentWrote（trim）＝expected（trim）のときだけ「あなたが書いた文字：(正しい字の形になっていません)」と表示（字は出さない）。別字の不正解は従来どおり studentWrote を表示、空/blank は「（書かれていません）」を維持、正解行は従来どおり。「あなたが書いた内容」→「あなたが書いた文字」（表示ラベル＋関連コメント）。判定・採点・送信・結果の正誤は無変更（表示のみ・サーバー改修なし）
+  - `899f0d0` docs(handover)：前回反映（`52e62b9`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`52e62b911be6c45a21fd11137a8e3ee2a77561d6`**（＝`52e62b9`）
+- **マージコミット：`42dc40e6d626f3b536deb157595c0b38aece4cbb`**（＝`42dc40e`）
+- 版バッジ：`20261004-1729`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `42dc40e` / run `37189187331` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`42dc40e6d626f3b536deb157595c0b38aece4cbb` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `fb97ee7f…` / view `22a530c4…` / admin `44e68017…`
+- 配信 index：「正しい字の形になっていません」1か所・「あなたが書いた文字：」2か所（表示ラベル＋コメント）・旧文言「あなたが書いた内容」0か所を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**13 行**（すべて index.html のカンジー結果表示＋文言。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 42dc40e6d626f3b536deb157595c0b38aece4cbb && git push origin main && git checkout dev
+  ```
