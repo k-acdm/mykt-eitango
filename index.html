@@ -219,7 +219,7 @@
     .kanji-answer-item .mark { font-weight: bold; min-width: 1.2em; }
     .kanji-answer-item .qno  { font-weight: bold; min-width: 3em; opacity: .85; }
     .kanji-answer-item .ans  { font-weight: bold; }
-    /* 不正解時の「あなたが書いた内容」行（item.wrong 内に表示される） */
+    /* 不正解時の「あなたが書いた文字」行（item.wrong 内に表示される） */
     .kanji-answer-student { margin-top: 4px; padding-left: calc(1.2em + 3em + 16px); font-size: 14px; color: #7f1d1d; line-height: 1.5; }
     .kanji-answer-student .ans-student { font-weight: bold; font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; }
     /* 旧 OCR テキスト折り畳み（案A 移行で未使用化、styles は後方互換のため残置） */
@@ -3719,10 +3719,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261002-2302"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261004-1729"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261002-2302">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261002-2302"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261004-1729">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261004-1729"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -23157,12 +23157,12 @@
     //
     // 2026-05-12 バグ⑤ Phase B（案A）改修：
     // 案 A では Gemini Vision が各問の studentWrote（読み取った字形）を返すため、
-    // 「正解」と「あなたが書いた内容」を問ごとに並べて表示できるようになった。
+    // 「正解」と「あなたが書いた文字」を問ごとに並べて表示できるようになった。
     // 旧仕様（OCR テキスト全文を details で折り畳む方式）から、各問独立の
-    // diff 表示（正解：xx / あなたが書いた内容：yy）に切り替える。
+    // diff 表示（正解：xx / あなたが書いた文字：yy）に切り替える。
     // ・readable='blank' 時は「（空白）」と表示
     // ・readable='no' 時は通常採点に来ないので考慮不要
-    // ・readable='yes' で match=true → ✅ 緑、不一致なら「あなたが書いた内容」を併記
+    // ・readable='yes' で match=true → ✅ 緑、不一致なら「あなたが書いた文字」を併記
     var escH = function(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
     var answerListHtml = (res.results || []).map(function(r){
       var ok = !!r.isCorrect;
@@ -23173,12 +23173,15 @@
         var swDisplay;
         if (readable === 'blank' || !sw) {
           swDisplay = '<span style="opacity:.6">（書かれていません）</span>';
+        } else if (sw === String(r.expected || '').trim()) {
+          // 不正解なのに読み取りが正解と同じ字（AI が崩れた字を近い字＝正解に寄せて読んだ）→ 同じ字を出すと混乱するため字を出さない
+          swDisplay = '<span style="opacity:.6">(正しい字の形になっていません)</span>';
         } else {
           swDisplay = escH(sw);
         }
         studentLine =
           '<div class="kanji-answer-student">' +
-            '<span style="opacity:.7">あなたが書いた内容：</span>' +
+            '<span style="opacity:.7">あなたが書いた文字：</span>' +
             '<span class="ans-student">' + swDisplay + '</span>' +
           '</div>';
       }
@@ -26851,7 +26854,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261002-2302</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261004-1729</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
