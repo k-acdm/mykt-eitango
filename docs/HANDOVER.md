@@ -2937,3 +2937,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 7e3c7d3b72fb99b960107c05fd8c99965ff87914 && git push origin main && git checkout dev
   ```
+
+## 2026-10-02 本番反映：LINE通知管理・絶対ミッション設定を Students/SpecialAccounts の件数付き2タブに分離
+
+- ★サーバー（`mykt-eitango-aws` 848bd39）で両 action が accountType を返すため過渡状態なし
+- 反映内容（dev→main マージ、2 コミット）
+  - `a8a4b1e` feat(管理画面)：`_renderLineNotifyTable` / `_renderRequiredMissionsTable` に HP手動付与（`_renderHpGrantStudentsTable`）と同じ作法の件数付き2タブを追加（`accountType==='student'`→Students、それ以外/未設定→SpecialAccounts。初期 'student'。`setLineNotifyTab` / `setRequiredMissionsTab`。CSS は既存 `.kadai-tab-bar` / `.kadai-tab-btn` を流用）。タブ切替は保持データ（`_lineNotifyData` / `_requiredMissionsData`）を絞って再描画するだけ。取得（getLineNotifyManagementData / getRequiredMissionsManagementData）・トグル・保存（onLineNotifyToggle / onRequiredMissionToggle）・既存の分離済み23画面は無変更
+  - `0f09430` docs(handover)：前回反映（`7e3c7d3`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`7e3c7d3b72fb99b960107c05fd8c99965ff87914`**（＝`7e3c7d3`）
+- **マージコミット：`52e62b911be6c45a21fd11137a8e3ee2a77561d6`**（＝`52e62b9`）
+- 版バッジ：`20261002-2302`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `52e62b9` / run `37017425643` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`52e62b911be6c45a21fd11137a8e3ee2a77561d6` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `e70015f9…` / view `1f4b0888…` / admin `ce5b3366…`
+- 配信 admin：`setLineNotifyTab`（2か所）・`setRequiredMissionsTab`（2か所）を確認（定義＋タブボタン）
+- ゲート：`origin/main..dev` は2本（f9333bf は反映済みのため含まれず）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**0 行**（index・view は版スタンプのみ。変更は admin.html のみ）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 52e62b911be6c45a21fd11137a8e3ee2a77561d6 && git push origin main && git checkout dev
+  ```
+- 未分離で残っているもの（判断待ち）：認証アラート画面の生徒選択 select（getStudentsAuthStatus）／申請・記録系の一覧（Amazonギフト申請・未送信レポート・HPLog書き込み試行・ミッション解除申請・お詫び候補・三語短文提出一覧・操作ログ・ランキング・アンケート結果）
