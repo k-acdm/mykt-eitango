@@ -2995,3 +2995,51 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 e2925f8517ea904b7c4d0796a415d0969a5ce9cf && git push origin main && git checkout dev
   ```
+
+## 2026-10-10 本番反映：写真読み取りの待機改善（経過表示・やめて撮り直す・古い応答を捨てる）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `1c29c40` feat(写真読み取り)：和文英訳① / 三語短文 / 英検5級 の読み取り待機に**経過表示**と**「✖ 読み取りをやめて撮り直す」**を追加
+    - ★対象は**グループA の 3 経路のみ**（`ocrWabun1Photo` / `ocrSangoPhoto` / `ocrEikenPhoto`）。
+      いずれもサーバーは読むだけ・HP 付与なし＝**中断しても安全**
+    - 経過に応じた文言：0〜10 秒は各画面の現行文言のまま／10 秒〜「いつもより時間がかかっています…（◯秒）」／
+      20 秒〜「混み合っているようです。待つか、撮り直すこともできます（◯秒）」
+    - 10 秒を過ぎたら「✖ 読み取りをやめて撮り直す」を表示（押す＝通信中断・メッセージ消去・写真欄を空に）
+    - 送信ごとに連番（`_ocrWaitSeq`）を振り、**最新以外の応答は `isCurrent()`＝false で捨てる**
+      （取り消し後の遅延応答や 2 本並行時の「後勝ち」を防ぐ）
+    - 取り消しはエラー扱いにしない（`err.cancelled = true`）＝未送信記録にも積まない
+    - 共通 `gasPost` は**第 3 引数 `extSignal` の追加のみ**。省略時は従来どおり（既定 90 秒・同じエラー文言）＝**後方互換**
+    - ★★HP を付ける送信（カンジー・基礎計算等）には使わない方針をコード内コメントに明記
+      （中断してもサーバーは止まらず二重付与の恐れがあるため）
+  - `f2246cc` docs(handover)：戻る注意帯とボタンの重なり解消（body 下部余白）の本番反映を記録（`e2925f8`・前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`e2925f8517ea904b7c4d0796a415d0969a5ce9cf`**（＝`e2925f8`）
+- **マージコミット：`409189de0ea830f2b9defbd39704420b1db66387`**（＝`409189d`）
+- 版バッジ：`20261009-1719`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `409189d` / run `37975239041` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`409189de0ea830f2b9defbd39704420b1db66387` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `a079941a…` / view `e3f7f843…` / admin `45cc56ab…`
+- 反映後、配信物そのもので確認したこと
+  - ★配信 index.html：**「読み取りをやめて撮り直す」＝2**（コメント 1 ＋ 実ボタン `b.textContent` 1）
+  - 経過表示「いつもより時間がかかっています」／「混み合っているようです」＝各 2（コメント＋実装）
+  - 古い応答を捨てる仕組み：`_ocrWaitSeq`＝5 ／ `isCurrent`＝13
+  - `function gasPost(params, timeoutMs, extSignal)` ＝1（第 3 引数の追加のみ＝後方互換）
+  - 対象 3 経路：`action: 'ocrWabun1Photo'` / `'ocrSangoPhoto'` / `'ocrEikenPhoto'` が各 1
+  - ★カンジー・基礎計算等の HP 系が**反映前 main（`e2925f8`）と識別子カウント完全一致**：
+    `submitKanjiKakiPhoto` 5=5 ／ `onKanjiPhotoSelected` 7=7 ／ `startKanjiInPageCamera` 5=5 ／
+    `_isKanjiLearnPreviewAllowed` 4=4 ／ `submitKisoAnswer` 4=4 ／ `submitKanjiYomi` 1=1 ／
+    `_logHP` 5=5 ／ `hpGained` 66=66
+  - ゲート：`origin/main..dev` は**2本**（想定通り＝`1c29c40` 待機改善／`f2246cc` HANDOVER記録）。
+    ★`git diff --name-status --diff-filter=ADRCTX` が**空**＝追加・削除・リネームのファイルはゼロ
+    （**`launch.json` 等の想定外ファイルの混入なし**）。変更は `admin.html` / `docs/HANDOVER.md` /
+    `index.html` / `view.html` の 4 つだけ（すべて M、admin・view は版バッジと `?v=` のみ＝実質 0 行）。
+    CLAUDE.md ゲート判定値＝**122 行**、削除は**6 行のみ**で全て対象 3 経路と `gasPost` のシグネチャ行
+- ★自宅PC は同期前だったため、着手時に `git pull --ff-only origin dev` で `f2246cc..1c29c40` を fast-forward してから反映した
+- ★★環境メモ（2026-10-10 自宅PC）：この PC の `python` は **Windows Store のスタブ**（実行すると "Python" と出て終了）で、
+  実 Python が入っていない（`AppData/Local/Programs/Python` も `C:\Python*` も無し）。
+  CLAUDE.md の「自宅PC・塾PC とも Python 3.14.4」は**この PC では現状あてはまらない**。
+  本反映の検証・HANDOVER 追記は Node（v24.14.1）で代替した。
+  ★基礎計算の問題生成（`scripts/generate_kiso_questions`）を自宅PCで動かすときは Python の再インストールが必要
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 409189de0ea830f2b9defbd39704420b1db66387 && git push origin main && git checkout dev
+  ```
