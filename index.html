@@ -3720,10 +3720,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261004-1938"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261009-1719"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261004-1938">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261004-1938"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261009-1719">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261009-1719"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7227,12 +7227,19 @@
   // 大量データ送信用（GAS doPost）。base64画像など URL 長制限を超えるリクエスト用。
   // Content-Type: text/plain にすることで CORS preflight を回避（Apps Script は OPTIONS に応答しない）。
   // timeoutMs: 既定 90 秒。応答が無い場合は AbortError を reject する。
-  function gasPost(params, timeoutMs) {
+  // extSignal（任意）：外から渡した AbortSignal でも中断できる（写真読み取りの「やめて撮り直す」用）。
+  //   ★省略時は従来どおり（既定90秒・同じエラー文言）。外からの中断時は err.cancelled=true を付けて reject。
+  function gasPost(params, timeoutMs, extSignal) {
     if (_maybeLogoutOnEdudayRollover(params)) return new Promise(function(){});  // 案4：教育日境界 → ログアウト済み。このリクエストは中断（never-resolve）
     var ms = timeoutMs || 90000;
     params = _withSessionToken(params);   // F3段階2：保持中トークンを token として併送（observe）
     var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var timer = setTimeout(function(){ if (ctrl) ctrl.abort(); }, ms);
+    var extAborted = false;
+    if (extSignal && ctrl) {
+      if (extSignal.aborted) { extAborted = true; ctrl.abort(); }
+      else extSignal.addEventListener('abort', function(){ extAborted = true; ctrl.abort(); });
+    }
     return fetch(GAS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -7244,10 +7251,89 @@
     }, function(err){
       clearTimeout(timer);
       if (err && err.name === 'AbortError') {
+        if (extAborted) { var ce = new Error('読み取りを中断しました'); ce.cancelled = true; throw ce; }
         throw new Error('サーバー応答がありません（' + Math.round(ms/1000) + '秒待機）。電波の良い場所でもう一度お試しください。');
       }
       throw err;
     });
+  }
+
+  // ===== 写真読み取りの待機（グループA：和文英訳① / 三語短文 / 英検5級。サーバーは読むだけ・HPなし＝中断しても安全） =====
+  //   ・経過に応じて文言を変える：0〜10秒は各画面の現行文言のまま／10秒〜「いつもより時間がかかっています…（◯秒）」／
+  //     20秒〜「混み合っているようです。待つか、撮り直すこともできます（◯秒）」
+  //   ・10秒を過ぎたら「✖ 読み取りをやめて撮り直す」を出す（押す＝通信中断・メッセージ消去・写真欄を空に）
+  //   ・送信ごとに連番を振り、最新以外の応答は isCurrent()=false で捨てる（取り消し後・2本並行の後勝ちを防ぐ）
+  //   ・取り消しはエラー扱いにしない（呼び出し側は isCurrent() が false なら何もしない＝未送信記録にも積まない）
+  //   ★HP を付ける送信（カンジー・基礎計算等）には使わない（中断してもサーバーは止まらず二重付与の恐れ）。
+  var _ocrWaitSeq = {};
+  var _ocrWaitCur = {};
+  function _ocrWaitRemoveBtns(msgId) {
+    ['-ocrcancel', '-ocrretake'].forEach(function(suf){
+      var b = document.getElementById(msgId + suf);
+      if (b && b.parentNode) b.parentNode.removeChild(b);
+    });
+  }
+  function _ocrWaitStart(flowKey, cfg) {
+    var prev = _ocrWaitCur[flowKey];
+    if (prev) prev._supersede();   // 前の読み取りは中断して捨てる（読むだけなので安全）
+    var seq = (_ocrWaitSeq[flowKey] || 0) + 1;
+    _ocrWaitSeq[flowKey] = seq;
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var startedAt = Date.now();
+    var timer = null;
+    var w = {
+      signal: ctrl ? ctrl.signal : undefined,
+      isCurrent: function(){ return _ocrWaitSeq[flowKey] === seq && _ocrWaitCur[flowKey] === w; },
+      done: function(){ if (timer) { clearInterval(timer); timer = null; } _ocrWaitRemoveBtns(cfg.msgId); },
+      showRetake: function(){
+        var msgEl = document.getElementById(cfg.msgId);
+        if (!msgEl || document.getElementById(cfg.msgId + '-ocrretake')) return;
+        var b = document.createElement('button');
+        b.type = 'button'; b.id = cfg.msgId + '-ocrretake'; b.className = 'btn-wide';
+        b.style.cssText = 'margin-top:8px;background:linear-gradient(135deg,#8b5cf6,#6d28d9)';
+        b.textContent = '📸 撮り直す';
+        b.onclick = function(){
+          _ocrWaitRemoveBtns(cfg.msgId);
+          var inp = document.getElementById(cfg.inputId);
+          if (inp) { inp.value = ''; inp.click(); }
+        };
+        msgEl.parentNode.insertBefore(b, msgEl.nextSibling);
+      },
+      _supersede: function(){ w.done(); if (ctrl) { try { ctrl.abort(); } catch(e){} } }
+    };
+    _ocrWaitCur[flowKey] = w;
+    _ocrWaitRemoveBtns(cfg.msgId);   // 前回の「撮り直す」等を消す
+    timer = setInterval(function(){
+      if (!w.isCurrent()) { w.done(); return; }
+      var sec = Math.floor((Date.now() - startedAt) / 1000);
+      if (sec < 10) return;
+      var msgEl = document.getElementById(cfg.msgId);
+      if (!msgEl) return;
+      msgEl.textContent = (sec < 20)
+        ? '⏳ いつもより時間がかかっています…（' + sec + '秒）'
+        : '⏳ 混み合っているようです。待つか、撮り直すこともできます（' + sec + '秒）';
+      if (!document.getElementById(cfg.msgId + '-ocrcancel')) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.id = cfg.msgId + '-ocrcancel'; b.className = 'btn-wide';
+        b.style.cssText = 'margin-top:8px;background:linear-gradient(135deg,#636e72,#2d3436)';
+        b.textContent = '✖ 読み取りをやめて撮り直す';
+        b.onclick = function(){
+          if (!w.isCurrent()) return;
+          _ocrWaitSeq[flowKey] = seq + 1;   // この読み取りの応答は以後すべて捨てる
+          _ocrWaitCur[flowKey] = null;
+          w._supersede();
+          msgEl.style.display = 'none'; msgEl.textContent = '';
+          var inp = document.getElementById(cfg.inputId);
+          if (inp) inp.value = '';
+          if (typeof cfg.onCancel === 'function') { try { cfg.onCancel(); } catch(e){} }
+        };
+        msgEl.parentNode.insertBefore(b, msgEl.nextSibling);
+      }
+    }, 1000);
+    return w;
+  }
+  function _ocrWaitIsTimeout(err) {
+    return !!(err && !err.cancelled && /サーバー応答がありません/.test(String(err.message || err)));
   }
   // F2: クライアントサイドセッションキャッシュ（読み取り系のみ memoize）
   // - キャッシュキー: _ts を除いた params のソート JSON
@@ -12056,7 +12142,10 @@
     //   ★従来クライアント側で pages→blocks→paragraphs→words を舐めて出していた平均信頼度は
     //     res.avgConfidence をそのまま使う（サーバーが同じ計算をして返す）。
     //     欠落時は従来の「信頼度が1件も取れなかった場合」と同じく 1（＝通過）にフォールバックする。
-    gasPost({ action: 'ocrEikenPhoto', imageBase64: base64 }).then(function(res) {
+    var _ow = _ocrWaitStart('eiken5', { msgId: 'photo-msg', inputId: 'photo-input' });   // 待機表示・取り消し・古い応答を捨てる
+    gasPost({ action: 'ocrEikenPhoto', imageBase64: base64 }, 90000, _ow.signal).then(function(res) {
+      if (!_ow.isCurrent()) return;   // 取り消し済み／新しい読み取りが始まった → この応答は捨てる
+      _ow.done();
       _clearUnsentFlowIfOk(res, 'eiken5_ocr');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
       if (!res || !res.ok) {
         var _m = (res && res.message) ? String(res.message) : '文字が読み取れませんでした。明るい場所で撮り直してください。';
@@ -12081,14 +12170,21 @@
       //   ★2026-09-02：他6コンテンツと同じ「送信中 → 受け取ったよ → 結果」の順に揃える。
       //     サーバーが速く返ってきても、まず「送信中」を MIN_SENDING_MS だけ見せ切る。
       setTimeout(function(){
+        if (!_ow.isCurrent()) return;   // 表示待ちの間に撮り直しが始まったら、古い結果は出さない
         _setContentMascot('mate-img-eitan-dictation', 'default', 'mate-bubble-eitan-dictation', RECEIVED_LINES.eiken5, 'rushkun');
         msgEl.style.display = 'none';   // 「AIが判定中です」は受領に切り替わった時点で消す
         setTimeout(function(){
+          if (!_ow.isCurrent()) return;
           if (failedWords.length === 0) { _setContentMascot('mate-img-eitan-dictation', 'celebrate', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.pass), 'rushkun'); msgEl.style.display = 'none'; showPhotoPassedScreen(); }
           else { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); _renderPhotoFail(failedWords, rawText, confPct); }
         }, MIN_RECEIVED_MS);
       }, Math.max(0, MIN_SENDING_MS - (Date.now() - _sendStartedAt)));
-    }).catch(function(err){ try { _recordUnsentAwareness('英単語RUSH(5級)', 'eiken5_ocr'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','⚠️ 送信できませんでした。まだ記録されていません。電波の良い場所でもう一度送ってね。','ng'); });
+    }).catch(function(err){
+      if (!_ow.isCurrent()) return;   // 生徒が取り消した／新しい読み取りに置き換わった → エラー表示も未送信記録もしない
+      _ow.done();
+      try { _recordUnsentAwareness('英単語RUSH(5級)', 'eiken5_ocr'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','⚠️ 送信できませんでした。まだ記録されていません。電波の良い場所でもう一度送ってね。','ng');
+      if (_ocrWaitIsTimeout(err)) _ow.showRetake();   // タイムアウト後の導線
+    });
   }
   function _renderPhotoFail(failedWords, rawText, confPct) {
     var escH = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
@@ -14265,7 +14361,10 @@
     var msgEl = document.getElementById('sango-photo-msg');
     msgEl.textContent = '⏳ AIが文字を読み取り中です...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
     document.getElementById('sango-ocr-confirm').style.display = 'none';
-    gasPost({ action: 'ocrSangoPhoto', imageBase64: base64 }).then(function(res) {
+    var _ow = _ocrWaitStart('sango', { msgId: 'sango-photo-msg', inputId: 'sango-photo-input' });   // 待機表示・取り消し・古い応答を捨てる
+    gasPost({ action: 'ocrSangoPhoto', imageBase64: base64 }, 90000, _ow.signal).then(function(res) {
+      if (!_ow.isCurrent()) return;   // 取り消し済み／新しい読み取りが始まった → この応答は捨てる
+      _ow.done();
       _clearUnsentFlowIfOk(res, 'sango_ocr');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
       if (!res || !res.ok) {
         var m = (res && res.message) ? String(res.message) : '文字が読み取れませんでした。明るい場所で撮り直してください。';
@@ -14276,7 +14375,12 @@
       msgEl.style.display = 'none';
       document.getElementById('sango-ocr-text').textContent = _sangoOcrText;
       document.getElementById('sango-ocr-confirm').style.display = 'block';
-    }).catch(function(err){ try { _recordUnsentAwareness('三語短文(写真の読み取り)', 'sango_ocr'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ showMsg('sango-photo-msg', 'エラー：' + String(err), 'ng'); });
+    }).catch(function(err){
+      if (!_ow.isCurrent()) return;   // 生徒が取り消した／新しい読み取りに置き換わった → エラー表示も未送信記録もしない
+      _ow.done();
+      try { _recordUnsentAwareness('三語短文(写真の読み取り)', 'sango_ocr'); } catch(e){}  /* 応急処置②：未送信を可視化（自動再送はしない） */ showMsg('sango-photo-msg', 'エラー：' + String(err), 'ng');
+      if (_ocrWaitIsTimeout(err)) _ow.showRetake();   // タイムアウト後の導線
+    });
   }
   function confirmSangoPhoto(ok) {
     if (!ok) {
@@ -15283,7 +15387,10 @@
     // 旧 Cloud Vision 実装は関数末尾にコメントアウトで保持（ロールバック用）。
     var msgEl = document.getElementById('wabun1-camera-msg');
     msgEl.textContent = '⏳ AIが文字を読み取り中です（数秒かかります）...'; msgEl.className = 'msg ok'; msgEl.style.color = ''; msgEl.style.display = 'block';
-    gasPost({ action: 'ocrWabun1Photo', imageBase64: base64 }, 90000).then(function(res){
+    var _ow = _ocrWaitStart('wabun1', { msgId: 'wabun1-camera-msg', inputId: 'wabun1-photo-input' });   // 待機表示・取り消し・古い応答を捨てる
+    gasPost({ action: 'ocrWabun1Photo', imageBase64: base64 }, 90000, _ow.signal).then(function(res){
+      if (!_ow.isCurrent()) return;   // 取り消し済み／新しい読み取りが始まった → この応答は捨てる
+      _ow.done();
       _clearUnsentFlowIfOk(res, 'wabun1_ocr');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
       if (!res || !res.ok) {
         var msg = (res && res.message) || '通信に失敗しました。';
@@ -15322,10 +15429,13 @@
       _setContentMascot('mate-img-wabun1-confirm', 'thinking', 'mate-bubble-wabun1-confirm', _pickBubble(NICHIEI_BUBBLES.confirm), 'nichiei');
       showScreen('screen-wabun1-confirm');
     }).catch(function(err){
+      if (!_ow.isCurrent()) return;   // 生徒が取り消した／新しい読み取りに置き換わった → エラー表示も未送信記録もしない
+      _ow.done();
       try { _recordUnsentAwareness('和文英訳①(写真の読み取り)', 'wabun1_ocr'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
       var emsg = (err && err.message) ? err.message : String(err);
       showMsg('wabun1-camera-msg', 'エラー：' + emsg, 'ng');
       document.getElementById('wabun1-photo-input').value = '';
+      if (_ocrWaitIsTimeout(err)) _ow.showRetake();   // タイムアウト後の導線
     });
 
     /* ===== 旧実装（Cloud Vision DOCUMENT_TEXT_DETECTION）—— 2026-04-30 にコメントアウト =====
@@ -26855,7 +26965,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261004-1938</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261009-1719</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
