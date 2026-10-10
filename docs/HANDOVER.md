@@ -3043,3 +3043,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 409189de0ea830f2b9defbd39704420b1db66387 && git push origin main && git checkout dev
   ```
+
+## 2026-10-10 本番反映：カンジー書きテスト送信の待ち時間を 90→120 秒に
+
+- ★背景：同日 17:25 の提出（24035）がサーバーでは 102 秒で採点完了したのに、フロントが 90 秒で諦めて結果が生徒に届かなかった。夕方は AI 採点が 30〜60 秒以上かかる状態が続いており再発しうる。nginx は 130 秒なのでフロント 120 秒で収まる
+- 反映内容（dev→main マージ、2 コミット）
+  - `97110fe` fix(カンジー)：`submitKanjiKaki` の送信だけ `gasPost(payload, 90000)` → `gasPost(payload, 120000)`（画面入力・写真の送信とも同じ関数）。`gasPost` の既定 90 秒・基礎計算等の他コンテンツ（90 秒指定のまま）・タイムアウト後の LINE 案内・判定・HP付与・結果表示は無変更
+  - `38a334f` docs(handover)：前回反映（`409189d`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`409189de0ea830f2b9defbd39704420b1db66387`**（＝`409189d`）
+- **マージコミット：`422ee17685b877782c7d59750d17e9f3d6e2a4ad`**（＝`422ee17`）
+- 版バッジ：`20261010-1747`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `422ee17` / run `38043067804` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`422ee17685b877782c7d59750d17e9f3d6e2a4ad` 実体を確認
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `febff72b…` / view `8b457da1…` / admin `910f6f6a…`
+- 配信 index：`gasPost(payload, 120000)`（L23162）を確認。基礎計算の `gasPost(payload, 90000)` 2か所は従来どおり
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**4 行**（index.html のタイムアウト値＋コメント。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 422ee17685b877782c7d59750d17e9f3d6e2a4ad && git push origin main && git checkout dev
+  ```

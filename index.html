@@ -3720,10 +3720,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261010-1747"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261010-2333"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261010-1747">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261010-1747"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261010-2333">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261010-2333"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10350,8 +10350,7 @@
     return String(detail.itemId || detail.itemCode || detail.item_code || detail.code || '');
   }
   // 第2弾：履物着用不可の上下セット（靴付き＝6種×base3体＝18枚。avatar_map2.json の no_shoes_outfits と一致）。
-  //   ★履物（shoes）の着せ替え表示は未実装のため、現時点ではフラグを定義するだけ（どこからも参照しない）。
-  //   ★将来、履物を実装するときに「このフラグの上下セットを装着中は履物の装着・試着・描画を制限する」ために使う。
+  //   ★段階1（履物）：このフラグの上下セットを装着中は履物を無視して従来の人体を描く・試着ボタンも出さない。
   var AVATAR_OUTFIT_NO_SHOES = {
     outfit_003: true, outfit_004: true, outfit_005: true,
     outfit_006: true, outfit_007: true, outfit_011: true
@@ -10362,6 +10361,56 @@
     var avNum = AVATAR_OUTFIT_SET_MAP[String(base) + '|' + String(outfitCode)];
     return avNum ? _outfitAvPath(avNum) : '';
   }
+  // ===== アバター装着アイテム 段階1：履物（人体の丸ごと差し替え・合成なし）=====
+  //   配信元：AVATAR_ITEM_BASE + 'shoes/shoesNN/shoesNN_AV0000NNN.png' + '?v=' + AVATAR_ITEM_VER
+  //   ★AV番号は従来の人体（AVATAR_OUTFIT_MAP / AVATAR_OUTFIT_SET_MAP）で決まる番号をそのまま使う。
+  //   ★AVATAR_ITEM_VER：画像を差し替えたら数字を上げるだけで全端末に読み直させられる。
+  var AVATAR_ITEM_BASE = 'https://mykt-eitango.com/avatar-items/';
+  var AVATAR_ITEM_VER  = 1;
+  function _avatarItemUrl(relPath) {
+    return AVATAR_ITEM_BASE + relPath + '?v=' + AVATAR_ITEM_VER;
+  }
+  // shoes_001 → '01'（画像フォルダは2桁）。形式外は ''。
+  function _shoesNN(shoesCode) {
+    var m = /^shoes_(\d+)$/.exec(String(shoesCode || ''));
+    if (!m) return '';
+    var n = parseInt(m[1], 10);
+    if (!(n >= 1 && n <= 99)) return '';
+    return (n < 10 ? '0' : '') + n;
+  }
+  function _avPad7(avNum) {
+    var s = String(avNum);
+    while (s.length < 7) s = '0' + s;
+    return s;
+  }
+  // 従来の人体の AV 番号（素体＝0 / 対応表に無い＝0）。上下セット優先（方式B）は従来どおり。
+  function _avatarBodyAvNum(base, topsCode, bottomsCode, outfitCode) {
+    if (outfitCode) return AVATAR_OUTFIT_SET_MAP[String(base) + '|' + String(outfitCode)] || 0;
+    if (!topsCode && !bottomsCode) return 0;
+    return AVATAR_OUTFIT_MAP[_outfitKey(base, topsCode, bottomsCode)] || 0;
+  }
+  // 履物版の人体パス。履けない（履物なし・素体・対応表外・履物不可の上下セット）なら ''＝従来の人体を使う。
+  function _avatarShoesBodyPath(base, topsCode, bottomsCode, outfitCode, shoesCode) {
+    var nn = _shoesNN(shoesCode);
+    if (!nn) return '';
+    if (outfitCode && AVATAR_OUTFIT_NO_SHOES[outfitCode]) return '';   // 靴付き衣装は履物を無視
+    var avNum = _avatarBodyAvNum(base, topsCode, bottomsCode, outfitCode);
+    if (!avNum) return '';
+    return _avatarItemUrl('shoes/shoes' + nn + '/shoes' + nn + '_AV' + _avPad7(avNum) + '.png');
+  }
+  // 履物版が読めなかったときの戻り先＝履物なしの従来の人体（装着中の状態から求める）。
+  function _avatarBodyImgPathNoShoes() {
+    var d = _avatarState.equippedDetails || {};
+    return _avatarBodyImgPathWith(_equipItemCode(d.tops), _equipItemCode(d.bottoms), _equipItemCode(d.outfit));
+  }
+  // 人体 img の onerror 用：履物版 → 従来の人体 → 素体 の順に1段ずつ落とす（割れ画像防止・無限ループなし）。
+  function _avatarBodyFallbackNext(curSrc, noShoesSrc, baseSrc) {
+    curSrc = String(curSrc || '');
+    if (curSrc.indexOf(AVATAR_ITEM_BASE) === 0 && noShoesSrc && noShoesSrc !== curSrc) return noShoesSrc;
+    if (baseSrc && curSrc.indexOf(baseSrc) === -1) return baseSrc;
+    return '';
+  }
+
   // A-3：base + 装着中 tops/bottoms から、表示すべき人体（服）画像パスを決める。
   //   ・トップスもボトムスも未装着 → 素体 base_*.png
   //   ・対応表に無い組み合わせ → 素体 base_*.png に安全に落とす（割れ画像を出さない）
@@ -10372,6 +10421,9 @@
     if (!base || !AVATAR_BASE_IMG[base]) return '';   // base 未設定は呼び出し側で扱う
     var d = _avatarState.equippedDetails || {};
     var outfitCode = _equipItemCode(d.outfit);
+    // 段階1：履物を装着中なら、同じ AV 番号の履物版に丸ごと差し替え（履けなければ従来どおり）。
+    var shoesPath = _avatarShoesBodyPath(base, _equipItemCode(d.tops), _equipItemCode(d.bottoms), outfitCode, _equipItemCode(d.shoes));
+    if (shoesPath) return shoesPath;
     if (outfitCode) return _outfitSetAvPath(base, outfitCode) || AVATAR_BASE_IMG[base];   // 対応表に無い → 素体
     var topsCode    = _equipItemCode(d.tops);
     var bottomsCode = _equipItemCode(d.bottoms);
@@ -10384,9 +10436,14 @@
   //   差し替えて着姿パスを求める純関数。★_avatarState を一切書き換えない（痕跡ゼロ）。
   //   対応表に無い組み合わせは素体に安全落ち（割れ画像を出さない）。
   //   第2弾：第3引数 outfitCode を渡すと上下セットの着姿を優先（方式B と同じ優先順位）。省略時は従来どおり。
-  function _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) {
+  //   段階1：第4引数 shoesCode を渡すと履物版（履けなければ無視）。省略時は従来どおり。
+  function _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode, shoesCode) {
     var base = _avatarState.base;
     if (!base || !AVATAR_BASE_IMG[base]) return '';
+    if (shoesCode) {
+      var shoesPath = _avatarShoesBodyPath(base, topsCode, bottomsCode, outfitCode, shoesCode);
+      if (shoesPath) return shoesPath;
+    }
     if (outfitCode) return _outfitSetAvPath(base, outfitCode) || AVATAR_BASE_IMG[base];
     if (!topsCode && !bottomsCode) return AVATAR_BASE_IMG[base];
     var avNum = AVATAR_OUTFIT_MAP[_outfitKey(base, topsCode, bottomsCode)];
@@ -10402,7 +10459,11 @@
     if (categoryKey === 'tops')    return !!AVATAR_OUTFIT_MAP[_outfitKey(base, itemCode, '')];
     if (categoryKey === 'bottoms') return !!AVATAR_OUTFIT_MAP[_outfitKey(base, '', itemCode)];
     if (categoryKey === 'outfit')  return !!AVATAR_OUTFIT_SET_MAP[base + '|' + itemCode];   // 第2弾：上下セット
-    return false;   // 着姿を描けるのは tops/bottoms/outfit のみ（それ以外には出さない）
+    if (categoryKey === 'shoes') {   // 段階1：今の体（装着中の服）で履物版を描けるときだけ（履物不可の上下セット・素体では出さない）
+      var d = _avatarState.equippedDetails || {};
+      return !!_avatarShoesBodyPath(base, _equipItemCode(d.tops), _equipItemCode(d.bottoms), _equipItemCode(d.outfit), itemCode);
+    }
+    return false;   // 着姿を描けるのは tops/bottoms/outfit/shoes のみ（それ以外には出さない）
   }
   // Phase2：装着中のオーラ画像パス。★背景（_avatarBgPath）と同じ流儀で
   //   サーバーの imagePath をそのまま使う（例 'images/avatar/aura/aura_03.png'）。
@@ -10506,8 +10567,10 @@
     var base = _avatarState.base;
     if (!img || !base || !AVATAR_BASE_IMG[base]) return;
     var baseSrc = AVATAR_BASE_IMG[base];
-    img.onerror = function(){
-      if (baseSrc && (img.getAttribute('src') || '').indexOf(baseSrc) === -1) { img.onerror = null; img.src = baseSrc; return; }
+    var noShoesSrc = _avatarBodyImgPathNoShoes();
+    img.onerror = function(){   // 段階1：履物版 → 従来の人体 → 素体 の順に落とす
+      var next = _avatarBodyFallbackNext(img.getAttribute('src'), noShoesSrc, baseSrc);
+      if (next) { img.src = next; return; }
       img.onerror = null;
     };
     img.src = _avatarBodyImgPath();
@@ -10627,14 +10690,13 @@
         };
         img.onload  = _fadeIn;
         // 服の完成画像が読めなければ素体 base_*.png に1回だけフォールバック（割れ画像防止）。
+        var _noShoesSrc = _avatarBodyImgPathNoShoes();
         img.onerror = function(){
           var baseSrc = AVATAR_BASE_IMG[base];
-          if (baseSrc && (img.getAttribute('src') || '').indexOf(baseSrc) === -1) {
-            img.onerror = _fadeIn;   // フォールバック画像でも失敗したら通常表示扱い
-            img.src = baseSrc;
-            return;
-          }
-          _fadeIn();
+          // 段階1：履物版が読めなければ従来の人体 → それも駄目なら素体（各1回）。
+          var next = _avatarBodyFallbackNext(img.getAttribute('src'), _noShoesSrc, baseSrc);
+          if (next) { img.src = next; return; }
+          _fadeIn();   // フォールバック画像でも失敗したら通常表示扱い
         };
         img.src = newSrc;
         // ブラウザキャッシュにあり onload が即発火しなかった場合のフォールバック
@@ -10989,16 +11051,19 @@
     var topsCode    = _equipItemCode(d.tops);
     var bottomsCode = _equipItemCode(d.bottoms);
     var outfitCode  = '';
+    var shoesCode   = _equipItemCode(d.shoes);   // 段階1：履いている履物は服の試着でもそのまま（履けない服なら自動で無視）
     if (categoryKey === 'tops')         topsCode    = String(itemId || '');
     else if (categoryKey === 'bottoms') bottomsCode = String(itemId || '');
     else if (categoryKey === 'outfit')  outfitCode  = String(itemId || '');   // 第2弾：上下セットはその1着の着姿
-    else return;   // 着姿対象は tops/bottoms/outfit のみ
-    var src = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
+    else if (categoryKey === 'shoes')  { outfitCode = _equipItemCode(d.outfit); shoesCode = String(itemId || ''); }   // 段階1：今の服のまま履物だけ
+    else return;   // 着姿対象は tops/bottoms/outfit/shoes のみ
+    var src = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode, shoesCode) || AVATAR_BASE_IMG[base];
+    var noShoesSrc = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
     var img = document.getElementById('avatar-tryon-img');
     if (img) {
-      img.onerror = function(){   // 完成画像が読めなければ素体に1回だけフォールバック（割れ画像防止）
-        var baseSrc = AVATAR_BASE_IMG[base];
-        if (baseSrc && (img.getAttribute('src') || '').indexOf(baseSrc) === -1) { img.onerror = null; img.src = baseSrc; return; }
+      img.onerror = function(){   // 履物版 → 従来の人体 → 素体 の順に1段ずつフォールバック（割れ画像防止）
+        var next = _avatarBodyFallbackNext(img.getAttribute('src'), noShoesSrc, AVATAR_BASE_IMG[base]);
+        if (next) { img.src = next; return; }
         img.onerror = null;
       };
       img.src = src;
@@ -23113,6 +23178,62 @@
   //   - 失敗 / タイムアウト時は _showSubmitError() でリトライ可（_pendingRetry 経由）
   //   - Gemini Vision OCR + 採点で 10〜30 秒かかるため、25 秒タイムアウトは短すぎる可能性あり。
   //     gasPost のデフォルト 90 秒を維持しつつ、_logHP 防御層のリトライを信頼する。
+  // 2026-10 (B)：カンジー書きの待ち時間切れ対策（サーバー getKanjiKakiResult と対）。
+  //   submitId：英数と -_ のみ・64 文字以内（サーバーはこの形式以外を無視する）。提出ごとに新しく作る。
+  function _kanjiKakiNewSubmitId() {
+    var rnd = '';
+    try {
+      var a = new Uint8Array(12);
+      (window.crypto || window.msCrypto).getRandomValues(a);
+      for (var i = 0; i < a.length; i++) rnd += ('0' + a[i].toString(16)).slice(-2);
+    } catch(e) {
+      for (var j = 0; j < 24; j++) rnd += Math.floor(Math.random() * 16).toString(16);
+    }
+    return 'kk-' + Date.now().toString(36) + '-' + rnd;   // 例：kk-mfx1a2b3-0123456789abcdef01234567（40 文字前後）
+  }
+  // 待ち時間切れ（gasPost の打ち切り）か。判定の失敗（ok:false）や通信エラーとは区別する。
+  function _kanjiKakiIsTimeout(err) {
+    return !!(err && /サーバー応答がありません/.test(String(err.message || err)));
+  }
+  // 待ち時間切れの後、5/15/30 秒後の計3回 getKanjiKakiResult に問い合わせる（最大 150 秒で決着）。
+  //   status:'done' なら採点結果（submitKanjiKaki と同じ形）を resolve。見つからない・問い合わせ失敗・
+  //   サーバー未反映（unknown action 等）はすべて null を resolve（呼び出し側で従来どおり LINE 案内）。reject はしない。
+  //   ★サーバー実装（mykt-eitango-aws df65860）に合わせる：GET で呼ぶ。応答は submitKanjiKaki の応答と同じ形に
+  //     status を足したもの（results[] 等は応答そのものに入る）＝応答そのものを結果として使う。
+  //     保険として、results[] が無く res.result（object）がある場合だけそちらを使う。
+  function _kanjiKakiPollResult(payload) {
+    var txt = document.getElementById('hp-confirming-text');
+    if (txt) txt.textContent = '⏳ 採点を確認しています';   // HP 確認オーバーレイはそのまま（点滅ドットも継続）
+    var q = { action: 'getKanjiKakiResult', studentId: payload.studentId, sessionId: payload.sessionId,
+              submitId: payload.submitId, isRetry: payload.isRetry };
+    function ask() {
+      return gasGetWithTimeout(q, 8000);
+    }
+    function pick(res) {
+      if (!res || res.status !== 'done') return null;
+      var r = res;
+      if (!Array.isArray(res.results) && res.result && typeof res.result === 'object') r = res.result;
+      if (r.ok === undefined) { r = Object.assign({}, r, { ok: true }); }
+      return r;
+    }
+    var at = [5000, 15000, 30000];   // 待ち時間切れの時点から 5 秒後・15 秒後・30 秒後（問い合わせ自体の所要時間に左右されない）
+    var t0 = Date.now();
+    return new Promise(function(resolve){
+      var n = 0;
+      function next() {
+        if (n >= at.length) { resolve(null); return; }
+        setTimeout(function(){
+          n++;
+          ask().then(function(res){
+            var r = pick(res);
+            if (r) { resolve(r); return; }
+            next();
+          }).catch(function(){ next(); });
+        }, Math.max(0, t0 + at[n] - Date.now()));
+      }
+      next();
+    });
+  }
   //   inputMethod：画面入力（kanjiKakiInputSubmit）からだけ 'screen' を渡す。撮影の送信ボタンは引数なし
   //   ＝未指定のまま送る（サーバーは未指定を写真として従来どおり判定）。
   function submitKanjiKakiPhoto(inputMethod) {
@@ -23148,6 +23269,8 @@
       isRetry: _kanjiState.isKakiRetry
     };
     if (inputMethod === 'screen') payload.inputMethod = 'screen';
+    // 2026-10 (B)：提出ごとの識別子。待ち時間切れのとき getKanjiKakiResult でこの提出の結果を問い合わせるのに使う。
+    payload.submitId = _kanjiKakiNewSubmitId();
     function doSubmit() {
       _showHpConfirmingOverlay('kanjii');
       submitBtn.disabled = true;
@@ -23157,9 +23280,8 @@
         submitBtn.disabled = false;
         // 撮影確認画面に留まり、生徒が「もう一度撮る」or「ホームに戻る」を選べるようにする
       };
-      // 2026-10：待ち時間 90→120 秒（カンジー書きのみ）。夕方は AI 採点が 100 秒前後かかることがあり、
-      //   サーバーで採点完了したのにフロントが先に諦めて結果が届かない事象があったため。nginx（130 秒）より短く保つ。
-      gasPost(payload, 120000).then(function(res){
+      // 応答の処理（通常の応答と、待ち時間切れ後に getKanjiKakiResult で拾えた結果の両方で使う）。
+      function _onKanjiKakiRes(res){
         _clearUnsentFlowIfOk(res, 'kanji');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
         submitBtn.disabled = false;
         if (!res || !res.ok) {
@@ -23218,7 +23340,22 @@
         // 2026-08-05 追修正：結果画面への切替を overlay 消滅と同時に
         _showReceivedOnOverlay('kanji');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
         _hideHpConfirmingOverlay(function(){ _showKanjiKakiResult(res); });
-      }).catch(function(err){
+      }
+      // 2026-10：待ち時間 90→120 秒（カンジー書きのみ）。夕方は AI 採点が 100 秒前後かかることがあり、
+      //   サーバーで採点完了したのにフロントが先に諦めて結果が届かない事象があったため。nginx（130 秒）より短く保つ。
+      gasPost(payload, 120000).then(_onKanjiKakiRes).catch(function(err){
+        // 2026-10 (B)：待ち時間切れ（120 秒）だけは、サーバーでは採点が終わっている可能性があるので
+        //   getKanjiKakiResult に 5/15/30 秒後の計3回問い合わせる。見つかれば通常の結果処理へ、
+        //   見つからない／問い合わせ自体が失敗（サーバー未反映を含む）なら従来どおり LINE 案内。
+        if (_kanjiKakiIsTimeout(err)) {
+          _kanjiKakiPollResult(payload).then(function(found){
+            if (found) { _onKanjiKakiRes(found); return; }
+            _hideHpConfirmingOverlay();
+            submitBtn.disabled = false;
+            _showKanjiLineHandoff();
+          });
+          return;
+        }
         // 2026-09-18：通信エラー / 90 秒タイムアウト（採点サーバーに届いていない/応答なし）も
         //   「採点が止まっている失敗」として、カンジー『書き』の LINE 案内へ一本化する。
         //   ★未送信の印（帯・逃げ道ボタン）は付けない：LINE 案内と二重にならないよう、
@@ -26967,7 +27104,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261010-1747</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261010-2333</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
