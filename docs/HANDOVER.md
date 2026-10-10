@@ -3062,3 +3062,24 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 422ee17685b877782c7d59750d17e9f3d6e2a4ad && git push origin main && git checkout dev
   ```
+
+## 2026-10-10 本番反映：アバター装着アイテム段階1（履物の差し替え）＋カンジー書きテスト(B)結果問い合わせ
+
+- 反映内容（dev→main マージ、4 コミット）
+  - `be83424` feat(アバター)：履物を装着したら人体を履物版（`https://mykt-eitango.com/avatar-items/shoes/shoesNN/shoesNN_AV0000NNN.png?v=1`）に丸ごと差し替え。`AVATAR_ITEM_BASE` / `AVATAR_ITEM_VER=1`（画像差し替え時はこの数字を上げる）。AV番号は従来の `AVATAR_OUTFIT_MAP` / `AVATAR_OUTFIT_SET_MAP` のまま。履物不可の上下セット（`AVATAR_OUTFIT_NO_SHOES`、18体）と素体では履物を無視。読めなければ 履物版→従来の人体→素体 の順にフォールバック。ショップの試着ボタンに shoes を追加（今の体で履物版を描けるときだけ）
+  - `9b42276` fix(カンジー)：`getKanjiKakiResult` の呼び方をサーバー実装（df65860）に合わせる
+  - `1bf3487` feat(カンジー)：書きテストの待ち時間切れ時に `getKanjiKakiResult` で結果を問い合わせて表示（(B) 取りこぼし対策）
+  - `ac02e22` docs(handover)：前回反映（`422ee17`）の記録
+- ★アバターのアイテムは予告のまま（生徒は装着できない）＝生徒には見た目の変化なし。サーバー側（df65860）は先に反映済み
+- **反映前の main（切り戻し先）：`422ee17685b877782c7d59750d17e9f3d6e2a4ad`**（＝`422ee17`）
+- **マージコミット：`453ac6f0e4d143d6751e013e4a75671cadc78160`**（＝`453ac6f`）
+- 版バッジ：`20261010-2333`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `453ac6f` / run `38060463649` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`453ac6f0e4d143d6751e013e4a75671cadc78160`
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `ab6a5d88…` / view `a7bfe4fc…` / admin `0f48a214…`
+- 配信 index に `AVATAR_ITEM_BASE`（4件）・`_avatarShoesBodyPath`（4件）・`getKanjiKakiResult`（6件）を確認
+- ゲート：`origin/main..dev` は4本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**179 行**（index.html の履物＋カンジー(B)。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 453ac6f0e4d143d6751e013e4a75671cadc78160 && git push origin main && git checkout dev
+  ```

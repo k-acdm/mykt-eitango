@@ -3720,10 +3720,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261010-2333"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261010-2359"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261010-2333">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261010-2333"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261010-2359">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261010-2359"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10463,7 +10463,158 @@
       var d = _avatarState.equippedDetails || {};
       return !!_avatarShoesBodyPath(base, _equipItemCode(d.tops), _equipItemCode(d.bottoms), _equipItemCode(d.outfit), itemCode);
     }
-    return false;   // 着姿を描けるのは tops/bottoms/outfit/shoes のみ（それ以外には出さない）
+    if (categoryKey === 'hat') return !!_hatNN(itemCode);   // 段階2：帽子は全ての体に乗せられる（帽子の層は体型別）
+    return false;   // 着姿を描けるのは tops/bottoms/outfit/shoes/hat のみ（それ以外には出さない）
+  }
+  // ===== アバター装着アイテム 段階2：帽子（canvas 合成の土台）=====
+  //   人体を描く → 「消す範囲」で該当部分を透明に → 帽子の層を重ねる。
+  //   層：hats/hatNN_体_layer.png ／ 消す範囲：hats/hatNN_体_mask.png（NN=01〜20、体=boy/girl/neutral）
+  //   ★消す範囲が無い帽子（AVATAR_HAT_NO_MASK）は層を重ねるだけ。14（光輪）の層は半透明画素をそのまま重ねる。
+  //   ★ローブ3体（AV514/525/536）は帽子を着けたらフード下ろし版の人体に差し替える。
+  var AVATAR_HAT_NO_MASK = { '02': true, '03': true, '04': true, '10': true, '13': true, '14': true, '15': true, '17': true };
+  var AVATAR_ROBE_HOOD_AV = { 514: true, 525: true, 536: true };
+  // hat_001 → '01'（01〜20 のみ）。形式外は ''。
+  function _hatNN(hatCode) {
+    var m = /^hat_(\d+)$/.exec(String(hatCode || ''));
+    if (!m) return '';
+    var n = parseInt(m[1], 10);
+    if (!(n >= 1 && n <= 20)) return '';
+    return (n < 10 ? '0' : '') + n;
+  }
+  // 帽子の合成計画。帽子なし・base 未設定なら null（＝段階1までと完全に同じ表示）。
+  //   bodies：合成の土台にする人体の候補（読めなければ次へ＝1段ずつ戻す）。全滅なら帽子なしの人体に戻す。
+  //   fallbackSrc：帽子なしの人体（段階1までの決まり方そのまま）。
+  function _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode) {
+    var base = _avatarState.base;
+    if (!base || !AVATAR_BASE_IMG[base]) return null;
+    var nn = _hatNN(hatCode);
+    if (!nn) return null;
+    var plainSrc   = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode, shoesCode) || AVATAR_BASE_IMG[base];
+    var noShoesSrc = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
+    var bodies = [];
+    var avNum = _avatarBodyAvNum(base, topsCode, bottomsCode, outfitCode);
+    if (AVATAR_ROBE_HOOD_AV[avNum]) {
+      // ローブ：フード下ろし版（履物ありなら履物のフード下ろし版 → 読めなければ履物なしのフード下ろし版）
+      var av7 = _avPad7(avNum);
+      var snn = _shoesNN(shoesCode);
+      if (snn && _avatarShoesBodyPath(base, topsCode, bottomsCode, outfitCode, shoesCode)) {
+        bodies.push(_avatarItemUrl('shoes/robe-hood-down/shoes' + snn + '_AV' + av7 + '_hood.png'));
+      }
+      bodies.push(_avatarItemUrl('hats/robe-hood-down/AV' + av7 + '_hood.png'));
+    } else {
+      bodies.push(plainSrc);
+      if (noShoesSrc !== plainSrc) bodies.push(noShoesSrc);
+      if (AVATAR_BASE_IMG[base] !== noShoesSrc) bodies.push(AVATAR_BASE_IMG[base]);
+    }
+    var layer = _avatarItemUrl('hats/hat' + nn + '_' + base + '_layer.png');
+    var mask  = AVATAR_HAT_NO_MASK[nn] ? '' : _avatarItemUrl('hats/hat' + nn + '_' + base + '_mask.png');
+    return { key: bodies.join(',') + '|' + mask + '|' + layer, bodies: bodies, mask: mask, layer: layer, fallbackSrc: plainSrc };
+  }
+  // 装着中の状態から帽子の合成計画を作る。
+  function _avatarHatPlanCurrent() {
+    var d = _avatarState.equippedDetails || {};
+    return _avatarHatPlan(_equipItemCode(d.tops), _equipItemCode(d.bottoms), _equipItemCode(d.outfit), _equipItemCode(d.shoes), _equipItemCode(d.hat));
+  }
+  // 画像を CORS 付きで読む（canvas から書き出すため crossOrigin='anonymous' 必須）。
+  function _avLoadImg(url) {
+    return new Promise(function(resolve, reject){
+      var im = new Image();
+      im.crossOrigin = 'anonymous';
+      im.onload  = function(){ resolve(im); };
+      im.onerror = function(){ reject(new Error('load:' + url)); };
+      im.src = url;
+    });
+  }
+  // 「消す範囲」（白=消す・黒=そのまま の白黒画像）を「白=不透明・黒=透明」のアルファ画像に変換する。
+  //   ★白黒画像は黒も不透明なので、そのまま destination-out に渡すと全部消えてしまう。明るさ×元の不透明度をアルファにする。
+  function _avatarMaskToAlpha(maskImg, w, h) {
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var x = c.getContext('2d');
+    x.drawImage(maskImg, 0, 0, w, h);
+    var id = x.getImageData(0, 0, w, h), p = id.data;
+    for (var i = 0; i < p.length; i += 4) {
+      var lum = (p[i] * 299 + p[i + 1] * 587 + p[i + 2] * 114) / 1000;
+      p[i + 3] = Math.round(lum * p[i + 3] / 255);
+      p[i] = 0; p[i + 1] = 0; p[i + 2] = 0;
+    }
+    x.putImageData(id, 0, 0);
+    return c;
+  }
+  // canvas 合成の土台（ホーム・コーナー・試着の3箇所が共通で使う）。
+  //   bodyUrl を描き → overlays.mask（任意）で透明に → overlays.layer（任意）を重ねて dataURL を返す。
+  //   ★同じ組み合わせは結果（Promise）を覚えて再利用し、再合成しない。失敗はキャッシュに残さない。
+  //   reject 時の err.stage：'body'（人体が読めない）／'overlay'（層・消す範囲が読めない・書き出し不可）。
+  var _avatarComposeCache = {};
+  var _avatarComposeOrder = [];
+  var _AVATAR_COMPOSE_MAX = 24;   // dataURL は大きいので上限を設けて古いものから捨てる
+  var _avatarComposeCount = 0;    // 実際に合成した回数（検証用）
+  function _composeAvatar(bodyUrl, overlays) {
+    overlays = overlays || {};
+    var key = String(bodyUrl) + '|' + String(overlays.mask || '') + '|' + String(overlays.layer || '');
+    if (_avatarComposeCache[key]) return _avatarComposeCache[key];
+    var pBody  = _avLoadImg(bodyUrl).catch(function(e){ e.stage = 'body'; throw e; });
+    var pMask  = overlays.mask  ? _avLoadImg(overlays.mask)  : Promise.resolve(null);
+    var pLayer = overlays.layer ? _avLoadImg(overlays.layer) : Promise.resolve(null);
+    var pOver  = Promise.all([pMask, pLayer]).catch(function(e){ e.stage = 'overlay'; throw e; });
+    var p = Promise.all([pBody, pOver]).then(function(r){
+      var body = r[0], maskImg = r[1][0], layerImg = r[1][1];
+      try {
+        var w = body.naturalWidth, h = body.naturalHeight;
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        var x = c.getContext('2d');
+        x.drawImage(body, 0, 0, w, h);
+        if (maskImg) {
+          x.globalCompositeOperation = 'destination-out';
+          x.drawImage(_avatarMaskToAlpha(maskImg, w, h), 0, 0);
+          x.globalCompositeOperation = 'source-over';
+        }
+        if (layerImg) x.drawImage(layerImg, 0, 0, w, h);   // 半透明の画素（光輪など）もそのまま重なる
+        _avatarComposeCount++;
+        return c.toDataURL('image/png');
+      } catch (e) { e.stage = 'overlay'; throw e; }
+    });
+    _avatarComposeCache[key] = p;
+    _avatarComposeOrder.push(key);
+    while (_avatarComposeOrder.length > _AVATAR_COMPOSE_MAX) delete _avatarComposeCache[_avatarComposeOrder.shift()];
+    p.catch(function(){
+      if (_avatarComposeCache[key] === p) delete _avatarComposeCache[key];
+      var ix = _avatarComposeOrder.indexOf(key);
+      if (ix !== -1) _avatarComposeOrder.splice(ix, 1);
+    });
+    return p;
+  }
+  // 計画どおりに帽子を合成。人体が読めなければ次の候補へ（1段ずつ）。層/消す範囲が読めなければ reject（＝帽子なしに戻す）。
+  //   成功結果は _avatarHatDone に覚え、次回は同期で即表示できるようにする。
+  var _avatarHatDone = {};
+  function _avatarComposeHat(plan) {
+    var i = 0;
+    function next() {
+      if (i >= plan.bodies.length) return Promise.reject(new Error('no body'));
+      var url = plan.bodies[i++];
+      return _composeAvatar(url, { mask: plan.mask, layer: plan.layer }).catch(function(e){
+        if (e && e.stage === 'body') return next();
+        throw e;
+      });
+    }
+    return next().then(function(dataUrl){ _avatarHatDone[plan.key] = dataUrl; return dataUrl; });
+  }
+  // img に人体を出す共通処理（ホーム・コーナー・試着）。帽子なし → plainSrc をそのまま（段階1までと同じ）。
+  //   帽子あり → 合成済みなら即時、未合成なら合成後に差し替え。合成できなければ plainSrc（帽子なし）に戻す。
+  //   戻り値：即時に設定した src（未合成で待つときは ''）。古い要求の結果は捨てる（img._avHatKey で照合）。
+  function _avatarAssignBody(img, plan, plainSrc) {
+    if (!img) return '';
+    if (!plan) { img._avHatKey = ''; img.src = plainSrc; return plainSrc; }
+    img._avHatKey = plan.key;
+    var done = _avatarHatDone[plan.key];
+    if (done) { img.src = done; return done; }
+    _avatarComposeHat(plan).then(function(url){
+      if (img._avHatKey === plan.key) img.src = url;
+    }, function(){
+      if (img._avHatKey === plan.key) img.src = plainSrc;
+    });
+    return '';
   }
   // Phase2：装着中のオーラ画像パス。★背景（_avatarBgPath）と同じ流儀で
   //   サーバーの imagePath をそのまま使う（例 'images/avatar/aura/aura_03.png'）。
@@ -10573,7 +10724,7 @@
       if (next) { img.src = next; return; }
       img.onerror = null;
     };
-    img.src = _avatarBodyImgPath();
+    _avatarAssignBody(img, _avatarHatPlanCurrent(), _avatarBodyImgPath());   // 段階2：帽子ありなら合成結果
     img.style.display = '';
     // Phase2：コーナー枠のオーラ中間層も反映（未装着は非表示）。
     _applyAuraImg(document.getElementById('avatar-corner-aura-img'));
@@ -10667,7 +10818,10 @@
     var base = _avatarState.base;
     if (base && AVATAR_BASE_IMG[base]) {
       // A-3：装着中の tops/bottoms 組み合わせに応じた完成画像。未装着・不明は素体に落ちる。
-      var newSrc = _avatarBodyImgPath() || AVATAR_BASE_IMG[base];
+      var plainSrc = _avatarBodyImgPath() || AVATAR_BASE_IMG[base];
+      // 段階2：帽子ありなら合成結果（合成済みなら即時 src、未合成なら '' ＝合成後に差し替え）。
+      var hatPlan = _avatarHatPlanCurrent();
+      var newSrc = hatPlan ? (_avatarHatDone[hatPlan.key] || '') : plainSrc;
       // 設定済み：プレースホルダー「？」は一切表示せず、img を即座に display 化。
       // 画像が DOM 上に乗るまでの空白期間も、placeholder ではなく透過状態にする。
       placeholder.style.display = 'none';
@@ -10678,7 +10832,8 @@
       // Phase2：オーラ中間層（背景の上・人体の下）を反映（未装着は非表示）。
       _applyAuraImg(document.getElementById('avatar-aura-img'));
       var currentSrc = img.getAttribute('src') || '';
-      var alreadyShowingSameSrc = (currentSrc.indexOf(newSrc) !== -1) && (img.style.opacity === '' || img.style.opacity === '1');
+      var alreadyShowingSameSrc = !!newSrc && (currentSrc.indexOf(newSrc) !== -1) && (img.style.opacity === '' || img.style.opacity === '1');
+      img._avHatKey = hatPlan ? hatPlan.key : '';   // 古い合成待ちの結果で上書きされないように
       if (!alreadyShowingSameSrc) {
         // 新しい src（または初回設定）：透過 → 画像ロード完了 → opacity 0.3s でフェードイン
         img.style.opacity = '0';
@@ -10698,9 +10853,9 @@
           if (next) { img.src = next; return; }
           _fadeIn();   // フォールバック画像でも失敗したら通常表示扱い
         };
-        img.src = newSrc;
-        // ブラウザキャッシュにあり onload が即発火しなかった場合のフォールバック
-        if (img.complete && img.naturalWidth > 0) _fadeIn();
+        var setNow = _avatarAssignBody(img, hatPlan, plainSrc);   // 帽子なし＝従来どおり plainSrc
+        // ブラウザキャッシュにあり onload が即発火しなかった場合のフォールバック（合成待ちのときは古い画像なので見ない）
+        if (setNow && img.complete && img.naturalWidth > 0) _fadeIn();
       }
       nameEl.textContent = _avatarState.nickname || '';
       nameEl.classList.remove('placeholder-label');
@@ -10709,6 +10864,7 @@
       // 未設定：「？」プレースホルダーを表示（従来挙動）。
       // 直前まで設定済み描画されていた可能性があるので opacity / transition もリセットする。
       img.style.display = 'none';
+      img._avHatKey = '';   // 段階2：合成待ちがあっても反映させない
       img.removeAttribute('src');
       img.style.opacity = '';
       img.style.transition = '';
@@ -11052,11 +11208,13 @@
     var bottomsCode = _equipItemCode(d.bottoms);
     var outfitCode  = '';
     var shoesCode   = _equipItemCode(d.shoes);   // 段階1：履いている履物は服の試着でもそのまま（履けない服なら自動で無視）
+    var hatCode     = _equipItemCode(d.hat);     // 段階2：かぶっている帽子も服・履物の試着でそのまま
     if (categoryKey === 'tops')         topsCode    = String(itemId || '');
     else if (categoryKey === 'bottoms') bottomsCode = String(itemId || '');
     else if (categoryKey === 'outfit')  outfitCode  = String(itemId || '');   // 第2弾：上下セットはその1着の着姿
     else if (categoryKey === 'shoes')  { outfitCode = _equipItemCode(d.outfit); shoesCode = String(itemId || ''); }   // 段階1：今の服のまま履物だけ
-    else return;   // 着姿対象は tops/bottoms/outfit/shoes のみ
+    else if (categoryKey === 'hat')    { outfitCode = _equipItemCode(d.outfit); hatCode   = String(itemId || ''); }   // 段階2：今の服・履物のまま帽子だけ
+    else return;   // 着姿対象は tops/bottoms/outfit/shoes/hat のみ
     var src = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode, shoesCode) || AVATAR_BASE_IMG[base];
     var noShoesSrc = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
     var img = document.getElementById('avatar-tryon-img');
@@ -11066,7 +11224,7 @@
         if (next) { img.src = next; return; }
         img.onerror = null;
       };
-      img.src = src;
+      _avatarAssignBody(img, _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode), src);   // 段階2：帽子ありなら合成結果
     }
     var it = _avatarShopItemCache[itemId];
     var nameEl = document.getElementById('avatar-tryon-name');
@@ -27104,7 +27262,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261010-2333</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261010-2359</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
