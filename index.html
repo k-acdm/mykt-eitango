@@ -3720,10 +3720,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261011-1557"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261011-1747"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261011-1557">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261011-1557"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261011-1747">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261011-1747"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7220,11 +7220,21 @@
       return true;
     } catch(e) { return false; }
   }
+  // ★2026-10-11：サーバーから ok:true が返ったら「最後にサーバーとやり取りした時刻」を進める。
+  //   全通信（gasGet / gasPost、gasGetWithTimeout・cachedGasGet も中で gasGet）が通るので、
+  //   カンジー・三語短文等の提出中に「30分放置」と誤判定されて復帰時ログアウトされるのを防ぐ。
+  //   ★ok:false（IDだけのログイン・トークン切れ等）では進めない＝本当のセッション切れの検知は従来どおり。
+  //   ★ログイン中だけ（ログアウト後に遅れて返った応答では進めない）。
+  function _markServerOkFromRes(res) {
+    try { if (res && res.ok === true && _studentId) _lastServerOkTs = Date.now(); } catch(e){}
+    return res;
+  }
   function gasGet(params) {
     if (_maybeLogoutOnEdudayRollover(params)) return new Promise(function(){});  // 案4：教育日境界 → ログアウト済み。このリクエストは中断（never-resolve）
     params = _withSessionToken(params);   // F3段階2：保持中トークンを token として併送（observe）
     return fetch(GAS_URL + '?params=' + encodeURIComponent(JSON.stringify(params)))
-      .then(function(r){ return r.json(); });
+      .then(function(r){ return r.json(); })
+      .then(_markServerOkFromRes);
   }
   // 大量データ送信用（GAS doPost）。base64画像など URL 長制限を超えるリクエスト用。
   // Content-Type: text/plain にすることで CORS preflight を回避（Apps Script は OPTIONS に応答しない）。
@@ -7249,7 +7259,7 @@
       signal: ctrl ? ctrl.signal : undefined
     }).then(function(r){
       clearTimeout(timer);
-      return r.json();
+      return r.json().then(_markServerOkFromRes);   // ★2026-10-11：ok:true なら最終やり取り時刻を進める
     }, function(err){
       clearTimeout(timer);
       if (err && err.name === 'AbortError') {
@@ -27271,7 +27281,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261011-1557</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261011-1747</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
