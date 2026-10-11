@@ -3181,3 +3181,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 f7890eb66d1de3f685f201e698aadb913025524b && git push origin main && git checkout dev
   ```
+
+## 2026-10-11 本番反映：アバター装着アイテム段階3（メガネ・帽子ありは4段階合成）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `1101e22` feat(アバター)：メガネを合成。帽子なし＝人体→メガネの層。帽子あり＝①人体を帽子の消す範囲で透明に ②メガネを `glasses/mask-for-glasses/hatNN_体_mask.png` で透明にして重ねる ③帽子の層 ④メガネを `glasses/over-hat/hatNN_体_over.png` の白だけ再描画（destination-in）。消す範囲・上に出す範囲は明るさ→アルファ変換。19騎士は上に出す範囲が全面黒のため自然にメガネが隠れる（特別扱いなし）。消す範囲なしの6帽子も glasses 側の消す範囲・上に出す範囲を使う（全20帽子×3体ぶん配信済み）。メガネの画像が読めなければ帽子だけの合成に1段戻す。メガネなしは段階2と同一（合成の key も不変）。ショップの試着ボタンに glasses を追加
+  - `18b828b` docs(handover)：前回反映（`f7890eb`）の記録
+- ★アバターのアイテムは予告のまま（生徒は装着できない）＝生徒には見た目の変化なし
+- **反映前の main（切り戻し先）：`f7890eb66d1de3f685f201e698aadb913025524b`**（＝`f7890eb`）
+- **マージコミット：`1295f872ea110ce94f410adff6b9d921b470dcf0`**（＝`1295f87`）
+- 版バッジ：`20261011-1801`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `1295f87` / run `38128387387` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`1295f872ea110ce94f410adff6b9d921b470dcf0`
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `3cc62b50…` / view `abe54022…` / admin `0f05d0e6…`
+- 配信 index：`function _glassesNN`・`glasses/mask-for-glasses/`・`glasses/over-hat/`・`destination-in`（4段階目）・`categoryKey === 'glasses'`（試着）を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**99 行**（index.html のメガネ合成。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 1295f872ea110ce94f410adff6b9d921b470dcf0 && git push origin main && git checkout dev
+  ```
