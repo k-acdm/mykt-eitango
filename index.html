@@ -3720,10 +3720,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261011-1747"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261011-1801"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261011-1747">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261011-1747"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261011-1801">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261011-1801"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10483,7 +10483,8 @@
       return !!_avatarShoesBodyPath(base, _equipItemCode(d.tops), _equipItemCode(d.bottoms), _equipItemCode(d.outfit), itemCode);
     }
     if (categoryKey === 'hat') return !!_hatNN(itemCode);   // 段階2：帽子は全ての体に乗せられる（帽子の層は体型別）
-    return false;   // 着姿を描けるのは tops/bottoms/outfit/shoes/hat のみ（それ以外には出さない）
+    if (categoryKey === 'glasses') return !!_glassesNN(itemCode);   // 段階3：メガネも全ての体に乗せられる（層は体型別）
+    return false;   // 着姿を描けるのは tops/bottoms/outfit/shoes/hat/glasses のみ（それ以外には出さない）
   }
   // ===== アバター装着アイテム 段階2：帽子（canvas 合成の土台）=====
   //   人体を描く → 「消す範囲」で該当部分を透明に → 帽子の層を重ねる。
@@ -10500,20 +10501,36 @@
     if (!(n >= 1 && n <= 20)) return '';
     return (n < 10 ? '0' : '') + n;
   }
-  // 帽子の合成計画。帽子なし・base 未設定なら null（＝段階1までと完全に同じ表示）。
+  // ===== 段階3：メガネ =====
+  //   層：glasses/layer/glassesNN_体_layer.png（NN=01〜07）
+  //   帽子ありのときだけ：メガネ用の消す範囲 glasses/mask-for-glasses/hatNN_体_mask.png
+  //                       帽子の上に出す範囲 glasses/over-hat/hatNN_体_over.png（白=帽子の上に出す・黒=出さない）
+  //   ★両方とも全20帽子ぶん（消す範囲の無い帽子 02/03/04/13/14/15 を含む）配信済み。
+  // glasses_001 → '01'（01〜07 のみ）。形式外は ''。
+  function _glassesNN(glassesCode) {
+    var m = /^glasses_(\d+)$/.exec(String(glassesCode || ''));
+    if (!m) return '';
+    var n = parseInt(m[1], 10);
+    if (!(n >= 1 && n <= 7)) return '';
+    return (n < 10 ? '0' : '') + n;
+  }
+  // 帽子・メガネの合成計画。どちらも無い・base 未設定なら null（＝段階1までと完全に同じ表示）。
   //   bodies：合成の土台にする人体の候補（読めなければ次へ＝1段ずつ戻す）。全滅なら帽子なしの人体に戻す。
   //   fallbackSrc：帽子なしの人体（段階1までの決まり方そのまま）。
-  function _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode) {
+  //   next：メガネの画像が読めないときに次に試す計画（メガネを外した計画。帽子なしなら null＝素の人体へ）。
+  //   ★メガネなしの key は段階2と同一（帽子だけの合成結果・使い回しは段階2から不変）。
+  function _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode) {
     var base = _avatarState.base;
     if (!base || !AVATAR_BASE_IMG[base]) return null;
     var nn = _hatNN(hatCode);
-    if (!nn) return null;
+    var gnn = _glassesNN(glassesCode);
+    if (!nn && !gnn) return null;
     var plainSrc   = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode, shoesCode) || AVATAR_BASE_IMG[base];
     var noShoesSrc = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
     var bodies = [];
     var avNum = _avatarBodyAvNum(base, topsCode, bottomsCode, outfitCode);
-    if (AVATAR_ROBE_HOOD_AV[avNum]) {
-      // ローブ：フード下ろし版（履物ありなら履物のフード下ろし版 → 読めなければ履物なしのフード下ろし版）
+    if (nn && AVATAR_ROBE_HOOD_AV[avNum]) {
+      // ローブ：帽子ありのときだけフード下ろし版（履物ありなら履物のフード下ろし版 → 読めなければ履物なしのフード下ろし版）
       var av7 = _avPad7(avNum);
       var snn = _shoesNN(shoesCode);
       if (snn && _avatarShoesBodyPath(base, topsCode, bottomsCode, outfitCode, shoesCode)) {
@@ -10525,14 +10542,25 @@
       if (noShoesSrc !== plainSrc) bodies.push(noShoesSrc);
       if (AVATAR_BASE_IMG[base] !== noShoesSrc) bodies.push(AVATAR_BASE_IMG[base]);
     }
-    var layer = _avatarItemUrl('hats/hat' + nn + '_' + base + '_layer.png');
-    var mask  = AVATAR_HAT_NO_MASK[nn] ? '' : _avatarItemUrl('hats/hat' + nn + '_' + base + '_mask.png');
-    return { key: bodies.join(',') + '|' + mask + '|' + layer, bodies: bodies, mask: mask, layer: layer, fallbackSrc: plainSrc };
+    var layer = nn ? _avatarItemUrl('hats/hat' + nn + '_' + base + '_layer.png') : '';
+    var mask  = (nn && !AVATAR_HAT_NO_MASK[nn]) ? _avatarItemUrl('hats/hat' + nn + '_' + base + '_mask.png') : '';
+    var key = bodies.join(',') + '|' + mask + '|' + layer;
+    var g = null;
+    if (gnn) {
+      g = {
+        layer: _avatarItemUrl('glasses/layer/glasses' + gnn + '_' + base + '_layer.png'),
+        mask:  nn ? _avatarItemUrl('glasses/mask-for-glasses/hat' + nn + '_' + base + '_mask.png') : '',
+        over:  nn ? _avatarItemUrl('glasses/over-hat/hat' + nn + '_' + base + '_over.png') : ''
+      };
+      key += '|g:' + g.layer + '|' + g.mask + '|' + g.over;
+    }
+    return { key: key, bodies: bodies, mask: mask, layer: layer, glasses: g, fallbackSrc: plainSrc,
+             next: gnn ? _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, '') : null };
   }
   // 装着中の状態から帽子の合成計画を作る。
   function _avatarHatPlanCurrent() {
     var d = _avatarState.equippedDetails || {};
-    return _avatarHatPlan(_equipItemCode(d.tops), _equipItemCode(d.bottoms), _equipItemCode(d.outfit), _equipItemCode(d.shoes), _equipItemCode(d.hat));
+    return _avatarHatPlan(_equipItemCode(d.tops), _equipItemCode(d.bottoms), _equipItemCode(d.outfit), _equipItemCode(d.shoes), _equipItemCode(d.hat), _equipItemCode(d.glasses));
   }
   // 画像を CORS 付きで読む（canvas から書き出すため crossOrigin='anonymous' 必須）。
   function _avLoadImg(url) {
@@ -10562,6 +10590,10 @@
   }
   // canvas 合成の土台（ホーム・コーナー・試着の3箇所が共通で使う）。
   //   bodyUrl を描き → overlays.mask（任意）で透明に → overlays.layer（任意）を重ねて dataURL を返す。
+  //   段階3：overlays.glasses = {layer, mask, over}（任意）。重ね順（作成スレ指定）：
+  //     帽子なし：人体 → メガネの層
+  //     帽子あり：①人体を帽子の消す範囲で透明に → ②メガネをメガネ用の消す範囲で透明にしてから重ねる
+  //               → ③帽子の層 → ④メガネを「帽子の上に出す範囲」（白）だけもう一度描く
   //   ★同じ組み合わせは結果（Promise）を覚えて再利用し、再合成しない。失敗はキャッシュに残さない。
   //   reject 時の err.stage：'body'（人体が読めない）／'overlay'（層・消す範囲が読めない・書き出し不可）。
   var _avatarComposeCache = {};
@@ -10570,26 +10602,53 @@
   var _avatarComposeCount = 0;    // 実際に合成した回数（検証用）
   function _composeAvatar(bodyUrl, overlays) {
     overlays = overlays || {};
+    var gl = overlays.glasses || null;
     var key = String(bodyUrl) + '|' + String(overlays.mask || '') + '|' + String(overlays.layer || '');
+    if (gl) key += '|g:' + String(gl.layer || '') + '|' + String(gl.mask || '') + '|' + String(gl.over || '');
     if (_avatarComposeCache[key]) return _avatarComposeCache[key];
     var pBody  = _avLoadImg(bodyUrl).catch(function(e){ e.stage = 'body'; throw e; });
     var pMask  = overlays.mask  ? _avLoadImg(overlays.mask)  : Promise.resolve(null);
     var pLayer = overlays.layer ? _avLoadImg(overlays.layer) : Promise.resolve(null);
-    var pOver  = Promise.all([pMask, pLayer]).catch(function(e){ e.stage = 'overlay'; throw e; });
+    var pGL    = (gl && gl.layer) ? _avLoadImg(gl.layer) : Promise.resolve(null);
+    var pGM    = (gl && gl.mask)  ? _avLoadImg(gl.mask)  : Promise.resolve(null);
+    var pGO    = (gl && gl.over)  ? _avLoadImg(gl.over)  : Promise.resolve(null);
+    var pOver  = Promise.all([pMask, pLayer, pGL, pGM, pGO]).catch(function(e){ e.stage = 'overlay'; throw e; });
     var p = Promise.all([pBody, pOver]).then(function(r){
       var body = r[0], maskImg = r[1][0], layerImg = r[1][1];
+      var gLayerImg = r[1][2], gMaskImg = r[1][3], gOverImg = r[1][4];
       try {
         var w = body.naturalWidth, h = body.naturalHeight;
         var c = document.createElement('canvas');
         c.width = w; c.height = h;
         var x = c.getContext('2d');
         x.drawImage(body, 0, 0, w, h);
-        if (maskImg) {
+        if (maskImg) {   // ① 人体を帽子の消す範囲で透明に
           x.globalCompositeOperation = 'destination-out';
           x.drawImage(_avatarMaskToAlpha(maskImg, w, h), 0, 0);
           x.globalCompositeOperation = 'source-over';
         }
-        if (layerImg) x.drawImage(layerImg, 0, 0, w, h);   // 半透明の画素（光輪など）もそのまま重なる
+        if (gLayerImg) {   // ② メガネ（帽子ありならメガネ用の消す範囲で透明にしてから）
+          var gc = document.createElement('canvas');
+          gc.width = w; gc.height = h;
+          var gx = gc.getContext('2d');
+          gx.drawImage(gLayerImg, 0, 0, w, h);
+          if (gMaskImg) {
+            gx.globalCompositeOperation = 'destination-out';
+            gx.drawImage(_avatarMaskToAlpha(gMaskImg, w, h), 0, 0);
+            gx.globalCompositeOperation = 'source-over';
+          }
+          x.drawImage(gc, 0, 0);
+        }
+        if (layerImg) x.drawImage(layerImg, 0, 0, w, h);   // ③ 帽子の層（半透明の画素＝光輪などもそのまま重なる）
+        if (gLayerImg && gOverImg) {   // ④ メガネを「帽子の上に出す範囲」（白）だけもう一度描く（全面黒＝19騎士は何も描かれない）
+          var oc = document.createElement('canvas');
+          oc.width = w; oc.height = h;
+          var ox = oc.getContext('2d');
+          ox.drawImage(gLayerImg, 0, 0, w, h);
+          ox.globalCompositeOperation = 'destination-in';
+          ox.drawImage(_avatarMaskToAlpha(gOverImg, w, h), 0, 0);
+          x.drawImage(oc, 0, 0);
+        }
         _avatarComposeCount++;
         return c.toDataURL('image/png');
       } catch (e) { e.stage = 'overlay'; throw e; }
@@ -10607,17 +10666,21 @@
   // 計画どおりに帽子を合成。人体が読めなければ次の候補へ（1段ずつ）。層/消す範囲が読めなければ reject（＝帽子なしに戻す）。
   //   成功結果は _avatarHatDone に覚え、次回は同期で即表示できるようにする。
   var _avatarHatDone = {};
+  //   段階3：メガネの画像（層・消す範囲・上に出す範囲）が読めなければ plan.next（メガネを外した計画）で1段戻す。
   function _avatarComposeHat(plan) {
     var i = 0;
     function next() {
       if (i >= plan.bodies.length) return Promise.reject(new Error('no body'));
       var url = plan.bodies[i++];
-      return _composeAvatar(url, { mask: plan.mask, layer: plan.layer }).catch(function(e){
+      return _composeAvatar(url, { mask: plan.mask, layer: plan.layer, glasses: plan.glasses }).catch(function(e){
         if (e && e.stage === 'body') return next();
         throw e;
       });
     }
-    return next().then(function(dataUrl){ _avatarHatDone[plan.key] = dataUrl; return dataUrl; });
+    return next().then(function(dataUrl){ _avatarHatDone[plan.key] = dataUrl; return dataUrl; }, function(e){
+      if (plan.next) return _avatarComposeHat(plan.next);   // メガネを外して帽子だけで（それも駄目なら素の人体）
+      throw e;
+    });
   }
   // img に人体を出す共通処理（ホーム・コーナー・試着）。帽子なし → plainSrc をそのまま（段階1までと同じ）。
   //   帽子あり → 合成済みなら即時、未合成なら合成後に差し替え。合成できなければ plainSrc（帽子なし）に戻す。
@@ -11228,12 +11291,14 @@
     var outfitCode  = '';
     var shoesCode   = _equipItemCode(d.shoes);   // 段階1：履いている履物は服の試着でもそのまま（履けない服なら自動で無視）
     var hatCode     = _equipItemCode(d.hat);     // 段階2：かぶっている帽子も服・履物の試着でそのまま
+    var glassesCode = _equipItemCode(d.glasses); // 段階3：かけているメガネも他の試着でそのまま
     if (categoryKey === 'tops')         topsCode    = String(itemId || '');
     else if (categoryKey === 'bottoms') bottomsCode = String(itemId || '');
     else if (categoryKey === 'outfit')  outfitCode  = String(itemId || '');   // 第2弾：上下セットはその1着の着姿
     else if (categoryKey === 'shoes')  { outfitCode = _equipItemCode(d.outfit); shoesCode = String(itemId || ''); }   // 段階1：今の服のまま履物だけ
     else if (categoryKey === 'hat')    { outfitCode = _equipItemCode(d.outfit); hatCode   = String(itemId || ''); }   // 段階2：今の服・履物のまま帽子だけ
-    else return;   // 着姿対象は tops/bottoms/outfit/shoes/hat のみ
+    else if (categoryKey === 'glasses'){ outfitCode = _equipItemCode(d.outfit); glassesCode = String(itemId || ''); }   // 段階3：今の服・履物・帽子のままメガネだけ
+    else return;   // 着姿対象は tops/bottoms/outfit/shoes/hat/glasses のみ
     var src = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode, shoesCode) || AVATAR_BASE_IMG[base];
     var noShoesSrc = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
     var img = document.getElementById('avatar-tryon-img');
@@ -11243,7 +11308,7 @@
         if (next) { img.src = next; return; }
         img.onerror = null;
       };
-      _avatarAssignBody(img, _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode), src);   // 段階2：帽子ありなら合成結果
+      _avatarAssignBody(img, _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode), src);   // 段階2：帽子ありなら合成結果
     }
     var it = _avatarShopItemCache[itemId];
     var nameEl = document.getElementById('avatar-tryon-name');
@@ -27281,7 +27346,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261011-1747</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261011-1801</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
