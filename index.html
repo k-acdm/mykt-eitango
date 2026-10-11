@@ -3720,10 +3720,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261010-2359"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261011-1426"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261010-2359">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261010-2359"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261011-1426">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261011-1426"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10366,7 +10366,7 @@
   //   ★AV番号は従来の人体（AVATAR_OUTFIT_MAP / AVATAR_OUTFIT_SET_MAP）で決まる番号をそのまま使う。
   //   ★AVATAR_ITEM_VER：画像を差し替えたら数字を上げるだけで全端末に読み直させられる。
   var AVATAR_ITEM_BASE = 'https://mykt-eitango.com/avatar-items/';
-  var AVATAR_ITEM_VER  = 1;
+  var AVATAR_ITEM_VER  = 2;   // 2026-10-11：hat10・hat17 の消す範囲追加＋関連5枚差し替えで 1→2
   function _avatarItemUrl(relPath) {
     return AVATAR_ITEM_BASE + relPath + '?v=' + AVATAR_ITEM_VER;
   }
@@ -10471,7 +10471,7 @@
   //   層：hats/hatNN_体_layer.png ／ 消す範囲：hats/hatNN_体_mask.png（NN=01〜20、体=boy/girl/neutral）
   //   ★消す範囲が無い帽子（AVATAR_HAT_NO_MASK）は層を重ねるだけ。14（光輪）の層は半透明画素をそのまま重ねる。
   //   ★ローブ3体（AV514/525/536）は帽子を着けたらフード下ろし版の人体に差し替える。
-  var AVATAR_HAT_NO_MASK = { '02': true, '03': true, '04': true, '10': true, '13': true, '14': true, '15': true, '17': true };
+  var AVATAR_HAT_NO_MASK = { '02': true, '03': true, '04': true, '13': true, '14': true, '15': true };   // 10・17 は 2026-10-11 に消す範囲が納品され「あり」へ
   var AVATAR_ROBE_HOOD_AV = { 514: true, 525: true, 536: true };
   // hat_001 → '01'（01〜20 のみ）。形式外は ''。
   function _hatNN(hatCode) {
@@ -27262,7 +27262,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261010-2359</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261011-1426</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

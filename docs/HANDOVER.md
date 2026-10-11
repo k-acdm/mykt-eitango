@@ -3083,3 +3083,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 453ac6f0e4d143d6751e013e4a75671cadc78160 && git push origin main && git checkout dev
   ```
+
+## 2026-10-11 本番反映：アバター装着アイテム段階2（帽子・canvas合成の土台）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `6d6e9db` feat(アバター)：帽子を装着したら canvas で合成（人体 → 「消す範囲」で透明化 → 帽子の層）。`_composeAvatar(人体URL, {mask, layer})` 1関数に集約し、ホーム・コーナー・試着の3箇所が共通の `_avatarAssignBody` で結果を使う（同じ組み合わせは再合成しない・上限24件）。消す範囲（白=消す・黒=そのまま）は明るさ×不透明度をアルファに変換してから destination-out。消す範囲の無い帽子（02/03/04/10/13/14/15/17）は層を重ねるだけ（14 光輪の半透明はそのまま）。ローブ3体（AV514/525/536）は帽子ありでフード下ろし版（履物ありは `shoes/robe-hood-down/`）。読めなければ人体は1段ずつ戻し、層・消す範囲が読めなければ帽子なしの人体に戻す。ショップの試着ボタンに hat を追加。帽子なしは段階1までと完全に同じ
+  - `e0529f3` docs(handover)：前回反映（`453ac6f`）の記録
+- ★アバターのアイテムは予告のまま（生徒は装着できない）＝生徒には見た目の変化なし
+- **反映前の main（切り戻し先）：`453ac6f0e4d143d6751e013e4a75671cadc78160`**（＝`453ac6f`）
+- **マージコミット：`afd71f2657c915e1f234e3b8a17277c3a8d7d650`**（＝`afd71f2`）
+- 版バッジ：`20261010-2359`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `afd71f2` / run `38062395678` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`afd71f2657c915e1f234e3b8a17277c3a8d7d650`
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `f36ff329…` / view `fd2a6382…` / admin `f4bd8427…`
+- 配信 index に `_composeAvatar` を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**176 行**（index.html の帽子合成。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 afd71f2657c915e1f234e3b8a17277c3a8d7d650 && git push origin main && git checkout dev
+  ```
