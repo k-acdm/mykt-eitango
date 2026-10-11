@@ -3102,3 +3102,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 afd71f2657c915e1f234e3b8a17277c3a8d7d650 && git push origin main && git checkout dev
   ```
+
+## 2026-10-11 本番反映：hat10（うさぎ耳）・hat17（王冠）を消す範囲ありに＋AVATAR_ITEM_VER 1→2
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `633e982` feat(アバター)：`AVATAR_HAT_NO_MASK` から 10・17 を外す（消す範囲なしは 02/03/04/13/14/15 の6種、ありは14種）。サーバー側で hat10・hat17 の消す範囲6枚を追加＋関連5枚（メガネ用の消す範囲4・帽子の上に出す範囲1）を差し替え済みのため、`AVATAR_ITEM_VER` を 1→2 にして全端末で読み直させる
+  - `a79e9bd` docs(handover)：前回反映（`afd71f2`）の記録
+- ★アバターのアイテムは予告のまま（生徒は装着できない）＝生徒には見た目の変化なし
+- **反映前の main（切り戻し先）：`afd71f2657c915e1f234e3b8a17277c3a8d7d650`**（＝`afd71f2`）
+- **マージコミット：`072efc7e2849cbc1719f0dd1f420dc21b5e3b2b5`**（＝`072efc7`）
+- 版バッジ：`20261011-1426`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `072efc7` / run `38115165796` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`072efc7e2849cbc1719f0dd1f420dc21b5e3b2b5`
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `5addadc4…` / view `8a055812…` / admin `051c8fd2…`
+- 配信 index：`var AVATAR_ITEM_VER  = 2;`（L10369）と 10・17 を外した `AVATAR_HAT_NO_MASK`（L10474）を確認。`?v=1` は 0 件（アイテム画像の `?v=` は `_avatarItemUrl` が定数から付けるため、URL 文字列としては配信 HTML に直書きされない）
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**4 行**（index.html の2行変更。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 072efc7e2849cbc1719f0dd1f420dc21b5e3b2b5 && git push origin main && git checkout dev
+  ```
