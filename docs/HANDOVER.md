@@ -3142,3 +3142,22 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 4127721841d6799b2ed525ae5484afe7979df60c && git push origin main && git checkout dev
   ```
+
+## 2026-10-11 本番反映：暗証番号の締め出し中は専用の文言を出す
+
+- ★生徒に見える変更。サーバー側（mykt-eitango-aws `61b2f43`）は先に反映済み
+- 反映内容（dev→main マージ、2 コミット）
+  - `12b505e` fix(ログイン)：暗証番号の画面（`submitPinEntry`）で、サーバーの返事に `throttled` があれば「暗証番号を5分間に5回間違えたため、一時的にログインできなくなってます。5分後にまたログインしてみてね。」（ふくち確定）を出し、入力欄を空にする。判定は view.html の保護者ログインと同じ `res.throttled`。「暗証番号がちがうよ。もう一度入れてね」は本当に間違えたときだけ。成功・通信エラー・ログインの仕組み・サーバー側の締め出しは無変更
+  - `bd9be70` docs(handover)：前回反映（`4127721`）の記録
+- **反映前の main（切り戻し先）：`4127721841d6799b2ed525ae5484afe7979df60c`**（＝`4127721`）
+- **マージコミット：`525c68f18e0237e8a6a57124d13b95ce4789b911`**（＝`525c68f`）
+- 版バッジ：`20261011-1557`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `525c68f` / run `38120368294` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`525c68f18e0237e8a6a57124d13b95ce4789b911`
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `8e54f22c…` / view `770b8b3e…` / admin `99852020…`
+- 配信 index：`if (res.throttled) {`（L9064）と指定の文言（L9065）を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**7 行**（index.html の締め出し文言の追加。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 525c68f18e0237e8a6a57124d13b95ce4789b911 && git push origin main && git checkout dev
+  ```
