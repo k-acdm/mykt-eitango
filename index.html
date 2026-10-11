@@ -3720,10 +3720,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261011-1502"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261011-1557"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261011-1502">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261011-1502"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261011-1557">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261011-1557"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -9059,6 +9059,13 @@
       if (btn) btn.disabled = false;
       res = res || {};
       if (res.ok && res.studentId) { showMsg('pin-entry-msg','',''); _finishStudentLogin(res); return; }
+      // ★2026-10-11：締め出し中（サーバーの印 throttled＝view.html の保護者ログインと同じ判定）は専用の文言（ふくち確定）。
+      //   「ちがうよ」と出すと、正しい暗証番号でも入れない理由が生徒に分からないため。
+      if (res.throttled) {
+        showMsg('pin-entry-msg','暗証番号を5分間に5回間違えたため、一時的にログインできなくなってます。5分後にまたログインしてみてね。','ng');
+        var tinp = document.getElementById('pin-entry-input'); if (tinp) tinp.value = '';
+        return;
+      }
       // needsPin 継続 or 失敗 = 暗証番号ちがい（誤り回数のレートリミットはサーバ F2 で後日）
       showMsg('pin-entry-msg','暗証番号がちがうよ。もう一度入れてね','ng');
       var inp = document.getElementById('pin-entry-input'); if (inp) { inp.value=''; try{inp.focus();}catch(e){} }
@@ -27264,7 +27271,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261011-1502</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261011-1557</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
