@@ -3121,3 +3121,24 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 072efc7e2849cbc1719f0dd1f420dc21b5e3b2b5 && git push origin main && git checkout dev
   ```
+
+## 2026-10-11 本番反映：クローゼット上部のボタン整理（ホームへ戻る追加＋ショップボタンを最下部と統一）
+
+- ★生徒に見える変更（クローゼットは生徒が使う画面）
+- 反映内容（dev→main マージ、3 コミット）
+  - `638fd03` feat(アバター)：クローゼット上部の一番上に「🏠 ホーム画面に戻る」を追加（最下部と同じ `goHomeToAvatar()`＝ホームのアバター位置へ）。その下の「← アバターショップに戻る」を「🛍 ショップでアイテムを増やす」（最下部と同じ `btn-wide`＋オレンジのグラデ）に変更
+  - `8339e04` fix(アバター)：上部の「ショップでアイテムを増やす」の行き先を `showAvatarCorner()`（入口画面）→ `showAvatarShop()`（品物が並ぶ画面）にし、最下部と統一（ふくち確定）
+  - `85d7f5e` docs(handover)：前回反映（`072efc7`）の記録
+- 最下部の2ボタン・アバター表示/着せ替え・ショップ画面の「← アバターショップに戻る」は無変更
+- **反映前の main（切り戻し先）：`072efc7e2849cbc1719f0dd1f420dc21b5e3b2b5`**（＝`072efc7`）
+- **マージコミット：`4127721841d6799b2ed525ae5484afe7979df60c`**（＝`4127721`）
+- 版バッジ：`20261011-1502`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `4127721` / run `38116880384` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`4127721841d6799b2ed525ae5484afe7979df60c`
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `d574e9a1…` / view `a9d48aa0…` / admin `fc85cb86…`
+- 配信 index のクローゼット画面のボタン（上から）：`goHomeToAvatar()` ホーム／`showAvatarShop()` ショップ／（所持品一覧）／`showAvatarShop()` ショップ／`goHomeToAvatar()` ホーム を確認
+- ゲート：`origin/main..dev` は3本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**4 行**（index.html のクローゼット上部ボタン。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 4127721841d6799b2ed525ae5484afe7979df60c && git push origin main && git checkout dev
+  ```
