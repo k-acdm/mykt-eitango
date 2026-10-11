@@ -3161,3 +3161,23 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 525c68f18e0237e8a6a57124d13b95ce4789b911 && git push origin main && git checkout dev
   ```
+
+## 2026-10-11 本番反映：学習中の「30分放置」誤ログアウトを防ぐ（通信の ok:true で最終やり取り時刻を更新）
+
+- ★生徒に実害が出ていた修正（9/27〜10/11 で43件・18名がカンジー等の提出中に復帰時ログアウト＝やりかけも消える）
+- 原因：「最後にサーバーとやり取りした時刻」（`_lastServerOkTs`）がログイン・英単語RUSH・振り返り等の限られた操作でしか更新されず、カンジー・三語短文・和文英訳・コブタン・リスオン・基礎計算の提出では進まなかった → 復帰時の確認（`_revalidateOnResume`）が「30分放置」と判定
+- 反映内容（dev→main マージ、2 コミット）
+  - `38550e2` fix(ログイン)：`_markServerOkFromRes` を新設し、`gasGet` / `gasPost`（全通信が通る。`gasGetWithTimeout`・`cachedGasGet` も中で `gasGet`）の返事が `ok === true` かつログイン中なら時刻を更新。ok:false（IDだけのログイン・トークン切れ等）・通信失敗・ログアウト後に遅れて返った応答では更新しない＝本当のセッション切れの検知は従来どおり。30分/教育日の判定・`_revalidateOnResume`・`_maybeLogoutOnEdudayRollover`・既存の個別更新8か所は無変更
+  - `28dd3ee` docs(handover)：前回反映（`525c68f`）の記録
+- **反映前の main（切り戻し先）：`525c68f18e0237e8a6a57124d13b95ce4789b911`**（＝`525c68f`）
+- **マージコミット：`f7890eb66d1de3f685f201e698aadb913025524b`**（＝`f7890eb`）
+- 版バッジ：`20261011-1747`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `f7890eb` / run `38126249323` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`f7890eb66d1de3f685f201e698aadb913025524b`
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `2d564598…` / view `37dbb8cb…` / admin `21435463…`
+- 配信 index：`_markServerOkFromRes`（定義 L7228、gasGet L7237、gasPost L7262）を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**14 行**（index.html の時刻更新。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 f7890eb66d1de3f685f201e698aadb913025524b && git push origin main && git checkout dev
+  ```
