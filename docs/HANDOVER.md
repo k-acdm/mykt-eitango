@@ -3200,3 +3200,29 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 1295f872ea110ce94f410adff6b9d921b470dcf0 && git push origin main && git checkout dev
   ```
+
+## 2026-10-17 本番反映：アバター装着アイテム段階4-a（装飾メイク6種＋素体用の履物・AVATAR_ITEM_VER 2→3）
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `f157977` feat(アバター)：
+    - `AVATAR_ITEM_VER` 2→3（差し替えた履物348枚・新規画像を全端末で読み直させる）
+    - 素体（服なし／対応表外で素体に落ちる組み合わせ）は `shoes/base/shoesNN_base_体.png` を使う（帽子の有無は無関係）。素体でも履物の試着ボタンが出る
+    - 装飾メイク 01/03/06/08/09/10（`makeup/deco/layer/`）。帽子なし＝人体→メイク→メガネ→レンズ越し。帽子あり＝①人体＋メイクを帽子の消す範囲で透明に ②メガネ（メガネ用の消す範囲） ③レンズ越し（②と同じ消す範囲） ④帽子の層 ⑤メガネを上に出す範囲だけ ⑥レンズ越しを同じ範囲だけ
+    - レンズ越しの層（`makeup/deco/lens/`）はメガネ 01/02/05/06 のときだけ。03/04/07 は③⑥を飛ばす
+    - 肌色メイク 02/04/05/07 は段階4-b まで何も描かない（試着ボタンも出さない）
+    - 画像が読めなければ レンズ越し→メイク→メガネ の順に外して1段ずつ戻す。メイクなしは段階3と同一
+    - ★配信済みのレンズ越し72枚のうち14枚は中身が空（メイク03の全12枚・メイク10の一部）。描かれないだけで動作に問題なし（意図どおりか作成スレで要確認）
+  - `fed225a` docs(handover)：前回反映（`1295f87`）の記録
+- ★アバターのアイテムは予告のまま（生徒は装着できない）＝生徒には見た目の変化なし
+- **反映前の main（切り戻し先）：`1295f872ea110ce94f410adff6b9d921b470dcf0`**（＝`1295f87`）
+- **マージコミット：`92842019f33242950b98421b8cbeb2e63005795f`**（＝`9284201`）
+- 版バッジ：`20261017-2214`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `9284201` / run `39035946971` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`92842019f33242950b98421b8cbeb2e63005795f`
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `017f76e2…` / view `f4e4baed…` / admin `c5bc82b1…`
+- 配信 index：`var AVATAR_ITEM_VER  = 3;`・`shoes/base/shoes`・`function _makeupDecoNN`・`makeup/deco/layer/`・`makeup/deco/lens/`・`categoryKey === 'makeup'` を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**110 行**（index.html の段階4-a。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 92842019f33242950b98421b8cbeb2e63005795f && git push origin main && git checkout dev
+  ```
