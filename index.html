@@ -3720,10 +3720,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261017-2214"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261017-2241"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261017-2214">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261017-2214"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261017-2241">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261017-2241"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10485,7 +10485,7 @@
     }
     if (categoryKey === 'hat') return !!_hatNN(itemCode);   // 段階2：帽子は全ての体に乗せられる（帽子の層は体型別）
     if (categoryKey === 'glasses') return !!_glassesNN(itemCode);   // 段階3：メガネも全ての体に乗せられる（層は体型別）
-    if (categoryKey === 'makeup') return !!_makeupDecoNN(itemCode);   // 段階4-a：装飾メイク6種のみ（肌色4種は段階4-b）
+    if (categoryKey === 'makeup') return !!(_makeupDecoNN(itemCode) || _makeupSkinNN(itemCode));   // 段階4-a 装飾6種＋段階4-b 肌色4種
     return false;   // 着姿を描けるのは tops/bottoms/outfit/shoes/hat/glasses/makeup（装飾）のみ（それ以外には出さない）
   }
   // ===== アバター装着アイテム 段階2：帽子（canvas 合成の土台）=====
@@ -10519,7 +10519,7 @@
   // ===== 段階4-a：装飾メイク =====
   //   層：makeup/deco/layer/makeupNN_体_layer.png（装飾 6種＝01/03/06/08/09/10 × 体3）
   //   レンズ越しの層：makeup/deco/lens/makeupNN_glassesGG_体_lens.png（メガネ 01/02/05/06 のときだけ。03/04/07 は無し＝メイクはレンズの下に隠れたまま）
-  //   ★肌色メイク（02/04/05/07）は段階4-b。ここでは '' を返し、装着しても何も描かない（壊れた表示にしない）。
+  //   ★肌色メイク（02/04/05/07）は段階4-b（下の _makeupSkinNN）。_makeupDecoNN は肌色に '' を返す。
   var AVATAR_MAKEUP_DECO = { '01': true, '03': true, '06': true, '08': true, '09': true, '10': true };
   var AVATAR_MAKEUP_LENS_GLASSES = { '01': true, '02': true, '05': true, '06': true };
   // makeup_001 → '01'（装飾メイクのみ）。肌色・形式外は ''。
@@ -10530,7 +10530,30 @@
     var nn = (n < 10 ? '0' : '') + n;
     return AVATAR_MAKEUP_DECO[nn] ? nn : '';
   }
-  // 帽子・メガネ・装飾メイクの合成計画。どれも無い・base 未設定なら null（＝段階1までと完全に同じ表示）。
+  // ===== 段階4-b：肌色メイク（02 ガングロ／04 ゾンビ／05 宇宙人／07 ドラキュラ）=====
+  //   層は AV 番号ごと（装飾は体ごと）：
+  //     通常の AV（履物の有無は無関係）          → makeup/skin/layer/makeupNN_AV0000NNN.png
+  //     ローブ3体（AV514/525/536）＋帽子あり      → makeup/skin/robe-hood-down/makeupNN_AV0000NNN_hood.png
+  //     ローブ3体＋帽子なし                       → 通常の AV と同じ
+  //     素体（服なし、または素体に落ちる組み合わせ）→ makeup/skin/base/makeupNN_base_体.png
+  //   レンズ越しの層：makeup/skin/lens/makeupNN_glassesGG_体_lens.png（メガネ 01〜07 すべて）
+  //   帽子の肌色版：makeup/skin/hats/hatNN_体_makeupMM_layer.png（AVATAR_SKIN_HAT にある 帽子×体 だけ。無ければ普通の帽子の層）
+  var AVATAR_MAKEUP_SKIN = { '02': true, '04': true, '05': true, '07': true };
+  // 帽子の肌色版がある「帽子NN_体」（31通り）。★2026-10-17 にサーバーの makeup/skin/hats/ を全60通り×4種調べた実在の組み合わせ（4種とも同じ31通り）。
+  var AVATAR_SKIN_HAT = {
+    '05_boy': true, '06_boy': true, '07_boy': true, '08_boy': true, '09_boy': true, '11_boy': true, '12_boy': true, '16_boy': true, '17_boy': true, '20_boy': true,
+    '01_girl': true, '05_girl': true, '06_girl': true, '08_girl': true, '11_girl': true, '12_girl': true, '16_girl': true, '18_girl': true, '19_girl': true, '20_girl': true,
+    '01_neutral': true, '02_neutral': true, '05_neutral': true, '08_neutral': true, '10_neutral': true, '11_neutral': true, '12_neutral': true, '16_neutral': true, '17_neutral': true, '18_neutral': true, '20_neutral': true
+  };
+  // makeup_002 → '02'（肌色メイクのみ）。装飾・形式外は ''。
+  function _makeupSkinNN(makeupCode) {
+    var m = /^makeup_(\d+)$/.exec(String(makeupCode || ''));
+    if (!m) return '';
+    var n = parseInt(m[1], 10);
+    var nn = (n < 10 ? '0' : '') + n;
+    return AVATAR_MAKEUP_SKIN[nn] ? nn : '';
+  }
+  // 帽子・メガネ・装飾メイク・肌色メイクの合成計画。どれも無い・base 未設定なら null（＝段階1までと完全に同じ表示）。
   //   bodies：合成の土台にする人体の候補（読めなければ次へ＝1段ずつ戻す）。全滅なら帽子なしの人体に戻す。
   //   fallbackSrc：帽子なしの人体（段階1までの決まり方そのまま）。
   //   next：メガネの画像が読めないときに次に試す計画（メガネを外した計画。帽子なしなら null＝素の人体へ）。
@@ -10543,7 +10566,8 @@
     var nn = _hatNN(hatCode);
     var gnn = _glassesNN(glassesCode);
     var mnn = _makeupDecoNN(makeupCode);
-    if (!nn && !gnn && !mnn) return null;
+    var knn = _makeupSkinNN(makeupCode);   // 段階4-b：肌色メイク
+    if (!nn && !gnn && !mnn && !knn) return null;
     var plainSrc   = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode, shoesCode) || AVATAR_BASE_IMG[base];
     var noShoesSrc = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
     var bodies = [];
@@ -10562,6 +10586,8 @@
       if (AVATAR_BASE_IMG[base] !== noShoesSrc) bodies.push(AVATAR_BASE_IMG[base]);
     }
     var layer = nn ? _avatarItemUrl('hats/hat' + nn + '_' + base + '_layer.png') : '';
+    // 段階4-b：肌色メイク中は、帽子の肌色版がある組み合わせだけ帽子の層を差し替える（無ければ普通の層）。
+    if (nn && knn && AVATAR_SKIN_HAT[nn + '_' + base]) layer = _avatarItemUrl('makeup/skin/hats/hat' + nn + '_' + base + '_makeup' + knn + '_layer.png');
     var mask  = (nn && !AVATAR_HAT_NO_MASK[nn]) ? _avatarItemUrl('hats/hat' + nn + '_' + base + '_mask.png') : '';
     var key = bodies.join(',') + '|' + mask + '|' + layer;
     var g = null;
@@ -10581,8 +10607,23 @@
                ? _avatarItemUrl('makeup/deco/lens/makeup' + mnn + '_glasses' + gnn + '_' + base + '_lens.png') : ''
       };
       key += '|m:' + mk.layer + '|' + mk.lens;
+    } else if (knn) {
+      // 段階4-b：肌色メイクの層（AV番号ごと／ローブ＋帽子はフード下ろし版／素体は体ごと）。
+      //   baseLayer：人体が素体に落ちたとき（土台の候補が素体画像のとき）に使う層。
+      var skinBase = _avatarItemUrl('makeup/skin/base/makeup' + knn + '_base_' + base + '.png');
+      var skinLayer;
+      if (!avNum) skinLayer = skinBase;
+      else if (nn && AVATAR_ROBE_HOOD_AV[avNum]) skinLayer = _avatarItemUrl('makeup/skin/robe-hood-down/makeup' + knn + '_AV' + _avPad7(avNum) + '_hood.png');
+      else skinLayer = _avatarItemUrl('makeup/skin/layer/makeup' + knn + '_AV' + _avPad7(avNum) + '.png');
+      mk = {
+        layer: skinLayer,
+        baseLayer: skinBase,
+        lens:  (gnn && !(opts && opts.noLens))
+               ? _avatarItemUrl('makeup/skin/lens/makeup' + knn + '_glasses' + gnn + '_' + base + '_lens.png') : ''
+      };
+      key += '|m:' + mk.layer + '|' + mk.lens;
     }
-    var nextPlan = null;
+    var nextPlan = null;   // ★肌色メイクも同じ順（レンズ越し → メイク〔帽子の層も普通の層に戻る〕 → メガネ）
     if (mk && mk.lens)  nextPlan = _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode, makeupCode, { noLens: true });
     else if (mk)        nextPlan = _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode, '');
     else if (gnn)       nextPlan = _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, '');
@@ -10714,7 +10755,12 @@
     function next() {
       if (i >= plan.bodies.length) return Promise.reject(new Error('no body'));
       var url = plan.bodies[i++];
-      return _composeAvatar(url, { mask: plan.mask, layer: plan.layer, glasses: plan.glasses, makeup: plan.makeup }).catch(function(e){
+      var mk = plan.makeup;
+      // 段階4-b：肌色メイクで土台が素体画像に落ちたときは、素体用の肌色の層に合わせる（AV用の層を素体に重ねない）。
+      if (mk && mk.baseLayer && url === AVATAR_BASE_IMG[_avatarState.base] && mk.layer !== mk.baseLayer) {
+        mk = { layer: mk.baseLayer, lens: mk.lens };
+      }
+      return _composeAvatar(url, { mask: plan.mask, layer: plan.layer, glasses: plan.glasses, makeup: mk }).catch(function(e){
         if (e && e.stage === 'body') return next();
         throw e;
       });
@@ -11334,7 +11380,7 @@
     var shoesCode   = _equipItemCode(d.shoes);   // 段階1：履いている履物は服の試着でもそのまま（履けない服なら自動で無視）
     var hatCode     = _equipItemCode(d.hat);     // 段階2：かぶっている帽子も服・履物の試着でそのまま
     var glassesCode = _equipItemCode(d.glasses); // 段階3：かけているメガネも他の試着でそのまま
-    var makeupCode  = _equipItemCode(d.makeup);  // 段階4-a：しているメイクも他の試着でそのまま（肌色は描かれない）
+    var makeupCode  = _equipItemCode(d.makeup);  // 段階4-a/4-b：しているメイク（装飾・肌色）も他の試着でそのまま
     if (categoryKey === 'tops')         topsCode    = String(itemId || '');
     else if (categoryKey === 'bottoms') bottomsCode = String(itemId || '');
     else if (categoryKey === 'outfit')  outfitCode  = String(itemId || '');   // 第2弾：上下セットはその1着の着姿
@@ -27390,7 +27436,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261017-2214</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261017-2241</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
