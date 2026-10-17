@@ -3226,3 +3226,28 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 92842019f33242950b98421b8cbeb2e63005795f && git push origin main && git checkout dev
   ```
+
+## 2026-10-17 本番反映：アバター装着アイテム段階4-b（肌色メイク4種）★アバターアイテムがすべて揃う
+
+- 反映内容（dev→main マージ、2 コミット）
+  - `adb03f8` feat(アバター)：肌色メイク 02 ガングロ／04 ゾンビ／05 宇宙人／07 ドラキュラ
+    - 層は AV 番号ごと：通常＝`makeup/skin/layer/makeupNN_AV0000NNN.png`（履物の有無は無関係）／ローブ3体（AV514/525/536）＋帽子あり＝`makeup/skin/robe-hood-down/makeupNN_AV0000NNN_hood.png`／ローブ＋帽子なし＝通常と同じ／素体＝`makeup/skin/base/makeupNN_base_体.png`（土台が素体画像に落ちたときも素体用に合わせる）
+    - レンズ越しの層：`makeup/skin/lens/makeupNN_glassesGG_体_lens.png`（メガネ 01〜07 すべて）
+    - 帽子の肌色版：`makeup/skin/hats/hatNN_体_makeupMM_layer.png` を `AVATAR_SKIN_HAT` の31通りだけ差し替え（2026-10-17 にサーバーで全60通り×4種を調べた実在の組み合わせ。4種とも同じ31通り＝124枚）。無ければ普通の帽子の層
+    - 重ね順は装飾メイクと同じ6段階（④の帽子の層だけ肌色版）。画像が読めなければ レンズ越し→メイク（帽子の層も普通に戻る）→メガネ の順に1段ずつ戻す
+    - 試着ボタンを肌色メイクにも出す。装飾メイク6種・メイクなしは段階4-aと同一
+    - ★肌色が変わるのは顔・首まわりが中心で、手足は元の肌色のまま（画像どおり。意図どおりか作成スレで要確認）
+  - `e401f78` docs(handover)：前回反映（`9284201`）の記録
+- ★アバターのアイテムは予告のまま（生徒は装着できない）＝生徒には見た目の変化なし
+- **反映前の main（切り戻し先）：`92842019f33242950b98421b8cbeb2e63005795f`**（＝`9284201`）
+- **マージコミット：`58826774b8aeb9780123a9cc589f5cf91349158b`**（＝`5882677`）
+- 版バッジ：`20261017-2241`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `5882677` / run `39037728321` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`58826774b8aeb9780123a9cc589f5cf91349158b`
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `a2436927…` / view `2b2359de…` / admin `7e47d9fe…`
+- 配信 index：`makeup/skin/layer/`・`var AVATAR_SKIN_HAT`・`makeup/skin/hats/`・`makeup/skin/robe-hood-down/`・`makeup/skin/base/`・`makeup/skin/lens/`・`function _makeupSkinNN` を確認
+- ゲート：`origin/main..dev` は2本（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみ（**.claude/launch.json 等の混入なし**）。CLAUDE.md ゲート判定値＝**60 行**（index.html の肌色メイク。view・admin は版スタンプのみで 0）
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 58826774b8aeb9780123a9cc589f5cf91349158b && git push origin main && git checkout dev
+  ```
