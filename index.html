@@ -3720,10 +3720,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261017-2241"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261019-0320"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261017-2241">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261017-2241"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261019-0320">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261019-0320"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -24031,7 +24031,7 @@
     //   spawnBatch     : 1回の出現でまとめて出す最大数（空き穴と simultaneousMax の範囲内で）
     //   countdown      : true の難易度のみ開始時に「3・2・1・GO！」（hard のみ・GO無音、風船と同じ）
     moleHoleCount: 9,
-    moleOuchMs: 200,    // ★叩いた時「イテッ顔（mole-ouch.png）」を見せてから消すまで(ms)。正解・ダミー共通の演出時間
+    moleOuchMs: 200,    // ★叩いた時の絵（正解=mole-correct.png / ダミー=mole-wrong.png）を見せてから消すまで(ms)。正解・ダミー共通の演出時間（値は従来どおり 200）
 
     mole: {
       easy:   { correctMin: 1, correctMax: 2, moleVisibleMs: 4800, moleRiseMs: 450, spawnIntervalMs: 900, simultaneousMax: 3, spawnBatch: 1, countdown: false },
@@ -24076,14 +24076,16 @@
     listening: false     // モグラフィールドに pointerdown リスナーを付けているか
   };
 
-  // モグラ画像（通常・イテッ）のプリロード。穴から出る瞬間に読み込み遅延で欠けないよう、
-  //   モグラ叩きを選んだ時点／ゲーム開始時に一度だけ Image をキャッシュさせる（2枚・冪等）。
+  // モグラ画像（通常・正解・不正解）のプリロード。穴から出る瞬間／叩いた瞬間に読み込み遅延で
+  //   欠けないよう、モグラ叩きを選んだ時点／ゲーム開始時に一度だけ Image をキャッシュさせる（3枚・冪等）。
+  //   ★2026-10-19：叩いた時の絵を正誤で分けたため、mole-ouch.png → mole-correct.png / mole-wrong.png に差し替え。
+  //     （mole-ouch.png のファイル自体は削除せずリポジトリに残している）
   var _phonicsMoleImgsPreloaded = false;
   function _phonicsPreloadMoleImages() {
     if (_phonicsMoleImgsPreloaded) return;
     _phonicsMoleImgsPreloaded = true;
     try {
-      ['images/mole-default.png', 'images/mole-ouch.png'].forEach(function(src){
+      ['images/mole-default.png', 'images/mole-correct.png', 'images/mole-wrong.png'].forEach(function(src){
         var im = new Image(); im.src = src;
       });
     } catch(e){}
@@ -24582,17 +24584,26 @@
     }
   }
 
-  // 叩かれた演出（正解・ダミー共通）：mole-ouch.png（イテッ顔）に差し替え → 読み方を消す → 一瞬見せて撤去。
+  // 叩かれた演出：★2026-10-19 から正解／不正解で絵を分ける（生徒の要望「同じ絵だと分かりづらい」）。
+  //   ・正解を叩いた   → images/mole-correct.png（元の絵＋赤丸）
+  //   ・ダミーを叩いた → images/mole-wrong.png  （モノクロ＋赤×）
+  //   ★どちらも 600×600・モグラの頭位置も同じなので、差し替えた瞬間にズレない。
+  //   ★旧 mole-ouch.png は表示に使わなくなったが、ファイルは削除せずリポジトリに残している。
+  //   ★演出の長さ・流れは従来どおり（ouch クラスの弾みアニメ .2s ／ moleOuchMs 200ms で撤去）。
   //   ★判定（正解/ダミーの HP カウント）は呼び出し元 _phonicsMoleTap で完了済み。ここは見た目と撤去のみ。
   //   タイマーは g.timers に積む＝画面離脱・問題遷移で確実に破棄される。
-  function _phonicsMoleWhack(mole) {
+  function _phonicsMoleWhack(mole, isCorrect) {
     if (!mole || mole._retracted) return;
     mole._retracted = true;  // 時間切れ retract の二重処理を防ぐ
     var g = _phonicsGame;
     var holeIdx = mole._hole;
     var holes = _phonicsMole.holes || [];
     var img = mole.querySelector('.phonics-mole-img');
-    if (img) img.src = 'images/mole-ouch.png';   // 通常顔 → イテッ顔（サイズ・頭位置は揃っているのでずれない）
+    // 引数が渡っていない呼び出しに備えて data-correct から読み直す（判定そのものは変更していない）
+    var hitCorrect = (isCorrect === undefined)
+      ? (mole.getAttribute('data-correct') === '1')
+      : !!isCorrect;
+    if (img) img.src = hitCorrect ? 'images/mole-correct.png' : 'images/mole-wrong.png';   // サイズ・頭位置は揃っているのでずれない
     var rd = mole.querySelector('.phonics-mole-reading');
     if (rd) rd.style.display = 'none';           // 読み方も一緒に消す
     mole.classList.add('up', 'ouch');            // up 維持で表示のまま、ouch で画像を一瞬弾ませる
@@ -24607,8 +24618,8 @@
 
   // モグラフィールドへのタップ（イベント委譲）
   //   正解→正解カウント＋「+HP」フロート。全正解を叩いたらクリアで次へ。ダミー→減点なし・続行。
-  //   ★見た目：正解・ダミーどちらも「イテッ顔（mole-ouch）」に切替→一瞬で消す（_phonicsMoleWhack）。
-  //     判定（正解/ダミーのHPカウント）は従来通り変えず、演出だけ共通のイテッにする。
+  //   ★見た目：2026-10-19 から正解は mole-correct（赤丸）／ダミーは mole-wrong（モノクロ＋赤×）に切替→
+  //     一瞬で消す（_phonicsMoleWhack）。判定（正解/ダミーのHPカウント）・進行は従来のまま変えていない。
   function _phonicsMoleTap(e) {
     var g = _phonicsGame;
     if (g.answered) return;
@@ -24624,12 +24635,12 @@
       var diff = PHONICS_CONFIG.difficulty[_phonicsState.difficulty] || PHONICS_CONFIG.difficulty.normal;
       _phonicsSpawnHpFloat(e, diff.hpPerCorrect, 'phonics-mole-field');
       _phonicsUpdateTally();
-      _phonicsMoleWhack(mole);
+      _phonicsMoleWhack(mole, true);    // ★正解の絵（mole-correct）
       // 全正解を叩いたらクリア（poppedThisQ===correctTotal）。時間切れ済みが混ざれば neutral 進行。
       if (g.remainingCorrect <= 0) _phonicsAdvance(g.poppedThisQ === g.correctTotal);
     } else {
       playSfx('wrong');
-      _phonicsMoleWhack(mole);
+      _phonicsMoleWhack(mole, false);   // ★不正解の絵（mole-wrong）
     }
   }
 
@@ -27436,7 +27447,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261017-2241</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261019-0320</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
