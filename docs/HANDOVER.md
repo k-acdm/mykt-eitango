@@ -3251,3 +3251,53 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 58826774b8aeb9780123a9cc589f5cf91349158b && git push origin main && git checkout dev
   ```
+
+## 2026-10-19 本番反映：モグラ叩きの叩いた絵を正解／不正解で分ける（★生徒に見える変更）
+
+- ★生徒の要望「正解を叩いた時と誤答を叩いた時の画像が同じだから分かりづらい」への対応。
+  フォニックスは公開済みのため、**これは実生徒に見える変更**（test 枠限定ではない）。
+- 反映内容（dev→main マージ、3 コミット）
+  - `47d7fae` feat(フォニックス)：叩いた絵を正解／不正解で分ける（**見た目だけ**）
+    - 正解を叩いた   → `images/mole-correct.png`（元の絵＋赤丸）
+    - ダミーを叩いた → `images/mole-wrong.png`（モノクロ＋赤×）
+    - `_phonicsMoleWhack(mole)` → `_phonicsMoleWhack(mole, isCorrect)`。
+      引数なしの呼び出しに備えて `data-correct` から読み直すフォールバックも用意（**判定そのものは不変**）
+    - プリロードを `mole-default` / `mole-correct` / `mole-wrong` の 3 枚に
+      （叩いた瞬間の読み込み遅延で絵が欠けないように）
+    - ★旧 `mole-ouch.png` は表示に使わなくなったが**ファイルは削除せず残す**（コード参照 0・コメント言及のみ）
+    - ★演出の長さ・流れは従来どおり（`ouch` クラスの弾みアニメ .2s ／ `moleOuchMs` 200ms で撤去）
+    - ★HP の計算・正解判定・正解数カウント・ゲームの終了条件は**一切変更なし**
+      （`_phonicsAdvance` / `_phonicsSpawnHpFloat` / `_phonicsUpdateTally` / `_phonicsRetractMole` は逐語一致）
+    - ★風船割り（`_phonicsFieldTap` / `_phonicsFieldAnimEnd`）も逐語一致で無変更
+    - ★モグラの滞在時間・出入り速度・同時数（`moleVisibleMs` / `moleRiseMs` / `spawnIntervalMs` /
+      `simultaneousMax` / `spawnBatch` / `moleHoleCount`）も無変更。**CSS は完全無変更**
+  - `16d4e14` feat(フォニックス)：モグラ叩きの正解/不正解の画像を追加
+    - `images/mole-correct.png`（600×600 / 8bit / RGBA / 154,183 bytes）
+    - `images/mole-wrong.png`（600×600 / 8bit / RGBA / 112,385 bytes）
+    - 出どころは `Downloads/mole-images.zip` の `images/` 配下 2 枚（sha256 一致を確認）。
+      既存 `mole-default.png` / `mole-ouch.png` は無変更（blob が前コミットと同一）
+  - `6f7477b` docs(handover)：アバター段階4-b（肌色メイク）の本番反映を記録（`5882677`・前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`58826774b8aeb9780123a9cc589f5cf91349158b`**（＝`5882677`）
+- **マージコミット：`d5060b5f79702dbb7b3e8d8c32359ff258a8ee77`**（＝`d5060b5`）
+- 版バッジ：`20261019-0320`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `d5060b5` / run `39153907284` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`d5060b5f79702dbb7b3e8d8c32359ff258a8ee77` 実体を確認
+- 配信物 sha256 が `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `395a2df3…` / view `aa934d56…` / admin `af76b7ce…`
+  - ★画像も一致：`images/mole-correct.png` `7ce11af7…` / `images/mole-wrong.png` `f052cc40…`
+- 反映後、配信物そのもので確認したこと
+  - ★配信 index.html に `images/mole-correct.png` / `images/mole-wrong.png` の参照あり
+  - ★出し分けの実物：`img.src = hitCorrect ? 'images/mole-correct.png' : 'images/mole-wrong.png';`
+    呼び出し側は `_phonicsMoleWhack(mole, true)`（正解）/ `_phonicsMoleWhack(mole, false)`（ダミー）
+  - ★プリロードが 3 枚（default / correct / wrong）／`mole-ouch.png` のコード参照は 0
+  - ★★画像 2 枚が実際に配信されている（HTTP 200・blob と sha256 一致・600×600 / 8bit / RGBA）。
+    既存の `mole-default.png` / `mole-ouch.png` も HTTP 200 のまま（ouch は残置）
+  - ★HP・判定・進行・風船割り・モグラの時間設定が**反映前 main（`5882677`）と識別子カウント完全一致**
+  - ゲート：`origin/main..dev` は**3本**（想定通り＝`47d7fae` 正誤の絵／`16d4e14` 画像2枚／`6f7477b` HANDOVER記録）。
+    ★`git diff --name-status --diff-filter=ADRCTX` の結果は**画像 2 枚の A のみ**＝
+    **`launch.json` 等の想定外ファイルの混入なし**（削除・リネームもゼロ）。
+    CLAUDE.md ゲート判定値＝**33 行**（実質コードは 6 削除 / 9 追加、残りはコメント）
+  - 検証（コミット時）：モック29 PASS ＋ 構造45 PASS ＝ **74 PASS / 0 FAIL**、inline JS 構文チェック OK
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 d5060b5f79702dbb7b3e8d8c32359ff258a8ee77 && git push origin main && git checkout dev
+  ```
