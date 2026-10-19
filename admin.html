@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261020-0435"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261020-0446"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -1851,7 +1851,7 @@
     <button type="button" id="dash-card-student-add" class="dashboard-card admin-only" onclick="goAdminStudentAdd()">
       <div class="dashboard-card-icon">🆕</div>
       <div class="dashboard-card-title">新規生徒の追加</div>
-      <div class="dashboard-card-desc">生徒ID・氏名・学年などを登録（登録後はログイン認証の画面で初回キーの発行へ）（admin専用）</div>
+      <div class="dashboard-card-desc">生徒ID・氏名・学年などを登録し、そのまま初回キーの発行〜ログイン案内の配布（PDF / LINE）まで行う（admin専用）</div>
     </button>
     <button type="button" id="dash-card-grid" class="dashboard-card admin-only" onclick="goAdminGrid()">
       <div class="dashboard-card-icon">🗂️</div>
@@ -1968,8 +1968,8 @@
     <div class="form-card">
       <h2>新規生徒の情報</h2>
       <div class="sa-lead">
-        この画面では<strong>登録だけ</strong>を行います。ログイン関連の設定（合言葉・暗証番号・初回キー）は
-        <strong>「ログイン認証（トラブル、アラート）」</strong>の画面で行ってください。
+        この画面で<strong>登録</strong>から<strong>ログイン設定・案内の配布</strong>まで行えます。<br>
+        登録すると、下に<strong>「ログイン設定案内」（①〜⑥）</strong>が表示されます。
       </div>
 
       <label>
@@ -2051,15 +2051,16 @@
         <div class="nist-head">④ LINE ID を入力・保存</div>
         <div class="nist-desc">
           形式は <b>U ＋ 16進32桁（小文字）＝ 33文字</b>。保護者と生徒で<b>別々の値</b>を入れられます。<br>
-          <b>空のまま保存すると、その欄は空になります。</b>2つのうち片方でも形式が違うと、<b>どちらも保存されません</b>。
+          <b>空のまま保存すると、その欄は空になります。</b>2つのうち片方でも形式が違うと、<b>どちらも保存されません</b>。<br>
+          コピーした LINE ID はそのまま貼り付けできます（前後の空白は保存時に取り除かれます）。
         </div>
         <label class="ls-field">
           <span class="form-label">保護者の LINE ID</span>
-          <input type="text" id="ls-line-parent" maxlength="33" autocomplete="off" spellcheck="false" placeholder="U0123456789abcdef0123456789abcdef" />
+          <input type="text" id="ls-line-parent" autocomplete="off" spellcheck="false" placeholder="U0123456789abcdef0123456789abcdef" />
         </label>
         <label class="ls-field">
           <span class="form-label">生徒の LINE ID</span>
-          <input type="text" id="ls-line-student" maxlength="33" autocomplete="off" spellcheck="false" placeholder="（無ければ空のまま）" />
+          <input type="text" id="ls-line-student" autocomplete="off" spellcheck="false" placeholder="（無ければ空のまま）" />
         </label>
         <button type="button" id="ls-btn-save-line" class="submit-btn" onclick="lsSaveLineIds()" disabled>💾 LINE ID を保存する</button>
         <div class="ls-reveal-row">
@@ -18079,7 +18080,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261020-0435</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261020-0446</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
