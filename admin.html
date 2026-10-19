@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261019-0320"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261020-0446"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -288,6 +288,28 @@
   .sa-guide-body { font-size: 14px; color: #92400e; line-height: 1.9; }
   .sa-guide-body strong { color: #b45309; }
   .sa-guide-btn { margin-top: 14px; background: linear-gradient(135deg,#4f7df0,#7c4fff); }
+
+  /* ログイン設定案内（2026-10-20 新設・screen-admin-student-add 内の ①〜⑥）。
+     ★ステップ枠・見出し・注記は既存の .ni-step / .nist-* を流用し、ここは不足分だけ足す。 */
+  .ls-target { font-size: 15px; font-weight: 800; color: #0c4a6e; background: #f0f9ff; border-left: 4px solid #4f7df0; border-radius: 4px; padding: 10px 14px; margin-bottom: 12px; }
+  .ls-field { display: block; margin-bottom: 10px; }
+  .ls-field input { width: 100%; padding: 10px 12px; font-size: 15px; border: 2px solid #e1e5ee; border-radius: 8px; outline: none; font-family: 'Courier New', monospace; }
+  .ls-field input:focus { border-color: #4f7df0; }
+  .ls-sub-btn { background: #64748b; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: bold; cursor: pointer; font-family: inherit; }
+  .ls-sub-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+  .ls-reveal-row { margin-top: 10px; }
+  .ls-reveal-box { margin-top: 10px; background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.9; color: #334155; word-break: break-all; }
+  .ls-reveal-box .lsr-label { display: inline-block; min-width: 9em; color: #64748b; }
+  .ls-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .ls-actions .submit-btn { flex: 1 1 200px; }
+  .ls-msg { margin-top: 10px; font-size: 14px; line-height: 1.8; }
+  .ls-msg.ok   { color: #15803d; font-weight: 700; }
+  .ls-msg.ng   { color: #b91c1c; font-weight: 800; background: #fef2f2; border: 2px solid #fecaca; border-radius: 8px; padding: 10px 12px; }
+  .ls-msg.warn { color: #b91c1c; font-weight: 800; background: #fffbeb; border: 2px solid #fcd34d; border-radius: 8px; padding: 10px 12px; }
+  .ls-warn { color: #b91c1c; }
+  @media (max-width: 480px) {
+    .ls-actions .submit-btn { flex: 1 1 100%; }
+  }
   .hp-grant-checkbox-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; padding: 10px; background: #fff7ed; border: 2px solid #fb923c; border-radius: 8px; margin-bottom: 6px; }
   .hp-grant-checkbox-row input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; cursor: pointer; }
   .hp-grant-checkbox-row span { font-size: 14px; color: #6b3a17; line-height: 1.5; }
@@ -1823,13 +1845,13 @@
     </button>
     <button type="button" id="dash-card-auth-alerts" class="dashboard-card admin-only" onclick="goAdminAuthAlerts()">
       <div class="dashboard-card-icon">🔑</div>
-      <div class="dashboard-card-title">ログイン認証（設定、アラート）<span id="auth-alerts-badge" class="notify-badge" style="display:none">!</span></div>
+      <div class="dashboard-card-title">ログイン認証（トラブル、アラート）<span id="auth-alerts-badge" class="notify-badge" style="display:none">!</span></div>
       <div class="dashboard-card-desc">合言葉の失敗が続く生徒を検知 / 暗証番号の強制リセット（新しい初回キーを発行）（admin専用）</div>
     </button>
     <button type="button" id="dash-card-student-add" class="dashboard-card admin-only" onclick="goAdminStudentAdd()">
       <div class="dashboard-card-icon">🆕</div>
       <div class="dashboard-card-title">新規生徒の追加</div>
-      <div class="dashboard-card-desc">生徒ID・氏名・学年などを登録（登録後はログイン認証の画面で初回キーの発行へ）（admin専用）</div>
+      <div class="dashboard-card-desc">生徒ID・氏名・学年などを登録し、そのまま初回キーの発行〜ログイン案内の配布（PDF / LINE）まで行う（admin専用）</div>
     </button>
     <button type="button" id="dash-card-grid" class="dashboard-card admin-only" onclick="goAdminGrid()">
       <div class="dashboard-card-icon">🗂️</div>
@@ -1842,7 +1864,7 @@
 <!-- F4 フロント：ログイン認証アラート（合言葉失敗の検知＋暗証番号の強制リセット、admin専用） -->
 <div id="screen-admin-auth-alerts" class="screen">
   <header>
-    <h1>🔑 ログイン認証（設定、アラート）</h1>
+    <h1>🔑 ログイン認証（トラブル、アラート）</h1>
     <div class="header-btns">
       <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
@@ -1930,7 +1952,7 @@
 
 <!-- シート可視化グリッド画面（③ Excel風グリッド） -->
 <!-- 新規生徒の追加（2026-08-23 新設、admin専用）。★この画面は登録だけ。ログイン関連の設定は
-     「ログイン認証（設定、アラート）」画面のまま。構造は screen-admin-teacher-add を写した。
+     「ログイン認証（トラブル、アラート）」画面のまま。構造は screen-admin-teacher-add を写した。
      ★ヘッダーの CSS セレクタリスト 3 箇所（通常版 background / 通常版 h1 / レスポンシブ h1）に登録済。 -->
 <div id="screen-admin-student-add" class="screen">
   <header>
@@ -1946,8 +1968,8 @@
     <div class="form-card">
       <h2>新規生徒の情報</h2>
       <div class="sa-lead">
-        この画面では<strong>登録だけ</strong>を行います。ログイン関連の設定（合言葉・暗証番号・初回キー）は
-        <strong>「ログイン認証（設定、アラート）」</strong>の画面で行ってください。
+        この画面で<strong>登録</strong>から<strong>ログイン設定・案内の配布</strong>まで行えます。<br>
+        登録すると、下に<strong>「ログイン設定案内」（①〜⑥）</strong>が表示されます。
       </div>
 
       <label>
@@ -1986,7 +2008,93 @@
 
     <button class="submit-btn" id="sa-submit" style="margin-top:18px;background:linear-gradient(135deg,#22c55e,#16a34a)" onclick="submitStudentAdd()">✅ 登録する</button>
     <div id="sa-msg" class="sa-msg"></div>
-    <div id="sa-guide" class="sa-guide" style="display:none"></div>
+
+    <!-- ログイン設定案内（2026-10-20 新設）。登録が済んだら、この画面のまま ①→⑥ で設定〜案内の配布まで行う。
+         ★前の段が終わるまで次のボタンは押せない（disabled）。
+         ★① で返る初回キー（平文）は画面のメモリにだけ持ち、⑤ でそのまま渡す。
+           サーバーは平文を持っていないため、画面を離れると ⑤ は作れない。 -->
+    <div id="sa-login-setup" class="form-card" style="display:none;margin-top:18px">
+      <h2>🔑 ログイン設定案内</h2>
+      <div class="ls-target" id="ls-target"></div>
+      <div class="ni-lead">
+        <b>① → ⑥ の順に進めてください。</b>前の段が終わるまで、次のボタンは押せません。
+      </div>
+
+      <div class="ni-step">
+        <div class="nist-head">① 初回キーを発行</div>
+        <div class="nist-desc">
+          生徒に渡す初回キーを発行します。<b>発行しても生徒のログイン方法はまだ変わりません</b>
+          （② を押すまでは、今までどおりログインできます）。<br>
+          ★キーは発行した直後の1回しか表示できません。
+        </div>
+        <button type="button" id="ls-btn-issue" class="submit-btn" onclick="lsIssueInitialKey()" disabled>🔑 初回キーを発行する</button>
+      </div>
+      <div id="ls-keybox" class="auth-keybox" style="display:none"></div>
+
+      <div class="ni-step">
+        <div class="nist-head">② ログインを有効化</div>
+        <div class="nist-desc">
+          初回キーでのログインを有効にします。<b>初回キーを本人に配布し終えてから</b>押してください。<br>
+          配布前に押すと、次回ログインで初回設定画面が出て、キーを持っていない生徒が入れなくなります。
+        </div>
+        <button type="button" id="ls-btn-activate" class="submit-btn" style="background:linear-gradient(135deg,#ef4444,#b91c1c)" onclick="lsActivateInitialKey()" disabled>✅ ログインを有効化する</button>
+      </div>
+
+      <div class="ni-step">
+        <div class="nist-head">③ 保護者の初回パスワードを発行</div>
+        <div class="nist-desc">保護者が閲覧画面にログインするための、共通の初回パスワードを発行します。</div>
+        <button type="button" id="ls-btn-parent" class="submit-btn" onclick="lsIssueParentPassword()" disabled>👨‍👩‍👦 保護者の初回パスワードを発行する</button>
+        <div id="ls-parent-resultbox" class="parent-reset-resultbox" style="display:none"></div>
+      </div>
+
+      <div class="ni-step">
+        <div class="nist-head">④ LINE ID を入力・保存</div>
+        <div class="nist-desc">
+          形式は <b>U ＋ 16進32桁（小文字）＝ 33文字</b>。保護者と生徒で<b>別々の値</b>を入れられます。<br>
+          <b>空のまま保存すると、その欄は空になります。</b>2つのうち片方でも形式が違うと、<b>どちらも保存されません</b>。<br>
+          コピーした LINE ID はそのまま貼り付けできます（前後の空白は保存時に取り除かれます）。
+        </div>
+        <label class="ls-field">
+          <span class="form-label">保護者の LINE ID</span>
+          <input type="text" id="ls-line-parent" autocomplete="off" spellcheck="false" placeholder="U0123456789abcdef0123456789abcdef" />
+        </label>
+        <label class="ls-field">
+          <span class="form-label">生徒の LINE ID</span>
+          <input type="text" id="ls-line-student" autocomplete="off" spellcheck="false" placeholder="（無ければ空のまま）" />
+        </label>
+        <button type="button" id="ls-btn-save-line" class="submit-btn" onclick="lsSaveLineIds()" disabled>💾 LINE ID を保存する</button>
+        <div class="ls-reveal-row">
+          <button type="button" id="ls-btn-reveal" class="ls-sub-btn" onclick="lsRevealLineIds()" disabled>👁 いま登録されている LINE ID を表示</button>
+          <div class="nist-hint">※ 押すたびに操作ログが残ります。新規登録した直後は両方とも空なので、押す必要はありません（既存の生徒を選び直したときだけ押してください）。</div>
+        </div>
+        <div id="ls-reveal-box" class="ls-reveal-box" style="display:none"></div>
+        <div id="ls-line-msg" class="ls-msg"></div>
+      </div>
+
+      <div class="ni-step">
+        <div class="nist-head">⑤ 案内を作る</div>
+        <div class="nist-desc">
+          ① で発行した初回キーを使って、ログイン案内（A4・2ページの PDF）を作ります。作成には少し時間がかかります。<br>
+          <b class="ls-warn">この画面を離れると案内を作り直せません（初回キーの再発行が必要です）。</b><br>
+          何度押しても構いません（押すたびに新しい案内になります）。
+        </div>
+        <button type="button" id="ls-btn-create" class="submit-btn" onclick="lsCreateLoginInfo()" disabled>📄 案内を作る</button>
+        <div id="ls-create-msg" class="ls-msg"></div>
+      </div>
+
+      <div class="ni-step">
+        <div class="nist-head">⑥ 案内を渡す（PDF ダウンロード / LINE 送信）</div>
+        <div class="nist-desc">
+          保護者の LINE に2枚、生徒の LINE があれば生徒にも1枚送ります。保護者の LINE ID が無いと送れません。<br>
+          同じ案内は二度送れません。もう一度送るときは ⑤ から作り直してください。
+        </div>
+        <div class="ls-actions">
+          <button type="button" id="ls-btn-download" class="submit-btn" onclick="lsDownloadPdf()" disabled>⬇️ PDF をダウンロード</button>
+          <button type="button" id="ls-btn-send" class="submit-btn" style="background:linear-gradient(135deg,#22c55e,#16a34a)" onclick="lsSendLoginInfoLine()" disabled>💬 LINE で送る</button>
+        </div>
+        <div id="ls-send-msg" class="ls-msg"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -6258,7 +6366,7 @@
   // =============================================================
   // 新規生徒の追加（2026-08-23 新設、admin専用）
   //   ★この画面は「登録」だけ。ログイン関連の設定は既存の
-  //     「ログイン認証（設定、アラート）」画面のまま。
+  //     「ログイン認証（トラブル、アラート）」画面のまま。
   //   ★送り先：account_type === 'student' → adminGridAddStudent
   //             それ以外                   → adminGridAddSpecialAccount
   //     （どちらもシート画面が使っている既存アクション。サーバー側の新設は不要）
@@ -6332,7 +6440,7 @@
     document.getElementById('sa-code').value = '';
     document.getElementById('sa-name').value = '';
     _saMsg('');
-    var g = document.getElementById('sa-guide'); if (g) { g.style.display = 'none'; g.innerHTML = ''; }
+    _lsReset();   // 2026-10-20：ログイン設定案内（①→⑥）も初期状態に戻す
     _saOnAccountTypeChange();
   }
   function _saOnAccountTypeChange() {
@@ -6376,8 +6484,9 @@
         _saMsg(em, 'ng');
         return;
       }
-      _saMsg('');
-      _saShowGuide(name, code, sheetLabel);
+      _saMsg('✅ ' + name + '（' + code + '）を ' + sheetLabel + ' に登録しました。下の「ログイン設定案内」へ進んでください。', 'ok');
+      // 2026-10-20：旧「ログイン認証の画面へ進む」案内は廃止。この画面のまま ①→⑥ を進める。
+      _lsStart(code, name);
       document.getElementById('sa-code').value = '';
       document.getElementById('sa-name').value = '';
     }).catch(function() {
@@ -6386,19 +6495,331 @@
       _saMsg('通信エラーが発生しました。', 'ng');
     });
   }
-  // ★登録後の案内：登録しただけではログインできないことを塾長に必ず伝える。
-  function _saShowGuide(name, code, sheetLabel) {
-    var g = document.getElementById('sa-guide');
-    if (!g) return;
-    g.innerHTML =
-      '<div class="sa-guide-head">✅ ' + _esc(name) + '（' + _esc(code) + '）を ' + _esc(sheetLabel) + ' に登録しました。</div>' +
-      '<div class="sa-guide-body">' +
-        '<strong>登録しただけでは、この生徒はまだログインできません。</strong><br>' +
-        '「ログイン認証（設定、アラート）」の画面を開き、<strong>初回キーの発行</strong>から進めてください。' +
-      '</div>' +
-      '<button type="button" class="submit-btn sa-guide-btn" onclick="goAdminAuthAlerts()">🔑 ログイン認証（設定、アラート）へ進む</button>';
-    g.style.display = '';
-    try { g.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+  // =============================================================
+  // ログイン設定案内（2026-10-20 新設・screen-admin-student-add 内の ①→⑥）
+  // =============================================================
+  //   ① adminIssueInitialKey            初回キーを発行（既存）
+  //   ② adminActivateInitialKey          初回キーを有効化（既存）
+  //   ③ adminIssueParentInitialPassword  保護者の初回パスワード（既存）
+  //   ④ adminGridRevealLineUserId        現在値の表示（既存・★studentCode で送る／既存のシート画面と同じ GET）
+  //      adminSaveStudentLineUserId      LINE ID の保存（新規・POST）
+  //   ⑤ adminCreateLoginInfo             案内（PDF）を作る（新規・POST）
+  //   ⑥ adminSendLoginInfoLine           LINE で送る（新規・POST）
+  //   ★① で返る initialKey（平文）は _lsState にだけ持ち、⑤ でそのまま渡す。
+  //     サーバーは平文を持っていないため、画面を離れると ⑤ は作れない。
+  //   ★sheetId / pdfBase64 も画面のメモリにだけ持つ（サーバーには PDF を保存していない）。
+  var _lsState = {
+    studentId: '', name: '',
+    initialKey: '',
+    sheetId: '', pdfBase64: '', pdfFileName: '',
+    step1: false, step2: false, step3: false, step4: false, step5: false,
+    busy: false
+  };
+
+  function _lsReset() {
+    _lsState = { studentId: '', name: '', initialKey: '', sheetId: '', pdfBase64: '', pdfFileName: '',
+                 step1: false, step2: false, step3: false, step4: false, step5: false, busy: false };
+    var panel = document.getElementById('sa-login-setup');
+    if (panel) panel.style.display = 'none';
+    ['ls-keybox', 'ls-parent-resultbox', 'ls-reveal-box'].forEach(function(id) {
+      var el = document.getElementById(id); if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+    });
+    ['ls-line-msg', 'ls-create-msg', 'ls-send-msg'].forEach(function(id) { _lsMsg(id, ''); });
+    ['ls-line-parent', 'ls-line-student'].forEach(function(id) {
+      var el = document.getElementById(id); if (el) el.value = '';
+    });
+    _lsRenderGate();
+  }
+
+  // 登録成功時に呼ぶ：対象の生徒を確定してパネルを出す
+  function _lsStart(studentId, name) {
+    _lsReset();
+    _lsState.studentId = String(studentId || '').trim();
+    _lsState.name      = String(name || '').trim();
+    var t = document.getElementById('ls-target');
+    if (t) t.textContent = '対象：' + _lsState.name + '（' + _lsState.studentId + '）';
+    var panel = document.getElementById('sa-login-setup');
+    if (panel) {
+      panel.style.display = '';
+      try { panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+    }
+    _lsRenderGate();
+  }
+
+  function _lsMsg(id, text, kind) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = text || '';
+    el.className = 'ls-msg' + (kind ? ' ' + kind : '');
+  }
+  function _lsSetDisabled(id, disabled) {
+    var el = document.getElementById(id); if (el) el.disabled = !!disabled;
+  }
+  // ★前の段が終わるまで次のボタンは押せない
+  function _lsRenderGate() {
+    var s = _lsState, has = !!s.studentId, b = s.busy;
+    _lsSetDisabled('ls-btn-issue',     !has || b);
+    _lsSetDisabled('ls-btn-activate',  !s.step1 || b);
+    _lsSetDisabled('ls-btn-parent',    !s.step2 || b);
+    _lsSetDisabled('ls-btn-save-line', !s.step3 || b);
+    _lsSetDisabled('ls-btn-reveal',    !s.step3 || b);
+    _lsSetDisabled('ls-btn-create',    !s.step4 || b);
+    _lsSetDisabled('ls-btn-download',  !s.step5 || !s.pdfBase64 || b);
+    _lsSetDisabled('ls-btn-send',      !s.step5 || !s.sheetId  || b);
+  }
+  function _lsBusy(on) { _lsState.busy = !!on; _lsRenderGate(); }
+
+  // ① 初回キーを発行（既存 action）。★平文キーは応答の1回だけ。
+  function lsIssueInitialKey() {
+    var sid = _lsState.studentId; if (!sid) return;
+    _lsBusy(true);
+    adminGasPost({ action: 'adminIssueInitialKey', studentId: sid }).then(function(res) {
+      _lsBusy(false);
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '初回キーの発行に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error'); return;
+      }
+      var key = res.initialKey || res.newInitialKey || res.initial_key || res.plaintextKey || res.newKey || '';
+      _lsState.initialKey = String(key || '');
+      _lsState.step1 = true;
+      _lsShowKeybox(_lsState.name + '（' + sid + '）', key, !!res.reissued);
+      showToast(sid + ' の初回キーを発行しました', 'success');
+      _lsRenderGate();
+    }).catch(function() { _lsBusy(false); showToast('通信エラーが発生しました', 'error'); });
+  }
+  function _lsShowKeybox(label, key, reissued) {
+    var box = document.getElementById('ls-keybox'); if (!box) return;
+    var keyStr = String(key || '').trim();
+    var keyHtml, warn;
+    if (keyStr) {
+      keyHtml = '<div class="akb-key">' + _esc(keyStr) + '</div>';
+      warn = (reissued ? '⚠️ <b>再発行しました。古いキーは無効です。</b><br>' : '') +
+             '⚠️ この初回キーは<b>この画面でしか確認できません</b>（あとから取得できません）。<br>' +
+             '<b>必ず配布物に転記して、本人に渡してください。</b><br>' +
+             'この時点ではログイン方法はまだ変わりません。<b>渡し終えてから ② を押してください。</b>';
+    } else {
+      keyHtml = '<div class="akb-key" style="color:#b91c1c;font-size:16px">（初回キーを取得できませんでした）</div>';
+      warn = '⚠️ 初回キーがサーバ応答に含まれていませんでした。サーバの応答をご確認のうえ、もう一度発行してください。';
+    }
+    box.innerHTML = '<div class="akb-title">🔑 ' + _esc(label) + ' の初回キー</div>' + keyHtml +
+                    '<div class="akb-warn">' + warn + '</div>';
+    box.style.display = 'block';
+  }
+
+  // ② ログインを有効化（既存 action）。★配布前に押させないための確認を必ず出す。
+  function lsActivateInitialKey() {
+    var sid = _lsState.studentId; if (!sid) return;
+    var label = _lsState.name + '（' + sid + '）';
+    if (!confirm('初回キーを本人に配布し終えていますか？\n\n' + label +
+                 '\n\n配布前に有効化すると、次回ログインで初回設定画面が出て、\n' +
+                 'キーを持っていない生徒が入れなくなります。\n\n配布済みの場合のみ「OK」を押してください。')) return;
+    _lsBusy(true);
+    adminGasPost({ action: 'adminActivateInitialKey', studentId: sid }).then(function(res) {
+      _lsBusy(false);
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '有効化に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error'); return;
+      }
+      _lsState.step2 = true;
+      showToast(sid + ' のログインを有効化しました', 'success');
+      _lsRenderGate();
+    }).catch(function() { _lsBusy(false); showToast('通信エラーが発生しました', 'error'); });
+  }
+
+  // ③ 保護者の初回パスワードを発行（既存 action）
+  function lsIssueParentPassword() {
+    var sid = _lsState.studentId; if (!sid) return;
+    _lsBusy(true);
+    adminGasPost({ action: 'adminIssueParentInitialPassword', studentId: sid }).then(function(res) {
+      _lsBusy(false);
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : '保護者の初回パスワードの発行に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        showToast(msg, 'error'); return;
+      }
+      _lsState.step3 = true;
+      var box = document.getElementById('ls-parent-resultbox');
+      if (box) {
+        box.innerHTML = '✅ ' + _esc(_lsState.name) + '（' + _esc(sid) + '）の保護者に初回パスワードを発行しました。';
+        box.style.display = 'block';
+      }
+      showToast(sid + ' の保護者に初回パスワードを発行しました', 'success');
+      _lsRenderGate();
+    }).catch(function() { _lsBusy(false); showToast('通信エラーが発生しました', 'error'); });
+  }
+
+  // ④-a 現在値の表示（既存 action）。★この action だけ studentId ではなく studentCode を送る。
+  //   ★呼ぶたびに操作ログが残るので、自動では呼ばない（ボタンを押したときだけ）。
+  //   ★伏せ字にせずそのまま表示する（parent / student の2つとも）。
+  function lsRevealLineIds() {
+    var code = _lsState.studentId; if (!code) return;
+    var box = document.getElementById('ls-reveal-box');
+    _lsBusy(true);
+    if (box) { box.style.display = 'block'; box.textContent = '🔓 取得中…'; }
+    Promise.all(['parent', 'student'].map(function(field) {
+      return adminGasGet({ action: 'adminGridRevealLineUserId', studentCode: code, field: field })
+        .then(function(res) {
+          if (!res || !res.ok) throw new Error((res && res.message) || '取得に失敗しました');
+          return { field: field, value: (res.value != null) ? String(res.value) : null };
+        });
+    })).then(function(list) {
+      _lsBusy(false);
+      var map = {};
+      list.forEach(function(x) { map[x.field] = x.value; });
+      var fmt = function(v) { return (v == null || v === '') ? '<span style="color:#94a3b8">（未登録）</span>' : _esc(v); };
+      if (box) {
+        box.innerHTML = '<div><span class="lsr-label">保護者の LINE ID</span>' + fmt(map.parent)  + '</div>' +
+                        '<div><span class="lsr-label">生徒の LINE ID</span>'   + fmt(map.student) + '</div>';
+      }
+    }).catch(function(err) {
+      _lsBusy(false);
+      if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+      var m = (err && err.message) ? err.message : 'LINE ID の取得に失敗しました';
+      if (_handleAdminApiError(m)) return;
+      _lsMsg('ls-line-msg', _esc(m), 'ng');
+    });
+  }
+
+  // ④-b LINE ID の保存（新規 action）。★送った項目の列だけを書き換える。空を送るとその列を空にする。
+  //   ★2つ送って片方でも形式が違えば、どちらも保存されない（サーバー側の仕様）。
+  function lsSaveLineIds() {
+    var sid = _lsState.studentId; if (!sid) return;
+    var p = document.getElementById('ls-line-parent');
+    var s = document.getElementById('ls-line-student');
+    var pv = p ? p.value : '';
+    var sv = s ? s.value : '';
+    _lsBusy(true);
+    _lsMsg('ls-line-msg', '⏳ 保存中…', '');
+    adminGasPost({ action: 'adminSaveStudentLineUserId', studentId: sid,
+                   lineUserIdParent: pv, lineUserIdStudent: sv }).then(function(res) {
+      _lsBusy(false);
+      if (!res || !res.ok) {
+        var msg = (res && res.message) ? res.message : 'LINE ID の保存に失敗しました';
+        if (_handleAdminApiError(msg)) return;
+        _lsMsg('ls-line-msg', _esc(msg), 'ng');
+        var f = res && res.field;
+        var focusEl = (f === 'student') ? s : (f === 'parent' ? p : null);
+        if (focusEl) focusEl.focus();
+        return;
+      }
+      // ★保存後は、返りの lineUserIdParent / lineUserIdStudent で2欄を表示し直す
+      if (p) p.value = (res.lineUserIdParent  != null) ? String(res.lineUserIdParent)  : '';
+      if (s) s.value = (res.lineUserIdStudent != null) ? String(res.lineUserIdStudent) : '';
+      _lsState.step4 = true;
+      var ch = res.changed || {};
+      _lsMsg('ls-line-msg',
+        '✅ 保存しました（保護者：' + (ch.parent ? '更新' : '変更なし') +
+        ' / 生徒：' + (ch.student ? '更新' : '変更なし') + '）', 'ok');
+      showToast('LINE ID を保存しました', 'success');
+      _lsRenderGate();
+    }).catch(function() {
+      _lsBusy(false);
+      _lsMsg('ls-line-msg', '通信エラーが発生しました。', 'ng');
+    });
+  }
+
+  // ⑤ 案内を作る（新規 action）。★① の平文キーをそのまま渡す。応答は約 0.6MB で時間がかかる。
+  //   ★何度押してもよい（押すたびに新しい案内になる。DB は書き換えない）。
+  function lsCreateLoginInfo() {
+    var sid = _lsState.studentId; if (!sid) return;
+    _lsBusy(true);
+    _lsMsg('ls-create-msg', '⏳ 作成中…（少し時間がかかります）', '');
+    _lsMsg('ls-send-msg', '');
+    adminGasPost({ action: 'adminCreateLoginInfo', studentId: sid, initialKey: _lsState.initialKey })
+      .then(function(res) {
+        _lsBusy(false);
+        if (!res || !res.ok) {
+          var msg = (res && res.message) ? res.message : '案内の作成に失敗しました';
+          if (_handleAdminApiError(msg)) return;
+          _lsMsg('ls-create-msg', _esc(msg), 'ng');
+          return;
+        }
+        _lsState.sheetId     = String(res.sheetId || '');
+        _lsState.pdfBase64   = String(res.pdfBase64 || '');
+        _lsState.pdfFileName = String(res.pdfFileName || ('login-info-' + sid + '.pdf'));
+        _lsState.step5 = true;
+        var mins = (res.expiresInMinutes != null) ? String(res.expiresInMinutes) : '';
+        _lsMsg('ls-create-msg',
+          '✅ 案内を作成しました（' + _esc(_lsState.pdfFileName) + '）。' +
+          (mins ? '有効期限：約 ' + _esc(mins) + ' 分。' : '') +
+          '下の ⑥ から PDF のダウンロード / LINE 送信ができます。', 'ok');
+        showToast('案内を作成しました', 'success');
+        _lsRenderGate();
+      }).catch(function() {
+        _lsBusy(false);
+        _lsMsg('ls-create-msg', '通信エラーが発生しました。', 'ng');
+      });
+  }
+
+  // ⑥-a PDF をダウンロード（⑤ で受け取った base64 をそのまま保存。サーバーには保存されていない）
+  function lsDownloadPdf() {
+    if (!_lsState.pdfBase64) return;
+    var url = '';
+    try {
+      var bin = Uint8Array.from(atob(_lsState.pdfBase64), function(c) { return c.charCodeAt(0); });
+      url = URL.createObjectURL(new Blob([bin], { type: 'application/pdf' }));
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = _lsState.pdfFileName || 'login-info.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('PDF をダウンロードしました', 'success');
+    } catch (e) {
+      _lsMsg('ls-send-msg', 'PDF のダウンロードに失敗しました。', 'ng');
+    } finally {
+      if (url) { try { URL.revokeObjectURL(url); } catch (e2) {} }
+    }
+  }
+
+  // ⑥-b LINE で送る（新規 action）。★宛先と通数はサーバーが決める。
+  //   ★同じ sheetId は二度送れない（成功・失敗とも ⑤ から作り直す）。
+  function lsSendLoginInfoLine() {
+    var sid = _lsState.studentId; if (!sid || !_lsState.sheetId) return;
+    _lsBusy(true);
+    _lsMsg('ls-send-msg', '⏳ 送信中…', '');
+    adminGasPost({ action: 'adminSendLoginInfoLine', studentId: sid, sheetId: _lsState.sheetId })
+      .then(function(res) {
+        _lsBusy(false);
+        // ★同じ sheetId は二度送れない。成功・失敗にかかわらず ⑤ からやり直す。
+        _lsState.sheetId = '';
+        _lsRenderGate();
+        if (!res || !res.ok) {
+          var msg = (res && res.message) ? res.message : 'LINE 送信に失敗しました';
+          if (_handleAdminApiError(msg)) return;
+          _lsMsg('ls-send-msg',
+            '❌ <b>送信できませんでした。</b><br>' + _esc(msg) +
+            '<br>保護者への送信に失敗した場合は、生徒にも送っていません。もう一度送るときは ⑤ から作り直してください。', 'ng');
+          try { alert('LINE 送信に失敗しました。\n\n' + msg + '\n\nもう一度送るときは ⑤ から作り直してください。'); } catch (e) {}
+          return;
+        }
+        var pm    = (res.parent && res.parent.messages != null) ? String(res.parent.messages) : '';
+        var stMsg = (res.student && res.student.message) ? String(res.student.message) : '';
+        if (res.studentFailed) {
+          // ★保護者には届いたが、生徒への1通だけ失敗した
+          _lsMsg('ls-send-msg',
+            '⚠️ <b>保護者には送信済み。生徒への送信だけ失敗しました。</b><br>' +
+            '保護者：' + _esc(pm) + ' 通<br>' +
+            (stMsg ? '生徒：' + _esc(stMsg) + '<br>' : '') +
+            'もう一度送るときは ⑤ から作り直してください。', 'warn');
+          showToast('生徒への送信だけ失敗しました', 'error');
+        } else {
+          _lsMsg('ls-send-msg',
+            '✅ 送信しました。保護者：' + _esc(pm) + ' 通' +
+            (stMsg ? ' / 生徒：' + _esc(stMsg) : '') +
+            '<br>同じ案内は二度送れません。もう一度送るときは ⑤ から作り直してください。', 'ok');
+          showToast('LINE で送信しました', 'success');
+        }
+      }).catch(function() {
+        _lsBusy(false);
+        _lsState.sheetId = '';
+        _lsRenderGate();
+        _lsMsg('ls-send-msg',
+          '❌ <b>通信エラーが発生しました。送れたかどうかが分かりません。</b><br>' +
+          'LINE の受信を確認し、届いていなければ ⑤ から作り直してください。', 'ng');
+      });
   }
 
   // =============================================================
@@ -17659,7 +18080,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261019-0320</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261020-0446</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
