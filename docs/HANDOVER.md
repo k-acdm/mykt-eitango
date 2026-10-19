@@ -3301,3 +3301,64 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 d5060b5f79702dbb7b3e8d8c32359ff258a8ee77 && git push origin main && git checkout dev
   ```
+
+## 2026-10-20 本番反映：新規生徒の追加に「ログイン設定案内」（①〜⑥）
+
+- ★管理画面「新規生徒の追加」1 画面だけで、**登録 → 初回キー発行 → ログイン案内の配布（PDF / LINE）** まで通しで行えるようにした。
+  これまでは登録後に「ログイン認証」画面へ移動する運用だった。**生徒・保護者の画面には変更なし**（admin 専用）。
+- ★バックエンドは AWS リポ側ですでに反映済み（`665075c` / AWS 側 HANDOVER **§6-21**）。今回はその**画面側**の反映。
+- 反映内容（dev→main マージ、3 コミット）
+  - `a766941` feat(管理画面)：「ログイン設定案内」①〜⑥ を実装
+    - 登録に成功すると、`screen-admin-student-add` の下に `#sa-login-setup` パネル（既定は非表示）が開く
+    - ★**①→⑥ の順送り**。前の段が終わるまで次のボタンは押せない（`_lsRenderGate()` で `disabled` を制御）
+      - ① 初回キーを発行 … `adminIssueInitialKey`（POST）
+      - ② ログインを有効化 … `adminActivateInitialKey`（POST・**確認ダイアログあり**・赤ボタン）
+      - ③ 保護者の初回パスワードを発行 … `adminIssueParentInitialPassword`（POST）
+      - ④ LINE ID を入力・保存 … `adminSaveStudentLineUserId`（POST・保護者／生徒の2欄を同時保存）
+        ＋ 確認用「👁 いま登録されている LINE ID」… `adminGridRevealLineUserId`（**GET**・**`studentCode`** で送る・保護者／生徒で2回呼ぶ）
+        ★自動では呼ばない**手動ボタン**（閲覧が操作ログに残るため）。運用上「公式LINEへの送信を確認してから発行」する流れなので、保存後の確認用として残す
+      - ⑤ 案内を作る … `adminCreateLoginInfo`（POST）→ PDF（base64）と `sheetId` を受け取る
+      - ⑥ 案内を渡す … **PDF ダウンロード**（base64→`Blob`→`URL.createObjectURL`、`revokeObjectURL` で後始末）／**LINE 送信** `adminSendLoginInfoLine`（POST）
+    - ★⑥ の結果の扱い：`studentFailed` → 警告表示「保護者には送信済み。生徒への送信だけ失敗しました。」／
+      `ok:false` → エラー表示＋「保護者への送信に失敗した場合は、生徒にも送っていません。」
+      **成功・失敗どちらでも `sheetId` を捨てる**（同じ案内は二度送れない。送り直すときは ⑤ から作り直す）
+    - ★状態（`_lsState`）は**メモリのみ**。初回キー・パスワードは保存せず、画面を離れる（`goAdminStudentAdd()`）と `_lsReset()` で消える
+    - 旧「ログイン認証（設定、アラート）へ進む」ボタンと案内（`_saShowGuide()` / `#sa-guide`）は廃止
+    - メニュー名を**「ログイン認証（設定、アラート）」→「ログイン認証（トラブル、アラート）」**に変更（設定はこの画面に移ったため）
+    - ★既存の「ログイン認証」画面（`screen-admin-auth-alerts`・`niIssueInitialKey` ほか）は**そのまま残す**。締め出し解除・アラート確認は従来どおり
+  - `63e374d` fix(管理画面)：案内文の差し替え＋LINE ID 欄のコピペ対応
+    - 画面冒頭の案内を「この画面で**登録**から**ログイン設定・案内の配布**まで行えます」に差し替え
+    - ダッシュボードのカード説明も「そのまま初回キーの発行〜ログイン案内の配布（PDF / LINE）まで行う」に更新
+    - ★**LINE ID 欄の `maxlength="33"` を撤去**。前後に空白が付いたまま貼り付けると、サーバーの trim より前にブラウザが 33 文字で切って**末尾が欠ける**ため。
+      既存の「シート（データ直接編集）」（`_gridMakeMaskedInput`）は maxlength を付けていないので、挙動をそちらに揃えた。注記も追加
+  - `e3c43bb` docs(handover)：モグラ叩きの本番反映を記録（`d5060b5`・前回反映済み分・この反映で main へ同載）
+- ★この反映は**ふくちさんが手元で merge まで済ませ、push も完了**していた。クロ側は merge / push を行わず、内容の確認のみ実施
+- **反映前の main（切り戻し先）：`d5060b5f79702dbb7b3e8d8c32359ff258a8ee77`**（＝`d5060b5`）
+- **マージコミット：`0d0a4b34b4fc9e30144349db4a88c3b1c740b41f`**（＝`0d0a4b3`。親＝`d5060b5` ＋ `63e374d`）
+- **dev HEAD：`63e374d87c7b5554ec09bdc6b1573f6e411a9883`**
+- 版バッジ：`20261020-0446`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `0d0a4b3` / run `39315148229` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`0d0a4b34b4fc9e30144349db4a88c3b1c740b41f`、ローカル main と一致（`origin/main..main` は 0 本）
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `3ac76830ae8bf52ca3af148afd60c2a0e0600c8042851d7bf141cc6be74fd875`
+  - view  `8dd0b38a1013efa5460946136aacc555551b6cff200070d16c6cb5cb350d4f5a`
+  - admin `c64025e9d7402ac1234131998759ccf0354581bac6608c111c6c38b01ad915e8`
+- 反映後、配信物そのもので確認したこと
+  - パネル `#sa-login-setup` ＝1、ボタン 8 個（`ls-btn-issue` / `activate` / `parent` / `save-line` / `reveal` / `create` / `download` / `send`）＝各1
+  - 新規3 action（`adminSaveStudentLineUserId` / `adminCreateLoginInfo` / `adminSendLoginInfoLine`）＝各2（コメント＋実コード）
+  - ④-a の確認は `studentCode` で送っている ＝1
+  - 新しい案内文 ＝1／旧案内文 ＝0、ダッシュボード説明（新）＝1／（旧）＝0
+  - ★**LINE ID 欄の `maxlength` ＝0**（撤去済み）、コピペの注記 ＝1
+  - メニュー名：旧「ログイン認証（設定、アラート）」＝**0**／新「（トラブル、アラート）」＝4
+    （※実装時は 5 箇所を書き換えたが、`63e374d` の案内文の全面差し替えで 1 箇所が文ごと消えたため 4 が正しい値）
+  - ★既存の「ログイン認証」画面は健在（`screen-admin-auth-alerts`＝5、`niIssueInitialKey` / `niActivateInitialKey` / `niIssueParentPassword`＝各2）
+  - ★`main` の tree ＝ `dev` の tree（`38639182724b19921dc424019aeeb6c21da15858`）、`git diff main dev` は空＝**dev の内容以外は main に入っていない**
+  - ゲート：`origin/main..dev` は**3本**（想定通り）。変更ファイルは admin / index / view / docs/HANDOVER.md のみで、
+    `git diff --name-status --diff-filter=ADRCTX` は**空**＝**`launch.json` 等の想定外ファイルの混入なし**（追加・削除・リネームともゼロ）。
+    CLAUDE.md ゲート判定値＝**0 行**（index / view は版スタンプと `?v=` のみ。実質の変更は admin.html だけ）
+  - 検証（コミット時）：モック・構造の両テストとも PASS、inline JS 構文チェック OK
+- ★次スレ以降の宿題：④-a の LINE ID 確認は**生徒を選ぶ UI がない**（登録直後の生徒にしか使えない）。
+  過去に登録した生徒の LINE ID を見る／直すときは、従来どおり「シート（データ直接編集）」画面を使う
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 0d0a4b34b4fc9e30144349db4a88c3b1c740b41f && git push origin main && git checkout dev
+  ```
