@@ -2539,6 +2539,29 @@
     .sub-action-btn.settings { background: linear-gradient(135deg,#42a5f5,#1e88e5); }
     .sub-action-btn.sfx-link { background: linear-gradient(135deg,#66bb6a,#43a047); }
     .sub-action-btn.logout   { background: linear-gradient(135deg,#e74c3c,#c0392b); }
+    /* 2026-10-21 問題ミスの指摘：ホーム下部の導線（「各種設定」の青と区別するため橙系）。 */
+    .sub-action-btn.mistake  { background: linear-gradient(135deg,#f6a04d,#ef8c2b); }
+    /* 2026-10-21 問題ミスの指摘：各コンテンツの問題画面に出す案内。
+       ★既存の .reload-warn-note（11.5px / グレー文字 / 薄い枠）に見た目を揃えた控えめな帯。
+         色や文字で主張させず、左の細い橙ラインだけで「見落とされない程度」の存在感を出す。 */
+    .mistake-hint { margin: 10px 0; padding: 7px 10px; font-size: 11.5px; line-height: 1.6; color: #c00; font-weight: bold; background: #fafafa; border: 1px solid #e5e7eb; border-left: 3px solid #f6a04d; border-radius: 8px; }
+    /* 2026-10-21 問題ミスの指摘：報告画面（screen-mistake-report） */
+    .mistake-lead { font-size: 14px; color: #555; line-height: 1.7; margin-bottom: 4px; }
+    .mistake-field-label { font-size: 15px; font-weight: bold; color: #1a1a2e; margin: 18px 0 8px; }
+    .mistake-content-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .mistake-content-list .loading, .mistake-content-list .error { grid-column: 1 / -1; padding: 24px 0; }
+    .mistake-content-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 2px solid #e1e5ee; border-radius: 10px; background: #fff; font-size: 14px; color: #333; line-height: 1.4; cursor: pointer; }
+    .mistake-content-item.selected { border-color: #4f7df0; background: #eef4ff; }
+    .mistake-content-item input { width: 16px; height: 16px; flex: 0 0 auto; cursor: pointer; }
+    .mistake-guide { font-size: 13px; line-height: 1.7; color: #6d4c00; background: #fffdf2; border: 1px solid #f6d58a; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+    .mistake-textarea { width: 100%; box-sizing: border-box; min-height: 160px; padding: 12px; font-size: 15px; line-height: 1.7; font-family: inherit; border: 2px solid #e1e5ee; border-radius: 10px; resize: vertical; }
+    .mistake-textarea:focus { border-color: #4f7df0; outline: none; }
+    .mistake-counter { margin-top: 6px; text-align: right; font-size: 12px; color: #888; }
+    .mistake-counter.over { color: #c00; font-weight: bold; }
+    @media (max-width: 480px) {
+      .mistake-hint { font-size: 11px; padding: 6px 9px; }
+      .mistake-content-list { grid-template-columns: 1fr; }
+    }
     @media (max-width: 480px) {
       .top-card { margin: 16px; padding: 20px; }
       .top-card h2 { font-size: 18px; }
@@ -3720,10 +3743,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261020-0446"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261021-0449"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261020-0446">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261020-0446"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261021-0449">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261021-0449"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4386,6 +4409,10 @@
       </button>
     </div>
 
+    <!-- 2026-10-21 問題ミスの指摘：生徒が問題そのものの誤りを報告する導線。★「各種設定」のすぐ上に置く。 -->
+    <div class="sub-action-row single">
+      <button class="sub-action-btn mistake" onclick="showMistakeReport()">🚨 問題ミスの指摘</button>
+    </div>
     <!-- サブ操作（音声設定 / 効果音オンオフ切替）。ログアウトは最上部バナーに併設のため下部からは廃止。 -->
     <div class="sub-action-row single">
       <button class="sub-action-btn settings" onclick="showScreen('screen-settings')">⚙️ 各種設定</button>
@@ -4545,6 +4572,26 @@
     <div id="student-reflections-list" class="refl-list">
       <div class="refl-empty">⏳ 読み込み中...</div>
     </div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホームに戻る</button>
+  </div>
+</div>
+<!-- 2026-10-21 問題ミスの指摘：生徒が「問題そのものの誤り」を報告する画面。
+     ・コンテンツ一覧は getMistakeReportContents（GET）の返り値をそのまま使う（value=key / 表示=label / 並び順も返り値のまま）。
+     ・本文は 1000 文字まで。★maxlength は付けない（貼り付けが黙って切られるのを避ける）。最終判定はサーバー。 -->
+<div id="screen-mistake-report" class="screen">
+  <header><h1>🚨 問題ミスの指摘</h1><span id="mistake-report-sid"></span></header>
+  <div class="container" style="padding-top:20px">
+    <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:0;margin-bottom:14px" onclick="goHome()">← ホームに戻る</button>
+    <div class="mistake-lead">問題の中に、まちがいやおかしなところを見つけたら教えてください。確認して修正します。</div>
+    <div class="mistake-field-label">① どのコンテンツ？</div>
+    <div id="mistake-content-list" class="mistake-content-list"><div class="loading">⏳ 読み込み中...</div></div>
+    <div class="mistake-field-label">② どこがおかしかった？</div>
+    <!-- ★この案内はサーバーからは返らない。画面側の固定表示。 -->
+    <div class="mistake-guide">何がおかしかったのかを、具体的に書いてください。<br>問題文の一部を書いてもらえると、探しやすくなります。</div>
+    <textarea id="mistake-body" class="mistake-textarea" placeholder="例：英単語RUSH の○○というセットで、「apple」の意味が「みかん」になっていました" oninput="onMistakeBodyInput()"></textarea>
+    <div id="mistake-counter" class="mistake-counter">0 / 1000</div>
+    <button class="btn-wide" id="mistake-submit-btn" onclick="submitMistakeReport()">📨 送信する</button>
+    <div id="mistake-msg" class="msg"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:18px" onclick="goHome()">← ホームに戻る</button>
   </div>
 </div>
@@ -4734,6 +4781,7 @@
       <img class="mate-img" id="mate-img-eitan-dictation" src="images/rushkun-default.png" alt="RUSH君">
       <div class="mate-bubble" id="mate-bubble-eitan-dictation">きれいに書けてるかな？</div>
     </div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div class="dictation-notice">
       <div class="notice-title">🔴 それぞれの単語の発音を聞いた後、ノートに単語の書き取り練習をして、写真に撮って送ってください。</div>
       <div class="notice-body">【やり方】<br>・「単語の番号」「日本語の意味」の順で書き、その右に３回ずつ英単語を書いてください。<br>・１行おきに書いてください。<br>・全て終わったら一番下の「写真に撮って送る」ボタンを押し、画面の指示に従って写真を送ってください。<br>・写真を送った後、AIが正しく書けてるかを判定します。</div>
@@ -4765,6 +4813,7 @@
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px;display:none" onclick="showLevelSelect()">← レベル選択に戻る</button>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="photoEscapeToHome('eiken5', true)">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -4776,9 +4825,11 @@
       <img class="mate-img" id="mate-img-eitan-test" src="images/rushkun-thinking.png" alt="RUSH君">
       <div class="mate-bubble" id="mate-bubble-eitan-test">集中して！</div>
     </div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="test-q-area"></div>
     <div class="feedback" id="test-feedback"></div>
     <button class="btn-wide" id="test-next-btn" style="display:none" onclick="nextQuestion()">次の問題へ →</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 <div id="screen-result" class="screen">
@@ -4871,6 +4922,7 @@
       <img class="mate-img" id="mate-img-sango-topic" src="images/sangotan-default.png" alt="サンゴタン">
       <div class="mate-bubble" id="mate-bubble-sango-topic">今日のお題はこれだよ〜</div>
     </div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="sango-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
     <div class="sango-notice">
       <div>🟢文章を作る前に、３語全ての「意味と用例」を調べてから始めること！</div>
@@ -4882,6 +4934,7 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#4fc3f7,#2979ff);margin-top:8px" onclick="startSangoPhotoSubmit()">📷 作品を提出する（写真に撮って送る）</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:8px;color:#6d2c4a" onclick="showSangoPast()">📚 過去のお題と福地の作品</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d;position:relative" onclick="showSangoHistory()">📖 過去の提出作品<span class="msg-home-badge" id="sango-comment-badge">🔴 注目！</span></button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="sangoHomeFromTopic()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
@@ -5014,6 +5067,7 @@
       <img class="mate-img" id="mate-img-wabun1-topic" src="images/nichiei-default.png" alt="ニチエイ">
       <div class="mate-bubble" id="mate-bubble-wabun1-topic">今日の問題だよ！</div>
     </div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="wabun1-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
     <!-- 2026-09-23 メイン＝ページ内カメラ（getUserMedia）。カメラアプリに切り替えないのでリロードの引き金を引かない。
          ★和文英訳①固有：getUserMedia ideal 2560×1440（完全一致採点でピリオド/カンマを拾う）／縮小は 1600px/0.85。
@@ -5068,6 +5122,7 @@
         <span class="wabun1-video-arrow">▶</span>
       </a>
     </div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="wabun1HomeFromTopic()">📚 学習コンテンツ画面に戻る</button>
   </div>
 </div>
@@ -5230,6 +5285,7 @@
       </div>
     </div>
     <div id="kiso-eq-notice" class="kiso-eq-notice" style="display:none"></div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="kiso-problem-list" class="kiso-problem-list"></div>
     <div class="kiso-paper-rules">
       <div class="rule-section">
@@ -5272,6 +5328,7 @@
     </div>
     <button class="btn-wide kiso-photo-btn" onclick="goKisoPreConfirm()">📷 写真を撮って提出する</button>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" id="kiso-problem-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="photoEscapeToHome('kiso', true)">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -6032,8 +6089,10 @@
       <summary>📖 英文をもう一度見る</summary>
       <div class="ref-body" id="lison-step3-en"></div>
     </details>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="lison-step3-quiz" class="lison-quiz-list"></div>
     <button id="lison-step3-next" class="btn-wide lison-next-btn" onclick="goLisonStep4()" disabled>📖 解答と解説を確認</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <!-- 2026-09-10：Step1〜4（録音前）の途中脱出（ホームに戻る）を撤去。前進導線（解答確認へ）は残す。 -->
   </div>
 </div>
@@ -6185,9 +6244,11 @@
       <img class="kanjii-img" id="kanjii-img-yomi" src="images/kanjii-thinking.png" alt="カンジー">
       <div class="kanjii-bubble" id="kanjii-bubble-yomi">まずは読み方をテストしよう！</div>
     </div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="kanji-yomi-q-area"></div>
     <div id="kanji-yomi-feedback" class="kanji-yomi-feedback"></div>
     <button class="btn-wide" id="kanji-yomi-next-btn" style="display:none" onclick="kanjiYomiNext()">次の問題へ →</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <!-- 2026-05-21 Recovery バリアント：過去セッションセクション（当日+前日の直近 1-2 件） -->
     <div id="kanji-past-section" class="kanji-past-section" style="display:none">
       <!-- 2026-09-03：常に開いていると、上の「👉 ログイン画面に戻る直前の問題を再表示する」（＝続きから戻れる道）と
@@ -6305,6 +6366,7 @@
       <img class="kanjii-img" id="kanjii-img-kaki" src="images/kanjii-default.png" alt="カンジー">
       <div class="kanjii-bubble" id="kanjii-bubble-kaki">ノートに書いてキミの字、見せて〜！</div>
     </div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="kanji-kaki-list" class="kanji-kaki-list"></div>
     <!-- 2026-09-23 メイン＝ページ内カメラ（getUserMedia）。カメラアプリに切り替えないのでリロードの引き金を引かない。手書き可読性のため縮小は 1600px/0.85。 -->
     <button class="kiso-camera-launch-btn" onclick="startKanjiInPageCamera()">📷 撮影する</button>
@@ -6324,6 +6386,7 @@
     <!-- 2026-09-03：読み画面と同じ説明。★書き画面こそ「今書いた分」が実際にあるので必ず出す。 -->
     <div id="kanji-kaki-fresh-note" class="kanji-fresh-note" style="display:none">問題が新しくなるので、今書いた分は使えなくなります</div>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" id="kanji-kaki-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="photoEscapeToHome('kanji', true)">🏠 ホーム画面に戻る</button>
     <!-- 2026-08-31：写真送信に失敗した後だけ出す逃げ道（確認画面の photo-escape-kanji と同じ入口）。
          ★カメラが開かず撮影画面まで行けない生徒も、一度失敗していればここから抜けられる。
@@ -6431,9 +6494,11 @@
       <img class="kobun-img" id="kobun-img-q" src="images/kobun-thinking.png" alt="コブタン">
       <div class="kobun-bubble" id="kobun-bubble-q">さあ、お試しじゃ</div>
     </div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="kobun-q-area"></div>
     <div id="kobun-q-feedback" class="kobun-feedback"></div>
     <button class="btn-wide" id="kobun-q-next-btn" style="display:none" onclick="kobunQuestionNext()">次の問題へ →</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6522,10 +6587,12 @@
         <audio id="kokugo-audio-player" controls preload="none"></audio>
       </div>
     </div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="kokugo-question-body" class="kokugo-bodytext"></div>
     <div id="kokugo-question-q1" class="kokugo-q-section"></div>
     <div id="kokugo-question-q2" class="kokugo-q-section"></div>
     <button type="button" class="btn-wide" id="kokugo-grade-btn" style="background:linear-gradient(135deg,#ec4899,#c2185b);opacity:.55;cursor:not-allowed" disabled onclick="submitKokugoAnswerForGrading()">✅ 採点する</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6629,11 +6696,13 @@
       <div class="mate-bubble" id="risha-q-bubble">データを照合中…</div>
     </div>
     <div id="risha-q-meta" class="risha-q-meta"></div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="risha-q-text" class="risha-q-text"></div>
     <div id="risha-q-choices" class="risha-q-choices"></div>
     <div id="risha-q-feedback" class="risha-q-feedback" style="display:none"></div>
     <button class="btn-wide" id="risha-q-submit-btn" style="margin-top:14px" onclick="onRishaAnswerSubmit()">決定する</button>
     <button class="btn-wide" id="risha-q-next-btn" style="display:none;margin-top:8px;background:linear-gradient(135deg,#10b981,#059669)" onclick="onRishaNextQuestion()">次へ →</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="_rishaConfirmAbort()">🏠 やめてホームに戻る</button>
   </div>
 </div>
@@ -6704,6 +6773,7 @@
     <h1 id="ct-round-h1">📐 計算タイムトライアル</h1>
   </header>
   <div class="container" style="padding-top:14px">
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="ct-round-wrap" class="ct-round-wrap">
       <div class="ct-round-header">
         <div>
@@ -6744,6 +6814,7 @@
         <button type="button" class="ct-key-enter" onclick="onCtKey('ENTER')">Enter</button>
       </div>
     </div>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6851,6 +6922,7 @@
         <div class="mate-bubble" id="mate-bubble-phonics-game">よーし、はじめよう！</div>
       </div>
       <!-- 出題エリア（左）＋ リアルタイムHPタリー（右・大きめバッジ）を横並びに -->
+      <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
       <div class="phonics-q-row">
         <div id="phonics-question" class="phonics-question"></div>
         <span id="phonics-hp-tally" class="phonics-hp-tally"></span>
@@ -6860,6 +6932,7 @@
       <!-- モグラ叩きのフィールド（gameType=mole のとき表示。3×3 の穴グリッドを JS で描画） -->
       <div id="phonics-mole-field" class="phonics-mole-field" style="display:none"></div>
       <div id="phonics-feedback" class="phonics-feedback"></div>
+      <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
       <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="quitPhonicsGame()">■ ゲームを中断する</button>
     </div>
   </div>
@@ -13997,6 +14070,127 @@
     }).join('');
     if (!items) return '';
     return '<div class="refl-reply-label">💬 コメント（' + replies.length + '件）</div>' + items;
+  }
+
+  // =============================================================
+  // 問題ミスの指摘（2026-10-21 新規）
+  //   生徒が「問題そのものの誤り」を報告する画面のロジック。
+  //   ・コンテンツ12種は getMistakeReportContents（GET）から取得する。
+  //     ★ラジオの value は key、表示は label、並び順は返ってきた配列のまま（別名に変えない）。
+  //   ・送信は submitMistakeReport（POST・studentId / content / body）。
+  //     ★失敗理由（コンテンツ未選択 / 本文が空 / 1000文字超過 / 連投60秒 / 当日20件の上限）は
+  //       すべてサーバーが日本語 message で返す。画面はそれをそのまま出す（最終判定はサーバー）。
+  //   ・文字数カウンタは目安。textarea に maxlength は付けない
+  //     （貼り付けがブラウザ側で黙って切られると、生徒が気づかないまま欠けた本文を送ってしまうため）。
+  //   ・生徒トークンは gasGet / gasPost が _withSessionToken で自動併送する（画面で足さない）。
+  // =============================================================
+  var _mistakeContents = [];   // サーバー返却の [{key,label}, ...] をそのまま保持
+  var _mistakeSelected = '';   // 選択中の key
+
+  function _mistakeEscHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function _showMistakeMsg(text, kind) {
+    var el = document.getElementById('mistake-msg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'msg' + (kind ? ' ' + kind : '');
+    el.style.display = text ? 'block' : 'none';
+  }
+
+  function showMistakeReport() {
+    if (!_studentId) return;
+    var sidLabel = document.getElementById('mistake-report-sid');
+    if (sidLabel) sidLabel.textContent = _studentId + ' さん';
+    var ta = document.getElementById('mistake-body');
+    if (ta) ta.value = '';
+    _mistakeSelected = '';
+    _showMistakeMsg('', '');
+    onMistakeBodyInput();
+    var list = document.getElementById('mistake-content-list');
+    if (list) list.innerHTML = '<div class="loading">⏳ 読み込み中...</div>';
+    showScreen('screen-mistake-report');
+    gasGet({ action: 'getMistakeReportContents', _ts: Date.now() }).then(function(res){
+      var box = document.getElementById('mistake-content-list');
+      if (res && res.ok && res.contents && res.contents.length) {
+        _mistakeContents = res.contents;
+        _renderMistakeContents();
+      } else if (box) {
+        box.innerHTML = '<div class="error">' + _mistakeEscHtml((res && res.message) || 'コンテンツ一覧を読み込めませんでした') + '</div>';
+      }
+    }).catch(function(){
+      var box = document.getElementById('mistake-content-list');
+      if (box) box.innerHTML = '<div class="error">通信エラーが発生しました</div>';
+    });
+  }
+
+  function _renderMistakeContents() {
+    var box = document.getElementById('mistake-content-list');
+    if (!box) return;
+    box.innerHTML = _mistakeContents.map(function(c){
+      var key   = (c && c.key   != null) ? String(c.key)   : '';
+      var label = (c && c.label != null) ? String(c.label) : '';
+      return '<label class="mistake-content-item">' +
+               '<input type="radio" name="mistake-content" value="' + _mistakeEscHtml(key) + '" onchange="onMistakeContentPick(this.value)">' +
+               '<span>' + _mistakeEscHtml(label) + '</span>' +
+             '</label>';
+    }).join('');
+  }
+
+  function onMistakeContentPick(key) {
+    _mistakeSelected = String(key == null ? '' : key);
+    var items = document.querySelectorAll('#mistake-content-list .mistake-content-item');
+    for (var i = 0; i < items.length; i++) {
+      var inp = items[i].querySelector('input[type=radio]');
+      items[i].classList.toggle('selected', !!(inp && inp.checked));
+    }
+    _showMistakeMsg('', '');
+  }
+
+  function onMistakeBodyInput() {
+    var ta  = document.getElementById('mistake-body');
+    var cnt = document.getElementById('mistake-counter');
+    if (!ta || !cnt) return;
+    var len = String(ta.value || '').length;
+    cnt.textContent = len + ' / 1000';
+    cnt.classList.toggle('over', len > 1000);
+  }
+
+  function submitMistakeReport() {
+    var ta  = document.getElementById('mistake-body');
+    var btn = document.getElementById('mistake-submit-btn');
+    if (!ta || !btn) return;
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+    _showMistakeMsg('', '');
+    gasPost({
+      action:    'submitMistakeReport',
+      studentId: _studentId,
+      content:   _mistakeSelected,
+      body:      String(ta.value || '')
+    }).then(function(res){
+      btn.disabled = false;
+      btn.textContent = label;
+      if (res && res.ok) {
+        // 入力をクリアしてお礼を表示（★_showMistakeMsg を消す onMistakeContentPick より後に出す）
+        ta.value = '';
+        var checked = document.querySelector('#mistake-content-list input[type=radio]:checked');
+        if (checked) checked.checked = false;
+        onMistakeContentPick('');
+        onMistakeBodyInput();
+        _showMistakeMsg('報告ありがとう！確認して修正します', 'ok');
+      } else {
+        // message はそのまま画面に出せる日本語（未選択 / 空 / 1000文字超過 / 連投 / 当日上限）
+        _showMistakeMsg((res && res.message) ? String(res.message) : '送信に失敗しました。電波の良い場所でもう一度お試しください', 'ng');
+      }
+    }).catch(function(err){
+      btn.disabled = false;
+      btn.textContent = label;
+      _showMistakeMsg((err && err.message) ? String(err.message) : '通信エラーが発生しました', 'ng');
+    });
   }
 
   function showStudentReflections() {
@@ -27447,7 +27641,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261020-0446</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261021-0449</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
