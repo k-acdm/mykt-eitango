@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261020-0446"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261021-0417"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -1684,6 +1684,24 @@
   <div class="admin-page">
     <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminInputHub()">← 問題等の入力に戻る</button>
 
+    <!-- 2026-10-21 問題ミスの指摘（生徒からの報告）。★この画面の上部に置く。既存の検索機能はそのまま下に残す。 -->
+    <div class="grid-tabbar" id="mr-tabbar">
+      <button type="button" class="grid-tab-btn active" data-mtab="open" onclick="mrSwitchTab('open')">🚨 未処理</button>
+      <button type="button" class="grid-tab-btn"        data-mtab="done" onclick="mrSwitchTab('done')">✅ 処理済</button>
+    </div>
+    <div class="form-card" style="margin-bottom:22px">
+      <h2 id="mr-title">🚨 問題ミスの指摘（未処理）</h2>
+      <div class="hp-grant-bonus-note" style="margin-bottom:14px">
+        生徒から届いた「問題のまちがい」の報告です（新しい報告が上）。<br>
+        <strong>お礼HPの付与</strong>と<strong>処理済にする</strong>は独立しています（付与せずに処理済にもできます）。
+      </div>
+      <div style="margin-bottom:10px">
+        <button type="button" class="btn-mini" onclick="mrLoad()">🔄 再読み込み</button>
+        <span id="mr-summary" style="font-size:13px;color:#636e72;margin-left:8px"></span>
+      </div>
+      <div id="mr-list-wrap"></div>
+    </div>
+
     <!-- 検索＋一覧パネル -->
     <div id="qedit-search-panel">
       <div class="form-card">
@@ -1732,6 +1750,16 @@
 </div>
 
 <style>
+  /* 問題ミスの指摘（2026-10-21）。一覧は既存 .hp-grant-table を流用（この画面は td/th が折り返し設定済み）。 */
+  #screen-admin-question-edit .mr-table .mr-when { white-space:nowrap; color:#636e72; font-size:12px; }
+  #screen-admin-question-edit .mr-table .mr-body { min-width:220px; max-width:420px; line-height:1.6; }
+  #screen-admin-question-edit .mr-table .mr-actions { white-space:nowrap; }
+  #screen-admin-question-edit .mr-table .mr-actions .btn-mini { margin:2px 4px 2px 0; }
+  #screen-admin-question-edit .mr-table tbody tr { cursor:default; }
+  #screen-admin-question-edit .mr-table tbody tr:hover { background:transparent; }
+  #screen-admin-question-edit .mr-table tr.mr-row-granted { background:#f0fdf4; }
+  .mr-granted-badge { display:inline-block; padding:4px 10px; font-size:12px; font-weight:700; color:#15803d; background:#dcfce7; border:1px solid #86efac; border-radius:6px; margin-right:4px; }
+
   /* 既存問題の修正（2026-08-07） */
   #screen-admin-question-edit .form-card select { width:100%; padding:10px 12px; font-size:15px; border:2px solid #e1e5ee; border-radius:8px; outline:none; font-family:inherit; background:#fff; }
   #screen-admin-question-edit .qedit-excerpt { white-space:normal; max-width:320px; color:#555; font-size:12px; }
@@ -13137,9 +13165,160 @@
     return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   }
 
+  // =============================================================
+  // 問題ミスの指摘（生徒からの報告）2026-10-21
+  //   置き場所：「🔧 既存問題の修正」画面の上部。既存の検索機能（qedit*）には一切触れない。
+  //   API は 3 本とも admin 限定。adminGasGet / adminGasPost が teacherId / password を自動付与する。
+  //     adminListMistakeReports   （GET ・status=open|done）
+  //     adminGrantMistakeReportHp （POST・reportId）★押す前に確認ダイアログ
+  //     adminMarkMistakeReportDone（POST・reportId）
+  //   ★お礼HP付与と処理済化は独立。付与してもタブは open のまま（処理済化は別ボタン）。
+  //   ★処理済タブでは「処理済にする」ボタンは出さない（その行は既に処理済のため）。
+  //     お礼HP付与は独立なので、未付与なら処理済タブからでも押せる。
+  // =============================================================
+  var _mrState = { status: 'open', rows: [], loading: false };
+
+  function _mrSyncTabUi() {
+    var tabs = document.querySelectorAll('#mr-tabbar .grid-tab-btn');
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].dataset.mtab === _mrState.status);
+    var ttl = document.getElementById('mr-title');
+    if (ttl) ttl.textContent = (_mrState.status === 'open') ? '🚨 問題ミスの指摘（未処理）' : '✅ 問題ミスの指摘（処理済）';
+  }
+
+  function mrSwitchTab(status) {
+    _mrState.status = (status === 'done') ? 'done' : 'open';
+    _mrSyncTabUi();
+    mrLoad();
+  }
+
+  function mrLoad() {
+    var wrap = document.getElementById('mr-list-wrap');
+    var sum  = document.getElementById('mr-summary');
+    if (!wrap || _mrState.loading) return;
+    _mrState.loading = true;
+    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    if (sum) sum.textContent = '';
+    adminGasGet({ action: 'adminListMistakeReports', status: _mrState.status }).then(function(res){
+      _mrState.loading = false;
+      if (!res || !res.ok) {
+        var m = (res && res.message) ? String(res.message) : '';
+        if (_handleAdminApiError(m)) { wrap.innerHTML = ''; return; }
+        wrap.innerHTML = '<div class="students-empty">' + _esc(m || '読み込みに失敗しました') + '</div>';
+        return;
+      }
+      _mrState.rows = res.reports || [];
+      _mrRender();
+    }).catch(function(){
+      _mrState.loading = false;
+      wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  function _mrActionsHtml(id, granted, hpAmount) {
+    var h = '';
+    if (granted) {
+      h += '<span class="mr-granted-badge">付与済み' + (hpAmount ? '（' + hpAmount.toLocaleString() + 'HP）' : '') + '</span>';
+    } else {
+      h += '<button type="button" class="btn-mini" id="mr-hp-' + id + '" onclick="mrGrantHp(' + id + ')">🎁 お礼HPを付与</button>';
+    }
+    if (_mrState.status === 'open') {
+      h += '<button type="button" class="btn-mini" id="mr-done-' + id + '" onclick="mrMarkDone(' + id + ')">✅ 処理済にする</button>';
+    }
+    return h;
+  }
+
+  function _mrRender() {
+    var wrap = document.getElementById('mr-list-wrap');
+    var sum  = document.getElementById('mr-summary');
+    if (!wrap) return;
+    var rows = _mrState.rows || [];
+    if (sum) sum.textContent = '全 ' + rows.length + ' 件';
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="students-empty">' +
+        (_mrState.status === 'open' ? '未処理の報告はありません' : '処理済の報告はありません') + '</div>';
+      return;
+    }
+    var html = '<div class="students-table-wrap"><table class="hp-grant-table mr-table">' +
+      '<thead><tr><th>報告日時</th><th>生徒ID</th><th>氏名</th><th>コンテンツ</th><th>報告内容</th><th>操作</th></tr></thead><tbody>';
+    for (var i = 0; i < rows.length; i++) {
+      var r  = rows[i] || {};
+      var id = Number(r.id);
+      html += '<tr id="mr-row-' + id + '"' + (r.hpGranted ? ' class="mr-row-granted"' : '') + '>' +
+                '<td class="mr-when">' + _esc(r.createdAt || '') + '</td>' +
+                '<td>' + _esc(r.studentId || '') + '</td>' +
+                '<td>' + _esc(r.studentName || '') + '</td>' +
+                '<td>' + _esc(r.contentLabel || r.content || '') + '</td>' +
+                '<td class="mr-body">' + _esc(r.body || '') + '</td>' +
+                '<td class="mr-actions">' + _mrActionsHtml(id, !!r.hpGranted, Number(r.hpAmount || 0)) + '</td>' +
+              '</tr>';
+    }
+    html += '</tbody></table></div>';
+    wrap.innerHTML = html;
+  }
+
+  function mrGrantHp(reportId) {
+    if (!confirm('この報告に 1,000HP を付与します。よろしいですか？')) return;
+    var btn = document.getElementById('mr-hp-' + reportId);
+    if (btn) { btn.disabled = true; btn.textContent = '付与中...'; }
+    adminGasPost({ action: 'adminGrantMistakeReportHp', reportId: reportId }).then(function(res){
+      if (res && res.ok) {
+        var amount   = Number(res.hpAmount  || 0);
+        var gained   = Number(res.hpGained  || 0);
+        var reserved = Number(res.hpReserved || 0);
+        for (var i = 0; i < _mrState.rows.length; i++) {
+          if (Number(_mrState.rows[i].id) === Number(reportId)) {
+            _mrState.rows[i].hpGranted = true;
+            _mrState.rows[i].hpAmount  = amount;
+            break;
+          }
+        }
+        // ★タブは open のまま。その行だけ「付与済み」に差し替えて押せなくする。
+        var cell = btn ? btn.parentNode : null;
+        if (cell) cell.innerHTML = _mrActionsHtml(Number(reportId), true, amount);
+        var row = document.getElementById('mr-row-' + reportId);
+        if (row) row.classList.add('mr-row-granted');
+        // hpGained＝即時入った分 / hpReserved＝予約に回った分（その日の振り返り未提出なら予約）
+        showToast(amount.toLocaleString() + 'HP を付与しました（即時 ' + gained.toLocaleString() +
+                  'HP / 予約 ' + reserved.toLocaleString() + 'HP）', 'success');
+      } else {
+        var m = (res && res.message) ? String(res.message) : '付与に失敗しました';
+        if (!_handleAdminApiError(m)) showToast(m, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '🎁 お礼HPを付与'; }
+        if (res && res.already) mrLoad();   // 既に付与済み → 最新状態を取り直す
+      }
+    }).catch(function(){
+      if (btn) { btn.disabled = false; btn.textContent = '🎁 お礼HPを付与'; }
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  function mrMarkDone(reportId) {
+    var btn = document.getElementById('mr-done-' + reportId);
+    if (btn) { btn.disabled = true; btn.textContent = '処理中...'; }
+    adminGasPost({ action: 'adminMarkMistakeReportDone', reportId: reportId }).then(function(res){
+      if (res && res.ok) {
+        showToast('処理済にしました', 'success');
+        mrLoad();   // 未処理タブから消える（処理済タブに現れる）
+      } else {
+        var m = (res && res.message) ? String(res.message) : '処理に失敗しました';
+        if (!_handleAdminApiError(m)) showToast(m, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '✅ 処理済にする'; }
+        if (/既に処理済/.test(m)) mrLoad();
+      }
+    }).catch(function(){
+      if (btn) { btn.disabled = false; btn.textContent = '✅ 処理済にする'; }
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
   function goAdminQuestionEdit() {
     _showScreen('screen-admin-question-edit');
     window.scrollTo(0, 0);
+    // 問題ミスの指摘：画面を開いたら必ず「未処理」タブから（2026-10-21）
+    _mrState.status = 'open';
+    _mrState.rows   = [];
+    _mrSyncTabUi();
+    mrLoad();
     // コンテンツ絞り込みドロップダウンを構築（初回のみ）
     var sel = document.getElementById('qedit-content');
     if (sel && (!sel.options || !sel.options.length)) {
@@ -18080,7 +18259,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261020-0446</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261021-0417</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
