@@ -3743,10 +3743,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261021-0521"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261021-0531"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261021-0521">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261021-0521"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261021-0531">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261021-0531"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6538,6 +6538,7 @@
   <header><h1>📖 国語長文読解</h1></header>
   <div class="container" style="padding-top:16px">
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div class="kokugo-mate-row">
       <img class="kokugo-img" id="kokugo-img-charcount" src="images/japanin-default.png" alt="ジャパニン">
       <div class="kokugo-bubble" id="kokugo-bubble-charcount">どちらに挑むでござるか？</div>
@@ -6554,7 +6555,6 @@
         <div class="cc-desc">より実戦に近いトレーニング</div>
       </button>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6724,6 +6724,7 @@
   <header><h1>📐 計算タイムトライアル</h1></header>
   <div class="container" style="padding-top:16px">
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div class="ct-intro-wrap">
       <div class="ct-intro-title">🐯 ようこそ、計算タイムトライアル！</div>
       <div class="ct-intro-mascot-row">
@@ -6751,7 +6752,6 @@
       </div>
       <button class="ct-intro-start-btn" onclick="startCalcTrial()">🐯 スタート！</button>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -27626,7 +27626,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261021-0521</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261021-0531</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
