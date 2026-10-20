@@ -3362,3 +3362,78 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 0d0a4b34b4fc9e30144349db4a88c3b1c740b41f && git push origin main && git checkout dev
   ```
+
+## 2026-10-21 本番反映：問題ミスの指摘（生徒の報告画面＋管理側の一覧）
+
+- ★生徒が「問題そのものの誤り（誤字・答えの誤りなど）」を報告できるようにした。
+  **生徒に見える変更**（全コンテンツの問題画面に案内が出る＋ホーム下部にボタンが増える）。
+- ★サーバー側は AWS リポですでに反映済み（`4824c6c` / AWS 側 HANDOVER **§6-22**）。今回はその**画面側**の反映。
+- 反映内容（dev→main マージ、3 コミット）
+  - `077972b` feat(問題ミスの指摘)：生徒の報告画面と管理側の一覧（未処理/処理済）を実装
+    - **生徒側（index.html）**
+      - ホーム下部の「⚙️ 各種設定」の**すぐ上**に「🚨 問題ミスの指摘」ボタン（既存 `.sub-action-row.single` / `.sub-action-btn` の慣例どおり、色だけ橙）
+      - 報告画面 `screen-mistake-report` を新設。① コンテンツをラジオで選ぶ → ② 自由記述 → 送信
+        - コンテンツ 12 種は `getMistakeReportContents`（GET・送るものなし）の返り値をそのまま使う。
+          ★**value=key / 表示=label / 並び順も返り値のまま**（別名に変えない）。mytask / oriwantes は含まれない
+        - 入力欄のすぐ上に注意書きを固定表示（「何がおかしかったのかを、具体的に書いてください。問題文の一部を書いてもらえると、探しやすくなります。」）。★これはサーバーからは返らない画面側の文言
+        - 文字数カウンタ `N / 1000`（1000 超で赤）。★**textarea に `maxlength` は付けない**
+          （貼り付けがブラウザ側で黙って切られると、生徒が気づかないまま欠けた本文を送ってしまうため。最終判定はサーバー）
+        - ★送信ボタンも無効化しない。未選択 / 空 / 1000 文字超 / 連投 60 秒 / 当日 20 件の上限は**すべてサーバーが日本語 `message` を返す**ので、画面はそれをそのまま出すだけ
+        - 送信は `submitMistakeReport`（POST・studentId / content / body）。成功 → 入力をクリア＋「報告ありがとう！確認して修正します」
+      - **12 種の問題画面の最初と最後**に案内を表示（**13 画面 × 上下 ＝ 26 箇所**）
+        | コンテンツ | 画面 | 上（最初） | 下（最後） |
+        |---|---|---|---|
+        | 英単語RUSH（4択） | `screen-test` | 出題エリアの直前 | 「次の問題へ」の直後 |
+        | 英単語RUSH（英検5級 書き取り） | `screen-dictation` | 赤い注意ボックスの直前 | 末尾「ホーム画面に戻る」の直前 |
+        | 三語短文 | `screen-sango-topic` | お題本体の直前 | 末尾「学習コンテンツ画面に戻る」の直前 |
+        | 和文英訳① | `screen-wabun1-topic` | 問題本体の直前 | 末尾「学習コンテンツ画面に戻る」の直前 |
+        | 基礎計算 | `screen-kiso-problem` | 問題リストの直前 | 末尾「ホーム画面に戻る」の直前 |
+        | 英語リスオン | `screen-lison-step3`（正誤問題） | 設問リストの直前 | 「解答と解説を確認」の直後 |
+        | 社会・理科 重要語句 | `screen-risha-question`（**共通画面**） | 問題文の直前 | 末尾「やめてホームに戻る」の直前 |
+        | カンジー（読み） | `screen-kanji-yomi` | 出題エリアの直前 | 「次の問題へ」の直後 |
+        | カンジー（書き） | `screen-kanji-kaki` | 書き問題リストの直前 | 末尾「ホーム画面に戻る」の直前 |
+        | 古文単語 | `screen-kobun-question` | 出題エリアの直前 | 「次の問題へ」の直後 |
+        | 計算タイムトライアル | `screen-calctrial-round` | ゲーム枠の直前 | ゲーム枠の直後 |
+        | 国語長文読解 | `screen-kokugo-question` | 本文の直前 | 「採点する」の直後 |
+        | フォニックスゲーム | `screen-phonics-game` | 出題エリアの直前 | 「ゲームを中断する」の直前 |
+        - ★英単語RUSH が 2 画面なのは**英検5級だけ 4択テストを通らない**（書き取り画面が問題画面）ため。カンジーも読み/書きで画面が分かれる。社会と理科は 1 つの共通画面
+        - ★マイ課題・オリワンテス・準備中（和文英訳② / 英単語ゲーム）には**入れていない**
+    - **管理側（admin.html）**
+      - 「🔧 既存問題の修正」画面の**上部**に `未処理 / 処理済` タブ（`#mr-tabbar`）＋報告一覧を追加。★**既存の検索機能（qedit*）には一切触れていない**
+      - `adminListMistakeReports`（GET・status=open|done）。生徒ID・氏名・コンテンツ（`contentLabel`）・報告内容・報告日時を表形式で（新しい順はサーバーの返り順のまま）
+      - `adminGrantMistakeReportHp`（POST・reportId）。★押す前に確認ダイアログ「この報告に 1,000HP を付与します。よろしいですか？」。
+        付与後はその行を「付与済み（N HP）」にしてボタンを消す。**タブは open のまま**。`hpGained`（即時）/ `hpReserved`（予約）は内訳としてトーストに出す
+      - `adminMarkMistakeReportDone`（POST・reportId）。成功したら一覧を取り直す（未処理から消えて処理済に現れる）
+      - ★お礼HP付与と処理済化は独立。**処理済タブでは「処理済にする」を出さない**（その行はもう処理済のため）。未付与ならお礼HPは処理済タブからでも押せる
+      - ★ロール制限は足していない。ダッシュボードの「既存問題の修正」カードが既に `admin-only` なので講師はこの画面に入れない（API 側も admin 限定）
+  - `1f1f08b` style(問題ミスの指摘)：問題画面に出す案内を**赤の太字**にする
+    - `.mistake-hint` の文字色をグレー `#6b7280` → **赤 `#c00`**（既存 `.ng` と同じ赤）＋ `font-weight: bold`。文字サイズは据え置き（PC 11.5px / スマホ 11px）
+    - ★最初はグレーの控えめな帯で作ったが、実機確認で「赤の太字に」と指示があり変更（余白・背景・枠線・左の橙ラインは無変更）
+    - ★左の細いラインは橙 `#f6a04d` のまま。赤文字と色がちぐはぐに見えるようなら、そこだけ後で揃える余地あり
+  - `1af5e0e` docs(handover)：ログイン設定案内（①〜⑥）の本番反映を記録（`0d0a4b3`・前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`0d0a4b34b4fc9e30144349db4a88c3b1c740b41f`**（＝`0d0a4b3`）
+- **マージコミット：`0a4acc98d63abcb8e7cd3830b37ca41d1341623b`**（＝`0a4acc9`。親＝`0d0a4b3` ＋ `1f1f08b`）
+- **dev HEAD：`1f1f08b2649e29635947f08aff118c17fc9e5e8f`**
+- 版バッジ：`20261021-0449`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `0a4acc9` / run `39486877033` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`0a4acc98d63abcb8e7cd3830b37ca41d1341623b`、ローカル main と一致（`origin/main..main` は 0 本）
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `a8ea80887e49df4788cce47eca319fb50b64e1448a63f22acf4a5eebd8a40f8d`
+  - view  `758cfc02f72822b2f2944bdb8ff5fba3d80629640743ad716c1f7fefddc45bc2`
+  - admin `01142eb86725ac50d949572d6637fffe8db5ed9b9b838a7423de3b28f646e4a2`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index：ホームのボタン ＝1 / 報告画面 ＝1 / **textarea の `maxlength` ＝0**（付けていない）/ A-5 の案内 **＝26** / 赤太字の CSS ＝1
+  - 配信 admin：`#mr-tabbar` ＝1 / `data-mtab="open"` ・`"done"` ＝各1 / 新規3 action ＝各2（コメント＋実コード）/ 確認ダイアログの文言 ＝1
+  - ★既存の検索機能は健在（`#qedit-search-panel` ＝1 / `qeditSearch(` ＝3）
+  - ★`main` の tree ＝ `dev` の tree（`dd9a6140fcd6189a00b8553eec30e21edf657aa4`）、`git diff main dev` は空＝**dev の内容以外は main に入っていない**
+  - ゲート：`origin/main..dev` は**3本**（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみで、
+    `git diff --name-status --diff-filter=ADRCTX` は**空**＝**`launch.json` 等の想定外ファイルの混入なし**。
+    **CLAUDE.md ゲート判定値＝194 行**。★今回は**生徒画面の変更そのものが成果物**なので 0 にならないのが正しい。
+    内訳を確定させてから進めた：194 行は**すべて追加・削除 0 行**、既存行を書き換えたハンクは**6 行だけで全部が版スタンプ**（`?v=` と `app-version`）、
+    それ以外の 34 ハンクは純粋な挿入。view.html の実質差分は **0 行**
+  - 検証（コミット時）：構文チェック（index 3 ブロック / admin 2 ブロック）＋構造テスト＋モック動作テストで **90 PASS / 0 FAIL**
+- ★反映時の注意：赤太字の変更（`1f1f08b`）が**未コミットのまま残っていた**ので、反映前に dev へコミットしてから merge した。
+  本番反映の前に `git status` で未コミットの差分が無いか必ず見ること
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 0a4acc98d63abcb8e7cd3830b37ca41d1341623b && git push origin main && git checkout dev
+  ```
