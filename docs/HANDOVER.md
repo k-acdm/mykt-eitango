@@ -3437,3 +3437,35 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 0a4acc98d63abcb8e7cd3830b37ca41d1341623b && git push origin main && git checkout dev
   ```
+
+## 2026-10-21 本番反映：問題ミスの指摘（画面側の修正）案内を入口画面1ヵ所に＋ホームのボタンを黄色に（★生徒に見える変更）
+
+- ★サーバー側は AWS リポ（mykt-eitango-aws）で先に本番反映済み：**`38e31f8`**
+- 反映内容（dev→main マージ、3 コミット）
+  - `78c1ced` fix(問題ミスの指摘)：
+    - ホーム下部「🚨 問題ミスの指摘」ボタンを橙 → **黄 `#ffe14d`→`#ffd60a`（文字は濃茶 `#5a4300`）**。周りの「各種設定」（青）・Amazonギフト（橙）・HP確認（アンバー）と見分けが付く色
+    - 案内文（`.mistake-hint`）の置き場所を変更：問題を解いている最中の画面に出していた **26 箇所（13画面×上下）を全撤去**し、各コンテンツに入った直後の画面に **1ヵ所ずつ・計 11 画面**（12種。社会と理科は共通画面）へ移設
+  - `30a5a5b` fix(問題ミスの指摘)：国語長文読解・計算タイムトライアルの2画面だけ「📚 学習コンテンツ画面に戻る」が上部にあるため、案内を最下部から**戻るボタンの直下**へ移動。これで 12 種すべて戻るボタンの直下に1ヵ所
+  - `68274b5` docs(handover)：前回反映（`0a4acc9`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`0a4acc98d63abcb8e7cd3830b37ca41d1341623b`**（＝`0a4acc9`。★作業前、ローカル main は `5882677` で遅れていたため `--ff-only` で `0a4acc9` に追従してから merge）
+- **マージコミット：`473b884ee23350306a9c84bc97403546ddc87b35`**（＝`473b884`。親＝`0a4acc9` ＋ `30a5a5b`）
+- **dev HEAD：`30a5a5b1d25454d6678ca74de9802134474b058b`**
+- 版バッジ：`20261021-0531`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `473b884` / run `39555129135` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`473b884ee23350306a9c84bc97403546ddc87b35`、ローカル main と一致
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `7270e2408a45dc2adaae137fe50138c7a8d9a6ea0aa3d5341557bf82e997838a`
+  - view  `b2ced004bb07db5985e114c6a9474441c1f269d870b133a19df4a46fc13590dc`
+  - admin `66bd45937fc2a72ed5c9925b7ded5ab38f97bebd5b61c60889fd7b9962d7e03e`
+- 反映後、配信物そのもので確認したこと
+  - 配信 index：`class="mistake-hint"` ＝ **11**（前回反映時の 26 ではない）。案内文の出現も 11。置かれている画面＝
+    screen-level / sango-topic / wabun1-topic / kiso-rank / lison-rank / kanji-level / kobun-vocab / kokugo-charcount-select / risha-major / calctrial-intro / phonics-setup
+  - 配信 index：`.sub-action-btn.mistake` が黄色（`#ffe14d`→`#ffd60a`・`color: #5a4300`）＝1、ホームのボタン ＝1
+  - ★`main` の tree ＝ `dev` の tree（`fca6a93027ff3cecc053682573debbde09853e99`）、`git diff main dev` は空＝**dev の内容以外は main に入っていない**
+- ゲート：`origin/main..dev` は**3本**（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみで、`git diff --name-status --diff-filter=ADRCTX` は**空**＝**launch.json 等の混入なし**。
+  CLAUDE.md ゲート判定値＝**39 行**（index.html の案内の削除26＋追加11＋ボタン色の差し替え2。★生徒画面の変更そのものが成果物なので 0 にならないのが正しい。view・admin は版スタンプのみで 0）
+  - ★`dev..origin/main` には非マージのコミットが5本あるが、2026-08-06〜08-17 の **Pages 再ビルド用の空コミット**（ファイル変更なし）のみで問題なし
+- 作業前に `git status` で未コミットの差分が無いことを確認済み
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 473b884ee23350306a9c84bc97403546ddc87b35 && git push origin main && git checkout dev
+  ```
