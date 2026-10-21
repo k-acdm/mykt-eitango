@@ -2866,10 +2866,8 @@
     .wabun1-result-partial { background:#fff; border:3px solid #fca5a5; border-radius:18px; padding:24px 18px; text-align:center; }
     .wabun1-result-partial-title { font-size:22px; font-weight:bold; color:#dc2626; margin-bottom:10px; }
     .wabun1-result-partial-msg { color:#555; font-size:14px; margin-bottom:14px; line-height:1.7; }
-    /* 2026-10-21：不正解の結果画面の案内と、最初から出す正解の欄 */
+    /* 2026-10-21：不正解の結果画面の案内 */
     .wabun1-retry-guide { margin-top:14px; background:#fff7ed; border:2px solid #fb923c; border-radius:14px; padding:12px 14px; color:#9a3412; font-size:15px; font-weight:bold; line-height:1.7; }
-    .wabun1-result-answers { margin-top:12px; background:#f0fdf4; border:2px solid #86efac; border-radius:14px; padding:12px 14px; }
-    .wabun1-result-answers-title { font-size:15px; font-weight:bold; color:#166534; margin-bottom:6px; }
     .wabun1-result-list { text-align:left; background:#fef2f2; border-radius:10px; padding:12px 16px; margin:12px 0; }
     /* 採点結果画面：不正解の diff カード（feedbackMessage 表示用） */
     .wabun1-fail-card { background: #fff; border: 2px solid #fca5a5; border-radius: 12px; padding: 12px 14px; margin: 10px 0; box-shadow: 0 2px 6px rgba(0,0,0,.05); text-align: left; }
@@ -3747,10 +3745,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261021-2353"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261022-0036"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261021-2353">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261021-2353"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261022-0036">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261022-0036"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7171,11 +7169,12 @@
 <div id="kanji-line-overlay" class="mykt-overlay">
   <div class="mykt-overlay-card">
     <div class="mykt-overlay-row">
-      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <img src="images/kanjii-encourage.png" class="chara-img" alt="カンジー">
       <div class="mykt-overlay-bubble">
-        <!-- 2026-10-21 文言（案A・ふくち確定待ち）：問い合わせを尽くしても結果が取れなかった時だけ出る。実際はサーバーで採点済みのことが多い -->
-        <div style="font-weight:bold;font-size:15px;color:#9a3412;margin-bottom:6px">採点の結果を確かめるのに、時間がかかっておるのじゃ。</div>
-        答案はちゃんと届いておるゆえ、安心するのじゃ。<br>ノートの写真を「春アカ公式LINE」に送ってくれれば、先生が見てHPを付けてくださるぞ。
+        <!-- 2026-10-22 文言確定（ふくち）：問い合わせを尽くしても結果が取れなかった時だけ出る。
+             ★「答案は届いている」とは書かない（送る前の通信エラーでもここに来るため）。絵もカンジーに合わせた。 -->
+        <div style="font-weight:bold;font-size:15px;color:#9a3412;margin-bottom:6px">採点の結果を、うまく確かめられなんだのじゃ。</div>
+        すまぬが、ノートの写真を「春アカ公式LINE」に送ってくれるか。<br>先生が見てHPを付けてくださるゆえ、安心するのじゃ。
       </div>
     </div>
     <div class="mykt-overlay-btns">
@@ -16228,19 +16227,14 @@
           '<div class="wabun1-result-list">' + summaryItems + '</div>' +
         '</div>' +
         failCards +
-        // 2026-10-21 修正6：案内（ニチエイの口調・案A・ふくち確定待ち）
+        // 2026-10-21 修正6：案内（ニチエイの口調）。2026-10-22：正解は上の不正解カードに出ているので「上の『正解』」に（案）。
         '<div class="wabun1-retry-guide">' +
-          '字が雑だったか、答えが正解とちがってたみたい！<br>下の正解を<strong>ていねいな字</strong>で写して、もう一回写真に撮って送ってね〜' +
+          '字が雑だったか、答えが正解とちがってたみたい！<br>上の「正解」を<strong>ていねいな字</strong>で写して、もう一回写真に撮って送ってね〜' +
         '</div>' +
-        // 2026-10-21 修正4：不正解のときは正解を最初から出す（中身は「💡 正解を表示する」と同じ取得・描画）
-        '<div class="wabun1-result-answers">' +
-          '<div class="wabun1-result-answers-title">📖 正解</div>' +
-          '<div id="wabun1-result-answers-body"></div>' +
-        '</div>' +
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);margin-top:14px" onclick="showWabun1Answers()">💡 正解を表示する</button>' +
-        '<button class="btn-wide" style="background:linear-gradient(135deg,#b28dff,#7c4fff);margin-top:8px" onclick="retakeWabun1PhotoFromResult()">📸 もう一度撮影する</button>';
+        // 2026-10-22：不正解カードに正解（サーバーの correctRaw＝WabunActions.php）が最初から出ているため、
+        //   「📖 正解」欄と「💡 正解を表示する」はこの画面では出さない（合格画面の 💡 は従来どおり）。
+        '<button class="btn-wide" style="background:linear-gradient(135deg,#b28dff,#7c4fff);margin-top:14px" onclick="retakeWabun1PhotoFromResult()">📸 もう一度撮影する</button>';
       showScreen('screen-wabun1-result');
-      _wabun1FillAnswers(document.getElementById('wabun1-result-answers-body'));
     }
   }
 
@@ -23727,16 +23721,18 @@
   function _kanjiKakiIsTimeout(err) {
     return !!(err && /サーバー応答がありません/.test(String(err.message || err)));
   }
-  // 待ち時間切れ／通信エラーの後、getKanjiKakiResult に計10回問い合わせる（失敗の時点から 5/10/15/20/30/40/50/60/75/90 秒後）。
+  // 待ち時間切れ／通信エラーの後、getKanjiKakiResult に問い合わせる（失敗の時点から 5/10/15/20/30/40/50/60/75/90 秒後）。
   //   2026-10-21：旧 5/15/30 秒（3回）では、サーバーの採点（最悪 130 秒＋保存）に間に合わない回があった
-  //   （10/18 25008：最後の問い合わせの 6 秒後に保存）。送信開始から数えると、待ち時間切れ（120 秒）の後は最大 210 秒まで拾える。
+  //   （10/18 25008：最後の問い合わせの 6 秒後に保存）。待ち時間切れ（120 秒）の後は送信開始から最大 210 秒まで拾える。
   //   最初は短い間隔（採点直後に保存されるのを早く拾う）、後半は間隔を空けてサーバーへの負荷を抑える。
+  //   2026-10-22：sentAt（送信開始の時刻）を渡すと、★送信開始から最低 150 秒までは 15 秒おきに問い合わせを足す。
+  //   早い段階で通信が切れた回でも、サーバーが 130 秒かけた採点を拾えるようにするため（長い方まで問い合わせる）。
   //   status:'done' なら採点結果（submitKanjiKaki と同じ形）を resolve。見つからない・問い合わせ失敗・
   //   サーバー未反映（unknown action 等）はすべて null を resolve（呼び出し側で従来どおり LINE 案内）。reject はしない。
   //   ★サーバー実装（mykt-eitango-aws df65860）に合わせる：GET で呼ぶ。応答は submitKanjiKaki の応答と同じ形に
   //     status を足したもの（results[] 等は応答そのものに入る）＝応答そのものを結果として使う。
   //     保険として、results[] が無く res.result（object）がある場合だけそちらを使う。
-  function _kanjiKakiPollResult(payload) {
+  function _kanjiKakiPollResult(payload, sentAt) {
     var txt = document.getElementById('hp-confirming-text');
     if (txt) txt.textContent = '⏳ 採点を確認しています';   // HP 確認オーバーレイはそのまま（点滅ドットも継続）
     var q = { action: 'getKanjiKakiResult', studentId: payload.studentId, sessionId: payload.sessionId,
@@ -23753,6 +23749,11 @@
     }
     var at = [5000, 10000, 15000, 20000, 30000, 40000, 50000, 60000, 75000, 90000];   // 失敗の時点からの秒数（問い合わせ自体の所要時間に左右されない）
     var t0 = Date.now();
+    if (sentAt) {   // 送信開始から最低 150 秒：足りない分を 15 秒おき（最後はちょうど 150 秒）に足す
+      var floorRel = (sentAt + 150000) - t0;
+      var last = at[at.length - 1];
+      while (last < floorRel) { last = Math.min(last + 15000, floorRel); at.push(last); }
+    }
     return new Promise(function(resolve){
       var n = 0;
       function next() {
@@ -23807,6 +23808,7 @@
     // 2026-10 (B)：提出ごとの識別子。待ち時間切れのとき getKanjiKakiResult でこの提出の結果を問い合わせるのに使う。
     payload.submitId = _kanjiKakiNewSubmitId();
     function doSubmit() {
+      var sentAt = Date.now();   // 2026-10-22：問い合わせの起点（送信開始から最低 150 秒）
       _showHpConfirmingOverlay('kanjii');
       submitBtn.disabled = true;
       _pendingRetry = function(){ doSubmit(); };
@@ -23886,7 +23888,7 @@
         //   10/11 以降、通信エラーで即 LINE 案内に進んだ 6 件はいずれもサーバーで採点が終わっていたため。
         //   ★未送信の印（帯・逃げ道ボタン）は付けない：LINE 案内と二重にならないよう、
         //     photo-escape と同じ「LINE 回送は別管理（_recordLineHandoff）」の方針に揃える（従来どおり）。
-        _kanjiKakiPollResult(payload).then(function(found){
+        _kanjiKakiPollResult(payload, sentAt).then(function(found){
           if (found) { _onKanjiKakiRes(found); return; }
           _hideHpConfirmingOverlay();
           submitBtn.disabled = false;
@@ -27644,7 +27646,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261021-2353</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261022-0036</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
