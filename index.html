@@ -2540,7 +2540,7 @@
     .sub-action-btn.sfx-link { background: linear-gradient(135deg,#66bb6a,#43a047); }
     .sub-action-btn.logout   { background: linear-gradient(135deg,#e74c3c,#c0392b); }
     /* 2026-10-21 問題ミスの指摘：ホーム下部の導線（「各種設定」の青と区別するため橙系）。 */
-    .sub-action-btn.mistake  { background: linear-gradient(135deg,#f6a04d,#ef8c2b); }
+    .sub-action-btn.mistake  { background: linear-gradient(135deg,#ffe14d,#ffd60a); color: #5a4300; }
     /* 2026-10-21 問題ミスの指摘：各コンテンツの問題画面に出す案内。
        ★既存の .reload-warn-note（11.5px / グレー文字 / 薄い枠）に見た目を揃えた控えめな帯。
          色や文字で主張させず、左の細い橙ラインだけで「見落とされない程度」の存在感を出す。 */
@@ -3743,10 +3743,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261021-0449"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261021-0531"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261021-0449">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261021-0449"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261021-0531">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261021-0531"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4744,6 +4744,7 @@
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#2ecc71,#27ae60);margin-top:20px" onclick="showHistory()">📖 今までの単語をおさらいする</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 <!-- commit 6b-2：V2（語彙ランダム化）の単語/熟語選択画面。英単語RUSHのみ・レベル選択後に表示。
@@ -4781,7 +4782,6 @@
       <img class="mate-img" id="mate-img-eitan-dictation" src="images/rushkun-default.png" alt="RUSH君">
       <div class="mate-bubble" id="mate-bubble-eitan-dictation">きれいに書けてるかな？</div>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div class="dictation-notice">
       <div class="notice-title">🔴 それぞれの単語の発音を聞いた後、ノートに単語の書き取り練習をして、写真に撮って送ってください。</div>
       <div class="notice-body">【やり方】<br>・「単語の番号」「日本語の意味」の順で書き、その右に３回ずつ英単語を書いてください。<br>・１行おきに書いてください。<br>・全て終わったら一番下の「写真に撮って送る」ボタンを押し、画面の指示に従って写真を送ってください。<br>・写真を送った後、AIが正しく書けてるかを判定します。</div>
@@ -4813,7 +4813,6 @@
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px;display:none" onclick="showLevelSelect()">← レベル選択に戻る</button>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="photoEscapeToHome('eiken5', true)">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -4825,11 +4824,9 @@
       <img class="mate-img" id="mate-img-eitan-test" src="images/rushkun-thinking.png" alt="RUSH君">
       <div class="mate-bubble" id="mate-bubble-eitan-test">集中して！</div>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="test-q-area"></div>
     <div class="feedback" id="test-feedback"></div>
     <button class="btn-wide" id="test-next-btn" style="display:none" onclick="nextQuestion()">次の問題へ →</button>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 <div id="screen-result" class="screen">
@@ -4922,7 +4919,6 @@
       <img class="mate-img" id="mate-img-sango-topic" src="images/sangotan-default.png" alt="サンゴタン">
       <div class="mate-bubble" id="mate-bubble-sango-topic">今日のお題はこれだよ〜</div>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="sango-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
     <div class="sango-notice">
       <div>🟢文章を作る前に、３語全ての「意味と用例」を調べてから始めること！</div>
@@ -4934,8 +4930,8 @@
     <button class="btn-wide" style="background:linear-gradient(135deg,#4fc3f7,#2979ff);margin-top:8px" onclick="startSangoPhotoSubmit()">📷 作品を提出する（写真に撮って送る）</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#ffd3a5,#fd6585);margin-top:8px;color:#6d2c4a" onclick="showSangoPast()">📚 過去のお題と福地の作品</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);margin-top:8px;color:#4a2c6d;position:relative" onclick="showSangoHistory()">📖 過去の提出作品<span class="msg-home-badge" id="sango-comment-badge">🔴 注目！</span></button>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="sangoHomeFromTopic()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 <div id="screen-sango-past" class="screen">
@@ -5067,7 +5063,6 @@
       <img class="mate-img" id="mate-img-wabun1-topic" src="images/nichiei-default.png" alt="ニチエイ">
       <div class="mate-bubble" id="mate-bubble-wabun1-topic">今日の問題だよ！</div>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="wabun1-topic-body"><div class="loading">⏳ 読み込み中...</div></div>
     <!-- 2026-09-23 メイン＝ページ内カメラ（getUserMedia）。カメラアプリに切り替えないのでリロードの引き金を引かない。
          ★和文英訳①固有：getUserMedia ideal 2560×1440（完全一致採点でピリオド/カンマを拾う）／縮小は 1600px/0.85。
@@ -5122,8 +5117,8 @@
         <span class="wabun1-video-arrow">▶</span>
       </a>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:14px" onclick="wabun1HomeFromTopic()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -5230,6 +5225,7 @@
     <div id="kiso-rank-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:16px" onclick="showKisoHistory()">📖 過去の実施履歴を見る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -5285,7 +5281,6 @@
       </div>
     </div>
     <div id="kiso-eq-notice" class="kiso-eq-notice" style="display:none"></div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="kiso-problem-list" class="kiso-problem-list"></div>
     <div class="kiso-paper-rules">
       <div class="rule-section">
@@ -5328,7 +5323,6 @@
     </div>
     <button class="btn-wide kiso-photo-btn" onclick="goKisoPreConfirm()">📷 写真を撮って提出する</button>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" id="kiso-problem-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:12px" onclick="photoEscapeToHome('kiso', true)">🏠 ホーム画面に戻る</button>
   </div>
 </div>
@@ -6024,6 +6018,7 @@
          同じく、入口ハブ（級選択画面）の「ホームに戻る」直前に置く。 -->
     <button class="btn-wide" style="background:linear-gradient(135deg,#818cf8,#4f46e5);margin-top:14px" onclick="showLisonMyRecordings()">🎧 自分の録音を聞く</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6089,10 +6084,8 @@
       <summary>📖 英文をもう一度見る</summary>
       <div class="ref-body" id="lison-step3-en"></div>
     </details>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="lison-step3-quiz" class="lison-quiz-list"></div>
     <button id="lison-step3-next" class="btn-wide lison-next-btn" onclick="goLisonStep4()" disabled>📖 解答と解説を確認</button>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <!-- 2026-09-10：Step1〜4（録音前）の途中脱出（ホームに戻る）を撤去。前進導線（解答確認へ）は残す。 -->
   </div>
 </div>
@@ -6188,6 +6181,7 @@
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:16px" onclick="showKanjiHistory()">📖 今までの実施履歴を見る</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6244,11 +6238,9 @@
       <img class="kanjii-img" id="kanjii-img-yomi" src="images/kanjii-thinking.png" alt="カンジー">
       <div class="kanjii-bubble" id="kanjii-bubble-yomi">まずは読み方をテストしよう！</div>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="kanji-yomi-q-area"></div>
     <div id="kanji-yomi-feedback" class="kanji-yomi-feedback"></div>
     <button class="btn-wide" id="kanji-yomi-next-btn" style="display:none" onclick="kanjiYomiNext()">次の問題へ →</button>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <!-- 2026-05-21 Recovery バリアント：過去セッションセクション（当日+前日の直近 1-2 件） -->
     <div id="kanji-past-section" class="kanji-past-section" style="display:none">
       <!-- 2026-09-03：常に開いていると、上の「👉 ログイン画面に戻る直前の問題を再表示する」（＝続きから戻れる道）と
@@ -6366,7 +6358,6 @@
       <img class="kanjii-img" id="kanjii-img-kaki" src="images/kanjii-default.png" alt="カンジー">
       <div class="kanjii-bubble" id="kanjii-bubble-kaki">ノートに書いてキミの字、見せて〜！</div>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="kanji-kaki-list" class="kanji-kaki-list"></div>
     <!-- 2026-09-23 メイン＝ページ内カメラ（getUserMedia）。カメラアプリに切り替えないのでリロードの引き金を引かない。手書き可読性のため縮小は 1600px/0.85。 -->
     <button class="kiso-camera-launch-btn" onclick="startKanjiInPageCamera()">📷 撮影する</button>
@@ -6386,7 +6377,6 @@
     <!-- 2026-09-03：読み画面と同じ説明。★書き画面こそ「今書いた分」が実際にあるので必ず出す。 -->
     <div id="kanji-kaki-fresh-note" class="kanji-fresh-note" style="display:none">問題が新しくなるので、今書いた分は使えなくなります</div>
     <!-- 2026-09-02：素のホームボタンでは合格しないまま黙って帰れてしまうため、LINE案内を挟む逃げ道へ差し替え（既存 photo-escape と同じ動き）。 -->
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" id="kanji-kaki-home-btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="photoEscapeToHome('kanji', true)">🏠 ホーム画面に戻る</button>
     <!-- 2026-08-31：写真送信に失敗した後だけ出す逃げ道（確認画面の photo-escape-kanji と同じ入口）。
          ★カメラが開かず撮影画面まで行けない生徒も、一度失敗していればここから抜けられる。
@@ -6484,6 +6474,7 @@
     <div class="kobun-vocab-note">📜 ※ 用例文は AI が過去の文献等を参考にしてオリジナルで作成しています。学習用の参考としてご利用ください。</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#d97706,#b45309)" onclick="proceedKobunVocab()">問題に進む →</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6494,11 +6485,9 @@
       <img class="kobun-img" id="kobun-img-q" src="images/kobun-thinking.png" alt="コブタン">
       <div class="kobun-bubble" id="kobun-bubble-q">さあ、お試しじゃ</div>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="kobun-q-area"></div>
     <div id="kobun-q-feedback" class="kobun-feedback"></div>
     <button class="btn-wide" id="kobun-q-next-btn" style="display:none" onclick="kobunQuestionNext()">次の問題へ →</button>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6549,6 +6538,7 @@
   <header><h1>📖 国語長文読解</h1></header>
   <div class="container" style="padding-top:16px">
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div class="kokugo-mate-row">
       <img class="kokugo-img" id="kokugo-img-charcount" src="images/japanin-default.png" alt="ジャパニン">
       <div class="kokugo-bubble" id="kokugo-bubble-charcount">どちらに挑むでござるか？</div>
@@ -6587,12 +6577,10 @@
         <audio id="kokugo-audio-player" controls preload="none"></audio>
       </div>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="kokugo-question-body" class="kokugo-bodytext"></div>
     <div id="kokugo-question-q1" class="kokugo-q-section"></div>
     <div id="kokugo-question-q2" class="kokugo-q-section"></div>
     <button type="button" class="btn-wide" id="kokugo-grade-btn" style="background:linear-gradient(135deg,#ec4899,#c2185b);opacity:.55;cursor:not-allowed" disabled onclick="submitKokugoAnswerForGrading()">✅ 採点する</button>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6657,6 +6645,7 @@
     </div>
     <div id="risha-major-buttons" class="risha-btn-grid"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:16px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6696,13 +6685,11 @@
       <div class="mate-bubble" id="risha-q-bubble">データを照合中…</div>
     </div>
     <div id="risha-q-meta" class="risha-q-meta"></div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="risha-q-text" class="risha-q-text"></div>
     <div id="risha-q-choices" class="risha-q-choices"></div>
     <div id="risha-q-feedback" class="risha-q-feedback" style="display:none"></div>
     <button class="btn-wide" id="risha-q-submit-btn" style="margin-top:14px" onclick="onRishaAnswerSubmit()">決定する</button>
     <button class="btn-wide" id="risha-q-next-btn" style="display:none;margin-top:8px;background:linear-gradient(135deg,#10b981,#059669)" onclick="onRishaNextQuestion()">次へ →</button>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="_rishaConfirmAbort()">🏠 やめてホームに戻る</button>
   </div>
 </div>
@@ -6737,6 +6724,7 @@
   <header><h1>📐 計算タイムトライアル</h1></header>
   <div class="container" style="padding-top:16px">
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-bottom:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div class="ct-intro-wrap">
       <div class="ct-intro-title">🐯 ようこそ、計算タイムトライアル！</div>
       <div class="ct-intro-mascot-row">
@@ -6773,7 +6761,6 @@
     <h1 id="ct-round-h1">📐 計算タイムトライアル</h1>
   </header>
   <div class="container" style="padding-top:14px">
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
     <div id="ct-round-wrap" class="ct-round-wrap">
       <div class="ct-round-header">
         <div>
@@ -6814,7 +6801,6 @@
         <button type="button" class="ct-key-enter" onclick="onCtKey('ENTER')">Enter</button>
       </div>
     </div>
-    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6903,6 +6889,7 @@
     <div id="phonics-setup-msg" class="msg" style="display:none"></div>
     <button id="phonics-start-btn" class="btn-wide phonics-start-btn" onclick="startPhonicsGame()" disabled>▶ ゲーム開始</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:10px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
   </div>
 </div>
 
@@ -6922,7 +6909,6 @@
         <div class="mate-bubble" id="mate-bubble-phonics-game">よーし、はじめよう！</div>
       </div>
       <!-- 出題エリア（左）＋ リアルタイムHPタリー（右・大きめバッジ）を横並びに -->
-      <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
       <div class="phonics-q-row">
         <div id="phonics-question" class="phonics-question"></div>
         <span id="phonics-hp-tally" class="phonics-hp-tally"></span>
@@ -6932,7 +6918,6 @@
       <!-- モグラ叩きのフィールド（gameType=mole のとき表示。3×3 の穴グリッドを JS で描画） -->
       <div id="phonics-mole-field" class="phonics-mole-field" style="display:none"></div>
       <div id="phonics-feedback" class="phonics-feedback"></div>
-      <div class="mistake-hint">問題でおかしなところを見つけたら、ホーム画面下部の「問題ミスの指摘」を押して報告してください</div>
       <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="quitPhonicsGame()">■ ゲームを中断する</button>
     </div>
   </div>
@@ -27641,7 +27626,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261021-0449</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261021-0531</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
