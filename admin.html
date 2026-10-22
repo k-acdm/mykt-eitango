@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261023-0429"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261023-0438"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -15144,53 +15144,53 @@
   function goAdminContentInputHub() { _showScreen('screen-admin-content-input-hub'); window.scrollTo(0, 0); }
   function goAdminOtherInputHub()   { _showScreen('screen-admin-other-input-hub');   window.scrollTo(0, 0); }
   // =============================================================
-  // 退塾処理 / ID停止ペナルティ（2026-10-23 段階4）
+  // 退塾処理 / ID停止ペナルティ（2026-10-23 段階4 / 2026-10-23 キー名を確定仕様に）
   //   サーバー側：AWS feat/s3-phase c5d9534。action は 7 本、すべて管理者のみ。
-  //     scheduleWithdrawal / cancelWithdrawal / reinstateStudent
-  //     suspendStudent / unsuspendStudent
-  //     listWithdrawnStudents / listSuspendedStudents
-  //   ★adminGasGet / adminGasPost が teacherId / password を自動付与する。
+  //     POST（adminGasPost）：scheduleWithdrawal / cancelWithdrawal / reinstateStudent /
+  //                           suspendStudent / unsuspendStudent
+  //     GET （adminGasGet） ：listWithdrawnStudents / listSuspendedStudents
+  //   ★teacherId / password は adminGasPost / adminGasGet が自動付与する（画面では足さない）。
   //
-  //   ★★引数名・返り値のフィールド名について
-  //     指示には「生徒コード」「退塾予定日」とあるだけで、キー名の指定が無かった。
-  //     そのため送信側は studentCode を主・studentId を併送（同じ値）、日付は
-  //     withdrawalDate を主・scheduledDate / date を併送して取りこぼしを防いでいる。
-  //     受信側も studentCode / student_code / studentId、日付は複数の候補キーを順に見る。
-  //     ★AWS 側の実装でキー名が判明したら、下の _WD_SEND_* / _wdPick* を直せば済む。
+  //   リクエスト
+  //     全 action 共通        ：studentId（生徒コード・文字列）
+  //     scheduleWithdrawal のみ：withdrawalScheduledDate（YYYY-MM-DD）
+  //     一覧系 2 本           ：引数なし
+  //
+  //   レスポンス
+  //     成功：ok:true（scheduleWithdrawal は withdrawalScheduledDate、reinstateStudent は
+  //           enrollmentStatus、suspendStudent は suspendedAt を併せて返す）
+  //     失敗：ok:false + message（表示可能な日本語）
+  //     ★message はそのまま画面に出す。★action ごとの独自エラー文言は作らない。
+  //
+  //     listWithdrawnStudents：{ ok, students:[{ studentId, name, nickname,
+  //                              enrollmentStatus, scheduledDate, effectiveDate, state }] }
+  //       state は 'effective'（発効済み）/ 'scheduled'（予約中）。
+  //       scheduledDate / effectiveDate は null になり得る。
+  //     listSuspendedStudents：{ ok, students:[{ studentId, name, nickname,
+  //                              enrollmentStatus, suspendedAt }] }
+  //       suspendedAt は常に値あり（YYYY-MM-DD HH:MM:SS・JST）。
   // =============================================================
   var _wdStudents = [];      // getStudentsListForGrant の生リスト（既存画面と同じ名簿）
   var _wdStudentsFetching = false;
-  var _wdRows = [];          // listWithdrawnStudents の結果
-  var _spRows = [];          // listSuspendedStudents の結果
+  var _wdRows = [];          // listWithdrawnStudents の students
+  var _spRows = [];          // listSuspendedStudents の students
   var _wdBusy = false;
 
   // --- 共通ヘルパー ---------------------------------------------------------
-  function _wdPick(o, keys) {
-    for (var i = 0; i < keys.length; i++) {
-      var v = o ? o[keys[i]] : undefined;
-      if (v !== undefined && v !== null && String(v) !== '') return String(v);
-    }
-    return '';
-  }
-  function _wdCode(r)  { return _wdPick(r, ['studentCode', 'student_code', 'studentId', 'student_id', 'code']); }
-  function _wdName(r)  { return _wdPick(r, ['name', 'studentName', 'student_name']); }
-  function _wdNick(r)  { return _wdPick(r, ['nickname', 'nick_name']); }
-  function _wdDate(r)  { return _wdPick(r, ['withdrawalDate', 'withdrawal_date', 'scheduledDate', 'scheduled_date', 'effectiveDate', 'effective_date', 'withdrawnAt', 'withdrawn_at', 'date']); }
-  function _spSince(r) { return _wdPick(r, ['suspendedAt', 'suspended_at', 'since', 'startedAt', 'started_at', 'suspendedFrom', 'suspended_from', 'createdAt', 'created_at', 'date']); }
+  // サーバーが返した message をそのまま使う。message が無いときの最後の受け皿だけ用意する。
+  function _wdErr(res) { return String((res && res.message) || 'エラーが発生しました'); }
 
   // 確認ダイアログ用の「26015　山田 太郎（たろ）」。氏名を必ず含める（誤操作防止）。
-  function _wdLabelOf(code) {
+  function _wdLabel(studentId, name, nickname) {
+    return String(studentId) + '　' + (name || '（氏名未登録）') + (nickname ? '（' + nickname + '）' : '');
+  }
+  function _wdLabelOf(studentId) {
     for (var i = 0; i < _wdStudents.length; i++) {
-      if (String(_wdStudents[i].studentId) === String(code)) {
-        var s = _wdStudents[i];
-        return code + '　' + (s.name || '（氏名未登録）') + (s.nickname ? '（' + s.nickname + '）' : '');
+      if (String(_wdStudents[i].studentId) === String(studentId)) {
+        return _wdLabel(studentId, _wdStudents[i].name, _wdStudents[i].nickname);
       }
     }
-    return String(code);
-  }
-  function _wdLabelOfRow(r) {
-    var nm = _wdName(r), nk = _wdNick(r);
-    return _wdCode(r) + '　' + (nm || '（氏名未登録）') + (nk ? '（' + nk + '）' : '');
+    return String(studentId);
   }
   function _wdSetMsg(id, text, kind) {
     var el = document.getElementById(id);
@@ -15208,8 +15208,7 @@
     var opts = _wdStudents.map(function(s) {
       var sid = String((s && s.studentId) || '').trim();
       if (!sid) return '';
-      var label = sid + '　' + (s.name || '（氏名未登録）') + (s.nickname ? '（' + s.nickname + '）' : '');
-      return '<option value="' + _esc(sid) + '">' + _esc(label) + '</option>';
+      return '<option value="' + _esc(sid) + '">' + _esc(_wdLabel(sid, s.name, s.nickname)) + '</option>';
     }).filter(Boolean);
     sel.innerHTML = '<option value="">-- 生徒を選んでください --</option>' + opts.join('');
     if (keep) sel.value = keep;
@@ -15223,7 +15222,7 @@
     adminGasGet({ action: 'getStudentsListForGrant', _ts: Date.now() }).then(function(res) {
       _wdStudentsFetching = false;
       if (!res || !res.ok) {
-        var m = (res && res.message) ? String(res.message) : '生徒を取得できませんでした';
+        var m = _wdErr(res);
         if (!_handleAdminApiError(m)) showToast(m, 'error');
         if (sel) sel.innerHTML = '<option value="">（生徒を取得できませんでした）</option>';
         return;
@@ -15259,13 +15258,12 @@
     if (sum) sum.textContent = '';
     adminGasGet({ action: 'listWithdrawnStudents', _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
-        var m = (res && res.message) ? String(res.message) : '取得に失敗しました';
+        var m = _wdErr(res);
         if (_handleAdminApiError(m)) { wrap.innerHTML = ''; return; }
         wrap.innerHTML = '<div class="students-empty">' + _esc(m) + '</div>';
         return;
       }
-      _wdRows = res.students || res.rows || res.list || res.withdrawn || [];
-      if (_wdRows.length) console.log('[listWithdrawnStudents] sample row', _wdRows[0]);  // 返却キー確認用
+      _wdRows = res.students || [];
       _wdRenderList();
     }).catch(function() {
       wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
@@ -15279,19 +15277,19 @@
     if (sum) sum.textContent = '全 ' + _wdRows.length + ' 件';
     if (!_wdRows.length) { wrap.innerHTML = '<div class="students-empty">退塾者はいません</div>'; return; }
     var rows = _wdRows.map(function(r, i) {
-      var st = String(_wdPick(r, ['state', 'status']) || '').toLowerCase();
-      var cls, label;
-      if (st === 'effective')      { cls = 'wd-state-effective'; label = '発効済み'; }
-      else if (st === 'scheduled') { cls = 'wd-state-scheduled'; label = '予約中';   }
-      else                         { cls = 'wd-state-unknown';   label = st || '不明'; }
-      var act = '';
-      if (st === 'scheduled')      act = '<button type="button" class="btn-mini" id="wd-cancel-' + i + '" onclick="wdCancel(' + i + ')">↩ 予約取消</button>';
-      else if (st === 'effective') act = '<button type="button" class="btn-mini" id="wd-reinstate-' + i + '" onclick="wdReinstate(' + i + ')">🔁 復塾</button>';
+      // state は 'effective' / 'scheduled' の 2 値。退塾日は state に対応する方を出す（null なら —）。
+      var eff = (r.state === 'effective');
+      var cls   = eff ? 'wd-state-effective' : 'wd-state-scheduled';
+      var label = eff ? '発効済み' : '予約中';
+      var when  = (eff ? r.effectiveDate : r.scheduledDate) || '—';
+      var act = eff
+        ? '<button type="button" class="btn-mini" id="wd-reinstate-' + i + '" onclick="wdReinstate(' + i + ')">🔁 復塾</button>'
+        : '<button type="button" class="btn-mini" id="wd-cancel-' + i + '" onclick="wdCancel(' + i + ')">↩ 予約取消</button>';
       return '<tr>' +
-               '<td>' + _esc(_wdCode(r)) + '</td>' +
-               '<td>' + _esc(_wdName(r) || '（未登録）') + '</td>' +
-               '<td><span class="wd-state ' + cls + '">' + _esc(label) + '</span></td>' +
-               '<td class="wd-when">' + _esc(_wdDate(r) || '—') + '</td>' +
+               '<td>' + _esc(r.studentId) + '</td>' +
+               '<td>' + _esc(r.name || '（未登録）') + '</td>' +
+               '<td><span class="wd-state ' + cls + '">' + label + '</span></td>' +
+               '<td class="wd-when">' + _esc(when) + '</td>' +
                '<td class="wd-actions">' + act + '</td>' +
              '</tr>';
     }).join('');
@@ -15306,31 +15304,27 @@
     if (_wdBusy) return;
     var sel  = document.getElementById('wd-select');
     var dEl  = document.getElementById('wd-date');
-    var code = sel ? String(sel.value || '').trim() : '';
+    var sid  = sel ? String(sel.value || '').trim() : '';
     var date = dEl ? String(dEl.value || '').trim() : '';
-    if (!code) { _wdSetMsg('wd-schedule-msg', '⚠️ 生徒を選んでください', 'ng'); return; }
+    if (!sid)  { _wdSetMsg('wd-schedule-msg', '⚠️ 生徒を選んでください', 'ng'); return; }
     if (!date) { _wdSetMsg('wd-schedule-msg', '⚠️ 退塾予定日を指定してください', 'ng'); return; }
-    if (!confirm('この生徒の退塾を予約します。よろしいですか？\n\n' + _wdLabelOf(code) + '\n退塾予定日：' + date +
+    if (!confirm('この生徒の退塾を予約します。よろしいですか？\n\n' + _wdLabelOf(sid) + '\n退塾予定日：' + date +
                  '\n\n退塾予定日になると、この生徒はログインできなくなります。')) return;
     var btn = document.getElementById('wd-btn-schedule');
     _wdSetBusy(true);
     if (btn) { btn.disabled = true; btn.textContent = '予約中...'; }
     _wdSetMsg('wd-schedule-msg', '', '');
-    adminGasPost({
-      action: 'scheduleWithdrawal',
-      studentCode: code, studentId: code,          // キー名未確定のため同値を併送
-      withdrawalDate: date, scheduledDate: date, date: date
-    }).then(function(res) {
+    adminGasPost({ action: 'scheduleWithdrawal', studentId: sid, withdrawalScheduledDate: date }).then(function(res) {
       _wdSetBusy(false);
       if (btn) { btn.disabled = false; btn.textContent = '🚪 退塾を予約する'; }
       if (res && res.ok) {
         showToast('退塾を予約しました', 'success');
-        _wdSetMsg('wd-schedule-msg', '✅ 予約しました（' + date + '）', 'ok');
+        _wdSetMsg('wd-schedule-msg', '✅ 予約しました（' + (res.withdrawalScheduledDate || date) + '）', 'ok');
         if (sel) sel.value = '';
         if (dEl) dEl.value = '';
         wdLoadList();
       } else {
-        var m = (res && res.message) ? String(res.message) : '予約に失敗しました';
+        var m = _wdErr(res);
         if (!_handleAdminApiError(m)) showToast(m, 'error');
         _wdSetMsg('wd-schedule-msg', '⚠️ ' + m, 'ng');
       }
@@ -15345,16 +15339,15 @@
     if (_wdBusy) return;
     var r = _wdRows[i];
     if (!r) return;
-    var code = _wdCode(r);
-    if (!confirm('この生徒の退塾予約を取り消します。よろしいですか？\n\n' + _wdLabelOfRow(r) +
-                 '\n退塾予定日：' + (_wdDate(r) || '—'))) return;
+    if (!confirm('この生徒の退塾予約を取り消します。よろしいですか？\n\n' +
+                 _wdLabel(r.studentId, r.name, r.nickname) + '\n退塾予定日：' + (r.scheduledDate || '—'))) return;
     var btn = document.getElementById('wd-cancel-' + i);
     _wdSetBusy(true);
     if (btn) { btn.disabled = true; btn.textContent = '取消中...'; }
-    adminGasPost({ action: 'cancelWithdrawal', studentCode: code, studentId: code }).then(function(res) {
+    adminGasPost({ action: 'cancelWithdrawal', studentId: String(r.studentId) }).then(function(res) {
       _wdSetBusy(false);
       if (res && res.ok) { showToast('退塾予約を取り消しました', 'success'); wdLoadList(); return; }
-      var m = (res && res.message) ? String(res.message) : '取消に失敗しました';
+      var m = _wdErr(res);
       if (!_handleAdminApiError(m)) showToast(m, 'error');
       if (btn) { btn.disabled = false; btn.textContent = '↩ 予約取消'; }
       wdLoadList();   // 既に発効していた等、サーバー側の最新状態に合わせ直す
@@ -15369,13 +15362,12 @@
     if (_wdBusy) return;
     var r = _wdRows[i];
     if (!r) return;
-    var code = _wdCode(r);
-    if (!confirm('この生徒を復塾させます。よろしいですか？\n\n' + _wdLabelOfRow(r) +
+    if (!confirm('この生徒を復塾させます。よろしいですか？\n\n' + _wdLabel(r.studentId, r.name, r.nickname) +
                  '\n\n復塾では初回キーの再発行が必要です。成功したら「ログイン認証（トラブル、アラート）」画面へ移動します。')) return;
     var btn = document.getElementById('wd-reinstate-' + i);
     _wdSetBusy(true);
     if (btn) { btn.disabled = true; btn.textContent = '復塾中...'; }
-    adminGasPost({ action: 'reinstateStudent', studentCode: code, studentId: code }).then(function(res) {
+    adminGasPost({ action: 'reinstateStudent', studentId: String(r.studentId) }).then(function(res) {
       _wdSetBusy(false);
       if (res && res.ok) {
         showToast('復塾しました。初回キーを再発行してください', 'success');
@@ -15384,7 +15376,7 @@
         goAdminAuthAlerts();
         return;
       }
-      var m = (res && res.message) ? String(res.message) : '復塾に失敗しました';
+      var m = _wdErr(res);
       if (!_handleAdminApiError(m)) showToast(m, 'error');
       if (btn) { btn.disabled = false; btn.textContent = '🔁 復塾'; }
     }).catch(function() {
@@ -15413,13 +15405,12 @@
     if (sum) sum.textContent = '';
     adminGasGet({ action: 'listSuspendedStudents', _ts: Date.now() }).then(function(res) {
       if (!res || !res.ok) {
-        var m = (res && res.message) ? String(res.message) : '取得に失敗しました';
+        var m = _wdErr(res);
         if (_handleAdminApiError(m)) { wrap.innerHTML = ''; return; }
         wrap.innerHTML = '<div class="students-empty">' + _esc(m) + '</div>';
         return;
       }
-      _spRows = res.students || res.rows || res.list || res.suspended || [];
-      if (_spRows.length) console.log('[listSuspendedStudents] sample row', _spRows[0]);  // 返却キー確認用
+      _spRows = res.students || [];
       _spRenderList();
     }).catch(function() {
       wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
@@ -15433,10 +15424,11 @@
     if (sum) sum.textContent = '全 ' + _spRows.length + ' 件';
     if (!_spRows.length) { wrap.innerHTML = '<div class="students-empty">ペナルティ対象者はいません</div>'; return; }
     var rows = _spRows.map(function(r, i) {
+      // suspendedAt は常に値あり（YYYY-MM-DD HH:MM:SS・JST）
       return '<tr>' +
-               '<td>' + _esc(_wdCode(r)) + '</td>' +
-               '<td>' + _esc(_wdName(r) || '（未登録）') + '</td>' +
-               '<td class="wd-when">' + _esc(_spSince(r) || '—') + '</td>' +
+               '<td>' + _esc(r.studentId) + '</td>' +
+               '<td>' + _esc(r.name || '（未登録）') + '</td>' +
+               '<td class="wd-when">' + _esc(r.suspendedAt) + '</td>' +
                '<td class="wd-actions"><button type="button" class="btn-mini" id="sp-unsuspend-' + i + '" onclick="spUnsuspend(' + i + ')">✅ 解除</button></td>' +
              '</tr>';
     }).join('');
@@ -15449,25 +15441,25 @@
 
   function spSuspend() {
     if (_wdBusy) return;
-    var sel  = document.getElementById('sp-select');
-    var code = sel ? String(sel.value || '').trim() : '';
-    if (!code) { _wdSetMsg('sp-suspend-msg', '⚠️ 生徒を選んでください', 'ng'); return; }
-    if (!confirm('この生徒に ID停止ペナルティを設定します。よろしいですか？\n\n' + _wdLabelOf(code) +
+    var sel = document.getElementById('sp-select');
+    var sid = sel ? String(sel.value || '').trim() : '';
+    if (!sid) { _wdSetMsg('sp-suspend-msg', '⚠️ 生徒を選んでください', 'ng'); return; }
+    if (!confirm('この生徒に ID停止ペナルティを設定します。よろしいですか？\n\n' + _wdLabelOf(sid) +
                  '\n\n★即時発効です。押した瞬間からログインできなくなります。')) return;
     var btn = document.getElementById('sp-btn-suspend');
     _wdSetBusy(true);
     if (btn) { btn.disabled = true; btn.textContent = '設定中...'; }
     _wdSetMsg('sp-suspend-msg', '', '');
-    adminGasPost({ action: 'suspendStudent', studentCode: code, studentId: code }).then(function(res) {
+    adminGasPost({ action: 'suspendStudent', studentId: sid }).then(function(res) {
       _wdSetBusy(false);
       if (btn) { btn.disabled = false; btn.textContent = '⛔ ID停止ペナルティを設定する'; }
       if (res && res.ok) {
         showToast('ID停止ペナルティを設定しました', 'success');
-        _wdSetMsg('sp-suspend-msg', '✅ 設定しました（即時発効）', 'ok');
+        _wdSetMsg('sp-suspend-msg', '✅ 設定しました（即時発効：' + (res.suspendedAt || '') + '）', 'ok');
         if (sel) sel.value = '';
         spLoadList();
       } else {
-        var m = (res && res.message) ? String(res.message) : '設定に失敗しました';
+        var m = _wdErr(res);
         if (!_handleAdminApiError(m)) showToast(m, 'error');
         _wdSetMsg('sp-suspend-msg', '⚠️ ' + m, 'ng');
       }
@@ -15482,16 +15474,16 @@
     if (_wdBusy) return;
     var r = _spRows[i];
     if (!r) return;
-    var code = _wdCode(r);
-    if (!confirm('この生徒の ID停止ペナルティを解除します。よろしいですか？\n\n' + _wdLabelOfRow(r) +
+    if (!confirm('この生徒の ID停止ペナルティを解除します。よろしいですか？\n\n' +
+                 _wdLabel(r.studentId, r.name, r.nickname) +
                  '\n\n解除すると、すぐにログインできるようになります。')) return;
     var btn = document.getElementById('sp-unsuspend-' + i);
     _wdSetBusy(true);
     if (btn) { btn.disabled = true; btn.textContent = '解除中...'; }
-    adminGasPost({ action: 'unsuspendStudent', studentCode: code, studentId: code }).then(function(res) {
+    adminGasPost({ action: 'unsuspendStudent', studentId: String(r.studentId) }).then(function(res) {
       _wdSetBusy(false);
       if (res && res.ok) { showToast('ペナルティを解除しました', 'success'); spLoadList(); return; }
-      var m = (res && res.message) ? String(res.message) : '解除に失敗しました';
+      var m = _wdErr(res);
       if (!_handleAdminApiError(m)) showToast(m, 'error');
       if (btn) { btn.disabled = false; btn.textContent = '✅ 解除'; }
     }).catch(function() {
@@ -18733,7 +18725,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261023-0429</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261023-0438</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
