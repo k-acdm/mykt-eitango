@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261022-0036"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261023-0438"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -75,8 +75,8 @@
   }
 
   /* メイン系画面のヘッダー（ダッシュボード以外） */
-  #screen-admin-dashboard header, #screen-admin-learning-hub header, #screen-admin-achievement-hub header, #screen-admin-eitango-ach-students header, #screen-admin-eitango-ach-detail header, #screen-admin-kobun-ach-students header, #screen-admin-kobun-ach-detail header, #screen-admin-kiso-ach-students header, #screen-admin-kiso-ach-detail header, #screen-admin-kanji-ach-students header, #screen-admin-kanji-ach-detail header, #screen-admin-lison-ach-students header, #screen-admin-lison-ach-detail header, #screen-admin-answer-check-hub header, #screen-admin-input-hub header, #screen-admin-content-input-hub header, #screen-admin-other-input-hub header, #screen-admin-question-edit header, #screen-admin-student-care-hub header, #screen-admin-exchange-hub header, #screen-admin-system-hub header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-streak-modify header, #screen-admin-streak-modify-confirm header, #screen-admin-streak-modify-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header, #screen-admin-teachers header, #screen-admin-teacher-edit header, #screen-admin-teacher-add header, #screen-admin-action-log header, #screen-admin-hp-attempts header, #screen-admin-unsent-reports header, #screen-admin-line-notify header, #screen-admin-required-missions header, #screen-admin-reflections-students header, #screen-admin-reflections-list header, #screen-admin-reflections-select header, #screen-admin-reflections-calendar header, #screen-admin-reflections-day header, #screen-admin-form-quote header, #screen-admin-form-notice header, #screen-admin-form-sango-topic header, #screen-admin-form-sango-submissions header, #screen-admin-form-wabun1-topic header, #screen-admin-form-wabun1-submissions header, #screen-admin-kokugo-input header, #screen-admin-kokugo-history-select header, #screen-admin-kokugo-history-students header, #screen-admin-kokugo-history-list header, #screen-admin-kokugo-history-calendar header, #screen-admin-kokugo-history-day header, #screen-admin-risha-input header, #screen-admin-risha-history-select header, #screen-admin-risha-history-students header, #screen-admin-risha-history-list header, #screen-admin-risha-history-calendar header, #screen-admin-risha-history-day header, #screen-admin-surveys header, #screen-admin-survey-results header, #screen-admin-avatar-items header, #screen-admin-amazon-gift header, #screen-admin-mytask-announce header, #screen-admin-mytask-students header, #screen-admin-oriwantes-students header, #screen-admin-oriwantes-detail header, #screen-admin-mytask-photos header, #screen-admin-auth-alerts header, #screen-admin-student-add header, #screen-admin-grid header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-  #screen-admin-dashboard header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-question-edit header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-kokugo-input header h1, #screen-admin-kokugo-history-select header h1, #screen-admin-kokugo-history-students header h1, #screen-admin-kokugo-history-list header h1, #screen-admin-kokugo-history-calendar header h1, #screen-admin-kokugo-history-day header h1, #screen-admin-risha-input header h1, #screen-admin-risha-history-select header h1, #screen-admin-risha-history-students header h1, #screen-admin-risha-history-list header h1, #screen-admin-risha-history-calendar header h1, #screen-admin-risha-history-day header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-mytask-photos header h1, #screen-admin-auth-alerts header h1, #screen-admin-student-add header h1, #screen-admin-grid header h1 { font-size: 18px; font-weight: 600; }
+  #screen-admin-dashboard header, #screen-admin-learning-hub header, #screen-admin-achievement-hub header, #screen-admin-eitango-ach-students header, #screen-admin-eitango-ach-detail header, #screen-admin-kobun-ach-students header, #screen-admin-kobun-ach-detail header, #screen-admin-kiso-ach-students header, #screen-admin-kiso-ach-detail header, #screen-admin-kanji-ach-students header, #screen-admin-kanji-ach-detail header, #screen-admin-lison-ach-students header, #screen-admin-lison-ach-detail header, #screen-admin-answer-check-hub header, #screen-admin-input-hub header, #screen-admin-content-input-hub header, #screen-admin-other-input-hub header, #screen-admin-question-edit header, #screen-admin-student-care-hub header, #screen-admin-exchange-hub header, #screen-admin-system-hub header, #screen-admin-tabs header, #screen-admin-students header, #screen-admin-child-history header, #screen-admin-child-archive header, #screen-admin-ranking header, #screen-admin-activity-select header, #screen-admin-activity-calendar header, #screen-admin-activity-day header, #screen-admin-hp-grant header, #screen-admin-hp-grant-confirm header, #screen-admin-hp-grant-result header, #screen-admin-streak-modify header, #screen-admin-streak-modify-confirm header, #screen-admin-streak-modify-result header, #screen-admin-kiso-students header, #screen-admin-kiso-photos header, #screen-admin-lison-students header, #screen-admin-lison-list header, #screen-admin-lison-input header, #screen-admin-teacher-messages header, #screen-admin-teacher-messages-confirm header, #screen-admin-teacher-messages-result header, #screen-admin-teachers header, #screen-admin-teacher-edit header, #screen-admin-teacher-add header, #screen-admin-action-log header, #screen-admin-hp-attempts header, #screen-admin-unsent-reports header, #screen-admin-line-notify header, #screen-admin-required-missions header, #screen-admin-reflections-students header, #screen-admin-reflections-list header, #screen-admin-reflections-select header, #screen-admin-reflections-calendar header, #screen-admin-reflections-day header, #screen-admin-form-quote header, #screen-admin-form-notice header, #screen-admin-form-sango-topic header, #screen-admin-form-sango-submissions header, #screen-admin-form-wabun1-topic header, #screen-admin-form-wabun1-submissions header, #screen-admin-kokugo-input header, #screen-admin-kokugo-history-select header, #screen-admin-kokugo-history-students header, #screen-admin-kokugo-history-list header, #screen-admin-kokugo-history-calendar header, #screen-admin-kokugo-history-day header, #screen-admin-risha-input header, #screen-admin-risha-history-select header, #screen-admin-risha-history-students header, #screen-admin-risha-history-list header, #screen-admin-risha-history-calendar header, #screen-admin-risha-history-day header, #screen-admin-surveys header, #screen-admin-survey-results header, #screen-admin-avatar-items header, #screen-admin-amazon-gift header, #screen-admin-mytask-announce header, #screen-admin-mytask-students header, #screen-admin-oriwantes-students header, #screen-admin-oriwantes-detail header, #screen-admin-mytask-photos header, #screen-admin-auth-alerts header, #screen-admin-student-add header, #screen-admin-grid header, #screen-admin-withdrawal header, #screen-admin-suspend header { background: linear-gradient(135deg, #4f7df0, #7c4fff); color: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  #screen-admin-dashboard header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-question-edit header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-kokugo-input header h1, #screen-admin-kokugo-history-select header h1, #screen-admin-kokugo-history-students header h1, #screen-admin-kokugo-history-list header h1, #screen-admin-kokugo-history-calendar header h1, #screen-admin-kokugo-history-day header h1, #screen-admin-risha-input header h1, #screen-admin-risha-history-select header h1, #screen-admin-risha-history-students header h1, #screen-admin-risha-history-list header h1, #screen-admin-risha-history-calendar header h1, #screen-admin-risha-history-day header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-mytask-photos header h1, #screen-admin-auth-alerts header h1, #screen-admin-student-add header h1, #screen-admin-grid header h1, #screen-admin-withdrawal header h1, #screen-admin-suspend header h1 { font-size: 18px; font-weight: 600; }
   .logout-btn { padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .2s; }
   .logout-btn:hover { background: rgba(255,255,255,.3); }
 
@@ -195,6 +195,24 @@
   .ni-step .nist-head { font-size: 15px; font-weight: bold; color: #333; margin-bottom: 4px; }
   .ni-step .nist-desc { font-size: 12px; color: #666; line-height: 1.7; margin-bottom: 10px; }
   .ni-step .nist-hint { font-size: 12px; color: #b45309; font-weight: bold; margin-top: 8px; }
+
+  /* 退塾処理 / ID停止ペナルティ（2026-10-23 段階4）。
+     ★見た目は既存のものを流用する（.form-card / .ni-lead / .ni-row / .submit-btn /
+       .students-table-wrap / .hp-grant-table / .students-empty / .btn-mini）。
+       ここで足すのは「危険な操作である」ことを示す警告帯と、一覧の状態バッジだけ。 */
+  .danger-note { background: linear-gradient(135deg,#fef2f2,#fee2e2); border: 2px solid #ef4444; border-radius: 10px;
+                 padding: 12px 14px; margin-bottom: 14px; font-size: 13px; line-height: 1.8; color: #991b1b; }
+  .danger-note b { color: #7f1d1d; }
+  .wd-state { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .wd-state-effective { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+  .wd-state-scheduled { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+  .wd-state-unknown   { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+  #screen-admin-withdrawal .hp-grant-table td, #screen-admin-withdrawal .hp-grant-table th,
+  #screen-admin-suspend    .hp-grant-table td, #screen-admin-suspend    .hp-grant-table th { white-space: normal; }
+  #screen-admin-withdrawal .hp-grant-table tbody tr, #screen-admin-suspend .hp-grant-table tbody tr { cursor: default; }
+  #screen-admin-withdrawal .hp-grant-table tbody tr:hover, #screen-admin-suspend .hp-grant-table tbody tr:hover { background: transparent; }
+  .wd-when { white-space: nowrap; color: #475569; font-size: 12px; }
+  .wd-actions { white-space: nowrap; }
 
   /* ヘッダー右ボタン群（ホーム + ログアウト） */
   .header-btns { display: flex; gap: 8px; align-items: center; }
@@ -759,7 +777,7 @@
   .tm-result-summary strong { color: #16a34a; }
 
   @media (max-width: 480px) {
-    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-question-edit header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-mytask-photos header h1, #screen-admin-auth-alerts header h1, #screen-admin-student-add header h1, #screen-admin-grid header h1 { font-size: 15px; }
+    #screen-admin-tabs header h1, #screen-admin-students header h1, #screen-admin-child-history header h1, #screen-admin-child-archive header h1, #screen-admin-ranking header h1, #screen-admin-activity-select header h1, #screen-admin-activity-calendar header h1, #screen-admin-activity-day header h1, #screen-admin-hp-grant header h1, #screen-admin-hp-grant-confirm header h1, #screen-admin-hp-grant-result header h1, #screen-admin-streak-modify header h1, #screen-admin-streak-modify-confirm header h1, #screen-admin-streak-modify-result header h1, #screen-admin-kiso-students header h1, #screen-admin-kiso-photos header h1, #screen-admin-lison-students header h1, #screen-admin-lison-list header h1, #screen-admin-lison-input header h1, #screen-admin-teacher-messages header h1, #screen-admin-teacher-messages-confirm header h1, #screen-admin-teacher-messages-result header h1, #screen-admin-teachers header h1, #screen-admin-teacher-edit header h1, #screen-admin-teacher-add header h1, #screen-admin-action-log header h1, #screen-admin-hp-attempts header h1, #screen-admin-unsent-reports header h1, #screen-admin-line-notify header h1, #screen-admin-required-missions header h1, #screen-admin-reflections-students header h1, #screen-admin-reflections-list header h1, #screen-admin-reflections-select header h1, #screen-admin-reflections-calendar header h1, #screen-admin-reflections-day header h1, #screen-admin-form-quote header h1, #screen-admin-form-notice header h1, #screen-admin-form-sango-topic header h1, #screen-admin-form-sango-submissions header h1, #screen-admin-form-wabun1-topic header h1, #screen-admin-form-wabun1-submissions header h1, #screen-admin-surveys header h1, #screen-admin-survey-results header h1, #screen-admin-avatar-items header h1, #screen-admin-amazon-gift header h1, #screen-admin-mytask-announce header h1, #screen-admin-mytask-students header h1, #screen-admin-oriwantes-students header h1, #screen-admin-oriwantes-detail header h1, #screen-admin-learning-hub header h1, #screen-admin-achievement-hub header h1, #screen-admin-eitango-ach-students header h1, #screen-admin-eitango-ach-detail header h1, #screen-admin-kobun-ach-students header h1, #screen-admin-kobun-ach-detail header h1, #screen-admin-kiso-ach-students header h1, #screen-admin-kiso-ach-detail header h1, #screen-admin-kanji-ach-students header h1, #screen-admin-kanji-ach-detail header h1, #screen-admin-lison-ach-students header h1, #screen-admin-lison-ach-detail header h1, #screen-admin-answer-check-hub header h1, #screen-admin-input-hub header h1, #screen-admin-content-input-hub header h1, #screen-admin-other-input-hub header h1, #screen-admin-question-edit header h1, #screen-admin-student-care-hub header h1, #screen-admin-exchange-hub header h1, #screen-admin-system-hub header h1, #screen-admin-mytask-photos header h1, #screen-admin-auth-alerts header h1, #screen-admin-student-add header h1, #screen-admin-grid header h1, #screen-admin-withdrawal header h1, #screen-admin-suspend header h1 { font-size: 15px; }
     #admin-content { padding: 16px 12px 80px; }
     .admin-page { padding: 16px 12px 80px; }
     .form-card { padding: 18px; }
@@ -1808,6 +1826,104 @@
       <div class="dashboard-card-title">絶対ミッション設定</div>
       <div class="dashboard-card-desc">各生徒の絶対ミッション（英単語RUSH / 三語短文 / 和文英訳① / 基礎計算 / カンジー）を切替</div>
     </button>
+    <!-- 2026-10-23 段階4：退塾処理 / ID停止ペナルティ（admin専用・この2枚はハブの一番下に追加） -->
+    <button type="button" id="dash-card-withdrawal" class="dashboard-card admin-only" onclick="goAdminWithdrawal()">
+      <div class="dashboard-card-icon">🚪</div>
+      <div class="dashboard-card-title">退塾処理</div>
+      <div class="dashboard-card-desc">退塾日を決めて予約 / 予約の取消 / 復塾（復塾時は初回キーを再発行）</div>
+    </button>
+    <button type="button" id="dash-card-suspend" class="dashboard-card admin-only" onclick="goAdminSuspend()">
+      <div class="dashboard-card-icon">⛔</div>
+      <div class="dashboard-card-title">ID停止ペナルティ</div>
+      <div class="dashboard-card-desc">生徒のログインを即時停止 / 停止中の一覧と解除</div>
+    </button>
+  </div>
+</div>
+
+<!-- 退塾処理（2026-10-23 段階4、admin専用）。サーバー側は AWS feat/s3-phase c5d9534。
+     ★ヘッダーの CSS セレクタリスト 3 箇所（通常版 background / 通常版 h1 / レスポンシブ h1）に登録済。 -->
+<div id="screen-admin-withdrawal" class="screen">
+  <header>
+    <h1>🚪 退塾処理</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminStudentCareHub()">← 生徒対応に戻る</button>
+
+    <div class="form-card" style="margin-bottom:18px">
+      <h2>🚪 退塾を予約する</h2>
+      <div class="ni-lead">
+        生徒と<b>退塾予定日</b>を指定して予約します。<b>予約した時点ではまだログインできます</b>
+        （退塾予定日になると発効します）。
+      </div>
+      <div class="ni-row">
+        <select id="wd-select" onfocus="wdEnsureStudents()">
+          <option value="">-- 生徒を選んでください --</option>
+        </select>
+      </div>
+      <div class="ni-row">
+        <label style="font-size:13px;color:#555">退塾予定日</label>
+        <input type="date" id="wd-date" style="padding:10px 12px;font-size:15px;border:2px solid #e1e5ee;border-radius:8px;font-family:inherit" />
+      </div>
+      <button type="button" id="wd-btn-schedule" class="submit-btn" onclick="wdSchedule()">🚪 退塾を予約する</button>
+      <div id="wd-schedule-msg" style="margin-top:10px;font-size:13px"></div>
+    </div>
+
+    <div class="form-card">
+      <h2>📋 退塾者一覧</h2>
+      <div class="ni-lead">
+        <b>発効済み</b>＝すでに退塾になっている生徒。<b>予約中</b>＝退塾予定日がまだ来ていない生徒。<br>
+        予約中は「予約取消」、発効済みは「復塾」ができます。
+      </div>
+      <div style="margin-bottom:10px">
+        <button type="button" class="btn-mini" onclick="wdLoadList()">🔄 再読み込み</button>
+        <span id="wd-list-summary" style="font-size:13px;color:#636e72;margin-left:8px"></span>
+      </div>
+      <div id="wd-list-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ID停止ペナルティ（2026-10-23 段階4、admin専用）。サーバー側は AWS feat/s3-phase c5d9534。
+     ★ヘッダーの CSS セレクタリスト 3 箇所に登録済。 -->
+<div id="screen-admin-suspend" class="screen">
+  <header>
+    <h1>⛔ ID停止ペナルティ</h1>
+    <div class="header-btns">
+      <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
+      <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
+    </div>
+  </header>
+  <div class="admin-page">
+    <button class="submit-btn" style="margin-bottom:16px;background:linear-gradient(135deg,#636e72,#2d3436)" onclick="goAdminStudentCareHub()">← 生徒対応に戻る</button>
+
+    <div class="form-card" style="margin-bottom:18px">
+      <h2>⛔ ペナルティを設定する</h2>
+      <div class="danger-note">
+        <b>★ 即時発効です。</b>設定した瞬間からその生徒はログインできなくなります（予約ではありません）。<br>
+        解除するまで続きます。下の一覧から「解除」で戻せます。
+      </div>
+      <div class="ni-row">
+        <select id="sp-select" onfocus="spEnsureStudents()">
+          <option value="">-- 生徒を選んでください --</option>
+        </select>
+      </div>
+      <button type="button" id="sp-btn-suspend" class="submit-btn" style="background:linear-gradient(135deg,#ef4444,#b91c1c)" onclick="spSuspend()">⛔ ID停止ペナルティを設定する</button>
+      <div id="sp-suspend-msg" style="margin-top:10px;font-size:13px"></div>
+    </div>
+
+    <div class="form-card">
+      <h2>📋 ペナルティ対象者一覧</h2>
+      <div class="ni-lead">いま ID 停止中の生徒です。いつから停止しているかを併記します。</div>
+      <div style="margin-bottom:10px">
+        <button type="button" class="btn-mini" onclick="spLoadList()">🔄 再読み込み</button>
+        <span id="sp-list-summary" style="font-size:13px;color:#636e72;margin-left:8px"></span>
+      </div>
+      <div id="sp-list-wrap"></div>
+    </div>
   </div>
 </div>
 
@@ -15027,6 +15143,356 @@
   function goAdminInputHub()        { _showScreen('screen-admin-input-hub');         window.scrollTo(0, 0); }
   function goAdminContentInputHub() { _showScreen('screen-admin-content-input-hub'); window.scrollTo(0, 0); }
   function goAdminOtherInputHub()   { _showScreen('screen-admin-other-input-hub');   window.scrollTo(0, 0); }
+  // =============================================================
+  // 退塾処理 / ID停止ペナルティ（2026-10-23 段階4 / 2026-10-23 キー名を確定仕様に）
+  //   サーバー側：AWS feat/s3-phase c5d9534。action は 7 本、すべて管理者のみ。
+  //     POST（adminGasPost）：scheduleWithdrawal / cancelWithdrawal / reinstateStudent /
+  //                           suspendStudent / unsuspendStudent
+  //     GET （adminGasGet） ：listWithdrawnStudents / listSuspendedStudents
+  //   ★teacherId / password は adminGasPost / adminGasGet が自動付与する（画面では足さない）。
+  //
+  //   リクエスト
+  //     全 action 共通        ：studentId（生徒コード・文字列）
+  //     scheduleWithdrawal のみ：withdrawalScheduledDate（YYYY-MM-DD）
+  //     一覧系 2 本           ：引数なし
+  //
+  //   レスポンス
+  //     成功：ok:true（scheduleWithdrawal は withdrawalScheduledDate、reinstateStudent は
+  //           enrollmentStatus、suspendStudent は suspendedAt を併せて返す）
+  //     失敗：ok:false + message（表示可能な日本語）
+  //     ★message はそのまま画面に出す。★action ごとの独自エラー文言は作らない。
+  //
+  //     listWithdrawnStudents：{ ok, students:[{ studentId, name, nickname,
+  //                              enrollmentStatus, scheduledDate, effectiveDate, state }] }
+  //       state は 'effective'（発効済み）/ 'scheduled'（予約中）。
+  //       scheduledDate / effectiveDate は null になり得る。
+  //     listSuspendedStudents：{ ok, students:[{ studentId, name, nickname,
+  //                              enrollmentStatus, suspendedAt }] }
+  //       suspendedAt は常に値あり（YYYY-MM-DD HH:MM:SS・JST）。
+  // =============================================================
+  var _wdStudents = [];      // getStudentsListForGrant の生リスト（既存画面と同じ名簿）
+  var _wdStudentsFetching = false;
+  var _wdRows = [];          // listWithdrawnStudents の students
+  var _spRows = [];          // listSuspendedStudents の students
+  var _wdBusy = false;
+
+  // --- 共通ヘルパー ---------------------------------------------------------
+  // サーバーが返した message をそのまま使う。message が無いときの最後の受け皿だけ用意する。
+  function _wdErr(res) { return String((res && res.message) || 'エラーが発生しました'); }
+
+  // 確認ダイアログ用の「26015　山田 太郎（たろ）」。氏名を必ず含める（誤操作防止）。
+  function _wdLabel(studentId, name, nickname) {
+    return String(studentId) + '　' + (name || '（氏名未登録）') + (nickname ? '（' + nickname + '）' : '');
+  }
+  function _wdLabelOf(studentId) {
+    for (var i = 0; i < _wdStudents.length; i++) {
+      if (String(_wdStudents[i].studentId) === String(studentId)) {
+        return _wdLabel(studentId, _wdStudents[i].name, _wdStudents[i].nickname);
+      }
+    }
+    return String(studentId);
+  }
+  function _wdSetMsg(id, text, kind) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = (kind === 'ok') ? '#15803d' : (kind === 'ng' ? '#c00' : '#636e72');
+  }
+  function _wdSetBusy(b) { _wdBusy = !!b; }
+
+  // --- 生徒名簿（既存の getStudentsListForGrant を流用） ---------------------
+  function _wdRenderSelect(selectId) {
+    var sel = document.getElementById(selectId);
+    if (!sel) return;
+    var keep = String(sel.value || '');
+    var opts = _wdStudents.map(function(s) {
+      var sid = String((s && s.studentId) || '').trim();
+      if (!sid) return '';
+      return '<option value="' + _esc(sid) + '">' + _esc(_wdLabel(sid, s.name, s.nickname)) + '</option>';
+    }).filter(Boolean);
+    sel.innerHTML = '<option value="">-- 生徒を選んでください --</option>' + opts.join('');
+    if (keep) sel.value = keep;
+  }
+  function _wdEnsureStudents(selectId) {
+    if (_wdStudents.length) { _wdRenderSelect(selectId); return; }
+    if (_wdStudentsFetching) return;
+    _wdStudentsFetching = true;
+    var sel = document.getElementById(selectId);
+    if (sel) sel.innerHTML = '<option value="">⏳ 読み込み中...</option>';
+    adminGasGet({ action: 'getStudentsListForGrant', _ts: Date.now() }).then(function(res) {
+      _wdStudentsFetching = false;
+      if (!res || !res.ok) {
+        var m = _wdErr(res);
+        if (!_handleAdminApiError(m)) showToast(m, 'error');
+        if (sel) sel.innerHTML = '<option value="">（生徒を取得できませんでした）</option>';
+        return;
+      }
+      _wdStudents = res.students || [];
+      _wdRenderSelect(selectId);
+    }).catch(function() {
+      _wdStudentsFetching = false;
+      if (sel) sel.innerHTML = '<option value="">（通信エラー）</option>';
+    });
+  }
+  function wdEnsureStudents() { _wdEnsureStudents('wd-select'); }
+  function spEnsureStudents() { _wdEnsureStudents('sp-select'); }
+
+  // =========================== 退塾処理 ===========================
+  function goAdminWithdrawal() {
+    _showScreen('screen-admin-withdrawal');
+    window.scrollTo(0, 0);
+    _wdSetMsg('wd-schedule-msg', '', '');
+    var d = document.getElementById('wd-date');
+    if (d) d.value = '';
+    var s = document.getElementById('wd-select');
+    if (s) s.value = '';
+    _wdEnsureStudents('wd-select');
+    wdLoadList();
+  }
+
+  function wdLoadList() {
+    var wrap = document.getElementById('wd-list-wrap');
+    var sum  = document.getElementById('wd-list-summary');
+    if (!wrap) return;
+    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    if (sum) sum.textContent = '';
+    adminGasGet({ action: 'listWithdrawnStudents', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var m = _wdErr(res);
+        if (_handleAdminApiError(m)) { wrap.innerHTML = ''; return; }
+        wrap.innerHTML = '<div class="students-empty">' + _esc(m) + '</div>';
+        return;
+      }
+      _wdRows = res.students || [];
+      _wdRenderList();
+    }).catch(function() {
+      wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  function _wdRenderList() {
+    var wrap = document.getElementById('wd-list-wrap');
+    var sum  = document.getElementById('wd-list-summary');
+    if (!wrap) return;
+    if (sum) sum.textContent = '全 ' + _wdRows.length + ' 件';
+    if (!_wdRows.length) { wrap.innerHTML = '<div class="students-empty">退塾者はいません</div>'; return; }
+    var rows = _wdRows.map(function(r, i) {
+      // state は 'effective' / 'scheduled' の 2 値。退塾日は state に対応する方を出す（null なら —）。
+      var eff = (r.state === 'effective');
+      var cls   = eff ? 'wd-state-effective' : 'wd-state-scheduled';
+      var label = eff ? '発効済み' : '予約中';
+      var when  = (eff ? r.effectiveDate : r.scheduledDate) || '—';
+      var act = eff
+        ? '<button type="button" class="btn-mini" id="wd-reinstate-' + i + '" onclick="wdReinstate(' + i + ')">🔁 復塾</button>'
+        : '<button type="button" class="btn-mini" id="wd-cancel-' + i + '" onclick="wdCancel(' + i + ')">↩ 予約取消</button>';
+      return '<tr>' +
+               '<td>' + _esc(r.studentId) + '</td>' +
+               '<td>' + _esc(r.name || '（未登録）') + '</td>' +
+               '<td><span class="wd-state ' + cls + '">' + label + '</span></td>' +
+               '<td class="wd-when">' + _esc(when) + '</td>' +
+               '<td class="wd-actions">' + act + '</td>' +
+             '</tr>';
+    }).join('');
+    wrap.innerHTML =
+      '<div class="students-table-wrap"><table class="hp-grant-table">' +
+        '<thead><tr><th>生徒コード</th><th>氏名</th><th>状態</th><th>退塾日</th><th>操作</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table></div>';
+  }
+
+  function wdSchedule() {
+    if (_wdBusy) return;
+    var sel  = document.getElementById('wd-select');
+    var dEl  = document.getElementById('wd-date');
+    var sid  = sel ? String(sel.value || '').trim() : '';
+    var date = dEl ? String(dEl.value || '').trim() : '';
+    if (!sid)  { _wdSetMsg('wd-schedule-msg', '⚠️ 生徒を選んでください', 'ng'); return; }
+    if (!date) { _wdSetMsg('wd-schedule-msg', '⚠️ 退塾予定日を指定してください', 'ng'); return; }
+    if (!confirm('この生徒の退塾を予約します。よろしいですか？\n\n' + _wdLabelOf(sid) + '\n退塾予定日：' + date +
+                 '\n\n退塾予定日になると、この生徒はログインできなくなります。')) return;
+    var btn = document.getElementById('wd-btn-schedule');
+    _wdSetBusy(true);
+    if (btn) { btn.disabled = true; btn.textContent = '予約中...'; }
+    _wdSetMsg('wd-schedule-msg', '', '');
+    adminGasPost({ action: 'scheduleWithdrawal', studentId: sid, withdrawalScheduledDate: date }).then(function(res) {
+      _wdSetBusy(false);
+      if (btn) { btn.disabled = false; btn.textContent = '🚪 退塾を予約する'; }
+      if (res && res.ok) {
+        showToast('退塾を予約しました', 'success');
+        _wdSetMsg('wd-schedule-msg', '✅ 予約しました（' + (res.withdrawalScheduledDate || date) + '）', 'ok');
+        if (sel) sel.value = '';
+        if (dEl) dEl.value = '';
+        wdLoadList();
+      } else {
+        var m = _wdErr(res);
+        if (!_handleAdminApiError(m)) showToast(m, 'error');
+        _wdSetMsg('wd-schedule-msg', '⚠️ ' + m, 'ng');
+      }
+    }).catch(function() {
+      _wdSetBusy(false);
+      if (btn) { btn.disabled = false; btn.textContent = '🚪 退塾を予約する'; }
+      _wdSetMsg('wd-schedule-msg', '⚠️ 通信エラーが発生しました', 'ng');
+    });
+  }
+
+  function wdCancel(i) {
+    if (_wdBusy) return;
+    var r = _wdRows[i];
+    if (!r) return;
+    if (!confirm('この生徒の退塾予約を取り消します。よろしいですか？\n\n' +
+                 _wdLabel(r.studentId, r.name, r.nickname) + '\n退塾予定日：' + (r.scheduledDate || '—'))) return;
+    var btn = document.getElementById('wd-cancel-' + i);
+    _wdSetBusy(true);
+    if (btn) { btn.disabled = true; btn.textContent = '取消中...'; }
+    adminGasPost({ action: 'cancelWithdrawal', studentId: String(r.studentId) }).then(function(res) {
+      _wdSetBusy(false);
+      if (res && res.ok) { showToast('退塾予約を取り消しました', 'success'); wdLoadList(); return; }
+      var m = _wdErr(res);
+      if (!_handleAdminApiError(m)) showToast(m, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '↩ 予約取消'; }
+      wdLoadList();   // 既に発効していた等、サーバー側の最新状態に合わせ直す
+    }).catch(function() {
+      _wdSetBusy(false);
+      if (btn) { btn.disabled = false; btn.textContent = '↩ 予約取消'; }
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  function wdReinstate(i) {
+    if (_wdBusy) return;
+    var r = _wdRows[i];
+    if (!r) return;
+    if (!confirm('この生徒を復塾させます。よろしいですか？\n\n' + _wdLabel(r.studentId, r.name, r.nickname) +
+                 '\n\n復塾では初回キーの再発行が必要です。成功したら「ログイン認証（トラブル、アラート）」画面へ移動します。')) return;
+    var btn = document.getElementById('wd-reinstate-' + i);
+    _wdSetBusy(true);
+    if (btn) { btn.disabled = true; btn.textContent = '復塾中...'; }
+    adminGasPost({ action: 'reinstateStudent', studentId: String(r.studentId) }).then(function(res) {
+      _wdSetBusy(false);
+      if (res && res.ok) {
+        showToast('復塾しました。初回キーを再発行してください', 'success');
+        _wdRows = [];
+        // ★仕様：復塾時は初回キーを再発行する → そのまま既存の初回キー発行画面へ
+        goAdminAuthAlerts();
+        return;
+      }
+      var m = _wdErr(res);
+      if (!_handleAdminApiError(m)) showToast(m, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '🔁 復塾'; }
+    }).catch(function() {
+      _wdSetBusy(false);
+      if (btn) { btn.disabled = false; btn.textContent = '🔁 復塾'; }
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
+  // ====================== ID停止ペナルティ ======================
+  function goAdminSuspend() {
+    _showScreen('screen-admin-suspend');
+    window.scrollTo(0, 0);
+    _wdSetMsg('sp-suspend-msg', '', '');
+    var s = document.getElementById('sp-select');
+    if (s) s.value = '';
+    _wdEnsureStudents('sp-select');
+    spLoadList();
+  }
+
+  function spLoadList() {
+    var wrap = document.getElementById('sp-list-wrap');
+    var sum  = document.getElementById('sp-list-summary');
+    if (!wrap) return;
+    wrap.innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
+    if (sum) sum.textContent = '';
+    adminGasGet({ action: 'listSuspendedStudents', _ts: Date.now() }).then(function(res) {
+      if (!res || !res.ok) {
+        var m = _wdErr(res);
+        if (_handleAdminApiError(m)) { wrap.innerHTML = ''; return; }
+        wrap.innerHTML = '<div class="students-empty">' + _esc(m) + '</div>';
+        return;
+      }
+      _spRows = res.students || [];
+      _spRenderList();
+    }).catch(function() {
+      wrap.innerHTML = '<div class="students-empty">通信エラーが発生しました</div>';
+    });
+  }
+
+  function _spRenderList() {
+    var wrap = document.getElementById('sp-list-wrap');
+    var sum  = document.getElementById('sp-list-summary');
+    if (!wrap) return;
+    if (sum) sum.textContent = '全 ' + _spRows.length + ' 件';
+    if (!_spRows.length) { wrap.innerHTML = '<div class="students-empty">ペナルティ対象者はいません</div>'; return; }
+    var rows = _spRows.map(function(r, i) {
+      // suspendedAt は常に値あり（YYYY-MM-DD HH:MM:SS・JST）
+      return '<tr>' +
+               '<td>' + _esc(r.studentId) + '</td>' +
+               '<td>' + _esc(r.name || '（未登録）') + '</td>' +
+               '<td class="wd-when">' + _esc(r.suspendedAt) + '</td>' +
+               '<td class="wd-actions"><button type="button" class="btn-mini" id="sp-unsuspend-' + i + '" onclick="spUnsuspend(' + i + ')">✅ 解除</button></td>' +
+             '</tr>';
+    }).join('');
+    wrap.innerHTML =
+      '<div class="students-table-wrap"><table class="hp-grant-table">' +
+        '<thead><tr><th>生徒コード</th><th>氏名</th><th>停止開始</th><th>操作</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table></div>';
+  }
+
+  function spSuspend() {
+    if (_wdBusy) return;
+    var sel = document.getElementById('sp-select');
+    var sid = sel ? String(sel.value || '').trim() : '';
+    if (!sid) { _wdSetMsg('sp-suspend-msg', '⚠️ 生徒を選んでください', 'ng'); return; }
+    if (!confirm('この生徒に ID停止ペナルティを設定します。よろしいですか？\n\n' + _wdLabelOf(sid) +
+                 '\n\n★即時発効です。押した瞬間からログインできなくなります。')) return;
+    var btn = document.getElementById('sp-btn-suspend');
+    _wdSetBusy(true);
+    if (btn) { btn.disabled = true; btn.textContent = '設定中...'; }
+    _wdSetMsg('sp-suspend-msg', '', '');
+    adminGasPost({ action: 'suspendStudent', studentId: sid }).then(function(res) {
+      _wdSetBusy(false);
+      if (btn) { btn.disabled = false; btn.textContent = '⛔ ID停止ペナルティを設定する'; }
+      if (res && res.ok) {
+        showToast('ID停止ペナルティを設定しました', 'success');
+        _wdSetMsg('sp-suspend-msg', '✅ 設定しました（即時発効：' + (res.suspendedAt || '') + '）', 'ok');
+        if (sel) sel.value = '';
+        spLoadList();
+      } else {
+        var m = _wdErr(res);
+        if (!_handleAdminApiError(m)) showToast(m, 'error');
+        _wdSetMsg('sp-suspend-msg', '⚠️ ' + m, 'ng');
+      }
+    }).catch(function() {
+      _wdSetBusy(false);
+      if (btn) { btn.disabled = false; btn.textContent = '⛔ ID停止ペナルティを設定する'; }
+      _wdSetMsg('sp-suspend-msg', '⚠️ 通信エラーが発生しました', 'ng');
+    });
+  }
+
+  function spUnsuspend(i) {
+    if (_wdBusy) return;
+    var r = _spRows[i];
+    if (!r) return;
+    if (!confirm('この生徒の ID停止ペナルティを解除します。よろしいですか？\n\n' +
+                 _wdLabel(r.studentId, r.name, r.nickname) +
+                 '\n\n解除すると、すぐにログインできるようになります。')) return;
+    var btn = document.getElementById('sp-unsuspend-' + i);
+    _wdSetBusy(true);
+    if (btn) { btn.disabled = true; btn.textContent = '解除中...'; }
+    adminGasPost({ action: 'unsuspendStudent', studentId: String(r.studentId) }).then(function(res) {
+      _wdSetBusy(false);
+      if (res && res.ok) { showToast('ペナルティを解除しました', 'success'); spLoadList(); return; }
+      var m = _wdErr(res);
+      if (!_handleAdminApiError(m)) showToast(m, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✅ 解除'; }
+    }).catch(function() {
+      _wdSetBusy(false);
+      if (btn) { btn.disabled = false; btn.textContent = '✅ 解除'; }
+      showToast('通信エラーが発生しました', 'error');
+    });
+  }
+
   function goAdminStudentCareHub()  { _showScreen('screen-admin-student-care-hub');  window.scrollTo(0, 0); }
   function goAdminExchangeHub()     { _showScreen('screen-admin-exchange-hub');      window.scrollTo(0, 0); }
   function goAdminSystemHub()       { _showScreen('screen-admin-system-hub');        window.scrollTo(0, 0); _refreshNotifyBadges(); }
@@ -18259,7 +18725,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261022-0036</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261023-0438</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

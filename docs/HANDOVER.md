@@ -3469,3 +3469,40 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 473b884ee23350306a9c84bc97403546ddc87b35 && git push origin main && git checkout dev
   ```
+
+## 2026-10-22 本番反映：カンジー書きの結果取りこぼし対策＋和文英訳①の不正解画面の修正（★生徒に見える変更）
+
+- ★サーバー側は AWS リポ（mykt-eitango-aws）で先に本番反映済み：**`5e2b494`**
+- 反映内容（dev→main マージ、3 コミット）
+  - `15760d6` fix(カンジー/和文英訳①)：
+    - カンジー書き：待ち時間切れ以外の**通信エラーでも** `getKanjiKakiResult` に問い合わせてから LINE 案内へ（submitId は送信済み）。10/11 以降、通信エラーで即 LINE 案内に進んだ6件（24030・26007×2・26001・25008・24035）はいずれもサーバーで採点済みだった
+    - 問い合わせを 5/15/30 秒（3回）→ 失敗の時点から 5/10/15/20/30/40/50/60/75/90 秒（10回）に
+    - 和文英訳①：不正解画面に案内文を追加（他は `da7d76f` で調整）
+  - `da7d76f` fix(カンジー/和文英訳①)：判断の回答を反映
+    - LINE 案内（`#kanji-line-overlay`）の絵をマイカツ君 → **カンジー（`images/kanjii-encourage.png`）**、文言を確定版に：見出し「採点の結果を、うまく確かめられなんだのじゃ。」／本文「すまぬが、ノートの写真を『春アカ公式LINE』に送ってくれるか。先生が見てHPを付けてくださるゆえ、安心するのじゃ。」（「答案は届いている」は送る前の通信エラーでも出るため書かない）
+    - 問い合わせの起点：**送信開始から最低150秒**までは15秒おきに足す（失敗の時点から90秒の予定も維持＝長い方まで）。10/18 25008 は送信から約156秒後に保存されていたため、150秒だけにはしていない
+    - 和文英訳①：サーバー（`WabunActions.php` @`38e31f8` L143）が不正解カードに `correctRaw`（その日の問題の正解）を返しているため、新しく足した「📖 正解」欄と、不正解画面の「💡 正解を表示する」を撤去（★合格画面の 💡 は従来どおり）。ニチエイの案内は「字が雑だったか、答えが正解とちがってたみたい！上の『正解』をていねいな字で写して、もう一回写真に撮って送ってね〜」
+    - ★採点の判定ロジックは無変更
+  - `3dec0e9` docs(handover)：前回反映（`473b884`）の記録（この反映で main へ同載）
+- **反映前の main（切り戻し先）：`473b884ee23350306a9c84bc97403546ddc87b35`**（＝`473b884`。ローカル main もこの値で一致していた）
+- **マージコミット：`442a520f02eae9cd1af06dde83df38813b9b038f`**（＝`442a520`。親＝`473b884` ＋ `da7d76f`）
+- **dev HEAD：`da7d76ff9ef662264e5c019c1d4e8d28a05c97b2`**
+- 版バッジ：`20261022-0036`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `442a520` / run `39631953386` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`442a520f02eae9cd1af06dde83df38813b9b038f`、ローカル main と一致
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致
+  - index `ffb6edbb5a4cce082ba59ec13458f41a5cd072751db79dde352af944f5d71a09`
+  - view  `3d51c748a1e555f11a76c75259a5fafcb4de5f2800a061b7e94d7ea915ec3da3`
+  - admin `c29fa997879a88998e9a94292c176ff57f1f091398953f91f336e903831c94b4`
+- 反映後、配信物そのもので確認したこと
+  - LINE 案内の絵＝`images/kanjii-encourage.png`（`alt="カンジー"`、`character.jpg` は残っていない。画像も配信 200）
+  - LINE 案内の新しい見出し・本文が載っている（旧「採点サーバーがエラーで止まっている」「答案はちゃんと届いておる」は 0）
+  - 和文英訳①の不正解画面：表示される「📖 正解」欄＝0（残る1件はコードのコメントのみ）／`showWabun1Answers()`＝0／📸 もう一度撮影する＝1。合格画面の `showWabun1Answers()`＝1（残っている）
+  - ニチエイの案内文が載っている
+  - `_kanjiKakiPollResult(payload, sentAt)` が載っている
+  - ★`main` の tree ＝ `dev` の tree（`07a1e130e8c61bbdca868ae63fd89c7f01e50bea`）＝**dev の内容以外は main に入っていない**
+- ゲート：`origin/main..dev` は**3本**（想定通り）。変更ファイルは index / admin / view / docs/HANDOVER.md のみで、`git diff --name-status --diff-filter=ADRCTX` は**空**＝**launch.json 等の混入なし**。CLAUDE.md ゲート判定値＝**78 行**（index.html のカンジー書き・和文英訳①。view・admin は版スタンプのみで 0）。`dev..origin/main` の非マージ5本は 2026-08 の Pages 再ビルド用の空コミットのみ
+- 作業前に `git status` で未コミットの差分が無いことを確認済み
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 442a520f02eae9cd1af06dde83df38813b9b038f && git push origin main && git checkout dev
+  ```
