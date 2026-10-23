@@ -3745,10 +3745,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261024-0055"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261024-0107"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261024-0055">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261024-0055"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261024-0107">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261024-0107"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7167,18 +7167,34 @@
      ★res.retake（写真がぼやけて読めない＝撮り直しで直る）には出さない。採点そのものが止まった時だけ。
      「分かりました」→ _kanjiLineConfirmed() で LINE 回送を記録し goContentMenu へ（閉じ込め回避）。 -->
 <!-- 2026-10-24：カンジー「書き」で再送しても採点に失敗したときの案内（マイカツ君）。「分かりました」でホームへ。
-     ★生徒の操作は不要（サーバー側で失敗した答案を保存し塾長へ通知する）。「LINEに送って」とは書かない。 -->
+     ★生徒の操作は不要。「LINEに送って」とは書かない。2026-10-24 塾長判断で2種類に分けた：
+     ・kanji-giveup-overlay      … サーバーが応答を返した後の失敗（ok:false＝採点そのものが失敗。答案はサーバーに届いている）
+     ・kanji-giveup-net-overlay  … サーバーの応答が無いまま切れた（通信エラー・待ち時間切れ）。★「届いています」とは言わない -->
 <div id="kanji-giveup-overlay" class="mykt-overlay">
   <div class="mykt-overlay-card">
     <div class="mykt-overlay-row">
       <img src="./character.jpg" class="chara-img" alt="マイカツ君">
       <div class="mykt-overlay-bubble grading">
-        <div style="font-weight:bold;font-size:15px;color:#1d4ed8;margin-bottom:6px">だいじょうぶ！先生に届いているよ</div>
-        きみが書いた答えは、先生のところに届くようになっているから安心してね。<br>先生が見て、あとでHPを付けてくれるよ。<br>今日はこのままホームに戻ろう！
+        <div style="font-weight:bold;font-size:15px;color:#1d4ed8;margin-bottom:6px">あなたの解答はこちらに届いてます！</div>
+        あなたの解答は無事にこちらに届いてます。先生がそれを見てHPを付けてくれるので、今日はこのまま安心してホームに戻ってください。
       </div>
     </div>
     <div class="mykt-overlay-btns">
-      <button class="btn-retry" onclick="_kanjiKakiGiveUpConfirmed()">分かりました（ホームへ）</button>
+      <button class="btn-retry" onclick="_kanjiKakiGiveUpConfirmed('server')">分かりました（ホームへ）</button>
+    </div>
+  </div>
+</div>
+<div id="kanji-giveup-net-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble grading">
+        <div style="font-weight:bold;font-size:15px;color:#1d4ed8;margin-bottom:6px">ごめんね、うまく送れなかったみたい</div>
+        通信の調子が悪くて、答えを送ることができなかったよ。きみのせいじゃないから安心してね。<br>先生に「カンジーの書きが送れなかった」と伝えてくれるかな。<br>今日はこのままホームに戻って大丈夫だよ！
+      </div>
+    </div>
+    <div class="mykt-overlay-btns">
+      <button class="btn-retry" onclick="_kanjiKakiGiveUpConfirmed('net')">分かりました（ホームへ）</button>
     </div>
   </div>
 </div>
@@ -23890,10 +23906,12 @@
     payload.submitId = _kanjiKakiNewSubmitId();
     // 2026-10-24：この答案の送信が失敗した回数。1回目は「もう一度送信する」、再送も失敗（2回目以降）なら
     //   「先生に届いているから大丈夫」の案内を出してホームへ戻れるようにする（閉じ込めない）。
+    //   kind：'server'＝サーバーが応答を返した後の失敗（ok:false）／'net'＝応答が無いまま切れた（通信エラー・待ち時間切れ）。
+    //   ★案内と記録は「最後の失敗」の種類で分ける。
     var failCount = 0;
-    function _kanjiKakiSubmitFailed() {
+    function _kanjiKakiSubmitFailed(kind) {
       failCount++;
-      if (failCount >= 2) { _showKanjiKakiGiveUp(); return; }
+      if (failCount >= 2) { _showKanjiKakiGiveUp(kind === 'server' ? 'server' : 'net'); return; }
       _showSubmitError();   // _pendingRetry（doSubmit）/ _pendingDismiss は doSubmit で設定済み
     }
     function doSubmit() {
@@ -23929,7 +23947,8 @@
           }
           // 2026-10-24：採点の失敗（!res.ok）は LINE 案内をやめ、他のコンテンツと同じ「もう一度送信する」へ。
           //   ★res.retake（撮り直しで直る）は上で分岐済み。書いた字はキャンバスに残っているので書き直し不要。
-          _kanjiKakiSubmitFailed();
+          //   ★サーバーが ok:false を返した＝答案はサーバーに届いている（'server'）。応答の中身が無いときは届いたと言い切らない（'net'）。
+          _kanjiKakiSubmitFailed(res && res.ok === false ? 'server' : 'net');
           return;
         }
         // 2026-05-12 バグ⑤ Phase B：再撮影誘導（採点保留）。
@@ -23980,7 +23999,7 @@
           if (found) { _onKanjiKakiRes(found); return; }
           _hideHpConfirmingOverlay();
           submitBtn.disabled = false;
-          _kanjiKakiSubmitFailed();   // 2026-10-24：LINE 案内 → 「もう一度送信する」（再送も失敗したらホームへの案内）
+          _kanjiKakiSubmitFailed('net');   // 2026-10-24：応答が無いまま切れた（問い合わせても結果なし）→「もう一度送信する」（再送も失敗したらホームへの案内）
         });
       });
     }
@@ -23990,19 +24009,26 @@
   // 2026-10-24：再送しても採点に失敗したときの出口（マイカツ君）。生徒の操作は不要（サーバー側で失敗した答案の画像を
   //   保存して塾長に通知する仕組みがある）。「分かりました」でホームへ戻る（閉じ込め回避）。
   //   ★記録は既存の _recordLineHandoff に乗せる（先生への通知に「参考」として書き添えられる仕組み）。
-  function _showKanjiKakiGiveUp() {
+  //   kind：'server'（答案はサーバーに届いている）／'net'（届いていない）。案内も記録の文言も分ける。
+  function _showKanjiKakiGiveUp(kind) {
     _pendingRetry = null;
     _pendingDismiss = null;
-    var ov = document.getElementById('kanji-giveup-overlay');
+    var ov = document.getElementById(kind === 'server' ? 'kanji-giveup-overlay' : 'kanji-giveup-net-overlay');
     if (ov) { ov.classList.add('active'); return; }
-    _kanjiKakiGiveUpConfirmed();   // オーバーレイが無い異常時でも詰まらせない
+    _kanjiKakiGiveUpConfirmed(kind);   // オーバーレイが無い異常時でも詰まらせない
   }
-  function _kanjiKakiGiveUpConfirmed() {
+  function _kanjiKakiGiveUpConfirmed(kind) {
     try {
-      var ov = document.getElementById('kanji-giveup-overlay');
-      if (ov) ov.classList.remove('active');
+      ['kanji-giveup-overlay', 'kanji-giveup-net-overlay'].forEach(function(id){
+        var ov = document.getElementById(id);
+        if (ov) ov.classList.remove('active');
+      });
     } catch(e){}
-    try { _recordLineHandoff('カンジー書き(採点失敗・ホームへ戻った)'); } catch(e){}
+    // ★先生が「届いている答案」と「届いていない答案」を見分けられる文言で残す。
+    var label = (kind === 'server')
+      ? 'カンジー書き(採点失敗・答案はサーバーに届いた・ホームへ戻った)'
+      : 'カンジー書き(送信失敗・答案は届いていない・ホームへ戻った)';
+    try { _recordLineHandoff(label); } catch(e){}
     try { goHome(); } catch(e){}
   }
   // （2026-10-24 以降は使っていない）2026-09-18：カンジー『書き』の採点がサーバー側で失敗（Gemini 落ち・429・通信・タイムアウト）した時の LINE 案内。
@@ -27752,7 +27778,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261024-0055</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261024-0107</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
