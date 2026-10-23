@@ -3506,3 +3506,69 @@ docs/HANDOVER.md（v12→13 で作成した決定版）の内容を以下に貼�
   ```bash
   git checkout main && git revert --no-edit -m 1 442a520f02eae9cd1af06dde83df38813b9b038f && git push origin main && git checkout dev
   ```
+
+## 2026-10-23 本番反映：退塾処理 / ID停止ペナルティ（段階4・管理画面のみ）
+
+- ★管理画面（admin専用）だけの変更。**生徒・保護者の画面には一切変化なし**（index / view は版スタンプのみ）。
+- ★サーバー側は AWS feat/s3-phase `c5d9534` ですでに実装済み。今回はその**画面側の結線**。
+- 反映内容（dev→main マージ、3 コミット）
+  - `8ef9ac2` feat(管理画面)：退塾処理 / ID停止ペナルティ を結線（段階4）
+    - **生徒対応ハブ**（`screen-admin-student-care-hub`）の**一番下**にカード 2 枚を追加（既存 4 枚の並びは無変更）
+      - 🚪 退塾処理（`dash-card-withdrawal`）／⛔ ID停止ペナルティ（`dash-card-suspend`）
+      - どちらも `dashboard-card admin-only`。既存の `_applyDashboardRoleVisibility()` で講師には出ない
+    - **退塾処理**（`screen-admin-withdrawal`・新規）
+      - 生徒 ＋ 退塾予定日（`<input type="date">`）を指定して `scheduleWithdrawal` で予約
+      - `listWithdrawnStudents` で一覧。`state` を色付きバッジで区別（**予約中**＝黄／**発効済み**＝赤）
+      - 予約中の行＝「↩ 予約取消」（`cancelWithdrawal`）／発効済みの行＝「🔁 復塾」（`reinstateStudent`）
+      - ★**復塾が成功したら、そのまま既存の初回キー発行画面（`goAdminAuthAlerts()`）へ遷移**（失敗時は遷移しない）
+    - **ID停止ペナルティ**（`screen-admin-suspend`・新規）
+      - ★赤枠（`.danger-note`）で「**即時発効です。設定した瞬間からログインできなくなります**」を常時表示
+      - `suspendStudent` で設定／`listSuspendedStudents` で一覧（`suspendedAt` を併記）／各行に「✅ 解除」（`unsuspendStudent`）
+    - **誤操作の防止**：退塾予約 / 予約取消 / 復塾 / ペナルティ設定 / 解除 の **5 操作すべてに `confirm`**。
+      既存（`niActivateInitialKey` / `resetParentAuth`）の作法に合わせ、**生徒の氏名を必ず含める**
+    - ★ヘッダー用 CSS セレクタ一覧 **3 か所**（通常版 background / 通常版 h1 / レスポンシブ h1）に新画面 ID を登録（CLAUDE.md の決まり）
+    - 生徒名簿は既存の `getStudentsListForGrant` を流用。見た目も既存（`.form-card` / `.ni-lead` / `.ni-row` / `.hp-grant-table` / `.btn-mini`）の流用
+  - `eafc3a6` refactor(管理画面)：退塾/ID停止のキー名を AWS 確定仕様 1 本に絞る
+    - ★`8ef9ac2` の時点では**引数名・返却キーの指定が無かった**ため、送信は `studentCode` ＋ `studentId` を併送、
+      日付は `withdrawalDate` / `scheduledDate` / `date` を併送、受信も別名を順に探す「候補探索」実装にしていた。
+      AWS 側のキー名が判明したので**確定仕様 1 本に置き換え**（候補探索ヘルパー `_wdPick` / `_wdCode` / `_wdName` /
+      `_wdNick` / `_wdDate` / `_spSince` / `_wdLabelOfRow` と、返却キー確認用の `console.log` を削除＝候補探索 36 行）
+    - **確定仕様**
+      - POST（`adminGasPost`）：`scheduleWithdrawal` / `cancelWithdrawal` / `reinstateStudent` / `suspendStudent` / `unsuspendStudent`
+      - GET（`adminGasGet`）：`listWithdrawnStudents` / `listSuspendedStudents`
+      - リクエストは全 action 共通で **`studentId`（生徒コード・文字列）のみ**。`scheduleWithdrawal` だけ
+        **`withdrawalScheduledDate`（YYYY-MM-DD）** を追加。一覧系 2 本は**引数なし**
+        （`teacherId` / `password` は `adminGasGet` / `adminGasPost` が自動付与するので画面では足さない）
+      - 失敗時は **`res.message` をそのまま表示**（共通 `_wdErr` のみ。★action ごとの独自エラー文言は作らない）
+      - 一覧は **`res.students` 固定**。退塾一覧は `state` で出し分け、`effective`→`effectiveDate` /
+        `scheduled`→`scheduledDate` を表示（**null なら「—」**）。ペナルティ一覧は `suspendedAt`（YYYY-MM-DD HH:MM:SS・JST）
+    - ★画面の構成・ボタンの位置・確認ダイアログの文言は**変更なし**（5 件の確認文言が `8ef9ac2` と同一であることを検証済み）
+  - `264bb78` docs(handover)：カンジー書き／和文英訳①の本番反映を記録（`442a520`・前回反映済み分・この反映で main へ同載）
+- **反映前の main（切り戻し先）：`442a520f02eae9cd1af06dde83df38813b9b038f`**（＝`442a520`）
+- **マージコミット：`1f420e343a315716ca2886cd63907ec1d26d1535`**（＝`1f420e3`。親＝`442a520` ＋ `eafc3a6`）
+- **dev HEAD：`eafc3a65d11be13eadbe2335e855e8cedbfa73b1`**
+- 版バッジ：`20261023-0438`（index / view / admin の3ファイル一致）
+- GitHub Actions（pages build and deployment）：head_sha `1f420e3` / run `39842312730` → **completed success**（gh 未導入のため GitHub API で確認）。`git rev-parse origin/main`＝`1f420e343a315716ca2886cd63907ec1d26d1535`、ローカル main と一致（`origin/main..main` は 0 本）
+- 配信物 sha256 が3ファイルとも `git show origin/main:` の blob と完全一致（★作業ツリーは CRLF・配信/blob は LF のため作業ツリー直の sha256 とは不一致が正常。blob と比較すること）
+  - index `4b50b48156b7e216466f995afa7ded6f491609d04567800c45a0dc61c62aa994`
+  - view  `bcd4c03bc139f27323beb6ec8303e690e8640988e6334a3ca4e3f468b40d2401`
+  - admin `20f5077782d887b55015edcb4e3ad4e305207093b63f8ca1daa9deaf9523251a`
+- 反映後、配信物そのもので確認したこと
+  - カード 2 枚（`dash-card-withdrawal` / `dash-card-suspend`）＝各1、新画面 2 つ（`screen-admin-withdrawal` / `screen-admin-suspend`）＝各1
+  - `scheduleWithdrawal` の送信が確定仕様どおり（`studentId` ＋ `withdrawalScheduledDate` のみ）、一覧系 2 本も各1
+  - 即時発効の赤枠（`.danger-note`）＝1、ヘッダー CSS セレクタへの登録＝1
+  - ★候補探索の残骸ゼロ（`_wdPick` ＝0 / `sample row` ＝0 / `console.log('[list` ＝0）
+  - ★既存機能は健在（`screen-admin-auth-alerts` ＝5 / `niIssueInitialKey` ＝2 / `goAdminHpGrant()` ＝1 / `qeditSearch(` ＝3 / `screen-admin-student-add` ＝9）
+  - ★`main` の tree ＝ `dev` の tree（`69fb869b1694ad717a037e6d3d12e6199c3f21e9`）、`git diff main dev` は空＝**dev の内容以外は main に入っていない**
+  - ゲート：`origin/main..dev` は**3本**（想定通り）。変更ファイルは admin / index / view / docs/HANDOVER.md のみで、
+    `git diff --name-status --diff-filter=ADRCTX` は**空**＝**`launch.json` 等の想定外ファイルの混入なし**。
+    **CLAUDE.md ゲート判定値＝0 行**（管理画面だけの変更。index / view は版スタンプと `?v=` のみ）
+  - 検証（コミット時）：`8ef9ac2` で 83 PASS / 0 FAIL、`eafc3a6` で **97 PASS / 0 FAIL**
+    （構文 / 候補探索の残骸 grep / 確定キーのモック動作 / 画面構成と既存機能の回帰）
+- ★実機での確認はふくちさん側で test枠（1001〜1010）を使って実施。クロは管理画面にログインできないためモック検証のみ
+- ★未確認のまま残っている動作：**復塾（`reinstateStudent`）**。実際に退塾を発効させないと試せないため、
+  test枠では確認していない。本番で初めて使うときに、初回キー再発行まで通して確認すること
+- 切り戻し（push -f は使わない）：
+  ```bash
+  git checkout main && git revert --no-edit -m 1 1f420e343a315716ca2886cd63907ec1d26d1535 && git push origin main && git checkout dev
+  ```
