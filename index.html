@@ -290,7 +290,7 @@
     .kki-q-text { font-size: 18px; line-height: 1.7; color: #1f2937; }
     .kki-q-hint { margin-top: 6px; font-size: 13px; color: #6b7280; }
     /* 2026-09-26：字数分のマス → 1問1枚の大きな白紙キャンバス（5:3）。答え全体を自由に書く。 */
-    .kki-pad-wrap { display: flex; justify-content: center; touch-action: none; }
+    .kki-pad-wrap { display: flex; justify-content: center; }   /* 2026-10-24 マス方式：板が縦に長くなるので、板の外はスクロールできるようにした（板そのものは touch-action:none） */
     .kki-pad { display: block; background: #fff; border: 2px solid #d1d5db; border-radius: 8px; box-sizing: content-box; touch-action: none; cursor: crosshair; }
     .kp-check-note { margin: 10px 0 0; font-size: 13px; color: #b91c1c; text-align: center; font-weight: bold; }
     .kp-btn-row { display: flex; gap: 10px; margin-top: 12px; }
@@ -3745,10 +3745,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261023-0438"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261024-0446"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261023-0438">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261023-0438"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261024-0446">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261024-0446"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7166,6 +7166,39 @@
      lison-escape-overlay / photo-escape-overlay と同型（LINE へ回して先生が HP 付与）。
      ★res.retake（写真がぼやけて読めない＝撮り直しで直る）には出さない。採点そのものが止まった時だけ。
      「分かりました」→ _kanjiLineConfirmed() で LINE 回送を記録し goContentMenu へ（閉じ込め回避）。 -->
+<!-- 2026-10-24：カンジー「書き」で再送しても採点に失敗したときの案内（マイカツ君）。「分かりました」でホームへ。
+     ★生徒の操作は不要。「LINEに送って」とは書かない。2026-10-24 塾長判断で2種類に分けた：
+     ・kanji-giveup-overlay      … 答案がサーバーに残った失敗（res.answerSaved === true）。採点は止まったが答案は届いている
+     ・kanji-giveup-net-overlay  … 答案が残らなかった失敗（answerSaved が false／項目なし・通信エラー・待ち時間切れ）。
+                                    ★認証切れ等で採点まで届かなかった場合もこちら。「届いています」とは言わない -->
+<div id="kanji-giveup-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble grading">
+        <div style="font-weight:bold;font-size:15px;color:#1d4ed8;margin-bottom:6px">あなたの解答はこちらに届いてます！</div>
+        あなたの解答は無事にこちらに届いてます。先生がそれを見てHPを付けてくれるので、今日はこのまま安心してホームに戻ってください。
+      </div>
+    </div>
+    <div class="mykt-overlay-btns">
+      <button class="btn-retry" onclick="_kanjiKakiGiveUpConfirmed('server')">分かりました（ホームへ）</button>
+    </div>
+  </div>
+</div>
+<div id="kanji-giveup-net-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble grading">
+        <div style="font-weight:bold;font-size:15px;color:#1d4ed8;margin-bottom:6px">通信エラーで送れませんでした</div>
+        通信の調子が悪くて、あなたの答えを送ることができませんでした。<br>あとで先生に「漢字の書きが送れなかった」と伝えてください。<br>（今日はこのままホームに戻ってください。）
+      </div>
+    </div>
+    <div class="mykt-overlay-btns">
+      <button class="btn-retry" onclick="_kanjiKakiGiveUpConfirmed('net')">分かりました（ホームへ）</button>
+    </div>
+  </div>
+</div>
 <div id="kanji-line-overlay" class="mykt-overlay">
   <div class="mykt-overlay-card">
     <div class="mykt-overlay-row">
@@ -23209,11 +23242,12 @@
     ctx.clearRect(0, 0, w, h);
     return ctx;
   }
-  function _kkiDrawStrokes(ctx, strokes, w, h, color) {
+  //   lw（任意）：線の太さ。未指定は従来どおり max(3, h×0.03)。
+  function _kkiDrawStrokes(ctx, strokes, w, h, color, lw) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = color || '#111827';
-    ctx.lineWidth = Math.max(3, h * 0.03);
+    ctx.lineWidth = lw || Math.max(3, h * 0.03);
     (strokes || []).forEach(function(st){
       if (!st || !st.length) return;
       ctx.beginPath();
@@ -23223,18 +23257,46 @@
       ctx.stroke();
     });
   }
-  // 白紙キャンバスを描き直す（★グリッドなし・白背景）。
+  // ===== 2026-10-24 マス方式（塾長決定・試作 kanji-grid-test.html の既定値） =====
+  //   ★板（キャンバス）は1枚のまま。横幅＝1マス、縦＝1マス×正解の文字数。文字の境目に区切り線を1本。
+  //   ★区切り線は画面の板にだけ描く（線のデータには入らない＝送信用の合成画像には写らない）。
+  //   1マス＝画面幅の約1/3（偶数px・60〜240px。411px の端末で 138px）。
+  var KKI_CELL_MIN = 60, KKI_CELL_MAX = 240;
+  var KKI_GRID_LINE_W = 1.5, KKI_GRID_LINE_ALPHA = 0.45;   // 区切り線＝普通の実線・太さ1.5px・濃さ45%
+  function _kkiCellPx() {
+    var vw = window.innerWidth || document.documentElement.clientWidth || 375;
+    return Math.max(KKI_CELL_MIN, Math.min(KKI_CELL_MAX, Math.round(vw / 3 / 2) * 2));
+  }
+  // マスの数＝正解の文字数ちょうど（送りがな込み。実測で最大5文字）。1 未満にはしない。
+  function _kkiCellCount(it) {
+    var n = 0;
+    try { n = Array.from(String((it && it.answer) || '')).length; } catch(e) { n = String((it && it.answer) || '').length; }
+    return Math.max(1, n);
+  }
+  // 白紙キャンバスを描き直す（白背景＋マスの区切り線＋書いた線）。
   function _kkiRedrawPad() {
     var cv = document.getElementById('kki-pad');
     var it = _kanjiKakiInput.items[_kanjiKakiInput.idx];
     if (!cv || !it) return;
-    var w = Number(cv.getAttribute('data-w')) || 300, h = Number(cv.getAttribute('data-h')) || 180;
+    var w = Number(cv.getAttribute('data-w')) || 138, h = Number(cv.getAttribute('data-h')) || 138;
+    var n = Number(cv.getAttribute('data-n')) || 1;
+    var cell = w;   // 横幅＝1マス
     var ctx = _kkiSetupRect(cv, w, h);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, w, h);
+    // 区切り線（文字の境目に1本ずつ）。★画面表示だけ。
+    ctx.save();
+    ctx.strokeStyle = 'rgba(17,24,39,' + KKI_GRID_LINE_ALPHA + ')';
+    ctx.lineWidth = KKI_GRID_LINE_W;
+    for (var k = 1; k < n; k++) {
+      var y = Math.round(cell * k) + 0.5;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+    ctx.restore();
     var list = it.strokes.slice();
     if (_kanjiKakiInput.current) list.push(_kanjiKakiInput.current.pts);
-    _kkiDrawStrokes(ctx, list, w, h);
+    // 線の太さ＝1マス×0.03（最低3px）。板の高さ基準だと文字数が多いほど太くなるため。
+    _kkiDrawStrokes(ctx, list, w, h, null, Math.max(3, cell * 0.03));
   }
   function _kkiRenderQuestion() {
     var items = _kanjiKakiInput.items;
@@ -23250,11 +23312,11 @@
     if (hint) hint.innerHTML = '↑ <span class="kanji-emphasis">赤い太字</span>を、送りがなもふくめて漢字で書こう';
     var wrap = document.getElementById('kki-pad-wrap');
     if (wrap) {
-      var border = 4;
-      var w = Math.floor((wrap.getBoundingClientRect().width || 320) - border);
-      w = Math.max(240, Math.min(560, w));
-      var h = Math.round(w * KKI_ASPECT);
-      wrap.innerHTML = '<canvas class="kki-pad" id="kki-pad" data-w="' + w + '" data-h="' + h + '" style="width:' + w + 'px;height:' + h + 'px"></canvas>';
+      // 2026-10-24 マス方式：横幅＝1マス、縦＝1マス×正解の文字数（線は板の幅・高さに対する割合のまま保持）。
+      var cell = _kkiCellPx();
+      var n = _kkiCellCount(it);
+      var w = cell, h = cell * n;
+      wrap.innerHTML = '<canvas class="kki-pad" id="kki-pad" data-w="' + w + '" data-h="' + h + '" data-n="' + n + '" style="width:' + w + 'px;height:' + h + 'px"></canvas>';
       _kkiRedrawPad();
     }
     var last = (_kanjiKakiInput.idx + 1 >= items.length);
@@ -23308,7 +23370,12 @@
     wrap.addEventListener('pointermove', _kkiOnMove);
     wrap.addEventListener('pointerup', _kkiOnUp);
     wrap.addEventListener('pointercancel', _kkiOnUp);
-    var stopNative = function(e){ if (e.cancelable) e.preventDefault(); };
+    // 2026-10-24：板（.kki-pad）に触れたときだけ既定の動きを止める（板の外は従来の画面と同じくスクロールできる）。
+    var stopNative = function(e){
+      var t = e.target;
+      if (!t || !t.classList || !t.classList.contains('kki-pad')) return;
+      if (e.cancelable) e.preventDefault();
+    };
     try {
       wrap.addEventListener('touchstart', stopNative, { passive: false });
       wrap.addEventListener('touchmove',  stopNative, { passive: false });
@@ -23353,8 +23420,39 @@
     }
     kanjiKakiInputSubmit();
   }
+  // 2026-10-24 マス方式の線を、合成の行に「横一列」で描く（塾長判断：AI には従来と同じ横書きの1行を送る）。
+  //   ・どのマスの線かは★線の y 座標（割合）で決める：線の点の y の範囲（最上〜最下）の真ん中が入っているマス。
+  //   ・★マスの境目をまたいだ線（はみ出した字）は捨てない：真ん中で決めたマスに丸ごと寄せ、形は切らずにそのまま描く
+  //     （はみ出した分は、横一列の上下にはみ出して描かれる＝隣の字には重ならない）。
+  //   ・1マスは正方形（S×S）。S＝min(行の幅÷文字数, 行の高さ)。横一列を行の中央に置く。字の縦横比は変わらない。
+  //   ・線の太さ＝1マスの大きさ×0.03（最低3px）＝画面の板と同じ割合。★従来の「行の高さ×0.03（10.8px）」のままだと
+  //     5文字（1字120px）で線が字の約9%の太さになり、込み入った字の線がつぶれるため。1文字のときは従来と同じ 10.8px。
+  //   ・区切り線は描かない。
+  function _kkiDrawCellsAsRow(ctx, strokes, n, EW, EH, color) {
+    n = Math.max(1, n | 0);
+    var S = Math.min(EW / n, EH);
+    var ox = (EW - S * n) / 2, oy = (EH - S) / 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = color || '#111827';
+    ctx.lineWidth = Math.max(3, S * 0.03);
+    (strokes || []).forEach(function(st){
+      if (!st || !st.length) return;
+      var ymin = 1, ymax = 0;
+      for (var i = 0; i < st.length; i++) { if (st[i][1] < ymin) ymin = st[i][1]; if (st[i][1] > ymax) ymax = st[i][1]; }
+      var k = Math.max(0, Math.min(n - 1, Math.floor(((ymin + ymax) / 2) * n)));
+      var px = function(pt){ return ox + k * S + pt[0] * S; };
+      var py = function(pt){ return oy + (pt[1] * n - k) * S; };
+      ctx.beginPath();
+      ctx.moveTo(px(st[0]), py(st[0]));
+      if (st.length === 1) ctx.lineTo(px(st[0]) + 0.01, py(st[0]));
+      for (var j = 1; j < st.length; j++) ctx.lineTo(px(st[j]), py(st[j]));
+      ctx.stroke();
+    });
+  }
   // 全問を 1 枚に合成：各行「番号.」＋その問の白紙キャンバス（白背景・枠線なし）を縦に並べる。
   //   ★JPEG は透明が黒になるので先に白で塗る。行の高さは白紙キャンバスと同じ 5:3 の比率。
+  //   2026-10-24：行の中身はマス方式の線を横一列に並べ替えて描く（_kkiDrawCellsAsRow）。行の大きさ・番号・並べ方は従来どおり。
   function _kkiComposeDataUrl() {
     var items = _kanjiKakiInput.items;
     var EW = 600, EH = Math.round(EW * KKI_ASPECT), LABEL = 150, ROWGAP = 40, PAD = 40;
@@ -23376,7 +23474,7 @@
       ctx.restore();
       ctx.save();
       ctx.translate(PAD + LABEL, y0);
-      _kkiDrawStrokes(ctx, it.strokes, EW, EH, '#111827');
+      _kkiDrawCellsAsRow(ctx, it.strokes, _kkiCellCount(it), EW, EH, '#111827');
       ctx.restore();
     });
     return cv.toDataURL('image/jpeg', 0.85);
@@ -23807,6 +23905,17 @@
     if (inputMethod === 'screen') payload.inputMethod = 'screen';
     // 2026-10 (B)：提出ごとの識別子。待ち時間切れのとき getKanjiKakiResult でこの提出の結果を問い合わせるのに使う。
     payload.submitId = _kanjiKakiNewSubmitId();
+    // 2026-10-24：この答案の送信が失敗した回数。1回目は「もう一度送信する」、再送も失敗（2回目以降）なら
+    //   「先生に届いているから大丈夫」の案内を出してホームへ戻れるようにする（閉じ込めない）。
+    //   kind：'server'＝答案がサーバーに残った失敗（res.answerSaved === true）／
+    //         'net'  ＝答案が残らなかった失敗（answerSaved が false／項目なし、通信エラー、待ち時間切れ）。
+    //   ★案内と記録は「最後の失敗」の種類で分ける（失敗のたびに kind を渡し直す）。
+    var failCount = 0;
+    function _kanjiKakiSubmitFailed(kind) {
+      failCount++;
+      if (failCount >= 2) { _showKanjiKakiGiveUp(kind === 'server' ? 'server' : 'net'); return; }
+      _showSubmitError();   // _pendingRetry（doSubmit）/ _pendingDismiss は doSubmit で設定済み
+    }
     function doSubmit() {
       var sentAt = Date.now();   // 2026-10-22：問い合わせの起点（送信開始から最低 150 秒）
       _showHpConfirmingOverlay('kanjii');
@@ -23838,10 +23947,14 @@
             showScreen('screen-kanji-kaki');
             return;
           }
-          // 2026-09-18：サーバ側の採点が失敗（Gemini 落ち・429・HP_LOG_FAILED 等、採点そのものが止まった）
-          //   → リトライで直らないため、汎用エラー（もう一度送信）ではなくカンジー『書き』の LINE 案内を出す。
-          //   ★res.retake（撮り直しで直る）は上で分岐済み。ここは「システムが止まっている失敗」だけ。
-          _showKanjiLineHandoff();
+          // 2026-10-24：採点の失敗（!res.ok）は LINE 案内をやめ、他のコンテンツと同じ「もう一度送信する」へ。
+          //   ★res.retake（撮り直しで直る）は上で分岐済み。書いた字はキャンバスに残っているので書き直し不要。
+          //   ★2026-10-24 改：答案が残ったかどうかは res.answerSaved（サーバー e25907f で追加）だけで判定する。
+          //     answerSaved === true … 答案の画像を保存でき、記録の行も入れられた → 'server'（届いてます）
+          //     それ以外（false／項目が無い）… 保存に失敗、または採点まで届かなかった失敗
+          //       （認証切れ・トークン無し・画像なし・級の指定が不正・正解データなし）→ 'net'（通信エラー）
+          //     ★以前は ok:false というだけで 'server' にしていたため、認証切れでも「届いてます」と出ていた。
+          _kanjiKakiSubmitFailed(res && res.answerSaved === true ? 'server' : 'net');
           return;
         }
         // 2026-05-12 バグ⑤ Phase B：再撮影誘導（採点保留）。
@@ -23892,14 +24005,40 @@
           if (found) { _onKanjiKakiRes(found); return; }
           _hideHpConfirmingOverlay();
           submitBtn.disabled = false;
-          _showKanjiLineHandoff();
+          _kanjiKakiSubmitFailed('net');   // 2026-10-24：応答が無いまま切れた（問い合わせても結果なし）→「もう一度送信する」（再送も失敗したらホームへの案内）
         });
       });
     }
     doSubmit();
   }
 
-  // 2026-09-18：カンジー『書き』の採点がサーバー側で失敗（Gemini 落ち・429・通信・タイムアウト）した時の LINE 案内。
+  // 2026-10-24：再送しても採点に失敗したときの出口（マイカツ君）。生徒の操作は不要（サーバー側で失敗した答案の画像を
+  //   保存して塾長に通知する仕組みがある）。「分かりました」でホームへ戻る（閉じ込め回避）。
+  //   ★記録は既存の _recordLineHandoff に乗せる（先生への通知に「参考」として書き添えられる仕組み）。
+  //   kind：'server'（答案はサーバーに届いている＝res.answerSaved === true）／
+  //         'net'（届いていない＝answerSaved が false／項目なし・通信エラー・待ち時間切れ）。案内も記録の文言も分ける。
+  function _showKanjiKakiGiveUp(kind) {
+    _pendingRetry = null;
+    _pendingDismiss = null;
+    var ov = document.getElementById(kind === 'server' ? 'kanji-giveup-overlay' : 'kanji-giveup-net-overlay');
+    if (ov) { ov.classList.add('active'); return; }
+    _kanjiKakiGiveUpConfirmed(kind);   // オーバーレイが無い異常時でも詰まらせない
+  }
+  function _kanjiKakiGiveUpConfirmed(kind) {
+    try {
+      ['kanji-giveup-overlay', 'kanji-giveup-net-overlay'].forEach(function(id){
+        var ov = document.getElementById(id);
+        if (ov) ov.classList.remove('active');
+      });
+    } catch(e){}
+    // ★先生が「届いている答案」と「届いていない答案」を見分けられる文言で残す。
+    var label = (kind === 'server')
+      ? 'カンジー書き(採点失敗・答案はサーバーに届いた・ホームへ戻った)'
+      : 'カンジー書き(送信失敗・答案は届いていない・ホームへ戻った)';
+    try { _recordLineHandoff(label); } catch(e){}
+    try { goHome(); } catch(e){}
+  }
+  // （2026-10-24 以降は使っていない）2026-09-18：カンジー『書き』の採点がサーバー側で失敗（Gemini 落ち・429・通信・タイムアウト）した時の LINE 案内。
   //   ★res.retake（写真が読めない＝撮り直しで直る）には使わない。採点そのものが止まった時だけ。
   //   手本＝lison-escape-overlay / photo-escape-overlay（LINE へ回して先生が HP 付与）。
   function _showKanjiLineHandoff() {
@@ -27646,7 +27785,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261023-0438</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261024-0446</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
