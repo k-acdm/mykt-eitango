@@ -3745,10 +3745,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261024-0446"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261024-0527"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261024-0446">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261024-0446"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261024-0527">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261024-0527"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -23425,8 +23425,11 @@
   //   ・★マスの境目をまたいだ線（はみ出した字）は捨てない：真ん中で決めたマスに丸ごと寄せ、形は切らずにそのまま描く
   //     （はみ出した分は、横一列の上下にはみ出して描かれる＝隣の字には重ならない）。
   //   ・1マスは正方形（S×S）。S＝min(行の幅÷文字数, 行の高さ)。横一列を行の中央に置く。字の縦横比は変わらない。
-  //   ・線の太さ＝1マスの大きさ×0.03（最低3px）＝画面の板と同じ割合。★従来の「行の高さ×0.03（10.8px）」のままだと
-  //     5文字（1字120px）で線が字の約9%の太さになり、込み入った字の線がつぶれるため。1文字のときは従来と同じ 10.8px。
+  //   ・線の太さ＝1マスの大きさ×0.05（最低3px）。★従来の「行の高さ×0.03（10.8px）」のままだと
+  //     5文字（1字120px）で線が字の約9%の太さになり、込み入った字の線がつぶれるため。
+  //     2026-10-24：合成画像を見て塾長判断で 0.03→0.05 に。0.03 だと5文字で 3.6px と下限(3px)に近く余裕が無いため。
+  //     1マス300px(2文字)=15px / 200px(3文字)=10px / 120px(5文字)=6px / 360px(1文字)=18px。
+  //     ★画面の板（_kkiRedrawPad）は従来どおり 1マス×0.03 のまま（生徒に見える太さは変えない）。
   //   ・区切り線は描かない。
   function _kkiDrawCellsAsRow(ctx, strokes, n, EW, EH, color) {
     n = Math.max(1, n | 0);
@@ -23435,7 +23438,7 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = color || '#111827';
-    ctx.lineWidth = Math.max(3, S * 0.03);
+    ctx.lineWidth = Math.max(3, S * 0.05);
     (strokes || []).forEach(function(st){
       if (!st || !st.length) return;
       var ymin = 1, ymax = 0;
@@ -27785,7 +27788,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261024-0446</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261024-0527</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
