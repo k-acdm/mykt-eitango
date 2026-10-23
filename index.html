@@ -3745,10 +3745,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261024-0116"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261024-0407"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261024-0116">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261024-0116"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261024-0407">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261024-0407"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7168,8 +7168,9 @@
      「分かりました」→ _kanjiLineConfirmed() で LINE 回送を記録し goContentMenu へ（閉じ込め回避）。 -->
 <!-- 2026-10-24：カンジー「書き」で再送しても採点に失敗したときの案内（マイカツ君）。「分かりました」でホームへ。
      ★生徒の操作は不要。「LINEに送って」とは書かない。2026-10-24 塾長判断で2種類に分けた：
-     ・kanji-giveup-overlay      … サーバーが応答を返した後の失敗（ok:false＝採点そのものが失敗。答案はサーバーに届いている）
-     ・kanji-giveup-net-overlay  … サーバーの応答が無いまま切れた（通信エラー・待ち時間切れ）。★「届いています」とは言わない -->
+     ・kanji-giveup-overlay      … 答案がサーバーに残った失敗（res.answerSaved === true）。採点は止まったが答案は届いている
+     ・kanji-giveup-net-overlay  … 答案が残らなかった失敗（answerSaved が false／項目なし・通信エラー・待ち時間切れ）。
+                                    ★認証切れ等で採点まで届かなかった場合もこちら。「届いています」とは言わない -->
 <div id="kanji-giveup-overlay" class="mykt-overlay">
   <div class="mykt-overlay-card">
     <div class="mykt-overlay-row">
@@ -23906,8 +23907,9 @@
     payload.submitId = _kanjiKakiNewSubmitId();
     // 2026-10-24：この答案の送信が失敗した回数。1回目は「もう一度送信する」、再送も失敗（2回目以降）なら
     //   「先生に届いているから大丈夫」の案内を出してホームへ戻れるようにする（閉じ込めない）。
-    //   kind：'server'＝サーバーが応答を返した後の失敗（ok:false）／'net'＝応答が無いまま切れた（通信エラー・待ち時間切れ）。
-    //   ★案内と記録は「最後の失敗」の種類で分ける。
+    //   kind：'server'＝答案がサーバーに残った失敗（res.answerSaved === true）／
+    //         'net'  ＝答案が残らなかった失敗（answerSaved が false／項目なし、通信エラー、待ち時間切れ）。
+    //   ★案内と記録は「最後の失敗」の種類で分ける（失敗のたびに kind を渡し直す）。
     var failCount = 0;
     function _kanjiKakiSubmitFailed(kind) {
       failCount++;
@@ -23947,8 +23949,12 @@
           }
           // 2026-10-24：採点の失敗（!res.ok）は LINE 案内をやめ、他のコンテンツと同じ「もう一度送信する」へ。
           //   ★res.retake（撮り直しで直る）は上で分岐済み。書いた字はキャンバスに残っているので書き直し不要。
-          //   ★サーバーが ok:false を返した＝答案はサーバーに届いている（'server'）。応答の中身が無いときは届いたと言い切らない（'net'）。
-          _kanjiKakiSubmitFailed(res && res.ok === false ? 'server' : 'net');
+          //   ★2026-10-24 改：答案が残ったかどうかは res.answerSaved（サーバー e25907f で追加）だけで判定する。
+          //     answerSaved === true … 答案の画像を保存でき、記録の行も入れられた → 'server'（届いてます）
+          //     それ以外（false／項目が無い）… 保存に失敗、または採点まで届かなかった失敗
+          //       （認証切れ・トークン無し・画像なし・級の指定が不正・正解データなし）→ 'net'（通信エラー）
+          //     ★以前は ok:false というだけで 'server' にしていたため、認証切れでも「届いてます」と出ていた。
+          _kanjiKakiSubmitFailed(res && res.answerSaved === true ? 'server' : 'net');
           return;
         }
         // 2026-05-12 バグ⑤ Phase B：再撮影誘導（採点保留）。
@@ -24009,7 +24015,8 @@
   // 2026-10-24：再送しても採点に失敗したときの出口（マイカツ君）。生徒の操作は不要（サーバー側で失敗した答案の画像を
   //   保存して塾長に通知する仕組みがある）。「分かりました」でホームへ戻る（閉じ込め回避）。
   //   ★記録は既存の _recordLineHandoff に乗せる（先生への通知に「参考」として書き添えられる仕組み）。
-  //   kind：'server'（答案はサーバーに届いている）／'net'（届いていない）。案内も記録の文言も分ける。
+  //   kind：'server'（答案はサーバーに届いている＝res.answerSaved === true）／
+  //         'net'（届いていない＝answerSaved が false／項目なし・通信エラー・待ち時間切れ）。案内も記録の文言も分ける。
   function _showKanjiKakiGiveUp(kind) {
     _pendingRetry = null;
     _pendingDismiss = null;
@@ -27778,7 +27785,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261024-0116</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261024-0407</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
