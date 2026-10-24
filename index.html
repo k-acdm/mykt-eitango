@@ -3314,6 +3314,9 @@
     .mykt-overlay-bubble.grading { background: #eff6ff; border: 2px solid #60a5fa; color: #1e3a8a; }
     /* Phase 3 Step 3：HP 加算確認 overlay（楽観的UI 廃止後の「処理中…」用、暖色系） */
     .mykt-overlay-bubble.hp-confirming { background: #fff8e1; border: 2px solid #ffb84d; color: #6b3410; font-weight: bold; }
+    /* 2026-10-24：待ち画面の経過演出（カンジー書きだけ絵を揺らす）。動きは振り返り送信中の reflSendingBob を流用。 */
+    #hp-confirming-overlay.hp-wait-bob #hp-confirming-mascot { animation: reflSendingBob 1.4s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { #hp-confirming-overlay.hp-wait-bob #hp-confirming-mascot { animation: none; } }
     .mykt-overlay-bubble::before { content: ''; position: absolute; left: -10px; top: 28px; border: 8px solid transparent; }
     .mykt-overlay-bubble.error::before { border-right-color: #fb923c; }
     .mykt-overlay-bubble.grading::before { border-right-color: #60a5fa; }
@@ -3745,10 +3748,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261024-0527"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261024-2225"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261024-0527">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261024-0527"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261024-2225">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261024-2225"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7226,7 +7229,7 @@
       <img id="hp-confirming-mascot" class="chara-img" src="" alt="">
       <div class="mykt-overlay-bubble hp-confirming">
         <span id="hp-confirming-text"></span><span id="hp-confirming-dots" class="grading-dots">...</span><br>
-        <span style="font-size:12px;color:#6b3410">少しだけ待ってね</span>
+        <span id="hp-confirming-sub" style="font-size:12px;color:#6b3410">少しだけ待ってね</span>
       </div>
     </div>
   </div>
@@ -8280,6 +8283,73 @@
     'oriwantes': { img: 'images/oriwantes-thinking.png', text: '只今マイカツ君が獲得HPを最終確認中である。しばし待っておれ' }
   };
   var _hpConfirmingDotsTimer = null;
+  // ===== 2026-10-24：待ち画面の経過演出（塾長確定）=====
+  //   ★対象は3つの送信だけ（呼び出し元で _hpWaitStagesStart(key) を呼ぶ）。他の11キャラ・他の送信は従来どおり。
+  //   ★手本は写真の読み取り待ち _ocrWaitStart：1秒ごとに経過を見て、節目で文言を替える。★秒数は画面に出さない。
+  //   ★この3つのときだけ下の「少しだけ待ってね」を出さない（セリフ自体が待つよう言っているため）。
+  //   ★止める：「受け取ったよ」に替わるとき（_showReceivedOnOverlay）／結果の問い合わせ中（_kanjiKakiPollResult）／
+  //     画面を閉じるとき（_hideHpConfirmingOverlay）／次の表示が始まったとき。目印は送信ごとの _hpOverlayShownAt。
+  //   text は文字列か配列（配列ならランダムに1つ）。配列は関数で返す（このあと定義されるセリフ集を後から読むため）。
+  var HP_WAIT_STAGES = {
+    kanjiKaki: { bob: true, stages: [
+      [0,  'いま採点しておるところじゃ'],
+      [15, 'もう少しじゃ、待っておくれ'],
+      [35, 'ふむ、今日は念入りに見ておるようじゃ'],
+      [60, 'もうしばらくかかりそうじゃ。そのまま待っておくれ'],
+      [90, 'ずいぶん混んでおるようじゃ。もう少しだけ辛抱じゃ']
+    ] },
+    sango: { bob: false, stages: [
+      [0,  function(){ return SANGOTAN_BUBBLES.thinking; }],
+      [15, 'もうちょっと待っててね〜、コメント書いてるところだよ〜']
+    ] },
+    kokugoImpression: { bob: false, stages: [
+      [0,  'しばし待たれよ…講評をしたためてる最中でござる'],
+      [15, '講評をしたためるのに、いま少しかかるでござる']
+    ] }
+  };
+  var _hpWaitTimer = null;
+  var _hpWaitState = null;   // { key, token, startedAt, idx }
+  function _hpWaitStagesStop() {
+    if (_hpWaitTimer) { clearInterval(_hpWaitTimer); _hpWaitTimer = null; }
+    _hpWaitState = null;
+    var ov = document.getElementById('hp-confirming-overlay');
+    if (ov) ov.classList.remove('hp-wait-bob');
+  }
+  // 「少しだけ待ってね」を従来どおり出す（他の11キャラ・他の送信の既定）。
+  function _hpWaitSubReset() {
+    var sub = document.getElementById('hp-confirming-sub');
+    if (sub) sub.style.display = '';
+  }
+  function _hpWaitPickText(t) {
+    var v = (typeof t === 'function') ? t() : t;
+    if (Array.isArray(v)) return v.length ? v[Math.floor(Math.random() * v.length)] : '';
+    return String(v || '');
+  }
+  // _showHpConfirmingOverlay の直後に呼ぶ。
+  function _hpWaitStagesStart(key) {
+    _hpWaitStagesStop();
+    var cfg = HP_WAIT_STAGES[key];
+    var ov = document.getElementById('hp-confirming-overlay');
+    if (!cfg || !ov || !ov.classList.contains('active')) return;
+    var sub = document.getElementById('hp-confirming-sub');
+    if (sub) sub.style.display = 'none';
+    if (cfg.bob) ov.classList.add('hp-wait-bob');
+    var st = { key: key, token: _hpOverlayShownAt, startedAt: Date.now(), idx: -1 };
+    _hpWaitState = st;
+    var apply = function(){
+      if (_hpWaitState !== st) return;
+      if (_hpOverlayShownAt !== st.token || !ov.classList.contains('active')) { _hpWaitStagesStop(); return; }
+      var sec = (Date.now() - st.startedAt) / 1000;
+      var idx = 0;
+      for (var i = 0; i < cfg.stages.length; i++) { if (sec >= cfg.stages[i][0]) idx = i; }
+      if (idx === st.idx) return;
+      st.idx = idx;
+      var txt = document.getElementById('hp-confirming-text');
+      if (txt) txt.textContent = _hpWaitPickText(cfg.stages[idx][1]);
+    };
+    apply();
+    _hpWaitTimer = setInterval(apply, 1000);
+  }
   // 2026-08-05 §6-A23（速すぎ④ cover方式）：overlay を最低時間だけ被せてから消す。
   //   ① HP獲得系 overlay は最低3秒（hp-confirming / kiso-grading）、② 振り返り送信 overlay は最低6秒。
   //   いずれも「show 時に時刻を記録 → hide 時に経過を見て、足りない分だけ setTimeout で遅らせてから remove」。
@@ -8302,6 +8372,7 @@
   var _reflOverlayShownAt = 0;
   var _kisoGradingShownAt = 0;
   function _showHpConfirmingOverlay(charId) {
+    try { _hpWaitStagesStop(); _hpWaitSubReset(); } catch(e){}   // 2026-10-24：経過演出を毎回リセット（演出の対象は呼び出し元で開始）
     _hpOverlayShownAt = Date.now();   // §6-A23 ①：cover方式の起点時刻
     _hpOverlayHideNotBefore = _hpOverlayShownAt + MIN_HP_OVERLAY_MS;   // 2026-09-02：既定は従来どおり最低3秒
     var meta = HP_CONFIRMING_BY_CHAR[charId] || HP_CONFIRMING_BY_CHAR['rushkun'];
@@ -8332,6 +8403,7 @@
     var shownAt = _hpOverlayShownAt;
     var _doHide = function(){
       if (_hpOverlayShownAt !== shownAt) return;   // 別の表示が始まっていたら無効（セット跨ぎの誤消し防止）
+      try { _hpWaitStagesStop(); } catch(e){}      // 2026-10-24：経過演出を止める
       if (ov) ov.classList.remove('active');
       if (_hpConfirmingDotsTimer) { clearInterval(_hpConfirmingDotsTimer); _hpConfirmingDotsTimer = null; }
       if (typeof onHidden === 'function') onHidden();   // remove と同一タスクで画面切替（同時遷移）
@@ -14832,6 +14904,7 @@
     var payload = { action:'submitSango', studentId:sidSnap, level:levelSnap, words:words, work:val, method:'text' };
     function doSubmit() {
       _showHpConfirmingOverlay('sangotan');
+      _hpWaitStagesStart('sango');   // 2026-10-24：経過に応じたセリフ（0秒・15秒）
       btn.disabled = true;
       _pendingRetry = function(){ doSubmit(); };
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); btn.disabled = false; showScreen('screen-sango-text'); };
@@ -15019,6 +15092,7 @@
     var payload = { action:'submitSango', studentId:sidSnap, level:levelSnap, words:words, work:ocrSnap, method:'photo' };
     function doSubmit() {
       _showHpConfirmingOverlay('sangotan');
+      _hpWaitStagesStart('sango');   // 2026-10-24：経過に応じたセリフ（0秒・15秒）
       // retry 時にも ocrText / level スナップショットを復元（旧版踏襲）
       _pendingRetry = function(){ _sangoOcrText = ocrSnap; _sangoCurrentLevel = levelSnap; doSubmit(); };
       _pendingDismiss = function(){ _hideHpConfirmingOverlay(); showScreen('screen-sango-photo'); };
@@ -19965,6 +20039,7 @@
       var ov = document.getElementById('hp-confirming-overlay');
       if (!ov || !ov.classList.contains('active')) return;   // 出ていなければ何もしない
       var token  = _hpOverlayShownAt;                          // どの送信の表示かの合図（書き換えない）
+      try { _hpWaitStagesStop(); } catch(e){}                  // 2026-10-24：受領メッセージへ移るので経過演出は止める
       var swapAt = _hpOverlayShownAt + MIN_SENDING_MS;         // 「送信中」を見せ切る時刻
       // ★受領メッセージが実際に画面へ出る時刻。
       //   サーバーの応答が MIN_SENDING_MS より遅かった場合は「いま」から出る。
@@ -22388,6 +22463,7 @@
     var btn = document.getElementById('kokugo-impression-submit');
     if (btn) btn.disabled = true;
     _showHpConfirmingOverlay('japanin');
+    _hpWaitStagesStart('kokugoImpression');   // 2026-10-24：感想文の講評待ちだけ（答えの採点 submitKokugoAnswerForGrading は従来どおり）
     gasPost({
       action: 'submitKokugoImpression',
       studentId: _studentId,
@@ -23834,6 +23910,7 @@
   //     status を足したもの（results[] 等は応答そのものに入る）＝応答そのものを結果として使う。
   //     保険として、results[] が無く res.result（object）がある場合だけそちらを使う。
   function _kanjiKakiPollResult(payload, sentAt) {
+    try { _hpWaitStagesStop(); } catch(e){}   // 2026-10-24：問い合わせ中の文言を経過演出で上書きしない
     var txt = document.getElementById('hp-confirming-text');
     if (txt) txt.textContent = '⏳ 採点を確認しています';   // HP 確認オーバーレイはそのまま（点滅ドットも継続）
     var q = { action: 'getKanjiKakiResult', studentId: payload.studentId, sessionId: payload.sessionId,
@@ -23922,6 +23999,7 @@
     function doSubmit() {
       var sentAt = Date.now();   // 2026-10-22：問い合わせの起点（送信開始から最低 150 秒）
       _showHpConfirmingOverlay('kanjii');
+      _hpWaitStagesStart('kanjiKaki');   // 2026-10-24：経過に応じたセリフ（0/15/35/60/90秒）＋絵を揺らす
       submitBtn.disabled = true;
       _pendingRetry = function(){ doSubmit(); };
       _pendingDismiss = function(){
@@ -27788,7 +27866,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261024-0527</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261024-2225</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
