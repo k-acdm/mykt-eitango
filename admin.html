@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261024-2225"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261025-0013"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -1206,7 +1206,7 @@
     </button>
     <button type="button" class="dashboard-card" onclick="goAdminInputHub()">
       <div class="dashboard-card-icon">📝</div>
-      <div class="dashboard-card-title">問題等の入力</div>
+      <div class="dashboard-card-title">問題等の入力<span id="mistake-input-hub-badge" class="notify-badge" style="display:none">!</span></div>
       <div class="dashboard-card-desc">学習コンテンツの問題投入 / 連絡・一言・メッセージ等</div>
     </button>
     <button type="button" class="dashboard-card" onclick="goAdminStudentCareHub()">
@@ -1625,7 +1625,7 @@
     </button>
     <button type="button" id="dash-card-question-edit" class="dashboard-card admin-only" onclick="goAdminQuestionEdit()">
       <div class="dashboard-card-icon">🔧</div>
-      <div class="dashboard-card-title">既存問題の修正</div>
+      <div class="dashboard-card-title">既存問題の修正<span id="mistake-qedit-badge" class="notify-badge" style="display:none">!</span></div>
       <div class="dashboard-card-desc">登録済み問題を横断検索し、中身（問題文・選択肢・解説など）だけを修正（追加・削除はしない）</div>
     </button>
   </div>
@@ -5756,6 +5756,39 @@
     window.scrollTo(0, 0);
     _refreshAmazonGiftBadge();  // Amazonギフト未対応バッジ（admin のみ、見落とし防止）
     _refreshNotifyBadges();     // 2026-08-30：未送信の検知／ログイン認証の通知バッジ
+    _adminOpenFromUrlOnce();    // 2026-10-25：別タブで開いたとき（?open=...）だけ、その画面へ進む（1回限り）
+  }
+
+  // 2026-10-25：振り返り日付別画面の「この日のリスオン／オリワンテスを見る」を別タブで開く仕組み。
+  //   URL 例：admin.html?open=lison&sid=24001&ds=2026-10-24（oriwantes も同じ形）。
+  //   ★ログイン後に最初にダッシュボードへ来たときだけ 1 回読む（以降の「ダッシュボードへ戻る」では読まない）。
+  //   ★読んだら URL からパラメータを外す（再読み込みで同じ画面へ飛び続けないように）。
+  //   ★パラメータが無い・形が違うときは何もしない＝既存の画面遷移は従来どおり。
+  var _adminUrlOpenDone = false;
+  function _adminOpenFromUrlOnce() {
+    if (_adminUrlOpenDone) return;
+    _adminUrlOpenDone = true;
+    var q = {};
+    try {
+      var sp = String(window.location.search || '').replace(/^\?/, '').split('&');
+      for (var i = 0; i < sp.length; i++) {
+        if (!sp[i]) continue;
+        var kv = sp[i].split('=');
+        q[decodeURIComponent(kv[0] || '')] = decodeURIComponent((kv[1] || '').replace(/\+/g, ' '));
+      }
+    } catch(e) { return; }
+    var open = String(q.open || ''), sid = String(q.sid || '').trim(), ds = String(q.ds || '').trim(), name = String(q.name || '').trim();
+    if (!open || !sid || !/^\d{4}-\d{2}-\d{2}$/.test(ds)) return;
+    try { window.history.replaceState(null, '', window.location.pathname); } catch(e) {}
+    if (open === 'lison')          goAdminLisonList(sid, name || sid, ds);
+    else if (open === 'oriwantes') goAdminOriwantesDetail(sid, name || sid, ds);
+  }
+  function _adminDayLinkUrl(open, sid, ds, name) {
+    return window.location.pathname + '?open=' + encodeURIComponent(open) + '&sid=' + encodeURIComponent(sid) +
+           '&ds=' + encodeURIComponent(ds) + (name ? '&name=' + encodeURIComponent(name) : '');
+  }
+  function openAdminDayLink(open, sid, ds, name) {
+    window.open(_adminDayLinkUrl(open, sid, ds, name), '_blank');
   }
 
   // Phase 2：ダッシュボードカードのロール別表示分岐。
@@ -8532,7 +8565,9 @@
   //     ★件数が数えられないときだけ「!」を出す（0 件と区別するため）。
   //   ★見た時刻は localStorage に置く（この端末のみ・サーバーには送らない）。
   var NOTIFY_SEEN_UNSENT = 'mykt_admin_seen_unsent';   // 未送信の検知を最後に開いた時刻
-  var _notifyCounts = { unsent: 0, auth: 0 };
+  var _notifyCounts = { unsent: 0, auth: 0, mistake: 0 };
+  //   ・問題ミスの指摘（2026-10-25）… 未処理（status=open）の件数。★0 件になるまで出し続ける（ログイン認証と同じ）。
+  //     印は「問題等の入力」カードと、その中の「既存問題の修正」カードの 2 か所。システム系のまとめ印には入れない。
 
   function _notifySeenGet(key) {
     try { return Number(localStorage.getItem(key) || 0) || 0; } catch(e) { return 0; }
@@ -8566,6 +8601,8 @@
     _setNotifyBadge('auth-alerts-badge',    _notifyCounts.auth);
     var total = (Number(_notifyCounts.unsent) || 0) + (Number(_notifyCounts.auth) || 0);
     _setNotifyBadge('sys-hub-badge', total);
+    _setNotifyBadge('mistake-input-hub-badge', _notifyCounts.mistake);
+    _setNotifyBadge('mistake-qedit-badge',     _notifyCounts.mistake);
   }
   // ダッシュボード／システム系を開いたときに数え直す。★admin のみ・失敗しても画面は壊さない。
   function _refreshNotifyBadges() {
@@ -8595,6 +8632,13 @@
                 return (s.needsAlert === true) || ((Number(s.passphraseFailCount) || 0) >= threshold);
               }).length;
       _notifyCounts.auth = n;
+      _applyNotifyBadges();
+    }).catch(function(){ /* 印は欠けても致命的でない */ });
+
+    // ③ 問題ミスの指摘：未処理（status=open）の件数（0 になるまで出し続ける）。件数だけ返す手段が無いので一覧を数える。
+    adminGasGet({ action: 'adminListMistakeReports', status: 'open', _ts: Date.now() }).then(function(res){
+      if (!res || !res.ok) return;
+      _notifyCounts.mistake = Array.isArray(res.reports) ? res.reports.length : 0;
       _applyNotifyBadges();
     }).catch(function(){ /* 印は欠けても致命的でない */ });
   }
@@ -9711,10 +9755,11 @@
     });
   }
 
-  function goAdminOriwantesDetail(sid, name) {
-    _oriwantesDetail = { sid: sid, name: name, items: [], offset: 0, limit: 10, hasMore: false, loading: false };
+  //   2026-10-25：第3引数 ds（YYYY-MM-DD）を渡すとその日の分だけ（educationalDate で絞る）。省略時は従来どおり。
+  function goAdminOriwantesDetail(sid, name, ds) {
+    _oriwantesDetail = { sid: sid, name: name, ds: String(ds || ''), items: [], offset: 0, limit: 10, hasMore: false, loading: false };
     _oriwantesSubCache = [];
-    document.getElementById('oriwantes-detail-title').textContent = '✍️ ' + (name || sid || '') + ' さんの提出';
+    document.getElementById('oriwantes-detail-title').textContent = '✍️ ' + (name || sid || '') + ' さんの提出' + (ds ? '（' + ds + '）' : '');
     _showScreen('screen-admin-oriwantes-detail');
     window.scrollTo(0, 0);
     document.getElementById('oriwantes-detail-wrap').innerHTML = '<div class="students-empty">⏳ 読み込み中...</div>';
@@ -9732,7 +9777,9 @@
     _oriwantesDetail.loading = true;
     var moreBtn = document.getElementById('oriwantes-detail-more');
     if (moreBtn && !isFirst) { moreBtn.disabled = true; moreBtn.textContent = '読み込み中…'; }
-    adminGasGet({ action: 'adminListOriwantesSubmissions', studentId: _oriwantesDetail.sid, offset: _oriwantesDetail.offset, limit: _oriwantesDetail.limit, _ts: Date.now() }).then(function(res) {
+    var oq = { action: 'adminListOriwantesSubmissions', studentId: _oriwantesDetail.sid, offset: _oriwantesDetail.offset, limit: _oriwantesDetail.limit, _ts: Date.now() };
+    if (_oriwantesDetail.ds) oq.educationalDate = _oriwantesDetail.ds;   // 2026-10-25：その日だけ
+    adminGasGet(oq).then(function(res) {
       _oriwantesDetail.loading = false;
       if (moreBtn) { moreBtn.disabled = false; moreBtn.textContent = '📜 さらに見る'; }
       if (!res || !res.ok) {
@@ -9760,7 +9807,7 @@
     var moreBtn = document.getElementById('oriwantes-detail-more');
     var items = _oriwantesDetail.items || [];
     if (items.length === 0) {
-      wrap.innerHTML = '<div class="students-empty">この生徒のオリワンテス提出はありません。</div>';
+      wrap.innerHTML = '<div class="students-empty">' + (_oriwantesDetail.ds ? 'この日のオリワンテス提出はありません。' : 'この生徒のオリワンテス提出はありません。') + '</div>';
       if (moreBtn) moreBtn.style.display = 'none';
       return;
     }
@@ -10809,7 +10856,7 @@
         panel.innerHTML = '<div class="dw-empty">' + _esc(msg) + '</div>';
         return;
       }
-      panel.innerHTML = _renderDayWorks(res);
+      panel.innerHTML = _renderDayWorks(res, ds);
     }).catch(function() {
       panel.innerHTML = '<div class="dw-empty">通信エラーが発生しました</div>';
     });
@@ -11330,20 +11377,77 @@
   }
 
   // works（教育日で絞済）を種別ごとに描画。提出が無い種別はセクションごと非表示（見やすさ優先）。
-  function _renderDayWorks(res) {
+  function _renderDayWorks(res, ds) {
     var works = (res && res.works) || {};
     var sid = String((res && res.studentId) || '');           // ★書き込みキー（トップ studentId）
     var curWeek = String((res && res.currentWeek) || '');      // ★公開状態判定（トップ currentWeek）
     var out = '';
+    // 2026-10-25：その日・その生徒のリスオン／オリワンテスの画面を別タブで開くリンク（作品の有無に関係なく出す）。
+    var linkHtml = '';
+    if (sid && ds) {
+      var sidJ = _reflJs(sid), dsJ = _reflJs(ds), nmJ = _esc(_reflJs((res && (res.studentName || res.name)) || ''));
+      linkHtml = '<div class="dw-links" style="display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 10px">' +
+        '<button type="button" class="day-works-toggle" onclick="openAdminDayLink(\'lison\',\'' + sidJ + '\',\'' + dsJ + '\',\'' + nmJ + '\')">🎧 この日のリスオンを見る</button>' +
+        '<button type="button" class="day-works-toggle" onclick="openAdminDayLink(\'oriwantes\',\'' + sidJ + '\',\'' + dsJ + '\',\'' + nmJ + '\')">🧩 この日のオリワンテスを見る</button>' +
+      '</div>';
+    }
     out += _dwImageSection('🧮 基礎計算 答案写真', works.kiso,   'getKisoPhotoBlob');
     out += _dwImageSection('📸 マイ課題 画像',    works.mytask, 'getMyTaskPhotoBlob');
     out += _dwAudioSection('🎧 リスオン録音',     works.lison);
     out += _dwOriwantesSection('🧩 オリワンテス', works.oriwantes);
     out += _dwTextSection('🐠 三語短文',          works.sango,  'sango',  sid, curWeek);
     out += _dwTextSection('📘 和文英訳①',         works.wabun1, 'wabun1', sid, curWeek);
+    out += _dwKokugoSection('📖 国語長文 感想文',  works.kokugo);   // 2026-10-25 純追加（サーバー未反映なら works.kokugo が無い＝何も出さない）
     out += _dwApologySection('🙏 写真送信不具合のお詫び', works.apology);   // 2026-08-25 純追加
-    if (!out) return '<div class="dw-empty">この日の提出作品はありません。</div>';
-    return out;
+    if (!out) return linkHtml + '<div class="dw-empty">この日の提出作品はありません。</div>';
+    return linkHtml + out;
+  }
+
+  // 2026-10-25 純追加：国語長文の感想文（works.kokugo）。★三語短文のカード（dw-text-card）と AI フィードバックの見せ方を写す。
+  //   1件＝{ kind:'text', title, category('bunkaku'|'setsumei'), charCount, impression, aiFeedback, q1Correct, q2Correct,
+  //          hpGained, answeredAt, submittedAt }。★category の日本語化は画面側。未回答の正誤は null。
+  //   ★値が無い項目は出さない（揺れは _mePick で吸収）。配列でなければ何も出さない＝エラーにしない。
+  var KOKUGO_CATEGORY_LABEL = { bunkaku: '文学', setsumei: '説明' };
+  function _dwKokugoQMark(v) {
+    if (v === true || v === 1 || v === '1' || v === 'true')  return '✅';
+    if (v === false || v === 0 || v === '0' || v === 'false') return '❌';
+    return '—';   // null／未回答
+  }
+  function _dwKokugoSection(title, items) {
+    var arr = _dwArr(items);
+    if (!arr.length) return '';
+    var rows = arr.map(function(it) {
+      it = it || {};
+      var when  = _dwSubmittedAt({ submittedAt: _mePick(it, 'submittedAt', 'submitted_at') || _mePick(it, 'answeredAt', 'answered_at') });
+      var catRaw = String(_mePick(it, 'category') || '');
+      var cat   = KOKUGO_CATEGORY_LABEL[catRaw] || (catRaw ? catRaw : '');
+      var cc    = Number(_mePick(it, 'charCount', 'char_count')) || 0;
+      var kind  = [cat, cc ? (cc + '字') : ''].filter(Boolean).join('・');
+      var hp    = Number(_mePick(it, 'hpGained', 'hp_gained')) || 0;
+      var q1    = (it.q1Correct !== undefined) ? it.q1Correct : it.q1_correct;
+      var q2    = (it.q2Correct !== undefined) ? it.q2Correct : it.q2_correct;
+      var qHtml = '問1 ' + _dwKokugoQMark(q1) + '　問2 ' + _dwKokugoQMark(q2);
+      var metaHtml = _dwMetaSpans([_esc(when), _esc(kind), qHtml, hp > 0 ? ('+' + hp + ' HP') : '']);
+      var ttl   = String(_mePick(it, 'title') || '').trim();
+      var body  = String(_mePick(it, 'impression') || '');
+      var fbObj = (it.aiFeedback && typeof it.aiFeedback === 'object') ? it.aiFeedback : null;
+      var fb    = String(fbObj ? (fbObj.feedback || '') : (_mePick(it, 'aiFeedback', 'ai_feedback') || '')).trim();
+      var titleHtml = ttl ? '<div style="font-size:13px;color:#7c2d12;font-weight:bold;margin-bottom:8px">📖 ' + _esc(ttl) + '</div>' : '';
+      // AI の講評：三語短文の「🤖 AIフィードバック」ボックスと同じ見た目
+      var aiHtml = fb
+        ? '<div style="background:#e0f7fa;border-left:3px solid #5ec8c8;border-radius:6px;padding:8px 10px;margin-top:8px;font-size:12px;line-height:1.6">' +
+            '<div style="color:#555;font-weight:bold;margin-bottom:3px">🤖 AIフィードバック</div>' +
+            '<div style="color:#1f2937;white-space:pre-wrap;word-break:break-word">' + _esc(fb) + '</div>' +
+          '</div>'
+        : '';
+      return '<div class="dw-text-card">' +
+               (metaHtml ? '<div class="dw-text-meta">' + metaHtml + '</div>' : '') +
+               titleHtml +
+               '<div class="dw-text-body">' + (body ? _esc(body) : '（感想文なし）') + '</div>' +
+               aiHtml +
+             '</div>';
+    }).join('');
+    return '<div class="dw-section"><div class="dw-section-title">' + title + '（' + arr.length + '）</div>' + rows + '</div>';
   }
 
   // 画像セクション（kiso / mytask）：サムネ枠は初期プレースホルダー、押下で Blob proxy → data: URL で表示。
@@ -11805,14 +11909,15 @@
   }
 
   // 生徒一覧画面 → 録音一覧画面
-  function goAdminLisonList(studentId, studentName) {
+  //   2026-10-25：第3引数 ds（YYYY-MM-DD）を渡すとその日の分だけ（educationalDate で絞る）。省略時は従来どおり。
+  function goAdminLisonList(studentId, studentName, ds) {
     _lisonRecCurrentSid  = String(studentId || '');
     _lisonRecCurrentName = String(studentName || studentId || '');
     document.getElementById('lison-list-title').textContent =
-      '🎤 ' + _lisonRecCurrentName + ' さんのリスオン録音';
+      '🎤 ' + _lisonRecCurrentName + ' さんのリスオン録音' + (ds ? '（' + ds + '）' : '');
     _showScreen('screen-admin-lison-list');
     window.scrollTo(0, 0);
-    loadLisonRecordingsForStudent(_lisonRecCurrentSid);
+    loadLisonRecordingsForStudent(_lisonRecCurrentSid, ds);
   }
 
   // 直近 LISON_RETENTION_DAYS 日（現状 15 日）に録音した生徒の一覧
@@ -11943,14 +12048,12 @@
   }
 
   // 指定生徒の録音一覧
-  function loadLisonRecordingsForStudent(sid) {
+  function loadLisonRecordingsForStudent(sid, ds) {
     var wrap = document.getElementById('lison-list-wrap');
     wrap.innerHTML = '<div class="lison-students-empty">⏳ 読み込み中...</div>';
-    adminGasGet({
-      action: 'getLisonSubmissionsList',
-      studentId: sid,
-      _ts: Date.now()
-    }).then(function(res) {
+    var lq = { action: 'getLisonSubmissionsList', studentId: sid, _ts: Date.now() };
+    if (ds) lq.educationalDate = ds;   // 2026-10-25：その日だけ
+    adminGasGet(lq).then(function(res) {
       if (!res || !res.ok) {
         var msg = (res && res.message) ? res.message : '取得に失敗しました';
         if (/認証|パスワード/.test(msg)) { showToast('セッションが切れました', 'error'); doAdminLogout(); return; }
@@ -11960,7 +12063,7 @@
       var subs = res.submissions || [];
       _lisonRecListCache[sid] = subs;
       if (subs.length === 0) {
-        wrap.innerHTML = '<div class="lison-students-empty">この生徒の直近 15 日のリスオン録音はありません。</div>';
+        wrap.innerHTML = '<div class="lison-students-empty">' + (ds ? 'この日のリスオン録音はありません（録音の保存期間は 15 日です）。' : 'この生徒の直近 15 日のリスオン録音はありません。') + '</div>';
         return;
       }
       // 各録音をカードで描画
@@ -15325,7 +15428,7 @@
   }
 
   function goAdminAnswerCheckHub()  { _showScreen('screen-admin-answer-check-hub');  window.scrollTo(0, 0); }
-  function goAdminInputHub()        { _showScreen('screen-admin-input-hub');         window.scrollTo(0, 0); }
+  function goAdminInputHub()        { _showScreen('screen-admin-input-hub');         window.scrollTo(0, 0); _refreshNotifyBadges(); }   // 2026-10-25：問題ミス報告の印を数え直す
   function goAdminContentInputHub() { _showScreen('screen-admin-content-input-hub'); window.scrollTo(0, 0); }
   function goAdminOtherInputHub()   { _showScreen('screen-admin-other-input-hub');   window.scrollTo(0, 0); }
   // =============================================================
@@ -19326,7 +19429,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261024-2225</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261025-0013</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
