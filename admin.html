@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261025-0013"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261025-1840"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -179,6 +179,7 @@
   .parent-reset-resultbox .prb-title { font-size: 16px; font-weight: bold; color: #15803d; margin-bottom: 8px; }
   .parent-reset-resultbox .prb-pw    { font-size: 26px; font-weight: 800; letter-spacing: 2px; color: #14532d; font-family: 'Courier New', monospace; background: #fff; border: 2px dashed #22c55e; border-radius: 10px; padding: 12px; text-align: center; margin: 8px 0; word-break: break-all; }
   .parent-reset-resultbox .prb-note  { font-size: 13px; color: #166534; line-height: 1.7; }
+  .parent-reset-resultbox .prb-warn  { font-size: 13px; color: #b91c1c; font-weight: bold; line-height: 1.7; margin-top: 6px; }
   .parent-reset-resultbox .prb-close { margin-top: 12px; background: #64748b; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: bold; cursor: pointer; }
   /* 新規入塾者の初回設定（同じ「ログイン認証アラート」画面内のセクション）。
      ★ボタンは既存の .submit-btn、初回キー表示は既存の .auth-keybox、保護者PW案内は既存の
@@ -2217,7 +2218,7 @@
     <div class="form-card">
       <h2>👨‍👩‍👦 保護者パスワードのリセット</h2>
       <div class="parent-reset-lead">
-        保護者がご自身で設定したパスワードを忘れた場合に、<b>共通の初回パスワード</b>に戻します。<br>
+        保護者がご自身で設定したパスワードを忘れた場合に、<b>初回パスワード</b>に戻します（新しい初回パスワードが発行されます）。<br>
         リセット後は、保護者に初回パスワードでログインし直して、新しいパスワードを設定してもらってください。<br>
         ※ 生徒本人のログイン（暗証番号・合言葉）には影響しません。
       </div>
@@ -2272,7 +2273,7 @@
 
       <div class="ni-step">
         <div class="nist-head">③ 保護者の初回パスワードを発行</div>
-        <div class="nist-desc">保護者が閲覧画面にログインするための、共通の初回パスワードを発行します。</div>
+        <div class="nist-desc">保護者が閲覧画面にログインするための、初回パスワード（家庭ごと・兄弟は同じ）を発行します。</div>
         <button type="button" id="ni-btn-parent" class="submit-btn" onclick="niIssueParentPassword()" disabled>👨‍👩‍👦 保護者の初回パスワードを発行する</button>
       </div>
     </div>
@@ -2371,7 +2372,7 @@
 
       <div class="ni-step">
         <div class="nist-head">③ 保護者の初回パスワードを発行</div>
-        <div class="nist-desc">保護者が閲覧画面にログインするための、共通の初回パスワードを発行します。</div>
+        <div class="nist-desc">保護者が閲覧画面にログインするための、初回パスワード（家庭ごと・兄弟は同じ）を発行します。</div>
         <button type="button" id="ls-btn-parent" class="submit-btn" onclick="lsIssueParentPassword()" disabled>👨‍👩‍👦 保護者の初回パスワードを発行する</button>
         <div id="ls-parent-resultbox" class="parent-reset-resultbox" style="display:none"></div>
       </div>
@@ -5943,18 +5944,52 @@
 
   // -------------------------------------------------------------
   // F6：保護者パスワードのリセット（admin限定・同じ「ログイン認証アラート」画面内）
-  //   保護者がご自身で設定したパスワードを忘れたとき、共通の初回パスワードに戻す。
+  //   保護者がご自身で設定したパスワードを忘れたとき、初回パスワードに戻す（新しい初回パスワードが発行される）。
   //   - adminResetParentAuth（admin限定・書き込み／GET・POST 両受け）：入力は studentId（子の生徒ID）のみ。
-  //     共通初回PWはサーバ config（gas.parent_initial_password）が持つのでフロントからは渡さない。
-  //     応答 = { ok, studentId, name, parentAuthState:'pw_issued', parentMustReset:true }。
-  //     ★平文PWは返らない（塾が既に知っている固定値のため）→ 画面側の定数で案内する。
+  //     2026-10-25：初回パスワードは全家庭共通の固定値から★家庭ごとの個別値（兄弟は同じ）に変わった。
+  //     応答 = { ok, studentId, name, initialPassword（平文・1回だけ）, familyReissued, familyMembers, ... }。
+  //     ★平文は応答の1回だけ → 画面に出すだけで、画面のメモリ以外（localStorage 等）には残さない。
   //   ★生徒版と違い自動検知が無いため、生徒を選んでリセットする形。
   //   ★この画面自体が admin専用（システム系 hub の admin-only カード経由）＋ サーバ側 requireAdmin の二重防御。
   //   ★生徒一覧は同画面が既に読んだ getStudentsAuthStatus の結果を再利用（追加の API 呼び出しなし）。
   // -------------------------------------------------------------
-  // サーバ config gas.parent_initial_password と同じ固定値。リセット後の案内表示にのみ使う。
-  //   ★講師の初期パスワード（noblesse0311）を画面に出しているのと同じ扱い。
-  var PARENT_INITIAL_PASSWORD = 'kac-mykt';
+  // 2026-10-25：保護者の初回パスワードの表示（③発行・リセットの共通部品）。
+  //   ★平文は応答の initialPassword だけから取る（画面に固定値は持たない）。
+  //   ★familyReissued:true＝兄弟がいる家庭で、同じ家庭の他の子の分も振り直された（古い紙は無効）。
+  function _parentPwFromRes(res) {
+    res = res || {};
+    return String(res.initialPassword || '').trim();
+  }
+  function _parentFamilyCount(res) {
+    var m = res && res.familyMembers;
+    if (Array.isArray(m)) return m.length;
+    var n = Number(m);
+    return (isFinite(n) && n > 0) ? n : 0;
+  }
+  function _parentFamilyWarnHtml(res) {
+    if (!(res && res.familyReissued === true)) return '';
+    var n = _parentFamilyCount(res);
+    return '<div class="prb-warn">⚠️ <b>同じ家庭の初回パスワードを振り直しました。</b><br>' +
+           'この家庭の' + (n ? '<b>' + n + '名ぶん</b>' : '全員分') + 'を配り直してください（古い紙のパスワードは使えません）。</div>';
+  }
+  // _niShowKeybox と同型：平文あり→大きく表示＋「この画面でしか確認できません」／平文なし→取得できなかった旨。
+  function _parentPwBoxHtml(res, closeFn) {
+    var pw = _parentPwFromRes(res);
+    var pwHtml, warn;
+    if (pw) {
+      pwHtml = '<div class="prb-pw">' + _esc(pw) + '</div>';
+      warn = '⚠️ この初回パスワードは<b>この画面でしか確認できません</b>（あとから取得できません）。<br>' +
+             '<b>必ず控えて、保護者の方に渡してください。</b>';
+    } else {
+      pwHtml = '<div class="prb-pw" style="color:#b91c1c;font-size:16px">（初回パスワードを取得できませんでした）</div>';
+      warn = '⚠️ 初回パスワードがサーバ応答に含まれていませんでした。サーバの応答をご確認のうえ、もう一度実行してください。';
+    }
+    return pwHtml +
+      '<div class="prb-warn">' + warn + '</div>' +
+      _parentFamilyWarnHtml(res) +
+      '<div class="prb-note">ログイン後、保護者ご自身で新しいパスワードを設定する画面になります。</div>' +
+      (closeFn ? '<button type="button" class="prb-close" onclick="' + closeFn + '()">閉じる</button>' : '');
+  }
 
   // select に一言メッセージだけ出す（読み込み中／取得失敗）。
   function _setParentResetSelectMsg(msg) {
@@ -5986,7 +6021,9 @@
     var opt   = (sel.options && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex] : null;
     var label = (opt && opt.text) ? opt.text : sid;
     if (!confirm('この生徒の【保護者】パスワードをリセットしますか？\n\n' + label +
-                 '\n\n保護者がご自身で設定したパスワードは無効になり、\n共通の初回パスワードに戻ります。' +
+                 '\n\n保護者がご自身で設定したパスワードは無効になり、\n新しい初回パスワードが発行されます。' +
+                 '\n\n⚠️ 兄弟がいる家庭では、同じ家庭の他の子の初回パスワードも振り直されます' +
+                 '\n（古い紙は使えなくなるので、家庭の全員分を配り直してください）。' +
                  '\n（生徒本人のログインには影響しません）')) return;
     adminGasPost({ action: 'adminResetParentAuth', studentId: sid }).then(function(res) {
       if (!res || !res.ok) {
@@ -5996,23 +6033,21 @@
         return;
       }
       // ★取り違え防止のため、応答の name で対象を確認表示する。
-      _showParentResetResult(res.studentId || sid, res.name || '');
+      _showParentResetResult(res.studentId || sid, res.name || '', res);
       showToast(sid + ' の保護者パスワードをリセットしました', 'success');
     }).catch(function() {
       showToast('通信エラーが発生しました', 'error');
     });
   }
 
-  function _showParentResetResult(studentId, name) {
+  function _showParentResetResult(studentId, name, res) {
     var box = document.getElementById('parent-reset-resultbox');
     if (!box) return;
     var label = String(studentId || '') + (name ? '　' + name : '');
     box.innerHTML =
       '<div class="prb-title">✅ ' + _esc(label) + ' の保護者パスワードをリセットしました</div>' +
-      '<div class="prb-note">保護者の方に、下の<b>共通の初回パスワード</b>でログインし直してもらってください。</div>' +
-      '<div class="prb-pw">' + _esc(PARENT_INITIAL_PASSWORD) + '</div>' +
-      '<div class="prb-note">ログイン後、保護者ご自身で新しいパスワードを設定する画面になります。</div>' +
-      '<button type="button" class="prb-close" onclick="_hideParentResetResult()">閉じる</button>';
+      '<div class="prb-note">保護者の方に、下の<b>初回パスワード</b>でログインし直してもらってください。</div>' +
+      _parentPwBoxHtml(res, '_hideParentResetResult');
     box.style.display = 'block';
     try { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
   }
@@ -6027,7 +6062,7 @@
   //     - adminIssueInitialKey             初回キーの発行。auth_state は legacy のまま。
   //                                        応答に平文キー（1回だけ）／既発行なら reissued:true。
   //     - adminActivateInitialKey          legacy → key_issued。★キー未発行なら拒否される。
-  //     - adminIssueParentInitialPassword  保護者に共通初回PWを発行。
+  //     - adminIssueParentInitialPassword  保護者に初回PWを発行（2026-10-25〜 家庭ごと。応答に平文 initialPassword）。
   //   ★① と ② の間に「本人へのキー配布」が入る。配布前に ② を押すとキーを持っていない生徒が
   //     入れなくなるため、② には必ず確認ダイアログを出し、キー未発行なら押せなくする（画面側の防御）。
   //   ★生徒一覧は同画面が既に読んだ getStudentsAuthStatus の結果を再利用（API 追加なし）。
@@ -6218,7 +6253,7 @@
     });
   }
 
-  // ③ 保護者の初回パスワードを発行。★共通初回PWは既存の PARENT_INITIAL_PASSWORD を流用する。
+  // ③ 保護者の初回パスワードを発行。★平文は応答の initialPassword（1回だけ）を表示する（2026-10-25）。
   function niIssueParentPassword() {
     var sel = document.getElementById('ni-select');
     var sid = sel ? String(sel.value || '').trim() : '';
@@ -6234,7 +6269,7 @@
       }
       var s = _niStudent(sid);
       if (s) s.parentAuthState = res.parentAuthState || res.parent_auth_state || 'pw_issued';
-      _niShowParentResult(res.studentId || sid, res.name || '', label);
+      _niShowParentResult(res.studentId || sid, res.name || '', label, res);
       showToast(sid + ' の保護者に初回パスワードを発行しました', 'success');
       _niRenderStatus();
     }).catch(function() {
@@ -6272,16 +6307,14 @@
   }
 
   // ③ の結果表示（既存 .parent-reset-resultbox を流用）。
-  function _niShowParentResult(studentId, name, fallbackLabel) {
+  function _niShowParentResult(studentId, name, fallbackLabel, res) {
     var box = document.getElementById('ni-parent-resultbox');
     if (!box) return;
     var label = name ? (String(studentId || '') + '　' + name) : (fallbackLabel || String(studentId || ''));
     box.innerHTML =
       '<div class="prb-title">✅ ' + _esc(label) + ' の保護者に初回パスワードを発行しました</div>' +
-      '<div class="prb-note">保護者の方に、下の<b>共通の初回パスワード</b>でログインしてもらってください。</div>' +
-      '<div class="prb-pw">' + _esc(PARENT_INITIAL_PASSWORD) + '</div>' +
-      '<div class="prb-note">ログイン後、保護者ご自身で新しいパスワードを設定する画面になります。</div>' +
-      '<button type="button" class="prb-close" onclick="_niHideParentResult()">閉じる</button>';
+      '<div class="prb-note">保護者の方に、下の<b>初回パスワード</b>でログインしてもらってください。</div>' +
+      _parentPwBoxHtml(res, '_niHideParentResult');
     box.style.display = 'block';
     try { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
   }
@@ -6868,18 +6901,20 @@
   //   ⑤ adminCreateLoginInfo             案内（PDF）を作る（新規・POST）
   //   ⑥ adminSendLoginInfoLine           LINE で送る（新規・POST）
   //   ★① で返る initialKey（平文）は _lsState にだけ持ち、⑤ でそのまま渡す。
+  //   ★2026-10-25：③ で返る保護者の initialPassword（平文）も _lsState.parentPassword にだけ持ち、⑤ で
+  //     parentPassword として渡す（サーバーは DB のハッシュと照合する）。画面のメモリ以外には残さない。
   //     サーバーは平文を持っていないため、画面を離れると ⑤ は作れない。
   //   ★sheetId / pdfBase64 も画面のメモリにだけ持つ（サーバーには PDF を保存していない）。
   var _lsState = {
     studentId: '', name: '',
-    initialKey: '',
+    initialKey: '', parentPassword: '',
     sheetId: '', pdfBase64: '', pdfFileName: '',
     step1: false, step2: false, step3: false, step4: false, step5: false,
     busy: false
   };
 
   function _lsReset() {
-    _lsState = { studentId: '', name: '', initialKey: '', sheetId: '', pdfBase64: '', pdfFileName: '',
+    _lsState = { studentId: '', name: '', initialKey: '', parentPassword: '', sheetId: '', pdfBase64: '', pdfFileName: '',
                  step1: false, step2: false, step3: false, step4: false, step5: false, busy: false };
     var panel = document.getElementById('sa-login-setup');
     if (panel) panel.style.display = 'none';
@@ -7002,9 +7037,11 @@
         showToast(msg, 'error'); return;
       }
       _lsState.step3 = true;
+      _lsState.parentPassword = _parentPwFromRes(res);   // ⑤ で使う（画面のメモリにだけ）
       var box = document.getElementById('ls-parent-resultbox');
       if (box) {
-        box.innerHTML = '✅ ' + _esc(_lsState.name) + '（' + _esc(sid) + '）の保護者に初回パスワードを発行しました。';
+        box.innerHTML = '<div class="prb-title">✅ ' + _esc(_lsState.name) + '（' + _esc(sid) + '）の保護者に初回パスワードを発行しました</div>' +
+                        _parentPwBoxHtml(res, '');
         box.style.display = 'block';
       }
       showToast(sid + ' の保護者に初回パスワードを発行しました', 'success');
@@ -7086,10 +7123,15 @@
   //   ★何度押してもよい（押すたびに新しい案内になる。DB は書き換えない）。
   function lsCreateLoginInfo() {
     var sid = _lsState.studentId; if (!sid) return;
+    // ★保護者の平文が無い（③ を別の画面でした・画面を開き直した等）と案内は作れないので、送る前に止めて案内する。
+    if (!_lsState.parentPassword) {
+      _lsMsg('ls-create-msg', '保護者の初回パスワードがこの画面にありません。③「保護者の初回パスワードを発行する」をもう一度押してから作成してください（初回パスワードは振り直されます）。', 'ng');
+      return;
+    }
     _lsBusy(true);
     _lsMsg('ls-create-msg', '⏳ 作成中…（少し時間がかかります）', '');
     _lsMsg('ls-send-msg', '');
-    adminGasPost({ action: 'adminCreateLoginInfo', studentId: sid, initialKey: _lsState.initialKey })
+    adminGasPost({ action: 'adminCreateLoginInfo', studentId: sid, initialKey: _lsState.initialKey, parentPassword: _lsState.parentPassword })
       .then(function(res) {
         _lsBusy(false);
         if (!res || !res.ok) {
@@ -19429,7 +19471,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261025-0013</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261025-1840</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
