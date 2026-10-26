@@ -3748,10 +3748,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261025-2221"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261026-2340"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261025-2221">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261025-2221"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261026-2340">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261026-2340"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6353,6 +6353,34 @@
       <button class="kp-main-btn" id="kki-next-btn" onclick="kanjiKakiInputNext()">次の問題へ →</button>
     </div>
     <button class="btn-wide" id="kki-prev-btn" style="display:none;background:linear-gradient(135deg,#94a3b8,#64748b);margin-top:10px" onclick="kanjiKakiInputPrev()">← 前の問題に戻る</button>
+  </div>
+</div>
+
+<!-- 2026-10-26 書きテストの「入力方法えらび」画面。
+     ★挟む場所＝書き練習の直後・書きテストに入る直前（_startKanjiKakiEntry が 1 か所で振り分ける）。
+       呼び出し元（級選択からの自動再開 / 読み合格 / 練習の終了）はすべてこの関数を通る。
+     ★★毎回聞く＝保存しない（塾長判断 2026-10-26：1 日に何度もやる生徒はほぼいないので煩わしくなく、
+       その日の状況で変えられるほうが生徒のためになる）。★localStorage にも入れない。
+     ★選んだ後は既存の関数をそのまま呼ぶだけ（startKanjiKakiInput / startKanjiKaki）。
+       送信・判定・結果・HP・記録・再挑戦・inputMethod の流れは一切変えていない。
+     ★文言は JS の KANJI_KAKI_METHOD_TEXT を書き換えれば変わる（★仮の文言なので差し替えやすくしてある）。
+     ★新しい CSS クラスは作らず既存クラス（kanjii-mate-row / kp-intro-title / btn-wide）のみ使用＝スマホ幅も既存どおり。 -->
+<div id="screen-kanji-kaki-method" class="screen">
+  <header><h1>🖌️ 書き問題</h1><span id="kanji-kaki-method-meta"></span></header>
+  <div class="container" style="padding-top:14px">
+    <div class="kanjii-mate-row">
+      <img class="kanjii-img" id="kanjii-img-kaki-method" src="images/kanjii-default.png" alt="カンジー">
+      <div class="kanjii-bubble" id="kanjii-bubble-kaki-method"></div>
+    </div>
+    <div class="kp-intro-title" id="kanji-kaki-method-title" style="margin-top:6px"></div>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#f97316,#c2410c)" onclick="chooseKanjiKakiMethodScreen()">
+      <span id="kanji-kaki-method-btn1"></span>
+      <small id="kanji-kaki-method-btn1-sub" style="display:block;font-size:12px;font-weight:normal;opacity:.9;margin-top:4px"></small>
+    </button>
+    <button class="btn-wide" style="background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="chooseKanjiKakiMethodPhoto()">
+      <span id="kanji-kaki-method-btn2"></span>
+      <small id="kanji-kaki-method-btn2-sub" style="display:block;font-size:12px;font-weight:normal;opacity:.9;margin-top:4px"></small>
+    </button>
   </div>
 </div>
 
@@ -19884,7 +19912,9 @@
     kakiFail:     ['惜しい、書き直しじゃ', 'もう一度、丁寧に', 'あと一歩じゃ'],
     kakiRetry:    ['間違えた問題だけ、もう一度がんばろう！', 'もう一度、丁寧に書いてみよ', 'リベンジじゃ'],
     // 2026-05-12 バグ⑤ Phase B：読み取り不能時の再撮影誘導（不合格扱いではない）
-    kakiRetake:   ['ふむ、もう一度撮ってもらえるかのう', '明るい場所で撮り直しじゃ', 'もう一回じっくり撮影なされ']
+    kakiRetake:   ['ふむ、もう一度撮ってもらえるかのう', '明るい場所で撮り直しじゃ', 'もう一回じっくり撮影なされ'],
+    // 2026-10-26 書きテストの入力方法えらび（★文言は仮。実機確認で最終決定する）
+    kakiMethod:   ['どちらで書くか、好きなほうを選びなされ', 'ふむ、書きやすいほうでよいぞ', '今日はどちらにするかの？']
   };
   var RUSHKUN_BUBBLES = {
     level:    ['どの級に挑戦する？', 'やる気あるね、どれにする？', "Let's go! どの級？"],
@@ -23248,12 +23278,59 @@
       return !!(_kanjiKakiInput.active && _kanjiKakiInput.sessionId && _kanjiKakiInput.sessionId === _kanjiState.sessionId);
     } catch(e) { return false; }
   }
+  // ===== 2026-10-26 書きテストの入力方法えらび（画面に書く／ノートに書いて写真を送る）=================
+  //   ★きっかけ：生徒から「勤倹の『倹』が何回やっても候にしか認識されない。スマホに書くのは不便。
+  //     書きのほうが時間がかからず、とめ・はねも意識できる」という声（実データでも 22029・24030 の 3 件で
+  //     「倹→候」の誤読を確認）。→ 塾長決定 2026-10-26：どちらで書くかを★生徒が選べるようにする。
+  //   ★★毎回聞く＝選択は保存しない（localStorage にも入れない）。1 日に何度もやる生徒はほぼいないので
+  //     煩わしくなく、その日の状況で変えられるほうが生徒のためになる（塾長判断）。
+  //   ★選んだ後は既存の関数をそのまま呼ぶだけ。startKanjiKakiInput / startKanjiKaki の中身は変えていない。
+  //   ★KANJI_NEW_FLOW_FOR_ALL は触っていない（切り戻しのスイッチとしてそのまま残す）。
+  //     false に戻せば _isKanjiLearnPreviewAllowed が test 枠判定になり、実生徒は選択画面を見ずに撮影へ直行する。
+
+  // ★文言は仮。実機確認で最終決定するので、★ここだけ書き換えれば画面に反映される。
+  var KANJI_KAKI_METHOD_TEXT = {
+    title:     'どちらで書く？',
+    screen:    '✏️ 画面に書く',
+    screenSub: '指で画面に書いて、そのまま送れるよ',
+    photo:     '📷 ノートに書いて写真を送る',
+    photoSub:  'とめ・はねまで書けて、書くのも速いよ'
+  };
+
+  function _showKanjiKakiMethod() {
+    var qs = _kanjiState.questions || [];
+    var meta = document.getElementById('kanji-kaki-method-meta');
+    if (meta) meta.textContent = '漢検 ' + _kanjiState.level + '級｜書き ' + qs.length + '問';
+    var T = KANJI_KAKI_METHOD_TEXT;
+    var put = function(id, text){ var el = document.getElementById(id); if (el) el.textContent = text; };
+    put('kanji-kaki-method-title',    T.title);
+    put('kanji-kaki-method-btn1',     T.screen);
+    put('kanji-kaki-method-btn1-sub', T.screenSub);
+    put('kanji-kaki-method-btn2',     T.photo);
+    put('kanji-kaki-method-btn2-sub', T.photoSub);
+    try { _kanjiSetMascot('kanjii-img-kaki-method', 'default', 'kanjii-bubble-kaki-method', _pickBubble(KANJI_BUBBLES.kakiMethod)); } catch(e) {}
+    showScreen('screen-kanji-kaki-method');
+  }
+  // 「画面に書く」：従来の振り分け（画面入力版）と同じ呼び方・同じフォールバック。
+  function chooseKanjiKakiMethodScreen() {
+    try { startKanjiKakiInput(); } catch(e) { startKanjiKaki(); }   // 画面入力側の不具合でテストに行けなくならないように
+  }
+  // 「ノートに書いて写真を送る」：従来の撮影テストへ。
+  //   ★同じセッションで先に画面入力を選んでいた場合に備え、画面入力モードの印だけ消す
+  //     （_kanjiKakiInputActive が false ＝ 再挑戦・読み取り不能時の戻り先が従来の撮影経路になる）。
+  //     startKanjiKaki 自体には手を入れていない。
+  function chooseKanjiKakiMethodPhoto() {
+    try { _kanjiKakiInput.active = false; } catch(e) {}
+    startKanjiKaki();
+  }
+
   // 書きテストの入口の振り分け。★実生徒は従来の撮影テスト（startKanjiKaki）そのもの。
+  //   2026-10-26：画面入力が使える生徒には、ここで★毎回「どちらで書く？」を聞く（保存しない）。
   function _startKanjiKakiEntry() {
     var allowed = false;
     try { allowed = _isKanjiLearnPreviewAllowed(); } catch(e) { allowed = false; }
     if (!allowed) { startKanjiKaki(); return; }
-    try { startKanjiKakiInput(); } catch(e) { startKanjiKaki(); }   // 画面入力側の不具合でテストに行けなくならないように
+    try { _showKanjiKakiMethod(); } catch(e) { chooseKanjiKakiMethodScreen(); }   // 選択画面の不具合でテストに行けなくならないように
   }
   // 2026-09-26：字数分のマス → ★1問1枚の大きな白紙キャンバスに変更（字数のズレで送りがなが合わない・混乱の懸念）。
   //   strokes は「その問の答え全体」の線のリスト（座標は枠の幅・高さに対する 0〜1 の割合）。
@@ -27866,7 +27943,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261025-2221</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261026-2340</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
