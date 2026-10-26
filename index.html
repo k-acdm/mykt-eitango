@@ -3748,10 +3748,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261026-2340"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261027-0420"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261026-2340">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261026-2340"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261027-0420">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261027-0420"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -19914,7 +19914,7 @@
     // 2026-05-12 バグ⑤ Phase B：読み取り不能時の再撮影誘導（不合格扱いではない）
     kakiRetake:   ['ふむ、もう一度撮ってもらえるかのう', '明るい場所で撮り直しじゃ', 'もう一回じっくり撮影なされ'],
     // 2026-10-26 書きテストの入力方法えらび（★文言は仮。実機確認で最終決定する）
-    kakiMethod:   ['どちらで書くか、好きなほうを選びなされ', 'ふむ、書きやすいほうでよいぞ', '今日はどちらにするかの？']
+    kakiMethod:   ['どちらで書くか、好きな方を選びなされ', 'ふむ、書きやすい方でよいぞ', '今日はどちらにするかの？']
   };
   var RUSHKUN_BUBBLES = {
     level:    ['どの級に挑戦する？', 'やる気あるね、どれにする？', "Let's go! どの級？"],
@@ -23294,7 +23294,7 @@
     screen:    '✏️ 画面に書く',
     screenSub: '指で画面に書いて、そのまま送れるよ',
     photo:     '📷 ノートに書いて写真を送る',
-    photoSub:  'とめ・はねまで書けて、書くのも速いよ'
+    photoSub:  'いつも慣れてる「紙」に書いて写真に撮ってね'
   };
 
   function _showKanjiKakiMethod() {
@@ -27943,7 +27943,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261026-2340</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261027-0420</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
