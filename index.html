@@ -3748,10 +3748,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261027-0420"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261027-1632"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261027-0420">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261027-0420"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261027-1632">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261027-1632"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -22992,7 +22992,7 @@
 
   var KP_FONT_STACK = '"Klee One", "UD デジタル 教科書体 NK-R", "UD Digi Kyokasho NK-R", "Hiragino Mincho ProN", "Yu Mincho", serif';
   var KP_FONT_TIMEOUT_MS = 4000;
-  var _kanjiPractice = { chars: [], idx: 0, mode: 'look', strokes: [], current: null, checked: false, fontPromise: null, bound: false };
+  var _kanjiPractice = { chars: [], idx: 0, mode: 'trace', strokes: [], current: null, checked: false, fontPromise: null, bound: false };
 
   // その回の練習字だけを指定して Klee One を読み込む（★文字を指定しないと漢字の分は読み込まれず、
   //   canvas の fillText が別フォントで描かれてしまうため）。失敗・タイムアウトでも先へ進む。
@@ -23012,7 +23012,10 @@
   function _showKanjiPracticeIntro() {
     var chars = _kanjiLearnKakiChars(_kanjiState.questions || []);
     if (!chars.length) { _startKanjiKakiEntry(); return; }   // 取り出せなければ練習を飛ばして書きテストへ
-    _kanjiPractice = { chars: chars, idx: 0, mode: 'look', strokes: [], current: null, checked: false,
+    // 2026-10-27 塾長指定：練習の既定は「お手本をなぞる」（trace）。
+    //   ★生徒が「お手本を見ながら書く」(look) を選べる仕組みはそのまま（kanjiPracticeSetMode）。
+    //   ★モードは 1 回の練習のあいだ保たれ、次の練習ではここで既定に戻る（保存はしない）。
+    _kanjiPractice = { chars: chars, idx: 0, mode: 'trace', strokes: [], current: null, checked: false,
                        fontPromise: _kanjiPracticeLoadFont(chars), bound: _kanjiPractice.bound };
     var meta = document.getElementById('kanji-practice-intro-meta');
     if (meta) meta.textContent = '漢検 ' + _kanjiState.level + '級｜' + chars.length + '字';
@@ -23088,7 +23091,10 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = '#1f2937';
-    ctx.lineWidth = Math.max(4, s * 0.035);
+    // 2026-10-27 塾長指定：線の太さは書きテストの画面表示（_kkiRedrawPad）と同じ式に揃える。
+    //   ★以前は max(4, s×0.035)＝1マスの 3.5% で、テスト（3.0%）より約 1.17 倍太く見えていた。
+    //   ★合成画像（_kkiDrawCellsAsRow・1マス×0.05）は AI に読ませる都合の別の値なので触らない。
+    ctx.lineWidth = Math.max(3, s * 0.03);
     var all = _kanjiPractice.strokes.slice();
     if (_kanjiPractice.current) all.push(_kanjiPractice.current);
     all.forEach(function(st){
@@ -27943,7 +27949,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261027-0420</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261027-1632</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
