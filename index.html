@@ -3748,10 +3748,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261027-2157"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261029-0333"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261027-2157">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261027-2157"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261029-0333">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261029-0333"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -23311,6 +23311,15 @@
     note:      '楷書で書くこと。くずし字はミスになります。'
   };
 
+  // 2026-10-29 段階1（塾長決定）：書きの答え合わせで出す文言。★仮。実機確認で最終決定するので、
+  //   ★ここだけ書き換えれば画面に反映される（HTML には直接書かない）。
+  var KANJI_KAKI_RESULT_TEXT = {
+    // ✕ の問に出す、AI が ✕ にした理由の前置き
+    reasonLabel: 'AIの指摘：',
+    // ✕ が 1 つでもあるときだけ出す注意（★カンジーのセリフとは別の枠に出す）
+    aiMisread:   'AIが読み間違えることもあります。自分の字を見て『合っている』と思ったら、先生に相談してね。'
+  };
+
   function _showKanjiKakiMethod() {
     var qs = _kanjiState.questions || [];
     var meta = document.getElementById('kanji-kaki-method-meta');
@@ -24262,6 +24271,7 @@
       var sw = String(r.studentWrote || '').trim();
       var readable = String(r.readable || '');
       var studentLine = '';
+      var reasonLine = '';   // 2026-10-29 段階1：AI が ✕ にした理由（サーバ側 d47c55d で追加された reason）
       if (!ok) {
         var swDisplay;
         if (readable === 'blank' || !sw) {
@@ -24277,6 +24287,17 @@
             '<span style="opacity:.7">あなたが書いた文字：</span>' +
             '<span class="ans-student">' + swDisplay + '</span>' +
           '</div>';
+        // 2026-10-29 段階1（塾長決定）：AI が ✕ にした理由（reason）をそのまま出す。
+        //   ★空・未指定のときは何も出さない（★サーバ未反映の本番では reason が来ないので、そこで壊れない）。
+        //   ★○ の問には出さない（この分岐は !ok のときだけ通る）。
+        var reasonText = String(r.reason == null ? '' : r.reason).trim();
+        if (reasonText) {
+          reasonLine =
+            '<div class="kanji-answer-student">' +
+              '<span style="opacity:.7">' + escH(KANJI_KAKI_RESULT_TEXT.reasonLabel) + '</span>' +
+              '<span class="ans-student">' + escH(reasonText) + '</span>' +
+            '</div>';
+        }
       }
       return '<div class="kanji-answer-item ' + (ok ? 'correct' : 'wrong') + '">' +
                '<div class="kanji-answer-row">' +
@@ -24286,6 +24307,7 @@
                  '<span class="ans">' + escH(r.expected || '') + '</span>' +
                '</div>' +
                studentLine +
+               reasonLine +
              '</div>';
     }).join('');
     // 2026-09-25：②（とめ・はね・はらいは判定できない場合がある）を既存の注記に★統合する。
@@ -24296,6 +24318,13 @@
         'とめ・はね・はらいの細かい部分は判定できない場合があります。' +
         '間違えた問題は正解の字をよく見て、もう一度書いてみよう。' +
       '</div>';
+    // 2026-10-29 段階1（塾長決定）：AI が読み違えることがある、と★カンジーのセリフとは別の枠で伝える。
+    //   ★✕ が 1 つでもあるときだけ出す。★文言は KANJI_KAKI_RESULT_TEXT.aiMisread を書き換えれば変わる。
+    //   ★既存の注意枠（wabun1-period-warn・書きの撮影確認などで使っている赤枠）を流用。新しい CSS クラスは増やしていない。
+    var anyWrong = (res.results || []).some(function(r){ return !r.isCorrect; });
+    var misreadBlock = anyWrong
+      ? '<div class="wabun1-period-warn" id="kanji-kaki-result-misread">' + escH(KANJI_KAKI_RESULT_TEXT.aiMisread) + '</div>'
+      : '';
     banner.innerHTML =
       '<div class="kanji-result-fail">' +
         '<div style="font-size:48px">😤</div>' +
@@ -24306,6 +24335,7 @@
           '<div class="kanji-answer-list">' + (answerListHtml || '（なし）') + '</div>' +
           hintBlock +
         '</div>' +
+        misreadBlock +
       '</div>';
     // ★2026-08-30：合格しない限り抜けられない（ホームへ戻る導線は出さない）。
     actions.innerHTML =
@@ -27958,7 +27988,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261027-2157</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261029-0333</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
