@@ -3748,10 +3748,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261029-1646"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261027-2157"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261029-1646">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261029-1646"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261027-2157">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261027-2157"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -19511,10 +19511,6 @@
     kakiPassed: false,
     isKakiRetry: false,
     retryAnswers: [],     // 再挑戦時に渡す対象のみ [{kanjiId, no, answer}]
-    // 2026-10-29 段階2：同じ画像での再採点に使う。kakiLastPayload＝前回送った中身そのまま（控え）、
-    //   kakiRegradeCount＝この答案で再採点を送った回数（新しい提出のたびに 0 に戻す）。
-    kakiLastPayload: null,
-    kakiRegradeCount: 0,
     isResumed: false      // 2026-05-21 Recovery バリアント：localStorage から resume された場合 true
   };
   function _kanjiResetState() {
@@ -19523,7 +19519,6 @@
       yomiCurrent: 0, yomiAnswers: [], yomiScore: 0, yomiPassed: false,
       kakiPhotoDataUrl: '', kakiPhotoBase64: '', kakiResults: [], kakiPassed: false,
       isKakiRetry: false, retryAnswers: [],
-      kakiLastPayload: null, kakiRegradeCount: 0,   // 2026-10-29 段階2
       isResumed: false
     };
   }
@@ -23316,27 +23311,6 @@
     note:      '楷書で書くこと。くずし字はミスになります。'
   };
 
-  // 2026-10-29 段階1（塾長決定）：書きの答え合わせで出す文言。★仮。実機確認で最終決定するので、
-  //   ★ここだけ書き換えれば画面に反映される（HTML には直接書かない）。
-  var KANJI_KAKI_RESULT_TEXT = {
-    // ✕ の問に出す、AI が ✕ にした理由の前置き
-    reasonLabel: 'AIの指摘：',
-    // ✕ が 1 つでもあるときだけ出す注意（★カンジーのセリフとは別の枠に出す）
-    aiMisread:   'AIが読み間違えることもあります。自分の字を見て『合っている』と思ったら、先生に相談してね。'
-  };
-
-  // 2026-10-29 段階2（塾長決定）：AI の判定にはゆらぎがあるので、★同じ画像でもう一度採点してもらえるようにする。
-  //   ★上限はサーバー（mykt-eitango-aws 2230e68・MAX_REGRADE）と同じ 2。3 回目はサーバーが断る。
-  //   ★文言は仮。実機確認で最終決定するので、★ここだけ書き換えれば画面に反映される（HTML には直接書かない）。
-  //   ★{n}＝あと何回押せるか、{max}＝上限。
-  var KANJI_KAKI_REGRADE_MAX = 2;
-  var KANJI_KAKI_REGRADE_TEXT = {
-    button:        'もう一度採点してもらう（あと{n}回）',
-    overLimit:     'もう一度採点してもらえるのは{max}回までだよ。間違えた問題を、もう一度書いてみよう。',
-    alreadyPassed: 'この答案はもう合格しているから、採点のやり直しはできないよ。',
-    failed:        'いまは採点のやり直しができなかったよ。少し時間をおいてから、もう一度ためしてね。'
-  };
-
   function _showKanjiKakiMethod() {
     var qs = _kanjiState.questions || [];
     var meta = document.getElementById('kanji-kaki-method-meta');
@@ -24068,13 +24042,8 @@
   }
   //   inputMethod：画面入力（kanjiKakiInputSubmit）からだけ 'screen' を渡す。撮影の送信ボタンは引数なし
   //   ＝未指定のまま送る（サーバーは未指定を写真として従来どおり判定）。
-  //   2026-10-29 段階2：regradeOpts（{attempt:1|2}）を渡すと「同じ画像での再採点」になる。
-  //     ★前回送った中身（画像・submitId・isRetry・expectedAnswers・inputMethod）を1バイトも変えずに送り直し、
-  //       ★regradeAttempt だけを足す＝★判定・HP・送信の流れは1回目とまったく同じものが走る。
-  //     ★regradeOpts を渡さない従来のすべての呼び出しは、1行も挙動が変わらない。
-  function submitKanjiKakiPhoto(inputMethod, regradeOpts) {
-    var regrade = (regradeOpts && Number(regradeOpts.attempt)) || 0;   // 0＝従来どおりの提出
-    if (!regrade && !_kanjiState.kakiPhotoBase64) {
+  function submitKanjiKakiPhoto(inputMethod) {
+    if (!_kanjiState.kakiPhotoBase64) {
       // 2026-08-20：従来は無言 return だった。撮影画面へ戻し、既存のカンジー吹き出しで知らせる。
       //   （確認画面にはマスコット要素が無いため、カメラを押せる画面まで戻してから表示する）
       try { _pendingPhotoClear(KANJI_PHOTO_KEY); } catch(e){}
@@ -24086,44 +24055,28 @@
     submitBtn.disabled = true;
     var msgEl = document.getElementById('kanji-kaki-msg');
     msgEl.style.display = 'none';  // 旧版の画面内 msg は非表示、overlay 表示に置換
-    var payload;
-    if (regrade) {
-      // 2026-10-29 段階2：★再採点は前回送った中身をそのまま使う（画像も submitId も isRetry も expectedAnswers も変えない）。
-      //   ★submitId を変えると、待ち時間切れの救済（getKanjiKakiResult）が notFound になる（サーバー 2230e68 の注意書き）。
-      payload = Object.assign({}, _kanjiState.kakiLastPayload || {});
-      payload.regradeAttempt = regrade;
-      if (!payload.photoBase64) {   // 控えが無い異常時でも画面を壊さない
-        submitBtn.disabled = false;
-        _kanjiKakiRegradeNotice(KANJI_KAKI_REGRADE_TEXT.failed);
-        return;
-      }
+    // 期待解答リスト：通常時は全問、再挑戦時は不正解だった問題のみ
+    var expected;
+    if (_kanjiState.isKakiRetry && _kanjiState.retryAnswers.length > 0) {
+      expected = _kanjiState.retryAnswers;
     } else {
-      // 期待解答リスト：通常時は全問、再挑戦時は不正解だった問題のみ
-      var expected;
-      if (_kanjiState.isKakiRetry && _kanjiState.retryAnswers.length > 0) {
-        expected = _kanjiState.retryAnswers;
-      } else {
-        expected = _kanjiState.questions.map(function(q, i){
-          return { kanjiId: q.kanjiId, no: i + 1, answer: q.kaki.answer };
-        });
-      }
-      payload = {
-        action: 'submitKanjiKaki',
-        studentId: _studentId,
-        level: _kanjiState.level,
-        sessionId: _kanjiState.sessionId,
-        photoBase64: _kanjiState.kakiPhotoBase64,
-        count: _kanjiState.count,
-        expectedAnswers: expected,
-        isRetry: _kanjiState.isKakiRetry
-      };
-      if (inputMethod === 'screen') payload.inputMethod = 'screen';
-      // 2026-10 (B)：提出ごとの識別子。待ち時間切れのとき getKanjiKakiResult でこの提出の結果を問い合わせるのに使う。
-      payload.submitId = _kanjiKakiNewSubmitId();
-      // 2026-10-29 段階2：新しい提出なので、再採点の控えと回数をここで作り直す。
-      _kanjiState.kakiLastPayload  = payload;
-      _kanjiState.kakiRegradeCount = 0;
+      expected = _kanjiState.questions.map(function(q, i){
+        return { kanjiId: q.kanjiId, no: i + 1, answer: q.kaki.answer };
+      });
     }
+    var payload = {
+      action: 'submitKanjiKaki',
+      studentId: _studentId,
+      level: _kanjiState.level,
+      sessionId: _kanjiState.sessionId,
+      photoBase64: _kanjiState.kakiPhotoBase64,
+      count: _kanjiState.count,
+      expectedAnswers: expected,
+      isRetry: _kanjiState.isKakiRetry
+    };
+    if (inputMethod === 'screen') payload.inputMethod = 'screen';
+    // 2026-10 (B)：提出ごとの識別子。待ち時間切れのとき getKanjiKakiResult でこの提出の結果を問い合わせるのに使う。
+    payload.submitId = _kanjiKakiNewSubmitId();
     // 2026-10-24：この答案の送信が失敗した回数。1回目は「もう一度送信する」、再送も失敗（2回目以降）なら
     //   「先生に届いているから大丈夫」の案内を出してホームへ戻れるようにする（閉じ込めない）。
     //   kind：'server'＝答案がサーバーに残った失敗（res.answerSaved === true）／
@@ -24131,9 +24084,6 @@
     //   ★案内と記録は「最後の失敗」の種類で分ける（失敗のたびに kind を渡し直す）。
     var failCount = 0;
     function _kanjiKakiSubmitFailed(kind) {
-      // 2026-10-29 段階2：★再採点の失敗は「閉じ込め」の対象外。答え合わせはすでに画面に出ているので、
-      //   ★その画面に理由だけ出す（★ホームへ戻す案内＝_showKanjiKakiGiveUp は出さない）。
-      if (regrade) { _kanjiKakiRegradeNotice(KANJI_KAKI_REGRADE_TEXT.failed); return; }
       failCount++;
       if (failCount >= 2) { _showKanjiKakiGiveUp(kind === 'server' ? 'server' : 'net'); return; }
       _showSubmitError();   // _pendingRetry（doSubmit）/ _pendingDismiss は doSubmit で設定済み
@@ -24154,12 +24104,6 @@
         _clearUnsentFlowIfOk(res, 'kanji');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
         submitBtn.disabled = false;
         if (!res || !res.ok) {
-          // 2026-10-29 段階2：★再採点だけがサーバーに断られた場合（3回目／合格済み・サーバー 2230e68）。
-          //   ★すでに出ている答え合わせはそのまま残し、理由だけを伝える（★画面を壊さない・閉じ込めない）。
-          if (regrade) {
-            _hideHpConfirmingOverlay(function(){ _kanjiKakiRegradeNotice(_kanjiKakiRegradeMessage(res)); });
-            return;
-          }
           _hideHpConfirmingOverlay();
           if (res && res.retake) {
             // 旧 retake フロー：OCR 信頼度低 → 撮り直し誘導（既存挙動維持）
@@ -24241,54 +24185,6 @@
     doSubmit();
   }
 
-  // 2026-10-29 段階2（塾長決定）：同じ画像での「もう一度採点してもらう」。
-  //   ★押すと、前回送った中身をそのまま（画像も submitId も isRetry も変えずに）送り直し、regradeAttempt だけを足す。
-  //   ★回数の上限はサーバー（2230e68）が持っている。画面側でも3回目のボタンは出さない。
-  //   ★送った時点で数える＝同じ回数を二度送らない。
-  function _regradeKanjiKaki() {
-    var done = Number(_kanjiState.kakiRegradeCount || 0);
-    if (done >= KANJI_KAKI_REGRADE_MAX) { _kanjiKakiRegradeNotice(_kanjiKakiRegradeText('overLimit')); return; }
-    var snap = _kanjiState.kakiLastPayload;
-    if (!snap || !snap.photoBase64) { _kanjiKakiRegradeNotice(KANJI_KAKI_REGRADE_TEXT.failed); return; }
-    var btn = document.getElementById('kanji-kaki-regrade-btn');
-    if (btn) btn.disabled = true;
-    _kanjiState.kakiRegradeCount = done + 1;
-    submitKanjiKakiPhoto(null, { attempt: _kanjiState.kakiRegradeCount });   // inputMethod は控えに入っているので渡さない
-  }
-  // {max} を実際の上限に差し替える（文言は KANJI_KAKI_REGRADE_TEXT の1か所だけで直せる）。
-  function _kanjiKakiRegradeText(key) {
-    return String(KANJI_KAKI_REGRADE_TEXT[key] || '').replace('{max}', String(KANJI_KAKI_REGRADE_MAX));
-  }
-  // 断られた理由（errorCode・サーバー 2230e68）に合わせた言い方を選ぶ。
-  //   ★知らない理由のときはサーバーの message をそのまま出す（★黙って終わらせない）。
-  function _kanjiKakiRegradeMessage(res) {
-    var code = String((res && res.errorCode) || '');
-    if (code === 'REGRADE_LIMIT')          return _kanjiKakiRegradeText('overLimit');
-    if (code === 'REGRADE_ALREADY_PASSED') return KANJI_KAKI_REGRADE_TEXT.alreadyPassed;
-    var msg = String((res && res.message) || '').trim();
-    return msg || KANJI_KAKI_REGRADE_TEXT.failed;
-  }
-  // 断られた／失敗したときに、答え合わせの下に理由を出す。
-  //   ★既存の注意枠（wabun1-period-warn）を流用＝新しい CSS クラスは増やしていない。
-  //   ★ボタンは隠す（同じ理由で何度も押させない）。答え合わせ自体はそのまま残る。
-  function _kanjiKakiRegradeNotice(text) {
-    _pendingRetry = null;
-    _pendingDismiss = null;
-    var actions = document.getElementById('kanji-kaki-result-actions');
-    if (!actions) { try { alert(text); } catch(e){} return; }
-    var btn = document.getElementById('kanji-kaki-regrade-btn');
-    if (btn) btn.style.display = 'none';
-    var box = document.getElementById('kanji-kaki-regrade-msg');
-    if (!box) {
-      box = document.createElement('div');
-      box.id = 'kanji-kaki-regrade-msg';
-      box.className = 'wabun1-period-warn';
-      actions.appendChild(box);
-    }
-    box.textContent = text;
-    box.style.display = '';
-  }
-
   // 2026-10-24：再送しても採点に失敗したときの出口（マイカツ君）。生徒の操作は不要（サーバー側で失敗した答案の画像を
   //   保存して塾長に通知する仕組みがある）。「分かりました」でホームへ戻る（閉じ込め回避）。
   //   ★記録は既存の _recordLineHandoff に乗せる（先生への通知に「参考」として書き添えられる仕組み）。
@@ -24366,7 +24262,6 @@
       var sw = String(r.studentWrote || '').trim();
       var readable = String(r.readable || '');
       var studentLine = '';
-      var reasonLine = '';   // 2026-10-29 段階1：AI が ✕ にした理由（サーバ側 d47c55d で追加された reason）
       if (!ok) {
         var swDisplay;
         if (readable === 'blank' || !sw) {
@@ -24382,17 +24277,6 @@
             '<span style="opacity:.7">あなたが書いた文字：</span>' +
             '<span class="ans-student">' + swDisplay + '</span>' +
           '</div>';
-        // 2026-10-29 段階1（塾長決定）：AI が ✕ にした理由（reason）をそのまま出す。
-        //   ★空・未指定のときは何も出さない（★サーバ未反映の本番では reason が来ないので、そこで壊れない）。
-        //   ★○ の問には出さない（この分岐は !ok のときだけ通る）。
-        var reasonText = String(r.reason == null ? '' : r.reason).trim();
-        if (reasonText) {
-          reasonLine =
-            '<div class="kanji-answer-student">' +
-              '<span style="opacity:.7">' + escH(KANJI_KAKI_RESULT_TEXT.reasonLabel) + '</span>' +
-              '<span class="ans-student">' + escH(reasonText) + '</span>' +
-            '</div>';
-        }
       }
       return '<div class="kanji-answer-item ' + (ok ? 'correct' : 'wrong') + '">' +
                '<div class="kanji-answer-row">' +
@@ -24402,7 +24286,6 @@
                  '<span class="ans">' + escH(r.expected || '') + '</span>' +
                '</div>' +
                studentLine +
-               reasonLine +
              '</div>';
     }).join('');
     // 2026-09-25：②（とめ・はね・はらいは判定できない場合がある）を既存の注記に★統合する。
@@ -24413,13 +24296,6 @@
         'とめ・はね・はらいの細かい部分は判定できない場合があります。' +
         '間違えた問題は正解の字をよく見て、もう一度書いてみよう。' +
       '</div>';
-    // 2026-10-29 段階1（塾長決定）：AI が読み違えることがある、と★カンジーのセリフとは別の枠で伝える。
-    //   ★✕ が 1 つでもあるときだけ出す。★文言は KANJI_KAKI_RESULT_TEXT.aiMisread を書き換えれば変わる。
-    //   ★既存の注意枠（wabun1-period-warn・書きの撮影確認などで使っている赤枠）を流用。新しい CSS クラスは増やしていない。
-    var anyWrong = (res.results || []).some(function(r){ return !r.isCorrect; });
-    var misreadBlock = anyWrong
-      ? '<div class="wabun1-period-warn" id="kanji-kaki-result-misread">' + escH(KANJI_KAKI_RESULT_TEXT.aiMisread) + '</div>'
-      : '';
     banner.innerHTML =
       '<div class="kanji-result-fail">' +
         '<div style="font-size:48px">😤</div>' +
@@ -24430,25 +24306,11 @@
           '<div class="kanji-answer-list">' + (answerListHtml || '（なし）') + '</div>' +
           hintBlock +
         '</div>' +
-        misreadBlock +
       '</div>';
-    // 2026-10-29 段階2：同じ画像での「もう一度採点してもらう」。出す条件は3つとも満たすときだけ。
-    //   ★✕ の問が1つでもある（anyWrong）／★合格したときは出さない（合格はこの関数の手前で return している）／
-    //   ★2回まで（3回目は出さない）。★前回送った中身の控えが無いときも出さない。
-    var regradeLeft = KANJI_KAKI_REGRADE_MAX - Number(_kanjiState.kakiRegradeCount || 0);
-    var canRegrade  = anyWrong && regradeLeft > 0 &&
-                      !!(_kanjiState.kakiLastPayload && _kanjiState.kakiLastPayload.photoBase64);
-    var regradeBtn  = canRegrade
-      ? '<button class="btn-wide" id="kanji-kaki-regrade-btn" ' +
-          'style="background:linear-gradient(135deg,#60a5fa,#2563eb)" onclick="_regradeKanjiKaki()">' +
-          escH(String(KANJI_KAKI_REGRADE_TEXT.button).replace('{n}', String(regradeLeft))) +
-        '</button>'
-      : '';
     // ★2026-08-30：合格しない限り抜けられない（ホームへ戻る導線は出さない）。
     actions.innerHTML =
       '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_retryKanjiKaki()">' +
-        (_kanjiKakiInputActive() ? '✏️' : '📸') + ' 間違えた問題だけ もう一度</button>' +
-      regradeBtn;   // 2026-09-26 段階C：画面入力版は ✏️
+        (_kanjiKakiInputActive() ? '✏️' : '📸') + ' 間違えた問題だけ もう一度</button>';   // 2026-09-26 段階C：画面入力版は ✏️
     try { playSfx('fail'); } catch(e){}
     showScreen('screen-kanji-kaki-result');
   }
@@ -28096,7 +27958,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261029-1646</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261027-2157</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
