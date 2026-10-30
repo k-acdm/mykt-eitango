@@ -3748,10 +3748,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261031-0602"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261031-0631"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261031-0602">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261031-0602"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261031-0631">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261031-0631"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -24099,8 +24099,9 @@
   //   inputMethod：画面入力（kanjiKakiInputSubmit）からだけ 'screen' を渡す。撮影の送信ボタンは引数なし
   //   ＝未指定のまま送る（サーバーは未指定を写真として従来どおり判定）。
   //   2026-10-29 段階2：regradeOpts（{attempt:1|2}）を渡すと「同じ画像での再採点」になる。
-  //     ★前回送った中身（画像・submitId・isRetry・expectedAnswers・inputMethod）を1バイトも変えずに送り直し、
-  //       ★regradeAttempt だけを足す＝★判定・HP・送信の流れは1回目とまったく同じものが走る。
+  //     ★前回送った中身（画像・submitId・isRetry・count・inputMethod）はそのまま送り直し、★regradeAttempt を足す。
+  //     ★★2026-10-31（案B）：expectedAnswers だけは★✕ だった問に絞る（★下の wrongOnly）。
+  //       ★同じ画像で全問を再判定すると、AI のゆらぎで★一度 ○ にした問が ✕ に変わるため。
   //     ★regradeOpts を渡さない従来のすべての呼び出しは、1行も挙動が変わらない。
   function submitKanjiKakiPhoto(inputMethod, regradeOpts) {
     var regrade = (regradeOpts && Number(regradeOpts.attempt)) || 0;   // 0＝従来どおりの提出
@@ -24118,10 +24119,20 @@
     msgEl.style.display = 'none';  // 旧版の画面内 msg は非表示、overlay 表示に置換
     var payload;
     if (regrade) {
-      // 2026-10-29 段階2：★再採点は前回送った中身をそのまま使う（画像も submitId も isRetry も expectedAnswers も変えない）。
+      // 2026-10-29 段階2：★再採点は前回送った中身をそのまま使う（画像も submitId も isRetry も count も変えない）。
       //   ★submitId を変えると、待ち時間切れの救済（getKanjiKakiResult）が notFound になる（サーバー 2230e68 の注意書き）。
-      payload = Object.assign({}, _kanjiState.kakiLastPayload || {});
+      payload = Object.assign({}, _kanjiState.kakiLastPayload || {});   // 控えは書き換えない（浅いコピー）
       payload.regradeAttempt = regrade;
+      // ★★2026-10-31（案B・塾長決定）：再採点は★✕ だった問だけを送る。サーバー（f530786）が再採点のときだけ
+      //   ★プロンプトに「問題リストに挙げた問だけを見る（画像の他の問は無視）」を差し込む。
+      //   ★これで★一度 ○ にした問が AI のゆらぎで ✕ に変わらない＝「📸 間違えた問題だけ もう一度」と同じ守り方に戻す。
+      //   ★絞り方は既存の再挑戦（_retryKanjiKaki の retryAnswers）と同じ＝kakiResults の !isCorrect。
+      //   ★問番号（no）はそのまま残す（★飛び番号になる）。★画像・submitId・isRetry・count は控えのまま変えない。
+      var wrongOnly = (_kanjiState.kakiResults || [])
+        .filter(function(r){ return r && !r.isCorrect; })
+        .map(function(r){ return { kanjiId: r.kanjiId, no: r.no, answer: r.expected }; });
+      // ★0 件は起きない（✕ が1つも無いと再採点ボタンを出さない）。万一のときは控えのまま送って画面を壊さない。
+      if (wrongOnly.length > 0) payload.expectedAnswers = wrongOnly;
       if (!payload.photoBase64) {   // 控えが無い異常時でも画面を壊さない
         submitBtn.disabled = false;
         _kanjiKakiRegradeNotice(KANJI_KAKI_REGRADE_TEXT.failed);
@@ -24183,6 +24194,18 @@
       function _onKanjiKakiRes(res){
         _clearUnsentFlowIfOk(res, 'kanji');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
         submitBtn.disabled = false;
+        // ★★2026-10-31（案B）：再採点は ✕ の問だけを送るので、★応答もその問だけが返る。
+        //   ★画面には★前回の結果（○ の問）を残したまま、★今回返ってきた問だけを差し替える（★○ を守る）。
+        //   ★合否（passed）と hpInfo は★サーバーの判断をそのまま使う（1バイトも触らない）。
+        //   ★通常の提出（1回目）と既存の再挑戦（isRetry）は regrade が 0 なので★ここを通らない。
+        if (regrade && res && Array.isArray(res.results)) {
+          var _merged = _kanjiMergeRegradeResults(_kanjiState.kakiResults, res.results);
+          res = Object.assign({}, res, {
+            results:      _merged,
+            correctCount: _merged.filter(function(r){ return r && r.isCorrect; }).length,
+            total:        _merged.length
+          });
+        }
         // ★★2026-10-31：サーバーが生徒を★解放した回（released:true）の分岐。★3経路ともここ1か所で分ける。
         //   ★この関数は「送信できた回」と「通信が切れて後から getKanjiKakiResult に問い合わせた回」の★共通の合流点
         //     （下の .then(_onKanjiKakiRes) と .catch 内の _onKanjiKakiRes(found)）＝★ここに置けば両方が同時に正しくなる。
@@ -24318,6 +24341,14 @@
     if (btn) btn.disabled = true;
     _kanjiState.kakiRegradeCount = done + 1;
     submitKanjiKakiPhoto(null, { attempt: _kanjiState.kakiRegradeCount });   // inputMethod は控えに入っているので渡さない
+  }
+  // ★★2026-10-31（案B）：前回の結果（prev）に、再採点で返ってきた問（now）だけを上書きして問番号順に並べ直す。
+  //   ★前回 ○ だった問は prev のまま残る＝★画面でも ○ のまま見える。★再採点のときだけ使う。
+  function _kanjiMergeRegradeResults(prev, now) {
+    var byNo = {};
+    (prev || []).forEach(function(r){ if (r && r.no != null) byNo[r.no] = r; });
+    (now  || []).forEach(function(r){ if (r && r.no != null) byNo[r.no] = r; });
+    return Object.keys(byNo).map(Number).sort(function(a, b){ return a - b; }).map(function(n){ return byNo[n]; });
   }
   // {max} を実際の上限に差し替える（文言は KANJI_KAKI_REGRADE_TEXT の1か所だけで直せる）。
   function _kanjiKakiRegradeText(key) {
@@ -28244,7 +28275,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261031-0602</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261031-0631</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
