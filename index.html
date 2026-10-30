@@ -3748,10 +3748,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261029-1646"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261031-0455"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261029-1646">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261029-1646"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261031-0455">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261031-0455"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7233,6 +7233,21 @@
     </div>
     <div class="mykt-overlay-btns">
       <button class="btn-retry" onclick="_kanjiKakiGiveUpConfirmed('net')">分かりました（ホームへ）</button>
+    </div>
+  </div>
+</div>
+<!-- ★★2026-10-31 段階2（塾長決定）：読めない／通信が落ちたのが3回目になったとき、サーバー（a8f19db）が
+     released:true で生徒を★解放する。その案内（マイカツ君）。「分かりました」で通常の HP 獲得画面へ。
+     ★文面はサーバーの message をそのまま出す（画面側に文面を持たない）。改行を活かすため white-space だけ指定。
+     ★HP はまだ付いていない（塾長が後から代理で付ける）ので、祝う演出は一切出さない。 -->
+<div id="kanji-released-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble grading" id="kanji-released-text" style="white-space:pre-line"></div>
+    </div>
+    <div class="mykt-overlay-btns">
+      <button class="btn-retry" onclick="_kanjiReleasedConfirmed()">分かりました</button>
     </div>
   </div>
 </div>
@@ -24186,6 +24201,19 @@
           _kanjiKakiSubmitFailed(res && res.answerSaved === true ? 'server' : 'net');
           return;
         }
+        // ★★2026-10-31 段階2（塾長決定）：サーバー（a8f19db）が生徒を★解放した（released:true）。
+        //   ★読めない／通信が落ちたのが3回目。★答案はサーバーが保存して先生に通知済み（画面側で記録は持たない）。
+        //   ★採点そのものの失敗ではないので ok:true で来る。★needsRetake より前で分けること
+        //     （解放の回は撮り直しに戻さない＝ここで生徒を止めない）。
+        //   ★kakiResults / kakiPassed は更新しない（不合格ではない。needsRetake と同じ作法）。
+        //   ★released が無い応答（サーバー未反映の本番を含む）は、この if を素通りして従来どおり進む。
+        if (res.released) {
+          _pendingRetry = null;
+          _pendingDismiss = null;
+          try { _kanjiClearPendingPhoto(); } catch(e){}   // この答案はもう送り直さない
+          _hideHpConfirmingOverlay(function(){ _showKanjiReleased(res); });
+          return;
+        }
         // 2026-05-12 バグ⑤ Phase B：再撮影誘導（採点保留）。
         // readable='no' の問が 1 件以上あるとサーバ側で needsRetake:true で返却される。
         // 結果画面に進まず、撮り直し画面に遷移して生徒に再撮影を促す。
@@ -24335,6 +24363,45 @@
     } catch(e){}
     try { _recordLineHandoff('カンジー書き(LINEへ)'); } catch(e){}
     try { goContentMenu(); } catch(e){}
+  }
+  // ★★2026-10-31 段階2（塾長決定）：解放の案内を出す（マイカツ君）。
+  //   ★文面はサーバーの message をそのまま（画面側に文面を持たない）。
+  //   ★オーバーレイが無い異常時でも詰まらせない（必ず HP 獲得画面へ進ませる）。既存 _showKanjiKakiGiveUp と同作法。
+  function _showKanjiReleased(res) {
+    _pendingRetry = null;
+    _pendingDismiss = null;
+    var ov = document.getElementById('kanji-released-overlay');
+    var tx = document.getElementById('kanji-released-text');
+    if (ov && tx) {
+      tx.textContent = String((res && res.message) || '').trim();
+      ov.classList.add('active');
+      return;
+    }
+    _kanjiReleasedConfirmed();
+  }
+  // 「分かりました」→ 通常の HP 獲得画面（screen-kanji-done）へ。
+  //   ★この画面には出口ボタンが元からある（📚 学習コンテンツ画面に戻る）＝★「合格しないと抜けられない」
+  //     閉じ込め（_showKanjiKakiResult の不合格の枝）には★一度も入らない。
+  //   ★HP はまだ付いていない（塾長が後から代理で付ける）ので：
+  //     ・「満点！」のタイトル・紙吹雪・効果音・カウントアップは★出さない（満点ではないので嘘になる）
+  //     ・★_totalHP に 1 も足さない（ホームの HP 合計を狂わせない）
+  //   ★_showKanjiDone は呼ばない（合格時の演出を1バイトも変えないため、本文はここで作る）。
+  //   ★新しい CSS クラスは増やさず、既存の .kanji-result-fail / .kanji-result-title を流用して色だけ上書きする
+  //     （撮り直し画面 _showKanjiKakiRetake と同じ作法）。
+  function _kanjiReleasedConfirmed() {
+    try {
+      var ov = document.getElementById('kanji-released-overlay');
+      if (ov) ov.classList.remove('active');
+    } catch(e){}
+    var bodyEl = document.getElementById('kanji-done-body');
+    if (bodyEl) {
+      bodyEl.innerHTML =
+        '<div class="kanji-result-fail" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border-color:#60a5fa">' +
+          '<div class="kanji-result-title" style="color:#1e3a8a">✅ 先生に送りました</div>' +
+          '<div style="margin-top:10px;font-size:15px;line-height:1.8;color:#1e40af">HPは先生があとで付けてくれます</div>' +
+        '</div>';
+    }
+    showScreen('screen-kanji-done');
   }
   function _showKanjiKakiResult(res) {
     var passed = !!res.passed;
@@ -28096,7 +28163,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261029-1646</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261031-0455</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
