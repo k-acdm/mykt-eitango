@@ -3748,10 +3748,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261031-0455"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261031-0531"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261031-0455">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261031-0455"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261031-0531">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261031-0531"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7248,6 +7248,21 @@
     </div>
     <div class="mykt-overlay-btns">
       <button class="btn-retry" onclick="_kanjiReleasedConfirmed()">分かりました</button>
+    </div>
+  </div>
+</div>
+<!-- ★★2026-10-31 段階3（塾長決定）：同じ問の ✕（読めたが不正解）が4回目になったとき、サーバー（b46ae59）が
+     ★合格扱いにして解放する（released:true / errorCode='KANJI_RELEASED_WRONG'）。そのお詫びの案内（マイカツ君）。
+     ★段階2 と違い★HP は満額で自動付与済み・進度も前進済みなので、「分かりました」で★本物の HP 獲得画面へ進む。
+     ★文面はサーバーの message をそのまま出す（画面側に文面を持たない）。改行を活かすため white-space だけ指定。 -->
+<div id="kanji-released-wrong-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble grading" id="kanji-released-wrong-text" style="white-space:pre-line"></div>
+    </div>
+    <div class="mykt-overlay-btns">
+      <button class="btn-retry" onclick="_kanjiReleasedWrongConfirmed()">分かりました</button>
     </div>
   </div>
 </div>
@@ -24207,7 +24222,9 @@
         //     （解放の回は撮り直しに戻さない＝ここで生徒を止めない）。
         //   ★kakiResults / kakiPassed は更新しない（不合格ではない。needsRetake と同じ作法）。
         //   ★released が無い応答（サーバー未反映の本番を含む）は、この if を素通りして従来どおり進む。
-        if (res.released) {
+        //   ★★2026-10-31 段階3：✕ 継続での解放（KANJI_RELEASED_WRONG）は★ここを通さない。
+        //     ★段階3 は passed:true・hpInfo あり＝★HP も進度も付いている別物なので、下の通常の合格の道へ流す。
+        if (res.released && res.errorCode !== 'KANJI_RELEASED_WRONG') {
           _pendingRetry = null;
           _pendingDismiss = null;
           try { _kanjiClearPendingPhoto(); } catch(e){}   // この答案はもう送り直さない
@@ -24246,7 +24263,12 @@
         } catch(_e) {}
         // 2026-08-05 追修正：結果画面への切替を overlay 消滅と同時に
         _showReceivedOnOverlay('kanji');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
-        _hideHpConfirmingOverlay(function(){ _showKanjiKakiResult(res); });
+        //   ★★2026-10-31 段階3：✕ 継続での解放だけ、★お詫びの案内をはさんでから HP 獲得画面へ進む。
+        //     ★通常の合格は _releasedByWrong が false ＝★今までとまったく同じ1本道（演出は1バイトも変わらない）。
+        _hideHpConfirmingOverlay(function(){
+          if (res.released && res.errorCode === 'KANJI_RELEASED_WRONG') { _showKanjiReleasedWrong(res); return; }
+          _showKanjiKakiResult(res);
+        });
       }
       // 2026-10：待ち時間 90→120 秒（カンジー書きのみ）。夕方は AI 採点が 100 秒前後かかることがあり、
       //   サーバーで採点完了したのにフロントが先に諦めて結果が届かない事象があったため。nginx（130 秒）より短く保つ。
@@ -24367,6 +24389,51 @@
   // ★★2026-10-31 段階2（塾長決定）：解放の案内を出す（マイカツ君）。
   //   ★文面はサーバーの message をそのまま（画面側に文面を持たない）。
   //   ★オーバーレイが無い異常時でも詰まらせない（必ず HP 獲得画面へ進ませる）。既存 _showKanjiKakiGiveUp と同作法。
+  // ★★2026-10-31 段階3（塾長決定）：同じ問の ✕ が4回目になり、サーバーが★合格扱いで解放した回の案内。
+  //   ★段階2（HP は塾長が後から）とは別物：★HP は満額で自動付与済み・★進度も前進済み（passed:true / hpInfo あり）。
+  //   ★文面はサーバーの message をそのまま（画面側に文面を持たない）。
+  //   ★オーバーレイが無い異常時でも詰まらせない（必ず HP 獲得画面へ進ませる）。既存 _showKanjiReleased と同作法。
+  var _kanjiReleasedWrongRes = null;   // 「分かりました」で hpInfo を使うので控える
+  function _showKanjiReleasedWrong(res) {
+    _kanjiReleasedWrongRes = res || null;
+    _pendingRetry = null;
+    _pendingDismiss = null;
+    var ov = document.getElementById('kanji-released-wrong-overlay');
+    var tx = document.getElementById('kanji-released-wrong-text');
+    if (ov && tx) {
+      tx.textContent = String((res && res.message) || '').trim();
+      ov.classList.add('active');
+      return;
+    }
+    _kanjiReleasedWrongConfirmed();
+  }
+  // 「分かりました」→ 通常の HP 獲得画面（screen-kanji-done）へ。
+  //   ★HP の計算・表示・加算（満額へのカウントアップ・倍率・ただし書き・保留HP・_totalHP）は
+  //     ★_showKanjiDone を★そのまま呼んで通常の合格と1バイトも同じにする（★自前で書き直さない＝将来 HP の
+  //     仕様が変わったときに段階3 だけ取り残されるのを防ぐ。塾長決定・案A）。
+  //   ★そのうえで「嘘になる2か所」だけを、描いた直後に差し替える：
+  //     ・大きな絵文字 🎊 → ★出さない
+  //     ・「満点！カンジー仙人もうなずいています」→ ★「よくがんばったね！HPを付けたよ」（✕ が残っているので満点は嘘）
+  //     ・紙吹雪 → ★出さない（「ごめんなさい」と謝っている場面なので祝い過ぎない）
+  //   ★効果音（chime）は★鳴らす（HP が付いた合図。塾長決定）＝_showKanjiDone の中でそのまま鳴る。
+  //   ★screen-kanji-done には出口ボタンが元からある（📚 学習コンテンツ画面に戻る）＝★閉じ込めに入らない。
+  function _kanjiReleasedWrongConfirmed() {
+    try {
+      var ov = document.getElementById('kanji-released-wrong-overlay');
+      if (ov) ov.classList.remove('active');
+    } catch(e){}
+    var res = _kanjiReleasedWrongRes || {};
+    _showKanjiDone(res.hpInfo || {});   // ★通常の合格とまったく同じ（HP・効果音・画面遷移）
+    try {
+      var bodyEl = document.getElementById('kanji-done-body');
+      var emoji  = bodyEl && bodyEl.querySelector('.wabun1-result-success > div[style*="font-size:52px"]');
+      if (emoji) emoji.remove();                     // 🎊（満点を祝う大きな絵文字）は出さない
+      var title  = bodyEl && bodyEl.querySelector('.wabun1-result-title');
+      if (title) title.textContent = 'よくがんばったね！HPを付けたよ';   // ★文言を直すならここ1か所
+      var conf   = bodyEl && bodyEl.querySelector('.wabun1-confetti-wrap');
+      if (conf) conf.innerHTML = '';                 // 紙吹雪は出さない
+    } catch(e){}
+  }
   function _showKanjiReleased(res) {
     _pendingRetry = null;
     _pendingDismiss = null;
@@ -28163,7 +28230,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261031-0455</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261031-0531</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
