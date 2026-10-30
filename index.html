@@ -3748,10 +3748,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261031-0531"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261031-0602"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261031-0531">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261031-0531"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261031-0602">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261031-0602"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -24183,6 +24183,40 @@
       function _onKanjiKakiRes(res){
         _clearUnsentFlowIfOk(res, 'kanji');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
         submitBtn.disabled = false;
+        // ★★2026-10-31：サーバーが生徒を★解放した回（released:true）の分岐。★3経路ともここ1か所で分ける。
+        //   ★この関数は「送信できた回」と「通信が切れて後から getKanjiKakiResult に問い合わせた回」の★共通の合流点
+        //     （下の .then(_onKanjiKakiRes) と .catch 内の _onKanjiKakiRes(found)）＝★ここに置けば両方が同時に正しくなる。
+        //   ★★!res.ok の判定より★前に置くこと：★ok:false なのに released:true を持つ応答が来ると、
+        //     ★先に「もう一度送信する」へ流れて★解放が無視される（実測で再現した穴）。
+        //   ★errorCode で画面を分ける（★画面は作成済み。新しくは作らない）：
+        //     ・KANJI_RELEASED_WRONG                 … 段階3（✕ が続いた）＝HP は満額で付与済み・進度も前進済み
+        //     ・KANJI_RELEASED_UNREADABLE / _CONNECT … 段階2（読めない／通信落ち）＝HP は塾長が後から
+        //   ★released が無い応答（サーバー未反映の本番を含む）は、この if を素通りして従来どおり進む。
+        if (res && res.released) {
+          _pendingRetry = null;
+          _pendingDismiss = null;
+          try { _kanjiClearPendingPhoto(); } catch(e){}   // この答案はもう送り直さない
+          if (res.errorCode === 'KANJI_RELEASED_WRONG') {
+            // ★段階3 は合格扱い（passed:true）＝★通常の合格と同じ記録を残してから、お詫びの案内へ（7906ef0 と同じ挙動）。
+            _kanjiState.kakiResults = res.results || [];
+            _kanjiState.kakiPassed = true;
+            try {
+              _kanjiUpdateSessionSubmission(_kanjiState.level, _kanjiState.sessionId, {
+                passed:       true,
+                correctCount: Number(res.correctCount || 0),
+                total:        Number(res.total || 0),
+                hpGained:     Number(res.hpGained || 0),
+                gradedAt:     Date.now()
+              });
+            } catch(_e) {}
+            _showReceivedOnOverlay('kanji');
+            _hideHpConfirmingOverlay(function(){ _showKanjiReleasedWrong(res); });
+            return;
+          }
+          // 段階2（読めない／通信落ち）：kakiResults / kakiPassed は更新しない（不合格ではない）。
+          _hideHpConfirmingOverlay(function(){ _showKanjiReleased(res); });
+          return;
+        }
         if (!res || !res.ok) {
           // 2026-10-29 段階2：★再採点だけがサーバーに断られた場合（3回目／合格済み・サーバー 2230e68）。
           //   ★すでに出ている答え合わせはそのまま残し、理由だけを伝える（★画面を壊さない・閉じ込めない）。
@@ -24214,21 +24248,6 @@
           //       （認証切れ・トークン無し・画像なし・級の指定が不正・正解データなし）→ 'net'（通信エラー）
           //     ★以前は ok:false というだけで 'server' にしていたため、認証切れでも「届いてます」と出ていた。
           _kanjiKakiSubmitFailed(res && res.answerSaved === true ? 'server' : 'net');
-          return;
-        }
-        // ★★2026-10-31 段階2（塾長決定）：サーバー（a8f19db）が生徒を★解放した（released:true）。
-        //   ★読めない／通信が落ちたのが3回目。★答案はサーバーが保存して先生に通知済み（画面側で記録は持たない）。
-        //   ★採点そのものの失敗ではないので ok:true で来る。★needsRetake より前で分けること
-        //     （解放の回は撮り直しに戻さない＝ここで生徒を止めない）。
-        //   ★kakiResults / kakiPassed は更新しない（不合格ではない。needsRetake と同じ作法）。
-        //   ★released が無い応答（サーバー未反映の本番を含む）は、この if を素通りして従来どおり進む。
-        //   ★★2026-10-31 段階3：✕ 継続での解放（KANJI_RELEASED_WRONG）は★ここを通さない。
-        //     ★段階3 は passed:true・hpInfo あり＝★HP も進度も付いている別物なので、下の通常の合格の道へ流す。
-        if (res.released && res.errorCode !== 'KANJI_RELEASED_WRONG') {
-          _pendingRetry = null;
-          _pendingDismiss = null;
-          try { _kanjiClearPendingPhoto(); } catch(e){}   // この答案はもう送り直さない
-          _hideHpConfirmingOverlay(function(){ _showKanjiReleased(res); });
           return;
         }
         // 2026-05-12 バグ⑤ Phase B：再撮影誘導（採点保留）。
@@ -24263,12 +24282,7 @@
         } catch(_e) {}
         // 2026-08-05 追修正：結果画面への切替を overlay 消滅と同時に
         _showReceivedOnOverlay('kanji');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
-        //   ★★2026-10-31 段階3：✕ 継続での解放だけ、★お詫びの案内をはさんでから HP 獲得画面へ進む。
-        //     ★通常の合格は _releasedByWrong が false ＝★今までとまったく同じ1本道（演出は1バイトも変わらない）。
-        _hideHpConfirmingOverlay(function(){
-          if (res.released && res.errorCode === 'KANJI_RELEASED_WRONG') { _showKanjiReleasedWrong(res); return; }
-          _showKanjiKakiResult(res);
-        });
+        _hideHpConfirmingOverlay(function(){ _showKanjiKakiResult(res); });
       }
       // 2026-10：待ち時間 90→120 秒（カンジー書きのみ）。夕方は AI 採点が 100 秒前後かかることがあり、
       //   サーバーで採点完了したのにフロントが先に諦めて結果が届かない事象があったため。nginx（130 秒）より短く保つ。
@@ -28230,7 +28244,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261031-0531</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261031-0602</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
