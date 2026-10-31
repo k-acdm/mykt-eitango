@@ -3753,10 +3753,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261101-0105"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261101-0127"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261101-0105">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261101-0105"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261101-0127">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261101-0127"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6353,6 +6353,10 @@
       <div class="kki-q-hint" id="kki-q-hint"></div>
     </div>
     <div class="kki-pad-wrap" id="kki-pad-wrap"></div>
+    <!-- ★★2026-11-01（塾長決定）：採点にかかる時間の目安。撮影確認画面と同じ文言・同じ置き方（送信ボタンの真上）。
+         ★画面入力版には確認画面が無く、最後の問の「✅ 答え合わせをする」がそのまま送信になるため、
+         ★★最後の問のときだけ出す（_kkiRenderQuestion で切り替え）。途中の問では出さない＝マスの下が伸びて書きにくくならない。 -->
+    <div id="kki-wait-note" style="display:none;margin:10px 0;padding:10px 12px;border-radius:8px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:13px;line-height:1.7">⏳ 採点には時間がかかることがあります（長いときで3〜4分）。終わるまで画面を閉じないで待っててね。</div>
     <div class="kp-btn-row">
       <button class="kp-sub-btn" onclick="kanjiKakiInputClear()">🧽 消す</button>
       <button class="kp-main-btn" id="kki-next-btn" onclick="kanjiKakiInputNext()">次の問題へ →</button>
@@ -23554,6 +23558,9 @@
     var last = (_kanjiKakiInput.idx + 1 >= items.length);
     var nb = document.getElementById('kki-next-btn');
     if (nb) nb.textContent = last ? '✅ 答え合わせをする' : '次の問題へ →';
+    // ★★2026-11-01：最後の問（＝次に押すと送信される）でだけ、採点にかかる時間の目安を出す。
+    var wn = document.getElementById('kki-wait-note');
+    if (wn) wn.style.display = last ? '' : 'none';
     var pb = document.getElementById('kki-prev-btn');
     if (pb) pb.style.display = _kanjiKakiInput.idx > 0 ? '' : 'none';
   }
@@ -28303,7 +28310,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261101-0105</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261101-0127</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
