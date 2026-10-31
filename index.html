@@ -219,7 +219,11 @@
     .kanji-answer-row { display: flex; align-items: center; gap: 8px; }
     .kanji-answer-item .mark { font-weight: bold; min-width: 1.2em; }
     .kanji-answer-item .qno  { font-weight: bold; min-width: 3em; opacity: .85; }
-    .kanji-answer-item .ans  { font-weight: bold; }
+    /* ★★2026-11-01（塾長決定）：正解の字は★大きく・楷書体（Klee One）で見せる。
+       ★予習画面 .kanji-learn-char / 書き練習 .kp-intro-chars と★同じフォント指定（新しい読み込みは増やさない）。
+       ★Klee One が間に合わない・落ちた場合は 教科書体 → 明朝体 → serif に下がる（今より悪くならない）。 */
+    .kanji-answer-item .ans  { font-weight: 600; font-size: 26px; line-height: 1.25; vertical-align: middle;
+      font-family: "Klee One", "UD デジタル 教科書体 NK-R", "UD Digi Kyokasho NK-R", "Hiragino Mincho ProN", "Yu Mincho", serif; }
     /* 不正解時の「あなたが書いた文字」行（item.wrong 内に表示される） */
     .kanji-answer-student { margin-top: 4px; padding-left: calc(1.2em + 3em + 16px); font-size: 14px; color: #7f1d1d; line-height: 1.5; }
     .kanji-answer-student .ans-student { font-weight: bold; font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; }
@@ -231,6 +235,7 @@
     .kanji-answer-hint { font-size: 12px; color: #6b7280; margin-top: 8px; line-height: 1.6; }
     @media (max-width: 480px) {
       .kanji-answer-student { padding-left: calc(1.2em + 2.5em + 14px); font-size: 13px; }
+      .kanji-answer-item .ans { font-size: 22px; }
     }
     /* 2026-09-26 段階A：カンジー「今回○○が覚える漢字」画面（読み問題の前に挟む予習画面）。
        ★漢字は教科書体（Klee One / Google Fonts）を使い、端末の教科書体の有無に依存させない。
@@ -3748,10 +3753,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261031-0631"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261101-0105"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261031-0631">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261031-0631"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261101-0105">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261101-0105"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6441,6 +6446,9 @@
       </div>
       <!-- 2026-08-08：自動再開の導入により「同じ級・問題数でやり直して」の注意は不要。書き自動再開の案内に置換。 -->
       <div class="kanji-kaki-resume-note" style="font-size:13px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin:8px 0;line-height:1.6">📂 送信後にログイン画面に戻っても大丈夫。次に開くと<strong>「書き」の続きから自動で再開</strong>できるよ（読みのやり直しは不要）。</div>
+      <!-- ★★2026-11-01（塾長決定）：採点にかかる時間の目安。実測＝サーバーが2回試すと約1分50秒、
+           通信が切れて結果を取りに行くと最長 218 秒（約3分40秒）。 -->
+      <div style="margin:10px 0;padding:10px 12px;border-radius:8px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:13px;line-height:1.7">⏳ 採点には時間がかかることがあります（長いときで3〜4分）。終わるまで画面を閉じないで待っててね。</div>
       <div class="kiso-confirm-btns">
         <button class="kiso-confirm-retake" onclick="retakeKanjiPhoto()">📸 撮り直す</button>
         <button class="kiso-confirm-submit" id="kanji-kaki-submit-btn" onclick="submitKanjiKakiPhoto()">🚀 送信して採点</button>
@@ -6470,11 +6478,11 @@
      needsRetake:true で返却される。フロントは結果画面に進まず、
      この画面でユーザーに撮り直しを促す。-->
 <div id="screen-kanji-kaki-retake" class="screen">
-  <header><h1>📷 撮り直し</h1><span></span></header>
+  <header><h1>🔁 再トライ</h1><span></span></header>
   <div class="container" style="padding-top:16px">
     <div class="kanjii-mate-row">
       <img class="kanjii-img" id="kanjii-img-kaki-retake" src="images/kanjii-encourage.png" alt="カンジー">
-      <div class="kanjii-bubble" id="kanjii-bubble-kaki-retake">明るい場所でもう一度撮ってくれ〜！</div>
+      <div class="kanjii-bubble" id="kanjii-bubble-kaki-retake">もう一度ゆっくり書いてみなされ</div>
     </div>
     <div id="kanji-kaki-retake-banner"></div>
     <div id="kanji-kaki-retake-actions"></div>
@@ -19953,7 +19961,7 @@
     kakiFail:     ['惜しい、書き直しじゃ', 'もう一度、丁寧に', 'あと一歩じゃ'],
     kakiRetry:    ['間違えた問題だけ、もう一度がんばろう！', 'もう一度、丁寧に書いてみよ', 'リベンジじゃ'],
     // 2026-05-12 バグ⑤ Phase B：読み取り不能時の再撮影誘導（不合格扱いではない）
-    kakiRetake:   ['ふむ、もう一度撮ってもらえるかのう', '明るい場所で撮り直しじゃ', 'もう一回じっくり撮影なされ'],
+    kakiRetake:   ['もう一度ゆっくり書いてみなされ'],   // ★2026-11-01 塾長決定：1つに固定（読めなかった問も間違えた問も一緒に書き直すため）
     // 2026-10-26 書きテストの入力方法えらび（★文言は仮。実機確認で最終決定する）
     kakiMethod:   ['どちらで書くか、好きな方を選びなされ', 'ふむ、書きやすい方でよいぞ', '今日はどちらにするかの？']
   };
@@ -23350,7 +23358,7 @@
   //   ★ここだけ書き換えれば画面に反映される（HTML には直接書かない）。
   var KANJI_KAKI_RESULT_TEXT = {
     // ✕ の問に出す、AI が ✕ にした理由の前置き
-    reasonLabel: 'AIの指摘：',
+    reasonLabel: 'AIの判定結果：',
     // ✕ が 1 つでもあるときだけ出す注意（★カンジーのセリフとは別の枠に出す）
     aiMisread:   'AIが読み間違えることもあります。自分の字を見て『合っている』と思ったら、先生に相談してね。'
   };
@@ -23361,7 +23369,7 @@
   //   ★{n}＝あと何回押せるか、{max}＝上限。
   var KANJI_KAKI_REGRADE_MAX = 2;
   var KANJI_KAKI_REGRADE_TEXT = {
-    button:        'もう一度採点してもらう（あと{n}回）',
+    button:        'もう一度よく見てもらう（あと{n}回）',
     overLimit:     'もう一度採点してもらえるのは{max}回までだよ。間違えた問題を、もう一度書いてみよう。',
     alreadyPassed: 'この答案はもう合格しているから、採点のやり直しはできないよ。',
     failed:        'いまは採点のやり直しができなかったよ。少し時間をおいてから、もう一度ためしてね。'
@@ -23717,6 +23725,24 @@
     _kanjiState.isKakiRetry = !!_kanjiKakiInput.isRetry;
     submitKanjiKakiPhoto('screen');   // 画面入力の目印（サーバーが画面入力向けの判定を使う）
   }
+  // ★★2026-11-01（塾長決定）：撮り直し（再トライ）の画面に「字が間違っていた問」も出す。
+  //   ★読めなかった問（retakeReasonNos）とは別に、★読めたけれど ✕ だった問（readable='yes' かつ不正解）を伝える。
+  //   ★実際の進み方は「読めなかった問も間違えた問も一緒に書き直す」形になっているので、表示をそれに合わせる。
+  //   ★該当が1つも無いときは★空文字を返す＝枠ごと出さない（嘘を言わない）。
+  //   ★写真版（_showKanjiKakiRetake）と画面入力版（_showKanjiKakiInputRetake）の★両方から呼ぶ。
+  function _kanjiRetakeWrongBlock(res) {
+    var nos = ((res && res.results) || [])
+      .filter(function(r){ return r && String(r.readable || '') === 'yes' && !r.isCorrect && r.no != null; })
+      .map(function(r){ return Number(r.no); })
+      .filter(function(n){ return !isNaN(n); })
+      .sort(function(a, b){ return a - b; });
+    if (nos.length === 0) return '';
+    return '<div style="margin-top:14px;font-size:14px;line-height:1.8;color:#991b1b;background:#fef2f2;border:2px solid #fca5a5;padding:10px 12px;border-radius:8px;text-align:left">' +
+             '<div style="font-weight:bold;margin-bottom:4px">字が間違ってます</div>' +
+             '問 ' + nos.join('、') + ' は字が間違ってました。<br>' +
+             '正しい字をマスの中に大きく、ていねいに書き直してね。' +
+           '</div>';
+  }
   // 判読できない答えがあった（needsRetake）ときの画面：現行の撮り直し画面を「書き直し」の文言で使う。
   function _showKanjiKakiInputRetake(res) {
     var escH = function(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
@@ -23734,9 +23760,7 @@
           escH(reasonText) + ' がはっきり読み取れませんでした。<br>' +
           'マスの中に大きく、ていねいに書き直してね。' +
         '</div>' +
-        '<div style="margin-top:14px;font-size:13px;color:#92400e;background:#fffbeb;padding:10px 12px;border-radius:8px">' +
-          '※ 書いた答えはそのまま残っているよ（今回の判定は保留されているので、HP は減らないよ）' +
-        '</div>' +
+        _kanjiRetakeWrongBlock(res) +   // ★2026-11-01：読めたけれど ✕ だった問があるときだけ出る
       '</div>';
     if (actions) actions.innerHTML =
       '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_resumeKanjiKakiInput(' + (first == null || isNaN(first) ? 'null' : first) + ')">✏️ 書き直す</button>';
@@ -24528,6 +24552,12 @@
       return;
     }
     _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', _pickBubble(KANJI_BUBBLES.kakiFail));
+    // ★★2026-11-01（塾長決定）：答え合わせの「正解：●」を★楷書体（Klee One）で出す。
+    //   ★Google Fonts の日本語は字ごとの分割配信なので、★出す字を指定して読み込まないと落ちてこない。
+    //   ★書き練習と同じ作法（_kanjiPracticeLoadFont）を★そのまま再利用＝新しい外部読み込みは増えない。
+    //   ★書き練習を飛ばした生徒でも、ここで _ensureKleeOneFont() ごと読み込まれる。
+    //   ★間に合わない・落ちたときは CSS のフォールバック（教科書体→明朝体）で出る（今より悪くならない）。
+    try { _kanjiPracticeLoadFont((res.results || []).map(function(r){ return String((r && r.expected) || ''); })); } catch(e) {}
     // 2026-05-08 学習補助強化：全問の正解一覧（✅/❌ 付き）+ 生徒の解答を併記。
     // ふくちさん哲学「不合格で再テストになっても何もできないと学習にならない」に基づく。
     //
@@ -24655,9 +24685,7 @@
           escH(reasonText) + ' がはっきり読み取れませんでした。<br>' +
           '写真がブレていないか・明るさが十分かを確認して、もう一度撮影してね。' +
         '</div>' +
-        '<div style="margin-top:14px;font-size:13px;color:#92400e;background:#fffbeb;padding:10px 12px;border-radius:8px">' +
-          '※ 答案ノートはそのまま使えるよ（今回の判定は保留されているので、HP は減らないよ）' +
-        '</div>' +
+        _kanjiRetakeWrongBlock(res) +   // ★2026-11-01：読めたけれど ✕ だった問があるときだけ出る
       '</div>';
     // ★2026-08-30：提出後の画面なので、合格しないまま抜けられないようにホーム導線は出さない。
     actions.innerHTML =
@@ -28275,7 +28303,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261031-0631</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261101-0105</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
