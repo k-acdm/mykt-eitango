@@ -219,7 +219,11 @@
     .kanji-answer-row { display: flex; align-items: center; gap: 8px; }
     .kanji-answer-item .mark { font-weight: bold; min-width: 1.2em; }
     .kanji-answer-item .qno  { font-weight: bold; min-width: 3em; opacity: .85; }
-    .kanji-answer-item .ans  { font-weight: bold; }
+    /* ★★2026-11-01（塾長決定）：正解の字は★大きく・楷書体（Klee One）で見せる。
+       ★予習画面 .kanji-learn-char / 書き練習 .kp-intro-chars と★同じフォント指定（新しい読み込みは増やさない）。
+       ★Klee One が間に合わない・落ちた場合は 教科書体 → 明朝体 → serif に下がる（今より悪くならない）。 */
+    .kanji-answer-item .ans  { font-weight: 600; font-size: 26px; line-height: 1.25; vertical-align: middle;
+      font-family: "Klee One", "UD デジタル 教科書体 NK-R", "UD Digi Kyokasho NK-R", "Hiragino Mincho ProN", "Yu Mincho", serif; }
     /* 不正解時の「あなたが書いた文字」行（item.wrong 内に表示される） */
     .kanji-answer-student { margin-top: 4px; padding-left: calc(1.2em + 3em + 16px); font-size: 14px; color: #7f1d1d; line-height: 1.5; }
     .kanji-answer-student .ans-student { font-weight: bold; font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; }
@@ -231,6 +235,7 @@
     .kanji-answer-hint { font-size: 12px; color: #6b7280; margin-top: 8px; line-height: 1.6; }
     @media (max-width: 480px) {
       .kanji-answer-student { padding-left: calc(1.2em + 2.5em + 14px); font-size: 13px; }
+      .kanji-answer-item .ans { font-size: 22px; }
     }
     /* 2026-09-26 段階A：カンジー「今回○○が覚える漢字」画面（読み問題の前に挟む予習画面）。
        ★漢字は教科書体（Klee One / Google Fonts）を使い、端末の教科書体の有無に依存させない。
@@ -3748,10 +3753,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261029-1646"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261101-0127"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261029-1646">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261029-1646"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261101-0127">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261101-0127"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6348,6 +6353,10 @@
       <div class="kki-q-hint" id="kki-q-hint"></div>
     </div>
     <div class="kki-pad-wrap" id="kki-pad-wrap"></div>
+    <!-- ★★2026-11-01（塾長決定）：採点にかかる時間の目安。撮影確認画面と同じ文言・同じ置き方（送信ボタンの真上）。
+         ★画面入力版には確認画面が無く、最後の問の「✅ 答え合わせをする」がそのまま送信になるため、
+         ★★最後の問のときだけ出す（_kkiRenderQuestion で切り替え）。途中の問では出さない＝マスの下が伸びて書きにくくならない。 -->
+    <div id="kki-wait-note" style="display:none;margin:10px 0;padding:10px 12px;border-radius:8px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:13px;line-height:1.7">⏳ 採点には時間がかかることがあります（長いときで3〜4分）。終わるまで画面を閉じないで待っててね。</div>
     <div class="kp-btn-row">
       <button class="kp-sub-btn" onclick="kanjiKakiInputClear()">🧽 消す</button>
       <button class="kp-main-btn" id="kki-next-btn" onclick="kanjiKakiInputNext()">次の問題へ →</button>
@@ -6441,6 +6450,9 @@
       </div>
       <!-- 2026-08-08：自動再開の導入により「同じ級・問題数でやり直して」の注意は不要。書き自動再開の案内に置換。 -->
       <div class="kanji-kaki-resume-note" style="font-size:13px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin:8px 0;line-height:1.6">📂 送信後にログイン画面に戻っても大丈夫。次に開くと<strong>「書き」の続きから自動で再開</strong>できるよ（読みのやり直しは不要）。</div>
+      <!-- ★★2026-11-01（塾長決定）：採点にかかる時間の目安。実測＝サーバーが2回試すと約1分50秒、
+           通信が切れて結果を取りに行くと最長 218 秒（約3分40秒）。 -->
+      <div style="margin:10px 0;padding:10px 12px;border-radius:8px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:13px;line-height:1.7">⏳ 採点には時間がかかることがあります（長いときで3〜4分）。終わるまで画面を閉じないで待っててね。</div>
       <div class="kiso-confirm-btns">
         <button class="kiso-confirm-retake" onclick="retakeKanjiPhoto()">📸 撮り直す</button>
         <button class="kiso-confirm-submit" id="kanji-kaki-submit-btn" onclick="submitKanjiKakiPhoto()">🚀 送信して採点</button>
@@ -6470,11 +6482,11 @@
      needsRetake:true で返却される。フロントは結果画面に進まず、
      この画面でユーザーに撮り直しを促す。-->
 <div id="screen-kanji-kaki-retake" class="screen">
-  <header><h1>📷 撮り直し</h1><span></span></header>
+  <header><h1>🔁 再トライ</h1><span></span></header>
   <div class="container" style="padding-top:16px">
     <div class="kanjii-mate-row">
       <img class="kanjii-img" id="kanjii-img-kaki-retake" src="images/kanjii-encourage.png" alt="カンジー">
-      <div class="kanjii-bubble" id="kanjii-bubble-kaki-retake">明るい場所でもう一度撮ってくれ〜！</div>
+      <div class="kanjii-bubble" id="kanjii-bubble-kaki-retake">もう一度ゆっくり書いてみなされ</div>
     </div>
     <div id="kanji-kaki-retake-banner"></div>
     <div id="kanji-kaki-retake-actions"></div>
@@ -7233,6 +7245,36 @@
     </div>
     <div class="mykt-overlay-btns">
       <button class="btn-retry" onclick="_kanjiKakiGiveUpConfirmed('net')">分かりました（ホームへ）</button>
+    </div>
+  </div>
+</div>
+<!-- ★★2026-10-31 段階2（塾長決定）：読めない／通信が落ちたのが3回目になったとき、サーバー（a8f19db）が
+     released:true で生徒を★解放する。その案内（マイカツ君）。「分かりました」で通常の HP 獲得画面へ。
+     ★文面はサーバーの message をそのまま出す（画面側に文面を持たない）。改行を活かすため white-space だけ指定。
+     ★HP はまだ付いていない（塾長が後から代理で付ける）ので、祝う演出は一切出さない。 -->
+<div id="kanji-released-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble grading" id="kanji-released-text" style="white-space:pre-line"></div>
+    </div>
+    <div class="mykt-overlay-btns">
+      <button class="btn-retry" onclick="_kanjiReleasedConfirmed()">分かりました</button>
+    </div>
+  </div>
+</div>
+<!-- ★★2026-10-31 段階3（塾長決定）：同じ問の ✕（読めたが不正解）が4回目になったとき、サーバー（b46ae59）が
+     ★合格扱いにして解放する（released:true / errorCode='KANJI_RELEASED_WRONG'）。そのお詫びの案内（マイカツ君）。
+     ★段階2 と違い★HP は満額で自動付与済み・進度も前進済みなので、「分かりました」で★本物の HP 獲得画面へ進む。
+     ★文面はサーバーの message をそのまま出す（画面側に文面を持たない）。改行を活かすため white-space だけ指定。 -->
+<div id="kanji-released-wrong-overlay" class="mykt-overlay">
+  <div class="mykt-overlay-card">
+    <div class="mykt-overlay-row">
+      <img src="./character.jpg" class="chara-img" alt="マイカツ君">
+      <div class="mykt-overlay-bubble grading" id="kanji-released-wrong-text" style="white-space:pre-line"></div>
+    </div>
+    <div class="mykt-overlay-btns">
+      <button class="btn-retry" onclick="_kanjiReleasedWrongConfirmed()">分かりました</button>
     </div>
   </div>
 </div>
@@ -19923,7 +19965,7 @@
     kakiFail:     ['惜しい、書き直しじゃ', 'もう一度、丁寧に', 'あと一歩じゃ'],
     kakiRetry:    ['間違えた問題だけ、もう一度がんばろう！', 'もう一度、丁寧に書いてみよ', 'リベンジじゃ'],
     // 2026-05-12 バグ⑤ Phase B：読み取り不能時の再撮影誘導（不合格扱いではない）
-    kakiRetake:   ['ふむ、もう一度撮ってもらえるかのう', '明るい場所で撮り直しじゃ', 'もう一回じっくり撮影なされ'],
+    kakiRetake:   ['もう一度ゆっくり書いてみなされ'],   // ★2026-11-01 塾長決定：1つに固定（読めなかった問も間違えた問も一緒に書き直すため）
     // 2026-10-26 書きテストの入力方法えらび（★文言は仮。実機確認で最終決定する）
     kakiMethod:   ['どちらで書くか、好きな方を選びなされ', 'ふむ、書きやすい方でよいぞ', '今日はどちらにするかの？']
   };
@@ -23320,7 +23362,7 @@
   //   ★ここだけ書き換えれば画面に反映される（HTML には直接書かない）。
   var KANJI_KAKI_RESULT_TEXT = {
     // ✕ の問に出す、AI が ✕ にした理由の前置き
-    reasonLabel: 'AIの指摘：',
+    reasonLabel: 'AIの判定結果：',
     // ✕ が 1 つでもあるときだけ出す注意（★カンジーのセリフとは別の枠に出す）
     aiMisread:   'AIが読み間違えることもあります。自分の字を見て『合っている』と思ったら、先生に相談してね。'
   };
@@ -23331,7 +23373,7 @@
   //   ★{n}＝あと何回押せるか、{max}＝上限。
   var KANJI_KAKI_REGRADE_MAX = 2;
   var KANJI_KAKI_REGRADE_TEXT = {
-    button:        'もう一度採点してもらう（あと{n}回）',
+    button:        'もう一度よく見てもらう（あと{n}回）',
     overLimit:     'もう一度採点してもらえるのは{max}回までだよ。間違えた問題を、もう一度書いてみよう。',
     alreadyPassed: 'この答案はもう合格しているから、採点のやり直しはできないよ。',
     failed:        'いまは採点のやり直しができなかったよ。少し時間をおいてから、もう一度ためしてね。'
@@ -23516,6 +23558,9 @@
     var last = (_kanjiKakiInput.idx + 1 >= items.length);
     var nb = document.getElementById('kki-next-btn');
     if (nb) nb.textContent = last ? '✅ 答え合わせをする' : '次の問題へ →';
+    // ★★2026-11-01：最後の問（＝次に押すと送信される）でだけ、採点にかかる時間の目安を出す。
+    var wn = document.getElementById('kki-wait-note');
+    if (wn) wn.style.display = last ? '' : 'none';
     var pb = document.getElementById('kki-prev-btn');
     if (pb) pb.style.display = _kanjiKakiInput.idx > 0 ? '' : 'none';
   }
@@ -23687,6 +23732,24 @@
     _kanjiState.isKakiRetry = !!_kanjiKakiInput.isRetry;
     submitKanjiKakiPhoto('screen');   // 画面入力の目印（サーバーが画面入力向けの判定を使う）
   }
+  // ★★2026-11-01（塾長決定）：撮り直し（再トライ）の画面に「字が間違っていた問」も出す。
+  //   ★読めなかった問（retakeReasonNos）とは別に、★読めたけれど ✕ だった問（readable='yes' かつ不正解）を伝える。
+  //   ★実際の進み方は「読めなかった問も間違えた問も一緒に書き直す」形になっているので、表示をそれに合わせる。
+  //   ★該当が1つも無いときは★空文字を返す＝枠ごと出さない（嘘を言わない）。
+  //   ★写真版（_showKanjiKakiRetake）と画面入力版（_showKanjiKakiInputRetake）の★両方から呼ぶ。
+  function _kanjiRetakeWrongBlock(res) {
+    var nos = ((res && res.results) || [])
+      .filter(function(r){ return r && String(r.readable || '') === 'yes' && !r.isCorrect && r.no != null; })
+      .map(function(r){ return Number(r.no); })
+      .filter(function(n){ return !isNaN(n); })
+      .sort(function(a, b){ return a - b; });
+    if (nos.length === 0) return '';
+    return '<div style="margin-top:14px;font-size:14px;line-height:1.8;color:#991b1b;background:#fef2f2;border:2px solid #fca5a5;padding:10px 12px;border-radius:8px;text-align:left">' +
+             '<div style="font-weight:bold;margin-bottom:4px">字が間違ってます</div>' +
+             '問 ' + nos.join('、') + ' は字が間違ってました。<br>' +
+             '正しい字をマスの中に大きく、ていねいに書き直してね。' +
+           '</div>';
+  }
   // 判読できない答えがあった（needsRetake）ときの画面：現行の撮り直し画面を「書き直し」の文言で使う。
   function _showKanjiKakiInputRetake(res) {
     var escH = function(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
@@ -23704,9 +23767,7 @@
           escH(reasonText) + ' がはっきり読み取れませんでした。<br>' +
           'マスの中に大きく、ていねいに書き直してね。' +
         '</div>' +
-        '<div style="margin-top:14px;font-size:13px;color:#92400e;background:#fffbeb;padding:10px 12px;border-radius:8px">' +
-          '※ 書いた答えはそのまま残っているよ（今回の判定は保留されているので、HP は減らないよ）' +
-        '</div>' +
+        _kanjiRetakeWrongBlock(res) +   // ★2026-11-01：読めたけれど ✕ だった問があるときだけ出る
       '</div>';
     if (actions) actions.innerHTML =
       '<button class="btn-wide" style="background:linear-gradient(135deg,#f59e0b,#d97706)" onclick="_resumeKanjiKakiInput(' + (first == null || isNaN(first) ? 'null' : first) + ')">✏️ 書き直す</button>';
@@ -24069,8 +24130,9 @@
   //   inputMethod：画面入力（kanjiKakiInputSubmit）からだけ 'screen' を渡す。撮影の送信ボタンは引数なし
   //   ＝未指定のまま送る（サーバーは未指定を写真として従来どおり判定）。
   //   2026-10-29 段階2：regradeOpts（{attempt:1|2}）を渡すと「同じ画像での再採点」になる。
-  //     ★前回送った中身（画像・submitId・isRetry・expectedAnswers・inputMethod）を1バイトも変えずに送り直し、
-  //       ★regradeAttempt だけを足す＝★判定・HP・送信の流れは1回目とまったく同じものが走る。
+  //     ★前回送った中身（画像・submitId・isRetry・count・inputMethod）はそのまま送り直し、★regradeAttempt を足す。
+  //     ★★2026-10-31（案B）：expectedAnswers だけは★✕ だった問に絞る（★下の wrongOnly）。
+  //       ★同じ画像で全問を再判定すると、AI のゆらぎで★一度 ○ にした問が ✕ に変わるため。
   //     ★regradeOpts を渡さない従来のすべての呼び出しは、1行も挙動が変わらない。
   function submitKanjiKakiPhoto(inputMethod, regradeOpts) {
     var regrade = (regradeOpts && Number(regradeOpts.attempt)) || 0;   // 0＝従来どおりの提出
@@ -24088,10 +24150,20 @@
     msgEl.style.display = 'none';  // 旧版の画面内 msg は非表示、overlay 表示に置換
     var payload;
     if (regrade) {
-      // 2026-10-29 段階2：★再採点は前回送った中身をそのまま使う（画像も submitId も isRetry も expectedAnswers も変えない）。
+      // 2026-10-29 段階2：★再採点は前回送った中身をそのまま使う（画像も submitId も isRetry も count も変えない）。
       //   ★submitId を変えると、待ち時間切れの救済（getKanjiKakiResult）が notFound になる（サーバー 2230e68 の注意書き）。
-      payload = Object.assign({}, _kanjiState.kakiLastPayload || {});
+      payload = Object.assign({}, _kanjiState.kakiLastPayload || {});   // 控えは書き換えない（浅いコピー）
       payload.regradeAttempt = regrade;
+      // ★★2026-10-31（案B・塾長決定）：再採点は★✕ だった問だけを送る。サーバー（f530786）が再採点のときだけ
+      //   ★プロンプトに「問題リストに挙げた問だけを見る（画像の他の問は無視）」を差し込む。
+      //   ★これで★一度 ○ にした問が AI のゆらぎで ✕ に変わらない＝「📸 間違えた問題だけ もう一度」と同じ守り方に戻す。
+      //   ★絞り方は既存の再挑戦（_retryKanjiKaki の retryAnswers）と同じ＝kakiResults の !isCorrect。
+      //   ★問番号（no）はそのまま残す（★飛び番号になる）。★画像・submitId・isRetry・count は控えのまま変えない。
+      var wrongOnly = (_kanjiState.kakiResults || [])
+        .filter(function(r){ return r && !r.isCorrect; })
+        .map(function(r){ return { kanjiId: r.kanjiId, no: r.no, answer: r.expected }; });
+      // ★0 件は起きない（✕ が1つも無いと再採点ボタンを出さない）。万一のときは控えのまま送って画面を壊さない。
+      if (wrongOnly.length > 0) payload.expectedAnswers = wrongOnly;
       if (!payload.photoBase64) {   // 控えが無い異常時でも画面を壊さない
         submitBtn.disabled = false;
         _kanjiKakiRegradeNotice(KANJI_KAKI_REGRADE_TEXT.failed);
@@ -24153,6 +24225,52 @@
       function _onKanjiKakiRes(res){
         _clearUnsentFlowIfOk(res, 'kanji');   // 2026-08-25：送信できたので、この操作で積んだ未送信の印を消す
         submitBtn.disabled = false;
+        // ★★2026-10-31（案B）：再採点は ✕ の問だけを送るので、★応答もその問だけが返る。
+        //   ★画面には★前回の結果（○ の問）を残したまま、★今回返ってきた問だけを差し替える（★○ を守る）。
+        //   ★合否（passed）と hpInfo は★サーバーの判断をそのまま使う（1バイトも触らない）。
+        //   ★通常の提出（1回目）と既存の再挑戦（isRetry）は regrade が 0 なので★ここを通らない。
+        if (regrade && res && Array.isArray(res.results)) {
+          var _merged = _kanjiMergeRegradeResults(_kanjiState.kakiResults, res.results);
+          res = Object.assign({}, res, {
+            results:      _merged,
+            correctCount: _merged.filter(function(r){ return r && r.isCorrect; }).length,
+            total:        _merged.length
+          });
+        }
+        // ★★2026-10-31：サーバーが生徒を★解放した回（released:true）の分岐。★3経路ともここ1か所で分ける。
+        //   ★この関数は「送信できた回」と「通信が切れて後から getKanjiKakiResult に問い合わせた回」の★共通の合流点
+        //     （下の .then(_onKanjiKakiRes) と .catch 内の _onKanjiKakiRes(found)）＝★ここに置けば両方が同時に正しくなる。
+        //   ★★!res.ok の判定より★前に置くこと：★ok:false なのに released:true を持つ応答が来ると、
+        //     ★先に「もう一度送信する」へ流れて★解放が無視される（実測で再現した穴）。
+        //   ★errorCode で画面を分ける（★画面は作成済み。新しくは作らない）：
+        //     ・KANJI_RELEASED_WRONG                 … 段階3（✕ が続いた）＝HP は満額で付与済み・進度も前進済み
+        //     ・KANJI_RELEASED_UNREADABLE / _CONNECT … 段階2（読めない／通信落ち）＝HP は塾長が後から
+        //   ★released が無い応答（サーバー未反映の本番を含む）は、この if を素通りして従来どおり進む。
+        if (res && res.released) {
+          _pendingRetry = null;
+          _pendingDismiss = null;
+          try { _kanjiClearPendingPhoto(); } catch(e){}   // この答案はもう送り直さない
+          if (res.errorCode === 'KANJI_RELEASED_WRONG') {
+            // ★段階3 は合格扱い（passed:true）＝★通常の合格と同じ記録を残してから、お詫びの案内へ（7906ef0 と同じ挙動）。
+            _kanjiState.kakiResults = res.results || [];
+            _kanjiState.kakiPassed = true;
+            try {
+              _kanjiUpdateSessionSubmission(_kanjiState.level, _kanjiState.sessionId, {
+                passed:       true,
+                correctCount: Number(res.correctCount || 0),
+                total:        Number(res.total || 0),
+                hpGained:     Number(res.hpGained || 0),
+                gradedAt:     Date.now()
+              });
+            } catch(_e) {}
+            _showReceivedOnOverlay('kanji');
+            _hideHpConfirmingOverlay(function(){ _showKanjiReleasedWrong(res); });
+            return;
+          }
+          // 段階2（読めない／通信落ち）：kakiResults / kakiPassed は更新しない（不合格ではない）。
+          _hideHpConfirmingOverlay(function(){ _showKanjiReleased(res); });
+          return;
+        }
         if (!res || !res.ok) {
           // 2026-10-29 段階2：★再採点だけがサーバーに断られた場合（3回目／合格済み・サーバー 2230e68）。
           //   ★すでに出ている答え合わせはそのまま残し、理由だけを伝える（★画面を壊さない・閉じ込めない）。
@@ -24255,6 +24373,14 @@
     _kanjiState.kakiRegradeCount = done + 1;
     submitKanjiKakiPhoto(null, { attempt: _kanjiState.kakiRegradeCount });   // inputMethod は控えに入っているので渡さない
   }
+  // ★★2026-10-31（案B）：前回の結果（prev）に、再採点で返ってきた問（now）だけを上書きして問番号順に並べ直す。
+  //   ★前回 ○ だった問は prev のまま残る＝★画面でも ○ のまま見える。★再採点のときだけ使う。
+  function _kanjiMergeRegradeResults(prev, now) {
+    var byNo = {};
+    (prev || []).forEach(function(r){ if (r && r.no != null) byNo[r.no] = r; });
+    (now  || []).forEach(function(r){ if (r && r.no != null) byNo[r.no] = r; });
+    return Object.keys(byNo).map(Number).sort(function(a, b){ return a - b; }).map(function(n){ return byNo[n]; });
+  }
   // {max} を実際の上限に差し替える（文言は KANJI_KAKI_REGRADE_TEXT の1か所だけで直せる）。
   function _kanjiKakiRegradeText(key) {
     return String(KANJI_KAKI_REGRADE_TEXT[key] || '').replace('{max}', String(KANJI_KAKI_REGRADE_MAX));
@@ -24336,6 +24462,90 @@
     try { _recordLineHandoff('カンジー書き(LINEへ)'); } catch(e){}
     try { goContentMenu(); } catch(e){}
   }
+  // ★★2026-10-31 段階2（塾長決定）：解放の案内を出す（マイカツ君）。
+  //   ★文面はサーバーの message をそのまま（画面側に文面を持たない）。
+  //   ★オーバーレイが無い異常時でも詰まらせない（必ず HP 獲得画面へ進ませる）。既存 _showKanjiKakiGiveUp と同作法。
+  // ★★2026-10-31 段階3（塾長決定）：同じ問の ✕ が4回目になり、サーバーが★合格扱いで解放した回の案内。
+  //   ★段階2（HP は塾長が後から）とは別物：★HP は満額で自動付与済み・★進度も前進済み（passed:true / hpInfo あり）。
+  //   ★文面はサーバーの message をそのまま（画面側に文面を持たない）。
+  //   ★オーバーレイが無い異常時でも詰まらせない（必ず HP 獲得画面へ進ませる）。既存 _showKanjiReleased と同作法。
+  var _kanjiReleasedWrongRes = null;   // 「分かりました」で hpInfo を使うので控える
+  function _showKanjiReleasedWrong(res) {
+    _kanjiReleasedWrongRes = res || null;
+    _pendingRetry = null;
+    _pendingDismiss = null;
+    var ov = document.getElementById('kanji-released-wrong-overlay');
+    var tx = document.getElementById('kanji-released-wrong-text');
+    if (ov && tx) {
+      tx.textContent = String((res && res.message) || '').trim();
+      ov.classList.add('active');
+      return;
+    }
+    _kanjiReleasedWrongConfirmed();
+  }
+  // 「分かりました」→ 通常の HP 獲得画面（screen-kanji-done）へ。
+  //   ★HP の計算・表示・加算（満額へのカウントアップ・倍率・ただし書き・保留HP・_totalHP）は
+  //     ★_showKanjiDone を★そのまま呼んで通常の合格と1バイトも同じにする（★自前で書き直さない＝将来 HP の
+  //     仕様が変わったときに段階3 だけ取り残されるのを防ぐ。塾長決定・案A）。
+  //   ★そのうえで「嘘になる2か所」だけを、描いた直後に差し替える：
+  //     ・大きな絵文字 🎊 → ★出さない
+  //     ・「満点！カンジー仙人もうなずいています」→ ★「よくがんばったね！HPを付けたよ」（✕ が残っているので満点は嘘）
+  //     ・紙吹雪 → ★出さない（「ごめんなさい」と謝っている場面なので祝い過ぎない）
+  //   ★効果音（chime）は★鳴らす（HP が付いた合図。塾長決定）＝_showKanjiDone の中でそのまま鳴る。
+  //   ★screen-kanji-done には出口ボタンが元からある（📚 学習コンテンツ画面に戻る）＝★閉じ込めに入らない。
+  function _kanjiReleasedWrongConfirmed() {
+    try {
+      var ov = document.getElementById('kanji-released-wrong-overlay');
+      if (ov) ov.classList.remove('active');
+    } catch(e){}
+    var res = _kanjiReleasedWrongRes || {};
+    _showKanjiDone(res.hpInfo || {});   // ★通常の合格とまったく同じ（HP・効果音・画面遷移）
+    try {
+      var bodyEl = document.getElementById('kanji-done-body');
+      var emoji  = bodyEl && bodyEl.querySelector('.wabun1-result-success > div[style*="font-size:52px"]');
+      if (emoji) emoji.remove();                     // 🎊（満点を祝う大きな絵文字）は出さない
+      var title  = bodyEl && bodyEl.querySelector('.wabun1-result-title');
+      if (title) title.textContent = 'よくがんばったね！HPを付けたよ';   // ★文言を直すならここ1か所
+      var conf   = bodyEl && bodyEl.querySelector('.wabun1-confetti-wrap');
+      if (conf) conf.innerHTML = '';                 // 紙吹雪は出さない
+    } catch(e){}
+  }
+  function _showKanjiReleased(res) {
+    _pendingRetry = null;
+    _pendingDismiss = null;
+    var ov = document.getElementById('kanji-released-overlay');
+    var tx = document.getElementById('kanji-released-text');
+    if (ov && tx) {
+      tx.textContent = String((res && res.message) || '').trim();
+      ov.classList.add('active');
+      return;
+    }
+    _kanjiReleasedConfirmed();
+  }
+  // 「分かりました」→ 通常の HP 獲得画面（screen-kanji-done）へ。
+  //   ★この画面には出口ボタンが元からある（📚 学習コンテンツ画面に戻る）＝★「合格しないと抜けられない」
+  //     閉じ込め（_showKanjiKakiResult の不合格の枝）には★一度も入らない。
+  //   ★HP はまだ付いていない（塾長が後から代理で付ける）ので：
+  //     ・「満点！」のタイトル・紙吹雪・効果音・カウントアップは★出さない（満点ではないので嘘になる）
+  //     ・★_totalHP に 1 も足さない（ホームの HP 合計を狂わせない）
+  //   ★_showKanjiDone は呼ばない（合格時の演出を1バイトも変えないため、本文はここで作る）。
+  //   ★新しい CSS クラスは増やさず、既存の .kanji-result-fail / .kanji-result-title を流用して色だけ上書きする
+  //     （撮り直し画面 _showKanjiKakiRetake と同じ作法）。
+  function _kanjiReleasedConfirmed() {
+    try {
+      var ov = document.getElementById('kanji-released-overlay');
+      if (ov) ov.classList.remove('active');
+    } catch(e){}
+    var bodyEl = document.getElementById('kanji-done-body');
+    if (bodyEl) {
+      bodyEl.innerHTML =
+        '<div class="kanji-result-fail" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border-color:#60a5fa">' +
+          '<div class="kanji-result-title" style="color:#1e3a8a">✅ 先生に送りました</div>' +
+          '<div style="margin-top:10px;font-size:15px;line-height:1.8;color:#1e40af">HPは先生があとで付けてくれます</div>' +
+        '</div>';
+    }
+    showScreen('screen-kanji-done');
+  }
   function _showKanjiKakiResult(res) {
     var passed = !!res.passed;
     var correctCount = res.correctCount || 0;
@@ -24349,6 +24559,12 @@
       return;
     }
     _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', _pickBubble(KANJI_BUBBLES.kakiFail));
+    // ★★2026-11-01（塾長決定）：答え合わせの「正解：●」を★楷書体（Klee One）で出す。
+    //   ★Google Fonts の日本語は字ごとの分割配信なので、★出す字を指定して読み込まないと落ちてこない。
+    //   ★書き練習と同じ作法（_kanjiPracticeLoadFont）を★そのまま再利用＝新しい外部読み込みは増えない。
+    //   ★書き練習を飛ばした生徒でも、ここで _ensureKleeOneFont() ごと読み込まれる。
+    //   ★間に合わない・落ちたときは CSS のフォールバック（教科書体→明朝体）で出る（今より悪くならない）。
+    try { _kanjiPracticeLoadFont((res.results || []).map(function(r){ return String((r && r.expected) || ''); })); } catch(e) {}
     // 2026-05-08 学習補助強化：全問の正解一覧（✅/❌ 付き）+ 生徒の解答を併記。
     // ふくちさん哲学「不合格で再テストになっても何もできないと学習にならない」に基づく。
     //
@@ -24476,9 +24692,7 @@
           escH(reasonText) + ' がはっきり読み取れませんでした。<br>' +
           '写真がブレていないか・明るさが十分かを確認して、もう一度撮影してね。' +
         '</div>' +
-        '<div style="margin-top:14px;font-size:13px;color:#92400e;background:#fffbeb;padding:10px 12px;border-radius:8px">' +
-          '※ 答案ノートはそのまま使えるよ（今回の判定は保留されているので、HP は減らないよ）' +
-        '</div>' +
+        _kanjiRetakeWrongBlock(res) +   // ★2026-11-01：読めたけれど ✕ だった問があるときだけ出る
       '</div>';
     // ★2026-08-30：提出後の画面なので、合格しないまま抜けられないようにホーム導線は出さない。
     actions.innerHTML =
@@ -28096,7 +28310,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261029-1646</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261101-0127</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
