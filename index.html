@@ -3753,10 +3753,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261102-0326"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261102-0427"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261102-0326">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261102-0326"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261102-0427">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261102-0427"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6297,6 +6297,10 @@
         <li>「お手本を見ながら書く」か「お手本をなぞる」を選べるよ。</li>
         <li>書けたら、正しい字を赤で重ねて見比べよう。</li>
         <li>練習だけど丁寧に書くこと。</li>
+        <!-- ★★2026-11-02（塾長決定）：どちらの方式を選んでも必ず通るこの画面にも、タッチペンの推奨を出す。
+             ★文言は入力方式えらびのボタンのサブ行とそろえ、句点だけ足して他の4行と並びを合わせた。
+             ★赤は .kanji-emphasis（カンジーの問題文の「赤い太字」）と同じ #d32f2f。★新しい CSS クラスは作らない。 -->
+        <li style="color:#d32f2f;font-weight:bold">タッチペンがあると書きやすいよ（指だと難しいよ）。</li>
       </ul>
     </div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#f97316,#c2410c);margin-top:16px" onclick="startKanjiPractice()">▶ 練習をはじめる</button>
@@ -28346,7 +28350,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261102-0326</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261102-0427</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
