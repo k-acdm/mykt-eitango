@@ -3753,10 +3753,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261102-0427"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261102-0459"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261102-0427">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261102-0427"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261102-0459">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261102-0459"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -23401,6 +23401,13 @@
     aiMisread:   'AIが読み間違えることもあります。自分の字を見て『合っている』と思ったら、先生に相談してね。'
   };
 
+  // ★★2026-11-02（塾長決定・案A'）：3回目の不合格のときだけ出すカンジーのセリフ。
+  //   ★「あと1回で解放される」とは★言わない（仕組みをそのまま説明すると、わざと ✕ を狙う子への誘導になる）。
+  //   ★伝えるのは「次でだめでも大丈夫」という安心だけ。
+  //   ★末尾の「ていねいにな。」は、「どうせ解放される」と手を抜かせないための軽い歯止め。
+  //   ★文言を直すならここ1か所。
+  var KANJI_KAKI_THIRD_FAIL_TEXT = '3回もがんばったのう。次でだめでも、わしが先生に伝えておくから安心しなされ。ていねいにな。';
+
   // 2026-10-29 段階2（塾長決定）：AI の判定にはゆらぎがあるので、★同じ画像でもう一度採点してもらえるようにする。
   //   ★上限はサーバー（mykt-eitango-aws 2230e68・MAX_REGRADE）と同じ 2。3 回目はサーバーが断る。
   //   ★文言は仮。実機確認で最終決定するので、★ここだけ書き換えれば画面に反映される（HTML には直接書かない）。
@@ -24598,7 +24605,17 @@
       _showKanjiDone(res.hpInfo || {});
       return;
     }
-    _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', _pickBubble(KANJI_BUBBLES.kakiFail));
+    // ★★2026-11-02（塾長決定）：3回目の不合格だけ、カンジーのセリフを励ましに差し替える。
+    //   ★「今 何回目か」は★サーバーが返す wrongMax をそのまま読む（サーバー c69a0ef）。★画面側では数えない
+    //     （数える仕組みを2か所に持たない。wrongMax は段階3 の解放判定と★同じ値・同じ数え方）。
+    //   ★wrongMax が無い応答（★サーバー未反映の本番を含む）は Number(undefined)=NaN で 3 にならない
+    //     ＝★1〜2回目と同じく従来どおりランダムのセリフ。
+    //   ★4回目はサーバーが解放（KANJI_RELEASED_WRONG）するのでこの関数には来ない＝ここに届く wrongMax は 3 まで。
+    //   ★合格はこの手前で return 済み＝合格の画面には一切触れない。
+    var kakiFailLine = (Number(res && res.wrongMax) === 3)
+      ? KANJI_KAKI_THIRD_FAIL_TEXT
+      : _pickBubble(KANJI_BUBBLES.kakiFail);
+    _kanjiSetMascot('kanjii-img-kaki-result', 'encourage', 'kanjii-bubble-kaki-result', kakiFailLine);
     // ★★2026-11-01（塾長決定）：答え合わせの「正解：●」を★楷書体（Klee One）で出す。
     //   ★Google Fonts の日本語は字ごとの分割配信なので、★出す字を指定して読み込まないと落ちてこない。
     //   ★書き練習と同じ作法（_kanjiPracticeLoadFont）を★そのまま再利用＝新しい外部読み込みは増えない。
@@ -28350,7 +28367,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261102-0427</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261102-0459</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
