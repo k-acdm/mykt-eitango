@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261101-0127"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261102-0326"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -11126,7 +11126,15 @@
     var cb = Number(cat.completion_bonus || 0);
     if (cb > 0) rows += _hpBdRow('🎯 絶対ミッション達成ボーナス', cb);
     if (Array.isArray(bd.byContentNamed)) {
-      bd.byContentNamed.forEach(function(c) { rows += _hpBdRow(_esc(c && c.name ? c.name : (c && c.key) || ''), Number((c && c.hp) || 0)); });
+      // ★★2026-11-02（塾長決定）：内部名 reserve_release をそのまま出さない。
+      //   ★サーバーの contentDisplayName は 13 コンテンツ以外を解決できず、key をそのまま name で返す。
+      //   ★この画面は byCategory の reserve_release を出していないので、★行は残して名前だけ日本語にする
+      //     （消すと内訳と合計が合わなくなる）。★生徒画面の「✨ 保留HP解放」と同じ言葉にそろえる。
+      bd.byContentNamed.forEach(function(c) {
+        var nm = (c && c.name) ? String(c.name) : ((c && c.key) || '');
+        if (nm === 'reserve_release' || (c && c.key === 'reserve_release')) nm = '✨ 保留HP解放';
+        rows += _hpBdRow(_esc(nm), Number((c && c.hp) || 0));
+      });
     } else {
       var bc = bd.byContent || {};
       Object.keys(bc).forEach(function(k) { rows += _hpBdRow(_esc(k), Number(bc[k] || 0)); });
@@ -19645,7 +19653,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261101-0127</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261102-0326</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

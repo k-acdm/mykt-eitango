@@ -3753,10 +3753,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261101-0127"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261102-0326"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261101-0127">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261101-0127"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261102-0326">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261102-0326"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -6388,6 +6388,11 @@
            （＝書きテストの撮影確認でも使っている赤枠。新しい CSS クラスは作っていない）。
          ★文言は JS の KANJI_KAKI_METHOD_TEXT.note を書き換えれば変わる。 -->
     <div class="wabun1-period-warn" id="kanji-kaki-method-note"></div>
+    <!-- ★★2026-11-02（塾長決定）：「画面に書く」はペン（タッチペン）を強く推奨する。
+         ★指では「ていねいに書く」のがきわめて難しく、AI が読み取れずに ✕ になりやすいため。
+         ★★置き場所は「✏️ 画面に書く」ボタンの★すぐ上（写真側のボタンより上には置かない）。
+         ★文言は JS の KANJI_KAKI_METHOD_TEXT.penNote（3行）を書き換えれば変わる。 -->
+    <div class="wabun1-period-warn" id="kanji-kaki-method-pen"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#f97316,#c2410c)" onclick="chooseKanjiKakiMethodScreen()">
       <span id="kanji-kaki-method-btn1"></span>
       <small id="kanji-kaki-method-btn1-sub" style="display:block;font-size:12px;font-weight:normal;opacity:.9;margin-top:4px"></small>
@@ -7306,6 +7311,10 @@
       <div class="mykt-overlay-bubble hp-confirming">
         <span id="hp-confirming-text"></span><span id="hp-confirming-dots" class="grading-dots">...</span><br>
         <span id="hp-confirming-sub" style="font-size:12px;color:#6b3410">少しだけ待ってね</span>
+        <!-- ★★2026-11-02（塾長決定）：待っている間にも採点時間の目安を出す（送信前の2か所はそのまま残す）。
+             ★全コンテンツ共通の待ち画面なので、HP_WAIT_STAGES に note があるときだけ出す＝★カンジー書きだけ。
+             ★他のコンテンツは待ちの上限が 90 秒で「3〜4分」は当てはまらないため出さない。 -->
+        <div id="hp-confirming-note" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:12px;line-height:1.7;font-weight:normal"></div>
       </div>
     </div>
   </div>
@@ -8367,7 +8376,9 @@
   //     画面を閉じるとき（_hideHpConfirmingOverlay）／次の表示が始まったとき。目印は送信ごとの _hpOverlayShownAt。
   //   text は文字列か配列（配列ならランダムに1つ）。配列は関数で返す（このあと定義されるセリフ集を後から読むため）。
   var HP_WAIT_STAGES = {
-    kanjiKaki: { bob: true, stages: [
+    // ★★2026-11-02（塾長決定）：note があるキーだけ、セリフの下に採点時間の目安を出す（★カンジー書きだけ）。
+    //   ★送信前（撮影確認画面・画面入力の最後の問）に出しているものと★同じ文言。
+    kanjiKaki: { bob: true, note: '⏳ 採点には時間がかかることがあります（長いときで3〜4分）。終わるまで画面を閉じないで待っててね。', stages: [
       [0,  'いま採点しておるところじゃ'],
       [15, 'もう少しじゃ、待っておくれ'],
       [35, 'ふむ、今日は念入りに見ておるようじゃ'],
@@ -8395,6 +8406,9 @@
   function _hpWaitSubReset() {
     var sub = document.getElementById('hp-confirming-sub');
     if (sub) sub.style.display = '';
+    // ★★2026-11-02：採点時間の目安も既定に戻す（次の送信で note が無いキーなら出さない）。
+    var note = document.getElementById('hp-confirming-note');
+    if (note) { note.style.display = 'none'; note.textContent = ''; }
   }
   function _hpWaitPickText(t) {
     var v = (typeof t === 'function') ? t() : t;
@@ -8409,6 +8423,11 @@
     if (!cfg || !ov || !ov.classList.contains('active')) return;
     var sub = document.getElementById('hp-confirming-sub');
     if (sub) sub.style.display = 'none';
+    // ★★2026-11-02：note があるキーだけ、セリフの下に採点時間の目安を出す。
+    //   ★セリフが変わっても（stages の切り替え）この枠は触らないので★出たまま残る。
+    //   ★結果の問い合わせ中（_hpWaitStagesStop）でも消さない＝待ちが一番長くなる場面でこそ残す。
+    var note = document.getElementById('hp-confirming-note');
+    if (note) { if (cfg.note) { note.textContent = cfg.note; note.style.display = ''; } else { note.style.display = 'none'; } }
     if (cfg.bob) ov.classList.add('hp-wait-bob');
     var st = { key: key, token: _hpOverlayShownAt, startedAt: Date.now(), idx: -1 };
     _hpWaitState = st;
@@ -13892,7 +13911,12 @@
     }
 
     // ▼ コンテンツ別（即時付与分） — キャラクターアイコン付き
-    var contentKeys = Object.keys(byContent).filter(function(k){ return Number(byContent[k]) > 0; });
+    // ★★2026-11-02（塾長決定）：byContent の 'reserve_release' 行は出さない。
+    //   ★サーバー（HpEngine::insertMeta）が hp_type='reserve_release' の行を1本作り、集計で
+    //     byCategory['reserve_release'] と byContent['reserve_release'] の★両方に同じ額を足している。
+    //   ★この画面は byCategory 側を下の「✨ 保留HP解放」で必ず出すので、ここで出すと★同じ額が2行並ぶ
+    //     （内部名のまま出てもいた）。★合計（total）はサーバーが1回しか足していないのでズレない。
+    var contentKeys = Object.keys(byContent).filter(function(k){ return k !== 'reserve_release' && Number(byContent[k]) > 0; });
     if (contentKeys.length > 0) {
       contentKeys.sort();
       for (var i = 0; i < contentKeys.length; i++) {
@@ -23351,7 +23375,13 @@
   var KANJI_KAKI_METHOD_TEXT = {
     title:     'どちらで書く？',
     screen:    '✏️ 画面に書く',
-    screenSub: '指で画面に書いて、そのまま送れるよ',
+    screenSub: 'タッチペンがあると書きやすいよ（指だと難しいよ）',
+    // 2026-11-02 塾長指定：「画面に書く」側にだけ出すペンの推奨（★3行。配列の1要素＝1行）
+    penNote:   [
+      '✏️ 画面に書くときは、タッチペンを強くおすすめします。',
+      '指では「ていねいに書く」のがとても難しく、AI が読み取れずに ✕ になりやすいです。',
+      'ペンが無いときは「📷 ノートに書いて写真を送る」の方が確実です。'
+    ],
     photo:     '📷 ノートに書いて写真を送る',
     photoSub:  'いつも慣れてる「紙」に書いて写真に撮ってね',
     // 2026-10-27 塾長指定の注意書き（★画面入力・写真の両方に効くので、ボタンの外に1つだけ置く）
@@ -23391,6 +23421,12 @@
     put('kanji-kaki-method-btn2',     T.photo);
     put('kanji-kaki-method-btn2-sub', T.photoSub);
     put('kanji-kaki-method-note',     T.note);
+    // ★2026-11-02：ペンの推奨（3行）。文字列は必ずエスケープしてから <br> でつなぐ。
+    var penEl = document.getElementById('kanji-kaki-method-pen');
+    if (penEl) {
+      var esc = function(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+      penEl.innerHTML = (T.penNote || []).map(esc).join('<br>');
+    }
     try { _kanjiSetMascot('kanjii-img-kaki-method', 'default', 'kanjii-bubble-kaki-method', _pickBubble(KANJI_BUBBLES.kakiMethod)); } catch(e) {}
     showScreen('screen-kanji-kaki-method');
   }
@@ -28310,7 +28346,7 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261101-0127</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261102-0326</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
