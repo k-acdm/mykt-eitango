@@ -3302,7 +3302,12 @@
     .kiso-grading-sub { font-size: 12px; color: #94a3b8; margin-top: 10px; line-height: 1.6; }
 
     /* バージョン表示（右下固定、キャッシュ診断＆強制リロード用） */
-    .app-version { position: fixed; left: 10px; bottom: 10px; z-index: 9000; font-size: 10px; color: #999; background: rgba(255,255,255,0.8); padding: 4px 8px; border-radius: 4px; cursor: pointer; user-select: none; box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: color .15s, background .15s; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .app-version { position: fixed; left: 10px; bottom: 10px; z-index: 9600; font-size: 10px; color: #999; background: rgba(255,255,255,0.8); padding: 4px 8px; border-radius: 4px; cursor: pointer; user-select: none; box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: color .15s, background .15s; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    /* ★★2026-11-03（塾長決定）：どんな居残りが起きても脱出口を1つ残すため、待ち画面（.mykt-overlay
+       z-index:9500）より手前へ。9600 より上（9800〜11000）の要素はそのまま手前なので隠さない。
+       ★🔄 は ::before で出す：<span id="app-version"> の中身は scripts/stamp-version.js が
+       commit のたびに丸ごと置換するため、中に書くと消えてしまう。 */
+    .app-version::before { content: '\1F504 '; }
     .app-version:hover { color: #555; background: rgba(255,255,255,0.95); }
     /* E1 楽観的UI: 送信中インジケーター（結果画面右下に小さく） */
     .submit-pending-ind { position: fixed; right: 16px; bottom: 16px; z-index: 9100; background: rgba(255,255,255,0.96); border: 1px solid #d1d5db; border-radius: 20px; padding: 7px 14px; font-size: 13px; color: #4b5563; box-shadow: 0 2px 10px rgba(0,0,0,.12); display: flex; align-items: center; gap: 6px; }
@@ -3753,10 +3758,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261102-0459"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261103-0541"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261102-0459">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261102-0459"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261103-0541">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261103-0541"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3952,6 +3957,10 @@
 
     <div class="flex-fill">
       <div class="login-card">
+        <!-- ★★2026-11-03（塾長決定）：居残った待ち画面を自動で外したときに出す一言。
+             ★役割選択・ID入力・おかえりなさい のどの Step が出ていても見えるよう、カードの先頭に置く。
+             ★出すのは _hpOverlayClearIfStale が実際に外したときだけ（既定は非表示）。 -->
+        <div id="login-recover-note" style="display:none;margin:0 0 14px;padding:10px 12px;border-radius:10px;background:#fff7ed;border:2px solid #fdba74;color:#9a3412;font-size:13px;line-height:1.7;text-align:left">通信が切れてしまったみたい。<br>送った答案は先生に届いているよ。もう一度ログインしてね。</div>
         <!-- Step 1: 役割選択 -->
         <div class="login-step login-step-role">
           <div class="login-emoji">✨</div>
@@ -7321,6 +7330,15 @@
         <div id="hp-confirming-note" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:12px;line-height:1.7;font-weight:normal"></div>
       </div>
     </div>
+    <!-- ★★2026-11-03（塾長決定）：全コンテンツ共通の短い案内。★吹き出しの外（カードの底）に置く。
+         ★吹き出しの中はキャラのセリフ（カンジーは3行ある）なので、操作の案内は分けて小さく出す。
+         ★文言は JS の HP_OVERLAY_TAP_HINT。1回タップの「生きてるよ」でも同じ場所を一時的に使う。 -->
+    <div id="hp-confirming-tap-hint" style="margin-top:10px;font-size:10px;color:#9ca3af;line-height:1.6">もし5分たっても進まないときは、画面を2回タップしてね</div>
+    <!-- ★2回タップで出る脱出ブロック（既定は非表示）。詳しい案内は★カンジーのときだけ出す。 -->
+    <div id="hp-confirming-escape" style="display:none;margin-top:10px">
+      <div id="hp-confirming-escape-detail" style="display:none;margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:12px;line-height:1.7;text-align:left;white-space:pre-line"></div>
+      <button class="btn-wide" style="margin-top:0;background:linear-gradient(135deg,#94a3b8,#64748b);font-size:14px;padding:12px" onclick="event.stopPropagation(); _hpOverlayEscapeReload()">🔄 アプリを開き直す</button>
+    </div>
   </div>
 </div>
 
@@ -8470,8 +8488,98 @@
   var _hpOverlayHideNotBefore = 0;
   var _reflOverlayShownAt = 0;
   var _kisoGradingShownAt = 0;
+  // ============================================================================
+  // ★★2026-11-03（塾長決定）：採点待ち画面の「居残り」対策。
+  //   ★この画面は全画面を覆い（z-index 9500・pointer-events あり）★閉じるボタンが無いので、
+  //     応答が返らないまま居残ると★生徒は何も押せなくなる（実際に 11/02 深夜に発生）。
+  //   ★考え方：異常を★機械が見分けて★即座に外す。時間で待たせない。
+  //     判定A … 読み込み直後に出ている（_hpOverlayShownAt が初期値 0 のまま）＝必ず異常
+  //     判定B … ログイン画面と同時に出ている＝必ず異常（採点待ちはログイン後にしか出ない）
+  //   ★正常に待っている間は★どちらも成立しない＝勝手に消すことは絶対にない。
+  //   ★それでも拾えない経路（端末がページを丸ごと復元した場合など）に備えて、
+  //     ★画面を2回タップすると脱出ボタンが出る（時間では出さない＝待たせない）。
+  // ============================================================================
+  var _hpConfirmingChar     = '';   // いまの待ち画面のキャラ（詳しい案内をカンジーだけに出すため）
+  var _hpOverlayTapCount    = 0;    // この表示でタップされた回数（表示のたびに 0 に戻す）
+  var _hpOverlayTapMsgTimer = null;
+  var HP_OVERLAY_TAP_HINT   = 'もし5分たっても進まないときは、画面を2回タップしてね';
+  var HP_OVERLAY_TAP_ALIVE  = 'まだ採点中だよ。もう少し待ってね';
+  //   ★詳しい案内は★カンジーだけ（他のコンテンツは戻り方が違うので出すと間違った案内になる）。
+  //   ★級と問題数が1つでも違うと新しい問題セットになるため、えらぶ順番まで書く。
+  //   ★「写真もそのまま戻る」とは書かない：画面入力で書いた字は残らないので嘘になる。
+  var HP_OVERLAY_ESCAPE_DETAIL_KANJI = '開き直したあと、もう一度ログインして、\nカンジー → さっきと同じ級 → さっきと同じ問題数\nの順にえらぶと、続きから再開できるよ。';
+  // 短い案内・脱出ブロックを既定の姿に戻す（表示開始時／消したとき／ログアウト時）。
+  function _hpOverlayResetExtras() {
+    if (_hpOverlayTapMsgTimer) { clearTimeout(_hpOverlayTapMsgTimer); _hpOverlayTapMsgTimer = null; }
+    var hint = document.getElementById('hp-confirming-tap-hint');
+    if (hint) hint.textContent = HP_OVERLAY_TAP_HINT;
+    var esc  = document.getElementById('hp-confirming-escape');
+    if (esc) esc.style.display = 'none';
+    var det  = document.getElementById('hp-confirming-escape-detail');
+    if (det) { det.style.display = 'none'; det.textContent = ''; }
+  }
+  // 異常かどうか（★正常な待ちでは必ず false）。
+  function _hpOverlayIsStale() {
+    var ov = document.getElementById('hp-confirming-overlay');
+    if (!ov || !ov.classList.contains('active')) return false;
+    if (_hpOverlayShownAt === 0) return true;                      // 判定A：この読み込みでは一度も出していない
+    var sc = document.querySelector('.screen.active');
+    if (sc && sc.id === 'screen-login') return true;               // 判定B：ログイン画面と同時に出ている
+    return false;
+  }
+  // 異常なら即座に外す。外したときだけ true を返し、ログイン画面に一言を出す。
+  function _hpOverlayClearIfStale() {
+    if (!_hpOverlayIsStale()) return false;
+    var ov = document.getElementById('hp-confirming-overlay');
+    if (ov) ov.classList.remove('active');
+    try { _hpWaitStagesStop(); } catch(e){}
+    if (_hpConfirmingDotsTimer) { clearInterval(_hpConfirmingDotsTimer); _hpConfirmingDotsTimer = null; }
+    _hpOverlayResetExtras();
+    try { var n = document.getElementById('login-recover-note'); if (n) n.style.display = ''; } catch(e){}
+    return true;
+  }
+  // 待ち画面をタップしたとき。1回目＝生きていることを伝える／2回目＝脱出ボタンを出す。
+  //   ★どちらの回でも、まず異常かどうかを見て、異常ならその場で外す（＝触った瞬間に抜けられる）。
+  function _hpOverlayOnTap() {
+    if (_hpOverlayClearIfStale()) return;
+    _hpOverlayTapCount++;
+    if (_hpOverlayTapCount >= 2) {
+      var esc = document.getElementById('hp-confirming-escape');
+      if (esc) esc.style.display = '';
+      var det = document.getElementById('hp-confirming-escape-detail');
+      if (det) {
+        if (_hpConfirmingChar === 'kanjii') { det.textContent = HP_OVERLAY_ESCAPE_DETAIL_KANJI; det.style.display = ''; }
+        else { det.textContent = ''; det.style.display = 'none'; }
+      }
+      return;
+    }
+    var hint = document.getElementById('hp-confirming-tap-hint');
+    if (!hint) return;
+    hint.textContent = HP_OVERLAY_TAP_ALIVE;
+    if (_hpOverlayTapMsgTimer) clearTimeout(_hpOverlayTapMsgTimer);
+    _hpOverlayTapMsgTimer = setTimeout(function(){
+      var h = document.getElementById('hp-confirming-tap-hint');
+      if (h) h.textContent = HP_OVERLAY_TAP_HINT;
+      _hpOverlayTapMsgTimer = null;
+    }, 2000);
+  }
+  // 脱出ボタン：確認ダイアログを出さずに開き直す（版バッジのタップと同じ作法）。
+  function _hpOverlayEscapeReload() {
+    try { window.removeEventListener('beforeunload', beforeUnloadHandler); } catch(e){}
+    try { window.onbeforeunload = null; } catch(e){}
+    try { location.reload(true); } catch(e){ try { location.reload(); } catch(_e){} }
+  }
+  try {
+    var _hpOv = document.getElementById('hp-confirming-overlay');
+    if (_hpOv) _hpOv.addEventListener('click', function(){ try { _hpOverlayOnTap(); } catch(e){} });
+  } catch(e){}
+
   function _showHpConfirmingOverlay(charId) {
     try { _hpWaitStagesStop(); _hpWaitSubReset(); } catch(e){}   // 2026-10-24：経過演出を毎回リセット（演出の対象は呼び出し元で開始）
+    // ★★2026-11-03：この表示のキャラ（詳しい案内の出し分け）とタップ回数を仕切り直す。
+    _hpConfirmingChar  = String(charId || '');
+    _hpOverlayTapCount = 0;
+    _hpOverlayResetExtras();
     _hpOverlayShownAt = Date.now();   // §6-A23 ①：cover方式の起点時刻
     _hpOverlayHideNotBefore = _hpOverlayShownAt + MIN_HP_OVERLAY_MS;   // 2026-09-02：既定は従来どおり最低3秒
     var meta = HP_CONFIRMING_BY_CHAR[charId] || HP_CONFIRMING_BY_CHAR['rushkun'];
@@ -8505,6 +8613,7 @@
       try { _hpWaitStagesStop(); } catch(e){}      // 2026-10-24：経過演出を止める
       if (ov) ov.classList.remove('active');
       if (_hpConfirmingDotsTimer) { clearInterval(_hpConfirmingDotsTimer); _hpConfirmingDotsTimer = null; }
+      _hpOverlayResetExtras();   // ★2026-11-03：短い案内・脱出ブロックを既定に戻す
       if (typeof onHidden === 'function') onHidden();   // remove と同一タスクで画面切替（同時遷移）
     };
     // 2026-09-02：受領メッセージを出した場合は _hpOverlayHideNotBefore が後ろへ伸びている。
@@ -8793,6 +8902,15 @@
     // ログアウトで screen-login に戻れば再表示される（全画面遷移が showScreen を通るため確実に切替わる）。
     var _av = document.getElementById('app-version');
     if (_av) _av.style.display = (id === 'screen-login') ? '' : 'none';
+    // ★★2026-11-03：バッジの説明もバッジ本体と同じ出し入れ（ログイン画面だけ）。
+    var _avh = document.getElementById('app-version-hint');
+    if (_avh) _avh.style.display = (id === 'screen-login') ? '' : 'none';
+    // ★★2026-11-03（判定B・塾長決定）：ログイン画面と採点待ちは★同時に存在しえない。
+    //   ★出ていたら必ず異常（復帰時の再検証でログアウトされた等）＝即座に外して操作できるようにする。
+    //   ★正常な待ちの最中は画面が screen-login になることはないので、ここは絶対に発火しない。
+    if (id === 'screen-login') { try { _hpOverlayClearIfStale(); } catch(e){} }
+    // ログインできたら、居残りを消したときの一言は役目を終える。
+    if (id !== 'screen-login') { try { var _lrn = document.getElementById('login-recover-note'); if (_lrn) _lrn.style.display = 'none'; } catch(e){} }
     if (id === 'screen-settings') {
       for (var i = 0; i < VOICE_LIST.length; i++) {
         var b = document.getElementById('voice-btn-' + i);
@@ -13226,6 +13344,18 @@
   //   (4) キャンセル時は state を何も触らない（モーダルを閉じるだけ）。
   //   (5) 二重実行ガード _logoutInProgress は維持（モーダル多重表示防止）。
   function _clearAllLogoutOverlays() {
+    // ★★2026-11-03（塾長決定）：この関数は 2026-05-19 に作られ、HP 確認オーバーレイは★翌日 05-20 に
+    //   追加されたため★掃除リストから漏れていた（＝ログアウトしても採点待ちが居残って操作不能になる）。
+    try {
+      var hc = document.getElementById('hp-confirming-overlay');
+      if (hc && hc.classList.contains('active')) {
+        hc.classList.remove('active');
+        // ★採点待ちが出たままログアウト処理に入った＝その送信は中断された。生徒に一言伝える。
+        //   ★待ち画面が出ていないふつうのログアウトでは出さない（「通信が切れた」は嘘になるため）。
+        try { var _rn = document.getElementById('login-recover-note'); if (_rn) _rn.style.display = ''; } catch(_e){}
+      }
+      _hpOverlayResetExtras();
+    } catch(e){}
     try { _hideSubmitPending(); } catch(e){}
     try { _hideSubmitError();   } catch(e){}
     try { _hideWabun1Grading(); } catch(e){}
@@ -28356,6 +28486,11 @@
     } catch(e){}
   }
 
+  // ★★2026-11-03（判定A・塾長決定）：読み込み直後に採点待ちが出ていたら★必ず異常なので外す。
+  //   ★この時点では _hpOverlayShownAt は初期値 0＝「この読み込みでは一度も出していない」が確定する。
+  //   ★pageshow には付けない：端末がページを丸ごと復元した場合、★正常に待っている最中の可能性があるため。
+  try { _hpOverlayClearIfStale(); } catch(e){}
+
   // 復帰検知：visibilitychange（visible）＋ pageshow（bfcache 復元/初回ロード）。
   //   初回ロードや未ログイン時は _revalidateOnResume 冒頭の _studentId ガードで no-op。
   document.addEventListener('visibilitychange', function(){
@@ -28367,7 +28502,11 @@
      YYYYMMDD-HHMM 形式（JST）で自動上書きする。手で書き換える必要なし。
      2026-05-23 改修：旧 document.lastModified ベースの自動生成方式から、
      stamp スクリプトによる明示的バージョン埋め込み方式に切替（キャッシュバスティング自動化）。 -->
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261102-0459</span>
+<!-- ★★2026-11-03（塾長決定）：バッジが何のボタンか分からなかったので一行だけ説明を添える。
+     ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
+     ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
+<span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261103-0541</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
