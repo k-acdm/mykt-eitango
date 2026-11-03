@@ -3758,10 +3758,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261103-0541"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261104-0507"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261103-0541">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261103-0541"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261104-0507">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261104-0507"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -8504,10 +8504,29 @@
   var _hpOverlayTapMsgTimer = null;
   var HP_OVERLAY_TAP_HINT   = 'もし5分たっても進まないときは、画面を2回タップしてね';
   var HP_OVERLAY_TAP_ALIVE  = 'まだ採点中だよ。もう少し待ってね';
-  //   ★詳しい案内は★カンジーだけ（他のコンテンツは戻り方が違うので出すと間違った案内になる）。
-  //   ★級と問題数が1つでも違うと新しい問題セットになるため、えらぶ順番まで書く。
-  //   ★「写真もそのまま戻る」とは書かない：画面入力で書いた字は残らないので嘘になる。
-  var HP_OVERLAY_ESCAPE_DETAIL_KANJI = '開き直したあと、もう一度ログインして、\nカンジー → さっきと同じ級 → さっきと同じ問題数\nの順にえらぶと、続きから再開できるよ。';
+  //   ★★詳しい案内（2回タップで脱出ボタンの上に出る）は★コンテンツごとに戻り方が違うので、
+  //     ★charId をキーにした表で持つ（既存の HP_CONFIRMING_BY_CHAR と同じ作法）。
+  //   ★★★表に無いキャラには★自動的に出ない。
+  //     ★端末に何も残らない（開き直すと最初からになる）コンテンツに「続きから再開できる」と出すと
+  //       ★嘘の案内になるため、★書けるものだけ書く。2026-11-04 時点で書けるのは下の 6 つ。
+  //     ★出していないのは rushkun / lison / japanin / phony / kobun / trial / rika / shakaneki の 8 つ
+  //       （調査で「1バイトも残らない」と実測済み。★別途判断する）。
+  //   ★級・レベル・問題数が1つでも違うと新しい問題セットになるものは、えらぶ順番まで書く。
+  //   ★「写真もそのまま戻る」と言い切らない：画面入力で書いた字や手で打った文は残らないので嘘になる。
+  var HP_OVERLAY_ESCAPE_DETAIL_BY_CHAR = {
+    // カンジー（2026-11-03 塾長決定・この文言は変えない）
+    'kanjii':    '開き直したあと、もう一度ログインして、\nカンジー → さっきと同じ級 → さっきと同じ問題数\nの順にえらぶと、続きから再開できるよ。',
+    // 基礎計算（カンジーと同じ仕組み：級と問題数がそろえば中断したセッションに戻る）
+    'kisoK':     '開き直したあと、もう一度ログインして、\n基礎計算 → さっきと同じ級 → さっきと同じ問題数\nの順にえらぶと、続きから再開できるよ。',
+    // オリワン（開くと「続きから再開する？」と聞かれる。HP が二重にかからないことも伝える）
+    'oriwantes': '開き直したあと、もう一度ログインして、\nオリワン →「問題をつくる」をひらくと、\n「続きから再開する？」と聞かれるよ。\n（HPが新しくかかることはないよ）',
+    // 和文英訳①（その日のお題と結びついた読み取り結果が残る）
+    'nichiei':   '開き直したあと、もう一度ログインして、\n和文英訳① をひらくと、\n読み取った答えが残っていれば そのまま送れるよ。',
+    // 三語短文（写真の読み取り結果だけ残る。手で打った文は残らないので、そこも言う）
+    'sangotan':  '開き直したあと、もう一度ログインして、\n三語短文 → さっきと同じレベル → 写真で提出 をひらくと、\n読み取った文が残っていれば そのまま送れるよ。\n（手で打った文は残らないので、もう一度書いてね）',
+    // マイ課題（写真は残ることがあるが、文章は残らないことがある。言い切らない）
+    'maikadai':  '開き直したあと、もう一度ログインして、\nマイ課題 をひらくと、撮った写真が残っていることがあるよ。\n（文章は書き直しになることがあるよ）'
+  };
   // 短い案内・脱出ブロックを既定の姿に戻す（表示開始時／消したとき／ログアウト時）。
   function _hpOverlayResetExtras() {
     if (_hpOverlayTapMsgTimer) { clearTimeout(_hpOverlayTapMsgTimer); _hpOverlayTapMsgTimer = null; }
@@ -8548,7 +8567,9 @@
       if (esc) esc.style.display = '';
       var det = document.getElementById('hp-confirming-escape-detail');
       if (det) {
-        if (_hpConfirmingChar === 'kanjii') { det.textContent = HP_OVERLAY_ESCAPE_DETAIL_KANJI; det.style.display = ''; }
+        // ★2026-11-04：表を引くだけ。★表に無いキャラは undefined → 出さない（自動的に出ない）。
+        var _detail = HP_OVERLAY_ESCAPE_DETAIL_BY_CHAR[_hpConfirmingChar];
+        if (_detail) { det.textContent = _detail; det.style.display = ''; }
         else { det.textContent = ''; det.style.display = 'none'; }
       }
       return;
@@ -28506,7 +28527,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261103-0541</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261104-0507</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
