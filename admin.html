@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261104-0507"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261104-0603"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -1963,6 +1963,13 @@
       </div>
       <!-- 答案の画像（base64 を img で表示）。表は横スクロールするので、表の外に出して画面幅に収める。 -->
       <div id="kf-img-panel" class="kf-img-panel" style="display:none"></div>
+      <!-- ★★2026-11-04（塾長要望）：未処理／処理済み で分ける。既存の「問題ミスの指摘」(#mr-tabbar) と
+           同じ作り（.grid-tabbar / .grid-tab-btn）＝★新しい CSS クラスは増やさない。
+           ★ラベルの件数は _kfSyncTabUi が書き換える。★既定は「未処理」。 -->
+      <div class="grid-tabbar" id="kf-tabbar">
+        <button type="button" class="grid-tab-btn active" data-kftab="open" onclick="kfSwitchTab('open')">🚨 未処理</button>
+        <button type="button" class="grid-tab-btn"        data-kftab="done" onclick="kfSwitchTab('done')">✅ 処理済み</button>
+      </div>
       <div id="kf-summary" style="font-size:13px;color:#636e72;margin-bottom:10px"></div>
       <div id="kf-list-wrap"></div>
     </div>
@@ -16030,6 +16037,33 @@
   var _pxStudents = [];          // getStudentsListForGrant の生リスト（既存画面と同じ名簿）
   var _pxStudentsFetching = false;
   var _kfRows = [];              // adminListKanjiFailedAnswers の items
+  // ★★2026-11-04（塾長要望）：いま見ているタブ。'open'＝未処理 ／ 'done'＝処理済み。★既定は未処理。
+  //   ★サーバーの応答にある proxyDone（AWS 6826fd3）で分ける。意味は「この答案のために代理実施した」ではなく
+  //     ★「この生徒のこの教育日は代理実施で処理済み」（欠席等の理由による代理実施も含む）。だから「処理済み」。
+  var _kfTab = 'open';
+  // ★proxyDone が無い応答（サーバー反映前の版がキャッシュに残っている等）は undefined になるので、
+  //   ★=== true で見る＝無ければ全部「未処理」に入る（壊れない・取りこぼさない）。
+  function _kfIsDone(r) { return !!(r && r.proxyDone === true); }
+  // タブの見た目（どちらが選ばれているか）と、ラベルの件数を書き換える。既存 _mrSyncTabUi と同じ作法。
+  //   ★件数の出し方は既存に倣う（「ラベル（N）」。HP手動付与・マイ課題告知と同じ形）。
+  function _kfSyncTabUi() {
+    var openN = 0, doneN = 0;
+    for (var i = 0; i < _kfRows.length; i++) { if (_kfIsDone(_kfRows[i])) doneN++; else openN++; }
+    var tabs = document.querySelectorAll('#kf-tabbar .grid-tab-btn');
+    for (var j = 0; j < tabs.length; j++) {
+      var key = tabs[j].dataset.kftab;
+      tabs[j].classList.toggle('active', key === _kfTab);
+      tabs[j].textContent = (key === 'open') ? ('🚨 未処理（' + openN + '）') : ('✅ 処理済み（' + doneN + '）');
+    }
+  }
+  // タブを切り替える。★サーバーは呼ばない（もう全件持っているので、手元で分けて描き直すだけ）。
+  //   ★開いている答案の画像は閉じる（別のタブの行が残って見えないように。kfLoadList と同じ作法）。
+  function kfSwitchTab(tab) {
+    _kfTab = (tab === 'done') ? 'done' : 'open';
+    kfCloseImage();
+    _kfRenderList(_kfLastCount);
+  }
+  var _kfLastCount = null;       // 直前にサーバーが返した全体の件数（タブ切替で描き直すときに使う）
   var _pdRows = [];              // adminListContentProxyCompletions の items
   var _pxBusy = false;
   var _pxPendingStudent = '';    // 【A】から引き継いだ生徒。名簿が届いた時点で pd-student に反映する
@@ -16079,10 +16113,71 @@
                        ['pd-hist-student', '-- 生徒で絞り込む（空＝全員） --']]);
   }
 
+  // ============================================================================
+  // ★★2026-11-04（塾長要望）：横に広い表の「上」にもスクロールバーを出す。
+  //   ★右の列（失敗の理由・実施者 等）を見るのに、いちいち一番下までスクロールしないと
+  //     横に動かせなかったため。
+  //   ★作り：表の上に「中身が空の細い帯」を1つ置き、帯の中の div の幅を表の実際の幅
+  //     （scrollWidth）に合わせる。帯と表のどちらを動かしても、もう一方の scrollLeft を合わせる。
+  //   ★外部ライブラリは使わない。★既存の .students-table-wrap（全画面共通・17 か所で使用）には
+  //     一切触らない＝他の画面の表は 1 バイトも変わらない。帯を足すのはこの関数を呼ぶ画面だけ。
+  //   ★新しい CSS クラスも作らない（見た目は inline で書く）。
+  //   ★呼ぶのは「表を描き直した直後」。innerHTML の入れ替えで帯も消えるので毎回作り直す。
+  function _attachTopScrollbar(container) {
+    try {
+      if (!container) return;
+      var wrap = container.querySelector('.students-table-wrap');
+      if (!wrap || !wrap.parentNode) return;
+      // 前に作った帯が残っていたら捨てる（二重に出さない）
+      var old = container.querySelector('[data-xbar-top="1"]');
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+
+      var bar = document.createElement('div');
+      bar.setAttribute('data-xbar-top', '1');
+      // ★overflow-y:hidden ＝ 縦のバーは出さない。既定は非表示（下の sizeIt で出し入れする）。
+      bar.style.cssText = 'overflow-x:auto;overflow-y:hidden;margin-bottom:6px;display:none';
+      var inner = document.createElement('div');
+      inner.style.cssText = 'height:1px';
+      bar.appendChild(inner);
+      wrap.parentNode.insertBefore(bar, wrap);
+
+      var syncing = false;   // ★互いに代入し合って無限に往復するのを防ぐ
+      function sizeIt() {
+        var w = wrap.scrollWidth;
+        inner.style.width = w + 'px';
+        // ★表が画面に収まっているときは帯を出さない（いつも出ていると邪魔）
+        var need = (w > wrap.clientWidth + 1);
+        bar.style.display = need ? '' : 'none';
+        if (need && bar.scrollLeft !== wrap.scrollLeft) bar.scrollLeft = wrap.scrollLeft;
+      }
+      bar.addEventListener('scroll', function(){
+        if (syncing) return;
+        if (wrap.scrollLeft === bar.scrollLeft) return;   // ★値が同じなら何もしない
+        syncing = true; wrap.scrollLeft = bar.scrollLeft; syncing = false;
+      });
+      wrap.addEventListener('scroll', function(){
+        if (syncing) return;
+        if (bar.scrollLeft === wrap.scrollLeft) return;   // ★値が同じなら何もしない
+        syncing = true; bar.scrollLeft = wrap.scrollLeft; syncing = false;
+      });
+      // ★ウィンドウ幅が変わったら合わせ直す。帯が画面から消えていたら見張りも終える（残さない）。
+      var onResize = function(){
+        if (!document.body.contains(bar)) {
+          window.removeEventListener('resize', onResize);
+          return;
+        }
+        sizeIt();
+      };
+      window.addEventListener('resize', onResize);
+      sizeIt();
+    } catch(e) {}
+  }
+
   // ================= 【A】採点できなかった答案の一覧 =================
   function goAdminKanjiFailed() {
     _showScreen('screen-admin-kanji-failed');
     window.scrollTo(0, 0);
+    _kfTab = 'open';   // ★2026-11-04：画面を開いたときは必ず「未処理」から（前に見ていたタブを持ち越さない）
     kfEnsureStudents();
     kfLoadList();
   }
@@ -16126,12 +16221,25 @@
     var sum  = document.getElementById('kf-summary');
     if (!wrap) return;
     var total = (count != null) ? Number(count) : _kfRows.length;
+    _kfLastCount = (count != null) ? Number(count) : null;   // ★2026-11-04：タブ切替で描き直すときに同じ件数を使う
     if (sum) sum.textContent = '全 ' + total + ' 件';
+    _kfSyncTabUi();   // ★2026-11-04：タブのラベル（件数）と選択状態を合わせる
     if (!_kfRows.length) {
       wrap.innerHTML = '<div class="students-empty">採点できなかった答案はまだありません</div>';
       return;
     }
-    var rows = _kfRows.map(function(r, i) {
+    // ★★2026-11-04：いま見ているタブの行だけを描く。
+    //   ★元の行番号（_kfRows の位置）を持ったまま絞る＝「→ 代理実施へ」「🖼 画像を見る」に渡す番号は
+    //     ★これまでと同じ（_kfRows[i] を指す）。ボタンの挙動は 1 バイトも変わらない。
+    var view = _kfRows.map(function(r, i){ return { r: r, i: i }; })
+                      .filter(function(x){ return _kfIsDone(x.r) === (_kfTab === 'done'); });
+    if (!view.length) {
+      wrap.innerHTML = '<div class="students-empty">' +
+        ((_kfTab === 'done') ? '処理済みの答案はありません' : '未処理の答案はありません') + '</div>';
+      return;
+    }
+    var rows = view.map(function(x) {
+      var r = x.r, i = x.i;
       var who = _esc(String(r.studentId || '')) + '<br>' + _esc(r.studentName || '（未登録）') +
                 (r.studentNickname ? _esc('（' + r.studentNickname + '）') : '');
       var img = r.hasImage
@@ -16152,6 +16260,7 @@
         '<thead><tr><th>日時</th><th>生徒</th><th>級</th><th>セット</th><th>失敗の理由</th><th>画像</th><th>操作</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table></div>';
+    _attachTopScrollbar(wrap);   // ★2026-11-04：表の上にもスクロールバーを出す（描き直すたびに作り直す）
   }
 
   // 画像は base64 で返るので data: URL にして <img> に入れる（外部ライブラリは使わない）。
@@ -16419,6 +16528,7 @@
         '<thead><tr><th>日時</th><th>生徒</th><th>コンテンツ</th><th>教育日</th><th>条件</th><th>HP</th><th>進度</th><th>実施者</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table></div>';
+    _attachTopScrollbar(wrap);   // ★2026-11-04：表の上にもスクロールバーを出す（描き直すたびに作り直す）
   }
 
   function goAdminStudentCareHub()  { _showScreen('screen-admin-student-care-hub');  window.scrollTo(0, 0); }
@@ -19653,7 +19763,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261104-0507</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261104-0603</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
