@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261104-0603"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261104-1640"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -16038,12 +16038,17 @@
   var _pxStudentsFetching = false;
   var _kfRows = [];              // adminListKanjiFailedAnswers の items
   // ★★2026-11-04（塾長要望）：いま見ているタブ。'open'＝未処理 ／ 'done'＝処理済み。★既定は未処理。
-  //   ★サーバーの応答にある proxyDone（AWS 6826fd3）で分ける。意味は「この答案のために代理実施した」ではなく
-  //     ★「この生徒のこの教育日は代理実施で処理済み」（欠席等の理由による代理実施も含む）。だから「処理済み」。
+  //   ★サーバーの応答にある proxyDone（AWS 6826fd3）と resolvedBySelf（AWS f141845）で分ける。
+  //     ★proxyDone ＝「この生徒のこの教育日は代理実施で処理済み」（この答案のために代理実施した、ではない。欠席等も含む）。
+  //     ★resolvedBySelf ＝「生徒自身が解決した」（その級の kanji HP が付いている・代理実施の記録は無い）。
   var _kfTab = 'open';
-  // ★proxyDone が無い応答（サーバー反映前の版がキャッシュに残っている等）は undefined になるので、
-  //   ★=== true で見る＝無ければ全部「未処理」に入る（壊れない・取りこぼさない）。
-  function _kfIsDone(r) { return !!(r && r.proxyDone === true); }
+  // ★★2026-11-04（塾長決定）：proxyDone と resolvedBySelf の★どちらかが true なら「処理済み」、★両方 false なら「未処理」。
+  //   ★★画面では2つを区別しない（★印も分けない＝タブの見た目はそのまま）。区別すると、むしろ見づらいため。
+  //   ★★あとで分けたくなっても、サーバーが別のキーで持っているので★ここだけ直せばよい。
+  //   ★件数（_kfSyncTabUi）も一覧の絞り込み（_kfRenderList）も★この関数しか見ていないので、ここ1か所で両方そろう。
+  // ★proxyDone / resolvedBySelf が無い応答（サーバー反映前の版がキャッシュに残っている等）は undefined になるので、
+  //   ★=== true で見る＝無ければ「未処理」に入る（壊れない・取りこぼさない）。
+  function _kfIsDone(r) { return !!(r && (r.proxyDone === true || r.resolvedBySelf === true)); }
   // タブの見た目（どちらが選ばれているか）と、ラベルの件数を書き換える。既存 _mrSyncTabUi と同じ作法。
   //   ★件数の出し方は既存に倣う（「ラベル（N）」。HP手動付与・マイ課題告知と同じ形）。
   function _kfSyncTabUi() {
@@ -19763,7 +19768,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261104-0603</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261104-1640</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
