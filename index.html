@@ -3758,10 +3758,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261104-1640"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261106-0048"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261104-1640">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261104-1640"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261106-0048">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261106-0048"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -8508,9 +8508,13 @@
   //     ★charId をキーにした表で持つ（既存の HP_CONFIRMING_BY_CHAR と同じ作法）。
   //   ★★★表に無いキャラには★自動的に出ない。
   //     ★端末に何も残らない（開き直すと最初からになる）コンテンツに「続きから再開できる」と出すと
-  //       ★嘘の案内になるため、★書けるものだけ書く。2026-11-04 時点で書けるのは下の 6 つ。
-  //     ★出していないのは rushkun / lison / japanin / phony / kobun / trial / rika / shakaneki の 8 つ
-  //       （調査で「1バイトも残らない」と実測済み。★別途判断する）。
+  //       ★嘘の案内になるため、★戻り方に合わせて文面を分ける。
+  //     ★★2026-11-05（塾長決定）：★残りの 8 つも足して、★14キャラすべてに出るようにした。
+  //       ★「続きから」と書いてよいのは、★戻れることを実測で確かめたものだけ：
+  //         ★rushkun＝級ごとの位置をサーバーが持っている／★kobun＝周回の位置をサーバーが持っている／
+  //         ★japanin＝着手中の問題をサーバーが覚えていて、ひらくと同じ問題に戻る。
+  //       ★端末にもサーバーにも「続き」が無いもの（★lison / trial / phony / rika / shakaneki）は
+  //         ★「もう一度最初からやってね」と書く＝★「続きから」と書かない（★嘘にしない）。
   //   ★級・レベル・問題数が1つでも違うと新しい問題セットになるものは、えらぶ順番まで書く。
   //   ★「写真もそのまま戻る」と言い切らない：画面入力で書いた字や手で打った文は残らないので嘘になる。
   var HP_OVERLAY_ESCAPE_DETAIL_BY_CHAR = {
@@ -8525,7 +8529,24 @@
     // 三語短文（写真の読み取り結果だけ残る。手で打った文は残らないので、そこも言う）
     'sangotan':  '開き直したあと、もう一度ログインして、\n三語短文 → さっきと同じレベル → 写真で提出 をひらくと、\n読み取った文が残っていれば そのまま送れるよ。\n（手で打った文は残らないので、もう一度書いてね）',
     // マイ課題（写真は残ることがあるが、文章は残らないことがある。言い切らない）
-    'maikadai':  '開き直したあと、もう一度ログインして、\nマイ課題 をひらくと、撮った写真が残っていることがあるよ。\n（文章は書き直しになることがあるよ）'
+    'maikadai':  '開き直したあと、もう一度ログインして、\nマイ課題 をひらくと、撮った写真が残っていることがあるよ。\n（文章は書き直しになることがあるよ）',
+    // ここから下は 2026-11-05 追加（★塾長指定の文面をそのまま入れている。★1文字も変えないこと）
+    // 英単語RUSH（サーバーが級ごとの位置を持っているので、同じ級を選べば続きから）
+    'rushkun':   '開き直したあと、もう一度ログインして。\n同じ級を選ぶと、続きから進められるよ。',
+    // 英語リスオン（録音は端末にもサーバーにも残らない。聞く・問題・音読をやり直し）
+    'lison':     '開き直したあと、もう一度ログインして。\n同じ級を選んで、もう一度最初からやってね。\n（録音は残っていないです）',
+    // 古文単語（えらぶものが無い。ひらくとサーバーが持っている周回の位置から出る）
+    'kobun':     '開き直したあと、もう一度ログインして。\n「古文単語」を選ぶと続きから進められるよ。',
+    // 計算タイムトライアル（5分×2ラウンドをやり直し。途中の記録は残らない）
+    'trial':     '開き直したあと、もう一度ログインして、\nもう一度最初からやってね。\n（さっきの記録は残ってないです）',
+    // フォニックスゲーム（遊び方・難しさ・ステージからやり直し）
+    'phony':     '開き直したあと、もう一度ログインして。\nもう一度最初からやってね。\n（さっきの記録は残ってないです）',
+    // 国語長文読解（サーバーが着手中の問題を覚えていて、ひらくと同じ問題に戻る）
+    'japanin':   '開き直したあと、もう一度ログインして。\n「国語長文読解」を選ぶとさっきと同じ問題に戻れるよ。',
+    // 理科重要語句（学年→分野→単元からやり直し）
+    'rika':      '開き直したあと、もう一度ログインして。\nもう一度最初からやってね。\n（さっきの記録は残ってないです）',
+    // 社会重要語句（大区分→中区分→単元からやり直し）
+    'shakaneki': '開き直したあと、もう一度ログインして。\nもう一度最初からやってね。\n（さっきの記録は残ってないです）'
   };
   // 短い案内・脱出ブロックを既定の姿に戻す（表示開始時／消したとき／ログアウト時）。
   function _hpOverlayResetExtras() {
@@ -28527,7 +28548,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261104-1640</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261106-0048</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

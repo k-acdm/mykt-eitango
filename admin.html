@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261104-1640"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261106-0048"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -16072,6 +16072,11 @@
   var _pdRows = [];              // adminListContentProxyCompletions の items
   var _pxBusy = false;
   var _pxPendingStudent = '';    // 【A】から引き継いだ生徒。名簿が届いた時点で pd-student に反映する
+  // ★★2026-11-05：【A】の一覧から「→ 代理実施へ」で入ったときだけ、その行の id を預かる箱。
+  //   ★サーバー（AWS 4bb488a）は adminMarkContentDone に failedAnswerId が届いた行にだけ処理済みの印を立てる。
+  //     ★届かなければ何もしない＝この箱が空でも、サーバーが古くても壊れない。
+  //   ★{ id, sid } の 2 つで持つ理由＝pdRun で「画面の生徒が、その行の生徒のままか」を見るため（取り違えの防止）。
+  var _pdFailedAnswer = null;
 
   function _pxErr(res) { return String((res && res.message) || 'エラーが発生しました'); }
   function _pxLabel(studentId, name, nickname) {
@@ -16307,11 +16312,11 @@
     });
   }
 
-  // 一覧 →【B】代理実施へ。その行の studentId / level / count を引き継ぐ。
+  // 一覧 →【B】代理実施へ。その行の studentId / level / count ＋★行の id を引き継ぐ。
   function kfToProxy(i) {
     var r = _kfRows[i];
     if (!r) return;
-    goAdminProxyDone({ studentId: String(r.studentId || ''), level: String(r.level || ''), count: String(r.count || '') });
+    goAdminProxyDone({ studentId: String(r.studentId || ''), level: String(r.level || ''), count: String(r.count || ''), failedAnswerId: (r.id || 0) });
   }
 
   // ================= 【B】コンテンツの代理実施 =================
@@ -16347,6 +16352,9 @@
     if (adv) adv.checked = false;                   // ★既定は入れない
     var cEl = document.getElementById('pd-content');
     var sEl = document.getElementById('pd-student');
+    // ★★2026-11-05：行の id を預かる／戻す。★if の手前に置くのは、ダッシュボードから（引数なしで）入ったときも
+    //   ★必ず null に戻すため＝前に押した行の id が居残って、別の実行で印が立つ事故を防ぐ。
+    _pdFailedAnswer = (prefill && prefill.failedAnswerId) ? { id: Number(prefill.failedAnswerId) || 0, sid: String(prefill.studentId || '') } : null;
     if (prefill && prefill.studentId) {
       // 【A】からの引き継ぎ：生徒＋漢字＋級＋問数
       if (cEl) cEl.value = 'kanji';
@@ -16394,6 +16402,10 @@
     if (!c)   { _pdShowResult('ng', '⚠️ コンテンツを選んでください'); return; }
     var p = { action: 'adminMarkContentDone', studentId: sid, content: c, advanceProgress: adv };
     if (date) p.educationalDate = date;             // 空は送らない（＝サーバーの今日）
+    // ★★2026-11-05：押した行にだけ処理済みの印を立てる。★kanji のときだけ・★画面の生徒が預かった行の生徒と
+    //   ★同じときだけ送る＝画面に入ったあとで生徒やコンテンツを変えて実行しても、別の行に印が立たない。
+    //   ★代理実施の処理（HP・判定・進度・二重防止）には一切関わらない。印を付けるだけの純追加。
+    if (_pdFailedAnswer && _pdFailedAnswer.id > 0 && c === 'kanji' && String(sid) === _pdFailedAnswer.sid) p.failedAnswerId = _pdFailedAnswer.id;
     var cond = '';
     if (c === 'kanji') {
       var lv = (document.getElementById('pd-kanji-level') || {}).value || '';
@@ -19768,7 +19780,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261104-1640</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261106-0048</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
