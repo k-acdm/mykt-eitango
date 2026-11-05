@@ -3758,10 +3758,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261106-0048"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261106-0420"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261106-0048">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261106-0048"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261106-0420">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261106-0420"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -14388,6 +14388,9 @@
     _wabun1State = { topic: null, yesterday: null, ocrText: '', parsedAnswers: null, hasSubmitted: false, submitting: false, skipApplied: false, lastSourceDataUrl: '', passedToday: false };
     _sangoSubmittedToday = false;   // 2026-09-05：三語短文の提出済みフラグも同時にクリア（別生徒に持ち越さない）
     try { _lisonResetState(); } catch(e){}
+    // ★★2026-11-06（塾長決定）：画面入力で書いた線も消す。
+    //   ★共用端末で次の生徒に前の生徒の線が残らないようにする（保存するようになったので必要）。
+    try { _kanjiClearPendingStrokes(); } catch(e){}
     _clearAllLogoutOverlays();
     _closeReflectionLogoutModal();
     _restoreReflectionModalDefaults();  // catchup → logout モード UI を戻す（次回ログイン時の混乱防止）
@@ -19857,6 +19860,73 @@
   }
 
   // ---------------------------------------------------------------
+  // ★★2026-11-06（塾長決定）：画面入力で書いた線の永続化。
+  //   ★上の写真（mykt_kanji_photo）と★同じ作法をそのまま写す（新しいやり方は作らない）。
+  //     単一スロット／保存前に removeItem／教育日キー／同じ級・同じセッションのときだけ戻す／失敗は握り潰す。
+  //   ★キーは写真と分ける：画像は数百KB あるので、同じキーに入れると容量超過で両方壊れる。
+  //   ★座標は小数3桁に丸めて書く（実測で 65% 減。枠 129px で 0.13px の差＝見た目は変わらない）。
+  //     ★メモリ側（_kanjiKakiInput）の値は丸めない＝画面の線も送る画像も 1 バイトも変わらない。
+  //   ★再挑戦中（isRetry）は保存しない。写真が isKakiRetry 中に保存しないのと同じ理由
+  //     （問が入れ替わるので、戻すと別の問の線になる）。
+  var KANJI_STROKES_KEY = 'mykt_kanji_strokes';
+  var KANJI_STROKES_MAX_CHARS = 300000;  // 実測：5問×20画で約 27KB。10 倍の余裕をみた上限
+  // 保存：成功なら true。失敗しても例外は投げない（呼び出し側は結果を無視してよい）。
+  //   ★1本も線が無いときは保存せず消す（空の殻を残さない＝「全部消す」で消えるのもここ）。
+  function _kanjiSavePendingStrokes() {
+    try {
+      var level = _kanjiState.level, sessionId = _kanjiKakiInput.sessionId;
+      if (!level || !sessionId || _kanjiKakiInput.isRetry) return false;
+      var items = _kanjiKakiInput.items || [];
+      if (!items.length) return false;
+      var any = false;
+      var strokes = items.map(function(it){
+        var sts = (it && it.strokes) || [];
+        if (sts.length) any = true;
+        return sts.map(function(st){
+          return (st || []).map(function(p){ return [ +(+p[0]).toFixed(3), +(+p[1]).toFixed(3) ]; });
+        });
+      });
+      if (!any) { _kanjiClearPendingStrokes(); return false; }
+      var body = JSON.stringify({
+        sessionId: String(sessionId),
+        level:     String(level),
+        dateKey:   _todayKeyJST3am(),
+        savedAt:   Date.now(),
+        strokes:   strokes
+      });
+      if (body.length > KANJI_STROKES_MAX_CHARS) { _kanjiClearPendingStrokes(); return false; }
+      localStorage.removeItem(KANJI_STROKES_KEY);   // 先に消してから入れる（写真と同じ）
+      localStorage.setItem(KANJI_STROKES_KEY, body);
+      return true;
+    } catch(e) {
+      // QuotaExceededError 等。残骸を消して、そのまま従来動作（メモリのみ）に戻る。
+      try { localStorage.removeItem(KANJI_STROKES_KEY); } catch(_e){}
+      return false;
+    }
+  }
+  // 復元：同じ級・同じセッション・当日 or 前日・問数が同じ のときだけ線の配列を返す。
+  //   条件に合わなければ null を返し、呼び出し側は従来どおり白紙から（エラーにしない）。
+  function _kanjiLoadPendingStrokes(level, sessionId, count) {
+    if (!level || !sessionId) return null;
+    try {
+      var raw = localStorage.getItem(KANJI_STROKES_KEY);
+      if (!raw) return null;
+      var o = JSON.parse(raw);
+      if (!o || !Array.isArray(o.strokes)) return null;
+      if (String(o.level) !== String(level)) return null;
+      if (String(o.sessionId) !== String(sessionId)) return null;
+      var today = _todayKeyJST3am(), yest = _yesterdayKeyJST3am();
+      if (o.dateKey !== today && o.dateKey !== yest) { _kanjiClearPendingStrokes(); return null; }
+      if (o.strokes.length !== Number(count)) return null;   // 問数が違うなら戻さない
+      return o.strokes;
+    } catch(e) { return null; }
+  }
+  // 破棄：送信成功・再挑戦入り・ログアウトなど「その線がもう不要になった」瞬間に呼ぶ（写真と同じ場面）。
+  function _kanjiClearPendingStrokes() {
+    try { localStorage.removeItem(KANJI_STROKES_KEY); } catch(e){}
+  }
+
+  // ---------------------------------------------------------------
   // 撮影写真の永続化：共通コア（2026-08-20、カンジー 055f988 の横展開）
   // ---------------------------------------------------------------
   // カンジーで実証した作法（localStorage + JSON + 教育日キー + 上限ガード + 失敗握り潰し
@@ -23650,12 +23720,20 @@
       return _kkiMakeItem(i + 1, q.kanjiId, k.question, k.answer);
     });
     if (!items.length) { startKanjiKaki(); return; }
+    // ★★2026-11-06（塾長決定）：前に書いた線が端末に残っていれば★黙って戻す（一言も出さない）。
+    //   ★戻すのは同じ級・同じセッション・当日 or 前日・問数が同じときだけ（_kanjiLoadPendingStrokes が見る）。
+    //   ★見つからない／壊れていれば何もしない＝従来どおり白紙から。
+    try {
+      var _sv = _kanjiLoadPendingStrokes(_kanjiState.level, _kanjiState.sessionId, items.length);
+      if (_sv) { for (var _i = 0; _i < items.length; _i++) { if (Array.isArray(_sv[_i])) items[_i].strokes = _sv[_i]; } }
+    } catch(_e) {}
     _kanjiKakiInput = { active: true, sessionId: _kanjiState.sessionId, items: items, idx: 0, isRetry: false,
                         current: null, bound: _kanjiKakiInput.bound };
     _kkiShow(_kanjiState.isResumed ? '書きの続きから再開したよ。白い枠に答えを書くのじゃ' : '白い枠に、送りがなもふくめて ていねいに書くのじゃ');
   }
   // 間違えた問題だけの再挑戦（_retryKanjiKaki から呼ばれる）。番号は元の問題番号のまま（retryAnswers.no）。
   function _startKanjiKakiInputFromRetry() {
+    try { _kanjiClearPendingStrokes(); } catch(e) {}   // ★2026-11-06：問が入れ替わるので前の線は捨てる（写真と同じ場面）
     var qById = {};
     (_kanjiState.questions || []).forEach(function(q){ qById[q.kanjiId] = q; });
     var items = (_kanjiState.retryAnswers || []).map(function(a){
@@ -23819,6 +23897,7 @@
     if (it) it.strokes.push(cur.pts);
     _kanjiKakiInput.current = null;
     _kkiRedrawPad();
+    try { _kanjiSavePendingStrokes(); } catch(_e2) {}   // ★2026-11-06：1画ごとに端末へ保存（画面が飛んでも戻せるように）
   }
   function _kkiBind() {
     if (_kanjiKakiInput.bound) return;
@@ -23859,6 +23938,8 @@
     it.strokes = [];
     _kanjiKakiInput.current = null;
     _kkiRenderQuestion();
+    // ★2026-11-06：消した状態で保存し直す（他の問の線は守る。全問が空になれば保存ごと消える）。
+    try { _kanjiSavePendingStrokes(); } catch(e) {}
   }
   function kanjiKakiInputPrev() {
     if (_kanjiKakiInput.idx <= 0) return;
@@ -24540,6 +24621,7 @@
         _pendingRetry = null;
         _pendingDismiss = null;
         try { _kanjiClearPendingPhoto(); } catch(e){}  // 2026-08-19：送信成功したので端末の写真は必ず破棄
+        try { _kanjiClearPendingStrokes(); } catch(e){}  // ★2026-11-06：線も同じく破棄（写真と同じ場面）
         _kanjiState.kakiResults = res.results || [];
         _kanjiState.kakiPassed = !!res.passed;
         // 2026-05-21 Recovery バリアント：採点完了 → localStorage の submission を更新
@@ -28548,7 +28630,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261106-0048</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261106-0420</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
