@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261106-0544"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261106-1817"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -5743,12 +5743,28 @@
 
   // 全 admin API 呼び出しに teacherId + password を自動付与する共通ヘルパー。
   // ⚠️ ログイン関数（doAdminLogin）自体はこのヘルパーを使わない（teacherId / password を引数で受け取るため）。
+  //
+  // ★★2026-11-06（塾長決定）：adminGasGet を★POST で送る（gasGet → gasPost）。
+  //   ★★理由は★ブラウザの履歴です。GET だと ?params={..."password":"..."} が★URL ごと残り、
+  //     ★先生の端末の履歴・オートコンプリート・画面共有・肩越しに★そのまま見えてしまう。
+  //     ★POST なら URL は /exec だけで、teacherId と password は★本文（body）に入る。
+  //     ★サーバーのログの話ではない（アクセスログに本文は出ないが、★今回の狙いは手元の履歴）。
+  //   ★ついでに URL 長（およそ 8KB）の上限も気にしなくてよくなる（下の gasPost のコメント参照）。
+  //
+  // ★★先にサーバー側を反映しておくこと（AWS e91fe6f ＋ 3fdcb38・計 59 action を get( → both( に）。
+  //   ★both( なので GET も残る＝★サーバーだけ先に出しても、この1行を入れる前のフロントはそのまま動く。
+  //   ★逆に★サーバー未反映のままこの1行を出すと、★管理画面のほとんどの読み込みが通らなくなる。
+  //   ★ここが呼ぶ 63 種すべてが POST で通ることは、反映前に実測で確かめた（漏れ 0 件）。
+  //
+  // ★変えたのは★この関数の最後の1行だけ。★呼び出し 84 箇所は 1 バイトも触っていない。
+  //   ★_ts（キャッシュ避け）は 75 箇所そのまま。POST では不要だが、サーバーは _ts を読んでいないので害がない。
+  //   ★素の gasGet 2箇所（getLisonLevels / getWeeklyRanking）は★GET のまま＝パスワードを載せていないため。
   function adminGasGet(params) {
     var p = Object.assign({}, params || {}, {
       teacherId: sessionStorage.getItem('adminTeacherId') || '',
       password:  sessionStorage.getItem('adminPassword')  || ''
     });
-    return gasGet(p);
+    return gasPost(p);
   }
   function adminGasPost(params) {
     var p = Object.assign({}, params || {}, {
@@ -19780,7 +19796,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261106-0544</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261106-1817</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
