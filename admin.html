@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261106-1817"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261106-1919"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -11310,7 +11310,15 @@
         panel.innerHTML = '<div class="dw-empty">' + _esc(msg) + '</div>';
         return;
       }
-      panel.innerHTML = _renderDayActivity(res);
+      // ★★2026-11-06（塾長決定）：未記入者のカードにも「没収」を出す。
+      //   ★記入者側（toggleHpBreakdown）は前から _renderReflectionExtras を足していたが、
+      //     ★未記入者側はこの1行だけ足し忘れていた＝★没収が画面のどこにも出ていなかった
+      //     （実例：生徒 24011 の 11/05 分 550HP。A群 844 件・直近1か月 51 件）。
+      //   ★サーバー（AWS 5ad65d6）が adminGetStudentDayActivity の応答に reservedDetail を純追加した。
+      //   ★見出しや説明文はここに書かない（_FORFEIT_REASON_MAP の reflection_missing 等をそのまま使う）。
+      //   ★3キー（reservedDetail / historicalWeek / reflectionTiming）が無い旧応答では '' が返るので、
+      //     ★サーバー未反映の間は従来どおりの表示のまま（壊れない）。
+      panel.innerHTML = _renderDayActivity(res) + _renderReflectionExtras(res);
     }).catch(function() {
       panel.innerHTML = '<div class="dw-empty">通信エラーが発生しました</div>';
     });
@@ -19796,7 +19804,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261106-1817</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261106-1919</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
