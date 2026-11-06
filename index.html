@@ -3758,10 +3758,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261106-2336"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261107-0205"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261106-2336">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261106-2336"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261107-0205">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261107-0205"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -15087,6 +15087,7 @@
       _sangoDate = res.today || '';
       _sangoYesterday = res.yesterday || '';
       _sangoWeekNo = res.weekNo || '';
+      try { gasPost({ action:'recordContentStart', studentId:_studentId, contentKey:'sango' }).catch(function(){}); } catch(e){}   // 2026-11-07「始めた」の記録：★お題が配られた瞬間だけ・応答は待たない・失敗しても学習は進む
       _renderSangoTopic();
     }).catch(function(){ document.getElementById('sango-topic-body').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
   }
@@ -16152,6 +16153,7 @@
       if (!res || !res.ok) { bodyEl.innerHTML = '<div class="error">読み込みに失敗しました。</div>'; return; }
       _wabun1State.topic = res.today || null;
       _wabun1State.yesterday = res.yesterday || null;
+      try { gasPost({ action:'recordContentStart', studentId:_studentId, contentKey:'wabun1' }).catch(function(){}); } catch(e){}   // 2026-11-07「始めた」の記録：★問題が配られた瞬間だけ（スキップの再描画では鳴らさない）・応答は待たない
       _renderWabun1Topic();
       try { _wabun1RestorePendingOcrIfAny(); } catch(e){}  // 2026-08-20：読み取り済みなら確認画面まで復元
     }).catch(function(){ bodyEl.innerHTML = '<div class="error">エラーが発生しました。</div>'; });
@@ -19127,7 +19129,7 @@
     msgEl.className = 'msg info';
     msgEl.style.display = 'block';
     // 級選択は読み取り系なので cachedGasGet で 5 分キャッシュに乗せる（ふくちさんが LisonContents を更新したら、生徒側は最大 5 分のラグ）
-    cachedGasGet({ action:'getLisonContent', level: code }).then(function(res){
+    cachedGasGet({ action:'getLisonContent', level: code, studentId: _studentId }).then(function(res){
       if (!res || !res.ok) {
         msgEl.textContent = (res && res.message) || 'このレベルの今週分はまだ準備中だよ。先生に聞いてみてね！';
         msgEl.className = 'msg ng';
@@ -26974,6 +26976,7 @@
     if (!_ctState) _ctState = _ctNewState();
     _ctState.round = 1;
     _ctState.problems = _ctGenerateRoundProblems(1);
+    try { gasPost({ action:'recordContentStart', studentId:_studentId, contentKey:'calctrial' }).catch(function(){}); } catch(e){}   // 2026-11-07「始めた」の記録：★問題ができた瞬間だけ（入口を開いただけでは鳴らない）・応答は待たない
     _ctResetRoundCounters();
     _ctState.sessionStartedAt = _ctFormatNowYmdhms();
     _ctEnterRoundScreen('ラウンド① たし算・ひき算');
@@ -28637,7 +28640,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261106-2336</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-0205</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
