@@ -2197,6 +2197,7 @@
     .msg-home-btn-label { font-size: 16px; font-weight: bold; color: #c25b00; text-align: center; }
     .msg-home-badge { position: absolute; top: 12px; right: 14px; display: none; background: linear-gradient(135deg,#ef4444,#dc2626); color: #fff; font-size: 13px; font-weight: bold; padding: 4px 12px; border-radius: 999px; box-shadow: 0 2px 6px rgba(220,38,38,.4); animation: msgBadgePulse 1.6s ease-in-out infinite; }
     .msg-home-badge.show { display: inline-block; }
+    .msg-home-btn .msg-home-badge { position: static; flex-shrink: 0; margin-top: -2px; margin-bottom: -2px; }   /* ★2026-11-07 ホームの「先生からのメッセージ」だけ重ねずに隣へ。375px で末尾2文字が隠れていたため。出ていないときは display:none で幅も取らない（余白は残らない）。負マージンはボタンの高さを 53px のまま保つため（見た目の大きさは変わらない）。三語短文・和文英訳①の同クラスは絶対配置のまま＝無変更 */
     @keyframes msgBadgePulse {
       0%, 100% { transform: scale(1); }
       50%      { transform: scale(1.08); }
@@ -3758,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261107-1510"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261107-1529"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261107-1510">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261107-1510"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261107-1529">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261107-1529"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -28646,7 +28647,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-1510</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-1529</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
