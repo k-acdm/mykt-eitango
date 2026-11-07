@@ -3758,10 +3758,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261107-1246"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261107-1504"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261107-1246">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261107-1246"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261107-1504">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261107-1504"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7662,6 +7662,7 @@
   var _offline = false;        // true の間は学習開始をブロック（_ensureOnlineThenStart）。回復可能（ログアウトしない）
   var _lastServerOkTs = 0;     // 最後にサーバーから ok が返った時刻（復帰再検証のスロットル判定用）
   var _revalidating = false;   // 復帰再検証の多重実行ガード
+  var _connChecking = false;   // ★2026-11-07 開始直前の疎通チェックの多重実行ガード（連打で ping が増えるのを防ぐ）
   // commit 6b-1：語彙ランダム化 V2 のフラグ + セッション状態
   var _vocabV2Mode = 'off';     // 'off'/'test'/'on'（ログイン戻り値 vocabV2Mode、表示/診断用）
   var _vocabV2Enabled = false;  // この生徒が V2 対象か（サーバ _isVocabV2Enabled 判定済みの値）
@@ -14373,7 +14374,7 @@
     //   F3段階2：保持中の sessionToken(mykt_session_token) も同時に破棄（前の生徒のトークンを残さない）。
     try { localStorage.removeItem('mykt_session_sid'); localStorage.removeItem('mykt_session_ts'); localStorage.removeItem('mykt_session_token'); localStorage.removeItem('mykt_session_eduday'); } catch(e){}
     // 防護柵2枚目：オフライン検知の状態もリセット
-    _offline = false; _lastServerOkTs = 0; _revalidating = false; try { _hideOfflineBanner(); } catch(e){}
+    _offline = false; _lastServerOkTs = 0; _revalidating = false; _connChecking = false; try { _hideOfflineBanner(); } catch(e){}
     _studentId = null; _questions = []; _score = 0; _current = 0;
     // 防護柵3枚目：未送信バナーを隠す（_studentId=null 後に呼ぶと現在sidのキューが無く非表示になる）。キューは消さない（sid紐付けで保持）。
     try { _updateResendBanner(); } catch(e){}
@@ -28101,7 +28102,12 @@
       if (typeof startFn === 'function') startFn();
       return Promise.resolve(true);  // 直近成功済み → ping 省略・待ち0秒
     }
+    if (_connChecking) return Promise.resolve(false);   // ★2026-11-07 確認中にもう一度押しても ping を増やさない（_revalidating と同じ形）
+    _connChecking = true;
+    try { var _ci = document.querySelector('#submit-pending-ind span:last-child'); if (_ci) _ci.textContent = '通信を確認中…'; _showSubmitPending(); } catch(e){}   // ★押した直後に出す。要素・CSS は既にあるもの（未使用だった）を流用
     return _pingOnlineWithRetry().then(function(online){
+      _connChecking = false;                            // ★進む枝・止まる枝のどちらでもここを通る（合流点は .then の先頭だけ）
+      try { _hideSubmitPending(); } catch(e){}
       if (online) {
         try { _hideOfflineBanner(); } catch(e){}
         if (typeof startFn === 'function') startFn();
@@ -28640,7 +28646,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-1246</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-1504</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
