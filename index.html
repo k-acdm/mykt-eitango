@@ -3759,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261107-1529"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261107-2214"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261107-1529">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261107-1529"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261107-2214">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261107-2214"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7668,6 +7668,7 @@
   var _vocabV2Mode = 'off';     // 'off'/'test'/'on'（ログイン戻り値 vocabV2Mode、表示/診断用）
   var _vocabV2Enabled = false;  // この生徒が V2 対象か（サーバ _isVocabV2Enabled 判定済みの値）
   var _isV2Session = false;     // 現在の英単語RUSH セッションが V2 か（showToday で確定）
+  var _isRound2 = false;        // ★2026-11-07 サーバーの isRound2（2周目か）。元から代入だけされていた同じ変数を明示宣言（新設ではない）
   var _v2BlockNo = 0;           // V2 出題の blockNo
   var _v2Round = 0;             // V2 出題の round（1/2）
   var _v2Position = 0;          // V2 出題の position（提出時の expectedPosition）
@@ -12797,10 +12798,11 @@
       var sl = res.sessionNo === 1 ? '1セット目' : '2セット目';
       document.getElementById('today-set-label').textContent = '英検' + res.level + 'レベル｜セット ' + res.setNo + '（' + sl + '）';
       document.getElementById('today-student').textContent   = _studentId + ' さん｜英検' + res.level + 'レベル';
-      // 2026-08-08 新ルール：5級は round に関わらず書き取り（round2 も書取ゲート→4択確認テスト）。
-      //   進捗前進は書取後の4択確認テスト提出(saveAttempt)が担うため round 前進ロジックは不変。
-      if (_level === '5級') { showDictation(res.words, res.setNo, sl); }
+      // 2026-11-07 新ルール：5級の書き取りは1周目だけ（2周目は書き取りなしで4択へ＝ふくち決定）。
+      //   進捗前進は4択確認テスト提出(saveAttempt)が担うため round 前進ロジックは不変。
+      if (_level === '5級' && !_isRound2) { showDictation(res.words, res.setNo, sl); }
       else { renderWords(res.words); var btn = document.getElementById('today-btn'); btn.textContent = '✏️ テストに挑戦する'; btn.onclick = showTest; btn.style.display = 'block'; }
+      _eitanRound2Notice();   // ★5級の2周目のときだけ1行出す（他は何もしない）
     }).catch(function(){ document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
   }
   // commit 6b-1：V2 出題（VocabOrder 参照）。words[] は V1 同形式なので既存 renderWords/
@@ -12844,9 +12846,10 @@
       var sl = res.sessionNo === 1 ? '1セット目' : '2セット目';
       document.getElementById('today-set-label').textContent = '英検' + _level + 'レベル｜セット ' + res.blockNo + '（' + sl + '）';
       document.getElementById('today-student').textContent   = _studentId + ' さん｜英検' + _level + 'レベル';
-      // 2026-08-08 新ルール：5級は round に関わらず書き取り（V2 経路も同様。round2 も書取ゲート→4択確認テスト）。
-      if (_level === '5級') { showDictation(res.words, res.blockNo, sl); }
+      // 2026-11-07 新ルール：5級の書き取りは1周目だけ（V2 経路も同様。2周目は書き取りなしで4択へ）。
+      if (_level === '5級' && !_isRound2) { showDictation(res.words, res.blockNo, sl); }
       else { renderWords(res.words); var b3 = document.getElementById('today-btn'); b3.textContent = '✏️ テストに挑戦する'; b3.onclick = showTest; b3.style.display = 'block'; }
+      _eitanRound2Notice();   // ★5級の2周目のときだけ1行出す（他は何もしない）
     }).catch(function(){ document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
   }
   // 英単語RUSH 完走級の再挑戦：完走🏆画面の「🔄 もう一度、最初からやる？」から呼ばれる。
@@ -12882,6 +12885,13 @@
       _restore();
       try { alert('つうしんエラー。電波の良いところでもう一度ためしてね。'); } catch(e){}
     });
+  }
+  // ★2026-11-07 5級の2周目だけ「書き取りなし」を1回伝える。単語リストの先頭に既存 .notice-title で1行。
+  //   ★セットを開いたときだけ組み立てる＝4択の各問では出ない。1周目・他の級では何もしない。
+  function _eitanRound2Notice() {
+    if (_level !== '5級' || !_isRound2) return;
+    var el = document.getElementById('today-word-list');
+    if (el) el.insertAdjacentHTML('afterbegin', '<div class="notice-title" style="text-align:center;margin-bottom:12px">2周目は書き取りなしで、４択問題だけです👍</div>');
   }
   function renderWords(words) {
     document.getElementById('today-word-list').innerHTML = words.map(function(w,i){ return '<div class="word-card"><div class="num">'+(i+1)+'</div><div class="word-block"><div class="word">'+w.word+'</div><div class="meaning">'+w.meaning+'</div></div><button class="btn-speak" onclick="speakWord(this,\''+esc(w.word)+'\')">🔊</button></div>'; }).join('');
@@ -28647,7 +28657,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-1529</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-2214</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
