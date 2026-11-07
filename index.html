@@ -2197,6 +2197,7 @@
     .msg-home-btn-label { font-size: 16px; font-weight: bold; color: #c25b00; text-align: center; }
     .msg-home-badge { position: absolute; top: 12px; right: 14px; display: none; background: linear-gradient(135deg,#ef4444,#dc2626); color: #fff; font-size: 13px; font-weight: bold; padding: 4px 12px; border-radius: 999px; box-shadow: 0 2px 6px rgba(220,38,38,.4); animation: msgBadgePulse 1.6s ease-in-out infinite; }
     .msg-home-badge.show { display: inline-block; }
+    .msg-home-btn .msg-home-badge { position: static; flex-shrink: 0; margin-top: -2px; margin-bottom: -2px; }   /* ★2026-11-07 ホームの「先生からのメッセージ」だけ重ねずに隣へ。375px で末尾2文字が隠れていたため。出ていないときは display:none で幅も取らない（余白は残らない）。負マージンはボタンの高さを 53px のまま保つため（見た目の大きさは変わらない）。三語短文・和文英訳①の同クラスは絶対配置のまま＝無変更 */
     @keyframes msgBadgePulse {
       0%, 100% { transform: scale(1); }
       50%      { transform: scale(1.08); }
@@ -3310,7 +3311,7 @@
     .app-version::before { content: '\1F504 '; }
     .app-version:hover { color: #555; background: rgba(255,255,255,0.95); }
     /* E1 楽観的UI: 送信中インジケーター（結果画面右下に小さく） */
-    .submit-pending-ind { position: fixed; right: 16px; bottom: 16px; z-index: 9100; background: rgba(255,255,255,0.96); border: 1px solid #d1d5db; border-radius: 20px; padding: 7px 14px; font-size: 13px; color: #4b5563; box-shadow: 0 2px 10px rgba(0,0,0,.12); display: flex; align-items: center; gap: 6px; }
+    .submit-pending-ind { position: fixed; right: 16px; bottom: 56px; z-index: 9100; background: rgba(255,255,255,0.96); border: 1px solid #d1d5db; border-radius: 20px; padding: 7px 14px; font-size: 13px; color: #4b5563; box-shadow: 0 2px 10px rgba(0,0,0,.12); display: flex; align-items: center; gap: 6px; }   /* ★2026-11-07 bottom 16px→56px：「戻る」警告（#back-warning・z-index 9999）に下25px が隠れていたので、警告は隠さずこちらが上によける */
     .submit-pending-ind .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #d1d5db; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     /* マイカツ君エラー overlay */
@@ -3758,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261107-1246"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261107-2325"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261107-1246">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261107-1246"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261107-2325">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261107-2325"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7662,10 +7663,12 @@
   var _offline = false;        // true の間は学習開始をブロック（_ensureOnlineThenStart）。回復可能（ログアウトしない）
   var _lastServerOkTs = 0;     // 最後にサーバーから ok が返った時刻（復帰再検証のスロットル判定用）
   var _revalidating = false;   // 復帰再検証の多重実行ガード
+  var _connChecking = false;   // ★2026-11-07 開始直前の疎通チェックの多重実行ガード（連打で ping が増えるのを防ぐ）
   // commit 6b-1：語彙ランダム化 V2 のフラグ + セッション状態
   var _vocabV2Mode = 'off';     // 'off'/'test'/'on'（ログイン戻り値 vocabV2Mode、表示/診断用）
   var _vocabV2Enabled = false;  // この生徒が V2 対象か（サーバ _isVocabV2Enabled 判定済みの値）
   var _isV2Session = false;     // 現在の英単語RUSH セッションが V2 か（showToday で確定）
+  var _isRound2 = false;        // ★2026-11-07 サーバーの isRound2（2周目か）。元から代入だけされていた同じ変数を明示宣言（新設ではない）
   var _v2BlockNo = 0;           // V2 出題の blockNo
   var _v2Round = 0;             // V2 出題の round（1/2）
   var _v2Position = 0;          // V2 出題の position（提出時の expectedPosition）
@@ -12795,10 +12798,11 @@
       var sl = res.sessionNo === 1 ? '1セット目' : '2セット目';
       document.getElementById('today-set-label').textContent = '英検' + res.level + 'レベル｜セット ' + res.setNo + '（' + sl + '）';
       document.getElementById('today-student').textContent   = _studentId + ' さん｜英検' + res.level + 'レベル';
-      // 2026-08-08 新ルール：5級は round に関わらず書き取り（round2 も書取ゲート→4択確認テスト）。
-      //   進捗前進は書取後の4択確認テスト提出(saveAttempt)が担うため round 前進ロジックは不変。
-      if (_level === '5級') { showDictation(res.words, res.setNo, sl); }
+      // 2026-11-07 新ルール：5級の書き取りは1周目だけ（2周目は書き取りなしで4択へ＝ふくち決定）。
+      //   進捗前進は4択確認テスト提出(saveAttempt)が担うため round 前進ロジックは不変。
+      if (_level === '5級' && !_isRound2) { showDictation(res.words, res.setNo, sl); }
       else { renderWords(res.words); var btn = document.getElementById('today-btn'); btn.textContent = '✏️ テストに挑戦する'; btn.onclick = showTest; btn.style.display = 'block'; }
+      _eitanRound2Notice();   // ★5級の2周目のときだけ1行出す（他は何もしない）
     }).catch(function(){ document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
   }
   // commit 6b-1：V2 出題（VocabOrder 参照）。words[] は V1 同形式なので既存 renderWords/
@@ -12842,9 +12846,10 @@
       var sl = res.sessionNo === 1 ? '1セット目' : '2セット目';
       document.getElementById('today-set-label').textContent = '英検' + _level + 'レベル｜セット ' + res.blockNo + '（' + sl + '）';
       document.getElementById('today-student').textContent   = _studentId + ' さん｜英検' + _level + 'レベル';
-      // 2026-08-08 新ルール：5級は round に関わらず書き取り（V2 経路も同様。round2 も書取ゲート→4択確認テスト）。
-      if (_level === '5級') { showDictation(res.words, res.blockNo, sl); }
+      // 2026-11-07 新ルール：5級の書き取りは1周目だけ（V2 経路も同様。2周目は書き取りなしで4択へ）。
+      if (_level === '5級' && !_isRound2) { showDictation(res.words, res.blockNo, sl); }
       else { renderWords(res.words); var b3 = document.getElementById('today-btn'); b3.textContent = '✏️ テストに挑戦する'; b3.onclick = showTest; b3.style.display = 'block'; }
+      _eitanRound2Notice();   // ★5級の2周目のときだけ1行出す（他は何もしない）
     }).catch(function(){ document.getElementById('today-word-list').innerHTML = '<div class="error">エラーが発生しました。</div>'; });
   }
   // 英単語RUSH 完走級の再挑戦：完走🏆画面の「🔄 もう一度、最初からやる？」から呼ばれる。
@@ -12880,6 +12885,13 @@
       _restore();
       try { alert('つうしんエラー。電波の良いところでもう一度ためしてね。'); } catch(e){}
     });
+  }
+  // ★2026-11-07 5級の2周目だけ「書き取りなし」を1回伝える。単語リストの先頭に既存 .notice-title で1行。
+  //   ★セットを開いたときだけ組み立てる＝4択の各問では出ない。1周目・他の級では何もしない。
+  function _eitanRound2Notice() {
+    if (_level !== '5級' || !_isRound2) return;
+    var el = document.getElementById('today-word-list');
+    if (el) el.insertAdjacentHTML('afterbegin', '<div class="notice-title" style="text-align:center;margin-bottom:12px">2周目は書き取りなしで、４択問題だけです👍</div>');
   }
   function renderWords(words) {
     document.getElementById('today-word-list').innerHTML = words.map(function(w,i){ return '<div class="word-card"><div class="num">'+(i+1)+'</div><div class="word-block"><div class="word">'+w.word+'</div><div class="meaning">'+w.meaning+'</div></div><button class="btn-speak" onclick="speakWord(this,\''+esc(w.word)+'\')">🔊</button></div>'; }).join('');
@@ -12960,7 +12972,7 @@
     //   ★サーバー応答：成功 {ok:true, ocrText, readable:'yes', avgConfidence(0.0〜1.0), confPct(0〜100)}
     //                  読み取り不可 {ok:false, retake:true, readable:'no', message:'文字が読み取れませんでした。明るい場所で撮り直してください。'}
     //                  画像なし / Vision 失敗 {ok:false, message}
-    //   ★判定（丁寧さ 0.75 未満で差し戻し／各単語3回カウント）は★フロントに残す。閾値・文言・
+    //   ★判定（丁寧さ 0.65 未満で差し戻し／各単語3回カウント）は★フロントに残す。文言・
     //     見た目は一切変えない。サーバーへ移すと5級の挙動が変わるため、ここでは移さない。
     //   ★従来クライアント側で pages→blocks→paragraphs→words を舐めて出していた平均信頼度は
     //     res.avgConfidence をそのまま使う（サーバーが同じ計算をして返す）。
@@ -12976,7 +12988,11 @@
       }
       var avgConf = (typeof res.avgConfidence === 'number') ? res.avgConfidence : 1;
       var confPct = (typeof res.confPct === 'number') ? res.confPct : Math.round(avgConf*100);
-      if (avgConf < 0.75) { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','❌ 字が雑すぎます（丁寧さスコア：'+confPct+'%）。もっと丁寧に書いてみよう！','ng'); return; }
+      // ★2026-11-07 塾長決定：丁寧さの閾値を★暫定で 0.75 → 0.65 に下げる。
+      //   ★理由＝実測で★読める字がきちんと並んだ答案が 71%（テストID 1004）で、0.75 を下回って差し戻された。
+      //   ★0.75 は GAS 時代から変わっておらず（粒度も移行前後で同一・word 階層）、閾値が実態に合っていない。
+      //   ★サーバー側がスコアを記録中（42d9840）。★数週間で分布が見えたら★実データで見直すこと（暫定値）。
+      if (avgConf < 0.65) { _setContentMascot('mate-img-eitan-dictation', 'encourage', 'mate-bubble-eitan-dictation', _pickBubble(RUSHKUN_BUBBLES.photoNg), 'rushkun'); showMsg('photo-msg','❌ 字が雑すぎます（丁寧さスコア：'+confPct+'%）。もっと丁寧に書いてみよう！','ng'); return; }
       var rawText = res.ocrText || '';
       var detected = _normalizeForDictation(rawText), failedWords = [];
       wordList.forEach(function(w){
@@ -14373,7 +14389,7 @@
     //   F3段階2：保持中の sessionToken(mykt_session_token) も同時に破棄（前の生徒のトークンを残さない）。
     try { localStorage.removeItem('mykt_session_sid'); localStorage.removeItem('mykt_session_ts'); localStorage.removeItem('mykt_session_token'); localStorage.removeItem('mykt_session_eduday'); } catch(e){}
     // 防護柵2枚目：オフライン検知の状態もリセット
-    _offline = false; _lastServerOkTs = 0; _revalidating = false; try { _hideOfflineBanner(); } catch(e){}
+    _offline = false; _lastServerOkTs = 0; _revalidating = false; _connChecking = false; try { _hideOfflineBanner(); } catch(e){}
     _studentId = null; _questions = []; _score = 0; _current = 0;
     // 防護柵3枚目：未送信バナーを隠す（_studentId=null 後に呼ぶと現在sidのキューが無く非表示になる）。キューは消さない（sid紐付けで保持）。
     try { _updateResendBanner(); } catch(e){}
@@ -28101,7 +28117,12 @@
       if (typeof startFn === 'function') startFn();
       return Promise.resolve(true);  // 直近成功済み → ping 省略・待ち0秒
     }
+    if (_connChecking) return Promise.resolve(false);   // ★2026-11-07 確認中にもう一度押しても ping を増やさない（_revalidating と同じ形）
+    _connChecking = true;
+    try { var _ci = document.querySelector('#submit-pending-ind span:last-child'); if (_ci) _ci.textContent = '通信を確認中…'; _showSubmitPending(); } catch(e){}   // ★押した直後に出す。要素・CSS は既にあるもの（未使用だった）を流用
     return _pingOnlineWithRetry().then(function(online){
+      _connChecking = false;                            // ★進む枝・止まる枝のどちらでもここを通る（合流点は .then の先頭だけ）
+      try { _hideSubmitPending(); } catch(e){}
       if (online) {
         try { _hideOfflineBanner(); } catch(e){}
         if (typeof startFn === 'function') startFn();
@@ -28640,7 +28661,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-1246</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-2325</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
