@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261107-0205"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261107-1246"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -10788,6 +10788,7 @@
         // 2026-08-20：3時間クランプの目印マップ（student_code → bool）。★サーバー未対応の間は
         //   undefined → {} となり、従来どおりの分秒表記のまま（既存非破壊）。命名は snake/camel 両対応。
         var studyCappedByCode = (lres && lres.ok) ? (lres.studySecondsCappedByCode || lres.study_seconds_capped_by_code || {}) : {};
+        _dayStartedOnly = (lres && lres.ok) ? (lres.startedOnlyByCode || lres.started_only_by_code || {}) : {};   // ★2026-11-07「開いたが未提出」。未対応の応答では {} ＝何も出ない
         adminGasGet({ action: 'getStudentsListForGrant', _ts: Date.now() }).then(function(sres) {
           var roster = (sres && sres.ok && Array.isArray(sres.students)) ? sres.students : [];
           // (あ)方式：未記入者へ送った促し（reply_to_reflectionId 無し）をその教育日ぶん取得し、
@@ -10976,6 +10977,7 @@
              '</div>' +
              '<div class="refl-content">' + _esc(r.content || '') + '</div>' +
              '<div class="refl-len">' + len + ' 文字</div>' +
+             _startedOnlyLine(_dayStartedOnly[String(r.studentId || '').trim()]) +   // ★2026-11-07 無ければ '' ＝従来どおり
              dayWorksHtml +
              '<div class="reply-thread" id="reply-thread-' + ridEsc + '">' + threadHtml + '</div>' +
              '<button class="reply-form-toggle" onclick="toggleReplyForm(\'' + ridEsc + '\')">💬 返信を書く</button>' +
@@ -11014,6 +11016,7 @@
                '<div class="head-right">' + studyHtml + '</div>' +
              '</div>' +
              '<div class="refl-content no-reflection">振り返りコメントなし</div>' +
+             _startedOnlyLine(_dayStartedOnly[sid.trim()]) +   // ★2026-11-07 無ければ '' ＝従来どおり
              dayWorksHtml +
              // (あ)方式：促し済みなら記入者と同じ見た目の返信スレッドを初期描画（リロード後も復元）。
              //   促しが無ければ従来どおり空div（送信成功後に submitNonWriterReply がスレッドを立てる）。
@@ -11318,7 +11321,7 @@
       //   ★見出しや説明文はここに書かない（_FORFEIT_REASON_MAP の reflection_missing 等をそのまま使う）。
       //   ★3キー（reservedDetail / historicalWeek / reflectionTiming）が無い旧応答では '' が返るので、
       //     ★サーバー未反映の間は従来どおりの表示のまま（壊れない）。
-      panel.innerHTML = _renderDayActivity(res) + _renderReflectionExtras(res);
+      panel.innerHTML = _renderDayActivity(res) + _startedOnlyLine(res && res.startedOnly) + _renderReflectionExtras(res);   // ★2026-11-07「開いたが未提出」を間に1行
     }).catch(function() {
       panel.innerHTML = '<div class="dw-empty">通信エラーが発生しました</div>';
     });
@@ -13814,9 +13817,19 @@
       eitango: '英単語RUSH', wabun1: '和文英訳①', sango: '三語短文',
       kanji: '漢字カンジー', kiso: '基礎計算', kobun: '古文単語コブタン',
       rika: '理科（重要語句）', shakai: '社会（重要語句）',
-      kokugo: '国語長文', phonics: 'フォニックス', lison: '英語リスオン'
+      kokugo: '国語長文', phonics: 'フォニックス', lison: '英語リスオン',
+      calctrial: '計算タイムトライアル', mytask: 'マイ課題', oriwantes: 'オリワンテス'   // ★2026-11-07 追加（「開いたが未提出」で使う。既存11件の文言は変えない）
     };
     return m[ck] || ck || '(不明)';
+  }
+
+  // ★★2026-11-07：サーバー（f79824a）が返す「始めたのに終わっていない」を1行で出す。
+  //   ★名前は上の _qeditContentLabel（content_key→日本語）をそのまま使う＝新しい表は作らない。
+  //   ★キーが無い・空配列なら '' を返す＝何も出ない（古い応答でも壊れない）。
+  var _dayStartedOnly = {};   // student_code => content_key[]（adminListDayLearners の返り値を保持）
+  function _startedOnlyLine(keys) {
+    if (!Array.isArray(keys) || !keys.length) return '';
+    return '<div style="margin-top:6px;font-size:13px;color:#b45309">開いたが未提出：' + _esc(keys.map(_qeditContentLabel).join('・')) + '</div>';
   }
 
   // 属性内 JS 文字列に安全に埋め込む（\ と ' をエスケープ）
@@ -19804,7 +19817,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-0205</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-1246</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
