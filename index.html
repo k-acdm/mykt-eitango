@@ -3759,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261107-2325"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261108-1358"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261107-2325">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261107-2325"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261108-1358">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261108-1358"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -21540,6 +21540,31 @@
     _renderOriwantesSolveList(qs);
   }
 
+  // ★2026-11-08 オリワンテス：理科系のときだけ、生徒が普通に打った式を見やすい形に直す（○×のためではなく「正しい形で書けるように」）。
+  //   例）CuCl2 -> Cu2+ + 2Cl- → CuCl₂ → Cu²⁺ + 2Cl⁻ ／「＋の前に空白があれば足し算」なので Fe + S はそのまま。長音「ー」は触らない。
+  //   ★欄から離れた時（blur）と送信ボタンを押した時の両方で同じ関数を通す（iPad で blur が走らない端末への手当て）。
+  //   ★理科系でなければ1文字も触らない。採点・HP・送信の流れは一切変えない（入力欄の中身を直すだけ）。
+  var _ORIWAN_SUB = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉'};
+  var _ORIWAN_SUP = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':'⁺','-':'⁻'};
+  function _oriwantesIsScience(subj) { return /理科|科学|化学|物理|生物|地学/.test(String(subj || '')); }
+  function _oriwantesIonize(src) {
+    var s = String(src || '').replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+    s = s.replace(/->|=>|→/g, '→').replace(/[＋➕]/g, '+').replace(/[－−]/g, '-');
+    s = s.replace(/([A-Z][a-z]?|\))(\d*)([+-])(?![\d])/g, function(m, h, d, g){   // 価数（元素記号/閉じ括弧の直後に符号があるときだけ）
+      return h + d.replace(/[0-9]/g, function(c){ return _ORIWAN_SUP[c]; }) + _ORIWAN_SUP[g]; });
+    return s.replace(/([A-Z][a-z]?|\))(\d+)/g, function(m, h, d){                  // 残った元素記号の直後の数字＝原子数
+      return h + d.replace(/[0-9]/g, function(c){ return _ORIWAN_SUB[c]; }); });
+  }
+  function _oriwantesIonizeField(inp, subj) {
+    if (!inp || !_oriwantesIsScience(subj)) return;
+    var v = _oriwantesIonize(inp.value); if (v !== inp.value) inp.value = v;
+  }
+  function _oriwantesAttachIonize(ta, subj) {   // ★ta を引数で受けるので for の var 捕捉問題は起きない
+    if (!_oriwantesIsScience(subj)) return;
+    ta.placeholder = 'H2O や Cu2+ と打てば、見やすい形に直すよ';
+    ta.addEventListener('blur', function(){ _oriwantesIonizeField(ta, subj); });
+  }
+
   // 各問：問N＋問題文（questionText のみ）＋解答入力欄。正解・解説は出さない。
   function _renderOriwantesSolveList(qs) {
     var listEl = document.getElementById('oriwantes-solve-list');
@@ -21560,6 +21585,7 @@
       ta.id = 'oriwantes-ans-' + i;
       ta.rows = 2;
       ta.placeholder = 'ここに解答を書く（分からなければ空欄でもOK）';
+      _oriwantesAttachIonize(ta, window._oriwantesLastSubject);   // ★理科系のときだけ placeholder を変えて blur 変換を付ける
       card.appendChild(qno);
       card.appendChild(qtext);
       card.appendChild(ta);
@@ -21576,6 +21602,7 @@
     for (var i = 0; i < qs.length; i++) {
       var q = qs[i] || {};
       var inp = document.getElementById('oriwantes-ans-' + i);
+      _oriwantesIonizeField(inp, window._oriwantesLastSubject);   // ★blur が走らない端末でも変換してから送る（待ち時間は足さない）
       var ans = inp ? String(inp.value || '').trim() : '';
       questions.push({
         questionText:  String(q.questionText == null ? '' : q.questionText),
@@ -22118,6 +22145,7 @@
       var qtext = document.createElement('div'); qtext.className = 'oriwan-solve-qtext'; qtext.textContent = String(q.questionText == null ? '' : q.questionText);
       var ta = document.createElement('textarea'); ta.className = 'sango-textarea oriwan-solve-input'; ta.id = 'oriwantes-retry-ans-' + i; ta.rows = 2;
       ta.placeholder = 'ここに解答を書く（分からなければ空欄でもOK）';
+      _oriwantesAttachIonize(ta, (_oriwantesRetryState || {}).subject);   // ★理科系のときだけ（再挑戦も同じ扱い）
       card.appendChild(qno); card.appendChild(qtext); card.appendChild(ta);
       listEl.appendChild(card);
     }
@@ -22133,6 +22161,7 @@
     for (var i = 0; i < st.questions.length; i++) {
       var q = st.questions[i] || {};
       var inp = document.getElementById('oriwantes-retry-ans-' + i);
+      _oriwantesIonizeField(inp, st.subject);   // ★blur が走らない端末でも変換してから送る（待ち時間は足さない）
       var ans = inp ? String(inp.value || '').trim() : '';
       answers.push({ qNo: q.qNo, studentAnswer: ans });
       _oriwantesRetryAnswers.push(ans);
@@ -28661,7 +28690,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261107-2325</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261108-1358</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
