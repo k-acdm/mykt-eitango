@@ -3759,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261108-1446"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261108-1755"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261108-1446">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261108-1446"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261108-1755">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261108-1755"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -21796,8 +21796,10 @@
     }
   }
   // 問題カード描画（結果画面と履歴詳細画面で共用）。本文は textContent（XSS回避）。
-  //   results（任意・[{qNo,correct,reason}]）があれば qNo 対応の○×バッジと判定理由を追加。
-  //   無い場合（履歴詳細＝第1段以前の過去問も含む）は従来表示（○×・理由なし）にフォールバック。
+  //   results（任意・[{qNo,correct,reason}]）があれば qNo 対応の○×バッジと理由を追加。
+  //   ★2026-11-08：results が無いとき（履歴詳細）は★問題そのものの isCorrect / reason を読む。
+  //     ★サーバーが返すのは questions[].isCorrect（true/false/null）／reason で★results とは形が違うため。
+  //     ★どちらも無い提出（第1段以前の過去問）は従来表示（○×・理由なし）にフォールバック。
   function _renderOriwantesQuestionCards(listEl, questions, results) {
     if (!listEl) return;
     questions = questions || [];
@@ -21820,11 +21822,13 @@
       var qno = document.createElement('div');
       qno.className = 'oriwan-result-qno';
       qno.textContent = '問' + (i + 1);
-      // ○×バッジ（results があり、該当 qNo の判定があるときのみ）。
+      // ○×バッジ（results の判定、または問題そのものの isCorrect があるときのみ）。
       var jr = resultMap ? resultMap[i + 1] : null;
-      if (jr) {
+      // ★isCorrect が null／未設定のときは★バッジを出さない（★AI採点前の419件を✕に見せない）。results があるときは従来どおり results が勝つ。
+      var hasJudge = jr ? true : (q.isCorrect === true || q.isCorrect === false);
+      if (hasJudge) {
         var badge = document.createElement('span');
-        var isCorrect = (jr.correct === true);
+        var isCorrect = jr ? (jr.correct === true) : (q.isCorrect === true);
         badge.className = 'oriwan-judge-badge ' + (isCorrect ? 'oriwan-judge-ok' : 'oriwan-judge-ng');
         badge.textContent = isCorrect ? '⭕ 正解' : '❌ 不正解';
         qno.appendChild(badge);
@@ -21841,11 +21845,9 @@
       card.appendChild(_oriwantesResultRow('oriwan-result-correct', '正解：',        String(q.answer      == null ? '' : q.answer)));
       card.appendChild(_oriwantesResultRow('oriwan-result-explain', '解説：',        String(q.explanation == null ? '' : q.explanation)));
 
-      // 判定理由（results があり reason があるときのみ）。
-      if (jr) {
-        var reason = String(jr.reason == null ? '' : jr.reason).trim();
-        if (reason) card.appendChild(_oriwantesResultRow('oriwan-result-reason', '判定理由：', reason));
-      }
+      // 解説（×の理由）。★results が無ければ問題の reason を読む。★空なら行を出さない。
+      var reason = String((jr ? jr.reason : q.reason) == null ? '' : (jr ? jr.reason : q.reason)).trim();
+      if (reason) card.appendChild(_oriwantesResultRow('oriwan-result-reason', '解説（×の理由）：', reason));
 
       listEl.appendChild(card);
     }
@@ -22290,7 +22292,7 @@
       var sa = String(studentAnswers[i] == null ? '' : studentAnswers[i]).trim();
       card.appendChild(_oriwantesResultRow('oriwan-result-your', 'あなたの解答：', sa ? sa : '（未回答）'));
       var reason = String(rslt.reason == null ? '' : rslt.reason).trim();
-      if (reason) card.appendChild(_oriwantesResultRow('oriwan-result-explain', '判定：', reason));
+      if (reason) card.appendChild(_oriwantesResultRow('oriwan-result-explain', '解説（×の理由）：', reason));
       card.appendChild(_oriwantesResultRow('oriwan-result-explain', '解説：', String(q.explanation == null ? '' : q.explanation)));
 
       listEl.appendChild(card);
@@ -28690,7 +28692,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261108-1446</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261108-1755</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
