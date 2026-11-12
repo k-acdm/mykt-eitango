@@ -3759,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261108-1755"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261112-2317"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261108-1755">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261108-1755"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261112-2317">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261112-2317"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -16627,6 +16627,11 @@
                  fbBlock +
                '</div>';
       }).join('');
+      // ★2026-11-12 塾長確定：AIの読み取りがおかしいと思ったときの出口（LINE）。★✕のカードの一番下に★1回だけ★そっと出す。
+      //   ★✕が1枚も無い（＝全問正解）ときは空文字＝出さない。★文言は塾長確定のため1文字も変えないこと。
+      var wabun1OcrReport = failCards
+        ? '<div style="font-size:12px;color:#6b7280;line-height:1.7;margin:8px 2px 0;text-align:left">AIが読み取った文字がおかしいと思ったら、LINEで報告してね</div>'
+        : '';
       bodyEl.innerHTML =
         '<div class="mate-row"><img class="mate-img" src="images/nichiei-encourage.png" alt="ニチエイ"><div class="mate-bubble">'+_pickBubble(NICHIEI_BUBBLES.fail)+'</div></div>' +
         '<div class="wabun1-result-partial">' +
@@ -16636,6 +16641,7 @@
           '<div class="wabun1-result-list">' + summaryItems + '</div>' +
         '</div>' +
         failCards +
+        wabun1OcrReport +
         // 2026-10-21 修正6：案内（ニチエイの口調）。2026-10-22：正解は上の不正解カードに出ているので「上の『正解』」に（案）。
         '<div class="wabun1-retry-guide">' +
           '字が雑だったか、答えが正解とちがってたみたい！<br>上の「正解」を<strong>ていねいな字</strong>で写して、もう一回写真に撮って送ってね〜' +
@@ -28692,7 +28698,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261108-1755</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261112-2317</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
