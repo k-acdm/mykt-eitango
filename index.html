@@ -3759,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261114-2002"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261114-2036"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261114-2002">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261114-2002"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261114-2036">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261114-2036"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10915,7 +10915,8 @@
     if (categoryKey === 'hat') return !!_hatNN(itemCode);   // 段階2：帽子は全ての体に乗せられる（帽子の層は体型別）
     if (categoryKey === 'glasses') return !!_glassesNN(itemCode);   // 段階3：メガネも全ての体に乗せられる（層は体型別）
     if (categoryKey === 'makeup') return !!(_makeupDecoNN(itemCode) || _makeupSkinNN(itemCode));   // 段階4-a 装飾6種＋段階4-b 肌色4種
-    return false;   // 着姿を描けるのは tops/bottoms/outfit/shoes/hat/glasses/makeup（装飾）のみ（それ以外には出さない）
+    if (categoryKey === 'wig') return !!_wigNN(itemCode);   // 段階5：かつらも全ての体に乗せられる（素材は体型別・AV別）
+    return false;   // 着姿を描けるのは tops/bottoms/outfit/shoes/hat/glasses/makeup（装飾）/wig のみ（それ以外には出さない）
   }
   // ===== アバター装着アイテム 段階2：帽子（canvas 合成の土台）=====
   //   人体を描く → 「消す範囲」で該当部分を透明に → 帽子の層を重ねる。
@@ -11151,6 +11152,17 @@
     return '|w:' + [wg.layer, wg.erase, wg.recolorRange, wg.forehead, wg.shoulderPatch,
                     wg.shoulderCut, wg.hatFix, wg.glassesAlt, wg.hatLayerSkin, wg.hatLayerRange]
                    .map(function(t){ return String(t || ''); }).join('|');
+  }
+  // かつらの各URLに入っている「誰の体か」の部分（AV0000098 など）を別の呼び名に差し替えた写しを作る。
+  //   ★人体が素体に落ちたときに、かつらも素体版（base_<体>）に合わせるために使う。元の計画は書き換えない。
+  function _wigSwapAvPart(wg, from, to) {
+    var encFrom = encodeURIComponent(from), encTo = encodeURIComponent(to), out = {};
+    for (var k in wg) {
+      var v = wg[k];
+      out[k] = (typeof v === 'string') ? v.split(encFrom).join(encTo) : v;
+    }
+    out.avPart = to;
+    return out;
   }
   // 「ある時だけ」の素材を読む。読めなければ null を返すだけで、合成は止めない。
   //   ★_avLoadImg は読めないと reject し、_composeAvatar では e.stage='overlay' → 1段戻しになってしまう。
@@ -11399,7 +11411,14 @@
       if (mk && mk.baseLayer && url === AVATAR_BASE_IMG[_avatarState.base] && mk.layer !== mk.baseLayer) {
         mk = { layer: mk.baseLayer, lens: mk.lens };
       }
-      return _composeAvatar(url, { mask: plan.mask, layer: plan.layer, glasses: plan.glasses, makeup: mk, wig: plan.wig }).catch(function(e){
+      // 段階5：かつらも同じ。土台が素体画像に落ちたら、かつらのパスも素体版（base_<体>）に合わせる。
+      //   ★素体版のかつらは未納品なので結果は404 → 1段戻しでかつらが外れる。
+      //     これで「素体の生徒に AV 版のかつら（別の体に合わせた形）を被せる」事故を防ぐ。
+      var wg = plan.wig;
+      if (wg && wg.avPart && wg.avPart.indexOf('AV') === 0 && url === AVATAR_BASE_IMG[_avatarState.base]) {
+        wg = _wigSwapAvPart(wg, wg.avPart, 'base_' + _avatarState.base);
+      }
+      return _composeAvatar(url, { mask: plan.mask, layer: plan.layer, glasses: plan.glasses, makeup: mk, wig: wg }).catch(function(e){
         if (e && e.stage === 'body') return next();
         throw e;
       });
@@ -11895,7 +11914,7 @@
   // カテゴリキー → 絵文字アイコン（未知キーは 🎁）
   function _avatarCatIcon(key) {
     var map = { makeup:'💄', hat:'🎩', tops:'👕', bottoms:'👖', outfit:'🧥', shoes:'👟',
-                glasses:'👓', item:'🎒', pet:'🐾', background:'🏞️', aura:'✨', collab:'🎭', trophy:'🏆' };
+                glasses:'👓', wig:'💇', item:'🎒', pet:'🐾', background:'🏞️', aura:'✨', collab:'🎭', trophy:'🏆' };
     return map[key] || '🎁';
   }
   function _renderAvatarShop(res) {
@@ -12033,7 +12052,8 @@
     else if (categoryKey === 'hat')    { outfitCode = _equipItemCode(d.outfit); hatCode   = String(itemId || ''); }   // 段階2：今の服・履物のまま帽子だけ
     else if (categoryKey === 'glasses'){ outfitCode = _equipItemCode(d.outfit); glassesCode = String(itemId || ''); }   // 段階3：今の服・履物・帽子のままメガネだけ
     else if (categoryKey === 'makeup') { outfitCode = _equipItemCode(d.outfit); makeupCode  = String(itemId || ''); }   // 段階4-a：今の装いのままメイクだけ
-    else return;   // 着姿対象は tops/bottoms/outfit/shoes/hat/glasses/makeup のみ
+    else if (categoryKey === 'wig')    { outfitCode = _equipItemCode(d.outfit); wigCode     = String(itemId || ''); }   // 段階5：今の装いのままかつらだけ
+    else return;   // 着姿対象は tops/bottoms/outfit/shoes/hat/glasses/makeup/wig のみ
     var src = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode, shoesCode) || AVATAR_BASE_IMG[base];
     var noShoesSrc = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
     var img = document.getElementById('avatar-tryon-img');
@@ -28914,7 +28934,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261114-2002</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261114-2036</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
