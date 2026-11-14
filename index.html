@@ -3759,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261114-1928"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261114-2002"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261114-1928">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261114-1928"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261114-2002">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261114-2002"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -11073,13 +11073,15 @@
         layer:         _wigUrl(wpa + '層.webp'),                                     // ★必須
         erase:         _wigUrl(wpa + '消す範囲.png'),                                // ★必須
         recolorRange:  knn ? _wigUrl(wpa + '塗り替え範囲.png') : '',                 // ★肌色メイクの時だけ
-        forehead:      mnn ? _wigUrl(wpb + 'おでこ追加_メイク' + mnn + '.webp') : '',
+        forehead:      (mnn || knn) ? _wigUrl(wpb + 'おでこ追加_メイク' + (mnn || knn) + '.webp') : '',   // ★装飾でも肌色でも組む（手本どおり）
         shoulderPatch: _wigUrl('肩パッチ/肩パッチ_' + _wigAvPart(avNum, base) + '.webp'),
         shoulderErase: _wigUrl('肩パッチ/肩消す範囲_' + _wigAvPart(avNum, base) + '.png'),
         shoulderCut:   nn ? _wigUrl(wpb + '肩パッチを切る範囲.png') : '',
         hatFix:        nn ? _wigUrl(wpa + '帽子の上の直し.webp') : '',
         hatFixErase:   nn ? _wigUrl(wpa + '帽子の上の直しの消す範囲.png') : '',
-        glassesAlt:    gnn ? _wigUrl('かつら' + wnn + '/メガネ' + gnn + '_' + base + '_かつら' + wnn + '用.webp') : ''   // ★帽子組でも「かつらNN/」の下
+        glassesAlt:    gnn ? _wigUrl('かつら' + wnn + '/メガネ' + gnn + '_' + base + '_かつら' + wnn + '用.webp') : '',  // ★帽子組でも「かつらNN/」の下
+        avPart:        _wigAvPart(avNum, base),   // ★塗り替え表を引く鍵（AV0000098 / base_boy）。URLではないので鍵には入らない
+        skinNN:        knn                        // ★塗り替え表を引く鍵（肌色メイク番号。装飾メイク・メイクなしは ''）
       };
       // ★帽子ありのときだけ、帽子の層とメガネ用の範囲を「帽子組のもの」に差し替える（上の既存行は1文字も変えない）。
       if (nn) {
@@ -11261,6 +11263,10 @@
     if (gl) key += '|g:' + String(gl.layer || '') + '|' + String(gl.mask || '') + '|' + String(gl.over || '');
     var mk = overlays.makeup || null;
     if (mk) key += '|m:' + String(mk.layer || '') + '|' + String(mk.lens || '');
+    // ★段階5：かつら。鍵の作り方は計画側と同じ関数を呼ぶ（2箇所に書くと片方だけ直して別人の絵が出る）。
+    //   ★かつら未装着なら空文字が返るので、鍵は今までと1文字も変わらない。
+    var wg = overlays.wig || null;
+    key += _wigKeyPart(wg);
     if (_avatarComposeCache[key]) return _avatarComposeCache[key];
     var pBody  = _avLoadImg(bodyUrl).catch(function(e){ e.stage = 'body'; throw e; });
     var pMask  = overlays.mask  ? _avLoadImg(overlays.mask)  : Promise.resolve(null);
@@ -11270,27 +11276,38 @@
     var pGO    = (gl && gl.over)  ? _avLoadImg(gl.over)  : Promise.resolve(null);
     var pML    = (mk && mk.layer) ? _avLoadImg(mk.layer) : Promise.resolve(null);
     var pMLens = (mk && mk.lens)  ? _avLoadImg(mk.lens)  : Promise.resolve(null);
+    // ★段階5：かつら。層と消す範囲だけ必須（読めなければ 1段戻し）。残りは「ある時だけ」なので読めなくても止めない。
+    var pWL    = (wg && wg.layer) ? _avLoadImg(wg.layer) : Promise.resolve(null);
+    var pWE    = (wg && wg.erase) ? _avLoadImg(wg.erase) : Promise.resolve(null);
+    var pWRng  = _avLoadImgOptional(wg && wg.recolorRange);
+    var pWFo   = _avLoadImgOptional(wg && wg.forehead);
+    var pWSP   = _avLoadImgOptional(wg && wg.shoulderPatch);
+    var pWSE   = _avLoadImgOptional(wg && wg.shoulderErase);
+    var pWSC   = _avLoadImgOptional(wg && wg.shoulderCut);
+    var pWHF   = _avLoadImgOptional(wg && wg.hatFix);
+    var pWHFE  = _avLoadImgOptional(wg && wg.hatFixErase);
+    var pWGA   = _avLoadImgOptional(wg && wg.glassesAlt);
+    var pWHLS  = _avLoadImgOptional(wg && wg.hatLayerSkin);
+    var pWHLR  = _avLoadImgOptional(wg && wg.hatLayerRange);
+    var pWTbl  = (wg && wg.skinNN) ? _wigSkinTableLoad() : Promise.resolve(null);   // ★肌色メイクでない時は表を読まない
     var pOver  = Promise.all([pMask, pLayer, pGL, pGM, pGO, pML, pMLens]).catch(function(e){ e.stage = 'overlay'; throw e; });
-    var p = Promise.all([pBody, pOver]).then(function(r){
+    var pWig   = Promise.all([pWL, pWE, pWRng, pWFo, pWSP, pWSE, pWSC, pWHF, pWHFE, pWGA, pWHLS, pWHLR, pWTbl]).catch(function(e){ e.stage = 'overlay'; throw e; });
+    var p = Promise.all([pBody, pOver, pWig]).then(function(r){
       var body = r[0], maskImg = r[1][0], layerImg = r[1][1];
       var gLayerImg = r[1][2], gMaskImg = r[1][3], gOverImg = r[1][4];
       var mLayerImg = r[1][5], mLensImg = r[1][6];
+      var wLImg = r[2][0], wEImg = r[2][1], wRngImg = r[2][2], wFoImg = r[2][3];
+      var wSPImg = r[2][4], wSEImg = r[2][5], wSCImg = r[2][6];
+      var wHFImg = r[2][7], wHFEImg = r[2][8], wGAImg = r[2][9];
+      var wHLSImg = r[2][10], wHLRImg = r[2][11], wTblObj = r[2][12];
       if (!gLayerImg) mLensImg = null;   // レンズ越しはメガネがあるときだけ
       try {
         var w = body.naturalWidth, h = body.naturalHeight;
         var c = document.createElement('canvas');
         c.width = w; c.height = h;
         var x = c.getContext('2d');
-        x.drawImage(body, 0, 0, w, h);
-        if (mLayerImg) x.drawImage(mLayerImg, 0, 0, w, h);   // 段階4-a ①：メイクの層（帽子の消す範囲で人体と一緒に透明になる）
-        if (maskImg) {   // ① 人体を帽子の消す範囲で透明に
-          x.globalCompositeOperation = 'destination-out';
-          x.drawImage(_avatarMaskToAlpha(maskImg, w, h), 0, 0);
-          x.globalCompositeOperation = 'source-over';
-        }
-        var gMaskAlpha = gMaskImg ? _avatarMaskToAlpha(gMaskImg, w, h) : null;
-        var gOverAlpha = gOverImg ? _avatarMaskToAlpha(gOverImg, w, h) : null;
         // 1枚の層を「消す範囲で透明に（eraseAlpha）」または「範囲だけ残す（keepAlpha）」して描くための下ごしらえ。
+        //   ★段階5：肩パッチでも使うので、定義を描き始める前に移した（中身は1文字も変えていない）。
         var _cut = function(img, eraseAlpha, keepAlpha) {
           var cc = document.createElement('canvas');
           cc.width = w; cc.height = h;
@@ -11300,11 +11317,52 @@
           if (keepAlpha)  { cx.globalCompositeOperation = 'destination-in';  cx.drawImage(keepAlpha, 0, 0); }
           return cc;
         };
+        // ★段階5：塗り替えの下ごしらえ。★肌色メイク中で、塗り替え範囲と表の両方がそろった時だけ作る（それ以外は0回）。
+        var wFlags = null, wColor = null;
+        if (wg && wg.skinNN && wRngImg && wTblObj) {
+          var _row = wTblObj[wg.avPart];
+          var _tbl = _row ? _row[wg.skinNN] : null;
+          if (_tbl) { wColor = _tbl; wFlags = _wigRangeToFlags(wRngImg, w, h); }
+        }
+        var _wr = function(img) { return (img && wFlags && wColor) ? _wigRecolor(img, wFlags, wColor, w, h) : img; };
+        x.drawImage(body, 0, 0, w, h);                        // 1 人体
+        if (mLayerImg) x.drawImage(mLayerImg, 0, 0, w, h);   // 2 メイクの層（帽子の消す範囲で人体と一緒に透明になる）
+        // ★3a+3b 肩パッチ：★肩パッチと肩消す範囲の2枚がそろった時だけ（片方だけでは絶対にやらない）
+        if (wSPImg && wSEImg) {
+          x.globalCompositeOperation = 'destination-out';
+          x.drawImage(_avatarMaskToAlpha(wSEImg, w, h), 0, 0);   // 3a 肩を消す
+          x.globalCompositeOperation = 'source-over';
+          var _sp = wSCImg ? _cut(wSPImg, _avatarMaskToAlpha(wSCImg, w, h), null) : wSPImg;   // 切る範囲があれば切ってから
+          x.drawImage(_wr(_sp), 0, 0, w, h);                     // 3b 肩パッチ（肌色メイクなら塗り替え）
+        }
+        // 4 消す範囲：★かつら装着中は「かつらの消す範囲」を使う。かつら未装着なら今までどおり帽子の消す範囲。
+        var _eraseImg = (wg && wEImg) ? wEImg : maskImg;
+        if (_eraseImg) {   // ① 人体を消す範囲で透明に
+          x.globalCompositeOperation = 'destination-out';
+          x.drawImage(_avatarMaskToAlpha(_eraseImg, w, h), 0, 0);
+          x.globalCompositeOperation = 'source-over';
+        }
+        if (wLImg) x.drawImage(_wr(wLImg), 0, 0, w, h);   // ★5 かつらの層（肌色メイクなら塗り替え）
+        if (wFoImg) x.drawImage(wFoImg, 0, 0, w, h);      // ★5' おでこ追加（★塗り替えはかけない＝手本どおり）
+        var gMaskAlpha = gMaskImg ? _avatarMaskToAlpha(gMaskImg, w, h) : null;
+        var gOverAlpha = gOverImg ? _avatarMaskToAlpha(gOverImg, w, h) : null;
+        if (gLayerImg && wGAImg) gLayerImg = wGAImg;   // ★6a かつら用のメガネがあれば差し替え（上に出す段でも同じ絵を使う）
         if (gLayerImg) {   // ② メガネ（帽子ありならメガネ用の消す範囲で透明にしてから）
           x.drawImage(_cut(gLayerImg, gMaskAlpha, null), 0, 0);
           if (mLensImg) x.drawImage(_cut(mLensImg, gMaskAlpha, null), 0, 0);   // 段階4-a ③：レンズ越しの層（②と同じ消す範囲）
         }
-        if (layerImg) x.drawImage(layerImg, 0, 0, w, h);   // ③ 帽子の層（半透明の画素＝光輪などもそのまま重なる）
+        // 7 帽子の層：★かつら装着中は肌色版があれば差し替え、帽子層用の塗り替え範囲があればそこだけ塗り替える。
+        var _hatLayer = layerImg;
+        if (_hatLayer && wHLSImg) _hatLayer = wHLSImg;
+        if (_hatLayer && wHLRImg && wColor) _hatLayer = _wigRecolor(_hatLayer, _wigRangeToFlags(wHLRImg, w, h), wColor, w, h);
+        if (_hatLayer) x.drawImage(_hatLayer, 0, 0, w, h);   // ③ 帽子の層（半透明の画素＝光輪などもそのまま重なる）
+        // ★8 帽子の上の直し：★直しと消す範囲の2枚がそろった時だけ（片方だけでは絶対にやらない）
+        if (wHFImg && wHFEImg) {
+          x.globalCompositeOperation = 'destination-out';
+          x.drawImage(_avatarMaskToAlpha(wHFEImg, w, h), 0, 0);
+          x.globalCompositeOperation = 'source-over';
+          x.drawImage(_wr(wHFImg), 0, 0, w, h);
+        }
         if (gLayerImg && gOverAlpha) {   // ④ メガネを「帽子の上に出す範囲」（白）だけもう一度描く（全面黒＝19騎士は何も描かれない）
           x.drawImage(_cut(gLayerImg, null, gOverAlpha), 0, 0);
           if (mLensImg) x.drawImage(_cut(mLensImg, null, gOverAlpha), 0, 0);   // 段階4-a ⑥：レンズ越しも同じ範囲だけ
@@ -11341,7 +11399,7 @@
       if (mk && mk.baseLayer && url === AVATAR_BASE_IMG[_avatarState.base] && mk.layer !== mk.baseLayer) {
         mk = { layer: mk.baseLayer, lens: mk.lens };
       }
-      return _composeAvatar(url, { mask: plan.mask, layer: plan.layer, glasses: plan.glasses, makeup: mk }).catch(function(e){
+      return _composeAvatar(url, { mask: plan.mask, layer: plan.layer, glasses: plan.glasses, makeup: mk, wig: plan.wig }).catch(function(e){
         if (e && e.stage === 'body') return next();
         throw e;
       });
@@ -28856,7 +28914,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261114-1928</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261114-2002</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
