@@ -3759,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261113-2013"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261114-1907"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261113-2013">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261113-2013"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261114-1907">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261114-1907"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -11072,6 +11072,97 @@
       im.onerror = function(){ reject(new Error('load:' + url)); };
       im.src = url;
     });
+  }
+  // ===== 段階5：かつら（★第1段：土台の関数だけ。描画の段はまだ無いので絵は1画素も変わらない）=====
+  //   配信元：AVATAR_ITEM_BASE + 'wig-practice/かつら/…' + '?v=' + AVATAR_WIG_VER
+  //   ★日本語のフォルダ名・ファイル名があるので、区切り（/）ごとに encodeURIComponent する
+  //     （生の UTF-8 のまま投げると 404 になる＝実測済み）。
+  //   ★AVATAR_WIG_VER は帽子・メガネ・メイクの AVATAR_ITEM_VER とは別建て（既存の数字は触らない）。
+  var AVATAR_WIG_DIR = 'wig-practice/かつら/';
+  var AVATAR_WIG_VER = 1;
+  function _wigUrl(relPath) {
+    var seg = (AVATAR_WIG_DIR + String(relPath || '')).split('/');
+    for (var i = 0; i < seg.length; i++) seg[i] = encodeURIComponent(seg[i]);
+    return AVATAR_ITEM_BASE + seg.join('/') + '?v=' + AVATAR_WIG_VER;
+  }
+  // wig_005 → '05'（画像フォルダは2桁）。01〜99 以外・形式外は ''。
+  function _wigNN(wigCode) {
+    var m = /^wig_(\d+)$/.exec(String(wigCode || ''));
+    if (!m) return '';
+    var n = parseInt(m[1], 10);
+    if (!(n >= 1 && n <= 99)) return '';
+    return (n < 10 ? '0' : '') + n;
+  }
+  // 「ある時だけ」の素材を読む。読めなければ null を返すだけで、合成は止めない。
+  //   ★_avLoadImg は読めないと reject し、_composeAvatar では e.stage='overlay' → 1段戻しになってしまう。
+  //     表を持たない素材（肩パッチ・おでこ追加など）はこちらで読み、無ければその段を飛ばす。
+  //   ★url が空のときは画像を作らない（src='' は「今のページ自身」を読みに行ってしまう罠）。
+  function _avLoadImgOptional(url) {
+    if (!url) return Promise.resolve(null);
+    return _avLoadImg(url).catch(function(){
+      try { console.warn('[wig] 任意素材を読めず飛ばした: ' + url); } catch(e){}
+      return null;
+    });
+  }
+  // 「塗り替え範囲」などの白黒画像を 1/0 の並びにする（明るさ>0 なら 1）。
+  //   ★手本 app44.py の convert('L')>0 と同じ2値。_avatarMaskToAlpha（明るさを連続値のまま使う）とは別物。
+  function _wigRangeToFlags(maskImg, w, h) {
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var x = c.getContext('2d');
+    x.drawImage(maskImg, 0, 0, w, h);
+    var p = x.getImageData(0, 0, w, h).data;
+    var f = new Uint8Array(w * h);
+    for (var i = 0, j = 0; j < f.length; i += 4, j++) {
+      f[j] = ((p[i] * 299 + p[i + 1] * 587 + p[i + 2] * 114) / 1000) > 0 ? 1 : 0;
+    }
+    return f;
+  }
+  // 肌色メイク中だけ、範囲の中の「肌の色」の画素を表の色に塗り替える（手本 app44.py の recolor と同じ式）。
+  //   新しい色 ＝ 表の色 × その画素の明るさ ÷ 表の明るさ（明るさ＝(R+G+B)/3）。0〜255 で切る。透明度はそのまま。
+  //   ★元の画像は書き換えず、新しい canvas を返す。範囲か表が無ければ元の画像をそのまま返す。
+  //   ★表の明るさが 0 のときも元のまま返す（0 で割らないため）。
+  function _wigRecolor(img, flags, tbl, w, h) {
+    if (!flags || !tbl || !(Number(tbl[3]) > 0)) return img;
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var x = c.getContext('2d');
+    x.drawImage(img, 0, 0, w, h);
+    var id = x.getImageData(0, 0, w, h), p = id.data;
+    var sr = Number(tbl[0]), sg = Number(tbl[1]), sb = Number(tbl[2]), al = Number(tbl[3]);
+    var n = Math.min(flags.length, w * h);
+    for (var i = 0, j = 0; j < n; i += 4, j++) {
+      if (!flags[j]) continue;
+      if (p[i + 3] === 0) continue;                                    // 透明な画素は触らない
+      var r = p[i], g = p[i + 1], b = p[i + 2];
+      if (!(r > 170 && g > 120 && b > 90 && r >= g && g >= b - 5 && (r - b) > 15)) continue;
+      var lum = (r + g + b) / 3, v;
+      v = sr * lum / al; p[i]     = (v > 255 ? 255 : v) | 0;           // ★手本の astype(uint8) と同じ切り捨て
+      v = sg * lum / al; p[i + 1] = (v > 255 ? 255 : v) | 0;
+      v = sb * lum / al; p[i + 2] = (v > 255 ? 255 : v) | 0;
+    }
+    x.putImageData(id, 0, 0);
+    return c;
+  }
+  // 塗り替え表（AV番号 → 肌色メイク番号 → [R,G,B,明るさ]）。★1回だけ読んで覚える。
+  //   ★読めなくても null を返すだけ（塗り替えなしで合成を続ける）。次に呼ばれたらもう一度試す。
+  var _wigSkinTable = null, _wigSkinTablePromise = null;
+  function _wigSkinTableLoad() {
+    if (_wigSkinTable) return Promise.resolve(_wigSkinTable);
+    if (_wigSkinTablePromise) return _wigSkinTablePromise;
+    var pr = fetch(_wigUrl('肌色メイク塗り替え表.json')).then(function(r){
+      if (!r.ok) throw new Error('http:' + r.status);
+      return r.json();
+    }).then(function(j){
+      _wigSkinTable = (j && typeof j === 'object') ? j : null;
+      return _wigSkinTable;
+    }, function(e){
+      try { console.warn('[wig] 塗り替え表を読めなかった（塗り替えなしで続ける）: ' + e); } catch(_e){}
+      _wigSkinTablePromise = null;
+      return null;
+    });
+    _wigSkinTablePromise = pr;
+    return pr;
   }
   // 「消す範囲」（白=消す・黒=そのまま の白黒画像）を「白=不透明・黒=透明」のアルファ画像に変換する。
   //   ★白黒画像は黒も不透明なので、そのまま destination-out に渡すと全部消えてしまう。明るさ×元の不透明度をアルファにする。
@@ -28707,7 +28798,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261113-2013</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261114-1907</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
