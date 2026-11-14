@@ -3759,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261114-1907"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261114-1928"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261114-1907">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261114-1907"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261114-1928">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261114-1928"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -10989,14 +10989,15 @@
   //   ★メガネなしの key は段階2と同一（帽子だけの合成結果・使い回しは段階2から不変）。
   //   段階4-a：makeupCode（装飾メイク）。next は「レンズ越しを外す → メイクを外す → メガネを外す」の順に1段ずつ。
   //   opts.noLens：レンズ越しの層だけを外した計画（画像が読めなかったときの戻し用）。
-  function _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode, makeupCode, opts) {
+  function _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode, makeupCode, wigCode, opts) {
     var base = _avatarState.base;
     if (!base || !AVATAR_BASE_IMG[base]) return null;
     var nn = _hatNN(hatCode);
     var gnn = _glassesNN(glassesCode);
     var mnn = _makeupDecoNN(makeupCode);
     var knn = _makeupSkinNN(makeupCode);   // 段階4-b：肌色メイク
-    if (!nn && !gnn && !mnn && !knn) return null;
+    var wnn = _wigNN(wigCode);             // 段階5：かつら
+    if (!nn && !gnn && !mnn && !knn && !wnn) return null;
     var plainSrc   = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode, shoesCode) || AVATAR_BASE_IMG[base];
     var noShoesSrc = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
     var bodies = [];
@@ -11052,16 +11053,59 @@
       };
       key += '|m:' + mk.layer + '|' + mk.lens;
     }
+    // ===== 段階5：かつら（★第2段：計画を組むだけ。描画は第3段なので、まだ誰も描かない）=====
+    //   帽子あり → 帽子組「帽子組/かつらNN_帽子HH/」の下／帽子なし → 「かつらNN/」の下。
+    //   ★_wigUrl が前に 'wig-practice/かつら/' を付けるので、ここでは 'かつら/' を書かない。
+    //   wpa＝AV番号ごと（素体は base_体）／wpb＝体ごと のファイル名の前半。
+    var wig = null;
+    if (wnn) {
+      var wG, wpa, wpb;
+      if (nn) {
+        wG  = '帽子組/かつら' + wnn + '_帽子' + nn + '/';
+        wpa = wG + 'かつら' + wnn + '_帽子' + nn + '_' + _wigAvPart(avNum, base) + '_';
+        wpb = wG + 'かつら' + wnn + '_帽子' + nn + '_' + base + '_';
+      } else {
+        wG  = 'かつら' + wnn + '/';
+        wpa = wG + 'かつら' + wnn + '_' + _wigAvPart(avNum, base) + '_';
+        wpb = wG + 'かつら' + wnn + '_' + base + '_';
+      }
+      wig = {
+        layer:         _wigUrl(wpa + '層.webp'),                                     // ★必須
+        erase:         _wigUrl(wpa + '消す範囲.png'),                                // ★必須
+        recolorRange:  knn ? _wigUrl(wpa + '塗り替え範囲.png') : '',                 // ★肌色メイクの時だけ
+        forehead:      mnn ? _wigUrl(wpb + 'おでこ追加_メイク' + mnn + '.webp') : '',
+        shoulderPatch: _wigUrl('肩パッチ/肩パッチ_' + _wigAvPart(avNum, base) + '.webp'),
+        shoulderErase: _wigUrl('肩パッチ/肩消す範囲_' + _wigAvPart(avNum, base) + '.png'),
+        shoulderCut:   nn ? _wigUrl(wpb + '肩パッチを切る範囲.png') : '',
+        hatFix:        nn ? _wigUrl(wpa + '帽子の上の直し.webp') : '',
+        hatFixErase:   nn ? _wigUrl(wpa + '帽子の上の直しの消す範囲.png') : '',
+        glassesAlt:    gnn ? _wigUrl('かつら' + wnn + '/メガネ' + gnn + '_' + base + '_かつら' + wnn + '用.webp') : ''   // ★帽子組でも「かつらNN/」の下
+      };
+      // ★帽子ありのときだけ、帽子の層とメガネ用の範囲を「帽子組のもの」に差し替える（上の既存行は1文字も変えない）。
+      if (nn) {
+        layer = _wigUrl(wpb + '帽子層.webp');
+        wig.hatLayerSkin  = knn ? _wigUrl(wpb + '帽子層_メイク' + knn + '.webp') : '';
+        wig.hatLayerRange = knn ? _wigUrl(wpb + '帽子層の塗り替え範囲.png') : '';
+        mask = '';                     // ★帽子の消す範囲は使わない（かつらの消す範囲が代わり）
+        if (g) {
+          g.mask = _wigUrl(wpb + 'メガネ用消す範囲.png');
+          g.over = _wigUrl(wpb + 'メガネを上に出す範囲.png');
+        }
+      }
+    }
+    key += _wigKeyPart(wig);
     var nextPlan = null;   // ★肌色メイクも同じ順（レンズ越し → メイク〔帽子の層も普通の層に戻る〕 → メガネ）
-    if (mk && mk.lens)  nextPlan = _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode, makeupCode, { noLens: true });
-    else if (mk)        nextPlan = _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode, '');
-    else if (gnn)       nextPlan = _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, '');
-    return { key: key, bodies: bodies, mask: mask, layer: layer, glasses: g, makeup: mk, fallbackSrc: plainSrc, next: nextPlan };
+    //   ★段階5：最後に「かつらを外す」を足した（レンズ越し → メイク → メガネ → かつら）。★帽子は一度も外さない。
+    if (mk && mk.lens)  nextPlan = _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode, makeupCode, wigCode, { noLens: true });
+    else if (mk)        nextPlan = _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode, '',         wigCode);
+    else if (gnn)       nextPlan = _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, '',          '',         wigCode);
+    else if (wnn)       nextPlan = _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, '',          '',         '');       // ★かつらを外す
+    return { key: key, bodies: bodies, mask: mask, layer: layer, glasses: g, makeup: mk, wig: wig, fallbackSrc: plainSrc, next: nextPlan };
   }
   // 装着中の状態から帽子の合成計画を作る。
   function _avatarHatPlanCurrent() {
     var d = _avatarState.equippedDetails || {};
-    return _avatarHatPlan(_equipItemCode(d.tops), _equipItemCode(d.bottoms), _equipItemCode(d.outfit), _equipItemCode(d.shoes), _equipItemCode(d.hat), _equipItemCode(d.glasses), _equipItemCode(d.makeup));
+    return _avatarHatPlan(_equipItemCode(d.tops), _equipItemCode(d.bottoms), _equipItemCode(d.outfit), _equipItemCode(d.shoes), _equipItemCode(d.hat), _equipItemCode(d.glasses), _equipItemCode(d.makeup), _equipItemCode(d.wig));
   }
   // 画像を CORS 付きで読む（canvas から書き出すため crossOrigin='anonymous' 必須）。
   function _avLoadImg(url) {
@@ -11092,6 +11136,19 @@
     var n = parseInt(m[1], 10);
     if (!(n >= 1 && n <= 99)) return '';
     return (n < 10 ? '0' : '') + n;
+  }
+  // ファイル名の「誰の体か」の部分。AV番号があれば AV0000098、素体（AV番号0）なら base_boy の形。
+  //   ★既存素材の素体版と同じ書き方（例：makeup/skin/base/makeup02_base_boy.png）に合わせている。
+  function _wigAvPart(avNum, base) {
+    return avNum ? ('AV' + _avPad7(avNum)) : ('base_' + base);
+  }
+  // 合成の鍵の「かつら」部分。★計画と描画の2箇所から同じ関数を呼ぶ（2箇所に書くと片方だけ直して別人の絵が出る）。
+  //   ★かつら未装着（wg が無い）なら空文字＝鍵は今までと1文字も変わらない。
+  function _wigKeyPart(wg) {
+    if (!wg) return '';
+    return '|w:' + [wg.layer, wg.erase, wg.recolorRange, wg.forehead, wg.shoulderPatch,
+                    wg.shoulderCut, wg.hatFix, wg.glassesAlt, wg.hatLayerSkin, wg.hatLayerRange]
+                   .map(function(t){ return String(t || ''); }).join('|');
   }
   // 「ある時だけ」の素材を読む。読めなければ null を返すだけで、合成は止めない。
   //   ★_avLoadImg は読めないと reject し、_composeAvatar では e.stage='overlay' → 1段戻しになってしまう。
@@ -11910,6 +11967,7 @@
     var hatCode     = _equipItemCode(d.hat);     // 段階2：かぶっている帽子も服・履物の試着でそのまま
     var glassesCode = _equipItemCode(d.glasses); // 段階3：かけているメガネも他の試着でそのまま
     var makeupCode  = _equipItemCode(d.makeup);  // 段階4-a/4-b：しているメイク（装飾・肌色）も他の試着でそのまま
+    var wigCode     = _equipItemCode(d.wig);     // 段階5：かぶっているかつらも他の試着でそのまま
     if (categoryKey === 'tops')         topsCode    = String(itemId || '');
     else if (categoryKey === 'bottoms') bottomsCode = String(itemId || '');
     else if (categoryKey === 'outfit')  outfitCode  = String(itemId || '');   // 第2弾：上下セットはその1着の着姿
@@ -11927,7 +11985,7 @@
         if (next) { img.src = next; return; }
         img.onerror = null;
       };
-      _avatarAssignBody(img, _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode, makeupCode), src);   // 段階2：帽子ありなら合成結果
+      _avatarAssignBody(img, _avatarHatPlan(topsCode, bottomsCode, outfitCode, shoesCode, hatCode, glassesCode, makeupCode, wigCode), src);   // 段階2：帽子ありなら合成結果
     }
     var it = _avatarShopItemCache[itemId];
     var nameEl = document.getElementById('avatar-tryon-name');
@@ -28798,7 +28856,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261114-1907</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261114-1928</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
