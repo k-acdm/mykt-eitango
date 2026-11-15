@@ -3759,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261114-2036"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261116-0008"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261114-2036">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261114-2036"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261116-0008">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261116-0008"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -11003,8 +11003,9 @@
     var noShoesSrc = _avatarBodyImgPathWith(topsCode, bottomsCode, outfitCode) || AVATAR_BASE_IMG[base];
     var bodies = [];
     var avNum = _avatarBodyAvNum(base, topsCode, bottomsCode, outfitCode);
-    if (nn && AVATAR_ROBE_HOOD_AV[avNum]) {
-      // ローブ：帽子ありのときだけフード下ろし版（履物ありなら履物のフード下ろし版 → 読めなければ履物なしのフード下ろし版）
+    if ((nn || wnn) && AVATAR_ROBE_HOOD_AV[avNum]) {
+      // ローブ：帽子あり★または かつらありのときはフード下ろし版（履物ありなら履物のフード下ろし版 → 読めなければ履物なしのフード下ろし版）
+      //   ★2026-11-16（正式版_45 2節）：かつらは帽子の有無に関係なくフード下ろし。★かつら未装着（wnn が空）なら今までと同じ条件。
       var av7 = _avPad7(avNum);
       var snn = _shoesNN(shoesCode);
       if (snn && _avatarShoesBodyPath(base, topsCode, bottomsCode, outfitCode, shoesCode)) {
@@ -11039,12 +11040,12 @@
       };
       key += '|m:' + mk.layer + '|' + mk.lens;
     } else if (knn) {
-      // 段階4-b：肌色メイクの層（AV番号ごと／ローブ＋帽子はフード下ろし版／素体は体ごと）。
+      // 段階4-b：肌色メイクの層（AV番号ごと／ローブ＋帽子★またはかつらはフード下ろし版／素体は体ごと）。
       //   baseLayer：人体が素体に落ちたとき（土台の候補が素体画像のとき）に使う層。
       var skinBase = _avatarItemUrl('makeup/skin/base/makeup' + knn + '_base_' + base + '.png');
       var skinLayer;
       if (!avNum) skinLayer = skinBase;
-      else if (nn && AVATAR_ROBE_HOOD_AV[avNum]) skinLayer = _avatarItemUrl('makeup/skin/robe-hood-down/makeup' + knn + '_AV' + _avPad7(avNum) + '_hood.png');
+      else if ((nn || wnn) && AVATAR_ROBE_HOOD_AV[avNum]) skinLayer = _avatarItemUrl('makeup/skin/robe-hood-down/makeup' + knn + '_AV' + _avPad7(avNum) + '_hood.png');   // ★人体と必ず同じ条件にする（片方だけだと人体はフード下ろし・メイクはフードありになる）
       else skinLayer = _avatarItemUrl('makeup/skin/layer/makeup' + knn + '_AV' + _avPad7(avNum) + '.png');
       mk = {
         layer: skinLayer,
@@ -11284,8 +11285,10 @@
     var pMask  = overlays.mask  ? _avLoadImg(overlays.mask)  : Promise.resolve(null);
     var pLayer = overlays.layer ? _avLoadImg(overlays.layer) : Promise.resolve(null);
     var pGL    = (gl && gl.layer) ? _avLoadImg(gl.layer) : Promise.resolve(null);
-    var pGM    = (gl && gl.mask)  ? _avLoadImg(gl.mask)  : Promise.resolve(null);
-    var pGO    = (gl && gl.over)  ? _avLoadImg(gl.over)  : Promise.resolve(null);
+    // ★段階5（正式版_45 3節）：かつら装着中は、メガネ用の2つの範囲は「ある時だけ」。読めなければその範囲なしで重ねる（段は飛ばさない）。
+    //   ★かつら未装着のときは今までどおり必須（読めなければ1段戻し）。
+    var pGM    = (gl && gl.mask)  ? (wg ? _avLoadImgOptional(gl.mask) : _avLoadImg(gl.mask))  : Promise.resolve(null);
+    var pGO    = (gl && gl.over)  ? (wg ? _avLoadImgOptional(gl.over) : _avLoadImg(gl.over))  : Promise.resolve(null);
     var pML    = (mk && mk.layer) ? _avLoadImg(mk.layer) : Promise.resolve(null);
     var pMLens = (mk && mk.lens)  ? _avLoadImg(mk.lens)  : Promise.resolve(null);
     // ★段階5：かつら。層と消す範囲だけ必須（読めなければ 1段戻し）。残りは「ある時だけ」なので読めなくても止めない。
@@ -28934,7 +28937,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261114-2036</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261116-0008</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
