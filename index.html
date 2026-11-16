@@ -3759,10 +3759,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261116-1653"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261117-0048"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261116-1653">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261116-1653"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261117-0048">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261117-0048"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -11057,7 +11057,7 @@
     }
     // ===== 段階5：かつら（★第2段：計画を組むだけ。描画は第3段なので、まだ誰も描かない）=====
     //   帽子あり → 帽子組「帽子組/かつらNN_帽子HH/」の下／帽子なし → 「かつらNN/」の下。
-    //   ★_wigUrl が前に 'wig-practice/かつら/' を付けるので、ここでは 'かつら/' を書かない。
+    //   ★_wigUrl が前に 'かつら/' を付けるので、ここでは 'かつら/' を書かない。
     //   wpa＝AV番号ごと（素体は base_体）／wpb＝体ごと のファイル名の前半。
     var wig = null;
     if (wnn) {
@@ -11122,7 +11122,7 @@
     });
   }
   // ===== 段階5：かつら（★第1段：土台の関数だけ。描画の段はまだ無いので絵は1画素も変わらない）=====
-  //   配信元：AVATAR_ITEM_BASE + 'wig-practice/かつら/…' + '?v=' + AVATAR_WIG_VER
+  //   配信元：AVATAR_ITEM_BASE + 'かつら/…' + '?v=' + AVATAR_WIG_VER
   //   ★日本語のフォルダ名・ファイル名があるので、区切り（/）ごとに encodeURIComponent する
   //     （生の UTF-8 のまま投げると 404 になる＝実測済み）。
   //   ★AVATAR_WIG_VER は帽子・メガネ・メイクの AVATAR_ITEM_VER とは別建て（既存の数字は触らない）。
@@ -28937,7 +28937,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261116-1653</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261117-0048</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
