@@ -3347,7 +3347,8 @@
     .req-block-link { display: block; width: 100%; padding: 14px 16px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; color: #fff; cursor: pointer; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,.18); text-shadow: 0 1px 2px rgba(0,0,0,.2); }
     .req-block-link:active { transform: translateY(1px); }
     /* ===== オリワンテス（③-A）トップ／チャットUI ===== */
-    /* 2026-06-17：結果画面の獲得HP内訳の式（特大の +90 より控えめ。オリワンテス専用）。 */
+    /* 2026-06-17：結果画面の獲得HP内訳の式（特大の +100 より控えめ。オリワンテス専用）。 */
+    /* 2026-11-17：サーバー側の素点を 90 → 100 に戻した（6/17 の 90 は誤り）。 */
     .oriwan-hp-breakdown { font-size: 13px; color: #9a7b3a; opacity: .9; margin: 2px 0 4px; text-align: center; letter-spacing: .3px; }
     .oriwan-hp-line { font-size: 14px; font-weight: bold; color: #7a5210; background: #fff7e0; border: 1px solid #f0d48a; border-radius: 10px; padding: 9px 12px; margin: 12px 0 4px; text-align: center; }
     .oriwan-chat { max-height: 52vh; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px; background: #fffdf5; border: 1px solid #f0e2b8; border-radius: 14px; }
@@ -3759,10 +3760,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261117-0048"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261117-1906"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261117-0048">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261117-0048"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261117-1906">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261117-1906"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -4520,7 +4521,7 @@
           <span class="content-btn-sub">塾の宿題や自学課題を写真に撮って提出</span>
         </button>
         <button class="content-btn c-oriwan" onclick="goOriwantesHome()">
-          <span class="badge-hp">90HP（作成料10HP）</span>
+          <span class="badge-hp">100HP（作成料10HP）</span>
           <img class="ico-mascot" src="images/oriwantes-default.png" alt="">オリワンテス
           <span class="content-btn-sub">自分専用のオリジナルテストを作る</span>
         </button>
@@ -21925,7 +21926,7 @@
     } catch(e){}
 
     if (subMode === 'passed') {
-      // 【用件4 第3段】① 満額（fullHp = 90 × week²）へカウントアップ（他コンテンツと同一の _wabun1AnimateHp / duration 1000）。
+      // 【用件4 第3段】① 満額（fullHp = 100 × week²）へカウントアップ（他コンテンツと同一の _wabun1AnimateHp / duration 1000）。
       //   サーバ確定値・素通し（フロント再計算なし）。無ければ hpGained+hpReserved にフォールバック。
       var fullHpDisp = Number(res.fullHp != null ? res.fullHp : ((Number(res.hpGained) || 0) + (Number(res.hpReserved) || 0))) || 0;
       var numEl = document.getElementById('oriwantes-result-hp-num');
@@ -21955,12 +21956,13 @@
         // 採点結果（正答数・合格）を特大HPの上に表示。correctCount/totalCount はサーバ確定値。
         _oriwantesScoreLineHtml(res) +
         '<div class="oriwan-verdict oriwan-verdict-pass">🎉 合格！HPを獲得したぞ</div>' +
-        // 【用件4 第3段】① 特大ヒーロー＝満額 fullHp（90 × week²）。下の _wabun1AnimateHp でカウントアップ。
+        // 【用件4 第3段】① 特大ヒーロー＝満額 fullHp（100 × week²）。下の _wabun1AnimateHp でカウントアップ。
         '<div class="wabun1-result-hp">+<span class="wabun1-result-hp-num" id="oriwantes-result-hp-num">0</span> HP 獲得！</div>' +
         // 2026-06-17：作成料の内訳（オリワンテス専用＝作成料の概念があるため）。①と②の間に小さめ（.oriwan-hp-breakdown=13px）で残す。
-        //   結論の 90 は ① 特大表示と ②（90HP × week²）が担うので、式に「＝90」「90HP」は書かない。
+        // 2026-11-17：サーバー側の素点を 90 → 100 に戻した（6/17 の 90 は誤り）。この式の 100HP は当時から正しい。
+        //   満額の 100 は ① 特大表示と ②（100HP × week²）が担うので、この式には差し引き後の「＝90」を書かない。
         '<div class="oriwan-hp-breakdown">100HP － 10HP（作成料）</div>' +
-        // ②③④（②「90HP × week²」／③④「ただし、…」）は他コンテンツと同一の共通ブロック。
+        // ②③④（②「100HP × week²」／③④「ただし、…」）は他コンテンツと同一の共通ブロック。
         _buildHpConditionBlock(res) +
       '</div>';
     // reserve 反映：保留がある（振り返り未提出で保留中）なら振り返り注意書きを出す。即時付与なら出さない。
@@ -28937,7 +28939,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261117-0048</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261117-1906</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
