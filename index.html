@@ -3760,10 +3760,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261117-2148"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261118-0440"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261117-2148">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261117-2148"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261118-0440">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261118-0440"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -24972,7 +24972,11 @@
       //   サーバーで採点完了したのにフロントが先に諦めて結果が届かない事象があったため。
       // 2026-11-17：120→135 秒（カンジー書きのみ）。採点失敗の 93% がタイムアウトと AWS 側で確定したため、
       //   サーバー側を延ばす前に端末側を先に上げる（★順番が逆だと今より悪化する）。
-      //   ★この時点では nginx（130 秒）のほうが短いので、実際の打ち切りは 130 秒側で起きる。
+      //   ★2026-11-18：サーバー側も [60,60] に変更済み（★本番反映済み）。これで待ち時間の関係は次のとおり：
+      //     ★端末 135 秒 ＞ nginx 130 秒 ＞ ★サーバーの最悪 120.5 秒（＝60 + 0.5 + 60）。
+      //     ★サーバーが最悪まで粘っても 120.5 秒で、★端末 135 秒にも nginx 130 秒にも届かない。
+      //     ★★したがって nginx を上げる作業は★不要。この行を読んで「nginx を上げる必要がある」と誤解しないこと。
+      //     ★経緯：古いコメント（旧「打ち切りは 130 秒側で起きる」）のせいで同じ誤解が 3 回繰り返された。
       gasPost(payload, 135000).then(_onKanjiKakiRes).catch(function(err){
         // 2026-10 (B)：待ち時間切れ（135 秒）は、サーバーでは採点が終わっている可能性があるので
         //   getKanjiKakiResult に問い合わせる。見つかれば通常の結果処理へ、
@@ -28968,7 +28972,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261117-2148</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261118-0440</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
