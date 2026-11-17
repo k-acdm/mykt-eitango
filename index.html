@@ -3760,10 +3760,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261117-1906"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261117-2148"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261117-1906">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261117-1906"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261117-2148">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261117-2148"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5938,6 +5938,8 @@
       <img class="mate-img" id="mate-img-oriwantes-solve" src="images/oriwantes-default.png" alt="オリワンテス">
       <div class="mate-bubble" id="mate-bubble-oriwantes-solve">さあ、解いてみよ。</div>
     </div>
+    <!-- ★2026-11-17 理科系のときだけ出る案内（中身は _oriwantesSetSolveNote が入れる）。既存の .wabun1-period-warn を流用。 -->
+    <div class="wabun1-period-warn" id="oriwantes-solve-note" style="display:none"></div>
     <div id="oriwantes-solve-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:12px" onclick="submitOriwantesAnswers()">📨 解答を送信する</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goOriwantesHome()">← オリワンテスのトップに戻る</button>
@@ -6005,6 +6007,8 @@
       <img class="mate-img" id="mate-img-oriwantes-retry-solve" src="images/oriwantes-encourage.png" alt="オリワンテス">
       <div class="mate-bubble" id="mate-bubble-oriwantes-retry-solve">不正解だった問題にもう一度挑戦だ。全問正解でHPを取り戻せるぞ。</div>
     </div>
+    <!-- ★2026-11-17 理科系のときだけ出る案内（中身は _oriwantesSetSolveNote が入れる）。既存の .wabun1-period-warn を流用。 -->
+    <div class="wabun1-period-warn" id="oriwantes-retry-solve-note" style="display:none"></div>
     <div id="oriwantes-retry-solve-list"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#c8941c,#7a5210);margin-top:12px" onclick="submitOriwantesRetryAnswers()">📨 解答を送信する</button>
     <button class="btn-wide" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px" onclick="goOriwantesRetryList()">← 一覧に戻る</button>
@@ -21794,10 +21798,13 @@
   var _ORIWAN_SUP = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':'⁺','-':'⁻'};
   function _oriwantesIsScience(subj) { return /理科|科学|化学|物理|生物|地学/.test(String(subj || '')); }
   function _oriwantesIonize(src) {
-    var s = String(src || '').replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+    var s = String(src || '').replace(/[Ａ-Ｚａ-ｚ０-９（）]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
     s = s.replace(/->|=>|→/g, '→').replace(/[＋➕]/g, '+').replace(/[－−]/g, '-');
-    s = s.replace(/([A-Z][a-z]?|\))(\d*)([+-])(?![\d])/g, function(m, h, d, g){   // 価数（元素記号/閉じ括弧の直後に符号があるときだけ）
-      return h + d.replace(/[0-9]/g, function(c){ return _ORIWAN_SUP[c]; }) + _ORIWAN_SUP[g]; });
+    // 2026-11-17：符号の直後が英数字なら反応式の「＋」とみなして価数にしない（H2SO4+Ba(OH)2 が壊れていた）。
+    //   数字は最後の1桁だけ上付き＝価数、その前は下付き＝原子数（SO42- → SO₄²⁻）。
+    s = s.replace(/([A-Z][a-z]?|\))(\d*)([+-])(?![0-9A-Za-z])/g, function(m, h, d, g){   // 価数（元素記号/閉じ括弧の直後に符号があるときだけ）
+      return h + d.slice(0, -1).replace(/[0-9]/g, function(c){ return _ORIWAN_SUB[c]; })
+               + d.slice(-1).replace(/[0-9]/g, function(c){ return _ORIWAN_SUP[c]; }) + _ORIWAN_SUP[g]; });
     return s.replace(/([A-Z][a-z]?|\))(\d+)/g, function(m, h, d){                  // 残った元素記号の直後の数字＝原子数
       return h + d.replace(/[0-9]/g, function(c){ return _ORIWAN_SUB[c]; }); });
   }
@@ -21810,11 +21817,21 @@
     ta.placeholder = 'ここに解答を書く（分からなければ空欄でもOK。H2O や Cu2+ は見やすい形に直すよ）';
     ta.addEventListener('blur', function(){ _oriwantesIonizeField(ta, subj); });
   }
+  // ★2026-11-17 解答欄の上に常に見える一言（理科系のときだけ）。placeholder は打ち始めると消えるため。
+  //   既存の注意書きクラス .wabun1-period-warn を流用（新しい CSS は増やさない）。判定も既存の _oriwantesIsScience のまま。
+  function _oriwantesSetSolveNote(noteId, subj) {
+    var el = document.getElementById(noteId);
+    if (!el) return;
+    if (!_oriwantesIsScience(subj)) { el.textContent = ''; el.style.display = 'none'; return; }
+    el.textContent = '化学式は H2O や Cu2+ のように ふつうに打てばOK。送るときに H₂O・Cu²⁺ の形に直すよ。';
+    el.style.display = '';
+  }
 
   // 各問：問N＋問題文（questionText のみ）＋解答入力欄。正解・解説は出さない。
   function _renderOriwantesSolveList(qs) {
     var listEl = document.getElementById('oriwantes-solve-list');
     if (!listEl) return;
+    _oriwantesSetSolveNote('oriwantes-solve-note', window._oriwantesLastSubject);   // ★理科系のときだけ案内を出す
     listEl.innerHTML = '';
     for (var i = 0; i < qs.length; i++) {
       var q = qs[i] || {};
@@ -21830,6 +21847,10 @@
       ta.className = 'sango-textarea oriwan-solve-input';
       ta.id = 'oriwantes-ans-' + i;
       ta.rows = 2;
+      // ★2026-11-17 iOS の自動大文字化・自動修正で化学式が勝手に直されるのを防ぐ（この解答欄だけ）。
+      ta.setAttribute('autocapitalize', 'off');
+      ta.setAttribute('autocorrect', 'off');
+      ta.setAttribute('spellcheck', 'false');
       ta.placeholder = 'ここに解答を書く（分からなければ空欄でもOK）';
       _oriwantesAttachIonize(ta, window._oriwantesLastSubject);   // ★理科系のときだけ placeholder を変えて blur 変換を付ける
       card.appendChild(qno);
@@ -22386,6 +22407,7 @@
   function _renderOriwantesRetrySolveList(qs) {
     var listEl = document.getElementById('oriwantes-retry-solve-list');
     if (!listEl) return;
+    _oriwantesSetSolveNote('oriwantes-retry-solve-note', (_oriwantesRetryState || {}).subject);   // ★理科系のときだけ案内を出す
     listEl.innerHTML = '';
     for (var i = 0; i < qs.length; i++) {
       var q = qs[i] || {};
@@ -22393,6 +22415,10 @@
       var qno = document.createElement('div'); qno.className = 'oriwan-solve-qno'; qno.textContent = '問' + (i + 1);
       var qtext = document.createElement('div'); qtext.className = 'oriwan-solve-qtext'; qtext.textContent = String(q.questionText == null ? '' : q.questionText);
       var ta = document.createElement('textarea'); ta.className = 'sango-textarea oriwan-solve-input'; ta.id = 'oriwantes-retry-ans-' + i; ta.rows = 2;
+      // ★2026-11-17 iOS の自動大文字化・自動修正で化学式が勝手に直されるのを防ぐ（この解答欄だけ）。
+      ta.setAttribute('autocapitalize', 'off');
+      ta.setAttribute('autocorrect', 'off');
+      ta.setAttribute('spellcheck', 'false');
       ta.placeholder = 'ここに解答を書く（分からなければ空欄でもOK）';
       _oriwantesAttachIonize(ta, (_oriwantesRetryState || {}).subject);   // ★理科系のときだけ（再挑戦も同じ扱い）
       card.appendChild(qno); card.appendChild(qtext); card.appendChild(ta);
@@ -24943,9 +24969,12 @@
         _hideHpConfirmingOverlay(function(){ _showKanjiKakiResult(res); });
       }
       // 2026-10：待ち時間 90→120 秒（カンジー書きのみ）。夕方は AI 採点が 100 秒前後かかることがあり、
-      //   サーバーで採点完了したのにフロントが先に諦めて結果が届かない事象があったため。nginx（130 秒）より短く保つ。
-      gasPost(payload, 120000).then(_onKanjiKakiRes).catch(function(err){
-        // 2026-10 (B)：待ち時間切れ（120 秒）は、サーバーでは採点が終わっている可能性があるので
+      //   サーバーで採点完了したのにフロントが先に諦めて結果が届かない事象があったため。
+      // 2026-11-17：120→135 秒（カンジー書きのみ）。採点失敗の 93% がタイムアウトと AWS 側で確定したため、
+      //   サーバー側を延ばす前に端末側を先に上げる（★順番が逆だと今より悪化する）。
+      //   ★この時点では nginx（130 秒）のほうが短いので、実際の打ち切りは 130 秒側で起きる。
+      gasPost(payload, 135000).then(_onKanjiKakiRes).catch(function(err){
+        // 2026-10 (B)：待ち時間切れ（135 秒）は、サーバーでは採点が終わっている可能性があるので
         //   getKanjiKakiResult に問い合わせる。見つかれば通常の結果処理へ、
         //   見つからない／問い合わせ自体が失敗（サーバー未反映を含む）なら LINE 案内。
         // 2026-10-21：待ち時間切れ以外の通信エラーでも同じく問い合わせる（submitId は送信済み）。
@@ -28939,7 +28968,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261117-1906</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261117-2148</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
