@@ -374,7 +374,7 @@
     <button class="btn-more" style="background:linear-gradient(135deg,#34d399,#059669);color:#fff;margin-bottom:10px" onclick="showChildRisha('rika')">🧪 理科の挑戦履歴</button>
     <button class="btn-more" style="background:linear-gradient(135deg,#a3a380,#78716c);color:#fff;margin-bottom:10px" onclick="showChildRisha('shakai')">🗺️ 社会の挑戦履歴</button>
     <button class="btn-more" style="background:linear-gradient(135deg,#f9a8d4,#db2777);color:#fff;margin-bottom:10px" onclick="showSangoHistory()">✏️ 三語短文の提出作品</button>
-    <button class="btn-more" style="background:linear-gradient(135deg,#93c5fd,#2563eb);color:#fff;margin-bottom:10px" onclick="showChildWabun1()">✍️ 和文英訳①の提出</button>
+    <button class="btn-more" style="background:linear-gradient(135deg,#93c5fd,#2563eb);color:#fff;margin-bottom:10px" onclick="showChildWabun1()">✍️ 和文英訳【超基礎】の提出</button>   <!-- ★旧称：和文英訳① -->
     <button class="btn-more" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed);color:#fff;margin-bottom:10px" onclick="showChildOriwantes()">📝 オリワンテスの記録</button>
     <button class="btn-more" style="background:linear-gradient(135deg,#86efac,#16a34a);color:#fff;margin-bottom:10px" onclick="showChildReflections()">📝 振り返りコメント</button>
     <!-- ファイル系（Step D-2/D-3/D-4）：写真・録音をまとめる。自分の子固定（_studentId）・blob は sid×fileId 突合。 -->
@@ -543,11 +543,11 @@
 <!-- お子様の和文英訳①の提出（Step D-1・自分の子固定・getWabun1Submissions 流用） -->
 <div id="screen-child-wabun1" class="screen">
   <header>
-    <h1>✍️ お子様の和文英訳①の提出</h1>
+    <h1>✍️ お子様の和文英訳【超基礎】の提出</h1>   <!-- ★旧称：和文英訳① -->
     <button class="logout-btn" onclick="showChildHistory()">← 戻る</button>
   </header>
   <div class="container">
-    <p style="text-align:center;color:#666;font-size:13px;margin:8px 0 14px">お子様の和文英訳①の提出です（最新が上、直近 30 件）。<br>先生からのコメントも一緒に見られます。</p>
+    <p style="text-align:center;color:#666;font-size:13px;margin:8px 0 14px">お子様の和文英訳【超基礎】の提出です（最新が上、直近 30 件）。<br>先生からのコメントも一緒に見られます。</p>   <!-- ★旧称：和文英訳① -->
     <div id="child-wabun1-list"><div class="notice-card"><div class="notice-body"><div class="notice-empty">読み込み中…</div></div></div></div>
     <button class="btn-back" onclick="showChildHistory()">← 1つ前の画面に戻る</button>
   </div>
@@ -1516,7 +1516,7 @@
       }
       var items = (res.submissions || []).slice(0, 30);
       if (items.length === 0) {
-        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">まだ和文英訳①の提出はありません。お子様が提出するとここに並びます。</div></div></div>';
+        listEl.innerHTML = '<div class="notice-card"><div class="notice-body"><div class="notice-empty">まだ和文英訳【超基礎】の提出はありません。お子様が提出するとここに並びます。</div></div></div>';   // ★旧称：和文英訳①
         return;
       }
       listEl.innerHTML = items.map(function(s){
@@ -2144,7 +2144,7 @@
       }
     },
     {
-      label: '和文英訳①',
+      label: '和文英訳【超基礎】',   // ★旧称：和文英訳①
       render: function(d) {
         if (!d.wabun1 || !d.wabun1.done) return CHILD_NG;
         var hp = Number(d.wabun1.hpGained || 0);
@@ -2450,7 +2450,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261117-2148</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-0005</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

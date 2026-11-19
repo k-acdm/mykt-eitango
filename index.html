@@ -3760,10 +3760,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261117-2148"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261120-0005"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261117-2148">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261117-2148"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261120-0005">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261120-0005"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -3780,9 +3780,9 @@
       <span class="rib-text">今日の振り返りを書いて<br>今日のHPをゲットしよう！</span>
     </div>
     <textarea id="reflection-logout-textarea" class="refl-modal-textarea"
-              placeholder="例：今日は基礎計算の14級の分数を5問やりました。途中で約分を忘れてミスしたので、明日は気をつけたい。和文英訳①はちょっと難しかった..."
+              placeholder="例：今日は基礎計算の14級の分数を5問やりました。途中で約分を忘れてミスしたので、明日は気をつけたい。和文英訳【超基礎】はちょっと難しかった..."
               maxlength="1500"
-              oninput="onReflectionInput()"></textarea>
+              oninput="onReflectionInput()"></textarea>   <!-- ★旧称：和文英訳① -->
     <div id="reflection-logout-counter" class="refl-modal-counter">0 / 100以上 〜 1500</div>
     <div id="reflection-logout-msg" class="refl-modal-msg"></div>
     <div class="refl-modal-actions">
@@ -4458,7 +4458,7 @@
         </button>
         <button class="content-btn c-wabun1" onclick="showWabun1Topic()">
           <span class="badge-hp" id="badge-wabun1-hp">100HP/日</span>
-          <img class="ico-mascot" src="images/nichiei-default.png" alt="">和文英訳①
+          <img class="ico-mascot" src="images/nichiei-default.png" alt="">和文英訳【超基礎】   <!-- ★旧称：和文英訳① -->
           <span class="content-btn-sub">対象：小学校高学年〜中学生</span>
         </button>
         <button class="content-btn c-wabun2 disabled" onclick="showComingSoon('和文英訳②')">
@@ -5077,7 +5077,7 @@
   </div>
 </div>
 <div id="screen-wabun1-topic" class="screen">
-  <header><h1>📝 和文英訳①</h1><span id="wabun1-date-label"></span></header>
+  <header><h1>📝 和文英訳【超基礎】</h1><span id="wabun1-date-label"></span></header>   <!-- ★旧称：和文英訳① -->
   <div class="container" style="padding-top:16px">
     <input type="file" id="wabun1-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onWabun1PhotoSelected(event)"/>
     <div class="mate-row">
@@ -5119,7 +5119,7 @@
     <div class="wabun1-fixed-grading">
       <div class="wabun1-fixed-grading-title">📝 採点について</div>
       <div class="wabun1-fixed-grading-body">
-        <p>和文英訳①の採点は、正解と完全に一致している場合のみ⭕となります。英文では、大文字・小文字・ピリオドの有無まで。そして、日本語で答える問題も、一字一句、言葉の順序に至るまで隅々までチェックします。</p>
+        <p>和文英訳【超基礎】の採点は、正解と完全に一致している場合のみ⭕となります。英文では、大文字・小文字・ピリオドの有無まで。そして、日本語で答える問題も、一字一句、言葉の順序に至るまで隅々までチェックします。</p>   <!-- ★旧称：和文英訳① -->
         <p>あえてここまで厳しくする理由は、ここが英語の勉強の最大の「肝」となる部分だから。ここで、「いい加減」や「何となく」を一切排除することが、この先「苦労知らず」で英語を学習していけることにつながります。</p>
         <p>何事も最初が肝心。細かいところまで正確にやれる力を、今のうちに身につけよう！</p>
       </div>
@@ -7700,7 +7700,7 @@
   var REQUIRED_CONTENT_LABELS = {
     eitango: '英単語RUSH',
     sango:   '三語短文',
-    wabun1:  '和文英訳①',
+    wabun1:  '和文英訳【超基礎】',   // ★旧称：和文英訳①
     kiso:    '基礎計算',
     kanji:   'カンジー'
   };
@@ -8533,7 +8533,7 @@
     // オリワン（開くと「続きから再開する？」と聞かれる。HP が二重にかからないことも伝える）
     'oriwantes': '開き直したあと、もう一度ログインして、\nオリワン →「問題をつくる」をひらくと、\n「続きから再開する？」と聞かれるよ。\n（HPが新しくかかることはないよ）',
     // 和文英訳①（その日のお題と結びついた読み取り結果が残る）
-    'nichiei':   '開き直したあと、もう一度ログインして、\n和文英訳① をひらくと、\n読み取った答えが残っていれば そのまま送れるよ。',
+    'nichiei':   '開き直したあと、もう一度ログインして、\n和文英訳【超基礎】 をひらくと、\n読み取った答えが残っていれば そのまま送れるよ。',   // ★旧称：和文英訳①
     // 三語短文（写真の読み取り結果だけ残る。手で打った文は残らないので、そこも言う）
     'sangotan':  '開き直したあと、もう一度ログインして、\n三語短文 → さっきと同じレベル → 写真で提出 をひらくと、\n読み取った文が残っていれば そのまま送れるよ。\n（手で打った文は残らないので、もう一度書いてね）',
     // マイ課題（写真は残ることがあるが、文章は残らないことがある。言い切らない）
@@ -14945,7 +14945,7 @@
   var CONTENT_TYPE_DEFS = [
     { key: 'eitango',   rawType: 'test',                                   match: 'exact',         name: '英単語RUSH',          icon: 'rushkun'   },
     { key: 'sango',     rawType: 'sango',                                  match: 'exact',         name: '三語短文',            icon: 'sangotan'  },
-    { key: 'wabun1',    rawType: 'wabun1',                                 match: 'exact',         name: '和文英訳①',           icon: 'nichiei'   },
+    { key: 'wabun1',    rawType: 'wabun1',                                 match: 'exact',         name: '和文英訳【超基礎】',   icon: 'nichiei'   },   // ★旧称：和文英訳①
     { key: 'lison',     rawType: 'lison',                                  match: 'exact',         name: '英語リスオン',        icon: 'lison'     },
     { key: 'kiso',      rawType: 'kiso_',                                  match: 'prefix',        name: '基礎計算',            icon: 'kisoK'     },
     { key: 'kanji',     rawType: 'kanji_',                                 match: 'prefix',        name: 'カンジー',            icon: 'kanjii'    },
@@ -15046,7 +15046,7 @@
     { name: 'マイカツ君',     content: 'マイ活アプリの親分', image: './character.jpg',                caption: '' },
     { name: 'RUSH君',         content: '英単語RUSH',         image: 'images/rushkun-default.png',     caption: '' },
     { name: 'サンゴタン',     content: '三語短文',           image: 'images/sangotan-default.png',    caption: '' },
-    { name: 'ニチエイ',       content: '和文英訳①',          image: 'images/nichiei-default.png',     caption: '' },
+    { name: 'ニチエイ',       content: '和文英訳【超基礎】',  image: 'images/nichiei-default.png',     caption: '' },   // ★旧称：和文英訳①
     { name: 'キソ"K"さん',    content: '基礎計算',           image: 'images/kisoK-default.png',       caption: '' },
     { name: 'リスオン',       content: '英語リスオン',       image: 'images/lison-default.png',       caption: '' },
     { name: 'カンジー',       content: 'カンジー',           image: 'images/kanjii-default.png',      caption: '' },
@@ -16664,7 +16664,8 @@
     }).catch(function(err){
       if (!_ow.isCurrent()) return;   // 生徒が取り消した／新しい読み取りに置き換わった → エラー表示も未送信記録もしない
       _ow.done();
-      try { _recordUnsentAwareness('和文英訳①(写真の読み取り)', 'wabun1_ocr'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+      // ★旧称：和文英訳①
+      try { _recordUnsentAwareness('和文英訳【超基礎】(写真の読み取り)', 'wabun1_ocr'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
       var emsg = (err && err.message) ? err.message : String(err);
       showMsg('wabun1-camera-msg', 'エラー：' + emsg, 'ng');
       document.getElementById('wabun1-photo-input').value = '';
@@ -24972,7 +24973,11 @@
       //   サーバーで採点完了したのにフロントが先に諦めて結果が届かない事象があったため。
       // 2026-11-17：120→135 秒（カンジー書きのみ）。採点失敗の 93% がタイムアウトと AWS 側で確定したため、
       //   サーバー側を延ばす前に端末側を先に上げる（★順番が逆だと今より悪化する）。
-      //   ★この時点では nginx（130 秒）のほうが短いので、実際の打ち切りは 130 秒側で起きる。
+      //   ★2026-11-18：サーバー側も [60,60] に変更済み（★本番反映済み）。これで待ち時間の関係は次のとおり：
+      //     ★端末 135 秒 ＞ nginx 130 秒 ＞ ★サーバーの最悪 120.5 秒（＝60 + 0.5 + 60）。
+      //     ★サーバーが最悪まで粘っても 120.5 秒で、★端末 135 秒にも nginx 130 秒にも届かない。
+      //     ★★したがって nginx を上げる作業は★不要。この行を読んで「nginx を上げる必要がある」と誤解しないこと。
+      //     ★経緯：古いコメント（旧「打ち切りは 130 秒側で起きる」）のせいで同じ誤解が 3 回繰り返された。
       gasPost(payload, 135000).then(_onKanjiKakiRes).catch(function(err){
         // 2026-10 (B)：待ち時間切れ（135 秒）は、サーバーでは採点が終わっている可能性があるので
         //   getKanjiKakiResult に問い合わせる。見つかれば通常の結果処理へ、
@@ -28644,7 +28649,7 @@
     submitAttemptV2:  '英単語RUSH',
     submitReflection: '振り返り',
     submitSango:      '三語短文',
-    submitWabun1:     '和文英訳①',
+    submitWabun1:     '和文英訳【超基礎】',   // ★旧称：和文英訳①
     submitLison:      '英語リスオン'
   };
 
@@ -28743,7 +28748,8 @@
     kanji:  'カンジー(LINEへ送り直す)',
     eiken5: '英単語RUSH(5級)(LINEへ送り直す)',  // 2026-09-02：書き取り画面のホームを差し替えたぶん
     sango:  '三語短文(LINEへ送り直す)',
-    wabun1: '和文英訳①(LINEへ送り直す)'   // 2026-09-02：問題画面のホームを差し替えたぶん
+    // ★旧称：和文英訳①
+    wabun1: '和文英訳【超基礎】(LINEへ送り直す)'   // 2026-09-02：問題画面のホームを差し替えたぶん
   };
   var _photoEscapeFailed = {};   // contentKey -> true（写真送信に失敗した後だけ true）
   var _photoEscapePending = '';  // 案内オーバーレイで「分かりました」を待っているコンテンツ
@@ -28763,12 +28769,18 @@
   // 2026-09-02：この端末に「未送信の印」が残っているコンテンツを見分けるための頭文字。
   //   ★印のラベル（_recordUnsentAwareness の第1引数）は必ずコンテンツ名で始まるので、それで判別する。
   //   ★eiken5 は「英単語RUSH(5級)」まで見る。V1の4択は「英単語RUSH」なので、短い方だと取り違える。
+  //   ★2026-11-19：全キーを配列に揃えた（1つだけ配列にすると「配列にも文字列にも対応」という分岐が増えるため）。
+  //     他のコンテンツは要素1つ。★挙動は変わらない。
   var PHOTO_ESCAPE_MARK_PREFIX = {
-    kiso:   '基礎計算',
-    kanji:  'カンジー',
-    eiken5: '英単語RUSH(5級)',
-    sango:  '三語短文',
-    wabun1: '和文英訳①'
+    kiso:   ['基礎計算'],
+    kanji:  ['カンジー'],
+    eiken5: ['英単語RUSH(5級)'],
+    sango:  ['三語短文'],
+    // ★旧称：和文英訳①
+    //   ★旧名を必ず残すこと。印は生徒の端末（localStorage: mykt_unsent_manual）に残り続けるので、
+    //   改名前に付いた印は「和文英訳①…」で始まったままになる。新名称だけにすると前方一致が外れ、
+    //   いま写真を送れていない生徒の「LINEへ送り直す」ボタンが★黙って消える（エラーも出ない）。
+    wabun1: ['和文英訳【超基礎】', '和文英訳①'],
   };
   // 2026-09-02：メモリのフラグは読み込み直すと消えるので、この端末に残る未送信の印でも見る。
   //   ★保存先は 2026-09-01 の mykt_unsent_manual をそのまま読むだけ（新しい保存先は作らない）。
@@ -28776,8 +28788,8 @@
   //     これを数えると、一度逃げ道を使っただけで以後ずっとボタンが出続けてしまう。
   function _photoEscapeHasUnsentMark(key) {
     try {
-      var pre = PHOTO_ESCAPE_MARK_PREFIX[key];
-      if (!pre) return false;
+      var pres = PHOTO_ESCAPE_MARK_PREFIX[key];
+      if (!pres || !pres.length) return false;
       var sid = String(_studentId || '').trim();
       if (!sid) return false;
       var a = _unsentManualLoad();
@@ -28788,7 +28800,7 @@
         // 2026-09-02：LINE案内を通った記録は mykt_line_handoff に移したので、
         //   ここにはもう入ってこない。★古い端末に残っている分だけを弾くための保険として残す。
         if (lb.indexOf('(LINEへ送り直す)') >= 0) continue;
-        if (lb.indexOf(pre) === 0) return true;
+        for (var p = 0; p < pres.length; p++) { if (lb.indexOf(pres[p]) === 0) return true; }
       }
     } catch(e){}
     return false;
@@ -28968,7 +28980,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261117-2148</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-0005</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

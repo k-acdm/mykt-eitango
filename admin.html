@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261117-2148"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261120-0005"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -1283,7 +1283,7 @@
     <button type="button" class="dashboard-card" onclick="goAdminAnswerCheckHub()">
       <div class="dashboard-card-icon">📷</div>
       <div class="dashboard-card-title">解答確認</div>
-      <div class="dashboard-card-desc">基礎計算 / リスオン / 三語短文 / 和文英訳① / マイ課題 / オリワンテス</div>
+      <div class="dashboard-card-desc">基礎計算 / リスオン / 三語短文 / 和文英訳【超基礎】 / マイ課題 / オリワンテス</div>   <!-- ★旧称：和文英訳① -->
     </button>
     <!-- bottom-nav (2026-08-07)：上部ボタンを最下部にも複製 -->
     <div class="admin-bottom-nav">
@@ -1601,7 +1601,7 @@
     </button>
     <button type="button" class="dashboard-card" onclick="goAdminForm('wabun1-submissions')">
       <div class="dashboard-card-icon">📋</div>
-      <div class="dashboard-card-title">和文英訳① 提出</div>
+      <div class="dashboard-card-title">和文英訳【超基礎】 提出</div>   <!-- ★旧称：和文英訳① -->
       <div class="dashboard-card-desc">生徒の提出一覧を閲覧・先生コメントを入力</div>
     </button>
     <button type="button" class="dashboard-card" onclick="goAdminMyTaskStudents()">
@@ -1675,7 +1675,7 @@
     </button>
     <button type="button" class="dashboard-card admin-only" onclick="goAdminForm('wabun1-topic')">
       <div class="dashboard-card-icon">📝</div>
-      <div class="dashboard-card-title">和文英訳①</div>
+      <div class="dashboard-card-title">和文英訳【超基礎】</div>   <!-- ★旧称：和文英訳① -->
       <div class="dashboard-card-desc">問題・正解の週単位一括登録（Excel コピペ）</div>
     </button>
     <button type="button" id="dash-card-lison-input" class="dashboard-card admin-only" onclick="goAdminLisonInput()">
@@ -1869,7 +1869,7 @@
     <button type="button" id="dash-card-required-missions" class="dashboard-card admin-only" onclick="goAdminRequiredMissions()">
       <div class="dashboard-card-icon">🎯</div>
       <div class="dashboard-card-title">絶対ミッション設定</div>
-      <div class="dashboard-card-desc">各生徒の絶対ミッション（英単語RUSH / 三語短文 / 和文英訳① / 基礎計算 / カンジー）を切替</div>
+      <div class="dashboard-card-desc">各生徒の絶対ミッション（英単語RUSH / 三語短文 / 和文英訳【超基礎】 / 基礎計算 / カンジー）を切替</div>   <!-- ★旧称：和文英訳① -->
     </button>
     <!-- 2026-10-23 段階4：退塾処理 / ID停止ペナルティ（admin専用・この2枚はハブの一番下に追加） -->
     <button type="button" id="dash-card-withdrawal" class="dashboard-card admin-only" onclick="goAdminWithdrawal()">
@@ -2011,7 +2011,7 @@
       <div class="ni-row">
         <select id="pd-content" onchange="pdOnContentChange()">
           <option value="">-- コンテンツを選んでください --</option>
-          <option value="wabun1">和文英訳①</option>
+          <option value="wabun1">和文英訳【超基礎】</option>   <!-- ★旧称：和文英訳① -->
           <option value="kanji">漢字（カンジー）</option>
           <option value="kiso">基礎計算</option>
           <option value="eitango">英単語RUSH</option>
@@ -2698,7 +2698,7 @@
 </div>
 <div id="screen-admin-form-wabun1-topic" class="screen">
   <header>
-    <h1>📝 和文英訳①</h1>
+    <h1>📝 和文英訳【超基礎】</h1>   <!-- ★旧称：和文英訳① -->
     <div class="header-btns">
       <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
@@ -2711,7 +2711,7 @@
 </div>
 <div id="screen-admin-form-wabun1-submissions" class="screen">
   <header>
-    <h1>📋 和文英訳① 提出</h1>
+    <h1>📋 和文英訳【超基礎】 提出</h1>   <!-- ★旧称：和文英訳① -->
     <div class="header-btns">
       <button class="logout-btn" onclick="goAdminDashboard()">🏠 ダッシュボード</button>
       <button class="logout-btn logout" onclick="doAdminLogout()">🚪<span class="btn-label"> ログアウト</span></button>
@@ -3747,7 +3747,7 @@
             <tr><td>ログインボーナス</td><td>10HP</td><td>1日（初回ログイン時）</td><td>10HP</td></tr>
             <tr><td>英単語RUSH</td><td>50HP</td><td>1セット合格</td><td>—（複数セット可）</td></tr>
             <tr><td>三語短文</td><td>200HP</td><td>1日 1 回（提出時）</td><td>200HP</td></tr>
-            <tr><td>和文英訳①</td><td>200HP</td><td>1日 1 回（全問正解時）</td><td>200HP</td></tr>
+            <tr><td>和文英訳【超基礎】</td><td>200HP</td><td>1日 1 回（全問正解時）</td><td>200HP</td></tr>   <!-- ★旧称：和文英訳① -->
             <tr><td rowspan="2">基礎計算</td><td>50HP</td><td>5 問セット合格</td><td rowspan="2">100HP</td></tr>
             <tr><td>100HP</td><td>10 問セット合格</td></tr>
             <tr><td rowspan="2">英語リスオン</td><td>100HP</td><td>4 級 / 3 級 / 準2 級（1日1レベル）</td><td rowspan="2">200HP</td></tr>
@@ -3764,7 +3764,7 @@
       </details>
       <label>
         <span class="form-label">付与理由 <span class="form-required">必須</span></span>
-        <textarea id="hp-grant-reason" placeholder="例：和文英訳①の判定基準改善のお詫び付与"></textarea>
+        <textarea id="hp-grant-reason" placeholder="例：和文英訳【超基礎】の判定基準改善のお詫び付与"></textarea>   <!-- ★旧称：和文英訳① -->
         <span class="form-hint">HPLog の message 列に保存されます。</span>
       </label>
       <label class="hp-grant-checkbox-row">
@@ -4466,7 +4466,7 @@
     <div class="admin-mgmt-lead">
       各生徒の <strong>絶対ミッション</strong>（両輪システムで「やったら得 + やらないと損」となるコンテンツ）を切り替えます。<br>
       <strong>英単語RUSH / 三語短文</strong>：学齢に関係なく ON/OFF 可（高校生も opt-in 可能）。<br>
-      <strong>和文英訳① / カンジー</strong>：小・中学生のみ ON 可（学齢設定が必要）。<br>
+      <strong>和文英訳【超基礎】 / カンジー</strong>：小・中学生のみ ON 可（学齢設定が必要）。<br>   <!-- ★旧称：和文英訳① -->
       <strong>基礎計算</strong>：中学生のみ ON 可（教科内容上の妥当性ガード）。<br>
       トグルで TRUE / FALSE を切替（その場で保存、空欄は FALSE 扱い）。
     </div>
@@ -4952,12 +4952,12 @@
   // --- 和文英訳①：問題＋正解の週単位一括登録 ---
   registerAdminModule({
     id: 'wabun1-topic',
-    label: '📝 和文英訳①',
+    label: '📝 和文英訳【超基礎】',   // ★旧称：和文英訳①
     type: 'custom',
     render: function(section) {
       section.innerHTML =
         '<div class="form-card">' +
-          '<h2>📝 和文英訳① 問題・正解の一括登録（Excelコピペ）</h2>' +
+          '<h2>📝 和文英訳【超基礎】 問題・正解の一括登録（Excelコピペ）</h2>' +   // ★旧称：和文英訳①
           '<label><span class="label-text">週の開始日（月曜日）<span class="req">*</span></span>' +
             '<input type="date" id="wabun1-paste-start" onchange="previewWabun1Paste()" />' +
           '</label>' +
@@ -4986,12 +4986,12 @@
   // --- 和文英訳①：提出一覧 ---
   registerAdminModule({
     id: 'wabun1-submissions',
-    label: '📋 和文英訳① 提出',
+    label: '📋 和文英訳【超基礎】 提出',   // ★旧称：和文英訳①
     type: 'custom',
     render: function(section) {
       section.innerHTML =
         '<div class="form-card">' +
-          '<h2>📋 和文英訳① 提出一覧</h2>' +
+          '<h2>📋 和文英訳【超基礎】 提出一覧</h2>' +   // ★旧称：和文英訳①
           '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">' +
             '<label style="flex:1;min-width:140px"><span class="label-text" style="font-size:12px">日付（任意）</span>' +
               '<input type="date" id="wabun1-filter-date" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px" />' +
@@ -9145,7 +9145,7 @@
     body.innerHTML = tabBar +
       '<table class="admin-mgmt-table">' +
         '<thead><tr>' +
-          '<th>生徒名</th><th>学齢</th><th>英単語RUSH</th><th>三語短文</th><th>和文英訳①</th><th>基礎計算</th><th>カンジー</th>' +
+          '<th>生徒名</th><th>学齢</th><th>英単語RUSH</th><th>三語短文</th><th>和文英訳【超基礎】</th><th>基礎計算</th><th>カンジー</th>' +   // ★旧称：和文英訳①
         '</tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>';
@@ -11665,7 +11665,7 @@
     out += _dwAudioSection('🎧 リスオン録音',     works.lison);
     out += _dwOriwantesSection('🧩 オリワンテス', works.oriwantes);
     out += _dwTextSection('🐠 三語短文',          works.sango,  'sango',  sid, curWeek);
-    out += _dwTextSection('📘 和文英訳①',         works.wabun1, 'wabun1', sid, curWeek);
+    out += _dwTextSection('📘 和文英訳【超基礎】',         works.wabun1, 'wabun1', sid, curWeek);   // ★旧称：和文英訳①
     out += _dwKokugoSection('📖 国語長文 感想文',  works.kokugo);   // 2026-10-25 純追加（サーバー未反映なら works.kokugo が無い＝何も出さない）
     out += _dwApologySection('🙏 写真送信不具合のお詫び', works.apology);   // 2026-08-25 純追加
     if (!out) return linkHtml + '<div class="dw-empty">この日の提出作品はありません。</div>';
@@ -13803,7 +13803,7 @@
   var QEDIT_CONTENTS = [
     { value: '',           label: 'すべて',               contentKey: '' },
     { value: 'eitango',    label: '英単語RUSH',           contentKey: 'eitango' },
-    { value: 'wabun1',     label: '和文英訳①',           contentKey: 'wabun1' },
+    { value: 'wabun1',     label: '和文英訳【超基礎】',   contentKey: 'wabun1' },   // ★旧称：和文英訳①
     { value: 'sango',      label: '三語短文',             contentKey: 'sango' },
     { value: 'kanji_yomi', label: '漢字カンジー（読み）', contentKey: 'kanji', subject: 'yomi' },
     { value: 'kanji_kaki', label: '漢字カンジー（書き）', contentKey: 'kanji', subject: 'kaki' },
@@ -13825,7 +13825,7 @@
   // フォールバック（label が無い場合のみ使用）。index の content_key 実態に合わせる。
   function _qeditContentLabel(ck) {
     var m = {
-      eitango: '英単語RUSH', wabun1: '和文英訳①', sango: '三語短文',
+      eitango: '英単語RUSH', wabun1: '和文英訳【超基礎】', sango: '三語短文',   // ★旧称：和文英訳①
       kanji: '漢字カンジー', kiso: '基礎計算', kobun: '古文単語コブタン',
       rika: '理科（重要語句）', shakai: '社会（重要語句）',
       kokugo: '国語長文', phonics: 'フォニックス', lison: '英語リスオン',
@@ -16321,6 +16321,29 @@
     _attachTopScrollbar(wrap);   // ★2026-11-04：表の上にもスクロールバーを出す（描き直すたびに作り直す）
   }
 
+  // ★★2026-11-19 出題の一覧（画像のすぐ上に出す）。サーバー AWS 59c85e3 で expected[].questionText が1キー純追加された。
+  //   返る形 { no, kanjiId, answer, questionText }。★番号は no をそのまま出す（kanjiId の q 番号ではない＝ずれる）。
+  //   ★questionText は空文字のことがある（マスタに該当が無いとき）／★キー自体が無いこともある（サーバーが本番に出る前）。
+  //     どちらの場合も「2. → 脅威」と正解だけ出す（★読みの問題文は出さない＝塾長決定）。
+  //   ★expected が無い・配列でない・空の古い行は空文字を返す＝これまでと同じ見た目のまま落ちない。
+  //   ★見た目は既存の .ni-lead（この画面の説明文で使用中）を流用＝新しい CSS は1行も増やしていない。
+  function _kfExpectedHtml(r) {
+    var list = r && r.expected;
+    if (!list || Object.prototype.toString.call(list) !== '[object Array]' || !list.length) return '';
+    var rows = [];
+    for (var k = 0; k < list.length; k++) {
+      var e = list[k] || {};
+      var no  = (e.no == null) ? '' : String(e.no);
+      var qt  = (e.questionText == null) ? '' : String(e.questionText);
+      var ans = (e.answer == null) ? '' : String(e.answer);
+      var n = Number(e.no);
+      rows.push({ n: isFinite(n) ? n : 0, i: k,
+                  html: _esc(no) + '. ' + (qt ? _esc(qt) + ' → ' : '→ ') + _esc(ans) });
+    }
+    rows.sort(function(a, b){ return (a.n - b.n) || (a.i - b.i); });   // ★番号順。no が無い行は元の並びのまま前に出る
+    return '<div class="ni-lead">' + rows.map(function(x){ return x.html; }).join('<br>') + '</div>';
+  }
+
   // 画像は base64 で返るので data: URL にして <img> に入れる（外部ライブラリは使わない）。
   //   ★表は横スクロールするので、画像は表の外の専用パネル（#kf-img-panel）に出す。
   function kfCloseImage() {
@@ -16337,26 +16360,27 @@
                  '（' + _esc(String(r.level || '')) + '級 / セット ' + _esc(String(r.setNos || '')) + '）</span>' +
                  '<button type="button" class="btn-mini" onclick="kfCloseImage()">✕ 閉じる</button>' +
                '</div>';
+    var exp = _kfExpectedHtml(r);   // ★2026-11-19 出題の一覧。expected が無い／空なら '' ＝従来どおりの見た目。
     p.setAttribute('data-row', String(i));
     p.style.display = '';
-    p.innerHTML = head + '<div class="students-empty">⏳ 画像を読み込み中...</div>';
+    p.innerHTML = head + exp + '<div class="students-empty">⏳ 画像を読み込み中...</div>';
     try { p.scrollIntoView({ block: 'nearest' }); } catch(e){}
     adminGasGet({ action: 'adminGetKanjiFailedAnswerImage', id: Number(r.id), _ts: Date.now() }).then(function(res) {
       if (p.getAttribute('data-row') !== String(i)) return;   // 別の行に切り替わっていたら捨てる
       if (!res || !res.ok) {
         var m = _pxErr(res);
         if (_handleAdminApiError(m)) { kfCloseImage(); return; }
-        p.innerHTML = head + '<div class="students-empty">' + _esc(m) + '</div>';
+        p.innerHTML = head + exp + '<div class="students-empty">' + _esc(m) + '</div>';
         return;
       }
       var mime = res.mime || 'image/jpeg';
-      p.innerHTML = head +
+      p.innerHTML = head + exp +
         '<img src="data:' + _esc(mime) + ';base64,' + _esc(res.base64 || '') + '" alt="答案">' +
         '<div class="kf-img-meta">' + _esc(res.fileName || '') +
         (res.sizeBytes ? '（' + Number(res.sizeBytes).toLocaleString() + ' バイト）' : '') + '</div>';
     }).catch(function() {
       if (p.getAttribute('data-row') !== String(i)) return;
-      p.innerHTML = head + '<div class="students-empty">通信エラーが発生しました</div>';
+      p.innerHTML = head + exp + '<div class="students-empty">通信エラーが発生しました</div>';
     });
   }
 
@@ -16368,7 +16392,7 @@
   }
 
   // ================= 【B】コンテンツの代理実施 =================
-  var PD_CONTENT_LABELS = { wabun1: '和文英訳①', kanji: '漢字（カンジー）', kiso: '基礎計算', eitango: '英単語RUSH', sango: '三語短文' };
+  var PD_CONTENT_LABELS = { wabun1: '和文英訳【超基礎】', kanji: '漢字（カンジー）', kiso: '基礎計算', eitango: '英単語RUSH', sango: '三語短文' };   // ★旧称：和文英訳①
 
   function goAdminProxyDone(prefill) {
     _showScreen('screen-admin-proxy-done');
@@ -16895,7 +16919,7 @@
       }
     },
     {
-      label: '和文英訳①',
+      label: '和文英訳【超基礎】',   // ★旧称：和文英訳①
       render: function(d) {
         if (!d.wabun1 || !d.wabun1.done) return CHILD_NG;
         var hp = Number(d.wabun1.hpGained || 0);
@@ -19828,7 +19852,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261117-2148</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-0005</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
