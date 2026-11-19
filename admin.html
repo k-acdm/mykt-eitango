@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261118-0440"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261119-2148"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -16321,6 +16321,29 @@
     _attachTopScrollbar(wrap);   // ★2026-11-04：表の上にもスクロールバーを出す（描き直すたびに作り直す）
   }
 
+  // ★★2026-11-19 出題の一覧（画像のすぐ上に出す）。サーバー AWS 59c85e3 で expected[].questionText が1キー純追加された。
+  //   返る形 { no, kanjiId, answer, questionText }。★番号は no をそのまま出す（kanjiId の q 番号ではない＝ずれる）。
+  //   ★questionText は空文字のことがある（マスタに該当が無いとき）／★キー自体が無いこともある（サーバーが本番に出る前）。
+  //     どちらの場合も「2. → 脅威」と正解だけ出す（★読みの問題文は出さない＝塾長決定）。
+  //   ★expected が無い・配列でない・空の古い行は空文字を返す＝これまでと同じ見た目のまま落ちない。
+  //   ★見た目は既存の .ni-lead（この画面の説明文で使用中）を流用＝新しい CSS は1行も増やしていない。
+  function _kfExpectedHtml(r) {
+    var list = r && r.expected;
+    if (!list || Object.prototype.toString.call(list) !== '[object Array]' || !list.length) return '';
+    var rows = [];
+    for (var k = 0; k < list.length; k++) {
+      var e = list[k] || {};
+      var no  = (e.no == null) ? '' : String(e.no);
+      var qt  = (e.questionText == null) ? '' : String(e.questionText);
+      var ans = (e.answer == null) ? '' : String(e.answer);
+      var n = Number(e.no);
+      rows.push({ n: isFinite(n) ? n : 0, i: k,
+                  html: _esc(no) + '. ' + (qt ? _esc(qt) + ' → ' : '→ ') + _esc(ans) });
+    }
+    rows.sort(function(a, b){ return (a.n - b.n) || (a.i - b.i); });   // ★番号順。no が無い行は元の並びのまま前に出る
+    return '<div class="ni-lead">' + rows.map(function(x){ return x.html; }).join('<br>') + '</div>';
+  }
+
   // 画像は base64 で返るので data: URL にして <img> に入れる（外部ライブラリは使わない）。
   //   ★表は横スクロールするので、画像は表の外の専用パネル（#kf-img-panel）に出す。
   function kfCloseImage() {
@@ -16337,26 +16360,27 @@
                  '（' + _esc(String(r.level || '')) + '級 / セット ' + _esc(String(r.setNos || '')) + '）</span>' +
                  '<button type="button" class="btn-mini" onclick="kfCloseImage()">✕ 閉じる</button>' +
                '</div>';
+    var exp = _kfExpectedHtml(r);   // ★2026-11-19 出題の一覧。expected が無い／空なら '' ＝従来どおりの見た目。
     p.setAttribute('data-row', String(i));
     p.style.display = '';
-    p.innerHTML = head + '<div class="students-empty">⏳ 画像を読み込み中...</div>';
+    p.innerHTML = head + exp + '<div class="students-empty">⏳ 画像を読み込み中...</div>';
     try { p.scrollIntoView({ block: 'nearest' }); } catch(e){}
     adminGasGet({ action: 'adminGetKanjiFailedAnswerImage', id: Number(r.id), _ts: Date.now() }).then(function(res) {
       if (p.getAttribute('data-row') !== String(i)) return;   // 別の行に切り替わっていたら捨てる
       if (!res || !res.ok) {
         var m = _pxErr(res);
         if (_handleAdminApiError(m)) { kfCloseImage(); return; }
-        p.innerHTML = head + '<div class="students-empty">' + _esc(m) + '</div>';
+        p.innerHTML = head + exp + '<div class="students-empty">' + _esc(m) + '</div>';
         return;
       }
       var mime = res.mime || 'image/jpeg';
-      p.innerHTML = head +
+      p.innerHTML = head + exp +
         '<img src="data:' + _esc(mime) + ';base64,' + _esc(res.base64 || '') + '" alt="答案">' +
         '<div class="kf-img-meta">' + _esc(res.fileName || '') +
         (res.sizeBytes ? '（' + Number(res.sizeBytes).toLocaleString() + ' バイト）' : '') + '</div>';
     }).catch(function() {
       if (p.getAttribute('data-row') !== String(i)) return;
-      p.innerHTML = head + '<div class="students-empty">通信エラーが発生しました</div>';
+      p.innerHTML = head + exp + '<div class="students-empty">通信エラーが発生しました</div>';
     });
   }
 
@@ -19828,7 +19852,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261118-0440</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261119-2148</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
