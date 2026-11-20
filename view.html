@@ -1773,7 +1773,9 @@
   //   ・15日で削除された行（hasRecording=false）は「録音は保存期間（15日）を過ぎました」表示・再生不可・エラーにしない。
   //     取り組み履歴（level/weekStart/quizScore）は残して見せる（達成度と整合）。
   // ============================
-  var LISON_LEVEL_LABELS = { '4':'英検4級', '3':'英検3級', 'pre2':'英検準2級', '2':'英検2級', 'pre1':'英検準1級' };
+  // ★2026-11-20：準2級プラス（pre2plus）と1級（1）が抜けていて、録音の見出しが「英検pre2plus級」と出ていた。
+  //   ★表記は生徒画面の LISON_LEVEL_DEFS（index.html・正）から「レベル」を落とした形＝この表の既存5件と同じ作法に揃える。
+  var LISON_LEVEL_LABELS = { '4':'英検4級', '3':'英検3級', 'pre2':'英検準2級', 'pre2plus':'英検準2級プラス', '2':'英検2級', 'pre1':'英検準1級', '1':'英検1級' };
   function _lisonLevelLabel(lv) {
     var v = String(lv || '').trim();
     return LISON_LEVEL_LABELS[v] || (v ? ('英検' + v + '級') : 'リスオン');
@@ -2450,7 +2452,7 @@
     } catch (e) { console.warn('[view auto-login init]', e); }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-0005</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-2226</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

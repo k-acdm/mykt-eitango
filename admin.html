@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261120-0005"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261120-2226"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -2016,6 +2016,8 @@
           <option value="kiso">基礎計算</option>
           <option value="eitango">英単語RUSH</option>
           <option value="sango">三語短文</option>
+          <option value="mytask">マイ課題</option>
+          <option value="lison">英語リスオン</option>
         </select>
       </div>
       <!-- コンテンツごとの条件（漢字＝級＋問数 / 基礎計算＝ランク＋問数 / 英単語RUSH＝grade＋groupType） -->
@@ -2060,12 +2062,42 @@
           </select>
         </div>
       </div>
+      <!-- ★2026-11-20 マイ課題：種別（必須）＋教科（宿題のときだけ必須）。他コンテンツの条件と同じ作り。
+           ★自主の提出は subject が NULL＝教科を持たないので、自主を選ぶと教科欄は隠れる（pdOnContentChange）。
+           ★教科の選択肢は既存の MYTASK_SUBJECTS から組み立てる（goAdminProxyDone）。 -->
+      <div id="pd-cond-mytask" class="proxy-cond" style="display:none">
+        <div class="pc-label">マイ課題の条件</div>
+        <div class="ni-row">
+          <select id="pd-mytask-tasktype" onchange="pdOnContentChange()">
+            <option value="self">自主</option>
+            <option value="homework">宿題</option>
+          </select>
+          <select id="pd-mytask-subject"></select>
+        </div>
+      </div>
+      <!-- ★2026-11-20 英語リスオン：レベル1つだけ（必須）。他コンテンツの条件と同じ作り。
+           ★進度はマイ課題と同じ扱い（PD_NO_PROGRESS）。rawHp 100／200 はレベルからサーバーが決める。
+           ★選択肢は生徒画面の LISON_LEVEL_DEFS（index.html）と同じ7つ。漢字の級と同じく静的に並べる。 -->
+      <div id="pd-cond-lison" class="proxy-cond" style="display:none">
+        <div class="pc-label">英語リスオンの条件</div>
+        <div class="ni-row">
+          <select id="pd-lison-level">
+            <option value="4">英検4級レベル</option>
+            <option value="3">英検3級レベル</option>
+            <option value="pre2">英検準2級レベル</option>
+            <option value="pre2plus">英検準2級プラスレベル</option>
+            <option value="2">英検2級レベル</option>
+            <option value="pre1">英検準1級レベル</option>
+            <option value="1">英検1級レベル</option>
+          </select>
+        </div>
+      </div>
       <div class="ni-row">
         <label style="font-size:13px;color:#555">教育日</label>
         <input type="date" id="pd-date" style="padding:10px 12px;font-size:15px;border:2px solid #e1e5ee;border-radius:8px;font-family:inherit" />
         <span style="font-size:12px;color:#636e72">空のままなら今日。前日は 04:00〜04:04 の間だけ受け付けます</span>
       </div>
-      <label class="proxy-check">
+      <label class="proxy-check" id="pd-advance-row">
         <input type="checkbox" id="pd-advance" />
         <span>出題の進度も一つ進める</span>
       </label>
@@ -10439,7 +10471,9 @@
   var _lisonRecListCache   = {};
 
   // レベル文字列 → 表示ラベル
-  var LISON_LEVEL_LABELS = { '4':'4級', '3':'3級', 'pre2':'準2級', '2':'2級', 'pre1':'準1級' };
+  // ★2026-11-20：準2級プラス（pre2plus）と1級（1）が抜けていて、録音カードの級バッジが「pre2plus級」と出ていた。
+  //   ★名前は生徒画面の LISON_LEVEL_DEFS（index.html・正）に揃え、形はこの表の既存5件と同じ短い形にする（バッジが細いため）。
+  var LISON_LEVEL_LABELS = { '4':'4級', '3':'3級', 'pre2':'準2級', 'pre2plus':'準2級プラス', '2':'2級', 'pre1':'準1級', '1':'1級' };
   function _lisonLevelLabel(lv) { return LISON_LEVEL_LABELS[String(lv || '').trim()] || (String(lv || '') + '級'); }
 
   // ダッシュボードから生徒一覧画面へ
@@ -16392,7 +16426,15 @@
   }
 
   // ================= 【B】コンテンツの代理実施 =================
-  var PD_CONTENT_LABELS = { wabun1: '和文英訳【超基礎】', kanji: '漢字（カンジー）', kiso: '基礎計算', eitango: '英単語RUSH', sango: '三語短文' };   // ★旧称：和文英訳①
+  var PD_CONTENT_LABELS = { wabun1: '和文英訳【超基礎】', kanji: '漢字（カンジー）', kiso: '基礎計算', eitango: '英単語RUSH', sango: '三語短文', mytask: 'マイ課題', lison: '英語リスオン' };   // ★旧称：和文英訳①
+  // ★出題の進度を持たないコンテンツ（チェックを出さない・確認文にも出さない）
+  var PD_NO_PROGRESS = { mytask: true, lison: true };
+  // ★確認ダイアログ用のレベル名。選択肢（pd-lison-level）と同じ並び・同じ文言。
+  function _pdLisonLabel(v) {
+    var el = document.getElementById('pd-lison-level');
+    if (el) { for (var i = 0; i < el.options.length; i++) if (el.options[i].value === v) return el.options[i].text; }
+    return String(v || '');
+  }
 
   function goAdminProxyDone(prefill) {
     _showScreen('screen-admin-proxy-done');
@@ -16409,6 +16451,12 @@
       var o = '';
       for (var i = 1; i <= 20; i++) o += '<option value="' + i + '">ランク ' + i + '</option>';
       rk.innerHTML = o;
+    }
+    // マイ課題の教科（★既存の MYTASK_SUBJECTS をそのまま使う＝二重定義を作らない。初回だけ組み立て）
+    var mj = document.getElementById('pd-mytask-subject');
+    if (mj && (!mj.options || !mj.options.length)) {
+      mj.innerHTML = '<option value="">-- 教科を選んでください --</option>' +
+        MYTASK_SUBJECTS.map(function(s){ return '<option value="' + _esc(s) + '">' + _esc(s) + '</option>'; }).join('');
     }
     _pdShowResult('', '');
     var dEl = document.getElementById('pd-date');
@@ -16449,10 +16497,19 @@
 
   function pdOnContentChange() {
     var c = (document.getElementById('pd-content') || {}).value || '';
-    [['pd-cond-kanji', 'kanji'], ['pd-cond-kiso', 'kiso'], ['pd-cond-eitango', 'eitango']].forEach(function(p) {
+    [['pd-cond-kanji', 'kanji'], ['pd-cond-kiso', 'kiso'], ['pd-cond-eitango', 'eitango'], ['pd-cond-mytask', 'mytask'], ['pd-cond-lison', 'lison']].forEach(function(p) {
       var el = document.getElementById(p[0]);
       if (el) el.style.display = (c === p[1]) ? '' : 'none';
     });
+    // ★2026-11-20 マイ課題：自主は教科を持たない（提出の subject が NULL）ので、自主のときは教科欄を隠す。
+    var tt = (document.getElementById('pd-mytask-tasktype') || {}).value || '';
+    var sj = document.getElementById('pd-mytask-subject');
+    if (sj) sj.style.display = (c === 'mytask' && tt === 'homework') ? '' : 'none';
+    // ★マイ課題・リスオンに出題の進度は無いので、チェックそのものを出さない（入ったまま送られないよう外す）。
+    var ar = document.getElementById('pd-advance-row');
+    var ac = document.getElementById('pd-advance');
+    if (ar) ar.style.display = PD_NO_PROGRESS[c] ? 'none' : '';
+    if (PD_NO_PROGRESS[c] && ac) ac.checked = false;
   }
 
   function _pdShowResult(kind, html) {
@@ -16497,13 +16554,31 @@
       if (!gd || !gt) { _pdShowResult('ng', '⚠️ 級と出題種別を選んでください'); return; }
       p.grade = gd; p.groupType = gt;
       cond = gd + ' / ' + (gt === 'idiom' ? '熟語' : '単語');
+    } else if (c === 'mytask') {
+      // ★2026-11-20：種別は必須。教科は宿題のときだけ必須（自主の提出は subject が NULL＝教科を持たない）。
+      var tt = (document.getElementById('pd-mytask-tasktype') || {}).value || '';
+      if (!tt) { _pdShowResult('ng', '⚠️ 種別（自主／宿題）を選んでください'); return; }
+      p.taskType = tt;
+      cond = (tt === 'homework') ? '宿題' : '自主';
+      if (tt === 'homework') {
+        var sj = (document.getElementById('pd-mytask-subject') || {}).value || '';
+        if (!sj) { _pdShowResult('ng', '⚠️ 教科を選んでください'); return; }
+        p.subject = sj;                                // ★自主のときは送らない（教科を持たないため）
+        cond += ' / ' + sj;
+      }
+    } else if (c === 'lison') {
+      // ★2026-11-20：レベルだけ必須（rawHp 100／200 はレベルからサーバーが決める）。
+      var lz = (document.getElementById('pd-lison-level') || {}).value || '';
+      if (!lz) { _pdShowResult('ng', '⚠️ レベルを選んでください'); return; }
+      p.level = lz;
+      cond = _pdLisonLabel(lz);
     }
     // ★実行前の確認（誰に・何を・進度を進めるか）
     var msg = '代理で「実施済み」にします。よろしいですか？\n\n' +
               '生徒：' + _pdLabelOf(sid) + '\n' +
               'コンテンツ：' + (PD_CONTENT_LABELS[c] || c) + (cond ? '（' + cond + '）' : '') + '\n' +
               '教育日：' + (date || '今日（サーバーが判定）') + '\n' +
-              '出題の進度：' + (adv ? '★一つ進める' : '進めない') + '\n\n' +
+              (PD_NO_PROGRESS[c] ? '' : '出題の進度：' + (adv ? '★一つ進める' : '進めない') + '\n') + '\n' +   // ★マイ課題・リスオンに進度は無い
               'HP もその場で付きます。';
     if (!confirm(msg)) return;
     var btn = document.getElementById('pd-btn-run');
@@ -19852,7 +19927,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-0005</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-2226</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
