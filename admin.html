@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261120-2226"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261121-0550"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -1956,7 +1956,8 @@
       <h2>🧾 採点できなかった答案</h2>
       <div class="ni-lead">
         カンジーの「書き」で採点が失敗したときに保存された答案です（新しい順）。<br>
-        答案の画像を見て<b>正しく書けている</b>と確認できたら、その行の「→ 代理実施へ」から実施済みにできます。
+        答案の画像を見て<b>正しく書けている</b>と確認できたら、その行の「→ 代理実施へ」から実施済みにできます。<br>
+        答案に<b>誤りがあった</b>ときは代理実施をしないので、その行の「代理実施しない」で処理済みへ回してください（あとから「未処理に戻す」で戻せます）。
       </div>
       <div class="ni-row">
         <select id="kf-student" onfocus="kfEnsureStudents()">
@@ -16130,7 +16131,9 @@
   //   ★件数（_kfSyncTabUi）も一覧の絞り込み（_kfRenderList）も★この関数しか見ていないので、ここ1か所で両方そろう。
   // ★proxyDone / resolvedBySelf が無い応答（サーバー反映前の版がキャッシュに残っている等）は undefined になるので、
   //   ★=== true で見る＝無ければ「未処理」に入る（壊れない・取りこぼさない）。
-  function _kfIsDone(r) { return !!(r && (r.proxyDone === true || r.resolvedBySelf === true)); }
+  // ★★2026-11-21（確認待ち㉓）：declined＝「代理実施しない」で閉じた行。★proxyDone / resolvedBySelf と★同じ扱いで「処理済み」へ入れる。
+  //   ★★画面では3つを区別しない（★タブの見た目はそのまま）。★誰が・いつ閉じたかは「失敗の理由」の欄に添えて出す（★列は増やさない）。
+  function _kfIsDone(r) { return !!(r && (r.proxyDone === true || r.resolvedBySelf === true || r.declined === true)); }
   // タブの見た目（どちらが選ばれているか）と、ラベルの件数を書き換える。既存 _mrSyncTabUi と同じ作法。
   //   ★件数の出し方は既存に倣う（「ラベル（N）」。HP手動付与・マイ課題告知と同じ形）。
   function _kfSyncTabUi() {
@@ -16337,14 +16340,33 @@
       var img = r.hasImage
         ? '<button type="button" class="btn-mini" id="kf-img-btn-' + i + '" onclick="kfToggleImage(' + i + ')">🖼 画像を見る</button>'
         : '<span class="kf-noimg">なし</span>';
+      // ★★2026-11-21（確認待ち㉓）：「代理実施しない」で閉じた行は、誰が・いつ閉じたかを★既存の「失敗の理由」の欄に添える。
+      //   ★既存の .kf-noimg（薄いグレー 12px）を使い回す＝★新しい列も新しい CSS も増やさない。
+      var dec = (r.declined === true)
+        ? '<br><span class="kf-noimg">🚫 代理実施しない' +
+          ((r.declinedBy || r.declinedAt) ? '（' + _esc(String(r.declinedBy || '')) +
+            (r.declinedAt ? ' / ' + _esc(String(r.declinedAt)) : '') + '）' : '') + '</span>'
+        : '';
+      // ★操作欄に足すボタン。★既存の「→ 代理実施へ」は★そのまま（1バイトも変えない）。
+      //   ★declined の行＝「未処理に戻す」だけ出す。
+      //   ★★実際に代理実施した行（proxyDone）には★出さない（HP が動いているので、取り消しは別の判断が要る）。
+      //   ★サーバーが管理者限定なので、講師には出さない（押してもエラーになるだけのため）。
+      var act = '';
+      if (_pxIsAdmin()) {
+        if (r.declined === true) {
+          act = ' <button type="button" class="btn-mini" onclick="kfUndecline(' + i + ', this)">未処理に戻す</button>';
+        } else if (!_kfIsDone(r)) {
+          act = ' <button type="button" class="btn-mini" onclick="kfDecline(' + i + ', this)">代理実施しない</button>';
+        }
+      }
       return '<tr>' +
                '<td class="wd-when">' + _esc(r.occurredAt || '') + '</td>' +
                '<td>' + who + '</td>' +
                '<td>' + _esc(String(r.level || '')) + '</td>' +
                '<td>' + _esc(String(r.setNos || '')) + '</td>' +
-               '<td class="kf-reason">' + _esc(r.reasonMessage || r.reasonCode || '') + '</td>' +
+               '<td class="kf-reason">' + _esc(r.reasonMessage || r.reasonCode || '') + dec + '</td>' +
                '<td class="wd-actions">' + img + '</td>' +
-               '<td class="wd-actions"><button type="button" class="btn-mini" onclick="kfToProxy(' + i + ')">→ 代理実施へ</button></td>' +
+               '<td class="wd-actions"><button type="button" class="btn-mini" onclick="kfToProxy(' + i + ')">→ 代理実施へ</button>' + act + '</td>' +
              '</tr>';
     }).join('');
     wrap.innerHTML =
@@ -16424,6 +16446,35 @@
     if (!r) return;
     goAdminProxyDone({ studentId: String(r.studentId || ''), level: String(r.level || ''), count: String(r.count || ''), failedAnswerId: (r.id || 0) });
   }
+
+  // ★★2026-11-21（確認待ち㉓）：答案に誤りがあったときは代理実施をしないため、未処理に永久に残っていた。
+  //   ★「代理実施しない」で処理済みへ回し、★「未処理に戻す」で戻せるようにする。★理由の入力は作らない（塾長指定）。
+  //   ★サーバー（AWS bef2634）：adminDeclineKanjiFailedAnswer / adminUndeclineKanjiFailedAnswer（★どちらも POST・管理者限定）。
+  //   ★★already: true は「もう同じ状態だった」＝★成功として扱う（押し間違いの連打でエラーを出さない）。
+  //   ★送ったあとは kfLoadList() で引き直す＝件数とタブの振り分けを自分で計算しない（ずれようがない）。
+  //   ★ボタンの出し入れ・エラーの出し方は既存 cancelNoticeLineDelivery と同じ作法。
+  function _kfSetDeclined(i, action, okMsg, btn) {
+    var r = _kfRows[i];
+    if (!r || !r.id) return;
+    var orig = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 処理中...'; }
+    adminGasPost({ action: action, id: Number(r.id) }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = _pxErr(res);
+        if (_handleAdminApiError(em)) return;
+        if (btn) { btn.disabled = false; btn.textContent = orig; }
+        showToast('失敗：' + em, 'error');
+        return;
+      }
+      showToast(res.already === true ? (okMsg + '（すでに同じ状態でした）') : okMsg, 'success');
+      kfLoadList();
+    }).catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = orig; }
+      showToast('通信エラー', 'error');
+    });
+  }
+  function kfDecline(i, btn)   { _kfSetDeclined(i, 'adminDeclineKanjiFailedAnswer',   '「代理実施しない」で処理済みにしました', btn); }
+  function kfUndecline(i, btn) { _kfSetDeclined(i, 'adminUndeclineKanjiFailedAnswer', '未処理に戻しました', btn); }
 
   // ================= 【B】コンテンツの代理実施 =================
   var PD_CONTENT_LABELS = { wabun1: '和文英訳【超基礎】', kanji: '漢字（カンジー）', kiso: '基礎計算', eitango: '英単語RUSH', sango: '三語短文', mytask: 'マイ課題', lison: '英語リスオン' };   // ★旧称：和文英訳①
@@ -19927,7 +19978,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-2226</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261121-0550</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
