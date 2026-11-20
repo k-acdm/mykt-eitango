@@ -3760,10 +3760,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261120-0005"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261120-1903"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261120-0005">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261120-0005"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261120-1903">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261120-1903"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -28846,6 +28846,15 @@
     //     （＝どこかで除外を書き忘れて再発する、ということが起きない）。
     //   ★「LINEへ回した」事実は残す（生徒から報告があったときに辿れるようにするため）。
     try { _recordLineHandoff(PHOTO_ESCAPE_LABELS[key] || '写真(LINEへ送り直す)'); } catch(e){}
+    // ★2026-11-20：ここでサーバーへ1本送る（★塾長の画面に「LINE待ち」として上げるため）。
+    //   ★画面は「先生がそれを見てHPを付与します」と生徒に約束しているのに、これまでは端末の中に
+    //     留まり、別の用事で通知が飛ぶときの「参考」としてしか上がらなかった（＝1件も上がらない生徒がいた）。
+    //   ★撃ったら忘れる：完了を待たない（オーバーレイは上で既に閉じている＝生徒を待たせない）。
+    //     失敗しても _recordLineHandoff の端末記録が残るので、従来どおり次回ログインで届く。
+    //     .catch は握りつぶすだけ（再送しない）。recordContentStart（15350 / 16416 行）と同じ作法。
+    //   ★key が空のときは送らない（連打で2回目が走っても重複通知にしないため）。
+    //   ★受け口はサーバー側 e73727e。ラベルは PHOTO_ESCAPE_LABELS のまま（(LINEへ送り直す) 付き）。
+    if (key) { try { gasPost({ action: 'reportUnsentOnLogin', studentId: _studentId, lineWaitContent: PHOTO_ESCAPE_LABELS[key] || '写真' }, 20000).catch(function(){}); } catch(e){} }
     try { if (key) { _photoEscapeFailed[key] = false; _applyPhotoEscapeVisibility(key); } } catch(e){}
     // 2026-09-08：LINE案内後の最終行き先を学習コンテンツ画面へ（写真提出5コンテンツ一括。判定・仕組みは無変更）。
     try { goContentMenu(); } catch(e){}
@@ -28980,7 +28989,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-0005</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-1903</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
