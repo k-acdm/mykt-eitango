@@ -3760,10 +3760,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261120-1928"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261120-2034"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261120-1928">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261120-1928"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261120-2034">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261120-2034"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -5712,6 +5712,8 @@
   <div class="container" style="padding-top:16px">
     <div id="mytask-self-done-body"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <!-- ★2026-11-20：写真送信に失敗した後だけ出す逃げ道（基礎計算・カンジーと同じ形・同じ文言）。既定は非表示。 -->
+    <button class="btn-wide" id="photo-escape-mytask" style="display:none;margin-top:10px;background:linear-gradient(135deg,#94a3b8,#64748b);font-size:14px" onclick="photoEscapeToHome('mytask')">📱 写真送信が上手くいかない場合はこれを押してホーム画面へ</button>
   </div>
 </div>
 
@@ -5818,6 +5820,8 @@
   <div class="container" style="padding-top:16px">
     <div id="mytask-hw-done-body"></div>
     <button class="btn-wide" style="background:linear-gradient(135deg,#5ec8c8,#3aa8a8);margin-top:14px" onclick="goContentMenu()">📚 学習コンテンツ画面に戻る</button>
+    <!-- ★2026-11-20：写真送信に失敗した後だけ出す逃げ道（基礎計算・カンジーと同じ形・同じ文言）。既定は非表示。 -->
+    <button class="btn-wide" id="photo-escape-mytask-hw" style="display:none;margin-top:10px;background:linear-gradient(135deg,#94a3b8,#64748b);font-size:14px" onclick="photoEscapeToHome('mytask')">📱 写真送信が上手くいかない場合はこれを押してホーム画面へ</button>
   </div>
 </div>
 
@@ -20008,6 +20012,11 @@
     } catch(e){}
     // 「LINE へ回した」記録（写真系 _recordLineHandoff を流用。未送信の印とは別物）。
     try { _recordLineHandoff('英語リスオン(録音をLINEへ)'); } catch(e){}
+    // ★2026-11-20：ここでサーバーへ1本送る（★塾長の画面に「LINE待ち」として上げるため）。
+    //   ★画面は「先生がそれを聞いてHPを付与します」と生徒に約束しているのに、端末の中に留まっていた。
+    //   ★撃ったら忘れる：完了を待たない（オーバーレイは上で既に閉じている＝生徒を待たせない）。
+    //     .catch は握りつぶすだけ（再送しない）。_photoEscapeConfirmed（写真系）と同じ作法。
+    try { gasPost({ action: 'reportUnsentOnLogin', studentId: _studentId, lineWaitContent: '英語リスオン(録音をLINEへ)' }, 20000).catch(function(){}); } catch(e){}
     try { _lisonStopSpeakingAll(); } catch(e){}
     try { _lisonResetState(); } catch(e){}   // 録音ストリーム完全停止 + 状態リセット
     try { goContentMenu(); } catch(e){}
@@ -21068,7 +21077,7 @@
         results.push({ subject: subj, res: res, sentPhotos: photos, failedPhotos: [] });
         idx++; next();
       }, function(err){
-        try { _recordUnsentAwareness('マイ課題(宿題)', 'mytask_hw:' + subj); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+        try { _recordUnsentAwareness('マイ課題(宿題)', 'mytask_hw:' + subj); } catch(e){}  try { _markPhotoSendFailed('mytask'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
         results.push({ subject: subj, res: { ok: false, message: String(err && err.message ? err.message : err) }, sentPhotos: photos, failedPhotos: [] });
         idx++; next();
       });
@@ -21193,7 +21202,7 @@
       if (res && res.ok === true) _showReceivedOnOverlay('mytask');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
       _hideMyTaskSending(function(){ _afterMyTaskHwResend(i, res, sending); });
     }, function(err){
-      try { _recordUnsentAwareness('マイ課題(宿題の再送)', 'mytask_hw:' + subj); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+      try { _recordUnsentAwareness('マイ課題(宿題の再送)', 'mytask_hw:' + subj); } catch(e){}  try { _markPhotoSendFailed('mytask'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
       _hideMyTaskSending(function(){ _afterMyTaskHwResend(i, { ok: false, message: String(err && err.message ? err.message : err) }, sending); });
     });
   }
@@ -22659,7 +22668,7 @@
       if (res && res.ok === true) _showReceivedOnOverlay('mytask');   // 2026-08-18 確定文言：サーバーが受け取った後にだけ出す
       _hideMyTaskSending(function(){ _handleMyTaskResult(res, photos); });
     }).catch(function(err){
-      try { _recordUnsentAwareness('マイ課題(自主)', 'mytask_self'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
+      try { _recordUnsentAwareness('マイ課題(自主)', 'mytask_self'); } catch(e){}  try { _markPhotoSendFailed('mytask'); } catch(e){}  // 応急処置②：未送信を可視化（自動再送はしない＝二重HP付与を招かないため）
       _hideMyTaskSending(function(){ _handleMyTaskResult({ ok: false, message: String(err && err.message ? err.message : err) }, photos); });
     });
   }
@@ -25077,6 +25086,10 @@
       ? 'カンジー書き(採点失敗・答案はサーバーに届いた・ホームへ戻った)'
       : 'カンジー書き(送信失敗・答案は届いていない・ホームへ戻った)';
     try { _recordLineHandoff(label); } catch(e){}
+    // ★2026-11-20：'net'（＝答案がサーバーに届いていない）側だけ、その場でサーバーへ1本送る。
+    //   ★'server' 側は送らない。答案はサーバーに届いているので、塾長は答案そのものを見つけられる。
+    //   ★撃ったら忘れる：完了を待たない。.catch は握りつぶすだけ（_photoEscapeConfirmed と同じ作法）。
+    if (kind !== 'server') { try { gasPost({ action: 'reportUnsentOnLogin', studentId: _studentId, lineWaitContent: label }, 20000).catch(function(){}); } catch(e){} }
     try { goHome(); } catch(e){}
   }
   // （2026-10-24 以降は使っていない）2026-09-18：カンジー『書き』の採点がサーバー側で失敗（Gemini 落ち・429・通信・タイムアウト）した時の LINE 案内。
@@ -28749,7 +28762,9 @@
     eiken5: '英単語RUSH(5級)(LINEへ送り直す)',  // 2026-09-02：書き取り画面のホームを差し替えたぶん
     sango:  '三語短文(LINEへ送り直す)',
     // ★旧称：和文英訳①
-    wabun1: '和文英訳【超基礎】(LINEへ送り直す)'   // 2026-09-02：問題画面のホームを差し替えたぶん
+    wabun1: '和文英訳【超基礎】(LINEへ送り直す)',  // 2026-09-02：問題画面のホームを差し替えたぶん
+    // ★2026-11-20：マイ課題も代理実施の対象になった（サーバー 4daf482）ので、案内した先がちゃんと繋がる。
+    mytask: 'マイ課題(LINEへ送り直す)'
   };
   var _photoEscapeFailed = {};   // contentKey -> true（写真送信に失敗した後だけ true）
   var _photoEscapePending = '';  // 案内オーバーレイで「分かりました」を待っているコンテンツ
@@ -28764,7 +28779,8 @@
   }
   // 2026-08-31：同じコンテンツで逃げ道ボタンを2箇所以上に置くときの追加 id。
   //   ★カンジーは撮影確認画面（photo-escape-kanji）に加えて、書き画面にも置く。
-  var PHOTO_ESCAPE_EXTRA_IDS = { kanji: ['photo-escape-kanji-kaki'] };
+  //   ★マイ課題は自主の結果画面（photo-escape-mytask）に加えて、宿題の結果画面にも置く。
+  var PHOTO_ESCAPE_EXTRA_IDS = { kanji: ['photo-escape-kanji-kaki'], mytask: ['photo-escape-mytask-hw'] };
   // 失敗フラグに従って表示/非表示を反映する。★失敗していなければ必ず非表示。
   // 2026-09-02：この端末に「未送信の印」が残っているコンテンツを見分けるための頭文字。
   //   ★印のラベル（_recordUnsentAwareness の第1引数）は必ずコンテンツ名で始まるので、それで判別する。
@@ -28781,6 +28797,7 @@
     //   改名前に付いた印は「和文英訳①…」で始まったままになる。新名称だけにすると前方一致が外れ、
     //   いま写真を送れていない生徒の「LINEへ送り直す」ボタンが★黙って消える（エラーも出ない）。
     wabun1: ['和文英訳【超基礎】', '和文英訳①'],
+    mytask: ['マイ課題'],                           // ★2026-11-20 追加（印は 'マイ課題(自主)' 等で始まる）
   };
   // 2026-09-02：メモリのフラグは読み込み直すと消えるので、この端末に残る未送信の印でも見る。
   //   ★保存先は 2026-09-01 の mykt_unsent_manual をそのまま読むだけ（新しい保存先は作らない）。
@@ -28989,7 +29006,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-1928</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-2034</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

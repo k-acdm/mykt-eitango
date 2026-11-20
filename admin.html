@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261120-1928"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261120-2034"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -2017,6 +2017,7 @@
           <option value="eitango">英単語RUSH</option>
           <option value="sango">三語短文</option>
           <option value="mytask">マイ課題</option>
+          <option value="lison">英語リスオン</option>
         </select>
       </div>
       <!-- コンテンツごとの条件（漢字＝級＋問数 / 基礎計算＝ランク＋問数 / 英単語RUSH＝grade＋groupType） -->
@@ -2072,6 +2073,23 @@
             <option value="homework">宿題</option>
           </select>
           <select id="pd-mytask-subject"></select>
+        </div>
+      </div>
+      <!-- ★2026-11-20 英語リスオン：レベル1つだけ（必須）。他コンテンツの条件と同じ作り。
+           ★進度はマイ課題と同じ扱い（PD_NO_PROGRESS）。rawHp 100／200 はレベルからサーバーが決める。
+           ★選択肢は生徒画面の LISON_LEVEL_DEFS（index.html）と同じ7つ。漢字の級と同じく静的に並べる。 -->
+      <div id="pd-cond-lison" class="proxy-cond" style="display:none">
+        <div class="pc-label">英語リスオンの条件</div>
+        <div class="ni-row">
+          <select id="pd-lison-level">
+            <option value="4">英検4級レベル</option>
+            <option value="3">英検3級レベル</option>
+            <option value="pre2">英検準2級レベル</option>
+            <option value="pre2plus">英検準2級プラスレベル</option>
+            <option value="2">英検2級レベル</option>
+            <option value="pre1">英検準1級レベル</option>
+            <option value="1">英検1級レベル</option>
+          </select>
         </div>
       </div>
       <div class="ni-row">
@@ -16406,7 +16424,15 @@
   }
 
   // ================= 【B】コンテンツの代理実施 =================
-  var PD_CONTENT_LABELS = { wabun1: '和文英訳【超基礎】', kanji: '漢字（カンジー）', kiso: '基礎計算', eitango: '英単語RUSH', sango: '三語短文', mytask: 'マイ課題' };   // ★旧称：和文英訳①
+  var PD_CONTENT_LABELS = { wabun1: '和文英訳【超基礎】', kanji: '漢字（カンジー）', kiso: '基礎計算', eitango: '英単語RUSH', sango: '三語短文', mytask: 'マイ課題', lison: '英語リスオン' };   // ★旧称：和文英訳①
+  // ★出題の進度を持たないコンテンツ（チェックを出さない・確認文にも出さない）
+  var PD_NO_PROGRESS = { mytask: true, lison: true };
+  // ★確認ダイアログ用のレベル名。選択肢（pd-lison-level）と同じ並び・同じ文言。
+  function _pdLisonLabel(v) {
+    var el = document.getElementById('pd-lison-level');
+    if (el) { for (var i = 0; i < el.options.length; i++) if (el.options[i].value === v) return el.options[i].text; }
+    return String(v || '');
+  }
 
   function goAdminProxyDone(prefill) {
     _showScreen('screen-admin-proxy-done');
@@ -16469,7 +16495,7 @@
 
   function pdOnContentChange() {
     var c = (document.getElementById('pd-content') || {}).value || '';
-    [['pd-cond-kanji', 'kanji'], ['pd-cond-kiso', 'kiso'], ['pd-cond-eitango', 'eitango'], ['pd-cond-mytask', 'mytask']].forEach(function(p) {
+    [['pd-cond-kanji', 'kanji'], ['pd-cond-kiso', 'kiso'], ['pd-cond-eitango', 'eitango'], ['pd-cond-mytask', 'mytask'], ['pd-cond-lison', 'lison']].forEach(function(p) {
       var el = document.getElementById(p[0]);
       if (el) el.style.display = (c === p[1]) ? '' : 'none';
     });
@@ -16477,11 +16503,11 @@
     var tt = (document.getElementById('pd-mytask-tasktype') || {}).value || '';
     var sj = document.getElementById('pd-mytask-subject');
     if (sj) sj.style.display = (c === 'mytask' && tt === 'homework') ? '' : 'none';
-    // ★マイ課題に出題の進度は無いので、チェックそのものを出さない（入ったまま送られないよう外す）。
+    // ★マイ課題・リスオンに出題の進度は無いので、チェックそのものを出さない（入ったまま送られないよう外す）。
     var ar = document.getElementById('pd-advance-row');
     var ac = document.getElementById('pd-advance');
-    if (ar) ar.style.display = (c === 'mytask') ? 'none' : '';
-    if (c === 'mytask' && ac) ac.checked = false;
+    if (ar) ar.style.display = PD_NO_PROGRESS[c] ? 'none' : '';
+    if (PD_NO_PROGRESS[c] && ac) ac.checked = false;
   }
 
   function _pdShowResult(kind, html) {
@@ -16538,13 +16564,19 @@
         p.subject = sj;                                // ★自主のときは送らない（教科を持たないため）
         cond += ' / ' + sj;
       }
+    } else if (c === 'lison') {
+      // ★2026-11-20：レベルだけ必須（rawHp 100／200 はレベルからサーバーが決める）。
+      var lz = (document.getElementById('pd-lison-level') || {}).value || '';
+      if (!lz) { _pdShowResult('ng', '⚠️ レベルを選んでください'); return; }
+      p.level = lz;
+      cond = _pdLisonLabel(lz);
     }
     // ★実行前の確認（誰に・何を・進度を進めるか）
     var msg = '代理で「実施済み」にします。よろしいですか？\n\n' +
               '生徒：' + _pdLabelOf(sid) + '\n' +
               'コンテンツ：' + (PD_CONTENT_LABELS[c] || c) + (cond ? '（' + cond + '）' : '') + '\n' +
               '教育日：' + (date || '今日（サーバーが判定）') + '\n' +
-              (c === 'mytask' ? '' : '出題の進度：' + (adv ? '★一つ進める' : '進めない') + '\n') + '\n' +   // ★マイ課題に進度は無い
+              (PD_NO_PROGRESS[c] ? '' : '出題の進度：' + (adv ? '★一つ進める' : '進めない') + '\n') + '\n' +   // ★マイ課題・リスオンに進度は無い
               'HP もその場で付きます。';
     if (!confirm(msg)) return;
     var btn = document.getElementById('pd-btn-run');
@@ -19893,7 +19925,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-1928</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-2034</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
