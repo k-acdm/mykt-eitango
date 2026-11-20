@@ -3760,10 +3760,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261120-2034"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261120-2226"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261120-2034">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261120-2034"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261120-2226">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261120-2226"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -7239,15 +7239,13 @@
   </div>
 </div>
 
-<!-- 2026-09-18：カンジー「書き」の採点がサーバー側で失敗（Gemini 落ち・通信・タイムアウト）した時の案内。
-     lison-escape-overlay / photo-escape-overlay と同型（LINE へ回して先生が HP 付与）。
-     ★res.retake（写真がぼやけて読めない＝撮り直しで直る）には出さない。採点そのものが止まった時だけ。
-     「分かりました」→ _kanjiLineConfirmed() で LINE 回送を記録し goContentMenu へ（閉じ込め回避）。 -->
 <!-- 2026-10-24：カンジー「書き」で再送しても採点に失敗したときの案内（マイカツ君）。「分かりました」でホームへ。
      ★生徒の操作は不要。「LINEに送って」とは書かない。2026-10-24 塾長判断で2種類に分けた：
      ・kanji-giveup-overlay      … 答案がサーバーに残った失敗（res.answerSaved === true）。採点は止まったが答案は届いている
      ・kanji-giveup-net-overlay  … 答案が残らなかった失敗（answerSaved が false／項目なし・通信エラー・待ち時間切れ）。
-                                    ★認証切れ等で採点まで届かなかった場合もこちら。「届いています」とは言わない -->
+                                    ★認証切れ等で採点まで届かなかった場合もこちら。「届いています」とは言わない
+     ★2026-11-20（塾長判断）：net 側の文言を他6経路（photo-escape / lison-escape）に揃えた。旧：「あとで先生に伝えてください」
+       → 新：LINE に送り直す案内＋HP 付与の約束。「分かりました」で塾長の画面に【LINE待ち】として上がる（98519ec）。 -->
 <div id="kanji-giveup-overlay" class="mykt-overlay">
   <div class="mykt-overlay-card">
     <div class="mykt-overlay-row">
@@ -7268,7 +7266,7 @@
       <img src="./character.jpg" class="chara-img" alt="マイカツ君">
       <div class="mykt-overlay-bubble grading">
         <div style="font-weight:bold;font-size:15px;color:#1d4ed8;margin-bottom:6px">通信エラーで送れませんでした</div>
-        通信の調子が悪くて、あなたの答えを送ることができませんでした。<br>あとで先生に「漢字の書きが送れなかった」と伝えてください。<br>（今日はこのままホームに戻ってください。）
+        通信の調子が悪くて、あなたの答えを送ることができませんでした。<br>ノートの写真を「春アカ公式LINE」に送り直してください。<br>先生がそれを見てHPを付与します。
       </div>
     </div>
     <div class="mykt-overlay-btns">
@@ -7303,22 +7301,6 @@
     </div>
     <div class="mykt-overlay-btns">
       <button class="btn-retry" onclick="_kanjiReleasedWrongConfirmed()">分かりました</button>
-    </div>
-  </div>
-</div>
-<div id="kanji-line-overlay" class="mykt-overlay">
-  <div class="mykt-overlay-card">
-    <div class="mykt-overlay-row">
-      <img src="images/kanjii-encourage.png" class="chara-img" alt="カンジー">
-      <div class="mykt-overlay-bubble">
-        <!-- 2026-10-22 文言確定（ふくち）：問い合わせを尽くしても結果が取れなかった時だけ出る。
-             ★「答案は届いている」とは書かない（送る前の通信エラーでもここに来るため）。絵もカンジーに合わせた。 -->
-        <div style="font-weight:bold;font-size:15px;color:#9a3412;margin-bottom:6px">採点の結果を、うまく確かめられなんだのじゃ。</div>
-        すまぬが、ノートの写真を「春アカ公式LINE」に送ってくれるか。<br>先生が見てHPを付けてくださるゆえ、安心するのじゃ。
-      </div>
-    </div>
-    <div class="mykt-overlay-btns">
-      <button class="btn-retry" onclick="_kanjiLineConfirmed()">分かりました</button>
     </div>
   </div>
 </div>
@@ -19243,7 +19225,9 @@
   function _lisonMyEsc(v) {
     return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-  var LISON_MY_LEVEL_LABELS = { '4': '英検4級', '3': '英検3級', 'pre2': '英検準2級', '2': '英検2級', 'pre1': '英検準1級' };
+  // ★2026-11-20：準2級プラス（pre2plus）と1級（1）が抜けていて、録音の見出しが「英検pre2plus級」と出ていた。
+  //   ★表記は LISON_LEVEL_DEFS（上の 19179・この画面の正）から「レベル」を落とした形＝この表の既存5件と同じ作法に揃える。
+  var LISON_MY_LEVEL_LABELS = { '4': '英検4級', '3': '英検3級', 'pre2': '英検準2級', 'pre2plus': '英検準2級プラス', '2': '英検2級', 'pre1': '英検準1級', '1': '英検1級' };
   function _lisonMyLevelLabel(lv) {
     var v = String(lv || '').trim();
     return LISON_MY_LEVEL_LABELS[v] || (v ? ('英検' + v + '級') : 'リスオン');
@@ -25092,27 +25076,6 @@
     if (kind !== 'server') { try { gasPost({ action: 'reportUnsentOnLogin', studentId: _studentId, lineWaitContent: label }, 20000).catch(function(){}); } catch(e){} }
     try { goHome(); } catch(e){}
   }
-  // （2026-10-24 以降は使っていない）2026-09-18：カンジー『書き』の採点がサーバー側で失敗（Gemini 落ち・429・通信・タイムアウト）した時の LINE 案内。
-  //   ★res.retake（写真が読めない＝撮り直しで直る）には使わない。採点そのものが止まった時だけ。
-  //   手本＝lison-escape-overlay / photo-escape-overlay（LINE へ回して先生が HP 付与）。
-  function _showKanjiLineHandoff() {
-    // 採点失敗はリトライで直らない（サーバーが止まっている）ため、共通エラーの
-    // 「もう一度送信する」経路（_pendingRetry/_pendingDismiss）はクリアして誤発火を防ぐ。
-    _pendingRetry = null;
-    _pendingDismiss = null;
-    var ov = document.getElementById('kanji-line-overlay');
-    if (ov) { ov.classList.add('active'); return; }
-    _kanjiLineConfirmed();   // オーバーレイが無い異常時でも詰まらせない
-  }
-  // 「分かりました」→ LINE 回送を記録して学習メニューへ（リスオン _lisonEscapeConfirmed と同作法・閉じ込め回避）。
-  function _kanjiLineConfirmed() {
-    try {
-      var ov = document.getElementById('kanji-line-overlay');
-      if (ov) ov.classList.remove('active');
-    } catch(e){}
-    try { _recordLineHandoff('カンジー書き(LINEへ)'); } catch(e){}
-    try { goContentMenu(); } catch(e){}
-  }
   // ★★2026-10-31 段階2（塾長決定）：解放の案内を出す（マイカツ君）。
   //   ★文面はサーバーの message をそのまま（画面側に文面を持たない）。
   //   ★オーバーレイが無い異常時でも詰まらせない（必ず HP 獲得画面へ進ませる）。既存 _showKanjiKakiGiveUp と同作法。
@@ -29006,7 +28969,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-2034</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-2226</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

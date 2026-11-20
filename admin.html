@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261120-2034"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261120-2226"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -10471,7 +10471,9 @@
   var _lisonRecListCache   = {};
 
   // レベル文字列 → 表示ラベル
-  var LISON_LEVEL_LABELS = { '4':'4級', '3':'3級', 'pre2':'準2級', '2':'2級', 'pre1':'準1級' };
+  // ★2026-11-20：準2級プラス（pre2plus）と1級（1）が抜けていて、録音カードの級バッジが「pre2plus級」と出ていた。
+  //   ★名前は生徒画面の LISON_LEVEL_DEFS（index.html・正）に揃え、形はこの表の既存5件と同じ短い形にする（バッジが細いため）。
+  var LISON_LEVEL_LABELS = { '4':'4級', '3':'3級', 'pre2':'準2級', 'pre2plus':'準2級プラス', '2':'2級', 'pre1':'準1級', '1':'1級' };
   function _lisonLevelLabel(lv) { return LISON_LEVEL_LABELS[String(lv || '').trim()] || (String(lv || '') + '級'); }
 
   // ダッシュボードから生徒一覧画面へ
@@ -19925,7 +19927,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-2034</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261120-2226</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
