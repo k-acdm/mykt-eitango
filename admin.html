@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261121-2206"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261121-2230"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -4369,6 +4369,13 @@
       該当生徒に「もう一度やってみてね」と声かけして手動でやり直してもらってください。
     </div>
     <button class="submit-btn" style="margin-bottom:14px" onclick="loadUnsentReports(true)">🔄 最新データ取得</button>
+    <!-- ★★2026-11-21（塾長要望）：未処理／処理済み で分ける。カンジーの「採点できなかった答案」(#kf-tabbar) と
+         同じ作り（.grid-tabbar / .grid-tab-btn）＝★新しい CSS クラスは増やさない。
+         ★ラベルの件数は _urSyncTabUi が書き換える。★既定は「未処理」。 -->
+    <div class="grid-tabbar" id="ur-tabbar">
+      <button type="button" class="grid-tab-btn active" data-urtab="open" onclick="urSwitchTab('open')">🚨 未処理</button>
+      <button type="button" class="grid-tab-btn"        data-urtab="done" onclick="urSwitchTab('done')">✅ 処理済み</button>
+    </div>
     <div id="unsent-reports-summary" class="hp-attempts-summary"></div>
     <div id="unsent-reports-body"><div class="hp-attempts-empty">⏳ 読み込み中...</div></div>
 
@@ -7549,6 +7556,7 @@
     try { _notifySeenSet(NOTIFY_SEEN_UNSENT); _notifyCounts.unsent = 0; _applyNotifyBadges(); } catch(e){}
     _showScreen('screen-admin-unsent-reports');
     window.scrollTo(0, 0);
+    _urTab = 'open';   // ★2026-11-21：画面を開いたときは必ず「未処理」から（前に見ていたタブを持ち越さない）
     loadUnsentReports(false);
     loadApologyPending(false);   // 2026-08-30 純追加：お詫びHP（承認待ち）の一覧 ★先生の対応が要るので先に読む
     loadApologyGranted(false);   // 2026-08-25 純追加：お詫びHP（自動付与）の一覧
@@ -7824,6 +7832,34 @@
       showToast('通信エラーが発生しました', 'error');
     });
   }
+  // ★★2026-11-21（塾長要望）：未処理／処理済み で分ける。★カンジーの「採点できなかった答案」(#kf-tabbar) と同じ作り。
+  //   ★サーバー（AWS de36bb3 / ed6f8a6）が足したキー：id / resolved / resolvedAt / resolvedBy / resolvedBySelf（★純追加・既存6キーは不変）。
+  //     ★resolved       ＝ 塾長が「処理済み」を押した（★保存されている値なので★戻せる）
+  //     ★resolvedBySelf ＝ 生徒が自分でやり直して成功した（★計算で出している値。★戻しても次の読み込みで
+  //       また処理済みに戻るので、★この行には「未処理に戻す」を出さない＝押せると混乱するため）
+  //   ★キーが無い古い応答は undefined ＝ === true で見るので「未処理」に入る（壊れない・取りこぼさない）。
+  var _urRows = [];       // adminListUnsentReports の reports（全件。タブで分けるのは手元）
+  var _urTab  = 'open';   // いま見ているタブ。'open'＝未処理 ／ 'done'＝処理済み。★既定は未処理
+  function _urIsDone(r) { return !!(r && (r.resolved === true || r.resolvedBySelf === true)); }
+  function _urIsSelf(r) { return !!(r && r.resolvedBySelf === true); }
+  // ★【LINE待ち】で始まる行＝生徒がLINEに送って先生のHP付与を待っている。★押す前に分かるよう印を付ける。
+  function _urIsLineWait(r) { return /^【LINE待ち】/.test(String((r && r.summary) || '')); }
+  // タブの見た目（どちらが選ばれているか）とラベルの件数。★既存 _kfSyncTabUi と同じ作法。
+  function _urSyncTabUi() {
+    var openN = 0, doneN = 0;
+    for (var i = 0; i < _urRows.length; i++) { if (_urIsDone(_urRows[i])) doneN++; else openN++; }
+    var tabs = document.querySelectorAll('#ur-tabbar .grid-tab-btn');
+    for (var j = 0; j < tabs.length; j++) {
+      var key = tabs[j].dataset.urtab;
+      tabs[j].classList.toggle('active', key === _urTab);
+      tabs[j].textContent = (key === 'open') ? ('🚨 未処理（' + openN + '）') : ('✅ 処理済み（' + doneN + '）');
+    }
+  }
+  // タブ切替。★サーバーは呼ばない（もう全件持っているので、手元で分けて描き直すだけ）。
+  function urSwitchTab(tab) {
+    _urTab = (tab === 'done') ? 'done' : 'open';
+    _renderUnsentReports();
+  }
   function loadUnsentReports(force) {
     var body = document.getElementById('unsent-reports-body');
     var sumEl = document.getElementById('unsent-reports-summary');
@@ -7837,32 +7873,99 @@
         return;
       }
       _unsentReportsLoaded = true;
-      var reports = res.reports || [];
-      if (sumEl) sumEl.innerHTML = '直近 <strong>' + reports.length + '</strong> 件の未送信レポート（新しい順）';
-      if (reports.length === 0) {
-        if (body) body.innerHTML = '<div class="hp-attempts-empty">未送信レポートはまだありません（＝直近で未送信を検知した生徒はいません）。</div>';
-        return;
-      }
-      var rows = reports.map(function(r){
-        var mn = Number(r.manualCount) || 0, rc = Number(r.resendCount) || 0;
-        var badge = (mn > 0)
-          ? '<span class="hp-attempts-badge-failed">やり直し ' + mn + '</span>'
-          : '<span class="hp-attempts-badge-ok">再送待ち ' + rc + '</span>';
-        var who = _esc(r.studentName || '') + '（' + _esc(r.studentId || '') + '）';
-        return '<tr' + (mn > 0 ? ' class="row-failed"' : '') + '>'
-             + '<td style="white-space:nowrap">' + _esc(r.timestamp || '') + '</td>'
-             + '<td>' + who + '</td>'
-             + '<td style="text-align:center">' + badge + '</td>'
-             + '<td>' + _esc(r.summary || '') + '</td>'
-             + '</tr>';
-      }).join('');
-      if (body) body.innerHTML = '<div style="overflow-x:auto"><table class="hp-attempts-table">'
-        + '<thead><tr><th>検知日時</th><th>生徒</th><th>種別</th><th>内容概要</th></tr></thead>'
-        + '<tbody>' + rows + '</tbody></table></div>';
+      _urRows = res.reports || [];
+      _renderUnsentReports();
     }).catch(function(err){
       if (body) body.innerHTML = '<div class="hp-attempts-empty">⚠️ 通信エラー：' + _esc(String(err && err.message || err)) + '</div>';
     });
   }
+  // ★描画だけを切り出した（タブ切替で、サーバーを呼ばずに描き直すため）。★表の中身は従来どおり＋操作列1つ。
+  function _renderUnsentReports() {
+    var body = document.getElementById('unsent-reports-body');
+    var sumEl = document.getElementById('unsent-reports-summary');
+    if (sumEl) sumEl.innerHTML = '直近 <strong>' + _urRows.length + '</strong> 件の未送信レポート（新しい順）';
+    _urSyncTabUi();   // ★タブのラベル（件数）と選択状態を合わせる
+    if (_urRows.length === 0) {
+      if (body) body.innerHTML = '<div class="hp-attempts-empty">未送信レポートはまだありません（＝直近で未送信を検知した生徒はいません）。</div>';
+      return;
+    }
+    // ★いま見ているタブの行だけを描く。★元の行番号（_urRows の位置）を持ったまま絞る＝ボタンに渡す番号がずれない。
+    var view = _urRows.map(function(r, i){ return { r: r, i: i }; })
+                      .filter(function(x){ return _urIsDone(x.r) === (_urTab === 'done'); });
+    if (!view.length) {
+      if (body) body.innerHTML = '<div class="hp-attempts-empty">' +
+        ((_urTab === 'done') ? '処理済みのレポートはありません' : '未処理のレポートはありません') + '</div>';
+      return;
+    }
+    var rows = view.map(function(x){
+      var r = x.r, i = x.i;
+      var mn = Number(r.manualCount) || 0, rc = Number(r.resendCount) || 0;
+      var lw = _urIsLineWait(r);
+      // ★種別：【LINE待ち】の行は★それと分かる印に差し替える（★既存のバッジ CSS をそのまま使う＝新しい見た目を作らない）。
+      var badge = lw
+        ? '<span class="hp-attempts-badge-failed">📮 LINE待ち</span>'
+        : ((mn > 0)
+            ? '<span class="hp-attempts-badge-failed">やり直し ' + mn + '</span>'
+            : '<span class="hp-attempts-badge-ok">再送待ち ' + rc + '</span>');
+      var who = _esc(r.studentName || '') + '（' + _esc(r.studentId || '') + '）';
+      // ★処理済みの行は、★誰が・いつ閉じたかを「内容概要」の欄に添える（★列は増やさない。カンジーと同じ作法）。
+      //   ★自己解決は★塾長が押した処理済みと区別が付く文言にする。
+      var note = '';
+      if (_urIsSelf(r)) {
+        note = '<br><span class="kf-noimg">🔁 生徒が自分でやり直した（自動で処理済み）</span>';
+      } else if (r.resolved === true) {
+        note = '<br><span class="kf-noimg">✅ 処理済み' +
+               ((r.resolvedBy || r.resolvedAt) ? '（' + _esc(String(r.resolvedBy || '')) +
+                 (r.resolvedAt ? ' / ' + _esc(String(r.resolvedAt)) : '') + '）' : '') + '</span>';
+      }
+      // ★操作：サーバーが管理者限定なので、講師には出さない（押してもエラーになるだけ）。
+      //   ★★自己解決の行には「未処理に戻す」を出さない（計算値なので戻しても次の読み込みで処理済みに戻る）。
+      var act = '';
+      if (_pxIsAdmin() && r.id) {
+        if (!_urIsDone(r)) {
+          act = '<button type="button" class="btn-mini" onclick="urResolve(' + i + ', this)">処理済み</button>';
+        } else if (!_urIsSelf(r) && r.resolved === true) {
+          act = '<button type="button" class="btn-mini" onclick="urUnresolve(' + i + ', this)">未処理に戻す</button>';
+        }
+      }
+      return '<tr' + ((lw || mn > 0) ? ' class="row-failed"' : '') + '>'
+           + '<td style="white-space:nowrap">' + _esc(r.timestamp || '') + '</td>'
+           + '<td>' + who + '</td>'
+           + '<td style="text-align:center">' + badge + '</td>'
+           + '<td>' + _esc(r.summary || '') + note + '</td>'
+           + '<td style="white-space:nowrap">' + act + '</td>'
+           + '</tr>';
+    }).join('');
+    if (body) body.innerHTML = '<div style="overflow-x:auto"><table class="hp-attempts-table">'
+      + '<thead><tr><th>検知日時</th><th>生徒</th><th>種別</th><th>内容概要</th><th>操作</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div>';
+  }
+  // ★★2026-11-21：処理済みにする／未処理に戻す。★カンジーの _kfSetDeclined と同じ作法。
+  //   ★サーバー（AWS de36bb3）：adminResolveUnsentReport / adminUnresolveUnsentReport（★どちらも POST・管理者限定）。
+  //   ★★already: true は「もう同じ状態だった」＝★成功として扱う（押し間違いの連打でエラーを出さない）。
+  //   ★送ったあとは loadUnsentReports(true) で★引き直す＝件数とタブの振り分けを自分で計算しない（ずれようがない）。
+  function _urSetResolved(i, action, okMsg, btn) {
+    var r = _urRows[i];
+    if (!r || !r.id) return;
+    var orig = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 処理中...'; }
+    adminGasPost({ action: action, id: Number(r.id) }).then(function(res) {
+      if (!res || !res.ok) {
+        var em = _pxErr(res);
+        if (_handleAdminApiError(em)) return;
+        if (btn) { btn.disabled = false; btn.textContent = orig; }
+        showToast('失敗：' + em, 'error');
+        return;
+      }
+      showToast(res.already === true ? (okMsg + '（すでに同じ状態でした）') : okMsg, 'success');
+      loadUnsentReports(true);   // ★引き直す（自前で件数を動かさない）
+    }).catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = orig; }
+      showToast('通信エラー', 'error');
+    });
+  }
+  function urResolve(i, btn)   { _urSetResolved(i, 'adminResolveUnsentReport',   '処理済みにしました', btn); }
+  function urUnresolve(i, btn) { _urSetResolved(i, 'adminUnresolveUnsentReport', '未処理に戻しました', btn); }
 
   function goAdminHpAttempts() {
     _showScreen('screen-admin-hp-attempts');
@@ -19978,7 +20081,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261121-2206</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261121-2230</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
