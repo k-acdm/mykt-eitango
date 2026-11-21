@@ -3760,10 +3760,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261121-2230"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261121-2311"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261121-2230">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261121-2230"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261121-2311">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261121-2311"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -8314,7 +8314,7 @@
     return y + '-' + (m < 10 ? '0' + m : m) + '-' + (dd < 10 ? '0' + dd : dd);
   }
   // 和文英訳① 素点HP の日付分岐：2026-04-29 以降の教育日（JST 4 時区切り、4/29 当日含む）から 200、それ以前は 100
-  // GAS submitWabun1 と同じ基準で揃える。
+  // サーバー側 submitWabun1 と同じ基準で揃える（★旧称 GAS＝2026-08 に AWS へ移行済）。
   function _wabun1BaseHp() { return (_todayKeyJST3am() >= '2026-04-29') ? 200 : 100; }
   function _applyWabun1HpBadge() {
     var el = document.getElementById('badge-wabun1-hp');
@@ -13958,7 +13958,8 @@
     // 2026-05-27 Phase 4-2：送信中オーバーレイを表示（マイカツ君イラスト + 警告メッセージ）。
     // サーバー応答を受け取るまで画面操作を物理的にブロックする狙い。
     _showReflectionSendingOverlay();
-    // submitReflection は doPost 強制（gas/Code.js 1237 行）。
+    // submitReflection は doPost 強制（★サーバー側の仕様。現在の実装は別リポ mykt-eitango-aws）。
+    //   ★「gas/Code.js 1237 行」とあったのは★GAS時代の記録。gas/Code.js は 2026-08 の AWS 移行で退役済み。
     // wordCount は実質文字数（サーバー側もこの値でバリデーション）。
     gasPost({
       action:    'submitReflection',
@@ -14917,13 +14918,19 @@
   // =====================================================================
   // 【type 判定一元化・第0段】CONTENT_TYPE_DEFS フロントミラー（2026-06-19）
   //
-  // GAS の gas/Code.js 内 CONTENT_TYPE_DEFS と「完全に同一内容」を保つこと。
-  //   GAS から import できないため二重定義。将来は起動時パリティ検証で同期を担保する。
+  // ★★サーバー側（別リポ mykt-eitango-aws）の CONTENT_TYPE_DEFS と「完全に同一内容」を保つこと。
+  //   サーバーから import できないため二重定義。将来は起動時パリティ検証で同期を担保する。
+  //
+  // ★★2026-11-21 訂正（★揃える相手を間違えないため）：
+  //   ★元は「GAS の gas/Code.js 内 CONTENT_TYPE_DEFS と揃えること」と書いていた（2026-06-19 当時はそれが正しかった）。
+  //   ★gas/Code.js は 2026-08 の AWS 移行で★退役した（最終更新 2026-07-08）。★リポジトリにはまだ残っていて
+  //     ★CONTENT_TYPE_DEFS も入っているので、★そのまま信じて揃えると★当時の内容へ巻き戻る。
+  //   ★★揃える相手は★常に稼働中のサーバー（mykt-eitango-aws）。★gas/Code.js は参照しないこと。
   //
   // ★第0段の鉄則：既存コードに一切接続しない。定義とヘルパーを置くだけ。
   //   名称/アイコン解決の差し替え（既存表示ロジックを本ヘルパーに向ける）は後の段で行う。
   //
-  //   - key/rawType/match/name/icon は GAS 側と 1:1 一致させる。
+  //   - key/rawType/match/name/icon はサーバー側と 1:1 一致させる。
   //   - icon はマスコット prefix（このフロントの images/<icon>-default.png のルート名）。
   //   - match 種別：exact / prefix / exactOrPrefix(calctrial) / prefixOrExact(mytask)。
   //   - kokugo_800 / kokugo_1200 はどちらも key='kokugo'。
@@ -14948,7 +14955,7 @@
   // 参考用：定義順のキー配列（表示順序の土台。第0段では既存コードに接続しない）。
   var DISPLAY_ORDER_UNIFIED = CONTENT_TYPE_DEFS.map(function(d){ return d.key; });
 
-  // 1 つの def に rawType がマッチするか（純関数・副作用なし）。GAS 版と同一ロジック。
+  // 1 つの def に rawType がマッチするか（純関数・副作用なし）。サーバー版と同一ロジック。
   function _contentTypeMatchesDef(t, def) {
     var pats = (Object.prototype.toString.call(def.rawType) === '[object Array]') ? def.rawType : [def.rawType];
     for (var j = 0; j < pats.length; j++) {
@@ -15004,7 +15011,7 @@
     return null;
   }
 
-  // rawType もしくは key から icon（マスコット prefix）を返す（無ければ null）。GAS版と同一ロジック。
+  // rawType もしくは key から icon（マスコット prefix）を返す（無ければ null）。サーバー版と同一ロジック。
   //   解決順は classify → key。kokugo_800/1200 → 'japanin'。
   function _contentIconUnified(rawTypeOrKey) {
     var t = String(rawTypeOrKey == null ? '' : rawTypeOrKey).trim();
@@ -19544,7 +19551,7 @@
   // -----------------------------------------------------
   // Step 3: 正誤問題（3問）
   // -----------------------------------------------------
-  // 4 級は ○/✖、その他は T/F（GAS の LisonContents の値と一致）
+  // 4 級は ○/✖、その他は T/F（サーバー側 LisonContents の値と一致。★旧称 GAS＝2026-08 に AWS へ移行済）
   function _lisonAnswerOptions() {
     var def = _lisonState.levelDef || {};
     return def.useTF ? ['T', 'F'] : ['○', '✖'];
@@ -28335,7 +28342,8 @@
     b.style.display = 'block';
   }
   function _hideOfflineBanner() { var b = document.getElementById('mykt-offline-banner'); if (b) b.style.display = 'none'; }
-  // 軽量 ping（gas/Code.js の action==='ping' → {ok:true}）。短いタイムアウトで疎通だけ確認。
+  // 軽量 ping（サーバーの action==='ping' → {ok:true}）。短いタイムアウトで疎通だけ確認。
+  //   ★2026-11-21 訂正：元は「gas/Code.js の action==='ping'」。gas/Code.js は 2026-08 の AWS 移行で退役済み。
   function _pingOnline() {
     return gasGetWithTimeout({ action: 'ping' }, 8000)
       .then(function(r){ return !!(r && r.ok); })
@@ -29001,7 +29009,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261121-2230</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261121-2311</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');

@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>管理画面 | マイ活アプリ</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261121-2230"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js?v=20261121-2311"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f4f6fb; color: #333; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -18004,7 +18004,8 @@
   //   ★ 配信用は JPEG（toDataURL('image/jpeg', 0.9)）。「画像として保存」の PNG とは別系統。
   //   ★ 配信メッセージは GAS 側で [1]画像 → [2]テキスト の順に組む。テキストはここから送る。
   // =============================================================
-  // GAS 側 RANKING_LINE_DEFAULT_TEXT と一字一句一致させる（クライアントから送る正式文言）。
+  // サーバー側 RANKING_LINE_DEFAULT_TEXT と一字一句一致させる（クライアントから送る正式文言）。
+  //   ★旧称 GAS＝2026-08 に AWS へ移行済。★揃える相手は mykt-eitango-aws（gas/Code.js は退役）。
   var RANKING_LINE_TEXT = 'マイ活アプリ、先週の週間HPランキングです👆\n今週も、地道にコツコツ✨継続こそ力なり✨';
 
   // 共通の事前チェック（ランキング描画済みか）。OK なら true。
@@ -20081,7 +20082,7 @@
     }
   })();
 </script>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261121-2230</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261121-2311</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
