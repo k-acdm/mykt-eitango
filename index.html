@@ -3760,10 +3760,10 @@
       startup: { typeset: false }
     };
   </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261121-0550"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js?v=20261121-2206"></script>
   <!-- 切り抜き機能（写真提出系コンテンツの OCR 救済用、2026-05-02 追加） -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261121-0550">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261121-0550"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css?v=20261121-2206">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js?v=20261121-2206"></script>
 </head>
 <body>
 <!-- ログアウト直前の振り返り入力モーダル（z-index 10000、他オーバーレイの上に常駐） -->
@@ -20000,7 +20000,9 @@
     //   ★画面は「先生がそれを聞いてHPを付与します」と生徒に約束しているのに、端末の中に留まっていた。
     //   ★撃ったら忘れる：完了を待たない（オーバーレイは上で既に閉じている＝生徒を待たせない）。
     //     .catch は握りつぶすだけ（再送しない）。_photoEscapeConfirmed（写真系）と同じ作法。
-    try { gasPost({ action: 'reportUnsentOnLogin', studentId: _studentId, lineWaitContent: '英語リスオン(録音をLINEへ)' }, 20000).catch(function(){}); } catch(e){}
+    //   ★2026-11-21：lineWaitKey（サーバーの content_key）も送る。ここは key 変数が無いので固定値。
+    //     ★語彙は PHOTO_ESCAPE_SERVER_KEY（写真系の対応表）と同じもの＝'lison'。
+    try { gasPost({ action: 'reportUnsentOnLogin', studentId: _studentId, lineWaitContent: '英語リスオン(録音をLINEへ)', lineWaitKey: 'lison' }, 20000).catch(function(){}); } catch(e){}
     try { _lisonStopSpeakingAll(); } catch(e){}
     try { _lisonResetState(); } catch(e){}   // 録音ストリーム完全停止 + 状態リセット
     try { goContentMenu(); } catch(e){}
@@ -25073,7 +25075,9 @@
     // ★2026-11-20：'net'（＝答案がサーバーに届いていない）側だけ、その場でサーバーへ1本送る。
     //   ★'server' 側は送らない。答案はサーバーに届いているので、塾長は答案そのものを見つけられる。
     //   ★撃ったら忘れる：完了を待たない。.catch は握りつぶすだけ（_photoEscapeConfirmed と同じ作法）。
-    if (kind !== 'server') { try { gasPost({ action: 'reportUnsentOnLogin', studentId: _studentId, lineWaitContent: label }, 20000).catch(function(){}); } catch(e){} }
+    //   ★2026-11-21：lineWaitKey（サーバーの content_key）も送る。ここは key 変数が無いので固定値。
+    //     ★語彙は PHOTO_ESCAPE_SERVER_KEY（写真系の対応表）と同じもの＝'kanji'。
+    if (kind !== 'server') { try { gasPost({ action: 'reportUnsentOnLogin', studentId: _studentId, lineWaitContent: label, lineWaitKey: 'kanji' }, 20000).catch(function(){}); } catch(e){} }
     try { goHome(); } catch(e){}
   }
   // ★★2026-10-31 段階2（塾長決定）：解放の案内を出す（マイカツ君）。
@@ -28729,6 +28733,24 @@
     // ★2026-11-20：マイ課題も代理実施の対象になった（サーバー 4daf482）ので、案内した先がちゃんと繋がる。
     mytask: 'マイ課題(LINEへ送り直す)'
   };
+  // ★2026-11-21：↑のUIキー → ★サーバーの content_key（hp_grants.content_key）の対応表。
+  //   ★★表示名ではなく「キー → キー」で持つ。サーバー側（ed6f8a6）はこのキーで突き合わせ、
+  //     生徒が自分でやり直して成功した行を★自動で「処理済み」へ回す。
+  //   ★★eiken5 はフロント内部だけのキーで、★サーバーには存在しない（正しくは eitango）。
+  //     そのまま送ると英単語RUSH(5級)だけ★永久に自己解決と判定されない（★しかもエラーは出ない）。
+  //   ★★ここに無いキーは lineWaitKey を送らないこと（推測で埋めない＝従来どおりの動きに落ちるだけ）。
+  //   ★★PHOTO_ESCAPE_LABELS のすぐ隣に置くこと。離すと、改名したとき grep で見つからなくなる
+  //     （2026-11-20 に PHOTO_ESCAPE_MARK_PREFIX で実際に起きた）。
+  //   ★サーバーの語彙（これ以外は送らない）：eitango / sango / wabun1 / kiso / kanji / kobun /
+  //     lison / calctrial / phonics / kokugo / rika / shakai / mytask / oriwantes
+  var PHOTO_ESCAPE_SERVER_KEY = {
+    kiso:   'kiso',
+    kanji:  'kanji',
+    eiken5: 'eitango',   // ★★ここだけ名前が違う（フロント eiken5 ／ サーバー eitango）
+    sango:  'sango',
+    wabun1: 'wabun1',
+    mytask: 'mytask'
+  };
   var _photoEscapeFailed = {};   // contentKey -> true（写真送信に失敗した後だけ true）
   var _photoEscapePending = '';  // 案内オーバーレイで「分かりました」を待っているコンテンツ
 
@@ -28834,7 +28856,17 @@
     //     .catch は握りつぶすだけ（再送しない）。recordContentStart（15350 / 16416 行）と同じ作法。
     //   ★key が空のときは送らない（連打で2回目が走っても重複通知にしないため）。
     //   ★受け口はサーバー側 e73727e。ラベルは PHOTO_ESCAPE_LABELS のまま（(LINEへ送り直す) 付き）。
-    if (key) { try { gasPost({ action: 'reportUnsentOnLogin', studentId: _studentId, lineWaitContent: PHOTO_ESCAPE_LABELS[key] || '写真' }, 20000).catch(function(){}); } catch(e){} }
+    //   ★2026-11-21：lineWaitKey（サーバーの content_key）を足した。これが揃うと、生徒が自分で
+    //     やり直して成功した行をサーバー（ed6f8a6）が自動で「処理済み」に回す。
+    //     ★lineWaitContent は従来どおり（一覧の表示に使う）。★対応表に無いキーは送らない。
+    if (key) {
+      try {
+        var _lwParams = { action: 'reportUnsentOnLogin', studentId: _studentId, lineWaitContent: PHOTO_ESCAPE_LABELS[key] || '写真' };
+        var _lwKey = PHOTO_ESCAPE_SERVER_KEY[key];
+        if (_lwKey) _lwParams.lineWaitKey = _lwKey;   // ★無いときは送らない＝従来どおりの動きに落ちるだけ
+        gasPost(_lwParams, 20000).catch(function(){});
+      } catch(e){}
+    }
     try { if (key) { _photoEscapeFailed[key] = false; _applyPhotoEscapeVisibility(key); } } catch(e){}
     // 2026-09-08：LINE案内後の最終行き先を学習コンテンツ画面へ（写真提出5コンテンツ一括。判定・仕組みは無変更）。
     try { goContentMenu(); } catch(e){}
@@ -28969,7 +29001,7 @@
      ★.app-version クラスは使わない（::before の 🔄 が二重に出るため）。見た目だけ inline で揃える。
      ★表示／非表示はバッジ本体と連動（showScreen）＝ログイン画面だけ＝誤タップ事故の対策はそのまま。 -->
 <span id="app-version-hint" style="position:fixed;left:10px;bottom:34px;z-index:9600;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:3px 8px;border-radius:4px;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">↓ うまく動かないときはタップ</span>
-<span id="app-version" class="app-version" title="タップで最新版に更新">20261121-0550</span>
+<span id="app-version" class="app-version" title="タップで最新版に更新">20261121-2206</span>
 <script>
   (function(){
     var el = document.getElementById('app-version');
